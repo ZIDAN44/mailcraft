@@ -244,6 +244,7 @@ impl Pool {
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
             Job::StopImport { account, how } => self.stop_import(&account, how),
+            Job::KeepImport { account } => self.keep_import(account),
             Job::DataFileHealth { account } => self.data_file_health(account),
             Job::CompactDataFile { account, mode } => self.compact_data_file(account, mode),
             Job::CancelCompact { account } => self.cancel_compact(&account),

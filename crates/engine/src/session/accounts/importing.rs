@@ -720,7 +720,10 @@ impl Session {
         Ok(serde_json::json!({ "account": account, "importing": true }))
     }
 
-    /// Keep what a stopped import brought in, as it is: it won't go on.
+    /// Keep what a stopped import brought in, as it is: it won't go on. The folder a pause left
+    /// part-way through, kept out of the list until then, comes in with what it has (the network
+    /// side finishes it from the import's note and sends the folders), before the account (a POP
+    /// one) connects; the contacts and calendar read so far are the account's.
     pub fn keep_imported(&mut self, account: &str) -> CmdResult {
         self.stopped_import(account)?;
         self.importing.running.remove(account);
@@ -728,6 +731,8 @@ impl Session {
             row.stage = ImportStage::Done;
             self.save_imports();
         }
+        self.jobs.push(Job::KeepImport { account: account.to_string() });
+        self.load_imported_pim(account);
         if let Some(start) = self.held.remove(account) {
             self.jobs.push(start);
         }

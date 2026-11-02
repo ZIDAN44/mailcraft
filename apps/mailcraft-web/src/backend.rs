@@ -551,6 +551,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::ImportPst { .. }
         | Job::InspectDataFile { .. }
         | Job::StopImport { .. }
+        | Job::KeepImport { .. }
         | Job::ExportPst { .. }
         | Job::DataFileHealth { .. }
         | Job::CompactDataFile { .. }
@@ -692,8 +693,8 @@ impl Backend for WebBackend {
                 let facts = Box::new(DataFileFacts { path: path.clone(), error: Some(DESKTOP_PST.into()), ..DataFileFacts::default() });
                 emit(sh, Event::DataFileInspected { path, facts })
             }
-            // No import runs here to stop.
-            Job::StopImport { .. } => {}
+            // No import runs here to stop, or to keep.
+            Job::StopImport { .. } | Job::KeepImport { .. } => {}
             // The browser keeps mail in its own storage, not in data files.
             Job::DataFileHealth { account } => emit(sh, Event::DataFileHealth { account, health: None, error: None }),
             Job::CompactDataFile { account, mode } => {

@@ -170,6 +170,39 @@ impl Pool {
         }
     }
 
+    /// Keep what an account's stopped import brought in as it is (`pst::keep_as_is`), on a thread
+    /// of its own: the folder it was part-way through comes into the folder list with what it
+    /// has. An import or a compaction asked for meanwhile waits for it, as for an import.
+    pub(super) fn keep_import(&mut self, account: String) {
+        self.prune_imports();
+        if self.importing(&account) {
+            return self.sink.emit(Event::Notice { account, message: "a data file is being imported into this account".into() });
+        }
+        let (sink, store, id) = (self.sink.clone(), self.store.clone(), account.clone());
+        let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
+            match crate::pst::keep_as_is(&store, &account) {
+                Ok(kept) if kept.is_empty() => {}
+                Ok(kept) => {
+                    match store.load_folders(&account) {
+                        Ok(folders) => sink.emit(Event::Folders { account: account.clone(), folders }),
+                        Err(e) => log::warn!("{account}: {e}"),
+                    }
+                    for f in kept {
+                        sink.emit(Event::FolderChanged { account: account.clone(), folder: f.path });
+                    }
+                }
+                Err(e) => sink.emit(Event::Notice { account, message: format!("what the import brought in couldn't all be kept: {e}") }),
+            }
+            Vec::new()
+        });
+        match spawned {
+            Ok(thread) => {
+                self.imports.running.insert(id, ImportCtl { stop: Stop::default(), queue: Arc::default(), thread });
+            }
+            Err(e) => self.sink.emit(Event::Notice { account: id, message: format!("keep: {e}") }),
+        }
+    }
+
     /// Let go of the imports that have ended.
     fn prune_imports(&mut self) {
         let ended: Vec<String> = self.imports.running.iter().filter(|(_, c)| c.thread.is_finished()).map(|(a, _)| a.clone()).collect();

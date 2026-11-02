@@ -16,7 +16,7 @@ use super::super::item::Item;
 use super::super::lanes::tests::Fault;
 use super::super::out::Out;
 use super::super::resume::{self, CHECKPOINT_DOC, CheckState, Checkpoint, Found};
-use super::super::{ImportOptions, Imported, Stop, import_with};
+use super::super::{ImportOptions, Imported, Stop, import_with, keep_as_is};
 use super::pipeline::{data_file, everything};
 use crate::space::{Filling, LOW_SPACE};
 
@@ -226,6 +226,48 @@ fn a_pause_stops_part_way_through_an_item() {
     let (done, _) = go_on(&pst, &store, None);
     assert_eq!((done.messages, done.skipped), (120, 0));
     assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Kept as it is after a pause, or after being cut off past its checkpoint, an import's folder
+/// part-way through comes into the folder list with the messages its checkpoint names, numbered
+/// as they came in, those written past it gone: every message listed has its source, the import
+/// says it's done (gone on with, it answers without reading the file), and keeping it again
+/// changes nothing.
+#[test]
+fn keeping_a_paused_import_lists_the_folder_part_way_through() {
+    let (dir, pst) = data_file("resume-keep", 300, false);
+    let mut written_past = 0;
+    for (n, cut) in [None, Some(Fault::CutOffAfter(450)), Some(Fault::CutOffAfter(520))].into_iter().enumerate() {
+        let store = store_at(&dir, &format!("keep{n}"));
+        match cut {
+            None => assert_eq!(stopped_at(&pst, &store, 400, StopHow::Pause, None).stopped, Some(StopHow::Pause)),
+            Some(fault) => assert!(import_with(&pst, &store, "a1", &often(Some(fault)), &mut |_| {}).is_err()),
+        }
+        let cp = checkpoint(&store);
+        let part = cp.current.clone().filter(|c| c.tail.is_some()).expect("part-way through a folder");
+        assert!(!store.load_folders("a1").unwrap().iter().any(|f| f.path == part.path), "{n}: kept out of the list");
+        written_past += store.cached_bodies("a1", &part.path, 1).into_iter().filter(|u| *u >= part.uid_next).count();
+        let kept = keep_as_is(&store, "a1").unwrap();
+        assert!(kept.iter().any(|f| f.path == part.path), "{n}: kept {kept:?}");
+        let mut listed = 0;
+        for f in store.load_folders("a1").unwrap() {
+            let st = store.load_folder("a1", &f.path).unwrap();
+            assert_eq!(f.total as usize, st.messages.len(), "{n}: {}", f.path);
+            assert!(st.messages.iter().all(|m| store.read_body(&m.key).is_some()), "{n}: {}", f.path);
+            listed += st.messages.len();
+        }
+        assert_eq!(listed as u64, cp.counts.imported, "{n}");
+        let mut uids: Vec<u32> = store.load_folder("a1", &part.path).unwrap().messages.iter().map(|m| m.key.uid).collect();
+        uids.sort_unstable();
+        assert_eq!(uids, (1..part.uid_next).collect::<Vec<u32>>(), "{n}");
+        assert!(store.cached_bodies("a1", &part.path, 1).into_iter().all(|u| u < part.uid_next), "{n}: written past it");
+        assert_eq!(checkpoint(&store).state, CheckState::Done);
+        assert!(keep_as_is(&store, "a1").unwrap().is_empty(), "{n}: kept again");
+        let (done, _) = go_on(&pst, &store, None);
+        assert_eq!(done.messages as u64, cp.counts.imported, "{n}");
+    }
+    assert!(written_past > 0, "no source was written past a checkpoint");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

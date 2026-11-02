@@ -316,7 +316,10 @@ written (`Compose`), preferences and status-bar notices.
   `Done`). `ImportOptions::resume` (`Job::ImportPst{resume}`) goes on from it: done folders are
   skipped, the part-way one reopened (sources past its number dropped, `Store::drop_bodies_from`),
   and a file not the same (`Blocked::SourceChanged`, `SourceMissing`, `Locked`) waits on the
-  user with nothing written; a `Done` note answers without reading the file. The room left where
+  user with nothing written; a `Done` note answers without reading the file. Kept as it is
+  (`Job::KeepImport`, `pst::keep_as_is`), a stopped import's folders kept out of the list (the one
+  part-way through, the Sent Items folder put off) are finished from their tails, sources past
+  them dropped, and listed, and the note says `Done`. The room left where
   the data file is written (`net::space`, `fs4` on the nearest folder there) is asked as the
   import begins, with every checkpoint and every 64 MiB written (`pst/out/room.rs`): under
   `LOW_SPACE` (1 GiB) plus what the data file can grow by in one step (`store::data_file_growth`:

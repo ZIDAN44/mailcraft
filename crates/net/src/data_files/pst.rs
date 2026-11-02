@@ -69,6 +69,7 @@ pub use props::Val;
 pub(crate) use props::{one_off_address, text_of};
 #[doc(hidden)]
 pub use resume::checkpoint_from_bytes;
+pub use resume::keep_as_is;
 
 /// Folders nested deeper than this are left out.
 const MAX_DEPTH: usize = 32;

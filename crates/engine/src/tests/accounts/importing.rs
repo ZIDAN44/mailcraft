@@ -172,8 +172,10 @@ fn an_import_interrupted_goes_on_and_one_stopped_waits_after_a_restart() {
             Err("continue importing the data file, or keep what's imported, first".into())
         );
     }
-    // Kept as it is: the account is any other from then on.
+    // Kept as it is: the account is any other from then on, and the network side lists the
+    // folder a pause left part-way through with what it has.
     s.run("account.keepImported", &json!({"account": stopped})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::KeepImport { account }] if *account == stopped));
     assert!(s.import_state(&stopped).is_none());
     assert_eq!(sources(&s)[&stopped].stage, ImportStage::Done);
     s.run("folder.create", &json!({"account": stopped, "name": "New"})).unwrap();

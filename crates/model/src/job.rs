@@ -167,6 +167,9 @@ pub enum Job {
     /// Stop an account's import, keeping what came in or not as `how` says. Answered by
     /// [`Event::Imported`].
     StopImport { account: String, how: StopHow },
+    /// Keep what a stopped import brought in as it is, the folder it was part-way through
+    /// included: it won't go on. Answered by [`Event::Folders`] when the folder list changed.
+    KeepImport { account: String },
     /// Write the account's mail to an Outlook data file, which opens as `name`.
     ExportPst { account: String, path: String, name: String },
     /// Measure how the account's data file is doing (quick: nothing of the mail is read).
@@ -245,6 +248,7 @@ impl Job {
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
             | Job::StopImport { account, .. }
+            | Job::KeepImport { account }
             | Job::Index { account, .. }
             | Job::StopIndex { account }
             | Job::ExportPst { account, .. }
@@ -608,6 +612,8 @@ mod tests {
         let j = Job::StopImport { account: "a1".into(), how: StopHow::Discard };
         assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
         assert_eq!(Job::InspectDataFile { path: "a.pst".into() }.account(), "");
+        let j = Job::KeepImport { account: "a1".into() };
+        assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
     }
 
     #[test]

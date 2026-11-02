@@ -249,6 +249,37 @@ pub(super) fn load(store: &Store, account: &str) -> Found {
     }
 }
 
+/// Keep what a stopped import brought in as it is: it won't go on. Paused (or stopped for want of
+/// room, or waiting on a file that changed or went), the folder it was part-way through and the
+/// Sent Items folder made to be read last were kept out of the account's folder list; each is
+/// finished now with the messages its checkpoint names (sources written past those go), and
+/// every folder the import made is in the list. The checkpoint then says the import is done.
+/// Returns the folders put in the list (none when there was nothing to finish).
+pub fn keep_as_is(store: &Store, account: &str) -> Result<Vec<Folder>, String> {
+    let mut cp = match load(store, account) {
+        Found::Some(cp) if cp.state != CheckState::Done => *cp,
+        // None, done already, or one that can't be read: what's listed stays as it is.
+        _ => return Ok(Vec::new()),
+    };
+    let listed: HashSet<String> = store.load_folders(account).map_err(|e| e.to_string())?.into_iter().map(|f| f.path).collect();
+    for c in [cp.current.take(), cp.deferred.take()].into_iter().flatten() {
+        // Listed already (cancelled: finished as it stopped), or contacts and calendar items.
+        let Some(tail) = c.tail.filter(|_| !c.path.is_empty() && !listed.contains(&c.path)) else { continue };
+        let list = store.resume_list_writer(account, &c.path, tail).map_err(|e| e.to_string())?;
+        store.drop_bodies_from(account, &c.path, 1, c.uid_next).map_err(|e| e.to_string())?;
+        let head = FolderState { validity: 1, uid_next: c.uid_next, ..Default::default() };
+        let (unread, total) = list.finish(store, &head).map_err(|e| e.to_string())?;
+        if let Some(f) = cp.folders.iter_mut().find(|f| f.path == c.path) {
+            (f.unread, f.total) = (unread, total);
+        }
+    }
+    let missing: Vec<Folder> = cp.folders.iter().filter(|f| !listed.contains(&f.path)).cloned().collect();
+    store.upsert_folders(account, &missing).map_err(|e| e.to_string())?;
+    cp.state = CheckState::Done;
+    store.save_account_doc(account, CHECKPOINT_DOC, &cp).map_err(|e| e.to_string())?;
+    Ok(missing)
+}
+
 /// A checkpoint read for the fuzz target: none when it isn't one that would be gone on from, or
 /// whether it reads back the same once written again.
 #[doc(hidden)]
