@@ -116,13 +116,14 @@ impl BootCard {
                 ))
                 .color(t.dim),
             );
+            // How far, from the database's passes over the file and what each has read of it.
             let permille = progress.permille();
-            if permille > 0 {
-                ui.add_space(8.0);
-                // Its track set off from the card (a light card and the bar's own track are both white).
-                ui.visuals_mut().extreme_bg_color = t.hover;
-                ui.add(egui::ProgressBar::new(permille as f32 / 1000.0).desired_width(ui.available_width()).fill(t.accent));
-            }
+            ui.add_space(8.0);
+            // Its track set off from the card (a light card and the bar's own track are both white).
+            ui.visuals_mut().extreme_bg_color = t.hover;
+            ui.add(egui::ProgressBar::new(permille as f32 / 1000.0).desired_width(ui.available_width()).fill(t.accent));
+            ui.add_space(4.0);
+            ui.label(RichText::new(tf!("{percent}% checked", percent = permille / 10)).color(t.faint));
         }
         let (done, total) = progress.files();
         if total > 1 {

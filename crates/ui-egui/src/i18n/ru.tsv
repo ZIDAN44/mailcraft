@@ -1368,6 +1368,7 @@ month	May	Май
 	Checking your data file	Проверка файла данных
 	Opening your mail…	Открытие почты…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	Файл {file} в прошлый раз не был закрыт правильно. MailCraft проверяет его; для большого файла это может занять минуту-другую.
+	{percent}% checked	Проверено {percent}%
 	{done} of {total} data files	{done} из {total} файлов данных
 	Some of your mail couldn't be opened	Часть почты не удалось открыть
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft откроется без них; каждая учётная запись сообщит о проблеме, когда вы её откроете.

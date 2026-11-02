@@ -88,6 +88,42 @@ fn a_check_names_its_file() {
     assert_eq!(p.stage(), OpenStage::Opening);
 }
 
+/// How far a check is goes on between the few times the database says (as each of its passes
+/// over the file begins), as far as its pass has read of the file, short of where the next one
+/// begins; what's said never goes back, and the next file starts again. It stood at 0, 60 and
+/// 90% for the whole of a 105 s check of a 37 GB file.
+#[test]
+fn a_check_says_how_far_its_pass_has_read() {
+    let near = |p: &crate::OpenProgress, want: u32| {
+        let got = p.permille();
+        assert!(got.abs_diff(want) <= 1, "{got}, not {want}");
+    };
+    let p = crate::OpenProgress::default();
+    p.opening("zoe@studio.example.mailcraft");
+    p.read(5000);
+    p.sized(1000);
+    p.checking("zoe@studio.example.mailcraft", 0.0);
+    near(&p, 0);
+    p.read(500);
+    near(&p, 297);
+    p.read(5000);
+    near(&p, 594);
+    p.checking("zoe@studio.example.mailcraft", 0.6);
+    near(&p, 600);
+    p.read(250);
+    near(&p, 674);
+    // Rolled back to the last commit, the database says less; the card doesn't.
+    p.checking("zoe@studio.example.mailcraft", 0.3);
+    near(&p, 674);
+    // The next file starts again, whether opening it was said (the app's way) or not (the
+    // command line's, which opens a file when it's first asked for).
+    p.checked_one();
+    p.checking("ana@studio.example.mailcraft", 0.0);
+    near(&p, 0);
+    p.opening("lee@studio.example.mailcraft");
+    near(&p, 0);
+}
+
 /// Each check is told and counted, data files opened one by one as they're needed included (the
 /// command line's way, where none is counted as opened): the first one's name stayed, and later
 /// checks went untold.

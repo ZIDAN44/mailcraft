@@ -450,13 +450,13 @@ impl Packs {
     /// handles of its own (`handles.rs`).
     #[cfg(not(any(test, feature = "test-drive")))]
     fn create(&self, b: &redb::Builder, path: &Path) -> std::result::Result<Database, redb::DatabaseError> {
-        b.create_with_backend(super::handles::DataFile::open(path)?)
+        b.create_with_backend(super::handles::DataFile::open(path)?.counted(&self.progress))
     }
 
     /// …on a drive a test can fill ([`Packs::full`]).
     #[cfg(any(test, feature = "test-drive"))]
     fn create(&self, b: &redb::Builder, path: &Path) -> std::result::Result<Database, redb::DatabaseError> {
-        super::filling::create(b, path, &self.full)
+        super::filling::create(b, path, &self.full, &self.progress)
     }
 
     /// How a data file named `name` opens: its cache of `cache` bytes, and its check (if it needs
@@ -464,8 +464,12 @@ impl Packs {
     fn builder(&self, name: &str, checked: &Arc<AtomicBool>, cache: usize) -> redb::Builder {
         let mut b = Database::builder();
         let (progress, name, checked) = (self.progress.clone(), name.to_string(), checked.clone());
+        // Its size, for how far a pass over it has come.
+        let path = self.dir.join(&name);
         b.set_cache_size(cache).set_repair_callback(move |s| {
-            checked.store(true, Ordering::Release);
+            if !checked.swap(true, Ordering::AcqRel) {
+                progress.sized(fs::metadata(&path).map_or(0, |m| m.len()));
+            }
             progress.checking(&name, s.progress());
         });
         b

@@ -2371,3 +2371,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   seconds of an ordinary write (a read mark, a short move) still checks the whole file (83 s
   after a kill 3 s into a session of read marks); emptying or deleting a big folder writes a
   commit per message, each unsealed.
+- **How far the check of a data file is, in percent:** the card shown while a data file not
+  closed properly is checked says how far it is ("42% checked") under its bar. The database says
+  so only as each of its passes over the file begins (0, 60 and 90%), so the bar stood still for
+  most of a check of minutes; now it moves on by the share of the file each pass has read. On the
+  37 GB copy it counted from 1% to 89% over the 83 s of a check, a point every 0.7 s through the
+  first pass and every 1.4 s through the second (the database gives them 60 and 30 points), and
+  never goes back.

@@ -122,7 +122,10 @@ file, so nothing still holds the file open. Opening a data file holds no lock ov
 account is marked as opening, and only a reader of that account waits for it (a full check takes
 minutes on a big file). `Store::packed` opens nothing; `Store::open_data_files` brings folders from
 before in, then opens every data file in turn, saying how it goes in `OpenProgress` (which file,
-whether it's being checked and how far, and the ones that couldn't be opened). The desktop app
+whether it's being checked and how far, and the ones that couldn't be opened). The database says
+how far its check is only as each pass over the file begins (0, 60 and 90%), so `OpenProgress`
+also counts the bytes the data files read (`DataFile::counted`) and moves on from what it last
+said by the share of the file read since, short of the next, never going back. The desktop app
 calls it on a `data-open` thread and makes the session there (`apps/mailcraft/src/desktop/boot.rs`):
 its window draws ui-egui's `BootCard` until then, which shows nothing for the first 300 ms, so a
 start with nothing to check has no flash of it.

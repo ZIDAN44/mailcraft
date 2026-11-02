@@ -1365,6 +1365,7 @@ month	May	5月
 	Checking your data file	データ ファイルを確認しています
 	Opening your mail…	メールを開いています…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} は前回正しく閉じられませんでした。MailCraft が確認しています。大きなファイルでは 1、2 分かかることがあります。
+	{percent}% checked	{percent}% 確認済み
 	{done} of {total} data files	データ ファイル {done}/{total}
 	Some of your mail couldn't be opened	一部のメールを開けませんでした
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft はそれらなしで開きます。各アカウントを使うときに問題が表示されます。

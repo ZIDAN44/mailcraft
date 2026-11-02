@@ -90,9 +90,10 @@ fn opening_then_a_check_is_shown() {
     let s = text(&ctx, &mut card, &progress, false, 0.5);
     assert!(s.contains("Checking your data file") && s.contains("zoe@studio.example.mailcraft wasn't closed properly"), "{s}");
     assert!(!s.contains("data files"), "one file: no count");
+    assert!(s.contains("0% checked"), "{s}");
     progress.checking("zoe@studio.example.mailcraft", 0.6);
     assert_eq!(progress.permille(), 600);
-    frame(&ctx, &mut card, &progress, false, 0.6);
+    assert!(text(&ctx, &mut card, &progress, false, 0.6).contains("60% checked"));
     // Dark, and several files.
     let several = OpenProgress::default();
     several.start(3);

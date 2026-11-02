@@ -1369,6 +1369,7 @@ month	May	mai
 	Checking your data file	Vérification de votre fichier de données
 	Opening your mail…	Ouverture de votre courrier…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	Le fichier {file} n'a pas été fermé correctement la dernière fois. MailCraft le vérifie ; un gros fichier peut prendre une minute ou deux.
+	{percent}% checked	{percent} % vérifié
 	{done} of {total} data files	{done} fichiers de données sur {total}
 	Some of your mail couldn't be opened	Une partie de votre courrier n'a pas pu être ouverte
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft s'ouvre sans eux ; chaque compte indique le problème quand vous l'utilisez.

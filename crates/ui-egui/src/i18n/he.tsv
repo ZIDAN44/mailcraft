@@ -1364,6 +1364,7 @@ month	May	מאי
 	Checking your data file	בודק את קובץ הנתונים
 	Opening your mail…	פותח את הדואר…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} לא נסגר כראוי בפעם הקודמת. MailCraft בודק אותו; בקובץ גדול זה עשוי להימשך דקה או שתיים.
+	{percent}% checked	נבדקו {percent}%
 	{done} of {total} data files	{done} מתוך {total} קובצי נתונים
 	Some of your mail couldn't be opened	לא ניתן היה לפתוח חלק מהדואר שלך
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft נפתח בלעדיהם; כל חשבון יציין מה הבעיה כשתשתמש בו.

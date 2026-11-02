@@ -22,11 +22,13 @@ use std::fs::{File, OpenOptions};
 use std::io;
 use std::ops::Bound;
 use std::path::Path;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use redb::backends::FileBackend;
 use redb::{BackendError, DatabaseError, StorageBackend};
+
+use crate::OpenProgress;
 
 /// Handles of its own a data file reads through (Windows): more than the index's readers, so a
 /// read from the window finds one free while they all read.
@@ -51,6 +53,8 @@ pub(super) struct DataFile {
     file: FileBackend,
     /// Each used by one read at a time (none: reads go through `file`).
     reads: Vec<Mutex<File>>,
+    /// Told of the bytes read: how far a check of the file has come.
+    counted: Option<Arc<OpenProgress>>,
 }
 
 impl DataFile {
@@ -66,7 +70,13 @@ impl DataFile {
             .collect();
         #[cfg(not(windows))]
         let reads = Vec::new();
-        Ok(DataFile { file, reads })
+        Ok(DataFile { file, reads, counted: None })
+    }
+
+    /// Its reads told to `progress` ([`OpenProgress::read`]).
+    pub(super) fn counted(mut self, progress: &Arc<OpenProgress>) -> DataFile {
+        self.counted = Some(progress.clone());
+        self
     }
 
     /// How many handles of its own it reads through.
@@ -132,6 +142,9 @@ impl StorageBackend for DataFile {
     /// Through the thread's own handle, or another no other read is using when it's busy (its
     /// own, waited for, when all are).
     fn read(&self, offset: u64, out: &mut [u8]) -> io::Result<()> {
+        if let Some(p) = &self.counted {
+            p.read(out.len());
+        }
         let n = self.reads.len();
         if n == 0 {
             return self.file.read(offset, out);

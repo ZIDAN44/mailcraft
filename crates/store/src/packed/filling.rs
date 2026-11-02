@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use redb::{BackendError, Database, DatabaseError, StorageBackend};
 
 use super::handles::DataFile;
+use crate::OpenProgress;
 
 /// A data file on a drive that is full while `full` is set: growing it fails as the disk would.
 #[derive(Debug)]
@@ -20,8 +21,8 @@ struct Filling {
 }
 
 /// The data file at `path` opened as `b` says, on a drive full while `full` is set.
-pub(super) fn create(b: &redb::Builder, path: &Path, full: &Arc<AtomicBool>) -> Result<Database, DatabaseError> {
-    b.create_with_backend(Filling { file: DataFile::open(path)?, full: full.clone() })
+pub(super) fn create(b: &redb::Builder, path: &Path, full: &Arc<AtomicBool>, progress: &Arc<OpenProgress>) -> Result<Database, DatabaseError> {
+    b.create_with_backend(Filling { file: DataFile::open(path)?.counted(progress), full: full.clone() })
 }
 
 impl StorageBackend for Filling {

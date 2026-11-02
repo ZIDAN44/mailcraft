@@ -1364,6 +1364,7 @@ month	May	mei
 	Checking your data file	Uw gegevensbestand wordt gecontroleerd
 	Opening your mail…	Uw e-mail wordt geopend…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} is de vorige keer niet goed afgesloten. MailCraft controleert het bestand; bij een groot bestand kan dat een minuut of twee duren.
+	{percent}% checked	{percent}% gecontroleerd
 	{done} of {total} data files	{done} van {total} gegevensbestanden
 	Some of your mail couldn't be opened	Een deel van uw e-mail kon niet worden geopend
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft opent zonder deze bestanden; elk account meldt het probleem wanneer u het gebruikt.

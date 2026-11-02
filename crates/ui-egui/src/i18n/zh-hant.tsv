@@ -1368,6 +1368,7 @@ month	May	5月
 	Checking your data file	正在檢查資料檔案
 	Opening your mail…	正在開啟郵件…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} 上次未正常關閉。MailCraft 正在檢查它；大型檔案可能需要一兩分鐘。
+	{percent}% checked	已檢查 {percent}%
 	{done} of {total} data files	資料檔案 {done}/{total}
 	Some of your mail couldn't be opened	部分郵件無法開啟
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft 會在沒有它們的情況下開啟；使用各個帳戶時會說明問題所在。
