@@ -13,6 +13,7 @@ mod finish;
 mod folded;
 mod folder_text;
 mod kept;
+mod look_up;
 mod matching;
 mod publish;
 mod run;
@@ -80,6 +81,8 @@ pub(crate) struct SearchState {
     pub(crate) texts: folder_text::FolderTexts,
     /// The texts of messages checked for a phrase, folded.
     pub(crate) folded: folded::FoldedTexts,
+    /// The words looked up lately in each account's index.
+    pub(crate) looked_up: look_up::LookedUp,
     /// Each account's index, by account.
     pub(crate) readers: HashMap<String, ReaderSlot>,
     /// The folders the search reads: kept in the cache while it runs (not once it's done).

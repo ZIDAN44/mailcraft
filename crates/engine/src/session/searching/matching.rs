@@ -14,7 +14,7 @@ use mailcraft_model::search::indexed;
 use mailcraft_store::search::{Blob, DocInfo, Field, Reader};
 
 use super::folded::Folded;
-use super::run::Terms;
+use super::look_up::Terms;
 use super::*;
 
 /// Most bytes of a message's text checked in one unit of work.

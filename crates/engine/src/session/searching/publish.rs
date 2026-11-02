@@ -230,6 +230,7 @@ impl Session {
         if self.account(account).is_none() {
             self.search_state.readers.remove(account);
             self.search_state.folded.retain(|a| a != account);
+            self.search_state.looked_up.forget(account);
         }
         let Some((q, scope, wait, folders)) = self.search_state.run.as_ref().map(|r| (r.q.clone(), r.scope, r.wait, r.folders.clone())) else {
             return;

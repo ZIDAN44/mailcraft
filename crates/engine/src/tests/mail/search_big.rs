@@ -150,6 +150,24 @@ fn a_common_phrase_doesnt_build_the_list_each_step() {
     assert!(shown > 20, "built {shown} times");
 }
 
+/// A word searched again (from another view, or the same query run again) takes what the index
+/// gave it the last time: nothing of the index is looked through for it, and it finds the same.
+#[test]
+fn a_word_searched_again_isnt_looked_up_again() {
+    let (mut s, t) = cold();
+    let look_ups = |s: &mut Session, q: &str| {
+        s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
+        let mut n = 0;
+        while !s.search_step_timed(8, &mut || true, &mut |w| n += usize::from(w == crate::session::SearchWork::LookUp)).done {}
+        n
+    };
+    let first = look_ups(&mut s, big::RARE);
+    let again = look_ups(&mut s, big::RARE);
+    assert_eq!(s.list.len(), t.rare);
+    assert!(first > 2, "{first} units looking it up the first time");
+    assert!(again <= 1, "{again} the second");
+}
+
 /// The common phrase searched again (typed on, or searched from another view) checks the texts
 /// it folded the first time: nothing of them is read or folded again, and it finds the same.
 #[test]

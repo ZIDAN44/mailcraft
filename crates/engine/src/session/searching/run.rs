@@ -17,9 +17,10 @@
 use std::collections::VecDeque;
 
 use mailcraft_store::FolderLoad;
-use mailcraft_store::search::{Bits, Field, ScanCursor};
+use mailcraft_store::search::Field;
 
 use super::finish::Finish;
+use super::look_up::Terms;
 use super::matching::{Answers, Candidate, Index, Recorder, Verdict, Verifying, classify, from_source};
 use super::work::SearchWork;
 use super::*;
@@ -67,27 +68,6 @@ pub struct SearchStats {
     pub summary_texts: u64,
 }
 
-/// The words a search looks up in an account's index, and the docs each was found in.
-#[derive(Debug, Default)]
-pub(crate) struct Terms {
-    /// A few (the words typed): looked through in turn, as each summary asks, not hashed.
-    bits: Vec<(Field, String, Bits)>,
-    todo: Vec<(Field, String)>,
-    cursor: ScanCursor,
-    scanning: Option<Bits>,
-}
-
-impl Terms {
-    /// Whether `doc` has a word of `field` starting with `word`; `None`: not looked up.
-    pub(crate) fn has(&self, field: Field, word: &str, doc: u32) -> Option<bool> {
-        self.bits.iter().find(|(f, w, _)| *f == field && w == word).map(|(_, _, b)| b.get(doc))
-    }
-
-    fn ready(&self) -> bool {
-        self.todo.is_empty()
-    }
-}
-
 /// Where a run is in a folder.
 #[derive(Debug, Default)]
 struct Cursor {
@@ -126,7 +106,7 @@ pub(crate) struct SearchRun {
     /// It asks for words in the summaries (senders, subjects, previews).
     summary_words: bool,
     /// The words to look up in each index.
-    words: Vec<(Field, String)>,
+    pub(super) words: Vec<(Field, String)>,
     pub(crate) folders: Vec<(String, String)>,
     /// How many of `folders` (the first) are on view.
     on_view: usize,
@@ -138,7 +118,7 @@ pub(crate) struct SearchRun {
     awaiting: Option<(AwaitingScan, Option<FolderLoad>, usize)>,
     asks_awaiting: bool,
     awaited: HashSet<MessageKey>,
-    terms: HashMap<String, Terms>,
+    pub(super) terms: HashMap<String, Terms>,
     pub(crate) found: HashSet<MessageKey>,
     /// Found since last shown, and found before and no longer.
     pub(crate) fresh: Vec<Summary>,
@@ -671,57 +651,6 @@ impl Session {
             run.recheck.remove(&key);
             if run.found.remove(&key) {
                 run.gone.insert(key);
-            }
-        }
-    }
-
-    /// Open `account`'s index for search, once: whether that took a unit.
-    fn open_reader(&mut self, account: &str) -> bool {
-        if self.search_state.readers.contains_key(account) {
-            return false;
-        }
-        let reader = match &self.store {
-            Some(store) => match mailcraft_store::search::Reader::open(store, account) {
-                Ok(r) => r,
-                Err(e) => {
-                    log::warn!("{account}: the search index couldn't be read: {e}");
-                    None
-                }
-            },
-            None => None,
-        };
-        self.search_state.readers.insert(account.to_string(), ReaderSlot { reader, checked: self.clock.now, behind: false, damaged: false });
-        true
-    }
-
-    /// Look up the run's words in `account`'s index, a few pages.
-    fn terms_unit(&mut self, run: &mut SearchRun, account: &str) {
-        let (Some(store), Some(reader)) = (self.store.clone(), self.search_state.readers.get_mut(account).and_then(|s| s.reader.as_mut())) else {
-            return;
-        };
-        let terms = run.terms.entry(account.to_string()).or_insert_with(|| Terms { todo: run.words.clone(), ..Default::default() });
-        let Some((field, word)) = terms.todo.first().cloned() else { return };
-        let before = reader.pages_read();
-        let mut bits = terms.scanning.take().unwrap_or_else(|| Bits::new(reader.len()));
-        let done = reader.scan_prefix(&store, field, &word, &mut terms.cursor, &mut bits, UNIT_PAGES);
-        let read = reader.pages_read().saturating_sub(before);
-        self.search_state.stats.reader_pages = self.search_state.stats.reader_pages.saturating_add(read);
-        match done {
-            Ok(false) => terms.scanning = Some(bits),
-            Ok(true) => {
-                terms.bits.retain(|(f, w, _)| *f != field || *w != word);
-                terms.bits.push((field, word, bits));
-                terms.todo.remove(0);
-                terms.cursor = ScanCursor::default();
-            }
-            Err(e) => {
-                // Read afresh by the next search; this one goes on without it (what it can't
-                // tell may be missing).
-                log::warn!("{account}: the search index couldn't be read: {e}");
-                run.terms.remove(account);
-                if let Some(slot) = self.search_state.readers.get_mut(account) {
-                    slot.reader = None;
-                }
             }
         }
     }
