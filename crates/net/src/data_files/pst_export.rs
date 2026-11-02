@@ -60,8 +60,9 @@ pub struct Exported {
     pub skipped: usize,
     /// Messages a data file already there had (by `Message-ID`), not written again.
     pub already: usize,
-    /// Events and people written beside the data file.
+    /// Events, tasks and people written beside the data file.
     pub events: usize,
+    pub tasks: usize,
     pub contacts: usize,
 }
 
@@ -196,8 +197,8 @@ pub fn export(
             if let Err(e) = std::fs::rename(&temp, path) {
                 return Err(format!("the data file couldn't be replaced ({e}): the mail is in {}", temp.display()));
             }
-            let (events, contacts) = pim_beside(store, account, path).map_err(|e| e.to_string())?;
-            Ok(Exported { events, contacts, ..done })
+            let (events, tasks, contacts) = pim_beside(store, account, path).map_err(|e| e.to_string())?;
+            Ok(Exported { events, tasks, contacts, ..done })
         }
         Err(e) => {
             let _ = std::fs::remove_file(&temp);
@@ -206,21 +207,24 @@ pub fn export(
     }
 }
 
-/// The account's calendar and contacts beside the data file: (events, people) written.
-fn pim_beside(store: &Store, account: &str, path: &Path) -> mailcraft_store::Result<(usize, usize)> {
+/// The account's calendar and contacts beside the data file: (events, tasks, people) written.
+/// Its tasks go in the calendar file as to-dos (`VTODO`), until they go inside the data file.
+fn pim_beside(store: &Store, account: &str, path: &Path) -> mailcraft_store::Result<(usize, usize, usize)> {
     let pim: mailcraft_model::pim::Pim = store.load_account_doc(account, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
     let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Mail".into());
     let dir = path.parent().unwrap_or(Path::new("."));
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0);
     let events: Vec<mailcraft_model::ical::CalEvent> = pim.events.iter().map(|e| e.event.clone()).collect();
-    if !events.is_empty() {
-        mailcraft_store::write_atomic(&dir.join(format!("{stem} Calendar.ics")), mailcraft_model::ical::write(&events, None, now).as_bytes())?;
+    let tasks: Vec<mailcraft_model::pim::Task> = pim.tasks.iter().map(|t| t.task.clone()).collect();
+    if !events.is_empty() || !tasks.is_empty() {
+        let ics = mailcraft_model::ical::write_calendar(&events, &tasks, now);
+        mailcraft_store::write_atomic(&dir.join(format!("{stem} Calendar.ics")), ics.as_bytes())?;
     }
     if !pim.cards.is_empty() {
         let cards: String = pim.cards.iter().map(|c| mailcraft_model::vcard::write(&c.card)).collect();
         mailcraft_store::write_atomic(&dir.join(format!("{stem} Contacts.vcf")), cards.as_bytes())?;
     }
-    Ok((events.len(), pim.cards.len()))
+    Ok((events.len(), tasks.len(), pim.cards.len()))
 }
 
 /// Record the folders of the account's special roles as the file's own special folders, unless

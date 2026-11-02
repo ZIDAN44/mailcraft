@@ -1,6 +1,7 @@
 use super::recur::pattern;
 use super::*;
 use mailcraft_model::dates::days_from_civil;
+use mailcraft_model::pim::{TaskPriority, TaskStatus};
 
 /// Names in the string stream are found by their offset; a damaged offset or length is no name.
 #[test]
@@ -474,4 +475,58 @@ fn a_request_carries_its_changed_occurrences() {
     assert_eq!(cal.events[0].exdates.len(), 1);
     let (_, ics) = invitation(&x, "IPM.Schedule.Meeting.Resp.Pos", "Review", "", &guests[0], &[organizer], 1, "u".into()).unwrap();
     assert_eq!(ical::parse(&ics, 0).events.len(), 1);
+}
+
+/// Unix seconds as a FILETIME value.
+fn filetime(t: i64) -> Val<'static> {
+    Val::Time((t + 11_644_473_600) * 10_000_000)
+}
+
+/// A task's own properties (MS-OXOTASK) come in: status, percent (a fraction, as a double),
+/// start, due, done, its reminder, how it repeats (a pattern with no appointment part), and its
+/// priority from the item's importance. One with nothing set is a task all the same.
+#[test]
+fn a_task_s_properties() {
+    let day = |m, d| days_from_civil(2026, m, d) * 86_400;
+    let ids = HashMap::from([
+        ((PSETID_TASK, 0x8101), 0x8001),
+        ((PSETID_TASK, 0x8102), 0x8002),
+        ((PSETID_TASK, 0x8104), 0x8003),
+        ((PSETID_TASK, 0x8105), 0x8004),
+        ((PSETID_TASK, 0x8116), 0x8005),
+        ((PSETID_COMMON, 0x8503), 0x8006),
+        ((PSETID_COMMON, 0x8502), 0x8007),
+        ((PSETID_TASK, 0x810F), 0x8008),
+        ((PSETID_TASK, 0x811C), 0x8009),
+    ]);
+    let named = Named { ids, keywords: None };
+    // Weekly on Thursdays, from 2026-11-05 (local midnight two hours east: 22:00 the day before).
+    let full = blob(0x200B, 0x0001, 1, &[0b001_0000], (0x2023, 0), &[], &[], minutes(2026, 11, 5));
+    let pattern = full[..full.len() - 12].to_vec();
+    let props = HashMap::from([
+        (0x8001, Val::Int(3)),
+        (0x8002, Val::Float(0.25f64.to_bits())),
+        (0x8003, filetime(day(11, 2) - 7200)),
+        (0x8004, filetime(day(11, 5) - 7200)),
+        (0x8005, Val::Bin(&pattern)),
+        (0x8006, Val::Bool(true)),
+        (0x8007, filetime(day(11, 5) + 8 * 3600)),
+    ]);
+    let x = extract(&|id| props.get(&id).cloned(), &named);
+    assert_eq!((x.task_status, x.percent, x.reminder_at), (Some(3), Some(25), Some(day(11, 5) + 8 * 3600)));
+    let t = task_of(&x, " Book the stage ", "Hall B\r\nor C", 1, "u1".into());
+    assert_eq!((t.title.as_str(), t.notes.as_str()), ("Book the stage", "Hall B\nor C"));
+    assert_eq!((t.start, t.due), (Some(day(11, 2)), Some(day(11, 5))), "local midnights: their days");
+    assert_eq!((t.status, t.percent, t.priority), (TaskStatus::Waiting, 25, TaskPriority::High));
+    assert_eq!(t.rrule.as_deref(), Some("FREQ=WEEKLY;INTERVAL=1;BYDAY=TH"));
+    // Done: complete whatever its status said, at 100%, with the day it was done.
+    let done =
+        HashMap::from([(0x8001, Val::Int(1)), (0x8008, filetime(day(11, 1))), (0x8009, Val::Bool(true)), (0x8002, Val::Float(f64::NAN.to_bits()))]);
+    let t = task_of(&extract(&|id| done.get(&id).cloned(), &named), "Done", "", -1, "u2".into());
+    assert_eq!((t.status, t.percent, t.completed, t.due), (TaskStatus::Completed, 100, Some(day(11, 1)), None));
+    assert_eq!(t.priority, TaskPriority::Low);
+    // Nothing set: a task not started, with no day; junk status and pattern are none.
+    let junk = HashMap::from([(0x8001, Val::Int(99)), (0x8005, Val::Bin(&[1, 2, 3])), (0x8002, Val::Float(7.5f64.to_bits()))]);
+    let t = task_of(&extract(&|id| junk.get(&id).cloned(), &named), "", "", 0, "u3".into());
+    assert_eq!((t.status, t.percent, t.rrule, t.due, t.reminder), (TaskStatus::NotStarted, 0, None, None, None));
 }

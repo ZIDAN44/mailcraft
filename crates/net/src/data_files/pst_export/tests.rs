@@ -150,6 +150,10 @@ fn an_account_round_trips_through_a_data_file() {
         card: mailcraft_model::vcard::Card { uid: "c1".into(), name: "Ana Lima".into(), ..Default::default() },
         ..Default::default()
     });
+    // A task with no due day goes in the calendar file as a to-do all the same.
+    pim.tasks.push(mailcraft_model::pim::StoredTask {
+        task: mailcraft_model::pim::Task { uid: "t1".into(), title: "Pack the lenses".into(), percent: 40, ..Default::default() },
+    });
     store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
     let file = dir.join("Out.pst");
     // Something there that isn't a data file: left alone, and said.
@@ -159,9 +163,11 @@ fn an_account_round_trips_through_a_data_file() {
     std::fs::remove_file(&file).unwrap();
     let mut ticks = 0;
     let done = export(&store, "a1", "Riley's mail", &file, &due, &mut |_| ticks += 1).unwrap();
-    assert_eq!(done, Exported { messages: 7, skipped: 1, already: 0, events: 1, contacts: 1 });
+    assert_eq!(done, Exported { messages: 7, skipped: 1, already: 0, events: 1, tasks: 1, contacts: 1 });
     let ics = std::fs::read_to_string(dir.join("Out Calendar.ics")).unwrap();
     assert!(ics.contains("SUMMARY:Screening") && ics.contains("BEGIN:VCALENDAR"), "{ics}");
+    let back = mailcraft_model::ical::parse(&ics, 0);
+    assert_eq!(back.tasks.iter().map(|t| (t.title.as_str(), t.percent, t.due)).collect::<Vec<_>>(), [("Pack the lenses", 40, None)]);
     let vcf = std::fs::read_to_string(dir.join("Out Contacts.vcf")).unwrap();
     assert!(vcf.contains("FN:Ana Lima"), "{vcf}");
     assert!(ticks > 0);

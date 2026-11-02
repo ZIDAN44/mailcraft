@@ -287,8 +287,8 @@ impl Out<'_> {
         self.sink.planned(&planned);
     }
 
-    /// A contact, contact group, calendar item, note or journal entry (anything else in their
-    /// folders is left out).
+    /// A contact, contact group, calendar item, task, note or journal entry (anything else in
+    /// their folders is left out).
     pub(super) fn add_pim(&mut self, it: Item) {
         let began = Instant::now();
         self.pim_of(it);
@@ -618,7 +618,7 @@ impl Out<'_> {
         // failed as it finished, too) are added as they stand: what the window changed meanwhile
         // stays.
         let mut last_save = self.publish(true);
-        if !self.writes_stopped() && self.pim.cards.len() + self.pim.events.len() + self.pim.notes.len() > 0 {
+        if !self.writes_stopped() && self.pim.has_items() {
             self.pim.ensure_defaults();
             if let Err(e) = self.tally.time(Phase::Commit, || self.store.save_account_doc(self.account, PIM_DOC, &self.pim)) {
                 last_save.get_or_insert(e.to_string());
@@ -650,6 +650,7 @@ impl Out<'_> {
             contacts: self.pim.cards.len(),
             events: calendar_items(&self.pim),
             notes: self.pim.notes.len(),
+            tasks: self.pim.tasks.len(),
             skipped,
             skips: std::mem::take(&mut self.skips),
             body_not_converted: self.body_not_converted,

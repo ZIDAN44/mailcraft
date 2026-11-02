@@ -641,6 +641,7 @@ fn report_of(done: &Imported, path: &str, store: &Store, account: &str, began: I
         contacts: count(done.contacts),
         events: count(done.events),
         notes: count(done.notes),
+        tasks: count(done.tasks),
         elapsed_ms: ms(began).saturating_add(done.earlier_ms),
         runs: done.runs.max(1),
         ..ImportReport::default()

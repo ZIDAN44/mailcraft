@@ -4,9 +4,8 @@
 //! under the top of the mailbox becomes folders, and each mail item is written out again as a
 //! standard message (RFC 5322 / MIME) from its properties (MS-OXCMSG / MS-OXPROPS), keeping the
 //! original headers when the item has them. Contacts, contact groups and calendar items go to the
-//! account's address book and calendar (see `pst_pim`), notes and journal entries to its notes;
-//! tasks show in the calendar on their due day (MailCraft has no task list), and those without
-//! one are left out.
+//! account's address book and calendar (see `pst_pim`), notes and journal entries to its notes,
+//! and tasks, with or without a due day, to its tasks.
 //!
 //! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
 //! can't be read are skipped and counted, and sizes are capped.
@@ -27,7 +26,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
 use mailcraft_model::job::{PlannedFolder, SkipReason, StopHow};
-use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote};
+use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote, StoredTask};
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::{FolderState, Store};
 use outlook_pst::ltp::prop_context::PropertyValue;
@@ -107,10 +106,11 @@ const MAX_NAME: usize = 256;
 pub struct Imported {
     pub folders: Vec<Folder>,
     pub messages: usize,
-    /// Contacts, calendar items and notes.
+    /// Contacts, calendar items, notes and tasks.
     pub contacts: usize,
     pub events: usize,
     pub notes: usize,
+    pub tasks: usize,
     /// Items that couldn't be read or written; and how many for each reason, with messages that
     /// came in with part of them lost (`CharsetUnsupported`: text, or an attached message's, in a
     /// code page MailCraft can't read, ISO-2022-KR, of which only the ASCII was kept), and the
@@ -785,6 +785,8 @@ pub fn repeating(pattern: &[u8], start: i64) -> Vec<mailcraft_model::ical::CalEv
     let changed = crate::pst_pim::changed_events(&x, "Series", "", &from, &[], "u", &[]);
     series.into_iter().chain(changed.into_iter().map(|(e, _)| e)).collect()
 }
+#[doc(hidden)]
+pub use crate::pst_pim::repeating_task;
 
 /// Bytes from a data file as the import reads them as text: an HTML body (`html`) in its internet
 /// code page, or an 8-bit string in its message's. For the fuzz target.

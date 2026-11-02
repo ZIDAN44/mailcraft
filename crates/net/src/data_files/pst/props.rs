@@ -19,12 +19,14 @@ pub enum Val<'a> {
     Bool(bool),
     /// A FILETIME: 100 ns since 1601.
     Time(i64),
+    /// A 64-bit float, by its bits (so values compare whole): a task's percent complete.
+    Float(u64),
     /// Several texts (a multi-valued string: categories).
     Texts(Vec<String>),
     /// Several byte strings (a multi-valued binary: a contact group's members).
     Bins(Vec<&'a [u8]>),
     Object,
-    /// Present, of a type the import does not read (a 16- or 64-bit integer, a float, a GUID,
+    /// Present, of a type the import does not read (a 16- or 64-bit integer, a 32-bit float, a GUID,
     /// an error code...): it still hides a fallback property.
     Other,
 }
@@ -34,6 +36,14 @@ impl Val<'_> {
     pub(crate) fn into_text(self) -> Option<String> {
         match self {
             Val::Text(t) => Some(t.into_owned()),
+            _ => None,
+        }
+    }
+
+    /// A 64-bit float's value.
+    pub(crate) fn float(&self) -> Option<f64> {
+        match self {
+            Val::Float(bits) => Some(f64::from_bits(*bits)),
             _ => None,
         }
     }
@@ -56,6 +66,7 @@ pub(super) fn val(v: &PropertyValue, code_page: u32) -> Val<'_> {
         PropertyValue::Integer32(n) => Val::Int(i64::from(*n)),
         PropertyValue::Boolean(b) => Val::Bool(*b),
         PropertyValue::Time(t) => Val::Time(*t),
+        PropertyValue::Floating64(f) => Val::Float(f.to_bits()),
         PropertyValue::MultipleUnicode(list) => {
             Val::Texts(list.iter().map(|u| String::from_utf16_lossy(u.buffer()).trim_end_matches('\0').to_string()).collect())
         }

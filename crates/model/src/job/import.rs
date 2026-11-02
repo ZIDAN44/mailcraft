@@ -210,6 +210,7 @@ pub struct ImportReport {
     pub contacts: u64,
     pub events: u64,
     pub notes: u64,
+    pub tasks: u64,
     /// What was left out, by reason: only reasons that happened, in [`SkipReason`]'s order.
     pub skips: Vec<SkipCount>,
     /// How it was stopped, when it was; and the folder it was in, when that was mid-folder.

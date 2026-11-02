@@ -218,6 +218,7 @@ impl Checkpoint {
             contacts: pim.cards.len(),
             events: calendar_items(&pim),
             notes: pim.notes.len(),
+            tasks: pim.tasks.len(),
             skipped: n(self.counts.skipped),
             skips: self.counts.skips.iter().map(|s| (s.reason, n(s.count))).collect(),
             body_not_converted: n(self.counts.body_not_converted),
@@ -665,7 +666,7 @@ impl Out<'_> {
             None => (CheckState::Running, self.current(true)),
         };
         let wide = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
-        let pim = self.pim.cards.len() + self.pim.events.len() + self.pim.notes.len() > 0;
+        let pim = self.pim.has_items();
         let invented = self.note.invented.as_deref();
         let cp = Checkpoint {
             version: VERSION,

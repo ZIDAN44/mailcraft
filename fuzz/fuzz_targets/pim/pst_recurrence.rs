@@ -2,7 +2,8 @@
 //! 2.2.1.44), as the `.pst` import reads it: its rule, deleted occurrences and changed ones
 //! (ExceptionInfo and ExtendedException, with their 8-bit and UTF-16 texts). Each changed
 //! occurrence is an event of its own that replaces one occurrence and ends after it starts, and
-//! the calendar they make is written and read again.
+//! the calendar they make is written and read again. The same pattern as a repeating task's
+//! (PidLidTaskRecurrence) makes a task, written as a to-do and read again.
 //!
 //! The input is the first occurrence's start (eight bytes, little-endian Unix seconds), then the
 //! pattern's bytes.
@@ -14,6 +15,9 @@ use mailcraft_net::pst;
 
 fuzz_target!(|input: &[u8]| {
     let Some((start, pattern)) = input.split_first_chunk::<8>() else { return };
+    let task = pst::repeating_task(pattern, i64::from_le_bytes(*start));
+    let back = ical::parse(&ical::write_calendar(&[], std::slice::from_ref(&task), 0), 0);
+    assert_eq!(back.tasks.len(), 1);
     let events = pst::repeating(pattern, i64::from_le_bytes(*start));
     let Some((series, changed)) = events.split_first() else { return };
     assert!(series.recurrence_id.is_none());

@@ -1,5 +1,5 @@
-//! Contacts, contact groups, calendar items, meeting requests and journal entries in an Outlook
-//! data file (MS-OXOCNTC, MS-OXOCAL, MS-OXOJRNL).
+//! Contacts, contact groups, calendar items, meeting requests, tasks and journal entries in an
+//! Outlook data file (MS-OXOCNTC, MS-OXOCAL, MS-OXOTASK, MS-OXOJRNL).
 //!
 //! Most of what makes a contact or an appointment lives in *named* properties: their ids differ
 //! from file to file and are found through the file's name-to-id map (MS-PST 2.4.7). The
@@ -20,9 +20,12 @@ use crate::pst::Val;
 
 mod files;
 mod recur;
+mod tasks;
 pub(crate) use files::{card_file, card_photo, event_file, is_file_line};
 use recur::recurrence;
 pub(crate) use recur::{Own, changed_events};
+pub use tasks::repeating_task;
+pub(crate) use tasks::task_of;
 
 type GuidKey = (u32, u16, u16, [u8; 8]);
 const OLE: [u8; 8] = [0xC0, 0, 0, 0, 0, 0, 0, 0x46];
@@ -141,9 +144,17 @@ pub(crate) struct Extra {
     pub addresses: Vec<PostalAddress>,
     pub birthday: Option<i64>,
     pub start: Option<i64>,
-    /// A task's due date, and whether it's done.
+    /// A task's due date, and whether it's done (PidLidTaskDueDate, PidLidTaskComplete); its
+    /// status (PidLidTaskStatus: 0 not started, 1 in progress, 2 complete, 3 waiting, 4
+    /// deferred), how far along it is in percent (PidLidPercentComplete, a fraction of 1), its
+    /// start, when it was done, and how it repeats (PidLidTaskRecurrence: a recurrence pattern).
     pub due: Option<i64>,
     pub done: bool,
+    pub task_status: Option<i64>,
+    pub percent: Option<u8>,
+    pub task_start: Option<i64>,
+    pub completed: Option<i64>,
+    pub task_recurrence: Vec<u8>,
     pub end: Option<i64>,
     pub location: String,
     pub all_day: bool,
@@ -162,6 +173,8 @@ pub(crate) struct Extra {
     pub busy: Option<i64>,
     pub sensitivity: u8,
     pub reminder: Option<i64>,
+    /// When a task's reminder is (PidLidReminderTime), when it reminds at all.
+    pub reminder_at: Option<i64>,
     /// A contact group's members that carry their address: (name, address).
     pub members: Vec<(String, String)>,
     /// A journal entry's start and end.
@@ -220,6 +233,18 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> 
     x.location = ns(PSETID_APPOINTMENT, 0x8208);
     x.due = n(PSETID_TASK, 0x8105).and_then(|v| v.time());
     x.done = matches!(n(PSETID_TASK, 0x811C), Some(Val::Bool(true)));
+    x.task_status = match n(PSETID_TASK, 0x8101) {
+        Some(Val::Int(s)) => Some(s),
+        _ => None,
+    };
+    // A fraction (0.4 is 40%); one out of range, or not a number, is none.
+    x.percent =
+        n(PSETID_TASK, 0x8102).and_then(|v| v.float()).filter(|f| f.is_finite() && (0.0..=1.0).contains(f)).map(|f| (f * 100.0).round() as u8);
+    x.task_start = n(PSETID_TASK, 0x8104).and_then(|v| v.time());
+    x.completed = n(PSETID_TASK, 0x810F).and_then(|v| v.time());
+    if let Some(Val::Bin(b)) = n(PSETID_TASK, 0x8116) {
+        x.task_recurrence = b.get(..MAX_PATTERN).unwrap_or(b).to_vec();
+    }
     x.all_day = matches!(n(PSETID_APPOINTMENT, 0x8215), Some(Val::Bool(true)));
     if let Some(Val::Bin(b)) = n(PSETID_APPOINTMENT, 0x8216) {
         x.recurrence = b.get(..MAX_PATTERN).unwrap_or(b).to_vec();
@@ -256,6 +281,7 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> 
             Some(Val::Int(m)) if (0..=MAX_MINUTES).contains(&m) => Some(m),
             _ => Some(15),
         };
+        x.reminder_at = n(PSETID_COMMON, 0x8502).and_then(|v| v.time());
     }
     x.members = members(n(PSETID_ADDRESS, 0x8054), n(PSETID_ADDRESS, 0x8055));
     x.replaces = n(PSETID_APPOINTMENT, 0x8228).and_then(|v| v.time());

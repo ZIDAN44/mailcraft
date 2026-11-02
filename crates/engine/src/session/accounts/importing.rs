@@ -495,8 +495,8 @@ impl Session {
         if let Some(a) = self.account_mut(account) {
             a.status = SyncStatus::Offline;
         }
-        // Mail, or a file of contacts, calendar or notes only.
-        let came_in = report.is_some_and(|r| r.messages.saturating_add(r.contacts).saturating_add(r.events).saturating_add(r.notes) > 0);
+        // Mail, or a file of contacts, calendar, notes or tasks only.
+        let came_in = report.is_some_and(|r| (r.messages | r.contacts | r.events | r.notes | r.tasks) != 0);
         if self.importing.running.get(account).is_some_and(|s| s.removing) {
             // It ended (on its own, or stopped as asked before) as it was being thrown away: the
             // account goes now.

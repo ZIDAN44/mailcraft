@@ -151,6 +151,50 @@ fn contact_groups_and_journal_entries_come_in() {
     assert_eq!(pim.notes[0].note.text, "Call with the printer\n2023-11-14 22:13–22:58 UTC\nProofs on Monday.\nPaper: matte.");
 }
 
+/// Every task comes in as a task, due or not, done or not, with its files; none is left out, and
+/// none lands in the calendar (the calendar draws a due one from the task). A task request is a
+/// task too; flagged mail stays mail.
+#[test]
+fn every_task_comes_in() {
+    let s = Scratch::new("tasks");
+    let mut progress = |_| {};
+    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let day = mailcraft_model::dates::days_from_civil(2026, 11, 5) * 86_400;
+    let task = |class: &str, subject: &str, x: Extra, files: Vec<File>| Item {
+        class: class.into(),
+        subject: subject.into(),
+        body: "Notes".into(),
+        date: 1_700_000_000,
+        importance: 1,
+        files,
+        extra: Some(x),
+        ..Default::default()
+    };
+    out.add_pim(task(
+        "IPM.Task",
+        "No day at all",
+        Extra { task_status: Some(3), ..Default::default() },
+        vec![data("brief.pdf", "application/pdf", 5)],
+    ));
+    out.add_pim(task("IPM.Task", "Due", Extra { due: Some(day - 7200), percent: Some(40), ..Default::default() }, Vec::new()));
+    out.add_pim(task("IPM.Task", "Done", Extra { done: true, completed: Some(day), ..Default::default() }, Vec::new()));
+    out.add_pim(task("IPM.TaskRequest", "Asked of me", Extra::default(), Vec::new()));
+    let path = out.add_folder(None, "Inbox");
+    out.add_message(&path, Item { class: "IPM.Note".into(), subject: "Flagged".into(), date: 1_700_000_000, ..Default::default() });
+    out.save_folder(&path);
+    let done = out.finish();
+    assert_eq!((done.tasks, done.events, done.messages, done.skipped), (4, 0, 1, 0));
+    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let tasks: Vec<&mailcraft_model::pim::Task> = pim.tasks.iter().map(|t| &t.task).collect();
+    assert_eq!(tasks.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(), ["No day at all", "Due", "Done", "Asked of me"]);
+    assert_eq!((tasks[0].due, tasks[0].status, tasks[0].modified), (None, mailcraft_model::pim::TaskStatus::Waiting, 1_700_000_000));
+    assert!(tasks[0].extra.iter().any(|l| l.starts_with("ATTACH;") && l.contains("brief.pdf")), "{:?}", tasks[0].extra);
+    assert_eq!((tasks[1].due, tasks[1].percent, tasks[1].status), (Some(day), 40, mailcraft_model::pim::TaskStatus::InProgress));
+    assert_eq!((tasks[2].status, tasks[2].completed), (mailcraft_model::pim::TaskStatus::Completed, Some(day)));
+    assert!(tasks.iter().all(|t| t.priority == mailcraft_model::pim::TaskPriority::High && t.notes == "Notes"));
+    assert!(pim.events.is_empty());
+}
+
 /// A changed occurrence's item, attached to its appointment (`replaces`: the occurrence), with
 /// its own text and files.
 fn exception(start: i64, replaces: i64, body: &str, files: Vec<File>) -> File {
@@ -285,4 +329,65 @@ fn kept_files_read_back_from_the_exported_files() {
     let files = |extra: &[String]| extra.iter().filter(|l| crate::pst_pim::is_file_line(l)).count();
     let kept = cards.iter().map(|c| files(&c.extra)).sum::<usize>() + events.iter().map(|e| files(&e.extra)).sum::<usize>();
     assert_eq!(kept, 8);
+}
+
+/// A file the writer made with a Tasks folder (`IPF.Task`) of Outlook tasks: every one comes in
+/// through the whole import, the one with no due day too, with its status, due day and priority
+/// from the file's own named properties; the mail beside them stays mail.
+#[test]
+fn a_data_files_tasks_come_in() {
+    use pst_rw::ltp::prop_context::GuidValue;
+    use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstName, UnicodePstProperty, UnicodePstValue};
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-tasks-file-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let pst = dir.join("tasks.pst");
+    let task_set = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+    let day = mailcraft_model::dates::days_from_civil(2026, 11, 5) * 86_400;
+    fn filetime(t: i64) -> i64 {
+        (t + 11_644_473_600) * 10_000_000
+    }
+    fn message<'a>(subject: &'a str, id: &'a str, class: &'a str, properties: &'a [UnicodePstProperty<'a>]) -> UnicodePstMessage<'a> {
+        UnicodePstMessage {
+            subject,
+            sender_name: "Riley",
+            sender_email: "riley@studio.example",
+            recipients: &[],
+            body: "Notes",
+            html_body: None,
+            message_id: id,
+            delivery_time: filetime(1_700_000_000),
+            message_class: class,
+            properties,
+        }
+    }
+    // Due (as Outlook stores the day: its local midnight, two hours east), in progress, high.
+    let due = [
+        UnicodePstProperty::named(task_set, UnicodePstName::Id(0x8105), UnicodePstValue::Time(filetime(day - 7200))),
+        UnicodePstProperty::named(task_set, UnicodePstName::Id(0x8101), UnicodePstValue::Integer32(1)),
+        UnicodePstProperty::tagged(0x0017, UnicodePstValue::Integer32(2)),
+    ];
+    // No day at all, waiting on someone else.
+    let waiting = [UnicodePstProperty::named(task_set, UnicodePstName::Id(0x8101), UnicodePstValue::Integer32(3))];
+    Writer::create_in_folder_with_attachments(&pst, &["Inbox"], &message("Hello", "<m1@studio.example>", "IPM.Note", &[]), &[]).unwrap();
+    drop(Writer::create_folder(&pst, &["Tasks"], "IPF.Task").unwrap());
+    let tasks = [
+        UnicodePstBatchMessage { message: message("Book the stage", "<t1@studio.example>", "IPM.Task", &due), attachments: &[] },
+        UnicodePstBatchMessage { message: message("Renew the licences", "<t2@studio.example>", "IPM.Task", &waiting), attachments: &[] },
+    ];
+    Writer::append_many_in_folder_with_attachments(&pst, &["Tasks"], &tasks).unwrap();
+    let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
+    let done = super::super::import(&pst, &store, "t1", &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.tasks, done.events, done.skipped), (1, 2, 0, 0), "{done:?}");
+    let pim: Pim = store.load_account_doc("t1", PIM_DOC).unwrap();
+    let mut got: Vec<(String, Option<i64>, mailcraft_model::pim::TaskStatus, mailcraft_model::pim::TaskPriority)> =
+        pim.tasks.iter().map(|t| (t.task.title.clone(), t.task.due, t.task.status, t.task.priority)).collect();
+    got.sort_by(|a, b| a.0.cmp(&b.0));
+    use mailcraft_model::pim::{TaskPriority as P, TaskStatus as S};
+    assert_eq!(
+        got,
+        [("Book the stage".to_string(), Some(day), S::InProgress, P::High), ("Renew the licences".to_string(), None, S::Waiting, P::Normal)]
+    );
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
 }
