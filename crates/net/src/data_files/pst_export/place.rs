@@ -1,6 +1,22 @@
-//! Where each folder goes in the data file: by its name, as Outlook shows names.
+//! Where each folder goes in the data file: by its name, as Outlook shows names, or, for the
+//! account's Sent, Trash, Drafts and Junk folders (and the folders inside them), in the file's
+//! own special folders.
 
 use super::*;
+use pst_rw::UnicodePstSpecialFolder as Special;
+
+/// The roles that have a special folder in a data file. MailCraft has no Outbox folder.
+pub(super) const SPECIAL: [(FolderRole, Special); 4] = [
+    (FolderRole::Sent, Special::SentItems),
+    (FolderRole::Trash, Special::DeletedItems),
+    (FolderRole::Drafts, Special::Drafts),
+    (FolderRole::Junk, Special::JunkEmail),
+];
+
+/// The special folder for `role`, when it has one.
+pub(super) fn special(role: FolderRole) -> Option<Special> {
+    SPECIAL.iter().find(|(r, _)| *r == role).map(|(_, s)| *s)
+}
 
 /// A folder's path as names, the way Outlook shows them.
 pub(super) fn names(path: &str, delimiter: Option<char>, role: FolderRole) -> Vec<String> {
@@ -22,6 +38,44 @@ pub(super) fn names(path: &str, delimiter: Option<char>, role: FolderRole) -> Ve
     out
 }
 
+/// The folders the file has for each special role: the ones an existing file records, else
+/// the names a new file gets.
+pub(super) struct Targets(Vec<(Special, Vec<String>)>);
+
+impl Targets {
+    /// The file at `path`'s (none when there's no file yet).
+    pub(super) fn of(path: Option<&Path>) -> Targets {
+        let found = |s: Special| path.and_then(|p| UnicodePstFile::special_folder(p, s).ok().flatten());
+        Targets(SPECIAL.iter().map(|(_, s)| (*s, found(*s).unwrap_or_else(|| vec![s.default_name().to_string()]))).collect())
+    }
+
+    pub(super) fn get(&self, s: Special) -> Vec<String> {
+        self.0.iter().find(|(t, _)| *t == s).map(|(_, names)| names.clone()).unwrap_or_else(|| vec![s.default_name().to_string()])
+    }
+}
+
+/// Where `f` (one of `folders`) goes: its special folder when its role has one, inside it when
+/// a folder above it has such a role, else its own names.
+pub(super) fn place(f: &Folder, folders: &[Folder], targets: &Targets) -> Vec<String> {
+    let own = names(&f.path, f.delimiter, f.role);
+    if let Some(s) = special(f.role) {
+        return targets.get(s);
+    }
+    let above = folders
+        .iter()
+        .filter_map(|a| Some((a, special(a.role)?)))
+        .find(|(a, _)| a.path != f.path && a.delimiter.is_some_and(|d| f.path.strip_prefix(a.path.as_str()).is_some_and(|rest| rest.starts_with(d))));
+    match above {
+        Some((a, s)) => {
+            let depth = names(&a.path, a.delimiter, a.role).len();
+            let mut out = targets.get(s);
+            out.extend(own.into_iter().skip(depth));
+            out
+        }
+        None => own,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -31,5 +85,28 @@ mod tests {
         assert_eq!(names("INBOX/Projects/&AMk-t&AOk-", Some('/'), FolderRole::Other), ["Inbox", "Projects", "Été"]);
         assert_eq!(names("Sent", None, FolderRole::Sent), ["Sent"]);
         assert_eq!(names("a//b", Some('/'), FolderRole::Other), ["a", "Folder", "b"]);
+    }
+
+    #[test]
+    fn special_folders_and_folders_inside_them() {
+        let folder = |path: &str, role| Folder { path: path.into(), delimiter: Some('/'), role, ..Default::default() };
+        let folders = [
+            folder("[Gmail]/Sent Mail", FolderRole::Sent),
+            folder("[Gmail]/Sent Mail/2024", FolderRole::Other),
+            folder("Trash", FolderRole::Trash),
+            folder("Trashy", FolderRole::Other),
+            folder("Projects", FolderRole::Other),
+        ];
+        let targets = Targets::of(None);
+        let at = |i: usize| place(&folders[i], &folders, &targets);
+        assert_eq!(at(0), ["Sent Items"]);
+        assert_eq!(at(1), ["Sent Items", "2024"]);
+        assert_eq!(at(2), ["Deleted Items"]);
+        assert_eq!(at(3), ["Trashy"]);
+        assert_eq!(at(4), ["Projects"]);
+        // A file that records its own: those.
+        let targets = Targets(vec![(Special::SentItems, vec!["Gesendet".into()])]);
+        assert_eq!(place(&folders[1], &folders, &targets), ["Gesendet", "2024"]);
+        assert_eq!(place(&folders[2], &folders, &targets), ["Deleted Items"]);
     }
 }

@@ -1,8 +1,9 @@
 //! Exporting an account's mail to an Outlook data file (`.pst`).
 //!
 //! The file is written with the MIT-licensed `outlook-pst-rw` crate (MS-PST, Unicode format),
-//! from MailCraft's fork: each folder kept on this computer becomes a folder of the same name
-//! ([`place`]). Each message whose body is here goes in with
+//! from MailCraft's fork: each folder kept on this computer becomes a folder of the same name,
+//! and the account's Sent, Trash, Drafts and Junk folders go to the file's own Sent Items,
+//! Deleted Items, Drafts and Junk Email ([`place`]). Each message whose body is here goes in with
 //! its addresses (Bcc too), text and HTML bodies, attachments and header block, and with what the
 //! store keeps of it: read or not, a draft, flagged (and when it's due), answered or forwarded,
 //! its categories, importance and sensitivity ([`item`]). Messages only known by their headers
@@ -24,7 +25,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use mailcraft_mime as mime;
-use mailcraft_model::{FolderRole, MessageKey, utf7};
+use mailcraft_model::{Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::Store;
 use outlook_pst::messaging::message::{Message as _, UnicodeMessage};
 use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
@@ -139,10 +140,12 @@ pub fn export(
         std::fs::copy(path, &temp).map_err(|e| e.to_string())?;
     }
     let mut created = existing;
+    // The special folders a file added to records, else the names a new one gets.
+    let targets = place::Targets::of(existing.then_some(temp.as_path()));
     let written = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(), String> {
         for f in folders.iter().filter(|f| f.selectable) {
             let Ok(st) = store.load_folder(account, &f.path) else { continue };
-            let folder = place::names(&f.path, f.delimiter, f.role);
+            let folder = place::place(f, &folders, &targets);
             let folder: Vec<&str> = folder.iter().map(String::as_str).collect();
             let mut batch = Vec::new();
             let mut bytes = 0usize;
@@ -171,6 +174,7 @@ pub fn export(
                 progress(done.messages);
             }
         }
+        record_special(&temp, &folders, &targets, created);
         Ok(())
     }));
     let result = match written {
@@ -214,6 +218,34 @@ fn pim_beside(store: &Store, account: &str, path: &Path) -> mailcraft_store::Res
         mailcraft_store::write_atomic(&dir.join(format!("{stem} Contacts.vcf")), cards.as_bytes())?;
     }
     Ok((events.len(), pim.cards.len()))
+}
+
+/// Record the folders of the account's special roles as the file's own special folders, unless
+/// the file records one already (a file added to keeps its own); made when they have no mail.
+/// The mail is in by then: a file that can't take the record keeps it as written, and the log
+/// says why.
+fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, created: bool) {
+    if !created {
+        return;
+    }
+    for (role, special) in place::SPECIAL {
+        if !folders.iter().any(|f| f.selectable && f.role == role) {
+            continue;
+        }
+        match UnicodePstFile::special_folder(path, special) {
+            Ok(Some(_)) => continue,
+            Ok(None) => {}
+            Err(e) => {
+                log::info!("the data file's {special:?} can't be read: {e}");
+                continue;
+            }
+        }
+        let names = targets.get(special);
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        if let Err(e) = UnicodePstFile::set_special_folder(path, special, &names) {
+            log::info!("the data file's {special:?} can't be recorded: {e}");
+        }
+    }
 }
 
 fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> Result<(), String> {

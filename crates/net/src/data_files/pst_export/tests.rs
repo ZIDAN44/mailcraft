@@ -1,6 +1,7 @@
 use super::*;
 use mailcraft_model::{EmailAddress, Flags};
 use mailcraft_store::FolderState;
+use pst_rw::UnicodePstSpecialFolder as Special;
 
 const NONE: &BTreeMap<String, i64> = &BTreeMap::new();
 
@@ -127,6 +128,8 @@ fn an_account_round_trips_through_a_data_file() {
                 folder("Sent/2024", FolderRole::Other),
                 folder("Drafts", FolderRole::Drafts),
                 folder("Bin", FolderRole::Trash),
+                // No mail: still the file's Junk Email.
+                folder("Spam", FolderRole::Junk),
             ],
         )
         .unwrap();
@@ -163,6 +166,16 @@ fn an_account_round_trips_through_a_data_file() {
     assert!(vcf.contains("FN:Ana Lima"), "{vcf}");
     assert!(ticks > 0);
 
+    // The file records its special folders, as Outlook names them.
+    for (special, name) in [
+        (Special::SentItems, "Sent Items"),
+        (Special::DeletedItems, "Deleted Items"),
+        (Special::Drafts, "Drafts"),
+        (Special::JunkEmail, "Junk Email"),
+    ] {
+        assert_eq!(UnicodePstFile::special_folder(&file, special).unwrap(), Some(vec![name.to_string()]), "{special:?}");
+    }
+    assert_eq!(UnicodePstFile::special_folder(&file, Special::Outbox).unwrap(), None);
     // What the import doesn't read back: the follow-up's text, icon and day, and that the
     // addresses are SMTP ones.
     let task_due = named_id(&file, 0x0006_2003, 0x8105).unwrap();
@@ -184,7 +197,7 @@ fn an_account_round_trips_through_a_data_file() {
     // A draft is unsent; the others aren't.
     let draft = props_of(&file, &["Drafts"], "Draft one", &[0x0E07]);
     assert!(matches!(draft[0], Some(V::Integer32(f)) if f & 0x8 != 0 && f & 0x1 == 0));
-    let older = props_of(&file, &["Sent", "2024"], "Older sent", &[0x0E07]);
+    let older = props_of(&file, &["Sent Items", "2024"], "Older sent", &[0x0E07]);
     assert!(matches!(older[0], Some(V::Integer32(f)) if f & 0x8 == 0 && f & 0x1 != 0));
 
     // Read back with the importer.
@@ -192,10 +205,12 @@ fn an_account_round_trips_through_a_data_file() {
     let imported = crate::pst::import(&file, &back, "b1", &mut |_| {}).unwrap();
     assert_eq!(imported.messages, 7, "{imported:?}");
     let all = back.load_folders("b1").unwrap();
-    for (role, path) in [(FolderRole::Sent, "Sent"), (FolderRole::Drafts, "Drafts")] {
+    for (role, path) in
+        [(FolderRole::Sent, "Sent Items"), (FolderRole::Trash, "Deleted Items"), (FolderRole::Drafts, "Drafts"), (FolderRole::Junk, "Junk Email")]
+    {
         assert!(all.iter().any(|f| f.role == role && f.path == path), "{role:?} {all:?}");
     }
-    assert!(all.iter().any(|f| f.path == "Sent/2024" && f.total == 1), "{all:?}");
+    assert!(all.iter().any(|f| f.path == "Sent Items/2024" && f.total == 1), "{all:?}");
     let inbox = back.load_folder("b1", "INBOX").unwrap();
     assert_eq!(inbox.messages.len(), 2, "{all:?}");
     let plan = inbox.messages.iter().find(|m| m.subject == "Plan — café").unwrap();
@@ -217,17 +232,17 @@ fn an_account_round_trips_through_a_data_file() {
     assert!(second.flags.seen && second.flags.answered && !second.flags.flagged && second.flags.keywords.is_empty());
     assert_eq!(second.in_reply_to, "m1@example.com");
     assert_eq!(second.references, ["m0@example.com", "m1@example.com"]);
-    let sent = &back.load_folder("b1", "Sent").unwrap().messages[0];
+    let sent = &back.load_folder("b1", "Sent Items").unwrap().messages[0];
     assert!(sent.flags.seen && sent.flags.forwarded, "{:?}", sent.flags);
     let raw = back.read_body(&sent.key).unwrap();
     assert_eq!(mime::parse(&raw).unwrap().bcc[0].email, "cleo@example.com");
     let draft = &back.load_folder("b1", "Drafts").unwrap().messages[0];
     assert!(draft.flags.draft && !draft.flags.seen, "{:?}", draft.flags);
-    assert_eq!(back.load_folder("b1", "Bin").unwrap().messages[0].subject, "Thrown away");
+    assert_eq!(back.load_folder("b1", "Deleted Items").unwrap().messages[0].subject, "Thrown away");
     assert!(all.iter().any(|f| f.path.ends_with("Projects") && f.total == 1), "{all:?}");
 
     // Exported again into the same file (issue #18): added to, nothing twice; a new message goes
-    // in beside the ones there.
+    // in beside the ones there, and the special folders stay the file's.
     let again = export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap();
     assert_eq!((again.messages, again.already), (0, 7));
     let mut inbox = store.load_folder("a1", "INBOX").unwrap();
@@ -240,7 +255,8 @@ fn an_account_round_trips_through_a_data_file() {
     let subjects: Vec<String> = back.load_folder("b2", "INBOX").unwrap().messages.iter().map(|m| m.subject.clone()).collect();
     assert_eq!(subjects.iter().filter(|s| *s == "Second").count(), 1, "{subjects:?}");
     assert!(subjects.contains(&"Third".to_string()), "{subjects:?}");
-    assert_eq!(back.load_folder("b2", "Sent").unwrap().messages.len(), 1);
+    assert_eq!(back.load_folder("b2", "Sent Items").unwrap().messages.len(), 1);
+    assert!(!back.load_folders("b2").unwrap().iter().any(|f| f.path.starts_with("Sent Items (")));
     assert!(!dir.join("Out.pst.part").exists());
 
     // A file that can't be replaced: the error says where the mail is, and it is there.
@@ -255,6 +271,50 @@ fn an_account_round_trips_through_a_data_file() {
     let empty = dir.join("Empty.pst");
     assert!(export(&store, "nobody", "x", &empty, NONE, &mut |_| {}).is_err());
     assert!(!empty.exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A file added to keeps its own special folders: the account's Sent mail goes into the folder
+/// it records, whatever its name, and none of its own is recorded in its place.
+#[test]
+fn an_export_uses_the_special_folders_a_file_has() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-special-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("Theirs.pst");
+    let theirs = UnicodePstMessage {
+        subject: "Theirs",
+        sender_name: "Ana",
+        sender_email: "ana@example.com",
+        recipients: &[],
+        body: "Kept.",
+        html_body: None,
+        message_id: "<theirs@example.com>",
+        delivery_time: 133_485_408_000_000_000,
+        message_class: "IPM.Note",
+        properties: &[],
+    };
+    drop(UnicodePstFile::create_in_folder(&file, &["Gesendete Elemente"], &theirs).unwrap());
+    drop(UnicodePstFile::set_special_folder(&file, Special::SentItems, &["Gesendete Elemente"]).unwrap());
+
+    let store = Store::open(dir.join("cache")).unwrap();
+    let d = mime::Draft { subject: "Ours".into(), body: "Sent.".into(), ..Default::default() };
+    let raw = mime::build(&d, &EmailAddress::new("Riley", "riley@example.com"), 1_704_067_200, "ours@example.com").unwrap();
+    let key = MessageKey { account: "a1".into(), folder: "Sent".into(), validity: 1, uid: 1 };
+    store.write_body(&key, &raw).unwrap();
+    let s = mime::summary_from_full(&raw, key, Flags { seen: true, ..Default::default() }, 10, 0);
+    store.save_folder("a1", "Sent", &FolderState { validity: 1, uid_next: 2, messages: vec![s], ..Default::default() }).unwrap();
+    let sent = mailcraft_model::Folder { account: "a1".into(), path: "Sent".into(), role: FolderRole::Sent, selectable: true, ..Default::default() };
+    store.save_folders("a1", &[sent]).unwrap();
+
+    assert_eq!(export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap().messages, 1);
+    assert_eq!(UnicodePstFile::special_folder(&file, Special::SentItems).unwrap(), Some(vec!["Gesendete Elemente".to_string()]));
+    let back = Store::open(dir.join("back")).unwrap();
+    assert_eq!(crate::pst::import(&file, &back, "b1", &mut |_| {}).unwrap().messages, 2);
+    let folders = back.load_folders("b1").unwrap();
+    let theirs = folders.iter().find(|f| f.path == "Gesendete Elemente").unwrap();
+    assert_eq!((theirs.role, theirs.total), (FolderRole::Sent, 2), "{folders:?}");
+    assert!(!folders.iter().any(|f| f.path == "Sent Items"), "{folders:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
