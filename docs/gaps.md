@@ -20,7 +20,7 @@ _Status: v0.32, 2026-10-31._
 | 6 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store (Chrome's Web Smart Card API is for Isolated Web Apps only). Its certificates are locked again after a reload unless *Keep unlocked in this browser* is on. |
 | 7 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 | 8 | **Search index: one writer across processes** | Each account's search index has one writer at a time within a process. The CLI and the app on one folder layout could both write it; the `search/v1/lock` lease that stops a second comes with the CLI's `--index`, when the CLI first writes an index. |
-| 9 | **Searches that find tens of thousands: not yet as fast as aimed** | Measured on the made-up mailbox of 50,000 messages (`sample::big`; release build, `search_big::how_long_searches_take`, which fails if a budget met slips). Met: a word, 25 ms all told and 2 ms a step warm; a one-letter word, 180–270 ms all told; every step reads at most 16 store pages. Not yet: a search in a session just opened makes its summaries' text, 11–15 ms a step against the 4 ms aimed for; `is:unread` over 50,000 takes 35 ms against 15 ms; the common phrase's 16,667 found, each checked against its text, 0.3–0.4 s against 150 ms; a one-letter word's steps 16–24 ms against 6 ms; and the frame that shows 35,000–47,000 found builds the list at once, 10–12 ms against 8 ms. |
+| 9 | **Searches that find tens of thousands: not yet as fast as aimed** | Measured on the made-up mailbox of 50,000 messages (`sample::big`; release build, `search_big::how_long_searches_take`, which fails if a budget met slips). Met: a word, 25 ms all told and 2 ms a step warm; a one-letter word, 180–270 ms all told; every step reads at most 16 store pages. Not yet: a search in a session just opened makes its summaries' text, 11–15 ms a step against the 4 ms aimed for; `is:unread` over 50,000 takes 35 ms against 15 ms; the common phrase's 16,667 found, each checked against its text, 0.3–0.4 s against 150 ms; a one-letter word's steps 16–24 ms against 6 ms; and the frame that shows 35,000–47,000 found builds the list at once, 10–12 ms against 8 ms. On the 41 GB file (34,691 messages), most warm word searches take 41–56 ms and one found in 7,654 messages 80 ms against 50 ms, nearly all of it checking each summary (about 1 µs each), and the phrase 0.7 s of checking kept texts. |
 
 ## Done
 
@@ -1949,7 +1949,17 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   built from changed meanwhile (a mark, a move or new mail in a folder, another folder opened,
   the arrangement, the filter or Focused); what the search showed and held is let go of a slice
   a frame. On the made-up mailbox (release build), clearing 35,000 found over the Inbox's
-  12,000 takes 1.6 ms.
+  12,000 takes 1.6 ms; on the real file's folder no clear's frame took over 5.9 ms (0 over 50 ms
+  in 60 clears), and typing the 20 queries of its ground truth a character at a time no frame
+  over 10.8 ms (2,246 frames).
+- **Searching the 41 GB file, measured:** each search now logs, when it's done, what it spent
+  its time on by kind of work. Warm, on the file's 34,691 messages, a word's search is almost
+  all checking the summaries (25–50 ms) and looking the word up (2–24 ms); a word found in
+  thousands copied each summary found twice on its way to the list, and now once: the negated
+  word's 32,574 found take 140 ms from the query to the last frame (203 ms before), `to:` a
+  domain's 20,713 75 ms (111 ms). Most word searches take 41–56 ms, a word found in 7,654
+  messages 80 ms, against the 50 ms aimed for; the phrase is 0.7 s of checking kept texts. Every
+  count matches the file's ground truth.
 - **Holding Down while marks are written:** a hold of Down over unread mail on the 41 GB file's
   data file once had frames of 0.5 and 1.8 s, and the window answered nothing for about 7 s,
   while two read marks took 3.1 and 3.5 s to commit (the disk flushing). Reading a folder's list

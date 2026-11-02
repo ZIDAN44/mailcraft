@@ -315,8 +315,9 @@ impl SearchRun {
         }
     }
 
-    /// Where `m` stands now, as `v` says (`last`: nothing more can be read for it).
-    pub(crate) fn record(&mut self, m: &Summary, v: Verdict, awaiting: bool, last: bool) {
+    /// Where `m` stands now, as `v` says (`last`: nothing more can be read for it). Taken, not
+    /// copied: a word found in thousands of messages copied each summary twice.
+    pub(crate) fn record(&mut self, m: Summary, v: Verdict, awaiting: bool, last: bool) {
         let key = &m.key;
         self.recheck.remove(key);
         if !matches!(v, Verdict::CutShort) {
@@ -327,16 +328,16 @@ impl SearchRun {
                 self.missing.remove(key);
                 self.gone.remove(key);
                 if self.found.insert(key.clone()) {
-                    self.fresh.push(m.clone());
+                    self.fresh.push(m);
                 }
             }
             Verdict::Verify(doc) if !last => {
-                self.verify.push_back(Candidate { m: m.clone(), doc: Some(doc), awaiting });
+                self.verify.push_back(Candidate { m, doc: Some(doc), awaiting });
                 self.verify_sorted = false;
                 self.finish = Finish::Due;
             }
             Verdict::Missing if self.wait && !last => {
-                self.fallback.push_back(Candidate { m: m.clone(), doc: None, awaiting });
+                self.fallback.push_back(Candidate { m, doc: None, awaiting });
                 self.finish = Finish::Due;
             }
             Verdict::No | Verdict::Verify(_) | Verdict::Missing | Verdict::CutShort => {
@@ -611,7 +612,7 @@ impl Session {
         let checked = u64::try_from(end.saturating_sub(cur.at)).unwrap_or(u64::MAX);
         self.search_state.stats.summaries = self.search_state.stats.summaries.saturating_add(checked);
         for (m, v, awaiting) in verdicts {
-            run.record(&m, v, awaiting, false);
+            run.record(m, v, awaiting, false);
         }
         cur.at = end;
         if end >= len {
@@ -711,8 +712,7 @@ impl Session {
                     }
                     // Its index went meanwhile: it may be missing.
                     _ => {
-                        let (m, awaiting) = (c.m, c.awaiting);
-                        run.record(&m, Verdict::Missing, awaiting, true);
+                        run.record(c.m, Verdict::Missing, c.awaiting, true);
                         return 1;
                     }
                 }
@@ -720,8 +720,7 @@ impl Session {
         };
         let account = v.c.m.key.account.clone();
         let (Some(store), Some(reader)) = (self.store.clone(), self.search_state.readers.get_mut(&account).and_then(|s| s.reader.as_mut())) else {
-            let (m, awaiting) = (v.c.m.clone(), v.c.awaiting);
-            run.record(&m, Verdict::Missing, awaiting, true);
+            run.record(v.c.m, Verdict::Missing, v.c.awaiting, true);
             return 1;
         };
         let before = reader.pages_read();
@@ -738,7 +737,7 @@ impl Session {
                 if answers.said() {
                     run.known.insert(c.m.key.clone(), answers);
                 }
-                run.record(&c.m, verdict, c.awaiting, true);
+                run.record(c.m, verdict, c.awaiting, true);
             }
         }
         1
@@ -769,7 +768,7 @@ impl Session {
                 }
             }
         };
-        run.record(&c.m, verdict, c.awaiting, true);
+        run.record(c.m, verdict, c.awaiting, true);
         1
     }
 }

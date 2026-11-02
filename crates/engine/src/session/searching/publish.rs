@@ -173,10 +173,10 @@ impl Session {
                 verdicts.push((m.clone(), v, awaiting));
             }
             for (m, v, awaiting) in verdicts {
-                let was = run.found.contains(&m.key);
-                run.record(&m, v, awaiting, false);
+                let (was, key) = (run.found.contains(&m.key), m.key.clone());
+                run.record(m, v, awaiting, false);
                 // Still to be read: the list is put together once it is.
-                if run.found.contains(&m.key) != was || !run.idle() {
+                if run.found.contains(&key) != was || !run.idle() {
                     same = false;
                 }
             }
