@@ -112,15 +112,20 @@ impl Session {
     /// Searching in the background (the window), an account's index opened a tick before anyone
     /// searches it: one account a tick, the first that has none open (or has one written since
     /// it had none). The first search's first steps then have its index open already (the one
-    /// that opened it was often the slowest step of a search just after opening). One a search
-    /// stopped on (damaged) stays unread until its writer writes it again, as the search would
-    /// leave it. While a search runs, it opens and reads again what it reads itself.
+    /// that opened it was often the slowest step of a search just after opening). Each index so
+    /// opened stays open, and in memory, whether or not anyone searches. One a search stopped on
+    /// (damaged) stays unread by ticks: the next search reads it again once its writer has
+    /// written it. While a search runs, it opens and reads again what it reads itself, and one
+    /// that has ended does so for its own accounts (`follow_indexes`), as it looks
+    /// again at what the index then finds.
     pub(crate) fn open_indexes_ahead(&mut self) {
-        if !self.search_state.background || self.store.is_none() || self.search_state.run.as_ref().is_some_and(|r| !r.done()) {
+        let run = self.search_state.run.as_ref();
+        if !self.search_state.background || self.store.is_none() || run.is_some_and(|r| !r.done()) {
             return;
         }
+        let searched = |id: &String| run.is_some_and(|r| r.folders.iter().any(|(a, _)| a == id));
         let readers = &self.search_state.readers;
-        let due = |id: &String| readers.get(id).is_none_or(|s| s.reader.is_none() && s.behind && !s.damaged);
+        let due = |id: &String| readers.get(id).is_none_or(|s| s.reader.is_none() && s.behind && !s.damaged && !searched(id));
         let Some(account) = self.accounts.iter().map(|a| &a.config.id).find(|id| due(id)).cloned() else { return };
         self.search_state.readers.remove(&account);
         self.open_reader(&account);

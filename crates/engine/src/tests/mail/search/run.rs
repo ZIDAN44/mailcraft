@@ -643,3 +643,22 @@ fn a_tick_opens_the_index_ahead() {
     assert!(!s.search_index_open("a1"), "a damaged index isn't opened ahead");
     drop(s);
 }
+
+/// A search run while an account had no index yet, still on screen when a pass writes one: a
+/// tick doesn't open that index ahead of the search, which looks again at what the index finds
+/// (body matches among them) once the pass is over. A tick that opened it, taking the pass's
+/// generation, left the search showing nothing.
+#[test]
+fn a_tick_leaves_a_shown_search_its_index_to_follow() {
+    let mut s = generated(2, 50, 0, false);
+    s.set_background_search(true);
+    s.start_search("zanzibar", SearchScope::All, false);
+    settle(&mut s, 8);
+    assert_eq!(s.list.len(), 0, "no index, no body read");
+    let generation = index_now(&s, "a1");
+    s.apply(Event::Indexed { account: "a1".into(), work: Default::default(), generation, failed: 0, finished: false });
+    s.tick();
+    indexed(&mut s, "a1", generation);
+    settle(&mut s, 8);
+    assert_eq!(s.list.len(), 100 / 7, "what the index finds shown");
+}
