@@ -468,7 +468,9 @@ pub(crate) fn encode_blob(doc: &IndexDoc) -> (Vec<u8>, bool) {
     }
     let text = kept_text(&doc.text);
     let cut = text.len() < doc.text.len() || names.len() < doc.names.len();
-    let mut out = Vec::with_capacity(16 + room + text.len());
+    // Exactly what it takes: a writer holds thousands of these, counted by their length.
+    let names_bytes = names.iter().map(|n| n.len().saturating_add(2)).fold(0, usize::saturating_add);
+    let mut out = Vec::with_capacity(BLOB.len() + 1 + 2 + names_bytes + 4 + text.len());
     out.extend_from_slice(BLOB);
     out.push(VERSION);
     out.extend_from_slice(&u16::try_from(names.len()).unwrap_or(u16::MAX).to_le_bytes());

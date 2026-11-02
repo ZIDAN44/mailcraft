@@ -29,9 +29,11 @@ pub struct Pass {
 }
 
 /// What a pass's writer holds in memory before it writes: a quarter of an import's
-/// ([`IN_FLIGHT_BYTES`](super::IN_FLIGHT_BYTES)). Its words take several times what they're
-/// counted for: with an import's, a pass over the 41 GB file rose and fell by 300 MB between its
-/// flushes and peaked 390 MB above the window's own; with this, 170 MB, in the same 110 s.
+/// ([`IN_FLIGHT_BYTES`](super::IN_FLIGHT_BYTES)). With an import's, a pass over the 41 GB file
+/// rose and fell by 300 MB between its flushes and peaked 390 MB above the window's own; with
+/// this, 170 MB, in the same 110 s. Those were counted at a sixth of what they held (each kept
+/// text took 64 KiB more than its length; a word's map place and its list's spare room weren't
+/// counted): now counted as held, it writes sooner and holds less.
 const PASS_IN_FLIGHT: usize = 16 << 20;
 
 impl Pass {

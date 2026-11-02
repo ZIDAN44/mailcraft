@@ -38,7 +38,8 @@
 //! number: only those at each folder's end), to time what they cost.
 //!
 //! Memory is watched from outside (the test process's working set), so the numbers are the
-//! process's, allocator and all.
+//! process's, allocator and all; `MC_PEAK_MB` fails the run when its peak is over that many MB
+//! (the `MC_NO_INDEX` run's peak and 150 MB more, for an import indexing as it goes).
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -311,6 +312,12 @@ fn import() {
     println!("cache: {}", serde_json::to_string(&store.cache_use("d1")).unwrap());
     if let Some(io) = io_counts() {
         println!("io: {io}");
+        // `MC_PEAK_MB`: the most the peak working set may be (an import indexing as it goes is
+        // held to 150 MB over the same import's with `MC_NO_INDEX`).
+        if let Some(limit) = env("MC_PEAK_MB").and_then(|v| v.parse::<u64>().ok()) {
+            let peak = serde_json::from_str::<serde_json::Value>(&io).ok().and_then(|v| v["peak_ws_bytes"].as_u64()).unwrap_or(0);
+            assert!(peak > 0 && peak <= limit << 20, "peak working set {} MB, over {limit} MB", peak >> 20);
+        }
     }
     // What an item and a byte cost, and how far off the time left the window says would have
     // been: for a run read from start to end only.

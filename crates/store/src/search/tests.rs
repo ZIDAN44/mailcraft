@@ -4,6 +4,7 @@ use super::format::*;
 use super::*;
 
 mod maint;
+mod memory;
 
 /// The three layouts, each in a folder of its own: memory, the folder layout, data files.
 fn layouts(name: &str) -> Vec<(&'static str, PathBuf, Store)> {

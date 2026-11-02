@@ -142,17 +142,24 @@ fn each_word(text: &str, names: &[String], each: &mut dyn FnMut(Vec<u8>)) {
     }
 }
 
-/// A word of `doc` added to the words to write; the bytes it took.
+/// What a new word takes in the words to write besides its key's and its list's bytes: its key
+/// and list in a node of the map, about two-thirds full, with their nodes' links.
+const WORD_ENTRY: usize = 80;
+
+/// A word of `doc` added to the words to write; the bytes it took as the heap holds them (its
+/// key's and its list's room, not their length, and its place in the map), so what a writer
+/// holds is what [`Writer::should_flush`] goes by.
 fn file_word(words: &mut BTreeMap<Vec<u8>, Vec<u32>>, doc: u32, k: Vec<u8>) -> usize {
     let mut added = 0usize;
-    let len = k.len();
+    let room = k.capacity();
     let list = words.entry(k).or_insert_with(|| {
-        added = len + 48;
+        added = room.saturating_add(WORD_ENTRY);
         Vec::new()
     });
     if list.last() != Some(&doc) {
+        let before = list.capacity();
         list.push(doc);
-        added += 4;
+        added = added.saturating_add(list.capacity().saturating_sub(before).saturating_mul(4));
     }
     added
 }
@@ -359,7 +366,7 @@ impl Writer {
         let added = words.into_iter().map(|k| file_word(&mut self.words, id, k)).fold(0, usize::saturating_add);
         self.word_bytes = self.word_bytes.saturating_add(added);
         self.word_docs = self.word_docs.saturating_add(1);
-        self.text_bytes = self.text_bytes.saturating_add(blob.len());
+        self.text_bytes = self.text_bytes.saturating_add(blob.capacity());
         self.texts.push((id, blob));
         self.live = self.live.saturating_add(1);
         self.touch(id);
@@ -453,7 +460,7 @@ impl Writer {
         if text == NO_TEXT {
             if let Some(i) = self.texts.iter().position(|(t, _)| *t == doc) {
                 let (_, blob) = self.texts.remove(i);
-                self.text_bytes = self.text_bytes.saturating_sub(blob.len());
+                self.text_bytes = self.text_bytes.saturating_sub(blob.capacity());
             }
         } else {
             let page = self.meta.text_pages.get(text as usize).map_or(0, |t| t.bytes as usize);

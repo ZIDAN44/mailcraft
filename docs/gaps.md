@@ -2135,3 +2135,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   kept text, which its words were indexed from, isn't read again for every word searched: it's
   counted apart, and the list says "Some long messages were searched only in part" instead, more
   quietly. `-word` now finds 32,574, matching that ground truth.
+- **Memory of a `.pst` import that indexes as it goes:** the app held 1.39–1.42 GB at its peak
+  importing the 41 GB file (1.20 GB by the benchmark, 0.76 GB without indexing). The search
+  index's writer holds the words and texts of the messages it adds until it writes them, and
+  counted them at a sixth of what they took: each message's kept text was given 64 KiB of room
+  more than its length (the room left for files' names, not the room they took), and a new word's
+  place in the map and its list's spare room weren't counted. A kept text now takes the room its
+  bytes need, and the words are counted as the heap holds them (checked against a counting
+  allocator: 0.93–1.04 times, from 5.6), so the writer writes at what it says it holds, for an
+  import as for a pass. By the benchmark the import now peaks at 843 MB, 73 MB over the same
+  import without indexing (770 MB; `MC_PEAK_MB` now fails a run over a limit), in 150 s (175 s
+  before). Held to a quarter, as a pass's writer is, it peaked at 790 MB in 146 s; it isn't,
+  as fewer, bigger segments are written for the searches after.
