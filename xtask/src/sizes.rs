@@ -5,7 +5,7 @@
 //! What was over a limit when the rule came in is listed in `xtask/sizes.txt` with its size
 //! then: it may shrink, never grow, and `--update` only ever lowers those figures (dropping
 //! what's back within the limits). Nothing can be added to the list: a new file or folder
-//! meets the limits outright. Vendored code (`vendor/`) is someone else's and isn't counted.
+//! meets the limits outright.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -30,7 +30,7 @@ fn measure(root: &Path) -> Result<Sizes, String> {
         .map_err(|e| format!("git ls-files: {e}"))?;
     let mut files = BTreeMap::new();
     let mut dirs: BTreeMap<String, usize> = BTreeMap::new();
-    for f in String::from_utf8_lossy(&out.stdout).lines().filter(|f| !f.starts_with("vendor/")) {
+    for f in String::from_utf8_lossy(&out.stdout).lines() {
         // Listed but deleted from the working tree: not there to count.
         let Ok(text) = std::fs::read_to_string(root.join(f)) else { continue };
         files.insert(f.to_string(), text.lines().count());

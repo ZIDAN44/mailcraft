@@ -4,7 +4,7 @@
 //! the raw secret read with `NCryptDeriveKey` and `BCRYPT_KDF_RAW_SECRET` (named `TRUNCATE` in
 //! CNG; it comes little-endian), the X9.63 derivation done in Rust).
 //!
-//! The one place in MailCraft outside vendored code that allows `unsafe`: every block says why
+//! With `macos/sec.rs`, the only place in MailCraft that allows `unsafe`: every block says why
 //! it holds, every handle is freed by [`Object`] whatever happens, and every size is checked
 //! before it's used.
 #![allow(unsafe_code)]

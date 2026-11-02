@@ -2,8 +2,8 @@
 //! of a public EC point (`SecKeyCreateWithData`), the sender's one-time key of an EC recipient's
 //! mail, so the Keychain's key can agree a secret with it (the safe `SecKey::key_exchange`).
 //!
-//! With `windows/cng.rs`, the only place in MailCraft outside vendored code that allows
-//! `unsafe`: every block says why it holds.
+//! With `windows/cng.rs`, the only place in MailCraft that allows `unsafe`: every block says
+//! why it holds.
 #![allow(unsafe_code)]
 
 use core_foundation::base::TCFType;
