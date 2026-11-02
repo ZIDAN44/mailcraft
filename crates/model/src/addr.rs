@@ -18,6 +18,11 @@ impl EmailAddress {
         EmailAddress { name: name.into(), email: email.into() }
     }
 
+    /// The heap its name and address take ([`crate::summary::heap_room`]).
+    pub fn heap_bytes(&self) -> usize {
+        crate::summary::string_room(&self.name).saturating_add(crate::summary::string_room(&self.email))
+    }
+
     /// The name if there is one, else the address.
     pub fn display(&self) -> &str {
         if self.name.trim().is_empty() { &self.email } else { self.name.trim() }

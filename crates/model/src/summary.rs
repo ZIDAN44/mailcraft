@@ -29,6 +29,31 @@ impl MessageKey {
         let folder = it.next()?.to_string();
         (!account.is_empty() && !folder.is_empty()).then_some(MessageKey { account, folder, validity, uid })
     }
+
+    /// The heap its account and folder take: each key holds its own copy of both.
+    pub fn heap_bytes(&self) -> usize {
+        string_room(&self.account).saturating_add(string_room(&self.folder))
+    }
+}
+
+/// The heap an allocation of `n` bytes takes: rounded up to the 16 bytes an allocator hands
+/// out (its own bookkeeping beside each isn't counted); none for none.
+pub fn heap_room(n: usize) -> usize {
+    n.checked_next_multiple_of(16).unwrap_or(n)
+}
+
+/// The heap a string takes: its capacity, not its length (a `&str` has none).
+#[allow(clippy::ptr_arg)]
+pub fn string_room(s: &String) -> usize {
+    heap_room(s.capacity())
+}
+
+/// The heap a list of `T` takes: its room (its capacity, a slice has none), then what each
+/// item holds.
+#[allow(clippy::ptr_arg)]
+pub fn list_room<T>(v: &Vec<T>, each: impl Fn(&T) -> usize) -> usize {
+    let room = heap_room(v.capacity().saturating_mul(std::mem::size_of::<T>()));
+    v.iter().fold(room, |n, x| n.saturating_add(each(x)))
 }
 
 /// System flags (RFC 3501 §2.3.2). Keywords other than these are kept as strings.
@@ -108,6 +133,11 @@ impl Flags {
 
     pub fn pinned(&self) -> bool {
         self.has(PINNED)
+    }
+
+    /// The heap its keywords take.
+    pub fn heap_bytes(&self) -> usize {
+        list_room(&self.keywords, string_room)
     }
 
     /// The flags as an IMAP flag list (without parentheses).
@@ -295,6 +325,25 @@ impl Summary {
     pub fn base_subject(&self) -> String {
         thread::base_subject(&self.subject)
     }
+
+    /// The heap it holds, besides its own `size_of::<Summary>()`: every string and list in it,
+    /// each rounded as [`heap_room`]. What the lists kept in memory cost is counted with it.
+    pub fn heap_bytes(&self) -> usize {
+        [
+            self.key.heap_bytes(),
+            string_room(&self.message_id),
+            string_room(&self.in_reply_to),
+            list_room(&self.references, string_room),
+            string_room(&self.subject),
+            self.from.heap_bytes(),
+            list_room(&self.to, EmailAddress::heap_bytes),
+            list_room(&self.cc, EmailAddress::heap_bytes),
+            self.flags.heap_bytes(),
+            string_room(&self.preview),
+        ]
+        .into_iter()
+        .fold(0usize, usize::saturating_add)
+    }
 }
 
 /// Sort newest first ([`Summary::when`]), with the key as a tie-breaker so the order is stable.
@@ -345,6 +394,24 @@ mod tests {
         sort_newest_first(&mut list);
         assert_eq!(list.iter().map(|m| m.key.uid).collect::<Vec<_>>(), vec![2, 1, 3]);
         assert_eq!((list[0].when(), list[1].when()), (500, 300));
+    }
+
+    #[test]
+    fn heap_bytes_counts_every_string_and_list() {
+        assert_eq!(Summary::default().heap_bytes(), 0);
+        assert_eq!((heap_room(0), heap_room(1), heap_room(16), heap_room(17)), (0, 16, 16, 32));
+        let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 2 };
+        assert_eq!(key.heap_bytes(), 32);
+        let mut m = Summary { key, subject: "x".repeat(20), preview: String::with_capacity(100), ..Default::default() };
+        assert_eq!(m.heap_bytes(), 32 + 32 + 112, "capacity counted, not length");
+        // A list's own room, then each item's.
+        m.to = vec![EmailAddress::new("Zoe", "zoe@example.org")];
+        m.references = vec!["a@b".into(), "c@d".into()];
+        m.flags.keywords = vec!["$label1".into()];
+        let to = heap_room(std::mem::size_of::<EmailAddress>()) + 16 + 16;
+        let refs = heap_room(2 * std::mem::size_of::<String>()) + 32;
+        let keywords = heap_room(std::mem::size_of::<String>()) + 16;
+        assert_eq!(m.heap_bytes(), 32 + 32 + 112 + to + refs + keywords);
     }
 
     #[test]
