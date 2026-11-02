@@ -399,7 +399,9 @@
 	See how much space your mail takes, and empty Deleted Items and Junk Email.	اعرف المساحة التي يشغلها بريدك، وأفرغ العناصر المحذوفة والبريد العشوائي.
 	Send automatic replies	إرسال ردود تلقائية
 	Server settings…	إعدادات الخادم…
-	Show HTML mail formatted (otherwise as plain text)	اعرض بريد HTML منسّقًا (وإلا فكنص عادي)
+	Read all mail as plain text	اقرأ كل البريد كنص عادي
+	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	يُترك التنسيق والألوان والصور. «عرض منسّق»، فوق الرسالة، يعيدها.
+	Show mail without its formatting	عرض البريد دون تنسيقه
 	Show a line of each message in the list	اعرض سطرًا من كل رسالة في القائمة
 	Sort new mail as it arrives: move it, flag it, categorize it.	رتّب البريد الجديد فور وصوله: انقله، ضع عليه علامة، صنّفه.
 	Source code and issues	الشيفرة المصدرية والمشكلات

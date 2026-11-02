@@ -399,7 +399,9 @@
 	See how much space your mail takes, and empty Deleted Items and Junk Email.	查看邮件占用的空间，并清空已删除邮件和垃圾邮件。
 	Send automatic replies	发送自动答复
 	Server settings…	服务器设置…
-	Show HTML mail formatted (otherwise as plain text)	以格式显示 HTML 邮件 (否则显示为纯文本)
+	Read all mail as plain text	以纯文本阅读所有邮件
+	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	将省略格式、颜色和图片。邮件上方的“显示格式”可切换回来。
+	Show mail without its formatting	显示邮件但不带格式
 	Show a line of each message in the list	在列表中显示每封邮件的一行内容
 	Sort new mail as it arrives: move it, flag it, categorize it.	在新邮件到达时整理: 移动、标记、分类。
 	Source code and issues	源代码和问题反馈

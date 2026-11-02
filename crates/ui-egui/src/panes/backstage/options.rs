@@ -188,9 +188,20 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, false, tl!("Write replies and forwards in a window of their own"), None, &mut |ui| {
             switch(ui, s.prefs.reply_window, tl!("Write replies and forwards in a window of their own"), "view.replyWindow", acts);
         });
-        setting(ui, false, tl!("Show HTML mail formatted (otherwise as plain text)"), None, &mut |ui| {
-            switch(ui, s.prefs.show_html, tl!("Show HTML mail formatted (otherwise as plain text)"), "view.html", acts);
-        });
+        // Every message as plain text, as Outlook's own setting for all mail: here, out of the
+        // way, with one message's More actions (⋯) and View › Plain text for the moment.
+        setting(
+            ui,
+            false,
+            tl!("Read all mail as plain text"),
+            Some(tl!("Formatting, colours and pictures are left out. Show formatted, above a message, switches back.")),
+            &mut |ui| {
+                let mut v = !s.prefs.show_html;
+                if widgets::switch(ui, &t, &mut v, tl!("Read all mail as plain text")).changed() {
+                    acts.push(Action::Run("view.html", json!({"on": !v})));
+                }
+            },
+        );
     });
 
     // How much mail is kept on this computer, as Outlook's "Mail to keep offline".

@@ -399,7 +399,9 @@
 	See how much space your mail takes, and empty Deleted Items and Junk Email.	ראה כמה מקום הדואר שלך תופס, ורוקן את הפריטים שנמחקו ואת דואר הזבל.
 	Send automatic replies	שלח תשובות אוטומטיות
 	Server settings…	הגדרות שרת…
-	Show HTML mail formatted (otherwise as plain text)	הצג דואר HTML מעוצב (אחרת כטקסט רגיל)
+	Read all mail as plain text	קרא את כל הדואר כטקסט רגיל
+	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	העיצוב, הצבעים והתמונות מושמטים. „הצג מעוצב”, מעל ההודעה, מחזיר אותם.
+	Show mail without its formatting	הצג דואר ללא העיצוב שלו
 	Show a line of each message in the list	הצג שורה מכל הודעה ברשימה
 	Sort new mail as it arrives: move it, flag it, categorize it.	מיין דואר חדש כשהוא מגיע: העבר אותו, סמן אותו, סווג אותו.
 	Source code and issues	קוד מקור ובעיות

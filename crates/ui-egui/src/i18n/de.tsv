@@ -400,7 +400,9 @@
 	See how much space your mail takes, and empty Deleted Items and Junk Email.	Sehen Sie, wie viel Platz Ihre E-Mails belegen, und leeren Sie „Gelöschte Elemente“ und „Junk-E-Mail“.
 	Send automatic replies	Automatische Antworten senden
 	Server settings…	Servereinstellungen…
-	Show HTML mail formatted (otherwise as plain text)	HTML-E-Mails formatiert anzeigen (sonst als Nur-Text)
+	Read all mail as plain text	Alle E-Mails als Nur-Text lesen
+	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	Formatierung, Farben und Bilder werden weggelassen. „Formatiert anzeigen“ über einer Nachricht schaltet zurück.
+	Show mail without its formatting	E-Mails ohne Formatierung anzeigen
 	Show a line of each message in the list	Eine Zeile jeder Nachricht in der Liste anzeigen
 	Sort new mail as it arrives: move it, flag it, categorize it.	Neue E-Mails beim Eintreffen sortieren: verschieben, kennzeichnen, kategorisieren.
 	Source code and issues	Quellcode und Fehlermeldungen

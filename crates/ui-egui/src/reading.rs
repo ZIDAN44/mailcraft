@@ -360,6 +360,15 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                     acts.push(Action::Run("message.source", json!({"key": r.key.to_id()})));
                                     ui.close();
                                 }
+                                // Here rather than over the text, where it was clicked by
+                                // mistake; for every message, as File › Options has it.
+                                if p.had_html && !p.rich.is_empty() {
+                                    let mut plain = !s.prefs.show_html;
+                                    if ui.checkbox(&mut plain, tl!("Show as plain text")).clicked() {
+                                        acts.push(Action::Run("view.html", json!({"on": !plain})));
+                                        ui.close();
+                                    }
+                                }
                             });
                         });
                     }

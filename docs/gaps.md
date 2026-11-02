@@ -2450,3 +2450,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   other killed, after which the folders come in within the retry), with the folders' files
   compared byte for byte, the app's lease against a second store of either kind, the CLI's
   message, and `.locks` left out of data files and accounts.
+- **Plain text out of the way:** "Show as plain text" was a link right above an HTML message's
+  text, where it was clicked by mistake, and it turned every message plain. It's now where
+  Outlook keeps the same thing: File › Options › Reading has "Read all mail as plain text" (the
+  setting it always was, said the way round it works), and for the moment, a check in the
+  message's More actions (⋯) and View › Message › Plain text. Above a message shown as text, "Shown
+  as text." and Show formatted are the way back. The command (`view.html`), its use from the
+  CLI and `--cmd`, and the setting are as they were. A headless test finds no link over the text,
+  turns plain text on and off from More actions, Show formatted, the View ribbon and the Options
+  switch, and runs the command by id.

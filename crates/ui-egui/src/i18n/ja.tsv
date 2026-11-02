@@ -399,7 +399,9 @@
 	See how much space your mail takes, and empty Deleted Items and Junk Email.	メールが使っている容量を確認し、削除済みアイテムと迷惑メールを空にします。
 	Send automatic replies	自動応答を送信する
 	Server settings…	サーバー設定…
-	Show HTML mail formatted (otherwise as plain text)	HTML メールを書式付きで表示 (オフならプレーン テキスト)
+	Read all mail as plain text	すべてのメールをプレーン テキストで読む
+	Formatting, colours and pictures are left out. Show formatted, above a message, switches back.	書式、色、画像は省かれます。メッセージの上の [書式付きで表示] で元に戻せます。
+	Show mail without its formatting	メールを書式なしで表示
 	Show a line of each message in the list	一覧に各メッセージの 1 行目を表示
 	Sort new mail as it arrives: move it, flag it, categorize it.	新着メールを届いたときに整理: 移動、フラグ、分類。
 	Source code and issues	ソース コードと問題報告

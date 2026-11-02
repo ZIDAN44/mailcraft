@@ -440,6 +440,10 @@ impl MailApp {
                         {
                             acts.push(Action::Run("message.source", json!({})));
                         }
+                        if ui.selectable_label(!s.prefs.show_html, tl!("Plain text")).on_hover_text(tl!("Show mail without its formatting")).clicked()
+                        {
+                            acts.push(Action::Run("view.html", json!({})));
+                        }
                         widgets::group(ui, &t, "Message", false);
                         ui.label(RichText::new(tl!("Theme")).color(t.dim));
                         for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {

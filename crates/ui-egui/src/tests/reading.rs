@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod plain_text;
+
 #[test]
 fn renders_every_state_without_panicking() {
     tour();
