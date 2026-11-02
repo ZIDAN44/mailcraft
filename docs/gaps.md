@@ -1914,6 +1914,39 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   still weighs 128 KB until the owner decides: bytes alone judged the time left no better (from
   half done 5–15% off against 4–26%, from a tenth 38–116% against 52–108%), and a file of many
   small messages, which this one isn't, is where an item's own cost shows.
+- **What a `.pst` import keeps, measured whole:** every item and attachment of the 41 GB file
+  (34,691 messages in 46 folders) was compared with what an import of it holds, read from the
+  file a second time, and the benchmark's own count of what came in (`pst_bench::import`'s
+  `kept:` line, with `MC_VERIFY`) agrees, as does the import test on a real file
+  (`real_files::imports_the_file_in_mailcraft_pst`: 34,691 messages, none skipped, 107,328
+  attachments, attached messages 187, 8 and 2 deep with 742 files inside). Every message is where
+  it should be (the 33,291 with a Message-ID of their own at the same folder and number, every
+  folder's count the file's), and the import's report leaves nothing out, for any reason. HTML
+  bodies read in their code page: 33,608 of 33,610 give the text their code page gives (2,144
+  came in as mojibake before), and the other 2, valid UTF-8 labelled ISO-8859-1, read as UTF-8,
+  as meant; the 34 with U+FFFD hold it in the file. The 996 items kept only in Rich Text, and the
+  3 plain-text items whose RTF wraps HTML, all have their HTML; the 35 messages with no text are
+  HTML bodies with none (pictures alone, mostly). The 187 attached messages come in, with the 10
+  attached inside them and their 741 files, and one part more: the invitation MailCraft writes
+  for a meeting request, here one attached and kept only in Rich Text. 107,139 of the 107,141
+  files come in byte for byte and under their own name, all 105 text files and the 7 empty ones
+  among them (the comparison before the fidelity work couldn't match 2 either). All 78,518
+  pictures the text shows are pictures in the body with their Content-ID, and all 1,690 files
+  with a Content-ID the HTML doesn't show keep it. The design's 3,499 unshown files were counted
+  on the file's own HTML: 1,809 of them belong to items kept only in Rich Text, whose HTML now
+  shows them. (A first count paired a file with another of the same bytes in its item, which
+  1,290 files have, and took 42 such mix-ups for lost Content-IDs and names: there are none.)
+  Forwarded (119), high importance (991, 12 of them on items with no header) and the References
+  of the 1,099 items with no header that have them all come through, as do the 11 reports and
+  the read and answered marks. The list places every message within an hour of its delivery
+  (1,177 were placed by the time they were sent, more than an hour off), and 34,662 of 34,691
+  have a conversation index to thread by (29 have one of the wrong shape). Sent mail's ids: the
+  1,400 items without an id of their own (1,399 of them in Sent Items) keep the ones made up for
+  them, as no reply in this file answers one of them (no reply's conversation index is a sent
+  item's and one block more), so the import has none to give. It costs what the import measured
+  whole did: 220 s on a quiet machine (250 s beside other builds) against 173–214 s, 40.3 GB
+  written and 58.6 GB read as then, 1.20 GB at its peak against 1.17–1.22 GB, for the same
+  37.75 GB data file.
 - **The paperclip on mail kept from before:** a `.pst` imported before its paperclips followed
   the source (and any mail whose summary says otherwise than its source) kept the old flag, so
   Has files and the paperclip still counted pictures the text shows while `has:attachment` didn't.
