@@ -34,13 +34,20 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
             .collect();
         let files: Vec<Vec<UnicodePstAttachment<'_>>> = (0..per_folder)
             .map(|k| match k % 3 {
-                0 => vec![UnicodePstAttachment { filename: "plan.bin", mime_type: "application/octet-stream", content_id: None, data: &blobs[k] }],
+                0 => vec![UnicodePstAttachment {
+                    filename: "plan.bin",
+                    mime_type: "application/octet-stream",
+                    content_id: None,
+                    data: &blobs[k],
+                    ..Default::default()
+                }],
                 1 if k % 2 == 1 => {
                     vec![UnicodePstAttachment {
                         filename: "chart.png",
                         mime_type: "image/png",
                         content_id: Some("<c@run.example>"),
                         data: b"\x89PNG\r\n\x1a\nx",
+                        ..Default::default()
                     }]
                 }
                 _ => Vec::new(),

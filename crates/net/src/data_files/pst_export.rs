@@ -258,7 +258,13 @@ fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> R
         .map(|m| {
             m.files
                 .iter()
-                .map(|(filename, mime_type, cid, data)| UnicodePstAttachment { filename, mime_type, content_id: cid.as_deref(), data })
+                .map(|(filename, mime_type, cid, data)| UnicodePstAttachment {
+                    filename,
+                    mime_type,
+                    content_id: cid.as_deref(),
+                    data,
+                    ..Default::default()
+                })
                 .collect()
         })
         .collect();

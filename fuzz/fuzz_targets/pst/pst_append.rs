@@ -10,6 +10,10 @@
 //! there). An input that starts like a data file (`!BDN`) is used whole: the seeds have one
 //! encoded as Outlook encodes its files (permute), so the writer's encoded paths are fuzzed too.
 //!
+//! Before the append, the special folders the file records are looked up, as an export does to
+//! know where Sent, Trash, Drafts and Junk go: their entry IDs, the folders they name and the
+//! hierarchy down to them, all from the damaged file.
+//!
 //! Every panic counts: the writer reads the file it adds to as its reader does, and a damaged
 //! file is an error (its fork's PATCHES.md), so there is no fence here, unlike `pst`'s. So does
 //! an append that succeeds but loses mail: every message that read before it (all of its
@@ -27,8 +31,8 @@ use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
 use pst_rw::messaging::store::{Store as _, UnicodeStore};
 use pst_rw::ndb::node_id::NodeId;
 use pst_rw::{
-    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName, UnicodePstProperty,
-    UnicodePstPropertyKey as Key, UnicodePstValue as Value,
+    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName,
+    UnicodePstProperty, UnicodePstPropertyKey as Key, UnicodePstSpecialFolder as Special, UnicodePstValue as Value,
 };
 
 /// PSETID_Common.
@@ -61,8 +65,14 @@ fn message(subject: &str) -> UnicodePstMessage<'_> {
     }
 }
 
-const FILE: UnicodePstAttachment<'static> =
-    UnicodePstAttachment { filename: "notes.txt", mime_type: "text/plain", content_id: None, data: b"remember" };
+const FILE: UnicodePstAttachment<'static> = UnicodePstAttachment {
+    filename: "notes.txt",
+    mime_type: "text/plain",
+    content_id: None,
+    data: b"remember",
+    content: UnicodePstAttachmentContent::Data,
+    properties: &[],
+};
 
 /// A data file the writer made: Inbox with one message and its file, and Projects beside it.
 fn good_file() -> Vec<u8> {
@@ -127,6 +137,9 @@ fuzz_target!(|data: &[u8]| {
     }
     let attachments = [FILE];
     let batch = [UnicodePstBatchMessage { message: message("Added"), attachments: &attachments }];
+    for role in [Special::DeletedItems, Special::SentItems, Special::Outbox, Special::Drafts, Special::JunkEmail] {
+        let _ = UnicodePstFile::special_folder(&path, role);
+    }
     let before = messages(&path);
     let added = UnicodePstFile::append_many_in_folder_with_attachments(&path, &["Inbox"], &batch).is_ok();
     let after = if added { messages(&path) } else { BTreeMap::new() };

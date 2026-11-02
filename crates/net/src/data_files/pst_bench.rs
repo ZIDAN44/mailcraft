@@ -150,7 +150,13 @@ fn make() {
                 .iter()
                 .map(|o| {
                     o.4.iter()
-                        .map(|(name, data)| UnicodePstAttachment { filename: name, mime_type: "application/octet-stream", content_id: None, data })
+                        .map(|(name, data)| UnicodePstAttachment {
+                            filename: name,
+                            mime_type: "application/octet-stream",
+                            content_id: None,
+                            data,
+                            ..Default::default()
+                        })
                         .collect()
                 })
                 .collect();

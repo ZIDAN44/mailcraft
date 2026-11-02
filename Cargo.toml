@@ -90,4 +90,4 @@ outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "b3
 # file as the reader does, adds to permute- and cyclic-encoded files, as Outlook makes them, and
 # writes a message's class, tagged and named properties, folders' classes and special folders):
 # the same fork's craft/rw-1.2.14 branch, whose PATCHES.md lists them. Dropped once a release has them.
-outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "5f595a1196cf64a428f25b22746643f76fa717d3" }
+outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "9de6c3e85250fef98a8a72e0912cb7a053925cac" }

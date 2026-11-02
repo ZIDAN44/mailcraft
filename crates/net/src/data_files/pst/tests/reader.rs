@@ -53,7 +53,7 @@ fn with_id<'a>(subject: &'a str, message_id: &'a str) -> UnicodePstMessage<'a> {
 }
 
 fn file<'a>(filename: &'a str, data: &'a [u8]) -> UnicodePstAttachment<'a> {
-    UnicodePstAttachment { filename, mime_type: "application/octet-stream", content_id: None, data }
+    UnicodePstAttachment { filename, mime_type: "application/octet-stream", content_id: None, data, ..Default::default() }
 }
 
 fn u16_at(b: &[u8], at: usize) -> u16 {

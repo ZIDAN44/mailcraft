@@ -729,8 +729,9 @@ fn imports_a_data_file() {
             mime_type: "image/png",
             content_id: Some("<chart@example.com>"),
             data: b"\x89PNG\r\n\x1a\nfake",
+            ..Default::default()
         },
-        UnicodePstAttachment { filename: "notes.txt", mime_type: "text/plain", content_id: None, data: b"remember the milk" },
+        UnicodePstAttachment { filename: "notes.txt", mime_type: "text/plain", content_id: None, data: b"remember the milk", ..Default::default() },
     ];
     drop(Writer::create_with_attachments(&file, &message, &files).unwrap());
     let nested = UnicodePstMessage { subject: "Old thread", message_id: "<old@example.com>", html_body: None, ..message };
