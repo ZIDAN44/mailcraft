@@ -56,7 +56,8 @@ impl Clock {
         self.utc(day.saturating_mul(86_400))
     }
 
-    fn local_day(&self, t: i64) -> i64 {
+    /// The local day (days since the epoch) of the instant `t`.
+    pub fn local_day(&self, t: i64) -> i64 {
         self.local(t).div_euclid(86_400)
     }
 }
@@ -139,8 +140,11 @@ pub enum DateGroup {
 
 impl DateGroup {
     pub fn of(t: i64, clock: &Clock) -> DateGroup {
-        let today = clock.local_day(clock.now);
-        let day = clock.local_day(t);
+        DateGroup::of_day(clock.local_day(t), clock.local_day(clock.now))
+    }
+
+    /// The group of the local day `day` ([`Clock::local_day`]), `today` being today's.
+    pub fn of_day(day: i64, today: i64) -> DateGroup {
         let diff = today - day;
         if diff < 0 {
             return DateGroup::Future;

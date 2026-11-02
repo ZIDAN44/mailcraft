@@ -4,8 +4,30 @@
 //! account's and folder's names into each set it went into, and hashed them: most of what a
 //! step that records thousands found cost. A key is made only where something asks for one.
 
+use super::super::mailboxes::{folder_hash, key_hash, key_hash_in};
 use super::run::SearchRun;
 use super::*;
+
+/// A message found and not shown yet, with its key's hash (the list's index is built of it),
+/// made from its folder's: hashing each key's strings as the list took them was most of the
+/// frame that showed tens of thousands.
+#[derive(Clone, Debug)]
+pub(crate) struct Fresh {
+    pub(crate) hash: u64,
+    pub(crate) m: SharedSummary,
+}
+
+impl Fresh {
+    /// A message not of the run's folders (a server's find): its key hashed whole.
+    pub(crate) fn of(m: SharedSummary) -> Fresh {
+        Fresh { hash: key_hash(&m.key), m }
+    }
+}
+
+/// Each of `folders`' [`folder_hash`].
+pub(crate) fn folder_hashes(folders: &[(String, String)]) -> Vec<u64> {
+    folders.iter().map(|(a, f)| folder_hash(a, f)).collect()
+}
 
 /// A message of one of a run's folders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -43,6 +65,15 @@ impl SearchRun {
     pub(crate) fn message_key(&self, k: RunKey) -> Option<MessageKey> {
         let (account, folder) = self.folders.get(k.folder())?;
         Some(MessageKey { account: account.clone(), folder: folder.clone(), validity: k.validity, uid: k.uid })
+    }
+
+    /// `m`, of the run's folder `fi`, found.
+    pub(crate) fn fresh(&self, fi: usize, m: SharedSummary) -> Fresh {
+        let hash = match self.folder_hashes.get(fi) {
+            Some(&f) => key_hash_in(f, m.key.validity, m.key.uid),
+            None => key_hash(&m.key),
+        };
+        Fresh { hash, m }
     }
 
     /// Whether the run found `key`.

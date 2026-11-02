@@ -524,7 +524,7 @@ impl Session {
     /// What the run found that the list doesn't show yet.
     #[cfg(test)]
     pub(crate) fn search_unshown(&self) -> Vec<MessageKey> {
-        self.search_state.run.as_ref().map(|r| r.fresh.iter().map(|m| m.key.clone()).collect()).unwrap_or_default()
+        self.search_state.run.as_ref().map(|r| r.fresh.iter().map(|f| f.m.key.clone()).collect()).unwrap_or_default()
     }
 
     /// How many folders the search keeps in the cache.

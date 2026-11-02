@@ -21,7 +21,7 @@ use mailcraft_store::search::Field;
 
 use super::finish::Finish;
 use super::folded::TextOf;
-use super::found::RunKey;
+use super::found::{Fresh, RunKey, folder_hashes};
 use super::look_up::Terms;
 use super::matching::{Answers, Candidate, Index, Recorder, Verdict, Verifying, classify, from_source};
 use super::work::SearchWork;
@@ -110,6 +110,8 @@ pub(crate) struct SearchRun {
     /// The words to look up in each index.
     pub(super) words: Vec<(Field, String)>,
     pub(crate) folders: Vec<(String, String)>,
+    /// Each of `folders`' share of its messages' keys' hash (`mailboxes::folder_hash`).
+    pub(super) folder_hashes: Vec<u64>,
     /// How many of `folders` (the first) are on view.
     on_view: usize,
     /// Folders still to scan (indices into `folders`), in order.
@@ -123,7 +125,7 @@ pub(crate) struct SearchRun {
     pub(super) terms: HashMap<String, Terms>,
     pub(crate) found: HashSet<RunKey>,
     /// Found since last shown, and found before and no longer.
-    pub(crate) fresh: Vec<SharedSummary>,
+    pub(crate) fresh: Vec<Fresh>,
     pub(crate) gone: HashSet<RunKey>,
     /// Steps since what was found was last shown.
     pub(crate) unshown_steps: usize,
@@ -189,6 +191,7 @@ impl SearchRun {
             words,
             pending: (0..folders.len()).collect(),
             begun: vec![false; folders.len()],
+            folder_hashes: folder_hashes(&folders),
             folders,
             cur: None,
             awaited: HashSet::new(),
@@ -270,7 +273,7 @@ impl SearchRun {
     /// strings: a buffer each).
     pub(crate) fn let_go_into(self, summaries: &mut Vec<SharedSummary>, keys: &mut Vec<MessageKey>, answers: &mut Vec<Answers>) {
         let SearchRun { fresh, verify, fallback, known, awaited, .. } = self;
-        summaries.extend(fresh);
+        summaries.extend(fresh.into_iter().map(|f| f.m));
         summaries.extend(verify.into_iter().chain(fallback).map(|c| c.m));
         keys.extend(awaited);
         // What each of a common phrase's 16,667 candidates said (its words, each a string), let
@@ -332,7 +335,8 @@ impl SearchRun {
                 forget(&mut self.missing, key);
                 forget(&mut self.gone, key);
                 if self.found.insert(key) {
-                    self.fresh.push(m);
+                    let fresh = self.fresh(fi, m);
+                    self.fresh.push(fresh);
                 }
             }
             Verdict::Verify(doc) if !last => {
@@ -425,6 +429,7 @@ impl Session {
         #[cfg(test)]
         self.search_test_fault();
         let mut left = units.max(1);
+        let mut ran = false;
         while left > 0 {
             let spent = if run.awaiting.is_some() {
                 run.work = SearchWork::Awaiting;
@@ -439,13 +444,16 @@ impl Session {
             } else if !run.fallback.is_empty() {
                 run.work = SearchWork::Source;
                 self.fallback_unit(run)
-            } else if !run.done() {
+            } else if !run.done() && !ran {
                 run.work = SearchWork::Finish;
                 self.finish_unit(run)
             } else {
+                // The list put together is a step's first unit: started after others, a search
+                // finding tens of thousands showed them past the end of the window's frame.
                 break;
             };
             done(run.work);
+            ran = true;
             self.search_state.stats.units = self.search_state.stats.units.saturating_add(u64::from(spent));
             left = left.saturating_sub(spent);
             if !more() {

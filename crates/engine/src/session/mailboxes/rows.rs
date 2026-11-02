@@ -157,11 +157,26 @@ impl Session {
         let mut out_of = Vec::with_capacity(self.list.len());
         let mut last: Option<Row> = None;
         let arrange = self.prefs.arrange;
+        // The date heading of the last day asked: the list's messages come a day after another
+        // (working each one's out was most of laying out tens of thousands).
+        let today = self.clock.local_day(self.clock.now);
+        let mut by_day: Option<(i64, &'static str)> = None;
+        let mut date_heading = |date: i64| {
+            let day = self.clock.local_day(date);
+            match by_day {
+                Some((d, label)) if d == day => label,
+                _ => {
+                    let label = DateGroup::of_day(day, today).label();
+                    by_day = Some((day, label));
+                    label
+                }
+            }
+        };
         let mut push = |out: &mut Vec<Row>, index: usize, count: usize, unread: usize, date: i64| {
             // The heading this message goes under, as the list is arranged.
             let m = self.list.get(index);
             let heading = match arrange {
-                Arrange::Date => Row::Header(DateGroup::of(date, &self.clock).label()),
+                Arrange::Date => Row::Header(date_heading(date)),
                 Arrange::From => Row::Group(m.map(|m| person(Some(&m.from))).unwrap_or_default()),
                 Arrange::To => Row::Group(m.map(|m| person(m.to.first())).unwrap_or_default()),
                 Arrange::Subject => Row::Group(m.map(|m| m.base_subject()).unwrap_or_default()),

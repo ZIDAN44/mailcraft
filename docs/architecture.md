@@ -476,7 +476,11 @@ step goes on and reads it once they're on disk. What's found is merged into the 
 (`searching/publish.rs`): at the step's end while the list holds at most 4,096 messages, else at the
 start of a later step (where the window's clock counts it) once a step has gone by for each 2,048
 messages it holds, so a long list isn't built again every step; the list's index keeps its keys'
-hashes for that (`ListNav::build_hashed`), and the list a search replaces is let go of 4,096
+hashes for that (`ListNav::build_hashed`), what's found carries its key's hash, made from its
+folder's (`key_hash_in`: no key's strings hashed again), and a run's sets hold a message as its
+folder's place, validity and number (`searching/found.rs`, `RunKey`), copying no strings; the
+list a run shows at its end is put together as a step's first unit, never after others late in a
+frame; and the list a search replaces is let go of 4,096
 summaries a step or tick (what its candidates' texts said, 1,024). Conversations and other
 arrangements come at the end. `sample::big` makes a mailbox of 50,000 messages in 40 folders, what
 each measured search should find counted as it's made, for `tests/mail/search_big.rs`, the window's

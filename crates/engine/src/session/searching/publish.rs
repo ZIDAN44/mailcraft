@@ -28,6 +28,12 @@ const SHOWN_AT_ONCE: usize = 4096;
 /// thousands each time (a cold search of 50,000 messages took 14 s, nearly all of it that).
 const ROWS_A_STEP: usize = 2048;
 
+/// [`date_order`] of two messages that came at `a` and `b` (`Equal`: at the same time, their
+/// keys tell).
+fn when_order(a: i64, b: i64, reverse: bool) -> Ordering {
+    if reverse { a.cmp(&b) } else { b.cmp(&a) }
+}
+
 /// The order the list is in by date (the order a search streams in), as `arrange_list` makes it.
 fn date_order(a: &Summary, b: &Summary, reverse: bool) -> Ordering {
     let newest = b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key));
@@ -93,15 +99,22 @@ impl Session {
         let filter = self.filter;
         let reverse = self.prefs.reverse_sort;
         let gone: HashSet<MessageKey> = std::mem::take(&mut run.gone).into_iter().filter_map(|k| run.message_key(k)).collect();
-        let mut fresh: Vec<SharedSummary> =
-            std::mem::take(&mut run.fresh).into_iter().filter(|m| self.filter_keeps(filter, m) && !self.listed(&m.key)).collect();
+        // Each with its key's hash, made as it was found: for the list's index, and to ask
+        // whether it's listed; and when it came, to sort by without reading it again.
+        let mut fresh: Vec<(i64, u64, SharedSummary)> = std::mem::take(&mut run.fresh)
+            .into_iter()
+            .filter(|f| self.filter_keeps(filter, &f.m) && !self.listed_hashed(&f.m.key, f.hash))
+            .map(|f| (f.m.when(), f.hash, f.m))
+            .collect();
         if self.open_search_folder_name().is_some() {
-            fresh.retain(|m| self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk)));
+            fresh.retain(|(_, _, m)| {
+                self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk))
+            });
         }
         if gone.is_empty() && fresh.is_empty() {
             return;
         }
-        fresh.sort_by(|a, b| date_order(a, b, reverse));
+        fresh.sort_by(|a, b| when_order(a.0, b.0, reverse).then_with(|| date_order(&a.2, &b.2, reverse)));
         // The hashes the list's index was built of, kept with the messages they're of: only
         // what's new is hashed (each key hashed again was half of building the index again).
         let kept = self.take_hashes().unwrap_or_default();
@@ -110,20 +123,23 @@ impl Session {
         let gone_hashes: HashSet<u64> = gone.iter().map(key_hash).collect();
         let mut list = Vec::with_capacity(old.len() + fresh.len());
         let mut hashes = Vec::with_capacity(old.len() + fresh.len());
-        let mut fresh = fresh.into_iter().map(|m| (key_hash(&m.key), m)).peekable();
+        let mut fresh = fresh.into_iter().peekable();
         for (i, m) in old.into_iter().enumerate() {
             let h = kept.get(i).copied().filter(|_| known).unwrap_or_else(|| key_hash(&m.key));
-            if gone_hashes.contains(&h) && gone.contains(&m.key) {
+            if !gone_hashes.is_empty() && gone_hashes.contains(&h) && gone.contains(&m.key) {
                 continue;
             }
-            while let Some((fh, f)) = fresh.next_if(|(_, f)| date_order(f, &m, reverse) == Ordering::Less) {
+            let when = m.when();
+            while let Some((_, fh, f)) =
+                fresh.next_if(|(fw, _, f)| when_order(*fw, when, reverse).then_with(|| date_order(f, &m, reverse)) == Ordering::Less)
+            {
                 list.push(f);
                 hashes.push(fh);
             }
             list.push(m);
             hashes.push(h);
         }
-        for (fh, f) in fresh {
+        for (_, fh, f) in fresh {
             list.push(f);
             hashes.push(fh);
         }
@@ -192,10 +208,10 @@ impl Session {
             let changed: HashSet<&MessageKey> = keys.iter().collect();
             let mut at: HashMap<&MessageKey, usize> = HashMap::new();
             let mut folders: HashSet<(String, String)> = HashSet::new();
-            for (i, m) in run.fresh.iter().enumerate() {
-                if changed.contains(&m.key) {
-                    at.insert(&m.key, i);
-                    folders.insert((m.key.account.clone(), m.key.folder.clone()));
+            for (i, f) in run.fresh.iter().enumerate() {
+                if changed.contains(&f.m.key) {
+                    at.insert(&f.m.key, i);
+                    folders.insert((f.m.key.account.clone(), f.m.key.folder.clone()));
                 }
             }
             let mut now: Vec<(usize, SharedSummary)> = Vec::new();
@@ -205,7 +221,7 @@ impl Session {
             }
             for (i, m) in now {
                 if let Some(slot) = run.fresh.get_mut(i) {
-                    *slot = m;
+                    slot.m = m;
                 }
             }
         }

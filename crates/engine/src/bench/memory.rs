@@ -30,7 +30,9 @@ pub(super) struct Parts {
     pub(super) subject: usize,
     pub(super) preview: usize,
     pub(super) keywords: usize,
-    /// What the places would take, each holding a copy of its own (as the lists did).
+    /// What the places would take, each holding a copy of its own (as the lists did): the first
+    /// the summary itself, the others a copy as cloning makes it (each string no longer than
+    /// it is).
     pub(super) as_copies: usize,
 }
 
@@ -46,10 +48,11 @@ impl Parts {
         for m in list {
             p.count += 1;
             p.pointers += std::mem::size_of::<SharedSummary>();
-            p.as_copies += std::mem::size_of::<Summary>() + m.heap_bytes();
             if !seen.insert(SharedSummary::as_ptr(m)) {
+                p.as_copies += std::mem::size_of::<Summary>() + Summary::clone(m).heap_bytes();
                 continue;
             }
+            p.as_copies += std::mem::size_of::<Summary>() + m.heap_bytes();
             let addresses = |a: &Vec<EmailAddress>| list_room(a, EmailAddress::heap_bytes);
             p.own += 1;
             p.inline += boxed();

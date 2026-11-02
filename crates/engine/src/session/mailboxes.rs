@@ -7,7 +7,7 @@ mod nav;
 mod patch;
 mod rows;
 pub(crate) use echo::Echoes;
-pub(crate) use nav::{ListNav, key_hash};
+pub(crate) use nav::{ListNav, folder_hash, key_hash, key_hash_in};
 pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
 
 impl Session {

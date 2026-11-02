@@ -7,6 +7,7 @@
 //! go of as many): tens of milliseconds a unit for a search finding tens of thousands. A run
 //! that waited (or one started over a list it doesn't own) gathers them from the folders.
 
+use super::found::Fresh;
 use super::run::SearchRun;
 use super::*;
 
@@ -55,7 +56,7 @@ impl Session {
     /// conversations when they're shown.
     fn finish_streamed(&mut self, run: &mut SearchRun) {
         let hits = self.server_found(run);
-        run.fresh.extend(hits.into_iter().map(SharedSummary::new));
+        run.fresh.extend(hits.into_iter().map(|m| Fresh::of(SharedSummary::new(m))));
         if !run.fresh.is_empty() || !run.gone.is_empty() {
             self.publish_stream(run);
         }

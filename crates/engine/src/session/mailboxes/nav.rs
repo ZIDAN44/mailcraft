@@ -3,7 +3,7 @@
 //! its conversation) is a lookup, not a pass over every message: on a folder of ten thousand
 //! messages, each Down walked the list several times over.
 
-use std::hash::{BuildHasherDefault, DefaultHasher, Hash, Hasher};
+use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -85,12 +85,60 @@ impl Hasher for Hashed {
     }
 }
 
-/// The hash a key is found by. `DefaultHasher::new` has fixed keys: the same on every run and
-/// in the browser.
+/// The hash a key is found by: the same on every run and in the browser. Its words mixed by
+/// multiplying (as FxHash does), then spread (MurmurHash3's finish): each lookup is checked
+/// against the list, so it needs to spread keys, not to resist anyone. SipHash
+/// (`DefaultHasher`) took 130-150 ns a key, hashing the 35,000 a search found 5 ms of the frame
+/// that showed them. Made from its folder's ([`folder_hash`]), which a search keeps for each
+/// folder it reads: what it finds is hashed without its strings.
 pub(crate) fn key_hash(k: &MessageKey) -> u64 {
-    let mut h = DefaultHasher::new();
-    k.hash(&mut h);
+    key_hash_in(folder_hash(&k.account, &k.folder), k.validity, k.uid)
+}
+
+/// The part of [`key_hash`] a folder's messages share.
+pub(crate) fn folder_hash(account: &str, folder: &str) -> u64 {
+    let mut h = Mix::default();
+    h.text(account);
+    h.text(folder);
+    h.0
+}
+
+/// [`key_hash`] of a message of the folder whose [`folder_hash`] is `folder`.
+pub(crate) fn key_hash_in(folder: u64, validity: u32, uid: u32) -> u64 {
+    let mut h = Mix(folder);
+    h.word(u64::from(validity) << 32 | u64::from(uid));
     h.finish()
+}
+
+/// [`key_hash`]'s state.
+#[derive(Default)]
+struct Mix(u64);
+
+impl Mix {
+    fn word(&mut self, w: u64) {
+        self.0 = (self.0.rotate_left(5) ^ w).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+
+    /// A string's bytes, 8 at a time, then its length (so where one ends is part of it).
+    fn text(&mut self, s: &str) {
+        let bytes = s.as_bytes();
+        let (words, rest) = bytes.as_chunks::<8>();
+        for w in words {
+            self.word(u64::from_le_bytes(*w));
+        }
+        let rest = rest.iter().rev().fold(0u64, |n, &b| n << 8 | u64::from(b));
+        self.word(rest);
+        self.word(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
+    }
+
+    fn finish(&self) -> u64 {
+        let mut h = self.0;
+        h ^= h >> 33;
+        h = h.wrapping_mul(0xff51_afd7_ed55_8ccd);
+        h ^= h >> 33;
+        h = h.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+        h ^ (h >> 33)
+    }
 }
 
 impl ListNav {
@@ -149,8 +197,13 @@ fn thread_index(len: usize, threads: &[Thread]) -> Vec<u32> {
 impl Session {
     /// Where a message is in the list (the first place, should it be there twice).
     pub fn index_of(&self, key: &MessageKey) -> Option<usize> {
+        self.index_of_hashed(key, key_hash(key))
+    }
+
+    /// [`Session::index_of`], the key's hash given (`h`, [`key_hash`]).
+    fn index_of_hashed(&self, key: &MessageKey, h: u64) -> Option<usize> {
         if self.nav.len == self.list.len()
-            && let Some(&i) = self.nav.pos.get(&key_hash(key))
+            && let Some(&i) = self.nav.pos.get(&h)
             && let Ok(i) = usize::try_from(i)
             && self.list.get(i).is_some_and(|m| &m.key == key)
         {
@@ -164,10 +217,15 @@ impl Session {
     /// is only set with its index built, by `take_list`). Asked for each of the thousands of
     /// messages a search finds in a step, the looking over cost more than the rest of showing them.
     pub(crate) fn listed(&self, key: &MessageKey) -> bool {
-        if self.nav_fresh() && !self.nav.pos.contains_key(&key_hash(key)) {
+        self.listed_hashed(key, key_hash(key))
+    }
+
+    /// [`Session::listed`], the key's hash given (`h`, [`key_hash`]).
+    pub(crate) fn listed_hashed(&self, key: &MessageKey, h: u64) -> bool {
+        if self.nav_fresh() && !self.nav.pos.contains_key(&h) {
             return false;
         }
-        self.index_of(key).is_some()
+        self.index_of_hashed(key, h).is_some()
     }
 
     /// The hash of each key in the list, in its order, as its index was built: taken (to build it
@@ -325,4 +383,19 @@ impl Session {
         let p = self.msg_row_of(key)?;
         self.nav.msg_rows.get(p).and_then(|&r| usize::try_from(r).ok())
     }
+}
+
+/// A key's hash made from its folder's, as a search makes it for what it finds, is the one made
+/// from the key; where one string ends and the next begins is part of it.
+#[test]
+fn a_key_hashes_alike_from_its_folder() {
+    let k = |account: &str, folder: &str, uid| MessageKey { account: account.into(), folder: folder.into(), validity: 7, uid };
+    for (a, f) in [("a1", "INBOX"), ("", ""), ("an account name past eight", "Folder/Sub ü")] {
+        assert_eq!(key_hash(&k(a, f, 9)), key_hash_in(folder_hash(a, f), 7, 9));
+    }
+    let hashes: HashSet<u64> =
+        [k("ab", "c", 1), k("a", "bc", 1), k("abc", "", 1), k("", "abc", 1), k("a1", "INBOX", 1), k("a1", "INBOX", 2)].iter().map(key_hash).collect();
+    assert_eq!(hashes.len(), 6);
+    let spread: HashSet<u64> = (0..10_000).map(|uid| key_hash(&k("a1", "INBOX", uid)) >> 52).collect();
+    assert!(spread.len() > 3500, "{} of 4,096 top bits' values", spread.len());
 }

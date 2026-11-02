@@ -275,6 +275,18 @@ fn thirty_five_thousand_found_stream_in() {
     assert_eq!(s.letting_go(), 0);
 }
 
+/// The list a run shows at its end is put together as a step's first unit, never after others:
+/// begun late in the window's frame, showing 35,000 found ran past it by 5-8 ms.
+#[test]
+fn the_end_of_a_run_starts_a_step() {
+    let (mut s, t) = cold();
+    s.run("search.run", &json!({"query": "is:read", "scope": "all"})).unwrap();
+    assert!(!s.search_step(u32::MAX).done, "everything read, the list not put together yet");
+    assert!(s.list.len() < t.read, "{} shown", s.list.len());
+    assert!(s.search_step(1).done);
+    assert_eq!(s.list.len(), t.read);
+}
+
 /// Clearing a search of thirty-five thousand found, from the Inbox's 12,000: the Inbox's list
 /// comes back as it was (not copied out of the cache, arranged and put into conversations
 /// again), and what the search showed and held is let go of a slice a tick, not in the frame
@@ -351,13 +363,17 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// before each summary was looked through once for it) and 4 ms a step at p99, each frame at
 /// most 8 ms; a word in a session just opened ([`cold`]: its index opened by the window's first
 /// tick, its summaries' texts made as it goes), alone or after the other queries, 90 ms all told
-/// and 4 ms a step at p99; a one-letter word, warm or just opened, 300 ms all told. Printed only:
-/// the common phrase searched again (150 ms in frames: 128-142 ms), and the tick that opens the
-/// index ahead, with what the index then holds in memory (and after the queries). A machine busy
-/// with other builds slows every query alike and can fail it: run it on one at rest. Not met yet (docs/gaps.md, Open): the common phrase searched the first time
-/// (150 ms in frames: 357-454 ms), `is:unread`'s 15 ms, a one-letter word's 6 ms a step (those
-/// recording thousands found: p99 8-13 ms, worst 11-22 ms, copying each summary found), and the
-/// frame that shows tens of thousands found.
+/// and 4 ms a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word
+/// warm 60 ms all told and 6 ms a step, at p99 and at worst, and just opened 300 ms all told;
+/// and every frame of `is:read`, `is:unread`, the domain and the one-letter word, which find
+/// 15,000 to 47,387, at most 8 ms, warm or just opened (the lists sharing the folders'
+/// summaries, the run's sets holding no strings, and the list put together at a step's start:
+/// each copied every summary found, hashed its key's strings and showed them past the frame's
+/// end, 10-16 ms). Printed only: the common phrase searched again (150 ms in frames: 128-142
+/// ms), and the tick that opens the index ahead, with what the index then holds in memory (and
+/// after the queries). A machine busy with other builds slows every query alike and can fail
+/// it: run it on one at rest. Not met yet (docs/gaps.md, Open): the common phrase searched the
+/// first time (150 ms in frames: 357-454 ms).
 #[test]
 #[ignore]
 fn how_long_searches_take() {
@@ -392,12 +408,16 @@ fn how_long_searches_take() {
                 times.len(),
             );
             let word = [big::RARE, "zurich", big::CJK, big::FAR].contains(&q.as_str());
+            let many = ["is:read", "is:unread", big::DOMAIN, "k"].contains(&q.as_str());
             let ms = Duration::from_millis;
             match cache {
                 "warm" if word => assert!(all <= ms(20) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
                 "warm, frames" if word => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
                 "cold" if word => assert!(all <= ms(90) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
-                "warm" | "cold" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
+                "warm" | "cold" if q == "is:unread" => assert!(all <= ms(15), "{q}: {all:?}"),
+                "warm" if q == "k" => assert!(all <= ms(60) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
+                "cold" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
+                "cold, frames" | "warm, frames" if many => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
                 _ => {}
             }
         }
