@@ -211,6 +211,7 @@ impl Session {
     /// A folder's mail changed (read again, mail moved in or out): its summaries' text goes, and
     /// a search reading it scans it again.
     pub(crate) fn search_folder_changed(&mut self, account: &str, folder: &str) {
+        self.mail_changed();
         self.search_state.texts.forget(account, folder);
         if let Some(run) = self.search_state.run.as_mut()
             && let Some(fi) = run.folders.iter().position(|(a, f)| a == account && f == folder)
@@ -223,6 +224,7 @@ impl Session {
     /// gone): the texts of folders it no longer has go, and a search whose folders aren't the
     /// same any more starts again.
     pub(crate) fn search_folders_changed(&mut self, account: &str) {
+        self.mail_changed();
         let listed: HashSet<String> = self.account(account).map(|a| a.folders.iter().map(|f| f.path.clone()).collect()).unwrap_or_default();
         self.search_state.texts.retain(|a, f| a != account || listed.contains(f));
         if self.account(account).is_none() {

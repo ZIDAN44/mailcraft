@@ -524,6 +524,8 @@ impl Session {
         }
         self.reading = None;
         self.selection.clear();
+        // Which pane its mail is in changed: a list kept from before a search is built again.
+        self.mail_changed();
         self.refresh_list();
         Ok(serde_json::json!({ "focused": focused, "senders": sel.len() }))
     }

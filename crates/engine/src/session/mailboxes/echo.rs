@@ -82,6 +82,7 @@ impl Session {
         if q.is_empty() {
             self.echoes.0.remove(&k);
         }
+        self.mail_changed();
         let Some(st) = self.cache.get_mut(&k) else { return false };
         let uids: HashSet<u32> =
             op.keys().iter().filter(in_folder).filter(|m| m.validity == st.validity && !superseded.contains(&m.uid)).map(|m| m.uid).collect();

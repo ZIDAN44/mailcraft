@@ -77,6 +77,7 @@ impl Session {
             return;
         }
         let mut unread_delta: HashMap<String, i64> = HashMap::new();
+        self.mail_changed();
         for ((a, f), st) in self.cache.iter_mut() {
             if a != account {
                 continue;
@@ -246,6 +247,7 @@ impl Session {
     /// A folder-list change, in memory: the account's folders, the open view, cached folder
     /// contents and Favorites follow a renamed folder; a deleted one disappears.
     pub(super) fn apply_folder_op_memory(&mut self, account: &str, op: &Op) {
+        self.mail_changed();
         let delimiter = self.delimiter(account);
         if let Some(a) = self.account_mut(account) {
             match op {

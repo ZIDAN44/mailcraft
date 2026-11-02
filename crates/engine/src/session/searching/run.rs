@@ -269,6 +269,17 @@ impl SearchRun {
         SearchProgress { done: self.done(), found: self.found.len(), missing: self.missing.len(), cut_short: self.cut_short.len(), changed }
     }
 
+    /// A run done with: what it holds of each message (found, answered, waiting to be shown or
+    /// checked) moved to `summaries` and `keys`, to be let go of a slice at a time; the rest,
+    /// small, goes now.
+    pub(crate) fn let_go_into(self, summaries: &mut Vec<Summary>, keys: &mut Vec<MessageKey>) {
+        let SearchRun { found, fresh, gone, recheck, verify, fallback, known, missing, cut_short, awaited, .. } = self;
+        summaries.extend(fresh);
+        summaries.extend(verify.into_iter().chain(fallback).map(|c| c.m));
+        keys.extend(found.into_iter().chain(gone).chain(recheck).chain(missing).chain(cut_short).chain(awaited));
+        keys.extend(known.into_keys());
+    }
+
     /// Scan folder `fi` again (its list changed): what it found before stays found until the
     /// scan says otherwise.
     pub(crate) fn rescan(&mut self, fi: usize) {
@@ -365,7 +376,10 @@ impl Session {
         // An account that had no index (or one that couldn't be read) is looked at again; one a
         // search stopped on, once its writer writes it again.
         self.search_state.readers.retain(|_, slot| slot.reader.is_some() || slot.damaged);
-        self.search_state.run = Some(run);
+        if let Some(old) = self.search_state.run.replace(run) {
+            let state = &mut self.search_state;
+            old.let_go_into(&mut state.letting_go, &mut state.letting_go_keys);
+        }
     }
 
     /// How the search is going (`None`: no search).

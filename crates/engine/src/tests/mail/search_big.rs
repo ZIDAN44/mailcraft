@@ -223,6 +223,49 @@ fn thirty_five_thousand_found_stream_in() {
     assert_eq!(s.letting_go(), 0);
 }
 
+/// Clearing a search of thirty-five thousand found, from the Inbox's 12,000: the Inbox's list
+/// comes back as it was (not copied out of the cache, arranged and put into conversations
+/// again), and what the search showed and held is let go of a slice a tick, not in the frame
+/// that clears it (on a real file's 10,941-message folder that frame took 56–91 ms). A message
+/// marked read meanwhile builds it again, with the mark.
+#[test]
+fn clearing_a_big_search_shows_the_folder_kept() {
+    let (mut s, t) = cold();
+    s.run("folder.open", &json!({"account": big::ACCOUNT, "folder": "INBOX"})).unwrap();
+    let inbox: Vec<MessageKey> = s.list.iter().map(|m| m.key.clone()).collect();
+    assert!(inbox.len() >= 10_000, "{}", inbox.len());
+    let threadings = s.nav.threadings();
+    let clear = |s: &mut Session| {
+        let began = Instant::now();
+        s.run("search.run", &json!({"query": ""})).unwrap();
+        began.elapsed()
+    };
+    for round in 0..2 {
+        s.run("search.run", &json!({"query": "is:read", "scope": "all"})).unwrap();
+        while !s.search_step(64).done {}
+        assert_eq!(s.list.len(), t.read);
+        // What the last clear let go of is gone by now.
+        assert_eq!(s.letting_go(), 0, "round {round}");
+        let structure = s.nav_structure();
+        let took = clear(&mut s);
+        eprintln!("cleared {} found in {took:?}", t.read);
+        assert_eq!(s.list.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), inbox, "the Inbox as it was");
+        assert_ne!(s.nav_structure(), structure, "its rows are drawn again");
+        assert_eq!(s.nav.threadings(), threadings, "its conversations not worked out again");
+        assert!(s.letting_go() > 30_000, "{}", s.letting_go());
+        // Each tick lets go of a slice.
+        let before = s.letting_go();
+        s.tick();
+        assert!(s.letting_go() < before && before - s.letting_go() <= 2 * 4096);
+        for _ in 0..40 {
+            s.tick();
+        }
+        assert_eq!(s.letting_go(), 0);
+        s.run("list.select", &json!({"key": inbox.first().unwrap().to_id()})).unwrap();
+        assert_eq!(s.selection.len(), 1, "it's the list shown");
+    }
+}
+
 /// A result flagged (and one not shown yet, as a server's change would) while the run still
 /// reads the folder it's in, the list long enough to take what's found only every few steps:
 /// what was found and not shown yet still shows (it was let go of when the flag was weighed

@@ -11,6 +11,7 @@ use super::*;
 
 mod finish;
 mod folder_text;
+mod kept;
 mod matching;
 mod publish;
 mod run;
@@ -86,6 +87,13 @@ pub(crate) struct SearchState {
     /// The list a search started over, let go of [`LET_GO`] summaries a step: letting go of tens
     /// of thousands at once (each with its strings) held the frame that searched for 10–20 ms.
     letting_go: Vec<Summary>,
+    /// What a search cleared held of messages (found, answered), let go of as `letting_go` is:
+    /// a run that found tens of thousands, dropped whole, held the frame that cleared it.
+    letting_go_keys: Vec<MessageKey>,
+    /// The folder's list on view when the search started, shown again when it's cleared.
+    pub(crate) kept: Option<kept::KeptList>,
+    /// Bumped whenever cached mail changes: a kept list older than that is built again.
+    pub(crate) changes: u64,
     /// A test's: the next step stops part-way, as a bug would.
     #[cfg(test)]
     pub(crate) fault: bool,
@@ -420,6 +428,10 @@ impl Session {
     pub(crate) fn search_as(&mut self, query: &str, scope: SearchScope, folder: Option<String>) -> usize {
         self.search_folder = folder;
         let q = query.trim();
+        // The folder's list stays, to be shown again when the search is cleared.
+        if self.search.is_none() && !q.is_empty() {
+            self.keep_list();
+        }
         self.search = if q.is_empty() { None } else { Some((q.to_string(), scope)) };
         if self.server_search.as_ref().is_some_and(|ss| ss.query != q) {
             self.stop_server_search();
@@ -428,6 +440,12 @@ impl Session {
         self.focus = None;
         self.reading = None;
         if q.is_empty() {
+            // What the search showed and held is let go of a slice a tick, and the folder's
+            // list shown again as it was when nothing changed since: clearing a search of
+            // twenty or thirty thousand found held the frame for 50–90 ms, dropping them and
+            // copying and arranging the folder's eleven thousand again.
+            let shown = std::mem::take(&mut self.list);
+            self.let_go(shown);
             self.drop_search();
             self.refresh_list();
             return self.list.len();
@@ -440,30 +458,39 @@ impl Session {
             // Nothing of the last search's results stays shown meanwhile (let go of a slice a
             // step).
             let shown = std::mem::take(&mut self.list);
-            if self.search_state.letting_go.is_empty() {
-                self.search_state.letting_go = shown;
-            } else {
-                self.search_state.letting_go.extend(shown);
-            }
+            self.let_go(shown);
             self.refresh_list();
             self.search_step(FIRST_UNITS);
         }
         self.list.len()
     }
 
+    /// Let go of `list` a slice a step and a tick, not at once.
+    pub(crate) fn let_go(&mut self, list: Vec<Summary>) {
+        if self.search_state.letting_go.is_empty() {
+            self.search_state.letting_go = list;
+        } else {
+            self.search_state.letting_go.extend(list);
+        }
+    }
+
     /// Let go of a slice of the list a search replaced (each step and each tick).
     pub(crate) fn let_go_some(&mut self) {
-        let left = self.search_state.letting_go.len().saturating_sub(LET_GO);
-        self.search_state.letting_go.truncate(left);
-        if left == 0 {
-            self.search_state.letting_go = Vec::new();
+        let_go_slice(&mut self.search_state.letting_go);
+        let_go_slice(&mut self.search_state.letting_go_keys);
+        fn let_go_slice<T>(v: &mut Vec<T>) {
+            let left = v.len().saturating_sub(LET_GO);
+            v.truncate(left);
+            if left == 0 && v.capacity() > 0 {
+                *v = Vec::new();
+            }
         }
     }
 
     /// How many summaries of a list a search replaced are still to be let go of.
     #[cfg(test)]
     pub(crate) fn letting_go(&self) -> usize {
-        self.search_state.letting_go.len()
+        self.search_state.letting_go.len() + self.search_state.letting_go_keys.len()
     }
 
     /// What the run found that the list doesn't show yet.
@@ -480,7 +507,10 @@ impl Session {
 
     /// No search any more: what it held goes, its folders free to leave the cache.
     pub(crate) fn drop_search(&mut self) {
-        self.search_state.run = None;
+        if let Some(run) = self.search_state.run.take() {
+            let state = &mut self.search_state;
+            run.let_go_into(&mut state.letting_go, &mut state.letting_go_keys);
+        }
         self.search_state.pinned.clear();
     }
 

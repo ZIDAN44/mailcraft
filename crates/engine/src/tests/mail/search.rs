@@ -606,3 +606,62 @@ fn an_import_asks_for_the_index_at_its_end() {
     assert!(s.take_jobs().contains(&Job::Index { account: id, folders: Vec::new() }));
     done(s);
 }
+
+/// Clearing a search shows the folder's list kept from before it while nothing it was built
+/// from changed: not while a message in it was marked meanwhile, nor arranged otherwise, nor
+/// its sender moved to Other, nor once another folder was opened.
+#[test]
+fn clearing_a_search_shows_the_list_kept_while_its_still_right() {
+    let mut s = sample_session("search-kept");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    s.open_view(View::Folder { account: a.clone(), folder: "INBOX".into() });
+    let keys = |s: &Session| s.list.iter().map(|m| m.key.clone()).collect::<Vec<_>>();
+    let inbox = keys(&s);
+    assert!(inbox.len() > 2);
+    let threadings = s.nav.threadings();
+    let search = |s: &mut Session, q: &str| s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
+    search(&mut s, "is:read");
+    search(&mut s, "");
+    assert_eq!(keys(&s), inbox);
+    assert_eq!(s.nav.threadings(), threadings, "kept, not built again");
+    // Marked while searching: built again, with the mark.
+    let first = inbox[0].clone();
+    let seen = s.list[0].flags.seen;
+    search(&mut s, "is:read");
+    s.apply_op(&a, Op::SetFlag { keys: vec![first.clone()], flag: Flag::Seen, on: !seen });
+    search(&mut s, "");
+    assert_eq!(s.list[0].key, first);
+    assert_eq!(s.list[0].flags.seen, !seen, "as it is now");
+    // Arranged otherwise meanwhile: arranged so.
+    search(&mut s, "is:read");
+    s.prefs.arrange = crate::session::Arrange::Size;
+    search(&mut s, "");
+    let shown = keys(&s);
+    assert_ne!(shown, inbox);
+    s.refresh_list();
+    assert_eq!(keys(&s), shown, "by size");
+    s.prefs.arrange = crate::session::Arrange::Date;
+    // A sender moved to Other meanwhile: gone from Focused.
+    s.run("view.focused", &json!({"on": true})).unwrap();
+    let focused = keys(&s);
+    let moved = focused[0].clone();
+    let from = s.list[0].from.email.clone();
+    search(&mut s, &format!("from:{from}"));
+    s.run("list.select", &json!({"key": moved.to_id()})).unwrap();
+    s.run("mail.moveToOther", &json!({})).unwrap();
+    search(&mut s, "");
+    assert!(!keys(&s).contains(&moved), "moved to Other");
+    s.run("view.focused", &json!({"on": false})).unwrap();
+    // Another folder opened: its list, and the kept one let go of.
+    s.open_view(View::Folder { account: a.clone(), folder: "INBOX".into() });
+    search(&mut s, "is:read");
+    s.open_view(View::Folder { account: a.clone(), folder: "Projects".into() });
+    assert!(s.list.iter().all(|m| m.key.folder == "Projects"));
+    search(&mut s, "");
+    assert!(s.list.iter().all(|m| m.key.folder == "Projects"));
+    for _ in 0..4 {
+        s.tick();
+    }
+    assert_eq!(s.letting_go(), 0);
+    done(s);
+}

@@ -127,6 +127,7 @@ impl Session {
             m.has_attachments = files;
             changed
         };
+        self.mail_changed();
         if let Some(st) = self.cache.get_mut(&(account.to_string(), folder.to_string())) {
             for m in &mut st.messages {
                 set(m);

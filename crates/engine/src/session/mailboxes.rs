@@ -378,6 +378,9 @@ impl Session {
                 }
                 None => Vec::new(),
             }
+        } else if self.show_kept_list() {
+            // The list from before the search, nothing it shows changed since.
+            return;
         } else if self.view == View::Outbox {
             self.outbox_summaries()
         } else {
@@ -431,6 +434,13 @@ impl Session {
         self.nav.build_hashed(&list, hashes, &all, conversations, !shown);
         self.threads = all;
         self.list = list;
+        self.rebuild_rows();
+        self.list_taken();
+    }
+
+    /// The list (and its nav) changed: the selection, focus and message read kept where they're
+    /// still in it.
+    pub(super) fn list_taken(&mut self) {
         // What's chosen stays where it's still in the list (looked up: a set of every key in a
         // list of tens of thousands cost more than its index).
         let mut selection = std::mem::take(&mut self.selection);
@@ -445,7 +455,6 @@ impl Session {
         if self.reading.as_ref().is_some_and(|r| !self.listed(&r.key)) && self.search.is_none() {
             self.reading = None;
         }
-        self.rebuild_rows();
         self.revision = self.revision.wrapping_add(1);
     }
 

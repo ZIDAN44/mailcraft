@@ -1940,6 +1940,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   builds the list at once, 10–12 ms; `is:unread` over 50,000 takes 35 ms against the 15 ms
   aimed for over 35,000; the common phrase's 16,667 found, each checked against its text, take
   longer than the 150 ms aimed for a phrase (Open, 9).
+- **Clearing a search:** emptying the search box dropped everything the search had shown and
+  held at once, then copied the folder's summaries out of memory again, arranged them and worked
+  out their conversations and rows: on the 10,941-message folder of the 41 GB file's data file
+  that held the frame for 18–36 ms after a search of a few results and 56–91 ms after one of
+  7,481 to 32,574. The folder's list on view when a search starts is now kept, with its
+  conversations and rows, and shown again when the search is cleared, unless anything it was
+  built from changed meanwhile (a mark, a move or new mail in a folder, another folder opened,
+  the arrangement, the filter or Focused); what the search showed and held is let go of a slice
+  a frame. On the made-up mailbox (release build), clearing 35,000 found over the Inbox's
+  12,000 takes 1.6 ms.
 - **Attachments a build before 0.32 kept raw:** a data file those builds made keeps most base64
   attachments uncompressed (34.9 GiB of a 47 GB file). The store can now compress them again in
   the background (`Store::recompress_data_file`): a batch of at most 2 MiB at a time, each
