@@ -241,6 +241,9 @@ fn a_contact_s_picture() {
     assert!(matches!(photo(&flagged, "IPM.Contact", b"png"), Some(Got::Photo(ref mime, ref data)) if mime == "image/png" && data == b"png"));
     assert!(photo(&flagged, "IPM.Note", b"png").is_none(), "a message's file");
     assert!(photo(&|_| None, "IPM.Contact", b"png").is_none(), "a contact's other file");
+    // One past the cap is counted, not left out unsaid as a hidden file.
+    let big = vec![0u8; super::super::MAX_ATTACHMENT + 1];
+    assert!(matches!(photo(&flagged, "IPM.Contact", &big), Some(Got::Left(SkipReason::AttachmentTooBig))));
 }
 
 /// The files kept on cards and events stay within what MailCraft reads back: the contacts and

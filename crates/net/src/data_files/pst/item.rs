@@ -317,11 +317,16 @@ pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str, top: b
 }
 
 /// A contact's picture (PidTagAttachmentContactPhoto), from its attachment's properties (`p`)
-/// and bytes, in an item of class `class`; `None` for any other attachment.
+/// and bytes, in an item of class `class`; `None` for any other attachment. One past the cap is
+/// counted as too big (it is hidden, so it would otherwise go unsaid).
 pub(super) fn photo<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, data: &[u8]) -> Option<Got> {
     let contact = class.get(..11).is_some_and(|c| c.eq_ignore_ascii_case("ipm.contact"));
-    if !contact || !matches!(p(0x7FFF), Some(Val::Bool(true))) || data.len() > MAX_ATTACHMENT {
+    if !contact || !matches!(p(0x7FFF), Some(Val::Bool(true))) {
         return None;
+    }
+    if data.len() > MAX_ATTACHMENT {
+        log::info!("a contact's picture of {} bytes was left out", data.len());
+        return Some(Got::Left(SkipReason::AttachmentTooBig));
     }
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     let mime = Some(s(0x370E)).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&name_of(&s)).to_string());
