@@ -105,6 +105,9 @@ pub(crate) struct SearchState {
     /// A test's: the next step stops part-way, as a bug would.
     #[cfg(test)]
     pub(crate) fault: bool,
+    /// A test's: the next index a tick opens ahead stops part-way, as a bug would.
+    #[cfg(test)]
+    pub(crate) open_fault: bool,
 }
 
 /// Working out which of the user's messages wait for a reply ([`Session::awaiting_replies`]),

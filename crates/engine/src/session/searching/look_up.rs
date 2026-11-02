@@ -128,7 +128,32 @@ impl Session {
         let due = |id: &String| readers.get(id).is_none_or(|s| s.reader.is_none() && s.behind && !s.damaged && !searched(id));
         let Some(account) = self.accounts.iter().map(|a| &a.config.id).find(|id| due(id)).cloned() else { return };
         self.search_state.readers.remove(&account);
-        self.open_reader(&account);
+        // Read on the window's frame, where nothing else would catch it: an index that stops the
+        // reading part-way is left unread (damaged) until its writer writes it again, as one a
+        // search stopped on is, rather than closing the window at every start.
+        let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            #[cfg(test)]
+            self.open_test_fault();
+            self.open_reader(&account);
+        }));
+        if opened.is_err() {
+            log::error!("{account}: the search index couldn't be opened: something in it couldn't be read");
+            PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.search_state.readers.insert(account, ReaderSlot { reader: None, checked: self.clock.now, behind: false, damaged: true });
+        }
+    }
+
+    /// A test's: the next index a tick opens ahead stops part-way, as a bug would.
+    #[cfg(test)]
+    pub(crate) fn fail_next_index_open(&mut self) {
+        self.search_state.open_fault = true;
+    }
+
+    #[cfg(test)]
+    fn open_test_fault(&mut self) {
+        if std::mem::take(&mut self.search_state.open_fault) {
+            panic!("a test's index fault");
+        }
     }
 
     /// Look up the run's words in `account`'s index, a few pages; those looked up lately in the

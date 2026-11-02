@@ -644,6 +644,36 @@ fn a_tick_opens_the_index_ahead() {
     drop(s);
 }
 
+/// An index that stops a tick's opening it part-way (as a bug in reading it would) leaves the
+/// session running: the account's index is left unread (damaged), the next ticks don't open it
+/// again, a search goes on without it, and the next once its writer has written it reads it
+/// again. Before, the panic escaped the tick, which the window runs each frame with nothing to
+/// catch it, at every start.
+#[test]
+fn an_index_that_stops_a_ticks_open_is_left_unread() {
+    let mut s = generated(2, 50, 0, true);
+    s.set_background_search(true);
+    let caught = crate::PANICS_CAUGHT.load(std::sync::atomic::Ordering::Relaxed);
+    s.fail_next_index_open();
+    s.tick();
+    assert!(crate::PANICS_CAUGHT.load(std::sync::atomic::Ordering::Relaxed) > caught, "caught");
+    assert!(!s.search_index_open("a1"));
+    for _ in 0..3 {
+        s.tick();
+    }
+    assert!(!s.search_index_open("a1"), "not opened again by ticks");
+    s.start_search("zanzibar", SearchScope::All, false);
+    settle(&mut s, 8);
+    assert_eq!(s.list.len(), 0, "a search goes on without it");
+
+    // Its writer writes it again: the next search reads it.
+    let generation = index_now(&s, "a1");
+    indexed(&mut s, "a1", generation);
+    s.start_search("zanzibar", SearchScope::All, false);
+    settle(&mut s, 8);
+    assert_eq!(s.list.len(), 100 / 7, "read again once written");
+}
+
 /// A search run while an account had no index yet, still on screen when a pass writes one: a
 /// tick doesn't open that index ahead of the search, which looks again at what the index finds
 /// (body matches among them) once the pass is over. A tick that opened it, taking the pass's
