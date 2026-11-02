@@ -2038,11 +2038,20 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   marks are still being written isn't read from the disk by the window at all (opened again after
   the cache let go of it, its read waited for their commit): it's read a moment later, once
   they're written, and a folder list the window writes whole goes on the marks' thread.
-  Measured on the real file: 40 read/unread toggles had every mark written within 5.3 ms, and six
-  ten-second holds of Down over unread mail had no frame over 16 ms without disk load; with a disk
-  flushing writes beside it, frames of 21–57 ms now and then, and twice the window answered
-  nothing for 0.6–0.8 s between frames, no wait for the marks among them (Open: what holds the
-  window there).
+  Measured on the real file: 40 read/unread toggles had every mark written within 5.3 ms. The
+  frames of 21–57 ms and the 0.6–0.8 s without a frame measured beside a disk flushing writes
+  came, as far as could be found, from the measuring: its probe appended a line to a file from the window's thread every
+  frame, and the tool that took the window's stack when it stalled suspends the whole process for
+  seconds while it loads symbols. Timed with the probe's lines handed to a thread of its own, and
+  eframe's painting split into its parts, 16 ten-second holds of Down over unread mail (213 marks
+  each, 8 of them beside a disk flushing) had no gap between frames over 24 ms and no frame over
+  16 ms but one of about 23 ms in 4 of them: egui-wgpu creating the texture of a 1058×730 picture
+  in the frame (20 ms; under 3 ms in the other holds). The first
+  scroll of the 36-picture and the 127,000-character messages after start-up stalled for 0.5–1.9
+  s in the earlier checks, which also wrote from the window's thread: in 14 first scrolls since
+  (two with AccessKit turned on by UI Automation) no frame took over 14 ms, the wait for the
+  display's refresh included, and the window always answered within 10 ms. Open: a big
+  picture's texture made in the frame (egui-wgpu's `update_texture`, the Craft apps' fork).
 - **A data file read on handles of its own:** on Windows every read and write through one handle
   waits for the one before it, so the search index's eight readers, the marks' commits and
   their flushes and the window's own reads all queued on the data file's one handle: building
