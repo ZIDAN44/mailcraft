@@ -109,6 +109,23 @@ impl Session {
         true
     }
 
+    /// Searching in the background (the window), an account's index opened a tick before anyone
+    /// searches it: one account a tick, the first that has none open (or has one written since
+    /// it had none). The first search's first steps then have its index open already (the one
+    /// that opened it was often the slowest step of a search just after opening). One a search
+    /// stopped on (damaged) stays unread until its writer writes it again, as the search would
+    /// leave it. While a search runs, it opens and reads again what it reads itself.
+    pub(crate) fn open_indexes_ahead(&mut self) {
+        if !self.search_state.background || self.store.is_none() || self.search_state.run.as_ref().is_some_and(|r| !r.done()) {
+            return;
+        }
+        let readers = &self.search_state.readers;
+        let due = |id: &String| readers.get(id).is_none_or(|s| s.reader.is_none() && s.behind && !s.damaged);
+        let Some(account) = self.accounts.iter().map(|a| &a.config.id).find(|id| due(id)).cloned() else { return };
+        self.search_state.readers.remove(&account);
+        self.open_reader(&account);
+    }
+
     /// Look up the run's words in `account`'s index, a few pages; those looked up lately in the
     /// index as it is now, at once.
     pub(super) fn terms_unit(&mut self, run: &mut SearchRun, account: &str) {

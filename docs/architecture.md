@@ -418,7 +418,9 @@ whole with no text has no word: no). A word UAX #29 keeps joined by `.`, `:`, an
 
 The session runs a search a bounded unit of work at a time (`session/searching/run.rs`:
 `start_search`, then `search_step(units)`), no clock and no network in it: a unit is a page of a
-folder's list read (`Store::folder_load`), an account's index opened, up to two of its pages looked
+folder's list read (`Store::folder_load`), an account's index opened (in the window, ticks open
+each account's ahead of any search, one a tick, so a search just after the window opens finds it
+open: `open_indexes_ahead`), up to two of its pages looked
 through for a query word and the docs of about two pages' worth of its words set
 (`Reader::scan_prefix`: a one-letter word's thousands of words, their docs in the lexicon page
 itself, are spread over units too, the lexicon page looked through last kept decoded so a page is

@@ -24,12 +24,15 @@ fn mailbox() -> &'static (Store, Truth) {
     })
 }
 
-/// A session newly opened on the mailbox, searching in the background as the window does.
+/// A session newly opened on the mailbox, searching in the background as the window does, and
+/// ticked once, as the window ticks it before anyone can type: its index is open, nothing of it
+/// read yet and no summary's text made.
 fn cold() -> (Session, Truth) {
     let (store, truth) = mailbox();
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
     s.take_jobs();
     s.set_background_search(true);
+    s.tick();
     (s, *truth)
 }
 
@@ -340,10 +343,12 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// frames as the window takes them (as many units as fit in 6 ms). It holds the budgets the
 /// searches meet (search.md §11), so a slower one fails it: a word, warm, 20 ms all told (25 ms
 /// before each summary was looked through once for it) and 4 ms a step at p99, each frame at
-/// most 8 ms; a one-letter word, warm, 300 ms all told. Printed only: the common phrase searched
+/// most 8 ms; a word in a session just opened ([`cold`]: its index opened by the window's first
+/// tick, its summaries' texts made as it goes), 90 ms all told and 4 ms a step at p99; a
+/// one-letter word, warm or just opened, 300 ms all told. Printed only: the common phrase searched
 /// again (150 ms in frames: 128-142 ms). Not met yet (docs/gaps.md, Open): the common phrase
-/// searched the first time (150 ms in frames: 357-454 ms), a step in a session just opened (4 ms:
-/// 3-6 ms, with the machine's load), `is:unread`'s 15 ms, a one-letter word's 6 ms a step (those
+/// searched the first time (150 ms in frames: 357-454 ms), `is:unread`'s 15 ms, a one-letter
+/// word's 6 ms a step (those
 /// recording thousands found: p99 8-13 ms, worst 11-22 ms, copying each summary found), and the
 /// frame that shows tens of thousands found.
 #[test]
@@ -381,7 +386,8 @@ fn how_long_searches_take() {
             match cache {
                 "warm" if word => assert!(all <= ms(20) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
                 "warm, frames" if word => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
-                "warm" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
+                "cold" if word => assert!(all <= ms(90) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
+                "warm" | "cold" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
                 _ => {}
             }
         }

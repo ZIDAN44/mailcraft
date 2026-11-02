@@ -529,6 +529,12 @@ impl Session {
         self.search_state.pinned.len()
     }
 
+    /// Whether `account`'s index is open for search.
+    #[cfg(test)]
+    pub(crate) fn search_index_open(&self, account: &str) -> bool {
+        self.search_state.readers.get(account).is_some_and(|s| s.reader.is_some())
+    }
+
     /// No search any more: what it held goes, its folders free to leave the cache.
     pub(crate) fn drop_search(&mut self) {
         if let Some(run) = self.search_state.run.take() {

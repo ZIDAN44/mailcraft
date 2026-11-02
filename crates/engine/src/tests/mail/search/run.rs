@@ -600,3 +600,46 @@ fn a_step_tells_its_work_and_never_waits_for_marks() {
         assert!(kinds.contains(&w), "{w:?} in {kinds:?}");
     }
 }
+
+/// Searching in the background, a tick opens the account's index ahead of any search: the
+/// search then opens nothing (its first step read it). An account without an index yet has it
+/// opened once one is written; not in the background (the CLI), nothing is opened ahead; and an
+/// index a search stopped on stays unread, ticked or not, until its writer writes it again.
+#[test]
+fn a_tick_opens_the_index_ahead() {
+    let opens = |s: &mut Session, q: &str| {
+        s.start_search(q, SearchScope::All, false);
+        let mut n = 0;
+        while !s.search_step_timed(8, &mut || true, &mut |w| n += usize::from(w == SearchWork::OpenIndex)).done {}
+        n
+    };
+    let mut s = generated(2, 50, 0, true);
+    s.tick();
+    assert!(!s.search_index_open("a1"), "not searching in the background");
+    s.set_background_search(true);
+    s.tick();
+    assert!(s.search_index_open("a1"), "opened ahead");
+    assert_eq!(s.search_stats().reader_pages, 0, "nothing of it read yet");
+    assert_eq!(opens(&mut s, "zanzibar"), 0, "the search opens nothing");
+    assert_eq!(s.list.len(), 100 / 7);
+
+    // None yet: opened once one is written.
+    let mut s = generated(2, 50, 0, false);
+    s.set_background_search(true);
+    s.tick();
+    assert!(!s.search_index_open("a1"));
+    let generation = index_now(&s, "a1");
+    indexed(&mut s, "a1", generation);
+    s.tick();
+    assert!(s.search_index_open("a1"), "opened once written");
+
+    // Stopped on: left unread.
+    s.start_search("zanzibar", SearchScope::All, false);
+    s.fail_next_search_step();
+    assert!(s.search_step(8).done);
+    for _ in 0..3 {
+        s.tick();
+    }
+    assert!(!s.search_index_open("a1"), "a damaged index isn't opened ahead");
+    drop(s);
+}
