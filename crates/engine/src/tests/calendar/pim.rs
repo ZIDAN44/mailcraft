@@ -202,7 +202,7 @@ fn own_events_invite_and_cancel_guests() {
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 999 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&key, &raw).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });

@@ -87,7 +87,7 @@ fn a_mailcraft_data_file_is_imported() {
     old.save_folders("a1", &[Folder { path: "INBOX".into(), role: FolderRole::Inbox, ..Default::default() }]).unwrap();
     let k = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 3 };
     let mut st = old.load_folder("a1", "INBOX").unwrap();
-    st.messages.push(mailcraft_model::Summary { key: k, subject: "Kept".into(), ..Default::default() });
+    st.messages.push(mailcraft_model::Summary { key: k, subject: "Kept".into(), ..Default::default() }.into());
     old.save_folder("a1", "INBOX", &st).unwrap();
     let mut pim = mailcraft_model::pim::Pim::default();
     pim.notes.push(mailcraft_model::pim::StoredNote::default());
@@ -232,6 +232,7 @@ fn fill(s: &Store, n: u32) {
             date: i64::from(uid),
             ..Default::default()
         })
+        .map(Into::into)
         .collect();
     let inbox = Folder { account: "a1".into(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
     s.save_folders("a1", &[inbox]).unwrap();
@@ -269,7 +270,7 @@ fn a_local_move_is_followed_without_reading() {
     let mut moved = s.load_folder("a1", "INBOX").unwrap().find(2).unwrap().clone();
     moved.key = MessageKey { account: "a1".into(), folder: "Archive".into(), validity: 1, uid: 1 };
     s.write_body(&moved.key, &s.read_body(&key).unwrap()).unwrap();
-    let archive = mailcraft_store::FolderState { validity: 1, uid_next: 2, messages: vec![moved], ..Default::default() };
+    let archive = mailcraft_store::FolderState { validity: 1, uid_next: 2, messages: vec![moved.into()], ..Default::default() };
     s.save_folder("a1", "Archive", &archive).unwrap();
     s.apply_op("a1", &Op::Move { keys: vec![key], to: "Archive".into() }).unwrap();
     let reads = s.reads();
@@ -288,7 +289,7 @@ fn big_sources_are_read_one_at_a_time() {
     let s = Store::memory();
     fill(&s, 12);
     let mut st = s.load_folder("a1", "INBOX").unwrap();
-    for m in &mut st.messages {
+    for m in st.messages.iter_mut().map(std::sync::Arc::make_mut) {
         m.size = 30 << 20;
     }
     s.save_folder("a1", "INBOX", &st).unwrap();
@@ -515,7 +516,12 @@ fn wrong_about_files(s: &Store) {
     let inbox = Folder { account: "a1".into(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
     s.save_folders("a1", &[inbox]).unwrap();
     let messages = vec![summary(2, false), summary(1, true)];
-    s.save_folder("a1", "INBOX", &mailcraft_store::FolderState { validity: 7, uid_next: 3, messages, ..Default::default() }).unwrap();
+    s.save_folder(
+        "a1",
+        "INBOX",
+        &mailcraft_store::FolderState { validity: 7, uid_next: 3, messages: messages.into_iter().map(Into::into).collect(), ..Default::default() },
+    )
+    .unwrap();
     for (uid, raw) in [(1, picture), (2, file)] {
         s.write_body(&MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid }, raw.as_bytes()).unwrap();
     }
@@ -633,7 +639,17 @@ fn a_mark_read_waits_little_for_an_index_pass() {
         })
         .collect();
     s.save_folders("a1", &[Folder { account: "a1".into(), path: "INBOX".into(), selectable: true, ..Default::default() }]).unwrap();
-    s.save_folder("a1", "INBOX", &mailcraft_store::FolderState { validity: 7, uid_next: n + 1, messages, ..Default::default() }).unwrap();
+    s.save_folder(
+        "a1",
+        "INBOX",
+        &mailcraft_store::FolderState {
+            validity: 7,
+            uid_next: n + 1,
+            messages: messages.into_iter().map(Into::into).collect(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut x = 0x9E37_79B9_7F4A_7C15u64;
     for uid in 1..=n {
         let words: String = (0..800)

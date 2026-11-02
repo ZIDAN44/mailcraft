@@ -44,7 +44,7 @@ impl Session {
         let mut found = Vec::with_capacity(run.found.len());
         for ((a, f), uids) in by_folder {
             match self.cache.get(&(a.to_string(), f.to_string())) {
-                Some(st) => found.extend(st.messages.iter().filter(|m| uids.contains(&m.key.uid) && !m.flags.deleted).cloned()),
+                Some(st) => found.extend(st.messages.iter().filter(|m| uids.contains(&m.key.uid) && !m.flags.deleted).map(|m| Summary::clone(m))),
                 None => found.extend(self.list.iter().filter(|m| m.key.account == a && m.key.folder == f && uids.contains(&m.key.uid)).cloned()),
             }
         }
@@ -170,7 +170,7 @@ impl Session {
                 let text = SummaryText::for_query(m, &run.query);
                 let awaiting = run.awaited().is_some_and(|a| a.contains(&m.key));
                 let v = if m.flags.deleted { Verdict::No } else { classify(&run.query, m, &text, awaiting, index, run.known.get(&m.key)) };
-                verdicts.push((m.clone(), v, awaiting));
+                verdicts.push((Summary::clone(m), v, awaiting));
             }
             for (m, v, awaiting) in verdicts {
                 let (was, key) = (run.found.contains(&m.key), m.key.clone());
@@ -197,7 +197,7 @@ impl Session {
             let mut now: Vec<(usize, Summary)> = Vec::new();
             for k in &folders {
                 let Some(st) = self.cache.get(k) else { continue };
-                now.extend(st.messages.iter().filter_map(|m| at.get(&m.key).map(|i| (*i, m.clone()))));
+                now.extend(st.messages.iter().filter_map(|m| at.get(&m.key).map(|i| (*i, Summary::clone(m)))));
             }
             for (i, m) in now {
                 if let Some(slot) = run.fresh.get_mut(i) {

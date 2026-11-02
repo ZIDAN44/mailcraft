@@ -559,7 +559,7 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
     assert!(store.read_body(&st.messages[n / 2].key).is_some());
     // Changed afterwards: a flag, saved and read back.
     let mut st = st;
-    st.messages[5].flags.seen = true;
+    std::sync::Arc::make_mut(&mut st.messages[5]).flags.seen = true;
     let key = st.messages[5].key.clone();
     store.save_folder("d1", "INBOX", &st).unwrap();
     assert!(store.load_folder("d1", "INBOX").unwrap().find(key.uid).unwrap().flags.seen);

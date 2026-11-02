@@ -603,7 +603,7 @@ impl Session {
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
         let s = mime::summary_from_full(raw, key.clone(), flags, size, self.clock.now);
         store.write_body(&key, raw).map_err(failed)?;
-        st.messages.push(s);
+        st.messages.push(s.into());
         sort_newest_first(&mut st.messages);
         store.save_folder(account, folder, &st).map_err(failed)?;
         self.reload_folder(account, folder);

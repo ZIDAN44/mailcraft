@@ -599,7 +599,7 @@ Content-Type: multipart/related; boundary=\"R\"\r\n\r\n--R\r\nContent-Type: text
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9300 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&key, raw).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
@@ -639,7 +639,7 @@ Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/p
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9301 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&key, raw).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
@@ -665,7 +665,7 @@ Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/p
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9302 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&key, raw).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });

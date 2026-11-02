@@ -163,7 +163,7 @@ fn an_invitation_whose_body_comes_later_is_taken_then() {
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9500 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_header(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_header(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     assert!(parts(&s, "later@studio.example").is_empty(), "no body yet");

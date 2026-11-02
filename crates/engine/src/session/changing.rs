@@ -89,16 +89,16 @@ impl Session {
             }
             match op {
                 Op::SetFlag { flag, on, .. } => {
-                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid)) {
-                        if *flag == Flag::Seen && m.flags.seen != *on {
+                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid) && flag.get(&m.flags) != *on) {
+                        if *flag == Flag::Seen {
                             *unread_delta.entry(f.clone()).or_default() += if *on { -1 } else { 1 };
                         }
-                        flag.set(&mut m.flags, *on);
+                        flag.set(&mut SharedSummary::make_mut(m).flags, *on);
                     }
                 }
                 Op::SetKeyword { keyword, on, .. } => {
-                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid)) {
-                        m.flags.set_keyword(keyword, *on);
+                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid) && m.flags.has(keyword) != *on) {
+                        SharedSummary::make_mut(m).flags.set_keyword(keyword, *on);
                     }
                 }
                 Op::Move { to, .. } if to == f => {}
@@ -224,7 +224,7 @@ impl Session {
         // Each source folder read once, its messages found by number; the bodies written
         // together (a folder's every message may go at once: per message, all of this was
         // read again, and each body was a write of its own).
-        let mut sources: HashMap<String, HashMap<u32, Summary>> = HashMap::new();
+        let mut sources: HashMap<String, HashMap<u32, SharedSummary>> = HashMap::new();
         for k in keys.iter().filter(|k| k.folder != to) {
             if !sources.contains_key(&k.folder) {
                 let st = store.load_folder(account, &k.folder)?;
@@ -241,7 +241,7 @@ impl Session {
         let mut long: Option<(LongWrite<'s>, u64)> = None;
         for k in keys.iter().filter(|k| k.folder != to) {
             let Some(m) = sources.get(&k.folder).and_then(|src| src.get(&k.uid)) else { continue };
-            let mut moved = m.clone();
+            let mut moved = Summary::clone(m);
             moved.key = MessageKey {
                 account: account.to_string(),
                 folder: to.to_string(),
@@ -262,7 +262,7 @@ impl Session {
                 pending = pending.saturating_add(raw.len());
                 bodies.push((moved.key.clone(), raw));
             }
-            dest.messages.push(moved);
+            dest.messages.push(moved.into());
         }
         if !bodies.is_empty() {
             match &long {

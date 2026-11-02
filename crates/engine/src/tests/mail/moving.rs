@@ -20,6 +20,7 @@ fn projects(root: &std::path::Path, n: u32) -> (Store, Session) {
             flags: Flags { seen: true, ..Default::default() },
             ..Default::default()
         })
+        .map(Into::into)
         .collect();
     let bodies: Vec<(MessageKey, Vec<u8>)> =
         st.messages.iter().map(|m| (m.key.clone(), format!("Subject: Report {}\r\n\r\nThe figures.\r\n", m.key.uid).into_bytes())).collect();
@@ -52,7 +53,7 @@ fn a_long_move_leaves_its_data_file_sealed() {
     assert_eq!(after.plain.count, before.plain.count, "a commit that waited for the disk wasn't sealed");
     assert!(after.sealed.count > before.sealed.count, "nothing sealed");
     let inbox = store.load_folder("sample", "INBOX").unwrap();
-    let moved: Vec<&Summary> = inbox.messages.iter().filter(|m| m.subject.starts_with("Report ")).collect();
+    let moved: Vec<&Summary> = inbox.messages.iter().filter(|m| m.subject.starts_with("Report ")).map(|m| &**m).collect();
     assert_eq!(moved.len(), 1200);
     assert!(moved.iter().all(|m| store.read_body(&m.key).is_some_and(|b| b.starts_with(format!("Subject: {}", m.subject).as_bytes()))));
     assert!(store.load_folder("sample", "Projects").unwrap().messages.is_empty());

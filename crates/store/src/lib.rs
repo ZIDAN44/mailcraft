@@ -37,7 +37,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
-use mailcraft_model::{AccountConfig, Folder, MessageKey, Op, Summary, sort_newest_first};
+use mailcraft_model::{AccountConfig, Folder, MessageKey, Op, SharedSummary, Summary, sort_newest_first};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +73,7 @@ pub struct FolderState {
     /// HIGHESTMODSEQ at the last sync (0 when the server lacks CONDSTORE).
     pub highest_modseq: u64,
     /// Newest first.
-    pub messages: Vec<Summary>,
+    pub messages: Vec<SharedSummary>,
     /// How many of the newest messages it was filled with (the setting then): raised since,
     /// the older mail is fetched once.
     #[serde(default)]
@@ -130,7 +130,7 @@ struct StateFile {
     validity: u32,
     uid_next: u32,
     highest_modseq: u64,
-    messages: Vec<Summary>,
+    messages: Vec<SharedSummary>,
     window: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pages: Vec<u64>,
@@ -231,7 +231,7 @@ impl ListWriter {
         let counts = (self.unread, u32::try_from(self.total).unwrap_or(u32::MAX));
         if self.pages.is_empty() {
             // Small: kept whole, as save_folder keeps it.
-            let mut st = FolderState { messages: std::mem::take(&mut self.page), ..head.clone() };
+            let mut st = FolderState { messages: std::mem::take(&mut self.page).into_iter().map(SharedSummary::new).collect(), ..head.clone() };
             sort_newest_first(&mut st.messages);
             store.save_folder(&self.account, &self.folder, &st)?;
             return Ok(counts);
@@ -279,11 +279,11 @@ fn page_hash(bytes: &[u8]) -> u64 {
 
 impl FolderState {
     pub fn find(&self, uid: u32) -> Option<&Summary> {
-        self.messages.iter().find(|m| m.key.uid == uid)
+        self.messages.iter().find(|m| m.key.uid == uid).map(|m| &**m)
     }
 
     pub fn find_mut(&mut self, uid: u32) -> Option<&mut Summary> {
-        self.messages.iter_mut().find(|m| m.key.uid == uid)
+        self.messages.iter_mut().find(|m| m.key.uid == uid).map(SharedSummary::make_mut)
     }
 
     pub fn unread(&self) -> u32 {

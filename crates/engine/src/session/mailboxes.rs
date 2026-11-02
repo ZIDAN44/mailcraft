@@ -233,9 +233,13 @@ impl Session {
             return;
         }
         let arrived: Vec<Summary> = match self.seen_uid.get(&k) {
-            Some(&seen) => {
-                self.folder_state(account, folder).messages.iter().filter(|m| m.key.uid > seen && m.key.validity == validity).cloned().collect()
-            }
+            Some(&seen) => self
+                .folder_state(account, folder)
+                .messages
+                .iter()
+                .filter(|m| m.key.uid > seen && m.key.validity == validity)
+                .map(|m| Summary::clone(m))
+                .collect(),
             None => Vec::new(),
         };
         self.seen_uid.insert(k, max);
@@ -450,7 +454,7 @@ impl Session {
         } else {
             let mut v = Vec::new();
             for (a, f) in self.view_folders() {
-                v.extend(self.folder_state(&a, &f).messages.iter().filter(|m| !m.flags.deleted).cloned());
+                v.extend(self.folder_state(&a, &f).messages.iter().filter(|m| !m.flags.deleted).map(|m| Summary::clone(m)));
             }
             v
         };

@@ -177,7 +177,13 @@ fn long_folders_render_quickly() {
             ..Default::default()
         })
         .collect();
-    store.save_folder("sample", "Archive", &FolderState { validity: 1, uid_next: 2001, highest_modseq: 0, messages, window: 0 }).unwrap();
+    store
+        .save_folder(
+            "sample",
+            "Archive",
+            &FolderState { validity: 1, uid_next: 2001, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 },
+        )
+        .unwrap();
     a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
     a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
     assert_eq!(a.session.list.len(), 2000);
@@ -395,7 +401,7 @@ fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
     let store = a.session.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9900 };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key.clone(), Default::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key.clone(), Default::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&key, &raw).unwrap();
     a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
@@ -448,7 +454,7 @@ fn a_narrow_row_keeps_the_senders_name_readable() {
     let store = a.session.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9901 };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key, Default::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key, Default::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     a.run("folder.unified", json!({"role": "inbox"}));

@@ -94,10 +94,10 @@ impl Session {
         if st.messages.iter().filter(|m| uids.contains(&m.key.uid)).all(|m| has(&m.flags)) {
             return true;
         }
-        for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
+        for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid) && !has(&m.flags)) {
             match &op {
-                Op::SetFlag { flag, on, .. } => flag.set(&mut m.flags, *on),
-                Op::SetKeyword { keyword, on, .. } => m.flags.set_keyword(keyword, *on),
+                Op::SetFlag { flag, on, .. } => flag.set(&mut SharedSummary::make_mut(m).flags, *on),
+                Op::SetKeyword { keyword, on, .. } => SharedSummary::make_mut(m).flags.set_keyword(keyword, *on),
                 _ => {}
             }
         }

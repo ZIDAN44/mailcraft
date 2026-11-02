@@ -214,7 +214,7 @@ pub struct Thread {
 /// without a parent, or under ids no message listed carries: under the message whose index is theirs less its last block, or else
 /// under the conversation's first message (the one whose index is the conversation's alone, or
 /// the oldest) when its base subject is theirs. Ids stay first: they are what a reply names.
-fn place_by_index(b: &mut Builder, msgs: &[Summary], own: &[usize]) {
+fn place_by_index(b: &mut Builder, msgs: &[&Summary], own: &[usize]) {
     let mut by_own: HashMap<u64, usize> = HashMap::new();
     let mut by_conversation: HashMap<u64, usize> = HashMap::new();
     for (i, m) in msgs.iter().enumerate() {
@@ -252,7 +252,12 @@ fn place_by_index(b: &mut Builder, msgs: &[Summary], own: &[usize]) {
 
 /// Group messages into conversations. The result is sorted with the most recently active
 /// conversation first; every input index appears exactly once.
-pub fn threads(msgs: &[Summary]) -> Vec<Thread> {
+pub fn threads<S: std::borrow::Borrow<Summary>>(msgs: &[S]) -> Vec<Thread> {
+    let msgs: Vec<&Summary> = msgs.iter().map(std::borrow::Borrow::borrow).collect();
+    threads_of(&msgs)
+}
+
+fn threads_of(msgs: &[&Summary]) -> Vec<Thread> {
     let mut b = Builder { nodes: Vec::with_capacity(msgs.len() * 2), by_id: HashMap::with_capacity(msgs.len() * 2) };
     let mut own = Vec::with_capacity(msgs.len());
     for (i, m) in msgs.iter().enumerate() {
@@ -314,7 +319,7 @@ pub fn threads(msgs: &[Summary]) -> Vec<Thread> {
     let mut by_subject: HashMap<String, usize> = HashMap::new();
     let mut merged: Vec<Vec<usize>> = Vec::new();
     let first_subject = |g: &Vec<usize>| -> (String, bool) {
-        let oldest = g.iter().copied().min_by_key(|&i| msgs.get(i).map_or(0, Summary::when)).unwrap_or(0);
+        let oldest = g.iter().copied().min_by_key(|&i| msgs.get(i).map_or(0, |m| m.when())).unwrap_or(0);
         let s = msgs.get(oldest).map(|m| m.subject.as_str()).unwrap_or_default();
         (base_subject(s).to_lowercase(), is_reply_subject(s))
     };
@@ -339,9 +344,9 @@ pub fn threads(msgs: &[Summary]) -> Vec<Thread> {
     let mut out: Vec<Thread> = merged
         .into_iter()
         .map(|mut v| {
-            v.sort_by_key(|&i| (msgs.get(i).map_or(0, Summary::when), i));
+            v.sort_by_key(|&i| (msgs.get(i).map_or(0, |m| m.when()), i));
             v.dedup();
-            let latest = v.iter().filter_map(|&i| msgs.get(i)).map(Summary::when).max().unwrap_or(0);
+            let latest = v.iter().filter_map(|&i| msgs.get(i)).map(|m| m.when()).max().unwrap_or(0);
             Thread { messages: v, latest }
         })
         .collect();

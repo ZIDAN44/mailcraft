@@ -11,7 +11,8 @@ use mailcraft_model::job::{Secret, Vacation};
 use mailcraft_model::search::{Doc, Query, SummaryText, TextField, TextSource, Tri};
 use mailcraft_model::thread::{Thread, threads};
 use mailcraft_model::{
-    AccountConfig, EmailAddress, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,
+    AccountConfig, EmailAddress, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, SharedSummary, Summary, SyncStatus, addr, sort_folders,
+    sort_newest_first,
 };
 use mailcraft_store::{FolderMarks, FolderState, LongWrite, MarksAfter, OutboxItem, Store};
 use serde::{Deserialize, Serialize};

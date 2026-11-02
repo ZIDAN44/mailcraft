@@ -277,7 +277,7 @@ fn a_data_file_from_before_opens() {
     let st = FolderState {
         validity: 7,
         uid_next: 2,
-        messages: vec![Summary { key: mk("INBOX", 1), subject: "Hello".into(), ..Default::default() }],
+        messages: vec![Summary { key: mk("INBOX", 1), subject: "Hello".into(), ..Default::default() }.into()],
         ..Default::default()
     };
     s.save_folder("a1", "INBOX", &st).unwrap();

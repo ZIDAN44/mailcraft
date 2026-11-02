@@ -345,7 +345,17 @@ fn web_pictures_load_only_when_asked() {
         mailcraft_model::Summary { key: key(2), subject: "More".into(), date: NOW - 1, ..Default::default() },
     ];
     store
-        .save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 1, uid_next: 3, highest_modseq: 0, messages: msgs, window: 0 })
+        .save_folder(
+            &id,
+            "INBOX",
+            &mailcraft_store::FolderState {
+                validity: 1,
+                uid_next: 3,
+                highest_modseq: 0,
+                messages: msgs.into_iter().map(Into::into).collect(),
+                window: 0,
+            },
+        )
         .unwrap();
     let html = |n: u32| {
         format!(
@@ -394,7 +404,17 @@ fn only_mail_that_arrives_later_is_announced() {
     };
     let save = |msgs: Vec<mailcraft_model::Summary>| {
         store
-            .save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 99, highest_modseq: 0, messages: msgs, window: 0 })
+            .save_folder(
+                &id,
+                "INBOX",
+                &mailcraft_store::FolderState {
+                    validity: 9,
+                    uid_next: 99,
+                    highest_modseq: 0,
+                    messages: msgs.into_iter().map(Into::into).collect(),
+                    window: 0,
+                },
+            )
             .unwrap();
     };
     // The first sync's backlog is not news.
@@ -434,7 +454,7 @@ fn the_first_message_of_an_empty_inbox_is_new() {
         ..Default::default()
     };
     store
-        .save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 2, highest_modseq: 0, messages: vec![m], window: 0 })
+        .save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 2, highest_modseq: 0, messages: vec![m.into()], window: 0 })
         .unwrap();
     s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
     assert_eq!(s.take_new_mail().into_iter().map(|m| m.subject).collect::<Vec<_>>(), ["first"]);
@@ -541,7 +561,7 @@ fn received_mail_is_listed_when_it_came() {
     };
     let mut late = m(1, "Late", NOW - 20 * 86_400, NOW - 60);
     late.in_reply_to = "m3@x".into();
-    st.messages = vec![late, m(2, "Yesterday's", NOW - 86_400, 0), m(3, "First", NOW - 30 * 86_400, 0)];
+    st.messages = vec![late.into(), m(2, "Yesterday's", NOW - 86_400, 0).into(), m(3, "First", NOW - 30 * 86_400, 0).into()];
     store.save_folder("sample", "Projects", &st).unwrap();
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
     s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
@@ -574,6 +594,7 @@ fn a_big_folder_changes_all_at_once_quickly() {
             date: NOW - i64::from(uid) * 60,
             ..Default::default()
         })
+        .map(Into::into)
         .collect();
     store.save_folder("sample", "Projects", &st).unwrap();
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));

@@ -343,7 +343,12 @@ fn mail(s: &Store, lists: &[(&str, Vec<Summary>)], kept: &[(&str, u32)]) {
         lists.iter().map(|(f, _)| Folder { account: "a1".into(), path: f.to_string(), selectable: true, ..Folder::default() }).collect();
     s.save_folders("a1", &folders).unwrap();
     for (f, messages) in lists {
-        s.save_folder("a1", f, &FolderState { validity: 7, uid_next: 100, messages: messages.clone(), ..FolderState::default() }).unwrap();
+        s.save_folder(
+            "a1",
+            f,
+            &FolderState { validity: 7, uid_next: 100, messages: messages.clone().into_iter().map(Into::into).collect(), ..FolderState::default() },
+        )
+        .unwrap();
     }
     for &(f, uid) in kept {
         s.write_body(&mk(f, uid), b"Subject: x\r\n\r\nbody\r\n").unwrap();
@@ -460,7 +465,7 @@ fn a_plan_swapping_uids_keeps_both() {
     carry_out(&s, &mut w, &first);
     let (a, b) = (w.find(&mk("INBOX", 1)).unwrap(), w.find(&mk("INBOX", 2)).unwrap());
     let at = |uid, id: &str, size| Summary { key: MessageKey { validity: 8, ..mk("INBOX", uid) }, ..summary("INBOX", uid, id, size, 1) };
-    let st = FolderState { validity: 8, uid_next: 100, messages: vec![at(1, "b@x", 20), at(2, "a@x", 10)], ..FolderState::default() };
+    let st = FolderState { validity: 8, uid_next: 100, messages: vec![at(1, "b@x", 20).into(), at(2, "a@x", 10).into()], ..FolderState::default() };
     s.save_folder("a1", "INBOX", &st).unwrap();
     for (uid, id) in [(1, "b@x"), (2, "a@x")] {
         s.write_body(&MessageKey { validity: 8, ..mk("INBOX", uid) }, id.as_bytes()).unwrap();
@@ -591,7 +596,7 @@ fn a_pass_finds_summaries_wrong_about_files() {
     // from the docs, nothing read.
     let reads = s.reads();
     let mut old = st.clone();
-    for m in old.messages.iter_mut().filter(|m| m.key.uid <= 2) {
+    for m in old.messages.iter_mut().filter(|m| m.key.uid <= 2).map(std::sync::Arc::make_mut) {
         m.has_attachments = m.key.uid == 1;
         m.flags.seen = true;
     }
@@ -628,7 +633,7 @@ fn a_doc_cut_in_its_parts_leaves_the_paperclip() {
     // The list changed (a message marked read): the plan reads the docs, and finds only 1.
     let w = Writer::open(&s, "a1").unwrap();
     let mut st = s.load_folder("a1", "INBOX").unwrap();
-    st.messages.iter_mut().for_each(|m| m.flags.seen = true);
+    st.messages.iter_mut().map(std::sync::Arc::make_mut).for_each(|m| m.flags.seen = true);
     s.save_folder("a1", "INBOX", &st).unwrap();
     assert_eq!(plan_of(&s, &w).files.get("INBOX"), Some(&FilesFound { validity: 7, with: vec![], without: vec![1] }));
 

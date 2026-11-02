@@ -120,7 +120,7 @@ fn a_double_clicked_attachment_only_opens() {
     let store = a.session.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let own = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9901 };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(raw, own.clone(), Default::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(raw, own.clone(), Default::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&own, raw).unwrap();
     a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });

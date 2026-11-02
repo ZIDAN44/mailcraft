@@ -100,7 +100,7 @@ fn remote_accounts_go_through_jobs_and_events() {
         validity: 9,
         uid_next: 2,
         highest_modseq: 0,
-        messages: vec![mailcraft_model::Summary { key: key.clone(), subject: "Hello".into(), date: NOW - 60, ..Default::default() }],
+        messages: vec![mailcraft_model::Summary { key: key.clone(), subject: "Hello".into(), date: NOW - 60, ..Default::default() }.into()],
         window: 0,
     };
     s.store.as_ref().unwrap().save_folder(&id, "INBOX", &st).unwrap();

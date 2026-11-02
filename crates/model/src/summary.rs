@@ -351,9 +351,20 @@ impl Summary {
     }
 }
 
+/// A summary as the lists in memory hold it: shared, not copied, between a folder's list in the
+/// cache, the list shown and a search's finds (each copy of a folder's or a search's tens of
+/// thousands was most of what showing them cost, and twice their memory). Changed in place with
+/// `Arc::make_mut`, which copies one only while another list shares it: what the cache and the
+/// list hold of a message part as they did when each held its own copy. Kept on disk as the
+/// summary itself (serde's `rc`).
+pub type SharedSummary = std::sync::Arc<Summary>;
+
 /// Sort newest first ([`Summary::when`]), with the key as a tie-breaker so the order is stable.
-pub fn sort_newest_first(list: &mut [Summary]) {
-    list.sort_by(|a, b| b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key)));
+pub fn sort_newest_first<S: std::borrow::Borrow<Summary>>(list: &mut [S]) {
+    list.sort_by(|a, b| {
+        let (a, b): (&Summary, &Summary) = (a.borrow(), b.borrow());
+        b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key))
+    });
 }
 
 #[cfg(test)]

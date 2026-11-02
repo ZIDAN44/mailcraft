@@ -27,14 +27,17 @@ fn generated(folders: usize, per: u32) -> MailApp {
             let key = MessageKey { account: "a1".into(), folder: f.path.clone(), validity: 1, uid };
             let text = if n.is_multiple_of(7) { "Ship the plan to zanzibar." } else { "Notes on the common plan." };
             store.write_body(&key, format!("From: a@x.example\r\nSubject: Notes {n}\r\n\r\n{text}\r\n").as_bytes()).unwrap();
-            st.messages.push(Summary {
-                key,
-                subject: format!("Notes {n}"),
-                date: NOW - i64::from(n) * 60,
-                size: 200,
-                flags: Flags { seen: true, ..Default::default() },
-                ..Default::default()
-            });
+            st.messages.push(
+                Summary {
+                    key,
+                    subject: format!("Notes {n}"),
+                    date: NOW - i64::from(n) * 60,
+                    size: 200,
+                    flags: Flags { seen: true, ..Default::default() },
+                    ..Default::default()
+                }
+                .into(),
+            );
         }
         mailcraft_engine::model::sort_newest_first(&mut st.messages);
         store.save_folder("a1", &f.path, &st).unwrap();

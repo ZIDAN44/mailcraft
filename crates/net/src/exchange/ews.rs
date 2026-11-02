@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use mailcraft_mime as mime;
-use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, Summary, sort_newest_first, utf7};
+use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, SharedSummary, Summary, sort_newest_first, utf7};
 use mailcraft_store::{FolderState, Store};
 use quick_xml::Reader;
 use quick_xml::events::Event as X;
@@ -621,7 +621,8 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
         wanted.insert(st.number(&found), f);
     }
     st.keep_found(folder, |n| wanted.contains_key(&n));
-    let (kept, gone): (Vec<Summary>, Vec<Summary>) = std::mem::take(&mut fs.messages).into_iter().partition(|m| wanted.contains_key(&m.key.uid));
+    let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
+        std::mem::take(&mut fs.messages).into_iter().partition(|m| wanted.contains_key(&m.key.uid));
     for m in &gone {
         store.remove_body(&m.key);
     }
@@ -634,7 +635,7 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
             next.flagged = f.flagged;
             next.draft = f.draft;
             if next != m.flags {
-                m.flags = next;
+                SharedSummary::make_mut(m).flags = next;
                 report.changed += 1;
             }
         }
@@ -646,7 +647,7 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
         if fs.find(key.uid).is_some() {
             continue;
         }
-        fs.messages.push(item_summary(&it, key));
+        fs.messages.push(item_summary(&it, key).into());
         report.new += 1;
     }
     sort_newest_first(&mut fs.messages);
@@ -693,7 +694,7 @@ pub fn find_on_server(
         let Some(i) = it.child("ItemId").and_then(|i| i.attr("Id")) else { continue };
         let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(i) };
         if fs.find(key.uid).is_none() {
-            fs.messages.push(item_summary(&it, key));
+            fs.messages.push(item_summary(&it, key).into());
             new += 1;
         }
     }

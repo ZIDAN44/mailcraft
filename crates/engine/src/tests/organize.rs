@@ -202,13 +202,13 @@ fn rules_file_new_mail_as_it_arrives() {
     // A message from Zoe arrives in the Inbox.
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder("sample", "INBOX").unwrap();
-    let mut m = st.messages[0].clone();
+    let mut m = mailcraft_model::Summary::clone(&st.messages[0]);
     m.key.uid = 500;
     m.subject = "Fresh from Zoe".into();
     m.from = mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example");
     m.flags.seen = false;
     m.date = NOW;
-    st.messages.insert(0, m);
+    st.messages.insert(0, m.into());
     store.save_folder("sample", "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     assert!(!s.list.iter().any(|m| m.subject == "Fresh from Zoe"), "filed away by the rule");
@@ -285,7 +285,7 @@ fn ignored_conversations_stay_in_deleted_items() {
     // A reply in it arrives.
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder("sample", "INBOX").unwrap();
-    let mut m = st.messages[0].clone();
+    let mut m = mailcraft_model::Summary::clone(&st.messages[0]);
     let sam = s.folder_state("sample", &trash).messages.iter().find(|m| m.subject.starts_with("Re:")).cloned().unwrap();
     m.key.uid = 600;
     m.subject = "Re: Storyboard review on Thursday".into();
@@ -294,7 +294,7 @@ fn ignored_conversations_stay_in_deleted_items() {
     m.references = vec![sam.message_id.clone()];
     m.flags.seen = false;
     m.date = NOW;
-    st.messages.insert(0, m);
+    st.messages.insert(0, m.into());
     store.save_folder("sample", "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     assert!(!s.list.iter().any(|m| m.subject.contains("Storyboard review")), "went to Deleted Items");
@@ -330,13 +330,13 @@ fn mail_a_rule_deletes_is_not_announced() {
         .unwrap();
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder("sample", "INBOX").unwrap();
-    let mut m = st.messages[0].clone();
+    let mut m = mailcraft_model::Summary::clone(&st.messages[0]);
     m.key.uid = 700;
     m.subject = "Deleted on arrival".into();
     m.from = mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example");
     m.flags.seen = false;
     m.date = NOW;
-    st.messages.insert(0, m);
+    st.messages.insert(0, m.into());
     store.save_folder("sample", "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     assert!(!s.take_new_mail().iter().any(|m| m.subject == "Deleted on arrival"));
@@ -397,7 +397,7 @@ fn blocked_and_safe_senders_sort_mail_as_it_arrives() {
     let store = s.store.clone().unwrap();
     let arrive = |s: &mut Session, folder: &str, uid: u32, from: &str, subject: &str| {
         let mut st = store.load_folder("sample", folder).unwrap();
-        let mut m = store.load_folder("sample", "INBOX").unwrap().messages[0].clone();
+        let mut m = mailcraft_model::Summary::clone(&store.load_folder("sample", "INBOX").unwrap().messages[0]);
         m.key.folder = folder.into();
         m.key.uid = uid;
         m.key.validity = st.validity;
@@ -408,7 +408,7 @@ fn blocked_and_safe_senders_sort_mail_as_it_arrives() {
         m.references.clear();
         m.flags.seen = false;
         m.date = NOW;
-        st.messages.insert(0, m);
+        st.messages.insert(0, m.into());
         store.save_folder("sample", folder, &st).unwrap();
         s.apply(Event::FolderChanged { account: "sample".into(), folder: folder.into() });
     };
@@ -479,7 +479,7 @@ fn clean_up_moves_only_what_a_reply_quotes() {
     let trash = s.account("sample").and_then(|a| a.folder(FolderRole::Trash)).map(|f| f.path.clone()).unwrap();
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder("sample", "INBOX").unwrap();
-    let template = st.messages[0].clone();
+    let template = mailcraft_model::Summary::clone(&st.messages[0]);
     let thread = [
         (801, "Frames for Thursday", "Can you send the frames?\r\n\r\nZoe", true),
         (802, "Re: Frames for Thursday", "Sure.\r\n\r\n> Can you send the frames?\r\n>\r\n> Zoe", true),
@@ -499,7 +499,7 @@ fn clean_up_moves_only_what_a_reply_quotes() {
         m.date = NOW - 1000 + i as i64;
         m.flags.seen = true;
         m.has_attachments = false;
-        st.messages.insert(0, m.clone());
+        st.messages.insert(0, m.clone().into());
         if *downloaded {
             let raw = format!(
                 "From: a@b.example\r\nSubject: {subject}\r\nMessage-ID: <c{uid}@studio.example>\r\nContent-Type: text/plain\r\n\r\n{body}\r\n"

@@ -114,28 +114,32 @@ impl Session {
     pub(crate) fn files_known(&mut self, account: &str, folder: &str, with: &[u32], without: &[u32]) {
         let with: HashSet<u32> = with.iter().copied().collect();
         let without: HashSet<u32> = without.iter().copied().collect();
-        // Whether `m` is one of them, and if so whether it changed.
-        let set = |m: &mut Summary| {
+        // What `m` should say, when it is one of them and says otherwise: a shared summary is
+        // copied only when it changes.
+        let wrong = |m: &Summary| {
             let files = if with.contains(&m.key.uid) {
                 true
             } else if without.contains(&m.key.uid) {
                 false
             } else {
-                return false;
+                return None;
             };
-            let changed = m.has_attachments != files;
-            m.has_attachments = files;
-            changed
+            (m.has_attachments != files).then_some(files)
         };
         self.mail_changed();
         if let Some(st) = self.cache.get_mut(&(account.to_string(), folder.to_string())) {
             for m in &mut st.messages {
-                set(m);
+                if let Some(files) = wrong(m) {
+                    SharedSummary::make_mut(m).has_attachments = files;
+                }
             }
         }
         let mut shown = false;
         for m in self.list.iter_mut().filter(|m| m.key.account == account && m.key.folder == folder) {
-            shown |= set(m);
+            if let Some(files) = wrong(m) {
+                m.has_attachments = files;
+                shown = true;
+            }
         }
         let folders = match (&self.search, &self.search_state.run) {
             (Some(_), Some(run)) => run.folders.clone(),

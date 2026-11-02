@@ -516,7 +516,7 @@ fn big_data_file(dir: &Path) -> PathBuf {
             })
             .collect();
         old.write_body(&key, &body).unwrap();
-        st.messages.push(Summary { key, ..Summary::default() });
+        st.messages.push(Summary { key, ..Summary::default() }.into());
     }
     old.save_folder("old", "zz", &st).unwrap();
     let source = old.data_file("old").unwrap();

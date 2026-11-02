@@ -36,7 +36,7 @@ fn an_account_starts_from_an_existing_data_file() {
     old.write_body(&k, b"Subject: hi\r\n\r\nhello").unwrap();
     let mut st = old.load_folder("a1", "INBOX").unwrap();
     st.validity = 1;
-    st.messages.push(Summary { key: k.clone(), subject: "hi".into(), ..Default::default() });
+    st.messages.push(Summary { key: k.clone(), subject: "hi".into(), ..Default::default() }.into());
     old.save_folder("a1", "INBOX", &st).unwrap();
     old.save_account_doc("a1", "pim.json", &serde_json::json!({"notes": []})).unwrap();
     // An import into it noted how far it got: this account's isn't that import.
@@ -132,7 +132,7 @@ fn each_account_is_one_data_file_named_after_it() {
     s.write_body(&k, b"Subject: hi\r\n\r\nhello").unwrap();
     let mut st = s.load_folder("a1", "INBOX").unwrap();
     st.validity = 1;
-    st.messages.push(Summary { key: k.clone(), subject: "hi".into(), flags: Flags::default(), ..Default::default() });
+    st.messages.push(Summary { key: k.clone(), subject: "hi".into(), flags: Flags::default(), ..Default::default() }.into());
     s.save_folder("a1", "INBOX", &st).unwrap();
     s.save_account_doc("a2", "pim.json", &serde_json::json!({"x": 1})).unwrap();
     // One file per account, named as Outlook names a .pst; nothing loose in the app folder.
@@ -509,7 +509,7 @@ fn an_online_only_account_leaves_nothing_on_disk() {
         s.save_folders(a, &[Folder { path: "INBOX".into(), role: FolderRole::Inbox, ..Default::default() }]).unwrap();
         let mut st = s.load_folder(a, "INBOX").unwrap();
         st.validity = 1;
-        st.messages.push(Summary { key: k(a, uid), subject: format!("{text} subject"), ..Default::default() });
+        st.messages.push(Summary { key: k(a, uid), subject: format!("{text} subject"), ..Default::default() }.into());
         s.save_folder(a, "INBOX", &st).unwrap();
         s.write_body(&k(a, uid), format!("Subject: {text}\r\n\r\n{text} body").as_bytes()).unwrap();
     };

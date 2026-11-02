@@ -76,7 +76,7 @@ impl FolderLoad {
             return Ok(true);
         }
         let page: Vec<Summary> = store.read_json(&self.dir.join(format!("state-{}.json", self.next)))?;
-        self.st.messages.extend(page);
+        self.st.messages.extend(page.into_iter().map(SharedSummary::new));
         self.next += 1;
         Ok(self.next >= self.pages)
     }
@@ -102,12 +102,14 @@ impl FolderLoad {
             let marks: HashMap<u32, Flags> = self.marks.into_iter().collect();
             for m in &mut st.messages {
                 if let Some(f) = marks.get(&m.key.uid) {
-                    m.flags.clone_from(f);
+                    SharedSummary::make_mut(m).flags.clone_from(f);
                 }
             }
         }
         // Keys are rebuilt rather than trusted: a renamed or copied cache stays consistent.
         for m in &mut st.messages {
+            // Just read: each its own, nothing copied.
+            let m = SharedSummary::make_mut(m);
             m.key.account.clone_from(&self.account);
             m.key.folder.clone_from(&self.folder);
             m.key.validity = st.validity;
@@ -225,7 +227,7 @@ impl Store {
                 folded = Some(marks.into_keys().collect());
             }
             let same = folded.as_ref().or(same);
-            let mut by_number: Vec<&Summary> = state.messages.iter().collect();
+            let mut by_number: Vec<&Summary> = state.messages.iter().map(|m| &**m).collect();
             by_number.sort_by_key(|m| m.key.uid);
             file.count = n;
             for (i, page) in by_number.chunks(PAGE_MESSAGES).enumerate() {
@@ -292,7 +294,7 @@ impl Store {
         }
         let (mut seen, mut changed) = (0usize, 0usize);
         for m in &mut file.messages {
-            let (one, c) = set(m);
+            let (one, c) = set(SharedSummary::make_mut(m));
             seen += usize::from(one);
             changed += usize::from(c);
         }
@@ -410,14 +412,14 @@ impl Store {
                     // A set: every message of a folder may change at once (looked up in a list, that was quadratic).
                     let uids: HashSet<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
                     for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
-                        flag.set(&mut m.flags, *on);
+                        flag.set(&mut SharedSummary::make_mut(m).flags, *on);
                     }
                 }
                 Op::SetKeyword { keys, keyword, on } => {
                     // A set: every message of a folder may change at once (looked up in a list, that was quadratic).
                     let uids: HashSet<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
                     for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
-                        m.flags.set_keyword(keyword, *on);
+                        SharedSummary::make_mut(m).flags.set_keyword(keyword, *on);
                     }
                 }
                 Op::Move { keys, to } => {

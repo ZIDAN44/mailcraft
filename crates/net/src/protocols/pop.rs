@@ -320,7 +320,7 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
         store.write_body(&key, &raw)?;
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
         state.insert(id.clone(), Kept { at: now, key: Some(key.to_id()), gone: false });
-        fs.messages.push(mime::summary_from_full(&raw, key, Flags::default(), size, 0));
+        fs.messages.push(mime::summary_from_full(&raw, key, Flags::default(), size, 0).into());
         fs.uid_next = next;
         report.new += 1;
         // Saved as it goes: a dropped connection loses nothing already downloaded.
@@ -358,7 +358,7 @@ pub fn file_locally(store: &Store, account: &str, folder: &str, raw: &[u8], flag
     let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: fs.validity, uid };
     store.write_body(&key, raw)?;
     let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-    fs.messages.push(mime::summary_from_full(raw, key.clone(), flags, size, now));
+    fs.messages.push(mime::summary_from_full(raw, key.clone(), flags, size, now).into());
     fs.uid_next = next;
     sort_newest_first(&mut fs.messages);
     store.save_folder(account, folder, &fs)?;
@@ -404,7 +404,7 @@ pub fn move_locally(store: &Store, account: &str, keys: &[MessageKey], to: &str)
                 store.write_body(&key, &raw)?;
             }
             pairs.push((old, key.clone()));
-            m.key = key;
+            std::sync::Arc::make_mut(&mut m).key = key;
             dest.messages.push(m);
         }
         changed.push(folder.to_string());

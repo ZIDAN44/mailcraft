@@ -236,7 +236,7 @@ fn with_raw(a: &mut MailApp, uid: u32, raw: &[u8]) -> MessageKey {
     let store = a.session.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mime::summary_from_full(raw, key.clone(), Default::default(), 0, NOW));
+    inbox.messages.insert(0, mime::summary_from_full(raw, key.clone(), Default::default(), 0, NOW).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&key, raw).unwrap();
     a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });

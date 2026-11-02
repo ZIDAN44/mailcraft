@@ -221,7 +221,7 @@ impl Store {
             messages += st.messages.len();
             if st.messages.iter().any(|m| m.key.account != account) {
                 for m in &mut st.messages {
-                    m.key.account = account.to_string();
+                    SharedSummary::make_mut(m).key.account = account.to_string();
                 }
                 self.save_folder(account, &f.path, &st)?;
             }

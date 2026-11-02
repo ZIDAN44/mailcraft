@@ -269,7 +269,7 @@ fn a_data_file_marked_on_its_thread_opens_again() {
     let st = crate::FolderState {
         validity: k.validity,
         uid_next: 8,
-        messages: vec![Summary { key: k.clone(), ..Default::default() }],
+        messages: vec![Summary { key: k.clone(), ..Default::default() }.into()],
         ..Default::default()
     };
     s.save_folder("a1", "INBOX", &st).unwrap();

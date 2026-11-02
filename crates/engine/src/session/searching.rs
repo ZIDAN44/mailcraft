@@ -412,7 +412,7 @@ impl Session {
                 let st = SummaryText::for_query(m, &query);
                 let doc = Doc { summary: m, summary_text: &st, awaiting: awaiting.contains(&m.key), files: None, text: &matching::Unindexed };
                 if query.eval(&doc) != Tri::No {
-                    out.push(m.clone());
+                    out.push(Summary::clone(m));
                 }
             }
         }

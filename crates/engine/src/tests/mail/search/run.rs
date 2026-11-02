@@ -39,14 +39,17 @@ fn generated(folders: usize, per: u32, big: u32, index: bool) -> Session {
                 text.push_str(" The budget is quarterly; a review is due.");
             }
             bodies.push((key.clone(), format!("From: a@x.example\r\nSubject: Notes {n}\r\n\r\n{text}\r\n").into_bytes()));
-            st.messages.push(mailcraft_model::Summary {
-                key,
-                subject: format!("Notes {n}"),
-                date: NOW - i64::from(n) * 60,
-                size: 200,
-                flags: mailcraft_model::Flags { seen: !n.is_multiple_of(3), ..Default::default() },
-                ..Default::default()
-            });
+            st.messages.push(
+                mailcraft_model::Summary {
+                    key,
+                    subject: format!("Notes {n}"),
+                    date: NOW - i64::from(n) * 60,
+                    size: 200,
+                    flags: mailcraft_model::Flags { seen: !n.is_multiple_of(3), ..Default::default() },
+                    ..Default::default()
+                }
+                .into(),
+            );
         }
         for (k, raw) in bodies {
             store.write_body(&k, &raw).unwrap();
@@ -252,7 +255,8 @@ fn a_picture_shown_in_the_text_is_no_attachment() {
     let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
     let raw = "From: a@x.example\r\nSubject: Logo inside\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>Our logo <img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
     store.write_body(&key, raw.as_bytes()).unwrap();
-    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Logo inside".into(), has_attachments: true, ..Default::default() });
+    st.messages
+        .insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Logo inside".into(), has_attachments: true, ..Default::default() }.into());
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     let found = |s: &mut Session| {
@@ -281,7 +285,8 @@ fn the_has_files_filter_agrees_with_has_attachment() {
     let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
     let raw = "From: a@x.example\r\nSubject: Logo inside\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>Our logo <img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
     store.write_body(&key, raw.as_bytes()).unwrap();
-    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Logo inside".into(), has_attachments: true, ..Default::default() });
+    st.messages
+        .insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Logo inside".into(), has_attachments: true, ..Default::default() }.into());
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     s.run("list.filter", &json!({"value": "attachments"})).unwrap();
@@ -334,7 +339,7 @@ fn long_texts_are_searched_whole() {
     text.push_str(&"ipsum ".repeat(20_000));
     text.push_str("zanzibar");
     store.write_body(&key, format!("From: a@x.example\r\nSubject: Long\r\n\r\n{text}\r\n").as_bytes()).unwrap();
-    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Long".into(), ..Default::default() });
+    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Long".into(), ..Default::default() }.into());
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     let hits = |s: &mut Session, q: &str| {
@@ -373,7 +378,7 @@ fn what_the_index_settles_is_not_checked_again() {
     store.write_body(&long, format!("From: a@x.example\r\nSubject: Long\r\n\r\n{text}\r\n").as_bytes()).unwrap();
     store.write_body(&dotted, b"From: a@x.example\r\nSubject: Dotted\r\n\r\nSee xx.quokka here.\r\n").unwrap();
     for (k, subject) in [(&pictures, "Pictures"), (&long, "Long"), (&dotted, "Dotted")] {
-        st.messages.insert(0, mailcraft_model::Summary { key: k.clone(), subject: subject.into(), ..Default::default() });
+        st.messages.insert(0, mailcraft_model::Summary { key: k.clone(), subject: subject.into(), ..Default::default() }.into());
     }
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });

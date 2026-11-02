@@ -97,7 +97,7 @@ impl State {
 
     /// The server ids of a folder's cached messages that are there only because a search found
     /// them (out of the newest window `wanted`): to check they're still there, and their flags.
-    pub fn found_outside(&self, folder: &str, cached: &[Summary], wanted: &HashMap<u32, Flags>) -> Vec<String> {
+    pub fn found_outside(&self, folder: &str, cached: &[SharedSummary], wanted: &HashMap<u32, Flags>) -> Vec<String> {
         cached
             .iter()
             .filter(|m| !wanted.contains_key(&m.key.uid) && self.was_found(folder, m.key.uid))

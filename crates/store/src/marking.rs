@@ -410,7 +410,7 @@ impl Store {
         let mut st = self.list_from_disk(account, &marks.folder)?;
         for m in &mut st.messages {
             if let Some(f) = now.get(&m.key.uid) {
-                m.flags.clone_from(f);
+                SharedSummary::make_mut(m).flags.clone_from(f);
             }
         }
         let changed: std::collections::HashSet<u32> = now.keys().copied().collect();

@@ -326,7 +326,7 @@ fn long_session(name: &str, extra: u32) -> Session {
         let key = MessageKey { account: a.into(), folder: "INBOX".into(), validity: st.validity, uid };
         store.write_body(&key, format!("From: a@x.example\r\nSubject: Message {uid}\r\n\r\nText.\r\n").as_bytes()).unwrap();
         let date = NOW - 86_400 * i64::from(uid);
-        st.messages.push(mailcraft_model::Summary { key, subject: format!("Message {uid}"), date, ..Default::default() });
+        st.messages.push(mailcraft_model::Summary { key, subject: format!("Message {uid}"), date, ..Default::default() }.into());
     }
     store.save_folder(a, "INBOX", &st).unwrap();
     Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0))

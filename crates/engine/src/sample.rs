@@ -618,7 +618,7 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
         let flags = Flags { seen: m.seen, flagged: m.flagged, ..Default::default() };
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
         store.write_body(&key, &raw)?;
-        st.messages.push(mime::summary_from_full(&raw, key, flags, size, date));
+        st.messages.push(mime::summary_from_full(&raw, key, flags, size, date).into());
     }
     let mut folders = folders;
     for (path, st) in &mut states {

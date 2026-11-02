@@ -21,6 +21,7 @@ fn server_inbox(n: u32) -> (Session, String) {
             subject: format!("Plan {}", uid / 3),
             ..Default::default()
         })
+        .map(Into::into)
         .collect();
     let store = s.store.clone().unwrap();
     store.save_folder(&id, "INBOX", &FolderState { validity: 1, uid_next: n + 1, messages, ..Default::default() }).unwrap();
@@ -253,7 +254,7 @@ fn a_change_from_the_server_among_echoes_is_read() {
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder(&id, "INBOX").unwrap();
     let new = MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid: 31 };
-    st.messages.insert(0, Summary { key: new.clone(), date: NOW, subject: "Arrived".into(), ..Default::default() });
+    st.messages.insert(0, Summary { key: new.clone(), date: NOW, subject: "Arrived".into(), ..Default::default() }.into());
     store.save_folder(&id, "INBOX", &st).unwrap();
     inbox_changed(&mut s, &id);
     assert_eq!(made_on_disk(&mut s).len(), 2);

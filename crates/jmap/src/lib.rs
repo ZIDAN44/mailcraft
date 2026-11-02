@@ -25,7 +25,7 @@ pub mod url;
 use std::collections::{BTreeMap, HashMap};
 
 use mailcraft_mime as mime;
-use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, Summary, sort_newest_first, utf7};
+use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, SharedSummary, Summary, sort_newest_first, utf7};
 use mailcraft_store::{FolderState, Store, StoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -713,7 +713,8 @@ pub async fn sync_folder<H: Http>(
     }
     st.keep_found(folder, |n| wanted.contains_key(&n));
     // Gone (or out of the window), and flag changes.
-    let (kept, gone): (Vec<Summary>, Vec<Summary>) = std::mem::take(&mut fs.messages).into_iter().partition(|m| wanted.contains_key(&m.key.uid));
+    let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
+        std::mem::take(&mut fs.messages).into_iter().partition(|m| wanted.contains_key(&m.key.uid));
     for m in &gone {
         store.remove_body(&m.key);
     }
@@ -723,7 +724,7 @@ pub async fn sync_folder<H: Http>(
         if let Some(f) = wanted.get(&m.key.uid)
             && m.flags != *f
         {
-            m.flags = f.clone();
+            SharedSummary::make_mut(m).flags = f.clone();
             report.changed += 1;
         }
     }
@@ -736,7 +737,7 @@ pub async fn sync_folder<H: Http>(
         if fs.find(key.uid).is_some() {
             continue;
         }
-        fs.messages.push(email_summary(&e, key));
+        fs.messages.push(email_summary(&e, key).into());
         report.new += 1;
     }
     sort_newest_first(&mut fs.messages);
@@ -806,7 +807,7 @@ pub async fn find_on_server<H: Http>(
         let Some(id) = e.get("id").and_then(Value::as_str) else { continue };
         let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(id) };
         if fs.find(key.uid).is_none() {
-            fs.messages.push(email_summary(&e, key));
+            fs.messages.push(email_summary(&e, key).into());
             new += 1;
         }
     }

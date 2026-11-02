@@ -19,7 +19,7 @@
 use std::io::{Read, Write};
 
 use mailcraft_mime as mime;
-use mailcraft_model::{Flags, MessageKey, Summary, sort_newest_first};
+use mailcraft_model::{Flags, MessageKey, SharedSummary, Summary, sort_newest_first};
 use mailcraft_store::{FolderState, Store};
 
 use crate::imap::{Client, Fetched, uid_chunks, uid_set};
@@ -112,7 +112,7 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
                 m.modseq = m.modseq.max(f.modseq);
             }
         }
-        let (kept, gone): (Vec<Summary>, Vec<Summary>) =
+        let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
             std::mem::take(&mut st.messages).into_iter().partition(|m| !vanished.iter().any(|r| r.contains(&m.key.uid)));
         for m in &gone {
             store.remove_body(&m.key);
@@ -149,7 +149,7 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
                 }
             }
             let alive = c.uid_search(&format!("UID {range}"))?;
-            let (kept, gone): (Vec<Summary>, Vec<Summary>) =
+            let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
                 std::mem::take(&mut st.messages).into_iter().partition(|m| alive.binary_search(&m.key.uid).is_ok());
             for m in &gone {
                 store.remove_body(&m.key);
@@ -446,7 +446,7 @@ fn fetch_headers<S: Read + Write>(
     for chunk in uid_chunks(uids, 200) {
         for f in c.uid_fetch(&uid_set(&chunk), HEADER_ITEMS, "")? {
             if st.find(f.uid).is_none() {
-                st.messages.push(summary(account, folder, st.validity, &f));
+                st.messages.push(summary(account, folder, st.validity, &f).into());
                 report.new += 1;
             }
         }

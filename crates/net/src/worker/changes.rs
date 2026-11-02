@@ -56,7 +56,7 @@ impl Worker {
                     let gone: Vec<mailcraft_model::MessageKey> = match &op {
                         Op::Expunge { keys } => keys.clone(),
                         Op::EmptyFolder { path } => {
-                            self.store.load_folder(&self.acc.id, path).map(|f| f.messages.into_iter().map(|m| m.key).collect()).unwrap_or_default()
+                            self.store.load_folder(&self.acc.id, path).map(|f| f.messages.iter().map(|m| m.key.clone()).collect()).unwrap_or_default()
                         }
                         _ => Vec::new(),
                     };

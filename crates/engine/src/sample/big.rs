@@ -231,7 +231,7 @@ pub fn generate(store: &Store, now: i64, shape: Shape) -> Result<Truth, StoreErr
         summary.size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
         st.uid_next = st.uid_next.saturating_add(1);
         store.write_body(&summary.key, raw.as_bytes())?;
-        st.messages.push(summary);
+        st.messages.push(summary.into());
     }
     for (f, mut st) in folders.iter().zip(states) {
         sort_newest_first(&mut st.messages);

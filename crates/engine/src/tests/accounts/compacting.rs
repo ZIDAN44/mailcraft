@@ -139,7 +139,7 @@ fn a_search_and_the_lists_wait_while_a_file_is_had_to_itself() {
     let (mut s, id) = with_data_file("search");
     let key = mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid: 1 };
     let summary = mailcraft_model::Summary { key, subject: "Quarterly budget".into(), date: NOW - 60, ..Default::default() };
-    let st = mailcraft_store::FolderState { validity: 1, uid_next: 2, messages: vec![summary], ..Default::default() };
+    let st = mailcraft_store::FolderState { validity: 1, uid_next: 2, messages: vec![summary.into()], ..Default::default() };
     s.store.as_ref().unwrap().save_folder(&id, "INBOX", &st).unwrap();
     let inbox =
         mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };

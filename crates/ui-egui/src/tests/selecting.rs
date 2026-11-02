@@ -240,7 +240,7 @@ fn twenty_queued_downs_land_twenty_rows_on() {
         let key = MessageKey { account: sample::SAMPLE_ACCOUNT.into(), folder: "INBOX".into(), validity: st.validity, uid };
         store.write_body(&key, format!("From: a@x.example\r\nSubject: Message {uid}\r\n\r\nText.\r\n").as_bytes()).unwrap();
         let date = NOW - 86_400 * i64::from(uid);
-        st.messages.push(Summary { key, subject: format!("Message {uid}"), date, ..Default::default() });
+        st.messages.push(Summary { key, subject: format!("Message {uid}"), date, ..Default::default() }.into());
     }
     store.save_folder(sample::SAMPLE_ACCOUNT, "INBOX", &st).unwrap();
     let mut a = MailApp::new(Session::open(Some(store), Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(NullServices(NOW)));
@@ -273,7 +273,13 @@ fn a_long_selection_is_drawn_without_copies() {
             ..Default::default()
         })
         .collect();
-    store.save_folder("sample", "Archive", &FolderState { validity: 1, uid_next: 20_001, highest_modseq: 0, messages, window: 0 }).unwrap();
+    store
+        .save_folder(
+            "sample",
+            "Archive",
+            &FolderState { validity: 1, uid_next: 20_001, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 },
+        )
+        .unwrap();
     a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
     a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
     assert_eq!(a.session.list.len(), 20_000);

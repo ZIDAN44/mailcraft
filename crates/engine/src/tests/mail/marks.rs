@@ -17,6 +17,7 @@ fn big_projects(store: &Store, n: u32) -> Session {
             date: NOW - i64::from(uid) * 60,
             ..Default::default()
         })
+        .map(Into::into)
         .collect();
     store.save_folder("sample", "Projects", &st).unwrap();
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));

@@ -406,7 +406,7 @@ fn no_notices_or_rules_after_a_cancel_and_continue() {
         ..Default::default()
     };
     let save = |uids: std::ops::RangeInclusive<u32>| {
-        let messages = uids.rev().map(m).collect();
+        let messages = uids.rev().map(m).map(Into::into).collect();
         store.save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 1, uid_next: 99, highest_modseq: 0, messages, window: 0 }).unwrap();
     };
     let came_in = |s: &mut Session| s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });

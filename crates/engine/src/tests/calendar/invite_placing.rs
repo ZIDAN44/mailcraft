@@ -31,7 +31,13 @@ fn folders(s: &mut Session, id: &str) {
 }
 
 fn save_inbox(s: &Session, id: &str, messages: Vec<Summary>) {
-    let st = mailcraft_store::FolderState { validity: 7, uid_next: 1000, highest_modseq: 0, messages, window: 0 };
+    let st = mailcraft_store::FolderState {
+        validity: 7,
+        uid_next: 1000,
+        highest_modseq: 0,
+        messages: messages.into_iter().map(Into::into).collect(),
+        window: 0,
+    };
     s.store.as_ref().unwrap().save_folder(id, "INBOX", &st).unwrap();
 }
 
@@ -67,7 +73,7 @@ pub(super) fn arrive(s: &mut Session, id: &str, n: u32, method: &str, events: &[
     let store = s.store.clone().unwrap();
     let mut st = store.load_folder(id, "INBOX").unwrap();
     let key = MessageKey { account: id.into(), folder: "INBOX".into(), validity: 7, uid: n };
-    st.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    st.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
     store.save_folder(id, "INBOX", &st).unwrap();
     store.write_body(&key, &raw).unwrap();
     s.apply(Event::FolderChanged { account: id.into(), folder: "INBOX".into() });

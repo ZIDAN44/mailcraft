@@ -38,7 +38,14 @@ impl FolderTexts {
     /// or no longer the same message. A range past what's kept makes what lies between too.
     /// At most `make` are made (at least one): the texts given may stop short of the range's
     /// end, where they do.
-    pub(crate) fn texts(&mut self, account: &str, folder: &str, messages: &[Summary], range: std::ops::Range<usize>, make: usize) -> &[SummaryText] {
+    pub(crate) fn texts(
+        &mut self,
+        account: &str,
+        folder: &str,
+        messages: &[SharedSummary],
+        range: std::ops::Range<usize>,
+        make: usize,
+    ) -> &[SummaryText] {
         self.tick = self.tick.wrapping_add(1);
         let k = (account.to_string(), folder.to_string());
         let ft = self.folders.entry(k.clone()).or_default();

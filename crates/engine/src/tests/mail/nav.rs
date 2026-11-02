@@ -237,7 +237,7 @@ fn big_folder(n: u32) -> Session {
             m
         })
         .collect();
-    let st = mailcraft_store::FolderState { messages, ..Default::default() };
+    let st = mailcraft_store::FolderState { messages: messages.into_iter().map(Into::into).collect(), ..Default::default() };
     s.cache.insert(("a".into(), "INBOX".into()), st);
     s.open_view(View::Folder { account: "a".into(), folder: "INBOX".into() });
     s

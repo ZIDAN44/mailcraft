@@ -54,13 +54,13 @@ fn mb(n: usize) -> String {
 /// What each holder of summaries holds: the list on view, the folders cached, the list kept
 /// while a search shows, and the lists searches replaced, let go of a slice a step and a tick.
 fn holders(s: &Session) -> [Parts; 4] {
-    let cached = s.cache.values().flat_map(|st| st.messages.iter());
+    let cached = s.cache.values().flat_map(|st| st.messages.iter().map(|m| &**m));
     [Parts::of(&s.list), Parts::of(cached), Parts::of(s.kept_summaries()), Parts::of(s.letting_go_parts().0)]
 }
 
 /// Print what the summaries in memory take now, and what each way of sharing them would save.
 pub(super) fn report(s: &Session, at: &str) {
-    let cached: Vec<&Summary> = s.cache.values().flat_map(|st| st.messages.iter()).collect();
+    let cached: Vec<&Summary> = s.cache.values().flat_map(|st| st.messages.iter().map(|m| &**m)).collect();
     let kept = s.kept_summaries();
     // Beside the lists searches replaced, the keys of what their runs found.
     let (going, going_keys) = s.letting_go_parts();
@@ -150,7 +150,7 @@ fn the_parts_add_up_to_what_each_summary_holds() {
     let store = crate::store::Store::memory();
     crate::sample::big::generate(&store, 1_800_000_000, crate::sample::big::Shape { folders: 3, messages: 300, inbox: 100 }).unwrap();
     let s = Session::open(Some(store), crate::model::dates::Clock::new(1_800_000_000, 0));
-    let cached: Vec<&Summary> = s.cache.values().flat_map(|st| st.messages.iter()).collect();
+    let cached: Vec<&Summary> = s.cache.values().flat_map(|st| st.messages.iter().map(|m| &**m)).collect();
     assert_eq!(cached.len(), 300);
     let each: usize = cached.iter().map(|m| std::mem::size_of::<Summary>() + m.heap_bytes()).sum();
     assert_eq!(Parts::of(cached.iter().copied()).total(), each);

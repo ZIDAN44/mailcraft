@@ -167,9 +167,9 @@ fn searching_a_big_mailbox_reads_no_message() {
             format!("<html><body><table><tr><td><h1>Report {uid}</h1></td><td>{}</td></tr></table></body></html>", format!("{word} ").repeat(400));
         let raw = format!("From: a@x.example\r\nSubject: Report {uid}\r\nContent-Type: text/html\r\n\r\n{html}\r\n");
         store.write_body(&key, raw.as_bytes()).unwrap();
-        st.messages.push(mailcraft_model::Summary { key, subject: format!("Report {uid}"), ..Default::default() });
+        st.messages.push(mailcraft_model::Summary { key, subject: format!("Report {uid}"), ..Default::default() }.into());
     }
-    st.messages[1234].subject = "needle here".into();
+    std::sync::Arc::make_mut(&mut st.messages[1234]).subject = "needle here".into();
     store.save_folder("a1", "INBOX", &st).unwrap();
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
     s.take_jobs();
@@ -216,7 +216,7 @@ fn more_on_the_server_and_searching_it() {
     let key = |uid| MessageKey { account: a.clone(), folder: "INBOX".into(), validity: 1, uid };
     let mut st = store.load_folder(&a, "INBOX").unwrap();
     st.validity = 1;
-    st.messages = (41..=50).map(|n| Summary { key: key(n), subject: format!("Message {n}"), ..Default::default() }).collect();
+    st.messages = (41..=50).map(|n| Summary { key: key(n), subject: format!("Message {n}"), ..Default::default() }).map(Into::into).collect();
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.view = crate::View::Folder { account: a.clone(), folder: "INBOX".into() };
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
@@ -243,7 +243,7 @@ fn more_on_the_server_and_searching_it() {
     assert!(!jobs.iter().any(|j| matches!(j, Job::SearchServer { account, .. } if account == "sample")), "the sample mailbox has no server");
     assert_eq!(s.server_search.as_ref().map(|x| x.pending), Some(1));
     let mut st = store.load_folder(&a, "INBOX").unwrap();
-    st.messages.push(Summary { key: key(7), subject: "Old one".into(), ..Default::default() });
+    st.messages.push(Summary { key: key(7), subject: "Old one".into(), ..Default::default() }.into());
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     // Shown as soon as it's found, the account still searching.
@@ -417,7 +417,7 @@ fn a_body_indexed_later_joins_the_results() {
     let mut st = store.load_folder(&a, "INBOX").unwrap();
     let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
     let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
-    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Headers only".into(), ..Default::default() });
+    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Headers only".into(), ..Default::default() }.into());
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     assert_eq!(s.run("search.run", &json!({"query": "zeppelin", "scope": "all"})).unwrap()["results"], 0);
@@ -443,8 +443,10 @@ fn a_key_filed_again_is_checked_against_its_new_text() {
         store.write_body(&key, body).unwrap();
         st.messages.retain(|m| m.key != key);
         let size = u32::try_from(body.len()).unwrap();
-        st.messages
-            .insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Travel".into(), message_id: id.into(), size, ..Default::default() });
+        st.messages.insert(
+            0,
+            mailcraft_model::Summary { key: key.clone(), subject: "Travel".into(), message_id: id.into(), size, ..Default::default() }.into(),
+        );
         store.save_folder(&a, "INBOX", st).unwrap();
         let generation = index_now(s, &a);
         s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
@@ -477,7 +479,7 @@ fn a_search_during_an_import_follows_it() {
     let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
     let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
     store.write_body(&key, b"From: a@x.example\r\nSubject: Imported\r\n\r\nThe storyboard, imported.\r\n").unwrap();
-    st.messages.push(mailcraft_model::Summary { key, subject: "Imported".into(), ..Default::default() });
+    st.messages.push(mailcraft_model::Summary { key, subject: "Imported".into(), ..Default::default() }.into());
     store.save_folder(&a, "INBOX", &st).unwrap();
     let folders: Vec<String> = s.account(&a).unwrap().folders.iter().map(|f| f.path.clone()).collect();
     for n in 0..50 {
@@ -554,8 +556,9 @@ fn server_finds_are_checked_against_the_dates() {
             from: EmailAddress::new("Joana Smith", "j.smith@corp.example"),
             date: 86_400,
             ..Default::default()
-        },
-        Summary { key: key(8), subject: "New one".into(), date: now, ..Default::default() },
+        }
+        .into(),
+        Summary { key: key(8), subject: "New one".into(), date: now, ..Default::default() }.into(),
     ];
     store.save_folder(&a, "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });

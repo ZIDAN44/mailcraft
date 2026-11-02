@@ -37,7 +37,7 @@ fn a_big_folder_list_is_kept_in_pages() {
             date: 1_700_000_000 + i64::from(uid % 977) * 60,
             ..Default::default()
         };
-        let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(msg).collect(), ..Default::default() };
+        let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(msg).map(Into::into).collect(), ..Default::default() };
         sort_newest_first(&mut st.messages);
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 4, "three pages and the list");
         let back = s.load_folder("a1", "INBOX").unwrap();
@@ -52,26 +52,26 @@ fn a_big_folder_list_is_kept_in_pages() {
         assert!(load.done() && load.step(&s).unwrap(), "done stays done");
         assert_eq!(load.finish(), st);
         // A flag: one page.
-        if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 10) {
+        if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 10).map(std::sync::Arc::make_mut) {
             m.flags.seen = true;
         }
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 2, "one page and the list");
         assert!(s.load_folder("a1", "INBOX").unwrap().find(10).unwrap().flags.seen);
         // Told which changed: kept beside the pages, which aren't even looked at.
-        if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 8000) {
+        if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 8000).map(std::sync::Arc::make_mut) {
             m.flags.flagged = true;
         }
         let changed: std::collections::HashSet<u32> = [8000].into_iter().collect();
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 1, "the marks alone");
         assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
         // New mail: the last page, and the page the mark was kept beside (the marks emptied).
-        st.messages.insert(0, msg(n + 1));
+        st.messages.insert(0, msg(n + 1).into());
         st.uid_next = n + 2;
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 4);
         assert!(s.load_folder("a1", "INBOX").unwrap().find(8000).unwrap().flags.flagged);
         assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize + 1);
         // Told only of a flag, but a message came too: every page looked at, so it's kept.
-        st.messages.insert(0, msg(n + 2));
+        st.messages.insert(0, msg(n + 2).into());
         st.uid_next = n + 3;
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 2);
         assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize + 2);
@@ -93,8 +93,9 @@ fn a_big_folder_list_is_kept_in_pages() {
 fn a_files_flip_writes_only_the_pages_it_touches() {
     let s = Store::memory();
     let n = PAGE_MESSAGES as u32 * 2 + 500;
-    let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, true)).collect(), ..Default::default() };
-    for m in st.messages.iter_mut().filter(|m| m.key.uid % 2 == 0) {
+    let mut st =
+        FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, true)).map(Into::into).collect(), ..Default::default() };
+    for m in st.messages.iter_mut().filter(|m| m.key.uid % 2 == 0).map(std::sync::Arc::make_mut) {
         m.has_attachments = true;
     }
     sort_newest_first(&mut st.messages);
@@ -116,7 +117,7 @@ fn a_files_flip_writes_only_the_pages_it_touches() {
     assert!(s.take_changes().is_empty());
     assert!(s.load_folder("a1", "INBOX").unwrap().find(12).unwrap().has_attachments);
     // A small list, kept whole.
-    let small = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false), msg(1, false)], ..Default::default() };
+    let small = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false).into(), msg(1, false).into()], ..Default::default() };
     s.save_folder("a1", "Small", &small).unwrap();
     assert_eq!(s.set_has_files("a1", "Small", &search::FilesFound { validity: 3, with: vec![1], ..Default::default() }).unwrap(), 1);
     let back = s.load_folder("a1", "Small").unwrap();
@@ -137,13 +138,14 @@ pub(crate) fn temp_store(name: &str) -> Store {
 fn a_mark_in_a_big_folder_writes_a_few_bytes() {
     let s = Store::memory();
     let n = PAGE_MESSAGES as u32 * 2 + 749;
-    let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, false)).collect(), ..Default::default() };
+    let mut st =
+        FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, false)).map(Into::into).collect(), ..Default::default() };
     sort_newest_first(&mut st.messages);
     s.save_folder("a1", "INBOX", &st).unwrap();
     s.save_folders("a1", &[Folder { account: "a1".into(), path: "INBOX".into(), unread: n, total: n, ..Default::default() }]).unwrap();
     s.track_changes();
     let mark = |st: &mut FolderState, uids: &[u32]| {
-        for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
+        for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)).map(std::sync::Arc::make_mut) {
             m.flags.seen = true;
         }
         let flags = st.messages.iter().filter(|m| uids.contains(&m.key.uid)).map(|m| (m.key.uid, m.flags.clone())).collect();
@@ -163,7 +165,7 @@ fn a_mark_in_a_big_folder_writes_a_few_bytes() {
     // Put right about its files, the page is written again from disk: the mark stays.
     let found = search::FilesFound { validity: 3, with: vec![5001], without: Vec::new() };
     assert_eq!(s.set_has_files("a1", "INBOX", &found).unwrap(), 1);
-    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 5001) {
+    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 5001).map(std::sync::Arc::make_mut) {
         m.has_attachments = true;
     }
     assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
@@ -198,7 +200,8 @@ fn a_mark_in_a_big_folder_writes_a_few_bytes() {
 #[test]
 fn marks_kept_later_are_there_for_the_next_reader() {
     let s = Store::failing();
-    let mut st = FolderState { validity: 3, uid_next: 11, messages: (1..=10).map(|uid| msg(uid, false)).collect(), ..Default::default() };
+    let mut st =
+        FolderState { validity: 3, uid_next: 11, messages: (1..=10).map(|uid| msg(uid, false)).map(Into::into).collect(), ..Default::default() };
     sort_newest_first(&mut st.messages);
     s.save_folder("a1", "INBOX", &st).unwrap();
     s.save_folders("a1", &[Folder { account: "a1".into(), path: "INBOX".into(), unread: 10, total: 10, ..Default::default() }]).unwrap();
@@ -232,12 +235,12 @@ fn a_flag_save_keeps_a_newer_head() {
         validity: 3,
         uid_next: n + 1,
         highest_modseq: 40,
-        messages: (1..=n).map(|uid| msg(uid, false)).collect(),
+        messages: (1..=n).map(|uid| msg(uid, false)).map(Into::into).collect(),
         ..Default::default()
     };
     sort_newest_first(&mut st.messages);
     s.save_folder("a1", "INBOX", &st).unwrap();
-    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 7) {
+    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 7).map(std::sync::Arc::make_mut) {
         m.flags.seen = true;
     }
     st.highest_modseq = 41;
@@ -254,7 +257,7 @@ fn a_flag_save_keeps_a_newer_head() {
 #[test]
 fn the_marks_thread_lets_the_store_go() {
     let s = Store::memory();
-    let st = FolderState { validity: 3, uid_next: 2, messages: vec![msg(1, false)], ..Default::default() };
+    let st = FolderState { validity: 3, uid_next: 2, messages: vec![msg(1, false).into()], ..Default::default() };
     s.save_folder("a1", "INBOX", &st).unwrap();
     let seen = Flags { seen: true, ..Default::default() };
     s.mark_later("a1", vec![FolderMarks { folder: "INBOX".into(), validity: 3, flags: vec![(1, seen)] }], Vec::new());
@@ -320,7 +323,7 @@ fn accounts_folders_and_state_round_trip() {
     s.save_folders("a1", std::slice::from_ref(&f)).unwrap();
     assert_eq!(s.load_folders("a1").unwrap(), vec![f]);
 
-    let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 77, messages: vec![msg(9, false), msg(4, true)], window: 0 };
+    let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 77, messages: vec![msg(9, false).into(), msg(4, true).into()], window: 0 };
     s.save_folder("a1", "INBOX", &st).unwrap();
     let back = s.load_folder("a1", "INBOX").unwrap();
     assert_eq!(back, st);
@@ -350,7 +353,13 @@ fn damaged_files_start_fresh() {
 #[test]
 fn ops_apply_locally_and_persist() {
     let s = temp_store("ops");
-    let st = FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false), msg(4, false), msg(2, false)], window: 0 };
+    let st = FolderState {
+        validity: 3,
+        uid_next: 10,
+        highest_modseq: 0,
+        messages: vec![msg(9, false).into(), msg(4, false).into(), msg(2, false).into()],
+        window: 0,
+    };
     s.save_folder("a1", "INBOX", &st).unwrap();
     let k9 = st.messages[0].key.clone();
     let k4 = st.messages[1].key.clone();
@@ -394,8 +403,12 @@ fn folder_ops_move_caches_with_folders() {
     };
     s.save_folders("a1", &[f("INBOX"), f("Projects"), f("Projects/Film")]).unwrap();
     let film = MessageKey { account: "a1".into(), folder: "Projects/Film".into(), validity: 3, uid: 9 };
-    s.save_folder("a1", "Projects/Film", &FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false)], window: 0 })
-        .unwrap();
+    s.save_folder(
+        "a1",
+        "Projects/Film",
+        &FolderState { validity: 3, uid_next: 10, highest_modseq: 0, messages: vec![msg(9, false).into()], window: 0 },
+    )
+    .unwrap();
     s.write_body(&film, b"Subject: x\r\n\r\nfilm").unwrap();
 
     assert_eq!(s.apply_op("a1", &Op::CreateFolder { path: "Clients".into() }).unwrap(), vec!["Clients".to_string()]);
@@ -499,7 +512,7 @@ fn a_memory_cache_works_like_the_disk_and_keeps_a_snapshot() {
         Folder { account: "a1".into(), path: "Projects/Film".into(), delimiter: Some('/'), ..Default::default() },
     ];
     s.save_folders("a1", &folders).unwrap();
-    let st = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false), msg(1, true)], ..Default::default() };
+    let st = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false).into(), msg(1, true).into()], ..Default::default() };
     s.save_folder("a1", "Projects/Film", &st).unwrap();
     let key = MessageKey { account: "a1".into(), folder: "Projects/Film".into(), validity: 3, uid: 2 };
     s.write_body(
@@ -603,7 +616,7 @@ fn a_memory_folder_lists_only_its_own_files() {
 #[test]
 fn a_failing_store_says_so_and_writes_nothing_over() {
     let s = Store::failing();
-    let st = FolderState { validity: 3, uid_next: 10, messages: vec![msg(9, false)], ..Default::default() };
+    let st = FolderState { validity: 3, uid_next: 10, messages: vec![msg(9, false).into()], ..Default::default() };
     s.save_folder("a1", "INBOX", &st).unwrap();
     let k9 = st.messages[0].key.clone();
     s.write_body(&k9, b"x").unwrap();
@@ -697,4 +710,36 @@ fn sources_past_a_number_are_dropped_by_number() {
         drop(s);
         let _ = fs::remove_dir_all(&dir);
     }
+}
+
+/// The summaries a folder's list holds are shared in memory (`SharedSummary`), not on disk: a
+/// `state.json` written while the list held them plain reads back the same, and is written back
+/// byte for byte as the plain list was.
+#[test]
+fn a_list_of_shared_summaries_is_kept_as_it_was_before() {
+    // As a list of plain summaries wrote it (fields left out read as their defaults).
+    let before = br#"{"validity":3,"uid_next":10,"highest_modseq":77,"messages":[{"key":{"account":"a1","folder":"INBOX","validity":3,"uid":9},"subject":"Hello","flags":{"seen":true}},{"key":{"account":"a1","folder":"INBOX","validity":3,"uid":4},"subject":"Older","size":120}],"window":0}"#;
+    let s = temp_store("shared-format");
+    let dir = s.folder_dir("a1", "INBOX");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("state.json"), before).unwrap();
+    let st = s.load_folder("a1", "INBOX").unwrap();
+    assert_eq!((st.validity, st.uid_next, st.highest_modseq, st.messages.len()), (3, 10, 77, 2));
+    let plain: Vec<Summary> = st.messages.iter().map(|m| Summary::clone(m)).collect();
+    assert_eq!((plain[0].subject.as_str(), plain[0].flags.seen, plain[1].key.uid, plain[1].size), ("Hello", true, 4, 120));
+    // Written back: what the plain list made of the same summaries.
+    #[derive(Serialize)]
+    struct Before {
+        validity: u32,
+        uid_next: u32,
+        highest_modseq: u64,
+        messages: Vec<Summary>,
+        window: usize,
+    }
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let written = String::from_utf8(fs::read(dir.join("state.json")).unwrap()).unwrap();
+    let old = Before { validity: 3, uid_next: 10, highest_modseq: 77, messages: plain.clone(), window: 0 };
+    assert_eq!(written, serde_json::to_string(&old).unwrap());
+    assert_eq!(serde_json::to_vec(&st.messages).unwrap(), serde_json::to_vec(&plain).unwrap());
+    let _ = fs::remove_dir_all(dir);
 }

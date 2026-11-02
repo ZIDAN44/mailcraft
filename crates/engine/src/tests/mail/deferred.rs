@@ -20,7 +20,7 @@ fn put(s: &mut Session, uid: u32, raw: &[u8], keep: bool) -> MessageKey {
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     if keep {
         store.write_body(&key, raw).unwrap();

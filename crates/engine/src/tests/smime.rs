@@ -31,7 +31,7 @@ fn open_raw(s: &mut Session, uid: u32, raw: &[u8]) -> mailcraft_model::MessageKe
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
     let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, s.clock.now));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, s.clock.now).into());
     store.save_folder("sample", "INBOX", &inbox).unwrap();
     store.write_body(&key, raw).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });

@@ -370,7 +370,7 @@ impl Session {
         for m in &sel {
             let folder = self.folder_state(&m.key.account, &m.key.folder).messages.clone();
             for t in mailcraft_model::thread::threads(&folder) {
-                let msgs: Vec<&Summary> = t.messages.iter().filter_map(|&i| folder.get(i)).collect();
+                let msgs: Vec<&Summary> = t.messages.iter().filter_map(|&i| folder.get(i).map(|m| &**m)).collect();
                 if msgs.iter().any(|x| x.key == m.key) {
                     members.extend(msgs.into_iter().cloned());
                 }
@@ -487,7 +487,9 @@ impl Session {
             }
             inboxes
                 .iter()
-                .flat_map(|(a, f)| self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).cloned().collect::<Vec<_>>())
+                .flat_map(|(a, f)| {
+                    self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).map(|m| Summary::clone(m)).collect::<Vec<_>>()
+                })
                 .collect()
         } else {
             self.list.clone()
@@ -557,7 +559,7 @@ impl Session {
             if self.folder(a, f).is_none_or(|x| matches!(x.role, FolderRole::Trash | FolderRole::Junk)) {
                 continue;
             }
-            let msgs: Vec<Summary> = self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).cloned().collect();
+            let msgs: Vec<Summary> = self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).map(|m| Summary::clone(m)).collect();
             for t in mailcraft_model::thread::threads(&msgs) {
                 let members: Vec<&Summary> = t.messages.iter().filter_map(|&i| msgs.get(i)).collect();
                 if members.len() < 2 || only.is_some_and(|keys| !members.iter().any(|m| keys.contains(&m.key))) {

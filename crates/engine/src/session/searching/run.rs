@@ -633,7 +633,7 @@ impl Session {
                 _ => false,
             };
             if !same {
-                verdicts.push((m.clone(), v, awaiting, cur.at.saturating_add(i)));
+                verdicts.push((Summary::clone(m), v, awaiting, cur.at.saturating_add(i)));
             }
         }
         let checked = u64::try_from(end.saturating_sub(cur.at)).unwrap_or(u64::MAX);

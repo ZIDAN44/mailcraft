@@ -541,7 +541,7 @@ impl Out<'_> {
             _ => match self.store.load_folder(self.account, &path) {
                 Ok(st) => {
                     let uid_next = st.free_uid(self.account, &path).unwrap_or(c.uid_next).max(c.uid_next);
-                    let mut messages = st.messages;
+                    let mut messages: Vec<mailcraft_model::Summary> = st.messages.into_iter().map(std::sync::Arc::unwrap_or_clone).collect();
                     messages.sort_by_key(|m| m.key.uid);
                     let mut list = self.store.list_writer(self.account, &path);
                     (uid_next, list.push(self.store, messages).map(|()| list))

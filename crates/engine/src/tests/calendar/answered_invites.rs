@@ -243,7 +243,7 @@ fn answered_while_read_the_list_goes_on_to_the_next() {
     let mut dates = rows_before.clone();
     dates.sort_unstable();
     let middle = dates.get(dates.len() / 2).copied().unwrap();
-    for m in inbox.messages.iter_mut().filter(|m| m.subject.starts_with("REQUEST")) {
+    for m in inbox.messages.iter_mut().filter(|m| m.subject.starts_with("REQUEST")).map(std::sync::Arc::make_mut) {
         m.date = if m.subject == "REQUEST 2" { middle - 1 } else { dates[0] - 1 };
     }
     store.save_folder("sample", "INBOX", &inbox).unwrap();

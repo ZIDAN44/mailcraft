@@ -78,7 +78,7 @@ proptest! {
         let messages = folder(&bits);
         let n = u32::try_from(messages.len()).unwrap();
         let mut s = Session::open(Some(mailcraft_store::Store::memory()), mailcraft_model::dates::Clock::new(NOW, 0));
-        s.cache.insert(("a".into(), "INBOX".into()), mailcraft_store::FolderState { validity: 1, messages, ..Default::default() });
+        s.cache.insert(("a".into(), "INBOX".into()), mailcraft_store::FolderState { validity: 1, messages: messages.into_iter().map(Into::into).collect(), ..Default::default() });
         s.prefs.conversations = conversations;
         s.prefs.arrange = arrange;
         s.prefs.reverse_sort = reverse;
@@ -108,7 +108,7 @@ fn unread_folder(n: u32) -> Session {
     let mut s = big_folder(n);
     if let Some(st) = s.cache.get_mut(&("a".to_string(), "INBOX".to_string())) {
         st.validity = 1;
-        for m in &mut st.messages {
+        for m in st.messages.iter_mut().map(std::sync::Arc::make_mut) {
             m.flags.seen = false;
         }
     }

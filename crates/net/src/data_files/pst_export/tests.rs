@@ -94,21 +94,21 @@ fn an_account_round_trips_through_a_data_file() {
         d.in_reply_to = "m1@example.com".into();
         d.references = vec!["m0@example.com".into(), "m1@example.com".into()];
     });
-    let inbox = FolderState { validity: 1, uid_next: 3, messages: vec![plan, second], ..Default::default() };
+    let inbox = FolderState { validity: 1, uid_next: 3, messages: vec![plan.into(), second.into()], ..Default::default() };
     let mut projects = FolderState {
         validity: 1,
         uid_next: 2,
-        messages: vec![mk("INBOX/Projects", 1, "Nested", false, seen.clone(), &plain)],
+        messages: vec![mk("INBOX/Projects", 1, "Nested", false, seen.clone(), &plain).into()],
         ..Default::default()
     };
     // Known by its header only: skipped.
-    let mut header_only = projects.messages[0].clone();
+    let mut header_only = mailcraft_model::Summary::clone(&projects.messages[0]);
     header_only.key.uid = 7;
-    projects.messages.push(header_only);
+    projects.messages.push(header_only.into());
     let one = |path: &str, uid, subject: &str, flags: Flags, edit: &dyn Fn(&mut mime::Draft)| FolderState {
         validity: 1,
         uid_next: uid + 1,
-        messages: vec![mk(path, uid, subject, false, flags, edit)],
+        messages: vec![mk(path, uid, subject, false, flags, edit).into()],
         ..Default::default()
     };
     let bcc = |d: &mut mime::Draft| d.bcc = vec![EmailAddress::new("Cleo", "cleo@example.com")];
@@ -246,7 +246,7 @@ fn an_account_round_trips_through_a_data_file() {
     let again = export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap();
     assert_eq!((again.messages, again.already), (0, 7));
     let mut inbox = store.load_folder("a1", "INBOX").unwrap();
-    inbox.messages.push(mk("INBOX", 3, "Third", false, Flags::default(), &plain));
+    inbox.messages.push(mk("INBOX", 3, "Third", false, Flags::default(), &plain).into());
     store.save_folder("a1", "INBOX", &inbox).unwrap();
     let more = export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap();
     assert_eq!((more.messages, more.already), (1, 7));
@@ -303,7 +303,7 @@ fn an_export_uses_the_special_folders_a_file_has() {
     let key = MessageKey { account: "a1".into(), folder: "Sent".into(), validity: 1, uid: 1 };
     store.write_body(&key, &raw).unwrap();
     let s = mime::summary_from_full(&raw, key, Flags { seen: true, ..Default::default() }, 10, 0);
-    store.save_folder("a1", "Sent", &FolderState { validity: 1, uid_next: 2, messages: vec![s], ..Default::default() }).unwrap();
+    store.save_folder("a1", "Sent", &FolderState { validity: 1, uid_next: 2, messages: vec![s.into()], ..Default::default() }).unwrap();
     let sent = mailcraft_model::Folder { account: "a1".into(), path: "Sent".into(), role: FolderRole::Sent, selectable: true, ..Default::default() };
     store.save_folders("a1", &[sent]).unwrap();
 
@@ -404,7 +404,7 @@ fn an_export_adds_to_an_encoded_data_file() {
         store.write_body(&key, &raw).unwrap();
         mime::summary_from_full(&raw, key, Flags::default(), 10, 0)
     };
-    let inbox = FolderState { validity: 1, uid_next: 3, messages: vec![mk(1, "Both"), mk(2, "Ours")], ..Default::default() };
+    let inbox = FolderState { validity: 1, uid_next: 3, messages: vec![mk(1, "Both").into(), mk(2, "Ours").into()], ..Default::default() };
     store.save_folder("a1", "INBOX", &inbox).unwrap();
     let folder =
         mailcraft_model::Folder { account: "a1".into(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
@@ -470,7 +470,7 @@ fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
         let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
         store.write_body(&key, &raw).unwrap();
         let flags = Flags { flagged: true, keywords: vec!["Red".into()], ..Default::default() };
-        messages.push(mime::summary_from_full(&raw, key, flags, 10, 0));
+        messages.push(mime::summary_from_full(&raw, key, flags, 10, 0).into());
     }
     store.save_folder("a1", "INBOX", &FolderState { validity: 1, uid_next: 3, messages, ..Default::default() }).unwrap();
     let inbox =

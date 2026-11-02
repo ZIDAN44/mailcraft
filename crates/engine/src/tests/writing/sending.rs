@@ -29,7 +29,7 @@ fn put_in_inbox(s: &mut Session, account: &str, uid: u32, raw: &[u8]) {
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder(account, "INBOX").unwrap_or_default();
     let key = mailcraft_model::MessageKey { account: account.into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW));
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
     store.save_folder(account, "INBOX", &inbox).unwrap();
     store.write_body(&key, raw).unwrap();
     s.apply(Event::FolderChanged { account: account.into(), folder: "INBOX".into() });
