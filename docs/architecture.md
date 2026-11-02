@@ -75,7 +75,13 @@ cache, keyed by the paths the store always used. The account list and the app's 
 in the per-user app folder (`%APPDATA%\MailCraft`). `.pst` is only read (an Outlook data file
 opened gets a `.mailcraft` file of its own; Outlook's file isn't touched) and written (export).
 Account folders from before are brought into data files when the store opens, and removed once
-read back. The data files' folder can be moved (`crates/store/src/location.rs`): `location.json`
+read back; not while a store on the folder layout has them open, here or in another copy of
+MailCraft: every such store holds `<root>/.locks/folders.lock` for its life (shared by
+`Store::open`'s, alone by the app's, `Store::open_alone`, so a second window on its folder
+layout runs without the cache instead of writing the folder states and `ops.json` over the
+first's), and the bring-in takes it alone or brings nothing in ("open in another copy of
+MailCraft", which the CLI answers with "close MailCraft first" and the window shows as the move
+that didn't happen). The data files' folder can be moved (`crates/store/src/location.rs`): `location.json`
 in the app folder points at it, and a move asked for (`move-pending.json`) is carried out at the
 next start, before anything opens the files, every file checked before the old ones go. The
 sample mailbox and the browser keep plain files and memory. On Windows a data file's database
@@ -501,7 +507,9 @@ data file's index also holds a lease, the system's lock on `<root>/.locks/search
 A second copy of MailCraft or the CLI on the same folder is told `Busy`, so its writer's clean-up
 never removes the holder's uncommitted files: its indexer tries again every 5 s (said once in the
 log), its searches read the index as the holder's commits leave it, and an index it finds damaged
-is left to the holder to set aside. An index in memory takes no lease. `search::Reader` holds the doc table
+is left to the holder to set aside. An index in memory takes no lease. The folder layout's own
+folders lease (above) keeps a CLI's data files from bringing in an index the app is writing,
+and a second app window from the index of the first's folder layout. `search::Reader` holds the doc table
 and the segments' heads, reads lexicon, postings and text pages as needed (a page cache keyed by
 the index's random epoch), looks words up a few pages at a time, and follows the writer by reading
 only what a newer generation changed. Every file is decoded with checks (`search/format.rs`,

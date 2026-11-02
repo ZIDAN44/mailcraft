@@ -226,7 +226,7 @@ fn run() -> Result<(), String> {
         (None, None) => mailcraft_engine::store::location::files_dir(&root),
         _ => root.join(mailcraft_engine::store::location::FILES_FOLDER),
     };
-    let store = Store::open_packed(&root, &files).map_err(|e| e.to_string())?;
+    let store = open_store(&root, &files)?;
     tell_checks(&store);
     // Last out, however the command ends: the sync threads that hold the store are let go.
     let _sealed = SealOnExit(store.clone());
@@ -622,6 +622,16 @@ fn main() -> ExitCode {
     }
 }
 
+/// The data files at `files` for the data folder `root`. Folders from before that the app has
+/// open on the folder layout (`--sample`, or its data files failing to open) aren't brought in:
+/// it's closed first, as for a data file it has open.
+fn open_store(root: &std::path::Path, files: &std::path::Path) -> Result<Store, String> {
+    Store::open_packed(root, files).map_err(|e| {
+        let e = e.to_string();
+        if e.contains("open in another copy of MailCraft") { format!("{e}: close MailCraft first") } else { e }
+    })
+}
+
 /// A sender warning (`message.read`'s `warning`) said in a line.
 fn sender_warning_text(w: &serde_json::Value) -> String {
     let f = |k: &str| w[k].as_str().unwrap_or("").to_string();
@@ -653,6 +663,27 @@ mod tests {
         let jobs = vec![Job::Apply { account: "a1".into(), op: op.clone() }, Job::SyncAll { account: "a1".into() }];
         assert_eq!(keep_changes(&store, jobs).unwrap(), (1, 1));
         assert_eq!(store.load_ops("a1").unwrap(), vec![op]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The app on the folder layout of the data folder: the CLI brings none of its folders into
+    /// data files, and says to close MailCraft.
+    #[test]
+    fn folders_the_app_has_open_say_to_close_it() {
+        use mailcraft_engine::model::AccountConfig;
+        let dir = std::env::temp_dir().join(format!("mailcraft-cli-folders-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let app = Store::open_alone(&dir).unwrap();
+        app.save_accounts(&[AccountConfig { id: "a1".into(), email: "zoe@studio.example".into(), ..Default::default() }]).unwrap();
+        let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+        app.write_body(&key, b"Subject: one\r\n\r\nbody").unwrap();
+        let e = open_store(&dir, &dir.join("Files")).unwrap_err();
+        assert!(e.ends_with("open in another copy of MailCraft: close MailCraft first"), "{e}");
+        assert!(dir.join("a1").is_dir(), "the app's folder stays");
+        drop(app);
+        let s = open_store(&dir, &dir.join("Files")).unwrap();
+        assert_eq!(s.read_body(&key).unwrap(), b"Subject: one\r\n\r\nbody");
+        drop(s);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -9,8 +9,10 @@
 //! Data files are hostile input like everything else: one that can't be read is set aside
 //! (`.damaged`) and a new one started, never a crash. Folders from before (an account's folder
 //! of files in `<root>`) are brought into its data file when the store opens, and removed only
-//! once every file is in and read back. The app opens its data files on a thread of its own
-//! (`open.rs`), as one not closed properly is checked as it opens, which can take minutes.
+//! once every file is in and read back; never while a store on the folder layout has them open,
+//! in this process or another (the folders lease, `leases.rs`). The app opens its data files on
+//! a thread of its own (`open.rs`), as one not closed properly is checked as it opens, which can
+//! take minutes.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -540,7 +542,9 @@ impl Packs {
     }
 
     /// Account folders from before (files in `<root>/<account>`) come into their data files;
-    /// each folder goes once all its files are in and read back.
+    /// each folder goes once all its files are in and read back. Not while a store on the folder
+    /// layout has them open (another copy of MailCraft, the CLI's or the app's, writing them):
+    /// the folders lease is held alone meanwhile, or nothing is brought in and that's the error.
     fn bring_in_folders(&self) -> Result<()> {
         let Ok(rd) = fs::read_dir(&self.root) else { return Ok(()) };
         let accounts: Vec<String> = fs::read(self.root.join("accounts.json"))
@@ -548,12 +552,19 @@ impl Packs {
             .and_then(|b| serde_json::from_slice::<Vec<mailcraft_model::AccountConfig>>(&b).ok())
             .map(|l| l.into_iter().map(|a| crate::safe_segment(&a.id)).collect())
             .unwrap_or_default();
-        for entry in rd.flatten() {
-            let Some(name) = entry.file_name().to_str().map(str::to_string) else { continue };
-            if !entry.file_type().is_ok_and(|t| t.is_dir()) || !accounts.contains(&name) {
-                continue;
-            }
-            let folder = entry.path();
+        let folders: Vec<(String, PathBuf)> = rd
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+            .filter_map(|e| e.file_name().to_str().filter(|n| accounts.iter().any(|a| a == n)).map(|n| (n.to_string(), e.path())))
+            .collect();
+        if folders.is_empty() {
+            return Ok(());
+        }
+        // Let go of once they're in (or not), however this ends.
+        let Some(_lease) = crate::leases::take(&crate::leases::folders(&self.root))? else {
+            return Err(crate::leases::in_another_copy(&self.root));
+        };
+        for (name, folder) in folders {
             let mut files = Vec::new();
             let mut stack = vec![(folder.clone(), String::new())];
             while let Some((dir, rel)) = stack.pop() {

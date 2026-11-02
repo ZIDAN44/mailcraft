@@ -96,7 +96,8 @@ fn a_lease_left_behind_is_taken_at_once() {
 }
 
 /// Nothing to keep out where the index is this store's alone: in memory, and an online-only
-/// account's (held in memory too). No `.locks` folder is made for them.
+/// account's (held in memory too). No lease file is made for them (the folder layout's own
+/// folders lease is all `.locks` holds).
 #[test]
 fn an_index_in_memory_takes_no_lease() {
     let s = Store::memory();
@@ -110,7 +111,8 @@ fn an_index_in_memory_takes_no_lease() {
     assert_eq!(s.search_lease("a1"), None);
     let w = Writer::open(&s, "a1").unwrap();
     drop(w);
-    assert!(!dir.join(".locks").exists());
+    let leases: Vec<_> = std::fs::read_dir(dir.join(".locks")).unwrap().flatten().map(|e| e.file_name()).collect();
+    assert_eq!(leases, ["folders.lock"]);
     // Another account's is on disk: it has one.
     assert!(s.search_lease("a2").is_some());
     let _ = std::fs::remove_dir_all(&dir);

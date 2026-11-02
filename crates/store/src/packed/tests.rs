@@ -6,6 +6,7 @@ mod bulk;
 mod commits;
 mod compact;
 mod compaction;
+mod folders;
 mod full;
 mod health;
 mod long;
@@ -444,6 +445,18 @@ fn folders_from_before_come_into_the_data_file() {
     old.write_body(&k, b"Subject: kept\r\n\r\nbody").unwrap();
     old.save_account_doc("a1", "pop-seen.json", &vec!["u1".to_string()]).unwrap();
     assert!(app.join("a1").is_dir());
+    // Open on the folder layout here (another copy of MailCraft writing it): nothing comes in,
+    // and nothing is removed.
+    let before = folders::tree(&app.join("a1"));
+    let held = old.clone();
+    drop(old);
+    let refused = Store::open_packed(&app, t.join("Files")).unwrap_err();
+    assert!(refused.to_string().contains("open in another copy of MailCraft"), "{refused}");
+    assert_eq!(folders::tree(&app.join("a1")), before, "the folder and its files untouched");
+    assert!(!t.join("Files").join("zoe@studio.example.mailcraft").exists(), "no data file made");
+    assert_eq!(held.read_body(&k).unwrap(), b"Subject: kept\r\n\r\nbody");
+    // Its last clone let go of, the lease goes with it.
+    drop(held);
     let s = Store::open_packed(&app, t.join("Files")).unwrap();
     assert!(!app.join("a1").exists(), "the folder went once it was in");
     assert_eq!(s.read_body(&k).unwrap(), b"Subject: kept\r\n\r\nbody");

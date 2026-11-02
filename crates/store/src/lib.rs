@@ -402,13 +402,26 @@ pub struct Store {
     removals: Arc<RwLock<HashMap<String, u64>>>,
     /// Read marks kept on a thread of their own ([`Store::mark_later`]).
     marking: Arc<marking::Marking>,
+    /// The folder layout's folders lease, held while any clone lives (`leases.rs`): another
+    /// copy's data files don't bring its folders in meanwhile.
+    _folders: Option<Arc<leases::Lease>>,
 }
 
 impl Store {
     /// Open (creating if needed) a cache rooted at `root`.
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
-        let root = root.into();
+        Store::on_folders(root.into(), false)
+    }
+
+    /// [`Store::open`], kept from any other copy of MailCraft while this one has it (the app's):
+    /// an error, "open in another copy of MailCraft", while another has it open.
+    pub fn open_alone(root: impl Into<PathBuf>) -> Result<Store> {
+        Store::on_folders(root.into(), true)
+    }
+
+    fn on_folders(root: PathBuf, alone: bool) -> Result<Store> {
         private_dir(&root)?;
+        let folders = leases::folder_layout(&root, alone)?;
         Ok(Store {
             files: Routed::new(&root, Files::Disk),
             root,
@@ -417,6 +430,7 @@ impl Store {
             search_writers: Arc::default(),
             removals: Arc::default(),
             marking: Arc::default(),
+            _folders: folders,
         })
     }
 
@@ -436,6 +450,7 @@ impl Store {
             search_writers: Arc::default(),
             removals: Arc::default(),
             marking: Arc::default(),
+            _folders: None,
         })
     }
 
@@ -455,6 +470,7 @@ impl Store {
             search_writers: Arc::default(),
             removals: Arc::default(),
             marking: Arc::default(),
+            _folders: None,
         })
     }
 
@@ -469,6 +485,7 @@ impl Store {
             search_writers: Arc::default(),
             removals: Arc::default(),
             marking: Arc::default(),
+            _folders: None,
         }
     }
 
@@ -486,6 +503,7 @@ impl Store {
             search_writers: Arc::default(),
             removals: Arc::default(),
             marking: Arc::default(),
+            _folders: None,
         }
     }
 

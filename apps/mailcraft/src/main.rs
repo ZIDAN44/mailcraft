@@ -359,12 +359,14 @@ fn main() -> eframe::Result {
     let (now, offset) = Desktop::default().clock();
     let store = root.as_ref().and_then(|r| {
         let opened = match &files {
-            // Nothing opened here: the data files open behind the window (`desktop/boot.rs`).
+            // Nothing opened here: the data files open behind the window (`desktop/boot.rs`). The
+            // folder layout is held alone: a second window on it (where the single-instance check
+            // can't keep one out) runs without the cache rather than writing over the first's.
             Some(f) => Store::packed(r, f).or_else(|e| {
                 moved = Some(Err(e.to_string()));
-                Store::open(r)
+                Store::open_alone(r)
             }),
-            None => Store::open(r),
+            None => Store::open_alone(r),
         };
         match opened {
             Ok(s) => Some(s),

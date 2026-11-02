@@ -49,7 +49,7 @@ pub(crate) fn open(
             if let Some(Err(e)) = store.as_ref().map(Store::open_data_files) {
                 // Folders from before that couldn't come into data files stay as they are.
                 moved = Some(Err(e.to_string()));
-                store = root.and_then(|r| Store::open(r).ok());
+                store = root.and_then(|r| Store::open_alone(r).ok());
             }
             let session = session(store.clone());
             Opened { store, session: Some(session), moved }
