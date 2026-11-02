@@ -169,7 +169,8 @@ fn a_word_searched_again_isnt_looked_up_again() {
 }
 
 /// The common phrase searched again (typed on, or searched from another view) checks the texts
-/// it folded the first time: nothing of them is read or folded again, and it finds the same.
+/// it folded the first time: nothing of them is read or folded again, and it finds the same. The
+/// next search lets go of what their texts said a slice at a time.
 #[test]
 fn a_phrase_searched_again_reads_no_text() {
     let (mut s, t) = cold();
@@ -181,6 +182,13 @@ fn a_phrase_searched_again_reads_no_text() {
     assert!(pages(&first) > 50, "{} pages the first time", pages(&first));
     assert_eq!(pages(&second), 0, "nothing read the second time");
     assert!(second.len() * 3 < first.len() * 2, "{} steps the second time, {} the first", second.len(), first.len());
+    // What each candidate's text said goes a slice a tick, not in the frame that searches next.
+    s.run("search.run", &json!({"query": big::RARE, "scope": "all"})).unwrap();
+    assert!(s.answers_letting_go() > 10_000, "{}", s.answers_letting_go());
+    for _ in 0..40 {
+        s.tick();
+    }
+    assert_eq!(s.answers_letting_go(), 0);
 }
 
 /// A phrase's candidates are checked in the index's order (each page of texts read once), the

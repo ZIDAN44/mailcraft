@@ -96,6 +96,8 @@ pub(crate) struct SearchState {
     /// What a search cleared held of messages (found, answered), let go of as `letting_go` is:
     /// a run that found tens of thousands, dropped whole, held the frame that cleared it.
     letting_go_keys: Vec<MessageKey>,
+    /// What its messages' texts said, let go of as `letting_go` is.
+    letting_go_answers: Vec<matching::Answers>,
     /// The folder's list on view when the search started, shown again when it's cleared.
     pub(crate) kept: Option<kept::KeptList>,
     /// Bumped whenever cached mail changes: a kept list older than that is built again.
@@ -482,10 +484,12 @@ impl Session {
 
     /// Let go of a slice of the list a search replaced (each step and each tick).
     pub(crate) fn let_go_some(&mut self) {
-        let_go_slice(&mut self.search_state.letting_go);
-        let_go_slice(&mut self.search_state.letting_go_keys);
-        fn let_go_slice<T>(v: &mut Vec<T>) {
-            let left = v.len().saturating_sub(LET_GO);
+        let_go_slice(&mut self.search_state.letting_go, LET_GO);
+        let_go_slice(&mut self.search_state.letting_go_keys, LET_GO);
+        // Each with its words, a few strings: fewer a slice.
+        let_go_slice(&mut self.search_state.letting_go_answers, LET_GO / 4);
+        fn let_go_slice<T>(v: &mut Vec<T>, n: usize) {
+            let left = v.len().saturating_sub(n);
             v.truncate(left);
             if left == 0 && v.capacity() > 0 {
                 *v = Vec::new();
@@ -496,7 +500,14 @@ impl Session {
     /// How many summaries of a list a search replaced are still to be let go of.
     #[cfg(test)]
     pub(crate) fn letting_go(&self) -> usize {
-        self.search_state.letting_go.len() + self.search_state.letting_go_keys.len()
+        self.search_state.letting_go.len() + self.search_state.letting_go_keys.len() + self.search_state.letting_go_answers.len()
+    }
+
+    /// What their texts said, of the messages a search that ended checked, still to be let go
+    /// of.
+    #[cfg(test)]
+    pub(crate) fn answers_letting_go(&self) -> usize {
+        self.search_state.letting_go_answers.len()
     }
 
     /// The summaries and keys of lists a search replaced, still to be let go of (for the memory
@@ -522,7 +533,7 @@ impl Session {
     pub(crate) fn drop_search(&mut self) {
         if let Some(run) = self.search_state.run.take() {
             let state = &mut self.search_state;
-            run.let_go_into(&mut state.letting_go, &mut state.letting_go_keys);
+            run.let_go_into(&mut state.letting_go, &mut state.letting_go_keys, &mut state.letting_go_answers);
         }
         self.search_state.pinned.clear();
     }

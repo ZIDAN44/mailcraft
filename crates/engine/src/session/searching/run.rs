@@ -263,14 +263,19 @@ impl SearchRun {
     }
 
     /// A run done with: what it holds of each message (found, answered, waiting to be shown or
-    /// checked) moved to `summaries` and `keys`, to be let go of a slice at a time; the rest,
-    /// small, goes now.
-    pub(crate) fn let_go_into(self, summaries: &mut Vec<Summary>, keys: &mut Vec<MessageKey>) {
+    /// checked, what its text said) moved to `summaries`, `keys` and `answers`, to be let go of a
+    /// slice at a time; the rest, small, goes now.
+    pub(crate) fn let_go_into(self, summaries: &mut Vec<Summary>, keys: &mut Vec<MessageKey>, answers: &mut Vec<Answers>) {
         let SearchRun { found, fresh, gone, recheck, verify, fallback, known, missing, cut_short, awaited, .. } = self;
         summaries.extend(fresh);
         summaries.extend(verify.into_iter().chain(fallback).map(|c| c.m));
         keys.extend(found.into_iter().chain(gone).chain(recheck).chain(missing).chain(cut_short).chain(awaited));
-        keys.extend(known.into_keys());
+        // What each of a common phrase's 16,667 candidates said (its words, each a string), let
+        // go of at once, held the frame that searched again for 10-20 ms.
+        for (k, a) in known {
+            keys.push(k);
+            answers.push(a);
+        }
     }
 
     /// Scan folder `fi` again (its list changed): what it found before stays found until the
@@ -386,7 +391,7 @@ impl Session {
         self.search_state.readers.retain(|_, slot| slot.reader.is_some() || slot.damaged);
         if let Some(old) = self.search_state.run.replace(run) {
             let state = &mut self.search_state;
-            old.let_go_into(&mut state.letting_go, &mut state.letting_go_keys);
+            old.let_go_into(&mut state.letting_go, &mut state.letting_go_keys, &mut state.letting_go_answers);
         }
     }
 
