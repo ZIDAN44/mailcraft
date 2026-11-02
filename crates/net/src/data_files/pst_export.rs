@@ -30,7 +30,10 @@ use mailcraft_store::Store;
 use outlook_pst::messaging::message::{Message as _, UnicodeMessage};
 use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
-use pst_rw::{UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+use pst_rw::{
+    UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstProperty, UnicodePstPropertyKey, UnicodePstRecipient,
+    UnicodePstRecipientType,
+};
 
 mod item;
 mod place;
@@ -301,7 +304,29 @@ fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> R
         *created = true;
     }
     if !rest.is_empty() {
-        UnicodePstFile::append_many_in_folder_with_attachments(path, folder, rest).map_err(|e| e.to_string())?;
+        append(path, folder, rest)?;
     }
     Ok(())
+}
+
+/// Add `batch` to the file at `path`. A file whose name-to-ID map can't take names (damaged, or
+/// made by a program that keeps it some other way) gets the batch without its named properties:
+/// the mail goes in, without its follow-up text, due days and categories, and the log says why.
+fn append(path: &Path, folder: &[&str], batch: &[UnicodePstBatchMessage<'_>]) -> Result<(), String> {
+    let Err(e) = UnicodePstFile::append_many_in_folder_with_attachments(path, folder, batch) else { return Ok(()) };
+    let named = |p: &UnicodePstProperty<'_>| matches!(p.key, UnicodePstPropertyKey::Named(..));
+    // The fork's writer says so before it writes any of the batch's messages (their folder may be
+    // made by then, and stays).
+    if !e.to_string().starts_with("name-to-ID map") || !batch.iter().any(|m| m.message.properties.iter().any(named)) {
+        return Err(e.to_string());
+    }
+    log::info!("the data file's name-to-ID map can't be added to ({e}): mail written without its flags' text, due days and categories");
+    let tagged: Vec<Vec<UnicodePstProperty<'_>>> =
+        batch.iter().map(|m| m.message.properties.iter().filter(|p| !named(p)).copied().collect()).collect();
+    let batch: Vec<UnicodePstBatchMessage<'_>> = batch
+        .iter()
+        .zip(&tagged)
+        .map(|(m, p)| UnicodePstBatchMessage { message: UnicodePstMessage { properties: p, ..m.message }, attachments: m.attachments })
+        .collect();
+    UnicodePstFile::append_many_in_folder_with_attachments(path, folder, &batch).map(drop).map_err(|e| e.to_string())
 }
