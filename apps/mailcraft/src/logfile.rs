@@ -4,16 +4,28 @@
 //! [`MAX`] a run. MailCraft's own lines from Info up, other
 //! libraries' warnings. Lines name accounts, folders and errors; never a message's content or a
 //! password (MailCraft doesn't log either anywhere).
+//!
+//! Lines are written on a thread of the log's own: a line logged is handed over and the caller
+//! goes on. Written where it was logged, a line from the window's thread (a slow wait it reports,
+//! what a search spent its time on) waited there for the disk, which a big data file being
+//! flushed can hold for hundreds of milliseconds. Lines are written in the order they were
+//! logged; past [`WAITING_MAX`] waiting, more are left out and counted (the count written after)
+//! rather than held. Closing ([`log::Log::flush`]) waits for what was handed over.
 
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex, PoisonError};
+use std::time::Duration;
 
 use log::{Level, LevelFilter, Metadata, Record};
 
 /// Most written in one run (the rest of the run goes unlogged, and says so).
 const MAX: u64 = 4 << 20;
+/// Most text waiting for the log's thread: past it, lines are left out and counted.
+const WAITING_MAX: usize = 1 << 20;
+/// How long a flush waits for the log's thread at most.
+const FLUSH_WAIT: Duration = Duration::from_secs(2);
 
 pub const NAME: &str = "mailcraft.log";
 const OLD: &str = "mailcraft.old.log";
@@ -23,6 +35,22 @@ struct FileLog {
     out: Mutex<Option<(File, u64)>>,
     /// Lines also go to the terminal (a debug build, or `--log`).
     echo: bool,
+    /// What waits for the log's thread.
+    waiting: Mutex<Waiting>,
+    /// Lines were handed over, or the thread wrote what it took.
+    moved: Condvar,
+}
+
+#[derive(Default)]
+struct Waiting {
+    /// The log's thread runs (without it, lines are written where they're logged).
+    threaded: bool,
+    /// Lines handed over and not taken yet.
+    text: String,
+    /// Lines left out since the last taken, too many waiting.
+    dropped: u64,
+    /// The thread is writing what it took.
+    writing: bool,
 }
 
 /// A line to the terminal; a terminal gone (standard error closed, or a broken pipe once the
@@ -33,11 +61,60 @@ fn echo(to: &mut dyn Write, line: &str) {
 }
 
 impl FileLog {
-    fn write_line(&self, line: &str) {
-        if self.echo {
-            echo(&mut std::io::stderr(), line);
+    fn new(file: Option<File>, echo: bool) -> FileLog {
+        FileLog { out: Mutex::new(file.map(|f| (f, 0))), echo, waiting: Mutex::default(), moved: Condvar::new() }
+    }
+
+    fn waiting(&self) -> std::sync::MutexGuard<'_, Waiting> {
+        self.waiting.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Lines written on a thread of the log's own from now on (where they're logged, when none
+    /// could be started).
+    fn start_thread(&'static self) {
+        let started = std::thread::Builder::new().name("log".into()).spawn(move || self.write_on()).is_ok();
+        self.waiting().threaded = started;
+    }
+
+    /// The log's thread: what's handed over, written in order, for as long as MailCraft runs.
+    fn write_on(&self) {
+        loop {
+            let (text, dropped) = {
+                let mut w = self.waiting();
+                while w.text.is_empty() && w.dropped == 0 {
+                    w = self.moved.wait(w).unwrap_or_else(PoisonError::into_inner);
+                }
+                w.writing = true;
+                (std::mem::take(&mut w.text), std::mem::take(&mut w.dropped))
+            };
+            self.write_line(&text);
+            if dropped > 0 {
+                self.write_line(&format!("... {dropped} lines left out here: more came than the disk took\n"));
+            }
+            self.waiting().writing = false;
+            self.moved.notify_all();
         }
-        let mut out = self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    }
+
+    /// `line` handed to the log's thread (written here when there's none).
+    fn hand_over(&self, line: &str) {
+        let mut w = self.waiting();
+        if !w.threaded {
+            drop(w);
+            self.write_line(line);
+            return;
+        }
+        if w.text.len().saturating_add(line.len()) > WAITING_MAX {
+            w.dropped = w.dropped.saturating_add(1);
+        } else {
+            w.text.push_str(line);
+        }
+        drop(w);
+        self.moved.notify_all();
+    }
+
+    fn write_line(&self, line: &str) {
+        let mut out = self.out.lock().unwrap_or_else(PoisonError::into_inner);
         let Some((file, written)) = out.as_mut() else { return };
         if *written >= MAX {
             return;
@@ -52,6 +129,22 @@ impl FileLog {
             let _ = file.flush();
         }
     }
+
+    /// Wait ([`FLUSH_WAIT`] at most) for the lines handed over to be written.
+    fn wait_written(&self) {
+        let began = std::time::Instant::now();
+        let mut w = self.waiting();
+        while w.threaded && (!w.text.is_empty() || w.dropped > 0 || w.writing) {
+            let left = FLUSH_WAIT.saturating_sub(began.elapsed());
+            if left.is_zero() {
+                return;
+            }
+            w = match self.moved.wait_timeout(w, left) {
+                Ok((w, _)) => w,
+                Err(e) => e.into_inner().0,
+            };
+        }
+    }
 }
 
 impl log::Log for FileLog {
@@ -63,11 +156,16 @@ impl log::Log for FileLog {
         if !self.enabled(r.metadata()) {
             return;
         }
-        self.write_line(&line(&stamp(), r.level(), r.target(), &r.args().to_string()));
+        let line = line(&stamp(), r.level(), r.target(), &r.args().to_string());
+        if self.echo {
+            echo(&mut std::io::stderr(), &line);
+        }
+        self.hand_over(&line);
     }
 
     fn flush(&self) {
-        if let Some((f, _)) = self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_mut() {
+        self.wait_written();
+        if let Some((f, _)) = self.out.lock().unwrap_or_else(PoisonError::into_inner).as_mut() {
             let _ = f.flush();
         }
     }
@@ -106,9 +204,10 @@ pub fn start(dir: Option<&Path>, echo: bool) -> Option<PathBuf> {
         File::create(p).ok()
     });
     let opened = file.is_some();
-    let logger: &'static FileLog = Box::leak(Box::new(FileLog { out: Mutex::new(file.map(|f| (f, 0))), echo }));
+    let logger: &'static FileLog = Box::leak(Box::new(FileLog::new(file, echo)));
     if log::set_logger(logger).is_ok() {
         log::set_max_level(LevelFilter::Info);
+        logger.start_thread();
     }
     path.filter(|_| opened)
 }
@@ -133,8 +232,8 @@ mod tests {
             &mut Gone, "a line
 ",
         );
-        let log = FileLog { out: Mutex::new(None), echo: true };
-        log.write_line(
+        let log = FileLog::new(None, true);
+        log.hand_over(
             "still here
 ",
         );
@@ -156,12 +255,67 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("mailcraft-log-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join(NAME);
-        let log = FileLog { out: Mutex::new(Some((File::create(&path).unwrap(), MAX - 10))), echo: false };
+        let log = FileLog::new(Some(File::create(&path).unwrap()), false);
+        if let Some(out) = log.out.lock().unwrap().as_mut() {
+            out.1 = MAX - 10;
+        }
         log.write_line("0123456789abcdef\n");
         log.write_line("never written\n");
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.starts_with("0123456789abcdef\n... the log is full"), "{text}");
         assert!(!text.contains("never written"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A line logged while the disk holds the log's writes (a write that takes seconds while a
+    /// big data file is flushed) doesn't wait for it: it's written after, in order, and a flush
+    /// waits for it.
+    #[test]
+    fn a_line_logged_never_waits_for_the_disk() {
+        use log::Log;
+        let dir = std::env::temp_dir().join(format!("mailcraft-log-wait-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(NAME);
+        let log: &'static FileLog = Box::leak(Box::new(FileLog::new(Some(File::create(&path).unwrap()), false)));
+        log.start_thread();
+        let record = |msg: &str| log.hand_over(&line("2026-10-19 14:03:07", Level::Warn, "mailcraft::x", msg));
+        record("first");
+        log.flush();
+        let held = log.out.lock().unwrap();
+        let began = std::time::Instant::now();
+        record("while the disk is busy");
+        record("and another");
+        assert!(began.elapsed() < Duration::from_millis(500), "logging waited {:?}", began.elapsed());
+        drop(held);
+        log.flush();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("x: first\n") && text.ends_with("x: while the disk is busy\n2026-10-19 14:03:07 WARN  mailcraft::x: and another\n"),
+            "{text}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Past what may wait, lines are left out and counted rather than held.
+    #[test]
+    fn too_many_lines_waiting_are_counted_not_kept() {
+        use log::Log;
+        let dir = std::env::temp_dir().join(format!("mailcraft-log-full-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(NAME);
+        let log: &'static FileLog = Box::leak(Box::new(FileLog::new(Some(File::create(&path).unwrap()), false)));
+        log.start_thread();
+        let held = log.out.lock().unwrap();
+        let long = "x".repeat(WAITING_MAX / 2 + 1);
+        for _ in 0..3 {
+            log.hand_over(&format!("{long}\n"));
+        }
+        // The first taken by the thread (held by the disk) or waiting, then at most one more.
+        assert!(log.waiting().text.len() <= WAITING_MAX);
+        drop(held);
+        log.flush();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("lines left out here: more came than the disk took"), "{} bytes", text.len());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
