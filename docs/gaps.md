@@ -1868,31 +1868,52 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   written on a thread of its own, its writes sealed or not, measured no faster.
 - **The import measured whole:** on the 41 GB file (34,691 messages), every aim of the import
   work was measured again in one sitting (`pst_bench::import`, which now also pauses an import
-  at random, goes on after a kill, and judges the time left the window would have said). In the
-  app a new account's import took 172 s, the window answering within 12 ms all along (none of
-  the 50 ms frames aimed at), its folders shown as each finished and its percentage from the
-  first seconds, for a 37.75 GB data file. By the benchmark it took 173–214 s with indexing,
-  most runs over the 180 s aimed at (154 s without), wrote 40.3 GB (1.07 times the data file), and read
-  58.5 GB where the reader read 56.5 GB (1.04 times); one thread took 611 s, 326 s of it
-  reading. Twelve threads and one came out the same byte for byte (a digest of the folders,
-  their lists and the sources), and so did an import paused 30 times at random and one
-  killed 5 times at random, gone on with each time: 34,691 messages, every one parsing, with
-  107,328 attachments. A pause took 0.3 s to stop by median and 2 s at most of 62 (5 of an
-  earlier 37 took 10 to 17 s at one place, not seen since). The checkpoints cost under 1%: 29
-  to 42 of them took 1.2–1.9 s, the batches they went with included, and one every 10 s
-  besides those at each folder's end changed nothing by the clock. Still short of the aims: its
-  peak was 1.17–1.22 GB with indexing (0.76 GB without), its working set growing by a third
+  at random or at a place, goes on after a kill, and judges the time left the window would have
+  said). In the app a new account's import took 172 s, the window answering within 12 ms all
+  along (none of the 50 ms frames aimed at), its folders shown as each finished and its
+  percentage from the first seconds, for a 37.75 GB data file, 1.42 GB at its peak; one cut off
+  2 minutes in (its process ended; twice) and opened again checked its data file for 57–59 s, the window
+  answering all the while (its slowest frame 336 ms), then went on into the file it had open and
+  finished with every message, 1.33 GB at its peak. By the benchmark it took 173–214 s with
+  indexing, most runs over the 180 s aimed at (154 s without), wrote 40.3 GB (1.07 times the
+  data file), and read 58.5 GB where the reader read 56.5 GB (1.04 times); the data file's bigger
+  cache while an import writes (32 MiB, 16 MiB otherwise) raised the peak by 18 MB, within the
+  32 MiB aimed at, and saved 5.3 GB of writes (45.4 GB, and a 38.65 GB file, with 16 MiB). One
+  thread took 611 s, 326 s of it reading, its working set flat as aimed at (324 MB a fifth of the
+  way, 336 MB at nine tenths). Twelve threads and one came out the same byte for byte (a digest
+  of the folders, their lists and the sources), and so did an import paused 30 times at random
+  and one killed 5 times at random, gone on with each time: 34,691 messages, every one parsing,
+  with 107,328 attachments (the 107,134 files aimed at, with the 187 attached messages and 7
+  empty files that come in since attached messages do). The checkpoints cost under 1%: 29 to 42
+  of them took 1.2–1.9 s, the batches they went with included, and one every 10 s besides those
+  at each folder's end changed nothing by the clock. Still short of the aims: a pause took 0.3 s
+  to stop by median, but 5 of 114 took 10 to 17 s (16.8 s at the 99th, under 2 s aimed at), all
+  in one run at one place, 31,860 messages in, where the import gone on with stopped again before
+  it got any further; 15 pauses aimed at that place since stopped within 0.7 s, the writer, the
+  threads reading the file and the sealing of the data file each done within half a second of
+  one, and the process held only 60–110 MB through those slow stops, waiting on something rather
+  than working: what isn't known, and a stop that slow outlasts the 10 s MailCraft waits for an
+  import as it closes, which then ends as one killed does. The writer was busy 58–61% of the
+  time with indexing (55–58% without), 85% aimed at: it waits on the threads reading the file.
+  The peak was 1.17–1.22 GB with indexing (0.76 GB without), its working set growing by a third
   from a fifth of the way to nine tenths, where 1 GB and flat were aimed at; opening the data
   file after a kill took 1.7 to 22 s (the file checked whole), over the 5 s aimed at; after an
   import paused and gone on with, the next index pass looks at the lists of most folders again
-  (30,342 messages' worth, none of them read); and the time left. An
-  item costs nothing of its own on the parallel import by a fit over its progress (a big one
-  costs more for each byte, holding up the others), but no weight from 0 to 256 KB judged the
-  time left better over seven imports, so an item still weighs 128 KB. From half done the time
-  said was 4–26% off (10% aimed at), and before that up to twice the time it took (20% aimed
-  at): the first folders, of big messages, go at about two thirds of the speed of the rest,
-  which no estimate from the speed so far can foresee (13% done after 30 s said about 5 min for
-  2.4 left).
+  (30,342 messages' worth, none of them read). And the time left, which waits on the owner (or
+  the plan): from half done it was 4–26% off (10% aimed at), and before that up to twice the
+  time it took (20% aimed at), and no estimate from a rate can meet the 10% on this file. Even
+  the run's own average over the whole of it, known ahead, would have been off by up to 13% from
+  half done (the import going faster and slower than its average, folder by folder, by more
+  than their sizes tell), and weighing each item by its size (its bytes raised to a power, or a
+  share growing with it) did no better in a replay of five runs (13% at best); from a tenth done
+  that average would have been within 13%, but the speed seen by then is a fifth below it, the
+  first folders, of big messages, going slower. By the design's rule an item should now weigh
+  nothing in the bar: fitted folder by folder as the design asks (26 folders, r2 0.975, on a run
+  slowed by other work) as over the progress, an item costs less than nothing (-0.4 to -2.2 ms),
+  which says that a big item costs more for each byte, not what an item costs of its own. It
+  still weighs 128 KB until the owner decides: bytes alone judged the time left no better (from
+  half done 5–15% off against 4–26%, from a tenth 38–116% against 52–108%), and a file of many
+  small messages, which this one isn't, is where an item's own cost shows.
 - **The paperclip on mail kept from before:** a `.pst` imported before its paperclips followed
   the source (and any mail whose summary says otherwise than its source) kept the old flag, so
   Has files and the paperclip still counted pictures the text shows while `has:attachment` didn't.
