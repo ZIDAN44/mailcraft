@@ -2,8 +2,8 @@
 //! was one galley, laid out whole in the frame it opened (179 ms). Its text goes in chunks and
 //! its formatted lines in blocks: those near the view are laid out, the others keep their place
 //! by height (measured once laid out, guessed before), and a couple more are measured each frame
-//! so the scroll bar settles. The parts a selection starts and ends in are always laid out, and
-//! Ctrl+A then a copy takes the whole text.
+//! so the scroll bar settles. The parts a selection starts and ends in are always laid out (and
+//! for a copy, those between); Ctrl+A then a copy takes the whole text ([`super::text_selection`]).
 
 use std::ops::Range;
 
@@ -23,7 +23,7 @@ const KEPT: usize = 8;
 /// What the average letter's width is measured on.
 const SAMPLE: &str = "The quick brown fox jumps over the lazy dog, 0123456789.";
 
-/// One shown text's parts: their heights, and where a selection in them starts and ends.
+/// One shown text's parts: their heights, and where they were laid out.
 #[derive(Default)]
 pub(crate) struct LongText {
     /// What it was made for: the text's length and its number of parts.
@@ -32,11 +32,6 @@ pub(crate) struct LongText {
     /// Heights guessed at that width, and those measured.
     guessed: Vec<f32>,
     measured: Vec<Option<f32>>,
-    /// The part a selection was started in, and the one the pointer last pressed or dragged in.
-    anchor: Option<usize>,
-    head: Option<usize>,
-    /// Ctrl+A in it: all of it is selected, and copied whole.
-    pub(crate) all: bool,
     /// How many parts the last frame laid out, and where they were.
     pub(crate) laid: usize,
     pub(crate) shown: Vec<(usize, Rect)>,
@@ -133,6 +128,7 @@ pub(super) fn plain(st: &mut UiState, ui: &mut Ui, id: egui::Id, text: &str) {
     let ranges = chunks(text, CHUNK);
     let mut v = take(st, id);
     v.fit(text.len(), ranges.len());
+    let pins = text_selection::parts(st, ranges.len());
     let (row, letter) = metrics(ui, &font);
     let guess = |i: usize, width: f32| {
         let s = ranges.get(i).and_then(|r| text.get(r.clone())).unwrap_or_default();
@@ -141,13 +137,20 @@ pub(super) fn plain(st: &mut UiState, ui: &mut Ui, id: egui::Id, text: &str) {
     ui.scope(|ui| {
         // Chunks one under the other as the lines of one text (and copied so, a line break apart).
         ui.spacing_mut().item_spacing.y = 0.0;
-        parts(ui, &mut v, text, guess, |ui, i, lay| {
+        parts(ui, &mut v, pins, guess, |ui, i, lay| {
             let Some(s) = ranges.get(i).and_then(|r| text.get(r.clone())).filter(|_| lay) else { return };
+            text_selection::part(st, i);
+            // A chunk after a line break (cut there, the break in neither) starts a line.
+            let start = ranges.get(i).map_or(0, |r| r.start);
+            if start > 0 && text.as_bytes().get(start - 1) == Some(&b'\n') {
+                text_selection::line(st);
+            }
             if rtl {
-                let r = crate::bidi::selectable_label(ui, s, font.clone(), t.text);
+                let job = egui::text::LayoutJob::simple(s.to_string(), font.clone(), t.text, ui.available_width());
+                let r = text_selection::rtl_run(st, ui, job);
                 rtl_copy_menu(&r, None, text);
             } else {
-                ui.add(egui::Label::new(RichText::new(s).font(font.clone()).color(t.text)).wrap().selectable(true));
+                text_selection::run(st, ui, RichText::new(s).font(font.clone()).color(t.text), None);
             }
         });
     });
@@ -199,6 +202,7 @@ pub(super) fn rich(body: &mut Body, st: &mut UiState, ui: &mut Ui, id: egui::Id,
     v.fit(p.text.len(), parts_of.len());
     let (row, letter) = metrics(ui, &theme::regular(14.5));
     let gap = ui.spacing().item_spacing.y;
+    let pins = text_selection::parts(st, parts_of.len());
     let guess = |i: usize, width: f32| match parts_of.get(i) {
         Some(Unit::Lines(lines)) => lines
             .iter()
@@ -211,9 +215,16 @@ pub(super) fn rich(body: &mut Body, st: &mut UiState, ui: &mut Ui, id: egui::Id,
         Some(Unit::Table(mime::layout::Block::Table(t))) => t.rows.len().min(1_000) as f32 * 3.0 * row,
         _ => 0.0,
     };
-    parts(ui, &mut v, &p.text, guess, |ui, i, lay| match (parts_of.get(i), lay) {
-        (Some(Unit::Lines(lines)), true) => body.lines(st, ui, lines, width, page, Align::Min),
-        (Some(Unit::Table(b)), true) => body.blocks(st, ui, std::slice::from_ref(*b), width, page, mime::layout::Align::Left, 0),
+    parts(ui, &mut v, pins, guess, |ui, i, lay| match (parts_of.get(i), lay) {
+        (Some(Unit::Lines(lines)), true) => {
+            text_selection::part(st, i);
+            body.lines(st, ui, lines, width, page, Align::Min);
+        }
+        (Some(Unit::Table(b)), true) => {
+            text_selection::part(st, i);
+            text_selection::line(st);
+            body.blocks(st, ui, std::slice::from_ref(*b), width, page, mime::layout::Align::Left, 0);
+        }
         (Some(Unit::Lines(lines)), false) => pictures_of_lines(lines, body.shown),
         (Some(Unit::Table(b)), false) => pictures_of_blocks(std::slice::from_ref(*b), body.shown, 0),
         (None, _) => {}
@@ -246,10 +257,17 @@ fn pictures_of_blocks(blocks: &[mime::layout::Block], out: &mut Vec<String>, dep
 }
 
 /// Lay out `v`'s parts one under the other: those near the view, those a selection starts or ends
-/// in (and their neighbours), all a copied selection spans, and a few not measured yet.
-/// `draw(ui, i, true)` lays part `i` out; `draw(ui, i, false)` says it's passed over, its room kept
-/// by its height; `guess(i, width)` is that before it's measured. `whole` is what Ctrl+A copies.
-fn parts(ui: &mut Ui, v: &mut LongText, whole: &str, guess: impl Fn(usize, f32) -> f32, mut draw: impl FnMut(&mut Ui, usize, bool)) {
+/// in (and their neighbours, for Shift with the arrows), all a copied selection spans, and a few
+/// not measured yet. `draw(ui, i, true)` lays part `i` out; `draw(ui, i, false)` says it's passed
+/// over, its room kept by its height; `guess(i, width)` is that before it's measured. `pins`: the
+/// parts a selection's ends are in, those it spans, and whether it's all of the text.
+fn parts(
+    ui: &mut Ui,
+    v: &mut LongText,
+    pins: (Vec<usize>, Range<usize>, bool),
+    guess: impl Fn(usize, f32) -> f32,
+    mut draw: impl FnMut(&mut Ui, usize, bool),
+) {
     let n = v.measured.len();
     let width = ui.available_width();
     if v.width_bits != width.to_bits() || v.guessed.len() != n {
@@ -257,36 +275,14 @@ fn parts(ui: &mut Ui, v: &mut LongText, whole: &str, guess: impl Fn(usize, f32) 
         v.guessed = (0..n).map(|i| guess(i, width)).collect();
         v.measured.iter_mut().for_each(|h| *h = None);
     }
-    let (pressed, down, shift, pos, copying, select_all, escape) = ui.input(|i| {
-        let ctrl_a = i.events.iter().any(|e| matches!(e, egui::Event::Key { key: egui::Key::A, pressed: true, modifiers, .. } if modifiers.command));
-        let copying = i.events.iter().any(|e| matches!(e, egui::Event::Copy | egui::Event::Cut));
-        let p = &i.pointer;
-        (p.primary_pressed(), p.primary_down(), i.modifiers.shift, p.interact_pos(), copying, ctrl_a, i.key_pressed(egui::Key::Escape))
-    });
-    let selecting = ui.ctx().plugin_opt::<egui::text_selection::LabelSelectionState>().is_some_and(|p| p.lock().has_selection());
-    // Keys gone to a box (Ctrl+E to the search box): Ctrl+A and a copy are its own.
-    let typing = ui.memory(|m| m.focused().is_some());
-    if pressed || escape || !selecting || typing {
-        v.all = false;
-    }
-    if pressed && !shift {
-        v.anchor = None;
-        v.head = None;
-    }
-    if select_all && selecting && !typing && v.anchor.is_some() {
-        v.all = true;
-    }
-    // Laid out whatever the view: the ends of a selection (egui lets go of one whose ends it
-    // doesn't see), and for a copy, everything between them.
-    let ends: Vec<usize> = [v.anchor, v.head].into_iter().flatten().collect();
-    let span = match (v.anchor, v.head) {
-        (Some(a), Some(h)) if copying && !v.all => a.min(h)..a.max(h).saturating_add(1),
-        _ => 0..0,
-    };
+    let copying = ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Copy | egui::Event::Cut)));
+    // Laid out whatever the view: the ends of a selection, and for a copy, everything between
+    // them (all of it is the whole text, copied as it is).
+    let (ends, span, all) = pins;
+    let span = if copying && !all { span } else { 0..0 };
     let clip = ui.clip_rect();
     let near = clip.expand2(vec2(0.0, clip.height()));
     let left = ui.cursor().left();
-    let fill = ui.visuals().selection.bg_fill.gamma_multiply(0.5);
     // None measured in the frame the text first shows, which has enough to lay out in view.
     let mut budget = if v.measured.iter().any(Option::is_some) { MEASURED_PER_FRAME } else { 0 };
     v.laid = 0;
@@ -302,57 +298,21 @@ fn parts(ui: &mut Ui, v: &mut LongText, whole: &str, guess: impl Fn(usize, f32) 
             budget -= 1;
         }
         let lay = in_view || pinned || measure;
-        // egui keeps a selection only while it sees both its ends, and copies only what it sees:
-        // a selection's part out of sight is laid out unseen, in a sliver of view of its own.
-        let unseen = pinned && !Rect::from_min_size(egui::pos2(left, top), vec2(width, h.max(1.0))).intersects(clip);
         let r = ui.push_id(i, |ui| {
+            draw(ui, i, lay);
             if !lay {
-                draw(ui, i, false);
                 ui.allocate_space(vec2(width, h));
-                return None;
             }
-            ui.scope(|ui| {
-                if unseen {
-                    ui.set_clip_rect(Rect::from_min_size(egui::pos2(left, top), vec2(width, 1.0)));
-                    ui.multiply_opacity(0.0);
-                    ui.disable();
-                }
-                let slot = v.all.then(|| ui.painter().add(egui::Shape::Noop));
-                draw(ui, i, true);
-                slot
-            })
-            .inner
         });
         if !lay {
             continue;
         }
         let rect = Rect::from_x_y_ranges(left..=left + width, r.response.rect.y_range());
-        if let Some(slot) = r.inner {
-            ui.painter().set(slot, egui::Shape::rect_filled(rect, 0.0, fill));
-        }
         if let Some(m) = v.measured.get_mut(i) {
             *m = Some(r.response.rect.height());
         }
         v.laid += 1;
         v.shown.push((i, rect));
-        if let Some(p) = pos
-            && rect.intersect(clip).contains(p)
-        {
-            if pressed && (!shift || v.anchor.is_none()) {
-                v.anchor = Some(i);
-            }
-            if pressed || down {
-                v.head = Some(i);
-            }
-        }
-    }
-    if v.head.is_none() {
-        v.head = v.anchor;
-    }
-    // All of it selected: the copy is the whole text, not what's laid out of it.
-    if v.all && copying {
-        ui.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Copy | egui::Event::Cut)));
-        ui.ctx().copy_text(whole.to_string());
     }
     if budget < MEASURED_PER_FRAME && v.measured.iter().any(Option::is_none) {
         ui.ctx().request_repaint();

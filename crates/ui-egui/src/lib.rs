@@ -333,6 +333,8 @@ pub struct UiState {
     pub(crate) han_missing: bool,
     /// Long message texts laid out by what's in view: their parts' heights, and their selection.
     pub(crate) long_text: HashMap<egui::Id, reading::LongText>,
+    /// What's selected of the message texts shown, and whether one has the keyboard.
+    pub(crate) text_selection: reading::TextSelection,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).
     pub title_base: String,
     /// This page is a message's own window (the browser): only that message is shown.
@@ -474,6 +476,7 @@ impl MailApp {
                 cjk_loaded: None,
                 han_missing: false,
                 long_text: HashMap::new(),
+                text_selection: Default::default(),
                 title_base: "MailCraft".into(),
                 places: Default::default(),
                 page_message: None,

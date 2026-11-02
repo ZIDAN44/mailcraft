@@ -20,6 +20,7 @@ mod long_text;
 mod people;
 mod pictures;
 mod security;
+pub(crate) mod text_selection;
 pub(crate) use attachments::decode;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;
@@ -34,6 +35,7 @@ pub(crate) use long_text::LongText;
 pub(crate) use long_text::{CHUNK, chunks};
 use people::*;
 pub(crate) use pictures::{Got, Pictures, Want};
+pub(crate) use text_selection::TextSelection;
 
 pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     if s.compose.as_ref().is_some_and(|c| crate::compose_inline(c, ui.ctx())) {
@@ -437,7 +439,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             if han_missing(ui, &p.text) {
                 st.han_missing = true;
             }
-            if s.prefs.show_html && !p.rich.is_empty() {
+            // The text is selected as one, whatever it's drawn as (`text_selection`).
+            text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())));
+            let formatted = s.prefs.show_html && !p.rich.is_empty();
+            if formatted {
                 rich_body(s, st, ui, &r.key, p, acts);
             } else if p.text.len() > long_text::LONG {
                 // Laid out by what's in view: whole, a long one took a frame of its own to lay out.
@@ -445,18 +450,15 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             } else if crate::bidi::has_rtl(&p.text) {
                 // Right-to-left text, against the right edge where it starts; selected with the
                 // pointer as it reads, and right-click copies it as written too.
-                let r = crate::bidi::selectable_label(ui, &p.text, theme::regular(14.5), t.text);
+                let job = egui::text::LayoutJob::simple(p.text.clone(), theme::regular(14.5), t.text, ui.available_width());
+                let r = text_selection::rtl_run(st, ui, job);
                 rtl_copy_menu(&r, None, &p.text);
             } else {
-                let mut text = p.text.as_str();
-                ui.add(
-                    egui::TextEdit::multiline(&mut text)
-                        .frame(egui::Frame::NONE)
-                        .desired_width(f32::INFINITY)
-                        .font(theme::regular(14.5))
-                        .text_color(t.text),
-                );
+                text_selection::run(st, ui, RichText::new(&p.text).font(theme::regular(14.5)).color(t.text), None);
             }
+            // Laid out by what's in view, a long text's copy of all of it is its text.
+            let long = if formatted { long_text::many_lines(p) } else { p.text.len() > long_text::LONG };
+            text_selection::finish(st, ui, long.then_some(p.text.as_str()));
         });
     });
 }

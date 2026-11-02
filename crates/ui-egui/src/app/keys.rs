@@ -4,6 +4,8 @@ use crate::*;
 
 impl MailApp {
     pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
+        // A message's text had the keyboard last frame (it says so again while it keeps it).
+        let text_keys = std::mem::take(&mut self.ui.text_selection.keys);
         if let Some(d) = &self.ui.dialog {
             // Not the part of a compaction that has a data file to itself: it can't be put away.
             let stays = matches!(d, Dialog::Compacting { account, .. } if self.session.compaction.exclusive(account));
@@ -113,6 +115,11 @@ impl MailApp {
             if text_selected && matches!(combo.as_str(), "Mod+A" | "Mod+C") {
                 continue;
             }
+            // Clicked into a message's text: Ctrl+A, the copy and Shift with the arrows, Home
+            // and End (Ctrl too) select in it, not in the message list.
+            if text_keys && text_key(&combo) {
+                continue;
+            }
             if let Some(spec) = reg.by_shortcut(&combo) {
                 let id = spec.id;
                 if id == "search.run" {
@@ -168,6 +175,12 @@ impl MailApp {
 /// mail and Send/Receive aren't: they work from anywhere).
 fn list_key(id: &str) -> bool {
     id.starts_with("list.") || id.starts_with("quickStep.") || (id.starts_with("mail.") && !matches!(id, "mail.new" | "mail.sync"))
+}
+
+/// The keys a message's text takes while it has the keyboard.
+fn text_key(combo: &str) -> bool {
+    let shifted = combo.strip_prefix("Mod+").unwrap_or(combo).strip_prefix("Shift+");
+    matches!(combo, "Mod+A" | "Mod+C") || shifted.is_some_and(|k| matches!(k, "Left" | "Right" | "Up" | "Down" | "Home" | "End"))
 }
 
 /// A shortcut as the registry names it: `Mod+Shift+Down`.

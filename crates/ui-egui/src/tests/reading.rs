@@ -678,7 +678,7 @@ fn a_selection_over_chunks_passed_over_copies_them() {
     // Ctrl+A, then a copy: the whole text, and the mail selection is left alone.
     click(&ctx, &mut a, at, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
-    assert!(long_state(&a).all);
+    assert!(a.ui.text_selection.all());
     assert_eq!(a.session.selection.len(), 1);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(got == text, "{} of {}", got.len(), text.len());
@@ -708,9 +708,8 @@ fn a_long_formatted_message_lays_out_what_is_in_view() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// Ctrl+A in the long text, then Ctrl+E to the search box: Ctrl+A and a copy there no longer
-/// copy the whole message (that copy came last, so it was the one kept). egui's own label
-/// selection, still there, copies what it holds as it does for any message.
+/// Ctrl+A in the long text, then Ctrl+E to the search box: Ctrl+A and a copy there are the box's,
+/// and no longer copy the whole message (that copy came last, so it was the one kept).
 #[test]
 fn ctrl_a_in_the_search_box_after_a_long_message_does_not_copy_it_whole() {
     let (mut a, dir) = app("long-select-all");
@@ -719,14 +718,16 @@ fn ctrl_a_in_the_search_box_after_a_long_message_does_not_copy_it_whole() {
     let first = long_state(&a).shown.first().map(|(_, r)| *r).unwrap();
     click(&ctx, &mut a, first.left_top() + egui::vec2(2.0, 10.0), Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
-    assert!(long_state(&a).all);
+    assert!(a.ui.text_selection.all());
     frame(&ctx, &mut a, vec![key(Key::E, Modifiers::COMMAND)]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.search_focused);
     frame(&ctx, &mut a, vec![Event::Text("zebra".into())]);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
-    assert!(!long_state(&a).all);
+    assert!(!a.ui.text_selection.keys, "the search box has the keys");
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(got.len() < text.len(), "{} of {}", got.len(), text.len());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+mod text_selection;

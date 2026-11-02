@@ -172,9 +172,11 @@ impl Body<'_> {
         let t = st.tokens;
         for line in lines {
             if line.is_empty() {
+                text_selection::blank(st);
                 ui.add_space(9.0);
                 continue;
             }
+            text_selection::line(st);
             // A line with right-to-left text is laid out whole, egui putting it in order (its links
             // show, but as text).
             if line.iter().any(|sp| crate::bidi::has_rtl(&sp.text)) && line.iter().all(|sp| sp.image.is_none()) {
@@ -195,7 +197,7 @@ impl Body<'_> {
                 let r = ui
                     .scope(|ui| {
                         ui.set_max_width(width);
-                        crate::bidi::add_selectable_label(ui, job)
+                        text_selection::rtl_run(st, ui, job)
                     })
                     .inner;
                 let written: String = line.iter().map(|sp| sp.text.as_str()).collect();
@@ -246,7 +248,7 @@ impl Body<'_> {
             self.shown.push(src.clone());
             if !picture(self.s, st, ui, self.key, self.p, src, self.allowed, width, sp.image_size) {
                 let alt = if sp.text.trim().is_empty() { "picture" } else { sp.text.trim() };
-                ui.label(RichText::new(format!("[{alt}]")).color(t.faint));
+                ui.add(egui::Label::new(RichText::new(format!("[{alt}]")).color(t.faint)).selectable(false));
             }
             return;
         }
@@ -265,13 +267,13 @@ impl Body<'_> {
             Some(link) => {
                 // Hovered, a link says where it will open (cleaned, when links are).
                 let shown = if self.s.prefs.clean_links { mime::clean_link(link) } else { link.clone() };
-                let r = ui.add(egui::Link::new(rt.color(fg))).on_hover_text(shown);
+                let r = text_selection::run(st, ui, rt.color(fg), Some(fg)).on_hover_text(shown);
                 if r.clicked() {
                     self.acts.push(Action::OpenUrl(link.clone()));
                 }
             }
             None => {
-                ui.label(rt.color(fg));
+                text_selection::run(st, ui, rt.color(fg), None);
             }
         }
     }

@@ -1373,6 +1373,20 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
 
 ### v0.32 — Pictures open without asking
 
+- **Selecting a message's text:** a message is drawn in pieces (a formatted line's words and
+  links, a table's cells, a quote, a right-to-left line, a long text's chunks), and each was an
+  egui label with a selection of its own: Ctrl+A took only the paragraph under the selection,
+  Shift with the arrows (Home and End too) stopped at the edge of a piece, and a selection
+  dragged past the top or bottom of the reading pane neither scrolled nor grew (egui lets go of a
+  selection whose ends it doesn't draw). The pieces are now one text with one selection
+  (`reading/text_selection.rs`), in the reading pane and in a message's own window, for every
+  kind of body: Ctrl+A selects the whole message and a copy has it in reading order, a line break
+  between lines; Shift with the arrows, Home, End and Ctrl goes on across lines and blocks and
+  keeps its end in view; Shift+click, double- and triple-click work across them; a drag held near
+  or past the view's edge scrolls, faster the farther out (PdfCraft's edge scroll), the wheel
+  scrolls during a drag, and the selection keeps growing either way. The scroll bar beside the
+  text leaves the selection as it is. Clicked into, the text has Ctrl+A, Ctrl+C and Shift with the
+  arrows; a click in the message list gives them back to it (Ctrl+A there selects every message).
 - **Exported mail keeps what it is:** a `.pst` export wrote every message read, as an ordinary
   `IPM.Note` with nothing but its text, addresses and files, into folders named as the account
   names them. It now keeps what the store knows of each: unread, a draft (in Drafts or flagged
