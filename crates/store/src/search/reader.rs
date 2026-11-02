@@ -9,6 +9,7 @@
 //! reads only the doc pages and segments a newer generation changed.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use mailcraft_model::search::TOKENIZER_VERSION;
 
@@ -115,6 +116,13 @@ pub struct Reader {
     cache: Cache,
     /// The text pages read lately, apart from `cache`.
     texts: Cache,
+    /// The lexicon page looked through last, decoded, with the epoch and segment it's of: a word
+    /// with thousands of words starting so (a one-letter word) is looked up a few at a unit, on
+    /// the same page unit after unit, and decoding the page again for each was most of it (177 ms
+    /// of 681 units for `k` over 50,000 messages).
+    lex_held: Option<(u64, SegInfo, u32, Arc<Vec<LexEntry>>)>,
+    /// Lexicon pages decoded so far.
+    lex_decoded: u64,
 }
 
 impl Reader {
@@ -168,6 +176,8 @@ impl Reader {
             heads: Vec::new(),
             cache: Cache::default(),
             texts: Cache::default(),
+            lex_held: None,
+            lex_decoded: 0,
         };
         for (i, d) in r.docs.iter().enumerate() {
             if d.live() {
@@ -292,6 +302,12 @@ impl Reader {
         self.cache.reads.wrapping_add(self.texts.reads)
     }
 
+    /// Lexicon pages decoded so far (a page looked through again, unit after unit, isn't).
+    #[cfg(test)]
+    pub(crate) fn lex_decoded(&self) -> u64 {
+        self.lex_decoded
+    }
+
     /// The doc a message is, when it's indexed.
     pub fn doc(&self, key: &MessageKey) -> Option<u32> {
         self.doc_at(self.folder_number(&key.folder)?, key.validity, key.uid)
@@ -398,10 +414,19 @@ impl Reader {
         Ok(out)
     }
 
-    fn lex_page(&mut self, store: &Store, info: &SegInfo, page: u32) -> Result<Vec<LexEntry>> {
+    fn lex_page(&mut self, store: &Store, info: &SegInfo, page: u32) -> Result<Arc<Vec<LexEntry>>> {
+        let epoch = self.meta.epoch;
+        if let Some((e, seg, p, entries)) = &self.lex_held
+            && (*e, seg, *p) == (epoch, info, page)
+        {
+            return Ok(entries.clone());
+        }
         let path = Name::SegLex(info.id, page).path(&self.base);
-        let bytes = self.cache.get(store, self.meta.epoch, &path)?;
-        decode_lex(&bytes, self.meta.next_doc, info.post_pages).map_err(|what| damaged(&path, what))
+        let bytes = self.cache.get(store, epoch, &path)?;
+        self.lex_decoded = self.lex_decoded.wrapping_add(1);
+        let entries = Arc::new(decode_lex(&bytes, self.meta.next_doc, info.post_pages).map_err(|what| damaged(&path, what))?);
+        self.lex_held = Some((epoch, *info, page, entries.clone()));
+        Ok(entries)
     }
 
     /// Set a word's live docs in `out`; the postings pages read.

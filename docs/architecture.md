@@ -421,7 +421,8 @@ The session runs a search a bounded unit of work at a time (`session/searching/r
 folder's list read (`Store::folder_load`), an account's index opened, up to two of its pages looked
 through for a query word and the docs of about two pages' worth of its words set
 (`Reader::scan_prefix`: a one-letter word's thousands of words, their docs in the lexicon page
-itself, are spread over units too; a word looked up lately is taken as the same generation of the
+itself, are spread over units too, the lexicon page looked through last kept decoded so a page is
+decoded once however many units read it; a word looked up lately is taken as the same generation of the
 index gave it, `searching/look_up.rs`, 32 words an account), 512 summaries checked (128 whose folded
 text is made first, in a session just opened), a message's kept text read or 256 KiB of it checked
 (a phrase across two slices is in the second, which starts 4 KiB back), or putting the list together
