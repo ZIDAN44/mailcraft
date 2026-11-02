@@ -1403,6 +1403,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   own), counts unread mail in its folders, makes folders with a container class and records
   special folders (`PATCHES.md` 13–15). The round trip through the import keeps all of it but the
   due day, and `pst_append` fuzzes adding such a message to a damaged file's name map.
+- **A double-clicked attachment only opens:** a double-click on an attachment opens it in the
+  app for its kind, as Outlook's does, and the reading pane goes on showing the message; its
+  first click had shown the file there already, left behind the app it opened in (in a
+  message's own window too, and for every kind of file). A click alone still previews it, once
+  the double-click time is out, as PDFCraft's full screen waits before it turns a page.
 - **Opened pictures:** every attachment opened or saved on Windows carried the mark that it came
   from the internet, and Windows' Photos now asks "Is this file from a trusted source?" before
   every picture with it. A picture whose bytes are the picture its name says, and plain text,

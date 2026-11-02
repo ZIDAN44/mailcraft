@@ -95,6 +95,8 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     let summary = s.summary(&r.key).cloned();
     // Being read and parsed on the reading lane (a frame or a few): its subject and a spinner.
     let getting_ready = s.body_waiting(&r.key);
+    // A chip clicked a moment ago: its preview, unless that click became a double-click.
+    settle_attachment_click(st, ui);
     // An attachment shown in place of the text (its chip clicked); Escape goes back.
     let viewing = st
         .attachment_view

@@ -3,6 +3,7 @@
 use super::*;
 
 mod plain_text;
+mod attachments;
 
 #[test]
 fn renders_every_state_without_panicking() {
@@ -192,33 +193,6 @@ fn long_folders_render_quickly() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-#[test]
-fn every_kind_of_attachment_previews_in_the_reading_pane() {
-    let (mut a, dir) = app("attachment-preview");
-    let ctx = egui::Context::default();
-    frame(&ctx, &mut a, vec![]);
-    let k = a.session.list.iter().find(|m| m.subject.starts_with("Your proof")).map(|m| m.key.clone()).unwrap();
-    a.run("list.open", json!({"key": k.to_id()}));
-    frame(&ctx, &mut a, vec![]);
-    let n = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map_or(0, |p| p.attachments.len());
-    assert_eq!(n, 4, "notes, a PDF, a document and a workbook");
-    for i in 0..n {
-        a.ui.attachment_view = Some((k.clone(), i));
-        // A PDF draws a page a frame.
-        for _ in 0..3 {
-            frame(&ctx, &mut a, vec![]);
-        }
-        assert_eq!(a.ui.attachment_view, Some((k.clone(), i)));
-    }
-    // Escape: back to the message.
-    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
-    assert!(a.ui.attachment_view.is_none());
-    // One that isn't there any more (another message's index) is just the message.
-    a.ui.attachment_view = Some((k.clone(), 99));
-    frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
-}
-
 /// A text file in another charset previews in it: the pane read its bytes as they came (Save's)
 /// as UTF-8, so Windows-1252 and UTF-16 files showed replacement characters.
 #[test]
@@ -269,24 +243,6 @@ fn ctrl_a_selects_attachments_when_they_have_the_keyboard() {
     assert!(a.ui.attachment_selected.is_none(), "a click elsewhere lets go of them");
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert_eq!(a.session.selection.len(), a.session.list.len());
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-/// Back from a previewed attachment, its chip isn't left selected.
-#[test]
-fn leaving_an_attachment_preview_lets_go_of_its_chip() {
-    let (mut a, dir) = app("attach-back");
-    let ctx = egui::Context::default();
-    frame(&ctx, &mut a, vec![]);
-    let k = a.session.list.iter().find(|m| m.subject.contains("festival poster")).map(|m| m.key.clone()).unwrap();
-    a.run("list.open", json!({"key": k.to_id()}));
-    frame(&ctx, &mut a, vec![]);
-    let index = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.attachments[0].index).unwrap();
-    a.ui.attachment_view = Some((k.clone(), index));
-    a.ui.attachment_selected = Some((k.clone(), vec![index]));
-    frame(&ctx, &mut a, vec![]);
-    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
-    assert!(a.ui.attachment_view.is_none() && a.ui.attachment_selected.is_none());
     let _ = std::fs::remove_dir_all(dir);
 }
 
