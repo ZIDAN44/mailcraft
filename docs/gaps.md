@@ -2339,7 +2339,7 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   repository, its PATCHES.md listing the fixes) and adds to permute- and cyclic-encoded files,
   writing the new data blocks encoded the same way. It also carries the reader's fixes, and reads
   a file it adds to as the reader does: a damaged one is an error rather than a stack overflow,
-  an assert or a walk that never ends. A file in
+  an assert or a walk that never ends (fuzzed by `pst_append`: a damaged file added to). A file in
   Outlook 97–2002's ANSI format now says so, and one that can't be read says that. On a copy of
   the 41 GB file (permute-encoded), 240 messages from the sample mailbox went in in 128 s, the
   export all told (the 34,691 messages' ids read, the file copied, eight folders committed), the

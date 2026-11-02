@@ -1521,6 +1521,7 @@ dependencies = [
  "mailcraft-net",
  "mailcraft-smime",
  "mailcraft-store",
+ "outlook-pst-rw",
  "rand_core 0.6.4",
 ]
 

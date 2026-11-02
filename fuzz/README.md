@@ -20,6 +20,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
 | `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files; a message told signed or encrypted from its header alone, never wrongly told it isn't |
 | `pst` | an Outlook data file: a good exported file with the input as byte patches, or a whole file |
+| `pst_append` | mail added to an Outlook data file already there, as an export adds to one: a file the writer made with the input as byte patches, or a whole file (a seed is one encoded as Outlook encodes its files), then a message with a file appended and the file read back |
 | `import_checkpoint` | an import's checkpoint read back from an account's data file: checked (counts, folders named once and where they're used, the part-way folder's list tail), and one that would be gone on from written again and read back the same |
 | `pst_item` | a `.pst` mail item rebuilt as a message from hostile property values: the headers made from them (Thread-Index, Thread-Topic, Sensitivity) stay on clean lines of their own; recipients' one-off entry ids; categories as keywords; an original header's `multipart/report` type |
 | `pst_props` | text in a data file's properties: an HTML body or an 8-bit string in its code page (a declared charset, byte-order marks), and the bytes in a code page of each kind MailCraft reads (the input names any other) |
@@ -50,4 +51,6 @@ file as damaged, the right answer for a damaged file: that target aborts only on
 MailCraft's own code, and a panic in the reader (built from MailCraft's fork) is not one.
 Its seeds are the patches' starting point and a whole file whose first attachment holds a
 message and whose second is a zero-byte file (as `pst/tests/reader.rs` makes it), so the reader's
-paths for those are fuzzed too.
+paths for those are fuzzed too. `pst_append` has no such exception: the writer, built from
+MailCraft's fork (`craft/rw-1.2.14`), reads the file it adds to as the reader does and turns a
+damaged one into an error, so a panic anywhere in it is a crash to fix there.

@@ -19,6 +19,7 @@ bin = [
     { name = "mime_parse", bench = false, test = false, doc = false, path = "fuzz_targets/mime_parse.rs" }, # raw message sources
     { name = "photo", bench = false, test = false, doc = false, path = "fuzz_targets/photo.rs" }, # photos' EXIF and XMP blocks as they're sent
     { name = "pst", bench = false, test = false, doc = false, path = "fuzz_targets/pst.rs" }, # Outlook data file import
+    { name = "pst_append", bench = false, test = false, doc = false, path = "fuzz_targets/pst/pst_append.rs" }, # mail added to a damaged data file
     { name = "pst_item", bench = false, test = false, doc = false, path = "fuzz_targets/pst_item.rs" }, # a .pst item rebuilt from its properties
     { name = "pst_props", bench = false, test = false, doc = false, path = "fuzz_targets/pst_props.rs" }, # text in a data file's properties, by code page
     { name = "pst_recurrence", bench = false, test = false, doc = false, path = "fuzz_targets/pim/pst_recurrence.rs" }, # a .pst appointment's recurrence and its changed occurrences
@@ -38,6 +39,7 @@ mailcraft-mime.path = "../crates/mime" # MIME, HTML and markup
 mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
 mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
 mailcraft-smime.path = "../crates/smime" # S/MIME
+pst_rw = { package = "outlook-pst-rw", version = "1.2.14" } # the .pst writer, from MailCraft's fork below
 rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
 mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to, the search index
 
