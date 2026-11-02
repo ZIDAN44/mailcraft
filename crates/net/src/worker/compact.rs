@@ -3,11 +3,12 @@
 //! raw compressed again first, in the background; then the database's own compaction, which has
 //! the file to itself), or by a copy into a new file, in the background; or not at all, told why.
 //!
-//! While a compaction has the file to itself, the account's jobs wait here rather than go to its
-//! threads ([`Pool::held_for_compaction`]): its sync is paused, no message is fetched (so no
-//! events pile up for the window to apply after), and nothing on the pool's own thread (the
-//! window's) waits on the file. They go on as soon as that part ends. A sync already under way
-//! waits for the file in the store, as anything else asking for it does.
+//! While a compaction has the file to itself (in place, or at the end of a copy), the account's
+//! jobs wait here rather than go to its threads ([`Pool::held_for_compaction`]): its sync is
+//! paused, no message is fetched (so no events pile up for the window to apply after), and nothing
+//! on the pool's own thread (the window's) waits on the file. They go on as soon as that part
+//! ends. A sync already under way waits for the file in the store, as anything else asking for it
+//! does.
 //!
 //! Progress comes at most every [`PROGRESS_EVERY`]. Stopping ([`Job::CancelCompact`]) is heard
 //! between batches; the part that has the file to itself can't be stopped.
@@ -311,7 +312,16 @@ impl Run {
             }
             true
         };
-        match self.store.copy_data_file(&self.account, &mut go_on) {
+        // The end has the file to itself too: said, and the account's jobs held, as in place.
+        let mut exclusive: Option<Exclusive> = None;
+        let mut swap = || {
+            exclusive = Some(Exclusive::begin(&self.exclusive));
+            self.progress(CompactPhase::Exclusive, Work::default(), None);
+            true
+        };
+        let copied = self.store.copy_data_file(&self.account, &mut go_on, &mut swap);
+        drop(exclusive);
+        match copied {
             Ok(Some(s)) if s.cancelled && short => report.error = Some("the drive is running out of room; the copy was thrown away".into()),
             Ok(Some(s)) if s.cancelled => report.cancelled = true,
             Ok(Some(s)) => {

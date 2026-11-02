@@ -3,7 +3,8 @@
 //!
 //! Either way the account's file is had to itself at the end ([`Packs::take`]): taken out of the
 //! open files with the account marked as opening, so whoever asks for it meanwhile (a sync, a
-//! removal, letting it go) waits until it's back, and taken up only once nothing holds it (a call
+//! removal, letting it go) waits until it's back (but for a read from the window's thread, refused
+//! at once: [`super::no_waiting`]), and taken up only once nothing holds it (a call
 //! under way holds it for milliseconds; one that holds it longer than [`TAKE_WAIT`] has it given
 //! back, and the compaction refused). Should it fail or panic meanwhile, the file is closed rather
 //! than given back, and opened again (checked, when it has to be) the next time it's asked for.
@@ -19,9 +20,13 @@
 //! (as a build before 0.32 kept attachments): the account goes on being read and written
 //! meanwhile, and the copy can be stopped at any batch (it's thrown away). Every key written
 //! meanwhile is noted ([`Journal`]); once the copy has every file, the account's file is had to
-//! itself, those keys are copied again, the copy sealed, and put in its place. A crash before that
+//! itself, those keys are copied again (compressed as the batches are), the copy sealed, and put
+//! in its place, with what recompressing had counted in the old file's `META`. A crash before that
 //! leaves the old file as it was (and the copy, removed when the data files next open); the
-//! rename that puts it in place is the drive's own, all or nothing.
+//! rename that puts it in place is the drive's own, all or nothing, tried again while another
+//! program has the file open for a moment, and made to last (`crate::atomic::rename`). A file in
+//! pieces that don't add up (damaged) can't be copied as it is: the copy is refused rather than
+//! made without it.
 
 use std::collections::BTreeSet;
 use std::ops::Bound;
@@ -146,9 +151,28 @@ struct CopyBatch {
     files: Vec<(String, Vec<u8>)>,
     last: Option<String>,
     looked_bytes: u64,
-    /// Damaged files (pieces missing), left out of the copy.
+    /// Damaged files (pieces missing): a copy would be without them, so none is made.
     damaged: u64,
     end: bool,
+}
+
+/// A copy refused because the data file has files in pieces that don't add up.
+fn damaged_refused(damaged: u64) -> io::Error {
+    io::Error::other(format!("{damaged} file(s) in the data file are damaged and a copy would be without them, so it wasn't copied"))
+}
+
+/// `files` (key, as kept) written to a copy, what an earlier build kept raw compressed on the way.
+fn put_copied(t: &mut Tables<'_>, files: &[(String, Vec<u8>)]) -> io::Result<()> {
+    let raw: Vec<usize> = files.iter().enumerate().filter(|(_, (k, v))| to_compress(k, v)).map(|(i, _)| i).collect();
+    let packed = compress(&raw.iter().filter_map(|i| files.get(*i).map(|(_, v)| v.as_slice())).collect::<Vec<_>>());
+    let mut packed = raw.into_iter().zip(packed).filter_map(|(i, p)| Some((i, p?))).peekable();
+    for (i, (key, kept)) in files.iter().enumerate() {
+        match packed.next_if(|(at, _)| *at == i) {
+            Some((_, p)) => t.put_kept(key, &p)?,
+            None => t.put_kept(key, kept)?,
+        }
+    }
+    Ok(())
 }
 
 /// The next batch of every file after `after` (from the start: `None`), up to [`COPY_BYTES`] (one
@@ -247,6 +271,7 @@ impl Packs {
         let mut open = self.settled(account);
         let Some(mut db) = open.dbs.remove(account) else { return Ok(None) };
         open.opening.insert(account.to_string());
+        open.taken.insert(account.to_string());
         drop(open);
         let opening = Opening { packs: self, account };
         // The sealing thread lets go of it (a seal under way ends first); nothing waits to seal it.
@@ -297,8 +322,14 @@ impl Packs {
 
     /// `account`'s data file copied into a new one that takes its place
     /// ([`crate::Store::copy_data_file`]); `None` when it has none, or is removed meanwhile.
-    /// `go_on` hears how far it has come before each batch, and stops it by saying no.
-    pub(crate) fn compact_by_copy(&self, account: &str, go_on: &mut dyn FnMut(Work) -> bool) -> io::Result<Option<Shrunk>> {
+    /// `go_on` hears how far it has come before each batch, and stops it by saying no; `swap`
+    /// hears it's about to have the file to itself, and stops it too by saying no.
+    pub(crate) fn compact_by_copy(
+        &self,
+        account: &str,
+        go_on: &mut dyn FnMut(Work) -> bool,
+        swap: &mut dyn FnMut() -> bool,
+    ) -> io::Result<Option<Shrunk>> {
         let Some(path) = self.file(account) else { return Ok(None) };
         let Some(db) = self.db(account, false)? else { return Ok(None) };
         let start = Instant::now();
@@ -327,19 +358,11 @@ impl Packs {
             let Some(db) = self.db(account, false)? else { return Ok(None) };
             let batch = read_copy_batch(&db, after.as_deref())?;
             drop(db);
-            let raw: Vec<usize> = batch.files.iter().enumerate().filter(|(_, (k, v))| to_compress(k, v)).map(|(i, _)| i).collect();
-            let packed = compress(&raw.iter().filter_map(|i| batch.files.get(*i).map(|(_, v)| v.as_slice())).collect::<Vec<_>>());
-            let mut packed = raw.into_iter().zip(packed).filter_map(|(i, p)| Some((i, p?))).peekable();
-            write_copy(&new, |t| {
-                for (i, (key, kept)) in batch.files.iter().enumerate() {
-                    match packed.next_if(|(at, _)| *at == i) {
-                        Some((_, p)) => t.put_kept(key, &p)?,
-                        None => t.put_kept(key, kept)?,
-                    }
-                }
-                Ok(())
-            })?;
             damaged = damaged.saturating_add(batch.damaged);
+            if damaged > 0 {
+                return Err(damaged_refused(damaged));
+            }
+            write_copy(&new, |t| put_copied(t, &batch.files))?;
             work.done = work.done.saturating_add(batch.files.len() as u64).saturating_add(batch.damaged).min(work.total);
             work.bytes_done = work.bytes_done.saturating_add(batch.looked_bytes).min(work.bytes_total);
             if batch.last.is_some() {
@@ -350,11 +373,11 @@ impl Packs {
             }
             std::thread::yield_now();
         }
-        if damaged > 0 {
-            log::warn!("{account}: {damaged} damaged file(s) left out of its data file's copy");
-        }
         // The rest with the file to itself: what was written meanwhile copied again, the copy
         // sealed, closed and put in its place.
+        if !swap() {
+            return Ok(Some(Shrunk { before, after: before, elapsed_ms: 0, cancelled: true, ..Shrunk::default() }));
+        }
         let Some(mut taken) = self.take(account)? else { return Ok(None) };
         let journal = Packs::lock(&self.copying).get_mut(account).map(std::mem::take).unwrap_or_default();
         if journal.full {
@@ -362,7 +385,7 @@ impl Packs {
             return Err(io::Error::other("too much was written to the data file while it was copied; it's tried again later"));
         }
         let Some(db) = taken.db.take() else { return Ok(None) };
-        let pace = {
+        let meta = {
             let tx = db.begin_read().map_err(disk)?;
             let files = tx.open_table(FILES).map_err(disk)?;
             let pieces = match tx.open_table(PIECES) {
@@ -370,30 +393,43 @@ impl Packs {
                 Err(redb::TableError::TableDoesNotExist(_)) => None,
                 Err(e) => return Err(disk(e)),
             };
+            let (mut now, mut gone) = (Vec::new(), Vec::new());
+            for key in &journal.keys {
+                match files.get(key.as_str()).map_err(disk)? {
+                    Some(v) => match kept_bytes(key, v.value(), pieces.as_ref())? {
+                        Some(kept) => now.push((key.clone(), kept)),
+                        None => return Err(damaged_refused(1)),
+                    },
+                    None => gone.push(key),
+                }
+            }
             write_copy(&new, |t| {
-                for key in &journal.keys {
-                    let now = match files.get(key.as_str()).map_err(disk)? {
-                        Some(v) => kept_bytes(key, v.value(), pieces.as_ref())?,
-                        None => None,
-                    };
-                    match now {
-                        Some(kept) => t.put_kept(key, &kept)?,
-                        None => t.remove(key)?,
-                    }
+                put_copied(t, &now)?;
+                for key in gone {
+                    t.remove(key)?;
                 }
                 Ok(())
             })?;
-            read_meta(&tx)?.pace
+            read_meta(&tx)?
         };
-        // Everything in it is kept as this build keeps it; sealed, and on the disk.
+        // Everything in it is kept as this build keeps it (what recompressing counted in the old
+        // file carried over); sealed, and on the disk.
         let mut tx = new.begin_write().map_err(disk)?;
         tx.set_quick_repair(true);
-        write_meta(&tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice()), (PACE, pace.to_le_bytes().as_slice())])?;
+        let counted = [(DEFLATE, DEFLATE_NOW), (PACE, meta.pace), (STAYED_RAW, meta.stayed_raw), (SAVED, meta.saved), (PASSED, meta.passed)];
+        let counted: Vec<(&str, [u8; 8])> = counted.iter().map(|(k, v)| (*k, v.to_le_bytes())).collect();
+        write_meta(&tx, &counted.iter().map(|(k, v)| (*k, v.as_slice())).collect::<Vec<_>>())?;
         tx.commit().map_err(disk)?;
         drop(new);
         drop(db);
-        fs::rename(&copy.path, &path)?;
+        // A test's: something holding the file as it's put in place.
+        #[cfg(test)]
+        if let Some(hook) = Packs::lock(&self.compact_hook).as_ref() {
+            hook()?;
+        }
+        crate::atomic::rename(&copy.path, &path)?;
         copy.kept = true;
+        crate::atomic::sync_folder_of(&path);
         drop(taken);
         // What the new file has over what it keeps is the least it can have.
         if let Err(e) = self.compacted(account) {

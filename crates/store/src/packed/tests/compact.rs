@@ -107,7 +107,7 @@ fn an_old_file(base64_files: u32) -> (Kept, Vec<String>, Vec<String>) {
 }
 
 /// A note for a file in pieces, with none of them there.
-fn damaged(s: &Store, key: &str) {
+pub(super) fn damaged(s: &Store, key: &str) {
     let db = packs(s).db("a1", false).unwrap().unwrap();
     let tx = db.begin_write().unwrap();
     {

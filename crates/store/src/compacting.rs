@@ -43,9 +43,11 @@ impl Store {
     /// again on the way what a build before 0.32 kept raw: the account is read and written as
     /// ever meanwhile (what's written is copied again at the end, with the file to itself for
     /// that and the swap). It needs room for the copy on the drive. `go_on` hears how far it has
-    /// come before each batch, and stops it by saying no (the copy is thrown away). `None` when
-    /// the account has no data file, or is removed meanwhile.
-    pub fn copy_data_file(&self, account: &str, go_on: &mut dyn FnMut(Work) -> bool) -> Result<Option<Shrunk>> {
+    /// come before each batch, and stops it by saying no (the copy is thrown away); `swap` hears
+    /// just before the file is had to itself for the end, and stops it too by saying no. `None`
+    /// when the account has no data file, or is removed meanwhile. Refused when files in it are
+    /// damaged (a copy would be without them).
+    pub fn copy_data_file(&self, account: &str, go_on: &mut dyn FnMut(Work) -> bool, swap: &mut dyn FnMut() -> bool) -> Result<Option<Shrunk>> {
         if self.is_online_only(account) {
             return Ok(None);
         }
@@ -53,10 +55,10 @@ impl Store {
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => {
                 let a = safe_segment(account);
-                x.compact_by_copy(&a, go_on).map_err(|source| StoreError::Io { path: a, source })
+                x.compact_by_copy(&a, go_on, swap).map_err(|source| StoreError::Io { path: a, source })
             }
             _ => {
-                let _ = go_on;
+                let _ = (go_on, swap);
                 Ok(None)
             }
         }

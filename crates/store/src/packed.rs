@@ -35,6 +35,7 @@ pub use compact::fuzz_data_file;
 use health::*;
 use kept::*;
 pub(crate) use kept::{pack_owned, unpack};
+pub(crate) use open::no_waiting;
 use open::*;
 use shrink::Journal;
 

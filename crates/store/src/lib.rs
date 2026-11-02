@@ -668,6 +668,14 @@ impl Store {
     }
 }
 
+/// The calling thread (the window's) is never kept waiting by a compaction that has an account's
+/// data file to itself: what it reads of that file fails at once (`WouldBlock`, "being
+/// compacted") until it's given back, rather than freezing the window. Writes still wait.
+pub fn no_waiting() {
+    #[cfg(not(target_arch = "wasm32"))]
+    packed::no_waiting();
+}
+
 /// The app folder (the account list, the app's state): the per-user one
 /// ([`location::base_root`]); `MAILCRAFT_DATA` overrides it. The accounts' data files are in
 /// [`location::files_dir`].

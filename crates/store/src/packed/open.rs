@@ -28,6 +28,9 @@ pub(super) struct Open {
     pub(super) dbs: HashMap<String, Arc<Database>>,
     /// Being opened, by a thread holding no lock: others asking for it wait ([`Packs::opened`]).
     pub(super) opening: HashSet<String>,
+    /// Of those, the ones a compaction has to itself (`shrink.rs`): a read from the window's
+    /// thread isn't kept waiting for them ([`no_waiting`]).
+    pub(super) taken: HashSet<String>,
     /// The cache each open data file was opened with, when not [`CACHE`].
     pub(super) caches: HashMap<String, usize>,
     /// Accounts taking a bulk write, and the cache their data file has meanwhile.
@@ -73,7 +76,10 @@ pub(super) struct Opening<'a> {
 
 impl Drop for Opening<'_> {
     fn drop(&mut self) {
-        Packs::lock(&self.packs.open).opening.remove(self.account);
+        let mut open = Packs::lock(&self.packs.open);
+        open.opening.remove(self.account);
+        open.taken.remove(self.account);
+        drop(open);
         self.packs.opened.notify_all();
     }
 }
@@ -94,6 +100,41 @@ impl Open {
     }
 }
 
+thread_local! {
+    /// This thread mustn't wait for a data file a compaction has to itself ([`no_waiting`]).
+    static NO_WAITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// This thread is writing ([`ThreadWriting`]): a write always waits its turn.
+    static WRITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The calling thread (the window's) is never kept waiting by a compaction that has an account's
+/// data file to itself: a read of it fails at once ([`io::ErrorKind::WouldBlock`], "being
+/// compacted") rather than freezing the window for as long as that takes (125 s, cold, for a
+/// 44 GB file). A write still waits its turn: it's never refused for that.
+pub(crate) fn no_waiting() {
+    NO_WAITING.with(|w| w.set(true));
+}
+
+/// A write under way on this thread, until dropped ([`no_waiting`] doesn't refuse it).
+pub(super) struct ThreadWriting(bool);
+
+impl ThreadWriting {
+    pub(super) fn begin() -> ThreadWriting {
+        ThreadWriting(WRITING.with(|w| w.replace(true)))
+    }
+}
+
+impl Drop for ThreadWriting {
+    fn drop(&mut self) {
+        WRITING.with(|w| w.set(self.0));
+    }
+}
+
+/// Why a read from a thread that doesn't wait ([`no_waiting`]) is refused.
+pub(super) fn being_compacted() -> io::Error {
+    io::Error::new(io::ErrorKind::WouldBlock, "this data file is being compacted; it's ready in a moment")
+}
+
 impl Packs {
     /// The open files, once no thread is opening `account`'s.
     pub(super) fn settled(&self, account: &str) -> std::sync::MutexGuard<'_, Open> {
@@ -102,6 +143,20 @@ impl Packs {
             open = self.opened.wait(open).unwrap_or_else(std::sync::PoisonError::into_inner);
         }
         open
+    }
+
+    /// [`Packs::settled`], but a read from a thread that doesn't wait ([`no_waiting`]) for a file
+    /// a compaction has to itself is refused at once ([`being_compacted`]).
+    fn settled_or_busy(&self, account: &str) -> io::Result<std::sync::MutexGuard<'_, Open>> {
+        let refuse = NO_WAITING.with(std::cell::Cell::get) && !WRITING.with(std::cell::Cell::get);
+        let mut open = Packs::lock(&self.open);
+        while open.opening.contains(account) {
+            if refuse && open.taken.contains(account) {
+                return Err(being_compacted());
+            }
+            open = self.opened.wait(open).unwrap_or_else(std::sync::PoisonError::into_inner);
+        }
+        Ok(open)
     }
 
     /// Let go of an account's data file (once it's done opening): whether it was open.
@@ -255,7 +310,7 @@ impl Packs {
     /// was checked again at every start until something sealed it (any way the process ended but
     /// closing, a window closed while it booted included).
     pub(super) fn db(&self, account: &str, create: bool) -> io::Result<Option<Arc<Database>>> {
-        let mut open = self.settled(account);
+        let mut open = self.settled_or_busy(account)?;
         if let Some(db) = open.dbs.get(account) {
             if open.caches.get(account).copied().unwrap_or(CACHE) == open.wanted(account) {
                 return Ok(Some(db.clone()));
@@ -264,7 +319,7 @@ impl Packs {
             // was in use): opened again with that one, once nobody holds it.
             drop(open);
             self.recache(account);
-            open = self.settled(account);
+            open = self.settled_or_busy(account)?;
             if let Some(db) = open.dbs.get(account) {
                 return Ok(Some(db.clone()));
             }

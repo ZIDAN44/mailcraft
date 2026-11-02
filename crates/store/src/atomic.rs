@@ -37,14 +37,21 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         let _ = fs::remove_file(&scratch);
     }
     outcome?;
-    // Make the rename itself last too. Unix only: Windows can't open a folder to flush it.
+    sync_folder_of(path);
+    Ok(())
+}
+
+/// Make a rename to `path` last too: its folder flushed to the disk, so a power cut can't bring
+/// back the old name. Unix only (Windows can't open a folder to flush it); best effort.
+pub(crate) fn sync_folder_of(path: &Path) {
     #[cfg(unix)]
     if let Some(folder) = path.parent()
         && let Ok(handle) = fs::File::open(folder)
     {
         let _ = handle.sync_all();
     }
-    Ok(())
+    #[cfg(not(unix))]
+    let _ = path;
 }
 
 /// Renames `from` to `to`. On Windows a file another program has open for a moment (OneDrive

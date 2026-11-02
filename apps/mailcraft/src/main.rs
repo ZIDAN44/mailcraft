@@ -548,6 +548,9 @@ fn run(
         options,
         Box::new(move |cc| {
             // What the window needs from the start, before MailCraft is in it.
+            // Its thread is never kept waiting by a compaction that has a data file to itself:
+            // what it reads of that file fails at once ("being compacted") until it's given back.
+            mailcraft_engine::store::no_waiting();
             // The updater wakes the window as the update downloads and is ready.
             if let Some(u) = &updater {
                 let ctx = cc.egui_ctx.clone();

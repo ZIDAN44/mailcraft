@@ -333,6 +333,7 @@ impl Packs {
         create: bool,
         f: impl FnOnce(&mut Tables<'_>, &redb::WriteTransaction) -> io::Result<()>,
     ) -> io::Result<()> {
+        let _writing = ThreadWriting::begin();
         let Some(db) = self.db(account, create)? else { return Err(io::Error::from(io::ErrorKind::NotFound)) };
         let done = self.change_in(&db, account, how, undurable, since, f);
         if let Err(e) = &done
@@ -528,6 +529,7 @@ impl Packs {
     /// Seal the data file of the account folder `dir`, when it has one.
     pub(crate) fn seal(&self, dir: &Path) -> Result<()> {
         let Place::Account(a) = self.place(dir) else { return Ok(()) };
+        let _writing = ThreadWriting::begin();
         let Some(db) = self.db(&a, false).map_err(io_err(dir))? else { return Ok(()) };
         seal(&db, &self.seals, &a).map_err(io_err(dir))
     }
