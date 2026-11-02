@@ -14,7 +14,7 @@ _Status: v0.32, 2026-10-31._
 |---|---|---|
 | 1 | **Browser version: accounts other than JMAP** | The web build syncs JMAP accounts over `fetch`, with push, and keeps its cache in IndexedDB; the server must allow the page (CORS). A browser can't open IMAP or SMTP connections, so IMAP accounts would need a relay server that holds the password and speaks JMAP to the page: a server product of its own, not built. |
 | 2 | **Right-to-left: inside the editor, dialogs and menus** | The mail window mirrors, inside its panes too, and right-to-left mail and interface text read right to left and can be selected with the pointer and copied. Not yet: dialogs, Calendar, People and Notes aren't mirrored inside; egui's menu items stay on the left (the Craft apps' egui mirrors where menus open and their arrows, but lays their items out with `top_down_justified(Align::Min)`: a one-line change in the shared fork, storytold/egui's `containers/menu.rs`); in the message editor a line mixing right-to-left and left-to-right words shows in the order egui lays it out. |
-| 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail (signed and encrypted mail as it was sent, meeting requests with their invitation), contacts, contact groups, calendar items, notes, journal entries (as notes) and tasks with a due date come in; export writes the mail as `.pst` (a new file, or added to one already there in Outlook's current format) and the calendar and contacts beside it as `.ics` and `.vcf`. A data file opened as a mailbox is read from a copy: what's changed there stays in MailCraft. The writer (`outlook-pst-rw` 1.2.14) makes mail items only (`IPM.Note`), marked read, so contacts, appointments and flags can't go inside the `.pst`. The reader (`outlook-pst` 1.2.0) is built from MailCraft's fork of it (`ZIDAN44/outlook-pst-rs`) with its fixes, so attached messages read and come back as the file's own message type; the import brings each in as an attached `.eml` with the files inside it, three attached messages deep. Tasks without a due date are left out (MailCraft has no task list). |
+| 3 | **Outlook data files: what the `.pst` libraries can't do** | Mail (signed and encrypted mail as it was sent, meeting requests with their invitation), contacts, contact groups, calendar items (with a repeating one's changed occurrences), notes, journal entries (as notes) and tasks with a due date come in; export writes the mail as `.pst` (a new file, or added to one already there in Outlook's current format) and the calendar and contacts beside it as `.ics` and `.vcf`. A data file opened as a mailbox is read from a copy: what's changed there stays in MailCraft. The writer (`outlook-pst-rw` 1.2.14) makes mail items only (`IPM.Note`), marked read, so contacts, appointments and flags can't go inside the `.pst`. The reader (`outlook-pst` 1.2.0) is built from MailCraft's fork of it (`ZIDAN44/outlook-pst-rs`) with its fixes, so attached messages read and come back as the file's own message type; the import brings each in as an attached `.eml` with the files inside it, three attached messages deep. Tasks without a due date are left out (MailCraft has no task list). |
 | 4 | **Drag attachments out on a Wayland-only desktop** | Works on Windows, macOS, and Linux and the BSDs under X11 (XDND), and on Wayland desktops through XWayland, which the window opens on by default. With `MAILCRAFT_WAYLAND=1`, or on a desktop without XWayland, the window is native Wayland, where the Craft apps' winit (0.30, storytold/winit) can take drops but not start a drag. Upstream winit 0.31 adds it (`ActiveEventLoop::start_drag`, rust-windowing/winit#4571); it comes to MailCraft when egui and the Craft forks move to 0.31 (still in beta, and egui on 0.30.13). |
 | 5 | **Public folders on Exchange Online** | Public folders list and sync on on-premises Exchange through EWS. Exchange Online reaches them only through EWS, which Microsoft blocks there from October 2026 and removes in April 2027, and Microsoft Graph has no public folders; its suggested replacement, Microsoft 365 Groups, needs permissions only a tenant's administrator can grant. |
 | 6 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store (Chrome's Web Smart Card API is for Isolated Web Apps only). Its certificates are locked again after a reload unless *Keep unlocked in this browser* is on. |
@@ -1499,7 +1499,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the HTML doesn't show (3,499 in a 41 GB file) went out without it; it now stays a listed file
   with its Content-ID. A message's attachments Outlook marks hidden came in as nothing; they now
   come in as files; only a contact's hidden picture, and the changed occurrences a recurring
-  meeting carries as hidden attached messages, are left out.
+  meeting request carries as hidden attached messages, are left out of the mail (its invitation
+  carries them); an appointment's changed occurrences come in as events (below).
 - **Bounces and receipts from a `.pst` stay reports:** a delivery report, read receipt or
   feedback report that came in by mail (`multipart/report`, 11 in a 41 GB file) was rebuilt as
   `multipart/mixed`. When its original header says `multipart/report` and its files are the
@@ -1826,9 +1827,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   invitation or a contact there is counted as left out instead of being dropped unsaid. Contact
   groups come in as group cards with their members' addresses (members that are only contacts
   of the file aren't listed), journal entries as notes with their time, and calendar items keep
-  their categories, Show As, privacy and reminder. Changed occurrences of a repeating meeting,
-  and the files of contacts and calendar items, still don't come in. The 41 GB file measured has
-  none of these, so they're tried on made-up items only.
+  their categories, Show As, privacy and reminder. A repeating appointment's changed occurrences
+  (moved, retitled, with a room, text, guests, Show As or reminder of their own) come in as
+  events of their own that replace their occurrence (`RECURRENCE-ID`), from its pattern's
+  ExceptionInfo and its attached exception items (MS-OXOCAL 2.2.1.44, 2.2.10); before, a moved
+  occurrence was simply gone. A meeting request carries them in its invitation too. The files of
+  contacts and calendar items still don't come in. The 41 GB file measured has none of these
+  (its calendar, contacts and tasks folders are empty, and its 34,691 items are all mail), so
+  they're tried on made-up items only: `outlook-pst-rw` writes mail items alone, so no test
+  `.pst` can hold an appointment or a contact.
 - **The search index is built in the background:** each account's mail is now indexed for
   search as it comes (a sync, a message downloaded, a move or delete, an import's end), on a
   thread of its own, with the messages read and their text taken out on all but two of the

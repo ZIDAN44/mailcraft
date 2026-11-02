@@ -72,16 +72,18 @@ fn an_unreadable_attachment_comes_from_its_row() {
     shown.insert(0x3712, Val::Text("me@studio.example".into()));
     assert!(matches!(from_row(&no_value(), &|id| shown.get(&id).cloned(), "IPM.Contact"), Got::File(_)), "one with a Content-ID");
     // A recurring series' changed occurrence: a hidden attached message, marked afException or
-    // in a meeting or an appointment, is left out; a message's hidden attached message isn't.
+    // in a meeting, is left out; a message's hidden attached message isn't, nor an appointment's
+    // (it is that occurrence, read as a message).
     let mut occurrence = hidden.clone();
     occurrence.insert(0x3705, Val::Int(5));
     let in_class = |row: &HashMap<u16, Val<'static>>, class: &str| from_row(&no_value(), &|id| row.get(&id).cloned(), class);
-    for class in ["IPM.Schedule.Meeting.Request", "IPM.Appointment"] {
-        assert!(matches!(in_class(&occurrence, class), Got::Nothing), "{class}");
+    assert!(matches!(in_class(&occurrence, "IPM.Schedule.Meeting.Request"), Got::Nothing));
+    for class in ["IPM.Note", "IPM.Appointment"] {
+        assert!(matches!(in_class(&occurrence, class), Got::Left(SkipReason::AttachedMessageUnreadable)), "{class}");
     }
-    assert!(matches!(in_class(&occurrence, "IPM.Note"), Got::Left(SkipReason::AttachedMessageUnreadable)));
     occurrence.insert(0x7FFD, Val::Int(0x2));
     assert!(matches!(in_class(&occurrence, "IPM.Note"), Got::Nothing), "afException");
+    assert!(matches!(in_class(&occurrence, "IPM.Appointment"), Got::Left(SkipReason::AttachedMessageUnreadable)), "an appointment's");
     let mut flagged = hidden.clone();
     flagged.insert(0x7FFD, Val::Int(0x1));
     assert!(matches!(in_class(&flagged, "IPM.Schedule.Meeting.Request"), Got::File(_)), "a meeting's hidden file");

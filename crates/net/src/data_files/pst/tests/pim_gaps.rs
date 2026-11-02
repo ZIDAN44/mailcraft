@@ -1,5 +1,6 @@
 //! Kinds of item a data file holds beyond plain mail: meeting requests and their answers, posts
-//! and documents, contact groups and journal entries.
+//! and documents, contact groups and journal entries; and a repeating appointment's changed
+//! occurrences.
 
 use mailcraft_model::EmailAddress;
 use mailcraft_model::job::SkipReason;
@@ -148,4 +149,49 @@ fn contact_groups_and_journal_entries_come_in() {
     let text = mailcraft_model::vcard::write(card);
     assert!(text.contains("KIND:group\r\n") && text.contains("MEMBER:mailto:ben@studio.example\r\n"), "{text}");
     assert_eq!(pim.notes[0].note.text, "Call with the printer\n2023-11-14 22:13–22:58 UTC\nProofs on Monday.\nPaper: matte.");
+}
+
+/// A changed occurrence's item, attached to its appointment (`replaces`: the occurrence), with
+/// its own text.
+fn exception(start: i64, replaces: i64, body: &str) -> File {
+    File::Message(Box::new(Item {
+        class: "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}".into(),
+        subject: "Review".into(),
+        body: body.into(),
+        extra: Some(Extra { start: Some(start), end: Some(start + 3600), replaces: Some(replaces), ..Default::default() }),
+        ..Default::default()
+    }))
+}
+
+/// A repeating appointment comes in with its changed occurrences, each an event replacing its
+/// occurrence with its own text; it counts as one calendar item.
+#[test]
+fn changed_occurrences_come_in() {
+    let s = Scratch::new("pim-changed");
+    let mut progress = |_| {};
+    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let at = |d: u32, h: i64| mailcraft_model::dates::days_from_civil(2026, 10, d) * 86_400 + h * 3600;
+    let (pattern, start) = crate::pst_pim::tests::series(0x3009);
+    out.add_pim(Item {
+        class: "IPM.Appointment".into(),
+        subject: "Review".into(),
+        body: "Weekly.".into(),
+        files: vec![exception(at(19, 8), at(19, 8), "Bring the proofs.")],
+        extra: Some(Extra { start: Some(start), end: Some(start + 3600), recurrence: pattern, ..Default::default() }),
+        ..Default::default()
+    });
+    let done = out.finish();
+    assert_eq!(done.events, 1);
+    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let events: Vec<_> = pim.events.iter().map(|e| &e.event).collect();
+    assert_eq!(events.len(), 3);
+    let series = events[0];
+    assert!(series.rrule.is_some() && series.recurrence_id.is_none());
+    let (moved, quiet) = (events[1], events[2]);
+    assert_eq!((moved.uid.as_str(), moved.recurrence_id, moved.summary.as_str()), (series.uid.as_str(), Some(at(12, 7)), "Review (moved) \u{e9}"));
+    assert_eq!((quiet.recurrence_id, quiet.start, quiet.description.as_str()), (Some(at(19, 7)), at(19, 8), "Bring the proofs."));
+    // Written as a calendar file, the series and its changed occurrences read back together.
+    let ics = mailcraft_model::ical::write(&pim.events.iter().map(|e| e.event.clone()).collect::<Vec<_>>(), None, 0);
+    let back = mailcraft_model::ical::parse(&ics, 0);
+    assert_eq!(back.events.iter().map(|e| e.recurrence_id).collect::<Vec<_>>(), [None, Some(at(12, 7)), Some(at(19, 7))]);
 }

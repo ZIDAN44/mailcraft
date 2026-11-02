@@ -741,6 +741,12 @@ pub fn inspect(path: &Path) -> Result<Planned, String> {
     Ok(Planned { messages, folders, pim_items, bytes: plan.bytes, record_key: plan.record_key.clone(), plan })
 }
 
+/// The calendar items among the events read: a changed occurrence of a repeating one is an
+/// event of its own, not another item.
+fn calendar_items(pim: &Pim) -> usize {
+    pim.events.iter().filter(|e| e.event.recurrence_id.is_none()).count()
+}
+
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the
 /// import writes it, with its summary: for the fuzz target, which hands it hostile values. Its
 /// categories are property 0x8000; its one file, when it has one, the bytes of 0x3701 (an
@@ -763,6 +769,18 @@ pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>])
     let key = MessageKey { account: "f1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
     let summary = rebuild::summary_of(&raw, glance, key, u32::try_from(raw.len()).unwrap_or(u32::MAX));
     Ok((raw, summary))
+}
+
+/// A repeating appointment's pattern (PidLidAppointmentRecur) as the import reads it, its first
+/// occurrence starting at `start` (Unix seconds): the series as an event, and its changed
+/// occurrences as events of their own. For the fuzz target.
+#[doc(hidden)]
+pub fn repeating(pattern: &[u8], start: i64) -> Vec<mailcraft_model::ical::CalEvent> {
+    let x = crate::pst_pim::Extra { start: Some(start), end: Some(start.saturating_add(3600)), recurrence: pattern.to_vec(), ..Default::default() };
+    let from = EmailAddress::default();
+    let series = crate::pst_pim::event_of(&x, "Series", "", &from, &[], "u".into());
+    let changed = crate::pst_pim::changed_events(&x, "Series", "", &from, &[], "u", &[]);
+    series.into_iter().chain(changed.into_iter().map(|(e, _)| e)).collect()
 }
 
 /// Bytes from a data file as the import reads them as text: an HTML body (`html`) in its internet

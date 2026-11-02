@@ -114,7 +114,7 @@ pub(super) fn item_of<'a>(
     let charset_unsupported = files.iter().any(|f| matches!(f, File::Message(m) if m.charset_unsupported));
     let mut it = Item { class: s(0x001A), files, charset_unsupported, ..Default::default() };
     let class = it.class.to_ascii_lowercase();
-    let pim = ["ipm.contact", "ipm.distlist", "ipm.appointment", "ipm.schedule.meeting", "ipm.task", "ipm.stickynote", "ipm.activity"];
+    let pim = ["ipm.contact", "ipm.distlist", "ipm.appointment", "ipm.schedule.meeting", "ipm.task", "ipm.stickynote", "ipm.activity", EXCEPTION];
     if pim.iter().any(|c| class.starts_with(c)) {
         it.extra = Some(crate::pst_pim::extract(p, named));
     }
@@ -350,16 +350,21 @@ fn kept_empty(e: &io::Error, method: Option<i64>) -> bool {
 }
 
 /// A contact's hidden attachment (its picture) isn't part of what comes in, unless it has a
-/// `Content-ID`; nor is a recurring series' changed occurrence, a hidden attached message
-/// (PidTagAttachmentFlags afException, or any hidden attached message of a meeting or an
-/// appointment): calendar bookkeeping, not a file. A message's other hidden files are: Outlook
-/// hides some files a message carries, and leaving them out lost them.
+/// `Content-ID`; nor is a recurring series' changed occurrence in a message, a hidden attached
+/// message (PidTagAttachmentFlags afException, or any hidden attached message of a meeting):
+/// calendar bookkeeping, not a file of the mail. An appointment's changed occurrence is read, as
+/// an attached message (its class is [`EXCEPTION`]): it is that occurrence. A message's other
+/// hidden files are: Outlook hides some files a message carries, and leaving them out lost them.
 fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> bool {
     let is = |prefix: &str| class.get(..prefix.len()).is_some_and(|c| c.eq_ignore_ascii_case(prefix));
-    let exception = matches!(p(0x7FFD), Some(Val::Int(f)) if f & 0x2 != 0)
-        || ((is("ipm.schedule.meeting") || is("ipm.appointment")) && matches!(p(0x3705), Some(Val::Int(5))));
+    let exception = !is("ipm.appointment")
+        && (matches!(p(0x7FFD), Some(Val::Int(f)) if f & 0x2 != 0) || (is("ipm.schedule.meeting") && matches!(p(0x3705), Some(Val::Int(5)))));
     matches!(p(0x7FFE), Some(Val::Bool(true))) && p(0x3712).and_then(Val::into_text).is_none_or(|c| c.is_empty()) && (is("ipm.contact") || exception)
 }
+
+/// The class of an appointment's changed occurrence, an attached message of it (MS-OXOCAL
+/// 2.2.10.1.1), lower case.
+pub(super) const EXCEPTION: &str = "ipm.ole.class.{00061055-0000-0000-c000-000000000046}";
 
 /// By reference, by reference only, or by web reference (PidTagAttachMethod 2, 4, 7): a path
 /// or an address, not the file.

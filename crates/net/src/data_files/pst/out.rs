@@ -8,6 +8,7 @@ use super::resume::CheckState;
 use super::*;
 
 mod indexing;
+mod pim;
 mod room;
 pub(super) mod sent_ids;
 
@@ -290,56 +291,6 @@ impl Out<'_> {
         self.pim_of(it);
         self.pim_read();
         self.tally.since(Phase::Build, began);
-    }
-
-    fn pim_of(&mut self, it: Item) {
-        let Some(x) = &it.extra else { return };
-        let n = self.pim.events.len() + self.pim.cards.len() + self.pim.notes.len();
-        let uid = format!("pst-{}-{n}@mailcraft.invalid", self.account);
-        let class = it.class.to_ascii_lowercase();
-        if class.starts_with("ipm.activity") {
-            // MailCraft has no journal: an entry is a note.
-            let text = crate::pst_pim::journal_text(x, &it.subject, &it.body);
-            if text.is_empty() {
-                self.skip(SkipReason::ItemNotUsable, 1);
-                return;
-            }
-            let note = Note { uid, text, color: NOTE_YELLOW, modified: x.modified.unwrap_or(it.date) };
-            self.pim.notes.push(StoredNote { note, ..Default::default() });
-        } else if class.starts_with("ipm.distlist") {
-            let card = crate::pst_pim::group_of(x, &it.subject, &it.body, uid);
-            self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
-        } else if class.starts_with("ipm.stickynote") {
-            // A note's text is its body (its subject is the first line of it).
-            let text = if it.body.trim().is_empty() { it.subject.clone() } else { it.body.replace("\r\n", "\n") };
-            if text.trim().is_empty() {
-                self.skip(SkipReason::ItemNotUsable, 1);
-                return;
-            }
-            let note =
-                Note { uid, text: text.trim_end().to_string(), color: x.note_color.unwrap_or(NOTE_YELLOW), modified: x.modified.unwrap_or(it.date) };
-            self.pim.notes.push(StoredNote { note, ..Default::default() });
-        } else if class.starts_with("ipm.task") {
-            // MailCraft has no task list: a task with a due date shows in the calendar that day.
-            let Some(due) = x.due else {
-                self.skip(SkipReason::ItemNotUsable, 1);
-                return;
-            };
-            let day = crate::pst_pim::Extra { start: Some(due), end: Some(due), all_day: true, ..Default::default() };
-            let summary = if x.done { format!("✓ {}", it.subject) } else { it.subject.clone() };
-            if let Some(event) = crate::pst_pim::event_of(&day, &summary, &it.body, &EmailAddress::default(), &[], uid) {
-                self.pim.events.push(StoredEvent { calendar: LOCAL.into(), event, ..Default::default() });
-            }
-        } else if class.starts_with("ipm.contact") {
-            let card = crate::pst_pim::card_of(x, &it.body, uid);
-            self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
-        } else {
-            let people: Vec<EmailAddress> = it.to.iter().chain(&it.cc).cloned().collect();
-            match crate::pst_pim::event_of(x, &it.subject, &it.body, &it.from, &people, uid) {
-                Some(event) => self.pim.events.push(StoredEvent { calendar: LOCAL.into(), event, ..Default::default() }),
-                None => self.skip(SkipReason::ItemNotUsable, 1),
-            }
-        }
     }
 
     /// An item made into a message (in a test, as a lane would), into the folder at `path`.
@@ -694,7 +645,7 @@ impl Out<'_> {
             folders,
             messages: imported,
             contacts: self.pim.cards.len(),
-            events: self.pim.events.len(),
+            events: calendar_items(&self.pim),
             notes: self.pim.notes.len(),
             skipped,
             skips: std::mem::take(&mut self.skips),

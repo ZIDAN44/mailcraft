@@ -3,8 +3,8 @@
 //!
 //! Most of what makes a contact or an appointment lives in *named* properties: their ids differ
 //! from file to file and are found through the file's name-to-id map (MS-PST 2.4.7). The
-//! recurrence of a repeating appointment is a binary pattern (MS-OXOCAL 2.2.1.44), read here
-//! into an RFC 5545 rule.
+//! recurrence of a repeating appointment is a binary pattern (MS-OXOCAL 2.2.1.44), read into an
+//! RFC 5545 rule, its deleted occurrences and its changed ones (`recur`).
 
 use std::collections::HashMap;
 
@@ -18,6 +18,10 @@ use outlook_pst::messaging::store::Store as PstStore;
 
 use crate::pst::Val;
 
+mod recur;
+use recur::recurrence;
+pub(crate) use recur::{Own, changed_events};
+
 type GuidKey = (u32, u16, u16, [u8; 8]);
 const OLE: [u8; 8] = [0xC0, 0, 0, 0, 0, 0, 0, 0x46];
 const PSETID_ADDRESS: GuidKey = (0x0006_2004, 0, 0, OLE);
@@ -29,7 +33,7 @@ const PSETID_LOG: GuidKey = (0x0006_200A, 0, 0, OLE);
 const PSETID_MEETING: GuidKey = (0x6ED8_DA90, 0x450B, 0x101B, [0x98, 0xDA, 0x00, 0xAA, 0x00, 0x3F, 0x13, 0x05]);
 /// Name-to-id entries read at most.
 const MAX_NAMES: usize = 200_000;
-/// Deleted occurrences read at most.
+/// Deleted (and changed) occurrences read at most.
 const MAX_EXCEPTIONS: usize = 5_000;
 /// A contact group's members, and an event's categories, kept at most.
 const MAX_MEMBERS: usize = 10_000;
@@ -158,6 +162,9 @@ pub(crate) struct Extra {
     /// A journal entry's start and end.
     pub log_start: Option<i64>,
     pub log_end: Option<i64>,
+    /// A changed occurrence's item (attached to its series): the start of the occurrence it
+    /// replaces (PidLidExceptionReplaceTime).
+    pub replaces: Option<i64>,
 }
 
 /// Read the contact and appointment properties of an item.
@@ -246,6 +253,7 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> 
         };
     }
     x.members = members(n(PSETID_ADDRESS, 0x8054), n(PSETID_ADDRESS, 0x8055));
+    x.replaces = n(PSETID_APPOINTMENT, 0x8228).and_then(|v| v.time());
     x.log_start = n(PSETID_LOG, 0x8706).and_then(|v| v.time());
     x.log_end = n(PSETID_LOG, 0x8708).and_then(|v| v.time()).or_else(|| match (x.log_start, n(PSETID_LOG, 0x8707)) {
         (Some(start), Some(Val::Int(minutes))) if (0..=MAX_MINUTES).contains(&minutes) => Some(start.saturating_add(minutes * 60)),
@@ -404,8 +412,9 @@ pub(crate) fn event_of(x: &Extra, subject: &str, body: &str, from: &EmailAddress
 /// A meeting request, cancellation or answer (`IPM.Schedule.Meeting.*`, of class `class`) as
 /// the calendar it carried (RFC 6047): its method and its text, stamped when it was sent
 /// (`date`). A request and a cancellation go from their organizer (`from`) to `guests`; an
-/// answer from its guest (`from`) to the organizer (the first of `guests`). `None` for another
-/// kind (a forward's notice) or one with no time.
+/// answer from its guest (`from`) to the organizer (the first of `guests`). A request for a
+/// repeating meeting carries its changed occurrences too, as its pattern has them. `None` for
+/// another kind (a forward's notice) or one with no time.
 pub(crate) fn invitation(
     x: &Extra,
     class: &str,
@@ -431,8 +440,15 @@ pub(crate) fn invitation(
     } else {
         return None;
     };
-    let mut e = event_of(x, subject, body, from, guests, uid)?;
+    let mut e = event_of(x, subject, body, from, guests, uid.clone())?;
     e.dtstamp = date;
+    let mut changed: Vec<CalEvent> = match method {
+        "REQUEST" => changed_events(x, subject, body, from, guests, &uid, &[]).into_iter().map(|(e, _)| e).collect(),
+        _ => Vec::new(),
+    };
+    for c in &mut changed {
+        c.dtstamp = date;
+    }
     if let Some(partstat) = answer {
         let person = |a: &EmailAddress| Attendee { email: a.email.clone(), name: a.name.clone(), ..Default::default() };
         e.organizer = guests.first().map(person);
@@ -440,99 +456,8 @@ pub(crate) fn invitation(
     } else if method == "CANCEL" {
         e.status = "CANCELLED".into();
     }
-    Some((method, ical::write(&[e], Some(method), date)))
-}
-
-struct Bytes<'a>(&'a [u8], usize);
-
-impl Bytes<'_> {
-    fn u16(&mut self) -> Option<u16> {
-        let b = self.0.get(self.1..self.1.checked_add(2)?)?;
-        self.1 += 2;
-        Some(u16::from_le_bytes([*b.first()?, *b.get(1)?]))
-    }
-    fn u32(&mut self) -> Option<u32> {
-        let b = self.0.get(self.1..self.1.checked_add(4)?)?;
-        self.1 += 4;
-        Some(u32::from_le_bytes([*b.first()?, *b.get(1)?, *b.get(2)?, *b.get(3)?]))
-    }
-}
-
-const DAYS: [&str; 7] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-
-fn byday(mask: u32, ordinal: Option<i32>) -> String {
-    let pre = ordinal.map(|n| n.to_string()).unwrap_or_default();
-    DAYS.iter().enumerate().filter(|(i, _)| mask & (1 << i) != 0).map(|(_, d)| format!("{pre}{d}")).collect::<Vec<_>>().join(",")
-}
-
-/// A recurrence pattern as (rule, deleted occurrences), given the first occurrence's start (UTC).
-pub(crate) fn recurrence(blob: &[u8], start: i64) -> Option<(String, Vec<i64>)> {
-    let mut b = Bytes(blob, 0);
-    let (_reader, _writer) = (b.u16()?, b.u16()?);
-    let frequency = b.u16()?;
-    let pattern = b.u16()?;
-    let _calendar = b.u16()?;
-    let _first = b.u32()?;
-    let period = i64::from(b.u32()?);
-    let _sliding = b.u32()?;
-    let (mut a, mut c) = (0, 0);
-    match pattern {
-        0x0001 | 0x0002 | 0x0004 | 0x000A | 0x000C => a = b.u32()?,
-        0x0003 | 0x000B => {
-            a = b.u32()?;
-            c = b.u32()?;
-        }
-        _ => {}
-    }
-    let end_type = b.u32()?;
-    let count = b.u32()?;
-    let _first_dow = b.u32()?;
-    let deleted_count = usize::try_from(b.u32()?).ok()?.min(MAX_EXCEPTIONS);
-    let deleted: Vec<i64> = (0..deleted_count).map(|_| b.u32().map(i64::from)).collect::<Option<_>>()?;
-    let modified_count = usize::try_from(b.u32()?).ok()?.min(MAX_EXCEPTIONS);
-    let modified: Vec<i64> = (0..modified_count).map(|_| b.u32().map(i64::from)).collect::<Option<_>>()?;
-    let first_day = i64::from(b.u32()?);
-    let end_day = i64::from(b.u32()?);
-    // The appointment part: when in the (local) day the occurrences start.
-    let start_offset = (|| {
-        b.u32()?;
-        b.u32()?;
-        b.u32().map(i64::from)
-    })()
-    .unwrap_or(0);
-    let nth = |n: u32| if n >= 5 { -1 } else { i32::try_from(n).unwrap_or(1) };
-    let mut rule = match (frequency, pattern) {
-        (0x200A, 0x0000) => format!("FREQ=DAILY;INTERVAL={}", (period / 1440).max(1)),
-        (0x200A, 0x0001) => "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR".to_string(),
-        (0x200B, 0x0001) => format!("FREQ=WEEKLY;INTERVAL={};BYDAY={}", period.max(1), byday(a, None)),
-        (0x200C, 0x0002) => format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY={a}", period.max(1)),
-        (0x200C, 0x0004) => format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY=-1", period.max(1)),
-        (0x200C, 0x0003) => format!("FREQ=MONTHLY;INTERVAL={};BYDAY={}", period.max(1), byday(a, Some(nth(c)))),
-        (0x200D, 0x0002 | 0x0004) => format!("FREQ=YEARLY;INTERVAL={}", (period / 12).max(1)),
-        (0x200D, 0x0003) => {
-            let (_, month, _) = civil_from_days(start.div_euclid(86_400));
-            format!("FREQ=YEARLY;INTERVAL={};BYMONTH={month};BYDAY={}", (period / 12).max(1), byday(a, Some(nth(c))))
-        }
-        _ => return None,
-    };
-    match end_type {
-        0x2021 => {
-            let (y, m, d) = civil_from_days((end_day - EPOCH_MINUTES).div_euclid(1440));
-            rule.push_str(&format!(";UNTIL={y:04}{m:02}{d:02}T235959Z"));
-        }
-        0x2022 if count > 0 => rule.push_str(&format!(";COUNT={count}")),
-        _ => {}
-    }
-    // Local day + time into it → UTC, by how far the first occurrence is from its local time.
-    let local_first = (first_day - EPOCH_MINUTES + start_offset) * 60;
-    let shift = start - local_first;
-    let exdates = deleted.iter().filter(|d| !modified.contains(d)).map(|d| (d - EPOCH_MINUTES + start_offset) * 60 + shift).collect();
-    // Sanity: a first day far from the start means the blob isn't what it says.
-    if shift.abs() > 2 * 86_400 {
-        return Some((rule, Vec::new()));
-    }
-    Some((rule, exdates))
+    Some((method, ical::write(&[vec![e], changed].concat(), Some(method), date)))
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

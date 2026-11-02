@@ -1,3 +1,4 @@
+use super::recur::pattern;
 use super::*;
 use mailcraft_model::dates::days_from_civil;
 
@@ -199,4 +200,225 @@ fn a_journal_entry_s_text() {
     let x = Extra { log_start: Some(day), ..Default::default() };
     assert_eq!(journal_text(&x, "", ""), "2026-10-20 00:00 UTC");
     assert_eq!(journal_text(&Extra::default(), "", " "), "");
+}
+
+/// A changed occurrence as an appointment's pattern writes it (ExceptionInfo), and what its
+/// ExtendedException repeats in UTF-16.
+#[derive(Default)]
+struct Info {
+    start: u32,
+    end: u32,
+    original: u32,
+    subject: Option<(&'static [u8], &'static str)>,
+    location: Option<(&'static [u8], &'static str)>,
+    busy: Option<u32>,
+    reminder: Option<(u32, u32)>,
+    all_day: Option<u32>,
+    body: bool,
+}
+
+/// `base` (a pattern up to its start offset, from [`blob`]) with these changed occurrences, as a
+/// writer of version `writer` writes them.
+fn with_changes(base: &[u8], writer: u32, infos: &[Info]) -> Vec<u8> {
+    let mut v = base.to_vec();
+    let at = v.len() - 8;
+    v.splice(at..at + 4, writer.to_le_bytes());
+    v.extend(600u32.to_le_bytes());
+    v.extend(u16::try_from(infos.len()).unwrap().to_le_bytes());
+    let text = |v: &mut Vec<u8>, b: &[u8]| {
+        v.extend(u16::try_from(b.len() + 1).unwrap().to_le_bytes());
+        v.extend(u16::try_from(b.len()).unwrap().to_le_bytes());
+        v.extend(b);
+    };
+    let flags = |i: &Info| {
+        let mut f = 0u16;
+        for (on, bit) in [
+            (i.subject.is_some(), 0x1),
+            (i.reminder.is_some(), 0x4 | 0x8),
+            (i.location.is_some(), 0x10),
+            (i.busy.is_some(), 0x20),
+            (i.all_day.is_some(), 0x80),
+            (i.body, 0x200),
+        ] {
+            if on {
+                f |= bit;
+            }
+        }
+        f
+    };
+    for i in infos {
+        for w in [i.start, i.end, i.original] {
+            v.extend(w.to_le_bytes());
+        }
+        v.extend(flags(i).to_le_bytes());
+        if let Some((b, _)) = i.subject {
+            text(&mut v, b);
+        }
+        if let Some((set, delta)) = i.reminder {
+            v.extend(delta.to_le_bytes());
+            v.extend(set.to_le_bytes());
+        }
+        if let Some((b, _)) = i.location {
+            text(&mut v, b);
+        }
+        for w in [i.busy, i.all_day].into_iter().flatten() {
+            v.extend(w.to_le_bytes());
+        }
+    }
+    v.extend(0u32.to_le_bytes());
+    for i in infos {
+        if writer >= 0x3009 {
+            v.extend(4u32.to_le_bytes());
+            v.extend(0x7u32.to_le_bytes());
+        }
+        v.extend(0u32.to_le_bytes());
+        if i.subject.is_some() || i.location.is_some() {
+            for w in [i.start, i.end, i.original] {
+                v.extend(w.to_le_bytes());
+            }
+            for (_, s) in [i.subject, i.location].into_iter().flatten() {
+                let units: Vec<u16> = s.encode_utf16().collect();
+                v.extend(u16::try_from(units.len()).unwrap().to_le_bytes());
+                v.extend(units.iter().flat_map(|u| u.to_le_bytes()));
+            }
+            v.extend(0u32.to_le_bytes());
+        }
+    }
+    v.extend(0u32.to_le_bytes());
+    v
+}
+
+/// A weekly series at 09:00 in UTC+2 (07:00Z) with one occurrence deleted, one moved a day on
+/// with a new subject and room, and one whose text and show-as changed and whose reminder is off.
+pub(crate) fn series(writer: u32) -> (Vec<u8>, i64) {
+    let first = minutes(2026, 10, 5);
+    let start = days_from_civil(2026, 10, 5) * 86_400 + 7 * 3600;
+    let deleted = [minutes(2026, 10, 7), minutes(2026, 10, 12), minutes(2026, 10, 19)];
+    let base = blob(0x200B, 0x0001, 1, &[0b000_1010], (0x2022, 10), &deleted, &[minutes(2026, 10, 13), minutes(2026, 10, 19)], first);
+    let moved = Info {
+        start: minutes(2026, 10, 13) + 600,
+        end: minutes(2026, 10, 13) + 660,
+        original: minutes(2026, 10, 12) + 540,
+        subject: Some((b"Review (moved)", "Review (moved) \u{e9}")),
+        location: Some((b"Room 2", "Room 2")),
+        ..Default::default()
+    };
+    let quiet = Info {
+        start: minutes(2026, 10, 19) + 540,
+        end: minutes(2026, 10, 19) + 600,
+        original: minutes(2026, 10, 19) + 540,
+        busy: Some(0),
+        reminder: Some((0, 15)),
+        body: true,
+        ..Default::default()
+    };
+    (with_changes(&base, writer, &[moved, quiet]), start)
+}
+
+/// A pattern's changed occurrences: their times in UTC at the series' offset, what they changed
+/// (the UTF-16 text over the 8-bit one), and none of them an EXDATE, though the pattern deletes
+/// them too; the day a moved one is on now is no EXDATE either.
+#[test]
+fn a_pattern_s_changed_occurrences() {
+    let at = |d: u32, h: i64| days_from_civil(2026, 10, d) * 86_400 + h * 3600;
+    for writer in [0x3008, 0x3009] {
+        let (b, start) = series(writer);
+        let p = pattern(&b, start).unwrap();
+        assert_eq!(p.rule, "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;COUNT=10");
+        assert_eq!(p.exdates, [at(7, 7)], "{writer:x}");
+        assert_eq!(p.changed.len(), 2);
+        let moved = &p.changed[0];
+        assert_eq!((moved.original, moved.start, moved.end), (at(12, 7), at(13, 8), at(13, 9)));
+        assert_eq!((moved.subject.as_deref(), moved.location.as_deref()), (Some("Review (moved) \u{e9}"), Some("Room 2")));
+        assert_eq!((moved.busy, moved.reminder_set, moved.own_body), (None, None, false));
+        let quiet = &p.changed[1];
+        assert_eq!(
+            (quiet.original, quiet.subject.as_deref(), quiet.busy, quiet.reminder_set, quiet.own_body),
+            (at(19, 7), None, Some(0), Some(false), true)
+        );
+        assert_eq!(recurrence(&b, start).unwrap().1, [at(7, 7)]);
+    }
+    // Without its ExtendedException, the 8-bit text is kept.
+    let (b, start) = series(0x3008);
+    let p = pattern(&b[..b.len() - 70], start).unwrap();
+    assert_eq!(p.changed[0].subject.as_deref(), Some("Review (moved)"));
+    // Cut anywhere or damaged anywhere, never a crash, and the rule stays.
+    for n in 0..b.len() {
+        let _ = pattern(&b[..n], start);
+        let mut bad = b.clone();
+        bad[n] = 0xFF;
+        let _ = pattern(&bad, start);
+    }
+    for start in [i64::MIN, -1, 0, i64::MAX] {
+        let _ = pattern(&b, start);
+    }
+    assert_eq!(pattern(&b[..b.len() - 1], start).unwrap().rule, "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;COUNT=10");
+    // The fuzz target's seed is this series, as its input has it (the start, then the pattern).
+    let seed = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fuzz/seeds/pst_recurrence/weekly_changed")).unwrap();
+    let (begins, blob) = seed.split_first_chunk::<8>().unwrap();
+    let events = crate::pst::repeating(blob, i64::from_le_bytes(*begins));
+    assert_eq!(events.iter().map(|e| e.recurrence_id).collect::<Vec<_>>(), [None, Some(at(12, 7)), Some(at(19, 7))]);
+    assert_eq!(events[1].summary, "Review (moved)");
+}
+
+/// A changed occurrence becomes an event of its own that replaces its occurrence: what it
+/// changed from the pattern, its exact times, text and guests from its own item (matched by the
+/// occurrence it replaces), and the rest the series'.
+#[test]
+fn changed_occurrences_become_events() {
+    let at = |d: u32, h: i64| days_from_civil(2026, 10, d) * 86_400 + h * 3600;
+    let (b, start) = series(0x3009);
+    let x = Extra {
+        start: Some(start),
+        end: Some(start + 3600),
+        recurrence: b,
+        location: "Room 1".into(),
+        reminder: Some(10),
+        uid: "0400AB".into(),
+        ..Default::default()
+    };
+    let organizer = EmailAddress::new("Riley", "riley@studio.example");
+    let guests = [EmailAddress::new("Ana", "ana@posteo.example")];
+    let master = event_of(&x, "Review", "Weekly.", &organizer, &guests, "u".into()).unwrap();
+    // The quiet one's item, which says the hour exactly (summer time ended: 08:00Z).
+    let quiet = Extra { start: Some(at(19, 8)), end: Some(at(19, 9)), replaces: Some(at(19, 8)), ..Default::default() };
+    let ben = [EmailAddress::new("Ben", "ben@studio.example")];
+    let stray = Extra { start: Some(at(26, 7)), replaces: Some(at(26, 7)), ..Default::default() };
+    let own = [Own { x: &stray, body: "Not this one.", people: &[] }, Own { x: &quiet, body: "Bring the proofs.", people: &ben }];
+    let changed = changed_events(&x, "Review", "Weekly.", &organizer, &guests, "u", &own);
+    assert_eq!(changed.len(), 2);
+    let (moved, none) = &changed[0];
+    assert_eq!(*none, None);
+    assert_eq!((moved.uid.as_str(), moved.recurrence_id, moved.start, moved.end), ("0400AB", Some(at(12, 7)), at(13, 8), at(13, 9)));
+    assert_eq!((moved.summary.as_str(), moved.location.as_str(), moved.description.as_str()), ("Review (moved) \u{e9}", "Room 2", "Weekly."));
+    assert!(moved.rrule.is_none() && moved.exdates.is_empty());
+    assert_eq!((ical::reminder_minutes(moved), moved.attendees.len()), (Some(10), 1));
+    let (quiet, found) = &changed[1];
+    assert_eq!(*found, Some(1));
+    assert_eq!((quiet.recurrence_id, quiet.start, quiet.end), (Some(at(19, 7)), at(19, 8), at(19, 9)));
+    assert_eq!((quiet.summary.as_str(), quiet.location.as_str(), quiet.description.as_str()), ("Review", "Room 1", "Bring the proofs."));
+    assert_eq!((ical::show_as(quiet), ical::reminder_minutes(quiet)), (ShowAs::Free, None));
+    assert_eq!(quiet.attendees.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["ben@studio.example"]);
+    // In the calendar, each replaces its occurrence; the deleted one is gone.
+    let events = [master, moved.clone(), quiet.clone()];
+    let shown: Vec<i64> = ical::occurrences(&events, at(5, 0), at(22, 0)).iter().map(|o| o.start).collect();
+    assert_eq!(shown, [at(5, 7), at(13, 8), at(14, 7), at(19, 8), at(21, 7)]);
+    // No pattern, or no start: none.
+    assert!(changed_events(&Extra { recurrence: Vec::new(), ..x.clone() }, "", "", &organizer, &[], "u", &own).is_empty());
+    assert!(changed_events(&Extra { start: None, ..x }, "", "", &organizer, &[], "u", &own).is_empty());
+}
+
+/// A request for a repeating meeting carries its changed occurrences, which an answer doesn't.
+#[test]
+fn a_request_carries_its_changed_occurrences() {
+    let (b, start) = series(0x3008);
+    let x = Extra { start: Some(start), end: Some(start + 3600), recurrence: b, ..Default::default() };
+    let organizer = EmailAddress::new("Riley", "riley@studio.example");
+    let guests = [EmailAddress::new("Ana", "ana@posteo.example")];
+    let (_, ics) = invitation(&x, "IPM.Schedule.Meeting.Request", "Review", "", &organizer, &guests, 1, "u".into()).unwrap();
+    let cal = ical::parse(&ics, 0);
+    assert_eq!(cal.events.iter().filter(|e| e.recurrence_id.is_some() && e.uid == "u").count(), 2, "{ics}");
+    assert_eq!(cal.events[0].exdates.len(), 1);
+    let (_, ics) = invitation(&x, "IPM.Schedule.Meeting.Resp.Pos", "Review", "", &guests[0], &[organizer], 1, "u".into()).unwrap();
+    assert_eq!(ical::parse(&ics, 0).events.len(), 1);
 }

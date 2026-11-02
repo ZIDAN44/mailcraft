@@ -216,7 +216,7 @@ impl Checkpoint {
             folders: store.load_folders(account).unwrap_or_default(),
             messages: n(self.counts.imported),
             contacts: pim.cards.len(),
-            events: pim.events.len(),
+            events: calendar_items(&pim),
             notes: pim.notes.len(),
             skipped: n(self.counts.skipped),
             skips: self.counts.skips.iter().map(|s| (s.reason, n(s.count))).collect(),
