@@ -160,6 +160,22 @@ pub fn fill_from_source(m: &mut Summary, raw: &[u8]) {
     }
 }
 
+/// A message's source just downloaded, kept: cached, and its summary in its folder's list filled
+/// from it and saved. The summary as saved, when the folder has the message (for the window to
+/// take, [`mailcraft_model::Event::Filled`], rather than reading the folder again).
+pub fn keep_source(store: &Store, key: &MessageKey, raw: &[u8]) -> std::result::Result<Option<Summary>, StoreError> {
+    store.write_body(key, raw)?;
+    let mut fs = store.load_folder(&key.account, &key.folder)?;
+    if fs.validity != key.validity {
+        return Ok(None);
+    }
+    let Some(m) = fs.find_mut(key.uid) else { return Ok(None) };
+    fill_from_source(m, raw);
+    let filled = m.clone();
+    store.save_folder(&key.account, &key.folder, &fs)?;
+    Ok(Some(filled))
+}
+
 /// A message's list entry from its `Email/get` details.
 pub(super) fn email_summary(e: &Value, key: MessageKey) -> Summary {
     let mut header = Vec::new();

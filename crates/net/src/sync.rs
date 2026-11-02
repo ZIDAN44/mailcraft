@@ -25,7 +25,7 @@ use mailcraft_store::{FolderState, Store};
 use crate::imap::{Client, Fetched, uid_chunks, uid_set};
 use crate::{NetError, Result};
 
-pub use mailcraft_jmap::{SyncOptions, SyncReport, fill_from_source};
+pub use mailcraft_jmap::{SyncOptions, SyncReport, fill_from_source, keep_source};
 
 /// Downloading ahead, one message at a time: whether to go on after one failed. A message the
 /// server won't give (gone meanwhile, or failing on its side) is left for when it's opened, and
@@ -508,10 +508,11 @@ fn body_chunks(wanted: &[(u32, u32)]) -> Vec<Vec<u32>> {
     out
 }
 
-/// Download one message's source (and cache it), updating its summary.
-pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &MessageKey) -> Result<Vec<u8>> {
+/// Download one message's source (and cache it), with its summary as its folder now has it, filled
+/// from it ([`keep_source`]); one cached already comes as it is, with no summary.
+pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
     if let Some(raw) = store.read_body(key) {
-        return Ok(raw);
+        return Ok((raw, None));
     }
     let info = if c.selected() == Some(key.folder.as_str()) { None } else { Some(c.select(&key.folder, false)?) };
     if let Some(i) = &info
@@ -525,15 +526,8 @@ pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &Messa
         .find(|f| f.uid == key.uid)
         .and_then(|f| f.body)
         .ok_or_else(|| crate::NetError::No("the message is no longer on the server".into()))?;
-    store.write_body(key, &raw)?;
-    let mut st = store.load_folder(&key.account, &key.folder)?;
-    if st.validity == key.validity
-        && let Some(m) = st.find_mut(key.uid)
-    {
-        fill_from_source(m, &raw);
-        store.save_folder(&key.account, &key.folder, &st)?;
-    }
-    Ok(raw)
+    let filled = keep_source(store, key, &raw)?;
+    Ok((raw, filled))
 }
 
 #[cfg(test)]

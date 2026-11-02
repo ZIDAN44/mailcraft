@@ -404,12 +404,16 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         Job::FetchBody { key } => {
             let r = match client(sh, id) {
                 Some(c) => mailcraft_jmap::fetch_body(&c, &state(sh, id), &store, &key).await,
-                None => store.read_body(&key).ok_or_else(|| Error::No("not downloaded yet, and the account is offline".into())),
+                None => {
+                    store.read_body(&key).map(|raw| (raw, None)).ok_or_else(|| Error::No("not downloaded yet, and the account is offline".into()))
+                }
             };
             match r {
-                Ok(raw) => {
-                    emit(sh, Event::Body { key: key.clone(), raw });
-                    emit(sh, Event::FolderChanged { account: key.account.clone(), folder: key.folder.clone() });
+                Ok((raw, filled)) => {
+                    emit(sh, Event::Body { key, raw });
+                    if let Some(summary) = filled {
+                        emit(sh, Event::Filled { summary: Box::new(summary) });
+                    }
                 }
                 Err(e) => emit(sh, Event::BodyFailed { key, error: e.to_string() }),
             }

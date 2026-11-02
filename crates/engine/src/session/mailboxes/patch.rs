@@ -149,6 +149,54 @@ impl Session {
         }
     }
 
+    /// A message downloaded: its summary as the cache on disk has it now, filled from its source
+    /// ([`Event::Filled`]). The folder in memory takes it, with the flags it has here (a mark made
+    /// since is newer), and the list its entry, where nothing it shows depends on what changed;
+    /// built again where something does (its conversation, a list filtered or arranged by files,
+    /// size or importance, the Focused split). It read all of the folder from disk again and built
+    /// the list: 24 ms on a folder of 10,941 messages, every Down that landed on mail not
+    /// downloaded yet. A folder not in memory is read with it when it's wanted.
+    pub(crate) fn filled(&mut self, mut now: Summary) {
+        let k = (now.key.account.clone(), now.key.folder.clone());
+        let Some(st) = self.cache.get_mut(&k).filter(|st| st.validity == now.key.validity) else { return };
+        let Some(m) = st.find_mut(now.key.uid) else { return };
+        now.flags.clone_from(&m.flags);
+        let threads = m.in_reply_to != now.in_reply_to || m.references != now.references;
+        let files = m.has_attachments != now.has_attachments;
+        let (size, importance, bulk) = (m.size != now.size, m.importance != now.importance, m.bulk != now.bulk);
+        m.clone_from(&now);
+        self.mail_changed();
+        // A search holds what it found as it was: it's run again over the folder.
+        if self.search.is_some() {
+            self.search_folder_changed(&k.0, &k.1);
+            self.refresh_list();
+            return;
+        }
+        let Some(i) = self.index_of(&now.key) else { return };
+        let (filter, arrange) = (self.filter, self.prefs.arrange);
+        let shown_by = (threads && self.prefs.conversations)
+            || (files && (filter == ListFilter::Attachments || arrange == Arrange::Attachments))
+            || (size && arrange == Arrange::Size)
+            || (importance && filter == ListFilter::Important)
+            || bulk;
+        if shown_by || !self.nav_fresh() {
+            self.refresh_list();
+            if let Some(r) = self.reading.as_ref().filter(|r| r.key.account == k.0 && r.key.folder == k.1) {
+                let key = r.key.clone();
+                let thread = self.thread_of(&key);
+                if let Some(r) = self.reading.as_mut() {
+                    r.thread = thread;
+                }
+            }
+            return;
+        }
+        if let Some(m) = self.list.get_mut(i) {
+            now.flags.clone_from(&m.flags);
+            *m = now;
+        }
+        self.revision = self.revision.wrapping_add(1);
+    }
+
     /// Count the unread mail of the row the message at `i` in the list is on again (its own, or
     /// its conversation's); false when it has none to count.
     fn patch_unread(&mut self, i: usize) -> bool {

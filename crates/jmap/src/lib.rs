@@ -852,22 +852,18 @@ async fn prefetch<H: Http>(
     Ok(fetched)
 }
 
-/// Download one message's source (and cache it).
-pub async fn fetch_body<H: Http>(c: &Client<H>, st: &State, store: &Store, key: &MessageKey) -> Result<Vec<u8>> {
+/// Download one message's source (and cache it), with its summary as its folder now has it, filled
+/// from it ([`keep_source`]); one cached already comes as it is, with no summary.
+pub async fn fetch_body<H: Http>(c: &Client<H>, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
     if let Some(raw) = store.read_body(key) {
-        return Ok(raw);
+        return Ok((raw, None));
     }
     let gone = || Error::No("the message is no longer on the server".into());
     let id = st.id(key.uid).filter(|_| key.validity == VALIDITY).ok_or_else(gone)?.to_string();
     let blob = c.blobs(std::slice::from_ref(&id)).await?.remove(&id).ok_or_else(gone)?;
     let raw = c.download(&blob).await?;
-    store.write_body(key, &raw)?;
-    let mut fs = store.load_folder(&key.account, &key.folder)?;
-    if let Some(m) = fs.find_mut(key.uid) {
-        fill_from_source(m, &raw);
-        store.save_folder(&key.account, &key.folder, &fs)?;
-    }
-    Ok(raw)
+    let filled = keep_source(store, key, &raw)?;
+    Ok((raw, filled))
 }
 
 /// Apply one change on the server.

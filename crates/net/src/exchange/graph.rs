@@ -699,19 +699,14 @@ fn prefetch(c: &Client, st: &State, store: &Store, account: &str, folder: &str, 
 }
 
 /// Download one message's source (and cache it).
-pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<Vec<u8>> {
+pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
     if let Some(raw) = store.read_body(key) {
-        return Ok(raw);
+        return Ok((raw, None));
     }
     let id = st.id(key.uid).filter(|_| key.validity == VALIDITY).ok_or_else(|| NetError::No("the message is no longer on the server".into()))?;
     let raw = c.download(id)?;
-    store.write_body(key, &raw)?;
-    let mut fs = store.load_folder(&key.account, &key.folder)?;
-    if let Some(m) = fs.find_mut(key.uid) {
-        fill_from_source(m, &raw);
-        store.save_folder(&key.account, &key.folder, &fs)?;
-    }
-    Ok(raw)
+    let filled = crate::sync::keep_source(store, key, &raw)?;
+    Ok((raw, filled))
 }
 
 /// Apply one change on the server.

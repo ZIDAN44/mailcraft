@@ -7,7 +7,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{AccountConfig, Folder, MessageKey};
+use crate::{AccountConfig, Folder, MessageKey, Summary};
 
 mod compact;
 pub mod eta;
@@ -327,6 +327,12 @@ pub enum Event {
     Body {
         key: MessageKey,
         raw: Vec<u8>,
+    },
+    /// A message downloaded: its summary as the cached folder has it now, filled in from its
+    /// source (its preview, files, conversation). The folder in memory takes it, rather than
+    /// reading all of the folder again.
+    Filled {
+        summary: Box<Summary>,
     },
     BodyFailed {
         key: MessageKey,

@@ -1,5 +1,6 @@
 //! Engine tests: a read mark or category changed on a server account's mail, said back by the
-//! pool once the cache on disk has it (`FolderChanged`), keeps the folder in memory and the list.
+//! pool once the cache on disk has it (`FolderChanged`), keeps the folder in memory and the list;
+//! so does a message downloaded, its summary filled from it (`Filled`).
 
 use mailcraft_model::{Folder, MessageKey, Summary};
 use mailcraft_store::FolderState;
@@ -79,7 +80,8 @@ fn a_read_marks_echo_keeps_the_folder_and_the_list() {
 /// What a Down step costs the window on a big server folder (`--release -- --ignored
 /// --nocapture`): the step, its read mark and the mark's echo; the pool's write to disk is
 /// timed apart, as the window made it before, and so is the echo read as any other change (what a
-/// body downloaded on the way still costs: its `FolderChanged` reads the folder, docs/gaps.md).
+/// body downloaded on the way cost before it was said as its summary filled, `Filled`), and the
+/// summary filled taken in.
 #[test]
 #[ignore]
 fn down_steps_on_a_big_server_folder() {
@@ -91,7 +93,7 @@ fn down_steps_on_a_big_server_folder() {
     s.run("list.open", &json!({"key": first})).unwrap();
     made_on_disk(&mut s);
     inbox_changed(&mut s, &id);
-    let (mut window, mut pool, mut reread) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut window, mut pool, mut reread, mut filled) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for _ in 0..100 {
         let t = Instant::now();
         s.run("list.next", &json!({})).unwrap();
@@ -113,15 +115,94 @@ fn down_steps_on_a_big_server_folder() {
         let t = Instant::now();
         inbox_changed(&mut s, &id);
         reread.push(t.elapsed());
+        // Its body downloaded: its summary filled, said to the window.
+        let Some(open) = s.reading.as_ref().map(|r| r.key.clone()) else { continue };
+        let Some(m) = downloaded(&s, &open) else { continue };
+        let t = Instant::now();
+        s.apply(Event::Filled { summary: Box::new(m) });
+        filled.push(t.elapsed());
     }
     let median = |mut v: Vec<Duration>| {
         v.sort();
         (v[v.len() / 2], v[v.len() - 1])
     };
-    let ((w, wmax), (p, pmax), (r, rmax)) = (median(window), median(pool), median(reread));
+    let ((w, wmax), (p, pmax), (r, rmax), (f, fmax)) = (median(window), median(pool), median(reread), median(filled));
     println!("Down step, the window: median {w:?}, max {wmax:?}");
     println!("the read mark on disk (the pool's thread): median {p:?}, max {pmax:?}");
-    println!("the folder read again and the list built (an echo before, a body downloaded now): median {r:?}, max {rmax:?}");
+    println!("the folder read again and the list built (an echo, or a body downloaded, before): median {r:?}, max {rmax:?}");
+    println!("a body downloaded, its summary filled taken in: median {f:?}, max {fmax:?}");
+}
+
+/// `key`'s summary as the pool says it once its source is downloaded: filled from it (a preview,
+/// a file) and saved in the folder on disk, as `keep_source` does.
+fn downloaded(s: &Session, key: &MessageKey) -> Option<Summary> {
+    let store = s.store.clone()?;
+    let mut st = store.load_folder(&key.account, &key.folder).ok()?;
+    let m = st.find_mut(key.uid)?;
+    m.preview = format!("First take of the mix, number {}", key.uid);
+    m.has_attachments = true;
+    let filled = m.clone();
+    store.save_folder(&key.account, &key.folder, &st).ok()?;
+    Some(filled)
+}
+
+/// A message downloaded on a big server folder: its summary filled from it comes to the window
+/// (`Filled`), which puts it in the folder it holds and in the list's entry, keeping the read
+/// mark it made meanwhile; no rows built, no conversations worked out, nothing read from disk.
+/// What memory holds is then what disk holds. It read all of the folder again and built the list
+/// (24 ms on 10,941 messages).
+#[test]
+fn a_message_downloaded_fills_its_entry_without_reading_the_folder() {
+    let (mut s, id) = server_inbox(10_941);
+    let key = s.row_keys()[3].clone();
+    let filled = downloaded(&s, &key).unwrap();
+    s.open_message(&key);
+    assert_eq!(made_on_disk(&mut s).len(), 1);
+    inbox_changed(&mut s, &id);
+    let (built, threadings) = (s.nav_structure(), s.nav.threadings());
+    // A change on disk the window doesn't know of: read again, the folder would show it.
+    let store = s.store.clone().unwrap();
+    let other = s.row_keys()[7].clone();
+    let mut st = store.load_folder(&id, "INBOX").unwrap();
+    let was = st.find(other.uid).unwrap().subject.clone();
+    st.find_mut(other.uid).unwrap().subject = "Changed on disk only".into();
+    store.save_folder(&id, "INBOX", &st).unwrap();
+    s.apply(Event::Filled { summary: Box::new(filled) });
+    assert_eq!(s.summary(&other).unwrap().subject, was, "the folder not read again");
+    st.find_mut(other.uid).unwrap().subject = was;
+    st.find_mut(key.uid).unwrap().flags.seen = true;
+    store.save_folder(&id, "INBOX", &st).unwrap();
+    let m = s.summary(&key).unwrap();
+    assert!(m.preview.starts_with("First take") && m.has_attachments && m.flags.seen, "{m:?}");
+    assert!(s.list.iter().any(|x| x.key == key && x.has_attachments && x.flags.seen), "the list's entry too");
+    assert_eq!(s.nav_structure(), built, "no rows built");
+    assert_eq!(s.nav.threadings(), threadings, "no conversations worked out");
+    let shown: Vec<Summary> = s.list.clone();
+    s.cache.remove(&(id.clone(), "INBOX".to_string()));
+    s.refresh_list();
+    assert_eq!(s.list, shown, "memory as disk has it");
+}
+
+/// A summary filled that joins its message to a conversation (its references come with its
+/// source): the list is built again with conversations on, so the message shows in its thread.
+#[test]
+fn a_message_filled_into_a_conversation_builds_the_list() {
+    let (mut s, id) = server_inbox(30);
+    s.run("view.conversations", &json!({"on": true})).unwrap();
+    let keys = s.row_keys();
+    let (parent, child) = (keys[0].clone(), keys[5].clone());
+    let parent_id = s.summary(&parent).unwrap().message_id.clone();
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&id, "INBOX").unwrap();
+    let m = st.find_mut(child.uid).unwrap();
+    m.subject = s.summary(&parent).unwrap().subject.clone();
+    m.in_reply_to = parent_id.clone();
+    m.references = vec![parent_id];
+    let filled = m.clone();
+    store.save_folder(&id, "INBOX", &st).unwrap();
+    let rows = s.nav.rows.len();
+    s.apply(Event::Filled { summary: Box::new(filled) });
+    assert_eq!(s.nav.rows.len(), rows - 1, "one conversation where there were two rows");
 }
 
 /// A sync changing the folder on disk while read marks wait for their echo: one more change is

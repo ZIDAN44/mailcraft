@@ -182,6 +182,7 @@ impl Session {
                     self.want_index(&key.account, Some(&key.folder));
                 }
             }
+            Event::Filled { summary } => self.filled(*summary),
             Event::BodyFailed { key, error } => {
                 self.source_failed(&key, &error);
                 for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {

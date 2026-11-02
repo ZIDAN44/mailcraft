@@ -572,6 +572,9 @@ fn an_online_only_account_syncs_and_reads_with_nothing_on_disk() {
     pool.submit(Job::FetchBody { key: key.clone() });
     let seen = until(&pool, "the opened message", |e| matches!(e, Event::Body { key: k, .. } if *k == key));
     assert!(seen.iter().any(|e| matches!(e, Event::Body { raw, .. } if String::from_utf8_lossy(raw).contains("ONLINE-BODY"))));
+    // Its summary filled from it is said as it is, not the folder as changed (read again whole).
+    let seen = until(&pool, "its summary filled", |e| matches!(e, Event::Filled { summary } if summary.key == key));
+    assert!(!seen.iter().any(|e| matches!(e, Event::FolderChanged { account, .. } if account == "a1")), "{seen:?}");
     assert!(store.has_body(&key));
     assert_eq!(store.data_file("a1"), None, "no data file");
 

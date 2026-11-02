@@ -471,7 +471,7 @@ impl Worker {
         }
         self.jstate = jmap::State::load(&self.store, &self.acc.id);
         let (store, began) = (self.store.clone(), Instant::now());
-        let r = (|| -> Result<Vec<u8>> {
+        let r = (|| -> Result<(Vec<u8>, Option<mailcraft_model::Summary>)> {
             if self.conn.is_none() {
                 self.connect()?;
             }
@@ -482,7 +482,7 @@ impl Worker {
             }
         })();
         match r {
-            Ok(raw) => {
+            Ok((raw, filled)) => {
                 log::info!(
                     "{}: message {} downloaded on the second connection ({} bytes) in {:.1} s",
                     self.acc.id,
@@ -490,8 +490,10 @@ impl Worker {
                     raw.len(),
                     began.elapsed().as_secs_f32()
                 );
-                self.sink.emit(Event::Body { key: key.clone(), raw });
-                self.sink.emit(Event::FolderChanged { account: key.account.clone(), folder: key.folder.clone() });
+                self.sink.emit(Event::Body { key, raw });
+                if let Some(summary) = filled {
+                    self.sink.emit(Event::Filled { summary: Box::new(summary) });
+                }
             }
             Err(e) => {
                 log::info!("{}: message {}: left to the main connection: {e}", self.acc.id, key.uid);
@@ -520,7 +522,7 @@ impl Worker {
         }
         let store = self.store.clone();
         let began = Instant::now();
-        let r = (|| -> Result<Option<Vec<u8>>> {
+        let r = (|| -> Result<Option<(Vec<u8>, Option<mailcraft_model::Summary>)>> {
             if self.conn.is_none() {
                 self.connect()?;
             }
@@ -547,7 +549,9 @@ impl Worker {
                 Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
                 Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key),
                 // POP mail is downloaded whole: what isn't here isn't anywhere.
-                Some(Conn::Pop) => store.read_body(&key).ok_or_else(|| NetError::No("this message isn't on this computer".into())),
+                Some(Conn::Pop) => {
+                    store.read_body(&key).map(|raw| (raw, None)).ok_or_else(|| NetError::No("this message isn't on this computer".into()))
+                }
                 _ => fetch_body(self.client()?, &store, &key),
             }?;
             Ok(Some(raw))
@@ -560,10 +564,14 @@ impl Worker {
                     self.rest.push_back(key);
                 }
             }
-            Ok(Some(raw)) => {
+            // Its summary filled from it, said as it is now: the window takes it into the folder
+            // it holds (it read all of the folder again for it, 24 ms on 10,941 messages).
+            Ok(Some((raw, filled))) => {
                 log::info!("{}: message {} downloaded ({} bytes) in {:.1} s", self.acc.id, key.uid, raw.len(), began.elapsed().as_secs_f32());
-                self.sink.emit(Event::Body { key: key.clone(), raw });
-                self.sink.emit(Event::FolderChanged { account: key.account.clone(), folder: key.folder.clone() });
+                self.sink.emit(Event::Body { key, raw });
+                if let Some(summary) = filled {
+                    self.sink.emit(Event::Filled { summary: Box::new(summary) });
+                }
             }
             Err(e) => {
                 self.sink.emit(Event::BodyFailed { key, error: e.to_string() });

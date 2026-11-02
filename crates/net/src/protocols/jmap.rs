@@ -2,7 +2,7 @@
 //! client (each request waits for its answer, so the transport's futures are ready at once),
 //! plus push over the session's EventSource (RFC 8620 §7.3).
 
-use mailcraft_model::{Folder, MessageKey, Op};
+use mailcraft_model::{Folder, MessageKey, Op, Summary};
 use mailcraft_store::Store;
 
 pub use mailcraft_jmap::{FOUND_MAX, Mailbox, State, VALIDITY, block_on, folders, name_special, session_url, utc_date};
@@ -115,7 +115,7 @@ pub fn find_on_server(
 }
 
 /// Download one message's source (and cache it).
-pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<Vec<u8>> {
+pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
     Ok(block_on(mailcraft_jmap::fetch_body(&c.0, st, store, key))?)
 }
 

@@ -130,6 +130,7 @@ impl Compaction {
 fn event_account(e: &Event) -> Option<&str> {
     match e {
         Event::Body { key, .. } | Event::BodyFailed { key, .. } | Event::Decrypted { key, .. } => Some(&key.account),
+        Event::Filled { summary } => Some(&summary.key.account),
         Event::Folders { account, .. }
         | Event::FolderChanged { account, .. }
         | Event::Sent { account, .. }
