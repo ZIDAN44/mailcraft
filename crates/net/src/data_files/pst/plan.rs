@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use std::sync::mpsc::{RecvTimeoutError, Sender, SyncSender, TrySendError};
 
 use super::lanes::{Ctx, Job};
-use super::order::{Done, Step};
+use super::order::{Done, Outlined, Step};
 use super::out::sent_ids::SentIds;
 use super::*;
 
@@ -330,7 +330,15 @@ impl Feed {
 pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
     let skip = ctx.resume.as_ref();
     let folders = plan.folders.iter().filter(|f| f.kind == Kind::Mail).count();
-    let totals = Step::Totals { items: plan.items, bytes: plan.bytes, folders, record_key: plan.record_key.clone(), fingerprint: plan.fingerprint() };
+    let outline = plan
+        .folders
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.kind == Kind::Mail)
+        .map(|(index, f)| Outlined { index, parent: f.parent, node: f.node, name: f.name.clone(), items: f.rows })
+        .collect();
+    let totals =
+        Step::Totals { items: plan.items, bytes: plan.bytes, folders, record_key: plan.record_key.clone(), fingerprint: plan.fingerprint(), outline };
     if !feed.step(totals) {
         return;
     }

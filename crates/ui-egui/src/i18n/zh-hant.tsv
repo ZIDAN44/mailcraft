@@ -1413,6 +1413,7 @@ month	May	5月
 	Importing…	正在匯入…
 	Keep importing	繼續匯入
 	Keep what's imported	保留已匯入的內容
+	Not imported yet	尚未匯入
 	Less than a minute left	還剩不到一分鐘
 	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft 正在匯入 {file} ({percent}%)。如果現在關閉，匯入會在下次開啟 MailCraft 時繼續。
 	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft 正在匯入 {file}。如果現在關閉，匯入會在下次開啟 MailCraft 時繼續。

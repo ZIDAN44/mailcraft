@@ -355,7 +355,10 @@ written (`Compose`), preferences and status-bar notices.
   `dialogs/importing.rs`) an import is the status bar's background segment, ahead of the search
   index's build: its bar from `ImportProgress::permille` (items and bytes weighed by
   `ITEM_WEIGHT`), the time left from `Session::import_eta_s`, its details beside it; the folder
-  pane has a line under the account, and its menu stops, continues or keeps it. A bar whose total
+  pane has a line under the account, and its menu stops, continues or keeps it; under the
+  account's folders, those its plan names that aren't in yet are drawn faint (each run's plan
+  comes as `Event::ImportPlanned`, the path each folder will get worked out by the writer as it
+  will make it, `pst/out.rs`). A bar whose total
   isn't known slides a segment at most ten times a second (`look/progress.rs`). A file chosen is
   looked at (`account.inspectDataFile`) before `account.importPst`; closing while one is read
   says it goes on next time and pauses it (`account.stopImport {"how":"pause"}`); an import that

@@ -1409,6 +1409,7 @@ month	May	مايو
 	Importing…	جارٍ الاستيراد…
 	Keep importing	مواصلة الاستيراد
 	Keep what's imported	الاحتفاظ بما تم استيراده
+	Not imported yet	لم يُستورد بعد
 	Less than a minute left	يتبقى أقل من دقيقة
 	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	يستورد MailCraft الملف {file} ({percent}%). إذا أغلقته الآن، فسيتابع الاستيراد في المرة التالية التي تفتح فيها MailCraft.
 	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	يستورد MailCraft الملف {file}. إذا أغلقته الآن، فسيتابع الاستيراد في المرة التالية التي تفتح فيها MailCraft.

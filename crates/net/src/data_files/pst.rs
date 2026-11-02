@@ -26,7 +26,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
-use mailcraft_model::job::{SkipReason, StopHow};
+use mailcraft_model::job::{PlannedFolder, SkipReason, StopHow};
 use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::{FolderState, Store};
@@ -169,6 +169,8 @@ pub trait ImportSink {
     /// A folder is done: written, listed, counted and in the account's folder list. Each is
     /// said once, after the folder it's in.
     fn folder(&mut self, _done: &Folder) {}
+    /// The mail folders the file holds, as planned, before any comes in (each run says them).
+    fn planned(&mut self, _folders: &[PlannedFolder]) {}
 }
 
 impl<F: FnMut(Progress)> ImportSink for F {

@@ -12,6 +12,16 @@ use super::*;
 /// this often, whatever comes.
 const FLUSH_EVERY: Duration = Duration::from_secs(1);
 
+/// A mail folder of the plan (its `index` there, under the plan's folder `parent`), as the
+/// outline of what comes in says it: its node, its name in the file and the items it holds.
+pub(super) struct Outlined {
+    pub(super) index: usize,
+    pub(super) parent: Option<usize>,
+    pub(super) node: u32,
+    pub(super) name: String,
+    pub(super) items: u64,
+}
+
 /// One numbered thing for the writer to apply, with what it holds of the budget.
 pub(super) struct Done {
     pub(super) seq: u64,
@@ -20,9 +30,9 @@ pub(super) struct Done {
 }
 
 pub(super) enum Step {
-    /// What the file holds, for the progress, and its record key and fingerprint, for its
-    /// checkpoints.
-    Totals { items: u64, bytes: u64, folders: usize, record_key: String, fingerprint: u64 },
+    /// What the file holds, for the progress, its record key and fingerprint, for its
+    /// checkpoints, and its mail folders, for the outline the window shows ahead.
+    Totals { items: u64, bytes: u64, folders: usize, record_key: String, fingerprint: u64, outline: Vec<Outlined> },
     /// A folder of the file (its `node`) begins (`index` in the plan): a mail folder under the
     /// plan's folder `parent`, or contacts or a calendar (`pim`). Going on, a mail folder done
     /// already begins only to say where it went (its folders under it go there too). The Sent
@@ -122,9 +132,10 @@ fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done
     }
     let path_of = |paths: &Vec<Option<String>>, i: usize| paths.get(i).cloned().flatten();
     match done.step {
-        Step::Totals { items, bytes, folders, record_key, fingerprint } => {
+        Step::Totals { items, bytes, folders, record_key, fingerprint, outline } => {
             out.totals(items, bytes, folders);
             out.source_known(ctx.path, record_key, fingerprint);
+            out.outline(&outline);
         }
         Step::Folder { node, pim: true, .. } => out.begin_pim_folder(node),
         Step::Folder { index, node, parent, name, pim: false, deferred } => {

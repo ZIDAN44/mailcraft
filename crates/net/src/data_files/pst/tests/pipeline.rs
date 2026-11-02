@@ -15,7 +15,7 @@ use pst_rw::{
 use super::super::lanes::MAX_PANICS;
 use super::super::lanes::tests::Fault;
 use super::super::out::Out;
-use super::super::{ImportOptions, ImportSink, Imported, Progress, SkipReason, import_into, import_with};
+use super::super::{ImportOptions, ImportSink, Imported, PlannedFolder, Progress, SkipReason, import_into, import_with};
 
 /// A data file with mail in three folders, two nested: plain and HTML messages, some with a file
 /// of 10-300 KiB or a picture the HTML shows, some with no message id. `big` gives every third
@@ -261,9 +261,17 @@ fn a_writer_panic_comes_back() {
 struct Told {
     folders: Vec<Folder>,
     progress: Vec<Progress>,
+    /// The folders planned, and how many folders were said done before them.
+    planned: Vec<PlannedFolder>,
+    planned_after: Option<usize>,
 }
 
 impl ImportSink for Told {
+    fn planned(&mut self, folders: &[PlannedFolder]) {
+        self.planned = folders.to_vec();
+        self.planned_after = Some(self.folders.len());
+    }
+
     fn progress(&mut self, p: Progress) {
         self.progress.push(p);
     }
@@ -292,6 +300,38 @@ fn each_folder_is_said_once_as_it_finishes() {
     let last = told.progress.last().unwrap();
     assert_eq!((last.read, last.total), (600, 630));
     assert!(last.bytes_done <= last.bytes_total);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The folders a file holds are said before any comes in, each with the path it comes in under
+/// and its items; going on after a pause, again, with the paths the folders done went to.
+#[test]
+fn the_folders_planned_are_said_first_with_their_paths() {
+    let (dir, pst) = data_file("outline", 210, false);
+    let store = Store::memory();
+    let mut told = Told::default();
+    let done = import_into(&pst, &store, "o1", &lanes(4), &mut told).unwrap();
+    assert_eq!(told.planned_after, Some(0), "said before any folder");
+    let mut planned: Vec<(&str, u64)> = told.planned.iter().map(|f| (f.path.as_str(), f.items)).collect();
+    planned.sort_unstable();
+    assert_eq!(planned, [("Deleted Items", 0), ("INBOX", 210), ("Projects", 210), ("Projects/2024", 210)]);
+    assert_eq!(told.planned.iter().find(|f| f.path == "Projects/2024").map(|f| f.name.as_str()), Some("2024"));
+    let mut made: Vec<&str> = done.folders.iter().map(|f| f.path.as_str()).collect();
+    made.sort_unstable();
+    assert_eq!(made, planned.iter().map(|p| p.0).collect::<Vec<_>>(), "as they came in");
+
+    let store = Store::memory();
+    let stop = super::super::Stop::default();
+    let o = ImportOptions { stop: stop.clone(), ..lanes(2) };
+    import_with(&pst, &store, "o1", &o, &mut |p| {
+        if p.read >= 300 {
+            stop.raise(mailcraft_model::job::StopHow::Pause);
+        }
+    })
+    .unwrap();
+    let mut again = Told::default();
+    import_into(&pst, &store, "o1", &ImportOptions { resume: true, ..lanes(2) }, &mut again).unwrap();
+    assert_eq!(again.planned, told.planned, "going on");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

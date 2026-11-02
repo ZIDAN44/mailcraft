@@ -498,6 +498,19 @@ impl Out<'_> {
         path
     }
 
+    /// Going on, where the file's folder at `node` went already: a folder done, or the one
+    /// part-way through (or put off to be read last) as the import stopped.
+    pub(super) fn known_path(&self, node: u32) -> Option<&str> {
+        if let Some(path) = self.note.placed.get(&node) {
+            return Some(path);
+        }
+        [self.note.resumed.as_ref(), self.note.resumed_deferred.as_ref()]
+            .into_iter()
+            .flatten()
+            .find(|c| c.node == node && !c.path.is_empty())
+            .map(|c| c.path.as_str())
+    }
+
     /// The file's contacts, calendar, tasks, notes or journal folder at `node` begins.
     pub(super) fn begin_pim_folder(&mut self, node: u32) {
         let next_row = match self.note.resumed.take_if(|c| c.node == node) {

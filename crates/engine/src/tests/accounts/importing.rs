@@ -3,7 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use mailcraft_model::job::{Blocked, DataFileFacts, DataSource, ImportPhase, ImportProgress, ImportReport, ImportStage, StopHow, Work};
+use mailcraft_model::job::{
+    Blocked, DataFileFacts, DataSource, ImportPhase, ImportProgress, ImportReport, ImportStage, PlannedFolder, StopHow, Work,
+};
 
 use super::*;
 use crate::session::REMOVE_BACKSTOP;
@@ -68,6 +70,11 @@ fn an_import_is_followed_from_start_to_end() {
     // Where it came from is kept as soon as it's asked for.
     assert_eq!(sources(&s)[&id].stage, ImportStage::Running);
     assert_eq!(sources(&s)[&id].path, "C:/Mail/Archive.pst");
+
+    // The folders it will bring in, as planned: kept for the window's outline.
+    let planned = vec![PlannedFolder { path: "INBOX".into(), name: "Inbox".into(), items: 100 }];
+    s.apply(Event::ImportPlanned { account: id.clone(), folders: planned.clone() });
+    assert_eq!(s.import_state(&id).unwrap().planned, planned);
 
     // Progress: shown, with the time left once there's a rate to go by; never a notice.
     let notices = s.notices.len();

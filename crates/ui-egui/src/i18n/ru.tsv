@@ -1413,6 +1413,7 @@ month	May	Май
 	Importing…	Импорт…
 	Keep importing	Продолжить импорт
 	Keep what's imported	Оставить импортированное
+	Not imported yet	Ещё не импортирована
 	Less than a minute left	Осталось меньше минуты
 	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft импортирует файл {file} ({percent}%). Если закрыть его сейчас, импорт продолжится при следующем запуске MailCraft.
 	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft импортирует файл {file}. Если закрыть его сейчас, импорт продолжится при следующем запуске MailCraft.

@@ -1659,8 +1659,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   is caught before it's imported a second time, unless another copy is asked for. An import no
   longer says "N messages imported so far" in a notice every few seconds. A data file's account
   left with nothing in it by an import that never ended (before this was kept) is found as one to
-  import again or remove. Still open: the planned folders shown ahead as an outline, once the
-  window can show them as not yet open to changes.
+  import again or remove. The folders a file holds are shown ahead as an outline: as soon as
+  an import (or a run of one going on) has planned the file, the folders not in yet are listed
+  faint under the account's, each where it will be, and each becomes a folder like any other
+  as it finishes.
 - **Going on where an import stopped:** continuing an import read the file again from its start
   (the same messages coming out the same way, so a 41 GB file paused near its end took as long
   again). An import now notes where it got inside the account's data file, in the same commit as

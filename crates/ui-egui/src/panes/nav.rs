@@ -259,6 +259,8 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
                     folder_row(s, t, ui, acts, f, f.depth() + 1, false, collapse);
                 }
+                // The folders its import will bring in, not in yet.
+                crate::app::importing::outline(s, t, ui, &a.config.id, &a.folders);
                 ui.add_space(6.0);
             }
         }

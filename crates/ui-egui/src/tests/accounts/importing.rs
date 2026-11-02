@@ -4,7 +4,7 @@
 //! right to left.
 
 use mailcraft_engine::model::Job;
-use mailcraft_engine::model::job::{Blocked, DataFileFacts, ImportPhase, ImportProgress, ImportReport, SkipReason, StopHow, Work};
+use mailcraft_engine::model::job::{Blocked, DataFileFacts, ImportPhase, ImportProgress, ImportReport, PlannedFolder, SkipReason, StopHow, Work};
 
 use super::*;
 use crate::Action;
@@ -31,6 +31,16 @@ fn progress(phase: ImportPhase, done: u64, total: u64, run_ms: u64) -> ImportPro
         elapsed_ms: run_ms,
         ..Default::default()
     }
+}
+
+/// The folders a file's plan names: an Inbox (by the file's own name for it), a folder, and one
+/// under it.
+fn planned() -> Vec<PlannedFolder> {
+    vec![
+        PlannedFolder { path: "INBOX".into(), name: "Mail received".into(), items: 20 },
+        PlannedFolder { path: "Projects".into(), name: "Projects".into(), items: 30 },
+        PlannedFolder { path: "Projects/Festival 2024".into(), name: "Festival 2024".into(), items: 10 },
+    ]
 }
 
 fn going(a: &mut MailApp, id: &str, p: ImportProgress) {
@@ -124,6 +134,7 @@ fn close(ctx: &egui::Context, a: &mut MailApp) {
 pub(crate) fn tour(a: &mut MailApp, ctx: &egui::Context) {
     let id = import(a);
     frame(ctx, a, vec![]);
+    a.session.apply(MailEvent::ImportPlanned { account: id.clone(), folders: planned() });
     for (p, details) in [
         (progress(ImportPhase::Planning, 0, 0, 500), false),
         (progress(ImportPhase::Importing, 10, 100, 25_000), false),
@@ -238,6 +249,15 @@ fn an_import_is_shown_from_its_first_second() {
     for line in ["Messages: 30 of 100", "Data: 29 KB of 98 KB", "Folder: INBOX (2 of 4)", "Not brought in so far: 2", "Stop importing…"] {
         assert!(has(&texts, line), "{line}: {texts:?}");
     }
+
+    // The folders the file holds, ahead of them: faint until each is in, then a folder as any.
+    a.session.apply(MailEvent::ImportPlanned { account: id.clone(), folders: planned() });
+    let texts = drawn(&ctx, &mut a);
+    assert!(has(&texts, "Mail received") && has(&texts, "Festival 2024"), "{texts:?}");
+    a.session.apply(MailEvent::Folders { account: id.clone(), folders: vec![inbox(&id)] });
+    let texts = drawn(&ctx, &mut a);
+    assert!(!has(&texts, "Mail received"), "once in, a folder as any: {texts:?}");
+    assert!(has(&texts, "Festival 2024"), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
 

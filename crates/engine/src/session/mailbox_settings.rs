@@ -140,6 +140,7 @@ fn event_account(e: &Event) -> Option<&str> {
         | Event::OpFailed { account, .. }
         | Event::DavSynced { account, .. }
         | Event::ImportProgress { account, .. }
+        | Event::ImportPlanned { account, .. }
         | Event::Imported { account, .. }
         | Event::Indexed { account, .. }
         | Event::AttachmentsKnown { account, .. }

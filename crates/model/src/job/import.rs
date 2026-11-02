@@ -137,6 +137,16 @@ impl ImportProgress {
     }
 }
 
+/// A folder an import will bring in, as planned before its items are read: the path it gets in
+/// the account (as the import will make it), its name in the file, and the items it holds.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PlannedFolder {
+    pub path: String,
+    pub name: String,
+    pub items: u64,
+}
+
 /// Why something in a data file didn't come in (each has a sentence of its own in the
 /// interface). The order is the order a report lists them in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

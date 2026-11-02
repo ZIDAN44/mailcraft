@@ -427,6 +427,12 @@ pub enum Event {
         account: String,
         progress: ImportProgress,
     },
+    /// The folders a data file import will bring in, as its plan found them before any item is
+    /// read (sent once a run knows them): the window shows those not in yet as an outline.
+    ImportPlanned {
+        account: String,
+        folders: Vec<PlannedFolder>,
+    },
     /// A data file import ended (`done`: finished, stopped, or failed with `error`; an earlier
     /// version also said how it was going with `done` false). The folders come as
     /// [`Event::Folders`] first. `report`: what it came to, every loss by its reason.
@@ -608,6 +614,9 @@ mod tests {
         assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
         let progress = ImportProgress { phase: ImportPhase::Importing, work: Work { done: 1, total: 9, ..Default::default() }, ..Default::default() };
         let e = Event::ImportProgress { account: "a1".into(), progress };
+        assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
+        let folders = vec![PlannedFolder { path: "Projects/2024".into(), name: "2024".into(), items: 7 }];
+        let e = Event::ImportPlanned { account: "a1".into(), folders };
         assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
         let j = Job::StopImport { account: "a1".into(), how: StopHow::Discard };
         assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));

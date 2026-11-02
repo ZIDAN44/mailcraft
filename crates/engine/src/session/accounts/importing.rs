@@ -5,7 +5,7 @@
 //! opens. While an account imports, or its import waits on the user, its folders aren't changed
 //! (the import writes them), and what comes in isn't new mail.
 
-use mailcraft_model::job::{Blocked, DataFileFacts, DataSource, Eta, ImportPhase, ImportProgress, ImportReport, ImportStage, StopHow};
+use mailcraft_model::job::{Blocked, DataFileFacts, DataSource, Eta, ImportPhase, ImportProgress, ImportReport, ImportStage, PlannedFolder, StopHow};
 
 use super::*;
 
@@ -57,6 +57,9 @@ pub struct ImportState {
     pub stopping: Option<StopHow>,
     /// The account is removed once its import has stopped.
     pub removing: bool,
+    /// The folders its plan found, in the order they come in (the window shows those not in yet
+    /// as an outline); none until a run has planned the file.
+    pub planned: Vec<PlannedFolder>,
     /// Events applied since the removal was asked for.
     waited: u32,
 }
@@ -454,6 +457,13 @@ impl Session {
         self.import_started(account);
         if let Some(a) = self.account_mut(account) {
             a.status = SyncStatus::Syncing { folder };
+        }
+    }
+
+    /// The folders `account`'s import will bring in, as its run planned them.
+    pub(crate) fn import_planned(&mut self, account: &str, folders: Vec<PlannedFolder>) {
+        if let Some(st) = self.importing.running.get_mut(account).filter(|s| !s.removing) {
+            st.planned = folders;
         }
     }
 

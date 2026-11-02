@@ -105,6 +105,7 @@ impl Session {
             }
             Event::DavSynced { account, sync } => self.apply_dav(&account, &sync),
             Event::ImportProgress { account, progress } => self.import_progress(&account, &progress),
+            Event::ImportPlanned { account, folders } => self.import_planned(&account, folders),
             // A discarded import is a removed account's (only removing one discards it): the
             // account being removed goes now; any other end of one is an account's long gone.
             Event::Imported { account, error, report: Some(r), .. } if r.stopped == Some(mailcraft_model::job::StopHow::Discard) => {

@@ -265,6 +265,26 @@ pub(crate) fn nav_line(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
     true
 }
 
+/// The folders an import hasn't brought in yet, as its plan names them, under its account's
+/// folders in the folder pane: faint, in the order they come in, each where it will be. One
+/// shows as any other folder once it's in (until then nothing can be done with it).
+pub(crate) fn outline(s: &Session, t: &Tokens, ui: &mut Ui, account: &str, have: &[mailcraft_engine::model::Folder]) {
+    let Some(st) = s.import_state(account).filter(|st| !st.removing) else { return };
+    for f in st.planned.iter().filter(|f| !have.iter().any(|h| h.path == f.path)) {
+        let depth = f.path.matches('/').count().saturating_add(1);
+        let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
+        let m = bidi::Mirror::new(rect);
+        let x = rect.min.x + 10.0 + depth as f32 * 14.0;
+        icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(egui::pos2(x, rect.center().y - 7.0), vec2(14.0, 14.0))), Icon::Folder, t.faint);
+        let width = (rect.max.x - x - 30.0).max(20.0);
+        let g = widgets::one_line(ui, &f.name, egui::TextStyle::Body.resolve(ui.style()), t.faint, width);
+        let at = egui::pos2(m.start(x + 22.0, g.size().x), rect.center().y - g.size().y / 2.0);
+        ui.painter().galley(at, g, t.faint);
+        widgets::named(ui, &resp, &format!("{}, {}", f.name, tl!("Not imported yet")), false, None);
+        resp.on_hover_text(tl!("Not imported yet"));
+    }
+}
+
 /// An account's menu, for its import: stop it, go on with it, keep it as it is, or see what an
 /// import came to.
 pub(crate) fn menu(ui: &mut Ui, s: &Session, account: &str, acts: &mut Vec<Action>) {

@@ -1410,6 +1410,7 @@ month	May	5月
 	Importing…	取り込んでいます…
 	Keep importing	取り込みを続ける
 	Keep what's imported	取り込んだ分を残す
+	Not imported yet	まだ取り込まれていません
 	Less than a minute left	残り 1 分未満
 	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft は {file} を取り込んでいます ({percent}%)。今閉じると、次に MailCraft を開いたときに取り込みが続きます。
 	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft は {file} を取り込んでいます。今閉じると、次に MailCraft を開いたときに取り込みが続きます。

@@ -130,6 +130,40 @@ impl<'a> Out<'a> {
     }
 }
 
+/// Folders the outline of what an import brings in names, at most (the rest come in unannounced).
+const OUTLINE_MAX: usize = 2000;
+
+/// A folder's name in the file as MailCraft names it: no `/` in it, and never empty.
+fn folder_name(name: &str) -> String {
+    let name = name.trim().replace('/', "∕");
+    if name.is_empty() { "Folder".to_string() } else { name }
+}
+
+/// The path a folder named `name` (in the file) under `parent` gets beside `folders`, and its
+/// role when it's a usual top-level one (each role once).
+fn folder_path(folders: &[Folder], parent: Option<&str>, name: &str) -> (String, FolderRole) {
+    let name = folder_name(name);
+    let mut role = match parent {
+        None => FolderRole::from_name(&name, None),
+        Some(_) => FolderRole::Other,
+    };
+    if role != FolderRole::Other && folders.iter().any(|f| f.role == role) {
+        role = FolderRole::Other;
+    }
+    let base = match (role, parent) {
+        (FolderRole::Inbox, _) => "INBOX".to_string(),
+        (_, Some(p)) => format!("{p}/{}", utf7::encode(&name)),
+        (_, None) => utf7::encode(&name),
+    };
+    let mut path = base.clone();
+    let mut n = 2;
+    while folders.iter().any(|f| f.path.eq_ignore_ascii_case(&path)) {
+        path = format!("{base} ({n})");
+        n += 1;
+    }
+    (path, role)
+}
+
 /// How often the import's checkpoint is written ([`super::resume::CHECKPOINT_EVERY`], or as a
 /// test says).
 fn checkpoint_every(opts: &ImportOptions) -> Duration {
@@ -212,26 +246,7 @@ impl Out<'_> {
 
     /// A folder for `name` under `parent`, with a role when it's a usual top-level one.
     pub(super) fn add_folder(&mut self, parent: Option<&str>, name: &str) -> String {
-        let name = name.trim().replace('/', "∕");
-        let name = if name.is_empty() { "Folder".to_string() } else { name };
-        let mut role = match parent {
-            None => FolderRole::from_name(&name, None),
-            Some(_) => FolderRole::Other,
-        };
-        if role != FolderRole::Other && self.folders.iter().any(|f| f.role == role) {
-            role = FolderRole::Other;
-        }
-        let base = match (role, parent) {
-            (FolderRole::Inbox, _) => "INBOX".to_string(),
-            (_, Some(p)) => format!("{p}/{}", utf7::encode(&name)),
-            (_, None) => utf7::encode(&name),
-        };
-        let mut path = base.clone();
-        let mut n = 2;
-        while self.folders.iter().any(|f| f.path.eq_ignore_ascii_case(&path)) {
-            path = format!("{base} ({n})");
-            n += 1;
-        }
+        let (path, role) = folder_path(&self.folders, parent, name);
         self.folders.push(Folder {
             account: self.account.to_string(),
             path: path.clone(),
@@ -242,6 +257,30 @@ impl Out<'_> {
         });
         self.states.insert(path.clone(), Open { uid_next: 1, waiting: Vec::new(), list: self.store.list_writer(self.account, &path) });
         path
+    }
+
+    /// The plan's mail folders (`outline`, in the order they come in), each with the path it gets
+    /// (where it went, going on, or as it will be made), told to the sink before any comes in.
+    pub(super) fn outline(&mut self, outline: &[super::order::Outlined]) {
+        let mut made = self.folders.clone();
+        let mut paths: HashMap<usize, String> = HashMap::new();
+        let mut planned = Vec::new();
+        for f in outline {
+            let parent = f.parent.and_then(|p| paths.get(&p)).cloned();
+            let path = match self.known_path(f.node) {
+                Some(p) => p.to_string(),
+                None => {
+                    let (path, role) = folder_path(&made, parent.as_deref(), &f.name);
+                    made.push(Folder { path: path.clone(), role, ..Default::default() });
+                    path
+                }
+            };
+            if planned.len() < OUTLINE_MAX {
+                planned.push(PlannedFolder { path: path.clone(), name: folder_name(&f.name), items: f.items });
+            }
+            paths.insert(f.index, path);
+        }
+        self.sink.planned(&planned);
     }
 
     /// A contact, contact group, calendar item, note or journal entry (anything else in their

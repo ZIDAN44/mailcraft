@@ -690,6 +690,12 @@ impl Told<'_> {
 }
 
 impl ImportSink for Told<'_> {
+    fn planned(&mut self, folders: &[mailcraft_model::job::PlannedFolder]) {
+        if !self.thrown_away() {
+            self.sink.emit(Event::ImportPlanned { account: self.account.to_string(), folders: folders.to_vec() });
+        }
+    }
+
     fn progress(&mut self, p: Progress) {
         self.last = p;
         self.note_file();
