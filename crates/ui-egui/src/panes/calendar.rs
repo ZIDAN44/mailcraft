@@ -240,7 +240,10 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         });
     });
     let (d0, d1) = s.cal_days();
-    let items = s.agenda(s.local_midnight(d0), s.local_midnight(d1));
+    let (from, to) = (s.local_midnight(d0), s.local_midnight(d1));
+    // The tasks due these days too, drawn from the tasks (they aren't events).
+    let mut items = s.agenda(from, to);
+    items.extend(s.task_items(from, to));
     match s.cal_mode {
         CalMode::Month => month(s, &t, ui, &items, d0, acts),
         CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, d0, d1, acts),
@@ -251,8 +254,11 @@ fn title_of(it: &AgendaItem) -> String {
     event_title(&it.summary, it.privacy, it.show_as)
 }
 
-/// Open an item (its event).
+/// Open an item (its event, or its task).
 fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
+    if item.task {
+        return Dialog::open_task(s, &item.uid).map(Action::Dialog);
+    }
     Dialog::open_event(s, &item.uid, item.occurrence).map(Action::Dialog)
 }
 
@@ -288,11 +294,19 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
     // cut in half by the box's edge read badly).
     let font = theme::regular(12.0);
     let row = ui.fonts_mut(|f| f.row_height(&font)).max(1.0);
-    let mut job = egui::text::LayoutJob::simple(text.to_string(), font, t.text, (rect.width() - if lock { 22.0 } else { 8.0 }).max(4.0));
+    // A task: its box before its title, ticked (and the title faint) when it's done.
+    let done = item.task && item.status == "COMPLETED";
+    let lead = if item.task && rect.width() > 30.0 { 15.0 } else { 0.0 };
+    if lead > 0.0 {
+        let r = Rect::from_min_size(pos2(rect.min.x + 6.0, rect.min.y + 3.0), vec2(11.0, 11.0));
+        icons::paint(ui.painter(), r, Icon::Task, if done { t.faint } else { t.dim });
+    }
+    let ink = if done { t.faint } else { t.text };
+    let mut job = egui::text::LayoutJob::simple(text.to_string(), font, ink, (rect.width() - lead - if lock { 22.0 } else { 8.0 }).max(4.0));
     job.wrap.max_rows = ((rect.height() - 4.0) / row).floor().max(1.0) as usize;
     job.wrap.overflow_character = Some('…');
     let galley = ui.fonts_mut(|f| f.layout_job(job));
-    ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0, 2.0), galley, t.text);
+    ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0 + lead, 2.0), galley, ink);
     resp
 }
 

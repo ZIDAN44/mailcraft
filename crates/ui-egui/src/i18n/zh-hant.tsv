@@ -1511,3 +1511,34 @@ month	May	5月
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	無法從 Outlook 資料檔案傳送郵件。新增帳戶以傳送郵件。
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	無法從僅保存在這部電腦上的信箱傳送郵件。新增帳戶以傳送郵件。
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	此帳戶沒有外寄 (SMTP) 伺服器。請在帳戶設定中新增一個以傳送郵件。
+	Tasks	任務
+	Search tasks	搜尋任務
+	New task	新增任務
+	Task	任務
+	All tasks	所有任務
+	Active tasks	未完成的任務
+	{n} tasks	{n} 個任務
+	{n} overdue	{n} 個已逾期
+	No tasks yet: New task adds one.	尚無任務:按「新增任務」加入一個。
+	No task matches.	沒有符合的任務。
+	Task subject	主旨
+	Due date	到期日
+	Status	狀態
+	Priority	優先順序
+	Mark not complete	標示為未完成
+	(no title)	(無標題)
+	Repeats	重複
+	Start date	開始日期
+	complete	已完成
+	Remind me	提醒我
+	Marked complete, it comes back on its next due date.	標示為完成後，它會在下一個到期日再次出現。
+	Not started	未開始
+	In progress	進行中
+	Completed	已完成
+	Waiting on someone else	等待他人
+	Deferred	已延後
+	Low	低
+	Normal	一般
+	High	高
+	Hide completed	隱藏已完成
+	Tasks: {n}	任務: {n}

@@ -161,8 +161,8 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
     !cancel
 }
 
-/// What an import came to: messages and folders, the contacts, calendar and notes, the time it
-/// took, and what it couldn't bring in, a line for each reason.
+/// What an import came to: messages and folders, the contacts, calendar, notes and tasks, the
+/// time it took, and what it couldn't bring in, a line for each reason.
 fn import_done(ui: &mut Ui, account: &str, report: &ImportReport, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(440.0);
     let file = if report.file.is_empty() {
@@ -189,6 +189,9 @@ fn import_done(ui: &mut Ui, account: &str, report: &ImportReport, s: &Session, t
     }
     if report.notes > 0 {
         say(ui, tf!("Notes: {n}", n = report.notes), t.dim);
+    }
+    if report.tasks > 0 {
+        say(ui, tf!("Tasks: {n}", n = report.tasks), t.dim);
     }
     if !report.skips.is_empty() {
         ui.add_space(8.0);

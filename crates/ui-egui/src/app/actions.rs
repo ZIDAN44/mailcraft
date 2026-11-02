@@ -50,6 +50,7 @@ impl MailApp {
             Module::Mail => view_title(&self.session),
             Module::Calendar => tl!("Calendar").to_string(),
             Module::People => tl!("People").to_string(),
+            Module::Tasks => tl!("Tasks").to_string(),
             Module::Notes => tl!("Notes").to_string(),
         };
         let base = tl!(&self.ui.title_base).to_string();
@@ -323,6 +324,10 @@ impl MailApp {
                 Ok(v) => {
                     if id == "contact.create" {
                         self.ui.person = v.get("uid").and_then(Value::as_str).map(str::to_string);
+                    }
+                    // A task made is the one picked in the list.
+                    if id == "task.create" {
+                        self.ui.task = v.get("uid").and_then(Value::as_str).map(str::to_string);
                     }
                     // A Search Folder made or changed opens: not a search typed in.
                     if self.session.open_search_folder_name().is_some() {

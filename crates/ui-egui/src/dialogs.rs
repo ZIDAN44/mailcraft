@@ -174,6 +174,7 @@ pub enum Dialog {
         size: u64,
     },
     Event(Box<crate::pim_dialogs::EventForm>),
+    Task(Box<crate::pim_dialogs::TaskForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
     /// New folder (in `parent`), or rename `rename`.
     FolderName {
@@ -353,6 +354,16 @@ impl Dialog {
         Some(Dialog::Signature(Box::new(SignatureForm::new(s, &account, false))))
     }
 
+    /// A new task, due on `due` (a day) when given.
+    pub fn new_task(s: &Session, due: Option<i64>) -> Dialog {
+        Dialog::Task(Box::new(crate::pim_dialogs::TaskForm::new(s, due)))
+    }
+
+    /// A task, to edit.
+    pub fn open_task(s: &Session, uid: &str) -> Option<Dialog> {
+        crate::pim_dialogs::TaskForm::open(s, uid).map(|f| Dialog::Task(Box::new(f)))
+    }
+
     pub fn new_contact() -> Dialog {
         Dialog::Contact(Box::default())
     }
@@ -425,6 +436,7 @@ impl Dialog {
             Dialog::QuickStep(f) => f.error = Some(e),
             Dialog::EditAccount(f) => f.error = Some(e),
             Dialog::Event(f) => f.error = Some(e),
+            Dialog::Task(f) => f.error = Some(e),
             Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
             Dialog::Dav(f) => f.error = Some(e),
@@ -614,6 +626,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::Certificate { .. }
         | Dialog::SmartCard { .. }
         | Dialog::Event(..)
+        | Dialog::Task(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
     }
 }

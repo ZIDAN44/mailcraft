@@ -36,7 +36,7 @@ pub use look::thumbs::VideoFrame;
 pub use look::{bidi, craft_fonts, icons, motion, theme};
 use look::{progress, thumbs, widgets};
 pub use panes::backstage;
-use panes::{calendar, list, nav, notes, organize, people, reminders};
+use panes::{calendar, list, nav, notes, organize, people, reminders, tasks};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -382,6 +382,9 @@ pub struct UiState {
     pub(crate) months_drag: f32,
     pub(crate) note_edit: Option<(String, String)>,
     pub(crate) note_focus: bool,
+    /// Tasks: the search, and the task picked (uid).
+    pub(crate) tasks_query: String,
+    pub(crate) task: Option<String>,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
     /// The invitation in the open message, worked out once per message and calendar change.
@@ -508,6 +511,8 @@ impl MailApp {
                 months_drag: 0.0,
                 note_edit: None,
                 note_focus: false,
+                tasks_query: String::new(),
+                task: None,
                 person: None,
                 invite: None,
                 drag_out: None,

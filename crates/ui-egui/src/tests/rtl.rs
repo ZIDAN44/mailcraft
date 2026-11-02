@@ -32,7 +32,7 @@ fn deleting_a_word_after_hebrew_takes_one_word() {
 }
 
 /// The text drawn in a frame: each piece with where its letters are, left to right on the screen.
-fn drawn_text(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<(String, egui::Rect, egui::Rect)> {
+pub(super) fn drawn_text(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<(String, egui::Rect, egui::Rect)> {
     let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), ..Default::default() };
     let mut out = ctx.run_ui(input, |ui| a.ui(ui));
     out.textures_delta.clear();

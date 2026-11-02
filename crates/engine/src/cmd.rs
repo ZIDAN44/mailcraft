@@ -87,6 +87,7 @@ mod navigation;
 mod pim;
 mod security;
 mod signatures;
+mod tasks;
 mod view;
 
 /// Every command, in the order the CLI lists them: the Home tab's first, accounts' last.
@@ -97,6 +98,7 @@ pub fn registry() -> Registry {
     all.extend(compose::commands());
     all.extend(view::commands());
     all.extend(pim::commands());
+    all.extend(tasks::commands());
     all.extend(meetings::commands());
     all.extend(files::commands());
     all.extend(security::commands());

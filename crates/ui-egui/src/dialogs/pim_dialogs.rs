@@ -1,4 +1,4 @@
-//! The event and contact forms.
+//! The event, task and contact forms.
 
 use egui::{Color32, Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Session;
@@ -11,9 +11,12 @@ use crate::{Action, widgets};
 
 mod online_meeting;
 mod showing;
+mod task;
 pub use online_meeting::MeetingState;
 #[cfg(test)]
 pub(crate) use online_meeting::{add as online_meeting_add, remove as online_meeting_remove};
+use task::category_chips;
+pub use task::{TaskForm, status_label, task};
 
 /// A new event's reminder (Outlook's default for appointments).
 pub const DEFAULT_REMINDER: i64 = 15;
@@ -468,26 +471,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         // Categories colour it in the calendar (Outlook's Categorize on an appointment).
         if !f.all_categories.is_empty() {
             form_row(ui, t, true, Some(Icon::Tag), "Categories", |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    for (name, color) in f.all_categories.clone() {
-                        let on = f.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
-                        let c = theme::category_color(color, t.dark);
-                        let text = RichText::new(format!("● {}", name)).color(if on { Color32::WHITE } else { c });
-                        let r = ui.add(
-                            egui::Button::new(text)
-                                .fill(if on { c } else { Color32::TRANSPARENT })
-                                .stroke(egui::Stroke::new(1.0, c))
-                                .corner_radius(10),
-                        );
-                        if r.clicked() {
-                            if on {
-                                f.categories.retain(|x| !x.eq_ignore_ascii_case(&name));
-                            } else {
-                                f.categories.push(name.clone());
-                            }
-                        }
-                    }
-                });
+                category_chips(ui, t, &f.all_categories, &mut f.categories);
             });
         }
         if f.can_invite {

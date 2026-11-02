@@ -68,6 +68,8 @@ pub enum Icon {
     AddressBook,
     /// A sticky note (Notes).
     Note,
+    /// A box with a tick, and lines beside it (Tasks).
+    Task,
     /// Two chevrons running ahead (Quick Steps: several things in one go).
     Steps,
     /// A padlock (encrypted mail).
@@ -335,6 +337,13 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(13.5, 10.0), (10.0, 10.0), (10.0, 13.5)]);
             pen.line(&[(5.0, 6.0), (11.0, 6.0)]);
             pen.line(&[(5.0, 9.0), (8.5, 9.0)]);
+        }
+        Icon::Task => {
+            pen.rect(1.5, 3.0, 7.0, 8.5);
+            pen.line(&[(2.8, 5.8), (4.2, 7.2), (6.0, 4.6)]);
+            pen.line(&[(9.5, 5.75), (14.5, 5.75)]);
+            pen.rect(1.5, 10.0, 7.0, 15.5);
+            pen.line(&[(9.5, 12.75), (14.5, 12.75)]);
         }
         Icon::AddressBook => {
             pen.rect(3.0, 1.5, 13.5, 14.5);

@@ -1428,6 +1428,30 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   own), counts unread mail in its folders, makes folders with a container class and records
   special folders (`PATCHES.md` 13–15). The round trip through the import keeps all of it but the
   due day, and `pst_append` fuzzes adding such a message to a damaged file's name map.
+- **A task list:** an Outlook task came in from a `.pst` only when it had a due date, and then
+  as an all-day event on that day (a done one's title marked "✓"), its status, how far along it
+  was, its start, priority and how it repeats lost; one with no due date was left out. MailCraft
+  now has Tasks beside Calendar, People and Notes (Ctrl+4, `view.tasks`): a list with a box to
+  mark each one done, its due day (red when it's late), status and priority, sorted by due day,
+  priority, title or last change (a column's heading sorts by it), the done ones last and hidden
+  when asked, and searched from the box at the top (words, whatever their accents). A task opens
+  in a form with its start and due days, status and percent complete, priority, reminder,
+  repeat, categories and notes. Marking a repeating task done keeps a done copy and moves the
+  task to its next due day, as Outlook does. A task with a due day shows in the calendar that
+  day, drawn from the task (a box before its title) and opened as one, not copied into the
+  events, and its reminder rings in the Reminders window. Tasks are kept with the account's
+  calendar and contacts on this computer: no server keeps them (no CalDAV or Microsoft To Do
+  sync, by the owner's choice). The import brings every `IPM.Task` in as a task, due or not
+  (MS-OXOTASK: its status, percent complete, start, due and done days, its recurrence pattern
+  read into a rule as an appointment's is, its importance as priority, its reminder, categories
+  and files), and its report counts them. An export's calendar file beside the `.pst` carries
+  them as to-dos (`VTODO`, RFC 5545 §3.6.2), and a calendar file opened brings its to-dos in as
+  tasks; Waiting and Deferred, which iCalendar has no word for, go as `X-MAILCRAFT-TASK-STATUS`.
+  Commands: `task.list`, `task.create`, `task.update`, `task.complete`, `task.delete`,
+  `task.arrange`, `task.hideDone`. The `ical` fuzz target reads, writes and reads back to-dos,
+  and `pst_recurrence` makes a task of its pattern; a file the writer makes with a Tasks folder
+  is imported whole in a test (the writer has no 64-bit floats, so percent complete is tried on
+  the item's values alone).
 - **A double-clicked attachment only opens:** a double-click on an attachment opens it in the
   app for its kind, as Outlook's does, and the reading pane goes on showing the message; its
   first click had shown the file there already, left behind the app it opened in (in a

@@ -325,7 +325,7 @@ pub(crate) fn backstage_tour(a: &mut MailApp, ctx: &egui::Context) {
     a.ui.backstage = None;
 }
 
-/// Calendar (each view, an event open) and People (someone picked, the form open).
+/// Calendar (each view, an event open), People (someone picked, the form open) and Tasks.
 pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
     a.run("view.module", json!({"name": "calendar"}));
     for mode in ["day", "week", "month"] {
@@ -364,6 +364,28 @@ pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
     a.ui.people_query = "nobody-at-all".into();
     frame(ctx, a, vec![]);
     a.ui.people_query.clear();
+    // Tasks: the list (one picked, sorted each way, the done ones hidden), a task open, a new
+    // one, and nothing found.
+    a.run("view.module", json!({"name": "tasks"}));
+    frame(ctx, a, vec![]);
+    a.ui.task = a.session.tasks("").first().map(|t| t.task.uid.clone());
+    for by in ["due", "priority", "title", "modified"] {
+        a.run("task.arrange", json!({"by": by}));
+        frame(ctx, a, vec![]);
+    }
+    a.run("task.hideDone", json!({"on": true}));
+    frame(ctx, a, vec![]);
+    a.run("task.hideDone", json!({"on": false}));
+    if let Some(t) = a.session.tasks("").first() {
+        a.ui.dialog = Dialog::open_task(&a.session, &t.task.uid);
+        frame(ctx, a, vec![]);
+    }
+    a.ui.dialog = Some(Dialog::new_task(&a.session, None));
+    frame(ctx, a, vec![]);
+    a.ui.dialog = None;
+    a.ui.tasks_query = "nothing-like-it".into();
+    frame(ctx, a, vec![]);
+    a.ui.tasks_query.clear();
     a.run("view.module", json!({"name": "mail"}));
     frame(ctx, a, vec![]);
 }
@@ -491,7 +513,7 @@ fn the_classic_ribbon_draws_every_tab() {
     for dark in [Some(false), Some(true)] {
         a.ui.dark = dark;
         for w in [1280.0, 520.0] {
-            for module in ["mail", "calendar", "people", "notes"] {
+            for module in ["mail", "calendar", "people", "tasks", "notes"] {
                 a.run("view.module", json!({"name": module}));
                 for tab in [crate::RibbonTab::Home, crate::RibbonTab::SendReceive, crate::RibbonTab::View] {
                     a.ui.tab = tab;

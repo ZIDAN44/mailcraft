@@ -1512,3 +1512,34 @@ month	May	mai
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	Impossible d'envoyer du courrier depuis un fichier de données Outlook. Ajoutez un compte pour envoyer du courrier.
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Impossible d'envoyer du courrier depuis une boîte aux lettres conservée uniquement sur cet ordinateur. Ajoutez un compte pour envoyer du courrier.
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Ce compte n'a pas de serveur sortant (SMTP). Ajoutez-en un dans les paramètres du compte pour envoyer du courrier.
+	Tasks	Tâches
+	Search tasks	Rechercher dans les tâches
+	New task	Nouvelle tâche
+	Task	Tâche
+	All tasks	Toutes les tâches
+	Active tasks	Tâches en cours
+	{n} tasks	{n} tâches
+	{n} overdue	{n} en retard
+	No tasks yet: New task adds one.	Aucune tâche pour l'instant : Nouvelle tâche en ajoute une.
+	No task matches.	Aucune tâche ne correspond.
+	Task subject	Objet
+	Due date	Échéance
+	Status	État
+	Priority	Priorité
+	Mark not complete	Marquer comme non terminé
+	(no title)	(sans titre)
+	Repeats	Périodique
+	Start date	Date de début
+	complete	effectué
+	Remind me	Me le rappeler
+	Marked complete, it comes back on its next due date.	Marquée comme terminée, elle revient à sa prochaine échéance.
+	Not started	Non commencée
+	In progress	En cours
+	Completed	Terminée
+	Waiting on someone else	En attente d'une autre personne
+	Deferred	Différée
+	Low	Basse
+	Normal	Normale
+	High	Haute
+	Hide completed	Masquer les terminées
+	Tasks: {n}	Tâches : {n}

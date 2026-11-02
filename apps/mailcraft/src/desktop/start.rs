@@ -44,6 +44,12 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
             "ui.about" => app.ui.backstage = Some(Backstage::new(Page::About)),
             "ui.newEvent" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_event(&app.session, None)),
             "ui.newContact" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_contact()),
+            "ui.newTask" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::new_task(&app.session, None)),
+            // A task's form, by its uid (`{"uid": …}`).
+            "ui.openTask" => {
+                let p: serde_json::Value = serde_json::from_str(params).unwrap_or_default();
+                app.ui.dialog = mailcraft_ui_egui::Dialog::open_task(&app.session, p.get("uid").and_then(|v| v.as_str()).unwrap_or_default());
+            }
             "ui.signature" => app.ui.dialog = mailcraft_ui_egui::Dialog::signature(&app.session),
             "ui.categories" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::Categories),
             "ui.nameKeyword" => {

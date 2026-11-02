@@ -1508,3 +1508,34 @@ month	May	5月
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	Outlook データ ファイルからはメールを送信できません。メールを送信するには、アカウントを追加してください。
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	このコンピューターだけに保存されているメールボックスからはメールを送信できません。メールを送信するには、アカウントを追加してください。
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	このアカウントには送信 (SMTP) サーバーがありません。メールを送信するには、アカウント設定で追加してください。
+	Tasks	タスク
+	Search tasks	タスクを検索
+	New task	新しいタスク
+	Task	タスク
+	All tasks	すべてのタスク
+	Active tasks	未完了のタスク
+	{n} tasks	{n} 件のタスク
+	{n} overdue	期限切れ {n} 件
+	No tasks yet: New task adds one.	タスクはまだありません。[新しいタスク] で追加できます。
+	No task matches.	一致するタスクはありません。
+	Task subject	件名
+	Due date	期限
+	Status	状態
+	Priority	優先度
+	Mark not complete	未完了にする
+	(no title)	(タイトルなし)
+	Repeats	繰り返し
+	Start date	開始日
+	complete	完了
+	Remind me	通知する
+	Marked complete, it comes back on its next due date.	完了にすると、次の期限で再び表示されます。
+	Not started	未開始
+	In progress	進行中
+	Completed	完了
+	Waiting on someone else	他の人の対応待ち
+	Deferred	延期
+	Low	低
+	Normal	標準
+	High	高
+	Hide completed	完了を非表示
+	Tasks: {n}	タスク: {n}

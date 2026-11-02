@@ -219,6 +219,8 @@ local-first, media-aware v1); the fuller request is
    calendar. From issue #25: online meetings from the user's own rooms (BigBlueButton,
    Jitsi, OpenTalk…), CONFERENCE read and written, the hosts of Join meeting set by the user.
 32. **v0.32 — Pictures open without asking**
+   A task list (Outlook's Tasks): every `.pst` task comes in, due or not, is edited, done and
+   repeated here, is drawn in the calendar on its due day, and goes as a to-do in calendar files.
 33. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, bidirectional editing, Wayland drag-out, Kerberos-only Exchange, what the `.pst`
    libraries can't do yet.

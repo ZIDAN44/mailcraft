@@ -82,6 +82,47 @@ impl MailApp {
                             acts.push(Action::Run("calendar.sideBySide", json!({})));
                         }
                     }
+                } else if s.module == Module::Tasks {
+                    if widgets::accent_button(ui, Icon::Task, "New task", &t, !s.accounts.is_empty()).clicked() {
+                        acts.push(Action::Dialog(Dialog::new_task(s, None)));
+                    }
+                    widgets::group_sep(ui, &t);
+                    // The task picked in the list.
+                    let picked = self.ui.task.as_deref().and_then(|u| s.find_task(u));
+                    let done = picked.as_ref().is_some_and(|r| r.task.is_done());
+                    if widgets::tool_button(ui, Icon::Drafts, "Open", &t, picked.is_some()).clicked()
+                        && let Some(d) = picked.as_ref().and_then(|r| Dialog::open_task(s, &r.task.uid))
+                    {
+                        acts.push(Action::Dialog(d));
+                    }
+                    let mark = if done { "Mark not complete" } else { "Mark complete" };
+                    if widgets::tool_button(ui, Icon::Task, mark, &t, picked.is_some()).clicked()
+                        && let Some(r) = &picked
+                    {
+                        acts.push(Action::Run("task.complete", json!({"uid": r.task.uid, "done": !done})));
+                    }
+                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, picked.is_some()).clicked()
+                        && let Some(r) = &picked
+                    {
+                        acts.push(Action::Run("task.delete", json!({"uid": r.task.uid})));
+                    }
+                    // How they're listed, and whether the done ones are.
+                    widgets::group_sep(ui, &t);
+                    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+                    egui::Popup::menu(&r).show(|ui| {
+                        use mailcraft_engine::TasksOrder as O;
+                        for (order, label) in
+                            [(O::Due, "Due date"), (O::Priority, "Priority"), (O::Title, "Title (A to Z)"), (O::Modified, "Last changed")]
+                        {
+                            if ui.radio(s.prefs.tasks_order == order, tl!(label)).clicked() {
+                                acts.push(Action::Run("task.arrange", json!({"by": order.code()})));
+                                ui.close();
+                            }
+                        }
+                    });
+                    if widgets::tool_toggle(ui, Icon::Funnel, "Hide completed", &t, s.prefs.tasks_hide_done).clicked() {
+                        acts.push(Action::Run("task.hideDone", json!({})));
+                    }
                 } else if s.module == Module::Notes {
                     if widgets::accent_button(ui, Icon::Note, "New note", &t, !s.accounts.is_empty()).clicked() {
                         notes::new_note(&mut self.ui, acts);
@@ -490,17 +531,24 @@ pub(crate) const RIBBON_H: f32 = 65.0;
 /// The classic ribbon's: its tabs, then big buttons with the groups' names under them.
 pub(crate) const RIBBON_H_CLASSIC: f32 = RIBBON_H - 30.0 + widgets::CLASSIC_BUTTON_H + widgets::CLASSIC_CAPTION_H;
 
-/// Mail, Calendar and People, at the bottom of the side pane.
+/// The modules (Mail, Calendar, People, Tasks, Notes), as Outlook orders them.
+const MODULES: [(Module, Icon, &str, &str); 5] = [
+    (Module::Mail, Icon::Unread, "Mail", "mail"),
+    (Module::Calendar, Icon::Calendar, "Calendar", "calendar"),
+    (Module::People, Icon::People, "People", "people"),
+    (Module::Tasks, Icon::Task, "Tasks", "tasks"),
+    (Module::Notes, Icon::Note, "Notes", "notes"),
+];
+
+/// Mail, Calendar, People, Tasks and Notes, at the bottom of the side pane: narrower buttons
+/// when the pane is.
 pub(crate) fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
-        for (m, icon, label, code) in [
-            (Module::Mail, Icon::Unread, "Mail", "mail"),
-            (Module::Calendar, Icon::Calendar, "Calendar", "calendar"),
-            (Module::People, Icon::People, "People", "people"),
-            (Module::Notes, Icon::Note, "Notes", "notes"),
-        ] {
-            let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
+        let n = MODULES.len() as f32;
+        let w = ((ui.available_width() - 4.0 * (n - 1.0)) / n).clamp(26.0, 40.0);
+        for (m, icon, label, code) in MODULES {
+            let (r, resp) = ui.allocate_exact_size(vec2(w, 34.0), Sense::click());
             let on = m == module;
             widgets::named(ui, &resp, tl!(label), true, Some(on));
             if on || resp.hovered() {
@@ -514,14 +562,9 @@ pub(crate) fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut 
     });
 }
 
-/// Mail, Calendar and People one above another (the minimized folder pane).
+/// The modules one above another (the minimized folder pane).
 pub(crate) fn module_switch_vertical(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>) {
-    for (m, icon, label, code) in [
-        (Module::Mail, Icon::Unread, "Mail", "mail"),
-        (Module::Calendar, Icon::Calendar, "Calendar", "calendar"),
-        (Module::People, Icon::People, "People", "people"),
-        (Module::Notes, Icon::Note, "Notes", "notes"),
-    ] {
+    for (m, icon, label, code) in MODULES {
         let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
         let on = m == module;
         widgets::named(ui, &resp, tl!(label), true, Some(on));

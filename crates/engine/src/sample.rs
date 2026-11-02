@@ -3,6 +3,7 @@
 //! original; addresses use the reserved `example` domains (RFC 2606).
 
 use mailcraft_mime::{self as mime, Draft, OutAttachment};
+use mailcraft_model::pim::{StoredTask, Task, TaskPriority, TaskStatus};
 use mailcraft_model::{AccountConfig, EmailAddress, Flags, Folder, FolderRole, MessageKey, sort_newest_first};
 use mailcraft_store::{FolderState, Store, StoreError};
 
@@ -728,6 +729,39 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
         note("note-mix", "Sound mix v3\nRain under the café scene: a little quieter.", 0, 86_400),
         note("note-fox", "Fox turnarounds\nSide view: longer tail.", 1, 3 * 86_400),
     ];
+    // Tasks (Outlook's Tasks): some due, one late, one done, one with no day at all.
+    let day = today * 86_400;
+    let task = |uid: &str, title: &str, due: Option<i64>, status: TaskStatus, percent: u8, priority: TaskPriority| StoredTask {
+        task: Task {
+            uid: format!("{uid}@sample.mailcraft"),
+            title: title.into(),
+            due,
+            status,
+            percent,
+            priority,
+            modified: now - 3600,
+            ..Default::default()
+        },
+    };
+    p.tasks = vec![
+        task("task-grade", "Send the grading notes to the client", Some(day), TaskStatus::InProgress, 50, TaskPriority::High),
+        task("task-stage", "Book the sound stage", Some(day + 3 * 86_400), TaskStatus::NotStarted, 0, TaskPriority::Normal),
+        task("task-posters", "Order the festival posters", Some(day - 86_400), TaskStatus::NotStarted, 0, TaskPriority::Normal),
+        task("task-fonts", "Renew the font licences", None, TaskStatus::Waiting, 0, TaskPriority::Low),
+        task("task-backup", "Back up the edit drives", Some(day + 2 * 86_400), TaskStatus::NotStarted, 0, TaskPriority::Normal),
+        task("task-kit", "Return the camera kit", Some(day - 2 * 86_400), TaskStatus::Completed, 100, TaskPriority::Normal),
+    ];
+    for t in &mut p.tasks {
+        match t.task.uid.split('@').next().unwrap_or("") {
+            "task-grade" => {
+                t.task.categories = vec!["Work".into()];
+                t.task.notes = "Reels 2 and 3; the café scene is warmer now.".into();
+            }
+            "task-backup" => t.task.rrule = Some("FREQ=WEEKLY".into()),
+            "task-kit" => t.task.completed = Some(now - 2 * 86_400),
+            _ => {}
+        }
+    }
     p
 }
 

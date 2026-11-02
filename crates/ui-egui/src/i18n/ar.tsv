@@ -1507,3 +1507,34 @@ month	May	مايو
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	لا يمكن إرسال البريد من ملف بيانات Outlook. أضف حساباً لإرسال البريد.
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	لا يمكن إرسال البريد من صندوق بريد محفوظ على هذا الكمبيوتر فقط. أضف حساباً لإرسال البريد.
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	لا يوجد لهذا الحساب خادم صادر (SMTP). أضف خادماً في إعدادات الحساب لإرسال البريد.
+	Tasks	المهام
+	Search tasks	البحث في المهام
+	New task	مهمة جديدة
+	Task	مهمة
+	All tasks	كل المهام
+	Active tasks	المهام غير المنجزة
+	{n} tasks	{n} مهمة
+	{n} overdue	متأخرة: {n}
+	No tasks yet: New task adds one.	لا توجد مهام بعد: مهمة جديدة تضيف واحدة.
+	No task matches.	لا توجد مهمة مطابقة.
+	Task subject	الموضوع
+	Due date	تاريخ الاستحقاق
+	Status	الحالة
+	Priority	الأولوية
+	Mark not complete	وضع علامة غير مكتمل
+	(no title)	(بلا عنوان)
+	Repeats	تتكرر
+	Start date	تاريخ البدء
+	complete	مكتمل
+	Remind me	ذكّرني
+	Marked complete, it comes back on its next due date.	عند وضع علامة الإكمال، تعود في تاريخ استحقاقها التالي.
+	Not started	لم تبدأ
+	In progress	قيد التنفيذ
+	Completed	مكتملة
+	Waiting on someone else	في انتظار شخص آخر
+	Deferred	مؤجلة
+	Low	منخفضة
+	Normal	عادية
+	High	عالية
+	Hide completed	إخفاء المكتملة
+	Tasks: {n}	المهام: {n}

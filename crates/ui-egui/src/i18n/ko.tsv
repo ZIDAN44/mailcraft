@@ -1511,3 +1511,34 @@ month	May	5월
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	Outlook 데이터 파일에서는 메일을 보낼 수 없습니다. 메일을 보내려면 계정을 추가하세요.
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	이 컴퓨터에만 보관된 사서함에서는 메일을 보낼 수 없습니다. 메일을 보내려면 계정을 추가하세요.
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	이 계정에는 보내는 메일(SMTP) 서버가 없습니다. 메일을 보내려면 계정 설정에서 추가하세요.
+	Tasks	작업
+	Search tasks	작업 검색
+	New task	새 작업
+	Task	작업
+	All tasks	모든 작업
+	Active tasks	진행 중인 작업
+	{n} tasks	작업 {n}개
+	{n} overdue	기한 지남 {n}개
+	No tasks yet: New task adds one.	아직 작업이 없습니다. 새 작업으로 추가하세요.
+	No task matches.	일치하는 작업이 없습니다.
+	Task subject	제목
+	Due date	기한
+	Status	상태
+	Priority	우선 순위
+	Mark not complete	완료 표시 해제
+	(no title)	(제목 없음)
+	Repeats	반복
+	Start date	시작 날짜
+	complete	완료
+	Remind me	알림
+	Marked complete, it comes back on its next due date.	완료로 표시하면 다음 기한에 다시 나타납니다.
+	Not started	시작 안 함
+	In progress	진행 중
+	Completed	완료됨
+	Waiting on someone else	다른 사람 대기 중
+	Deferred	연기됨
+	Low	낮음
+	Normal	보통
+	High	높음
+	Hide completed	완료된 작업 숨기기
+	Tasks: {n}	작업: {n}

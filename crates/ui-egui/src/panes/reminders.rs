@@ -35,7 +35,7 @@ pub struct State {
     pub signature: u64,
 }
 
-/// A digest of what decides the due list: the answers given and the events.
+/// A digest of what decides the due list: the answers given, the events and the tasks.
 fn signature(s: &Session) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut mix = |v: u64| h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
@@ -48,6 +48,11 @@ fn signature(s: &Session) -> u64 {
         mix(p.events.len() as u64);
         for e in &p.events {
             mix(e.event.start as u64 ^ (e.event.extra.len() as u64).rotate_left(32) ^ (e.event.status.len() as u64).rotate_left(48));
+        }
+        // Tasks' reminders, and whether they're done.
+        mix(p.tasks.len() as u64);
+        for t in &p.tasks {
+            mix(t.task.reminder.unwrap_or(0) as u64 ^ u64::from(t.task.is_done()).rotate_left(63) ^ (t.task.due.unwrap_or(0) as u64).rotate_left(17));
         }
     }
     h
@@ -152,7 +157,7 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
                             acts.push(Action::Run("reminders.dismiss", json!({ "key": r.key })));
                         }
                         if ui.button(tl!("Open Item")).clicked()
-                            && let Some(d) = Dialog::open_event(s, &r.uid, r.occurrence)
+                            && let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_event(s, &r.uid, r.occurrence) }
                         {
                             acts.push(Action::Dialog(d));
                         }

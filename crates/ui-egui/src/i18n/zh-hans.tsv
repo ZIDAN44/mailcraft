@@ -1508,3 +1508,34 @@ month	May	5月
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	无法从 Outlook 数据文件发送邮件。添加帐户以发送邮件。
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	无法从仅保存在这台计算机上的邮箱发送邮件。添加帐户以发送邮件。
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	此帐户没有发送 (SMTP) 服务器。请在帐户设置中添加一个以发送邮件。
+	Tasks	任务
+	Search tasks	搜索任务
+	New task	新建任务
+	Task	任务
+	All tasks	所有任务
+	Active tasks	未完成的任务
+	{n} tasks	{n} 个任务
+	{n} overdue	{n} 个已逾期
+	No tasks yet: New task adds one.	还没有任务:点“新建任务”添加一个。
+	No task matches.	没有匹配的任务。
+	Task subject	主题
+	Due date	截止日期
+	Status	状态
+	Priority	优先级
+	Mark not complete	标记为未完成
+	(no title)	(无标题)
+	Repeats	重复
+	Start date	开始日期
+	complete	已完成
+	Remind me	提醒我
+	Marked complete, it comes back on its next due date.	标记为完成后，它会在下一个截止日期再次出现。
+	Not started	未开始
+	In progress	进行中
+	Completed	已完成
+	Waiting on someone else	等待他人
+	Deferred	已推迟
+	Low	低
+	Normal	普通
+	High	高
+	Hide completed	隐藏已完成
+	Tasks: {n}	任务: {n}

@@ -15,6 +15,9 @@ pub struct Prefs {
     pub mark_read_on_open: bool,
     pub read_in_pane: ReadInPane,
     pub notes_order: NotesOrder,
+    /// How tasks are listed, and whether the list leaves out those done.
+    pub tasks_order: pim::TasksOrder,
+    pub tasks_hide_done: bool,
     /// Calendars left out of the calendar (`account/calendar id`), as Outlook's unticked ones.
     pub hidden_calendars: BTreeSet<String>,
     /// Day and week show each calendar in a column of its own (Outlook's side-by-side view)
@@ -210,6 +213,8 @@ impl Default for Prefs {
             mark_read_on_open: true,
             read_in_pane: ReadInPane::Shown,
             notes_order: NotesOrder::Modified,
+            tasks_order: pim::TasksOrder::Due,
+            tasks_hide_done: false,
             hidden_calendars: BTreeSet::new(),
             calendars_side_by_side: false,
             calendar_months: 1,

@@ -1507,3 +1507,34 @@ month	May	מאי
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	לא ניתן לשלוח דואר מקובץ נתונים של Outlook. הוסף חשבון כדי לשלוח דואר.
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	לא ניתן לשלוח דואר מתיבת דואר שנשמרת רק במחשב זה. הוסף חשבון כדי לשלוח דואר.
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	לחשבון זה אין שרת דואר יוצא (SMTP). הוסף שרת בהגדרות החשבון כדי לשלוח דואר.
+	Tasks	משימות
+	Search tasks	חיפוש במשימות
+	New task	משימה חדשה
+	Task	משימה
+	All tasks	כל המשימות
+	Active tasks	משימות פתוחות
+	{n} tasks	{n} משימות
+	{n} overdue	{n} באיחור
+	No tasks yet: New task adds one.	אין עדיין משימות: 'משימה חדשה' מוסיפה אחת.
+	No task matches.	אין משימה תואמת.
+	Task subject	נושא
+	Due date	תאריך יעד
+	Status	מצב
+	Priority	עדיפות
+	Mark not complete	סמן כלא הושלם
+	(no title)	(ללא כותרת)
+	Repeats	חוזרת
+	Start date	תאריך התחלה
+	complete	הושלם
+	Remind me	הזכר לי
+	Marked complete, it comes back on its next due date.	לאחר סימון כהושלמה, היא חוזרת בתאריך היעד הבא.
+	Not started	לא התחילה
+	In progress	בתהליך
+	Completed	הושלמה
+	Waiting on someone else	ממתינה למישהו אחר
+	Deferred	נדחתה
+	Low	נמוכה
+	Normal	רגילה
+	High	גבוהה
+	Hide completed	הסתר שהושלמו
+	Tasks: {n}	משימות: {n}

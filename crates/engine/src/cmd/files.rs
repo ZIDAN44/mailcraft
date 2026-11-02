@@ -48,7 +48,7 @@ fn sniff(bytes: &[u8]) -> &'static str {
 }
 
 /// Open `path`: a message is answered with what to show (as `attachment.preview` answers); a
-/// calendar's events and a contacts file's people are added to the account on screen.
+/// calendar's events and tasks and a contacts file's people are added to the account on screen.
 fn open_mail_file(s: &mut Session, v: &Value) -> CmdResult {
     let given = p::req_str(v, "path")?;
     let path = given.trim();
@@ -78,11 +78,20 @@ fn open_mail_file(s: &mut Session, v: &Value) -> CmdResult {
                     Err(_) => skipped += 1,
                 }
             }
+            // Its to-dos go to the tasks.
+            let mut tasks = 0usize;
+            for t in cal.tasks {
+                match s.create_task(None, t) {
+                    Ok(_) => tasks += 1,
+                    Err(e @ CmdError::Disabled(_)) => return Err(e),
+                    Err(_) => skipped += 1,
+                }
+            }
             // The calendar goes to the first one's day, to show it.
             if let Some(start) = first {
                 s.cal_day = Some(start.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400));
             }
-            Ok(json!({"kind": kind, "name": name, "added": added, "skipped": skipped, "start": first}))
+            Ok(json!({"kind": kind, "name": name, "added": added, "tasks": tasks, "skipped": skipped, "start": first}))
         }
         "contacts" => {
             let bytes = match head {

@@ -1507,3 +1507,34 @@ month	May	mei
 	Mail can't be sent from an Outlook data file. Add an account to send mail.	Vanuit een Outlook-gegevensbestand kan geen e-mail worden verzonden. Voeg een account toe om e-mail te verzenden.
 	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Vanuit een postvak dat alleen op deze computer wordt bewaard, kan geen e-mail worden verzonden. Voeg een account toe om e-mail te verzenden.
 	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Dit account heeft geen server voor uitgaande e-mail (SMTP). Voeg er een toe in de accountinstellingen om e-mail te verzenden.
+	Tasks	Taken
+	Search tasks	Taken zoeken
+	New task	Nieuwe taak
+	Task	Taak
+	All tasks	Alle taken
+	Active tasks	Openstaande taken
+	{n} tasks	{n} taken
+	{n} overdue	{n} te laat
+	No tasks yet: New task adds one.	Nog geen taken: Nieuwe taak voegt er een toe.
+	No task matches.	Geen taak komt overeen.
+	Task subject	Onderwerp
+	Due date	Vervaldatum
+	Status	Status
+	Priority	Prioriteit
+	Mark not complete	Als niet voltooid markeren
+	(no title)	(geen titel)
+	Repeats	Terugkerend
+	Start date	Begindatum
+	complete	voltooid
+	Remind me	Herinneren
+	Marked complete, it comes back on its next due date.	Als voltooid gemarkeerd komt ze terug op de volgende vervaldatum.
+	Not started	Niet begonnen
+	In progress	Bezig
+	Completed	Voltooid
+	Waiting on someone else	Wacht op iemand anders
+	Deferred	Uitgesteld
+	Low	Laag
+	Normal	Normaal
+	High	Hoog
+	Hide completed	Voltooide verbergen
+	Tasks: {n}	Taken: {n}

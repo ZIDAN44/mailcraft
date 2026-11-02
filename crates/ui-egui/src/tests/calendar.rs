@@ -4,3 +4,4 @@ use super::*;
 
 mod meetings;
 mod pim;
+mod tasks;

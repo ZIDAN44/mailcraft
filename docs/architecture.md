@@ -319,6 +319,15 @@ written (`Compose`), preferences and status-bar notices.
   text searches keep for that summary is made again (`FolderTexts::changed`).
 - Local-only accounts (the sample mailbox) apply changes to the cache directly, including moves
   (new UIDs in the destination) and, for the sample mailbox alone, sending (filed in Sent).
+- Tasks (`model::pim::Task`; `session/pim/tasks.rs`, commands in `cmd/tasks.rs`) are kept in
+  each account's `pim.json` with its calendar and contacts, on this computer only: no transport
+  syncs them. Their days are dates (UTC midnight, as all-day events'); status, percent complete
+  and when a task was done are kept in step (`Task::settle`). The calendar draws a task due that
+  day from the task (`Session::task_items`, `AgendaItem::task`), never as an event, and the
+  Reminders window rings its reminder (`Session::task_reminders`). A calendar file reads and
+  writes them as `VTODO`s (`model/ical/tasks.rs`; `ical::write_calendar` puts them beside the
+  events), which is how an export carries them beside the `.pst` and how a file opened brings
+  them in.
 - Mail is sent only from an account that can send it (`session/writing/sending.rs`):
   `Session::send_block` says why not (no account, a data file, a mailbox kept only here, no
   outgoing server), `compose.send` is off with that reason, and `Session::deliver`, which every

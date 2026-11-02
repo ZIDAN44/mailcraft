@@ -272,6 +272,7 @@ impl MailApp {
                     Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
                     Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
                     Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
+                    Module::Tasks => tasks::nav(&self.session, &mut self.ui, ui, &mut acts),
                     Module::Notes => notes::nav(&self.session, &mut self.ui, ui, &mut acts),
                 }
             });
@@ -290,6 +291,11 @@ impl MailApp {
                 (Module::People, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                         people::show(&self.session, &mut self.ui, ui, &mut acts);
+                    });
+                }
+                (Module::Tasks, _) => {
+                    egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                        tasks::show(&self.session, &mut self.ui, ui, &mut acts);
                     });
                 }
                 (Module::Notes, _) => {

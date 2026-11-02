@@ -6,18 +6,20 @@ pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         // Accounts
         // Calendar and People
-        CommandSpec::new("view.module", "Mail, Calendar, People or Notes", "Navigation", |s, v| {
+        CommandSpec::new("view.module", "Mail, Calendar, People, Tasks or Notes", "Navigation", |s, v| {
             s.module = match p::req_str(v, "name")? {
                 "mail" => crate::Module::Mail,
                 "calendar" => crate::Module::Calendar,
                 "people" => crate::Module::People,
                 "notes" => crate::Module::Notes,
+                "tasks" => crate::Module::Tasks,
                 other => return Err(CmdError::Params(format!("unknown module `{other}`"))),
             };
             Ok(json!({"module": s.module}))
         })
-        .params(r#"{"name": "mail"|"calendar"|"people"|"notes"}"#),
-        // Outlook's keys for its modules: Ctrl+1 Mail, Ctrl+2 Calendar, Ctrl+3 People, Ctrl+5 Notes.
+        .params(r#"{"name": "mail"|"calendar"|"people"|"tasks"|"notes"}"#),
+        // Outlook's keys for its modules: Ctrl+1 Mail, Ctrl+2 Calendar, Ctrl+3 People, Ctrl+5 Notes
+        // (Ctrl+4, Tasks: `cmd/tasks.rs`).
         CommandSpec::new("view.mail", "Mail", "Navigation", |s, _| {
             s.module = crate::Module::Mail;
             Ok(json!({"module": s.module}))
