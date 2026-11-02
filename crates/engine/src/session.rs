@@ -13,7 +13,7 @@ use mailcraft_model::thread::{Thread, threads};
 use mailcraft_model::{
     AccountConfig, EmailAddress, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, Summary, SyncStatus, addr, sort_folders, sort_newest_first,
 };
-use mailcraft_store::{FolderMarks, FolderState, MarksAfter, OutboxItem, Store};
+use mailcraft_store::{FolderMarks, FolderState, LongWrite, MarksAfter, OutboxItem, Store};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

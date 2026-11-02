@@ -5,6 +5,7 @@ use super::*;
 mod deferred;
 mod echo;
 mod marks;
+mod moving;
 mod nav;
 mod search;
 mod search_big;

@@ -742,7 +742,7 @@ pub fn clear_scratch() {
 pub use accounts::Recompressed;
 use atomic::private_dir;
 pub use atomic::write_atomic;
-pub use bodies::Prepared;
+pub use bodies::{CommitTimes, LongWrite, Prepared, Timed};
 pub use compacting::Shrunk;
 use files::{Files, Routed};
 pub use folders::FolderLoad;

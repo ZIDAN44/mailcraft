@@ -155,18 +155,27 @@ impl Session {
         // Anything else reads the lists from disk: the account's marks handed over before are
         // there first.
         store.flush_marks_of(account, None);
-        if let Op::Move { keys, to } = op {
+        // A long move's write ([`Store::long_write`]) lasts until the lists and counts after it are
+        // saved too: each of them is sealed.
+        let _long = if let Op::Move { keys, to } = op {
             // Not filed in the destination: the messages stay where they were (taken from the
             // sources after all, they were lost), and the lists in memory are read again.
-            if let Err(e) = Self::file_moved(&store, account, keys, to) {
-                for f in &touched {
-                    self.reload_folder(account, f);
+            match Self::file_moved(&store, account, keys, to) {
+                Ok(long) => {
+                    self.reload_folder(account, to);
+                    long
                 }
-                self.recount_local(account, Some(&touched));
-                return Err(format!("Your mail couldn't be moved, so it stays where it was: {e}"));
+                Err(e) => {
+                    for f in &touched {
+                        self.reload_folder(account, f);
+                    }
+                    self.recount_local(account, Some(&touched));
+                    return Err(format!("Your mail couldn't be moved, so it stays where it was: {e}"));
+                }
             }
-            self.reload_folder(account, to);
-        }
+        } else {
+            None
+        };
         match store.apply_op(account, op) {
             Ok(changed) => {
                 for f in changed {
@@ -199,7 +208,15 @@ impl Session {
     /// A local move's first half: the messages filed in `to` with new numbers, their sources with
     /// them. Every list is read before anything is written, and any error but a source that
     /// isn't here stops it (a list read as empty was saved over the destination's mail).
-    fn file_moved(store: &Store, account: &str, keys: &[MessageKey], to: &str) -> Result<(), mailcraft_store::StoreError> {
+    ///
+    /// A move of more than a batch of sources is a long write ([`Store::long_write`], returned to
+    /// last until the rest of the move is saved): its batches don't wait for the disk, and the
+    /// last, which the destination's list counts on, is a sealed commit that waits for it, refused
+    /// if the data file lost what didn't (opened again after a failed write) meanwhile. Each
+    /// batch waiting for the disk unsealed, a crash part-way checked the whole file as it opened
+    /// again (105 s for 37 GB); the batches before the last are lost to a crash, but no list names
+    /// them yet.
+    fn file_moved<'s>(store: &'s Store, account: &str, keys: &[MessageKey], to: &str) -> Result<Option<LongWrite<'s>>, mailcraft_store::StoreError> {
         let mut dest = store.load_folder(account, to)?;
         if dest.validity == 0 {
             dest.validity = 1;
@@ -217,6 +234,11 @@ impl Session {
         let mut uid = dest.free_uid(account, to)?;
         let mut bodies: Vec<(MessageKey, Vec<u8>)> = Vec::new();
         let mut pending = 0usize;
+        let packs = store.packs(account);
+        let prepare = |bodies: Vec<(MessageKey, Vec<u8>)>| bodies.into_iter().map(|(k, raw)| (k, Store::prepare(packs, raw))).collect();
+        // The long write, and how often its data file had been let go of after a failed write
+        // as it began.
+        let mut long: Option<(LongWrite<'s>, u64)> = None;
         for k in keys.iter().filter(|k| k.folder != to) {
             let Some(m) = sources.get(&k.folder).and_then(|src| src.get(&k.uid)) else { continue };
             let mut moved = m.clone();
@@ -228,21 +250,30 @@ impl Session {
             };
             // One never downloaded moves without it.
             if let Some(raw) = store.load_body(k)? {
+                // A full batch goes before this one, so the last batch is never empty.
+                if !bodies.is_empty() && (bodies.len() >= 1000 || pending.saturating_add(raw.len()) > 16 << 20) {
+                    if long.is_none() {
+                        let began = store.long_write(account);
+                        long = Some((began, store.data_file_reopened(account)));
+                    }
+                    store.write_prepared(prepare(std::mem::take(&mut bodies)), false)?;
+                    pending = 0;
+                }
                 pending = pending.saturating_add(raw.len());
                 bodies.push((moved.key.clone(), raw));
-            }
-            if bodies.len() >= 1000 || pending >= 16 << 20 {
-                store.write_bodies(&std::mem::take(&mut bodies))?;
-                pending = 0;
             }
             dest.messages.push(moved);
         }
         if !bodies.is_empty() {
-            store.write_bodies(&bodies)?;
+            match &long {
+                Some((_, reopened)) => store.write_batch(account, prepare(bodies), Vec::new(), *reopened)?,
+                None => store.write_prepared(prepare(bodies), true)?,
+            }
         }
         dest.uid_next = uid;
         sort_newest_first(&mut dest.messages);
-        store.save_folder(account, to, &dest)
+        store.save_folder(account, to, &dest)?;
+        Ok(long.map(|(l, _)| l))
     }
 
     /// A folder-list change, in memory: the account's folders, the open view, cached folder

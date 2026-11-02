@@ -17,7 +17,11 @@
 //! sealed too (the batches between them still don't wait): the import's checkpoints are, and so
 //! is every other durable commit until it ends, so a crash part-way reopens the file at once, at
 //! its last durable commit, rather than checking the whole of it (55 s for a 37 GB one), and the
-//! import goes on from its last checkpoint.
+//! import goes on from its last checkpoint. A long local write (a move of more than a batch of
+//! mail, [`Store::long_write`](crate::Store::long_write)) is sealed the same way, its batches not
+//! waiting for the disk: a move of 10,941 messages out of a 37 GB file's biggest folder made 855
+//! commits that waited for the disk, none sealed, so a crash during it checked the whole file
+//! (105 s) where it now opens at once.
 //!
 //! Writers in the background commit batches that don't wait for the disk; the next durable commit
 //! writes them out. So that a write from the window isn't the one left writing out a long run of
@@ -107,6 +111,8 @@ pub(super) struct Seals {
     wake: Condvar,
     /// A seal by the thread ended.
     sealed: Condvar,
+    /// The commits that waited for the disk, timed.
+    times: Mutex<CommitTimes>,
     /// How long each write from the window waited for the writer.
     #[cfg(test)]
     pub(super) waits: Mutex<Vec<Duration>>,
@@ -239,7 +245,6 @@ impl Seals {
     }
 
     /// Whether `account`'s data file waits for a seal (written since it was last sealed).
-    #[cfg(test)]
     pub(crate) fn seal_due(&self, account: &str) -> bool {
         self.lock().due.contains_key(account)
     }
@@ -277,6 +282,17 @@ impl Seals {
         (w.undurable.get(account).copied().unwrap_or(0), w.peak.0, w.peak.1)
     }
 
+    /// A commit that waited for the disk (sealed or not) took `took`.
+    fn timed(&self, sealed: bool, took: Duration) {
+        let mut t = self.times.lock().unwrap_or_else(PoisonError::into_inner);
+        if sealed { t.sealed.add(took) } else { t.plain.add(took) }
+    }
+
+    /// The commits that waited for the disk so far, timed.
+    pub(super) fn times(&self) -> CommitTimes {
+        *self.times.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// No more sealing (the data files are closing, which seals them).
     pub(super) fn stop(&self) {
         self.lock().stop = true;
@@ -296,10 +312,13 @@ pub(super) fn seal_with(db: &Database, seals: &Seals, account: &str, f: impl FnO
     tx.set_quick_repair(true);
     f(&tx)?;
     let before = seals.count(account, None);
+    let at = Instant::now();
     tx.commit().map_err(|e| {
         seals.restore(account, before);
         disk(e)
-    })
+    })?;
+    seals.timed(true, at.elapsed());
+    Ok(())
 }
 
 impl Packs {
@@ -385,11 +404,11 @@ impl Packs {
         }
         // Asked once this writer has the file: whatever began before the closing seal committed
         // before it, and whatever begins after is sealed itself. Likewise, no other batch can
-        // come in between this one's look at the run waiting and its commit. In a bulk write, a
-        // commit that waits for the disk (a batch made so too) is sealed.
-        let bulk = self.in_bulk(account);
-        let durable = how.durable || self.seals.too_far(account, undurable, if bulk { BULK_UNDURABLE_MAX } else { UNDURABLE_MAX });
-        let how = if self.seals.lock().closing || (durable && bulk) {
+        // come in between this one's look at the run waiting and its commit. In a bulk or a long
+        // write, a commit that waits for the disk (a batch made so too) is sealed.
+        let sealing = self.sealing(account);
+        let durable = how.durable || self.seals.too_far(account, undurable, if sealing { BULK_UNDURABLE_MAX } else { UNDURABLE_MAX });
+        let how = if self.seals.lock().closing || (durable && sealing) {
             Commit::SEALED
         } else if durable && !how.durable {
             Commit::PLAIN
@@ -421,6 +440,9 @@ impl Packs {
         if let Err(e) = tx.commit() {
             self.seals.restore(account, before);
             return Err(disk(e));
+        }
+        if how.durable {
+            self.seals.timed(how.seal, at.elapsed());
         }
         if fresh && how.durable {
             Packs::lock(&self.fresh).remove(account);
@@ -544,6 +566,11 @@ impl Packs {
         let _writing = ThreadWriting::begin();
         let Some(db) = self.db(&a, false).map_err(io_err(dir))? else { return Ok(()) };
         seal(&db, &self.seals, &a).map_err(io_err(dir))
+    }
+
+    /// The commits that waited for the disk so far, timed ([`CommitTimes`]).
+    pub(crate) fn commit_times(&self) -> CommitTimes {
+        self.seals.times()
     }
 
     /// MailCraft is closing: every open data file sealed, and every commit from here on sealed

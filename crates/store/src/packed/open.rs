@@ -38,6 +38,9 @@ pub(super) struct Open {
     /// Accounts taking a bulk write, whatever their cache: each commit of theirs that waits for
     /// the disk is sealed meanwhile (`commit.rs`).
     bulk_writers: HashSet<String>,
+    /// Accounts taking a long write (a big local move), and how many: the same, with no other
+    /// cache ([`Packs::long_begin`]).
+    long_writers: HashMap<String, usize>,
     /// How the caches of the files let go of to change theirs were used (so a count over an
     /// import keeps what its file did before it was opened again).
     spent: HashMap<String, CacheUse>,
@@ -250,9 +253,47 @@ impl Packs {
         }
     }
 
-    /// Whether `account` takes a bulk write now.
-    pub(super) fn in_bulk(&self, account: &str) -> bool {
-        Packs::lock(&self.open).bulk_writers.contains(account)
+    /// Whether `account` takes a bulk or a long write now: each of its commits that waits for the
+    /// disk is sealed meanwhile, and its batches that don't run longer between them.
+    pub(super) fn sealing(&self, account: &str) -> bool {
+        let open = Packs::lock(&self.open);
+        open.bulk_writers.contains(account) || open.long_writers.contains_key(account)
+    }
+
+    /// `account` takes a long write (a big local move) until [`Packs::long_end`]: each of its
+    /// commits that waits for the disk is sealed meanwhile, as in a bulk write, so a crash
+    /// part-way reopens the file at once. Written since its last seal, the file is sealed now,
+    /// so a crash before the long write's first such commit does too.
+    pub(crate) fn long_begin(&self, account: &str) {
+        {
+            let mut open = Packs::lock(&self.open);
+            let n = open.long_writers.entry(account.to_string()).or_default();
+            *n = n.saturating_add(1);
+        }
+        if !self.seals.seal_due(account) {
+            return;
+        }
+        let _writing = ThreadWriting::begin();
+        match self.db(account, false) {
+            Ok(Some(db)) => {
+                if let Err(e) = seal(&db, &self.seals, account) {
+                    log::warn!("{account}'s data file couldn't be sealed: {e}");
+                }
+            }
+            Ok(None) => {}
+            Err(e) => log::warn!("{account}'s data file couldn't be sealed: {e}"),
+        }
+    }
+
+    /// One of `account`'s long writes is over.
+    pub(crate) fn long_end(&self, account: &str) {
+        let mut open = Packs::lock(&self.open);
+        if let Some(n) = open.long_writers.get_mut(account) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                open.long_writers.remove(account);
+            }
+        }
     }
 
     /// `account`'s data file, open with another cache than it should have, closed if nobody else

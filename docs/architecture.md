@@ -112,7 +112,12 @@ full check of the file at the next open, and a file checked is sealed as it open
 never repeated however the process then ends. While an account takes a bulk write, every commit of
 its file that waits for the disk is sealed and batches wait for it 256 MiB at a time
 (`BULK_UNDURABLE_MAX`), so an import killed at any point reopens at its last durable commit at
-once (12–126 ms on a 37 GB file, where a check took up to 55 s). Removing an account waits for a seal under way on its
+once (12–126 ms on a 37 GB file, where a check took up to 55 s). A long local write takes the
+same (`Store::long_write`, counted, with no other cache): a move of more than a batch of sources
+(1,000 or 16 MiB) writes its batches without waiting for the disk, its last batch as a sealed
+commit refused if the file lost what didn't wait meanwhile (`Store::write_batch` with
+`data_file_reopened`), and the lists and counts after it sealed too; a file written since its last
+seal is sealed as the long write begins. Removing an account waits for a seal under way on its
 file, so nothing still holds the file open. Opening a data file holds no lock over the others: the
 account is marked as opening, and only a reader of that account waits for it (a full check takes
 minutes on a big file). `Store::packed` opens nothing; `Store::open_data_files` brings folders from

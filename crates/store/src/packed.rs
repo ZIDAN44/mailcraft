@@ -20,7 +20,7 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
-use crate::{CACHE, OpenProgress, Prepared, Result, StoreError, io_err, write_atomic};
+use crate::{CACHE, CommitTimes, OpenProgress, Prepared, Result, StoreError, io_err, write_atomic};
 
 mod commit;
 mod compact;

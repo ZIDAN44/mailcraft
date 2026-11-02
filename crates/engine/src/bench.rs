@@ -29,6 +29,7 @@ use crate::sample::big;
 use crate::store::Store;
 
 mod memory;
+mod moving;
 
 fn step<T>(what: &str, f: impl FnOnce() -> T) -> T {
     std::thread::sleep(Duration::from_secs(3));

@@ -2,6 +2,55 @@
 
 use crate::*;
 
+/// The data files' commits that waited for the disk, timed: sealed ones and the others. For
+/// measuring what sealing costs; nothing for other stores.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CommitTimes {
+    pub sealed: Timed,
+    pub plain: Timed,
+}
+
+/// How many, how long in all, and the longest.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Timed {
+    pub count: u64,
+    pub total: std::time::Duration,
+    pub longest: std::time::Duration,
+}
+
+impl Timed {
+    /// One more, taking `took`.
+    pub fn add(&mut self, took: std::time::Duration) {
+        self.count = self.count.saturating_add(1);
+        self.total = self.total.saturating_add(took);
+        self.longest = self.longest.max(took);
+    }
+
+    /// What was added since `before` (the longest is the whole run's).
+    pub fn since(&self, before: &Timed) -> Timed {
+        Timed { count: self.count.saturating_sub(before.count), total: self.total.saturating_sub(before.total), longest: self.longest }
+    }
+}
+
+/// A long write to an account's data file ([`Store::long_write`]), over when dropped (on every
+/// way out, an error's included).
+#[must_use = "the long write is over when this is dropped"]
+pub struct LongWrite<'a> {
+    store: &'a Store,
+    /// The account's name as its data file has it; none for other stores.
+    account: Option<String>,
+}
+
+impl Drop for LongWrite<'_> {
+    fn drop(&mut self) {
+        match (&self.store.files.main, &self.account) {
+            #[cfg(not(target_arch = "wasm32"))]
+            (Files::Packed(x), Some(account)) => x.long_end(account),
+            _ => {}
+        }
+    }
+}
+
 /// A message source made ready for the store away from its writer ([`Store::prepare`]): as a data
 /// file keeps it (compressed when that helps), or as it is for other stores.
 #[derive(Clone, Debug)]
@@ -227,6 +276,25 @@ impl Store {
         }
     }
 
+    /// `account` takes a long write (a local move of more than a batch of mail) until what this
+    /// returns is dropped: each commit to its data file that waits for the disk is sealed
+    /// meanwhile, and the file is sealed now if it was written since its last seal, so a crash
+    /// part-way reopens it at once rather than checking the whole of it. The writer's batches
+    /// don't wait for the disk (`write_prepared`), and its last one that counts on them is a
+    /// sealed commit checked against [`Store::data_file_reopened`] (`write_batch`). Nothing to do
+    /// for other stores.
+    pub fn long_write(&self, account: &str) -> LongWrite<'_> {
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) if !self.is_online_only(account) => {
+                let account = safe_segment(account);
+                x.long_begin(&account);
+                LongWrite { store: self, account: Some(account) }
+            }
+            _ => LongWrite { store: self, account: None },
+        }
+    }
+
     /// The cache `account`'s data file is open with, in bytes (none: it isn't open, or the store
     /// keeps no data files).
     #[doc(hidden)]
@@ -251,6 +319,16 @@ impl Store {
                 let _ = account;
                 CacheUse::default()
             }
+        }
+    }
+
+    /// The data files' commits that waited for the disk since the store opened, sealed and not,
+    /// timed ([`CommitTimes`]): for measuring. Nothing for other stores.
+    pub fn commit_times(&self) -> CommitTimes {
+        match &self.files.main {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.commit_times(),
+            _ => CommitTimes::default(),
         }
     }
 
