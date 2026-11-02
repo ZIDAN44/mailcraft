@@ -353,8 +353,8 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// tick, its summaries' texts made as it goes), alone or after the other queries, 90 ms all told
 /// and 4 ms a step at p99; a one-letter word, warm or just opened, 300 ms all told. Printed only:
 /// the common phrase searched again (150 ms in frames: 128-142 ms), and the tick that opens the
-/// index ahead. A machine busy with other builds slows every query alike and can fail it: run it
-/// on one at rest. Not met yet (docs/gaps.md, Open): the common phrase searched the first time
+/// index ahead, with what the index then holds in memory (and after the queries). A machine busy
+/// with other builds slows every query alike and can fail it: run it on one at rest. Not met yet (docs/gaps.md, Open): the common phrase searched the first time
 /// (150 ms in frames: 357-454 ms), `is:unread`'s 15 ms, a one-letter word's 6 ms a step (those
 /// recording thousands found: p99 8-13 ms, worst 11-22 ms, copying each summary found), and the
 /// frame that shows tens of thousands found.
@@ -366,7 +366,7 @@ fn how_long_searches_take() {
     eprintln!("made and indexed in {:?}", started.elapsed());
     let ticked = Instant::now();
     s.tick();
-    eprintln!("its index opened ahead by a tick in {:?}", ticked.elapsed());
+    eprintln!("its index opened ahead by a tick in {:?}, holding {} KiB", ticked.elapsed(), s.search_index_bytes(big::ACCOUNT) / 1024);
     let only = std::env::var("MC_QUERY").ok();
     let mut frame = |s: &mut Session| {
         let began = Instant::now();
@@ -402,4 +402,5 @@ fn how_long_searches_take() {
             }
         }
     }
+    eprintln!("its index held {} KiB after the queries", s.search_index_bytes(big::ACCOUNT) / 1024);
 }

@@ -538,6 +538,12 @@ impl Session {
         self.search_state.readers.get(account).is_some_and(|s| s.reader.is_some())
     }
 
+    /// About how many bytes `account`'s open index holds in memory (none when it isn't open).
+    #[cfg(test)]
+    pub(crate) fn search_index_bytes(&self, account: &str) -> usize {
+        self.search_state.readers.get(account).and_then(|s| s.reader.as_ref()).map_or(0, Reader::held_bytes)
+    }
+
     /// No search any more: what it held goes, its folders free to leave the cache.
     pub(crate) fn drop_search(&mut self) {
         if let Some(run) = self.search_state.run.take() {

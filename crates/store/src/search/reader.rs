@@ -302,6 +302,23 @@ impl Reader {
         self.cache.reads.wrapping_add(self.texts.reads)
     }
 
+    /// About how many bytes it holds in memory: its doc table and the maps over it, the
+    /// lexicon pages' first words, and the pages its caches hold (none until a search reads
+    /// some). An estimate from the collections' capacities, not the allocator's count.
+    pub fn held_bytes(&self) -> usize {
+        use std::mem::size_of;
+        let docs = self.docs.capacity().saturating_mul(size_of::<DocRec>());
+        // A hash map's slots, each with a control byte.
+        let by_key = self.by_key.capacity().saturating_mul(size_of::<((u16, u32), u32)>().saturating_add(1));
+        let folders = self.folder_ix.iter().fold(0usize, |n, (k, _)| n.saturating_add(k.capacity()).saturating_add(size_of::<(String, u16)>() + 1));
+        let heads = self.heads.iter().fold(0usize, |n, (_, words)| {
+            words.iter().fold(n.saturating_add(size_of::<(SegInfo, Vec<Vec<u8>>)>()), |n, w| {
+                n.saturating_add(w.capacity()).saturating_add(size_of::<Vec<u8>>())
+            })
+        });
+        docs.saturating_add(by_key).saturating_add(folders).saturating_add(heads).saturating_add(self.cache.bytes).saturating_add(self.texts.bytes)
+    }
+
     /// Lexicon pages decoded so far (a page looked through again, unit after unit, isn't).
     #[cfg(test)]
     pub(crate) fn lex_decoded(&self) -> u64 {
