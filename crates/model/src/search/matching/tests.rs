@@ -21,6 +21,16 @@ fn made_before(m: &Summary, want: [bool; 4]) -> SummaryText {
         }
         out
     }
+    fn addr_text(list: &[EmailAddress]) -> String {
+        let mut s = String::new();
+        for a in list {
+            s.push_str(&a.name);
+            s.push(' ');
+            s.push_str(&a.email);
+            s.push(' ');
+        }
+        s
+    }
     let mut st = SummaryText::default();
     let wanted = |p: Part| want[p as usize];
     let from = if wanted(Part::From) { addr_text(std::slice::from_ref(&m.from)) } else { String::new() };

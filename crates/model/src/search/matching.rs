@@ -13,6 +13,7 @@ use std::rc::Rc;
 
 use super::fold::{all_words, fold_all_into, has_phrase, has_prefix, join, with_parts};
 use super::*;
+use crate::EmailAddress;
 
 #[cfg(test)]
 mod tests;
@@ -509,9 +510,9 @@ pub(crate) fn lowered_contains(text: &str, lowered: &str) -> bool {
     want.is_empty() || hay.windows(want.len()).any(|w| w.iter().zip(want).all(|(h, c)| h.to_ascii_lowercase() == *c))
 }
 
-/// Each address of a list as [`addr_text`] gives it (its name, a space, the address, a space),
-/// added to `out`.
-fn push_addresses(list: &[EmailAddress], out: &mut String) {
+/// Each address of a list (its name, a space, the address, a space) added to `out`: how
+/// [`summary_text`](super::summary_text) and a summary's text here both give them.
+pub(super) fn push_addresses(list: &[EmailAddress], out: &mut String) {
     for a in list {
         out.push_str(&a.name);
         out.push(' ');

@@ -16,7 +16,7 @@
 //! every message to the messages containing it (a `BTreeMap`, so a prefix is one range scan): a
 //! query asks it for candidates and then checks each, so it may over-approximate but never misses.
 
-use crate::{EmailAddress, Summary};
+use crate::Summary;
 
 mod advanced;
 pub mod dates;
@@ -122,25 +122,14 @@ impl Query {
     }
 }
 
-fn addr_text(list: &[EmailAddress]) -> String {
-    let mut s = String::new();
-    for a in list {
-        s.push_str(&a.name);
-        s.push(' ');
-        s.push_str(&a.email);
-        s.push(' ');
-    }
-    s
-}
-
 /// The text a summary contributes to the index.
 pub fn summary_text(m: &Summary) -> String {
     let mut s = String::with_capacity(128 + m.preview.len());
     s.push_str(&m.subject);
     s.push(' ');
-    s.push_str(&addr_text(std::slice::from_ref(&m.from)));
-    s.push_str(&addr_text(&m.to));
-    s.push_str(&addr_text(&m.cc));
+    matching::push_addresses(std::slice::from_ref(&m.from), &mut s);
+    matching::push_addresses(&m.to, &mut s);
+    matching::push_addresses(&m.cc, &mut s);
     s.push_str(&m.preview);
     s
 }
