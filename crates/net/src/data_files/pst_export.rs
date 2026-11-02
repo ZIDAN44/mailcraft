@@ -220,8 +220,12 @@ pub fn export(store: &Store, account: &str, name: &str, path: &Path, progress: &
     };
     match result {
         Ok(()) => {
-            let _ = std::fs::remove_file(path);
-            std::fs::rename(&temp, path).map_err(|e| e.to_string())?;
+            // `rename` replaces a file already there (MoveFileExW with MOVEFILE_REPLACE_EXISTING on
+            // Windows), so the old file stays until the new one takes its place; if it can't, the
+            // mail is still in the `.pst.part` file, and the error says so.
+            if let Err(e) = std::fs::rename(&temp, path) {
+                return Err(format!("the data file couldn't be replaced ({e}): the mail is in {}", temp.display()));
+            }
             let (events, contacts) = pim_beside(store, account, path).map_err(|e| e.to_string())?;
             Ok(Exported { events, contacts, ..done })
         }
@@ -425,6 +429,14 @@ mod tests {
         assert_eq!(subjects.iter().filter(|s| *s == "Second").count(), 1, "{subjects:?}");
         assert!(subjects.contains(&"Third".to_string()), "{subjects:?}");
         assert!(!dir.join("Out.pst.part").exists());
+
+        // A file that can't be replaced: the error says where the mail is, and it is there.
+        let busy = dir.join("Busy.pst");
+        std::fs::create_dir_all(busy.join("inside")).unwrap();
+        let e = export(&store, "a1", "Riley's mail", &busy, &mut |_| {}).unwrap_err();
+        assert!(e.contains("Busy.pst.part"), "{e}");
+        let back = Store::open(dir.join("back3")).unwrap();
+        assert_eq!(crate::pst::import(&dir.join("Busy.pst.part"), &back, "b3", &mut |_| {}).unwrap().messages, 4);
 
         // Nothing to write: an error, and the old file stays.
         let empty = dir.join("Empty.pst");
