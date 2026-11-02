@@ -1951,9 +1951,29 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   for one's write: 0.1 to 0.18 s at most for one of 60 MiB (p99 24 to 100 ms with a few of 16
   MiB and one of 60 MiB); those over 64 MiB are left raw and counted. Not yet run by the app:
   compacting (at idle, and File › Info › Compact now) comes with it, and so does giving the freed
-  room back to the drive. Open: the proof on a copy of the 47 GB data file (live data down by 8 to
-  11 GiB, every source the same by its sha256, a mark-read at most 60 ms), with the milestone's
-  verification.
+  room back to the drive. On a data file made like the 47 GB one from a copy of the 37 GB data
+  file (15,430 files kept raw, 35,035 MiB, where the app's file had 15,100 and 34,897 MiB), a
+  recompress took 231 s (304 s in a second run), read 45.7 GiB and wrote
+  30.4 GiB with 118 MiB at most in memory, and kept 9,104 MiB less live. Its health had said
+  13.1 GiB would be saved, where 8.8 GiB was: the sample overstates what compressing again gives.
+  Open: a mark-read during it, measured on that file, with the milestone's verification.
+- **What compacting a big data file costs, measured** (`packed/tests/compaction.rs`, ignored tests
+  run on copies, release build, NVMe drive reading 3.6 to 4.6 GiB/s and writing 1.5 to 1.6 GiB/s
+  past the cache). Each run starts cold: after the file's health is read, the file is replaced by a
+  copy of itself made past the system's cache. That file, compressed again (44,817 MiB with 8,490
+  MiB to give back by its health), compacted in place by redb in 125 s to 35,685 MiB: it read 1.9
+  times the file (83 GiB), moved 8.7 GiB, held 134 MiB at most and shrank only 3 times (the first at
+  61 s); an earlier run of the same, not made cold, took 182 s (other work on the machine, likely,
+  but not shown). Compacted again, cold, with nothing to give back, it still took 63 s and read the
+  whole file once: a compaction reads all of it however little it moves. From the two cold runs it
+  costs about 1.8 s for every GiB looked at plus 5.3 s for every GiB moved, five to six times what
+  the drive's rates alone give; what the health says is to give back went at 68 MiB/s, not the 300
+  MB/s the design assumed, and a cold compaction of a file this big never fits 15 s at idle nor 30 s
+  on close. Copied cold into a new file instead (in key order, batches as a background writer makes
+  them), the same file took 127 s to 35,686 MiB, read and wrote 43 GiB with 88 MiB at most in
+  memory: no faster than in place, and it needs the room for the copy (35 GiB) free beside it. Every
+  file read back the same after the recompress and both compactions. These numbers decide how
+  compacting is offered (open: compacting run by the app).
 - **Down in a big folder of a data file:** a read mark on a `.pst` account's message saved the
   page of 4,096 summaries it's in (about 2 MB) and then the folder counts, two durable commits
   of the 38 GB data file in the window's frame: 24 ms by median, up to 1.4 s when the disk was

@@ -5,6 +5,7 @@ use crate::Store;
 mod bulk;
 mod commits;
 mod compact;
+mod compaction;
 mod full;
 mod health;
 mod opening;

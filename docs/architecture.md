@@ -150,6 +150,14 @@ every file was looked at (`deflate`: what's left raw doesn't compress, or was pa
 `data_file` fuzz target builds a hostile file in memory from records and checks every file reads
 back the same after it.
 
+redb's own compaction (`Database::compact`) is the second half: it needs the database to itself
+and can't be stopped or followed. Measured cold on copies of a 45 GB file compressed again
+(`packed/tests/compaction.rs`), it reads the whole file at least once whatever it moves (63 s for
+35 GiB with nothing to give back) and about 5.3 s more for each GiB it moves (125 s to move
+8.7 GiB of 44 GiB); a copy of the files into a new data file took as long (127 s) and needs the
+room for it. An earlier run took half as long again (other work on the machine, likely), so a
+prediction needs a margin.
+
 A local account's read marks, flags and categories don't commit in the window's frame (each was a
 durable commit of the data file, 24 ms by median on a 38 GB file, up to 1.4 s when the disk was
 slow). The window changes its lists in memory and hands the flags its messages have now, with the
