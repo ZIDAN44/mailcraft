@@ -205,9 +205,13 @@ impl eframe::App for Window {
                     u.closing();
                 }
                 // macOS: ended here, before eframe tears the window down, as MailCraft's own
-                // `on_exit` does (that teardown ends a quit in a crash report there).
+                // `on_exit` does (that teardown ends a quit in a crash report there). The lines
+                // logged while booting, written on the log's thread, are written first.
                 #[cfg(target_os = "macos")]
-                std::process::exit(0);
+                {
+                    log::logger().flush();
+                    std::process::exit(0);
+                }
             }
         }
     }
