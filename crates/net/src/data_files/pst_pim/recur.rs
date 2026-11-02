@@ -294,7 +294,8 @@ pub(crate) struct Own<'a> {
 /// occurrence it replaces; with each, which of `own` (the appointment's exception items) is its
 /// item, matched by the occurrence it replaces. What an occurrence didn't change is the series'.
 /// An item no ExceptionInfo matches (its pattern cut short or damaged, or past [`MAX_CHANGED`])
-/// is a changed occurrence all the same, replacing the occurrence it says it does; one that says
+/// is a changed occurrence all the same, replacing the series' occurrence nearest the one it says
+/// it does (within [`MATCH_WITHIN`]; with none that near, its own time); one that says
 /// no time, or replaces an occurrence another already does (within [`MATCH_WITHIN`]), isn't
 /// among them.
 pub(crate) fn changed_events(
@@ -359,6 +360,15 @@ pub(crate) fn changed_events(
     }
     // The items left: each with its own times, place, text and guests, the rest the series'.
     let mut replaced: std::collections::BTreeSet<i64> = out.iter().filter_map(|(e, _)| e.recurrence_id).collect();
+    // The series' own occurrences (at its offset, as the calendar shows them), up to the last
+    // a left item could replace: an item's time of its occurrence may be an hour off them (a
+    // change of summer time between), and only a RECURRENCE-ID equal to one replaces it.
+    let left = own.iter().enumerate().filter(|(i, _)| !taken.get(*i).copied().unwrap_or(true));
+    let last = left.filter_map(|(_, o)| o.x.replaces.or(o.x.start)).max();
+    let series: std::collections::BTreeSet<i64> = match (last, event_of(x, subject, "", from, &[], uid.to_string())) {
+        (Some(last), Some(master)) => ical::starts(&master, last.saturating_add(MATCH_WITHIN).saturating_add(86_400)).into_iter().collect(),
+        _ => Default::default(),
+    };
     for (i, o) in own.iter().enumerate() {
         if taken.get(i).copied().unwrap_or(true) {
             continue;
@@ -366,6 +376,13 @@ pub(crate) fn changed_events(
         let Some(s) = o.x.start else { continue };
         let original = o.x.replaces.unwrap_or(s);
         let original = if x.all_day { day(original) } else { original };
+        // The series' occurrence nearest (within MATCH_WITHIN) is the one it replaces; with none
+        // that near (its pattern cut short), its own time is.
+        let original = series
+            .range(original.saturating_sub(MATCH_WITHIN)..=original.saturating_add(MATCH_WITHIN))
+            .min_by_key(|t| t.saturating_sub(original).saturating_abs())
+            .copied()
+            .unwrap_or(original);
         // One near an occurrence already replaced is another copy of it (its time may be an
         // hour off the pattern's, as a match may be).
         if replaced.range(original.saturating_sub(MATCH_WITHIN)..=original.saturating_add(MATCH_WITHIN)).next().is_some() {

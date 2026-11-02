@@ -409,7 +409,8 @@ fn changed_occurrences_become_events() {
     // The quiet one's item, which says the hour exactly (summer time ended: 08:00Z).
     let quiet = Extra { start: Some(at(19, 8)), end: Some(at(19, 9)), replaces: Some(at(19, 8)), ..Default::default() };
     let ben = [EmailAddress::new("Ben", "ben@studio.example")];
-    let stray = Extra { start: Some(at(26, 9)), end: Some(at(26, 10)), replaces: Some(at(26, 7)), location: "Hall".into(), ..Default::default() };
+    // One no ExceptionInfo matches, its occurrence's hour exact too: it replaces the series' 07:00Z.
+    let stray = Extra { start: Some(at(26, 9)), end: Some(at(26, 10)), replaces: Some(at(26, 8)), location: "Hall".into(), ..Default::default() };
     let timeless = Extra { replaces: Some(at(28, 7)), ..Default::default() };
     let again = Extra { start: Some(at(19, 10)), replaces: Some(at(19, 9)), ..Default::default() };
     let own = [
