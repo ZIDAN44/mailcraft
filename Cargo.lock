@@ -4634,7 +4634,7 @@ dependencies = [
 [[package]]
 name = "outlook-pst-rw"
 version = "1.2.14"
-source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=c08d9bca61d736410923ee07b3f9b7fbbc45fef9#c08d9bca61d736410923ee07b3f9b7fbbc45fef9"
+source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=acd1806ab5748a81f9de5a5ae3d1456f1477d8d4#acd1806ab5748a81f9de5a5ae3d1456f1477d8d4"
 dependencies = [
  "byteorder",
  "thiserror 2.0.21",
