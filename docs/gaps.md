@@ -1382,11 +1382,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   (`reading/text_selection.rs`), in the reading pane and in a message's own window, for every
   kind of body: Ctrl+A selects the whole message and a copy has it in reading order, a line break
   between lines; Shift with the arrows, Home, End and Ctrl goes on across lines and blocks and
-  keeps its end in view; Shift+click, double- and triple-click work across them; a drag held near
-  or past the view's edge scrolls, faster the farther out (PdfCraft's edge scroll), the wheel
-  scrolls during a drag, and the selection keeps growing either way. The scroll bar beside the
-  text leaves the selection as it is. Clicked into, the text has Ctrl+A, Ctrl+C and Shift with the
-  arrows; a click in the message list gives them back to it (Ctrl+A there selects every message).
+  keeps its end in view; Shift+click, double- and triple-click work across them; a drag held at
+  or past the view's edge scrolls, faster the farther out (PdfCraft's edge scroll; not on the
+  text before the edge, where the message ran away under a still pointer), the wheel scrolls
+  during a drag, and the selection keeps growing either way. The shading of a line of several
+  pieces (a bold word) runs on without a seam: each piece's met the next's a fraction of a pixel
+  over, a darker line down the selection. The scroll bar beside the text leaves the selection as
+  it is. Clicked into, the text has Ctrl+A, Ctrl+C and Shift with the arrows; a click in the
+  message list gives them back to it (Ctrl+A there selects every message), and so does another
+  message shown in its place (going back to it by the keyboard brought the old selection back,
+  keys and all). A message's own window gives them to its text from the start, unclicked. On a
+  touch screen (the browser on a phone or tablet, a touch laptop) a finger dragged over the text
+  scrolls it, as over egui's labels there, instead of selecting.
 - **Exported mail keeps what it is:** a `.pst` export wrote every message read, as an ordinary
   `IPM.Note` with nothing but its text, addresses and files, into folders named as the account
   names them. It now keeps what the store knows of each: unread, a draft (in Drafts or flagged

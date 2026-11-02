@@ -5,16 +5,20 @@
 //! let go of a selection whose ends it no longer drew, so a drag couldn't scroll the message.
 //! The runs are now laid out as labels are and drawn here, and the selection is two marks in the
 //! text (a run, and a letter in it): a press in the text starts one, a drag moves its end (held
-//! near or past the view's top or bottom, it scrolls, faster the farther out), Shift+click,
+//! at or past the view's top or bottom, it scrolls, faster the farther out), Shift+click,
 //! Shift with the arrows, Home and End (Ctrl too) move it across runs, keeping it in view, and
 //! Ctrl+A takes the whole text. A copy joins what's selected in reading order, a line break
 //! between lines. The keys are the text's while it has the keyboard: from a press in it until a
-//! press elsewhere (the message list keeps Ctrl+A and the arrows) or a box taking the keys.
+//! press elsewhere (the message list keeps Ctrl+A and the arrows) or a box taking the keys; a
+//! message's own window gives them to its text from the start. Another message shown in its
+//! place lets go of a text's selection and keys. On a touch screen a finger dragged over the
+//! text scrolls it, as over egui's labels: a press there only places the selection's start.
 
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
+use egui::emath::GuiRounding as _;
 use egui::text::{CCursor, CharIndex, Galley, LayoutJob};
 use egui::text_selection::CCursorRange;
 use egui::text_selection::text_cursor_state::{is_word_char, slice_char_range};
@@ -22,10 +26,14 @@ use egui::{Color32, Key, Modifiers, Pos2, Rect, Response, Sense, Stroke, Ui, pos
 
 use crate::UiState;
 
-/// Within this distance of the view's top or bottom, a selection drag scrolls.
-const EDGE: f32 = 30.0;
+/// Within this distance of the view's top or bottom (its last pixels), or past it, a selection
+/// drag scrolls; not on the text before it, which would run away under a still pointer.
+const EDGE: f32 = 2.0;
 /// How fast: points a second for each point the pointer is into that band, or past the view.
 const EDGE_SPEED: f32 = 20.0;
+/// The widest gap between two runs side by side on a row whose shading is joined (pixel
+/// rounding's; a table's next cell is farther).
+const MAX_SEAM: f32 = 3.0;
 /// Most line breaks copied between two runs (a paragraph's gap).
 const MAX_BREAKS: u8 = 2;
 /// Texts whose selections are kept (the reading pane's, and those of messages in their own windows).
@@ -98,9 +106,13 @@ pub(crate) struct Doc {
     active: bool,
     /// Where on the screen Shift+Up and Shift+Down keep to.
     h_x: Option<f32>,
-    /// Where the text was last frame (a press there starts a selection), and the pointer.
+    /// Where the text was last frame (a press there starts a selection), the part of it in view,
+    /// and the pointer.
     rect: Option<Rect>,
+    view: Option<Rect>,
     pointer: Option<Pos2>,
+    /// It's in a message's own window.
+    window: bool,
     /// The pass it was last drawn in, and on which layer (a message's own window, or the main one).
     pass: u64,
     layer: Option<egui::LayerId>,
@@ -134,6 +146,13 @@ impl TextSelection {
     pub(crate) fn shown(&self) -> Vec<(Rect, egui::Order)> {
         let last = self.docs.values().map(|d| d.pass).max().unwrap_or(0);
         self.docs.values().filter(|d| d.pass == last).filter_map(|d| Some((d.rect?, d.layer?.order))).collect()
+    }
+
+    /// The part in view of the text drawn last on a layer of `order` (tests).
+    #[cfg(test)]
+    pub(crate) fn view(&self, order: egui::Order) -> Option<Rect> {
+        let last = self.docs.values().map(|d| d.pass).max().unwrap_or(0);
+        self.docs.values().filter(|d| d.pass == last && d.layer.is_some_and(|l| l.order == order)).find_map(|d| d.view)
     }
 }
 
@@ -233,6 +252,29 @@ impl Doc {
             e += 1;
         }
         s..e
+    }
+
+    /// Run `i` selected (`range`) to its end, and the next beside it on the row selected from its
+    /// start: where, in the last row of run `i` (its own coordinates), its shading ends to meet
+    /// the next run's. Each run shades its own letters, and drawn at their places rounded to
+    /// pixels (as text is) two runs' shadings overlap a little or leave a hairline between them:
+    /// a darker or a lighter line down the selection, the shading being translucent.
+    fn seam(&self, i: usize, range: &Range<usize>, pixels_per_point: f32) -> Option<f32> {
+        let r = self.runs.get(i)?;
+        let j = i.checked_add(1)?;
+        let next = self.runs.get(j)?;
+        if range.end < r.len() || next.breaks > 0 || self.range_of(j).is_none_or(|n| n.is_empty() || n.start > 0) {
+            return None;
+        }
+        let last = r.galley.rows.last()?;
+        // Side by side on a row: not a table's next cell, nor a run wrapped onto the next row.
+        let (a, b) = (r.rows().last()?, next.rows().next()?);
+        if last.row.rtl_paragraph || a.y_range().intersection(b.y_range()).span() <= 0.0 || (b.left() - a.right()).abs() > MAX_SEAM {
+            return None;
+        }
+        let drawn = |r: &Run| r.pos.round_to_pixels(pixels_per_point);
+        let starts = drawn(next).x + next.galley.pos_from_cursor(CCursor::default()).min.x;
+        Some(starts - drawn(r).x - last.pos.x)
     }
 
     /// A double-click: the word at `at` in run `i`; a triple-click: its line (a paragraph).
@@ -359,9 +401,9 @@ impl Doc {
     }
 }
 
-/// How far a selection drag scrolls this frame with the pointer at `y`, near or past the top or
+/// How far a selection drag scrolls this frame with the pointer at `y`, at or past the top or
 /// bottom of `view`; faster the farther it goes. A positive delta moves the content down.
-/// (PdfCraft's, for its pages.)
+/// (PdfCraft's, for its pages, with its band of the view's edge narrowed to the last pixels.)
 pub(crate) fn edge_delta(y: f32, view: Rect, dt: f32) -> f32 {
     if !y.is_finite() || !dt.is_finite() || view.height() < 4.0 * EDGE {
         return 0.0;
@@ -376,19 +418,31 @@ pub(crate) fn edge_delta(y: f32, view: Rect, dt: f32) -> f32 {
     -distance.clamp(-1_000_000.0, 1_000_000.0) * EDGE_SPEED * dt.clamp(0.0, 0.05)
 }
 
-/// The text shown under `id` starts here.
-pub(crate) fn begin(st: &mut UiState, ui: &mut Ui, id: egui::Id) {
+/// The text shown under `id` starts here; `window`: in a message's own window.
+pub(crate) fn begin(st: &mut UiState, ui: &mut Ui, id: egui::Id, window: bool) {
     let ts = &mut st.text_selection;
     if let Some((old, d)) = ts.cur.take() {
         ts.docs.insert(old, d);
     }
-    let mut d = ts.docs.remove(&id).unwrap_or_default();
+    let kept = ts.docs.remove(&id);
+    let seen = kept.is_some();
+    let mut d = kept.unwrap_or_default();
+    // Not shown last pass (another message was, or none): it's shown again unselected and
+    // without the keyboard, as Outlook does when the list goes back to it; a message's own
+    // window has nothing else to give the keys to.
+    if !seen || d.pass.saturating_add(1) < ui.ctx().cumulative_pass_nr() {
+        (d.anchor, d.head, d.dragging, d.h_x) = (None, None, false, None);
+        d.active = window;
+    }
+    d.window = window;
     d.runs.clear();
     (d.part, d.n, d.breaks) = (0, 0, 0);
     d.top = ui.cursor().top();
     // Under the text (its runs are on top): a press or drag between lines is the text's, not a
-    // drag of the scroll area.
-    d.under = d.rect.map(|r| ui.interact(r, id.with("text-under"), Sense::drag()));
+    // drag of the scroll area. Not on a touch screen, where a finger's drag scrolls (as over
+    // egui's labels there).
+    let touch = ui.input(|i| i.has_touch_screen());
+    d.under = d.rect.filter(|_| !touch).map(|r| ui.interact(r, id.with("text-under"), Sense::drag()));
     ts.cur = Some((id, d));
 }
 
@@ -475,13 +529,15 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
     let rect = Rect::from_min_max(pos2(left, d.top), pos2(ui.max_rect().right().max(left), ui.min_rect().bottom().max(d.top)));
     d.rect = Some(rect);
     let clip = ui.clip_rect();
+    d.view = Some(rect.intersect(clip));
     let layer = ui.layer_id();
     d.layer = Some(layer);
     d.pass = ctx.cumulative_pass_nr();
-    let (pressed, down, shift, latest, origin, dt, double, triple) = ctx.input(|i| {
+    let (touch, pressed, down, shift, latest, origin, dt, double, triple) = ctx.input(|i| {
         let p = &i.pointer;
         let b = egui::PointerButton::Primary;
         (
+            i.has_touch_screen(),
             p.primary_pressed(),
             p.primary_down(),
             i.modifiers.shift,
@@ -512,7 +568,8 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
                     d.anchor = m;
                 }
                 d.head = m;
-                d.dragging = true;
+                // A finger's drag scrolls the text instead (the scroll area has it).
+                d.dragging = !touch;
             }
         } else if !over(p) && !beside(p) && ctx.layer_id_at(p).is_none_or(|l| l.order == egui::Order::Background) {
             // Elsewhere in the window (the message list, the folders): the keyboard is theirs.
@@ -526,7 +583,7 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
         if !down {
             d.dragging = false;
         } else if let Some(p) = d.pointer {
-            // Near or past the view's top or bottom, it scrolls; the end follows the text that
+            // At or past the view's top or bottom, it scrolls; the end follows the text that
             // comes under the pointer, kept in the view.
             let dy = edge_delta(p.y, clip, dt);
             if dy != 0.0 {
@@ -545,6 +602,11 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
         && let Some((i, c)) = d.nearest(0..d.runs.len(), p, |_| true)
     {
         d.select_unit(i, c, triple);
+    }
+    // A message's own window (a viewport of its own, its keys its own): the text has them,
+    // clicked into or not, the toolbar pressed or not.
+    if d.window && ctx.viewport_id() != egui::ViewportId::ROOT {
+        d.active = true;
     }
     if ctx.text_edit_focused() {
         d.active = false;
@@ -614,8 +676,9 @@ fn keys(d: &mut Doc, ui: &mut Ui, rect: Rect, whole: Option<&str>) {
     }
 }
 
-/// The runs, with what's selected of them shaded.
+/// The runs, with what's selected of them shaded, a run's shading meeting the next's on a row.
 fn paint(d: &Doc, ui: &Ui) {
+    let bg = ui.visuals().selection.bg_fill;
     for (i, r) in d.runs.iter().enumerate() {
         if !r.painter.clip_rect().intersects(r.response.rect) {
             continue;
@@ -624,9 +687,27 @@ fn paint(d: &Doc, ui: &Ui) {
         if let Some(range) = d.range_of(i).filter(|g| !g.is_empty()) {
             let sel = CCursorRange::two(CCursor::new(range.start), CCursor::new(range.end));
             egui::text_selection::visuals::paint_text_selection(&mut galley, ui.visuals(), &sel, None);
+            if let Some(x) = d.seam(i, &range, ui.ctx().pixels_per_point()) {
+                meet(&mut galley, x, bg);
+            }
         }
         r.painter.set(r.slot, egui::epaint::TextShape::new(r.pos, galley, r.color).with_underline(r.underline));
     }
+}
+
+/// The shading of `galley`'s last row (its rectangle's right edge) moved to end at `x`.
+fn meet(galley: &mut Arc<Galley>, x: f32, bg: Color32) {
+    let Some(placed) = Arc::make_mut(galley).rows.last_mut() else { return };
+    let visuals = &mut Arc::make_mut(&mut placed.row).visuals;
+    let shaded = |v: &&mut egui::epaint::Vertex| v.color == bg;
+    let Some(right) = visuals.mesh.vertices.iter_mut().filter(shaded).map(|v| v.pos.x).reduce(f32::max) else { return };
+    if (x - right).abs() > MAX_SEAM {
+        return;
+    }
+    for v in visuals.mesh.vertices.iter_mut().filter(shaded).filter(|v| v.pos.x >= right) {
+        v.pos.x = x;
+    }
+    visuals.mesh_bounds = visuals.mesh.calc_bounds();
 }
 
 #[cfg(test)]
@@ -637,17 +718,20 @@ mod tests {
     fn a_drag_scrolls_toward_the_edge_it_is_at_faster_the_farther_out() {
         let view = Rect::from_min_max(pos2(0.0, 100.0), pos2(400.0, 500.0));
         assert_eq!(edge_delta(300.0, view, 0.016), 0.0, "nothing away from the edges");
-        assert!(edge_delta(495.0, view, 0.016) < 0.0, "the bottom edge moves the content up");
-        assert!(edge_delta(105.0, view, 0.016) > 0.0, "the top edge moves it down");
-        assert!(edge_delta(600.0, view, 0.016) < edge_delta(495.0, view, 0.016), "faster past the view");
-        assert!(edge_delta(0.0, view, 0.016) > edge_delta(105.0, view, 0.016), "and above it");
+        // On the text by the edges (its last line in view), it stays: it ran away under the pointer.
+        assert_eq!(edge_delta(495.0, view, 0.016), 0.0, "nothing on the last line in view");
+        assert_eq!(edge_delta(105.0, view, 0.016), 0.0, "or the first");
+        assert!(edge_delta(499.5, view, 0.016) < 0.0, "the bottom edge moves the content up");
+        assert!(edge_delta(100.5, view, 0.016) > 0.0, "the top edge moves it down");
+        assert!(edge_delta(600.0, view, 0.016) < edge_delta(510.0, view, 0.016), "faster the farther past the view");
+        assert!(edge_delta(0.0, view, 0.016) > edge_delta(90.0, view, 0.016), "and above it");
         for junk in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
             assert_eq!(edge_delta(junk, view, 0.016), 0.0);
-            assert_eq!(edge_delta(495.0, view, junk), 0.0);
+            assert_eq!(edge_delta(600.0, view, junk), 0.0);
         }
         assert!(edge_delta(f32::MAX, view, 0.016).is_finite());
-        assert!(edge_delta(495.0, view, 100.0).abs() <= 495.0, "a stalled frame doesn't jump");
-        let small = Rect::from_min_max(pos2(0.0, 0.0), pos2(400.0, 60.0));
-        assert_eq!(edge_delta(59.0, small, 0.016), 0.0, "a view too short to have edges");
+        assert!(edge_delta(600.0, view, 100.0).abs() <= edge_delta(600.0, view, 0.05).abs(), "a stalled frame doesn't jump");
+        let small = Rect::from_min_max(pos2(0.0, 0.0), pos2(400.0, 6.0));
+        assert_eq!(edge_delta(5.5, small, 0.016), 0.0, "a view too short to have edges");
     }
 }

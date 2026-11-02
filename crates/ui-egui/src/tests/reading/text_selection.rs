@@ -334,3 +334,152 @@ fn a_quick_drag_starts_where_it_was_pressed() {
     assert_eq!(got, "Line 000 of the message.\nLine 001 of the message.\n");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A drag held on the last line in view of the reading pane, short of its edge: the message
+/// stays, and so does the selection (it scrolled within 30 points of the edge, the selection
+/// running on under a still pointer).
+#[test]
+fn a_drag_held_on_the_last_line_in_view_stays() {
+    let (mut a, dir) = app("select-drag-last-line");
+    let ctx = egui::Context::default();
+    let area = open(&mut a, &ctx, lines(200));
+    let view = a.ui.text_selection.view(egui::Order::Background).expect("the text is in view");
+    let start = area.left_top() + egui::vec2(0.5, 8.0);
+    let last = egui::pos2(start.x + 40.0, view.bottom() - 6.0);
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(&ctx, &mut a, vec![Event::PointerMoved(start)]);
+    frame(&ctx, &mut a, vec![button(start, true)]);
+    for _ in 0..10 {
+        frame(&ctx, &mut a, vec![Event::PointerMoved(last)]);
+    }
+    let held = copied(&ctx, &mut a, vec![Event::PointerMoved(last), Event::Copy]).expect("copied");
+    for _ in 0..40 {
+        frame(&ctx, &mut a, vec![Event::PointerMoved(last)]);
+    }
+    let top = text_area(&a, egui::Order::Background).top();
+    assert!((top - area.top()).abs() < 0.5, "it stays: {top} from {}", area.top());
+    let still = copied(&ctx, &mut a, vec![Event::PointerMoved(last), Event::Copy]).expect("copied");
+    assert_eq!(still, held, "the selection stays too");
+    frame(&ctx, &mut a, vec![button(last, false)]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// On a touch screen, a finger dragged up over the text scrolls the message, as over egui's
+/// labels there, and selects nothing (the drag selected text, and scrolled only at the edge).
+#[test]
+fn a_finger_dragged_over_the_text_scrolls_it() {
+    let (mut a, dir) = app("select-touch");
+    let ctx = egui::Context::default();
+    let area = open(&mut a, &ctx, lines(200));
+    let start = egui::pos2(area.left() + 40.0, 600.0);
+    let finger = |phase, pos| Event::Touch { device_id: egui::TouchDeviceId(1), id: egui::TouchId(1), phase, pos, force: None };
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    // The screen is known to be one by touches before (egui learns it from the first).
+    frame(&ctx, &mut a, vec![finger(egui::TouchPhase::Start, start), finger(egui::TouchPhase::End, start)]);
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![finger(egui::TouchPhase::Start, start), Event::PointerMoved(start), button(start, true)]);
+    let mut at = start;
+    for _ in 0..20 {
+        at.y -= 15.0;
+        frame(&ctx, &mut a, vec![finger(egui::TouchPhase::Move, at), Event::PointerMoved(at)]);
+    }
+    frame(&ctx, &mut a, vec![finger(egui::TouchPhase::End, at), button(at, false), Event::PointerGone]);
+    for _ in 0..5 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let top = text_area(&a, egui::Order::Background).top();
+    assert!(top < area.top() - 200.0, "the finger scrolled it: {top} from {}", area.top());
+    let got = copied(&ctx, &mut a, vec![Event::Copy]);
+    assert!(got.as_deref().is_none_or(str::is_empty), "nothing selected: {got:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Another message shown, then this one again by the keyboard (Down, Up in the list): its text
+/// shows unselected and Ctrl+A is the list's (the old selection came back, keys and all).
+#[test]
+fn a_message_shown_again_starts_unselected() {
+    let (mut a, dir) = app("select-shown-again");
+    let ctx = egui::Context::default();
+    let area = open(&mut a, &ctx, mixed());
+    let first = a.session.reading.as_ref().map(|r| r.key.clone()).unwrap();
+    click(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), Modifiers::NONE);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    assert!(a.ui.text_selection.all());
+    frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    for _ in 0..5 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert_ne!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(first.clone()), "the next message is shown");
+    frame(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::NONE)]);
+    a.session.apply(MailEvent::Body { key: first.clone(), raw: mixed() });
+    for _ in 0..10 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(first), "back on the first");
+    let _ = text_area(&a, egui::Order::Background);
+    assert!(!a.ui.text_selection.all(), "it shows unselected");
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(!a.ui.text_selection.all(), "Ctrl+A isn't the text's");
+    assert!(a.session.selection.len() > 1, "but the list's: {} selected", a.session.selection.len());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A message popped out into its own window: Ctrl+A there, without a click in it first, selects
+/// its whole text (its text had the keys only once clicked into).
+#[test]
+fn a_message_window_has_the_keys_from_the_start() {
+    let (mut a, dir) = app("select-window-keys");
+    let ctx = egui::Context::default();
+    let _ = open(&mut a, &ctx, lines(12));
+    let k = a.session.reading.as_ref().map(|r| r.key.clone()).unwrap();
+    let parsed = a.session.reading.as_ref().and_then(|r| r.parsed.clone());
+    a.run("message.popOut", json!({"key": k.to_id()}));
+    a.session.windows.iter_mut().for_each(|w| w.parsed = parsed.clone());
+    for _ in 0..10 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let _ = text_area(&a, egui::Order::Middle);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
+    assert!(got.starts_with("Line 000") && got.ends_with("Line 011 of the message."), "{got:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Ctrl+A over a line with bold words in it, on a screen at 125%: each run's shading meets the
+/// next's edge to edge (they overlapped by a fraction of a pixel where the runs' places round to
+/// pixels, a darker line down the selection, the shading being translucent).
+#[test]
+fn the_shading_has_no_seam_between_runs_on_a_line() {
+    let (mut a, dir) = app("select-seam");
+    let ctx = egui::Context::default();
+    ctx.set_pixels_per_point(1.25);
+    let area = open(&mut a, &ctx, mixed());
+    click(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), Modifiers::NONE);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let bg = ctx.global_style().visuals.selection.bg_fill;
+    // The shading's rectangles (each two triangles of its colour, spanning it) across the first line.
+    let y = area.top() + 8.0;
+    let mut shades: Vec<egui::Rect> = Vec::new();
+    for p in ctx.tessellate(out.shapes, out.pixels_per_point) {
+        let egui::epaint::Primitive::Mesh(m) = p.primitive else { continue };
+        for t in m.indices.as_chunks::<3>().0 {
+            let v: Vec<_> = t.iter().filter_map(|i| m.vertices.get(*i as usize)).collect();
+            if v.len() == 3 && v.iter().all(|v| v.color == bg) {
+                let r = egui::Rect::from_points(&[v[0].pos, v[1].pos, v[2].pos]);
+                if r.y_range().contains(y) && !shades.contains(&r) {
+                    shades.push(r);
+                }
+            }
+        }
+    }
+    shades.sort_by(|a, b| a.left().total_cmp(&b.left()));
+    assert!(shades.len() >= 3, "the words, the bold words and the rest shaded: {shades:?}");
+    for w in shades.windows(2) {
+        assert!((w[1].left() - w[0].right()).abs() < 0.01, "edge to edge: {} then {}", w[0].right(), w[1].left());
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}

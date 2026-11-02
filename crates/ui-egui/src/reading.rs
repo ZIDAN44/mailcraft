@@ -455,7 +455,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 st.han_missing = true;
             }
             // The text is selected as one, whatever it's drawn as (`text_selection`).
-            text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())));
+            text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())), in_window);
             if formatted {
                 rich_body(s, st, ui, &r.key, p, acts);
             } else if p.text.len() > long_text::LONG {
