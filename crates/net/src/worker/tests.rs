@@ -5,6 +5,8 @@ use mailcraft_store::search;
 
 use super::*;
 
+mod index_bench;
+
 /// Sent Items asked for after each of several messages is read once.
 #[test]
 fn a_folder_waiting_to_be_read_isnt_queued_twice() {

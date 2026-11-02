@@ -56,6 +56,9 @@ ipconfig = "0.3"
 # The import bench counts how the data file's cache is used (`pst_bench.rs`); the import's
 # tests fill a data file's drive (`pst/tests/resume.rs`).
 mailcraft-store = { workspace = true, features = ["cache-metrics", "test-drive"] }
+# Data files are read back through flate2 with the backend the app's build turns on (another
+# crate of the app's asks for zlib-rs), so the benches take apart what the app does as fast.
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 # The S/MIME round trip reads the test certificates (PEM).
 der = { version = "0.7", features = ["pem"] }
 proptest = "1"

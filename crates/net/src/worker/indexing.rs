@@ -293,11 +293,13 @@ impl Room {
         u64::from(size).clamp(LEAST_COST, READING_BYTES)
     }
 
-    /// What the text taken out of a source holds until it's added (no more than the source
-    /// counted for: what's left of it is given back once it's taken apart).
+    /// What the text taken out of a source holds until it's added, as the heap holds it (its
+    /// room, not its length: a text grown as it was taken out holds up to twice what it says),
+    /// and no more than the source counted for: what's left of it is given back once it's taken
+    /// apart.
     fn kept(doc: &std::thread::Result<Option<IndexDoc>>, cost: u64) -> u64 {
         let bytes = match doc {
-            Ok(Some(d)) => d.names.iter().fold(d.text.len(), |n, x| n.saturating_add(x.len())),
+            Ok(Some(d)) => d.names.iter().fold(d.text.capacity(), |n, x| n.saturating_add(x.capacity())),
             _ => 0,
         };
         u64::try_from(bytes).unwrap_or(u64::MAX).min(cost)

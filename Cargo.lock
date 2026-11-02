@@ -3654,6 +3654,7 @@ name = "mailcraft-net"
 version = "0.32.0"
 dependencies = [
  "der 0.7.10",
+ "flate2",
  "fs4",
  "hmac 0.13.0",
  "iana-time-zone",
