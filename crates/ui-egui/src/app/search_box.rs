@@ -18,6 +18,51 @@ const SLOW_SEARCH_WORK: web_time::Duration = web_time::Duration::from_millis(50)
 /// What a date field of advanced search takes: a day, year first.
 const DAY_HINT: &str = "2025-03-15";
 
+/// The time a search has spent on each kind of its work, over the frames it ran in: logged when
+/// it ends (or another takes its place), so what a slow search spends its time on is known
+/// (each part on its own was well under a frame).
+#[derive(Default)]
+pub(crate) struct SearchTimes {
+    /// The search timed (its query and where it looks).
+    of: Option<(String, SearchScope)>,
+    frames: u32,
+    kinds: Vec<(mailcraft_engine::SearchWork, web_time::Duration)>,
+}
+
+impl SearchTimes {
+    /// `took` more of `work` for the search `of`: another search starts again, the last one
+    /// logged.
+    fn add(&mut self, of: Option<&(String, SearchScope)>, work: mailcraft_engine::SearchWork, took: web_time::Duration) {
+        if self.of.as_ref() != of {
+            self.end(false);
+            self.of = of.cloned();
+        }
+        match self.kinds.iter_mut().find(|(w, _)| *w == work) {
+            Some((_, t)) => *t = t.saturating_add(took),
+            None => self.kinds.push((work, took)),
+        }
+    }
+
+    /// The search ran another frame.
+    fn frame(&mut self) {
+        self.frames = self.frames.saturating_add(1);
+    }
+
+    /// The search is over (`done`; stopped for another otherwise): what it spent, logged.
+    fn end(&mut self, done: bool) {
+        if self.of.take().is_none() {
+            return;
+        }
+        let mut kinds = std::mem::take(&mut self.kinds);
+        kinds.sort_by_key(|k| std::cmp::Reverse(k.1));
+        let all: web_time::Duration = kinds.iter().map(|(_, t)| *t).sum();
+        let each: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), t.as_secs_f64() * 1000.0)).collect();
+        let how = if done { "done" } else { "stopped" };
+        log::info!("search {how}: {:.1} ms over {} frames ({})", all.as_secs_f64() * 1000.0, self.frames, each.join(", "));
+        self.frames = 0;
+    }
+}
+
 /// The search box's menu's name for where it looks.
 pub(crate) fn scope_label(scope: SearchScope) -> &'static str {
     match scope {
@@ -48,6 +93,7 @@ impl MailApp {
         }
         let began = web_time::Instant::now();
         let mut last = began;
+        let (times, of) = (&mut self.ui.search_times, self.session.search.clone());
         let mut timed = |work: mailcraft_engine::SearchWork| {
             let now = web_time::Instant::now();
             let took = now.saturating_duration_since(last);
@@ -55,10 +101,14 @@ impl MailApp {
             if took >= SLOW_SEARCH_WORK {
                 log::warn!("search: {} took {} ms", work.name(), took.as_millis());
             }
+            times.add(of.as_ref(), work, took);
         };
         let p = self.session.search_step_timed(SEARCH_UNITS, &mut || began.elapsed() < SEARCH_BUDGET, &mut timed);
         self.ui.search_spent = began.elapsed();
-        if !p.done {
+        self.ui.search_times.frame();
+        if p.done {
+            self.ui.search_times.end(true);
+        } else {
             ctx.request_repaint();
         }
     }

@@ -261,6 +261,8 @@ pub struct UiState {
     search_drop: SearchDrop,
     /// The time the last frame spent on the search's work.
     search_spent: web_time::Duration,
+    /// The time the search running has spent on each kind of its work, all told.
+    search_times: app::SearchTimes,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
     pub compose_alert: Option<String>,
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
@@ -437,6 +439,7 @@ impl MailApp {
                 search_due: None,
                 search_drop: SearchDrop::None,
                 search_spent: web_time::Duration::ZERO,
+                search_times: app::SearchTimes::default(),
                 compose_alert: None,
                 attachment_view: None,
                 attachment_selected: None,
