@@ -254,15 +254,14 @@ impl MailApp {
     }
 
     /// The answer to compacting as MailCraft closes: compact it by hand and close once that's
-    /// done, or close now (a recompress or copy under way stops, what's done kept).
-    pub(crate) fn compact_on_close(&mut self, compact: bool) {
+    /// done, or close now (a recompress or copy under way stops, what's done kept). The account
+    /// comes with the answer: the dialog that asked has been put away by the time this runs (read
+    /// from it, "Compact, then close" once closed at once with nothing compacted).
+    pub(crate) fn compact_on_close(&mut self, account: Option<String>) {
         self.ui.compact.answered = true;
-        let account = match &self.ui.dialog {
-            Some(Dialog::CompactOnClose { account, .. }) => Some(account.clone()),
-            _ => None,
-        };
+        let compact = account.is_some();
         self.ui.dialog = None;
-        if let Some(account) = account.filter(|_| compact) {
+        if let Some(account) = account {
             self.run("dataFile.compact", json!({ "account": account }));
             if self.session.compaction.running.contains_key(&account) {
                 self.ui.compact.closing = true;

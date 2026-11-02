@@ -2083,7 +2083,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   data file last measured as worth it when that takes 30 s at most, waiting for all of them, with
   Close now, and then offers a longer one by hand, with its estimate (or that it's copied, which
   takes longer), or closing without it. Closing while a compaction has its file to itself waits
-  for it.
+  for it. Checked on a 37.8 GB data file with 13.4 GB to give back, **Compact, then close** in
+  that offer once closed MailCraft at once with nothing compacted (the answer looked for the
+  account in the dialog, already put away when it ran); the answer now carries the account.
 - **Down in a big folder of a data file:** a read mark on a `.pst` account's message saved the
   page of 4,096 summaries it's in (about 2 MB) and then the folder counts, two durable commits
   of the 38 GB data file in the window's frame: 24 ms by median, up to 1.4 s when the disk was

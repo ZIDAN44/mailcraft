@@ -114,9 +114,10 @@ pub enum Action {
     /// Closing, with the update asked about: installed as MailCraft closes (true), or kept for
     /// later (false).
     UpdateOnClose(bool),
-    /// Closing, with a data file to compact: compacted first, MailCraft closing once it's done
-    /// (true), or closed now (false).
-    CompactOnClose(bool),
+    /// Closing, with a data file to compact: that account's compacted first, MailCraft closing
+    /// once it's done (`Some`), or closed now (`None`). The account rides in the action: the
+    /// dialog that asked is gone by the time it runs.
+    CompactOnClose(Option<String>),
     Open(MessageKey),
     Dialog(Dialog),
     /// An action from one message's window: done to that message (several can be written at

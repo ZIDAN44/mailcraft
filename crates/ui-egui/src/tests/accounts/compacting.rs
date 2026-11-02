@@ -353,12 +353,75 @@ fn closing_compacts_when_chosen_and_short_and_offers_a_long_one() {
     assert!(jobs.take().iter().all(|j| !matches!(j, Job::CompactDataFile { .. })), "nothing begun without asking");
     let texts = drawn(&ctx, &mut a);
     assert!(has(&texts, "about 3 min") && has(&texts, "Compact, then close"), "{texts:?}");
-    a.act(Action::CompactOnClose(true));
+    a.act(Action::CompactOnClose(Some(id.clone())));
     assert!(matches!(&a.ui.dialog, Some(Dialog::Compacting { closing: true, .. })));
     frame(&ctx, &mut a, vec![]);
     assert!(jobs.take().iter().any(|j| matches!(j, Job::CompactDataFile { mode: CompactMode::Manual, .. })));
     // Close now: closed though it runs (stopped as MailCraft goes; what's done is kept).
-    a.act(Action::CompactOnClose(false));
+    a.act(Action::CompactOnClose(None));
+    assert!(a.ui.closing_anyway && a.ui.close_now);
+    finish(a, dir2);
+}
+
+/// Click the button a screen reader names `label`, as the user does (the frame after shows what
+/// it did).
+fn click(ctx: &egui::Context, a: &mut MailApp, label: &str) {
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
+    let at = nodes
+        .iter()
+        .find(|(_, n)| n.label() == Some(label) && n.bounds().is_some() && !n.is_disabled())
+        .and_then(|(_, n)| n.bounds())
+        .map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+        .unwrap_or_else(|| panic!("no {label} to click"));
+    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(ctx, a, vec![Event::PointerMoved(at)]);
+    frame(ctx, a, vec![button(true)]);
+    frame(ctx, a, vec![button(false)]);
+}
+
+/// "Compact, then close" clicked in the offer compacts the data file and closes once it's done.
+/// The dialog is put away before its answer runs, and the answer once read the account from it:
+/// on a 38 GB file MailCraft closed at once with nothing compacted.
+#[test]
+fn compact_then_close_clicked_compacts_before_closing() {
+    let (mut a, jobs, id, dir) = with_data_file("close-click");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.run("dataFile.compactOnClose", json!({ "on": true }));
+    measured(&mut a, &id, big());
+    jobs.take();
+    close(&ctx, &mut a);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::CompactOnClose { .. })), "{:?}", a.ui.dialog);
+    click(&ctx, &mut a, "Compact, then close");
+    assert!(
+        jobs.take().iter().any(|j| matches!(j, Job::CompactDataFile { mode: CompactMode::Manual, account, .. } if *account == id)),
+        "compacted by hand"
+    );
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Compacting { account, closing: true, .. }) if *account == id), "{:?}", a.ui.dialog);
+    assert!(a.ui.compact.closing && !a.ui.closing_anyway && !a.ui.close_now, "not closed yet");
+    frame(&ctx, &mut a, vec![]);
+    assert!(!a.ui.closing_anyway && !a.ui.close_now, "still waiting");
+    a.session
+        .apply(MailEvent::Compacted { account: id.clone(), report: Box::new(CompactReport { mode: CompactMode::Manual, ..Default::default() }) });
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.closing_anyway, "done: it closes");
+
+    // "Close without compacting", clicked, closes with nothing begun.
+    let (mut a, jobs, id, dir2) = {
+        finish(a, dir);
+        with_data_file("close-click-not")
+    };
+    frame(&ctx, &mut a, vec![]);
+    a.run("dataFile.compactOnClose", json!({ "on": true }));
+    measured(&mut a, &id, big());
+    jobs.take();
+    close(&ctx, &mut a);
+    click(&ctx, &mut a, "Close without compacting");
+    assert!(jobs.take().iter().all(|j| !matches!(j, Job::CompactDataFile { .. })));
     assert!(a.ui.closing_anyway && a.ui.close_now);
     finish(a, dir2);
 }
@@ -443,7 +506,7 @@ fn a_long_one_is_offered_once_the_quick_ones_are_done() {
     frame(&ctx, &mut a, vec![]);
     assert!(matches!(&a.ui.dialog, Some(Dialog::CompactOnClose { account, .. }) if *account == other), "{:?}", a.ui.dialog);
     assert!(!a.ui.closing_anyway, "asked first");
-    a.act(Action::CompactOnClose(false));
+    a.act(Action::CompactOnClose(None));
     assert!(a.ui.closing_anyway && a.ui.close_now);
     finish(a, dir);
 }

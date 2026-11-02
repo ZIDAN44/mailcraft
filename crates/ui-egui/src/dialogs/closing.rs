@@ -196,7 +196,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             button_row(ui, |ui| {
                 if *closing {
                     if widgets::accent_button(ui, Icon::Close, "Close now", t, true).clicked() {
-                        acts.push(Action::CompactOnClose(false));
+                        acts.push(Action::CompactOnClose(None));
                         keep = false;
                     }
                 } else if exclusive {
@@ -248,11 +248,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let mut keep = true;
             button_row(ui, |ui| {
                 if ui.button(tl!("Close without compacting")).clicked() {
-                    acts.push(Action::CompactOnClose(false));
+                    acts.push(Action::CompactOnClose(None));
                     keep = false;
                 }
                 if widgets::accent_button(ui, Icon::Sync, "Compact, then close", t, true).clicked() {
-                    acts.push(Action::CompactOnClose(true));
+                    acts.push(Action::CompactOnClose(Some(account.clone())));
                     keep = false;
                 }
             });

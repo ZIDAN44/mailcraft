@@ -101,7 +101,7 @@ impl MailApp {
                     self.ui.close_now = true;
                 }
             }
-            Action::CompactOnClose(compact) => self.compact_on_close(compact),
+            Action::CompactOnClose(account) => self.compact_on_close(account),
             Action::UpdateOnClose(install) => {
                 if !install {
                     self.services.keep_update_for_later();
