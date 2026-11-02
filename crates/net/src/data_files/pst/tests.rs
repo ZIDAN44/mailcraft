@@ -790,6 +790,7 @@ mod indexing;
 mod losses;
 mod options;
 mod pim_gaps;
+mod pim_written;
 mod pipeline;
 mod protected;
 mod reader;

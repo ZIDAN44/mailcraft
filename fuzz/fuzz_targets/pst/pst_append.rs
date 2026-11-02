@@ -65,20 +65,15 @@ fn message(subject: &str) -> UnicodePstMessage<'_> {
     }
 }
 
-const FILE: UnicodePstAttachment<'static> = UnicodePstAttachment {
-    filename: "notes.txt",
-    mime_type: "text/plain",
-    content_id: None,
-    data: b"remember",
-    content: UnicodePstAttachmentContent::Data,
-    properties: &[],
-};
+fn notes() -> UnicodePstAttachment<'static> {
+    UnicodePstAttachment { filename: "notes.txt", mime_type: "text/plain", content_id: None, data: b"remember", ..Default::default() }
+}
 
 /// A data file the writer made: Inbox with one message and its file, and Projects beside it.
 fn good_file() -> Vec<u8> {
     let path = scratch("good.pst");
     let _ = std::fs::remove_file(&path);
-    let _ = UnicodePstFile::create_in_folder_with_attachments(&path, &["Inbox"], &message("Plan"), &[FILE]);
+    let _ = UnicodePstFile::create_in_folder_with_attachments(&path, &["Inbox"], &message("Plan"), &[notes()]);
     let _ = UnicodePstFile::append_in_folder(&path, &["Projects"], &message("Nested"));
     let data = std::fs::read(&path).unwrap_or_default();
     let _ = std::fs::remove_file(&path);
@@ -135,7 +130,7 @@ fuzz_target!(|data: &[u8]| {
     if std::fs::write(&path, &file).is_err() {
         return;
     }
-    let attachments = [FILE];
+    let attachments = [notes()];
     let batch = [UnicodePstBatchMessage { message: message("Added"), attachments: &attachments }];
     for role in [Special::DeletedItems, Special::SentItems, Special::Outbox, Special::Drafts, Special::JunkEmail] {
         let _ = UnicodePstFile::special_folder(&path, role);

@@ -1909,9 +1909,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   borrow theirs, the status bar, list and reading pane's contact card copying none). MailCraft doesn't show these files yet; they go with the event or card
   when it's exported (`.ics`, `.vcf`). A note's and a journal entry's files still don't come in. The 41 GB file
   measured has none of these (its calendar, contacts and tasks folders are empty, and its
-  34,691 items are all mail), so they're tried on made-up items only: `outlook-pst-rw` writes
-  mail items alone, so no test `.pst` can hold an appointment or a contact. A contact's picture
-  past the 100 MB cap on an attachment is counted as too big, not dropped unsaid.
+  34,691 items are all mail), so they're tried on made-up items and on a file the writer makes
+  (`pst/tests/pim_written.rs`: a repeating appointment with a changed occurrence attached to it
+  as Outlook keeps one, and a contact with its picture and a file, written with the writer's
+  named properties, container classes and attached messages, and imported whole). A contact's
+  picture past the 100 MB cap on an attachment is counted as too big, not dropped unsaid.
 - **The search index is built in the background:** each account's mail is now indexed for
   search as it comes (a sync, a message downloaded, a move or delete, an import's end), on a
   thread of its own, with the messages read and their text taken out on all but two of the

@@ -1,0 +1,146 @@
+//! Calendar items and contacts in a file the writer makes, as Outlook keeps them: a repeating
+//! appointment whose pattern and times are named properties found through the file's own
+//! name-to-ID map, its changed occurrences hidden attached messages (afException) that say which
+//! occurrence they replace, and a contact whose picture is an attachment flagged as one. What
+//! `pim_gaps` checks on items made up in memory, read here from the file by the import itself.
+
+use mailcraft_model::dates::days_from_civil;
+use mailcraft_model::pim::{PIM_DOC, Pim};
+use mailcraft_store::Store;
+use pst_rw::ltp::prop_context::GuidValue;
+use pst_rw::{
+    UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstEmbeddedMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstName,
+    UnicodePstProperty, UnicodePstValue,
+};
+
+use super::super::import;
+
+/// PSETID_Appointment and PSETID_Address (MS-OXPROPS 1.3.2).
+const PSETID_APPOINTMENT: GuidValue = GuidValue::new(0x0006_2002, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+const PSETID_ADDRESS: GuidValue = GuidValue::new(0x0006_2004, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+
+/// Unix seconds as a FILETIME.
+fn filetime(t: i64) -> i64 {
+    (t + 11_644_473_600) * 10_000_000
+}
+
+fn message<'a>(subject: &'a str, class: &'a str, body: &'a str, properties: &'a [UnicodePstProperty<'a>]) -> UnicodePstMessage<'a> {
+    UnicodePstMessage {
+        subject,
+        sender_name: "Riley Moreno",
+        sender_email: "riley@studio.example",
+        recipients: &[],
+        body,
+        html_body: None,
+        message_id: "",
+        delivery_time: filetime(1_790_000_000),
+        message_class: class,
+        properties,
+    }
+}
+
+fn file<'a>(filename: &'a str, mime_type: &'a str, data: &'a [u8]) -> UnicodePstAttachment<'a> {
+    UnicodePstAttachment { filename, mime_type, data, ..Default::default() }
+}
+
+fn named<'a>(set: GuidValue, lid: u32, value: UnicodePstValue<'a>) -> UnicodePstProperty<'a> {
+    UnicodePstProperty::named(set, UnicodePstName::Id(lid), value)
+}
+
+/// A weekly appointment with a file, one changed occurrence that has an item of its own (with its
+/// own text and file) and one that hasn't; and a contact with a picture and a file. They come in
+/// as the series, its two changed occurrences (RECURRENCE-ID) with the item's text and file on its
+/// own, and a card with its picture (PHOTO) and file, nothing left out.
+#[test]
+fn a_written_file_s_calendar_and_contacts_come_in() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-pim-written-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("Calendar.pst");
+    let at = |d: u32, h: i64| days_from_civil(2026, 10, d) * 86_400 + h * 3600;
+    drop(Writer::create(&path, &message("Hello", "IPM.Note", "Hi.", &[])).unwrap());
+
+    // The series: 07:00Z each Monday and Wednesday, its pattern the one `pst_pim` reads.
+    let (pattern, start) = crate::pst_pim::tests::series(0x3009);
+    let series = [
+        named(PSETID_APPOINTMENT, 0x820D, UnicodePstValue::Time(filetime(start))),
+        named(PSETID_APPOINTMENT, 0x820E, UnicodePstValue::Time(filetime(start + 3600))),
+        named(PSETID_APPOINTMENT, 0x8208, UnicodePstValue::Unicode("Room 1")),
+        named(PSETID_APPOINTMENT, 0x8216, UnicodePstValue::Binary(&pattern)),
+    ];
+    // The occurrence of the 19th, an hour later than the pattern says (summer time ended), with
+    // its own text and file.
+    let own = [
+        named(PSETID_APPOINTMENT, 0x820D, UnicodePstValue::Time(filetime(at(19, 8)))),
+        named(PSETID_APPOINTMENT, 0x820E, UnicodePstValue::Time(filetime(at(19, 9)))),
+        named(PSETID_APPOINTMENT, 0x8228, UnicodePstValue::Time(filetime(at(19, 8)))),
+    ];
+    // PidTagAttachmentHidden and PidTagAttachmentFlags' afException, as Outlook marks one.
+    let exception =
+        [UnicodePstProperty::tagged(0x7FFE, UnicodePstValue::Boolean(true)), UnicodePstProperty::tagged(0x7FFD, UnicodePstValue::Integer32(2))];
+    let changed = UnicodePstAttachment {
+        filename: "Review",
+        content: UnicodePstAttachmentContent::Message(Box::new(UnicodePstEmbeddedMessage {
+            message: message("Review", "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}", "Bring the proofs.", &own),
+            attachments: vec![file("proofs.pdf", "application/pdf", b"%PDF-1.4 proofs")],
+        })),
+        properties: &exception,
+        ..Default::default()
+    };
+    drop(Writer::create_folder(&path, &["Calendar"], "IPF.Appointment").unwrap());
+    let attachments = [file("agenda.pdf", "application/pdf", b"%PDF-1.4 agenda"), changed];
+    drop(
+        Writer::append_in_folder_with_attachments(&path, &["Calendar"], &message("Review", "IPM.Appointment", "Weekly.", &series), &attachments)
+            .unwrap(),
+    );
+
+    // The contact: PidTagAttachmentContactPhoto and PidTagAttachmentHidden on its picture.
+    let card = [
+        UnicodePstProperty::tagged(0x3A06, UnicodePstValue::Unicode("Ana")),
+        UnicodePstProperty::tagged(0x3A11, UnicodePstValue::Unicode("Ruiz")),
+        named(PSETID_ADDRESS, 0x8083, UnicodePstValue::Unicode("ana@posteo.example")),
+    ];
+    let picture =
+        [UnicodePstProperty::tagged(0x7FFF, UnicodePstValue::Boolean(true)), UnicodePstProperty::tagged(0x7FFE, UnicodePstValue::Boolean(true))];
+    let photo = UnicodePstAttachment { properties: &picture, ..file("ContactPicture.jpg", "image/jpeg", &[0xFF, 0xD8, 0xFF, 0xE0]) };
+    drop(Writer::create_folder(&path, &["Contacts"], "IPF.Contact").unwrap());
+    drop(
+        Writer::append_in_folder_with_attachments(
+            &path,
+            &["Contacts"],
+            &message("Ana Ruiz", "IPM.Contact", "", &card),
+            &[photo, file("cv.pdf", "application/pdf", b"cv")],
+        )
+        .unwrap(),
+    );
+
+    let store = Store::open(dir.join("cache")).unwrap();
+    let done = import(&path, &store, "a1", &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.events, done.contacts), (1, 1, 1), "{done:?}");
+    assert_eq!((done.skipped, done.skips.len()), (0, 0), "{done:?}");
+    let pim: Pim = store.load_account_doc("a1", PIM_DOC).unwrap();
+    let files_of = |extra: &[String]| -> Vec<String> {
+        extra.iter().filter(|l| crate::pst_pim::is_file_line(l)).map(|l| l.split(':').next().unwrap_or_default().to_string()).collect()
+    };
+    let events: Vec<_> = pim.events.iter().map(|e| &e.event).collect();
+    assert_eq!(events.len(), 3);
+    let series = events[0];
+    assert_eq!((series.start, series.location.as_str()), (start, "Room 1"));
+    assert_eq!(series.rrule.as_deref(), Some("FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;COUNT=10"));
+    assert_eq!(series.exdates, [at(7, 7)]);
+    assert_eq!(files_of(&series.extra), ["ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"agenda.pdf\""]);
+    let (moved, quiet) = (events[1], events[2]);
+    assert_eq!((moved.uid.as_str(), moved.recurrence_id, moved.start), (series.uid.as_str(), Some(at(12, 7)), at(13, 8)));
+    assert!(files_of(&moved.extra).is_empty());
+    assert_eq!((quiet.uid.as_str(), quiet.recurrence_id, quiet.start, quiet.end), (series.uid.as_str(), Some(at(19, 7)), at(19, 8), at(19, 9)));
+    assert_eq!(quiet.description, "Bring the proofs.");
+    assert_eq!(files_of(&quiet.extra), ["ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"proofs.pdf\""]);
+    let card = &pim.cards[0].card;
+    assert_eq!(
+        (card.display(), card.emails.iter().map(|e| e.value.as_str()).collect::<Vec<_>>()),
+        ("Ana Ruiz".to_string(), vec!["ana@posteo.example"])
+    );
+    assert_eq!(card.extra, ["PHOTO:data:image/jpeg;base64,/9j/4A==", "X-MAILCRAFT-ATTACH;X-FILENAME=\"cv.pdf\":data:application/pdf;base64,Y3Y="]);
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
+}
