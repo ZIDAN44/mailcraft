@@ -5,7 +5,16 @@
 //! source is written. A lane whose charge doesn't fit waits, except the lane holding the item the
 //! writer needs next: that one always goes on, so the import can't wait on itself. At most the
 //! cap and one item are held.
+//!
+//! Room is given in the items' order: a lane waits, too, while one with an item before its own
+//! does (one whose charge could fit at all: an item charged more than the cap waits for its turn
+//! without holding up the others, as it can't go before then anyway). Otherwise the small items
+//! after a big one took the room as it came back, a little at a time, and the big one waited
+//! until the writer needed it, then held up every lane and the writer while it alone was read:
+//! on a 41 GB file the writer stood idle for 40 to 44% of the import (10 to 22% with room given
+//! in order), and the lanes waited for room half their time.
 
+use std::collections::BTreeSet;
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -21,7 +30,10 @@ struct State {
     in_flight: u64,
     /// The item the writer needs next.
     oldest: u64,
-    waiting: usize,
+    /// The items whose lanes wait, in order (those whose charge could fit at all).
+    queued: BTreeSet<u64>,
+    /// The lanes waiting because their charge doesn't fit now, not only for their turn.
+    short: usize,
 }
 
 pub(super) struct Budget {
@@ -44,25 +56,42 @@ impl Budget {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Take `charge` for item `seq`, waiting while it doesn't fit (unless `seq` is the item the
-    /// writer needs next). False, with nothing taken, once `stopped` says to stop. The time it
-    /// waited is counted to `tally`.
+    /// Take `charge` for item `seq`, waiting while it doesn't fit or an item before it waits
+    /// (unless `seq` is the item the writer needs next). False, with nothing taken, once `stopped`
+    /// says to stop. The time it waited is counted to `tally`.
     pub(super) fn acquire(&self, seq: u64, charge: u64, stopped: &dyn Fn() -> bool, tally: &Tally) -> bool {
         let mut st = self.lock();
         let began = Instant::now();
-        let mut waited = false;
-        while st.in_flight.saturating_add(charge) > self.cap && seq != st.oldest && !stopped() {
+        let (mut waited, mut counted) = (false, false);
+        loop {
+            let short = st.in_flight.saturating_add(charge) > self.cap;
+            let behind = st.queued.first().is_some_and(|first| *first < seq);
+            if !(short || behind) || seq == st.oldest || stopped() {
+                break;
+            }
             if !waited {
                 waited = true;
-                st.waiting = st.waiting.saturating_add(1);
+                // Charged more than the cap, it can only go as the writer's next: none waits for it.
+                if charge <= self.cap {
+                    st.queued.insert(seq);
+                }
+            }
+            if short != counted {
+                counted = short;
+                st.short = if short { st.short.saturating_add(1) } else { st.short.saturating_sub(1) };
             }
             st = match self.changed.wait_timeout(st, RECHECK) {
                 Ok((g, _)) => g,
                 Err(e) => e.into_inner().0,
             };
         }
+        if counted {
+            st.short = st.short.saturating_sub(1);
+        }
         if waited {
-            st.waiting = st.waiting.saturating_sub(1);
+            // The next in line may go now.
+            st.queued.remove(&seq);
+            self.changed.notify_all();
             tally.waited(began);
         }
         if stopped() {
@@ -93,9 +122,9 @@ impl Budget {
         }
     }
 
-    /// Whether a lane is waiting for room.
+    /// Whether a lane is waiting for room (not only for its turn).
     pub(super) fn waiting(&self) -> bool {
-        self.lock().waiting > 0
+        self.lock().short > 0
     }
 
     #[cfg(test)]
@@ -161,6 +190,77 @@ mod tests {
             }
         });
         assert_eq!(budget.in_flight(), 0);
+    }
+
+    /// A big item waiting for room isn't passed by the small ones after it, though they'd fit:
+    /// it gets the room first, as it comes back.
+    #[test]
+    fn room_is_given_in_order() {
+        let budget = Budget::new(100);
+        let stop = AtomicBool::new(false);
+        let tally = Tally::default();
+        let stopped = || stop.load(Ordering::Relaxed);
+        // The item the writer needs holds most of the room.
+        assert!(budget.acquire(0, 90, &stopped, &tally));
+        let order = std::sync::Mutex::new(Vec::new());
+        std::thread::scope(|s| {
+            let big = s.spawn(|| {
+                assert!(budget.acquire(1, 50, &stopped, &tally));
+                order.lock().unwrap().push(1);
+            });
+            while !budget.waiting() {
+                std::thread::yield_now();
+            }
+            let small = s.spawn(|| {
+                assert!(budget.acquire(2, 5, &stopped, &tally));
+                order.lock().unwrap().push(2);
+            });
+            // Looked at the room more than once meanwhile, the small one still waits.
+            std::thread::sleep(RECHECK * 3);
+            let passed = order.lock().unwrap().clone();
+            budget.release(90);
+            big.join().unwrap();
+            small.join().unwrap();
+            assert!(passed.is_empty(), "a small item went before the big one waiting");
+        });
+        assert_eq!(order.lock().unwrap().len(), 2);
+        assert_eq!(budget.in_flight(), 55);
+    }
+
+    /// An item charged more than the whole budget waits for its turn, but the small ones after it
+    /// that fit aren't held up by it.
+    #[test]
+    fn an_item_over_the_cap_holds_no_one_up() {
+        let budget = Budget::new(100);
+        let stop = AtomicBool::new(false);
+        let tally = Tally::default();
+        let stopped = || stop.load(Ordering::Relaxed);
+        assert!(budget.acquire(0, 10, &stopped, &tally));
+        std::thread::scope(|s| {
+            let big = s.spawn(|| budget.acquire(1, 500, &stopped, &tally));
+            while !budget.waiting() {
+                std::thread::yield_now();
+            }
+            // Later items that fit go, though the big one waits (held up, they'd be stopped).
+            let small = s.spawn(|| budget.acquire(2, 20, &stopped, &tally) && budget.acquire(3, 20, &stopped, &tally));
+            let began = Instant::now();
+            while !small.is_finished() && began.elapsed() < Duration::from_secs(2) {
+                std::thread::yield_now();
+            }
+            let went = small.is_finished();
+            if !went {
+                stop.store(true, Ordering::Relaxed);
+                budget.wake();
+            }
+            assert!(small.join().unwrap() && went, "small items waited behind one over the cap");
+            assert_eq!(budget.in_flight(), 50);
+            assert!(budget.waiting(), "the big one waits for room");
+            // Its turn: it goes.
+            budget.advance(1);
+            assert!(big.join().unwrap());
+        });
+        assert!(!budget.waiting());
+        assert_eq!(budget.in_flight(), 550);
     }
 
     /// A lane waiting for room gives up once told to stop, taking nothing.
