@@ -8,16 +8,20 @@
 //! written late still says the last word) with the folders' counts, written together in one
 //! commit, still durable: a mark is saved at once, only not while the window waits.
 //!
-//! What reads a folder's list from the disk ([`Store::folder_load`]) and closing
-//! ([`Store::seal_all`]) wait first for the marks handed over before: a list read meanwhile
-//! would lack them, and a move filed the message with its flags from before. The thread's own
-//! store doesn't wait on itself. A mark that couldn't be kept is told
-//! ([`Store::take_marks_failed`]), for the window to read its folders again from the disk.
+//! What reads a folder's list from the disk ([`Store::folder_load`]) waits first for the marks
+//! handed over before in that folder, what reads or writes an account's folder list for its
+//! marks (their counts), and closing ([`Store::seal_all`]) for all of them: a list read
+//! meanwhile would lack them, and a move filed the message with its flags from before. Nothing
+//! waits for another folder's or another account's. The thread's own store doesn't wait on
+//! itself. A mark that couldn't be kept is told ([`Store::take_marks_failed`]), for the window to
+//! read its folders again from the disk. A wait of the window's holds its frame: one longer than
+//! [`SLOW_WAIT`] is logged with who waited.
 
+use std::collections::VecDeque;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
-use std::sync::{Condvar, PoisonError};
+use std::sync::{Condvar, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use mailcraft_model::Flags;
@@ -26,6 +30,10 @@ use crate::*;
 
 /// How long [`Store::flush_marks`] waits for the marks before it at most.
 const FLUSH_WAIT: Duration = Duration::from_secs(10);
+/// A wait for the marks, or for the lock every change of a list takes, longer than this is
+/// logged with who waited: on the window's thread it held a frame (a hold of Down on a 38 GB
+/// data file once had frames of 0.5 and 1.8 s while marks were committed).
+pub(crate) const SLOW_WAIT: Duration = Duration::from_millis(50);
 
 /// One folder's messages marked: their number and what their flags are now, in the list of
 /// `validity` (a list made anew since isn't marked).
@@ -71,6 +79,17 @@ struct Queue {
     sent: u64,
     done: u64,
     after: Vec<MarksAfter>,
+    /// The marks handed over and not written yet, in order: each one's account and the folders
+    /// it marks (what waits for them waits only for those of its folder or account).
+    pending: VecDeque<(String, Vec<String>)>,
+}
+
+impl Queue {
+    /// Whether marks of `account` (in `folder`; in any of its folders, or their counts, when
+    /// `None`) are still to be written.
+    fn waiting_for(&self, account: &str, folder: Option<&str>) -> bool {
+        self.pending.iter().any(|(a, fs)| a == account && folder.is_none_or(|f| fs.iter().any(|x| x == f)))
+    }
 }
 
 struct Task {
@@ -115,21 +134,69 @@ impl Store {
         self.marking.queue().after.extend(after);
     }
 
+    /// Keep the account's folder `counts` (`path`, unread, total) on the store's thread for
+    /// marks, after the marks handed over before (whose counts they follow): a durable commit of
+    /// a data file not made in the window's frame. A folder list on disk with none of them is
+    /// told ([`MarksAfter::Unlisted`]).
+    pub fn count_later(&self, account: &str, counts: Vec<(String, u32, u32)>) {
+        if !counts.is_empty() {
+            self.mark_later(account, Vec::new(), counts);
+        }
+    }
+
     /// Wait (a while at most) until the marks handed over so far are on disk. Whether they are.
+    #[track_caller]
     pub fn flush_marks(&self) -> bool {
+        let target = self.marking.queue().sent;
+        self.wait_marks(|q| q.done < target)
+    }
+
+    /// Wait (a while at most) until the marks of `account` handed over so far (in `folder`; in
+    /// any of its folders, with their counts, when `None`) are on disk. Whether they are.
+    #[track_caller]
+    pub fn flush_marks_of(&self, account: &str, folder: Option<&str>) -> bool {
+        self.wait_marks(|q| q.waiting_for(account, folder))
+    }
+
+    /// Wait while `waiting` says so, [`FLUSH_WAIT`] at most; a wait over [`SLOW_WAIT`] is logged
+    /// with its caller.
+    #[track_caller]
+    fn wait_marks(&self, waiting: impl Fn(&Queue) -> bool) -> bool {
         let mut q = self.marking.queue();
-        let target = q.sent;
-        while q.done < target {
-            q = match self.marking.state.written.wait_timeout(q, FLUSH_WAIT) {
-                Ok((q, t)) if t.timed_out() && q.done < target => {
-                    log::warn!("read marks: still being saved after {} s", FLUSH_WAIT.as_secs());
+        if !waiting(&q) {
+            return true;
+        }
+        let caller = std::panic::Location::caller();
+        let slow = Slow::start();
+        while waiting(&q) {
+            let left = FLUSH_WAIT.saturating_sub(slow.took());
+            q = match self.marking.state.written.wait_timeout(q, left) {
+                Ok((q, t)) if t.timed_out() && waiting(&q) => {
+                    log::warn!("read marks: still being saved after {} s ({caller})", FLUSH_WAIT.as_secs());
                     return false;
                 }
                 Ok((q, _)) => q,
                 Err(e) => e.into_inner().0,
             };
         }
+        slow.log("the read marks", caller);
         true
+    }
+
+    /// The lock every change of a list (and of the folder list) is made under; a wait for it over
+    /// [`SLOW_WAIT`] is logged with its caller.
+    #[track_caller]
+    pub(crate) fn hold_changes(&self) -> MutexGuard<'_, ()> {
+        match self.changes.try_lock() {
+            Ok(held) => held,
+            Err(std::sync::TryLockError::Poisoned(e)) => e.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => {
+                let slow = Slow::start();
+                let held = self.changes.lock().unwrap_or_else(PoisonError::into_inner);
+                slow.log("the lock of the lists' changes", std::panic::Location::caller());
+                held
+            }
+        }
     }
 
     /// Whether marks handed over aren't on disk yet (tests).
@@ -137,6 +204,13 @@ impl Store {
     pub fn marks_waiting(&self) -> bool {
         let q = self.marking.queue();
         q.done < q.sent
+    }
+
+    /// Whether marks of `account` (in `folder`; in any of its folders, with their counts, when
+    /// `None`) aren't on disk yet: reading them from the disk would wait for them
+    /// ([`Store::flush_marks_of`]).
+    pub fn marks_waiting_for(&self, account: &str, folder: Option<&str>) -> bool {
+        self.marking.queue().waiting_for(account, folder)
     }
 
     /// Keep the thread from writing marks while the guard is held (tests: what the window's thread
@@ -160,13 +234,18 @@ impl Store {
         }
         let Some(sender) = tx.as_ref() else { return Err(task) };
         // Counted before it's sent, so a flush right after waits for it.
-        self.marking.queue().sent += 1;
+        {
+            let mut q = self.marking.queue();
+            q.sent += 1;
+            q.pending.push_back((task.account.clone(), task.lists.iter().map(|l| l.folder.clone()).collect()));
+        }
         match sender.send(task) {
             Ok(()) => Ok(()),
             Err(mpsc::SendError(task)) => {
                 *tx = None;
                 let mut q = self.marking.queue();
                 q.sent = q.sent.saturating_sub(1);
+                q.pending.pop_back();
                 Err(task)
             }
         }
@@ -189,6 +268,7 @@ impl Store {
                 });
                 let mut q = marking.queue();
                 q.done = q.done.saturating_add(1);
+                q.pending.pop_front();
                 q.after.extend(after);
                 marking.written.notify_all();
             }
@@ -208,6 +288,11 @@ impl Store {
             None => Vec::new(),
             Some(Ok(0)) if !task.counts.is_empty() => vec![MarksAfter::Unlisted { account: task.account.clone() }],
             Some(Ok(_)) => Vec::new(),
+            // Counts alone ([`Store::count_later`]): the next count puts them right.
+            Some(Err(e)) if task.lists.is_empty() => {
+                log::warn!("{}: folder counts not saved: {e}", task.account);
+                Vec::new()
+            }
             Some(Err(e)) => vec![failed(task, e.to_string())],
         }
     }
@@ -217,7 +302,7 @@ impl Store {
     /// ([`folders::MARKS`]) while they're few, and into its pages once they're more; a small list
     /// is written whole. Says how many of the counts' folders the account's list has.
     pub fn save_flags(&self, account: &str, lists: &[FolderMarks], counts: &[(String, u32, u32)]) -> Result<usize> {
-        let _held = self.changes.lock().unwrap_or_else(PoisonError::into_inner);
+        let _held = self.hold_changes();
         let (mut writes, mut stale) = (Vec::new(), Vec::new());
         for marks in lists.iter().filter(|m| !m.flags.is_empty()) {
             let (w, s) = self.flag_writes(account, marks)?;
@@ -278,4 +363,33 @@ fn failed(task: &Task, message: String) -> MarksAfter {
     folders.sort();
     folders.dedup();
     MarksAfter::Failed { account: task.account.clone(), folders, message }
+}
+
+/// How long a wait took, timed only once it's known to wait (the browser, which reads no clock,
+/// has no thread to wait on).
+struct Slow(#[cfg(not(target_arch = "wasm32"))] std::time::Instant);
+
+impl Slow {
+    fn start() -> Slow {
+        Slow(
+            #[cfg(not(target_arch = "wasm32"))]
+            std::time::Instant::now(),
+        )
+    }
+
+    fn took(&self) -> Duration {
+        #[cfg(not(target_arch = "wasm32"))]
+        return self.0.elapsed();
+        #[cfg(target_arch = "wasm32")]
+        Duration::ZERO
+    }
+
+    /// Logged when it was over [`SLOW_WAIT`], with the thread and `caller` that waited for `what`.
+    fn log(&self, what: &str, caller: &std::panic::Location<'_>) {
+        let took = self.took();
+        if took > SLOW_WAIT {
+            let thread = std::thread::current();
+            log::warn!("{} waited {} ms for {what} ({caller})", thread.name().unwrap_or("a thread"), took.as_millis());
+        }
+    }
 }

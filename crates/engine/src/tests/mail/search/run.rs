@@ -557,8 +557,9 @@ fn indexing_under_way_and_what_a_search_couldnt_read() {
 }
 
 /// A step tells what each part of it was (the window times them by kind), and a folder's list
-/// isn't read while read marks wait to be written: the step goes on and reads it once they are,
-/// rather than wait for them on the window's thread.
+/// isn't read while read marks of it wait to be written: the step goes on and reads it once they
+/// are, rather than wait for them on the window's thread. The other folders' lists are read
+/// meanwhile.
 #[test]
 fn a_step_tells_its_work_and_never_waits_for_marks() {
     let mut s = generated(4, 600, 0, true);
@@ -566,11 +567,11 @@ fn a_step_tells_its_work_and_never_waits_for_marks() {
     s.run("folder.open", &json!({"account": "a1", "folder": "INBOX"})).unwrap();
     let store = s.store.clone().unwrap();
     let k = s.list[0].key.clone();
-    // The other folders' lists not in memory: a search reads them.
-    s.cache.retain(|(_, f), _| f == "INBOX");
     let paused = store.pause_marks();
     s.apply_op("a1", Op::SetFlag { keys: vec![k], flag: Flag::Flagged, on: true });
     assert!(store.marks_waiting());
+    // No folder's list in memory: a search reads them.
+    s.cache.clear();
     let began = std::time::Instant::now();
     s.start_search("zanzibar", SearchScope::All, false);
     let mut kinds = HashSet::new();
@@ -580,7 +581,9 @@ fn a_step_tells_its_work_and_never_waits_for_marks() {
         });
     }
     assert!(began.elapsed() < std::time::Duration::from_secs(5), "waited {:?}", began.elapsed());
-    assert!(!s.search_progress().unwrap().done, "the other folders not read yet");
+    assert!(!s.search_progress().unwrap().done, "the Inbox not read yet");
+    let read: HashSet<&str> = s.cache.keys().map(|(_, f)| f.as_str()).collect();
+    assert!(read.len() >= 3 && !read.contains("INBOX"), "the others read: {read:?}");
     drop(paused);
     let mut steps = 0;
     while !s

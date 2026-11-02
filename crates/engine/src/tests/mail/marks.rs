@@ -75,6 +75,44 @@ fn a_message_marked_read_and_moved_at_once_keeps_its_mark() {
     done(s);
 }
 
+/// While the store's thread for marks is held (its commits slow, as a 38 GB file's were for
+/// seconds), the window's thread waits for none of them: Down steps marking messages read,
+/// another folder opened, a draft filed and the account's folders counted again (on the marks'
+/// thread too, after them) each return at once. Once the marks are written, all of it is on
+/// disk. A hold of Down once had frames of 0.5 and 1.8 s while a mark's commit took 3 s.
+#[test]
+fn the_window_never_waits_for_marks_being_written() {
+    use std::time::{Duration, Instant};
+    let store = Store::memory();
+    let mut s = big_projects(&store, 2000);
+    let first = s.row_keys()[0].to_id();
+    s.run("list.open", &json!({"key": first})).unwrap();
+    assert!(store.flush_marks());
+    let paused = store.pause_marks();
+    let began = Instant::now();
+    for _ in 0..5 {
+        s.run("list.next", &json!({})).unwrap();
+    }
+    assert!(store.marks_waiting());
+    s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ana@soundlab.example", "subject": "Mix notes", "body": "First take"})).unwrap();
+    s.run("compose.saveDraft", &json!({})).unwrap();
+    let drafts = s.folder("sample", "Drafts").map(|f| f.total);
+    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    assert!(began.elapsed() < Duration::from_secs(5), "the window waited {:?}", began.elapsed());
+    assert!(store.marks_waiting(), "nothing written yet");
+    drop(paused);
+    assert!(store.flush_marks());
+    let projects = store.load_folder("sample", "Projects").unwrap();
+    assert_eq!(projects.messages.iter().filter(|m| m.flags.seen).count(), 6, "the marks on disk");
+    let listed = store.load_folders("sample").unwrap();
+    let count = |p: &str| listed.iter().find(|f| f.path == p).map(|f| (f.unread, f.total));
+    assert_eq!(count("Projects"), Some((1994, 2000)));
+    assert_eq!(count("Drafts").map(|c| c.1), drafts, "the Drafts counted after them");
+    done(s);
+}
+
 /// What a Down step costs the window in a data file's folder of 10,941 unread messages, in a real
 /// data file (`cargo test -p mailcraft-engine --release down_steps_on_a_big_data_file_folder --
 /// --ignored --nocapture`): the step with its read mark handed over, and the mark written on the

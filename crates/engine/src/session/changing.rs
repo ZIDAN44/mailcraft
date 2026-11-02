@@ -152,8 +152,9 @@ impl Session {
             store.mark_later(account, lists, counts);
             return Ok(());
         }
-        // Anything else reads the lists from disk: the marks handed over before are there first.
-        store.flush_marks();
+        // Anything else reads the lists from disk: the account's marks handed over before are
+        // there first.
+        store.flush_marks_of(account, None);
         if let Op::Move { keys, to } = op {
             // Not filed in the destination: the messages stay where they were (taken from the
             // sources after all, they were lost), and the lists in memory are read again.

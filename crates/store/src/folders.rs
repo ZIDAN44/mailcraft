@@ -5,6 +5,7 @@ use mailcraft_model::Flags;
 use crate::*;
 
 impl Store {
+    #[track_caller]
     pub fn load_folder(&self, account: &str, folder: &str) -> Result<FolderState> {
         let mut load = self.folder_load(account, folder)?;
         while !load.step(self)? {}
@@ -13,8 +14,9 @@ impl Store {
 
     /// Start reading a folder's list a page at a time ([`FolderLoad`]): its head is read now,
     /// once the read marks handed over before are on disk ([`Store::mark_later`]).
+    #[track_caller]
     pub fn folder_load(&self, account: &str, folder: &str) -> Result<FolderLoad> {
-        self.flush_marks();
+        self.flush_marks_of(account, Some(folder));
         self.list_load(account, folder)
     }
 
@@ -139,8 +141,8 @@ impl Store {
         changed: Option<&std::collections::HashSet<u32>>,
     ) -> Result<usize> {
         // A list written whole after the marks handed over before, never under them.
-        self.flush_marks();
-        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.flush_marks_of(account, Some(folder));
+        let _held = self.hold_changes();
         let (writes, stale) = self.list_writes(account, folder, state, changed)?;
         // The list and its pages together (one transaction in a data file).
         let written = writes.len();
@@ -281,7 +283,7 @@ impl Store {
             m.has_attachments = files;
             (true, changed)
         };
-        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _held = self.hold_changes();
         let dir = self.folder_dir(account, folder);
         let head = dir.join("state.json");
         let mut file: StateFile = self.read_json(&head)?;
@@ -445,7 +447,7 @@ impl Store {
     /// Folder-list changes: `folders.json` is updated and each folder's cache moves with it (or
     /// goes, for a deleted folder). Returns the folders whose contents should be shown afresh.
     pub(super) fn apply_folder_op(&self, account: &str, op: &Op) -> Result<Vec<String>> {
-        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _held = self.hold_changes();
         let mut list = self.read_folders(account)?;
         let delimiter = list.iter().find_map(|f| f.delimiter);
         let changed = match op {
@@ -507,11 +509,11 @@ impl Store {
     /// [`Store::upsert_folder`] for each of `folders`, in one write of the list: an import's
     /// folders finished together cost one write, however many there are.
     pub fn upsert_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
-        self.flush_marks();
+        self.flush_marks_of(account, None);
         if folders.is_empty() {
             return Ok(());
         }
-        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _held = self.hold_changes();
         let mut list = self.read_folders(account)?;
         let mut at: std::collections::HashMap<String, usize> = list.iter().enumerate().map(|(i, f)| (f.path.clone(), i)).collect();
         for folder in folders {
@@ -533,8 +535,8 @@ impl Store {
     /// the list stands now: a list held elsewhere (the window's) written whole would drop the
     /// folders an import added since it was read. Says how many of them the list has.
     pub fn update_folder_counts(&self, account: &str, counts: &[(String, u32, u32)]) -> Result<usize> {
-        self.flush_marks();
-        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.flush_marks_of(account, None);
+        let _held = self.hold_changes();
         let mut list = self.read_folders(account)?;
         let (found, changed) = set_counts(&mut list, counts);
         if changed {

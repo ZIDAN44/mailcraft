@@ -1950,6 +1950,18 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   the arrangement, the filter or Focused); what the search showed and held is let go of a slice
   a frame. On the made-up mailbox (release build), clearing 35,000 found over the Inbox's
   12,000 takes 1.6 ms.
+- **Holding Down while marks are written:** a hold of Down over unread mail on the 41 GB file's
+  data file once had frames of 0.5 and 1.8 s, and the window answered nothing for about 7 s,
+  while two read marks took 3.1 and 3.5 s to commit (the disk flushing). Reading a folder's list
+  from the disk, or the folder list, waited for every mark handed over before; now only for
+  those of that folder (of the account, for the folder list), so another folder opened, a draft
+  filed or a search reading the other folders doesn't wait, and a search reads the folder whose
+  marks are being written after the others. A local account's folders counted again after a
+  move or a draft are written on the marks' thread too, after the marks before them, rather than
+  waiting for them in the window's frame; and the window's settings, flushed to the disk every
+  few seconds when they changed (5–15 ms of a frame, 197 ms once while the disk was busy), are
+  written on a thread of their own. A wait for the marks, or for the lock every change of a list
+  takes, over 50 ms is logged with what waited.
 - **Attachments a build before 0.32 kept raw:** a data file those builds made keeps most base64
   attachments uncompressed (34.9 GiB of a 47 GB file). The store can now compress them again in
   the background (`Store::recompress_data_file`): a batch of at most 2 MiB at a time, each

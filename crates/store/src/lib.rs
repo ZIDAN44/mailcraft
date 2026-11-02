@@ -642,8 +642,9 @@ impl Store {
 
     /// An account's folder list, once the read marks handed over before (and their counts) are
     /// on disk ([`Store::mark_later`]).
+    #[track_caller]
     pub fn load_folders(&self, account: &str) -> Result<Vec<Folder>> {
-        self.flush_marks();
+        self.flush_marks_of(account, None);
         self.read_folders(account)
     }
 
@@ -656,9 +657,10 @@ impl Store {
     /// Keep an account's folder list as it is now. It's written under the same lock as
     /// [`Store::upsert_folder`] and [`Store::update_folder_counts`], so a list read before one of
     /// those and written after can't be half of each.
+    #[track_caller]
     pub fn save_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
-        self.flush_marks();
-        let _held = self.changes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.flush_marks_of(account, None);
+        let _held = self.hold_changes();
         self.write_folders(account, folders)
     }
 

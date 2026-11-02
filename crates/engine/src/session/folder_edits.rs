@@ -178,10 +178,12 @@ impl Session {
         // Local accounts have no server to report counts: keep them on disk. Only the counts, in
         // the list as it is there (written only when they differ): an import adds its folders
         // to it as they finish, and the list held here may not have them yet. Compared with
-        // the disk, not with the list here, which a flag change has counted already.
+        // the disk, not with the list here, which a flag change has counted already. Written on
+        // the store's thread for marks, after the marks before them: a durable commit of a data
+        // file, it waited in the window's frame for those marks' commits (seconds, now and then,
+        // on a 38 GB file); a list on disk with none of them is written whole (`marks_kept`).
         let Some(store) = &self.store else { return };
-        let found = store.update_folder_counts(account, &counts);
-        self.counts_kept(account, &counts, found);
+        store.count_later(account, counts);
     }
 
     /// Count `only` (all the account's folders when `None`) and set the counts in the account's
@@ -233,21 +235,6 @@ impl Session {
                     }
                 }
             }
-        }
-    }
-
-    /// The counts were kept in the list on disk (`found`: how many of their folders it has). A
-    /// list on disk that has none of them (it was damaged and set aside) is written again from
-    /// here.
-    pub(super) fn counts_kept(&self, account: &str, counts: &[(String, u32, u32)], found: Result<usize, mailcraft_store::StoreError>) {
-        let Some(store) = &self.store else { return };
-        let saved = match found {
-            Ok(0) if !counts.is_empty() => self.account(account).filter(|a| !a.folders.is_empty()).map(|a| store.save_folders(account, &a.folders)),
-            Ok(_) => None,
-            Err(e) => Some(Err(e)),
-        };
-        if let Some(Err(e)) = saved {
-            log::warn!("{account}: folder counts not saved: {e}");
         }
     }
 

@@ -100,6 +100,8 @@ enum Loaded {
     Ready,
     /// A page was read (a unit).
     Read,
+    /// Not read yet: read marks of it are still being written (a unit).
+    Waits,
     /// It can't be read.
     Failed,
 }
@@ -463,7 +465,7 @@ impl Session {
             None if self.cache.contains_key(k) => return Loaded::Ready,
             // Read marks still being written: read once they are, not waited for here (the window's
             // thread).
-            None if store.marks_waiting() => return Loaded::Read,
+            None if store.marks_waiting_for(&k.0, Some(&k.1)) => return Loaded::Waits,
             None => store.folder_load(&k.0, &k.1).map(|l| {
                 let done = l.done();
                 *load = Some(l);
@@ -499,7 +501,7 @@ impl Session {
         };
         let k = (a, f);
         match self.load_unit(&k, &mut load) {
-            Loaded::Read => {
+            Loaded::Read | Loaded::Waits => {
                 run.awaiting = Some((scan, load, at));
                 return 1;
             }
@@ -537,6 +539,17 @@ impl Session {
         let Some(k) = run.folders.get(cur.fi).cloned() else { return 0 };
         match self.load_unit(&k, &mut cur.load) {
             Loaded::Read => {
+                run.work = SearchWork::ListPage;
+                run.cur = Some(cur);
+                return 1;
+            }
+            // The other folders meanwhile, this one after them.
+            Loaded::Waits if !run.pending.is_empty() => {
+                run.work = SearchWork::ListPage;
+                run.pending.push_back(cur.fi);
+                return 1;
+            }
+            Loaded::Waits => {
                 run.work = SearchWork::ListPage;
                 run.cur = Some(cur);
                 return 1;
