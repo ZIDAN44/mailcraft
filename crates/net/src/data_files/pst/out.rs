@@ -543,7 +543,7 @@ impl Out<'_> {
         // Writing stopped for want of room: the data file is opened again when it's next used,
         // and what the index holds unwritten goes (its messages are read again going on).
         if self.writes_stopped() {
-            self.index = None;
+            self.index_drop();
             return;
         }
         self.index_end();

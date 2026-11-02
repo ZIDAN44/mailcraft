@@ -189,7 +189,8 @@ pub struct ImportStats {
     /// Opening the file and finding its named properties, then opening each folder (which loads
     /// its tables of subfolders and items).
     pub plan_ms: u64,
-    /// Reading items (their properties, recipients and attachments) from the file.
+    /// Reading items (their properties, recipients and attachments) from the file, summed over the
+    /// lanes (so more than the import's own time with more than one).
     pub read_ms: u64,
     /// Rebuilding them as messages, with their summaries, and as contacts and events.
     pub build_ms: u64,
@@ -202,8 +203,10 @@ pub struct ImportStats {
     /// The writer waiting for items to be read, and readers waiting for room in the budget.
     pub writer_idle_ms: u64,
     pub budget_wait_ms: u64,
-    /// Taking the messages' text and words out for search, and writing them to the account's
-    /// search index; and the messages put in it.
+    /// Taking the messages' text and words out for search (on the lanes), and putting them in the
+    /// account's search index and writing it (on a thread of its own), summed: mostly alongside
+    /// the import, not added to it (that's measured against an import without the index). And
+    /// the messages put in it and written.
     pub index_ms: u64,
     pub indexed: u64,
     /// The most source bytes read and not yet written at once (the batch waiting for the disk

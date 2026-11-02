@@ -562,11 +562,14 @@ holds the account's writer for the whole import (waiting up to 5 s for a pass as
 let go of it, and importing without it if it doesn't), the lanes make each message's words from
 the message as rebuilt (`mime::index_doc`, then `search::Ready::of`, so the writer thread only
 files them with `Writer::add_ready`), each message goes in once its source's batch is written,
-and each folder is marked as brought up as it is finished, so the pass at the import's end reads
+handed with the batch to a thread of its own that holds the writer (at most 32 jobs queued, so
+the import's writer thread doesn't wait on the index; let go of because writing stopped, it does
+nothing more, not even the jobs queued), and each folder is marked as brought up as it is finished, so the pass at the import's end reads
 nothing and passes every folder over. A write of the index that fails lets it go for the rest
 of the import and costs the import nothing: the next pass adds what it lacks. Indexing as it
-goes costs the import time all the same (about a fifth on a 41 GB file, against a 157 s pass
-after it): the index's writes share the data file with the import's, which wait for them.
+goes cost the import about a fifth of its time on a 41 GB file (against a 157 s pass after it)
+while the writer thread filed and wrote the words itself; on a thread of its own, the import
+takes no longer than one without the index, within the runs' spread.
 Its progress, `Event::Indexed`, isn't sent on the pool's channel: only the
 newest for each account is kept until `Pool::poll` takes it. A pass also compares what a message's
 summary says about files with what its doc counted (pictures the text shows aren't files): the
