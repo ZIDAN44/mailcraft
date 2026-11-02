@@ -3,6 +3,7 @@ use mailcraft_model::search::IndexDoc;
 use super::format::*;
 use super::*;
 
+mod lease;
 mod maint;
 mod memory;
 mod scan;

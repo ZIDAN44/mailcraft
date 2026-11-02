@@ -204,7 +204,7 @@ impl Writer {
         let loaded = match load(store, account, &base) {
             Ok(l) => l,
             Err(e) if is_damaged(&e) => {
-                set_aside(store, account)?;
+                set_aside_held(store, account)?;
                 None
             }
             Err(e) => return Err(e),
@@ -219,7 +219,7 @@ impl Writer {
             match w.rebuild(store) {
                 Ok(()) => {}
                 Err(e) if is_damaged(&e) => {
-                    set_aside(store, account)?;
+                    set_aside_held(store, account)?;
                     let base = w.base.clone();
                     w = Writer::with(store, account, base, fresh(store, account), Vec::new(), w.held);
                     w.clean(store);

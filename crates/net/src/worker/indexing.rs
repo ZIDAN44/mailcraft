@@ -209,6 +209,9 @@ pub(super) fn want(pending: &mut Pending, account: String, folders: Vec<String>,
 /// The indexer's thread: each account's pass once its asks have gone quiet, one at a time.
 fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
     let mut pending = Pending::new();
+    // The accounts whose index another copy of MailCraft was writing at their last try: said
+    // once, not at every retry.
+    let mut elsewhere: HashSet<String> = HashSet::new();
     loop {
         let now = Instant::now();
         let choosing = lock(&shared.importing);
@@ -247,10 +250,19 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
         };
         let result = pass(store, &account, &folders, &stop, readers(), &mailcraft_mime::index_doc, &mut report);
         *lock(&shared.running) = None;
+        if !matches!(result, Err(StoreError::Busy { .. })) {
+            elsewhere.remove(&account);
+        }
         match result {
             Ok(()) => {}
-            // Held by another writer: tried again in a while.
-            Err(StoreError::Busy { .. }) => want(&mut pending, account, folders, Instant::now() + RETRY),
+            // Held by another writer: tried again in a while. Another process's (the lease's)
+            // is said once; searches meanwhile read the index as that writer leaves it.
+            Err(StoreError::Busy { .. }) => {
+                if !search::held_here(store, &account) && elsewhere.insert(account.clone()) {
+                    log::info!("another copy of MailCraft is writing {account}'s search index; searching it as it stands");
+                }
+                want(&mut pending, account, folders, Instant::now() + RETRY);
+            }
             Err(e) if search::is_damaged(&e) => {
                 log::warn!("{account}: the search index is made again: {e}");
                 if let Err(e) = search::set_aside(store, &account) {

@@ -457,7 +457,7 @@ impl Reader {
 fn damage(store: &Store, account: &str, e: StoreError) -> Result<Option<Reader>> {
     // Held while it's set aside, so no writer opens the index meanwhile (and writes it back).
     let Ok(held) = Held::take(store, account) else { return Err(e) };
-    set_aside(store, account)?;
+    set_aside_held(store, account)?;
     drop(held);
     Ok(None)
 }

@@ -52,7 +52,7 @@ pub enum StoreError {
     #[error("{path}: damaged ({what})")]
     Damaged { path: String, what: String },
     /// Something only one may do at a time is being done already (an account's search index
-    /// written by an import and the indexer).
+    /// written by an import and the indexer, or by another copy of MailCraft on the same folder).
     #[error("{path}: in use")]
     Busy { path: String },
 }
@@ -756,6 +756,7 @@ mod bodies;
 mod compacting;
 mod files;
 mod folders;
+mod leases;
 mod marking;
 mod opening;
 

@@ -33,9 +33,14 @@
 //! of many flushes are merged away a step at a time ([`Writer::merge_step`]); a removed message's
 //! words leave the file within [`TOMBSTONE_AGE`] of it.
 //!
-//! One writer an account at a time, within a process ([`Held`]). Across processes (the CLI and
-//! the app on one folder layout) nothing stops a second yet: the `search/v1/lock` lease comes with
-//! the CLI's `--index`, when the CLI first writes an index.
+//! One writer an account at a time ([`Held`]), across processes too: besides the store's own
+//! list, a writer of the folder layout's or a data file's index holds a lease, the system's lock
+//! on `<root>/.locks/search-<account>.lock` (`leases.rs`), let go however its process ends. A
+//! second copy of MailCraft (or the CLI, or a second store on the same folder) is told
+//! [`StoreError::Busy`] meanwhile, so its writer's clean-up never takes the first's uncommitted
+//! files: its indexer tries again every few seconds and says so once, its searches read the
+//! index as the first's commits leave it, and an index it finds damaged is left to the holder to
+//! set aside. An index in memory (an online-only account's, the browser's) takes no lease.
 
 use std::collections::{BTreeSet, HashMap};
 use std::hash::BuildHasher;
@@ -340,7 +345,25 @@ pub(crate) const SUBDIRS: [&str; 3] = ["docs", "t", "s"];
 
 /// Set an account's index aside (its meta renamed `meta.bin.bad`) to be made again: it didn't
 /// read back. The new one starts past its generation and segment numbers (`Writer::open`).
+/// Held for it, so no writer opens the index meanwhile (and writes the meta back); one held
+/// already (here, or by another copy of MailCraft) is left to its holder, who sets it aside when
+/// it finds it doesn't read back.
 pub fn set_aside(store: &Store, account: &str) -> Result<()> {
+    let held = match Held::take(store, account) {
+        Ok(held) => held,
+        Err(StoreError::Busy { .. }) => {
+            log::info!("{account}'s search index is being written: left to its writer to set aside");
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
+    let done = set_aside_held(store, account);
+    drop(held);
+    done
+}
+
+/// [`set_aside`], the index held already by the caller.
+pub(crate) fn set_aside_held(store: &Store, account: &str) -> Result<()> {
     let meta = meta_path(store, account);
     let bad = meta.with_extension("bin.bad");
     log::warn!("{account}'s search index doesn't read back: set aside, to be made again");
@@ -374,18 +397,32 @@ pub(crate) struct Held {
     /// Set once the account is removed: nothing more is written for it. Read-held while the
     /// writer writes, so the removal waits for a write under way rather than come in its middle.
     gone: Arc<RwLock<bool>>,
+    /// The lease keeping other processes' writers out ([`Store::search_lease`]); `None` where
+    /// the index lives in memory. Let go after the entry in `writers` (fields drop after `drop`).
+    _lease: Option<leases::Lease>,
 }
 
 impl Held {
-    /// Hold `account`'s index, or say it's held already.
+    /// Hold `account`'s index, or say it's held already: by a writer of this store, or, through
+    /// its lease, by one of another store on the same folder (another copy of MailCraft).
     pub(crate) fn take(store: &Store, account: &str) -> Result<Held> {
+        let busy = || StoreError::Busy { path: format!("{account}/search") };
         let mut g = store.search_writers.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if g.contains_key(account) {
-            return Err(StoreError::Busy { path: format!("{account}/search") });
+            return Err(busy());
         }
         let gone = Arc::new(RwLock::new(false));
         g.insert(account.to_string(), gone.clone());
-        Ok(Held { writers: store.search_writers.clone(), account: account.to_string(), gone })
+        drop(g);
+        // Dropped on the way out, the entry it put in goes with it.
+        let mut held = Held { writers: store.search_writers.clone(), account: account.to_string(), gone, _lease: None };
+        if let Some(path) = store.search_lease(account) {
+            match leases::take(&path)? {
+                Some(lease) => held._lease = Some(lease),
+                None => return Err(busy()),
+            }
+        }
+        Ok(held)
     }
 
     /// `write` run while the account is still here, its removal waiting for it; an error
@@ -412,6 +449,32 @@ impl Store {
             *gone.write().unwrap_or_else(std::sync::PoisonError::into_inner) = true;
         }
     }
+
+    /// The lease a writer of `account`'s index takes (`<root>/.locks/search-<account>.lock`):
+    /// for the folder layout and data files, whose index another process on the same folder
+    /// could write too. `None` for an index only this store sees: in memory, an online-only
+    /// account's, the browser's. `.locks` is never an account's folder (those are made of
+    /// letters, digits, `-` and `_`), and nothing takes folders in the root but accounts'.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn search_lease(&self, account: &str) -> Option<PathBuf> {
+        let shared = matches!(self.files.main, Files::Disk | Files::Packed(_)) && !self.is_online_only(account);
+        shared.then(|| self.root.join(LOCKS).join(format!("search-{}.lock", safe_segment(account))))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn search_lease(&self, _account: &str) -> Option<PathBuf> {
+        None
+    }
+}
+
+/// The folder in the store's root that holds its leases.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const LOCKS: &str = ".locks";
+
+/// Whether `account`'s index is held for writing by this store: a [`StoreError::Busy`] while it
+/// isn't means another copy of MailCraft holds it (or did a moment ago).
+pub fn held_here(store: &Store, account: &str) -> bool {
+    store.search_writers.lock().unwrap_or_else(std::sync::PoisonError::into_inner).contains_key(account)
 }
 
 impl Drop for Held {

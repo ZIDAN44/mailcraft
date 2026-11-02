@@ -478,9 +478,13 @@ in that same commit; its words go when its segment is merged. The writer never w
 reader would refuse: a folder name over 4 KiB is refused (that message isn't indexed), a text is
 cut at 1.875 MiB (marked truncated; a million characters of plain text fit), so a page alone
 still goes in one background transaction, and at 4,096 segments the words are made again from the texts.
-One writer per account at a time within a process; across processes (the CLI and the app on one
-folder layout) nothing stops a second yet: the `search/v1/lock` lease comes with the CLI's
-`--index`, when the CLI first writes an index (open in [gaps.md](gaps.md)). `search::Reader` holds the doc table
+One writer per account at a time, across processes too: a writer of the folder layout's or a
+data file's index also holds a lease, the system's lock on `<root>/.locks/search-<account>.lock`
+(`store/src/leases.rs`; the file is never deleted, and the lock goes however its process ends).
+A second copy of MailCraft or the CLI on the same folder is told `Busy`, so its writer's clean-up
+never removes the holder's uncommitted files: its indexer tries again every 5 s (said once in the
+log), its searches read the index as the holder's commits leave it, and an index it finds damaged
+is left to the holder to set aside. An index in memory takes no lease. `search::Reader` holds the doc table
 and the segments' heads, reads lexicon, postings and text pages as needed (a page cache keyed by
 the index's random epoch), looks words up a few pages at a time, and follows the writer by reading
 only what a newer generation changed. Every file is decoded with checks (`search/format.rs`,
