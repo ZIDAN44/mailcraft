@@ -13,7 +13,7 @@ use std::sync::Arc;
 use mailcraft_model::search::indexed;
 use mailcraft_store::search::{Blob, DocInfo, Field, Reader};
 
-use super::folded::Folded;
+use super::folded::{Folded, TextOf};
 use super::look_up::Terms;
 use super::*;
 
@@ -292,6 +292,8 @@ pub(crate) struct Verifying {
     /// Its summary's text, which weighs what its text says.
     pub(crate) st: SummaryText,
     doc: u32,
+    /// The index's epoch `doc` is of.
+    epoch: u64,
     info: DocInfo,
     atoms: Vec<Atom>,
     found: Vec<bool>,
@@ -314,8 +316,8 @@ pub(crate) struct Verifying {
 const KEPT_BYTES: usize = 4 * VERIFY_BYTES;
 
 impl Verifying {
-    /// `kept`: its text folded before, if it was.
-    pub(crate) fn new(query: &Query, c: Candidate, st: SummaryText, doc: u32, info: DocInfo, kept: Option<Arc<Folded>>) -> Verifying {
+    /// `of`: its doc; `kept`: its text folded before, if it was.
+    pub(crate) fn new(query: &Query, c: Candidate, st: SummaryText, of: TextOf, info: DocInfo, kept: Option<Arc<Folded>>) -> Verifying {
         let atoms = Recorder::atoms(query, &c.m, &st, c.awaiting);
         let found = vec![false; atoms.len()];
         // A phrase of words is told from the folded text alone; a word (or a phrase of
@@ -323,7 +325,12 @@ impl Verifying {
         let foldable = atoms.iter().all(|a| a.field() != TextField::Body || matches!(a, Atom::Phrase(_, words, _) if !words.is_empty()));
         let kept = kept.filter(|_| foldable);
         let folding = (foldable && kept.is_none()).then(Folded::default);
-        Verifying { c, st, doc, info, atoms, found, blob: None, at: 0, kept, slice: 0, folding }
+        Verifying { c, st, doc: of.doc, epoch: of.epoch, info, atoms, found, blob: None, at: 0, kept, slice: 0, folding }
+    }
+
+    /// The doc its text is read from.
+    pub(crate) fn text_of(&self) -> TextOf {
+        TextOf { epoch: self.epoch, doc: self.doc }
     }
 
     /// Its text folded as it was checked, when it was checked in full: to be kept.

@@ -395,10 +395,12 @@ its finds from the folders, a step each for gathering, arranging and showing). A
 are checked in the index's doc order, so each page of texts is read once. The folders a search reads
 stay in the cache while it lasts, and their summaries' folded text is kept between searches
 (`searching/folder_text.rs`, 48 MiB, forgotten with the folder's list); a phrase's candidates take
-theirs from there, and the texts they're checked against are kept folded, by message (a message's
-text never changes), for the next search (`searching/folded.rs`, 32 MiB: what the running search
-uses stays, what earlier ones used makes room, and past that a text isn't kept), so a phrase typed
-on or searched again reads and folds nothing. The index reader keeps the text pages it reads in a
+theirs from there, and the texts they're checked against are kept folded, by message, for the
+next search (`searching/folded.rs`, 32 MiB: what the running search uses stays, what earlier ones
+used makes room, and past that a text isn't kept), so a phrase typed on or searched again reads and
+folds nothing. Each is kept with the doc it was read from, in the index's epoch: a key that comes
+back as another message (a local folder made again numbers its mail from 1 again) is another doc,
+and its text is read afresh; a folder's texts go when it leaves the listing. The index reader keeps the text pages it reads in a
 cache apart from its lexicon and postings pages, so checking texts doesn't push out the pages words
 are looked up in. The summary settles flags, dates, senders and subjects; the index's words settle
 the text (`searching/matching.rs`: `has:attachment` takes the files the index counted, pictures the

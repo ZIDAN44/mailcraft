@@ -428,6 +428,38 @@ fn a_body_indexed_later_joins_the_results() {
     done(s);
 }
 
+/// A key that comes back as another message (a local folder deleted and made again numbers its
+/// mail from 1 again) is another doc to the index: a phrase searched again checks the new
+/// message's text, not the one folded for the message the key was before.
+#[test]
+fn a_key_filed_again_is_checked_against_its_new_text() {
+    let mut s = sample_session("search-key-again");
+    let a = sample::SAMPLE_ACCOUNT.to_string();
+    let store = s.store.clone().unwrap();
+    let mut st = store.load_folder(&a, "INBOX").unwrap();
+    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
+    let file = |s: &mut Session, st: &mut mailcraft_store::FolderState, id: &str, body: &[u8]| {
+        store.write_body(&key, body).unwrap();
+        st.messages.retain(|m| m.key != key);
+        let size = u32::try_from(body.len()).unwrap();
+        st.messages
+            .insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Travel".into(), message_id: id.into(), size, ..Default::default() });
+        store.save_folder(&a, "INBOX", st).unwrap();
+        let generation = index_now(s, &a);
+        s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+        indexed(s, &a, generation);
+    };
+    file(&mut s, &mut st, "<one@x.example>", b"From: a@x.example\r\nSubject: Travel\r\n\r\nThe zeppelin lands at noon.\r\n");
+    let phrase = json!({"query": "\"zeppelin lands\"", "scope": "all"});
+    assert_eq!(s.run("search.run", &phrase).unwrap()["results"], 1);
+    // Both words, not one after the other.
+    file(&mut s, &mut st, "<two@x.example>", b"From: a@x.example\r\nSubject: Travel\r\n\r\nNo zeppelin today: the ferry lands at noon.\r\n");
+    assert_eq!(s.run("search.run", &phrase).unwrap()["results"], 0, "the new message's text checked");
+    assert_eq!(s.run("search.run", &json!({"query": "\"ferry lands\"", "scope": "all"})).unwrap()["results"], 1);
+    done(s);
+}
+
 /// A data file import ends folder after folder: a search open meanwhile scans each folder that
 /// changes again, and what came in is found; what it read of other messages' text it doesn't
 /// read again.

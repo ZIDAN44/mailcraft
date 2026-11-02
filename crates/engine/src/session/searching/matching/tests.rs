@@ -51,26 +51,34 @@ fn a_slice_starts_and_ends_between_words() {
 /// than fits keeps the first it checked, rather than letting each go before it comes round).
 #[test]
 fn folded_texts_keep_what_the_search_running_uses() {
-    use super::super::folded::{FOLDED_BYTES, Folded, FoldedTexts};
+    use super::super::folded::{FOLDED_BYTES, Folded, FoldedTexts, TextOf};
     let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
     let text = |n: usize| Folded { names: Vec::new(), slices: vec!["x".repeat(n)] };
+    let of = |uid: u32| TextOf { epoch: 7, doc: uid };
     let quarter = FOLDED_BYTES / 4;
     let mut kept = FoldedTexts::default();
     kept.begin();
     for uid in 0..3 {
-        kept.keep(&key(uid), text(quarter));
+        kept.keep(&key(uid), of(uid), text(quarter));
     }
     // The next search uses one of them: the others make room for what it checks.
     kept.begin();
-    assert!(kept.get(&key(1)).is_some());
-    kept.keep(&key(10), text(quarter));
-    kept.keep(&key(11), text(quarter));
-    assert!(kept.get(&key(0)).is_none() && kept.get(&key(2)).is_none(), "made room");
-    assert!(kept.get(&key(1)).is_some() && kept.get(&key(10)).is_some() && kept.get(&key(11)).is_some());
+    assert!(kept.get(&key(1), of(1)).is_some());
+    kept.keep(&key(10), of(10), text(quarter));
+    kept.keep(&key(11), of(11), text(quarter));
+    assert!(kept.get(&key(0), of(0)).is_none() && kept.get(&key(2), of(2)).is_none(), "made room");
+    assert!(kept.get(&key(1), of(1)).is_some() && kept.get(&key(10), of(10)).is_some() && kept.get(&key(11), of(11)).is_some());
     // No room left but what this search uses: not kept, the others stay.
-    kept.keep(&key(12), text(quarter));
-    assert!(kept.get(&key(12)).is_none() && kept.get(&key(10)).is_some());
+    kept.keep(&key(12), of(12), text(quarter));
+    assert!(kept.get(&key(12), of(12)).is_none() && kept.get(&key(10), of(10)).is_some());
     assert!(kept.bytes() <= FOLDED_BYTES);
-    kept.retain(|a| a != "a1");
+    // The key another message's now (another doc, or another epoch): its text isn't used, and goes.
+    let before = kept.bytes();
+    assert!(kept.get(&key(11), TextOf { epoch: 7, doc: 99 }).is_none());
+    assert!(kept.get(&key(11), of(11)).is_none() && kept.bytes() < before);
+    assert!(kept.get(&key(10), TextOf { epoch: 8, doc: 10 }).is_none());
+    // A folder that leaves the listing takes its texts along.
+    kept.keep(&key(20), of(20), text(16));
+    kept.retain(|a, f| a != "a1" || f != "INBOX");
     assert_eq!(kept.bytes(), 0);
 }

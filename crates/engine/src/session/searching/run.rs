@@ -20,6 +20,7 @@ use mailcraft_store::FolderLoad;
 use mailcraft_store::search::Field;
 
 use super::finish::Finish;
+use super::folded::TextOf;
 use super::look_up::Terms;
 use super::matching::{Answers, Candidate, Index, Recorder, Verdict, Verifying, classify, from_source};
 use super::work::SearchWork;
@@ -690,8 +691,9 @@ impl Session {
                             Some(st) => st.clone(),
                             None => SummaryText::for_query(&c.m, &run.query),
                         };
-                        let kept = self.search_state.folded.get(&c.m.key);
-                        Verifying::new(&run.query, c, st, doc, info, kept)
+                        let of = TextOf { epoch: r.epoch(), doc };
+                        let kept = self.search_state.folded.get(&c.m.key, of);
+                        Verifying::new(&run.query, c, st, of, info, kept)
                     }
                     // Its index went meanwhile: it may be missing.
                     _ => {
@@ -714,7 +716,7 @@ impl Session {
             None => run.verifying = Some(v),
             Some(answers) => {
                 if let Some(folded) = v.take_folded() {
-                    self.search_state.folded.keep(&v.c.m.key, folded);
+                    self.search_state.folded.keep(&v.c.m.key, v.text_of(), folded);
                 }
                 let (c, st) = (v.c, v.st);
                 // A long message's stays cut short whenever it's weighed again from these.
