@@ -193,6 +193,9 @@ impl Out<'_> {
                 bytes_done: self.bytes_done,
                 bytes_total: self.bytes_total,
                 folders: self.folders_total,
+                start_read: self.note.start_read,
+                start_bytes: self.note.start_bytes,
+                earlier_ms: self.note.earlier_ms,
             };
             self.sink.progress(p);
         }

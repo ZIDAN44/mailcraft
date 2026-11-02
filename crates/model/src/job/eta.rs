@@ -126,6 +126,34 @@ mod tests {
         shown.is_some_and(|s| (s as f64 - truth).abs() <= truth * within)
     }
 
+    /// A run going on from 40% done, at the rate the first run went, is told as closely as a
+    /// first run: its rate goes by the work of this run alone.
+    #[test]
+    fn a_run_gone_on_with_goes_by_its_own_rate() {
+        let (rate, total) = (1_000_000, 1_000_000_000);
+        let start = total * 4 / 10;
+        let mut eta = Eta::default();
+        let mut done = start;
+        for t in 0..60u64 {
+            done += rate;
+            eta.sample((t + 1) * 1000, done, total, start, (t + 1) * 1000 + 3000);
+            let truth = (total - done) as f64 / rate as f64;
+            if let Some(s) = eta.remaining_s((t + 1) * 1000 + 3000) {
+                assert!(close(Some(s), truth, 0.20), "{s} s at {t} s vs {truth}");
+            }
+        }
+        assert!(eta.remaining_s(63_000).is_some(), "said by then");
+        // Told it began at nothing, the work of the runs before reads as done in this one: far off.
+        let mut wrong = Eta::default();
+        let mut done = start;
+        for t in 0..60u64 {
+            done += rate;
+            wrong.sample((t + 1) * 1000, done, total, 0, (t + 1) * 1000 + 3000);
+        }
+        let truth = (total - done) as f64 / rate as f64;
+        assert!(!close(wrong.remaining_s(63_000), truth, 0.20), "{:?} vs {truth}", wrong.remaining_s(63_000));
+    }
+
     #[test]
     fn a_steady_rate_is_told_closely() {
         let (rate, total) = (1_000_000, 1_000_000_000);

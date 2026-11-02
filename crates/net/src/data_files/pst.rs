@@ -154,6 +154,11 @@ pub struct Progress {
     pub bytes_total: u64,
     /// Mail folders in the file (0 until it's known).
     pub folders: usize,
+    /// Where this run began (an import going on from where it stopped): the items read and their
+    /// bytes by then, and the time the earlier runs took.
+    pub start_read: usize,
+    pub start_bytes: u64,
+    pub earlier_ms: u64,
 }
 
 /// Told how an import goes, as it goes.

@@ -9,7 +9,7 @@ use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::sync::PoisonError;
 
-use mailcraft_model::job::{Blocked, DataFileFacts, ImportPhase, ImportProgress, ImportReport, StopHow, Work};
+use mailcraft_model::job::{Blocked, DataFileFacts, ITEM_WEIGHT, ImportPhase, ImportProgress, ImportReport, StopHow, Work};
 use mailcraft_model::pim::{PIM_DOC, Pim};
 
 use super::*;
@@ -619,10 +619,12 @@ impl Told<'_> {
         self.sink.emit(Event::ImportProgress { account: self.account.to_string(), progress: self.progress(phase) });
     }
 
-    /// How far the import has got, in `phase`.
+    /// How far the import has got, in `phase`. Going on from where it stopped, it says where this
+    /// run began and the time the earlier runs took, so the time left goes by this run's rate.
     fn progress(&self, phase: ImportPhase) -> ImportProgress {
         let t = &self.last;
         let run_ms = ms(self.began);
+        let start = Work { done: count(t.start_read), total: count(t.total), bytes_done: t.start_bytes, bytes_total: t.bytes_total };
         let phase = if phase == ImportPhase::Importing && self.stop.raised() { ImportPhase::Stopping } else { phase };
         ImportProgress {
             phase,
@@ -632,8 +634,9 @@ impl Told<'_> {
             folders_total: u32::try_from(t.folders).unwrap_or(u32::MAX),
             imported: count(t.imported),
             skipped: count(t.skipped),
-            elapsed_ms: run_ms,
+            elapsed_ms: t.earlier_ms.saturating_add(run_ms),
             run_ms,
+            run_start_work: start.weighted_done(ITEM_WEIGHT),
             ..ImportProgress::default()
         }
     }

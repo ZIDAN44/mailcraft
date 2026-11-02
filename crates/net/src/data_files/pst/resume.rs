@@ -339,6 +339,9 @@ pub(super) struct Note {
     /// Earlier runs: how many, and the time they took.
     pub(super) runs: u32,
     pub(super) earlier_ms: u64,
+    /// The items read and their bytes as this run began (going on from a checkpoint).
+    pub(super) start_read: usize,
+    pub(super) start_bytes: u64,
     /// When the last checkpoint was written (none: not yet), how often one is ([`CHECKPOINT_EVERY`],
     /// but in a test), and whether one may be: not until the file is known (what it holds, and,
     /// going on, that it's the same one).
@@ -399,6 +402,7 @@ impl Out<'_> {
         note.source = cp.source;
         note.runs = cp.runs;
         note.earlier_ms = cp.elapsed_ms;
+        (note.start_read, note.start_bytes) = (self.read, self.bytes_done);
         note.failed = cp.failed;
         note.placed = cp.done.iter().filter(|d| !d.path.is_empty()).map(|d| (d.node, d.path.clone())).collect();
         let done_paths: HashSet<&str> = note.placed.values().map(String::as_str).collect();

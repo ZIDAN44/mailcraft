@@ -578,6 +578,40 @@ fn a_paused_import_goes_on_where_it_stopped() {
     let _ = std::fs::remove_dir_all(&dir2);
 }
 
+/// Gone on with, an import says where its run began and the time the runs before took: the time
+/// left goes by this run's rate, not by the work of the runs before as if done in no time.
+#[test]
+fn an_import_gone_on_with_says_where_its_run_began() {
+    let (dir, pst, _store, mut p) = setup("run-start", 20, 2000, "h1", 5);
+    p.submit(Job::ImportPst { account: "h1".into(), path: pst.clone(), resume: false });
+    let importing = |e: &Event| match e {
+        Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Importing && progress.work.done > 0 => Some(progress.clone()),
+        _ => None,
+    };
+    let first = events_until(&p, Duration::from_secs(60), |e| importing(e).is_some_and(|p| p.work.done >= 400));
+    p.submit(Job::StopImport { account: "h1".into(), how: StopHow::Pause });
+    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    let end = Instant::now() + Duration::from_secs(10);
+    while p.importing("h1") && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let said = first.iter().filter_map(importing).map(|p| p.work_done()).max().unwrap();
+    assert!(first.iter().filter_map(importing).all(|p| p.run_start_work == 0 && p.elapsed_ms == p.run_ms), "a first run began at nothing");
+    slow("h1", 0);
+    p.submit(Job::ImportPst { account: "h1".into(), path: pst, resume: true });
+    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let run: Vec<ImportProgress> = seen.iter().filter_map(importing).collect();
+    let start = run.first().map(|p| p.run_start_work).unwrap();
+    // It began where the first run stopped: at least as far as that run last said.
+    assert!(start >= said, "began at {start}, the first run said {said}");
+    for p in &run {
+        assert_eq!(p.run_start_work, start);
+        assert!(p.work_done() >= start);
+        assert!(p.elapsed_ms > p.run_ms, "the first run's time counted: {} of {}", p.elapsed_ms, p.run_ms);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The drive filling up as an import writes: it stops itself, as a pause does, with what came in
 /// kept and listed and nothing counted as left out, and waits on the user, saying why. Asked to
 /// go on with the drive still full, it waits again, nothing read; with room, it goes on from
