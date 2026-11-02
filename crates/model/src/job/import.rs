@@ -32,14 +32,14 @@ fn known_stage<'de, D: Deserializer<'de>>(d: D) -> Result<ImportStage, D::Error>
 }
 
 /// What one item weighs in an import's progress besides its own bytes, so a folder of many small
-/// messages isn't shown as nearly free. Measured on the parallel import (`pst_bench`, release),
-/// from two files made to tell the two apart: 40,000 messages of about 4.6 KB took 1.46–1.55 s,
-/// and 6,000 of about 1 MB took 11.4–11.6 s, which is 29 µs an item and 1.8 ns a byte: an item
-/// costs as long as about 16 KB. (It was 128 KB, from the import that read one item at a time,
-/// at about 2 ms an item.) On a real file a byte costs more (3.8 ns on a 41 GB one, its text
-/// read for search), so an item there weighs less still; replayed over eight imports of that
-/// file, 16 KB judged the time left a little better than 128 KB.
-pub const ITEM_WEIGHT: u64 = 16 * 1024;
+/// messages isn't shown as nearly free. Read one at a time, an item cost about as long as this
+/// many bytes (~2 ms an item, ~18 ns a byte on a large `.pst`). On the parallel import two files
+/// made to tell the two apart (`pst_bench`) give 29 µs an item and 1.8 ns a byte, about 16 KB;
+/// replayed over eight imports of a 41 GB file, 16 KB judged the time left only a little better
+/// (16% off from half done against 19%), and in the window one import each way was worse with
+/// it. Compactions and the search index weigh their items the same, unmeasured with 16 KB: it
+/// stays until a weight is measured to do better wherever it's used.
+pub const ITEM_WEIGHT: u64 = 128 * 1024;
 
 /// Where an import is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(p.permille(), Some(500));
         // A small message read, a big one to go: the bytes weigh more than the items.
         p.work = Work { done: 1, total: 2, bytes_done: 1024, bytes_total: 1024 + 50 * ITEM_WEIGHT };
-        assert_eq!(p.permille(), Some(20));
+        assert_eq!(p.permille(), Some(19));
         p.work = Work { done: u64::MAX, total: u64::MAX, bytes_done: u64::MAX, bytes_total: u64::MAX };
         assert_eq!(p.permille(), Some(999), "saturated totals stay below the end");
     }
