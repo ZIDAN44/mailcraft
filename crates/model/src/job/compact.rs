@@ -90,6 +90,24 @@ impl DataFileHealth {
         compact_ms(self.file_bytes, moved, self.pace)
     }
 
+    /// About what compacting it gives back to the drive: the room it has over what it keeps,
+    /// and what compressing again would save when an earlier build kept some of it raw.
+    pub fn saving(&self) -> u64 {
+        let gain = if self.recompressed { 0 } else { self.recompress_gain };
+        self.reclaimable.saturating_add(gain)
+    }
+
+    /// About how long compacting it by hand (Compact now) has the file to itself, in seconds, as
+    /// [`plan`] would do it with room on the drive: `None` when it's copied into a new file
+    /// instead (in the background; how long that takes depends on the drive) or there's
+    /// nothing to do.
+    pub fn by_hand_s(&self) -> Option<u64> {
+        match plan(self, CompactMode::Manual, Some(u64::MAX)) {
+            CompactPlan::InPlace { recompress } => Some(self.exclusive_ms(recompress).div_ceil(1000)),
+            _ => None,
+        }
+    }
+
     /// The room a copy of it needs on its drive: what it keeps (less what compressing again
     /// saves), a tenth more for the copy's own pages and its growing, and 2 GiB left over.
     pub fn copy_need(&self) -> u64 {
@@ -299,6 +317,27 @@ mod tests {
         let stopped = DataFileHealth { recompress_stopped: true, ..health(2, 0, 0) };
         let stopped = DataFileHealth { recompressed: false, ..stopped };
         assert_eq!(plan(&stopped, CompactMode::Idle, None), CompactPlan::InPlace { recompress: true });
+    }
+
+    #[test]
+    fn what_compacting_by_hand_saves_and_takes_is_told_honestly() {
+        // Deleted mail in a big file: in place, as long as it takes, which is more than closing
+        // waits for.
+        let big = health(40, 10, 0);
+        assert_eq!(big.saving(), 10 * GIB);
+        let by_hand = big.by_hand_s().unwrap();
+        assert!(by_hand > CompactMode::Close.limit_s().unwrap(), "{by_hand}");
+        assert_eq!(by_hand, big.exclusive_ms(false).div_ceil(1000));
+        // Kept raw by an earlier build: what compressing again saves counts, and a big one is
+        // copied (no estimate), a small one compressed again and compacted in place.
+        let bloated = health(47, 1, 9);
+        assert_eq!(bloated.saving(), 10 * GIB);
+        assert_eq!(bloated.by_hand_s(), None, "copied");
+        let small = health(4, 0, 1);
+        assert_eq!(small.by_hand_s(), Some(small.exclusive_ms(true).div_ceil(1000)));
+        assert_eq!(health(40, 0, 0).by_hand_s(), None, "nothing to give back");
+        let odd = DataFileHealth { reclaimable: u64::MAX, recompress_gain: u64::MAX, ..DataFileHealth::default() };
+        assert_eq!(odd.saving(), u64::MAX, "saturated, not wrapped");
     }
 
     #[test]

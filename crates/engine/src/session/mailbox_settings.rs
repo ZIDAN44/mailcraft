@@ -1,7 +1,7 @@
 //! The session: mailbox settings on the server (automatic replies), and the account's data file
 //! on this computer: how it's doing, and made smaller (`mailcraft_model::job::plan`).
 
-use mailcraft_model::job::{CompactMode, CompactPhase, CompactReport, DataFileHealth, Work};
+use mailcraft_model::job::{CompactMode, CompactPhase, CompactPlan, CompactReport, DataFileHealth, Work, plan};
 
 use super::*;
 
@@ -156,8 +156,9 @@ impl Session {
         Ok(self.compaction_json(account))
     }
 
-    /// Compact the account's data file now (File › Info › Compact now), as long as that takes.
-    pub fn compact_data_file(&mut self, account: &str) -> CmdResult {
+    /// Compact the account's data file now: by hand (File › Info › Compact now), as long as that
+    /// takes, or as MailCraft closes ([`CompactMode::Close`]: only when that's short).
+    pub fn compact_data_file(&mut self, account: &str, mode: CompactMode) -> CmdResult {
         self.account(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
         if !self.store.as_ref().is_some_and(|s| s.data_file(account).is_some()) {
             return Err(CmdError::Failed("this account isn't kept in a data file on this computer".into()));
@@ -166,8 +167,26 @@ impl Session {
             return Err(CmdError::Failed("its data file is being compacted already".into()));
         }
         self.import_holds(account)?;
-        self.start_compacting(account, CompactMode::Manual);
+        self.start_compacting(account, mode);
         Ok(self.compaction_json(account))
+    }
+
+    /// The data files worth compacting as MailCraft closes (File › Options › Data files: off
+    /// unless chosen), by what was last measured of each: accounts kept in one that isn't being
+    /// imported or compacted, with how closing would go about it ([`CompactPlan::InPlace`], or
+    /// [`CompactPlan::TooLong`]: longer than closing waits, so it's offered by hand instead).
+    /// One never measured isn't measured now: closing doesn't wait for that.
+    pub fn close_compactions(&self) -> Vec<(String, CompactPlan)> {
+        let Some(store) = self.store.as_ref().filter(|_| self.prefs.compact_on_close) else { return Vec::new() };
+        self.accounts
+            .iter()
+            .map(|a| a.config.id.as_str())
+            .filter(|a| store.data_file(a).is_some() && self.import_holds(a).is_ok() && !self.compaction.running.contains_key(*a))
+            .filter_map(|a| {
+                let p = plan(self.compaction.health.get(a)?, CompactMode::Close, None);
+                (p != CompactPlan::Nothing).then(|| (a.to_string(), p))
+            })
+            .collect()
     }
 
     /// Stop compacting the account's data file, where that can be stopped.

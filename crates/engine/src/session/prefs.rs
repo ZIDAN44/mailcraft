@@ -121,6 +121,10 @@ pub struct Prefs {
     /// Play animations: hovers and selections easing, panes sliding, notices sliding in (off:
     /// everything changes at once).
     pub animations: bool,
+    /// Compact data files as MailCraft closes, when one has room to give back and that takes
+    /// no longer than closing waits for (File › Options › Data files; off unless chosen: it's
+    /// done when MailCraft is left alone, or by hand, either way).
+    pub compact_on_close: bool,
     /// Search Folders: saved searches shown as folders ([`search_folders`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub search_folders: Vec<search_folders::SearchFolder>,
@@ -243,6 +247,7 @@ impl Default for Prefs {
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
             animations: true,
+            compact_on_close: false,
             search_scope: SearchScope::Mailbox,
             recent_searches: Vec::new(),
             keep_photo_location: false,

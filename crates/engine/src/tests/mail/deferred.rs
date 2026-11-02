@@ -248,12 +248,13 @@ fn list_and_view_commands_leave_the_body_waiting() {
     let k = s.list[0].key.clone();
     s.run("list.open", &json!({"key": k.to_id()})).unwrap();
     let parsed = s.bodies_parsed_here();
-    for id in ["list.filter", "list.focusTab", "search.run", "search.clear", "view.reverseSort", "view.arrange", "view.folderPane"] {
+    for id in ["list.filter", "list.focusTab", "search.run", "search.clear", "view.reverseSort", "view.arrange", "view.folderPane", "dataFile.idle"] {
         assert!(crate::cmd::leaves_body_waiting(id), "{id}");
     }
     let _ = s.run("view.reverseSort", &json!({}));
     let _ = s.run("search.run", &json!({"query": "zzzz"}));
     let _ = s.run("search.clear", &json!({}));
+    let _ = s.run("dataFile.idle", &json!({"seconds": 30}));
     assert_eq!(s.bodies_parsed_here(), parsed, "nothing read on the session's thread");
     assert!(!crate::cmd::leaves_body_waiting("mail.reply") && !crate::cmd::leaves_body_waiting("view.html"));
     done(s);

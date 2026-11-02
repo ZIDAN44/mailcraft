@@ -2,7 +2,7 @@
 //! with, kept as they are or started again; and an account's own data file measured and made
 //! smaller.
 
-use mailcraft_model::job::StopHow;
+use mailcraft_model::job::{CompactMode, StopHow};
 
 use super::*;
 
@@ -72,9 +72,19 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account"?: string} (measures the account's data file; answers with what's known: its health, a compaction running, the last one's report)"#),
         CommandSpec::new("dataFile.compact", "Compact now", "File › Info › Mailbox settings", |s, v| {
             let account = account_or_current(s, v)?;
-            s.compact_data_file(&account)
+            let mode = match p::str(v, "mode") {
+                None | Some("manual") => CompactMode::Manual,
+                Some("close") => CompactMode::Close,
+                Some(m) => return Err(CmdError::Params(format!("`mode` is \"manual\" or \"close\", not `{m}`"))),
+            };
+            s.compact_data_file(&account, mode)
         })
-        .params(r#"{"account"?: string} (makes the account's data file smaller: in place, or by a copy when it's big and kept raw by an earlier build)"#),
+        .params(r#"{"account"?: string, "mode"?: "manual" (as long as it takes; the default) | "close" (MailCraft closing: only when that's short)} (makes the account's data file smaller: in place, or by a copy when it's big and kept raw by an earlier build)"#),
+        CommandSpec::new("dataFile.compactOnClose", "Compact data files on close", "File › Options › Data files", |s, v| {
+            s.prefs.compact_on_close = p::bool(v, "on").unwrap_or(!s.prefs.compact_on_close);
+            Ok(json!({ "on": s.prefs.compact_on_close }))
+        })
+        .params(r#"{"on"?: bool (none: switch; on, a data file with room to give back is compacted as MailCraft closes when that's short)}"#),
         CommandSpec::new("dataFile.cancelCompact", "Stop compacting", "Status bar", |s, v| {
             let account = account_or_current(s, v)?;
             s.cancel_compact(&account)

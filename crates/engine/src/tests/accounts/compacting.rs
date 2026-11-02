@@ -1,7 +1,7 @@
 //! Engine tests: an account's data file measured and made smaller, by hand and when MailCraft is
 //! left alone, with the account waiting while a compaction has its file to itself.
 
-use mailcraft_model::job::{CompactMode, CompactPhase, CompactReport, DataFileHealth, Work};
+use mailcraft_model::job::{CompactMode, CompactPhase, CompactPlan, CompactReport, DataFileHealth, Work};
 
 use super::*;
 use crate::IDLE_AFTER_S;
@@ -183,5 +183,42 @@ fn a_compaction_stopped_part_way_is_measured_again() {
     let report = CompactReport { mode: CompactMode::Idle, cancelled: true, ..CompactReport::default() };
     s.apply(Event::Compacted { account: id.clone(), report: Box::new(report) });
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::DataFileHealth { account } if *account == id)));
+    finish(s);
+}
+
+/// Closing compacts only what the user chose to (off unless chosen), by what was last measured:
+/// a quick one in place as MailCraft closes, a long one offered with its estimate instead.
+#[test]
+fn closing_compacts_only_when_chosen_and_short() {
+    let (mut s, id) = with_data_file("close");
+    // Not measured, or not chosen: nothing.
+    assert!(s.close_compactions().is_empty());
+    s.apply(Event::DataFileHealth { account: id.clone(), health: Some(Box::new(bloated())), error: None });
+    assert!(s.close_compactions().is_empty(), "off unless chosen");
+    assert_eq!(s.run("dataFile.compactOnClose", &json!({})).unwrap()["on"], json!(true));
+    assert_eq!(s.close_compactions(), vec![(id.clone(), CompactPlan::InPlace { recompress: false })]);
+
+    // Big: longer than closing waits, so it's offered with how long it takes.
+    let big = DataFileHealth { file_bytes: 40 << 30, live_bytes: 30 << 30, reclaimable: 10 << 30, recompressed: true, ..DataFileHealth::default() };
+    s.apply(Event::DataFileHealth { account: id.clone(), health: Some(Box::new(big)), error: None });
+    assert!(matches!(s.close_compactions().as_slice(), [(a, CompactPlan::TooLong { seconds })] if *a == id && *seconds > 30));
+    // Nothing worth it: nothing.
+    s.apply(Event::DataFileHealth { account: id.clone(), health: Some(Box::new(DataFileHealth::default())), error: None });
+    assert!(s.close_compactions().is_empty());
+
+    // Compacted as it closes; one running already isn't asked again.
+    s.apply(Event::DataFileHealth { account: id.clone(), health: Some(Box::new(bloated())), error: None });
+    s.take_jobs();
+    s.run("dataFile.compact", &json!({ "account": id, "mode": "close" })).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::CompactDataFile { mode: CompactMode::Close, .. }]));
+    assert!(s.close_compactions().is_empty(), "running already");
+    assert!(matches!(s.run("dataFile.compact", &json!({ "account": id, "mode": "sideways" })), Err(CmdError::Params(_))));
+    // Done on close: not said (MailCraft is going), but kept.
+    let report = CompactReport { mode: CompactMode::Close, before: 4 << 30, after: 2 << 30, compacted: true, ..CompactReport::default() };
+    let said = s.notices.len();
+    s.apply(Event::Compacted { account: id.clone(), report: Box::new(report) });
+    assert_eq!(s.notices.len(), said);
+    assert!(s.compaction.last[&id].compacted);
+    assert_eq!(s.run("dataFile.compactOnClose", &json!({ "on": false })).unwrap()["on"], json!(false));
     finish(s);
 }
