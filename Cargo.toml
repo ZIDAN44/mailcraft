@@ -86,3 +86,7 @@ winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457
 # outlook-pst 1.2.0 with the fixes MailCraft needs for attached messages and damaged files: the
 # fork's craft/1.2.0 branch, whose PATCHES.md lists them. Dropped once a release has them.
 outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "b3a2ed1eb4217b567aebfd447c6730d64c1fd2a0" }
+# outlook-pst-rw 1.2.14 with the reader's fixes above and the writer's own (it reads a damaged
+# file as the reader does, and adds to permute- and cyclic-encoded files, as Outlook makes them):
+# the same fork's craft/rw-1.2.14 branch, whose PATCHES.md lists them. Dropped once a release has them.
+outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "c08d9bca61d736410923ee07b3f9b7fbbc45fef9" }

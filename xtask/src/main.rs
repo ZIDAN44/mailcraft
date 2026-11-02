@@ -50,7 +50,7 @@ const LAYERS: &[(&str, u8)] = &[
 
 /// Third-party crates built from a fork with fixes of ours, pinned by revision in
 /// `[patch.crates-io]`. Each fork's `PATCHES.md` lists its fixes, and its own tests prove them.
-const FORKED: &[&str] = &["outlook-pst"];
+const FORKED: &[&str] = &["outlook-pst", "outlook-pst-rw"];
 
 /// Crates that never build for the web (sockets, threads, TLS).
 const NATIVE_ONLY: &[&str] = &["mailcraft-keys", "mailcraft-net"];
@@ -286,6 +286,11 @@ mod tests {
         assert_eq!(pin(&ok.replace(", rev = \"1a\"", ""), "outlook-pst"), None, "a branch's head isn't a pin");
         let elsewhere = "[dependencies]\noutlook-pst = { git = \"https://f.git\", rev = \"1a\" }\n[patch.crates-io]\negui = \"1\"\n";
         assert_eq!(pin(elsewhere, "outlook-pst"), None, "only [patch.crates-io] counts");
+        // The writer's fork is another branch of the same repository: each crate has its own pin.
+        let both = format!("{ok}outlook-pst-rw = {{ git = \"https://f.git\", rev = \"3c\" }}\n");
+        assert_eq!(pin(&both, "outlook-pst").as_deref(), Some("https://f.git@1a"));
+        assert_eq!(pin(&both, "outlook-pst-rw").as_deref(), Some("https://f.git@3c"));
+        assert_eq!(pin(ok, "outlook-pst-rw"), None, "the reader's pin isn't the writer's");
         assert!(patched(&root()).is_ok(), "{:?}", patched(&root()));
     }
 }
