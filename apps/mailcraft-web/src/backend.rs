@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
-use mailcraft_engine::model::job::DataFileFacts;
+use mailcraft_engine::model::job::{CompactReport, DataFileFacts};
 use mailcraft_engine::model::{AccountConfig, Event, Folder, FolderRole, Job, Op, SyncStatus, sort_folders};
 use mailcraft_engine::store::Store;
 use mailcraft_jmap::{Client, Error, State, SyncOptions};
@@ -548,6 +548,9 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::InspectDataFile { .. }
         | Job::StopImport { .. }
         | Job::ExportPst { .. }
+        | Job::DataFileHealth { .. }
+        | Job::CompactDataFile { .. }
+        | Job::CancelCompact { .. }
         | Job::WorkOffline { .. }
         | Job::SetSync { .. }
         | Job::Index { .. }
@@ -687,6 +690,17 @@ impl Backend for WebBackend {
             }
             // No import runs here to stop.
             Job::StopImport { .. } => {}
+            // The browser keeps mail in its own storage, not in data files.
+            Job::DataFileHealth { account } => emit(sh, Event::DataFileHealth { account, health: None, error: None }),
+            Job::CompactDataFile { account, mode } => {
+                let report = CompactReport {
+                    mode,
+                    error: Some("data files are kept by the desktop app, not in the browser".into()),
+                    ..CompactReport::default()
+                };
+                emit(sh, Event::Compacted { account, report: Box::new(report) })
+            }
+            Job::CancelCompact { .. } => {}
             Job::ExportPst { account, .. } => emit(
                 sh,
                 Event::Exported {

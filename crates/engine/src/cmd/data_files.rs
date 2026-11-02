@@ -1,9 +1,14 @@
 //! Commands: data files (Outlook's `.pst`, MailCraft's own) looked at, imported, stopped, gone on
-//! with, kept as they are or started again.
+//! with, kept as they are or started again; and an account's own data file measured and made
+//! smaller.
 
 use mailcraft_model::job::StopHow;
 
 use super::*;
+
+fn compacting(s: &Session) -> Option<&'static str> {
+    if s.compaction.running.is_empty() { Some("nothing is being compacted") } else { None }
+}
 
 fn importing(s: &Session) -> Option<&'static str> {
     if s.import_running() { None } else { Some("nothing is being imported") }
@@ -60,5 +65,26 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account"?: string} (a stopped import won't go on)"#),
         CommandSpec::new("account.importStatus", "Import status", "Status bar", |s, v| s.import_status(p::str(v, "account")))
             .params(r#"{"account"?: string} (every import running or waiting, or that account's, with its report)"#),
+        CommandSpec::new("dataFile.health", "Data file health", "File › Info › Mailbox settings", |s, v| {
+            let account = account_or_current(s, v)?;
+            s.data_file_health(&account)
+        })
+        .params(r#"{"account"?: string} (measures the account's data file; answers with what's known: its health, a compaction running, the last one's report)"#),
+        CommandSpec::new("dataFile.compact", "Compact now", "File › Info › Mailbox settings", |s, v| {
+            let account = account_or_current(s, v)?;
+            s.compact_data_file(&account)
+        })
+        .params(r#"{"account"?: string} (makes the account's data file smaller: in place, or by a copy when it's big and kept raw by an earlier build)"#),
+        CommandSpec::new("dataFile.cancelCompact", "Stop compacting", "Status bar", |s, v| {
+            let account = account_or_current(s, v)?;
+            s.cancel_compact(&account)
+        })
+        .params(r#"{"account"?: string} (stops where it can: compressing again or copying; the part that has the file to itself can't be stopped)"#)
+        .when(compacting),
+        CommandSpec::new("dataFile.idle", "MailCraft is idle", "Window", |s, v| {
+            let seconds = p::u64(v, "seconds").ok_or_else(|| CmdError::Params("`seconds` (number) is required".into()))?;
+            Ok(serde_json::json!({ "measuring": s.data_files_idle(seconds) }))
+        })
+        .params(r#"{"seconds": number (since the user last did anything)} (the window calls it now and then: data files that need it are compacted when MailCraft is left alone)"#),
     ]
 }

@@ -172,6 +172,19 @@ committed, and once the copy has everything the file is had to itself just long 
 those again, seal the copy and rename it over the file. Stopped, it's thrown away; a copy a crash
 left is removed as the data files next open.
 
+What's done is the plan's (`mailcraft_model::job::plan`, from the file's health, how it was asked,
+and the room on its drive): in place when the part that has the file to itself is estimated to fit
+how it was asked (15 s when MailCraft is idle, 30 s on closing, any length when asked for by hand),
+compressing again first what an earlier build kept raw; a file kept raw that's too big for that is
+copied when its drive has room (never on closing), and importing it again is suggested when it
+hasn't. The pool runs it on a `mail-compact` thread (`crates/net/src/worker/compact.rs`), holding
+the account's jobs while its file is had to itself; the engine keeps each account's health and
+compaction (`Session::compaction`), measures data files when the window says MailCraft has been
+left alone for ten minutes (`dataFile.idle`, at most once a day each, sooner when a recompress was
+stopped part way), compacts those that need it, refuses commands on an account whose file is had to
+itself, and holds its events until it's given back. `dataFile.compact` asks for it by hand
+(`mailcraft-cli run dataFile.compact` runs it there).
+
 A local account's read marks, flags and categories don't commit in the window's frame (each was a
 durable commit of the data file, 24 ms by median on a 38 GB file, up to 1.4 s when the disk was
 slow). The window changes its lists in memory and hands the flags its messages have now, with the

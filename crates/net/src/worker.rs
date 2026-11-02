@@ -23,69 +23,6 @@ use crate::stream::Stream;
 use crate::sync::{SyncOptions, fetch_body, sync_folder};
 use crate::{NetError, Result, smtp};
 
-/// Where passwords live. The desktop app backs this with the system keychain.
-pub trait Credentials: Send + Sync {
-    fn get(&self, account: &AccountConfig) -> Option<String>;
-    fn set(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String>;
-    fn delete(&self, account: &AccountConfig);
-    /// The outgoing server's own password (accounts with an `smtp_username`), kept apart.
-    fn get_smtp(&self, account: &AccountConfig) -> Option<String>;
-    fn set_smtp(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String>;
-    fn delete_smtp(&self, account: &AccountConfig);
-    /// Another secret of the account's, named by `what` (`smime`: its S/MIME certificate's
-    /// private key). A store without them keeps none.
-    fn get_secret(&self, _account: &AccountConfig, _what: &str) -> Option<String> {
-        None
-    }
-    fn set_secret(&self, _account: &AccountConfig, _what: &str, _secret: &str) -> std::result::Result<(), String> {
-        Err("there's no keychain to keep it in".into())
-    }
-    fn delete_secret(&self, _account: &AccountConfig, _what: &str) {}
-}
-
-/// Passwords held in memory only (tests, the CLI, and when no keychain is available).
-#[derive(Default)]
-pub struct MemoryCredentials(Mutex<HashMap<String, String>>);
-
-impl Credentials for MemoryCredentials {
-    fn get(&self, account: &AccountConfig) -> Option<String> {
-        self.0.lock().ok().and_then(|m| m.get(&account.id).cloned())
-    }
-    fn set(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String> {
-        self.0.lock().map_err(|e| e.to_string())?.insert(account.id.clone(), password.to_string());
-        Ok(())
-    }
-    fn delete(&self, account: &AccountConfig) {
-        if let Ok(mut m) = self.0.lock() {
-            m.remove(&account.id);
-        }
-    }
-    fn get_smtp(&self, account: &AccountConfig) -> Option<String> {
-        self.0.lock().ok().and_then(|m| m.get(&format!("{}|smtp", account.id)).cloned())
-    }
-    fn set_smtp(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String> {
-        self.0.lock().map_err(|e| e.to_string())?.insert(format!("{}|smtp", account.id), password.to_string());
-        Ok(())
-    }
-    fn delete_smtp(&self, account: &AccountConfig) {
-        if let Ok(mut m) = self.0.lock() {
-            m.remove(&format!("{}|smtp", account.id));
-        }
-    }
-    fn get_secret(&self, account: &AccountConfig, what: &str) -> Option<String> {
-        self.0.lock().ok().and_then(|m| m.get(&format!("{}|{what}", account.id)).cloned())
-    }
-    fn set_secret(&self, account: &AccountConfig, what: &str, secret: &str) -> std::result::Result<(), String> {
-        self.0.lock().map_err(|e| e.to_string())?.insert(format!("{}|{what}", account.id), secret.to_string());
-        Ok(())
-    }
-    fn delete_secret(&self, account: &AccountConfig, what: &str) {
-        if let Ok(mut m) = self.0.lock() {
-            m.remove(&format!("{}|{what}", account.id));
-        }
-    }
-}
-
 /// Sends events and wakes the UI.
 #[derive(Clone)]
 struct Sink {
@@ -186,6 +123,9 @@ pub struct Pool {
     imports: imports::Imports,
     /// Changes to mail, made in the cache on a thread of their own (`edits.rs`).
     edits: edits::Edits,
+    /// Data files being compacted, and the jobs waiting for one to give its file back
+    /// (`compact.rs`).
+    compacts: compact::Compacts,
 }
 
 /// Drafts that couldn't be saved to the server (offline, or it failed), kept with the account
@@ -249,6 +189,7 @@ impl Pool {
             indexer: indexing::Indexer::default(),
             imports: imports::Imports::default(),
             edits: edits::Edits::default(),
+            compacts: compact::Compacts::default(),
         }
     }
 
@@ -260,6 +201,8 @@ impl Pool {
     }
 
     pub fn submit(&mut self, job: Job) {
+        self.release_compacted();
+        let Some(job) = self.held_for_compaction(job) else { return };
         if let Job::SearchServer { search, .. } = &job {
             self.search.store(*search, Ordering::Relaxed);
         }
@@ -301,6 +244,9 @@ impl Pool {
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
             Job::StopImport { account, how } => self.stop_import(&account, how),
+            Job::DataFileHealth { account } => self.data_file_health(account),
+            Job::CompactDataFile { account, mode } => self.compact_data_file(account, mode),
+            Job::CancelCompact { account } => self.cancel_compact(&account),
             // The desktop keeps keys in the system's keychain: nothing to keep unlocked.
             Job::KeepUnlocked { .. } => {}
             j @ (Job::ImportIdentity { .. }
@@ -483,8 +429,9 @@ impl Pool {
     }
 
     /// Events reported since the last call (of how a pass of the search index is going, the
-    /// newest for each account).
-    pub fn poll(&self) -> Vec<Event> {
+    /// newest for each account). Jobs held while a compaction had a data file to itself go on.
+    pub fn poll(&mut self) -> Vec<Event> {
+        self.release_compacted();
         let mut events: Vec<Event> = self.rx.try_iter().collect();
         events.extend(self.indexer.latest());
         events
@@ -574,7 +521,9 @@ impl Pool {
 }
 
 mod changes;
+mod compact;
 mod connect;
+mod credentials;
 mod directory;
 mod edits;
 mod imports;
@@ -590,6 +539,7 @@ pub(crate) const DIRECTORY_SECRET: &str = "directory";
 mod sync;
 mod threads;
 
+pub use credentials::{Credentials, MemoryCredentials};
 use remote::*;
 pub use remote::{apply_remote, apply_remote_with};
 

@@ -16,5 +16,6 @@ mailcraft-cli [--data DIR] <command>
        [--from ID]               From changed to that account: its signature follows
   commands                       every engine command, as JSON
   run ID [JSON]                  run an engine command against the cache (its changes
-                                 to mail go to the server with the next `sync`)
+                                 to mail go to the server with the next `sync`;
+                                 `dataFile.compact` runs here, its progress on stderr)
   --version                      print the version

@@ -206,6 +206,7 @@ impl Pool {
     /// them to write what they hold (MailCraft closing). The changes to mail made so far are on
     /// disk first (a message marked read just before closing stays read).
     pub fn shutdown(&mut self) {
+        self.cancel_compacts();
         self.edits.finish();
         self.indexer.shutdown();
         self.stop_all();
@@ -213,7 +214,6 @@ impl Pool {
     }
 
     /// Whether an account has an import running.
-    #[cfg(test)]
     pub(super) fn importing(&self, account: &str) -> bool {
         self.imports.running.get(account).is_some_and(|c| !c.thread.is_finished())
     }

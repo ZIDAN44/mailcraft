@@ -1949,9 +1949,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   came down to 0.76 of its size; beside it, a whole mark-read from the window took 9 to 12 ms at
   p99 among 90 KB messages. An attachment over 2 MiB is a batch of its own, so a mark-read may wait
   for one's write: 0.1 to 0.18 s at most for one of 60 MiB (p99 24 to 100 ms with a few of 16
-  MiB and one of 60 MiB); those over 64 MiB are left raw and counted. Not yet run by the app:
-  compacting (at idle, and File › Info › Compact now) comes with it, and so does giving the freed
-  room back to the drive. On a data file made like the 47 GB one from a copy of the 37 GB data
+  MiB and one of 60 MiB); those over 64 MiB are left raw and counted. The app runs it as the first part of
+  compacting the file in place (below). On a data file made like the 47 GB one from a copy of the 37 GB data
   file (15,430 files kept raw, 35,035 MiB, where the app's file had 15,100 and 34,897 MiB), a
   recompress took 231 s (304 s in a second run), read 45.7 GiB and wrote
   30.4 GiB with 118 MiB at most in memory, and kept 9,104 MiB less live. Its health had said
@@ -1973,7 +1972,21 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   them), the same file took 127 s to 35,686 MiB, read and wrote 43 GiB with 88 MiB at most in
   memory: no faster than in place, and it needs the room for the copy (35 GiB) free beside it. Every
   file read back the same after the recompress and both compactions. These numbers decide how
-  compacting is offered (open: compacting run by the app).
+  compacting is offered (below).
+- **Compacting, run by the app:** a data file is now compacted by MailCraft (`dataFile.compact`,
+  `dataFile.idle`): in place when the part that has the file to itself is estimated, from the
+  measured cost and how this file's last compactions went, to fit how it was asked (15 s at idle,
+  30 s on closing, any length by hand), compressing again first what an earlier build kept raw; a
+  file kept raw that's too big for that is copied into a new file in the background when its drive
+  has room for the copy, and importing it again is suggested when it hasn't. Left alone ten minutes,
+  MailCraft measures each data file at most once a day and compacts those with a gigabyte and a
+  fifth of the file to give back (or a gigabyte to save by compressing again); a recompress stopped
+  part way goes on at the next idle. While the file is had to itself the account waits: its jobs,
+  its events and commands on it, and a removal. On a made-up file of deleted mail the space came
+  back to the drive with every file reading back the same; a copy took in what was written while
+  it ran. Not yet: the File page's Compact now and what it gave back, the bar, calling it at idle
+  and on closing from the window (all the next step), and a run on the real files (the milestone's
+  verification).
 - **Down in a big folder of a data file:** a read mark on a `.pst` account's message saved the
   page of 4,096 summaries it's in (about 2 MB) and then the folder counts, two durable commits
   of the 38 GB data file in the window's frame: 24 ms by median, up to 1.4 s when the disk was

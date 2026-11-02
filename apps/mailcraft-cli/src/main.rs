@@ -504,7 +504,9 @@ fn run() -> Result<(), String> {
             print(&s.run(&id, &params).map_err(|e| e.to_string())?);
             // Calendars subscribed to by their links (issue #7) are read now, needing no account's
             // sign-in: what came of each is said.
-            let (calendars, jobs): (Vec<Job>, Vec<Job>) = s.take_jobs().into_iter().partition(|j| matches!(j, Job::FetchCalendar { .. }));
+            let jobs = s.take_jobs();
+            let jobs = data_file_jobs(&mut s, &store, jobs);
+            let (calendars, jobs): (Vec<Job>, Vec<Job>) = jobs.into_iter().partition(|j| matches!(j, Job::FetchCalendar { .. }));
             if !calendars.is_empty() {
                 let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
                 let mut waiting: Vec<String> = calendars
@@ -553,6 +555,43 @@ fn run() -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// An account's data file measured or compacted (`dataFile.health`, `dataFile.compact`) as the app
+/// does it, here, with how it goes on stderr; then what came of it. The other jobs are given back.
+fn data_file_jobs(s: &mut Session, store: &Store, jobs: Vec<Job>) -> Vec<Job> {
+    let (mine, other): (Vec<Job>, Vec<Job>) = jobs.into_iter().partition(|j| matches!(j, Job::DataFileHealth { .. } | Job::CompactDataFile { .. }));
+    let Some(account) = mine.first().map(|j| j.account().to_string()) else { return other };
+    let compacting = mine.iter().any(|j| matches!(j, Job::CompactDataFile { .. }));
+    let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    for j in mine {
+        pool.submit(j);
+    }
+    // A compaction takes as long as it takes: minutes for a big file.
+    loop {
+        let Some(e) = pool.wait(Duration::from_millis(250)) else { continue };
+        let ended = match &e {
+            Event::Compacting { phase, work, exclusive_s, .. } => {
+                let pct = mailcraft_engine::model::job::progress::permille(work.bytes_done, work.bytes_total).map(|p| p / 10);
+                match (pct, exclusive_s) {
+                    (Some(p), _) => errln!("{phase:?}: {p}%"),
+                    (None, Some(secs)) => errln!("{phase:?}: about {secs} s"),
+                    (None, None) => errln!("{phase:?}…"),
+                }
+                false
+            }
+            Event::Compacted { .. } => true,
+            Event::DataFileHealth { .. } => !compacting,
+            _ => false,
+        };
+        s.apply(e);
+        if ended {
+            break;
+        }
+    }
+    // The health measured again after a compaction is the app's to ask: what's known is printed.
+    print(&s.compaction_json(&account));
+    other.into_iter().chain(s.take_jobs().into_iter().filter(|j| !matches!(j, Job::DataFileHealth { .. }))).collect()
 }
 
 /// Changes to mail (moves, flags, deletions, folders) kept as the app keeps them: made in the

@@ -58,6 +58,10 @@ Message sources live next to it as `<validity>/<uid>.eml`. A message is identifi
 - **Failures:** a broken connection is retried with exponential back-off (5 s → 5 min). A refused
   password stops retrying and asks the user (`NeedsPassword`). A refused command is reported and
   the cache is resynced.
+- **While its data file is compacted** in place (`crates/net/src/worker/compact.rs`), the part
+  that has the file to itself pauses the account: its jobs wait in the pool (no body is fetched,
+  no change uploaded, so no events pile up for the window), a sync already under way waits for the
+  file in the store, and both go on as soon as it's given back.
 
 ## Offline changes (RFC 4549 "pending actions")
 

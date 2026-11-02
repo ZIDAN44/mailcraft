@@ -169,6 +169,16 @@ pub enum Job {
     StopImport { account: String, how: StopHow },
     /// Write the account's mail to an Outlook data file, which opens as `name`.
     ExportPst { account: String, path: String, name: String },
+    /// Measure how the account's data file is doing (quick: nothing of the mail is read).
+    /// Answered by [`Event::DataFileHealth`].
+    DataFileHealth { account: String },
+    /// Make the account's data file smaller, as [`plan`] says for `mode`, on a thread of its own.
+    /// Progress comes as [`Event::Compacting`], the end as [`Event::Compacted`].
+    CompactDataFile { account: String, mode: CompactMode },
+    /// Stop compacting the account's data file, where it can be stopped (compressing again, or
+    /// copying: what was compressed is kept, a copy is thrown away). Answered by
+    /// [`Event::Compacted`].
+    CancelCompact { account: String },
     /// Keep the certificate and private key in a `.p12` / `.pfx` file (opened with `password`)
     /// for signing and decrypting the account's mail (S/MIME): the key goes to the system's
     /// keychain only. Answered by [`Event::Identity`].
@@ -237,7 +247,10 @@ impl Job {
             | Job::StopImport { account, .. }
             | Job::Index { account, .. }
             | Job::StopIndex { account }
-            | Job::ExportPst { account, .. } => account,
+            | Job::ExportPst { account, .. }
+            | Job::DataFileHealth { account }
+            | Job::CompactDataFile { account, .. }
+            | Job::CancelCompact { account } => account,
             Job::FetchUrl { .. }
             | Job::InspectDataFile { .. }
             | Job::Discover { .. }
@@ -441,6 +454,28 @@ pub enum Event {
         path: String,
         facts: Box<DataFileFacts>,
     },
+    /// How the account's data file is doing ([`Job::DataFileHealth`]): `None` when it has none
+    /// (an account kept in memory, or online only), or with `error` when it couldn't be measured.
+    DataFileHealth {
+        account: String,
+        health: Option<Box<DataFileHealth>>,
+        error: Option<String>,
+    },
+    /// How compacting the account's data file is going (the newest replaces the ones before):
+    /// where it is, how far that has come, and about how long the part that has the file to
+    /// itself takes ([`CompactPhase::Exclusive`]: nothing else of the account is read or written
+    /// meanwhile).
+    Compacting {
+        account: String,
+        phase: CompactPhase,
+        work: Work,
+        exclusive_s: Option<u64>,
+    },
+    /// Compacting the account's data file ended: what it came to.
+    Compacted {
+        account: String,
+        report: Box<CompactReport>,
+    },
     /// How an export to a data file is going (`done`: finished, or failed with `error`).
     Exported {
         account: String,
@@ -567,5 +602,25 @@ mod tests {
         let j = Job::StopImport { account: "a1".into(), how: StopHow::Discard };
         assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
         assert_eq!(Job::InspectDataFile { path: "a.pst".into() }.account(), "");
+    }
+
+    #[test]
+    fn compaction_jobs_and_events_round_trip() {
+        for j in [
+            Job::DataFileHealth { account: "a1".into() },
+            Job::CompactDataFile { account: "a1".into(), mode: CompactMode::Manual },
+            Job::CancelCompact { account: "a1".into() },
+        ] {
+            assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
+        }
+        let health = DataFileHealth { file_bytes: 9, raw_fraction: 0.25, ..DataFileHealth::default() };
+        let report = CompactReport { mode: CompactMode::Close, before: 9, after: 4, compacted: true, ..CompactReport::default() };
+        for e in [
+            Event::DataFileHealth { account: "a1".into(), health: Some(Box::new(health)), error: None },
+            Event::Compacting { account: "a1".into(), phase: CompactPhase::Exclusive, work: Work::default(), exclusive_s: Some(12) },
+            Event::Compacted { account: "a1".into(), report: Box::new(report) },
+        ] {
+            assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
+        }
     }
 }

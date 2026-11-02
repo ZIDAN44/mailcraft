@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod compacting;
 mod data_files;
 mod importing;
 

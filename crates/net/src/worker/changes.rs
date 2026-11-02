@@ -180,6 +180,9 @@ impl Worker {
             | Job::Index { .. }
             | Job::StopIndex { .. }
             | Job::ExportPst { .. }
+            | Job::DataFileHealth { .. }
+            | Job::CompactDataFile { .. }
+            | Job::CancelCompact { .. }
             | Job::ImportIdentity { .. }
             | Job::ForgetIdentity { .. }
             | Job::ForgetOlderIdentity { .. }

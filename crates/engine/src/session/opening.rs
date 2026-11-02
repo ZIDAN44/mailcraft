@@ -54,7 +54,8 @@ impl Session {
     /// A message waiting in the reading pane for its time to be marked read, once it's come.
     pub(crate) fn read_when_due(&mut self) {
         let Some((key, at)) = self.read_due.clone() else { return };
-        if self.clock.now >= at {
+        // Its data file had to itself by a compaction: marked once it's given back.
+        if self.clock.now >= at && !self.compaction.exclusive(&key.account) {
             self.read_due = None;
             if self.reading.as_ref().is_some_and(|r| r.key == key) {
                 self.mark_seen(&key);

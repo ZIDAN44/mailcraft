@@ -8,6 +8,8 @@ impl Session {
         if !self.importing.running.is_empty() {
             self.removal_backstop();
         }
+        // An account's data file had to itself by a compaction: what it sends waits for it.
+        let Some(e) = self.defer_for_compaction(e) else { return };
         match e {
             e @ (Event::Identity { .. } | Event::Protected { .. } | Event::Decrypted { .. } | Event::Revocation { .. } | Event::HeldKeys { .. }) => {
                 self.apply_smime(e)
@@ -133,6 +135,9 @@ impl Session {
                 self.imported(&account, messages, skipped, done, error, report.as_deref())
             }
             Event::DataFileInspected { path, facts } => self.data_file_inspected(&path, facts),
+            Event::DataFileHealth { account, health, error } => self.health_measured(&account, health.map(|h| *h), error),
+            Event::Compacting { account, phase, work, exclusive_s } => self.compacting(&account, phase, work, exclusive_s),
+            Event::Compacted { account, report } => self.compacted(&account, *report),
             Event::Indexed { account, work, generation, failed, finished } => {
                 self.indexed(&account, IndexPass { work, generation, failed, finished })
             }

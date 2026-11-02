@@ -37,6 +37,7 @@ mod writing;
 #[cfg(test)]
 pub(crate) use accounts::REMOVE_BACKSTOP;
 pub use accounts::{ImportState, Imports};
+pub use mailbox_settings::{Compacting, Compaction, IDLE_AFTER_S};
 #[cfg(test)]
 pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
@@ -513,6 +514,8 @@ pub struct Session {
     importing: Imports,
     /// The search indexes kept up in the background.
     indexing: searching::Indexing,
+    /// Data files made smaller: how each is doing, and the compactions running.
+    pub compaction: Compaction,
     /// The message in the reading pane to mark read, and when (`ReadInPane::Shown` with a wait).
     read_due: Option<(MessageKey, i64)>,
     /// The message to mark read once another is chosen (`ReadInPane::Left`).
@@ -609,6 +612,7 @@ impl Session {
             body: Default::default(),
             importing: Imports::default(),
             indexing: Default::default(),
+            compaction: Compaction::default(),
             read_due: None,
             read_on_leave: None,
             registry: Arc::new(crate::cmd::registry()),
@@ -676,6 +680,9 @@ impl Session {
         }
         if let Some(why) = (spec.enabled)(self) {
             return Err(CmdError::Disabled(why.to_string()));
+        }
+        if let Some(why) = self.compaction_blocks(id, params) {
+            return Err(CmdError::Disabled(why));
         }
         let run = spec.run;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
