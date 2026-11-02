@@ -20,7 +20,7 @@ _Status: v0.32, 2026-10-31._
 | 6 | **S/MIME: what isn't done yet** | The browser can't check revocation (authorities' servers don't answer web pages) and has no smart cards or system store (Chrome's Web Smart Card API is for Isolated Web Apps only). Its certificates are locked again after a reload unless *Keep unlocked in this browser* is on. |
 | 7 | **Updates: a signature, signed releases, macOS without an administrator** | Test builds update themselves ([docs/updates.md](updates.md)); signed releases don't yet. A download is held to the SHA-256 GitHub lists for it, which proves it arrived whole but not who made it: an Ed25519 signature checked against a key built into MailCraft (as Tauri and Sparkle do) needs a signing key kept by the release workflows, the owner's to create. On macOS a bundle in `/Applications` on a standard account isn't replaced (it would need an authorization prompt). No staged rollout, and no smaller downloads (zsync, deltas). |
 | 8 | **Search index: one writer across processes** | Each account's search index has one writer at a time within a process. The CLI and the app on one folder layout could both write it; the `search/v1/lock` lease that stops a second comes with the CLI's `--index`, when the CLI first writes an index. |
-| 9 | **Searches that find tens of thousands: not yet as fast as aimed** | Measured on the made-up mailbox of 50,000 messages (`sample::big`; release build, `search_big::how_long_searches_take`, which fails if a budget met slips). Met: a word, 25 ms all told and 2 ms a step warm; a one-letter word, 180–270 ms all told; every step reads at most 16 store pages. Not yet: a search in a session just opened makes its summaries' text, 11–15 ms a step against the 4 ms aimed for; `is:unread` over 50,000 takes 35 ms against 15 ms; the common phrase's 16,667 found, each checked against its text, 0.3–0.4 s against 150 ms; a one-letter word's steps 16–24 ms against 6 ms; and the frame that shows 35,000–47,000 found builds the list at once, 10–12 ms against 8 ms. On the 41 GB file (34,691 messages), most warm word searches take 41–56 ms and one found in 7,654 messages 80 ms against 50 ms, nearly all of it checking each summary (about 1 µs each), and the phrase 0.7 s of checking kept texts. |
+| 9 | **Searches that find tens of thousands: not yet as fast as aimed** | Measured on the made-up mailbox of 50,000 messages (`sample::big`; release build, `search_big::how_long_searches_take`, which fails if a budget met slips). Met: a word, 8–13 ms all told and 1 ms a step warm; the common phrase searched again, its texts kept folded, 128–135 ms in frames; a step in a session just opened, 128 summaries' texts made a unit, 3–4 ms (the one that opens the index 5–6 ms); a one-letter word 95–98 ms all told searched again (its 47,387 found, its words looked up lately), 380–400 ms the first time; every step reads at most 16 store pages. Not yet: `is:unread` over 50,000 takes 20–30 ms against 15 ms, a one-letter word's steps that record thousands found 6–7 ms against 6 ms, and the frame that shows 35,000–47,000 found builds the list at once, 10–15 ms against 8 ms: each copies every summary found into the list (and its key into the run's set), which only summaries shared between the folders' lists and the search's would avoid. On the 41 GB file (34,691 messages, warm, from the query to the last busy frame) the word, prefix, accented, CJK and AND queries of its ground truth take 6–32 ms and the phrase 16–19 ms; the negated word's 32,574 found take 109–119 ms against 100 ms, two thirds of it copying the summaries found; and a phrase searched the first time still reads and folds each candidate's text (0.66 s for the file's 1,452). |
 
 ## Done
 
@@ -1993,6 +1993,25 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   domain's 20,713 75 ms (111 ms). Most word searches take 41–56 ms, a word found in 7,654
   messages 80 ms, against the 50 ms aimed for; the phrase is 0.7 s of checking kept texts. Every
   count matches the file's ground truth.
+- **Searching the 41 GB file, quicker:** what each warm search spent its time on named what to
+  cut. A summary is now looked through once for a word, a quick look most fail, before each of its
+  parts word by word; the index's words for a search are found without hashing them for each
+  summary, a folder's number looked up once a slice, and a folder's first scan doesn't ask whether
+  what it doesn't find was found before (checking the summaries of a word search: 6–26 ms, from
+  17–50). A word looked up lately is taken as the same generation of the index gave it (9–11 ms
+  before, for a word in 7,654 messages). A phrase's candidates take their summary's text from the
+  scan rather than folding it twice more, and the texts they're checked against are kept folded
+  between searches (32 MiB), so the phrase typed on or searched again reads and folds nothing: the
+  file's 1,452 candidates are checked in 7 ms. The index reader keeps its text pages apart from its
+  lexicon and postings, a unit makes at most 128 summaries' texts in a session just opened, a short
+  prefix sets about two pages' worth of docs a call, and what a phrase's candidates said is let go
+  of a slice at a time. Warm, from the query to the last busy frame: a word found in 7,654 messages
+  32 ms (77 ms before), other words, a prefix, accented and CJK words and two words 6–21 ms (23–75),
+  the phrase 16–19 ms (958), `to:` a domain 67–70 ms (76), the negated word 109–119 ms (140). No
+  frame of the three passes took over 15 ms, and typing the 20 queries a character at a time none
+  over 9.8 ms (2,157 frames). A frame's share of the search stays 6 ms: given 10 ms when nothing was
+  typed, each frame waited for a second refresh of the 120 Hz screen, and the negated word took
+  198 ms. Every count matches the file's ground truth.
 - **Holding Down while marks are written:** a hold of Down over unread mail on the 41 GB file's
   data file once had frames of 0.5 and 1.8 s, and the window answered nothing for about 7 s,
   while two read marks took 3.1 and 3.5 s to commit (the disk flushing). Reading a folder's list

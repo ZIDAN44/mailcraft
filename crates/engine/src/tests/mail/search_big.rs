@@ -340,10 +340,11 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// frames as the window takes them (as many units as fit in 6 ms). It holds the budgets the
 /// searches meet (search.md §11), so a slower one fails it: a word, warm, 20 ms all told (25 ms
 /// before each summary was looked through once for it) and 4 ms a step at p99, each frame at
-/// most 8 ms; a one-letter word, warm, 300 ms all told. Not met yet, and only printed
-/// (docs/gaps.md, Open): a step in a session just opened (its summaries' text made),
-/// `is:unread`'s 15 ms, a phrase's 150 ms, a one-letter word's 6 ms a step, and the frame that
-/// shows tens of thousands found.
+/// most 8 ms; a one-letter word, warm, 300 ms all told. Printed only: a step in a session just
+/// opened (4 ms, but 5-6 ms the one that opens the index) and the common phrase searched again
+/// (150 ms in frames: 128-135 ms). Not met yet (docs/gaps.md, Open): `is:unread`'s 15 ms, a
+/// one-letter word's 6 ms a step (those recording thousands found), and the frame that shows
+/// tens of thousands found.
 #[test]
 #[ignore]
 fn how_long_searches_take() {
