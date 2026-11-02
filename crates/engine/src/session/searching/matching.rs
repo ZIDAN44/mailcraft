@@ -8,10 +8,12 @@
 //! changed on it later is weighed without reading anything again: flags are never text.
 
 use std::cell::RefCell;
+use std::sync::Arc;
 
 use mailcraft_model::search::indexed;
 use mailcraft_store::search::{Blob, DocInfo, Field, Reader};
 
+use super::folded::Folded;
 use super::run::Terms;
 use super::*;
 
@@ -50,11 +52,10 @@ impl Atom {
 pub(crate) struct Recorder(RefCell<Vec<Atom>>);
 
 impl Recorder {
-    /// What `query` asks of `m`'s text, given what its summary already settles.
-    pub(crate) fn atoms(query: &Query, m: &Summary, awaiting: bool) -> Vec<Atom> {
+    /// What `query` asks of `m`'s text, given what its summary (its text `st`) already settles.
+    pub(crate) fn atoms(query: &Query, m: &Summary, st: &SummaryText, awaiting: bool) -> Vec<Atom> {
         let rec = Recorder::default();
-        let st = SummaryText::for_query(m, query);
-        query.eval(&Doc { summary: m, summary_text: &st, awaiting, files: None, text: &rec });
+        query.eval(&Doc { summary: m, summary_text: st, awaiting, files: None, text: &rec });
         rec.0.into_inner()
     }
 
@@ -189,6 +190,9 @@ pub(crate) struct Candidate {
     /// Its doc in its account's index, when it's there.
     pub(crate) doc: Option<u32>,
     pub(crate) awaiting: bool,
+    /// Its place in its folder's list when it was found: its summary's text is kept there
+    /// ([`FolderTexts::kept`](super::folder_text::FolderTexts::kept)), not made again.
+    pub(crate) at: Option<usize>,
 }
 
 /// What a search decided about a message, or what it must do to decide.
@@ -285,6 +289,8 @@ pub(crate) fn from_source(raw: &[u8], atoms: &[Atom]) -> Answers {
 /// A message's text being checked against what a query asks of it, a slice a unit.
 pub(crate) struct Verifying {
     pub(crate) c: Candidate,
+    /// Its summary's text, which weighs what its text says.
+    pub(crate) st: SummaryText,
     doc: u32,
     info: DocInfo,
     atoms: Vec<Atom>,
@@ -293,32 +299,58 @@ pub(crate) struct Verifying {
     blob: Option<Option<Blob>>,
     /// Where in the text the next slice starts.
     at: usize,
+    /// Its text folded before ([`FoldedTexts`](super::folded::FoldedTexts)), checked in its
+    /// place: nothing read, nothing folded.
+    kept: Option<Arc<Folded>>,
+    /// The next of its slices checked.
+    slice: usize,
+    /// Its text folded as it's checked, to be kept (`None`: what's asked can't be told from
+    /// the folded text, only from the text as written).
+    folding: Option<Folded>,
 }
 
+/// Most bytes of a text folded before checked in one unit: looking through them is several
+/// times quicker than folding them.
+const KEPT_BYTES: usize = 4 * VERIFY_BYTES;
+
 impl Verifying {
-    pub(crate) fn new(query: &Query, c: Candidate, doc: u32, info: DocInfo) -> Verifying {
-        let atoms = Recorder::atoms(query, &c.m, c.awaiting);
+    /// `kept`: its text folded before, if it was.
+    pub(crate) fn new(query: &Query, c: Candidate, st: SummaryText, doc: u32, info: DocInfo, kept: Option<Arc<Folded>>) -> Verifying {
+        let atoms = Recorder::atoms(query, &c.m, &st, c.awaiting);
         let found = vec![false; atoms.len()];
-        Verifying { c, doc, info, atoms, found, blob: None, at: 0 }
+        // A phrase of words is told from the folded text alone; a word (or a phrase of
+        // punctuation: `"@"`) is looked for as written too.
+        let foldable = atoms.iter().all(|a| a.field() != TextField::Body || matches!(a, Atom::Phrase(_, words, _) if !words.is_empty()));
+        let kept = kept.filter(|_| foldable);
+        let folding = (foldable && kept.is_none()).then(Folded::default);
+        Verifying { c, st, doc, info, atoms, found, blob: None, at: 0, kept, slice: 0, folding }
+    }
+
+    /// Its text folded as it was checked, when it was checked in full: to be kept.
+    pub(crate) fn take_folded(&mut self) -> Option<Folded> {
+        self.folding.take()
     }
 
     /// One unit: the text read, or one slice of it checked. What it said once it's all
     /// checked; a text that can't be read says nothing for sure.
     pub(crate) fn step(&mut self, reader: &mut Reader, store: &Store) -> Option<Answers> {
+        if let Some(kept) = self.kept.clone() {
+            return self.step_kept(&kept);
+        }
         let Some(blob) = &self.blob else {
             let blob = match reader.text(store, self.doc) {
                 Ok(b) => b,
                 Err(e) => {
                     log::warn!("{}: a message's text couldn't be read for search: {e}", self.c.m.key.account);
+                    self.folding = None;
                     return Some(Answers::default());
                 }
             };
             // The files' names are short: checked with the reading.
             if let Some(b) = &blob {
-                for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
-                    if a.field() == TextField::Names && b.names.iter().any(|n| a.in_text(n)) {
-                        *f = true;
-                    }
+                self.check_names(&b.names);
+                if let Some(f) = self.folding.as_mut() {
+                    f.names = b.names.clone();
                 }
             }
             self.blob = Some(blob);
@@ -328,9 +360,26 @@ impl Verifying {
         if self.at < text.len() {
             let (start, end) = slice_at(text, self.at);
             let chunk = text.get(start..end).unwrap_or_default();
-            for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
-                if !*f && a.field() == TextField::Body && a.in_text(chunk) {
-                    *f = true;
+            match self.folding.as_mut() {
+                // Folded once for every phrase asked, and kept.
+                Some(folding) => {
+                    let folded = mailcraft_model::search::fold_all(chunk);
+                    for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
+                        if let Atom::Phrase(TextField::Body, words, _) = a
+                            && !*f
+                            && mailcraft_model::search::folded_has_phrase(&folded, words)
+                        {
+                            *f = true;
+                        }
+                    }
+                    folding.slices.push(folded);
+                }
+                None => {
+                    for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
+                        if !*f && a.field() == TextField::Body && a.in_text(chunk) {
+                            *f = true;
+                        }
+                    }
                 }
             }
             self.at = end.max(self.at.saturating_add(1));
@@ -338,9 +387,48 @@ impl Verifying {
                 return None;
             }
         }
+        Some(self.answers())
+    }
+
+    /// One unit of checking the text folded before: its names, and its slices up to
+    /// [`KEPT_BYTES`].
+    fn step_kept(&mut self, kept: &Folded) -> Option<Answers> {
+        if self.slice == 0 {
+            self.check_names(&kept.names);
+        }
+        let mut looked = 0usize;
+        while let Some(folded) = kept.slices.get(self.slice) {
+            if looked >= KEPT_BYTES {
+                return None;
+            }
+            for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
+                if let Atom::Phrase(TextField::Body, words, _) = a
+                    && !*f
+                    && mailcraft_model::search::folded_has_phrase(folded, words)
+                {
+                    *f = true;
+                }
+            }
+            looked = looked.saturating_add(folded.len());
+            self.slice = self.slice.saturating_add(1);
+        }
+        Some(self.answers())
+    }
+
+    /// The files' names checked.
+    fn check_names(&mut self, names: &[String]) {
+        for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
+            if a.field() == TextField::Names && names.iter().any(|n| a.in_text(n)) {
+                *f = true;
+            }
+        }
+    }
+
+    /// What the text said, all of it checked.
+    fn answers(&self) -> Answers {
         let (truncated, has_text) = (self.info.truncated, self.info.has_text);
         let atoms = self.atoms.iter().zip(&self.found).map(|(a, f)| (a.clone(), indexed(*f, a.field(), truncated, has_text))).collect();
-        Some(Answers { atoms, files: self.info.files_known(), truncated })
+        Answers { atoms, files: self.info.files_known(), truncated }
     }
 }
 

@@ -83,6 +83,16 @@ impl FolderTexts {
         }
     }
 
+    /// The text kept of `key`'s summary, at `at` in its folder's list, when it's still kept there
+    /// (a list that changed since has it made again).
+    pub(crate) fn kept(&self, key: &MessageKey, at: usize) -> Option<&SummaryText> {
+        let ft = self.folders.get(&(key.account.clone(), key.folder.clone()))?;
+        if ft.uids.get(at) != Some(&key.uid) {
+            return None;
+        }
+        ft.texts.get(at)
+    }
+
     /// A folder's list was read again or changed: its texts go.
     pub(crate) fn forget(&mut self, account: &str, folder: &str) {
         if let Some(ft) = self.folders.remove(&(account.to_string(), folder.to_string())) {

@@ -326,6 +326,11 @@ impl SearchRun {
     /// Where `m` stands now, as `v` says (`last`: nothing more can be read for it). Taken, not
     /// copied: a word found in thousands of messages copied each summary twice.
     pub(crate) fn record(&mut self, m: Summary, v: Verdict, awaiting: bool, last: bool) {
+        self.record_at(m, v, awaiting, last, None);
+    }
+
+    /// [`SearchRun::record`] of the message at `at` in its folder's list.
+    fn record_at(&mut self, m: Summary, v: Verdict, awaiting: bool, last: bool, at: Option<usize>) {
         let key = &m.key;
         forget(&mut self.recheck, key);
         if !matches!(v, Verdict::CutShort) {
@@ -340,12 +345,12 @@ impl SearchRun {
                 }
             }
             Verdict::Verify(doc) if !last => {
-                self.verify.push_back(Candidate { m, doc: Some(doc), awaiting });
+                self.verify.push_back(Candidate { m, doc: Some(doc), awaiting, at });
                 self.verify_sorted = false;
                 self.finish = Finish::Due;
             }
             Verdict::Missing if self.wait && !last => {
-                self.fallback.push_back(Candidate { m, doc: None, awaiting });
+                self.fallback.push_back(Candidate { m, doc: None, awaiting, at });
                 self.finish = Finish::Due;
             }
             Verdict::No | Verdict::Verify(_) | Verdict::Missing | Verdict::CutShort => {
@@ -392,6 +397,7 @@ impl Session {
             run.asks_awaiting = true;
         }
         self.search_state.pinned = run.folders.iter().cloned().collect();
+        self.search_state.folded.begin();
         // An account that had no index (or one that couldn't be read) is looked at again; one a
         // search stopped on, once its writer writes it again.
         self.search_state.readers.retain(|_, slot| slot.reader.is_some() || slot.damaged);
@@ -631,13 +637,13 @@ impl Session {
                 _ => false,
             };
             if !same {
-                verdicts.push((m.clone(), v, awaiting));
+                verdicts.push((m.clone(), v, awaiting, cur.at.saturating_add(i)));
             }
         }
         let checked = u64::try_from(end.saturating_sub(cur.at)).unwrap_or(u64::MAX);
         self.search_state.stats.summaries = self.search_state.stats.summaries.saturating_add(checked);
-        for (m, v, awaiting) in verdicts {
-            run.record(m, v, awaiting, false);
+        for (m, v, awaiting, at) in verdicts {
+            run.record_at(m, v, awaiting, false, Some(at));
         }
         cur.at = end;
         if end >= len {
@@ -734,7 +740,14 @@ impl Session {
                 match (c.doc, reader) {
                     (Some(doc), Some(r)) if r.info(doc).is_some() => {
                         let info = r.info(doc).unwrap_or_default();
-                        Verifying::new(&run.query, c, doc, info)
+                        // Its summary's text as the scan made it (folding it again, twice, for
+                        // each of a common phrase's candidates was most of checking them).
+                        let st = match c.at.and_then(|at| self.search_state.texts.kept(&c.m.key, at)) {
+                            Some(st) => st.clone(),
+                            None => SummaryText::for_query(&c.m, &run.query),
+                        };
+                        let kept = self.search_state.folded.get(&c.m.key);
+                        Verifying::new(&run.query, c, st, doc, info, kept)
                     }
                     // Its index went meanwhile: it may be missing.
                     _ => {
@@ -756,8 +769,10 @@ impl Session {
         match said {
             None => run.verifying = Some(v),
             Some(answers) => {
-                let c = v.c;
-                let st = SummaryText::for_query(&c.m, &run.query);
+                if let Some(folded) = v.take_folded() {
+                    self.search_state.folded.keep(&v.c.m.key, folded);
+                }
+                let (c, st) = (v.c, v.st);
                 // A long message's stays cut short whenever it's weighed again from these.
                 let verdict = classify(&run.query, &c.m, &st, c.awaiting, None, Some(&answers));
                 if answers.said() {
@@ -772,10 +787,10 @@ impl Session {
     /// Waiting: one message the index doesn't have read from its source.
     fn fallback_unit(&mut self, run: &mut SearchRun) -> u32 {
         let Some(c) = run.fallback.pop_front() else { return 0 };
-        let atoms = Recorder::atoms(&run.query, &c.m, c.awaiting);
+        let st = SummaryText::for_query(&c.m, &run.query);
+        let atoms = Recorder::atoms(&run.query, &c.m, &st, c.awaiting);
         let raw = self.store.as_ref().and_then(|s| s.read_body(&c.m.key));
         self.search_state.stats.sources = self.search_state.stats.sources.saturating_add(1);
-        let st = SummaryText::for_query(&c.m, &run.query);
         let verdict = match raw {
             Some(raw) => {
                 let answers = from_source(&raw, &atoms);

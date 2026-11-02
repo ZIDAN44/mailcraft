@@ -2,10 +2,11 @@
 //!
 //! The doc table and each segment's head are held in memory; lexicon, postings and text pages are
 //! read as they're needed, a read transaction a page (none outlives a call), and the latest kept
-//! in a small cache keyed by the index's epoch. A word is looked for a few pages at a time
-//! ([`Reader::scan_prefix`]), so a short prefix of a big index is spread over as many steps as it
-//! takes. [`Reader::refresh`] follows the writer: it reads only the doc pages and segments a newer
-//! generation changed.
+//! in small caches keyed by the index's epoch: one of lexicon and postings, one of texts, so
+//! the texts a phrase is checked against don't push out the pages its words are looked up in. A
+//! word is looked for a few pages at a time ([`Reader::scan_prefix`]), so a short prefix of a big
+//! index is spread over as many steps as it takes. [`Reader::refresh`] follows the writer: it
+//! reads only the doc pages and segments a newer generation changed.
 
 use std::collections::HashMap;
 
@@ -106,6 +107,8 @@ pub struct Reader {
     /// Each segment's lexicon pages' first words, in the meta's order.
     heads: Vec<(SegInfo, Vec<Vec<u8>>)>,
     cache: Cache,
+    /// The text pages read lately, apart from `cache`.
+    texts: Cache,
 }
 
 impl Reader {
@@ -158,6 +161,7 @@ impl Reader {
             by_key: HashMap::new(),
             heads: Vec::new(),
             cache: Cache::default(),
+            texts: Cache::default(),
         };
         for (i, d) in r.docs.iter().enumerate() {
             if d.live() {
@@ -279,7 +283,7 @@ impl Reader {
     /// Lexicon, postings and text pages read from the store so far (those its cache held not
     /// counted): what a search's budget counts.
     pub fn pages_read(&self) -> u64 {
-        self.cache.reads
+        self.cache.reads.wrapping_add(self.texts.reads)
     }
 
     /// The doc a message is, when it's indexed.
@@ -429,7 +433,7 @@ impl Reader {
         let Some(d) = self.docs.get(doc as usize).filter(|d| d.live() && d.text != NO_TEXT) else { return Ok(None) };
         let Some(t) = self.meta.text_pages.get(d.text as usize).filter(|t| t.generation != 0) else { return Ok(None) };
         let path = Name::Text { generation: t.generation, page: d.text }.path(&self.base);
-        let bytes = self.cache.get(store, self.meta.epoch, &path)?;
+        let bytes = self.texts.get(store, self.meta.epoch, &path)?;
         let recs = decode_text_page(&bytes, self.meta.next_doc).map_err(|what| damaged(&path, what))?;
         let Ok(i) = recs.binary_search_by_key(&doc, |(d, _)| *d) else { return Ok(None) };
         let Some((_, blob)) = recs.get(i) else { return Ok(None) };

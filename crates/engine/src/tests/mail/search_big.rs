@@ -148,6 +148,21 @@ fn a_common_phrase_doesnt_build_the_list_each_step() {
     assert!(shown > 20, "built {shown} times");
 }
 
+/// The common phrase searched again (typed on, or searched from another view) checks the texts
+/// it folded the first time: nothing of them is read or folded again, and it finds the same.
+#[test]
+fn a_phrase_searched_again_reads_no_text() {
+    let (mut s, t) = cold();
+    let q = format!("\"{}\"", big::PHRASE);
+    let first = search(&mut s, &q, "all");
+    let second = search(&mut s, &q, "all");
+    let pages = |steps: &[Step]| steps.iter().map(|st| st.read.reader_pages).sum::<u64>();
+    assert_eq!(s.list.len(), t.phrase);
+    assert!(pages(&first) > 50, "{} pages the first time", pages(&first));
+    assert_eq!(pages(&second), 0, "nothing read the second time");
+    assert!(second.len() * 3 < first.len() * 2, "{} steps the second time, {} the first", second.len(), first.len());
+}
+
 /// A phrase's candidates are checked in the index's order (each page of texts read once), the
 /// folder on view still first (one whose mail was indexed late, a third of it with the phrase):
 /// what's on screen is found first of what's checked against its text.

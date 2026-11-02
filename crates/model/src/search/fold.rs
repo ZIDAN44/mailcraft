@@ -119,7 +119,22 @@ pub(super) fn join<'a>(words: impl Iterator<Item = Cow<'a, str>>, out: &mut Stri
     }
 }
 
-/// Whether a folded text (words split by single spaces) has a word starting with `prefix`.
+/// A text's words folded, long ones too, joined by spaces: what a phrase is looked for in
+/// ([`folded_has_phrase`]), made once to be looked through again.
+pub fn fold_all(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    join(all_words(text), &mut out);
+    out
+}
+
+/// Whether a text folded by [`fold_all`] has these folded words one after another, the last as
+/// a word's start: what the text itself says of them (`TextSource::phrase` of a `&str`).
+pub fn folded_has_phrase(folded: &str, phrase: &[String]) -> bool {
+    has_phrase(folded, &phrase.join(" "))
+}
+
+/// Whether a folded text (words split by single spaces) has a word starting with `prefix`. Most
+/// texts looked through don't hold it at all: a quick look for it anywhere comes first.
 pub(super) fn has_prefix(text: &str, prefix: &str) -> bool {
     !prefix.is_empty() && text.contains(prefix) && text.match_indices(prefix).any(|(i, _)| starts_word(text, i))
 }

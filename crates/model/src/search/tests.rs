@@ -547,3 +547,28 @@ fn the_parts_of_a_dotted_word_are_words() {
     assert_eq!((s("subject:word"), s("subject:xx.word"), s("\"xx.word today\"")), (Tri::Yes, Tri::Yes, Tri::Yes));
     assert_eq!(s("\"today xx\""), Tri::No, "not across the parts");
 }
+
+/// A text folded once and kept says of a phrase what the text itself says, whatever is asked:
+/// the folded form is what a search checks again without reading the text.
+#[test]
+fn a_text_folded_once_says_what_it_says() {
+    let text = "Thank you for the UPDATE, Zürich team.\nThe q3 Plan.pdf is at site.word; 東京 next 10,000 times";
+    let folded = fold_all(text);
+    for phrase in [
+        "thank you",
+        "you for the update",
+        "zurich team",
+        "team the",
+        "q3 plan",
+        "q3 pl",
+        "site.word",
+        "site word",
+        "東京 next",
+        "10,000 times",
+        "you the",
+        "updat",
+    ] {
+        let words: Vec<String> = tokens(phrase).map(|w| w.into_owned()).collect();
+        assert_eq!(folded_has_phrase(&folded, &words), text.phrase(TextField::Body, &words, phrase) == Tri::Yes, "{phrase}");
+    }
+}
