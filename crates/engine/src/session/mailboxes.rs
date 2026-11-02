@@ -81,6 +81,28 @@ impl Session {
         self.cache.get(&(account.to_string(), folder.to_string())).unwrap_or_else(|| EMPTY.get_or_init(FolderState::default))
     }
 
+    /// Have these folders' lists ready for a command acting on what they hold (moving all of it,
+    /// rules over it): one whose read marks are still being written is waited for, as asked for
+    /// and rare, not taken for empty ([`Session::folder_state`]), which moved nothing and said
+    /// so; one that can't be read now (its data file being compacted) fails the command.
+    pub(super) fn folders_ready(&mut self, folders: &[(String, String)]) -> Result<(), CmdError> {
+        for (a, f) in folders {
+            if !self.cache.contains_key(&(a.clone(), f.clone()))
+                && let Some(store) = &self.store
+                && store.marks_waiting_for(a, Some(f))
+            {
+                store.flush_marks_of(a, Some(f));
+            }
+            if let Err(e) = self.load_cached(a, f) {
+                if read_soon(&e) {
+                    return Err(CmdError::Disabled(e.to_string()));
+                }
+                log::warn!("a folder's list couldn't be read: {e}");
+            }
+        }
+        Ok(())
+    }
+
     /// Have a folder's list in the cache. One that can't be read is left out, not kept as empty:
     /// a flag changed in it then saved the empty list over the folder's mail.
     pub(super) fn load_cached(&mut self, account: &str, folder: &str) -> Result<(), mailcraft_store::StoreError> {
@@ -95,7 +117,7 @@ impl Session {
             // cache): the read would wait for their commit in the window's frame, seconds now and
             // then on a big data file. Read once they're written (`marks_kept`).
             if self.store.as_ref().is_some_and(|s| s.marks_waiting_for(account, Some(folder))) {
-                self.marks_deferred.insert(k);
+                self.marks_deferred.entry(k).or_insert(false);
                 let busy = std::io::Error::new(std::io::ErrorKind::WouldBlock, "its read marks are being saved; it's ready in a moment");
                 return Err(mailcraft_store::StoreError::Io { path: account.to_string(), source: busy });
             }
@@ -148,6 +170,38 @@ impl Session {
     pub(crate) fn set_cache_limit(&mut self, n: usize) {
         self.cache_limit = n;
         self.trim_cache(&(String::new(), String::new()));
+    }
+
+    /// A folder changed on disk ([`Event::FolderChanged`]): its list read again, and the list on
+    /// screen built again when it shows it. One whose read marks are still being written keeps its
+    /// list in memory (the list on screen, the message read and the selection with it) until
+    /// they're written: read now, it would wait for their commit, and taken for empty meanwhile,
+    /// the reading pane closed (`marks_kept` reads it then).
+    pub(super) fn folder_changed(&mut self, account: &str, folder: &str) {
+        if self.store.as_ref().is_some_and(|s| s.marks_waiting_for(account, Some(folder))) {
+            self.marks_deferred.insert((account.to_string(), folder.to_string()), true);
+            return;
+        }
+        if self.showing_more.as_ref().is_some_and(|(a, f)| a == account && f == folder) {
+            self.showing_more = None;
+        }
+        self.reload_folder(account, folder);
+        self.note_new_mail(account, folder);
+        self.want_index(account, Some(folder));
+        let visible = self.search.is_some() || self.view_folders().iter().any(|(a, f)| a == account && f == folder);
+        if visible {
+            self.refresh_list();
+        }
+        if let Some(r) = &self.reading
+            && r.key.account == account
+            && r.key.folder == folder
+        {
+            let key = r.key.clone();
+            let thread = self.thread_of(&key);
+            if let Some(r) = self.reading.as_mut() {
+                r.thread = thread;
+            }
+        }
     }
 
     pub(super) fn reload_folder(&mut self, account: &str, folder: &str) {

@@ -172,13 +172,21 @@ impl Session {
             self.refresh_list();
             return;
         }
-        let Some(i) = self.index_of(&now.key) else { return };
+        // A message the list doesn't show (a filter hid it) may be one it shows now: worked out
+        // before it's looked for there, the list built again for it.
+        if !self.view_folders().contains(&k) {
+            return;
+        }
         let (filter, arrange) = (self.filter, self.prefs.arrange);
         let shown_by = (threads && self.prefs.conversations)
             || (files && (filter == ListFilter::Attachments || arrange == Arrange::Attachments))
             || (size && arrange == Arrange::Size)
             || (importance && filter == ListFilter::Important)
             || bulk;
+        let listed = self.index_of(&now.key);
+        if listed.is_none() && !shown_by {
+            return;
+        }
         if shown_by || !self.nav_fresh() {
             self.refresh_list();
             if let Some(r) = self.reading.as_ref().filter(|r| r.key.account == k.0 && r.key.folder == k.1) {
@@ -190,7 +198,7 @@ impl Session {
             }
             return;
         }
-        if let Some(m) = self.list.get_mut(i) {
+        if let Some(m) = listed.and_then(|i| self.list.get_mut(i)) {
             now.flags.clone_from(&m.flags);
             *m = now;
         }

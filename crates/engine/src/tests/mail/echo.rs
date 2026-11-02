@@ -183,6 +183,20 @@ fn a_message_downloaded_fills_its_entry_without_reading_the_folder() {
     assert_eq!(s.list, shown, "memory as disk has it");
 }
 
+/// A message a filter hid (Has attachments) whose summary filled now shows a file: the list is
+/// built again, the message in it. It was looked for in the list first, and not being there, left
+/// out until something else built the list.
+#[test]
+fn a_message_filled_with_a_file_joins_the_attachments_filter() {
+    let (mut s, _) = server_inbox(30);
+    let key = s.row_keys()[4].clone();
+    s.run("list.filter", &json!({"value": "attachments"})).unwrap();
+    assert!(s.list.is_empty());
+    let filled = downloaded(&s, &key).unwrap();
+    s.apply(Event::Filled { summary: Box::new(filled) });
+    assert_eq!(s.list.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), vec![key]);
+}
+
 /// A summary filled that joins its message to a conversation (its references come with its
 /// source): the list is built again with conversations on, so the message shows in its thread.
 #[test]

@@ -437,8 +437,9 @@ pub struct Session {
     /// (`mailboxes/echo.rs`).
     pub(crate) echoes: mailboxes::Echoes,
     /// Folders not read from disk while their read marks were still being written (the read
-    /// would have waited for them in the window's frame): read once they're written.
-    pub(crate) marks_deferred: BTreeSet<(String, String)>,
+    /// would have waited for them in the window's frame): read once they're written. True for one
+    /// that changed on disk meanwhile (its list in memory kept until then, as on screen).
+    pub(crate) marks_deferred: BTreeMap<(String, String), bool>,
     /// Flags owed to originals, keyed by the Outbox id of the reply or forward that earns them:
     /// set when the server accepts that message. Saved to disk so a restart keeps them.
     pending_marks: BTreeMap<u64, (MessageKey, Flag)>,
@@ -575,7 +576,7 @@ impl Session {
             cache: HashMap::new(),
             cache_order: Vec::new(),
             echoes: mailboxes::Echoes::default(),
-            marks_deferred: BTreeSet::new(),
+            marks_deferred: BTreeMap::new(),
             pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,
             contacts: None,

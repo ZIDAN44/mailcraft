@@ -78,6 +78,10 @@ impl Session {
         }
         let inbox = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone());
         if let Some(inbox) = inbox.filter(|i| *i != to) {
+            // Its read marks still being written are waited for (not taken for an empty Inbox).
+            if let Err(e) = self.folders_ready(&[(account.to_string(), inbox.clone())]) {
+                log::warn!("{account}: meeting mail isn't tidied: {e}");
+            }
             let mut candidates: Vec<MessageKey> = self.folder_state(account, &inbox).messages.iter().map(|m| m.key.clone()).collect();
             candidates.sort_by_key(|a| std::cmp::Reverse(a.uid));
             candidates.truncate(MAX_LOOKED_AT);

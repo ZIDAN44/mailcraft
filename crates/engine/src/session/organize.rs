@@ -363,6 +363,8 @@ impl Session {
             return Ok(serde_json::json!({ "ignoring": false }));
         }
         // The conversations' messages, in the folders the selection is in.
+        let folders: Vec<(String, String)> = sel.iter().map(|m| (m.key.account.clone(), m.key.folder.clone())).collect();
+        self.folders_ready(&folders)?;
         let mut members: Vec<Summary> = Vec::new();
         for m in &sel {
             let folder = self.folder_state(&m.key.account, &m.key.folder).messages.clone();
@@ -478,6 +480,10 @@ impl Session {
                 .filter(|a| only_account.as_ref().is_none_or(|o| *o == a.config.id))
                 .filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone())))
                 .collect();
+            if let Err(e) = self.folders_ready(&inboxes) {
+                self.rules = saved;
+                return Err(e);
+            }
             inboxes
                 .iter()
                 .flat_map(|(a, f)| self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).cloned().collect::<Vec<_>>())
@@ -544,6 +550,7 @@ impl Session {
         for (a, _) in folders {
             self.import_holds(a)?;
         }
+        self.folders_ready(folders)?;
         for (a, f) in folders {
             // Deleted Items and Junk aren't cleaned up into Deleted Items.
             if self.folder(a, f).is_none_or(|x| matches!(x.role, FolderRole::Trash | FolderRole::Junk)) {

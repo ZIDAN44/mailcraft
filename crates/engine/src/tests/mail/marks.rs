@@ -166,6 +166,80 @@ fn the_window_never_waits_while_a_mark_is_committed() {
     done(s);
 }
 
+/// A folder said changed on disk (an import going on, a mark that couldn't be kept) while read
+/// marks of it are still being written keeps its list in memory until they're written: the list
+/// on screen, the message read and the selection stay. Read again then, with the marks. It was
+/// let go of and taken for empty meanwhile, the reading pane closed and the selection lost.
+#[test]
+fn a_folder_changed_while_its_marks_are_written_keeps_the_message_read() {
+    let store = Store::memory();
+    let mut s = big_projects(&store, 2000);
+    let first = s.row_keys()[0].to_id();
+    s.run("list.open", &json!({"key": first})).unwrap();
+    assert!(store.flush_marks());
+    let paused = store.pause_marks();
+    for _ in 0..3 {
+        s.run("list.next", &json!({})).unwrap();
+    }
+    assert!(store.marks_waiting());
+    let read = s.reading.as_ref().map(|r| r.key.clone());
+    let selection = s.selection.clone();
+    assert!(read.is_some() && !selection.is_empty());
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "Projects".into() });
+    assert_eq!(s.list.len(), 2000, "the list kept");
+    assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), read, "the message read kept");
+    assert_eq!(s.selection, selection);
+    drop(paused);
+    assert!(store.flush_marks());
+    s.tick();
+    assert!(s.marks_deferred.is_empty());
+    assert_eq!(s.list.len(), 2000, "read again once they're written");
+    assert_eq!(s.list.iter().filter(|m| m.flags.seen).count(), 4, "with the marks");
+    assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), read);
+    assert_eq!(s.selection, selection);
+    done(s);
+}
+
+/// Delete All on a folder whose read marks are still being written, let go of by the cache
+/// meanwhile, waits for them (asked for, and rare) and moves all of it: the folder isn't taken
+/// for empty, which moved nothing and said `{"moved": 0}`.
+#[test]
+fn delete_all_waits_for_a_folders_marks_being_written() {
+    let store = Store::memory();
+    let mut s = big_projects(&store, 300);
+    s.set_cache_limit(100);
+    let first = s.row_keys()[0].to_id();
+    s.run("list.open", &json!({"key": first})).unwrap();
+    assert!(store.flush_marks());
+    let (held, release) = (std::sync::mpsc::channel(), std::sync::mpsc::channel::<()>());
+    let holder = {
+        let store = store.clone();
+        let (held, release) = (held.0, release.1);
+        std::thread::spawn(move || {
+            let _paused = store.pause_marks();
+            held.send(()).unwrap();
+            let _ = release.recv_timeout(std::time::Duration::from_secs(20));
+        })
+    };
+    held.1.recv().unwrap();
+    s.run("list.next", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    assert!(!s.cache.contains_key(&("sample".to_string(), "Projects".to_string())), "let go of by the cache");
+    assert!(store.marks_waiting_for("sample", Some("Projects")));
+    // The marks written a moment after it's asked for.
+    let releaser = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        release.0.send(()).unwrap();
+    });
+    let out = s.run("folder.empty", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    assert_eq!(out["moved"], 300, "{out}");
+    releaser.join().unwrap();
+    holder.join().unwrap();
+    assert!(store.flush_marks());
+    assert!(store.load_folder("sample", "Projects").unwrap().messages.is_empty());
+    done(s);
+}
+
 /// What a Down step costs the window in a data file's folder of 10,941 unread messages, in a real
 /// data file (`cargo test -p mailcraft-engine --release down_steps_on_a_big_data_file_folder --
 /// --ignored --nocapture`): the step with its read mark handed over, and the mark written on the

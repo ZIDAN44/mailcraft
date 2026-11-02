@@ -217,17 +217,19 @@ them in `state-marks.json` beside its pages (512 at most; more go into the pages
 the whole list empties it), a small list is written whole. A local account's folders counted
 again (after a move, a draft filed) go the same way (`Store::count_later`), after the marks before
 them, and so does a folder list the window writes whole (`Store::save_folders_later`). Whatever
-reads a folder's list from disk (`folder_load`) or writes one whole first waits for the marks
-handed over before in that folder, whatever reads or writes the folder list for the account's,
-and `seal_all` for all of them, so a move files a message with its mark and closing seals it;
-nothing waits for another folder's or another account's, and the thread's own store waits on
-nothing. The window doesn't read a folder whose marks are still to be written
-(`Store::marks_waiting_for`): a search reads the other folders meanwhile and that one after, and
-`Session::load_cached` leaves it unread for now (`WouldBlock`, as while a compaction has the file
-to itself), remembered in `marks_deferred` and read by `tick` once they're written, the list built
-again if it's on screen. A wait for
-the marks, or for the lock every change of a list takes, over 50 ms is logged with the thread and
-the caller that waited. A mark that couldn't be written comes back through
+reads a folder's list from disk (`folder_load`) or writes one whole first waits for the marks handed
+over before in that folder, whatever reads or writes the folder list for the account's, and
+`seal_all` for all of them, so a move files a message with its mark and closing seals it; nothing
+waits for another folder's or another account's, and the thread's own store waits on nothing. The
+window doesn't read a folder whose marks are still to be written (`Store::marks_waiting_for`): a
+search reads the other folders meanwhile and that one after, and `Session::load_cached` leaves it
+unread for now (`WouldBlock`, as while a compaction has the file to itself), remembered in
+`marks_deferred` and read by `tick` once they're written, the list built again if it's on screen.
+One said changed on disk meanwhile (`Session::folder_changed`) keeps its list in memory, and the
+message read and the selection with it, until then; a command acting on all of a folder's mail
+(Delete All, rules run now, Clean Up) waits for its marks instead (`Session::folders_ready`). A wait
+for the marks, or for the lock every change of a list takes, over 50 ms is logged with the thread
+and the caller that waited. A mark that couldn't be written comes back through
 `Store::take_marks_failed`, and the session's `tick` says so and reads the folders again. The
 window's own settings (`ui.json`) are written on a thread of their own too
 (`apps/mailcraft/src/desktop/state_writer.rs`), as each write is flushed to the disk, and so are

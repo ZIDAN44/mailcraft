@@ -75,28 +75,7 @@ impl Session {
             }
             // The echo of a flag or category changed here: the folder in memory has it already.
             Event::FolderChanged { account, folder } if self.own_echo(&account, &folder) => {}
-            Event::FolderChanged { account, folder } => {
-                if self.showing_more.as_ref().is_some_and(|(a, f)| *a == account && *f == folder) {
-                    self.showing_more = None;
-                }
-                self.reload_folder(&account, &folder);
-                self.note_new_mail(&account, &folder);
-                self.want_index(&account, Some(&folder));
-                let visible = self.search.is_some() || self.view_folders().iter().any(|(a, f)| *a == account && *f == folder);
-                if visible {
-                    self.refresh_list();
-                }
-                if let Some(r) = &self.reading
-                    && r.key.account == account
-                    && r.key.folder == folder
-                {
-                    let key = r.key.clone();
-                    let thread = self.thread_of(&key);
-                    if let Some(r) = self.reading.as_mut() {
-                        r.thread = thread;
-                    }
-                }
-            }
+            Event::FolderChanged { account, folder } => self.folder_changed(&account, &folder),
             Event::Directory { account, query, people, error, consent } => self.apply_directory(&account, &query, &people, error, consent),
             Event::CalendarFetched { account, calendar, ics, etag, modified, unchanged, error } => {
                 let read = match (ics, error) {

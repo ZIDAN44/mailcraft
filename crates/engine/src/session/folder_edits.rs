@@ -244,19 +244,24 @@ impl Session {
             }
         }
         // Folders not read while their marks were being written: read now they're written, the
-        // list built again when it shows them.
+        // list built again when it shows them; one that changed on disk meanwhile as it would
+        // have been then.
         if self.marks_deferred.is_empty() {
             return;
         }
-        let written: Vec<(String, String)> = self.marks_deferred.iter().filter(|(a, f)| !store.marks_waiting_for(a, Some(f))).cloned().collect();
+        let written: Vec<((String, String), bool)> =
+            self.marks_deferred.iter().filter(|((a, f), _)| !store.marks_waiting_for(a, Some(f))).map(|(k, c)| (k.clone(), *c)).collect();
         if written.is_empty() {
             return;
         }
-        for k in &written {
+        for (k, _) in &written {
             self.marks_deferred.remove(k);
         }
+        for ((a, f), _) in written.iter().filter(|(_, changed)| *changed) {
+            self.folder_changed(a, f);
+        }
         let shown = self.view_folders();
-        if self.search.is_none() && written.iter().any(|k| shown.contains(k)) {
+        if self.search.is_none() && written.iter().any(|(k, changed)| !changed && shown.contains(k)) {
             self.refresh_list();
         }
     }
@@ -442,6 +447,10 @@ impl Session {
             }
             Undo::Move { account, to, back } => {
                 if let Err(e) = self.import_holds(&account) {
+                    self.undo.push(Undo::Move { account, to, back });
+                    return Err(e);
+                }
+                if let Err(e) = self.folders_ready(&[(account.clone(), to.clone())]) {
                     self.undo.push(Undo::Move { account, to, back });
                     return Err(e);
                 }

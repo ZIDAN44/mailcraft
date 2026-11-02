@@ -18,6 +18,7 @@ impl Session {
                 .and_then(|a| a.folder(FolderRole::Trash))
                 .map(|t| t.path.clone())
                 .ok_or_else(|| CmdError::Params("the account has no Deleted Items folder".into()))?;
+            self.folders_ready(&[(account.to_string(), folder.to_string())])?;
             let keys: Vec<MessageKey> = self.folder_state(account, folder).messages.iter().map(|m| m.key.clone()).collect();
             let n = keys.len();
             if n > 0 {
