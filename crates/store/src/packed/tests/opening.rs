@@ -124,6 +124,26 @@ fn a_check_says_how_far_its_pass_has_read() {
     near(&p, 0);
 }
 
+/// A frame drawn between one check ending and the next beginning shows nothing of the old check
+/// in the new one: the check said 90% when it ended, and the next showed at least that from its
+/// start (what's shown never goes back), on the command line's way of opening and, in a race, the
+/// app's.
+#[test]
+fn a_frame_between_checks_carries_nothing_over() {
+    let p = crate::OpenProgress::default();
+    p.checking("ana@studio.example.mailcraft", 0.9);
+    assert_eq!(p.permille(), 900);
+    p.checked_one();
+    assert_eq!(p.permille(), 0, "drawn as the check ended");
+    p.checking("zoe@studio.example.mailcraft", 0.0);
+    assert_eq!(p.permille(), 0);
+    p.checking("zoe@studio.example.mailcraft", 0.9);
+    p.opening("lee@studio.example.mailcraft");
+    assert_eq!(p.permille(), 0, "drawn as the next file began to open");
+    p.checking("lee@studio.example.mailcraft", 0.0);
+    assert_eq!(p.permille(), 0);
+}
+
 /// Each check is told and counted, data files opened one by one as they're needed included (the
 /// command line's way, where none is counted as opened): the first one's name stayed, and later
 /// checks went untold.
