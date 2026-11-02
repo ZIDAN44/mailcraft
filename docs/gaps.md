@@ -2146,4 +2146,16 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   import as for a pass. By the benchmark the import now peaks at 843 MB, 73 MB over the same
   import without indexing (770 MB; `MC_PEAK_MB` now fails a run over a limit), in 150 s (175 s
   before). Held to a quarter, as a pass's writer is, it peaked at 790 MB in 146 s; it isn't,
-  as fewer, bigger segments are written for the searches after.
+  as fewer, bigger segments are written for the searches after. In the app, an import closed
+  at 31% and gone on with after MailCraft opened again peaked at 1.0 GB and 1.08 GB (1.39 and
+  1.42 GB before) in 144.5 s of import time for a 37.75 GB data file, and the 20 searches after
+  it found what they found before. That is still over the 789 MB an import took before it
+  indexed as it went, three times slower: the import alone, without indexing, peaks at 770 MB
+  by the benchmark, and the window adds to it.
+- **The time left after an import goes on:** an import stopped and continued, or gone on with
+  after MailCraft was closed, said "Less than a minute left" from 36% with about 126 s left, and
+  from 56% with about 86 s. The time left goes by the rate of the run, which counted the work of
+  the runs before as done in its first second. The import now says where its run began and the
+  time the runs before took, so the rate is this run's own, and the details' time so far counts
+  every run. On the 41 GB file, gone on with from 31% after a close, it said "About 2 min" from
+  55% to 60% (67 to 58 s left) and "Less than a minute" from 64% (54 s left).
