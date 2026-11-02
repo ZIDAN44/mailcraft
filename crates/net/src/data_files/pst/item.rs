@@ -286,10 +286,11 @@ pub(super) fn message_ids(s: &str) -> Vec<String> {
     ids
 }
 
-/// An attachment's file; its 8-bit strings are in `code_page` (the message's), and `class` is the
-/// message's class. `None` when it holds a message, which the caller reads with the file's own
-/// message type, so that the message's attachments can be read in turn (see `embedded`).
-pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str) -> Option<Got> {
+/// An attachment's file; its 8-bit strings are in `code_page` (the message's), `class` is the
+/// message's class, and `top` whether the message is the item (not one attached to it). `None`
+/// when it holds a message, which the caller reads with the file's own message type, so that the
+/// message's attachments can be read in turn (see `embedded`).
+pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str, top: bool) -> Option<Got> {
     let props = a.properties();
     let p = |id: u16| props.get(id).map(|v| val(v, code_page));
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
@@ -298,7 +299,7 @@ pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str) -> Opt
     {
         return Some(photo);
     }
-    if hidden(&p, class) {
+    if hidden(&p, class, top) {
         return Some(Got::Nothing);
     }
     Some(match a.data() {
@@ -334,20 +335,21 @@ pub(super) fn photo<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, data: &
 /// not from the row's size (`0x0E20`), which counts the attachment's other properties too. A row
 /// may have no more than the file's short name (`0x3704`), and no type, which then comes from the
 /// name. An attached message the reader fails on is counted as one.
-pub(super) fn unread_attachment(e: &io::Error, table: &dyn TableContext, row: &TableRowData, code_page: u32, class: &str) -> Got {
+pub(super) fn unread_attachment(e: &io::Error, table: &dyn TableContext, row: &TableRowData, code_page: u32, class: &str, top: bool) -> Got {
     let values = row_values(table, row);
-    from_row(e, &|id| values.get(&id).map(|v| val(v, code_page)), class)
+    from_row(e, &|id| values.get(&id).map(|v| val(v, code_page)), class, top)
 }
 
-/// [`unread_attachment`] from the row's values (`p`), in a message of class `class`.
-pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> Got {
+/// [`unread_attachment`] from the row's values (`p`), in a message of class `class` (the item
+/// itself when `top`).
+pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, top: bool) -> Got {
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     // PidTagAttachMethod: 1 by value, 5 an attached message; a row may not say.
     let method = match p(0x3705) {
         Some(Val::Int(m)) => Some(m),
         _ => None,
     };
-    if hidden(p, class) {
+    if hidden(p, class, top) {
         Got::Nothing
     } else if link(p) {
         Got::Left(SkipReason::AttachmentLink)
@@ -380,14 +382,17 @@ fn kept_empty(e: &io::Error, method: Option<i64>) -> bool {
 /// A contact's hidden attachment other than its picture isn't part of what comes in, unless it
 /// has a `Content-ID`; nor is a recurring series' changed occurrence in a message, a hidden
 /// attached message (PidTagAttachmentFlags afException, or any hidden attached message of a
-/// meeting): calendar bookkeeping, not a file of the mail. An appointment's changed occurrence is
-/// read, as an attached message (its class is [`EXCEPTION`]): it is that occurrence. A message's
-/// other hidden files are: Outlook hides some files a message carries, and leaving them out lost
-/// them.
-fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> bool {
+/// meeting or an appointment): calendar bookkeeping, not a file of the mail. An appointment's
+/// changed occurrence is read when the appointment is the item (`top`), as an attached message
+/// (its class is [`EXCEPTION`]): it is that occurrence, and the item goes to the calendar (an
+/// appointment isn't mail); an appointment attached to a message keeps them hidden.
+/// A message's other hidden files are: Outlook hides some files a message carries, and leaving
+/// them out lost them.
+fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, top: bool) -> bool {
     let is = |prefix: &str| class.get(..prefix.len()).is_some_and(|c| c.eq_ignore_ascii_case(prefix));
-    let exception = !is("ipm.appointment")
-        && (matches!(p(0x7FFD), Some(Val::Int(f)) if f & 0x2 != 0) || (is("ipm.schedule.meeting") && matches!(p(0x3705), Some(Val::Int(5)))));
+    let occurrence = matches!(p(0x7FFD), Some(Val::Int(f)) if f & 0x2 != 0)
+        || ((is("ipm.schedule.meeting") || is("ipm.appointment")) && matches!(p(0x3705), Some(Val::Int(5))));
+    let exception = occurrence && !(top && is("ipm.appointment"));
     matches!(p(0x7FFE), Some(Val::Bool(true))) && p(0x3712).and_then(Val::into_text).is_none_or(|c| c.is_empty()) && (is("ipm.contact") || exception)
 }
 

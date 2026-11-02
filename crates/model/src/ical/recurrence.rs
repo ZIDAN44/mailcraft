@@ -232,18 +232,21 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
 
 /// The occurrences of `events` overlapping `[from, to)`, by start. Instances with a
 /// `RECURRENCE-ID` replace the occurrence of the same event they name; cancelled ones are left out.
-pub fn occurrences(events: &[CalEvent], from: i64, to: i64) -> Vec<Occurrence> {
+/// The events may be borrowed (`&[&CalEvent]`): one can carry files, which a calendar drawn each
+/// frame shouldn't copy.
+pub fn occurrences<E: std::borrow::Borrow<CalEvent>>(events: &[E], from: i64, to: i64) -> Vec<Occurrence> {
     let mut out = Vec::new();
+    let events = events.iter().map(E::borrow);
     // The moved or changed occurrences of each series, gathered once (not per event: a big
     // calendar would make that quadratic).
     let mut moved: std::collections::BTreeMap<&str, Vec<i64>> = std::collections::BTreeMap::new();
-    for e in events {
+    for e in events.clone() {
         if let Some(r) = e.recurrence_id {
             moved.entry(e.uid.as_str()).or_default().push(r);
         }
     }
     let none = Vec::new();
-    for (i, e) in events.iter().enumerate() {
+    for (i, e) in events.clone().enumerate() {
         if e.recurrence_id.is_some() || e.status == "CANCELLED" {
             continue;
         }
@@ -264,7 +267,7 @@ pub fn occurrences(events: &[CalEvent], from: i64, to: i64) -> Vec<Occurrence> {
             }
         }
     }
-    for (i, e) in events.iter().enumerate() {
+    for (i, e) in events.enumerate() {
         if e.recurrence_id.is_some() && e.status != "CANCELLED" && e.start < to && e.end.max(e.start.saturating_add(1)) > from {
             out.push(Occurrence { event: i, start: e.start, end: e.end });
         }

@@ -37,6 +37,9 @@ const PSETID_MEETING: GuidKey = (0x6ED8_DA90, 0x450B, 0x101B, [0x98, 0xDA, 0x00,
 const MAX_NAMES: usize = 200_000;
 /// Deleted (and changed) occurrences read at most.
 const MAX_EXCEPTIONS: usize = 5_000;
+/// A repeating appointment's pattern read at most: one with as many changed occurrences as are
+/// read, each with a long subject and location, is far less. What's past it is as if cut short.
+const MAX_PATTERN: usize = 1 << 20;
 /// A contact group's members, and an event's categories, kept at most.
 const MAX_MEMBERS: usize = 10_000;
 const MAX_CATEGORIES: usize = 64;
@@ -219,7 +222,7 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> 
     x.done = matches!(n(PSETID_TASK, 0x811C), Some(Val::Bool(true)));
     x.all_day = matches!(n(PSETID_APPOINTMENT, 0x8215), Some(Val::Bool(true)));
     if let Some(Val::Bin(b)) = n(PSETID_APPOINTMENT, 0x8216) {
-        x.recurrence = b.to_vec();
+        x.recurrence = b.get(..MAX_PATTERN).unwrap_or(b).to_vec();
     }
     if let Some(Val::Bin(b)) = n(PSETID_MEETING, 0x0003) {
         x.uid = b.iter().map(|b| format!("{b:02X}")).collect();

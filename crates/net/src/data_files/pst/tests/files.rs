@@ -27,7 +27,7 @@ fn no_file_value() -> io::Error {
 /// attached is a file only by the error a file alone gives.
 #[test]
 fn an_unreadable_attachment_comes_from_its_row() {
-    let get = |row: &HashMap<u16, Val<'static>>, e: &io::Error| from_row(e, &|id| row.get(&id).cloned(), "IPM.Note");
+    let get = |row: &HashMap<u16, Val<'static>>, e: &io::Error| from_row(e, &|id| row.get(&id).cloned(), "IPM.Note", true);
     let short = HashMap::from([(0x0E20, Val::Int(165)), (0x3704, Val::Text("NOTES~1.TXT".into())), (0x3705, Val::Int(1)), (0x370B, Val::Int(-1))]);
     let Got::File(File::Data { name, mime, cid, data }) = get(&short, &no_value()) else { panic!("the empty file is kept") };
     assert_eq!((name.as_str(), mime.as_str(), cid.as_str(), data.len()), ("NOTES~1.TXT", "text/plain", "", 0));
@@ -66,27 +66,32 @@ fn an_unreadable_attachment_comes_from_its_row() {
     hidden.insert(0x7FFE, Val::Bool(true));
     assert!(matches!(get(&hidden, &no_value()), Got::File(File::Data { ref name, .. }) if name == "NOTES~1.TXT"), "a message's hidden file");
     for class in ["IPM.Contact", "ipm.contact.Custom"] {
-        assert!(matches!(from_row(&no_value(), &|id| hidden.get(&id).cloned(), class), Got::Nothing), "{class}");
+        assert!(matches!(from_row(&no_value(), &|id| hidden.get(&id).cloned(), class, true), Got::Nothing), "{class}");
     }
     let mut shown = hidden.clone();
     shown.insert(0x3712, Val::Text("me@studio.example".into()));
-    assert!(matches!(from_row(&no_value(), &|id| shown.get(&id).cloned(), "IPM.Contact"), Got::File(_)), "one with a Content-ID");
+    assert!(matches!(from_row(&no_value(), &|id| shown.get(&id).cloned(), "IPM.Contact", true), Got::File(_)), "one with a Content-ID");
     // A recurring series' changed occurrence: a hidden attached message, marked afException or
-    // in a meeting, is left out; a message's hidden attached message isn't, nor an appointment's
-    // (it is that occurrence, read as a message).
+    // in a meeting or an appointment, is left out; a message's hidden attached message isn't, nor
+    // the item's own when it is an appointment (it is that occurrence, read as a message, and the
+    // appointment goes to the calendar). An appointment attached to a message keeps them hidden.
     let mut occurrence = hidden.clone();
     occurrence.insert(0x3705, Val::Int(5));
-    let in_class = |row: &HashMap<u16, Val<'static>>, class: &str| from_row(&no_value(), &|id| row.get(&id).cloned(), class);
-    assert!(matches!(in_class(&occurrence, "IPM.Schedule.Meeting.Request"), Got::Nothing));
-    for class in ["IPM.Note", "IPM.Appointment"] {
-        assert!(matches!(in_class(&occurrence, class), Got::Left(SkipReason::AttachedMessageUnreadable)), "{class}");
+    let in_class = |row: &HashMap<u16, Val<'static>>, class: &str, top: bool| from_row(&no_value(), &|id| row.get(&id).cloned(), class, top);
+    let read = |got: Got| matches!(got, Got::Left(SkipReason::AttachedMessageUnreadable));
+    for top in [true, false] {
+        assert!(matches!(in_class(&occurrence, "IPM.Schedule.Meeting.Request", top), Got::Nothing));
+        assert!(read(in_class(&occurrence, "IPM.Note", top)));
+        assert_eq!(read(in_class(&occurrence, "IPM.Appointment", top)), top, "an appointment's, top {top}");
     }
     occurrence.insert(0x7FFD, Val::Int(0x2));
-    assert!(matches!(in_class(&occurrence, "IPM.Note"), Got::Nothing), "afException");
-    assert!(matches!(in_class(&occurrence, "IPM.Appointment"), Got::Left(SkipReason::AttachedMessageUnreadable)), "an appointment's");
+    for top in [true, false] {
+        assert!(matches!(in_class(&occurrence, "IPM.Note", top), Got::Nothing), "afException");
+        assert_eq!(read(in_class(&occurrence, "IPM.Appointment", top)), top, "an appointment's, top {top}");
+    }
     let mut flagged = hidden.clone();
     flagged.insert(0x7FFD, Val::Int(0x1));
-    assert!(matches!(in_class(&flagged, "IPM.Schedule.Meeting.Request"), Got::File(_)), "a meeting's hidden file");
+    assert!(matches!(in_class(&flagged, "IPM.Schedule.Meeting.Request", true), Got::File(_)), "a meeting's hidden file");
     for method in [2, 4, 7] {
         let mut link = short.clone();
         link.insert(0x3705, Val::Int(method));

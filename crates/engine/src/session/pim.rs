@@ -252,8 +252,9 @@ impl Session {
         for (account, p) in &self.pim {
             let Some(acc) = self.account(account) else { continue };
             for cal in p.calendars.iter().filter(|c| self.calendar_shown(account, &c.id)) {
-                let stored: Vec<&StoredEvent> = p.events.iter().filter(|e| e.calendar == cal.id).collect();
-                let events: Vec<CalEvent> = stored.iter().map(|e| e.event.clone()).collect();
+                // Borrowed, not copied: this runs each frame the calendar is drawn, and an
+                // imported event can carry files.
+                let events: Vec<&CalEvent> = p.events.iter().filter(|e| e.calendar == cal.id).map(|e| &e.event).collect();
                 // All-day events are dates, not times: widen the window by a day each way.
                 for o in ical::occurrences(&events, from.saturating_sub(86_400), to.saturating_add(86_400)) {
                     let Some(e) = events.get(o.event) else { continue };
@@ -312,8 +313,8 @@ impl Session {
                 if with.is_empty() {
                     continue;
                 }
-                let events: Vec<CalEvent> =
-                    p.events.iter().filter(|e| e.calendar == cal.id && with.contains(e.event.uid.as_str())).map(|e| e.event.clone()).collect();
+                let events: Vec<&CalEvent> =
+                    p.events.iter().filter(|e| e.calendar == cal.id && with.contains(e.event.uid.as_str())).map(|e| &e.event).collect();
                 for o in ical::occurrences(&events, now - REMINDER_KEPT_AFTER_END - 86_400, now + ahead + 86_400) {
                     let Some(e) = events.get(o.event) else { continue };
                     let Some(minutes) = ical::reminder_minutes(e) else { continue };

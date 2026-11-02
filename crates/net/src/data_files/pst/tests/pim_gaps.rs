@@ -170,8 +170,9 @@ fn data(name: &str, mime: &str, n: usize) -> File {
 
 /// A repeating appointment comes in with its changed occurrences, each an event replacing its
 /// occurrence with its own text and files, and the series' files on the series; it counts as one
-/// calendar item. A contact comes in with its picture and its files; a file past what the
-/// contacts and calendar keep is counted as too big.
+/// calendar item, and an exception item that is no occurrence (it says no time) is counted. A
+/// contact comes in with its picture and its files; a file past what the contacts and calendar
+/// keep is counted as too big.
 #[test]
 fn changed_occurrences_and_files_come_in() {
     let s = Scratch::new("pim-files");
@@ -180,11 +181,17 @@ fn changed_occurrences_and_files_come_in() {
     let at = |d: u32, h: i64| mailcraft_model::dates::days_from_civil(2026, 10, d) * 86_400 + h * 3600;
     let (pattern, start) = crate::pst_pim::tests::series(0x3009);
     let own = exception(at(19, 8), at(19, 8), "Bring the proofs.", vec![data("proofs.pdf", "application/pdf", 4)]);
+    let timeless = File::Message(Box::new(Item {
+        class: "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}".into(),
+        files: vec![data("lost.pdf", "application/pdf", 1)],
+        extra: Some(Extra { replaces: Some(at(26, 7)), ..Default::default() }),
+        ..Default::default()
+    }));
     out.add_pim(Item {
         class: "IPM.Appointment".into(),
         subject: "Review".into(),
         body: "Weekly.".into(),
-        files: vec![data("agenda.pdf", "application/pdf", 3), own],
+        files: vec![data("agenda.pdf", "application/pdf", 3), own, timeless],
         extra: Some(Extra { start: Some(start), end: Some(start + 3600), recurrence: pattern, ..Default::default() }),
         ..Default::default()
     });
@@ -197,7 +204,8 @@ fn changed_occurrences_and_files_come_in() {
     });
     let done = out.finish();
     assert_eq!((done.events, done.contacts), (1, 1));
-    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentTooBig, 1)]);
+    assert_eq!(done.skipped, 0);
+    assert_eq!(done.skips, [(SkipReason::AttachmentTooBig, 1), (SkipReason::ItemNotUsable, 1)].into_iter().collect());
     let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
     let files_of = |extra: &[String]| -> Vec<String> {
         extra.iter().filter(|l| crate::pst_pim::is_file_line(l)).map(|l| l.split(':').next().unwrap_or_default().to_string()).collect()
@@ -233,4 +241,45 @@ fn a_contact_s_picture() {
     assert!(matches!(photo(&flagged, "IPM.Contact", b"png"), Some(Got::Photo(ref mime, ref data)) if mime == "image/png" && data == b"png"));
     assert!(photo(&flagged, "IPM.Note", b"png").is_none(), "a message's file");
     assert!(photo(&|_| None, "IPM.Contact", b"png").is_none(), "a contact's other file");
+}
+
+/// The files kept on cards and events stay within what MailCraft reads back: the contacts and
+/// calendar exported as one `.vcf` and one `.ics` (as `pst_export` writes them) read back whole,
+/// every card and event with every file that was kept; those past the cap are counted.
+#[test]
+fn kept_files_read_back_from_the_exported_files() {
+    let s = Scratch::new("pim-files-back");
+    let mut progress = |_| {};
+    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    // Pictures and files of 700,000 bytes: about 0.93 MB each in base64.
+    for i in 0..6 {
+        out.add_pim(Item {
+            class: "IPM.Contact".into(),
+            photo: Some(("image/jpeg".into(), vec![0xFF; 700_000])),
+            extra: Some(Extra { given: format!("Person {i}"), ..Default::default() }),
+            ..Default::default()
+        });
+        let start = 1_790_000_000 + i * 86_400;
+        out.add_pim(Item {
+            class: "IPM.Appointment".into(),
+            subject: format!("Review {i}"),
+            files: vec![data("proofs.pdf", "application/pdf", 700_000)],
+            extra: Some(Extra { start: Some(start), end: Some(start + 3600), ..Default::default() }),
+            ..Default::default()
+        });
+    }
+    let done = out.finish();
+    assert_eq!((done.contacts, done.events), (6, 6));
+    let lost = done.skips.get(&SkipReason::AttachmentTooBig).copied().unwrap_or(0);
+    assert_eq!(lost, 12 - 8, "eight fit in what's kept");
+    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let vcf: String = pim.cards.iter().map(|c| mailcraft_model::vcard::write(&c.card)).collect();
+    let ics = mailcraft_model::ical::write(&pim.events.iter().map(|e| e.event.clone()).collect::<Vec<_>>(), None, 0);
+    assert!(vcf.len() > 1 << 20 && ics.len() > 1 << 20, "past the old limits: {} {}", vcf.len(), ics.len());
+    let cards = mailcraft_model::vcard::parse(&vcf);
+    let events = mailcraft_model::ical::parse(&ics, 0).events;
+    assert_eq!((cards.len(), events.len()), (6, 6));
+    let files = |extra: &[String]| extra.iter().filter(|l| crate::pst_pim::is_file_line(l)).count();
+    let kept = cards.iter().map(|c| files(&c.extra)).sum::<usize>() + events.iter().map(|e| files(&e.extra)).sum::<usize>();
+    assert_eq!(kept, 8);
 }

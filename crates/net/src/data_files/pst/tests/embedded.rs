@@ -6,19 +6,21 @@
 use std::cell::Cell;
 
 use super::super::embedded::{Holder, MAX_NODES, Part, Walk, item_in, item_with_files};
-use super::super::item::{File, Got, Item, item_of};
+use super::super::item::{File, Got, Item, from_row, item_of};
 use super::*;
 
 /// One of a made-up message's attachments: a file of so many bytes, or the message at that
-/// place in the layout.
+/// place in the layout, shown or hidden (as a repeating appointment's changed occurrence is).
 #[derive(Clone, Copy)]
 enum Fake {
     File(usize),
     Message(usize),
+    Hidden(usize),
 }
 
-/// A made-up message: its subject, its search key, its attachments and the bytes of its body.
+/// A made-up message: its class, subject, search key, attachments and the bytes of its body.
 struct Node {
+    class: &'static str,
     subject: &'static str,
     key: Option<&'static [u8]>,
     parts: Vec<Fake>,
@@ -34,7 +36,7 @@ struct At<'a> {
 }
 
 impl Holder for At<'_> {
-    fn attachments(&self, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
+    fn attachments(&self, top: bool, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
         for part in &self.layout[self.at].parts {
             let read = || {
                 self.reads.set(self.reads.get() + 1);
@@ -45,6 +47,19 @@ impl Holder for At<'_> {
                         Part::Got(Got::File(file))
                     }
                     Fake::Message(at) => Part::Message(At { at, ..*self }),
+                    // Whether a hidden attached message is left out is the file's rule, from its
+                    // row (a hidden attachment holding a message), as for one the reader fails on.
+                    Fake::Hidden(at) => {
+                        let row = |id: u16| match id {
+                            0x3705 => Some(Val::Int(5)),
+                            0x7FFE => Some(Val::Bool(true)),
+                            _ => None,
+                        };
+                        match from_row(&io::Error::other("unread"), &row, self.layout[self.at].class, top) {
+                            Got::Nothing => Part::Got(Got::Nothing),
+                            _ => Part::Message(At { at, ..*self }),
+                        }
+                    }
                 }
             };
             if !each(&read) {
@@ -56,9 +71,9 @@ impl Holder for At<'_> {
     /// Through the properties' seam, as the file's are read.
     fn item(&self, files: Vec<File>) -> Item {
         let none: [fn(u16) -> Option<Val<'static>>; 0] = [];
-        let Node { subject, body, .. } = self.layout[self.at];
+        let Node { class, subject, body, .. } = self.layout[self.at];
         let props = |id: u16| match id {
-            0x001A => Some(Val::Text("IPM.Note".into())),
+            0x001A => Some(Val::Text(class.into())),
             0x0037 => Some(Val::Text(subject.into())),
             0x1000 if body > 0 => Some(Val::Text("x".repeat(body).into())),
             _ => None,
@@ -72,7 +87,7 @@ impl Holder for At<'_> {
 }
 
 fn node(subject: &'static str, key: Option<&'static [u8]>, parts: Vec<Fake>) -> Node {
-    Node { subject, key, parts, body: 0 }
+    Node { class: "IPM.Note", subject, key, parts, body: 0 }
 }
 
 /// An item's subject and its files, an attached message's as its own: `A[f3, B[f1]]`.
@@ -188,4 +203,22 @@ fn attached_messages_text_counts_toward_the_item_s_limit() {
     let (shape, left, _) = read(&layout, &mut Walk::with_room(300));
     assert_eq!(shape, "A[B[f10], B[f10], C[f50]]");
     assert_eq!(left, [(SkipReason::AttachmentTooBig, 8)]);
+}
+
+/// A repeating appointment's changed occurrences (hidden attached messages) come in with it when
+/// it is the item, which goes to the calendar; an appointment attached to a mail keeps them
+/// hidden, so the mail doesn't gain them as files. A mail's own hidden attached message comes in.
+#[test]
+fn an_attached_appointment_keeps_its_changed_occurrences_hidden() {
+    use Fake::{File as F, Hidden as H, Message as M};
+    let series = Node { class: "IPM.Appointment", ..node("Series", Some(b"s"), vec![F(2), H(1)]) };
+    let changed = Node { class: "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}", ..node("Changed", Some(b"c"), vec![F(1)]) };
+    let appointment = [series, changed];
+    assert_eq!(read(&appointment, &mut Walk::new()).0, "Series[f2, Changed[f1]]", "the item's own");
+    let series = Node { class: "IPM.Appointment", ..node("Series", Some(b"s"), vec![F(2), H(2)]) };
+    let changed = Node { class: "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}", ..node("Changed", Some(b"c"), vec![F(1)]) };
+    let mail = [node("Mail", Some(b"m"), vec![F(3), M(1), H(3)]), series, changed, node("Kept", Some(b"k"), vec![])];
+    let (shape, left, _) = read(&mail, &mut Walk::new());
+    assert_eq!(shape, "Mail[f3, Series[f2], Kept[]]");
+    assert!(left.is_empty(), "{left:?}");
 }

@@ -462,7 +462,7 @@ macro_rules! lane {
         }
 
         impl Holder for Held<'_, $message> {
-            fn attachments(&self, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
+            fn attachments(&self, top: bool, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
                 let cp = message_code_page(&*self.m);
                 // Which hidden files are left out depends on what the item is.
                 let class = message_class(&*self.m, cp);
@@ -472,14 +472,14 @@ macro_rules! lane {
                         let node = NodeId::from(u32::from(row.id()));
                         // The row itself is read only for an attachment the reader fails on.
                         match <$attachment>::read(self.m.clone(), node, None) {
-                            Ok(a) => match attachment(&*a, cp, &class) {
+                            Ok(a) => match attachment(&*a, cp, &class, top) {
                                 Some(got) => Part::Got(got),
                                 None => match a.embedded_message() {
                                     Some(m) => Part::Message(Held { m, named: self.named }),
                                     None => Part::Got(item::Got::Left(SkipReason::AttachedMessageUnreadable)),
                                 },
                             },
-                            Err(e) => Part::Got(unread_attachment(&e, &**table, row, cp, &class)),
+                            Err(e) => Part::Got(unread_attachment(&e, &**table, row, cp, &class, top)),
                         }
                     };
                     if !each(&read) {

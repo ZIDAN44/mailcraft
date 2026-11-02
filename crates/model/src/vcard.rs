@@ -5,8 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 
-/// The longest input read.
-const MAX_INPUT: usize = 1 << 20;
+/// The longest input read: as much as a file opened is (an address book exported with its pictures and files reads
+/// back whole).
+const MAX_INPUT: usize = 16 << 20;
 
 /// A typed value (an address or number with its kind: `work`, `home`, `cell`…).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -237,7 +238,12 @@ fn western(b: u8) -> char {
 
 /// Read every card in a text (one `.vcf` can hold many).
 pub fn parse(text: &str) -> Vec<Card> {
-    let text = text.get(..MAX_INPUT).unwrap_or(text);
+    // At a character's start (a cut inside one would read the whole text).
+    let mut end = MAX_INPUT.min(text.len());
+    while !text.is_char_boundary(end) {
+        end = end.saturating_sub(1);
+    }
+    let text = text.get(..end).unwrap_or_default();
     let mut unfolded: Vec<String> = Vec::new();
     for l in text.split('\n') {
         let l = l.strip_suffix('\r').unwrap_or(l);
@@ -481,6 +487,21 @@ TITLE:Price=5 not encoded\r\nEND:VCARD\r\n";
         // Broken escapes stay as written.
         assert_eq!(quoted_printable("a=Zb=4", String::new()), "a=Zb=4");
         assert_eq!(quoted_printable("=FF=FE", String::new()), "ÿþ");
+    }
+
+    /// An address book is read to its first 16 MiB, cut at a character's start: a cut that falls
+    /// inside one doesn't read the whole text (the card past the cut isn't read).
+    #[test]
+    fn read_to_the_limit_at_a_character_s_start() {
+        let mut text = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ann\r\nEND:VCARD\r\nX-PAD:".to_string();
+        if (MAX_INPUT - text.len()).is_multiple_of(2) {
+            text.push('x');
+        }
+        text.push_str(&"ü".repeat((MAX_INPUT - text.len()) / 2 + 1));
+        assert!(!text.is_char_boundary(MAX_INPUT), "the limit falls inside a character");
+        text.push_str("\r\nBEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ben\r\nEND:VCARD\r\n");
+        let names: Vec<String> = parse(&text).into_iter().map(|c| c.name).collect();
+        assert_eq!(names, ["Ann"]);
     }
 
     #[test]

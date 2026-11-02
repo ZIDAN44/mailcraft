@@ -387,7 +387,9 @@ fn a_pattern_s_changed_occurrences() {
 
 /// A changed occurrence becomes an event of its own that replaces its occurrence: what it
 /// changed from the pattern, its exact times, text and guests from its own item (matched by the
-/// occurrence it replaces), and the rest the series'.
+/// occurrence it replaces), and the rest the series'. An item no ExceptionInfo matches (a pattern
+/// cut short) replaces the occurrence it names all the same; one with no time, or naming an
+/// occurrence already replaced, is none.
 #[test]
 fn changed_occurrences_become_events() {
     let at = |d: u32, h: i64| days_from_civil(2026, 10, d) * 86_400 + h * 3600;
@@ -407,10 +409,17 @@ fn changed_occurrences_become_events() {
     // The quiet one's item, which says the hour exactly (summer time ended: 08:00Z).
     let quiet = Extra { start: Some(at(19, 8)), end: Some(at(19, 9)), replaces: Some(at(19, 8)), ..Default::default() };
     let ben = [EmailAddress::new("Ben", "ben@studio.example")];
-    let stray = Extra { start: Some(at(26, 7)), replaces: Some(at(26, 7)), ..Default::default() };
-    let own = [Own { x: &stray, body: "Not this one.", people: &[] }, Own { x: &quiet, body: "Bring the proofs.", people: &ben }];
+    let stray = Extra { start: Some(at(26, 9)), end: Some(at(26, 10)), replaces: Some(at(26, 7)), location: "Hall".into(), ..Default::default() };
+    let timeless = Extra { replaces: Some(at(28, 7)), ..Default::default() };
+    let again = Extra { start: Some(at(19, 10)), replaces: Some(at(19, 9)), ..Default::default() };
+    let own = [
+        Own { x: &stray, body: "Not this one.", people: &[] },
+        Own { x: &quiet, body: "Bring the proofs.", people: &ben },
+        Own { x: &timeless, body: "", people: &[] },
+        Own { x: &again, body: "", people: &[] },
+    ];
     let changed = changed_events(&x, "Review", "Weekly.", &organizer, &guests, "u", &own);
-    assert_eq!(changed.len(), 2);
+    assert_eq!(changed.len(), 3);
     let (moved, none) = &changed[0];
     assert_eq!(*none, None);
     assert_eq!((moved.uid.as_str(), moved.recurrence_id, moved.start, moved.end), ("0400AB", Some(at(12, 7)), at(13, 8), at(13, 9)));
@@ -423,13 +432,32 @@ fn changed_occurrences_become_events() {
     assert_eq!((quiet.summary.as_str(), quiet.location.as_str(), quiet.description.as_str()), ("Review", "Room 1", "Bring the proofs."));
     assert_eq!((ical::show_as(quiet), ical::reminder_minutes(quiet)), (ShowAs::Free, None));
     assert_eq!(quiet.attendees.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["ben@studio.example"]);
+    let (stray, found) = &changed[2];
+    assert_eq!(*found, Some(0));
+    assert_eq!((stray.recurrence_id, stray.start, stray.end), (Some(at(26, 7)), at(26, 9), at(26, 10)));
+    assert_eq!((stray.summary.as_str(), stray.location.as_str(), stray.description.as_str()), ("Review", "Hall", "Not this one."));
+    assert_eq!(stray.attendees.len(), 1, "the series' guests");
     // In the calendar, each replaces its occurrence; the deleted one is gone.
-    let events = [master, moved.clone(), quiet.clone()];
-    let shown: Vec<i64> = ical::occurrences(&events, at(5, 0), at(22, 0)).iter().map(|o| o.start).collect();
-    assert_eq!(shown, [at(5, 7), at(13, 8), at(14, 7), at(19, 8), at(21, 7)]);
+    let events = [master, moved.clone(), quiet.clone(), stray.clone()];
+    let shown: Vec<i64> = ical::occurrences(&events, at(5, 0), at(27, 0)).iter().map(|o| o.start).collect();
+    assert_eq!(shown, [at(5, 7), at(13, 8), at(14, 7), at(19, 8), at(21, 7), at(26, 9)]);
     // No pattern, or no start: none.
     assert!(changed_events(&Extra { recurrence: Vec::new(), ..x.clone() }, "", "", &organizer, &[], "u", &own).is_empty());
     assert!(changed_events(&Extra { start: None, ..x }, "", "", &organizer, &[], "u", &own).is_empty());
+}
+
+/// A pattern is read up to its cap: one padded far past what its changed occurrences take reads
+/// as they are, and what's past the cap isn't kept.
+#[test]
+fn a_huge_pattern_is_read_to_its_cap() {
+    let (mut b, start) = series(0x3009);
+    b.resize(MAX_PATTERN * 2, 0xAB);
+    let named = Named { ids: HashMap::from([((PSETID_APPOINTMENT, 0x8216), 0x8001)]), keywords: None };
+    let props = HashMap::from([(0x8001, Val::Bin(&b))]);
+    let x = Extra { start: Some(start), end: Some(start + 3600), ..extract(&|id| props.get(&id).cloned(), &named) };
+    assert_eq!(x.recurrence.len(), MAX_PATTERN);
+    let changed = changed_events(&x, "Review", "", &EmailAddress::default(), &[], "u", &[]);
+    assert_eq!(changed.len(), 2);
 }
 
 /// A request for a repeating meeting carries its changed occurrences, which an answer doesn't.

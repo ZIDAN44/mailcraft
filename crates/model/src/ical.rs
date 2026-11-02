@@ -41,8 +41,9 @@ use zones::*;
 const MAX_OCCURRENCES: usize = 2000;
 /// The most rule iterations tried (rules that rarely match).
 const MAX_STEPS: usize = 50_000;
-/// The longest input read.
-const MAX_INPUT: usize = 4 << 20;
+/// The longest input read: as much as a file opened is (a calendar exported with its events' files reads
+/// back whole).
+const MAX_INPUT: usize = 16 << 20;
 
 /// Someone taking part in an event.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -191,7 +192,12 @@ impl Line {
 
 /// Unfold (RFC 5545 §3.1) and split into content lines.
 fn lines(text: &str) -> Vec<Line> {
-    let text = text.get(..MAX_INPUT).unwrap_or(text);
+    // At a character's start (a cut inside one would read the whole text).
+    let mut end = MAX_INPUT.min(text.len());
+    while !text.is_char_boundary(end) {
+        end = end.saturating_sub(1);
+    }
+    let text = text.get(..end).unwrap_or_default();
     let mut unfolded: Vec<String> = Vec::new();
     for l in text.split('\n') {
         let l = l.strip_suffix('\r').unwrap_or(l);

@@ -24,8 +24,9 @@ pub(super) enum Part<M> {
 /// kind of file), or one a test makes up.
 pub(super) trait Holder: Sized {
     /// Hands `each` a reader of each attachment in turn, until it says to stop: an attachment is
-    /// read only when its reader is called.
-    fn attachments(&self, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool);
+    /// read only when its reader is called. `top`: the message is the item, not one attached to
+    /// it (which hidden files are left out depends on it).
+    fn attachments(&self, top: bool, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool);
     /// The message as an item, with these files.
     fn item(&self, files: Vec<File>) -> Item;
     /// What tells this message from the ones holding it (its search key, `PidTagSearchKey`).
@@ -75,7 +76,7 @@ pub(super) fn item_in<M: Holder>(m: &M, walk: &mut Walk) -> Item {
 /// The files of `m`, a message `nesting` attached messages down from the item.
 fn files_of<M: Holder>(m: &M, nesting: usize, walk: &mut Walk) -> Files {
     let mut files = Files::default();
-    m.attachments(&mut |read| {
+    m.attachments(nesting == 0, &mut |read| {
         if nesting > 0 {
             if walk.nodes >= MAX_NODES {
                 log::info!("an attached message's files past the first {MAX_NODES} were left out");

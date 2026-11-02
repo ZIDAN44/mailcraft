@@ -410,3 +410,19 @@ fn scheduling_is_said_to_the_server_only() {
     let f = parse(failed, 0).events.remove(0);
     assert!(!f.client_scheduled && !f.server_delivered);
 }
+
+/// A calendar is read to its first 16 MiB, cut at a character's start: a cut that falls inside
+/// one doesn't read the whole text (the event past the cut isn't read).
+#[test]
+fn a_calendar_is_read_to_its_limit_at_a_character_s_start() {
+    let first = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261102T090000Z\r\nEND:VEVENT\r\nX-PAD:";
+    let mut text = first.to_string();
+    if (MAX_INPUT - text.len()).is_multiple_of(2) {
+        text.push('x');
+    }
+    text.push_str(&"ü".repeat((MAX_INPUT - text.len()) / 2 + 1));
+    assert!(!text.is_char_boundary(MAX_INPUT), "the limit falls inside a character");
+    text.push_str("\r\nBEGIN:VEVENT\r\nUID:b\r\nDTSTART:20261103T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+    let uids: Vec<String> = parse(&text, 0).events.into_iter().map(|e| e.uid).collect();
+    assert_eq!(uids, ["a"]);
+}

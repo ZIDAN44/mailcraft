@@ -293,6 +293,10 @@ pub(crate) struct Own<'a> {
 /// the rest), each an event of its own with the series' `uid` (as [`event_of`] gives it) and the
 /// occurrence it replaces; with each, which of `own` (the appointment's exception items) is its
 /// item, matched by the occurrence it replaces. What an occurrence didn't change is the series'.
+/// An item no ExceptionInfo matches (its pattern cut short or damaged, or past [`MAX_CHANGED`])
+/// is a changed occurrence all the same, replacing the occurrence it says it does; one that says
+/// no time, or replaces an occurrence another already does (within [`MATCH_WITHIN`]), isn't
+/// among them.
 pub(crate) fn changed_events(
     x: &Extra,
     subject: &str,
@@ -306,6 +310,10 @@ pub(crate) fn changed_events(
     let Some(p) = pattern(&x.recurrence, start) else { return Vec::new() };
     let mut taken = vec![false; own.len()];
     let mut out = Vec::new();
+    // What each occurrence starts from: the series without its pattern (which may be big, and
+    // was read already), copied once per occurrence.
+    let base = Extra { recurrence: Vec::new(), members: Vec::new(), ..x.clone() };
+    let day = |t: i64| t.saturating_add(43_200).div_euclid(86_400) * 86_400;
     for c in p.changed {
         // Its item: the one whose occurrence (or, when it doesn't say, start) is nearest.
         let near = |o: &Own<'_>| {
@@ -322,8 +330,7 @@ pub(crate) fn changed_events(
             *t = true;
         }
         let item = found.and_then(|i| own.get(i));
-        let mut one = x.clone();
-        one.recurrence = Vec::new();
+        let mut one = base.clone();
         // Its own item has its times exactly (in UTC); the pattern's are at the series' offset.
         (one.start, one.end) = match item.and_then(|o| Some((o.x.start?, o.x.end.unwrap_or(o.x.start?)))) {
             Some((s, e)) => (Some(s), Some(e.max(s))),
@@ -347,9 +354,34 @@ pub(crate) fn changed_events(
         };
         let guests = item.map(|o| o.people).filter(|p| !p.is_empty()).unwrap_or(people);
         let Some(mut e) = event_of(&one, summary, text, from, guests, uid.to_string()) else { continue };
-        let day = |t: i64| t.saturating_add(43_200).div_euclid(86_400) * 86_400;
         e.recurrence_id = Some(if x.all_day { day(c.original) } else { c.original });
         out.push((e, found));
+    }
+    // The items left: each with its own times, place, text and guests, the rest the series'.
+    let mut replaced: std::collections::BTreeSet<i64> = out.iter().filter_map(|(e, _)| e.recurrence_id).collect();
+    for (i, o) in own.iter().enumerate() {
+        if taken.get(i).copied().unwrap_or(true) {
+            continue;
+        }
+        let Some(s) = o.x.start else { continue };
+        let original = o.x.replaces.unwrap_or(s);
+        let original = if x.all_day { day(original) } else { original };
+        // One near an occurrence already replaced is another copy of it (its time may be an
+        // hour off the pattern's, as a match may be).
+        if replaced.range(original.saturating_sub(MATCH_WITHIN)..=original.saturating_add(MATCH_WITHIN)).next().is_some() {
+            continue;
+        }
+        replaced.insert(original);
+        let mut one = base.clone();
+        (one.start, one.end) = (Some(s), Some(o.x.end.unwrap_or(s).max(s)));
+        if !o.x.location.is_empty() {
+            one.location = o.x.location.clone();
+        }
+        let text = if o.body.trim().is_empty() { body } else { o.body };
+        let guests = Some(o.people).filter(|p| !p.is_empty()).unwrap_or(people);
+        let Some(mut e) = event_of(&one, subject, text, from, guests, uid.to_string()) else { continue };
+        e.recurrence_id = Some(original);
+        out.push((e, Some(i)));
     }
     out
 }
