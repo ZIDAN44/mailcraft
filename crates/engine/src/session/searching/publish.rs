@@ -36,7 +36,7 @@ fn date_order(a: &Summary, b: &Summary, reverse: bool) -> Ordering {
 impl Session {
     /// What the run found, as the folders hold it now (a folder let go of meanwhile: as the list
     /// shows it), with what the servers found for the same query, newest first.
-    pub(crate) fn search_list(&mut self, run: &SearchRun) -> Vec<Summary> {
+    pub(crate) fn search_list(&mut self, run: &SearchRun) -> Vec<SharedSummary> {
         let mut by_folder: HashMap<(&str, &str), HashSet<u32>> = HashMap::new();
         for k in &run.found {
             by_folder.entry((k.account.as_str(), k.folder.as_str())).or_default().insert(k.uid);
@@ -44,11 +44,11 @@ impl Session {
         let mut found = Vec::with_capacity(run.found.len());
         for ((a, f), uids) in by_folder {
             match self.cache.get(&(a.to_string(), f.to_string())) {
-                Some(st) => found.extend(st.messages.iter().filter(|m| uids.contains(&m.key.uid) && !m.flags.deleted).map(|m| Summary::clone(m))),
+                Some(st) => found.extend(st.messages.iter().filter(|m| uids.contains(&m.key.uid) && !m.flags.deleted).cloned()),
                 None => found.extend(self.list.iter().filter(|m| m.key.account == a && m.key.folder == f && uids.contains(&m.key.uid)).cloned()),
             }
         }
-        found.extend(self.server_found(run));
+        found.extend(self.server_found(run).into_iter().map(SharedSummary::new));
         // A Search Folder leaves out Deleted Items and Junk, as Outlook's.
         if self.open_search_folder_name().is_some() {
             found.retain(|m| self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk)));
@@ -91,7 +91,7 @@ impl Session {
         let filter = self.filter;
         let reverse = self.prefs.reverse_sort;
         let gone = std::mem::take(&mut run.gone);
-        let mut fresh: Vec<Summary> =
+        let mut fresh: Vec<SharedSummary> =
             std::mem::take(&mut run.fresh).into_iter().filter(|m| self.filter_keeps(filter, m) && !self.listed(&m.key)).collect();
         if self.open_search_folder_name().is_some() {
             fresh.retain(|m| self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk)));
@@ -170,7 +170,7 @@ impl Session {
                 let text = SummaryText::for_query(m, &run.query);
                 let awaiting = run.awaited().is_some_and(|a| a.contains(&m.key));
                 let v = if m.flags.deleted { Verdict::No } else { classify(&run.query, m, &text, awaiting, index, run.known.get(&m.key)) };
-                verdicts.push((Summary::clone(m), v, awaiting));
+                verdicts.push((SharedSummary::clone(m), v, awaiting));
             }
             for (m, v, awaiting) in verdicts {
                 let (was, key) = (run.found.contains(&m.key), m.key.clone());
@@ -194,10 +194,10 @@ impl Session {
                     folders.insert((m.key.account.clone(), m.key.folder.clone()));
                 }
             }
-            let mut now: Vec<(usize, Summary)> = Vec::new();
+            let mut now: Vec<(usize, SharedSummary)> = Vec::new();
             for k in &folders {
                 let Some(st) = self.cache.get(k) else { continue };
-                now.extend(st.messages.iter().filter_map(|m| at.get(&m.key).map(|i| (*i, Summary::clone(m)))));
+                now.extend(st.messages.iter().filter_map(|m| at.get(&m.key).map(|i| (*i, SharedSummary::clone(m)))));
             }
             for (i, m) in now {
                 if let Some(slot) = run.fresh.get_mut(i) {

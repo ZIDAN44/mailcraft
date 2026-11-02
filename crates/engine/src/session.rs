@@ -396,7 +396,7 @@ pub struct Session {
     pub ask_password: Vec<String>,
     asked_password: HashSet<String>,
     /// The messages on screen, newest first.
-    pub list: Vec<Summary>,
+    pub list: Vec<SharedSummary>,
     /// Conversations over `list` (when [`Prefs::conversations`] is on).
     pub threads: Vec<Thread>,
     /// Where each message of `list` is (built with it).

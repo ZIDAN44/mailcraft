@@ -93,9 +93,12 @@ pub(super) fn size_group(size: u32) -> &'static str {
 }
 
 /// Sort a list as `arrange` says (each one's natural order; `reverse` the other way), newest
-/// first among equals.
-pub fn arrange_list(list: &mut [Summary], arrange: Arrange, reverse: bool) {
-    let newest = |a: &Summary, b: &Summary| b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key));
+/// first among equals. (The list's own summaries are shared; a list of plain ones sorts alike.)
+pub fn arrange_list<S: std::borrow::Borrow<Summary>>(list: &mut [S], arrange: Arrange, reverse: bool) {
+    let newest = |a: &S, b: &S| {
+        let (a, b): (&Summary, &Summary) = (a.borrow(), b.borrow());
+        b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key))
+    };
     // By a name: each one's name lower-cased once (it was in every comparison, twice), over
     // the list already newest first, which the sort keeps among equal names.
     let text: Option<fn(&Summary) -> String> = match arrange {
@@ -107,18 +110,19 @@ pub fn arrange_list(list: &mut [Summary], arrange: Arrange, reverse: bool) {
     if let Some(text) = text {
         list.sort_by(newest);
         if reverse {
-            list.sort_by_cached_key(|m| std::cmp::Reverse(text(m)));
+            list.sort_by_cached_key(|m| std::cmp::Reverse(text(m.borrow())));
         } else {
-            list.sort_by_cached_key(text);
+            list.sort_by_cached_key(|m| text(m.borrow()));
         }
         return;
     }
     list.sort_by(|a, b| {
+        let (x, y): (&Summary, &Summary) = (a.borrow(), b.borrow());
         let primary = match arrange {
-            Arrange::Size => b.size.cmp(&a.size),
-            Arrange::Flag => b.flags.flagged.cmp(&a.flags.flagged),
-            Arrange::Attachments => b.has_attachments.cmp(&a.has_attachments),
-            Arrange::Date | Arrange::From | Arrange::To | Arrange::Subject => b.when().cmp(&a.when()),
+            Arrange::Size => y.size.cmp(&x.size),
+            Arrange::Flag => y.flags.flagged.cmp(&x.flags.flagged),
+            Arrange::Attachments => y.has_attachments.cmp(&x.has_attachments),
+            Arrange::Date | Arrange::From | Arrange::To | Arrange::Subject => y.when().cmp(&x.when()),
         };
         let primary = if reverse { primary.reverse() } else { primary };
         primary.then_with(|| newest(a, b))
@@ -160,7 +164,7 @@ impl Session {
                 Arrange::Date => Row::Header(DateGroup::of(date, &self.clock).label()),
                 Arrange::From => Row::Group(m.map(|m| person(Some(&m.from))).unwrap_or_default()),
                 Arrange::To => Row::Group(m.map(|m| person(m.to.first())).unwrap_or_default()),
-                Arrange::Subject => Row::Group(m.map(Summary::base_subject).unwrap_or_default()),
+                Arrange::Subject => Row::Group(m.map(|m| m.base_subject()).unwrap_or_default()),
                 Arrange::Size => Row::Header(size_group(m.map_or(0, |m| m.size))),
                 Arrange::Flag => Row::Header(if m.is_some_and(|m| m.flags.flagged) { "Flagged" } else { "Not flagged" }),
                 Arrange::Attachments => Row::Header(if m.is_some_and(|m| m.has_attachments) { "With attachments" } else { "Without attachments" }),
@@ -181,7 +185,7 @@ impl Session {
         let (mut pinned_rows, mut pinned_of) = (Vec::new(), Vec::new());
         if self.prefs.conversations && !self.threads.is_empty() {
             for (ti, t) in self.threads.iter().enumerate() {
-                let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, Summary::when)) else { continue };
+                let Some(&newest) = t.messages.iter().max_by_key(|&&i| self.list.get(i).map_or(0, |m| m.when())) else { continue };
                 let unread = t.messages.iter().filter(|&&i| self.list.get(i).is_some_and(|m| !m.flags.seen)).count();
                 if t.messages.iter().any(|&i| pinned(i)) {
                     pinned_rows.push(Row::Message { index: newest, count: t.messages.len(), unread });

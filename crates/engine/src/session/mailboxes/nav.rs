@@ -97,14 +97,14 @@ impl ListNav {
     /// Index `list`, whose conversations are `threads` (none: conversations off, or `lazy`: on
     /// but not shown, worked out when first needed).
     #[cfg(test)]
-    pub(crate) fn build(&mut self, list: &[Summary], threads: &[Thread], conversations: bool, lazy: bool) {
+    pub(crate) fn build(&mut self, list: &[SharedSummary], threads: &[Thread], conversations: bool, lazy: bool) {
         let hashes = list.iter().map(|m| key_hash(&m.key)).collect();
         self.build_hashed(list, hashes, threads, conversations, lazy);
     }
 
     /// [`ListNav::build`], each key's hash given (`hashes`, in the list's order: those kept
     /// from before need no hashing again); hashed here when it isn't one a message.
-    pub(crate) fn build_hashed(&mut self, list: &[Summary], hashes: Vec<u64>, threads: &[Thread], conversations: bool, lazy: bool) {
+    pub(crate) fn build_hashed(&mut self, list: &[SharedSummary], hashes: Vec<u64>, threads: &[Thread], conversations: bool, lazy: bool) {
         self.pos.clear();
         self.pos.reserve(list.len());
         self.hashes = if hashes.len() == list.len() { hashes } else { list.iter().map(|m| key_hash(&m.key)).collect() };
@@ -183,7 +183,7 @@ impl Session {
     }
 
     pub fn summary(&self, key: &MessageKey) -> Option<&Summary> {
-        self.index_of(key).and_then(|i| self.list.get(i))
+        self.index_of(key).and_then(|i| self.list.get(i)).map(|m| &**m)
     }
 
     /// The selected messages (in list order), copied. What's drawn each frame uses
@@ -193,10 +193,10 @@ impl Session {
             let mut at: Vec<usize> = self.selection.iter().filter_map(|k| self.index_of(k)).collect();
             at.sort_unstable();
             at.dedup();
-            at.into_iter().filter_map(|i| self.list.get(i)).cloned().collect()
+            at.into_iter().filter_map(|i| self.list.get(i)).map(|m| Summary::clone(m)).collect()
         } else {
             let chosen: HashSet<&MessageKey> = self.selection.iter().collect();
-            self.list.iter().filter(|m| chosen.contains(&m.key)).cloned().collect()
+            self.list.iter().filter(|m| chosen.contains(&m.key)).map(|m| Summary::clone(m)).collect()
         };
         self.nav.clones.fetch_add(u64::try_from(out.len()).unwrap_or(u64::MAX), Ordering::Relaxed);
         out
@@ -209,7 +209,7 @@ impl Session {
 
     /// The selected message highest in the list.
     pub fn first_selected(&self) -> Option<&Summary> {
-        self.selection.iter().filter_map(|k| self.index_of(k)).min().and_then(|i| self.list.get(i))
+        self.selection.iter().filter_map(|k| self.index_of(k)).min().and_then(|i| self.list.get(i)).map(|m| &**m)
     }
 
     /// How many summaries [`Session::selected`] has copied out of the list (debug stats). Only

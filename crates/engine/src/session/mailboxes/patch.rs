@@ -3,7 +3,7 @@
 //! (each message copied out of the folder, filtered, arranged, its conversations worked out, its
 //! rows laid out): on a folder of ten thousand messages, every Down that opened one did.
 
-use mailcraft_model::{Flags, PINNED};
+use mailcraft_model::PINNED;
 
 use super::*;
 
@@ -52,13 +52,14 @@ impl Session {
                 uids.entry((k.account.as_str(), k.folder.as_str())).or_default().insert(k.uid);
             }
         }
-        let mut changed: Vec<(usize, Flags)> = Vec::new();
+        // The list takes the cache's summary itself: shared again, as a list built afresh would.
+        let mut changed: Vec<(usize, SharedSummary)> = Vec::new();
         for ((a, f), uids) in &uids {
             // Let go of since (a change saved to disk read it again): built again from disk.
             let Some(st) = self.cache.get(&(a.to_string(), f.to_string())) else { return false };
             for m in st.messages.iter().filter(|m| uids.contains(&m.key.uid)) {
                 match self.index_of(&m.key) {
-                    Some(i) => changed.push((i, m.flags.clone())),
+                    Some(i) => changed.push((i, SharedSummary::clone(m))),
                     // Let in by the filter now: where it goes is the list's to work out.
                     None if filtered && !m.flags.deleted && self.filter_keeps(filter, m) => return false,
                     None => {}
@@ -67,9 +68,9 @@ impl Session {
         }
         let reading = self.reading.as_ref().map(|r| r.key.clone());
         let mut gone = Vec::new();
-        for (i, flags) in &changed {
+        for (i, now) in &changed {
             let Some(m) = self.list.get_mut(*i) else { continue };
-            m.flags = flags.clone();
+            m.clone_from(now);
             if filtered && !self.list.get(*i).is_some_and(|m| self.filter_keeps(filter, m) || reading.as_ref() == Some(&m.key)) {
                 gone.push(*i);
             }
@@ -137,7 +138,7 @@ impl Session {
         let mut shown = false;
         for m in self.list.iter_mut().filter(|m| m.key.account == account && m.key.folder == folder) {
             if let Some(files) = wrong(m) {
-                m.has_attachments = files;
+                SharedSummary::make_mut(m).has_attachments = files;
                 shown = true;
             }
         }
@@ -163,12 +164,14 @@ impl Session {
     pub(crate) fn filled(&mut self, mut now: Summary) {
         let k = (now.key.account.clone(), now.key.folder.clone());
         let Some(st) = self.cache.get_mut(&k).filter(|st| st.validity == now.key.validity) else { return };
-        let Some(m) = st.find_mut(now.key.uid) else { return };
+        let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == now.key.uid) else { return };
         now.flags.clone_from(&m.flags);
         let threads = m.in_reply_to != now.in_reply_to || m.references != now.references;
         let files = m.has_attachments != now.has_attachments;
         let (size, importance, bulk) = (m.size != now.size, m.importance != now.importance, m.bulk != now.bulk);
-        m.clone_from(&now);
+        // The list takes the same summary (below), shared.
+        let now = SharedSummary::new(now);
+        *m = now.clone();
         self.mail_changed();
         // The text searches keep for it is the old one (it's still the message at its place).
         self.search_state.texts.changed(&now);
@@ -205,8 +208,11 @@ impl Session {
             return;
         }
         if let Some(m) = listed.and_then(|i| self.list.get_mut(i)) {
-            now.flags.clone_from(&m.flags);
+            let flags = m.flags.clone();
             *m = now;
+            if m.flags != flags {
+                SharedSummary::make_mut(m).flags = flags;
+            }
         }
         self.revision = self.revision.wrapping_add(1);
     }

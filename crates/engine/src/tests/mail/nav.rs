@@ -12,6 +12,7 @@ mod patch;
 /// A session over nothing, its list `list` indexed as `refresh_list` indexes it.
 fn indexed(list: Vec<Summary>) -> Session {
     let mut s = Session::open(None, mailcraft_model::dates::Clock::new(NOW, 0));
+    let list: Vec<crate::model::SharedSummary> = list.into_iter().map(Into::into).collect();
     s.nav.build(&list, &[], false, false);
     s.list = list;
     s
@@ -53,7 +54,7 @@ fn index_survives_direct_list_edits() {
     agrees(&s, all());
     s.list.reverse();
     agrees(&s, all());
-    s.list.push(message(55));
+    s.list.push(message(55).into());
     agrees(&s, all());
     s.list.swap(0, 50);
     agrees(&s, all());
@@ -102,7 +103,7 @@ fn conversation_rows_survive_direct_list_edits() {
     let older = s.list.iter().map(|m| m.key.clone()).find(|k| !own.contains(k)).expect("a message without a row of its own");
     let (row, at) = (s.msg_row_of(&older), s.row_index_of(&older));
     assert!(row.is_some() && at.is_some(), "its conversation's row");
-    s.list.push(message(1));
+    s.list.push(message(1).into());
     assert_eq!(s.msg_row_of(&older), row, "after an edit by hand");
     assert_eq!(s.row_index_of(&older), at, "after an edit by hand");
     done(s);

@@ -122,7 +122,7 @@ pub(crate) struct SearchRun {
     pub(super) terms: HashMap<String, Terms>,
     pub(crate) found: HashSet<MessageKey>,
     /// Found since last shown, and found before and no longer.
-    pub(crate) fresh: Vec<Summary>,
+    pub(crate) fresh: Vec<SharedSummary>,
     pub(crate) gone: HashSet<MessageKey>,
     /// Steps since what was found was last shown.
     pub(crate) unshown_steps: usize,
@@ -266,7 +266,7 @@ impl SearchRun {
     /// A run done with: what it holds of each message (found, answered, waiting to be shown or
     /// checked, what its text said) moved to `summaries`, `keys` and `answers`, to be let go of a
     /// slice at a time; the rest, small, goes now.
-    pub(crate) fn let_go_into(self, summaries: &mut Vec<Summary>, keys: &mut Vec<MessageKey>, answers: &mut Vec<Answers>) {
+    pub(crate) fn let_go_into(self, summaries: &mut Vec<SharedSummary>, keys: &mut Vec<MessageKey>, answers: &mut Vec<Answers>) {
         let SearchRun { found, fresh, gone, recheck, verify, fallback, known, missing, cut_short, awaited, .. } = self;
         summaries.extend(fresh);
         summaries.extend(verify.into_iter().chain(fallback).map(|c| c.m));
@@ -314,12 +314,12 @@ impl SearchRun {
 
     /// Where `m` stands now, as `v` says (`last`: nothing more can be read for it). Taken, not
     /// copied: a word found in thousands of messages copied each summary twice.
-    pub(crate) fn record(&mut self, m: Summary, v: Verdict, awaiting: bool, last: bool) {
+    pub(crate) fn record(&mut self, m: SharedSummary, v: Verdict, awaiting: bool, last: bool) {
         self.record_at(m, v, awaiting, last, None);
     }
 
     /// [`SearchRun::record`] of the message at `at` in its folder's list.
-    fn record_at(&mut self, m: Summary, v: Verdict, awaiting: bool, last: bool, at: Option<usize>) {
+    fn record_at(&mut self, m: SharedSummary, v: Verdict, awaiting: bool, last: bool, at: Option<usize>) {
         let key = &m.key;
         forget(&mut self.recheck, key);
         if !matches!(v, Verdict::CutShort) {
@@ -633,7 +633,7 @@ impl Session {
                 _ => false,
             };
             if !same {
-                verdicts.push((Summary::clone(m), v, awaiting, cur.at.saturating_add(i)));
+                verdicts.push((SharedSummary::clone(m), v, awaiting, cur.at.saturating_add(i)));
             }
         }
         let checked = u64::try_from(end.saturating_sub(cur.at)).unwrap_or(u64::MAX);

@@ -160,11 +160,11 @@ fn many_unlisted_keywords_are_counted_and_capped() {
     let base = s.list[0].clone();
     s.list = (0..20_000u32)
         .map(|i| {
-            let mut m = base.clone();
+            let mut m = mailcraft_model::Summary::clone(&base);
             m.key.uid = i + 1;
             let kws: Vec<String> = (0..30).map(|j| format!("k{}", (i + j) % 400)).chain(["$Junk".into(), "Common".into()]).collect();
             m.flags = mailcraft_model::Flags::from_imap(kws.iter().map(String::as_str).chain(if i % 2 == 0 { Some("COMMON") } else { None }));
-            m
+            m.into()
         })
         .collect();
     let started = std::time::Instant::now();

@@ -109,7 +109,7 @@ impl Session {
         // version further down doesn't take the list there.
         let next = read.as_ref().and_then(|k| {
             let at = self.index_of(k)?;
-            let stays = |m: &&Summary| !keys.contains(&m.key);
+            let stays = |m: &&SharedSummary| !keys.contains(&m.key);
             self.list.iter().skip(at + 1).find(stays).or_else(|| self.list.iter().take(at).rev().find(stays)).map(|m| m.key.clone())
         });
         let mut by_folder: Vec<(String, Vec<MessageKey>)> = Vec::new();

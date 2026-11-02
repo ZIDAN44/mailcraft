@@ -92,7 +92,7 @@ pub(crate) struct SearchState {
     pub(crate) stats: SearchStats,
     /// The list a search started over, let go of [`LET_GO`] summaries a step: letting go of tens
     /// of thousands at once (each with its strings) held the frame that searched for 10–20 ms.
-    letting_go: Vec<Summary>,
+    letting_go: Vec<SharedSummary>,
     /// What a search cleared held of messages (found, answered), let go of as `letting_go` is:
     /// a run that found tens of thousands, dropped whole, held the frame that cleared it.
     letting_go_keys: Vec<MessageKey>,
@@ -477,7 +477,7 @@ impl Session {
     }
 
     /// Let go of `list` a slice a step and a tick, not at once.
-    pub(crate) fn let_go(&mut self, list: Vec<Summary>) {
+    pub(crate) fn let_go(&mut self, list: Vec<SharedSummary>) {
         if self.search_state.letting_go.is_empty() {
             self.search_state.letting_go = list;
         } else {
@@ -516,7 +516,7 @@ impl Session {
     /// The summaries and keys of lists a search replaced, still to be let go of (for the memory
     /// they hold, `bench::big_mailbox`).
     #[cfg(test)]
-    pub(crate) fn letting_go_parts(&self) -> (&[Summary], &[MessageKey]) {
+    pub(crate) fn letting_go_parts(&self) -> (&[SharedSummary], &[MessageKey]) {
         (&self.search_state.letting_go, &self.search_state.letting_go_keys)
     }
 

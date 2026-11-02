@@ -25,7 +25,7 @@ pub(crate) struct ListFrom {
 /// A list kept, as it was shown.
 pub(crate) struct KeptList {
     from: ListFrom,
-    list: Vec<Summary>,
+    list: Vec<SharedSummary>,
     threads: Vec<Thread>,
     nav: mailboxes::ListNav,
 }
@@ -33,7 +33,7 @@ pub(crate) struct KeptList {
 impl Session {
     /// The list kept while a search shows (for the memory it holds, `bench::big_mailbox`).
     #[cfg(test)]
-    pub(crate) fn kept_summaries(&self) -> &[Summary] {
+    pub(crate) fn kept_summaries(&self) -> &[SharedSummary] {
         self.search_state.kept.as_ref().map(|k| k.list.as_slice()).unwrap_or_default()
     }
 

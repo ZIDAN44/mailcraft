@@ -15,8 +15,8 @@ use super::*;
 pub(crate) enum Finish {
     #[default]
     Due,
-    Staged(Vec<Summary>),
-    Arranged(Vec<Summary>),
+    Staged(Vec<SharedSummary>),
+    Arranged(Vec<SharedSummary>),
     Done,
 }
 
@@ -55,7 +55,7 @@ impl Session {
     /// conversations when they're shown.
     fn finish_streamed(&mut self, run: &mut SearchRun) {
         let hits = self.server_found(run);
-        run.fresh.extend(hits);
+        run.fresh.extend(hits.into_iter().map(SharedSummary::new));
         if !run.fresh.is_empty() || !run.gone.is_empty() {
             self.publish_stream(run);
         }

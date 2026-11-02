@@ -431,7 +431,7 @@ impl Session {
         if self.search.is_some() && self.settle_search() {
             return;
         }
-        let list: Vec<Summary> = if self.search.is_some() {
+        let list: Vec<SharedSummary> = if self.search.is_some() {
             match self.search_state.run.take() {
                 Some(mut run) => {
                     let found = self.search_list(&run);
@@ -450,11 +450,11 @@ impl Session {
             // The list from before the search, nothing it shows changed since.
             return;
         } else if self.view == View::Outbox {
-            self.outbox_summaries()
+            self.outbox_summaries().into_iter().map(SharedSummary::new).collect()
         } else {
             let mut v = Vec::new();
             for (a, f) in self.view_folders() {
-                v.extend(self.folder_state(&a, &f).messages.iter().filter(|m| !m.flags.deleted).map(|m| Summary::clone(m)));
+                v.extend(self.folder_state(&a, &f).messages.iter().filter(|m| !m.flags.deleted).cloned());
             }
             v
         };
@@ -464,7 +464,7 @@ impl Session {
     }
 
     /// What of `list` the filter (and the Focused/Other split) shows.
-    pub(super) fn filtered(&mut self, mut list: Vec<Summary>) -> Vec<Summary> {
+    pub(super) fn filtered(&mut self, mut list: Vec<SharedSummary>) -> Vec<SharedSummary> {
         let filter = self.filter;
         // The message being read stays where it was though it no longer passes (marked read
         // under Unread, say), as Outlook's: it goes once another is chosen (`show_message`).
@@ -480,14 +480,14 @@ impl Session {
 
     /// Show `list`, as filtered and arranged: its conversations, its index and its rows built
     /// with it, and the selection kept where it's still in it.
-    pub(super) fn take_list(&mut self, list: Vec<Summary>) {
+    pub(super) fn take_list(&mut self, list: Vec<SharedSummary>) {
         self.take_list_with(list, Vec::new(), true);
     }
 
     /// [`Session::take_list`]; `threads`: its conversations worked out now when the list shows
     /// them (a search still streaming leaves them for its end); `hashes`: each of its keys'
     /// hashes in its order when they're known (empty: hashed here).
-    pub(super) fn take_list_with(&mut self, list: Vec<Summary>, hashes: Vec<u64>, threads_now: bool) {
+    pub(super) fn take_list_with(&mut self, list: Vec<SharedSummary>, hashes: Vec<u64>, threads_now: bool) {
         // Conversations are worked out once here when the list shows them (arranged by date);
         // arranged otherwise, the reading pane still shows the open message's, worked out once
         // with the first message opened (`thread_at`) rather than with every rebuild.

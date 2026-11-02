@@ -72,7 +72,7 @@ fn a_read_marks_echo_keeps_the_folder_and_the_list() {
     assert_eq!(s.nav.threadings(), threadings, "no conversations worked out");
     assert_eq!(s.echoes.waiting(&id), 0);
     // What memory holds is what disk holds.
-    let shown: Vec<Summary> = s.list.clone();
+    let shown = s.list.clone();
     s.cache.remove(&(id.clone(), "INBOX".to_string()));
     s.refresh_list();
     assert_eq!(s.list, shown);
@@ -178,7 +178,7 @@ fn a_message_downloaded_fills_its_entry_without_reading_the_folder() {
     assert!(s.list.iter().any(|x| x.key == key && x.has_attachments && x.flags.seen), "the list's entry too");
     assert_eq!(s.nav_structure(), built, "no rows built");
     assert_eq!(s.nav.threadings(), threadings, "no conversations worked out");
-    let shown: Vec<Summary> = s.list.clone();
+    let shown = s.list.clone();
     s.cache.remove(&(id.clone(), "INBOX".to_string()));
     s.refresh_list();
     assert_eq!(s.list, shown, "memory as disk has it");

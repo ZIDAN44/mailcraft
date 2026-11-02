@@ -1,18 +1,25 @@
 //! What the summaries a session keeps in memory cost ([`Summary::heap_bytes`] and their own
-//! size), by part, and what sharing them would save: the numbers the choice between interning a
-//! summary's strings and sharing whole summaries (`Arc<Summary>`) was made on (docs/gaps.md).
+//! size), by part. The lists hold them shared ([`SharedSummary`]): a summary the cache, the list
+//! shown, the list kept and a search's finds all hold is counted once, the others a pointer each.
+//! What a copy in each place would have taken (as the lists held them before, docs/gaps.md) is
+//! printed beside it, with what interning a summary's strings would save on top.
 
 use std::collections::HashSet;
 
 use crate::Session;
 use crate::model::summary::{heap_room, list_room, string_room};
-use crate::model::{EmailAddress, Summary};
+use crate::model::{EmailAddress, SharedSummary, Summary};
 
 /// The bytes a run of summaries takes, by part.
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct Parts {
+    /// The places that hold one (a summary two lists hold, twice).
     pub(super) count: usize,
-    /// `size_of::<Summary>()` each: in the list's own buffer.
+    /// Of those, the summaries counted here (no holder counted them before).
+    pub(super) own: usize,
+    /// A pointer a place: in the list's own buffer.
+    pub(super) pointers: usize,
+    /// Each summary's `size_of::<Summary>()`, with its `Arc`'s two counts.
     pub(super) inline: usize,
     /// The key's account and folder: the same two strings in each of a folder's summaries.
     pub(super) keys: usize,
@@ -23,15 +30,29 @@ pub(super) struct Parts {
     pub(super) subject: usize,
     pub(super) preview: usize,
     pub(super) keywords: usize,
+    /// What the places would take, each holding a copy of its own (as the lists did).
+    pub(super) as_copies: usize,
+}
+
+/// What a summary in an `Arc` of its own takes besides its heap: itself and the two counts.
+fn boxed() -> usize {
+    heap_room(16 + std::mem::size_of::<Summary>())
 }
 
 impl Parts {
-    pub(super) fn of<'a>(list: impl IntoIterator<Item = &'a Summary>) -> Parts {
+    /// What `list` holds that no holder counted before (`seen`: the summaries counted).
+    pub(super) fn of<'a>(list: impl IntoIterator<Item = &'a SharedSummary>, seen: &mut HashSet<*const Summary>) -> Parts {
         let mut p = Parts::default();
         for m in list {
-            let addresses = |a: &Vec<EmailAddress>| list_room(a, EmailAddress::heap_bytes);
             p.count += 1;
-            p.inline += std::mem::size_of::<Summary>();
+            p.pointers += std::mem::size_of::<SharedSummary>();
+            p.as_copies += std::mem::size_of::<Summary>() + m.heap_bytes();
+            if !seen.insert(SharedSummary::as_ptr(m)) {
+                continue;
+            }
+            let addresses = |a: &Vec<EmailAddress>| list_room(a, EmailAddress::heap_bytes);
+            p.own += 1;
+            p.inline += boxed();
             p.keys += m.key.heap_bytes();
             p.addresses += m.from.heap_bytes() + addresses(&m.to) + addresses(&m.cc);
             p.ids += string_room(&m.message_id) + string_room(&m.in_reply_to) + list_room(&m.references, string_room);
@@ -43,7 +64,7 @@ impl Parts {
     }
 
     pub(super) fn total(&self) -> usize {
-        self.inline + self.keys + self.addresses + self.ids + self.subject + self.preview + self.keywords
+        self.pointers + self.inline + self.keys + self.addresses + self.ids + self.subject + self.preview + self.keywords
     }
 }
 
@@ -53,24 +74,29 @@ fn mb(n: usize) -> String {
 
 /// What each holder of summaries holds: the list on view, the folders cached, the list kept
 /// while a search shows, and the lists searches replaced, let go of a slice a step and a tick.
+/// The cache is counted first: what the others share with it, it holds.
 fn holders(s: &Session) -> [Parts; 4] {
-    let cached = s.cache.values().flat_map(|st| st.messages.iter().map(|m| &**m));
-    [Parts::of(&s.list), Parts::of(cached), Parts::of(s.kept_summaries()), Parts::of(s.letting_go_parts().0)]
+    let mut seen = HashSet::new();
+    let cache = Parts::of(s.cache.values().flat_map(|st| st.messages.iter()), &mut seen);
+    let list = Parts::of(&s.list, &mut seen);
+    let kept = Parts::of(s.kept_summaries(), &mut seen);
+    let going = Parts::of(s.letting_go_parts().0, &mut seen);
+    [list, cache, kept, going]
 }
 
-/// Print what the summaries in memory take now, and what each way of sharing them would save.
+/// Print what the summaries in memory take now, what sharing them saves, and what interning
+/// their strings would save on top.
 pub(super) fn report(s: &Session, at: &str) {
-    let cached: Vec<&Summary> = s.cache.values().flat_map(|st| st.messages.iter().map(|m| &**m)).collect();
-    let kept = s.kept_summaries();
     // Beside the lists searches replaced, the keys of what their runs found.
     let (going, going_keys) = s.letting_go_parts();
     let all = holders(s);
     let [list, cache, kept_p, going_p] = all;
     let total: usize = all.iter().map(Parts::total).sum();
     let count: usize = all.iter().map(|p| p.count).sum();
+    let own: usize = all.iter().map(|p| p.own).sum();
     let key_bytes: usize = going_keys.iter().map(|k| std::mem::size_of::<crate::model::MessageKey>() + k.heap_bytes()).sum();
     println!(
-        "memory {at}: summaries {count} of {} bytes each ({} cached in {} folders, {} listed, {} kept for after a search, {} still to be let go of), {}; and {} keys to be let go of, {}",
+        "memory {at}: summaries {own} of {} bytes each, held in {count} places ({} cached in {} folders, {} listed, {} kept for after a search, {} still to be let go of), {}; and {} keys to be let go of, {}",
         std::mem::size_of::<Summary>(),
         cache.count,
         s.cache.len(),
@@ -83,7 +109,8 @@ pub(super) fn report(s: &Session, at: &str) {
     );
     let sum = |f: fn(&Parts) -> usize| all.iter().map(f).sum::<usize>();
     println!(
-        "  by part: inline {}, keys {}, addresses {}, ids {}, subject {}, preview {}, keywords {}",
+        "  by part: pointers {}, inline {}, keys {}, addresses {}, ids {}, subject {}, preview {}, keywords {}",
+        mb(sum(|p| p.pointers)),
         mb(sum(|p| p.inline)),
         mb(sum(|p| p.keys)),
         mb(sum(|p| p.addresses)),
@@ -92,22 +119,20 @@ pub(super) fn report(s: &Session, at: &str) {
         mb(sum(|p| p.preview)),
         mb(sum(|p| p.keywords))
     );
-    // Shared whole: the list and the kept list hold pointers to the cached summaries (8 bytes
-    // each); each cached one moves into an `Arc` of its own (its two counts beside it), a
-    // pointer to it left in the cache.
-    let in_cache: HashSet<&crate::model::MessageKey> = cached.iter().map(|m| &m.key).collect();
-    let copies = s.list.iter().chain(kept).chain(going).filter(|m| in_cache.contains(&m.key));
-    let copied = Parts::of(copies);
-    let size = std::mem::size_of::<Summary>();
-    let boxed = 8 + heap_room(16 + size) - size;
-    let arc = copied.total().saturating_sub(copied.count * 8).saturating_sub(cache.count * boxed);
+    // Shared whole: what a copy in each place took, less what's held now.
+    let copies = sum(|p| p.as_copies);
+    let saved = copies.saturating_sub(total);
     // Interned: each key's account and folder one string per folder (an `Arc<str>` is 16 bytes,
     // a `String` 24: 16 saved inline per key too), each address's name and address one string,
-    // the sender's and To's and Cc's alike (To mostly the user's own).
-    let keys = sum(|p| p.keys) + count * 16;
-    let mut addresses = HashSet::new();
+    // the sender's and To's and Cc's alike (To mostly the user's own). Of each summary once.
+    let keys = sum(|p| p.keys) + own * 16;
+    let (mut counted, mut addresses) = (HashSet::new(), HashSet::new());
     let (mut address_heap, mut held) = (0usize, 0usize);
-    for m in s.list.iter().chain(cached.iter().copied()).chain(kept).chain(going) {
+    let cached = s.cache.values().flat_map(|st| st.messages.iter());
+    for m in cached.chain(&s.list).chain(s.kept_summaries()).chain(going) {
+        if !counted.insert(SharedSummary::as_ptr(m)) {
+            continue;
+        }
         for a in std::iter::once(&m.from).chain(&m.to).chain(&m.cc) {
             address_heap += a.heap_bytes();
             held += 1;
@@ -116,15 +141,16 @@ pub(super) fn report(s: &Session, at: &str) {
     }
     let unique: usize = addresses.iter().map(|a| a.heap_bytes()).sum();
     let names = address_heap.saturating_sub(unique) + held * 16;
-    let share = |n: usize| if total == 0 { 0.0 } else { n as f64 * 100.0 / total as f64 };
+    let share = |n: usize, of: usize| if of == 0 { 0.0 } else { n as f64 * 100.0 / of as f64 };
     println!(
-        "  saved by sharing whole summaries (Arc<Summary>): {} ({:.0}%); by interning keys: {} ({:.0}%); and addresses: {} ({:.0}%)",
-        mb(arc),
-        share(arc),
+        "  a copy in each place would take {}: sharing whole summaries saves {} ({:.0}%); interning would save keys {} ({:.0}%) and addresses {} ({:.0}%) more",
+        mb(copies),
+        mb(saved),
+        share(saved, copies),
         mb(keys),
-        share(keys),
+        share(keys, total),
         mb(names),
-        share(names)
+        share(names, total)
     );
     if let Some(p) = process() {
         println!("  process: {p}");
@@ -150,11 +176,17 @@ fn the_parts_add_up_to_what_each_summary_holds() {
     let store = crate::store::Store::memory();
     crate::sample::big::generate(&store, 1_800_000_000, crate::sample::big::Shape { folders: 3, messages: 300, inbox: 100 }).unwrap();
     let s = Session::open(Some(store), crate::model::dates::Clock::new(1_800_000_000, 0));
-    let cached: Vec<&Summary> = s.cache.values().flat_map(|st| st.messages.iter().map(|m| &**m)).collect();
+    let cached: Vec<&SharedSummary> = s.cache.values().flat_map(|st| st.messages.iter()).collect();
     assert_eq!(cached.len(), 300);
-    let each: usize = cached.iter().map(|m| std::mem::size_of::<Summary>() + m.heap_bytes()).sum();
-    assert_eq!(Parts::of(cached.iter().copied()).total(), each);
+    let each: usize = cached.iter().map(|m| std::mem::size_of::<SharedSummary>() + boxed() + m.heap_bytes()).sum();
+    let mut seen = HashSet::new();
+    let p = Parts::of(cached.iter().copied(), &mut seen);
+    assert_eq!((p.total(), p.own), (each, 300));
+    assert_eq!(p.as_copies, cached.iter().map(|m| std::mem::size_of::<Summary>() + m.heap_bytes()).sum::<usize>());
     assert!(cached.iter().all(|m| m.heap_bytes() > 0));
+    // Held again (another list sharing them): a pointer each, nothing else.
+    let again = Parts::of(cached.iter().copied(), &mut seen);
+    assert_eq!((again.count, again.own, again.total()), (300, 0, 300 * std::mem::size_of::<SharedSummary>()));
 }
 
 #[test]
@@ -169,7 +201,7 @@ fn the_lists_a_search_replaced_are_counted_till_let_go_of() {
     let shown = std::mem::take(&mut s.list);
     s.let_go(shown);
     let [_, _, _, going] = holders(&s);
-    assert_eq!((going.count, going.total()), (list.count, list.total()));
+    assert_eq!((going.count, going.as_copies), (list.count, list.as_copies));
     s.let_go_some();
     let [_, _, _, going] = holders(&s);
     assert_eq!(going.count, 0);

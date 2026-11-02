@@ -50,7 +50,7 @@ fn folder(bits: &[(u8, u8)]) -> Vec<Summary> {
 }
 
 /// What the list shows, to compare with it built again.
-type Shown = (Vec<Summary>, Vec<Row>, Vec<MessageKey>, Option<MessageKey>, Option<MessageKey>);
+type Shown = (Vec<crate::model::SharedSummary>, Vec<Row>, Vec<MessageKey>, Option<MessageKey>, Option<MessageKey>);
 
 fn shown(s: &Session) -> Shown {
     (s.list.clone(), s.rows().to_vec(), s.selection.clone(), s.focus.clone(), s.reading.as_ref().map(|r| r.key.clone()))

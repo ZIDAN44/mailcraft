@@ -297,6 +297,12 @@ written (`Compose`), preferences and status-bar notices.
   search, the changed messages alone are weighed against it again (built again only when what
   it finds changed); the Outbox, deleted and junk marks, and mail the filter lets in are built
   again. The proptest `patched_list_equals_refresh` holds it to `refresh_list`.
+  The list, a folder's list in the cache (`FolderState.messages`), the list kept while a search
+  shows and what a search found all hold their summaries shared (`SharedSummary`, an
+  `Arc<Summary>`, kept on disk as the summary itself): showing a folder or a search copies
+  pointers, not summaries. A summary changed in place (`Arc::make_mut`) is copied only while
+  another list shares it, so the cache and the list part as they did when each held its own; a
+  patched list then takes the folder's summary again (`patch_list`, `filled`).
 
 - `run(id, params)` dispatches a command from the registry (`cmd.rs`), checking `enabled` first and
   catching panics.
@@ -475,7 +481,7 @@ summaries a step or tick (what its candidates' texts said, 1,024). Conversations
 arrangements come at the end. `sample::big` makes a mailbox of 50,000 messages in 40 folders, what
 each measured search should find counted as it's made, for `tests/mail/search_big.rs`, the window's
 frame test and `bench.rs` (which also counts what the summaries held take, `Summary::heap_bytes`,
-through a 500-Down walk and searches). A step that panics ends the search, and the indexes it was
+each shared one once, through a 500-Down walk and searches). A step that panics ends the search, and the indexes it was
 reading are left unread until their writer writes them again. The list says "Searching…" while it
 runs, that results may be missing while mail isn't indexed yet (only then; mail too long to index
 whole gets a quieter note: how far the passes under way have come, `indexing_work`, which the status

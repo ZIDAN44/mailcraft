@@ -313,6 +313,35 @@ fn summary_searches_read_no_message() {
     done(s);
 }
 
+/// A search's results are the summaries the folders hold, shared, not copies. A flag set on one
+/// is set in the folder (copied there, as the result still shares it) and in the results, which
+/// then share the folder's summary again; the list from before the search keeps what it showed.
+#[test]
+fn a_flag_set_on_a_result_is_set_in_the_folder_and_the_results() {
+    let mut s = sample_session("search-shared");
+    index_now(&s, sample::SAMPLE_ACCOUNT);
+    s.run("search.run", &json!({"query": "storyboard", "scope": "all"})).unwrap();
+    let cached = |s: &Session, k: &crate::model::MessageKey| {
+        s.cache[&(k.account.clone(), k.folder.clone())].messages.iter().find(|m| m.key == *k).cloned().unwrap()
+    };
+    let shown = |s: &Session, k: &crate::model::MessageKey| s.list.iter().find(|m| m.key == *k).cloned().unwrap();
+    let m = s.list.iter().find(|m| !m.flags.flagged).cloned().expect("an unflagged result");
+    let k = m.key.clone();
+    assert!(std::sync::Arc::ptr_eq(&m, &cached(&s, &k)), "the folder's own summary");
+    drop(m);
+    s.run("list.select", &json!({"key": k.to_id()})).unwrap();
+    s.run("mail.flag", &json!({})).unwrap();
+    let (c, l) = (cached(&s, &k), shown(&s, &k));
+    assert!(c.flags.flagged && l.flags.flagged, "flagged in the folder and the results");
+    assert!(std::sync::Arc::ptr_eq(&c, &l), "shared again");
+    s.run("mail.flag", &json!({})).unwrap();
+    assert!(!cached(&s, &k).flags.flagged && !shown(&s, &k).flags.flagged);
+    // Cleared: the folder's list as the folder has it now.
+    s.run("search.clear", &json!({})).unwrap();
+    assert!(s.list.iter().all(|m| std::sync::Arc::ptr_eq(m, &cached(&s, &m.key))));
+    done(s);
+}
+
 /// Marking a result read (opening it), unread or flagged weighs that message again, alone: the
 /// search isn't run again and nothing is read for it. Mail moving has its two folders scanned
 /// again, not the others.

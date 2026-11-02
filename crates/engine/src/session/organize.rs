@@ -171,7 +171,7 @@ impl Session {
                 Some(key) => {
                     self.snoozes.retain(|x| x != &s);
                     self.wake(&s, key);
-                    if let Some(m) = self.list.iter().find(|m| m.message_id == s.message_id).cloned() {
+                    if let Some(m) = self.list.iter().find(|m| m.message_id == s.message_id).map(|m| Summary::clone(m)) {
                         self.new_mail.push(m);
                     } else {
                         self.notice(format!("Back from snooze: {}", s.subject), false);
@@ -492,7 +492,7 @@ impl Session {
                 })
                 .collect()
         } else {
-            self.list.clone()
+            self.list.iter().map(|m| Summary::clone(m)).collect()
         };
         let n = msgs.iter().filter(|m| !actions_for(&self.rules, m).is_empty()).count();
         self.run_rules(&msgs);
