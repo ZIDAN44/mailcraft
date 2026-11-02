@@ -2498,8 +2498,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   back, so the big item went only once the writer needed it, alone. Room is now given in the
   items' order (an item charged more than the whole budget only waits for its turn and holds no
   one up); a block read within 4 MiB of the last block read reads the 64 KiB chunk around it, as
-  a big attachment's blocks lie close together in no order (1.12 million reads, against 1.97
-  million, for 61.3 GB against 56.7 GB); the search index is written on a thread of its own,
+  a big attachment's blocks lie close together in no order (1.04 to 1.09 million reads, against
+  1.97 million, for 61.0 to 61.7 GB against 56.6 GB); the search index is written on a thread of its own,
   handed each batch's words once the batch is written; and the budget is 288 MiB (384 MB
   before), the reader's handles reopened once their pages are thought to hold 4 MiB (16 MiB
   before). Measured on a machine shared with other builds: by the benchmark the import took

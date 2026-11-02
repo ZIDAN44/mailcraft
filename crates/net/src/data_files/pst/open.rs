@@ -19,7 +19,7 @@ use super::*;
 
 /// The most a handle's own caches are let hold before it's reopened: with twelve lanes, 16 MiB
 /// held about 75 MB more at the import's peak, and reopening four times as often costs nothing
-/// that shows (115 reopenings over the 41 GB file, against 24).
+/// that shows (114 to 116 reopenings over the 41 GB file, against 24).
 pub(super) const HANDLE_CACHE: u64 = 4 * 1024 * 1024;
 
 /// `path` opened to read only, shared with other readers but not with writers.
