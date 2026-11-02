@@ -10,8 +10,10 @@
 //! `MC_BULK_CACHE_MB` (the data file's cache meanwhile) and `MC_BATCH_KB` (unset: the app's), and
 //! it ends with one `stats:` line of numbers (`pst::ImportStats`), where its time went, a `cache:`
 //! line (how the data file's cache was used, `mailcraft_store::CacheUse`) and on Windows an `io:`
-//! line (the process's bytes read and written, and its peak working set). With `MC_VERIFY=1` it then reads every listed message back from the cache and
-//! counts those present, those that parse and their attachments (counts only), with a digest of
+//! line (the process's bytes read and written, and its peak working set), after a `report:` line
+//! (what the import's report says was left out, by reason). With `MC_VERIFY=1` it then reads every listed message back from the cache and
+//! counts those present, those that parse and their attachments (counts only), and on a `kept:`
+//! line what came in of what the file says of its mail (`kept.rs`), with a digest of
 //! the folders, their lists and every source: two imports of the same file (one lane and many,
 //! say) came out the same when their digests are (one each of the folders, the lists and the
 //! sources besides, and with `MC_VERIFY=folders` a line of them for each folder, to see where
@@ -297,6 +299,15 @@ fn import() {
         dir_size(&cache) as f64 / 1e9
     );
     println!("stats: {}", serde_json::to_string(&done.stats).unwrap());
+    // What the import's report says was left out, and what else came in.
+    println!(
+        "report: contacts {}, events {}, notes {}, body not converted {}, skips {}",
+        done.contacts,
+        done.events,
+        done.notes,
+        done.body_not_converted,
+        serde_json::to_string(&done.skips).unwrap()
+    );
     println!("cache: {}", serde_json::to_string(&store.cache_use("d1")).unwrap());
     if let Some(io) = io_counts() {
         println!("io: {io}");
@@ -318,6 +329,7 @@ fn import() {
     }
     if env("MC_VERIFY").is_some() {
         let (mut present, mut parsed, mut attachments) = (0usize, 0usize, 0usize);
+        let mut kept = kept::Kept::default();
         // Digests over what the import left: the whole, and the folders, their lists and the
         // sources apart, to see where two imports differ; numbers, nothing of the mail itself.
         let (mut digest, mut parts) = (Fnv::default(), [Fnv::default(), Fnv::default(), Fnv::default()]);
@@ -339,6 +351,7 @@ fn import() {
                     d.mix(&raw);
                 }
                 present += 1;
+                kept.add(m, &raw);
                 if let Some(p) = mailcraft_mime::parse(&raw) {
                     parsed += 1;
                     attachments += p.attachments.len();
@@ -362,6 +375,7 @@ fn import() {
             parts[1].0,
             parts[2].0
         );
+        println!("kept: {}", serde_json::to_string(&kept).unwrap());
         // What a pass would still have to do for search, now the import is in.
         let reads = store.reads();
         let w = mailcraft_store::search::Writer::open(&store, "d1").unwrap();
@@ -422,6 +436,7 @@ fn dir_size(p: &Path) -> u64 {
 }
 
 mod eta;
+mod kept;
 
 /// Progress as an import told it: the time into it, and the items read and their bytes (as the
 /// file gives them).
