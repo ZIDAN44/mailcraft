@@ -232,6 +232,15 @@ impl Session {
         })
     }
 
+    /// Why an import into the account can't begin now: its data file is being compacted (the
+    /// two never run side by side; a compaction isn't begun beside an import either).
+    pub(crate) fn compaction_holds_import(&self, account: &str) -> Result<(), CmdError> {
+        if self.compaction.running.contains_key(account) {
+            return Err(CmdError::Failed("its data file is being compacted; import once that's done".into()));
+        }
+        Ok(())
+    }
+
     /// Why a command can't run now because a data file it may touch is had to itself by a
     /// compaction: anything acting on that account (named, open, chosen, or on screen).
     pub(crate) fn compaction_blocks(&self, id: &str, params: &serde_json::Value) -> Option<String> {
@@ -302,7 +311,9 @@ impl Session {
                 (None, false, false) => self.notice(format!("{who}: the data file has nothing to give back"), false),
             }
         }
-        if report.compacted || report.copied || report.recompressed > 0 {
+        // Measured again whenever it changed, or was stopped part way (where a recompress stopped
+        // is in the file: the idle policy goes on from there at the next idle).
+        if report.compacted || report.copied || report.recompressed > 0 || report.cancelled {
             self.jobs.push(Job::DataFileHealth { account: account.to_string() });
         }
         self.compaction.last.insert(account.to_string(), report);

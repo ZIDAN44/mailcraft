@@ -8,7 +8,7 @@
 //! paused, no message is fetched (so no events pile up for the window to apply after), and nothing
 //! on the pool's own thread (the window's) waits on the file. They go on as soon as that part
 //! ends. A sync already under way waits for the file in the store, as anything else asking for it
-//! does.
+//! does. No import begins while a compaction runs, nor a compaction while an import does.
 //!
 //! Progress comes at most every [`PROGRESS_EVERY`]. Stopping ([`Job::CancelCompact`]) is heard
 //! between batches; the part that has the file to itself can't be stopped.
@@ -187,6 +187,13 @@ impl Pool {
                 self.submit(job);
             }
         }
+    }
+
+    /// Whether an account's data file is being compacted: no import is begun meanwhile. Both are
+    /// decided here, on the pool's thread, so neither can start beside the other.
+    pub(super) fn compacting(&mut self, account: &str) -> bool {
+        self.prune_compacts();
+        self.compacts.running.contains_key(account)
     }
 
     /// Compactions that have ended let go of.

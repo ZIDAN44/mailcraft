@@ -69,6 +69,13 @@ impl Session {
     pub fn search_step_timed(&mut self, units: u32, more: &mut dyn FnMut() -> bool, done: &mut dyn FnMut(SearchWork)) -> SearchProgress {
         self.let_go_some();
         let Some(mut run) = self.search_state.run.take() else { return SearchProgress { done: true, ..Default::default() } };
+        // A data file it reads is had to itself by a compaction: it waits (on the window's
+        // thread, nothing of that file is read meanwhile), and goes on once it's given back.
+        if run.reads_any(|a| self.compaction.exclusive(a)) {
+            let progress = run.progress(false);
+            self.search_state.run = Some(run);
+            return progress;
+        }
         let before = self.revision;
         let went = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.follow_indexes(&mut run);

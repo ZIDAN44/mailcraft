@@ -259,6 +259,12 @@ impl SearchRun {
         }
     }
 
+    /// Whether the run reads anything of an account `asked` says yes to (its folders, and those
+    /// it reads for mail awaiting a reply).
+    pub(crate) fn reads_any(&self, asked: impl Fn(&str) -> bool) -> bool {
+        self.folders.iter().any(|(a, _)| asked(a)) || self.awaiting.as_ref().is_some_and(|(s, _, _)| s.folders.iter().any(|(a, _, _)| asked(a)))
+    }
+
     pub(crate) fn progress(&self, changed: bool) -> SearchProgress {
         SearchProgress { done: self.done(), found: self.found.len(), missing: self.missing.len(), cut_short: self.cut_short.len(), changed }
     }

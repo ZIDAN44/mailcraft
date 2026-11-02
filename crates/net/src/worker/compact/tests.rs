@@ -1,7 +1,7 @@
 //! Compactions as the pool runs them: on a thread of their own, by the plan, told as they go and
 //! as they end; and an account's jobs held while its file is had to itself.
 
-use mailcraft_model::job::{CompactMode, CompactPhase, CompactReport};
+use mailcraft_model::job::{CompactMode, CompactPhase, CompactReport, ImportPhase};
 
 use super::*;
 
@@ -98,8 +98,10 @@ fn asked_for_a_data_file_is_compacted_on_its_thread() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// While one runs: a second is refused, and no import begins beside it (a new one is refused, one
+/// going on stays paused), however far it has come.
 #[test]
-fn a_second_compaction_and_one_beside_an_import_are_refused() {
+fn a_second_compaction_and_an_import_beside_one_are_refused() {
     let (dir, _store, mut p) = setup("refused");
     // One running (its thread held up by the drive it asks for room).
     p.compacts.running.insert(
@@ -113,6 +115,15 @@ fn a_second_compaction_and_one_beside_an_import_are_refused() {
     p.submit(Job::CompactDataFile { account: "c1".into(), mode: CompactMode::Manual });
     let (_, report) = until_compacted(&mut p);
     assert!(report.unwrap().error.is_some_and(|e| e.contains("already")));
+    p.submit(Job::ImportPst { account: "c1".into(), path: "archive.pst".into(), resume: false });
+    p.submit(Job::ImportPst { account: "c1".into(), path: "archive.pst".into(), resume: true });
+    let seen = p.poll();
+    assert!(
+        seen.iter().any(|e| matches!(e, Event::Imported { error: Some(e), done: true, .. } if e.contains("being compacted"))),
+        "a new one is refused: {seen:?}"
+    );
+    assert!(seen.iter().any(|e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused)), "{seen:?}");
+    assert!(!p.importing("c1"), "none began");
     p.submit(Job::CancelCompact { account: "c1".into() });
     assert!(p.compacts.running.get("c1").is_some_and(|c| c.cancel.load(Ordering::Relaxed)), "asked to stop");
     p.shutdown();

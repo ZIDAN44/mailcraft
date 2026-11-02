@@ -160,8 +160,10 @@ prediction needs a margin.
 
 Both run in the store (`crates/store/src/packed/shrink.rs`). In place
 (`Store::compact_data_file`), the account's file is taken out of the open ones with the account
-marked as opening, so whoever asks for it meanwhile (a sync, a read, a removal) waits, and taken up
-once nothing holds it (five seconds at most, else refused); the compaction's commit after is sealed,
+marked as opening, so whoever asks for it meanwhile (a sync, a read, a removal) waits, but for a
+read from the window's thread (`store::no_waiting`, set as the window opens), which fails at once
+("being compacted") rather than freeze it, and taken up once nothing holds it (five seconds at
+most, else refused); the compaction's commit after is sealed,
 and how long it took against the measured cost (about 1.8 s per GiB of the file plus 5.3 s per GiB
 moved) is kept as the file's pace (`compact.pace` in `meta`) for the next estimate. A compaction
 that fails or panics closes the file rather than give it back, and it's opened (checked if need
@@ -169,8 +171,11 @@ be) when next asked for. By a copy (`Store::copy_data_file`), every file goes in
 beside it (`<file>.compacting`) in key order, in background batches, compressed again on the way
 when kept raw, while the account goes on as ever: each key written meanwhile is noted as it's
 committed, and once the copy has everything the file is had to itself just long enough to copy
-those again, seal the copy and rename it over the file. Stopped, it's thrown away; a copy a crash
-left is removed as the data files next open.
+those again (compressed as the batches are), seal the copy with what recompressing had counted,
+and rename it over the file (tried again while another program holds it a moment; the folder
+flushed after, on Unix). A file with a file in pieces that don't add up isn't copied (the copy
+would be without it). Stopped, it's thrown away; a copy a crash left is removed as the data files
+next open.
 
 What's done is the plan's (`mailcraft_model::job::plan`, from the file's health, how it was asked,
 and the room on its drive): in place when the part that has the file to itself is estimated to fit
@@ -178,11 +183,14 @@ how it was asked (15 s when MailCraft is idle, 30 s on closing, any length when 
 compressing again first what an earlier build kept raw; a file kept raw that's too big for that is
 copied when its drive has room (never on closing), and importing it again is suggested when it
 hasn't. The pool runs it on a `mail-compact` thread (`crates/net/src/worker/compact.rs`), holding
-the account's jobs while its file is had to itself; the engine keeps each account's health and
+the account's jobs while its file is had to itself (in place, and at a copy's end), and begins
+no import beside a compaction (nor a compaction beside an import); the engine keeps each account's health and
 compaction (`Session::compaction`), measures data files when the window says MailCraft has been
 left alone for ten minutes (`dataFile.idle`, at most once a day each, sooner when a recompress was
 stopped part way), compacts those that need it, refuses commands on an account whose file is had to
-itself, and holds its events until it's given back. `dataFile.compact` asks for it by hand
+itself (and imports into one being compacted), holds its events until it's given back, and reads
+nothing of it from the window meanwhile: a search that reads it waits, and a folder's list not in
+memory isn't read. `dataFile.compact` asks for it by hand
 (`mailcraft-cli run dataFile.compact` runs it there).
 
 A local account's read marks, flags and categories don't commit in the window's frame (each was a

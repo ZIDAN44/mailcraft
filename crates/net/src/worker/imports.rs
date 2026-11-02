@@ -74,8 +74,19 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 impl Pool {
     /// Import a data file on a thread of its own: an Outlook one (`.pst`), or MailCraft's own
     /// (`.mailcraft`, copied in as it is). An account already importing isn't given a second;
-    /// one whose import is being thrown away gets it once that's over.
+    /// one whose import is being thrown away gets it once that's over. One whose data file is
+    /// being compacted isn't begun (a compaction isn't begun beside an import either): one going
+    /// on stays paused, a new one is refused.
     pub(super) fn import_pst(&mut self, account: String, path: String, resume: bool) {
+        if self.compacting(&account) {
+            if resume {
+                never_began(&self.sink, &account, &path, StopHow::Pause);
+            } else {
+                let error = Some("its data file is being compacted; import once that's done".to_string());
+                self.sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error, report: None });
+            }
+            return;
+        }
         self.prune_imports();
         if let Some(ctl) = self.imports.running.get_mut(&account) {
             let mut queue = lock(&ctl.queue);

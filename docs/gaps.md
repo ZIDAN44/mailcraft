@@ -1982,7 +1982,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   MailCraft measures each data file at most once a day and compacts those with a gigabyte and a
   fifth of the file to give back (or a gigabyte to save by compressing again); a recompress stopped
   part way goes on at the next idle. While the file is had to itself the account waits: its jobs,
-  its events and commands on it, and a removal. On a made-up file of deleted mail the space came
+  its events and commands on it, a search that reads it, and a removal; the window is never kept
+  waiting for it (what it reads of the file is refused at once), and no import runs beside a
+  compaction. A copy keeps every file or isn't made: one with damaged files is refused. On a made-up file of deleted mail the space came
   back to the drive with every file reading back the same; a copy took in what was written while
   it ran. Not yet: the File page's Compact now and what it gave back, the bar, calling it at idle
   and on closing from the window (all the next step), and a run on the real files (the milestone's

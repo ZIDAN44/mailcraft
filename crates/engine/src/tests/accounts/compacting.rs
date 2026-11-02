@@ -129,3 +129,59 @@ fn an_account_kept_in_memory_has_no_data_file_to_compact() {
     assert!(s.run("dataFile.idle", &json!({})).is_err(), "how long it's been is needed");
     done(s);
 }
+
+/// While a compaction has an account's file to itself, the window's thread reads nothing of it:
+/// a search over every mailbox waits (and goes on once it's given back), a folder's list that
+/// isn't in memory isn't read (nor taken for empty to work out new mail from), and the account
+/// can't take an import.
+#[test]
+fn a_search_and_the_lists_wait_while_a_file_is_had_to_itself() {
+    let (mut s, id) = with_data_file("search");
+    let key = mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let summary = mailcraft_model::Summary { key, subject: "Quarterly budget".into(), date: NOW - 60, ..Default::default() };
+    let st = mailcraft_store::FolderState { validity: 1, uid_next: 2, messages: vec![summary], ..Default::default() };
+    s.store.as_ref().unwrap().save_folder(&id, "INBOX", &st).unwrap();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    s.run("dataFile.compact", &json!({ "account": id })).unwrap();
+    s.take_jobs();
+    s.apply(Event::Compacting { account: id.clone(), phase: CompactPhase::Recompress, work: Work::default(), exclusive_s: None });
+    let resumed = s.run("account.resumeImport", &json!({ "account": id }));
+    assert!(resumed.is_err_and(|e| e.to_string().contains("being compacted")), "no import beside a compaction");
+    s.apply(Event::Compacting { account: id.clone(), phase: CompactPhase::Exclusive, work: Work::default(), exclusive_s: Some(9) });
+    s.cache.clear();
+
+    s.start_search("budget", SearchScope::All, false);
+    let p = s.search_step(1000);
+    assert!(!p.done && p.found == 0, "it waits: {p:?}");
+    let inbox_key = (id.clone(), "INBOX".to_string());
+    assert!(!s.cache.contains_key(&inbox_key), "its list isn't read");
+    assert!(s.folder_state(&id, "INBOX").messages.is_empty() && !s.cache.contains_key(&inbox_key), "nor here");
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::Online { at: NOW } });
+    assert!(!s.seen_uid.contains_key(&inbox_key), "new mail isn't worked out from a list not read");
+
+    s.apply(Event::Compacted { account: id.clone(), report: Box::new(CompactReport { mode: CompactMode::Manual, ..CompactReport::default() }) });
+    let mut p = s.search_step(1000);
+    for _ in 0..100 {
+        if p.done {
+            break;
+        }
+        p = s.search_step(1000);
+    }
+    assert!(p.done && p.found == 1, "given back, it goes on: {p:?}");
+    finish(s);
+}
+
+/// An idle compaction stopped part way is measured again: where its recompress stopped is in the
+/// file, and the idle policy goes on from there at the next idle rather than a day later.
+#[test]
+fn a_compaction_stopped_part_way_is_measured_again() {
+    let (mut s, id) = with_data_file("stopped");
+    s.run("dataFile.compact", &json!({ "account": id })).unwrap();
+    s.take_jobs();
+    let report = CompactReport { mode: CompactMode::Idle, cancelled: true, ..CompactReport::default() };
+    s.apply(Event::Compacted { account: id.clone(), report: Box::new(report) });
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::DataFileHealth { account } if *account == id)));
+    finish(s);
+}

@@ -84,6 +84,11 @@ impl Session {
     pub(super) fn load_cached(&mut self, account: &str, folder: &str) -> Result<(), mailcraft_store::StoreError> {
         let k = (account.to_string(), folder.to_string());
         if !self.cache.contains_key(&k) {
+            // Not read while a compaction has its data file to itself: read once it's given back.
+            if self.compaction.exclusive(account) {
+                let busy = std::io::Error::new(std::io::ErrorKind::WouldBlock, "this data file is being compacted; it's ready in a moment");
+                return Err(mailcraft_store::StoreError::Io { path: account.to_string(), source: busy });
+            }
             let st = match &self.store {
                 Some(s) => s.load_folder(account, folder)?,
                 None => FolderState::default(),
@@ -152,6 +157,11 @@ impl Session {
         let st = self.folder_state(account, folder);
         let (validity, max) = (st.validity, st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0));
         let k = (account.to_string(), folder.to_string());
+        // Its list couldn't be read (its data file being compacted): what's new is worked out
+        // when it can, not from an empty list (which would take all of it for new after).
+        if !self.cache.contains_key(&k) {
+            return;
+        }
         // A data file's mail coming in (or its import waiting to go on) isn't new: no rules,
         // nothing announced; what it brought is the backlog from then on.
         if self.importing.held(account) {

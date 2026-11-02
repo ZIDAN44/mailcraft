@@ -359,6 +359,7 @@ impl Session {
         if self.importing.held(account) {
             return Err(CmdError::Failed("a data file is being imported into this account already".into()));
         }
+        self.compaction_holds_import(account)?;
         // Connecting waits for the file, so the two don't write the Inbox at once.
         self.hold_start(account);
         self.queue_import(account, path, false);
@@ -675,6 +676,7 @@ impl Session {
 
     /// Go on with an import stopped or interrupted, from where it stopped.
     pub fn resume_import(&mut self, account: &str) -> CmdResult {
+        self.compaction_holds_import(account)?;
         let st = self.stopped_import(account)?;
         let path = self.importing.sources.get(account).map(|s| s.path.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| st.path.clone());
         if path.is_empty() {
@@ -687,6 +689,7 @@ impl Session {
     /// Start an import stopped, interrupted or lost again from the beginning: what came in goes
     /// (the account stays), and the data file at `path` (else the one it came from) is read.
     pub fn restart_import(&mut self, account: &str, path: Option<&str>) -> CmdResult {
+        self.compaction_holds_import(account)?;
         let st = self.stopped_import(account)?;
         let path = match path.map(str::trim).filter(|p| !p.is_empty()) {
             Some(p) => p.to_string(),
