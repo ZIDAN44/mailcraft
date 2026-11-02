@@ -9,16 +9,20 @@
 //! encoded as Outlook encodes its files (permute), so the writer's encoded paths are fuzzed too.
 //!
 //! Every panic counts: the writer reads the file it adds to as its reader does, and a damaged
-//! file is an error (its fork's PATCHES.md), so there is no fence here, unlike `pst`'s.
+//! file is an error (its fork's PATCHES.md), so there is no fence here, unlike `pst`'s. So does
+//! an append that succeeds but loses mail: every message that read before it (all of its
+//! properties, as they were) still has to, and the one added has to as well.
 #![no_main]
 
-use std::path::PathBuf;
+use std::collections::{BTreeMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::OnceLock;
 
 use libfuzzer_sys::fuzz_target;
 use pst_rw::messaging::store::{Store as _, UnicodeStore};
-use pst_rw::{UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage};
+use pst_rw::ndb::node_id::NodeId;
+use pst_rw::{ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage};
 
 fn scratch(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("mailcraft-fuzz-{}-{name}", std::process::id()))
@@ -54,6 +58,38 @@ fn good_file() -> Vec<u8> {
 
 static GOOD: OnceLock<Vec<u8>> = OnceLock::new();
 
+/// Every message the file's folders list that reads, by node, with its properties as text; read
+/// within the limit the writer reads a file it adds to with.
+fn messages(path: &Path) -> BTreeMap<u32, String> {
+    let mut out = BTreeMap::new();
+    let Ok(pst) = UnicodePstFile::open(path) else { return out };
+    pst.set_max_value_size(ADD_MAX_VALUE_SIZE);
+    let Ok(store) = UnicodeStore::read(Rc::new(pst)) else { return out };
+    let Ok(top) = store.properties().ipm_sub_tree_entry_id() else { return out };
+    let mut stack = vec![(top, 0)];
+    let mut seen = HashSet::new();
+    while let Some((id, depth)) = stack.pop() {
+        if depth > 32 || seen.len() > 1_000 || !seen.insert(u32::from(id.node_id())) {
+            continue;
+        }
+        let Ok(folder) = store.open_folder(&id) else { continue };
+        for row in folder.contents_table().iter().flat_map(|table| table.rows_matrix()) {
+            let node = u32::from(row.id());
+            let Ok(entry) = store.properties().make_entry_id(NodeId::from(node)) else { continue };
+            let Ok(message) = store.open_message(&entry, None) else { continue };
+            let mut properties: Vec<_> = message.properties().iter().collect();
+            properties.sort_by_key(|(id, _)| **id);
+            out.insert(node, format!("{properties:?}"));
+        }
+        for row in folder.hierarchy_table().iter().flat_map(|table| table.rows_matrix()) {
+            if let Ok(sub) = store.properties().make_entry_id(NodeId::from(u32::from(row.id()))) {
+                stack.push((sub, depth + 1));
+            }
+        }
+    }
+    out
+}
+
 fuzz_target!(|data: &[u8]| {
     let file = if data.starts_with(b"!BDN") {
         data.to_vec()
@@ -71,12 +107,14 @@ fuzz_target!(|data: &[u8]| {
     }
     let attachments = [FILE];
     let batch = [UnicodePstBatchMessage { message: message("Added"), attachments: &attachments }];
-    if UnicodePstFile::append_many_in_folder_with_attachments(&path, &["Inbox"], &batch).is_ok() {
-        // What the writer says it wrote reads back.
-        let read = UnicodePstFile::open(&path).and_then(|pst| UnicodeStore::read(Rc::new(pst)));
-        if let Ok(store) = read {
-            let _ = store.properties().ipm_sub_tree_entry_id().and_then(|id| store.open_folder(&id));
-        }
-    }
+    let before = messages(&path);
+    let added = UnicodePstFile::append_many_in_folder_with_attachments(&path, &["Inbox"], &batch).is_ok();
+    let after = if added { messages(&path) } else { BTreeMap::new() };
     let _ = std::fs::remove_file(&path);
+    if added {
+        // An append that succeeds keeps what the file held and adds what it says it wrote.
+        let lost = before.iter().filter(|(node, was)| after.get(*node) != Some(*was)).count();
+        assert_eq!(lost, 0, "{lost} of {} messages no longer read as they did", before.len());
+        assert!(after.keys().any(|node| !before.contains_key(node)), "the added message doesn't read");
+    }
 });

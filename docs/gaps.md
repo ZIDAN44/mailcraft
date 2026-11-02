@@ -2338,11 +2338,19 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   The writer is now built from MailCraft's fork of it (`craft/rw-1.2.14` of the reader's
   repository, its PATCHES.md listing the fixes) and adds to permute- and cyclic-encoded files,
   writing the new data blocks encoded the same way. It also carries the reader's fixes, and reads
-  a file it adds to as the reader does: a damaged one is an error rather than a stack overflow,
-  an assert or a walk that never ends (fuzzed by `pst_append`: a damaged file added to). A file in
+  a file it adds to as the reader does, within the reader's 256 MB limit: a damaged one is an
+  error rather than a stack overflow, an assert, a walk that never ends or gigabytes built from a
+  few blocks. New blocks go where the file's allocation map marks space free only when every map
+  page reads (its CRC too) and none of that space holds a live block or page; otherwise they go at
+  the end of the file, where a damaged map that still said it was valid had them written over
+  live mail. Fuzzed by `pst_append`: a damaged file added to, every message that read before the
+  append reading the same after it (40,000 random cases, none lost). The export replaces the file
+  it added to only once the new one is whole (renamed over it), and if that fails it says the
+  mail is in the `.pst.part` file. A file in
   Outlook 97–2002's ANSI format now says so, and one that can't be read says that. On a copy of
   the 41 GB file (permute-encoded), 240 messages from the sample mailbox went in in 128 s, the
   export all told (the 34,691 messages' ids read, the file copied, eight folders committed), the
-  file not growing (the writer fills space its allocation map marks free), then 4,332 more in
+  file not growing (the writer fills space its allocation map marks free; the map passes the
+  check above, its 507,372 free ranges checked in under a second), then 4,332 more in
   98 s; the copy read back with 34,931 messages and then 39,263, every one readable, as all
   34,691 were before, its attachment and recipient rows up by the ones added.
