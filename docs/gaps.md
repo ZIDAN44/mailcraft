@@ -1556,9 +1556,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   so does a batch once 8 MiB are waiting). A message marked read during an import waits a few
   milliseconds for the writer (p99 6 to 31 ms in a measurement against a writer going flat out),
   where a 16 MiB batch held it for about a tenth of a second. The write itself still waits for the
-  disk the import keeps busy: it took 7 to 11 ms by median, but its p99 was 45 to 230 ms on a busy
-  machine (13 ms with no import), over the 60 ms aimed at. Still open: making a background batch
-  durable while a write from the window waits, or a smaller run left waiting.
+  disk the import keeps busy (7 to 11 ms by median, a p99 of 45 to 230 ms on a busy machine and 78
+  to 102 ms measured again, 13 ms with no import), but the window no longer makes it: a read mark
+  is written on the store's thread for marks. A Down step marking mail read in a folder of 10,941
+  while an import writes 2 MiB batches into the same data file as fast as it can took the window
+  0.6 ms at p99 (`down_steps_during_an_import`), under the 60 ms aimed at.
 - **The data file's cache during an import:** a data file's write transaction keeps what it
   changes in half the file's 16 MiB cache, and past that writes pages out and reads them back;
   with the import's 16 MiB batches this was thought to be the extra 28 GB read and 25.6 GB written
@@ -2033,25 +2035,29 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   waiting for them in the window's frame; and the window's settings, flushed to the disk every
   few seconds when they changed (5–15 ms of a frame, 197 ms once while the disk was busy), are
   written on a thread of their own. A wait for the marks, or for the lock every change of a list
-  takes, over 50 ms is logged with what waited, and the log's lines are written on a thread of
-  their own too (a line logged from the window's thread waited there for the disk). A folder whose
-  marks are still being written isn't read from the disk by the window at all (opened again after
-  the cache let go of it, its read waited for their commit): it's read a moment later, once
-  they're written, and a folder list the window writes whole goes on the marks' thread.
-  Measured on the real file: 40 read/unread toggles had every mark written within 5.3 ms. The
-  frames of 21–57 ms and the 0.6–0.8 s without a frame measured beside a disk flushing writes
-  came, as far as could be found, from the measuring: its probe appended a line to a file from the window's thread every
-  frame, and the tool that took the window's stack when it stalled suspends the whole process for
-  seconds while it loads symbols. Timed with the probe's lines handed to a thread of its own, and
-  eframe's painting split into its parts, 16 ten-second holds of Down over unread mail (213 marks
-  each, 8 of them beside a disk flushing) had no gap between frames over 24 ms and no frame over
-  16 ms but one of about 23 ms in 4 of them: egui-wgpu creating the texture of a 1058×730 picture
-  in the frame (20 ms; under 3 ms in the other holds). The first
-  scroll of the 36-picture and the 127,000-character messages after start-up stalled for 0.5–1.9
-  s in the earlier checks, which also wrote from the window's thread: in 14 first scrolls since
-  (two with AccessKit turned on by UI Automation) no frame took over 14 ms, the wait for the
-  display's refresh included, and the window always answered within 10 ms. Open: a big
-  picture's texture made in the frame (egui-wgpu's `update_texture`, the Craft apps' fork).
+  takes, over 50 ms is logged with what waited, and the log's lines are written on a thread of their
+  own too (a line logged from the window's thread waited there for the disk). A folder whose marks
+  are still being written isn't read from the disk by the window at all (opened again after the
+  cache let go of it, its read waited for their commit): it's read a moment later, once they're
+  written (one said changed meanwhile keeps its list, the message read with it, until then; Delete
+  All and the like wait for them), and a folder list the window writes whole goes on the marks'
+  thread.
+  Measured on the real file: 40 read/unread toggles had every mark written within 5.3 ms. The frames
+  of 21–57 ms and the 0.6–0.8 s without a frame measured beside a disk flushing writes came, as far
+  as could be found, from the measuring: its probe appended a line to a file from the window's
+  thread every frame, and the tool that took the window's stack when it stalled suspends the whole
+  process for seconds while it loads symbols. Timed with the probe's lines handed to a thread of its
+  own, and eframe's painting split into its parts, 16 ten-second holds of Down over unread mail (213
+  marks each, 8 of them beside a disk flushing) had no gap between frames over 24 ms and no frame
+  over 16 ms but one of about 23 ms in 4 of them: egui-wgpu creating the texture of a 1058×730
+  picture in the frame (20 ms; under 3 ms in the other holds). The first scroll of the 36-picture
+  and the 127,000-character messages after start-up stalled for 0.5–1.9 s in the earlier checks,
+  which also wrote from the window's thread: in 14 first scrolls since (two with AccessKit turned on
+  by UI Automation) no frame took over 14 ms, the wait for the display's refresh included, and the
+  window always answered within 10 ms. Open: a big picture's texture made in the frame (egui-wgpu's
+  `update_texture`, the Craft apps' fork); and the session's own documents (the rules, the snoozes,
+  the marks owed to originals), still written and flushed to the disk on the window's thread when
+  one changes (the holds changed none).
 - **A data file read on handles of its own:** on Windows every read and write through one handle
   waits for the one before it, so the search index's eight readers, the marks' commits and
   their flushes and the window's own reads all queued on the data file's one handle: building

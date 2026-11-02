@@ -118,7 +118,8 @@ fn the_window_never_waits_for_marks_being_written() {
 /// nothing: Down steps marking mail read, the account's folders counted again, a rule saved, and
 /// the folder whose marks are still to be written opened again after the cache let go of it. That
 /// folder isn't read from the disk then (the read waited for its marks' commit): it's read on a
-/// tick once they're written, with them.
+/// tick once they're written, with them. (The rule shows only that it takes no list's lock: on
+/// the disk its file is still written, and flushed, on the window's thread; docs/gaps.md.)
 #[test]
 fn the_window_never_waits_while_a_mark_is_committed() {
     use std::time::{Duration, Instant};
@@ -273,6 +274,80 @@ fn down_steps_on_a_big_data_file_folder() {
     let ((w, wmax), (m, mmax)) = (median(window), median(marks));
     println!("Down step, the window: median {w:?}, max {wmax:?}");
     println!("the read mark on disk (the store's thread): median {m:?}, max {mmax:?}");
+    drop(s);
+    drop(store);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// What a Down step costs the window in a data file's folder of 10,941 unread messages while an
+/// import writes 2 MiB batches into the same data file as fast as it can (`cargo test -p
+/// mailcraft-engine --release down_steps_during_an_import -- --ignored --nocapture`): the steps
+/// 10 ms apart, as a held key, each read mark handed to the store's thread. The mark's own write
+/// waits for the disk the import keeps busy (its p99 45 to 230 ms when the window made it); the
+/// window doesn't wait for it.
+#[test]
+#[ignore]
+fn down_steps_during_an_import() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
+    let root = std::env::temp_dir().join(format!("mailcraft-engine-down-import-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let store = Store::open_packed(&root, root.join("files")).unwrap();
+    let mut s = big_projects(&store, 10_941);
+    s.defer_bodies(true);
+    let first = s.row_keys()[0].to_id();
+    s.run("list.open", &json!({"key": first})).unwrap();
+    store.flush_marks();
+    let stop = std::sync::Arc::new(AtomicBool::new(false));
+    let importer = {
+        let (store, stop) = (store.clone(), stop.clone());
+        std::thread::spawn(move || {
+            // Noise that doesn't compress, 100 KiB a message, 2 MiB a batch.
+            let mut x = 0x9E37_79B9_7F4A_7C15u64;
+            let one: Vec<u8> = (0..100 << 10)
+                .map(|_| {
+                    x ^= x << 13;
+                    x ^= x >> 7;
+                    x ^= x << 17;
+                    x.to_le_bytes()[0]
+                })
+                .collect();
+            let (mut uid, mut batches) = (100_000u32, 0u32);
+            while !stop.load(Ordering::Relaxed) {
+                let batch = (0..20)
+                    .map(|_| {
+                        uid += 1;
+                        let key = MessageKey { account: "sample".into(), folder: "Imported".into(), validity: 1, uid };
+                        (key, Store::prepare(true, one.clone()))
+                    })
+                    .collect();
+                store.write_prepared(batch, false).unwrap();
+                batches += 1;
+            }
+            batches
+        })
+    };
+    std::thread::sleep(Duration::from_millis(100));
+    let mut window = Vec::new();
+    for _ in 0..100 {
+        let t = Instant::now();
+        s.run("list.next", &json!({})).unwrap();
+        drop(s.take_body_work());
+        s.tick();
+        window.push(t.elapsed());
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    stop.store(true, Ordering::Relaxed);
+    let batches = importer.join().unwrap();
+    let t = Instant::now();
+    assert!(store.flush_marks());
+    let left = t.elapsed();
+    window.sort();
+    let (median, p99, max) = (window[50], window[98], window[99]);
+    println!("{batches} batches of 2 MiB written beside it");
+    println!("Down step, the window: median {median:?}, p99 {p99:?}, max {max:?}");
+    println!("the marks still to write when the import stopped: {left:?}");
+    assert_eq!(s.list.iter().filter(|m| m.flags.seen).count(), 101);
     drop(s);
     drop(store);
     let _ = std::fs::remove_dir_all(&root);

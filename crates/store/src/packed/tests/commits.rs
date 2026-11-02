@@ -501,8 +501,9 @@ fn a_data_file_brought_in_goes_in_short_batches() {
 /// writes capped batches as an import does, as fast as it can. The wait for the writer is what
 /// the store decides, and stays short. The whole write also waits for the disk, which that writer
 /// keeps busy: measured on a busy machine, its p99 was 45 to 230 ms (7 to 11 ms median) whether
-/// the batches waited for the disk or not, and 13 ms with no writer, which misses the 60 ms aimed
-/// at. A measurement, not run with the rest: timings on a busy machine or a shared runner swing
+/// the batches waited for the disk or not (78 to 102 ms measured again), and 13 ms with no writer,
+/// which misses the 60 ms aimed at; the window no longer makes it (a read mark is written on the
+/// store's thread for marks: the engine's `down_steps_during_an_import`). A measurement, not run with the rest: timings on a busy machine or a shared runner swing
 /// too far for a test to hold them (run alone, the wait's p99 was 6 to 31 ms; beside the other
 /// tests it reached 61). What doesn't depend on the clock is tested by
 /// [`only_writes_from_the_window_are_timed_for_the_writer`] and
