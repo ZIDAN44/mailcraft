@@ -137,7 +137,8 @@ pub(super) fn owned(raw: &[u8], received: i64, state: State) -> Option<Owned> {
         html: mime::html_body(raw),
         message_id: bracket(&p.message_id),
         received: filetime(if received > 0 { received } else { p.date }),
-        date: filetime(p.date),
+        // No `Date:`: no submit time, not 1970.
+        date: if p.date > 0 { filetime(p.date) } else { 0 },
         files,
         headers: if headers.len() <= MAX_HEADERS { headers } else { String::new() },
         in_reply_to: bracket(&p.in_reply_to),
@@ -148,9 +149,11 @@ pub(super) fn owned(raw: &[u8], received: i64, state: State) -> Option<Owned> {
     })
 }
 
-/// A message's header block (up to the blank line), as text.
+/// A message's header block (up to its first blank line, whichever its line ends), as text.
 fn header_block(raw: &[u8]) -> String {
-    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").or_else(|| raw.windows(2).position(|w| w == b"\n\n")).unwrap_or(raw.len());
+    let crlf = raw.windows(4).position(|w| w == b"\r\n\r\n");
+    let lf = raw.windows(2).position(|w| w == b"\n\n");
+    let end = crlf.into_iter().chain(lf).min().unwrap_or(raw.len());
     let head = String::from_utf8_lossy(raw.get(..end).unwrap_or_default()).into_owned();
     if head.is_empty() { head } else { format!("{head}\r\n") }
 }
@@ -235,6 +238,24 @@ mod tests {
         assert_eq!(header_value(&head, "X-Long").as_deref(), Some("a b"));
         assert_eq!(header_value(&head, "Missing"), None);
         assert_eq!(header_block(b"no header end"), "no header end\r\n");
+        // A header with LF line ends, and a CRLF blank line further on, in the body: the body's
+        // lines aren't header fields.
+        let raw = b"Subject: x\nFrom: a@b\n\nImportance: high\r\nSensitivity: Private\r\n\r\nmore";
+        assert_eq!(header_block(raw), "Subject: x\nFrom: a@b\r\n");
+        let m = owned(raw, 0, State::default()).unwrap();
+        assert_eq!((m.importance, m.sensitivity), (1, None));
+    }
+
+    /// A message without a `Date:` gets no submit time, not 1970-01-01.
+    #[test]
+    fn no_date_no_submit_time() {
+        let submit = |m: &Owned| properties(m, &[]).iter().any(|p| matches!(p.key, pst_rw::UnicodePstPropertyKey::Tag(0x0039)));
+        let m = owned(b"Subject: x\r\nFrom: a@b\r\n\r\nbody", 0, State::default()).unwrap();
+        assert_eq!(m.date, 0);
+        assert!(!submit(&m));
+        let m = owned(b"Date: Mon, 1 Jan 2024 00:00:00 +0000\r\nSubject: x\r\n\r\nbody", 0, State::default()).unwrap();
+        assert_eq!(m.date, (1_704_067_200 + EPOCH_1601) * 10_000_000);
+        assert!(submit(&m));
     }
 
     #[test]
