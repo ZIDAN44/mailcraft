@@ -18,7 +18,9 @@ use outlook_pst::messaging::store::Store as PstStore;
 
 use crate::pst::Val;
 
+mod files;
 mod recur;
+pub(crate) use files::{card_file, card_photo, event_file, is_file_line};
 use recur::recurrence;
 pub(crate) use recur::{Own, changed_events};
 

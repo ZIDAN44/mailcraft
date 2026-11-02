@@ -69,7 +69,7 @@ pub(super) fn item_in<M: Holder>(m: &M, walk: &mut Walk) -> Item {
     if held {
         walk.chain.pop();
     }
-    Item { left_out: files.left_out, ..m.item(files.files) }
+    Item { left_out: files.left_out, photo: files.photo, ..m.item(files.files) }
 }
 
 /// The files of `m`, a message `nesting` attached messages down from the item.
@@ -92,6 +92,14 @@ fn files_of<M: Holder>(m: &M, nesting: usize, walk: &mut Walk) -> Files {
                 } else {
                     walk.room = walk.room.saturating_sub(data.len());
                     files.add(Got::File(File::Data { name, mime, cid, data }));
+                }
+            }
+            Part::Got(Got::Photo(mime, data)) => {
+                if data.len() > walk.room {
+                    files.add(Got::Left(SkipReason::AttachmentTooBig));
+                } else {
+                    walk.room = walk.room.saturating_sub(data.len());
+                    files.add(Got::Photo(mime, data));
                 }
             }
             Part::Got(got) => files.add(got),

@@ -1,6 +1,6 @@
 //! Kinds of item a data file holds beyond plain mail: meeting requests and their answers, posts
-//! and documents, contact groups and journal entries; and a repeating appointment's changed
-//! occurrences.
+//! and documents, contact groups and journal entries; and what contacts and calendar items carry:
+//! changed occurrences of a repeating appointment, pictures and files.
 
 use mailcraft_model::EmailAddress;
 use mailcraft_model::job::SkipReason;
@@ -152,46 +152,85 @@ fn contact_groups_and_journal_entries_come_in() {
 }
 
 /// A changed occurrence's item, attached to its appointment (`replaces`: the occurrence), with
-/// its own text.
-fn exception(start: i64, replaces: i64, body: &str) -> File {
+/// its own text and files.
+fn exception(start: i64, replaces: i64, body: &str, files: Vec<File>) -> File {
     File::Message(Box::new(Item {
         class: "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}".into(),
         subject: "Review".into(),
         body: body.into(),
+        files,
         extra: Some(Extra { start: Some(start), end: Some(start + 3600), replaces: Some(replaces), ..Default::default() }),
         ..Default::default()
     }))
 }
 
+fn data(name: &str, mime: &str, n: usize) -> File {
+    File::Data { name: name.into(), mime: mime.into(), cid: String::new(), data: vec![b'x'; n] }
+}
+
 /// A repeating appointment comes in with its changed occurrences, each an event replacing its
-/// occurrence with its own text; it counts as one calendar item.
+/// occurrence with its own text and files, and the series' files on the series; it counts as one
+/// calendar item. A contact comes in with its picture and its files; a file past what the
+/// contacts and calendar keep is counted as too big.
 #[test]
-fn changed_occurrences_come_in() {
-    let s = Scratch::new("pim-changed");
+fn changed_occurrences_and_files_come_in() {
+    let s = Scratch::new("pim-files");
     let mut progress = |_| {};
     let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
     let at = |d: u32, h: i64| mailcraft_model::dates::days_from_civil(2026, 10, d) * 86_400 + h * 3600;
     let (pattern, start) = crate::pst_pim::tests::series(0x3009);
+    let own = exception(at(19, 8), at(19, 8), "Bring the proofs.", vec![data("proofs.pdf", "application/pdf", 4)]);
     out.add_pim(Item {
         class: "IPM.Appointment".into(),
         subject: "Review".into(),
         body: "Weekly.".into(),
-        files: vec![exception(at(19, 8), at(19, 8), "Bring the proofs.")],
+        files: vec![data("agenda.pdf", "application/pdf", 3), own],
         extra: Some(Extra { start: Some(start), end: Some(start + 3600), recurrence: pattern, ..Default::default() }),
         ..Default::default()
     });
+    out.add_pim(Item {
+        class: "IPM.Contact".into(),
+        photo: Some(("image/jpeg".into(), vec![0xFF, 0xD8, 0xFF])),
+        files: vec![data("cv.pdf", "", 2), data("huge.bin", "application/octet-stream", 5 << 20)],
+        extra: Some(Extra { given: "Ana".into(), ..Default::default() }),
+        ..Default::default()
+    });
     let done = out.finish();
-    assert_eq!(done.events, 1);
+    assert_eq!((done.events, done.contacts), (1, 1));
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentTooBig, 1)]);
     let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let files_of = |extra: &[String]| -> Vec<String> {
+        extra.iter().filter(|l| crate::pst_pim::is_file_line(l)).map(|l| l.split(':').next().unwrap_or_default().to_string()).collect()
+    };
     let events: Vec<_> = pim.events.iter().map(|e| &e.event).collect();
     assert_eq!(events.len(), 3);
     let series = events[0];
     assert!(series.rrule.is_some() && series.recurrence_id.is_none());
+    assert_eq!(files_of(&series.extra), ["ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"agenda.pdf\""]);
     let (moved, quiet) = (events[1], events[2]);
     assert_eq!((moved.uid.as_str(), moved.recurrence_id, moved.summary.as_str()), (series.uid.as_str(), Some(at(12, 7)), "Review (moved) \u{e9}"));
+    assert!(files_of(&moved.extra).is_empty());
     assert_eq!((quiet.recurrence_id, quiet.start, quiet.description.as_str()), (Some(at(19, 7)), at(19, 8), "Bring the proofs."));
+    assert_eq!(files_of(&quiet.extra), ["ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"proofs.pdf\""]);
     // Written as a calendar file, the series and its changed occurrences read back together.
     let ics = mailcraft_model::ical::write(&pim.events.iter().map(|e| e.event.clone()).collect::<Vec<_>>(), None, 0);
     let back = mailcraft_model::ical::parse(&ics, 0);
     assert_eq!(back.events.iter().map(|e| e.recurrence_id).collect::<Vec<_>>(), [None, Some(at(12, 7)), Some(at(19, 7))]);
+    let card = &pim.cards[0].card;
+    assert_eq!(card.extra, ["PHOTO:data:image/jpeg;base64,/9j/", "X-MAILCRAFT-ATTACH;X-FILENAME=\"cv.pdf\":data:application/pdf;base64,eHg="]);
+}
+
+/// A contact's picture is told by its attachment's flag, in a contact only.
+#[test]
+fn a_contact_s_picture() {
+    use super::super::item::{Got, photo};
+    use crate::pst::Val;
+    let flagged = |id: u16| match id {
+        0x7FFF => Some(Val::Bool(true)),
+        0x3707 => Some(Val::Text("ContactPicture.png".into())),
+        _ => None,
+    };
+    assert!(matches!(photo(&flagged, "IPM.Contact", b"png"), Some(Got::Photo(ref mime, ref data)) if mime == "image/png" && data == b"png"));
+    assert!(photo(&flagged, "IPM.Note", b"png").is_none(), "a message's file");
+    assert!(photo(&|_| None, "IPM.Contact", b"png").is_none(), "a contact's other file");
 }

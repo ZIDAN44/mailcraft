@@ -30,6 +30,8 @@ pub(super) struct Item {
     pub(super) sensitivity: u8,
     pub(super) flags: Flags,
     pub(super) files: Vec<File>,
+    /// A contact's picture: its type and bytes.
+    pub(super) photo: Option<(String, Vec<u8>)>,
     /// A contact's, contact group's, appointment's, meeting request's or journal entry's own
     /// properties.
     pub(super) extra: Option<crate::pst_pim::Extra>,
@@ -52,7 +54,9 @@ pub(super) enum File {
 /// What one of an item's attachments gives.
 pub(super) enum Got {
     File(File),
-    /// Not part of the message (a contact's picture), or nothing in it: not counted.
+    /// A contact's picture (its type and bytes), which goes on its card.
+    Photo(String, Vec<u8>),
+    /// Not part of the message, or nothing in it: not counted.
     Nothing,
     /// Left out, for this reason.
     Left(SkipReason),
@@ -62,6 +66,7 @@ pub(super) enum Got {
 #[derive(Default)]
 pub(super) struct Files {
     pub(super) files: Vec<File>,
+    pub(super) photo: Option<(String, Vec<u8>)>,
     pub(super) left_out: BTreeMap<SkipReason, usize>,
 }
 
@@ -69,6 +74,12 @@ impl Files {
     pub(super) fn add(&mut self, got: Got) {
         match got {
             Got::File(f) => self.files.push(f),
+            // A second picture is Outlook's old copy of the first.
+            Got::Photo(mime, data) => {
+                if self.photo.is_none() {
+                    self.photo = Some((mime, data));
+                }
+            }
             Got::Nothing => {}
             Got::Left(reason) => {
                 let n = self.left_out.entry(reason).or_default();
@@ -282,6 +293,11 @@ pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str) -> Opt
     let props = a.properties();
     let p = |id: u16| props.get(id).map(|v| val(v, code_page));
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
+    if let Some(AttachmentData::Binary(b)) = a.data()
+        && let Some(photo) = photo(&p, class, b.buffer())
+    {
+        return Some(photo);
+    }
     if hidden(&p, class) {
         return Some(Got::Nothing);
     }
@@ -297,6 +313,18 @@ pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str) -> Opt
         None if link(&p) => Got::Left(SkipReason::AttachmentLink),
         None => Got::Nothing,
     })
+}
+
+/// A contact's picture (PidTagAttachmentContactPhoto), from its attachment's properties (`p`)
+/// and bytes, in an item of class `class`; `None` for any other attachment.
+pub(super) fn photo<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, data: &[u8]) -> Option<Got> {
+    let contact = class.get(..11).is_some_and(|c| c.eq_ignore_ascii_case("ipm.contact"));
+    if !contact || !matches!(p(0x7FFF), Some(Val::Bool(true))) || data.len() > MAX_ATTACHMENT {
+        return None;
+    }
+    let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
+    let mime = Some(s(0x370E)).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&name_of(&s)).to_string());
+    Some(Got::Photo(mime, data.to_vec()))
 }
 
 /// An attachment the reader couldn't read (`e`), from its row in the item's attachment table,
@@ -349,12 +377,13 @@ fn kept_empty(e: &io::Error, method: Option<i64>) -> bool {
     }
 }
 
-/// A contact's hidden attachment (its picture) isn't part of what comes in, unless it has a
-/// `Content-ID`; nor is a recurring series' changed occurrence in a message, a hidden attached
-/// message (PidTagAttachmentFlags afException, or any hidden attached message of a meeting):
-/// calendar bookkeeping, not a file of the mail. An appointment's changed occurrence is read, as
-/// an attached message (its class is [`EXCEPTION`]): it is that occurrence. A message's other
-/// hidden files are: Outlook hides some files a message carries, and leaving them out lost them.
+/// A contact's hidden attachment other than its picture isn't part of what comes in, unless it
+/// has a `Content-ID`; nor is a recurring series' changed occurrence in a message, a hidden
+/// attached message (PidTagAttachmentFlags afException, or any hidden attached message of a
+/// meeting): calendar bookkeeping, not a file of the mail. An appointment's changed occurrence is
+/// read, as an attached message (its class is [`EXCEPTION`]): it is that occurrence. A message's
+/// other hidden files are: Outlook hides some files a message carries, and leaving them out lost
+/// them.
 fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> bool {
     let is = |prefix: &str| class.get(..prefix.len()).is_some_and(|c| c.eq_ignore_ascii_case(prefix));
     let exception = !is("ipm.appointment")

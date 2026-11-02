@@ -202,6 +202,30 @@ fn a_journal_entry_s_text() {
     assert_eq!(journal_text(&Extra::default(), "", " "), "");
 }
 
+/// A file's line keeps its bytes, a clean name and a usable type, and reads back from the
+/// calendar and the card it goes in.
+#[test]
+fn files_as_lines() {
+    let line = event_file("Agenda \"draft\"\r\n.pdf", "Application/PDF; name=x", b"%PDF-1.7");
+    assert_eq!(line, "ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"Agenda draft.pdf\":JVBERi0xLjc=");
+    assert!(event_file("notes.txt", "not a type", b"").starts_with("ATTACH;FMTTYPE=text/plain;"));
+    assert!(event_file("", "", b"x").contains("X-FILENAME=\"attachment\""));
+    let long = event_file(&"n".repeat(400), "text/plain", b"");
+    assert!(long.contains(&format!("\"{}\"", "n".repeat(255))) && !long.contains(&"n".repeat(256)));
+    assert_eq!(card_photo("", &[0xFF, 0xD8]), "PHOTO:data:image/jpeg;base64,/9g=");
+    let docx = mailcraft_mime::mime_from_name("a.docx");
+    assert_eq!(card_file("a.docx", "", b"PK"), format!("X-MAILCRAFT-ATTACH;X-FILENAME=\"a.docx\":data:{docx};base64,UEs="));
+    assert!([line.as_str(), "photo:data:,", "x-mailcraft-attach;x=1:y"].iter().all(|l| is_file_line(l)));
+    assert!(!is_file_line("ATTENDEE:mailto:a@b.example") && !is_file_line("PHOTOS:x"));
+    // Read back: the event keeps its file among its own lines, the card its picture.
+    let ics = format!("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:u\r\nDTSTART:20261020T090000Z\r\n{line}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+    let e = &ical::parse(&ics, 0).events[0];
+    assert!(e.extra.iter().any(|l| l.ends_with("JVBERi0xLjc=")), "{:?}", e.extra);
+    let card = Card { uid: "c".into(), name: "C".into(), extra: vec![card_photo("image/png", b"png")], ..Default::default() };
+    let back = mailcraft_model::vcard::parse(&mailcraft_model::vcard::write(&card));
+    assert_eq!(back[0].extra, ["PHOTO:data:image/png;base64,cG5n"]);
+}
+
 /// A changed occurrence as an appointment's pattern writes it (ExceptionInfo), and what its
 /// ExtendedException repeats in UTF-16.
 #[derive(Default)]

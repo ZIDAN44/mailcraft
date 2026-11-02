@@ -54,8 +54,10 @@ pub(super) struct Out<'a> {
     bytes_total: u64,
     pub(super) bytes_done: u64,
     folders_total: usize,
-    /// Contacts and calendar items read so far.
+    /// Contacts and calendar items read so far, and the bytes of the files they keep (counted
+    /// when first needed).
     pub(super) pim: Pim,
+    pim_files: Option<usize>,
     /// Sources read (compressed already) but not yet written, and their size as kept.
     pub(super) pending: Vec<(MessageKey, mailcraft_store::Prepared)>,
     pub(super) pending_bytes: usize,
@@ -109,6 +111,7 @@ impl<'a> Out<'a> {
             bytes_done: 0,
             folders_total: 0,
             pim: Pim::default(),
+            pim_files: None,
             pending: Vec::new(),
             pending_bytes: 0,
             pending_raw: 0,

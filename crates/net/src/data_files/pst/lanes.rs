@@ -364,7 +364,8 @@ fn weight(it: &Item) -> u64 {
         })
         .fold(0, usize::saturating_add);
     let text = it.body.len().saturating_add(it.html.as_ref().map_or(0, String::len)).saturating_add(it.headers.len());
-    u64::try_from(files.saturating_add(text)).unwrap_or(u64::MAX)
+    let photo = it.photo.as_ref().map_or(0, |(_, data)| data.len());
+    u64::try_from(files.saturating_add(text).saturating_add(photo)).unwrap_or(u64::MAX)
 }
 
 /// An item made into its message, summary and source ready to keep (`packs`: compressed, as
