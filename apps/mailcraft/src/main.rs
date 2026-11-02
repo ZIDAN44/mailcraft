@@ -163,7 +163,8 @@ fn drag_out(_frame: &eframe::Frame, _path: PathBuf) {}
 
 struct App {
     app: MailApp,
-    state_path: Option<PathBuf>,
+    /// Writes the settings (`ui.json`) on a thread of its own.
+    settings: Option<desktop::state_writer::StateWriter>,
     /// The window's GPU device, until its errors are only logged (`graphics::log_errors`).
     gpu: Option<eframe::wgpu::Device>,
     frames: u32,
@@ -175,8 +176,7 @@ struct App {
     native_wayland: bool,
     /// Installs a downloaded update as MailCraft closes.
     updater: Option<self_update::Updater>,
-    /// The settings as last written, and when they were last looked at ([`App::keep_state`]).
-    saved: Vec<u8>,
+    /// When the settings were last looked at ([`App::keep_state`]).
     looked: std::time::Instant,
 }
 
@@ -197,13 +197,10 @@ impl App {
             return;
         }
         self.looked = std::time::Instant::now();
-        let Some(p) = &self.state_path else { return };
-        let Ok(bytes) = serde_json::to_vec_pretty(&self.app.saved_state()) else { return };
-        if bytes != self.saved {
-            match mailcraft_engine::store::write_atomic(p, &bytes) {
-                Ok(()) => self.saved = bytes,
-                Err(e) => log::warn!("the settings weren't saved: {e}"),
-            }
+        // Written (when they changed) on the settings' thread: flushed to the disk, the write
+        // held the window's frame, for 197 ms once while a data file was being flushed.
+        if let Some(w) = &mut self.settings {
+            w.keep(self.app.saved_state());
         }
     }
 }
@@ -252,6 +249,9 @@ impl eframe::App for App {
             u.closing();
         }
         self.keep_state(None, true);
+        if let Some(w) = &mut self.settings {
+            w.close();
+        }
         // An import running pauses: what it read is written before the data files are sealed
         // below (waited for 10 seconds at most; an import stuck longer is let go).
         self.app.backend.shutdown();
@@ -642,7 +642,7 @@ fn run(
                 app.defer_bodies();
                 App {
                     app,
-                    state_path,
+                    settings: state_path.map(desktop::state_writer::StateWriter::new),
                     gpu,
                     frames: 0,
                     instance,
@@ -650,7 +650,6 @@ fn run(
                     finder,
                     native_wayland,
                     updater,
-                    saved: Vec::new(),
                     looked: std::time::Instant::now(),
                 }
             });

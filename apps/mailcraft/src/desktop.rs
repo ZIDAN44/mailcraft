@@ -7,6 +7,7 @@ use super::*;
 pub(crate) mod boot;
 mod lanes;
 pub(crate) mod start;
+pub(crate) mod state_writer;
 
 pub(crate) struct PoolBackend(pub(crate) Pool);
 
