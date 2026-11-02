@@ -31,6 +31,12 @@ pub(crate) struct KeptList {
 }
 
 impl Session {
+    /// The list kept while a search shows (for the memory it holds, `bench::big_mailbox`).
+    #[cfg(test)]
+    pub(crate) fn kept_summaries(&self) -> &[Summary] {
+        self.search_state.kept.as_ref().map(|k| k.list.as_slice()).unwrap_or_default()
+    }
+
     /// What the list on view is built from now (`None`: the Outbox's, nothing to keep).
     fn list_from(&self) -> Option<ListFrom> {
         if matches!(self.view, View::Outbox | View::Empty) {

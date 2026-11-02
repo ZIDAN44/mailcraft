@@ -412,7 +412,8 @@ step; the list's index keeps its keys' hashes for that (`ListNav::build_hashed`)
 search replaces is let go of 4,096 summaries a step or tick. Conversations and other arrangements
 come at the end. `sample::big` makes a mailbox of 50,000 messages in 40 folders, what each measured
 search should find counted as it's made, for `tests/mail/search_big.rs`, the window's frame test
-and `bench.rs`. A step that panics ends the search, and the indexes it was reading are
+and `bench.rs` (which also counts what the summaries held take, `Summary::heap_bytes`, through a
+500-Down walk and searches). A step that panics ends the search, and the indexes it was reading are
 left unread until their writer writes them again. The list says "Searching…" while it runs, that
 results may be missing while mail isn't indexed yet (only then; mail too long to index whole gets
 a quieter note: how far the passes under way have come,

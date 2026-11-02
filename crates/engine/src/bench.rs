@@ -10,9 +10,11 @@
 //! whose first account is the big one. With neither, the made-up mailbox of the search tests
 //! ([`crate::sample::big`], 50,000 messages), in memory.
 //!
-//! Each step prints how long it took; memory is watched from outside. Steps are a few seconds
-//! apart so the watcher sees each. `MC_DATA_CACHE_MB` opens the account's data file with that
-//! cache instead of the usual one; built with `-F mailcraft-store/cache-metrics`, `cache` lines
+//! Each step prints how long it took, and `memory` lines what the summaries kept in memory take
+//! (and the process, on Windows) as the folder, a 500-Down walk and a search hold them. Steps
+//! are a few seconds apart so a watcher outside sees each. `MC_DATA_CACHE_MB` opens the
+//! account's data file with that cache instead of the usual one; built with
+//! `-F mailcraft-store/cache-metrics`, `cache` lines
 //! say how it was used before the searches and at the end.
 
 use std::path::PathBuf;
@@ -24,6 +26,8 @@ use crate::Session;
 use crate::model::dates::Clock;
 use crate::sample::big;
 use crate::store::Store;
+
+mod memory;
 
 fn step<T>(what: &str, f: impl FnOnce() -> T) -> T {
     std::thread::sleep(Duration::from_secs(3));
@@ -42,6 +46,30 @@ fn common_domain(s: &mut Session, account: &str, folder: &str) -> String {
         }
     }
     counts.into_iter().max_by_key(|(d, n)| (*n, *d)).map(|(d, _)| d.to_string()).unwrap_or_else(|| "example".into())
+}
+
+/// Down 500 times from the top, each message opened as it's landed on, as one holds the key
+/// down: the worst and the middle step. Then the largest message in the list opened.
+fn walk(s: &mut Session) {
+    let Some(first) = s.list.first().map(|m| m.key.clone()) else { return };
+    let _ = s.run("list.open", &json!({"key": first.to_id()}));
+    std::thread::sleep(Duration::from_secs(3));
+    let mut steps: Vec<f64> = (0..500)
+        .map(|_| {
+            let t = Instant::now();
+            drop(s.run("list.next", &json!({})));
+            t.elapsed().as_secs_f64() * 1000.0
+        })
+        .collect();
+    steps.sort_by(f64::total_cmp);
+    let at = |q: usize| steps.get(steps.len().saturating_sub(1) * q / 100).copied().unwrap_or_default();
+    println!("Down x500: median {:.2} ms, p90 {:.2}, max {:.2}, {:.2} s in all", at(50), at(90), at(100), steps.iter().sum::<f64>() / 1000.0);
+    let at = s.reading.as_ref().and_then(|r| s.list.iter().position(|m| m.key == r.key));
+    println!("reading the message at {at:?}");
+    if let Some(m) = s.list.iter().max_by_key(|m| m.size) {
+        let (key, size) = (m.key.clone(), m.size);
+        step(&format!("open the largest message ({} KB)", size / 1024), || drop(s.run("list.open", &json!({"key": key.to_id()}))));
+    }
 }
 
 #[test]
@@ -81,6 +109,9 @@ fn big_mailbox() {
     step("open the biggest folder", || s.run("folder.open", &json!({"account": account, "folder": biggest})).unwrap());
     println!("list: {} messages", s.list.len());
     step("refresh the list", || s.refresh_list());
+    memory::report(&s, "with the biggest folder open");
+    walk(&mut s);
+    memory::report(&s, "after the walk and the largest message");
     // Down through the list, each message opened (and marked read) as it's landed on: the
     // time per step is a twentieth of this.
     // Then again with conversations on and the list arranged by sender, where each Down worked
@@ -122,6 +153,7 @@ fn big_mailbox() {
     println!("found {}", s.list.len());
     step("search everything", || s.run_search(&everywhere, crate::SearchScope::All));
     println!("found {}", s.list.len());
+    memory::report(&s, "with a search of everything shown");
     step("search everything again", || s.run_search(&again, crate::SearchScope::All));
     step("is:unread", || s.run_search("is:unread", crate::SearchScope::All));
     println!("found {}", s.list.len());
@@ -134,6 +166,7 @@ fn big_mailbox() {
     let domain = common_domain(&mut s, &account, &biggest);
     step("a common domain", || s.run_search(&domain, crate::SearchScope::All));
     println!("found {}", s.list.len());
+    memory::report(&s, "with a large search shown");
     if let Some(k) = s.list.first().map(|m| m.key.clone()) {
         let _ = s.run("list.select", &json!({"key": k.to_id()}));
         step("search after mark-read", || drop(s.run("mail.markRead", &json!({}))));
