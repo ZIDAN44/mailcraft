@@ -289,7 +289,9 @@ impl Session {
         let raw =
             self.store.as_ref().and_then(|s| s.read_body(&r.key)).ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
         let out = self.reply_compose(ReplyMode::Forward)?;
-        let sig = self.default_signature(&r.key.account, true);
+        // The signature of the account it goes from (not the data file it's in).
+        let from = self.compose.as_ref().map_or(r.key.account.clone(), |c| c.account.clone());
+        let sig = self.default_signature(&from, true);
         let subject = r.parsed.as_ref().map(|p| p.subject.trim().to_string()).unwrap_or_default();
         let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() });
         if let Some(c) = self.compose.as_mut() {

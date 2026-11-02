@@ -120,6 +120,55 @@ fn replies_from_a_data_file_go_from_an_account_that_can_send() {
     done(s);
 }
 
+/// Forwarded as an attachment from a data file: it goes from the account that can send, with
+/// that account's signature for replies and forwards (it had the data file's, none).
+#[test]
+fn forward_as_attachment_from_a_data_file_has_the_senders_signature() {
+    let (mut s, file) = data_file_session("send-forward-attachment");
+    let raw = b"From: Ana <ana@example.org>\r\nTo: me@example.org\r\nSubject: Hello\r\nMessage-ID: <h@x>\r\n\r\nHi there\r\n";
+    put_in_inbox(&mut s, &file, 1, raw);
+    let zoe = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.run("account.setSignature", &json!({"account": zoe, "name": "Zoe", "signature": "Zoe x"})).unwrap();
+    s.run("account.signatureDefaults", &json!({"account": zoe, "new": "Zoe", "reply": "Zoe"})).unwrap();
+    s.take_jobs();
+    s.run("folder.open", &json!({"account": file, "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": s.list[0].key.to_id()})).unwrap();
+    s.run("mail.forwardAsAttachment", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!(c.account, zoe);
+    assert!(c.body.contains("Zoe x"), "{:?}", c.body);
+    assert_eq!(c.attachments.len(), 1);
+    done(s);
+}
+
+/// The bar's Add an account: the messages being written from the data file (the open one and
+/// one set aside) go From the account added, its signature put in, and can be sent.
+#[test]
+fn adding_an_account_lets_an_open_message_go() {
+    let (mut s, _file) = data_file_session("send-add-account");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@example.org", "subject": "First", "body": "One"})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@example.org", "subject": "Plans", "body": "See you"})).unwrap();
+    assert_eq!(s.composes.len(), 1, "the first set aside");
+    assert_eq!(send_off(&s), Some(SendBlock::DataFile.reason()));
+    // Its signature is in the account's first config, as one saved with the account.
+    let mut config = mailcraft_model::AccountConfig::guess("zoe@example.org");
+    config.signatures = vec![mailcraft_model::Signature { name: "Zoe".into(), text: "Zoe x".into(), ..Default::default() }];
+    config.signature_new = Some("Zoe".into());
+    let zoe = s.add_account(config, Some("pw".into())).unwrap();
+    s.take_jobs();
+    for c in s.all_composes() {
+        assert_eq!(c.account, zoe, "{}", c.subject);
+        assert!(c.body.contains("Zoe x"), "{:?}", c.body);
+    }
+    assert_eq!(s.compose.as_ref().unwrap().subject, "Plans", "the same one still open");
+    assert_eq!(send_off(&s), None);
+    s.run("compose.send", &json!({})).unwrap();
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Send { account, .. } if *account == zoe)));
+    done(s);
+}
+
 /// No account at all (the one written from was removed): Send is off, and nothing goes.
 #[test]
 fn mail_isnt_sent_with_no_account() {

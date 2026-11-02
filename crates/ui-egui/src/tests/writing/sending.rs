@@ -78,6 +78,20 @@ fn send_from_a_data_file_says_to_add_an_account() {
     click(&ctx, &mut a, add);
     assert!(matches!(a.ui.dialog, Some(Dialog::AddAccount(_))), "the account form opens");
     assert!(a.session.compose.is_some(), "still open");
+    // The account added (as the form adds it): the open message goes From it, the bar goes and
+    // Send is on.
+    a.ui.dialog = None;
+    a.run("account.add", json!({"email": "zoe@example.org", "password": "pw"}));
+    a.session.take_jobs();
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let zoe = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
+    assert_eq!(a.session.compose.as_ref().map(|c| c.account.as_str()), Some(zoe.as_str()));
+    let nodes = shown(&ctx, &mut a);
+    assert!(!nodes.iter().any(|(_, name, ..)| *name == why || name == "Add an account"), "the bar is gone");
+    let send = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "Send").expect("Send");
+    assert!(!send.3, "Send is on");
     let _ = std::fs::remove_dir_all(dir);
 }
 

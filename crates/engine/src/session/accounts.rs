@@ -119,6 +119,7 @@ impl Session {
             vacation: VacationState::Unknown,
         });
         self.save_accounts();
+        self.move_to_sending_account();
         if config.oauth.is_some() {
             self.jobs.push(Job::SignIn { account: config });
         } else if !local {

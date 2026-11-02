@@ -1405,7 +1405,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   and the message stays open as it was. The message says so over its form with Add an account,
   and Send, drawn off, says it again when clicked; Ctrl+Enter no longer closes that alert the
   moment it opens. As in Outlook, a new message, reply or forward in a data file's folders is
-  written from the first account that can send, and From offers only those. Send now in the
+  written from the first account that can send, and From offers only those; a forward as an
+  attachment takes that account's signature too. An account added while such a message is open
+  (the bar's own Add an account) takes it and any set aside: they go From it, its signature in
+  their place, and can be sent. Send now in the
   Outbox, its timer and an answer to a meeting invitation from a data file don't send either
   (the answer is kept in the calendar and the window says it wasn't sent). Siblings checked:
   no Craft app sends mail, so there was nothing to port.
