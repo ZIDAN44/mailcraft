@@ -123,6 +123,7 @@ use super::*;
 mod find;
 mod meeting;
 mod showing;
+mod tasks;
 mod zones;
 
 fn at(y: i64, m: u32, d: u32, h: i64, mi: i64) -> i64 {

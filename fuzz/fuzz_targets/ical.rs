@@ -1,5 +1,6 @@
-//! A calendar file (an invitation, a CalDAV event) read, written back and read again, its online
-//! meeting found, taken out and added; and the WebDAV answers CalDAV and CardDAV servers send.
+//! A calendar file (an invitation, a CalDAV event, an exported calendar's to-dos) read, written
+//! back and read again, its online meeting found, taken out and added; and the WebDAV answers
+//! CalDAV and CardDAV servers send.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -22,6 +23,9 @@ fuzz_target!(|data: &[u8]| {
     }
     let written = ical::write(&cal.events, cal.method.as_deref(), 0);
     let _ = ical::parse(&written, 3600);
+    // Its to-dos (`VTODO`), written with the events as an exported calendar is, and read back.
+    let exported = ical::write_calendar(&cal.events, &cal.tasks, 0);
+    let _ = ical::parse(&exported, 3600);
     let _ = ical::duration(&text);
     let _ = ical::unescape(&text);
     let _ = ical::split_text_list(&text);

@@ -1,10 +1,13 @@
 //! What an account keeps of its calendars and address books: the server's (CalDAV, CardDAV)
-//! with what's needed to sync them, or ones kept on this computer only.
+//! with what's needed to sync them, or ones kept on this computer only; and its notes and tasks.
 
 use serde::{Deserialize, Serialize};
 
 use crate::ical::CalEvent;
 use crate::vcard::Card;
+
+mod task;
+pub use task::*;
 
 /// The id of a calendar or address book that lives on this computer only.
 pub const LOCAL: &str = "local";
@@ -223,6 +226,9 @@ pub struct Pim {
     /// Notes (Outlook's Notes): the server's (Exchange) and those kept here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<StoredNote>,
+    /// Tasks (Outlook's Tasks), kept on this computer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tasks: Vec<StoredTask>,
     /// Where the server keeps the user's calendars and address books (found once); empty when
     /// it has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -350,6 +356,11 @@ pub struct DavSync {
 }
 
 impl Pim {
+    /// Whether it holds anything: contacts, events, notes or tasks.
+    pub fn has_items(&self) -> bool {
+        !self.cards.is_empty() || !self.events.is_empty() || !self.notes.is_empty() || !self.tasks.is_empty()
+    }
+
     /// Make sure there is somewhere to put events and people.
     pub fn ensure_defaults(&mut self) {
         if self.calendars.is_empty() {

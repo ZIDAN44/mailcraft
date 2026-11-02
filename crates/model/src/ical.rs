@@ -1,4 +1,4 @@
-//! iCalendar (RFC 5545) events: reading, writing and expanding recurrences.
+//! iCalendar (RFC 5545) events and tasks: reading, writing and expanding recurrences.
 //!
 //! Reading is lenient (mail and servers produce all sorts): lines are unfolded, unknown
 //! properties are kept verbatim so an edited event loses nothing. A time in a named zone is read
@@ -25,6 +25,7 @@ mod notes;
 mod recurrence;
 mod scheduling;
 mod showing;
+mod tasks;
 mod zones;
 pub use alarms::*;
 pub use find::*;
@@ -35,6 +36,8 @@ use recurrence::*;
 pub use recurrence::*;
 pub use scheduling::*;
 pub use showing::*;
+use tasks::*;
+pub use tasks::{TASK_STATUS, write_task};
 use zones::*;
 
 /// The most occurrences produced for one event in one expansion.
@@ -153,12 +156,14 @@ impl CalEvent {
     }
 }
 
-/// A calendar file: what it asks (`METHOD`, for invitations), its events, and, for a calendar
-/// published to subscribe to, its name and how often to read it again.
+/// A calendar file: what it asks (`METHOD`, for invitations), its events and tasks, and, for a
+/// calendar published to subscribe to, its name and how often to read it again.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ICalendar {
     pub method: Option<String>,
     pub events: Vec<CalEvent>,
+    /// Its to-dos (`VTODO`).
+    pub tasks: Vec<crate::pim::Task>,
     /// `NAME` (RFC 7986) or `X-WR-CALNAME`.
     pub name: Option<String>,
     /// `REFRESH-INTERVAL` (RFC 7986) or `X-PUBLISHED-TTL`, in seconds.
@@ -529,6 +534,7 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             }
         }
     }
+    cal.tasks = read_tasks(&all, &zones);
     cal
 }
 
@@ -653,17 +659,22 @@ fn write_one(e: &CalEvent, now: i64, purpose: Purpose, out: &mut String) {
 /// An invitation is stamped `now`; a stored event keeps the stamp it came with, so the copy on a
 /// server still tells which invitation it was.
 pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
-    write_all(events, method, now, Purpose::Plain)
+    write_all(events, &[], method, now, Purpose::Plain)
+}
+
+/// A calendar file with these events and tasks (`VTODO`s): an account's calendar exported.
+pub fn write_calendar(events: &[CalEvent], tasks: &[crate::pim::Task], now: i64) -> String {
+    write_all(events, tasks, None, now, Purpose::Plain)
 }
 
 /// A CalDAV server's copy of these events: as [`write`] stores them, with who schedules them
 /// (`SCHEDULE-AGENT=CLIENT` on the organizer and every guest of a meeting MailCraft schedules)
 /// and the mark of a guest's own copy ([`mark_guest_copy`]).
 pub fn write_for_server(events: &[CalEvent], now: i64) -> String {
-    write_all(events, None, now, Purpose::Server)
+    write_all(events, &[], None, now, Purpose::Server)
 }
 
-fn write_all(events: &[CalEvent], method: Option<&str>, now: i64, purpose: Purpose) -> String {
+fn write_all(events: &[CalEvent], tasks: &[crate::pim::Task], method: Option<&str>, now: i64, purpose: Purpose) -> String {
     let mut out = String::new();
     for l in ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MailCraft//MailCraft//EN", "CALSCALE:GREGORIAN"] {
         fold(l, &mut out);
@@ -694,6 +705,9 @@ fn write_all(events: &[CalEvent], method: Option<&str>, now: i64, purpose: Purpo
     for e in events {
         let stamp = if method.is_none() && e.dtstamp > 0 { e.dtstamp } else { now };
         write_one(e, stamp, purpose, &mut out);
+    }
+    for t in tasks {
+        write_task(t, now, &mut out);
     }
     fold("END:VCALENDAR", &mut out);
     out
