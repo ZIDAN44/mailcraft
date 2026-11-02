@@ -141,6 +141,7 @@ fn event_account(e: &Event) -> Option<&str> {
         | Event::DavSynced { account, .. }
         | Event::ImportProgress { account, .. }
         | Event::ImportPlanned { account, .. }
+        | Event::ImportKept { account, .. }
         | Event::Imported { account, .. }
         | Event::Indexed { account, .. }
         | Event::AttachmentsKnown { account, .. }

@@ -693,8 +693,9 @@ impl Backend for WebBackend {
                 let facts = Box::new(DataFileFacts { path: path.clone(), error: Some(DESKTOP_PST.into()), ..DataFileFacts::default() });
                 emit(sh, Event::DataFileInspected { path, facts })
             }
-            // No import runs here to stop, or to keep.
-            Job::StopImport { .. } | Job::KeepImport { .. } => {}
+            // No import runs here to stop; nothing is left of one to keep.
+            Job::StopImport { .. } => {}
+            Job::KeepImport { account } => emit(sh, Event::ImportKept { account, error: None }),
             // The browser keeps mail in its own storage, not in data files.
             Job::DataFileHealth { account } => emit(sh, Event::DataFileHealth { account, health: None, error: None }),
             Job::CompactDataFile { account, mode } => {

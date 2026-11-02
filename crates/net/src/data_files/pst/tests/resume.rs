@@ -248,7 +248,13 @@ fn keeping_a_paused_import_lists_the_folder_part_way_through() {
         let part = cp.current.clone().filter(|c| c.tail.is_some()).expect("part-way through a folder");
         assert!(!store.load_folders("a1").unwrap().iter().any(|f| f.path == part.path), "{n}: kept out of the list");
         written_past += store.cached_bodies("a1", &part.path, 1).into_iter().filter(|u| *u >= part.uid_next).count();
-        let kept = keep_as_is(&store, "a1").unwrap();
+        // Its account removed meanwhile: nothing is written.
+        let removed = Stop::default();
+        removed.raise(StopHow::Discard);
+        assert!(keep_as_is(&store, "a1", &removed).is_err(), "{n}");
+        assert!(!store.load_folders("a1").unwrap().iter().any(|f| f.path == part.path), "{n}: listed when thrown away");
+        assert_ne!(checkpoint(&store).state, CheckState::Done, "{n}");
+        let kept = keep_as_is(&store, "a1", &Stop::default()).unwrap();
         assert!(kept.iter().any(|f| f.path == part.path), "{n}: kept {kept:?}");
         let mut listed = 0;
         for f in store.load_folders("a1").unwrap() {
@@ -263,7 +269,7 @@ fn keeping_a_paused_import_lists_the_folder_part_way_through() {
         assert_eq!(uids, (1..part.uid_next).collect::<Vec<u32>>(), "{n}");
         assert!(store.cached_bodies("a1", &part.path, 1).into_iter().all(|u| u < part.uid_next), "{n}: written past it");
         assert_eq!(checkpoint(&store).state, CheckState::Done);
-        assert!(keep_as_is(&store, "a1").unwrap().is_empty(), "{n}: kept again");
+        assert!(keep_as_is(&store, "a1", &Stop::default()).unwrap().is_empty(), "{n}: kept again");
         let (done, _) = go_on(&pst, &store, None);
         assert_eq!(done.messages as u64, cp.counts.imported, "{n}");
     }

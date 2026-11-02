@@ -33,6 +33,9 @@ pub(crate) const REMOVE_BACKSTOP: u32 = 512;
 pub struct Imports {
     /// Imports running or waiting on the user, by account.
     pub running: BTreeMap<String, ImportState>,
+    /// Imports stopped whose part-way folder is being kept as it is ([`Job::KeepImport`]), by
+    /// account, as they were: back in `running` when that fails.
+    pub keeping: BTreeMap<String, ImportState>,
     /// `imports.json`: each account a data file was imported into.
     pub sources: BTreeMap<String, DataSource>,
     /// Data files looked at, newest last; `None` while the answer is awaited.
@@ -70,9 +73,9 @@ impl Imports {
         self.running.get(account).is_some_and(|s| s.live)
     }
 
-    /// Whether `account` has an import running or waiting on the user.
+    /// Whether `account` has an import running, waiting on the user, or being kept as it is.
     pub fn held(&self, account: &str) -> bool {
-        self.running.contains_key(account)
+        self.running.contains_key(account) || self.keeping.contains_key(account)
     }
 
     /// Mark `account`'s import as read now (`on`) or not; whether it was.
@@ -150,6 +153,7 @@ impl Session {
     /// A failure, not a disabled command: the window says why (it says nothing of a disabled one).
     pub(crate) fn import_holds(&self, account: &str) -> Result<(), CmdError> {
         match self.importing.running.get(account) {
+            None if self.importing.keeping.contains_key(account) => Err(CmdError::Failed("wait until what was imported is kept".into())),
             None => Ok(()),
             Some(s) if s.removing => Err(CmdError::Failed("this account is being removed".into())),
             Some(s) if s.live => Err(CmdError::Failed("wait until the data file is imported".into())),
@@ -676,6 +680,9 @@ impl Session {
         if self.account(account).is_none() {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
+        if self.importing.keeping.contains_key(account) {
+            return Err(CmdError::Failed("what was imported is being kept".into()));
+        }
         match self.importing.running.get(account) {
             None => Err(CmdError::Params("no import of this account is waiting".into())),
             Some(s) if s.removing => Err(CmdError::Failed("this account is being removed".into())),
@@ -731,22 +738,43 @@ impl Session {
     }
 
     /// Keep what a stopped import brought in, as it is: it won't go on. The folder a pause left
-    /// part-way through, kept out of the list until then, comes in with what it has (the network
-    /// side finishes it from the import's note and sends the folders), before the account (a POP
-    /// one) connects; the contacts and calendar read so far are the account's.
+    /// part-way through, kept out of the list until then, comes in with what it has: the network
+    /// side finishes it from the import's note, sends the folders and says it's done
+    /// ([`Self::import_kept`]). Only then is the import over and the account (a POP one, which
+    /// writes the Inbox) connects.
     pub fn keep_imported(&mut self, account: &str) -> CmdResult {
+        self.compaction_holds_import(account)?;
         self.stopped_import(account)?;
-        self.importing.running.remove(account);
+        if let Some(st) = self.importing.running.remove(account) {
+            self.importing.keeping.insert(account.to_string(), st);
+        }
+        self.jobs.push(Job::KeepImport { account: account.to_string() });
+        Ok(serde_json::json!({ "account": account, "kept": true }))
+    }
+
+    /// What a stopped import brought in is kept as it is: the import is over, the contacts and
+    /// calendar read so far are the account's, and its connection, held till now, goes ahead.
+    /// Not all of it (`error`): it waits again to go on or be kept, and the account stays
+    /// unconnected (a Keep tried again would write over what a POP account fetched meanwhile).
+    pub(crate) fn import_kept(&mut self, account: &str, error: Option<String>) {
+        let Some(st) = self.importing.keeping.remove(account) else { return };
+        if self.account(account).is_none() {
+            return;
+        }
+        if let Some(e) = error {
+            let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
+            self.importing.running.insert(account.to_string(), st);
+            self.notice(format!("{name}: what was imported couldn't all be kept: {e}"), true);
+            return;
+        }
         if let Some(row) = self.importing.sources.get_mut(account) {
             row.stage = ImportStage::Done;
             self.save_imports();
         }
-        self.jobs.push(Job::KeepImport { account: account.to_string() });
         self.load_imported_pim(account);
         if let Some(start) = self.held.remove(account) {
             self.jobs.push(start);
         }
-        Ok(serde_json::json!({ "account": account, "kept": true }))
     }
 
     /// How the imports are going (`account`: that one's, running, waiting or done).
@@ -761,6 +789,7 @@ impl Session {
                 "path": st.map(|s| s.path.clone()).or_else(|| row.map(|r| r.path.clone())),
                 "live": st.is_some_and(|s| s.live),
                 "removing": st.is_some_and(|s| s.removing),
+                "keeping": self.importing.keeping.contains_key(a),
                 "stopping": st.and_then(|s| s.stopping),
                 "phase": st.map(|s| s.progress.phase),
                 "progress": st.map(|s| &s.progress),

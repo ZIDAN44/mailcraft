@@ -578,22 +578,22 @@ fn a_paused_import_goes_on_where_it_stopped() {
     let _ = std::fs::remove_dir_all(&dir2);
 }
 
-/// Paused, then kept as it is: the folder it was part-way through, which the pause kept out of
-/// the list, comes into it with every message written before the pause, and the window is told.
+/// Paused, then kept as it is before its thread has ended (asked for together with the pause,
+/// as a keep asked for just after the pause is said may be): the keep follows on that thread.
+/// The folder it was part-way through, which the pause kept out of the list, comes into it with
+/// every message written before the pause, and the window is told, then that it's kept.
 #[test]
 fn a_paused_import_kept_lists_its_folder_part_way_through() {
     let (dir, pst, store, mut p) = setup("keep", 20, 2000, "k1", 30);
     p.submit(Job::ImportPst { account: "k1".into(), path: pst, resume: false });
     events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
     p.submit(Job::StopImport { account: "k1".into(), how: StopHow::Pause });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
-    assert!(!store.load_folders("k1").unwrap().iter().any(|f| f.path == "Projects"), "kept out of the list");
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("k1") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
     p.submit(Job::KeepImport { account: "k1".into() });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Projects"));
+    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportKept { .. }));
+    let paused = seen.iter().position(|e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    let listed = seen.iter().position(|e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Projects"));
+    assert!(paused.is_some() && paused < listed, "paused first, kept out of the list till then");
+    assert!(matches!(seen.last(), Some(Event::ImportKept { error: None, .. })), "{:?}", seen.last());
     let told = seen.iter().find_map(|e| match e {
         Event::Folders { folders, .. } => folders.iter().find(|f| f.path == "Projects").cloned(),
         _ => None,

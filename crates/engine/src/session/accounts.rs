@@ -239,6 +239,10 @@ impl Session {
         if let Some(removing) = self.remove_while_importing(id) {
             return removing;
         }
+        // The import's part-way folder is being written into its data file: a moment.
+        if self.importing.keeping.contains_key(id) {
+            return Err(CmdError::Failed("what was imported is being kept; remove the account once that's done".into()));
+        }
         self.drop_account(id, Leaves::DataFile)
     }
 
@@ -252,6 +256,7 @@ impl Session {
         self.forget_echoes(id);
         self.search_folders_changed(id);
         self.importing.running.remove(id);
+        self.importing.keeping.remove(id);
         if leaves != Leaves::ForImport && self.importing.sources.remove(id).is_some() {
             self.save_imports();
         }

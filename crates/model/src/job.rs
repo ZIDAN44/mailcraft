@@ -168,7 +168,8 @@ pub enum Job {
     /// [`Event::Imported`].
     StopImport { account: String, how: StopHow },
     /// Keep what a stopped import brought in as it is, the folder it was part-way through
-    /// included: it won't go on. Answered by [`Event::Folders`] when the folder list changed.
+    /// included: it won't go on. Answered by [`Event::ImportKept`] (after [`Event::Folders`] when
+    /// the folder list changed).
     KeepImport { account: String },
     /// Write the account's mail to an Outlook data file, which opens as `name`.
     ExportPst { account: String, path: String, name: String },
@@ -433,6 +434,12 @@ pub enum Event {
         account: String,
         folders: Vec<PlannedFolder>,
     },
+    /// What a stopped import brought in is kept as it is ([`Job::KeepImport`]), or couldn't all
+    /// be (`error`: it still waits to go on or be kept).
+    ImportKept {
+        account: String,
+        error: Option<String>,
+    },
     /// A data file import ended (`done`: finished, stopped, or failed with `error`; an earlier
     /// version also said how it was going with `done` false). The folders come as
     /// [`Event::Folders`] first. `report`: what it came to, every loss by its reason.
@@ -621,6 +628,8 @@ mod tests {
         let j = Job::StopImport { account: "a1".into(), how: StopHow::Discard };
         assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
         assert_eq!(Job::InspectDataFile { path: "a.pst".into() }.account(), "");
+        let e = Event::ImportKept { account: "a1".into(), error: Some("full".into()) };
+        assert_eq!(serde_json::from_str::<Event>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
         let j = Job::KeepImport { account: "a1".into() };
         assert_eq!((serde_json::from_str::<Job>(&serde_json::to_string(&j).unwrap()).unwrap(), j.account()), (j.clone(), "a1"));
     }

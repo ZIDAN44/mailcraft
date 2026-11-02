@@ -254,8 +254,10 @@ pub(super) fn load(store: &Store, account: &str) -> Found {
 /// Sent Items folder made to be read last were kept out of the account's folder list; each is
 /// finished now with the messages its checkpoint names (sources written past those go), and
 /// every folder the import made is in the list. The checkpoint then says the import is done.
-/// Returns the folders put in the list (none when there was nothing to finish).
-pub fn keep_as_is(store: &Store, account: &str) -> Result<Vec<Folder>, String> {
+/// Returns the folders put in the list (none when there was nothing to finish). Thrown away
+/// (`stop`: its account removed), nothing more is written.
+pub fn keep_as_is(store: &Store, account: &str, stop: &Stop) -> Result<Vec<Folder>, String> {
+    let thrown_away = || stop.how() == Some(StopHow::Discard);
     let mut cp = match load(store, account) {
         Found::Some(cp) if cp.state != CheckState::Done => *cp,
         // None, done already, or one that can't be read: what's listed stays as it is.
@@ -263,6 +265,9 @@ pub fn keep_as_is(store: &Store, account: &str) -> Result<Vec<Folder>, String> {
     };
     let listed: HashSet<String> = store.load_folders(account).map_err(|e| e.to_string())?.into_iter().map(|f| f.path).collect();
     for c in [cp.current.take(), cp.deferred.take()].into_iter().flatten() {
+        if thrown_away() {
+            return Err("its account was removed".into());
+        }
         // Listed already (cancelled: finished as it stopped), or contacts and calendar items.
         let Some(tail) = c.tail.filter(|_| !c.path.is_empty() && !listed.contains(&c.path)) else { continue };
         let list = store.resume_list_writer(account, &c.path, tail).map_err(|e| e.to_string())?;
@@ -274,6 +279,9 @@ pub fn keep_as_is(store: &Store, account: &str) -> Result<Vec<Folder>, String> {
         }
     }
     let missing: Vec<Folder> = cp.folders.iter().filter(|f| !listed.contains(&f.path)).cloned().collect();
+    if thrown_away() {
+        return Err("its account was removed".into());
+    }
     store.upsert_folders(account, &missing).map_err(|e| e.to_string())?;
     cp.state = CheckState::Done;
     store.save_account_doc(account, CHECKPOINT_DOC, &cp).map_err(|e| e.to_string())?;

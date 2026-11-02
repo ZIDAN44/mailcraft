@@ -184,6 +184,11 @@ fn an_import_interrupted_goes_on_and_one_stopped_waits_after_a_restart() {
     s.run("account.keepImported", &json!({"account": stopped})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::KeepImport { account }] if *account == stopped));
     assert!(s.import_state(&stopped).is_none());
+    assert_eq!(
+        s.run("folder.create", &json!({"account": stopped, "name": "New"})).map_err(refusal),
+        Err("wait until what was imported is kept".into())
+    );
+    s.apply(Event::ImportKept { account: stopped.clone(), error: None });
     assert_eq!(sources(&s)[&stopped].stage, ImportStage::Done);
     s.run("folder.create", &json!({"account": stopped, "name": "New"})).unwrap();
     s.run("account.resumeImport", &json!({"account": blocked})).unwrap();
@@ -191,6 +196,40 @@ fn an_import_interrupted_goes_on_and_one_stopped_waits_after_a_restart() {
     // The POP account connects once its file is in.
     s.apply(ended(&pop, 3, None));
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.id == pop));
+    done(s);
+}
+
+/// A POP account's import stopped and kept as it is: its connection (which writes the Inbox)
+/// waits until the network side says the part-way folder is in, not just until Keep is asked;
+/// a keep that fails leaves it waiting, to be kept again, and the account can't go meanwhile.
+#[test]
+fn a_pop_account_connects_only_once_its_stopped_import_is_kept() {
+    let mut s = sample_session("import-keep-pop");
+    let pop = json!({"email": "ana@example.org", "password": "pw", "pop": true, "pst": "C:/Mail/old.pst"});
+    let pop = s.run("account.add", &pop).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    s.apply(Event::Folders { account: pop.clone(), folders: vec![inbox(&pop)] });
+    s.apply(ended(&pop, 3, Some(StopHow::Cancel)));
+    assert!(s.take_jobs().is_empty(), "stopped: still held");
+
+    s.run("account.keepImported", &json!({"account": pop})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::KeepImport { account }] if *account == pop), "no connection yet");
+    assert!(s.run("account.keepImported", &json!({"account": pop})).is_err(), "asked once");
+    assert!(s.run("account.remove", &json!({"account": pop})).is_err(), "not while it's kept");
+    // Not all of it kept: it waits again, still unconnected.
+    s.apply(Event::ImportKept { account: pop.clone(), error: Some("disk full".into()) });
+    assert!(s.take_jobs().is_empty());
+    assert!(!s.import_state(&pop).unwrap().live);
+    assert_eq!(sources(&s)[&pop].stage, ImportStage::Stopped);
+    // Kept: the import is over, and the account connects now.
+    s.run("account.keepImported", &json!({"account": pop})).unwrap();
+    s.take_jobs();
+    s.apply(Event::ImportKept { account: pop.clone(), error: None });
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.id == pop));
+    assert_eq!(sources(&s)[&pop].stage, ImportStage::Done);
+    // A late answer changes nothing.
+    s.apply(Event::ImportKept { account: pop.clone(), error: None });
+    assert!(s.take_jobs().is_empty());
     done(s);
 }
 
@@ -308,6 +347,10 @@ fn an_importing_accounts_folders_dont_change() {
     s.run("list.selectAll", &json!({})).unwrap();
     refused(&mut s, "continue importing the data file, or keep what's imported, first");
     s.run("account.keepImported", &json!({"account": "sample"})).unwrap();
+    // Until the part-way folder is in, the import still writes the account's folder list.
+    s.run("list.selectAll", &json!({})).unwrap();
+    refused(&mut s, "wait until what was imported is kept");
+    s.apply(Event::ImportKept { account: "sample".into(), error: None });
     s.run("folder.create", &json!({"account": "sample", "name": "New"})).unwrap();
     s.run("mail.move", &json!({"folder": "Archive"})).unwrap();
     done(s);

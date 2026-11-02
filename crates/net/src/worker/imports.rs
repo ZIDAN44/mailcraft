@@ -52,12 +52,22 @@ struct ImportCtl {
 }
 
 /// An import asked for while the account's last one was being thrown away: it starts on the same
-/// thread once that one is over (its data file gone), not beside it.
+/// thread once that one is over (its data file gone), not beside it. And a Keep asked for as an
+/// import stopped, its thread still ending: it follows on that thread.
 #[derive(Default)]
 struct Queue {
     next: Option<(String, Stop)>,
+    keep: bool,
     /// The thread is ending: nothing more is taken from here.
     ended: bool,
+}
+
+/// What an account's import thread does next.
+enum Next {
+    /// Import the data file at `path` (`resume`: going on from where it stopped).
+    Import { path: String, resume: bool },
+    /// Keep what a stopped import brought in as it is.
+    Keep,
 }
 
 /// A data file as it was when it was looked at ([`Job::InspectDataFile`]), and its plan.
@@ -112,42 +122,47 @@ impl Pool {
             drop(queue);
             self.let_go_of_import(&account);
         }
+        if let Err(e) = self.spawn_import(&account, Next::Import { path, resume }) {
+            // No thread, no import: it ends here, as a failed one (the account isn't left importing).
+            self.sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(format!("import: {e}")), report: None });
+        }
+    }
+
+    /// Start an account's import thread on `first`, then on what's queued behind it.
+    fn spawn_import(&mut self, account: &str, first: Next) -> std::io::Result<()> {
         let queue: Arc<Mutex<Queue>> = Arc::default();
         let (sink, store, looked, stop) = (self.sink.clone(), self.store.clone(), self.imports.looked.clone(), Stop::default());
-        let (id, asked, queued) = (account.clone(), stop.clone(), Arc::clone(&queue));
+        let (id, asked, queued) = (account.to_string(), stop.clone(), Arc::clone(&queue));
         // No index pass for the account until the import thread ends.
-        let importing = self.indexer.importing(&account);
-        let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
+        let importing = self.indexer.importing(account);
+        let thread = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
             let _importing = importing;
-            let (mut path, mut stop, mut left, mut resume) = (path, asked, Vec::new(), resume);
+            let (mut work, mut stop, mut left) = (first, asked, Vec::new());
             loop {
-                let planned = planned_for(&looked, &path);
-                left.extend(run(&store, &sink, &account, &path, &stop, planned, resume));
+                match &work {
+                    Next::Import { path, resume } => {
+                        let planned = planned_for(&looked, path);
+                        left.extend(run(&store, &sink, &id, path, &stop, planned, *resume));
+                    }
+                    Next::Keep => keep(&store, &sink, &id, &stop),
+                }
                 let mut q = lock(&queued);
-                match q.next.take() {
+                work = match q.next.take() {
                     // One asked for after an import thrown away starts afresh.
-                    Some((next, asked)) => (path, stop, resume) = (next, asked, false),
+                    Some((path, asked)) => {
+                        stop = asked;
+                        Next::Import { path, resume: false }
+                    }
+                    None if std::mem::take(&mut q.keep) => Next::Keep,
                     None => {
                         q.ended = true;
                         return left;
                     }
-                }
+                };
             }
-        });
-        match spawned {
-            Ok(thread) => {
-                self.imports.running.insert(id, ImportCtl { stop, queue, thread });
-            }
-            // No thread, no import: it ends here, as a failed one (the account isn't left importing).
-            Err(e) => self.sink.emit(Event::Imported {
-                account: id,
-                messages: 0,
-                skipped: 0,
-                done: true,
-                error: Some(format!("import: {e}")),
-                report: None,
-            }),
-        }
+        })?;
+        self.imports.running.insert(account.to_string(), ImportCtl { stop, queue, thread });
+        Ok(())
     }
 
     /// Stop an account's import as `how` says. With none running, the answer comes at once: it's
@@ -170,36 +185,30 @@ impl Pool {
         }
     }
 
-    /// Keep what an account's stopped import brought in as it is (`pst::keep_as_is`), on a thread
-    /// of its own: the folder it was part-way through comes into the folder list with what it
-    /// has. An import or a compaction asked for meanwhile waits for it, as for an import.
+    /// Keep what an account's stopped import brought in as it is (`pst::keep_as_is`), on the
+    /// account's import thread: the folder it was part-way through comes into the folder list
+    /// with what it has, and [`Event::ImportKept`] says it's done. Asked for as the import that
+    /// stopped is still ending (it said so just before), it follows on that thread. An import or
+    /// a compaction asked for meanwhile is refused, as beside an import, and one asked for while
+    /// the data file is compacted is refused too. Removing the account stops it before it writes.
     pub(super) fn keep_import(&mut self, account: String) {
-        self.prune_imports();
-        if self.importing(&account) {
-            return self.sink.emit(Event::Notice { account, message: "a data file is being imported into this account".into() });
+        if self.compacting(&account) {
+            let error = Some("its data file is being compacted; keep it once that's done".to_string());
+            return self.sink.emit(Event::ImportKept { account, error });
         }
-        let (sink, store, id) = (self.sink.clone(), self.store.clone(), account.clone());
-        let spawned = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
-            match crate::pst::keep_as_is(&store, &account) {
-                Ok(kept) if kept.is_empty() => {}
-                Ok(kept) => {
-                    match store.load_folders(&account) {
-                        Ok(folders) => sink.emit(Event::Folders { account: account.clone(), folders }),
-                        Err(e) => log::warn!("{account}: {e}"),
-                    }
-                    for f in kept {
-                        sink.emit(Event::FolderChanged { account: account.clone(), folder: f.path });
-                    }
-                }
-                Err(e) => sink.emit(Event::Notice { account, message: format!("what the import brought in couldn't all be kept: {e}") }),
+        self.prune_imports();
+        if let Some(ctl) = self.imports.running.get(&account) {
+            let mut queue = lock(&ctl.queue);
+            if !queue.ended {
+                queue.keep = true;
+                return;
             }
-            Vec::new()
-        });
-        match spawned {
-            Ok(thread) => {
-                self.imports.running.insert(id, ImportCtl { stop: Stop::default(), queue: Arc::default(), thread });
-            }
-            Err(e) => self.sink.emit(Event::Notice { account: id, message: format!("keep: {e}") }),
+            // Its thread is ending as this is asked: let go of it, and keep on a new one.
+            drop(queue);
+            self.let_go_of_import(&account);
+        }
+        if let Err(e) = self.spawn_import(&account, Next::Keep) {
+            self.sink.emit(Event::ImportKept { account, error: Some(format!("keep: {e}")) });
         }
     }
 
@@ -421,6 +430,27 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
         Err(e) => sink.emit(Event::Imported { account: account.to_string(), messages: 0, skipped: 0, done: true, error: Some(e), report: None }),
     }
     None
+}
+
+/// What a stopped import brought in, kept as it is, and the window told: the folders, those just
+/// listed as changed, and that it's done.
+fn keep(store: &Store, sink: &Sink, account: &str, stop: &Stop) {
+    let error = match crate::pst::keep_as_is(store, account, stop) {
+        Ok(kept) => {
+            if !kept.is_empty() {
+                match store.load_folders(account) {
+                    Ok(folders) => sink.emit(Event::Folders { account: account.to_string(), folders }),
+                    Err(e) => log::warn!("{account}: {e}"),
+                }
+            }
+            for f in kept {
+                sink.emit(Event::FolderChanged { account: account.to_string(), folder: f.path });
+            }
+            None
+        }
+        Err(e) => Some(e),
+    };
+    sink.emit(Event::ImportKept { account: account.to_string(), error });
 }
 
 /// An import stopped before it began: said as one stopped so would be, with nothing in it.
