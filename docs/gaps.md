@@ -1840,10 +1840,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   made-up folder of 10,941 messages, now about 6 ms; on an imported folder of that size, mail
   already read, a Down takes 18–60 ms with the message read in, about 10 ms of it the list's and
   the rest reading and parsing the message); and every message selected (Ctrl+A) is no longer
-  copied three times a frame to draw the ribbon and menus. The 25 ms a step aimed for isn't
-  reached yet: the rows are still built for each step, and the message is still read in the
-  frame. Landing on unread mail still costs about 0.2 s a step there, most of it saving the read
-  mark.
+  copied three times a frame to draw the ribbon and menus. The rows are now built with the list
+  too, not again for each step; the message is read on the reading lane (below), and a read mark
+  is written on a thread of the store's own (below), where it cost about 0.2 s a step in the
+  frame. Measured since on that imported folder: a Down's longest frame is 1.5 ms by median and
+  4.5 ms at most on unread mail (each mark on the disk in 4 ms by median), and the same on mail
+  already read (5.1 ms at most), within the 25 ms a step aimed for.
 - **Text files saved as they came:** a text attachment (`.txt`, `.htm`, `.csv`…) was handed out
   as the text the parser read from it, in the charset it named or, with none, as UTF-8 with
   every other byte replaced, so a file in Latin-1 or Windows-1252 was saved, opened and
@@ -2264,7 +2266,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   recompress took 231 s (304 s in a second run), read 45.7 GiB and wrote
   30.4 GiB with 118 MiB at most in memory, and kept 9,104 MiB less live. Its health had said
   13.1 GiB would be saved, where 8.8 GiB was: the sample overstates what compressing again gives.
-  Open: a mark-read during it, measured on that file, with the milestone's verification.
+  Killed twice on that file (a third of the way, and about four fifths after going on), it lost
+  nothing: every message read back the same, after a whole check of the file on opening (89 to
+  107 s), as its commits aren't sealed. The app never recompresses a file that big in place: it
+  copies it instead (below), and a mark-read during that copy was measured there.
 - **What compacting a big data file costs, measured** (`packed/tests/compaction.rs`, ignored tests
   run on copies, release build, NVMe drive reading 3.6 to 4.6 GiB/s and writing 1.5 to 1.6 GiB/s
   past the cache). Each run starts cold: after the file's health is read, the file is replaced by a
@@ -2295,7 +2300,17 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   waiting for it (what it reads of the file is refused at once), and no import runs beside a
   compaction. A copy keeps every file or isn't made: one with damaged files is refused. On a made-up file of deleted mail the space came
   back to the drive with every file reading back the same; a copy took in what was written while
-  it ran. Not yet: a run on the real files (the milestone's verification).
+  it ran. On the 41 GB file's data files, in the app: a copy of its import with two thirds of
+  its files kept raw (47 GB, made as arc 57 made it; the import itself had nothing to give
+  back) was copied by **Compact now** in 106 s (2.3 s of it with the file to itself) to 37.48 GB, every message
+  reading back the same; killed at three and at seven tenths of a copy, the part copied was
+  removed on opening, in about a second and with no check. The 37.8 GB import with two folders
+  deleted (13.4 GB to give back) was compacted in place; killed at three tenths, the file was
+  already down to 25.7 GB and opened after a 38 s check, every file the same. Meanwhile the window
+  answered within 39 ms, a mark-read within 14 ms, and left alone it began a compaction (a copy)
+  613 s after starting, which a move of the mouse stopped within 2 s, the copy discarded. Not run
+  on them: compacting on close within 30 s (a file this big never fits) and a drive without the
+  room for a copy.
 - **Compacting, in the window:** File › Info › Mailbox settings says, beside what an account keeps
   on this computer, how much its data file could give back (measured once a visit, from 64 MB) and
   has **Compact now**; afterwards it says what that came to (before → after, what was reclaimed
@@ -2314,7 +2329,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   takes longer), or closing without it. Closing while a compaction has its file to itself waits
   for it. Checked on a 37.8 GB data file with 13.4 GB to give back, **Compact, then close** in
   that offer once closed MailCraft at once with nothing compacted (the answer looked for the
-  account in the dialog, already put away when it ran); the answer now carries the account.
+  account in the dialog, already put away when it ran); the answer now carries the account, and
+  on that file (with its two largest folders deleted, 13,801 messages, 13.2 GB to give back) it compacted to 23.98 GB
+  and then closed, 104 s after the click, opening again in under a second with no check.
 - **Down in a big folder of a data file:** a read mark on a `.pst` account's message saved the
   page of 4,096 summaries it's in (about 2 MB) and then the folder counts, two durable commits
   of the 38 GB data file in the window's frame: 24 ms by median, up to 1.4 s when the disk was
