@@ -12,7 +12,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize};
 
 use mailcraft_model::search::IndexDoc;
 use mailcraft_store::search::{self, Pass};
@@ -344,11 +344,12 @@ pub(super) fn pass(
     settle_files(store, account, &mut p, report);
     let adds = p.adds().clone();
     let (next, quit, room) = (AtomicUsize::new(0), AtomicBool::new(false), Room::new());
+    let (times, started) = (PassTimes::default(), Instant::now());
     let mut failed = None;
     std::thread::scope(|s| {
         let (tx, rx) = mpsc::sync_channel::<Read>(IN_FLIGHT);
         for n in 0..readers.max(1) {
-            let (tx, adds, next, quit, room) = (tx.clone(), &adds, &next, &quit, &room);
+            let (tx, adds, next, quit, room, times) = (tx.clone(), &adds, &next, &quit, &room, &times);
             let read = move || {
                 let done = || quit.load(Ordering::Relaxed) || stop.load(Ordering::Relaxed);
                 while !done() {
@@ -358,7 +359,11 @@ pub(super) fn pass(
                     if !room.take(cost, &done) {
                         break;
                     }
-                    let doc = catch_unwind(AssertUnwindSafe(|| store.read_body(&m.key).map(|raw| extract(&raw))));
+                    let began = Instant::now();
+                    let raw = catch_unwind(AssertUnwindSafe(|| store.read_body(&m.key)));
+                    let read = began.elapsed();
+                    let doc = raw.and_then(|raw| catch_unwind(AssertUnwindSafe(|| raw.map(|raw| extract(&raw)))));
+                    times.add(read, began.elapsed().saturating_sub(read));
                     // The source is let go of: its text holds its room until it's added.
                     let kept = Room::kept(&doc, cost);
                     room.give(cost.saturating_sub(kept));
@@ -374,10 +379,13 @@ pub(super) fn pass(
         }
         drop(tx);
         let mut told = Instant::now();
+        let mut waited = Instant::now();
         for (i, doc, kept) in rx {
             if stop.load(Ordering::Relaxed) {
                 break;
             }
+            let began = Instant::now();
+            times.waiting(began.saturating_duration_since(waited));
             let added = match doc {
                 Ok(doc) => p.add(store, i, doc.as_ref()),
                 Err(_) => {
@@ -385,6 +393,8 @@ pub(super) fn pass(
                     p.add_unreadable(store, i)
                 }
             };
+            times.adding(began.elapsed());
+            waited = Instant::now();
             room.give(kept);
             match added {
                 Ok(flushed) if flushed.is_some() || told.elapsed() >= PROGRESS_EVERY => {
@@ -411,8 +421,53 @@ pub(super) fn pass(
         Some(e) => Err(e),
         None => finish(store, &mut p, stop),
     };
+    times.log(account, p.work().done, started.elapsed());
     report(indexed(&p, true));
     ended
+}
+
+/// Where a pass's time goes, all told: its readers' reading of sources and taking their text
+/// out (each thread's summed), and the pass's own adding of what they read and waiting for it.
+/// Logged at its end: which of them holds a pass back says what to make faster (the 41 GB
+/// file's took 100 s on 1.6 cores of eight readers').
+#[derive(Default)]
+struct PassTimes {
+    /// Microseconds of each.
+    reading: AtomicU64,
+    extracting: AtomicU64,
+    adding: AtomicU64,
+    waiting: AtomicU64,
+}
+
+impl PassTimes {
+    fn count(of: &AtomicU64, d: Duration) {
+        of.fetch_add(u64::try_from(d.as_micros()).unwrap_or(u64::MAX), Ordering::Relaxed);
+    }
+
+    fn add(&self, read: Duration, extract: Duration) {
+        Self::count(&self.reading, read);
+        Self::count(&self.extracting, extract);
+    }
+
+    fn adding(&self, d: Duration) {
+        Self::count(&self.adding, d);
+    }
+
+    fn waiting(&self, d: Duration) {
+        Self::count(&self.waiting, d);
+    }
+
+    fn log(&self, account: &str, messages: u64, all: Duration) {
+        let s = |us: &AtomicU64| Duration::from_micros(us.load(Ordering::Relaxed)).as_secs_f64();
+        log::info!(
+            "{account}: an index pass read {messages} messages in {:.1} s: reading {:.1} s and taking text out {:.1} s on the readers, adding {:.1} s and waiting {:.1} s on the pass",
+            all.as_secs_f64(),
+            s(&self.reading),
+            s(&self.extracting),
+            s(&self.adding),
+            s(&self.waiting),
+        );
+    }
 }
 
 /// Put right in their folders' lists the summaries the pass found to say otherwise than the
