@@ -319,7 +319,7 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
     // writer needs next).
     let need = held(weight(&it));
     if need > *charge {
-        if !ctx.budget.acquire(job.seq, need - *charge, &|| ctx.stopped(), &ctx.tally) {
+        if !ctx.budget.acquire_more(job.seq, *charge, need - *charge, &|| ctx.stopped(), &ctx.tally) {
             return Outcome::Stopped;
         }
         *charge = need;

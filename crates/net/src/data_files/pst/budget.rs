@@ -62,6 +62,12 @@ impl Budget {
     /// (unless `seq` is the item the writer needs next). False, with nothing taken, once `stopped`
     /// says to stop. The time it waited is counted to `tally`.
     pub(super) fn acquire(&self, seq: u64, charge: u64, stopped: &dyn Fn() -> bool, tally: &Tally) -> bool {
+        self.acquire_more(seq, 0, charge, stopped, tally)
+    }
+
+    /// Take `charge` more for item `seq`, whose lane holds `held` for it already (an item read
+    /// bigger than the file said): as [`Budget::acquire`], the item weighing the two together.
+    pub(super) fn acquire_more(&self, seq: u64, held: u64, charge: u64, stopped: &dyn Fn() -> bool, tally: &Tally) -> bool {
         let mut st = self.lock();
         let began = Instant::now();
         let (mut waited, mut counted) = (false, false);
@@ -73,8 +79,9 @@ impl Budget {
             }
             if !waited {
                 waited = true;
-                // Charged more than the cap, it can only go as the writer's next: none waits for it.
-                if charge <= self.cap {
+                // Charged more than the cap in all, it can only go as the writer's next (what its
+                // lane holds counts in `in_flight` already): none waits for it.
+                if held.saturating_add(charge) <= self.cap {
                     st.queued.insert(seq);
                 }
             }
@@ -263,6 +270,40 @@ mod tests {
         });
         assert!(!budget.waiting());
         assert_eq!(budget.in_flight(), 550);
+    }
+
+    /// An item read bigger than the file said, over the cap in all though the more it asks for
+    /// isn't, doesn't hold up the small ones after it either.
+    #[test]
+    fn a_top_up_over_the_cap_holds_no_one_up() {
+        let budget = Budget::new(100);
+        let stop = AtomicBool::new(false);
+        let tally = Tally::default();
+        let stopped = || stop.load(Ordering::Relaxed);
+        assert!(budget.acquire(0, 10, &stopped, &tally));
+        assert!(budget.acquire(1, 60, &stopped, &tally));
+        std::thread::scope(|s| {
+            // Read at 150: 90 more, under the cap, but 150 in all.
+            let big = s.spawn(|| budget.acquire_more(1, 60, 90, &stopped, &tally));
+            while !budget.waiting() {
+                std::thread::yield_now();
+            }
+            let small = s.spawn(|| budget.acquire(2, 10, &stopped, &tally) && budget.acquire(3, 10, &stopped, &tally));
+            let began = Instant::now();
+            while !small.is_finished() && began.elapsed() < Duration::from_secs(2) {
+                std::thread::yield_now();
+            }
+            let went = small.is_finished();
+            if !went {
+                stop.store(true, Ordering::Relaxed);
+                budget.wake();
+            }
+            assert!(small.join().unwrap() && went, "small items waited behind a top-up over the cap");
+            assert_eq!(budget.in_flight(), 90);
+            budget.advance(1);
+            assert!(big.join().unwrap());
+        });
+        assert_eq!(budget.in_flight(), 180);
     }
 
     /// A lane waiting for room gives up once told to stop, taking nothing.
