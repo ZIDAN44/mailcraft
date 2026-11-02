@@ -43,7 +43,16 @@ fn an_account_starts_from_an_existing_data_file() {
     old.save_ops("a1", &[mailcraft_model::Op::Expunge { keys: vec![k.clone()] }]).unwrap();
     old.outbox_add("a1", &crate::OutboxItem { id: 4, ..Default::default() }, b"Subject: later\r\n\r\nx").unwrap();
     let file = old.data_file("a1").unwrap();
-    drop(old);
+    // Open, it's refused, here or from another copy, before any of it is copied: commits going
+    // on would tear the copy.
+    let other = Store::open_packed(t.join("other"), t.join("Other Files")).unwrap();
+    other.save_accounts(&[account("o1", "ana@example.org")]).unwrap();
+    for (s, a) in [(&old, "a2"), (&other, "o1")] {
+        let refused = s.import_data_file_until(a, &file, &|| panic!("nothing is copied")).unwrap_err();
+        assert!(refused.to_string().contains("in use"), "{refused}");
+        assert!(s.load_folders(a).unwrap().is_empty());
+    }
+    drop((old, other));
 
     let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
     s.save_accounts(&[account("p7", "ana@example.org")]).unwrap();

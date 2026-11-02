@@ -2,27 +2,26 @@
 //! a full drive while it's set. Built for the store's own tests and, with the `test-drive`
 //! feature, for those of the crates over it (`Store::fill_drive`).
 
-use std::fs::OpenOptions;
 use std::io;
 use std::ops::Bound;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use redb::backends::FileBackend;
 use redb::{BackendError, Database, DatabaseError, StorageBackend};
+
+use super::handles::DataFile;
 
 /// A data file on a drive that is full while `full` is set: growing it fails as the disk would.
 #[derive(Debug)]
 struct Filling {
-    file: FileBackend,
+    file: DataFile,
     full: Arc<AtomicBool>,
 }
 
 /// The data file at `path` opened as `b` says, on a drive full while `full` is set.
 pub(super) fn create(b: &redb::Builder, path: &Path, full: &Arc<AtomicBool>) -> Result<Database, DatabaseError> {
-    let file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
-    b.create_with_backend(Filling { file: FileBackend::new(file)?, full: full.clone() })
+    b.create_with_backend(Filling { file: DataFile::open(path)?, full: full.clone() })
 }
 
 impl StorageBackend for Filling {

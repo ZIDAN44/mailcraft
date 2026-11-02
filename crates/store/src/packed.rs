@@ -26,6 +26,7 @@ mod commit;
 mod compact;
 #[cfg(any(test, feature = "test-drive"))]
 mod filling;
+mod handles;
 mod health;
 mod kept;
 mod open;
@@ -622,11 +623,17 @@ pub(crate) fn read_data_file(
     each: &mut dyn FnMut(Vec<(String, Vec<u8>)>) -> Result<()>,
 ) -> Result<usize> {
     let io_err = |source: io::Error| StoreError::Io { path: path.display().to_string(), source };
+    let in_use = || io_err(io::Error::other("it's in use: an account in MailCraft has it open"));
+    // An account here (or in another copy) has it open: its commits would tear the copy. The
+    // database's locks no longer keep its data from being read, so they're asked.
+    if handles::in_use(path).unwrap_or(false) {
+        return Err(in_use());
+    }
     if let Err(e) = copy_until(path, tmp, stop) {
         let _ = fs::remove_file(tmp);
         return Err(match e.raw_os_error() {
-            // Windows' sharing and lock violations: an account here (or another copy) has it open.
-            Some(32 | 33) => io_err(io::Error::other("it's in use: an account in MailCraft has it open")),
+            // Windows' sharing and lock violations: something else has it open.
+            Some(32 | 33) => in_use(),
             _ => io_err(e),
         });
     }

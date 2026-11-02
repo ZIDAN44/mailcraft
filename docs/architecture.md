@@ -78,7 +78,13 @@ Account folders from before are brought into data files when the store opens, an
 read back. The data files' folder can be moved (`crates/store/src/location.rs`): `location.json`
 in the app folder points at it, and a move asked for (`move-pending.json`) is carried out at the
 next start, before anything opens the files, every file checked before the old ones go. The
-sample mailbox and the browser keep plain files and memory.
+sample mailbox and the browser keep plain files and memory. On Windows a data file's database
+reads through ten handles of its own, each thread through its own while it's free
+(`crates/store/src/packed/handles.rs`): through one handle every read waited for the reads,
+writes and flushes before it, from every thread. Writes, flushes and the lock that keeps
+another copy of MailCraft out stay on the database's own handle, the lock from its lock bytes
+(far past any data) rather than from the file's start, where it held the other handles' reads
+back.
 
 How a data file commits (`crates/store/src/packed/commit.rs`): writes from the window are durable
 at once. Writers in the background (a `.pst` import, a MailCraft data file brought in) prepare

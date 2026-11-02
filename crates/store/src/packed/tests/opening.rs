@@ -233,3 +233,63 @@ fn a_data_file_marked_on_its_thread_opens_again() {
     assert!(back.find(7).unwrap().flags.seen);
     let _ = std::fs::remove_dir_all(&t);
 }
+
+/// A data file reads through handles of its own (ten on Windows, where reads through one handle
+/// wait for each other: the index's readers read no faster than one): what's committed through
+/// the database's own handle is read at once through them, by eight threads while another
+/// commits, and all of it again once the file is opened anew. The file open, opening it again
+/// (as another copy of MailCraft would) is still refused: its lock moved past the data, not gone.
+#[test]
+fn reads_through_handles_of_their_own_see_every_write() {
+    use redb::{ReadableDatabase, ReadableTableMetadata, TableDefinition};
+    const T: TableDefinition<u64, &[u8]> = TableDefinition::new("t");
+    let value = |i: u64| vec![u8::try_from(i % 251).unwrap(); 4096 + usize::try_from(i % 7).unwrap() * 1000];
+    let t = temp("handles");
+    std::fs::create_dir_all(&t).unwrap();
+    let path = t.join("a.mailcraft");
+    let file = super::super::handles::DataFile::open(&path).unwrap();
+    assert_eq!(file.read_handles(), if cfg!(windows) { 10 } else { 0 });
+    let db = redb::Database::builder().create_with_backend(file).unwrap();
+    let put = |range: std::ops::Range<u64>| {
+        let tx = db.begin_write().unwrap();
+        {
+            let mut table = tx.open_table(T).unwrap();
+            for i in range {
+                table.insert(i, value(i).as_slice()).unwrap();
+            }
+        }
+        tx.commit().unwrap();
+    };
+    put(0..200);
+    let again = redb::Database::builder().create_with_backend(super::super::handles::DataFile::open(&path).unwrap());
+    assert!(matches!(again, Err(redb::DatabaseError::DatabaseAlreadyOpen)), "{:?}", again.err());
+    let written = std::sync::atomic::AtomicU64::new(200);
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            for i in 200..400 {
+                put(i..i + 1);
+                written.store(i + 1, std::sync::atomic::Ordering::Release);
+            }
+        });
+        for n in 0..8u64 {
+            let (db, written) = (&db, &written);
+            s.spawn(move || {
+                for k in 0..300u64 {
+                    let upto = written.load(std::sync::atomic::Ordering::Acquire);
+                    let tx = db.begin_read().unwrap();
+                    let table = tx.open_table(T).unwrap();
+                    assert!(table.len().unwrap() >= upto, "every commit seen");
+                    let i = (n * 7919 + k * 104_729) % upto;
+                    assert_eq!(table.get(i).unwrap().unwrap().value(), value(i).as_slice(), "{i}");
+                }
+            });
+        }
+    });
+    drop(db);
+    let db = redb::Database::builder().create_with_backend(super::super::handles::DataFile::open(&path).unwrap()).unwrap();
+    let tx = db.begin_read().unwrap();
+    let table = tx.open_table(T).unwrap();
+    assert!((0..400).all(|i| table.get(i).unwrap().is_some_and(|v| v.value() == value(i).as_slice())));
+    drop((table, tx, db));
+    let _ = std::fs::remove_dir_all(&t);
+}

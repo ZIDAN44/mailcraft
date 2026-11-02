@@ -359,7 +359,7 @@ impl Packs {
                 log::warn!("{}: {e}; set aside as {}", path.display(), aside.display());
                 fs::rename(&path, &aside)?;
                 fresh = true;
-                self.builder(&name, &checked, cache).create(&path).map_err(other)?
+                self.create(&self.builder(&name, &checked, cache), &path).map_err(other)?
             }
         };
         if checked.load(Ordering::Acquire) {
@@ -392,10 +392,11 @@ impl Packs {
         Ok(Some(db))
     }
 
-    /// The data file at `path` opened as `b` says (made when it isn't there).
+    /// The data file at `path` opened as `b` says (made when it isn't there), read through
+    /// handles of its own (`handles.rs`).
     #[cfg(not(any(test, feature = "test-drive")))]
     fn create(&self, b: &redb::Builder, path: &Path) -> std::result::Result<Database, redb::DatabaseError> {
-        b.create(path)
+        b.create_with_backend(super::handles::DataFile::open(path)?)
     }
 
     /// …on a drive a test can fill ([`Packs::full`]).

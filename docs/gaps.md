@@ -1961,7 +1961,22 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   waiting for them in the window's frame; and the window's settings, flushed to the disk every
   few seconds when they changed (5–15 ms of a frame, 197 ms once while the disk was busy), are
   written on a thread of their own. A wait for the marks, or for the lock every change of a list
-  takes, over 50 ms is logged with what waited.
+  takes, over 50 ms is logged with what waited. Measured on the real file: 40 read/unread toggles
+  had every mark written within 5.3 ms, and six ten-second holds of Down over unread mail had
+  no frame over 16 ms without disk load; with a disk flushing writes beside it, frames of 21–57
+  ms now and then, and twice the window answered nothing for 0.6–0.8 s between frames, no wait
+  for the marks among them (Open: what holds the window there).
+- **A data file read on handles of its own:** on Windows every read and write through one handle
+  waits for the one before it, so the search index's eight readers, the marks' commits and
+  their flushes and the window's own reads all queued on the data file's one handle: building
+  the index of the 41 GB file took 110 s with eight readers, 119 s with sixteen and 164 s with
+  two. A data file's database now reads through ten handles of its own, each thread through its
+  own while it's free (so the system reads ahead of a thread reading the file through), and
+  writes, flushes and locks through its own as before; its lock against another copy of
+  MailCraft starts at its lock bytes rather than at the file's start, where it held back every
+  other handle's reads. The index of the 41 GB file now builds in 55 s (the readers spend 188 s
+  reading, 543 s before), at most 156 MB above the window's own, with no frame over 5 ms; the
+  check after a kill takes as long as before (86–95 s, 90 s with the old reads).
 - **Attachments a build before 0.32 kept raw:** a data file those builds made keeps most base64
   attachments uncompressed (34.9 GiB of a 47 GB file). The store can now compress them again in
   the background (`Store::recompress_data_file`): a batch of at most 2 MiB at a time, each
