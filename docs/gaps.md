@@ -1662,7 +1662,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   import again or remove. The folders a file holds are shown ahead as an outline: as soon as
   an import (or a run of one going on) has planned the file, the folders not in yet are listed
   faint under the account's, each where it will be, and each becomes a folder like any other
-  as it finishes.
+  as it finishes: in the window, importing the 41 GB file, 42 of its 46 folders were outlined
+  5 s in, 9 a minute in, and none once it was done.
 - **Going on where an import stopped:** continuing an import read the file again from its start
   (the same messages coming out the same way, so a 41 GB file paused near its end took as long
   again). An import now notes where it got inside the account's data file, in the same commit as
@@ -1685,7 +1686,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   part-way through out of the folder list, its messages in the data file but shown nowhere: that
   folder, and the Sent Items folder made to be read last, now come into the list with the
   messages the note names, numbered as they came in (those written past the note, before a
-  crash, go), and the import's note says it's done.
+  crash, go), and the import's note says it's done. In the window, an import of the 41 GB file
+  paused at 98% (reading its Sent Items folder, last) and then waiting on the file another
+  program held: Keep brought that folder into the list, 46 folders and 34,267 messages listed
+  against 45 and 33,292 before it; the same on the build before this, paused at 80%, left 38
+  folders and 18,136 messages as they were.
 - **Seeing an import go:** opening a `.pst` said "Opening {file}…" in the status bar for as long
   as it took (13.6 minutes on a 41 GB file), with no total, no percentage, no time left and no
   way to stop it, and the folder pane said "Loading folders…". A file chosen is now looked at
@@ -1906,7 +1911,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   walk over the folders, whose plan cut short is no longer taken for a file that changed: 20
   pauses with another program writing to the drive all along stopped in 0.3 s by median and
   1.2 s at worst (0.6 s and 1.7 s before; in a test whose reads take a second each, 11.6 s
-  before and within 2.5 s now). The writer was busy 58–61% of the
+  before and within 2.5 s now). In the window, on a fresh import (release build, scratch data
+  folder), Stop showed the import stopped 0.39–0.64 s after it was pressed (0.30–0.55 s on the
+  build before), and Close MailCraft ended the process 0.46 s after (0.40–0.43 s): a pause there
+  was quick before too, its slow ones rare. The writer was busy 58–61% of the
   time with indexing (55–58% without), 85% aimed at: it waits on the threads reading the file.
   The peak was 1.17–1.22 GB with indexing (0.76 GB without), its working set growing by a third
   from a fifth of the way to nine tenths, where 1 GB and flat were aimed at. Opening the data
@@ -1917,7 +1925,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   each 8 MB cost 35 s and 8.5 GB of writes): killed four times 25–40 s into a run, it opened in
   12–126 ms, and the import took 132 s writing 42.4 GB against 160 s and 40.2 GB the same day. A
   mark saved meanwhile waits longer for the disk (147 ms by median after 256 MB of batches, 10 ms
-  after 8 MB), on its own thread, never the window's. After an
+  after 8 MB), on its own thread, never the window's. In the window, killed at 81% and 90% of a
+  fresh import, MailCraft showed the account 0.54–0.58 s after it started and the import was
+  going again 1.4–2.2 s after; on the build before, killed at 68% and 72%, it went on 50–56 s
+  after, its data file checked whole meanwhile. After an
   import paused and gone on with, the next index pass looks at the lists of most folders again
   (30,342 messages' worth, none of them read). And the time left, which waits on the owner (or
   the plan): from half done it was 4–26% off (10% aimed at), and before that up to twice the
@@ -1942,7 +1953,10 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   again, the next stretch twice as fast), with what the items hold, which the plan doesn't see;
   an estimate that starts from the run's own average and turns into the 30 s one by half done
   was off by up to 64% from a tenth but 21% from half done, so it wasn't taken. Meeting them
-  needs another aim or another way to tell the time left: the owner's to choose.
+  needs another aim or another way to tell the time left: the owner's to choose. In the window,
+  one fresh import each way: with 16 KB, "About 5 min left" at 11% with 112 s to go, off by up to
+  125% from a tenth and 19% from half done (the minutes rounded up); with 128 KB on the build
+  before, 50% and 7%. One run each says less than the runs differ by.
 - **What a `.pst` import keeps, measured whole:** every item and attachment of the 41 GB file
   (34,691 messages in 46 folders) was compared with what an import of it holds, read from the
   file a second time, and the benchmark's own count of what came in (`pst_bench::import`'s
