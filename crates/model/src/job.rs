@@ -171,8 +171,15 @@ pub enum Job {
     /// included: it won't go on. Answered by [`Event::ImportKept`] (after [`Event::Folders`] when
     /// the folder list changed).
     KeepImport { account: String },
-    /// Write the account's mail to an Outlook data file, which opens as `name`.
-    ExportPst { account: String, path: String, name: String },
+    /// Write the account's mail to an Outlook data file, which opens as `name`; `follow_up`:
+    /// when flagged messages are due, by [`crate::Summary::follow_up_id`] (local days).
+    ExportPst {
+        account: String,
+        path: String,
+        name: String,
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        follow_up: std::collections::BTreeMap<String, i64>,
+    },
     /// Measure how the account's data file is doing (quick: nothing of the mail is read).
     /// Answered by [`Event::DataFileHealth`].
     DataFileHealth { account: String },

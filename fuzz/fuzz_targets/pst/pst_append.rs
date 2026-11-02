@@ -1,6 +1,8 @@
 //! Mail added to an Outlook data file (`.pst`) that's already there, as an export adds to one:
 //! the file damaged any way, then one message with a file appended by the writer (MailCraft's
-//! fork of outlook-pst-rw), and what it then holds read back.
+//! fork of outlook-pst-rw), and what it then holds read back. Each message carries what an export
+//! gives one: tagged properties, and named ones the writer looks up in the file's (damaged)
+//! name-to-ID map and adds to it.
 //!
 //! Random bytes rarely get past a `.pst`'s header, so most inputs damage a good file instead:
 //! one the writer made (an Inbox with a message and its attachment, and a folder beside it),
@@ -20,9 +22,25 @@ use std::rc::Rc;
 use std::sync::OnceLock;
 
 use libfuzzer_sys::fuzz_target;
+use pst_rw::ltp::prop_context::GuidValue;
+use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
 use pst_rw::messaging::store::{Store as _, UnicodeStore};
 use pst_rw::ndb::node_id::NodeId;
-use pst_rw::{ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage};
+use pst_rw::{
+    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName, UnicodePstProperty,
+    UnicodePstPropertyKey as Key, UnicodePstValue as Value,
+};
+
+/// PSETID_Common.
+const COMMON: GuidValue = GuidValue::new(0x0006_2008, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+
+/// An unread, flagged message in a category, as the export writes one.
+const PROPERTIES: [UnicodePstProperty<'static>; 4] = [
+    UnicodePstProperty { key: Key::Tag(0x0E07), value: Value::Integer32(0) },
+    UnicodePstProperty { key: Key::Tag(0x1090), value: Value::Integer32(2) },
+    UnicodePstProperty { key: Key::Named(COMMON, UnicodePstName::Id(0x8530)), value: Value::Unicode("Follow up") },
+    UnicodePstProperty { key: Key::Named(PS_PUBLIC_STRINGS, UnicodePstName::String("Keywords")), value: Value::MultipleUnicode(&["Red"]) },
+];
 
 fn scratch(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("mailcraft-fuzz-{}-{name}", std::process::id()))
@@ -38,6 +56,8 @@ fn message(subject: &str) -> UnicodePstMessage<'_> {
         html_body: Some("<p>Hello <b>there</b>.</p>"),
         message_id: "<m1@example.com>",
         delivery_time: 133_485_408_000_000_000,
+        message_class: "IPM.Note",
+        properties: &PROPERTIES,
     }
 }
 

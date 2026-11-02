@@ -35,6 +35,8 @@ fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
                 html_body: None,
                 message_id: &o.1,
                 delivery_time: (1_700_000_000 + k as i64 * 60 + 11_644_473_600) * 10_000_000,
+                message_class: "IPM.Note",
+                properties: &[],
             },
             attachments: &[],
         })

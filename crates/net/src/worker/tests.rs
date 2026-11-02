@@ -417,6 +417,8 @@ fn an_imported_file_leaves_nothing_to_index() {
         html_body: None,
         message_id: "<plan@studio.example>",
         delivery_time: 133_485_408_000_000_000,
+        message_class: "IPM.Note",
+        properties: &[],
     };
     drop(UnicodePstFile::create_with_attachments(&file, &message, &[]).unwrap());
     let store = Store::memory();

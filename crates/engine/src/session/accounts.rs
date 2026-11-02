@@ -148,7 +148,9 @@ impl Session {
         }
         let a = self.account(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
         let name = if a.config.name.trim().is_empty() { a.config.email.clone() } else { a.config.name.clone() };
-        self.jobs.push(Job::ExportPst { account: account.to_string(), path: path.to_string(), name });
+        // When flagged messages are due, which only this computer keeps, go into the file too.
+        let follow_up = self.prefs.follow_up.clone();
+        self.jobs.push(Job::ExportPst { account: account.to_string(), path: path.to_string(), name, follow_up });
         Ok(serde_json::json!({ "account": account, "exporting": true }))
     }
 

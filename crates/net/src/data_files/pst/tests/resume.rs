@@ -338,6 +338,8 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
         html_body: None,
         message_id: "<more@run.example>",
         delivery_time: (1_800_000_000 + 11_644_473_600) * 10_000_000,
+        message_class: "IPM.Note",
+        properties: &[],
     };
     Writer::append_many_in_folder_with_attachments(&changed, &["Inbox"], &[UnicodePstBatchMessage { message: more, attachments: &[] }]).unwrap();
     let (done, _) = go_on(&changed, &store, None);

@@ -221,6 +221,9 @@ pub struct Parsed {
     pub reply_to: Vec<EmailAddress>,
     pub to: Vec<EmailAddress>,
     pub cc: Vec<EmailAddress>,
+    /// A sent or draft copy's Bcc.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bcc: Vec<EmailAddress>,
     pub date: i64,
     pub message_id: String,
     #[serde(default)]
@@ -359,6 +362,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         reply_to: addrs(m.reply_to()),
         to: addrs(m.to()),
         cc: addrs(m.cc()),
+        bcc: addrs(m.bcc()),
         date: m.date().map(|d| d.to_timestamp()).unwrap_or(0),
         message_id: m.message_id().map(norm_id).unwrap_or_default(),
         in_reply_to: ids(m.in_reply_to()).into_iter().next().unwrap_or_default(),

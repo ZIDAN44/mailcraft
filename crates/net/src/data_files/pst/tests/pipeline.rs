@@ -59,6 +59,8 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
                     html_body: (k % 2 == 1).then_some("<p>The plan</p><img src=\"cid:c@run.example\">"),
                     message_id: &o.1,
                     delivery_time: (1_700_000_000 + (f * per_folder + k) as i64 * 60 + 11_644_473_600) * 10_000_000,
+                    message_class: "IPM.Note",
+                    properties: &[],
                 },
                 attachments: &files[k],
             })

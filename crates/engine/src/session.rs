@@ -777,7 +777,7 @@ pub fn parse_key(v: &Value) -> Option<MessageKey> {
     serde_json::from_value::<MessageKey>(v.clone()).ok().filter(|k| !k.account.is_empty())
 }
 
-/// What a follow-up date is kept under: the Message-ID, or (without one) the message's place.
+/// What a follow-up date is kept under ([`Summary::follow_up_id`]).
 fn follow_up_id(m: &Summary) -> String {
-    if m.message_id.trim().is_empty() { m.key.to_id() } else { m.message_id.trim().to_string() }
+    m.follow_up_id()
 }

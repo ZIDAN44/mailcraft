@@ -315,6 +315,11 @@ impl Summary {
         if self.received > 0 { self.received } else { self.date }
     }
 
+    /// What a follow-up date is kept under: the Message-ID, or (without one) the message's place.
+    pub fn follow_up_id(&self) -> String {
+        if self.message_id.trim().is_empty() { self.key.to_id() } else { self.message_id.trim().to_string() }
+    }
+
     /// Keep a conversation index as its [`thread::index_keys`].
     pub fn set_thread_index(&mut self, index: &[u8]) {
         let k = thread::index_keys(index);

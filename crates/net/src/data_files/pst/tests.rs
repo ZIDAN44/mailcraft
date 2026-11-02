@@ -720,6 +720,8 @@ fn imports_a_data_file() {
         message_id: "<plan@example.com>",
         // 2024-01-01T00:00:00Z
         delivery_time: 133_485_408_000_000_000,
+        message_class: "IPM.Note",
+        properties: &[],
     };
     let files = [
         UnicodePstAttachment {

@@ -264,7 +264,7 @@ impl Pool {
                 let account = account.id;
                 self.submit(if keep { Job::KeepDraft { account, raw, folder, replaces } } else { Job::SaveDraft { account, raw, folder, replaces } });
             }
-            Job::ExportPst { account, path, name } => self.export_pst(account, path, name),
+            Job::ExportPst { account, path, name, follow_up } => self.export_pst(account, path, name, follow_up),
             Job::SetSync { messages, offline } => {
                 let opts =
                     SyncOptions { window: if messages == 0 { usize::MAX } else { messages as usize }, prefetch: offline as usize, ..self.opts };

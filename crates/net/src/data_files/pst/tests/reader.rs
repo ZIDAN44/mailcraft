@@ -47,6 +47,8 @@ fn with_id<'a>(subject: &'a str, message_id: &'a str) -> UnicodePstMessage<'a> {
         html_body: None,
         message_id,
         delivery_time: 133_485_408_000_000_000,
+        message_class: "IPM.Note",
+        properties: &[],
     }
 }
 

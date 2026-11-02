@@ -136,7 +136,7 @@ impl Pool {
     }
 
     /// Export to a data file on a thread of its own.
-    pub(super) fn export_pst(&mut self, account: String, path: String, name: String) {
+    pub(super) fn export_pst(&mut self, account: String, path: String, name: String, follow_up: std::collections::BTreeMap<String, i64>) {
         // With the changes made just before it.
         self.edits.flush();
         let sink = self.sink.clone();
@@ -144,7 +144,7 @@ impl Pool {
         let spawned = std::thread::Builder::new().name("mail-export".into()).spawn(move || {
             let mut progress =
                 |messages| sink.emit(Event::Exported { account: account.clone(), messages, skipped: 0, already: 0, done: false, error: None });
-            let event = match crate::pst_export::export(&store, &account, &name, std::path::Path::new(&path), &mut progress) {
+            let event = match crate::pst_export::export(&store, &account, &name, std::path::Path::new(&path), &follow_up, &mut progress) {
                 Ok(done) => {
                     Event::Exported { account, messages: done.messages, skipped: done.skipped, already: done.already, done: true, error: None }
                 }

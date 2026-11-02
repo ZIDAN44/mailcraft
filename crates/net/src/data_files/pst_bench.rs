@@ -167,6 +167,8 @@ fn make() {
                         html_body: Some(&o.2),
                         message_id: &o.3,
                         delivery_time: o.5,
+                        message_class: "IPM.Note",
+                        properties: &[],
                     },
                     attachments: f,
                 })
@@ -521,6 +523,8 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
                 html_body: None,
                 message_id: &o.1,
                 delivery_time: o.2,
+                message_class: "IPM.Note",
+                properties: &[],
             },
             attachments: &[],
         })

@@ -87,6 +87,7 @@ winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457
 # fork's craft/1.2.0 branch, whose PATCHES.md lists them. Dropped once a release has them.
 outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "b3a2ed1eb4217b567aebfd447c6730d64c1fd2a0" }
 # outlook-pst-rw 1.2.14 with the reader's fixes above and the writer's own (it reads a damaged
-# file as the reader does, and adds to permute- and cyclic-encoded files, as Outlook makes them):
+# file as the reader does, adds to permute- and cyclic-encoded files, as Outlook makes them, and
+# writes a message's class, tagged and named properties, folders' classes and special folders):
 # the same fork's craft/rw-1.2.14 branch, whose PATCHES.md lists them. Dropped once a release has them.
-outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "acd1806ab5748a81f9de5a5ae3d1456f1477d8d4" }
+outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "5f595a1196cf64a428f25b22746643f76fa717d3" }
