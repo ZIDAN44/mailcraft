@@ -1468,3 +1468,38 @@ month	May	5월
 	{n} recipients had no address	받는 사람 {n}명에게 주소가 없었습니다
 	{n} s	{n}초
 	{time} so far	지금까지 {time}
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	비울 수 있는 공간이 있는 데이터 파일은 30초 이내로 끝날 때만 MailCraft를 닫을 때 줄입니다. 그렇지 않으면 MailCraft를 쓰지 않는 동안이나 정보의 [지금 압축]으로 줄입니다.
+	Being compacted…	압축하는 중…
+	Close now	지금 닫기
+	Close without compacting	압축하지 않고 닫기
+	Compact data files on close	닫을 때 데이터 파일 압축
+	Compact now	지금 압축
+	Compact {file} before closing?	닫기 전에 {file}을(를) 압축할까요?
+	Compact, then close	압축한 다음 닫기
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	압축됨: {before} → {after} ({saved} 확보, {time})
+	Compacting was stopped; what was done is kept.	압축을 중지했습니다. 끝난 부분은 그대로 남습니다.
+	Compacting {file} before closing…	닫기 전에 {file} 압축하는 중…
+	Compacting {file}…	{file} 압축하는 중…
+	Compacting {file}… {percent}%	{file} 압축하는 중… {percent}%
+	Compressing mail again	메일 다시 압축하는 중
+	Copying it into a smaller file	더 작은 파일로 복사하는 중
+	Finishing: about {n} s	마무리 중: 약 {n}초
+	Finishing…	마무리 중…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	삭제한 메일이 차지하던 공간을 드라이브에 돌려줍니다. 메일은 그대로입니다.
+	Hide	숨기기
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	이 창을 숨겨도 백그라운드에서 계속됩니다. 메일은 그대로이고 차지하는 공간만 바뀝니다.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	약 {size}을(를) 비울 수 있지만 {time} 걸려 MailCraft가 닫을 때 기다리는 시간보다 깁니다. 그동안 이 계정은 아무것도 열 수 없습니다.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	약 {size}을(를) 비울 수 있습니다. 새 파일로 복사해서 줄이므로 큰 파일은 몇 분이 걸릴 수 있으며, 끝나면 MailCraft가 닫힙니다.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	그대로 두었습니다: 압축에 약 {time} 걸립니다. [지금 압축]은 시간이 얼마나 걸리든 압축합니다.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	이 단계에서는 MailCraft가 데이터 파일을 단독으로 쓰므로 중지할 수 없습니다. 그동안 컴퓨터가 꺼져도 잃는 것은 없으며, 다음에 MailCraft를 열 때 파일을 확인합니다.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	데이터 파일을 줄이는 중: 삭제한 메일이 차지하던 공간이 드라이브로 돌아갑니다.
+	Measuring the data file…	데이터 파일 측정하는 중…
+	Not compacted: {error}	압축되지 않음: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	지금 닫아도 잃는 것은 없습니다. 끝난 부분은 남고 나머지는 다음에 합니다.
+	Nothing to give back.	비울 공간이 없습니다.
+	Stop compacting	압축 중지
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	여기서 압축하기에는 너무 크고 드라이브에 복사본을 둘 공간도 없습니다. 파일을 다시 가져오면 똑같이 작아집니다.
+	You can also compact it later from File › Info, or turn this off in File › Options.	나중에 파일 › 정보에서 압축하거나 파일 › 옵션에서 이 기능을 끌 수도 있습니다.
+	about {n} min	약 {n}분
+	about {n} s	약 {n}초
+	{size} can be reclaimed	{size} 확보 가능

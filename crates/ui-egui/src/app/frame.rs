@@ -37,7 +37,7 @@ impl MailApp {
     }
 
     /// Closing with messages being written, online-only accounts' unsent mail or changes held in
-    /// memory, a data file being imported, or an update waiting: ask first.
+    /// memory, a data file being imported or to be compacted, or an update waiting: ask first.
     fn decide_close(&mut self, ctx: &egui::Context) {
         self.forget_cancelled_close();
         // Closing with online-only accounts' unsent mail or changes held in memory: ask first.
@@ -62,6 +62,10 @@ impl MailApp {
             } else if super::importing::ask_on_close(&self.session) {
                 // It pauses, and goes on as MailCraft opens again: said, not asked to be undone.
                 self.ask_import_on_close();
+                true
+            } else if self.ask_compact_on_close() {
+                // Data files compacted first, when that was chosen and is short (or offered by
+                // hand, when it isn't); the part that has a file to itself is waited for.
                 true
             } else if self.ask_about_update() {
                 // An update about to be installed, or still downloading: said first.
@@ -116,6 +120,7 @@ impl MailApp {
         self.pump();
         self.show_finished_import();
         self.step_search(&ctx);
+        self.follow_compaction(&ctx);
         self.take_body();
         self.settle_composes(&ctx);
         self.announce(&ctx);

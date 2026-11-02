@@ -1465,3 +1465,38 @@ month	May	5月
 	{n} recipients had no address	{n} 个收件人没有地址
 	{n} s	{n} 秒
 	{time} so far	已用时 {time}
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	有空间可释放的数据文件会在 MailCraft 关闭时缩小，前提是最多只需半分钟。否则会在 MailCraft 闲置时进行，或通过“信息”下的“立即压缩”进行。
+	Being compacted…	正在压缩…
+	Close now	立即关闭
+	Close without compacting	关闭但不压缩
+	Compact data files on close	关闭时压缩数据文件
+	Compact now	立即压缩
+	Compact {file} before closing?	关闭前压缩 {file}？
+	Compact, then close	压缩后关闭
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	已压缩：{before} → {after}（释放 {saved}），用时 {time}
+	Compacting was stopped; what was done is kept.	已停止压缩；已完成的部分会保留。
+	Compacting {file} before closing…	关闭前正在压缩 {file}…
+	Compacting {file}…	正在压缩 {file}…
+	Compacting {file}… {percent}%	正在压缩 {file}… {percent}%
+	Compressing mail again	正在重新压缩邮件
+	Copying it into a smaller file	正在复制到更小的文件
+	Finishing: about {n} s	即将完成：约 {n} 秒
+	Finishing…	即将完成…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	将已删除邮件占用的空间还给驱动器。你的邮件保持不变。
+	Hide	隐藏
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	隐藏此窗口后会在后台继续。你的邮件保持不变，只是占用的空间会变化。
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	大约可释放 {size}，但需要 {time}，比 MailCraft 关闭时等待的时间更长。在此期间无法打开此帐户的任何内容。
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	大约可释放 {size}。这需要将它复制到新文件，大文件可能需要很多分钟；完成后 MailCraft 会关闭。
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	保持原样：压缩约需 {time}。“立即压缩”无论需要多久都会完成。
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	这一步 MailCraft 独占数据文件，因此无法停止。期间即使计算机关机也不会丢失任何内容：下次打开 MailCraft 时会检查该文件。
+	Making the data file smaller: the room deleted mail took goes back to the drive.	正在缩小数据文件：已删除邮件占用的空间会还给驱动器。
+	Measuring the data file…	正在测量数据文件…
+	Not compacted: {error}	未压缩：{error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	现在关闭不会丢失任何内容：已完成的部分会保留，其余的下次再做。
+	Nothing to give back.	没有可释放的空间。
+	Stop compacting	停止压缩
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	文件太大，无法在此压缩，且驱动器没有空间存放副本：重新导入该文件可使它同样小。
+	You can also compact it later from File › Info, or turn this off in File › Options.	你也可以稍后在“文件 › 信息”中压缩它，或在“文件 › 选项”中关闭此功能。
+	about {n} min	约 {n} 分钟
+	about {n} s	约 {n} 秒
+	{size} can be reclaimed	可释放 {size}

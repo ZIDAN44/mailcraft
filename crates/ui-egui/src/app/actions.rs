@@ -83,6 +83,8 @@ impl MailApp {
                 // close asking everything again).
                 if super::importing::ask_on_close(&self.session) {
                     self.ask_import_on_close();
+                } else if self.ask_compact_on_close() {
+                    // Data files compacted first, when chosen; closing goes on once they're done.
                 } else if self.ask_about_update() {
                     self.ask_update_on_close();
                 } else {
@@ -99,6 +101,7 @@ impl MailApp {
                     self.ui.close_now = true;
                 }
             }
+            Action::CompactOnClose(compact) => self.compact_on_close(compact),
             Action::UpdateOnClose(install) => {
                 if !install {
                     self.services.keep_update_for_later();

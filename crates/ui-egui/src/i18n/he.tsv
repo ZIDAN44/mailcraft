@@ -1464,3 +1464,38 @@ month	May	מאי
 	{n} recipients had no address	ל־{n} נמענים לא הייתה כתובת
 	{n} s	{n} שנ׳
 	{time} so far	{time} עד כה
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	קובץ נתונים שיש בו מקום לפנות מוקטן כש-MailCraft נסגר, אם זה לוקח חצי דקה לכל היותר. אחרת זה נעשה כש-MailCraft לא בשימוש, או בלחצן „לדחוס עכשיו” במידע.
+	Being compacted…	בדחיסה…
+	Close now	לסגור עכשיו
+	Close without compacting	לסגור בלי לדחוס
+	Compact data files on close	לדחוס קובצי נתונים בסגירה
+	Compact now	לדחוס עכשיו
+	Compact {file} before closing?	לדחוס את {file} לפני הסגירה?
+	Compact, then close	לדחוס ואז לסגור
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	נדחס: {before} ← {after} (פונו {saved}) תוך {time}
+	Compacting was stopped; what was done is kept.	הדחיסה נעצרה; מה שנעשה נשמר.
+	Compacting {file} before closing…	דוחס את {file} לפני הסגירה…
+	Compacting {file}…	דוחס את {file}…
+	Compacting {file}… {percent}%	דוחס את {file}… {percent}%
+	Compressing mail again	דוחס שוב את הדואר
+	Copying it into a smaller file	מעתיק לקובץ קטן יותר
+	Finishing: about {n} s	מסיים: עוד כ-{n} שנ׳
+	Finishing…	מסיים…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	מחזיר לכונן את המקום שתפס דואר שנמחק. הדואר שלך נשאר כמו שהוא.
+	Hide	להסתיר
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	זה ממשיך ברקע אם מסתירים את החלון. הדואר שלך נשאר כמו שהוא: רק המקום שהוא תופס משתנה.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	אפשר לפנות כ-{size}, אבל זה לוקח {time}, יותר ממה ש-MailCraft ממתין בסגירה. בינתיים אי אפשר לפתוח שום דבר מהחשבון הזה.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	אפשר לפנות כ-{size}. זה נעשה בהעתקה לקובץ חדש, וזה יכול לקחת דקות רבות לקובץ גדול; MailCraft ייסגר כשזה יסתיים.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	הושאר כמו שהיה: הדחיסה לוקחת כ-{time}. „לדחוס עכשיו” עושה זאת, כמה זמן שזה ייקח.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	בחלק הזה MailCraft משתמש בקובץ הנתונים לבדו, ולכן אי אפשר לעצור אותו. שום דבר לא אובד אם המחשב נכבה בינתיים: הקובץ ייבדק בפעם הבאה ש-MailCraft ייפתח.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	מקטין את קובץ הנתונים: המקום שתפס דואר שנמחק חוזר לכונן.
+	Measuring the data file…	מודד את קובץ הנתונים…
+	Not compacted: {error}	לא נדחס: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	שום דבר לא אובד אם סוגרים עכשיו: מה שנעשה נשמר, והשאר ייעשה בפעם אחרת.
+	Nothing to give back.	אין מקום לפנות.
+	Stop compacting	לעצור את הדחיסה
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	גדול מכדי לדחוס כאן, ואין בכונן מקום להעתק: ייבוא הקובץ מחדש יקטין אותו באותה מידה.
+	You can also compact it later from File › Info, or turn this off in File › Options.	אפשר גם לדחוס אותו מאוחר יותר דרך קובץ › מידע, או לכבות את זה דרך קובץ › אפשרויות.
+	about {n} min	כ-{n} דק׳
+	about {n} s	כ-{n} שנ׳
+	{size} can be reclaimed	אפשר לפנות {size}

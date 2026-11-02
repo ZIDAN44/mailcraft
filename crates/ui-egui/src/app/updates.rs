@@ -52,6 +52,9 @@ impl MailApp {
             self.ui.close_asked = false;
             self.ui.restart_wanted = false;
             self.ui.update_answered = false;
+            self.ui.compact.answered = false;
+            self.ui.compact.dont_wait = false;
+            self.ui.compact.offer = None;
         }
     }
 

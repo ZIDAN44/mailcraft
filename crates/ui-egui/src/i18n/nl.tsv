@@ -1464,3 +1464,38 @@ month	May	mei
 	{n} recipients had no address	{n} ontvangers hadden geen adres
 	{n} s	{n} s
 	{time} so far	{time} tot nu toe
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	Een gegevensbestand met ruimte om terug te geven wordt kleiner gemaakt als MailCraft sluit, als dat hooguit een halve minuut duurt. Anders gebeurt het terwijl MailCraft niet wordt gebruikt, of met ‘Nu comprimeren’ onder Info.
+	Being compacted…	Wordt gecomprimeerd…
+	Close now	Nu sluiten
+	Close without compacting	Sluiten zonder comprimeren
+	Compact data files on close	Gegevensbestanden comprimeren bij sluiten
+	Compact now	Nu comprimeren
+	Compact {file} before closing?	{file} comprimeren voor het sluiten?
+	Compact, then close	Comprimeren, dan sluiten
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Gecomprimeerd: {before} → {after} ({saved} teruggewonnen) in {time}
+	Compacting was stopped; what was done is kept.	Het comprimeren is gestopt; wat klaar is, blijft bewaard.
+	Compacting {file} before closing…	{file} wordt gecomprimeerd voor het sluiten…
+	Compacting {file}…	{file} wordt gecomprimeerd…
+	Compacting {file}… {percent}%	{file} wordt gecomprimeerd… {percent}%
+	Compressing mail again	E-mail wordt opnieuw gecomprimeerd
+	Copying it into a smaller file	Wordt naar een kleiner bestand gekopieerd
+	Finishing: about {n} s	Afronden: nog ongeveer {n} s
+	Finishing…	Afronden…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Geeft de ruimte die verwijderde e-mail innam terug aan de schijf. Uw e-mail blijft zoals hij is.
+	Hide	Verbergen
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Het gaat op de achtergrond door als u dit verbergt. Uw e-mail blijft zoals hij is: alleen de ruimte die hij inneemt verandert.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Het kan ongeveer {size} teruggeven, maar dat duurt {time}, langer dan MailCraft bij het sluiten wacht. Intussen kan niets van dit account worden geopend.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Het kan ongeveer {size} teruggeven. Dat gebeurt door het naar een nieuw bestand te kopiëren, wat bij een groot bestand vele minuten kan duren; MailCraft sluit zodra het klaar is.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	Gelaten zoals het was: comprimeren duurt ongeveer {time}. ‘Nu comprimeren’ doet het, hoe lang het ook duurt.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	MailCraft heeft het gegevensbestand voor dit deel voor zichzelf, dus het kan niet worden gestopt. Er gaat niets verloren als de computer intussen uitgaat: het bestand wordt gecontroleerd wanneer MailCraft weer opent.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Het gegevensbestand wordt kleiner gemaakt: de ruimte die verwijderde e-mail innam gaat terug naar de schijf.
+	Measuring the data file…	Gegevensbestand wordt gemeten…
+	Not compacted: {error}	Niet gecomprimeerd: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Er gaat niets verloren als u nu sluit: wat klaar is blijft bewaard, en de rest gebeurt een andere keer.
+	Nothing to give back.	Geen ruimte om terug te geven.
+	Stop compacting	Comprimeren stoppen
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	Te groot om hier te comprimeren, en de schijf heeft geen ruimte voor een kopie: het bestand opnieuw importeren maakt het net zo klein.
+	You can also compact it later from File › Info, or turn this off in File › Options.	U kunt het ook later comprimeren via Bestand › Info, of dit uitzetten in Bestand › Opties.
+	about {n} min	ongeveer {n} min
+	about {n} s	ongeveer {n} s
+	{size} can be reclaimed	{size} kan worden teruggewonnen

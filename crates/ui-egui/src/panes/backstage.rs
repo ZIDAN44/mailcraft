@@ -14,6 +14,9 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, UpdateState, widgets};
 
+mod data_file;
+#[cfg(test)]
+pub(crate) use data_file::report_line;
 mod meetings;
 mod options;
 mod security;
@@ -34,15 +37,17 @@ pub struct Backstage {
     pub account: Option<String>,
     /// Accounts whose automatic replies were asked for since the page opened.
     asked: HashSet<String>,
-    /// Bytes cached per account, measured once per visit.
-    cached: HashMap<String, u64>,
+    /// Bytes cached per account, measured once per visit (and again once a compaction ends).
+    cached: HashMap<String, (u64, Option<data_file::Stamp>)>,
+    /// Accounts whose data file was measured since the page opened.
+    measured: HashSet<String>,
     /// The account Export writes (the one being looked at until another is picked).
     export: Option<String>,
 }
 
 impl Backstage {
     pub fn new(page: Page) -> Backstage {
-        Backstage { page, account: None, asked: HashSet::new(), cached: HashMap::new(), export: None }
+        Backstage { page, account: None, asked: HashSet::new(), cached: HashMap::new(), measured: HashSet::new(), export: None }
     }
 }
 
@@ -397,65 +402,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
         },
     );
 
-    // Mailbox: space used on the server and here, where the data file is, emptying.
-    let cached = *b.cached.entry(id.clone()).or_insert_with(|| s.cache_size(&id));
-    let size = widgets::human_bytes;
-    card(ui, t, tl!("Mailbox settings"), Some(tl!("See how much space your mail takes, and empty Deleted Items and Junk Email.")), |ui| {
-        let mut first = true;
-        if !a.is_local() {
-            let (line, frac) = match a.quota {
-                Some((used, limit)) if limit > 0 => (
-                    tf!("{free} free of {total}", free = size(limit.saturating_sub(used)), total = size(limit)),
-                    Some((used as f32 / limit as f32).clamp(0.0, 1.0)),
-                ),
-                Some((used, _)) => (tf!("{used} used on the server", used = size(used)), None),
-                None => (tl!("The server doesn't say how much space is used.").to_string(), None),
-            };
-            setting_row(ui, t, true, name(t, tl!("On the server")), Some(note(t, &line)), |ui| {
-                if let Some(frac) = frac {
-                    ui.add(egui::ProgressBar::new(frac).desired_width(200.0).fill(if frac > 0.9 { t.danger } else { t.accent }));
-                }
-            });
-            first = false;
-        }
-        // Where, as Outlook shows a data file's place; and a copy as one.
-        let online = a.config.keeps_online();
-        let file = if has_files && !online { s.store.as_ref().map(|store| store.account_path(&id)) } else { None };
-        let here = match &file {
-            _ if online => tl!("Online only: none of this account's mail is kept on this computer.").to_string(),
-            Some(f) => format!("{}\n{}", tf!("Kept on this computer: {size}", size = size(cached)), f.display()),
-            None => tf!("Kept on this computer: {size}", size = size(cached)),
-        };
-        setting_row(ui, t, first, name(t, tl!("On this computer")), Some(note(t, &here)), |ui| {
-            if let Some(file) = &file {
-                if ui.button(tl!("Save as an Outlook data file…")).clicked() {
-                    acts.push(Action::ExportDataFile(id.clone()));
-                }
-                if ui.button(tl!("Open folder")).clicked() {
-                    // The folder the data file is in (or the account's own folder).
-                    let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), Path::to_path_buf) };
-                    acts.push(Action::OpenFolder(dir));
-                }
-            }
-        });
-        setting_row(ui, t, false, name(t, tl!("Clean up")), None, |ui| {
-            for (role, label) in [
-                (mailcraft_engine::model::FolderRole::Junk, "Empty Junk Email…"),
-                (mailcraft_engine::model::FolderRole::Trash, "Empty Deleted Items…"),
-            ] {
-                if let Some(f) = a.folder(role)
-                    && ui.add_enabled(f.total > 0 || a.is_local(), egui::Button::new(tl!(label))).clicked()
-                {
-                    acts.push(Action::Dialog(Dialog::ConfirmEmpty {
-                        account: id.clone(),
-                        folder: f.path.clone(),
-                        name: crate::i18n::folder(f),
-                        for_good: true,
-                    }));
-                }
-            }
-        });
-    });
+    data_file::mailbox(s, t, has_files, ui, a, b, acts);
 
     // Rules.
     let n = s.rules.len();

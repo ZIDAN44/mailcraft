@@ -1468,3 +1468,38 @@ month	May	maggio
 	{n} recipients had no address	{n} destinatari non avevano un indirizzo
 	{n} s	{n} s
 	{time} so far	{time} finora
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	Un file di dati con spazio da restituire viene ridotto alla chiusura di MailCraft, se ci vuole al massimo mezzo minuto. Altrimenti lo si fa mentre MailCraft non è in uso, oppure con «Compatta ora» in Info.
+	Being compacted…	Compattazione in corso…
+	Close now	Chiudi ora
+	Close without compacting	Chiudi senza compattare
+	Compact data files on close	Compatta i file di dati alla chiusura
+	Compact now	Compatta ora
+	Compact {file} before closing?	Compattare {file} prima di chiudere?
+	Compact, then close	Compatta, poi chiudi
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Compattato: {before} → {after} ({saved} recuperati) in {time}
+	Compacting was stopped; what was done is kept.	La compattazione è stata interrotta; ciò che è stato fatto viene mantenuto.
+	Compacting {file} before closing…	Compattazione di {file} prima della chiusura…
+	Compacting {file}…	Compattazione di {file}…
+	Compacting {file}… {percent}%	Compattazione di {file}… {percent}%
+	Compressing mail again	Nuova compressione della posta
+	Copying it into a smaller file	Copia in un file più piccolo
+	Finishing: about {n} s	Completamento: circa {n} s
+	Finishing…	Completamento…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Restituisce all'unità lo spazio occupato dalla posta eliminata. La tua posta resta com'è.
+	Hide	Nascondi
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Continua in background se nascondi questa finestra. La tua posta resta com'è: cambia solo lo spazio che occupa.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Ha circa {size} da restituire, ma ci vogliono {time}, più di quanto MailCraft aspetti alla chiusura. Nel frattempo non si può aprire nulla di questo account.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Ha circa {size} da restituire. Lo si fa copiandolo in un nuovo file, il che può richiedere molti minuti per un file grande; MailCraft si chiude al termine.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	Lasciato com'era: compattarlo richiede circa {time}. «Compatta ora» lo fa, per quanto tempo ci voglia.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	MailCraft ha il file di dati tutto per sé in questa parte, quindi non può essere interrotta. Non si perde nulla se nel frattempo il computer si spegne: il file viene controllato alla prossima apertura di MailCraft.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Riduzione del file di dati: lo spazio occupato dalla posta eliminata torna all'unità.
+	Measuring the data file…	Misurazione del file di dati…
+	Not compacted: {error}	Non compattato: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Non si perde nulla se chiudi ora: ciò che è fatto viene mantenuto e il resto verrà fatto un'altra volta.
+	Nothing to give back.	Nessuno spazio da restituire.
+	Stop compacting	Interrompi la compattazione
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	Troppo grande per compattarlo qui e sull'unità non c'è spazio per una copia: importare di nuovo il file lo rende altrettanto piccolo.
+	You can also compact it later from File › Info, or turn this off in File › Options.	Puoi anche compattarlo più tardi da File › Info, oppure disattivare questa opzione in File › Opzioni.
+	about {n} min	circa {n} min
+	about {n} s	circa {n} s
+	{size} can be reclaimed	Si possono recuperare {size}

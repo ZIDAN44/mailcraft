@@ -106,12 +106,19 @@ impl MailApp {
             }
             // A test build's next version: how far it's downloaded, then restart into it.
             restart = self.update_status(ui);
-            // The most important background work: a data file's import, else the search index.
+            // The most important background work: a data file's import, then its compaction,
+            // then the search index.
+            let now = ui.input(|i| i.time);
             if !super::importing::status_segment(ui, s, &t, &mut details, &mut acts)
-                && let Some((text, permille, hover)) = background_work(s)
+                && let Some((text, permille, hover)) = background_work(s, &self.ui.compact, now)
             {
                 ui.add_space(6.0);
-                progress::segment(ui, &t, &text, permille, &hover);
+                // A compaction's segment opens its dialog again (hidden, it went on).
+                if progress::segment(ui, &t, &text, permille, &hover).clicked()
+                    && let Some(account) = super::compacting::shown(s)
+                {
+                    acts.push(Action::Dialog(Dialog::Compacting { account: account.to_string(), closing: false, since: None }));
+                }
             }
             ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
                 let dot = |ui: &mut Ui, color: egui::Color32| {
@@ -269,10 +276,13 @@ pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
 }
 
 /// The long work going on in the background the status bar shows when no data file is being
-/// imported (that goes first, `app/importing.rs`): the search index's build (a data file's
-/// compaction will go before it). Its words, how far it has come in thousandths, and what
-/// hovering it says.
-pub(crate) fn background_work(s: &Session) -> Option<(String, Option<u16>, String)> {
+/// imported (that goes first, `app/importing.rs`): a data file's compaction, else the search
+/// index's build. Its words, how far it has come in thousandths, and what hovering it says
+/// (`now`: the input's time, for the part of a compaction that goes by the time expected).
+pub(crate) fn background_work(s: &Session, compact: &super::compacting::CompactUi, now: f64) -> Option<(String, Option<u16>, String)> {
+    if let Some(words) = super::compacting::status(s, compact, now) {
+        return Some(words);
+    }
     let work = s.indexing_work()?;
     let permille = work.permille(mailcraft_engine::model::job::ITEM_WEIGHT);
     let text = match permille {

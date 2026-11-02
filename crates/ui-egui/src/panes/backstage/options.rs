@@ -88,6 +88,17 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                         }
                     });
                 }
+                // Compacted as MailCraft closes: off unless chosen (it's done when MailCraft is
+                // left alone, or by hand, either way).
+                setting(
+                    ui,
+                    false,
+                    tl!("Compact data files on close"),
+                    Some(tl!(
+                        "A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info."
+                    )),
+                    &mut |ui| switch(ui, s.prefs.compact_on_close, tl!("Compact data files on close"), "dataFile.compactOnClose", acts),
+                );
                 if !*movable && st.pending_move.is_none() {
                     let why = if s.portable {
                         tl!("Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.")

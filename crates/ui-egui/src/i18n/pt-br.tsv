@@ -1469,3 +1469,38 @@ month	May	maio
 	{n} recipients had no address	{n} destinatários não tinham endereço
 	{n} s	{n} s
 	{time} so far	{time} até agora
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	Um arquivo de dados com espaço a devolver é reduzido quando o MailCraft fecha, se isso levar no máximo meio minuto. Senão, é feito enquanto o MailCraft não está em uso, ou com “Compactar agora” em Informações.
+	Being compacted…	Sendo compactado…
+	Close now	Fechar agora
+	Close without compacting	Fechar sem compactar
+	Compact data files on close	Compactar arquivos de dados ao fechar
+	Compact now	Compactar agora
+	Compact {file} before closing?	Compactar {file} antes de fechar?
+	Compact, then close	Compactar e depois fechar
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Compactado: {before} → {after} ({saved} recuperados) em {time}
+	Compacting was stopped; what was done is kept.	A compactação foi interrompida; o que foi feito é mantido.
+	Compacting {file} before closing…	Compactando {file} antes de fechar…
+	Compacting {file}…	Compactando {file}…
+	Compacting {file}… {percent}%	Compactando {file}… {percent}%
+	Compressing mail again	Comprimindo os e-mails de novo
+	Copying it into a smaller file	Copiando para um arquivo menor
+	Finishing: about {n} s	Concluindo: cerca de {n} s
+	Finishing…	Concluindo…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Devolve à unidade o espaço que os e-mails excluídos ocupavam. Seus e-mails ficam como estão.
+	Hide	Ocultar
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Continua em segundo plano se você ocultar isto. Seus e-mails ficam como estão: só muda o espaço que ocupam.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Há cerca de {size} a devolver, mas isso leva {time}, mais do que o MailCraft espera ao fechar. Enquanto isso, nada desta conta pode ser aberto.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Há cerca de {size} a devolver. Isso é feito copiando-o para um arquivo novo, o que pode levar muitos minutos para um arquivo grande; o MailCraft fecha quando terminar.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	Deixado como estava: compactá-lo leva cerca de {time}. “Compactar agora” faz isso, leve o tempo que levar.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	O MailCraft tem o arquivo de dados só para si nesta parte, por isso ela não pode ser interrompida. Nada se perde se o computador desligar enquanto isso: o arquivo é verificado na próxima vez que o MailCraft abrir.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Reduzindo o arquivo de dados: o espaço que os e-mails excluídos ocupavam volta para a unidade.
+	Measuring the data file…	Medindo o arquivo de dados…
+	Not compacted: {error}	Não compactado: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Nada se perde se você fechar agora: o que foi feito é mantido, e o resto é feito outra hora.
+	Nothing to give back.	Nenhum espaço a devolver.
+	Stop compacting	Parar a compactação
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	Grande demais para compactar aqui, e a unidade não tem espaço para uma cópia: importar o arquivo de novo o deixa igualmente pequeno.
+	You can also compact it later from File › Info, or turn this off in File › Options.	Você também pode compactá-lo depois em Arquivo › Informações, ou desativar isto em Arquivo › Opções.
+	about {n} min	cerca de {n} min
+	about {n} s	cerca de {n} s
+	{size} can be reclaimed	{size} podem ser recuperados

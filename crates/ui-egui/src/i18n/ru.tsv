@@ -1468,3 +1468,38 @@ month	May	Май
 	{n} recipients had no address	Получатели без адреса: {n}
 	{n} s	{n} с
 	{time} so far	Прошло {time}
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	Файл данных, в котором можно освободить место, сжимается при закрытии MailCraft, если это занимает не больше полминуты. Иначе это делается, пока MailCraft не используется, или кнопкой «Сжать сейчас» в разделе «Сведения».
+	Being compacted…	Сжимается…
+	Close now	Закрыть сейчас
+	Close without compacting	Закрыть без сжатия
+	Compact data files on close	Сжимать файлы данных при закрытии
+	Compact now	Сжать сейчас
+	Compact {file} before closing?	Сжать {file} перед закрытием?
+	Compact, then close	Сжать, затем закрыть
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Сжато: {before} → {after} (освобождено {saved}) за {time}
+	Compacting was stopped; what was done is kept.	Сжатие остановлено; сделанное сохранено.
+	Compacting {file} before closing…	Сжатие {file} перед закрытием…
+	Compacting {file}…	Сжатие {file}…
+	Compacting {file}… {percent}%	Сжатие {file}… {percent}%
+	Compressing mail again	Повторное сжатие почты
+	Copying it into a smaller file	Копирование в файл меньшего размера
+	Finishing: about {n} s	Завершение: около {n} с
+	Finishing…	Завершение…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Возвращает диску место, которое занимала удалённая почта. Ваша почта остаётся как есть.
+	Hide	Скрыть
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Если скрыть это окно, работа продолжится в фоне. Ваша почта остаётся как есть: меняется только занимаемое ею место.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Можно освободить около {size}, но это займёт {time} — дольше, чем MailCraft ждёт при закрытии. Тем временем ничего из этой учётной записи открыть нельзя.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Можно освободить около {size}. Для этого файл копируется в новый, что для большого файла может занять много минут; MailCraft закроется, когда это будет сделано.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	Оставлено как есть: сжатие займёт около {time}. «Сжать сейчас» выполнит его, сколько бы оно ни длилось.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	На этом этапе MailCraft работает с файлом данных монопольно, поэтому его нельзя остановить. Ничего не потеряется, если компьютер тем временем выключится: файл будет проверен при следующем запуске MailCraft.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Уменьшение файла данных: место, которое занимала удалённая почта, возвращается диску.
+	Measuring the data file…	Измерение файла данных…
+	Not compacted: {error}	Не сжато: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Ничего не потеряется, если закрыть сейчас: сделанное сохранится, а остальное будет сделано в другой раз.
+	Nothing to give back.	Освобождать нечего.
+	Stop compacting	Остановить сжатие
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	Файл слишком велик, чтобы сжать его здесь, а на диске нет места для копии: если импортировать файл заново, он станет таким же маленьким.
+	You can also compact it later from File › Info, or turn this off in File › Options.	Его также можно сжать позже в разделе Файл › Сведения или отключить это в Файл › Параметры.
+	about {n} min	около {n} мин
+	about {n} s	около {n} с
+	{size} can be reclaimed	Можно освободить {size}

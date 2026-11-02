@@ -63,6 +63,20 @@ pub enum Dialog {
         file: String,
         permille: Option<u16>,
     },
+    /// An account's data file being compacted: how it goes, and stopping it where it can be
+    /// stopped; `closing`, MailCraft closes once it's done. `since`: when the window saw it take
+    /// the file to itself (its bar goes by the time that was expected to take).
+    Compacting {
+        account: String,
+        closing: bool,
+        since: Option<f64>,
+    },
+    /// Closing, with a data file to compact that takes longer than closing waits for (about
+    /// `seconds` on close): compact it by hand first, or close.
+    CompactOnClose {
+        account: String,
+        seconds: u64,
+    },
     /// A data file chosen to open: what it holds and where its copy goes, before it's imported.
     OpenDataFile {
         path: String,
@@ -255,7 +269,15 @@ impl Dialog {
 
     /// A question asked as MailCraft closes.
     pub fn about_closing(&self) -> bool {
-        matches!(self, Dialog::SaveOnClose(_) | Dialog::LostOnClose { .. } | Dialog::UpdateOnClose(_) | Dialog::ImportOnClose { .. })
+        matches!(
+            self,
+            Dialog::SaveOnClose(_)
+                | Dialog::LostOnClose { .. }
+                | Dialog::UpdateOnClose(_)
+                | Dialog::ImportOnClose { .. }
+                | Dialog::CompactOnClose { .. }
+                | Dialog::Compacting { closing: true, .. }
+        )
     }
 
     pub fn for_compose(&self) -> bool {
@@ -546,15 +568,21 @@ pub(crate) fn show(
             node.push_labelled_by(title.accesskit_id());
         }
     });
-    keep && !modal.should_close()
+    // The part of a compaction that has a data file to itself can't be stopped, and nothing of
+    // its account can be done meanwhile: Escape or a click beside it doesn't put it away.
+    let stays = matches!(d, Dialog::Compacting { account, .. } if s.compaction.exclusive(account));
+    keep && (stays || !modal.should_close())
 }
 
 fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     // Each kind is drawn by its group; listing them all here keeps the match exhaustive.
     match d {
-        Dialog::LostOnClose { .. } | Dialog::SaveOnClose(..) | Dialog::UpdateOnClose(..) | Dialog::ImportOnClose { .. } => {
-            closing::draw(ui, d, s, t, acts)
-        }
+        Dialog::LostOnClose { .. }
+        | Dialog::SaveOnClose(..)
+        | Dialog::UpdateOnClose(..)
+        | Dialog::ImportOnClose { .. }
+        | Dialog::Compacting { .. }
+        | Dialog::CompactOnClose { .. } => closing::draw(ui, d, s, t, acts),
         // Removing an account whose data file is being imported asks its own question.
         Dialog::RemoveAccount { account, .. } if s.import_state(account).is_some_and(|st| st.live) => importing::draw(ui, d, s, t, acts),
         Dialog::OpenDataFile { .. } | Dialog::StopImport { .. } | Dialog::ImportDone { .. } => importing::draw(ui, d, s, t, acts),

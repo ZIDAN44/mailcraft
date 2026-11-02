@@ -1469,3 +1469,38 @@ month	May	mai
 	{n} recipients had no address	{n} destinataires n’avaient pas d’adresse
 	{n} s	{n} s
 	{time} so far	{time} jusqu’ici
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	Un fichier de données qui a de la place à rendre est réduit à la fermeture de MailCraft, si cela prend une demi-minute au plus. Sinon, c’est fait pendant que MailCraft n’est pas utilisé, ou avec « Compacter maintenant » sous Informations.
+	Being compacted…	Compactage en cours…
+	Close now	Fermer maintenant
+	Close without compacting	Fermer sans compacter
+	Compact data files on close	Compacter les fichiers de données à la fermeture
+	Compact now	Compacter maintenant
+	Compact {file} before closing?	Compacter le fichier {file} avant de fermer ?
+	Compact, then close	Compacter, puis fermer
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Compacté : {before} → {after} ({saved} récupérés) en {time}
+	Compacting was stopped; what was done is kept.	Le compactage a été arrêté ; ce qui a été fait est conservé.
+	Compacting {file} before closing…	Compactage du fichier {file} avant la fermeture…
+	Compacting {file}…	Compactage du fichier {file}…
+	Compacting {file}… {percent}%	Compactage du fichier {file}… {percent} %
+	Compressing mail again	Nouvelle compression des messages
+	Copying it into a smaller file	Copie dans un fichier plus petit
+	Finishing: about {n} s	Finalisation : environ {n} s
+	Finishing…	Finalisation…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Rend au disque la place qu’occupaient les messages supprimés. Vos messages restent tels quels.
+	Hide	Masquer
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Cela continue en arrière-plan si vous masquez ceci. Vos messages restent tels quels : seule la place qu’ils occupent change.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Il peut rendre environ {size}, mais cela prend {time}, plus longtemps que MailCraft n’attend à la fermeture. Pendant ce temps, rien de ce compte ne peut être ouvert.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Il peut rendre environ {size}. Cela se fait en le copiant dans un nouveau fichier, ce qui peut prendre de nombreuses minutes pour un gros fichier ; MailCraft se ferme une fois terminé.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	Laissé tel quel : le compacter prend environ {time}. « Compacter maintenant » le fait, quel que soit le temps nécessaire.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	MailCraft a le fichier de données pour lui seul pendant cette partie, elle ne peut donc pas être arrêtée. Rien n’est perdu si l’ordinateur s’éteint entre-temps : le fichier est vérifié à la prochaine ouverture de MailCraft.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Réduction du fichier de données : la place qu’occupaient les messages supprimés retourne au disque.
+	Measuring the data file…	Mesure du fichier de données…
+	Not compacted: {error}	Non compacté : {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Rien n’est perdu si vous fermez maintenant : ce qui est fait est conservé, et le reste sera fait une autre fois.
+	Nothing to give back.	Aucune place à rendre.
+	Stop compacting	Arrêter le compactage
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	Trop gros pour être compacté ici, et le disque n’a pas la place pour une copie : importer à nouveau le fichier le rend aussi petit.
+	You can also compact it later from File › Info, or turn this off in File › Options.	Vous pouvez aussi le compacter plus tard depuis Fichier › Informations, ou désactiver ceci dans Fichier › Options.
+	about {n} min	environ {n} min
+	about {n} s	environ {n} s
+	{size} can be reclaimed	{size} peuvent être récupérés

@@ -4,8 +4,10 @@ use crate::*;
 
 impl MailApp {
     pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
-        if self.ui.dialog.is_some() {
-            if ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if let Some(d) = &self.ui.dialog {
+            // Not the part of a compaction that has a data file to itself: it can't be put away.
+            let stays = matches!(d, Dialog::Compacting { account, .. } if self.session.compaction.exclusive(account));
+            if !stays && ctx.input(|i| i.key_pressed(Key::Escape)) {
                 self.ui.dialog = None;
             }
             return;

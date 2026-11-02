@@ -1465,3 +1465,38 @@ month	May	5月
 	{n} recipients had no address	宛先 {n} 件にアドレスがありませんでした
 	{n} s	{n} 秒
 	{time} so far	ここまで {time}
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	空けられる領域があるデータ ファイルは、30 秒以内で済む場合に限り MailCraft を閉じるときに小さくします。それ以外は、MailCraft が使われていない間に行うか、[情報] の [今すぐ圧縮] で行います。
+	Being compacted…	圧縮しています…
+	Close now	今すぐ閉じる
+	Close without compacting	圧縮せずに閉じる
+	Compact data files on close	閉じるときにデータ ファイルを圧縮する
+	Compact now	今すぐ圧縮
+	Compact {file} before closing?	閉じる前に {file} を圧縮しますか?
+	Compact, then close	圧縮してから閉じる
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	圧縮しました: {before} → {after} ({saved} を解放、{time})
+	Compacting was stopped; what was done is kept.	圧縮を停止しました。済んだ分はそのまま残ります。
+	Compacting {file} before closing…	閉じる前に {file} を圧縮しています…
+	Compacting {file}…	{file} を圧縮しています…
+	Compacting {file}… {percent}%	{file} を圧縮しています… {percent}%
+	Compressing mail again	メールを再圧縮しています
+	Copying it into a smaller file	より小さいファイルにコピーしています
+	Finishing: about {n} s	仕上げ中: あと約 {n} 秒
+	Finishing…	仕上げ中…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	削除したメールが使っていた領域をドライブに戻します。メールはそのままです。
+	Hide	隠す
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	これを隠してもバックグラウンドで続きます。メールはそのままで、使う領域だけが変わります。
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	約 {size} を空けられますが、{time} かかり、MailCraft が閉じるときに待つ時間より長くなります。その間、このアカウントは何も開けません。
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	約 {size} を空けられます。新しいファイルにコピーして行うため、大きなファイルでは何分もかかることがあります。終わると MailCraft が閉じます。
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	そのままにしました: 圧縮には約 {time} かかります。[今すぐ圧縮] なら時間がかかっても行います。
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	この部分では MailCraft がデータ ファイルを専有するため、停止できません。その間にコンピューターの電源が切れても何も失われません。次に MailCraft を開くときにファイルが確認されます。
+	Making the data file smaller: the room deleted mail took goes back to the drive.	データ ファイルを小さくしています: 削除したメールが使っていた領域がドライブに戻ります。
+	Measuring the data file…	データ ファイルを測定しています…
+	Not compacted: {error}	圧縮されませんでした: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	今閉じても何も失われません。済んだ分は残り、残りは別の機会に行います。
+	Nothing to give back.	空けられる領域はありません。
+	Stop compacting	圧縮を停止
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	ここで圧縮するには大きすぎ、ドライブにコピーする空きもありません。ファイルをもう一度インポートすると同じくらい小さくなります。
+	You can also compact it later from File › Info, or turn this off in File › Options.	[ファイル] › [情報] から後で圧縮することも、[ファイル] › [オプション] でこれをオフにすることもできます。
+	about {n} min	約 {n} 分
+	about {n} s	約 {n} 秒
+	{size} can be reclaimed	{size} を解放できます

@@ -1986,9 +1986,24 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   waiting for it (what it reads of the file is refused at once), and no import runs beside a
   compaction. A copy keeps every file or isn't made: one with damaged files is refused. On a made-up file of deleted mail the space came
   back to the drive with every file reading back the same; a copy took in what was written while
-  it ran. Not yet: the File page's Compact now and what it gave back, the bar, calling it at idle
-  and on closing from the window (all the next step), and a run on the real files (the milestone's
-  verification).
+  it ran. Not yet: a run on the real files (the milestone's verification).
+- **Compacting, in the window:** File › Info › Mailbox settings says, beside what an account keeps
+  on this computer, how much its data file could give back (measured once a visit, from 64 MB) and
+  has **Compact now**; afterwards it says what that came to (before → after, what was reclaimed
+  and how long it took), or why nothing was done: too long for idle, stopped, no room for a copy
+  (importing the file again is suggested), or nothing to give back. A compaction shows its part
+  (measuring, compressing again, copying, finishing with about how long is left) with a bar, in a
+  dialog that can be hidden and in the status bar, where it goes before the search index; the
+  part that has the file to itself can't be stopped or put away, and is shown over the window
+  whatever began it. The window tells the idle policy every 30 s how long it has been left alone,
+  and anything the user does, in the main window or a message's own window, stops an idle
+  compaction where it can stop. That tick only runs while the window is drawn: minimized,
+  MailCraft draws nothing, so no idle compaction starts until it's shown again. **Compact data
+  files on close** (File › Options › Data files) is off unless chosen: on, closing compacts each
+  data file last measured as worth it when that takes 30 s at most, waiting for all of them, with
+  Close now, and then offers a longer one by hand, with its estimate (or that it's copied, which
+  takes longer), or closing without it. Closing while a compaction has its file to itself waits
+  for it.
 - **Down in a big folder of a data file:** a read mark on a `.pst` account's message saved the
   page of 4,096 summaries it's in (about 2 MB) and then the folder counts, two durable commits
   of the 38 GB data file in the window's frame: 24 ms by median, up to 1.4 s when the disk was

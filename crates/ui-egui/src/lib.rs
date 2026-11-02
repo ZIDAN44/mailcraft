@@ -114,6 +114,9 @@ pub enum Action {
     /// Closing, with the update asked about: installed as MailCraft closes (true), or kept for
     /// later (false).
     UpdateOnClose(bool),
+    /// Closing, with a data file to compact: compacted first, MailCraft closing once it's done
+    /// (true), or closed now (false).
+    CompactOnClose(bool),
     Open(MessageKey),
     Dialog(Dialog),
     /// An action from one message's window: done to that message (several can be written at
@@ -233,6 +236,8 @@ pub struct UiState {
     pub(crate) restart_wanted: bool,
     /// A question about closing is (or was) on screen; put away, the close is off.
     pub(crate) close_asked: bool,
+    /// Data files compacted: when the user last did anything, and compacting as MailCraft closes.
+    pub(crate) compact: app::compacting::CompactUi,
     /// Calendar reminders come due ([`reminders`]).
     pub reminders: reminders::State,
     pub tokens: Tokens,
@@ -418,6 +423,7 @@ impl MailApp {
                 update_answered: false,
                 restart_wanted: false,
                 close_asked: false,
+                compact: Default::default(),
                 reminders: reminders::State::default(),
                 has_files,
                 data_folder,

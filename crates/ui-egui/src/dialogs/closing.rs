@@ -1,11 +1,13 @@
 //! Dialogs: what closing MailCraft would leave behind (messages being written, what online-only
 //! accounts hold in memory, a data file being imported, an update about to be installed or
-//! still downloading).
+//! still downloading), and a data file compacted, as MailCraft closes or otherwise.
+
+use mailcraft_engine::model::job::{CompactPhase, DataFileHealth};
 
 use super::*;
 use crate::UpdateState;
 
-pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::LostOnClose { unsent, changes, sending } => {
             ui.set_width(420.0);
@@ -167,6 +169,95 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             // Nothing on its way any more (the download failed): nothing to ask.
             UpdateState::None => false,
         },
+        // A data file being compacted; it ends by itself (nothing left to show).
+        Dialog::Compacting { account, closing, since } => {
+            let Some(c) = s.compaction.running.get(account.as_str()) else { return false };
+            ui.set_width(440.0);
+            let file = crate::app::compacting::file_name(s, account);
+            title(ui, t, &if *closing { tf!("Compacting {file} before closing…", file = file) } else { tf!("Compacting {file}…", file = file) });
+            let (words, permille) = crate::app::compacting::phase_words(c, *since, ui.input(|i| i.time));
+            ui.label(RichText::new(words).color(t.text));
+            ui.add_space(6.0);
+            crate::progress::bar(ui, t, permille, vec2(ui.available_width(), 6.0));
+            ui.add_space(6.0);
+            let exclusive = c.phase == CompactPhase::Exclusive;
+            let about = if exclusive {
+                tl!(
+                    "MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens."
+                )
+            } else if *closing {
+                tl!("Nothing is lost if you close now: what's done is kept, and the rest is done another time.")
+            } else {
+                tl!("It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.")
+            };
+            ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
+            ui.add_space(10.0);
+            let mut keep = true;
+            button_row(ui, |ui| {
+                if *closing {
+                    if widgets::accent_button(ui, Icon::Close, "Close now", t, true).clicked() {
+                        acts.push(Action::CompactOnClose(false));
+                        keep = false;
+                    }
+                } else if exclusive {
+                    ui.add_enabled(false, egui::Button::new(tl!("Finishing…")));
+                } else {
+                    if ui.button(tl!("Hide")).clicked() {
+                        keep = false;
+                    }
+                    if ui.button(tl!("Stop compacting")).clicked() {
+                        acts.push(Action::Run("dataFile.cancelCompact", json!({ "account": account })));
+                    }
+                }
+            });
+            keep
+        }
+        // Closing waits only so long: a longer one is offered by hand, saying how long it takes.
+        Dialog::CompactOnClose { account, seconds } => {
+            ui.set_width(460.0);
+            let file = crate::app::compacting::file_name(s, account);
+            title(ui, t, &tf!("Compact {file} before closing?", file = file));
+            let health = s.compaction.health.get(account.as_str());
+            let saving = widgets::human_bytes(health.map_or(0, DataFileHealth::saving));
+            let how_long = match health.and_then(DataFileHealth::by_hand_s).unwrap_or(*seconds) {
+                secs if secs < 60 => tf!("about {n} s", n = secs.max(1)),
+                secs => tf!("about {n} min", n = secs.div_ceil(60)),
+            };
+            let copied = health.is_some_and(|h| h.by_hand_s().is_none());
+            let about = if copied {
+                tf!(
+                    "It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.",
+                    size = saving
+                )
+            } else {
+                tf!(
+                    "It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.",
+                    size = saving,
+                    time = how_long
+                )
+            };
+            ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
+            ui.add_space(4.0);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tl!("You can also compact it later from File › Info, or turn this off in File › Options.")).color(t.dim).small(),
+                )
+                .wrap(),
+            );
+            ui.add_space(10.0);
+            let mut keep = true;
+            button_row(ui, |ui| {
+                if ui.button(tl!("Close without compacting")).clicked() {
+                    acts.push(Action::CompactOnClose(false));
+                    keep = false;
+                }
+                if widgets::accent_button(ui, Icon::Sync, "Compact, then close", t, true).clicked() {
+                    acts.push(Action::CompactOnClose(true));
+                    keep = false;
+                }
+            });
+            keep
+        }
         _ => true,
     }
 }

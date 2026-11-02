@@ -22,6 +22,7 @@ impl MailApp {
                 _ => builder,
             };
             let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+                st.compact.note_input(ui);
                 let mut place = st.places.get("source").copied();
                 super::windows::after_open(ui, place);
                 super::windows::WindowPlace::note(&mut place, ui);

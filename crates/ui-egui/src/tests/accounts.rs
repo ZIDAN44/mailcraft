@@ -2,6 +2,7 @@
 
 use super::*;
 
+pub(super) mod compacting;
 pub(super) mod importing;
 
 #[test]

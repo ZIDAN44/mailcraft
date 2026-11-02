@@ -1464,3 +1464,38 @@ month	May	مايو
 	{n} recipients had no address	لم يكن لدى {n} من المستلمين عنوان
 	{n} s	{n} ث
 	{time} so far	{time} حتى الآن
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	يُصغَّر ملف البيانات الذي فيه مساحة يمكن استعادتها عند إغلاق MailCraft، إذا لم يستغرق ذلك أكثر من نصف دقيقة. وإلا فيُصغَّر حين لا يُستخدم MailCraft، أو بزر «ضغط الآن» في معلومات.
+	Being compacted…	جارٍ الضغط…
+	Close now	إغلاق الآن
+	Close without compacting	إغلاق بلا ضغط
+	Compact data files on close	ضغط ملفات البيانات عند الإغلاق
+	Compact now	ضغط الآن
+	Compact {file} before closing?	هل تريد ضغط {file} قبل الإغلاق؟
+	Compact, then close	ضغط ثم إغلاق
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	تم الضغط: {before} ← {after} (استُعيد {saved}) في {time}
+	Compacting was stopped; what was done is kept.	أُوقف الضغط؛ ويبقى ما أُنجز.
+	Compacting {file} before closing…	جارٍ ضغط {file} قبل الإغلاق…
+	Compacting {file}…	جارٍ ضغط {file}…
+	Compacting {file}… {percent}%	جارٍ ضغط {file}… {percent}%
+	Compressing mail again	جارٍ ضغط البريد من جديد
+	Copying it into a smaller file	جارٍ نسخه إلى ملف أصغر
+	Finishing: about {n} s	جارٍ الإنهاء: نحو {n} ث
+	Finishing…	جارٍ الإنهاء…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	يعيد إلى القرص المساحة التي كان يشغلها البريد المحذوف. يبقى بريدك كما هو.
+	Hide	إخفاء
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	يستمر في الخلفية إذا أخفيت هذا. يبقى بريدك كما هو: تتغير المساحة التي يشغلها فقط.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	يمكن استعادة نحو {size}، لكن ذلك يستغرق {time}، وهي مدة أطول مما ينتظره MailCraft عند الإغلاق. وفي أثناء ذلك لا يمكن فتح أي شيء من هذا الحساب.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	يمكن استعادة نحو {size}. ويتم ذلك بنسخه إلى ملف جديد، وقد يستغرق دقائق كثيرة لملف كبير؛ ويُغلق MailCraft عند الانتهاء.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	تُرك كما هو: يستغرق ضغطه نحو {time}. «ضغط الآن» يضغطه مهما طال الوقت.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	يستأثر MailCraft بملف البيانات في هذا الجزء، لذا لا يمكن إيقافه. لا يضيع شيء إذا انطفأ الحاسوب في أثناء ذلك: يُفحص الملف عند فتح MailCraft في المرة القادمة.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	جارٍ تصغير ملف البيانات: تعود إلى القرص المساحة التي كان يشغلها البريد المحذوف.
+	Measuring the data file…	جارٍ قياس ملف البيانات…
+	Not compacted: {error}	لم يُضغط: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	لا يضيع شيء إذا أغلقت الآن: يبقى ما أُنجز، ويُنجز الباقي في وقت آخر.
+	Nothing to give back.	لا توجد مساحة لاستعادتها.
+	Stop compacting	إيقاف الضغط
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	الملف أكبر من أن يُضغط هنا، ولا توجد على القرص مساحة لنسخة: استيراد الملف من جديد يجعله بالصغر نفسه.
+	You can also compact it later from File › Info, or turn this off in File › Options.	يمكنك أيضًا ضغطه لاحقًا من ملف › معلومات، أو إيقاف هذا من ملف › خيارات.
+	about {n} min	نحو {n} د
+	about {n} s	نحو {n} ث
+	{size} can be reclaimed	يمكن استعادة {size}

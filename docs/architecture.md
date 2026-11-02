@@ -191,7 +191,16 @@ stopped part way), compacts those that need it, refuses commands on an account w
 itself (and imports into one being compacted), holds its events until it's given back, and reads
 nothing of it from the window meanwhile: a search that reads it waits, and a folder's list not in
 memory isn't read. `dataFile.compact` asks for it by hand
-(`mailcraft-cli run dataFile.compact` runs it there).
+(`mailcraft-cli run dataFile.compact` runs it there), or as MailCraft closes (`"mode": "close"`).
+The window (`ui-egui/src/app/compacting.rs`) calls `dataFile.idle` every 30 s with the time since
+the last input (a message's or its source's own window counts too), stops an idle compaction on any
+input (`dataFile.cancelCompact`), keeps the part that has a file to itself on screen in a dialog
+that can't be put away, and on closing, when `prefs.compactOnClose` is on (off by default),
+compacts the data files `Session::close_compactions` finds quick enough from their last health and
+waits for each of them (`CompactUi::waiting`, the dialog going on to the next as one ends), then
+offers a longer one by hand; the File page's row is `panes/backstage/data_file.rs`. The idle tick
+runs in `ui`, which the desktop app doesn't call while the window is minimized: no idle
+compaction starts then.
 
 A local account's read marks, flags and categories don't commit in the window's frame (each was a
 durable commit of the data file, 24 ms by median on a 38 GB file, up to 1.4 s when the disk was

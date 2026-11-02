@@ -175,6 +175,8 @@ impl MailApp {
             };
             let (session, st) = (&mut self.session, &mut self.ui);
             let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+                // Reading here is the user being back, as much as in the main window.
+                st.compact.note_input(ui);
                 let mut place = st.places.get("message").copied();
                 after_open(ui, place);
                 WindowPlace::note(&mut place, ui);
