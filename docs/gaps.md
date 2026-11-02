@@ -1573,7 +1573,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   picture also goes in the body rather than the list of files) and S/MIME's own part aren't
   files; a `winmail.dat` is one when it holds a file. A file whose Content-ID is only the name of
   a file the HTML links to stays a named file. That file now gives 12,696, the count its rebuilt
-  sources give read back one by one.
+  sources give read back one by one, and the paperclip, the Has files filter and `has:attachment`
+  agree on the same 12,696 (`bench::files_agree`, 21,995 without). The 12,983 an earlier import
+  gave counted the pictures its Rich Text bodies listed as files, which are now shown in the text.
 - **Pictures in the body keep their names:** a picture the HTML shows went out with no name
   (76,712 of them in a 41 GB `.pst`'s import), so another client, or a saved copy of the message,
   listed it as `attachment-1`. Sent mail, signatures and imported mail now write its name

@@ -28,6 +28,7 @@ use crate::model::dates::Clock;
 use crate::sample::big;
 use crate::store::Store;
 
+mod files;
 mod memory;
 mod moving;
 
