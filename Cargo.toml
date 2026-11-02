@@ -85,4 +85,4 @@ eframe = { git = "https://github.com/storytold/egui.git", rev = "6d518fc79968157
 winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }
 # outlook-pst 1.2.0 with the fixes MailCraft needs for attached messages and damaged files: the
 # fork's craft/1.2.0 branch, whose PATCHES.md lists them. Dropped once a release has them.
-outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "38765ba1e0b1a87d4e29ebc6ec3ec54f00f40d5f" }
+outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "b3a2ed1eb4217b567aebfd447c6730d64c1fd2a0" }
