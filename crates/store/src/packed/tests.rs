@@ -9,6 +9,7 @@ mod compaction;
 mod full;
 mod health;
 mod opening;
+mod shrink;
 
 fn temp(name: &str) -> std::path::PathBuf {
     let d = std::env::temp_dir().join(format!("mailcraft-packed-{name}-{}", std::process::id()));

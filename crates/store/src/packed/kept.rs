@@ -124,6 +124,9 @@ pub(super) fn pieced_len(note: &[u8]) -> Option<u64> {
 pub(super) struct Tables<'t> {
     pub(super) files: redb::Table<'t, &'static str, &'static [u8]>,
     pub(super) pieces: redb::Table<'t, (&'static str, u32), &'static [u8]>,
+    /// The keys written or taken out, while the data file is being copied (`shrink.rs`): the
+    /// copy takes them again before it replaces the file.
+    pub(super) touched: Option<Vec<String>>,
 }
 
 impl Tables<'_> {
@@ -140,6 +143,7 @@ impl Tables<'_> {
     /// there go first, looked for only when something was (a new key, most of an import, has
     /// none: the range scan for them was 4.5 s of a 13-minute import).
     pub(super) fn put_kept(&mut self, key: &str, bytes: &[u8]) -> io::Result<()> {
+        self.touch(key);
         if self.has(key)? {
             self.drop_pieces(key)?;
         }
@@ -161,6 +165,7 @@ impl Tables<'_> {
 
     /// Take the file at `key` out: its bytes as kept (still compressed), when it was there.
     pub(super) fn take_kept(&mut self, key: &str) -> io::Result<Option<Vec<u8>>> {
+        self.touch(key);
         let Some(v) = self.files.remove(key).map_err(disk)?.map(|g| g.value().to_vec()) else { return Ok(None) };
         let Some(len) = pieced_len(&v) else { return Ok(Some(v)) };
         let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(RESERVE_MAX));
@@ -172,11 +177,18 @@ impl Tables<'_> {
 
     /// Take the file at `key` out without reading it (nothing to do when it isn't there).
     pub(super) fn remove(&mut self, key: &str) -> io::Result<()> {
+        self.touch(key);
         let pieced = self.files.remove(key).map_err(disk)?.is_some_and(|g| pieced_len(g.value()).is_some());
         if pieced {
             self.drop_pieces(key)?;
         }
         Ok(())
+    }
+
+    fn touch(&mut self, key: &str) {
+        if let Some(t) = self.touched.as_mut() {
+            t.push(key.to_string());
+        }
     }
 
     fn drop_pieces(&mut self, key: &str) -> io::Result<()> {

@@ -158,6 +158,20 @@ and can't be stopped or followed. Measured cold on copies of a 45 GB file compre
 room for it. An earlier run took half as long again (other work on the machine, likely), so a
 prediction needs a margin.
 
+Both run in the store (`crates/store/src/packed/shrink.rs`). In place
+(`Store::compact_data_file`), the account's file is taken out of the open ones with the account
+marked as opening, so whoever asks for it meanwhile (a sync, a read, a removal) waits, and taken up
+once nothing holds it (five seconds at most, else refused); the compaction's commit after is sealed,
+and how long it took against the measured cost (about 1.8 s per GiB of the file plus 5.3 s per GiB
+moved) is kept as the file's pace (`compact.pace` in `meta`) for the next estimate. A compaction
+that fails or panics closes the file rather than give it back, and it's opened (checked if need
+be) when next asked for. By a copy (`Store::copy_data_file`), every file goes into a new database
+beside it (`<file>.compacting`) in key order, in background batches, compressed again on the way
+when kept raw, while the account goes on as ever: each key written meanwhile is noted as it's
+committed, and once the copy has everything the file is had to itself just long enough to copy
+those again, seal the copy and rename it over the file. Stopped, it's thrown away; a copy a crash
+left is removed as the data files next open.
+
 A local account's read marks, flags and categories don't commit in the window's frame (each was a
 durable commit of the data file, 24 ms by median on a 38 GB file, up to 1.4 s when the disk was
 slow). The window changes its lists in memory and hands the flags its messages have now, with the

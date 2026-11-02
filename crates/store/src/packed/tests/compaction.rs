@@ -290,7 +290,7 @@ fn a_data_file_copied_to_a_new_one() {
             tx.set_durability(redb::Durability::None).unwrap();
         }
         {
-            let mut tables = Tables { files: tx.open_table(FILES).unwrap(), pieces: tx.open_table(PIECES).unwrap() };
+            let mut tables = Tables { files: tx.open_table(FILES).unwrap(), pieces: tx.open_table(PIECES).unwrap(), touched: None };
             for (k, v) in batch.drain(..) {
                 tables.put_kept(&k, &v).unwrap();
             }

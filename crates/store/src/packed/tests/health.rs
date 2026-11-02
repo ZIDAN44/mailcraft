@@ -221,8 +221,11 @@ fn an_old_data_file_without_meta() {
         let db = redb::Database::create(files.join("old.mailcraft")).unwrap();
         let tx = db.begin_write().unwrap();
         {
-            let mut tables =
-                super::super::Tables { files: tx.open_table(super::super::FILES).unwrap(), pieces: tx.open_table(super::super::PIECES).unwrap() };
+            let mut tables = super::super::Tables {
+                files: tx.open_table(super::super::FILES).unwrap(),
+                pieces: tx.open_table(super::super::PIECES).unwrap(),
+                touched: None,
+            };
             for i in 0..3840u32 {
                 let key = format!("INBOX/1/{i}.eml");
                 match i % 3 {

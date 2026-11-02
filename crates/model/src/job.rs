@@ -9,12 +9,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AccountConfig, Folder, MessageKey};
 
+mod compact;
 pub mod eta;
 mod import;
 mod keys;
 mod op;
 pub mod progress;
 mod vacation;
+pub use compact::*;
 pub use eta::Eta;
 pub use import::*;
 pub use keys::{HeldKey, Revocation};

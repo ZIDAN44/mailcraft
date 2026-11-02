@@ -27,9 +27,9 @@ const LET_GO_WAIT: Duration = Duration::from_secs(2);
 pub(super) struct Open {
     pub(super) dbs: HashMap<String, Arc<Database>>,
     /// Being opened, by a thread holding no lock: others asking for it wait ([`Packs::opened`]).
-    opening: HashSet<String>,
+    pub(super) opening: HashSet<String>,
     /// The cache each open data file was opened with, when not [`CACHE`].
-    caches: HashMap<String, usize>,
+    pub(super) caches: HashMap<String, usize>,
     /// Accounts taking a bulk write, and the cache their data file has meanwhile.
     bulk: HashMap<String, usize>,
     /// How the caches of the files let go of to change theirs were used (so a count over an
@@ -66,9 +66,9 @@ impl CacheUse {
 
 /// An account no longer being opened, however that ends (a panic included): those waiting on it
 /// look again.
-struct Opening<'a> {
-    packs: &'a Packs,
-    account: &'a str,
+pub(super) struct Opening<'a> {
+    pub(super) packs: &'a Packs,
+    pub(super) account: &'a str,
 }
 
 impl Drop for Opening<'_> {
@@ -96,7 +96,7 @@ impl Open {
 
 impl Packs {
     /// The open files, once no thread is opening `account`'s.
-    fn settled(&self, account: &str) -> std::sync::MutexGuard<'_, Open> {
+    pub(super) fn settled(&self, account: &str) -> std::sync::MutexGuard<'_, Open> {
         let mut open = Packs::lock(&self.open);
         while open.opening.contains(account) {
             open = self.opened.wait(open).unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -366,6 +366,7 @@ impl Packs {
     /// error: the others still open, and the account says why again when it's used.
     pub(crate) fn open_all(&self) -> Result<()> {
         self.bring_in_folders()?;
+        self.remove_copies();
         let mut files: Vec<(String, String)> = Packs::lock(&self.names).iter().map(|(a, n)| (n.clone(), a.clone())).collect();
         files.sort();
         self.progress.start(files.len());

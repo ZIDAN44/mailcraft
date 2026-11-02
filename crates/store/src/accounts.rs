@@ -299,31 +299,6 @@ impl Store {
     }
 }
 
-/// How a data file is doing ([`Store::data_file_health`]), measured without reading any mail.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct DataFileHealth {
-    /// The file's size on disk.
-    pub file_bytes: u64,
-    /// What what it keeps takes in it, pages and all.
-    pub live_bytes: u64,
-    /// What compacting it would give back: its size over what it keeps, less what the file has
-    /// over that just after a compaction (2% until one has measured it).
-    pub reclaimable: u64,
-    /// How many files (messages, lists, documents) it keeps, and their bytes as kept.
-    pub files: u64,
-    pub kept_bytes: u64,
-    /// Of what was sampled, the share kept raw that would compress (a build before 0.32 kept
-    /// base64 attachments raw), 0 to 1.
-    pub raw_fraction: f32,
-    /// About what compressing those again would save.
-    pub recompress_gain: u64,
-    /// Everything in it is kept compressed as this build keeps it (a file made by this build, or
-    /// compressed again); nothing was sampled then.
-    pub recompressed: bool,
-    /// A recompress was stopped part way: there's more to do.
-    pub recompress_stopped: bool,
-}
-
 /// What compressing a data file again did ([`Store::recompress_data_file`]), in this run.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Recompressed {
@@ -347,28 +322,4 @@ pub struct Recompressed {
     /// raw doesn't compress, or was passed over). Otherwise it was stopped, and the next run goes
     /// on from where it got to.
     pub finished: bool,
-}
-
-impl DataFileHealth {
-    /// Compacting is offered (File › Info) from this much to give back.
-    pub const OFFER_FROM: u64 = 64 << 20;
-    /// Compacted without being asked from this much to give back, and at least
-    /// [`DataFileHealth::AUTO_SHARE`] of the file.
-    pub const AUTO_FROM: u64 = 1 << 30;
-    pub const AUTO_SHARE: f64 = 0.20;
-    /// Compressed again without being asked from this share of it kept raw.
-    pub const AUTO_RAW: f32 = 0.10;
-
-    /// Worth compacting when MailCraft is idle: a gigabyte and a fifth of the file to give back,
-    /// or a gigabyte to save by compressing what's kept raw.
-    pub fn needs_compacting(&self) -> bool {
-        let share = (self.file_bytes as f64 * Self::AUTO_SHARE) as u64;
-        self.reclaimable >= Self::AUTO_FROM.max(share)
-            || (!self.recompressed && self.raw_fraction >= Self::AUTO_RAW && self.recompress_gain >= Self::AUTO_FROM)
-    }
-
-    /// Worth offering to compact.
-    pub fn can_compact(&self) -> bool {
-        self.reclaimable >= Self::OFFER_FROM || self.recompress_stopped || (!self.recompressed && self.recompress_gain >= Self::OFFER_FROM)
-    }
 }

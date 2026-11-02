@@ -12,6 +12,7 @@
 //! files of a 37 GB data file, in 34 MB. What it can't see (the pieces' own tree) is allowed for
 //! with what the file had over it when it was last compacted.
 
+use mailcraft_model::job::PACE_ONE;
 use redb::ReadableTableMetadata;
 
 use super::*;
@@ -28,9 +29,12 @@ pub(super) const DEFLATE: &str = "deflate";
 pub(super) const DEFLATE_NOW: u64 = 2;
 /// What the file had over what the walk counts just after it was compacted, in millionths of
 /// the walk's count (a u64): the tree's own pages, and the end of the file.
-const OVERHEAD: &str = "compact.overhead";
+pub(super) const OVERHEAD: &str = "compact.overhead";
 /// Until a compaction measures it: 2%.
 const OVERHEAD_DEFAULT: u64 = 20_000;
+/// How this file's compactions in place went against the measured cost (a u64, millionths:
+/// `mailcraft_model::job::next_pace`), so the next is foretold for this file and drive.
+pub(super) const PACE: &str = "compact.pace";
 /// Where a recompress that was stopped got to: the last key it did (UTF-8).
 pub(super) const CURSOR: &str = "recompress.cursor";
 /// The longest key a cursor can be (a store path is at most 512 bytes).
@@ -65,6 +69,7 @@ pub(super) struct Meta {
     pub(super) stayed_raw: u64,
     pub(super) saved: u64,
     pub(super) passed: u64,
+    pub(super) pace: u64,
 }
 
 /// A u64 as kept (8 bytes, little-endian).
@@ -88,6 +93,8 @@ pub(super) fn read_meta(tx: &redb::ReadTransaction) -> io::Result<Meta> {
         stayed_raw: value(STAYED_RAW)?.as_deref().and_then(u64_of).unwrap_or(0),
         saved: value(SAVED)?.as_deref().and_then(u64_of).unwrap_or(0),
         passed: value(PASSED)?.as_deref().and_then(u64_of).unwrap_or(0),
+        // Only what `next_pace` can come to: a crafted one doesn't make a big file seem quick.
+        pace: value(PACE)?.as_deref().and_then(u64_of).filter(|p| (PACE_ONE / 20..=PACE_ONE * 20).contains(p)).unwrap_or(0),
     })
 }
 
@@ -182,7 +189,7 @@ fn compresses_to(bytes: &[u8]) -> Option<usize> {
 pub(super) struct Walk {
     files: u64,
     kept: u64,
-    live: u64,
+    pub(super) live: u64,
     /// The kept bytes of the files a sample is drawn from (big enough to compress, not the
     /// index's): what the sample stands for.
     eligible_kept: u64,
@@ -221,6 +228,7 @@ impl Packs {
             recompress_gain: scale(walk.gain),
             recompressed: meta.deflate >= DEFLATE_NOW,
             recompress_stopped: meta.cursor.is_some(),
+            pace: meta.pace,
         }))
     }
 
@@ -230,14 +238,19 @@ impl Packs {
         let Some(path) = self.file(account) else { return Ok(()) };
         let Some(db) = self.db(account, false)? else { return Ok(()) };
         let live = walk(&db.begin_read().map_err(other)?, false)?.live;
-        let over = fs::metadata(&path)?.len().saturating_sub(live);
-        let ppm = if live == 0 {
-            OVERHEAD_DEFAULT
-        } else {
-            u64::try_from(u128::from(over) * 1_000_000 / u128::from(live)).unwrap_or(u64::MAX).min(1_000_000)
-        };
+        let ppm = overhead_ppm(live, fs::metadata(&path)?.len());
         seal_with(&db, &self.seals, account, |tx| write_meta(tx, &[(OVERHEAD, ppm.to_le_bytes().as_slice())]))
     }
+}
+
+/// What a data file of `len` bytes has over the `live` bytes the walk counts, in millionths of
+/// those ([`OVERHEAD`]), at most as much again.
+pub(super) fn overhead_ppm(live: u64, len: u64) -> u64 {
+    if live == 0 {
+        return OVERHEAD_DEFAULT;
+    }
+    let over = len.saturating_sub(live);
+    u64::try_from(u128::from(over) * 1_000_000 / u128::from(live)).unwrap_or(u64::MAX).min(1_000_000)
 }
 
 /// One walk of `FILES`: every file's kept length and the bytes it takes, and when `sample`, one

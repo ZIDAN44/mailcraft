@@ -729,18 +729,21 @@ pub fn clear_scratch() {
     }
 }
 
-pub use accounts::{DataFileHealth, Recompressed};
+pub use accounts::Recompressed;
 use atomic::private_dir;
 pub use atomic::write_atomic;
 pub use bodies::Prepared;
+pub use compacting::Shrunk;
 use files::{Files, Routed};
 pub use folders::FolderLoad;
+pub use mailcraft_model::job::DataFileHealth;
 pub use marking::{FolderMarks, MarksAfter};
 pub use opening::{OpenProgress, OpenStage};
 
 mod accounts;
 mod atomic;
 mod bodies;
+mod compacting;
 mod files;
 mod folders;
 mod marking;

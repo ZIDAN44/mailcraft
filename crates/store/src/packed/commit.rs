@@ -394,10 +394,14 @@ impl Packs {
         if fresh {
             write_meta(&tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice())])?;
         }
-        {
-            let mut tables = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)? };
+        // Being copied (asked with the writer held: the copy took it once after it began, so a
+        // write that didn't see it had committed by then): what this changes is taken again.
+        let touched = {
+            let touched = self.copying(account).then(Vec::new);
+            let mut tables = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)?, touched };
             f(&mut tables, &tx)?;
-        }
+            tables.touched
+        };
         let before = self.seals.count(account, (!how.durable).then_some(undurable));
         // Taken with the writer held: a write noted after it began once this commit let go.
         let at = Instant::now();
@@ -407,6 +411,9 @@ impl Packs {
         }
         if fresh && how.durable {
             Packs::lock(&self.fresh).remove(account);
+        }
+        if let Some(keys) = touched {
+            self.copied_again(account, keys);
         }
         if how.seal {
             self.seals.sealed(account, at);

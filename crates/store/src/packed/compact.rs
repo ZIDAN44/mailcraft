@@ -39,7 +39,7 @@ const BATCH_FILES: usize = 4096;
 /// Files bigger than this as kept are passed over: one is read whole, and compressed, in memory (a
 /// crafted note can say anything up to the most a file may come to), and written in one
 /// transaction a write from the window waits for (0.5 s for 200 MiB).
-const BIGGEST: u64 = 64 << 20;
+pub(super) const BIGGEST: u64 = 64 << 20;
 /// Compressed at most this many ways at once.
 const WAYS: usize = 8;
 
@@ -221,8 +221,8 @@ fn packed(bytes: &[u8]) -> Option<Vec<u8>> {
 
 /// Each file of a batch compressed, up to [`WAYS`] at once (on this thread when a thread can't be
 /// had); `None` for one that stays as it is.
-fn compress(files: &[Raw]) -> Vec<Option<Vec<u8>>> {
-    let alone = |c: &[Raw]| c.iter().map(|f| packed(&f.bytes)).collect::<Vec<_>>();
+pub(super) fn compress(files: &[&[u8]]) -> Vec<Option<Vec<u8>>> {
+    let alone = |c: &[&[u8]]| c.iter().map(|f| packed(f)).collect::<Vec<_>>();
     let ways = std::thread::available_parallelism().map_or(1, |n| n.get()).min(WAYS).min(files.len());
     if ways <= 1 {
         return alone(files);
@@ -246,7 +246,7 @@ fn compress(files: &[Raw]) -> Vec<Option<Vec<u8>>> {
 
 /// How many files and bytes (as kept) `FILES` has, the search index's left out, and how many of
 /// them come up to `cursor`: a run's whole, and what an earlier one went through.
-fn count(db: &Database, cursor: Option<&str>) -> io::Result<Work> {
+pub(super) fn count(db: &Database, cursor: Option<&str>) -> io::Result<Work> {
     let mut w = Work::default();
     let tx = db.begin_read().map_err(disk)?;
     let files = match tx.open_table(FILES) {
@@ -297,7 +297,7 @@ pub(super) fn recompress(target: &dyn Target, cancel: &AtomicBool, progress: &mu
         let seen = target.writes();
         let batch = read_batch(&*target.db()?, cursor.as_deref())?;
         if let Some(last) = batch.last.clone() {
-            let out = compress(&batch.files);
+            let out = compress(&batch.files.iter().map(|f| f.bytes.as_slice()).collect::<Vec<_>>());
             let (mut run, mut written) = (report.clone(), 0usize);
             run.passed_over = run.passed_over.saturating_add(batch.passed);
             run.passed_over_bytes = run.passed_over_bytes.saturating_add(batch.passed_bytes);
@@ -464,7 +464,7 @@ impl Target for InMemory {
     fn commit(&self, _: Step, f: &mut dyn FnMut(&mut Tables<'_>, &redb::WriteTransaction) -> io::Result<()>) -> io::Result<()> {
         let tx = self.0.begin_write().map_err(disk)?;
         {
-            let mut t = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)? };
+            let mut t = Tables { files: tx.open_table(FILES).map_err(disk)?, pieces: tx.open_table(PIECES).map_err(disk)?, touched: None };
             f(&mut t, &tx)?;
         }
         tx.commit().map_err(disk)
@@ -534,7 +534,8 @@ fn read_all(db: &Database) -> BTreeMap<String, Option<Vec<u8>>> {
     out
 }
 
-/// A hostile data file (see [`fuzz_db`]) measured as its health is, compressed again (stopped
+/// A hostile data file (see [`fuzz_db`]) measured as its health is, read as a copy reads it,
+/// compressed again (stopped
 /// after its first batch, gone on with, then once more with nothing left to do), and read back
 /// whole: whether every file that read back before reads back the same.
 #[doc(hidden)]
@@ -546,6 +547,8 @@ pub fn fuzz_data_file(input: &[u8]) -> bool {
         let _ = walk(&tx, true);
     }
     let before = read_all(&db);
+    // Read for a copy as a compaction copies it, batch by batch.
+    let _ = super::shrink::read_all_batches(&db);
     let target = InMemory(db.clone());
     let (stop, mut heard) = (AtomicBool::new(false), 0);
     let _ = recompress(&target, &stop, &mut |_| {

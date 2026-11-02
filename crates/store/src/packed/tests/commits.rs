@@ -612,8 +612,11 @@ fn timed_commit(db: &redb::Database, quick: bool, items: &[(String, Vec<u8>)]) -
     let mut tx = db.begin_write().unwrap();
     tx.set_quick_repair(quick);
     {
-        let mut tables =
-            crate::packed::Tables { files: tx.open_table(crate::packed::FILES).unwrap(), pieces: tx.open_table(crate::packed::PIECES).unwrap() };
+        let mut tables = crate::packed::Tables {
+            files: tx.open_table(crate::packed::FILES).unwrap(),
+            pieces: tx.open_table(crate::packed::PIECES).unwrap(),
+            touched: None,
+        };
         for (k, v) in items {
             tables.put_kept(k, v).unwrap();
         }
@@ -627,8 +630,11 @@ fn tidy(db: &redb::Database) {
     let mut tx = db.begin_write().unwrap();
     tx.set_quick_repair(true);
     {
-        let mut tables =
-            crate::packed::Tables { files: tx.open_table(crate::packed::FILES).unwrap(), pieces: tx.open_table(crate::packed::PIECES).unwrap() };
+        let mut tables = crate::packed::Tables {
+            files: tx.open_table(crate::packed::FILES).unwrap(),
+            pieces: tx.open_table(crate::packed::PIECES).unwrap(),
+            touched: None,
+        };
         let keys: Vec<String> =
             tables.files.range("zz-commit-measure/".."zz-commit-measure0").unwrap().map(|r| r.unwrap().0.value().to_string()).collect();
         for k in keys {

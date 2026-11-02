@@ -15,11 +15,11 @@ use crate::packed::compact::{Account, Step, Target};
 use crate::packed::{Packs, Tables};
 
 /// What a data file from before holds: path → bytes as kept.
-type Kept = Vec<(String, Vec<u8>)>;
+pub(super) type Kept = Vec<(String, Vec<u8>)>;
 
 /// A data store at `t` whose account `a1` has a data file as a build before this one left it: no
 /// `META`, and `kept` as it was kept (raw or compressed, whole or in pieces).
-fn old_store(t: &std::path::Path, kept: &Kept) -> Store {
+pub(super) fn old_store(t: &std::path::Path, kept: &Kept) -> Store {
     let (app, files) = (t.join("app"), t.join("Files"));
     std::fs::create_dir_all(&app).unwrap();
     std::fs::create_dir_all(&files).unwrap();
@@ -28,7 +28,8 @@ fn old_store(t: &std::path::Path, kept: &Kept) -> Store {
         let db = redb::Database::create(files.join("old.mailcraft")).unwrap();
         let tx = db.begin_write().unwrap();
         {
-            let mut tables = Tables { files: tx.open_table(super::super::FILES).unwrap(), pieces: tx.open_table(super::super::PIECES).unwrap() };
+            let mut tables =
+                Tables { files: tx.open_table(super::super::FILES).unwrap(), pieces: tx.open_table(super::super::PIECES).unwrap(), touched: None };
             for (k, v) in kept {
                 tables.put_kept(k, v).unwrap();
             }
@@ -40,7 +41,7 @@ fn old_store(t: &std::path::Path, kept: &Kept) -> Store {
     s
 }
 
-fn packs(s: &Store) -> &Packs {
+pub(super) fn packs(s: &Store) -> &Packs {
     let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
     packs
 }
@@ -51,13 +52,13 @@ fn text(n: usize, seed: u64) -> Vec<u8> {
 }
 
 /// Every file of `a1` as it reads back (`None`: it doesn't).
-fn read_back(s: &Store) -> BTreeMap<String, Option<Vec<u8>>> {
+pub(super) fn read_back(s: &Store) -> BTreeMap<String, Option<Vec<u8>>> {
     let p = packs(s);
     p.keys("a1", "").unwrap().into_iter().map(|(k, _)| (k.clone(), p.get("a1", &k).ok().flatten())).collect()
 }
 
 /// Whether the file at `key` is kept compressed (its first bytes, or its first piece's, say so).
-fn kept_compressed(s: &Store, key: &str) -> bool {
+pub(super) fn kept_compressed(s: &Store, key: &str) -> bool {
     let db = packs(s).db("a1", false).unwrap().unwrap();
     let tx = db.begin_read().unwrap();
     let files = tx.open_table(super::super::FILES).unwrap();

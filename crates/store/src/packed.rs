@@ -29,12 +29,14 @@ mod filling;
 mod health;
 mod kept;
 mod open;
+mod shrink;
 use commit::*;
 pub use compact::fuzz_data_file;
 use health::*;
 use kept::*;
 pub(crate) use kept::{pack_owned, unpack};
 use open::*;
+use shrink::Journal;
 
 /// A data file's extension.
 pub const EXTENSION: &str = "mailcraft";
@@ -135,6 +137,12 @@ pub(crate) struct Packs {
     recompressing: Mutex<HashSet<String>>,
     /// The writes to the data files, counted ([`Writes`]).
     writes: Writes,
+    /// Accounts whose data file is being copied to compact it, and what's written to it
+    /// meanwhile (`shrink.rs`).
+    copying: Mutex<HashMap<String, Journal>>,
+    /// A test's compaction in place: run just before it (an error stops it there).
+    #[cfg(test)]
+    pub(super) compact_hook: Mutex<Option<Box<dyn Fn() -> io::Result<()> + Send>>>,
 }
 
 impl std::fmt::Debug for Packs {
@@ -168,6 +176,9 @@ impl Packs {
             fresh: Mutex::default(),
             recompressing: Mutex::default(),
             writes: Writes::default(),
+            copying: Mutex::default(),
+            #[cfg(test)]
+            compact_hook: Mutex::default(),
         })
     }
 
