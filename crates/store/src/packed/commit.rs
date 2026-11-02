@@ -13,6 +13,12 @@
 //! for that file): the app opens its data files behind its window, which shows the check
 //! (`Store::open_data_files`).
 //!
+//! While an account takes a bulk write (an import), each of its commits that waits for the disk is
+//! sealed too (the batches between them still don't wait): the import's checkpoints are, and so
+//! is every other durable commit until it ends, so a crash part-way reopens the file at once, at
+//! its last durable commit, rather than checking the whole of it (55 s for a 37 GB one), and the
+//! import goes on from its last checkpoint.
+//!
 //! Writers in the background commit batches that don't wait for the disk; the next durable commit
 //! writes them out. So that a write from the window isn't the one left writing out a long run of
 //! them, a batch that would take the run past [`UNDURABLE_MAX`] is made durable itself. What's
@@ -30,6 +36,9 @@ pub(super) const QUIET: Duration = Duration::from_secs(2);
 /// The most a data file holds in batches not yet on the disk: what a write from the window may
 /// have to write out with its own commit (a few background batches).
 pub(super) const UNDURABLE_MAX: usize = 4 * crate::BACKGROUND_COMMIT;
+/// The same while the account takes a bulk write, whose durable commits are sealed (each seal
+/// writes where the free space is: megabytes on a big file).
+pub(super) const BULK_UNDURABLE_MAX: usize = 256 << 20;
 
 /// How a write transaction commits.
 #[derive(Clone, Copy, Debug)]
@@ -159,10 +168,10 @@ impl Seals {
         }
     }
 
-    /// Whether `bytes` more would take `account`'s run of batches not on the disk past the cap.
+    /// Whether `bytes` more would take `account`'s run of batches not on the disk past `cap`.
     /// Asked with the file's writer held, so no other batch comes in between.
-    fn too_far(&self, account: &str, bytes: usize) -> bool {
-        self.lock().undurable.get(account).copied().unwrap_or(0).saturating_add(bytes) > UNDURABLE_MAX
+    fn too_far(&self, account: &str, bytes: usize, cap: usize) -> bool {
+        self.lock().undurable.get(account).copied().unwrap_or(0).saturating_add(bytes) > cap
     }
 
     /// `account`'s data file had a commit that wasn't sealed: it's sealed once quiet.
@@ -376,10 +385,13 @@ impl Packs {
         }
         // Asked once this writer has the file: whatever began before the closing seal committed
         // before it, and whatever begins after is sealed itself. Likewise, no other batch can
-        // come in between this one's look at the run waiting and its commit.
-        let how = if self.seals.lock().closing {
+        // come in between this one's look at the run waiting and its commit. In a bulk write, a
+        // commit that waits for the disk (a batch made so too) is sealed.
+        let bulk = self.in_bulk(account);
+        let durable = how.durable || self.seals.too_far(account, undurable, if bulk { BULK_UNDURABLE_MAX } else { UNDURABLE_MAX });
+        let how = if self.seals.lock().closing || (durable && bulk) {
             Commit::SEALED
-        } else if !how.durable && self.seals.too_far(account, undurable) {
+        } else if durable && !how.durable {
             Commit::PLAIN
         } else {
             how

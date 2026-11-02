@@ -35,6 +35,9 @@ pub(super) struct Open {
     pub(super) caches: HashMap<String, usize>,
     /// Accounts taking a bulk write, and the cache their data file has meanwhile.
     bulk: HashMap<String, usize>,
+    /// Accounts taking a bulk write, whatever their cache: each commit of theirs that waits for
+    /// the disk is sealed meanwhile (`commit.rs`).
+    bulk_writers: HashSet<String>,
     /// How the caches of the files let go of to change theirs were used (so a count over an
     /// import keeps what its file did before it was opened again).
     spent: HashMap<String, CacheUse>,
@@ -218,6 +221,7 @@ impl Packs {
     /// nobody does). A cache no bigger than [`CACHE`] changes nothing.
     pub(crate) fn bulk_begin(&self, account: &str, cache_bytes: usize) {
         let mut open = self.settled(account);
+        open.bulk_writers.insert(account.to_string());
         if cache_bytes > CACHE {
             open.bulk.insert(account.to_string(), cache_bytes);
         } else {
@@ -233,13 +237,22 @@ impl Packs {
     /// rest, now if nobody holds it (a clean close: it opens again at once), otherwise the next
     /// time it's asked for once nobody does.
     pub(crate) fn bulk_end(&self, account: &str) {
-        self.settled(account).bulk.remove(account);
+        {
+            let mut open = self.settled(account);
+            open.bulk.remove(account);
+            open.bulk_writers.remove(account);
+        }
         // Ended by a panic: closed now, the file would write nothing (the database doesn't while
         // a thread panics) and need its full check when opened next; the next ask for it, from an
         // ordinary moment, gives it its usual cache.
         if !std::thread::panicking() {
             self.recache(account);
         }
+    }
+
+    /// Whether `account` takes a bulk write now.
+    pub(super) fn in_bulk(&self, account: &str) -> bool {
+        Packs::lock(&self.open).bulk_writers.contains(account)
     }
 
     /// `account`'s data file, open with another cache than it should have, closed if nobody else

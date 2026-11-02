@@ -107,7 +107,10 @@ or when it gives up (`Store::seal`), and as the app or the CLI exits (`Store::se
 seals every commit after it: the threads holding the store are let go, not waited for, so the files
 are seldom closed). A crash after a seal reopens at once; one between a write and its seal costs a
 full check of the file at the next open, and a file checked is sealed as it opens, so a check is
-never repeated however the process then ends. Removing an account waits for a seal under way on its
+never repeated however the process then ends. While an account takes a bulk write, every commit of
+its file that waits for the disk is sealed and batches wait for it 256 MiB at a time
+(`BULK_UNDURABLE_MAX`), so an import killed at any point reopens at its last durable commit at
+once (12–126 ms on a 37 GB file, where a check took up to 55 s). Removing an account waits for a seal under way on its
 file, so nothing still holds the file open. Opening a data file holds no lock over the others: the
 account is marked as opening, and only a reader of that account waits for it (a full check takes
 minutes on a big file). `Store::packed` opens nothing; `Store::open_data_files` brings folders from

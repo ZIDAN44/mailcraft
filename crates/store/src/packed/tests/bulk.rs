@@ -167,3 +167,45 @@ fn changing_the_cache_under_writers_loses_nothing() {
     drop(s);
     let _ = std::fs::remove_dir_all(&t);
 }
+
+/// While an account takes a bulk write (an import), a commit that waits for the disk is sealed: a
+/// write from the window, and a batch past what may wait for the disk. Killed part-way, the data
+/// file reopens with no repair, back to its last durable commit (a 37 GB one took 55 s to check
+/// whole); without the bulk write, the same commits leave it to be checked.
+#[test]
+fn a_bulk_write_s_durable_commits_are_sealed() {
+    for (mode, sealed) in [("bulk", true), ("plain", false)] {
+        let t = temp(&format!("bulk-sealed-{mode}"));
+        let s = store(&t);
+        s.write_body(&inbox(99), &source(99)).unwrap();
+        let file = s.data_file("a1").unwrap();
+        drop(s);
+        let env = [("MC_CHILD_DIR", t.display().to_string()), ("MC_CHILD_MODE", mode.to_string())];
+        let out = super::commits::child("packed::tests::bulk::killed_in_a_bulk_write", &env).wait_with_output().unwrap();
+        assert!(!out.status.success() && String::from_utf8_lossy(&out.stdout).contains("written"), "{mode}: the child was to write, then be killed");
+        let (repairs, there) = super::commits::repairs_on_open(&t, &file);
+        assert!(there, "{mode}: a durable write was lost");
+        assert_eq!(repairs == 0, sealed, "{mode}: {repairs} repairs");
+        let _ = std::fs::remove_dir_all(&t);
+    }
+}
+
+/// The child of [`a_bulk_write_s_durable_commits_are_sealed`]: in a bulk write (`bulk`) or not, a
+/// write from the window, a run of batches past the cap, one more batch, then killed at once.
+#[test]
+#[ignore = "run by a_bulk_write_s_durable_commits_are_sealed"]
+fn killed_in_a_bulk_write() {
+    let Some(dir) = std::env::var_os("MC_CHILD_DIR").map(std::path::PathBuf::from) else { return };
+    let s = Store::open_packed(dir.join("app"), dir.join("Files")).unwrap();
+    if std::env::var("MC_CHILD_MODE").is_ok_and(|m| m == "bulk") {
+        s.bulk_begin("a1", BULK_CACHE);
+    }
+    s.write_body(&inbox(1), &source(1)).unwrap();
+    let past = super::super::commit::UNDURABLE_MAX / (256 << 10) + 2;
+    for n in 0..u32::try_from(past).unwrap() {
+        let uid = 100 + n;
+        s.write_prepared(vec![(inbox(uid), Store::prepare(true, noise(256 << 10, u64::from(uid))))], false).unwrap();
+    }
+    println!("written");
+    std::process::abort();
+}

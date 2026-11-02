@@ -1904,8 +1904,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   before and within 2.5 s now). The writer was busy 58–61% of the
   time with indexing (55–58% without), 85% aimed at: it waits on the threads reading the file.
   The peak was 1.17–1.22 GB with indexing (0.76 GB without), its working set growing by a third
-  from a fifth of the way to nine tenths, where 1 GB and flat were aimed at; opening the data
-  file after a kill took 1.7 to 22 s (the file checked whole), over the 5 s aimed at; after an
+  from a fifth of the way to nine tenths, where 1 GB and flat were aimed at. Opening the data
+  file after a kill took 1.7 to 55 s (the file checked whole), over the 5 s aimed at: between
+  the checkpoints, which are sealed, the import's batches past 8 MB, its folder lists and their
+  pages were made durable unsealed. While an import writes, every commit of its data file that
+  waits for the disk is now sealed, and its batches wait for the disk 256 MB at a time (sealing
+  each 8 MB cost 35 s and 8.5 GB of writes): killed four times 25–40 s into a run, it opened in
+  12–126 ms, and the import took 132 s writing 42.4 GB against 160 s and 40.2 GB the same day. A
+  mark saved meanwhile waits longer for the disk (147 ms by median after 256 MB of batches, 10 ms
+  after 8 MB), on its own thread, never the window's. After an
   import paused and gone on with, the next index pass looks at the lists of most folders again
   (30,342 messages' worth, none of them read). And the time left, which waits on the owner (or
   the plan): from half done it was 4–26% off (10% aimed at), and before that up to twice the
