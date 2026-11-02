@@ -312,7 +312,11 @@ written (`Compose`), preferences and status-bar notices.
   entry take (`patch.rs`), built again only where what changed decides what the list shows; the
   text searches keep for that summary is made again (`FolderTexts::changed`).
 - Local-only accounts (the sample mailbox) apply changes to the cache directly, including moves
-  (new UIDs in the destination) and sending (filed in Sent).
+  (new UIDs in the destination) and, for the sample mailbox alone, sending (filed in Sent).
+- Mail is sent only from an account that can send it (`session/writing/sending.rs`):
+  `Session::send_block` says why not (no account, a data file, a mailbox kept only here, no
+  outgoing server), `compose.send` is off with that reason, and `Session::deliver`, which every
+  way of sending reaches, refuses it, as Send now in the Outbox and meeting answers do.
 - Data files imported into accounts (`session/accounts/importing.rs`, commands in
   `cmd/data_files.rs`) are followed in `Imports`: each import running or waiting on the user, by
   account, with its last progress and time left (`model::job::Eta`, on the session's clock), and

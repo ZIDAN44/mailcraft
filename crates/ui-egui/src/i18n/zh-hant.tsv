@@ -1507,3 +1507,7 @@ month	May	5月
 	about {n} min	約 {n} 分鐘
 	about {n} s	約 {n} 秒
 	{size} can be reclaimed	可釋放 {size}
+	Add an account to send mail.	新增帳戶以傳送郵件。
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	無法從 Outlook 資料檔案傳送郵件。新增帳戶以傳送郵件。
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	無法從僅保存在這部電腦上的信箱傳送郵件。新增帳戶以傳送郵件。
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	此帳戶沒有外寄 (SMTP) 伺服器。請在帳戶設定中新增一個以傳送郵件。

@@ -29,6 +29,7 @@ use body::*;
 pub use compose::compose_window;
 #[cfg(test)]
 pub(crate) use compose::parse_local;
+pub(crate) use compose::send_block_text;
 use compose::*;
 pub(crate) use long_text::LongText;
 #[cfg(test)]

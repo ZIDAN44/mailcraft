@@ -43,7 +43,7 @@ pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
 pub use searching::{IndexPass, SearchProgress, SearchStats, SearchWork};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
-pub use writing::{Compose, SendCheck, signature_parts};
+pub use writing::{Compose, SendBlock, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
 pub(crate) use mailboxes::arrange_list;

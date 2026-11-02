@@ -49,6 +49,7 @@ impl Session {
     /// Send one held-back Outbox message now (Delay Delivery off), as its Send now button.
     pub fn send_outbox_now(&mut self, key: &MessageKey) -> CmdResult {
         let (account, mut item) = self.outbox_entry(key).ok_or_else(|| CmdError::Params("not an Outbox message".into()))?;
+        self.can_send(&account)?;
         if item.not_before != 0 {
             item.not_before = 0;
             if let Some(store) = &self.store {
@@ -67,7 +68,7 @@ impl Session {
         let due: Vec<(String, u64)> = self
             .outbox
             .iter()
-            .filter(|(_, i)| i.not_before != 0 && i.not_before <= now && !self.flushed.contains(&i.id))
+            .filter(|(a, i)| i.not_before != 0 && i.not_before <= now && !self.flushed.contains(&i.id) && self.send_block(a).is_none())
             .map(|(a, i)| (a.clone(), i.id))
             .collect();
         let mut accounts: Vec<String> = Vec::new();
@@ -82,10 +83,16 @@ impl Session {
         }
     }
 
-    /// Try to send everything in the Outbox now.
+    /// Try to send everything in the Outbox now (what's held for an account that can't send
+    /// stays: [`SendBlock`]).
     pub fn send_outbox(&mut self) -> CmdResult {
-        let mut accounts: Vec<String> = self.outbox.iter().map(|(a, _)| a.clone()).collect();
+        let mut accounts: Vec<String> = self.outbox.iter().map(|(a, _)| a.clone()).filter(|a| self.send_block(a).is_none()).collect();
         accounts.dedup();
+        if accounts.is_empty()
+            && let Some(b) = self.outbox.first().and_then(|(a, _)| self.send_block(a))
+        {
+            return Err(CmdError::Disabled(b.reason().into()));
+        }
         for a in &accounts {
             self.jobs.push(Job::FlushOutbox { account: a.clone() });
         }

@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod sending;
+
 #[test]
 fn recipient_boxes_suggest_people() {
     let (mut a, dir) = app("suggest");

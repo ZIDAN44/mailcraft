@@ -62,6 +62,11 @@ fn has_compose(s: &Session) -> Option<&'static str> {
     if s.compose.is_some() { None } else { Some("no message is being written") }
 }
 
+/// A message being written, from an account that can send it.
+fn can_send_compose(s: &Session) -> Option<&'static str> {
+    has_compose(s).or_else(|| s.compose_send_block().map(crate::SendBlock::reason))
+}
+
 fn has_account(s: &Session) -> Option<&'static str> {
     if s.accounts.is_empty() { Some("add an account first") } else { None }
 }

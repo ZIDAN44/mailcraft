@@ -1503,3 +1503,7 @@ month	May	mei
 	about {n} min	ongeveer {n} min
 	about {n} s	ongeveer {n} s
 	{size} can be reclaimed	{size} kan worden teruggewonnen
+	Add an account to send mail.	Voeg een account toe om e-mail te verzenden.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Vanuit een Outlook-gegevensbestand kan geen e-mail worden verzonden. Voeg een account toe om e-mail te verzenden.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Vanuit een postvak dat alleen op deze computer wordt bewaard, kan geen e-mail worden verzonden. Voeg een account toe om e-mail te verzenden.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Dit account heeft geen server voor uitgaande e-mail (SMTP). Voeg er een toe in de accountinstellingen om e-mail te verzenden.

@@ -1503,3 +1503,7 @@ month	May	مايو
 	about {n} min	نحو {n} د
 	about {n} s	نحو {n} ث
 	{size} can be reclaimed	يمكن استعادة {size}
+	Add an account to send mail.	أضف حساباً لإرسال البريد.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	لا يمكن إرسال البريد من ملف بيانات Outlook. أضف حساباً لإرسال البريد.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	لا يمكن إرسال البريد من صندوق بريد محفوظ على هذا الكمبيوتر فقط. أضف حساباً لإرسال البريد.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	لا يوجد لهذا الحساب خادم صادر (SMTP). أضف خادماً في إعدادات الحساب لإرسال البريد.

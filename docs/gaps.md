@@ -1394,6 +1394,21 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   keys and all). A message's own window gives them to its text from the start, unclicked. On a
   touch screen (the browser on a phone or tablet, a touch laptop) a finger dragged over the text
   scrolls it, as over egui's labels there, instead of selecting.
+- **Sent with no account to send from:** with only an Outlook data file open (no account set
+  up), a new message said "Message sent" and went into the file's Sent Items: the engine took
+  any account without a server, or none, for the sample mailbox, which files what it sends in
+  Sent. Mail now goes only from an account that can send it (`SendBlock`): none set up, a data
+  file, a mailbox kept only on this computer, or an account without an outgoing server can't.
+  `compose.send` is off and says why, and sending itself refuses (`Session::deliver`, so the
+  Send button, Ctrl+Enter, Alt+S, Send anyway, Delay Delivery, a reply or forward, the CLI's
+  `send` and `--cmd` all stop there): nothing goes in Sent or the Outbox, nothing says it went,
+  and the message stays open as it was. The message says so over its form with Add an account,
+  and Send, drawn off, says it again when clicked; Ctrl+Enter no longer closes that alert the
+  moment it opens. As in Outlook, a new message, reply or forward in a data file's folders is
+  written from the first account that can send, and From offers only those. Send now in the
+  Outbox, its timer and an answer to a meeting invitation from a data file don't send either
+  (the answer is kept in the calendar and the window says it wasn't sent). Siblings checked:
+  no Craft app sends mail, so there was nothing to port.
 - **Exported mail keeps what it is:** a `.pst` export wrote every message read, as an ordinary
   `IPM.Note` with nothing but its text, addresses and files, into folders named as the account
   names them. It now keeps what the store knows of each: unread, a draft (in Drafts or flagged

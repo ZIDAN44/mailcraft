@@ -1504,3 +1504,7 @@ month	May	5月
 	about {n} min	約 {n} 分
 	about {n} s	約 {n} 秒
 	{size} can be reclaimed	{size} を解放できます
+	Add an account to send mail.	メールを送信するには、アカウントを追加してください。
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Outlook データ ファイルからはメールを送信できません。メールを送信するには、アカウントを追加してください。
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	このコンピューターだけに保存されているメールボックスからはメールを送信できません。メールを送信するには、アカウントを追加してください。
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	このアカウントには送信 (SMTP) サーバーがありません。メールを送信するには、アカウント設定で追加してください。

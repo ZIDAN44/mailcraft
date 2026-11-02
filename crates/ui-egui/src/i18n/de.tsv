@@ -1508,3 +1508,7 @@ month	May	Mai
 	about {n} min	etwa {n} min
 	about {n} s	etwa {n} s
 	{size} can be reclaimed	{size} können freigegeben werden
+	Add an account to send mail.	Fügen Sie ein Konto hinzu, um E-Mails zu senden.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Aus einer Outlook-Datendatei können keine E-Mails gesendet werden. Fügen Sie ein Konto hinzu, um E-Mails zu senden.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Aus einem nur auf diesem Computer gespeicherten Postfach können keine E-Mails gesendet werden. Fügen Sie ein Konto hinzu, um E-Mails zu senden.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Dieses Konto hat keinen Postausgangsserver (SMTP). Fügen Sie in den Kontoeinstellungen einen hinzu, um E-Mails zu senden.

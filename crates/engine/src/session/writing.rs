@@ -4,7 +4,9 @@ use mailcraft_model::lookalike;
 
 use super::*;
 
+mod sending;
 mod signatures;
+pub use sending::SendBlock;
 pub use signatures::signature_parts;
 
 /// From this many people (counted as [`SendCheck::Exposed`] says), sending to all of them in To
@@ -213,7 +215,7 @@ impl Session {
     pub fn new_compose(&mut self, account: Option<&str>) -> Result<&mut Compose, CmdError> {
         let account = match account {
             Some(a) => self.account(a).map(|a| a.config.id.clone()),
-            None => self.current_account().map(|a| a.config.id.clone()),
+            None => self.current_account().map(|a| self.sending_account(a.config.id.clone())),
         }
         .ok_or_else(|| CmdError::Disabled("add an account first".into()))?;
         let sig = self.default_signature(&account, false);
@@ -233,7 +235,8 @@ impl Session {
         if r.text_first && mode == ReplyMode::Forward {
             return Err(CmdError::Failed(super::STILL_COMING.into()));
         }
-        let account = r.key.account.clone();
+        // Answered from an account that can send (not the data file it's in).
+        let account = self.sending_account(r.key.account.clone());
         let signature = self.default_signature(&account, true);
         let block = Self::signature_text(signature.as_ref());
         let sig = block.strip_prefix("-- \n").unwrap_or_default();
@@ -381,6 +384,7 @@ impl Session {
         if c.sending {
             return Err(CmdError::Disabled("already sending".into()));
         }
+        self.can_send(&c.account)?;
         let mut d = self.compose_draft(&c)?;
         if d.recipients().is_empty() {
             return Err(CmdError::Params("add at least one recipient".into()));
@@ -424,9 +428,11 @@ impl Session {
     }
 
     /// `c` as `raw` (signed or encrypted already, if it's to be), on its way: into the Outbox for
-    /// later, filed in Sent on an account with no server, or handed to the network layer.
+    /// later, filed in Sent in the sample mailbox, or handed to the network layer. From an
+    /// account that can't send ([`SendBlock`]), refused: nothing goes, nothing says it went.
     pub(super) fn deliver(&mut self, c: &Compose, raw: Vec<u8>, from: String, recipients: Vec<String>) -> CmdResult {
-        let local = self.account(&c.account).is_none_or(AccountState::is_local);
+        self.can_send(&c.account)?;
+        let local = self.account(&c.account).is_some_and(AccountState::is_local);
         let sent_folder = self.account(&c.account).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone());
         // Delay Delivery: into the Outbox, sent once it's time (the app has to be running then).
         if let Some(at) = c.send_after.filter(|at| *at > self.clock.now && !local) {

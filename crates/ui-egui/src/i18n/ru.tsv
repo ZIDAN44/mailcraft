@@ -1507,3 +1507,7 @@ month	May	Май
 	about {n} min	около {n} мин
 	about {n} s	около {n} с
 	{size} can be reclaimed	Можно освободить {size}
+	Add an account to send mail.	Добавьте учётную запись, чтобы отправлять почту.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Из файла данных Outlook нельзя отправлять почту. Добавьте учётную запись, чтобы отправлять почту.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Из почтового ящика, хранящегося только на этом компьютере, нельзя отправлять почту. Добавьте учётную запись, чтобы отправлять почту.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	У этой учётной записи нет сервера исходящей почты (SMTP). Добавьте его в параметрах учётной записи, чтобы отправлять почту.

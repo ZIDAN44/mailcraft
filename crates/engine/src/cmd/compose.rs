@@ -41,7 +41,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .key("Mod+Enter / Alt+S")
         .params(r#"{"allowEmptySubject"?: bool, "checked"?: bool (without it, a message to a lookalike address or showing many people each other's addresses is held, and the answer is {"check": [...]})}"#)
-        .when(has_compose),
+        .when(can_send_compose),
         CommandSpec::new("compose.hideRecipients", "Put everyone in Bcc", "Message", |s, _| s.hide_recipients()).when(has_compose),
         CommandSpec::new("compose.saveDraft", "Save draft", "Message", |s, _| s.save_draft()).key("Mod+S").when(has_compose),
         CommandSpec::new("compose.discard", "Discard", "Message", discard).when(has_compose),

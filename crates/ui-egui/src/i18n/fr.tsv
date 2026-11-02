@@ -1508,3 +1508,7 @@ month	May	mai
 	about {n} min	environ {n} min
 	about {n} s	environ {n} s
 	{size} can be reclaimed	{size} peuvent être récupérés
+	Add an account to send mail.	Ajoutez un compte pour envoyer du courrier.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Impossible d'envoyer du courrier depuis un fichier de données Outlook. Ajoutez un compte pour envoyer du courrier.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Impossible d'envoyer du courrier depuis une boîte aux lettres conservée uniquement sur cet ordinateur. Ajoutez un compte pour envoyer du courrier.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Ce compte n'a pas de serveur sortant (SMTP). Ajoutez-en un dans les paramètres du compte pour envoyer du courrier.

@@ -1504,3 +1504,7 @@ month	May	5月
 	about {n} min	约 {n} 分钟
 	about {n} s	约 {n} 秒
 	{size} can be reclaimed	可释放 {size}
+	Add an account to send mail.	添加帐户以发送邮件。
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	无法从 Outlook 数据文件发送邮件。添加帐户以发送邮件。
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	无法从仅保存在这台计算机上的邮箱发送邮件。添加帐户以发送邮件。
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	此帐户没有发送 (SMTP) 服务器。请在帐户设置中添加一个以发送邮件。

@@ -1508,3 +1508,7 @@ month	May	maio
 	about {n} min	cerca de {n} min
 	about {n} s	cerca de {n} s
 	{size} can be reclaimed	{size} podem ser recuperados
+	Add an account to send mail.	Adicione uma conta para enviar emails.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Não é possível enviar emails de um arquivo de dados do Outlook. Adicione uma conta para enviar emails.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Não é possível enviar emails de uma caixa de correio mantida só neste computador. Adicione uma conta para enviar emails.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Esta conta não tem servidor de saída (SMTP). Adicione um nas configurações da conta para enviar emails.

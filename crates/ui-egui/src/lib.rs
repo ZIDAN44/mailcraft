@@ -595,6 +595,13 @@ impl MailApp {
                 self.ui.dialog = Some(Dialog::SendCheck(found));
             }
             Ok(_) => {}
+            // Not from an account that can't send: said over the message, as why it didn't go.
+            Err(CmdError::Disabled(_))
+                if id == "compose.send"
+                    && let Some(b) = self.session.compose_send_block() =>
+            {
+                self.ui.compose_alert = Some(reading::send_block_text(b));
+            }
             Err(CmdError::Disabled(_)) => {}
             // What went wrong with the message being written is said over it, in its own
             // window if it has one, as Outlook does (not in the main window's corner).

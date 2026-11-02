@@ -1507,3 +1507,7 @@ month	May	5월
 	about {n} min	약 {n}분
 	about {n} s	약 {n}초
 	{size} can be reclaimed	{size} 확보 가능
+	Add an account to send mail.	메일을 보내려면 계정을 추가하세요.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Outlook 데이터 파일에서는 메일을 보낼 수 없습니다. 메일을 보내려면 계정을 추가하세요.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	이 컴퓨터에만 보관된 사서함에서는 메일을 보낼 수 없습니다. 메일을 보내려면 계정을 추가하세요.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	이 계정에는 보내는 메일(SMTP) 서버가 없습니다. 메일을 보내려면 계정 설정에서 추가하세요.

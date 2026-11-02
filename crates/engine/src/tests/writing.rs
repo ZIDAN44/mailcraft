@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod sending;
+
 #[test]
 fn compose_reply_and_send_locally() {
     let mut s = sample_session("compose");

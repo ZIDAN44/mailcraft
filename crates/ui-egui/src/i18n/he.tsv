@@ -1503,3 +1503,7 @@ month	May	מאי
 	about {n} min	כ-{n} דק׳
 	about {n} s	כ-{n} שנ׳
 	{size} can be reclaimed	אפשר לפנות {size}
+	Add an account to send mail.	הוסף חשבון כדי לשלוח דואר.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	לא ניתן לשלוח דואר מקובץ נתונים של Outlook. הוסף חשבון כדי לשלוח דואר.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	לא ניתן לשלוח דואר מתיבת דואר שנשמרת רק במחשב זה. הוסף חשבון כדי לשלוח דואר.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	לחשבון זה אין שרת דואר יוצא (SMTP). הוסף שרת בהגדרות החשבון כדי לשלוח דואר.
