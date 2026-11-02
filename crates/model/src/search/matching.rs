@@ -11,8 +11,11 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::fold::{all_words, has_phrase, has_prefix, join, parts, with_parts};
+use super::fold::{all_words, fold_all_into, has_phrase, has_prefix, join, with_parts};
 use super::*;
+
+#[cfg(test)]
+mod tests;
 
 /// Kleene's three values: a message matches, doesn't, or can't be told yet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,6 +133,12 @@ impl TextSource for IndexDoc {
     }
 }
 
+thread_local! {
+    /// What making a summary's text works in (the parts of its joined words, its addresses as
+    /// one text), kept between summaries: tens of thousands are made in a row.
+    static SCRATCH: RefCell<(String, String)> = RefCell::default();
+}
+
 /// The parts of a summary's text, in [`SummaryText`].
 #[derive(Clone, Copy)]
 enum Part {
@@ -186,36 +195,83 @@ impl SummaryText {
         SummaryText::with_parts(m, want)
     }
 
+    /// Made into one string for the folded words and one for the raw text, each word folded into
+    /// it as it's read: the 50,000 summaries of a session just opened (a word's first search)
+    /// took 150 ms made with a string for each part, word and piece, and 55 ms so.
     fn with_parts(m: &Summary, want: [bool; 4]) -> SummaryText {
-        let mut st = SummaryText::default();
         let wanted = |p: Part| want.get(p as usize).copied().unwrap_or(false);
-        let from = if wanted(Part::From) { addr_text(std::slice::from_ref(&m.from)) } else { String::new() };
-        let mut to = String::new();
-        if wanted(Part::To) {
-            to = addr_text(&m.to);
-            to.push_str(&addr_text(&m.cc));
-        }
+        let none: [&[EmailAddress]; 0] = [];
+        let (from, to): (&[&[EmailAddress]], &[&[EmailAddress]]) = (
+            if wanted(Part::From) { &[std::slice::from_ref(&m.from)] } else { &none },
+            if wanted(Part::To) { &[m.to.as_slice(), m.cc.as_slice()] } else { &none },
+        );
         let subject = if wanted(Part::Subject) { m.subject.as_str() } else { "" };
         let preview = if wanted(Part::Preview) { m.preview.as_str() } else { "" };
-        for (i, text) in [subject, &from, &to, preview].into_iter().enumerate() {
-            let mut part = String::new();
-            join(all_words(text), &mut part);
-            // The parts of words that join them ("site.word"), found as words too: after a mark
-            // no phrase has, so a phrase isn't found across them.
-            let pieces: Vec<String> = part.split(' ').flat_map(parts).map(str::to_string).collect();
-            if !pieces.is_empty() {
-                part.push_str(" \u{1}");
-                join(pieces.into_iter().map(Cow::Owned), &mut part);
+        let addresses = |lists: &[&[EmailAddress]]| {
+            lists.iter().flat_map(|l| l.iter()).map(|a| a.name.len().saturating_add(a.email.len()).saturating_add(2)).sum::<usize>()
+        };
+        let raw_len = subject.len().saturating_add(addresses(from)).saturating_add(addresses(to));
+        let mut st = SummaryText {
+            // Room for the parts of joined words too (an address's domain), mostly.
+            folded: String::with_capacity(raw_len.saturating_mul(2).saturating_add(preview.len()).saturating_add(8)),
+            raw: String::with_capacity(raw_len),
+            ..SummaryText::default()
+        };
+        SCRATCH.with(|scratch| {
+            let mut fresh = (String::new(), String::new());
+            let mut held = scratch.try_borrow_mut();
+            let (pieces, text) = match held.as_deref_mut() {
+                Ok(s) => (&mut s.0, &mut s.1),
+                Err(_) => (&mut fresh.0, &mut fresh.1),
+            };
+            for (i, part) in PARTS.into_iter().enumerate() {
+                let start = st.folded.len();
+                pieces.clear();
+                let raw = st.raw_ends.get(i).is_some();
+                match part {
+                    Part::Subject | Part::Preview => {
+                        let t = if matches!(part, Part::Subject) { subject } else { preview };
+                        fold_all_into(t, start, &mut st.folded, pieces);
+                        if raw {
+                            push_lowercase(t, &mut st.raw);
+                        }
+                    }
+                    Part::From | Part::To => {
+                        let lists = if matches!(part, Part::From) { from } else { to };
+                        let all = || lists.iter().flat_map(|l| l.iter());
+                        // The senders and recipients as one text each, as written ("name address
+                        // name address "), its words split as the whole's: an ASCII one a name
+                        // and an address at a time (no word goes past a space), lower-cased so.
+                        if all().all(|a| a.name.is_ascii() && a.email.is_ascii()) {
+                            for a in all() {
+                                for t in [&a.name, &a.email] {
+                                    fold_all_into(t, start, &mut st.folded, pieces);
+                                    push_lowercase(t, &mut st.raw);
+                                    st.raw.push(' ');
+                                }
+                            }
+                        } else {
+                            text.clear();
+                            lists.iter().for_each(|l| push_addresses(l, text));
+                            fold_all_into(text, start, &mut st.folded, pieces);
+                            push_lowercase(text, &mut st.raw);
+                        }
+                    }
+                }
+                // The parts of words that join them ("site.word"), found as words too: after a
+                // mark no phrase has, so a phrase isn't found across them.
+                if !pieces.is_empty() {
+                    st.folded.push_str(" \u{1}");
+                    st.folded.push_str(pieces);
+                }
+                if let Some(end) = st.ends.get_mut(i) {
+                    *end = st.folded.len();
+                }
+                if let Some(end) = st.raw_ends.get_mut(i) {
+                    *end = st.raw.len();
+                }
             }
-            st.folded.push_str(&part);
-            if let Some(end) = st.ends.get_mut(i) {
-                *end = st.folded.len();
-            }
-            if let Some(end) = st.raw_ends.get_mut(i) {
-                st.raw.push_str(&text.to_lowercase());
-                *end = st.raw.len();
-            }
-        }
+        });
         st
     }
 
@@ -451,4 +507,32 @@ pub(crate) fn lowered_contains(text: &str, lowered: &str) -> bool {
     }
     let (hay, want) = (text.as_bytes(), lowered.as_bytes());
     want.is_empty() || hay.windows(want.len()).any(|w| w.iter().zip(want).all(|(h, c)| h.to_ascii_lowercase() == *c))
+}
+
+/// Each address of a list as [`addr_text`] gives it (its name, a space, the address, a space),
+/// added to `out`.
+fn push_addresses(list: &[EmailAddress], out: &mut String) {
+    for a in list {
+        out.push_str(&a.name);
+        out.push(' ');
+        out.push_str(&a.email);
+        out.push(' ');
+    }
+}
+
+/// `text` lower-cased as [`str::to_lowercase`] does it, added to `out`: ASCII lower-cased in place,
+/// and the rest a letter at a time, but for a capital sigma (which reads the letters around it
+/// to be a final one), lower-cased as a whole.
+fn push_lowercase(text: &str, out: &mut String) {
+    if text.is_ascii() {
+        let start = out.len();
+        out.push_str(text);
+        if let Some(added) = out.get_mut(start..) {
+            added.make_ascii_lowercase();
+        }
+    } else if text.contains('\u{3a3}') {
+        out.push_str(&text.to_lowercase());
+    } else {
+        out.extend(text.chars().flat_map(char::to_lowercase));
+    }
 }

@@ -405,8 +405,13 @@ sides, from a table `cargo xtask fold` generates from Unicode's decompositions (
 `fold --check` in `xtask ci`), so no normalizer is carried at run time. A query is checked with
 `Query::eval` (`search/matching.rs`), which answers yes, no or unknown (Kleene logic): the summary's
 clauses come from a folded `SummaryText` (a word is looked for in all of it at once, a quick look
-most summaries fail, before in each part), the text's from a `TextSource` (the index, or the text
-itself), which answers unknown for a word it lacks when the text was cut short (a message read
+most summaries fail, before in each part; made into one string, each word folded into it as it's
+read, an ASCII text split into words a byte at a time by UAX #29's ASCII rules (`fold/ascii.rs`,
+held to unicode-segmentation by a proptest), an ASCII word only lower-cased and split at its join
+characters, the addresses folded a name and an address at a time: about 4x as fast on plain
+summaries as a string for each part, word and piece, and byte for byte the same, which a proptest
+holds against the old way), the text's from a `TextSource` (the index, or the text itself), which answers unknown for a
+word it lacks when the text was cut short (a message read
 whole with no text has no word: no). A word UAX #29 keeps joined by `.`, `:`, an apostrophe or
 `_` ("site.word") has its parts of two letters or more indexed and read as words beside it
 (`fold::index_tokens`, `parts`; `TOKENIZER_VERSION` 2).

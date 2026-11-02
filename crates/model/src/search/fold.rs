@@ -13,6 +13,10 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use super::fold_table::FOLD;
 
+mod ascii;
+
+pub(crate) use ascii::AsciiWords;
+
 /// Changes whenever what [`index_tokens`] gives changes: what was indexed with another is read
 /// again (2: the parts of words joined by `.`, `:`, `'`, `_`).
 pub const TOKENIZER_VERSION: u32 = 2;
@@ -33,15 +37,32 @@ pub fn fold_word(w: &str) -> Cow<'_, str> {
         return if w.bytes().any(|b| b.is_ascii_uppercase()) { Cow::Owned(w.to_ascii_lowercase()) } else { Cow::Borrowed(w) };
     }
     let mut out = String::with_capacity(w.len());
+    fold_chars(w, &mut out);
+    Cow::Owned(out)
+}
+
+/// Each letter of `w` folded, added to `out`. An ASCII letter (most of a word with an accent) is
+/// only lower-cased: no accent and no letter of the table is ASCII.
+fn fold_chars(w: &str, out: &mut String) {
     for c in w.chars() {
-        for l in c.to_lowercase().filter(|l| !is_mark(*l)) {
+        if c.is_ascii() {
+            out.push(c.to_ascii_lowercase());
+            continue;
+        }
+        for l in c.to_lowercase() {
+            if l.is_ascii() {
+                out.push(l);
+                continue;
+            }
+            if is_mark(l) {
+                continue;
+            }
             match FOLD.binary_search_by(|(k, _)| k.cmp(&l)).ok().and_then(|i| FOLD.get(i)) {
                 Some((_, s)) => out.push_str(s),
                 None => out.push(l),
             }
         }
     }
-    Cow::Owned(out)
 }
 
 /// A text's words, folded, as search indexes them: none empty, none longer than
@@ -104,6 +125,13 @@ pub fn parts(w: &str) -> impl Iterator<Item = &str> {
     w.split(joins).filter(move |p| split && p.chars().nth(1).is_some())
 }
 
+/// Whether a folded word has a character that [`joins`] its pieces: most don't, and aren't
+/// split for [`parts`] at all. A look at its bytes first: one all ASCII with none of `.:'_` has
+/// none.
+pub(super) fn has_joins(text: &str) -> bool {
+    text.bytes().any(|b| matches!(b, b'.' | b':' | b'\'' | b'_') || !b.is_ascii()) && text.contains(joins)
+}
+
 /// A text's [`tokens`] joined by spaces, added to `out`.
 pub fn fold_text(text: &str, out: &mut String) {
     join(tokens(text), out);
@@ -116,6 +144,56 @@ pub(super) fn join<'a>(words: impl Iterator<Item = Cow<'a, str>>, out: &mut Stri
             out.push(' ');
         }
         out.push_str(&w);
+    }
+}
+
+/// A text's words folded, long ones too, joined by spaces, added to `out` (a space before each
+/// but one at `start`, where the text they're part of starts): [`join`] of [`all_words`] into a
+/// string of its own, with none for each word. Each word's [`parts`] go to `pieces`, a space
+/// before each, as it's folded, rather than the text being looked through again for them.
+pub(super) fn fold_all_into(text: &str, start: usize, out: &mut String, pieces: &mut String) {
+    // An ASCII text (most summaries' parts) split a byte at a time, into the same words.
+    if text.is_ascii() {
+        AsciiWords::new(text).for_each(|w| fold_one_into(w, true, start, out, pieces));
+    } else {
+        text.unicode_words().for_each(|w| fold_one_into(w, w.is_ascii(), start, out, pieces));
+    }
+}
+
+/// A word of [`fold_all_into`], folded into `out` (whose text starts at `start`), and its
+/// [`parts`] into `pieces`. An ASCII word (`ascii`: most) is lower-cased in place and split at its
+/// ASCII join characters, its bytes looked at no more than that.
+fn fold_one_into(w: &str, ascii: bool, start: usize, out: &mut String, pieces: &mut String) {
+    let before = out.len();
+    if before > start {
+        out.push(' ');
+    }
+    let at = out.len();
+    if ascii {
+        out.push_str(w);
+        if let Some(folded) = out.get_mut(at..) {
+            folded.make_ascii_lowercase();
+            if folded.bytes().any(|b| matches!(b, b'.' | b':' | b'\'' | b'_')) {
+                for p in folded.split(['.', ':', '\'', '_']).filter(|p| p.len() > 1) {
+                    pieces.push(' ');
+                    pieces.push_str(p);
+                }
+            }
+        }
+    } else {
+        fold_chars(w, out);
+        if let Some(folded) = out.get(at..)
+            && has_joins(folded)
+        {
+            for p in parts(folded) {
+                pieces.push(' ');
+                pieces.push_str(p);
+            }
+        }
+    }
+    // A word of accents alone folds to nothing: not a word.
+    if out.len() == at {
+        out.truncate(before);
     }
 }
 
