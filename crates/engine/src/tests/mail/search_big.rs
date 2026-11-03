@@ -55,6 +55,7 @@ fn queries(t: &Truth) -> Vec<(String, Option<usize>)> {
         ("is:unread".to_string(), Some(t.unread)),
         ("is:read".to_string(), Some(t.read)),
         ("k".to_string(), None),
+        (format!("-{}", big::RARE), Some(t.messages - t.rare)),
     ]
 }
 
@@ -69,6 +70,7 @@ fn delta(before: SearchStats, after: SearchStats) -> SearchStats {
         sources: after.sources - before.sources,
         units: after.units - before.units,
         summary_texts: after.summary_texts - before.summary_texts,
+        summary_texts_aside: after.summary_texts_aside - before.summary_texts_aside,
     }
 }
 
@@ -152,12 +154,14 @@ fn cold_without_places() -> (Session, Truth) {
     (s, t)
 }
 
-/// The ticks after a session opens make its summaries' texts ahead, a slice a tick, all 50,000
-/// in a couple of hundred: the first search then makes none and finds what's there. A search
-/// running stops them, and texts made ahead never push out others.
+/// Without threads to make them on (the browser), the ticks after a session opens make its
+/// summaries' texts ahead, a slice a tick, all 50,000 in a couple of hundred: the first search
+/// then makes none and finds what's there. A search running stops them, and texts made ahead
+/// never push out others.
 #[test]
 fn ticks_make_the_texts_ahead() {
     let (mut s, t) = unticked();
+    s.make_texts_on_ticks();
     let mut ticks = 0;
     while s.texts_ahead_due() {
         let made = s.search_stats().summary_texts;
@@ -173,11 +177,56 @@ fn ticks_make_the_texts_ahead() {
     assert_eq!((s.search_stats().summary_texts, s.list.len()), (made, t.rare), "none made by the search");
     // A search running: no tick makes any.
     let (mut s, _) = unticked();
+    s.make_texts_on_ticks();
     s.run("search.run", &json!({"query": big::RARE, "scope": "all"})).unwrap();
     assert!(!s.texts_ahead_due());
     let made = s.search_stats().summary_texts;
     s.tick();
     assert_eq!(s.search_stats().summary_texts, made);
+}
+
+/// The first tick after a session opens hands its summaries to threads that make their texts
+/// aside, all 50,000, a batch each once, and the ticks after it take them in, a few batches a
+/// tick: none is made on the session's own thread, and the first search then makes none and
+/// finds what's there. (A folder whose batches were back but waited for a tick to take them in
+/// was handed out again, and again.)
+#[test]
+fn threads_make_the_texts_aside() {
+    let (mut s, t) = unticked();
+    let batches: u64 = s.cache.values().map(|st| st.messages.len().div_ceil(512) as u64).sum();
+    let began = Instant::now();
+    s.tick();
+    // Most of them made by the time the ticks come for them.
+    std::thread::sleep(Duration::from_secs(1));
+    while s.texts_ahead_due() {
+        assert!(began.elapsed() < Duration::from_secs(60), "made aside in a minute");
+        std::thread::sleep(Duration::from_millis(1));
+        s.tick();
+    }
+    let made = s.search_stats();
+    assert_eq!(s.texts_handed_out(), batches, "each handed out once");
+    assert_eq!(made.summary_texts, 0, "none made on the session's thread");
+    assert!(made.summary_texts_aside >= 50_000, "{} made aside", made.summary_texts_aside);
+    search(&mut s, big::RARE, "all");
+    assert_eq!((s.search_stats().summary_texts, s.list.len()), (0, t.rare), "none made by the search");
+}
+
+/// Searches begun before the window's first tick, the texts being made aside meanwhile (a step
+/// takes in what the threads made, and makes only what they haven't yet): each finds what's
+/// there. (Not the flags: another test here marks a message read or unread as it runs.)
+#[test]
+fn a_search_at_the_first_tick_finds_whats_there() {
+    let t = mailbox().1;
+    let words = queries(&t).into_iter().filter(|(q, n)| n.is_some() && !q.starts_with("is:"));
+    for (q, want) in words {
+        let (mut s, _) = unticked();
+        search_by(&mut s, &q, "all", &mut |s| {
+            s.tick();
+            s.search_step(8).done
+        });
+        let want = want.unwrap_or_default();
+        assert_eq!((s.search_progress().unwrap().found, s.list.len()), (want, want), "{q}");
+    }
 }
 
 /// A common phrase settled from its words' places: none of its 16,667 candidates' texts is read
@@ -453,8 +502,12 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// only while one as long as the frame's longest so far still fits); a word, warm, 20 ms all
 /// told (25 ms before each summary was looked through once for it) and 4 ms a step at p99; a
 /// word in a session just opened ([`cold`]: its index opened by the window's first tick, its
-/// summaries' texts but that tick's made as it goes), alone or after the other queries, 90 ms all
-/// told and 4 ms a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word
+/// summaries handed to the threads that make their texts aside, and what they haven't made yet
+/// made as it goes), alone or after the other queries, 90 ms all told and 4 ms a step at p99; a
+/// search begun before the window's first tick, in the window's frames (each its tick, which takes
+/// in what the threads made, then 6 ms of the search), a word 90 ms all told, the negated word
+/// 100 ms and the common phrase 150 ms (its texts made on the window's thread as it went, a word
+/// took 126–228 ms so on a real file); `is:unread`, warm or just opened, 15 ms all told; a one-letter word
 /// 6 ms a step at p99 and at worst, warm (60 ms all told) or just opened (300 ms), where its
 /// longest steps show 12,000 found merged into 27,000 and the 47,387 put together at the end
 /// (3.8–7.4 ms, its rows built again from the summaries and the step's 8 units run after: its
@@ -481,12 +534,24 @@ fn how_long_searches_take() {
         let began = Instant::now();
         s.search_step_within(4096, Duration::from_millis(6), &mut || began.elapsed(), &mut |_| {}).done
     };
+    // The window's frame: its tick (what the threads made taken in) and then the search.
+    let mut ticked_frame = |s: &mut Session| {
+        let began = Instant::now();
+        s.tick();
+        s.search_step_within(4096, Duration::from_millis(6), &mut || began.elapsed(), &mut |_| {}).done
+    };
     for (q, _) in queries(&t).into_iter().filter(|(q, _)| only.as_ref().is_none_or(|o| o == q)) {
-        for cache in ["cold", "warm", "cold, frames", "warm, frames"] {
+        for cache in ["cold", "warm", "cold, frames", "warm, frames", "first tick, frames"] {
             if cache.starts_with("cold") {
                 (s, _) = cold();
+            } else if cache.starts_with("first tick") {
+                (s, _) = unticked();
             }
-            let steps = if cache.ends_with("frames") { search_by(&mut s, &q, "all", &mut frame) } else { search(&mut s, &q, "all") };
+            let steps = match cache {
+                "first tick, frames" => search_by(&mut s, &q, "all", &mut ticked_frame),
+                _ if cache.ends_with("frames") => search_by(&mut s, &q, "all", &mut frame),
+                _ => search(&mut s, &q, "all"),
+            };
             let all: Duration = steps.iter().map(|st| st.took).sum();
             let mut times: Vec<Duration> = steps.iter().map(|st| st.took).collect();
             times.sort();
@@ -502,6 +567,7 @@ fn how_long_searches_take() {
             );
             let word = [big::RARE, "zurich", big::CJK, big::FAR].contains(&q.as_str());
             let phrase = q == format!("\"{}\"", big::PHRASE);
+            let negated = q.starts_with('-');
             let ms = Duration::from_millis;
             if cache.ends_with("frames") {
                 assert!(most <= ms(8), "{q} ({cache}): a frame of {most:?}");
@@ -512,7 +578,9 @@ fn how_long_searches_take() {
                 "warm" | "cold" if q == "is:unread" => assert!(all <= ms(15), "{q}: {all:?}"),
                 "warm" if q == "k" => assert!(all <= ms(60) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
                 "cold" if q == "k" => assert!(all <= ms(300) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
-                "cold, frames" | "warm, frames" if phrase => assert!(all <= ms(150), "{q}: {all:?}"),
+                "cold, frames" | "warm, frames" | "first tick, frames" if phrase => assert!(all <= ms(150), "{q}: {all:?}"),
+                "first tick, frames" if word => assert!(all <= ms(90), "{q} ({cache}): {all:?}"),
+                "first tick, frames" if negated => assert!(all <= ms(100), "{q} ({cache}): {all:?}"),
                 _ => {}
             }
         }

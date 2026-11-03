@@ -82,6 +82,8 @@ pub(crate) struct SearchState {
     pub(crate) run: Option<run::SearchRun>,
     /// Each folder's summaries' text, folded.
     pub(crate) texts: folder_text::FolderTexts,
+    /// The threads those texts are made aside on, as a folder's list comes into memory.
+    pub(crate) text_threads: folder_text::TextThreads,
     /// The texts of messages checked for a phrase, folded.
     pub(crate) folded: folded::FoldedTexts,
     /// The words looked up lately in each account's index.

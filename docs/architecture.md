@@ -471,10 +471,14 @@ thousands of words, their docs in the lexicon page itself, are spread over units
 page looked through last kept decoded so a page is decoded once however many units read it; a word
 looked up lately is taken as the same generation of the index gave it, `searching/look_up.rs`, 32
 words an account, and as many phrases settled from their words' places), 512 summaries checked
-(128 whose folded text is made first, where it wasn't made ahead: in the window, ticks make the
-summaries' texts of the folders in memory ahead of any search, 256 a tick while none runs and while
-they fit in the room they're kept in, `make_texts_ahead`, the window asking for frames until they're
-made: 160 ticks of 1.2-2.5 ms on a real file's 34,691), a message's kept text read or
+(128 whose folded text is made first, where it wasn't made ahead: in the window, the summaries'
+texts of the folders in memory are made ahead of any search while they fit in the room they're kept
+in, `make_texts_ahead`, the window asking for frames until they're made. On the desktop, a tick
+hands each folder's list to threads of their own, 512 summaries a batch (`folder_text/aside.rs`, up
+to 4 threads), and takes back 16 batches a tick at most, a search's unit 2, its own folder's first,
+each only while its summaries are still the ones at their places in the list: a search typed as the
+window opens makes only what they haven't made yet. The browser has no threads: there, 256 a tick
+while no search runs, 160 ticks of 1.2-2.5 ms on a real file's 34,691), a message's kept text read or
 256 KiB of it checked (a phrase across two slices is in the
 second, which starts 4 KiB back), or putting the list together at the end (`searching/finish.rs`: a
 search that streamed into the list adds what's left to it, arranged otherwise or put into

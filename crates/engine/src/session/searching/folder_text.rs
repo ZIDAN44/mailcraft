@@ -11,6 +11,11 @@
 
 use super::*;
 
+mod aside;
+
+pub(crate) use aside::Aside;
+use aside::{TICK_TAKES, UNIT_TAKES};
+
 /// Most bytes of summary text kept, all folders told; the least recently used go first.
 pub(crate) const TEXT_BYTES: usize = 48 << 20;
 /// Summaries' texts a tick makes ahead of any search ([`Session::make_texts_ahead`]): about a
@@ -38,6 +43,8 @@ pub(crate) struct FolderTexts {
     tick: u64,
     /// Summary texts made so far.
     made: u64,
+    /// Summary texts made aside and taken in so far ([`Aside`]).
+    aside: u64,
 }
 
 impl FolderTexts {
@@ -72,21 +79,10 @@ impl FolderTexts {
         if !ahead {
             self.tick = self.tick.wrapping_add(1);
         }
+        self.still_kept(k, messages);
         let ft = self.folders.entry(k.clone()).or_default();
         if !ahead {
             ft.used = self.tick;
-        }
-        // Kept only while each is still the message at its place.
-        let mut keep = ft.uids.len().min(messages.len());
-        if let Some(i) = ft.uids.iter().zip(messages).position(|(u, m)| *u != m.key.uid) {
-            keep = keep.min(i);
-        }
-        if keep < ft.texts.len() {
-            let gone: usize = ft.texts.get(keep..).unwrap_or_default().iter().map(SummaryText::bytes).sum();
-            ft.texts.truncate(keep);
-            ft.uids.truncate(keep);
-            ft.bytes = ft.bytes.saturating_sub(gone);
-            self.bytes = self.bytes.saturating_sub(gone);
         }
         let most = ft.texts.len().saturating_add(make).max(range.start.saturating_add(1));
         let end = range.end.min(messages.len()).min(most);
@@ -109,6 +105,22 @@ impl FolderTexts {
             self.trim(k);
         }
         made
+    }
+
+    /// A folder's texts kept only while each is still the message at its place in `messages`.
+    fn still_kept(&mut self, k: &(String, String), messages: &[SharedSummary]) {
+        let Some(ft) = self.folders.get_mut(k) else { return };
+        let mut keep = ft.uids.len().min(messages.len());
+        if let Some(i) = ft.uids.iter().zip(messages).position(|(u, m)| *u != m.key.uid) {
+            keep = keep.min(i);
+        }
+        if keep < ft.texts.len() {
+            let gone: usize = ft.texts.get(keep..).unwrap_or_default().iter().map(SummaryText::bytes).sum();
+            ft.texts.truncate(keep);
+            ft.uids.truncate(keep);
+            ft.bytes = ft.bytes.saturating_sub(gone);
+            self.bytes = self.bytes.saturating_sub(gone);
+        }
     }
 
     /// Let the least recently used folders' texts go until they fit, never `keep`'s.
@@ -172,9 +184,14 @@ impl FolderTexts {
         self.made
     }
 
+    /// Summary texts made aside so far, and taken in.
+    pub(crate) fn made_aside(&self) -> u64 {
+        self.aside
+    }
+
     /// How many of a folder's texts are kept, from its list's start (asked of every folder each
     /// frame: its key is borrowed, nothing allocated).
-    fn made_of(&self, k: &(String, String)) -> usize {
+    pub(crate) fn made_of(&self, k: &(String, String)) -> usize {
         self.folders.get(k).map_or(0, |ft| ft.texts.len())
     }
 
@@ -184,14 +201,42 @@ impl FolderTexts {
     }
 }
 
+/// The threads summaries' texts are made aside on, once there's something to make.
+#[derive(Debug, Default)]
+pub(crate) enum TextThreads {
+    /// Not started yet.
+    #[default]
+    NotYet,
+    Running(Aside),
+    /// None could start (or none here: the browser), or a test's ticks make them: the ticks make
+    /// them, a slice a tick.
+    Ticks,
+}
+
 impl Session {
-    /// Make summaries' texts ahead of any search, [`AHEAD`] a tick, while searches run in the
-    /// background and none is running: a search in a session just opened made every summary's
-    /// text as it went (on a real file, 110 ms of a word's 125-140 ms the first time). Made in
-    /// the ticks after the window opens instead (about 140 frames there), within the room texts
-    /// are kept in, the first search finds them made, as the index is opened ahead.
+    /// Make summaries' texts ahead of any search, while searches run in the background: a search
+    /// in a session just opened made every summary's text as it went (on a real file, 110 ms of
+    /// a word's 125-140 ms the first time). Within the room texts are kept in, the first search
+    /// finds them made, as the index is opened ahead. Made aside, every folder in memory is handed
+    /// to the threads ([`Aside`]), a search running or not, and what they made is taken in while
+    /// none runs (a search's units take in what they need, within its share of the frame: taken
+    /// in by the tick too, a frame went to 10 ms); without them, [`AHEAD`] a tick while no search
+    /// runs (about 140 frames on that file).
     pub(crate) fn make_texts_ahead(&mut self) {
+        if !self.search_state.run.as_ref().is_some_and(|r| !r.done()) {
+            self.take_texts_made(TICK_TAKES, None);
+        }
         if !self.texts_ahead_allowed() {
+            return;
+        }
+        if self.text_threads().is_some() {
+            let keys: Vec<(String, String)> = self.cache.keys().cloned().collect();
+            for k in keys {
+                self.hand_out_texts(&k);
+            }
+            return;
+        }
+        if self.search_state.run.as_ref().is_some_and(|r| !r.done()) {
             return;
         }
         let texts = &mut self.search_state.texts;
@@ -201,16 +246,103 @@ impl Session {
         }
     }
 
-    /// Whether a tick still has summaries' texts to make ahead of any search: the window asks for
-    /// frames meanwhile.
+    /// Whether a tick still has summaries' texts to make ahead of any search, or to take in from
+    /// the threads making them: the window asks for frames meanwhile.
     pub fn texts_ahead_due(&self) -> bool {
-        let texts = &self.search_state.texts;
-        self.texts_ahead_allowed() && self.cache.iter().any(|(k, st)| texts.made_of(k) < st.messages.len())
+        if !self.texts_ahead_allowed() {
+            return false;
+        }
+        let state = &self.search_state;
+        let texts = &state.texts;
+        match &state.text_threads {
+            TextThreads::Running(aside) if aside.busy() => true,
+            TextThreads::Ticks if state.run.as_ref().is_some_and(|r| !r.done()) => false,
+            _ => self.cache.iter().any(|(k, st)| texts.made_of(k) < st.messages.len()),
+        }
     }
 
-    /// Whether texts may be made ahead now: searching in the background, none running, and room.
+    /// Whether texts may be made ahead now: searching in the background, and room.
     fn texts_ahead_allowed(&self) -> bool {
-        self.search_state.background && !self.search_state.run.as_ref().is_some_and(|r| !r.done()) && self.search_state.texts.room_ahead()
+        self.search_state.background && self.search_state.texts.room_ahead()
+    }
+
+    /// The threads texts are made aside on, started the first time they're asked for (`None`:
+    /// the ticks make them).
+    fn text_threads(&mut self) -> Option<&mut Aside> {
+        let threads = &mut self.search_state.text_threads;
+        if matches!(threads, TextThreads::NotYet) {
+            *threads = Aside::start().map_or(TextThreads::Ticks, TextThreads::Running);
+        }
+        match threads {
+            TextThreads::Running(aside) => Some(aside),
+            _ => None,
+        }
+    }
+
+    /// The texts of folder `k` not made yet handed to the threads, unless they're making some of
+    /// them already (or there are none, or no room: then nothing).
+    pub(crate) fn hand_out_texts(&mut self, k: &(String, String)) {
+        if !self.texts_ahead_allowed() {
+            return;
+        }
+        let Some(st) = self.cache.get(k) else { return };
+        let made = self.search_state.texts.made_of(k);
+        let state = &mut self.search_state;
+        let TextThreads::Running(aside) = &mut state.text_threads else { return };
+        if made >= st.messages.len() || aside.busy_with(k) {
+            return;
+        }
+        if !aside.hand_out(k, &st.messages, made) {
+            log::warn!("search: the threads making summaries' texts have gone; the ticks make them");
+            state.text_threads = TextThreads::Ticks;
+        }
+    }
+
+    /// A search's unit about to check folder `k`'s summaries from `at`: texts the threads made
+    /// taken in, and the folder's handed to them if they aren't yet (what the unit needs is
+    /// made by it only while they haven't made it).
+    pub(crate) fn texts_for_unit(&mut self, k: &(String, String), at: usize) {
+        if self.search_state.texts.made_of(k) <= at {
+            self.take_texts_made(UNIT_TAKES, Some(k));
+            self.hand_out_texts(k);
+        }
+    }
+
+    /// What the threads made since, taken in where it still fits the folders' lists: `most`
+    /// batches at most, `first`'s before the others; the rest wait for the next turn.
+    pub(crate) fn take_texts_made(&mut self, most: usize, first: Option<&(String, String)>) {
+        let state = &mut self.search_state;
+        let TextThreads::Running(aside) = &mut state.text_threads else { return };
+        let mut made = aside.take();
+        made.sort_by(|a, b| (first != Some(&a.key)).cmp(&(first != Some(&b.key))).then(a.key.cmp(&b.key)).then(a.start.cmp(&b.start)));
+        let mut taken = 0;
+        for m in made {
+            if taken >= most {
+                aside.defer(m);
+                continue;
+            }
+            let k = m.key.clone();
+            let messages = self.cache.get(&k).map(|st| st.messages.as_slice()).unwrap_or_default();
+            match state.texts.take_in(&k, messages, m) {
+                Some(waits) => aside.hold(waits),
+                None => taken += 1,
+            }
+        }
+    }
+
+    /// A test's: the batches handed to the threads so far.
+    #[cfg(test)]
+    pub(crate) fn texts_handed_out(&self) -> u64 {
+        match &self.search_state.text_threads {
+            TextThreads::Running(aside) => aside.handed,
+            _ => 0,
+        }
+    }
+
+    /// A test's, as the browser's: the ticks make the texts, a slice a tick.
+    #[cfg(test)]
+    pub(crate) fn make_texts_on_ticks(&mut self) {
+        self.search_state.text_threads = TextThreads::Ticks;
     }
 }
 

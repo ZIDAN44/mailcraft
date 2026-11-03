@@ -21,11 +21,13 @@ const DAY_HINT: &str = "2025-03-15";
 
 /// The time a search has spent on each kind of its work, over the frames it ran in: logged when
 /// it ends (or another takes its place), so what a slow search spends its time on is known
-/// (each part on its own was well under a frame).
+/// (each part on its own was well under a frame), with the time from its first frame to its last.
 #[derive(Default)]
 pub(crate) struct SearchTimes {
     /// The search timed (its query and where it looks).
     of: Option<(String, SearchScope)>,
+    /// When its first frame of work began.
+    began: Option<web_time::Instant>,
     frames: u32,
     kinds: Vec<(mailcraft_engine::SearchWork, web_time::Duration)>,
 }
@@ -37,6 +39,7 @@ impl SearchTimes {
         if self.of.as_ref() != of {
             self.end(false);
             self.of = of.cloned();
+            self.began = Some(web_time::Instant::now().checked_sub(took).unwrap_or_else(web_time::Instant::now));
         }
         match self.kinds.iter_mut().find(|(w, _)| *w == work) {
             Some((_, t)) => *t = t.saturating_add(took),
@@ -59,7 +62,13 @@ impl SearchTimes {
         let all: web_time::Duration = kinds.iter().map(|(_, t)| *t).sum();
         let each: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), t.as_secs_f64() * 1000.0)).collect();
         let how = if done { "done" } else { "stopped" };
-        log::info!("search {how}: {:.1} ms over {} frames ({})", all.as_secs_f64() * 1000.0, self.frames, each.join(", "));
+        let wall = self.began.take().map_or(0.0, |b| b.elapsed().as_secs_f64() * 1000.0);
+        log::info!(
+            "search {how}: {:.1} ms over {} frames, {wall:.1} ms from its first ({})",
+            all.as_secs_f64() * 1000.0,
+            self.frames,
+            each.join(", ")
+        );
         self.frames = 0;
     }
 }
@@ -89,8 +98,8 @@ impl MailApp {
     /// what's shown until the next search starts (it takes this one's place).
     pub(crate) fn step_search(&mut self, ctx: &egui::Context) {
         self.ui.search_spent = web_time::Duration::ZERO;
-        // Summaries' texts are made ahead of the first search a slice a tick: the frames go on
-        // until they're made.
+        // Summaries' texts are made ahead of the first search (aside, or a slice a tick): the
+        // frames go on until they're made and taken in.
         if self.session.texts_ahead_due() {
             ctx.request_repaint();
         }

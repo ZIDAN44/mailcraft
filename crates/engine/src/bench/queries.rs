@@ -6,16 +6,20 @@
 //! MC_CACHE=C:\mc-bench\cache MC_QUERIES=C:\mc-bench\queries.txt cargo test -p mailcraft-engine --release --lib bench::queries -- --ignored --nocapture
 //! ```
 //!
+//! (or `MC_DATA`, a copy of a window's data folder the file was imported into: its first account).
+//!
 //! The account's index writer is opened first, as the app's indexer opens it: an index from a
 //! build before has its words made again from the texts it keeps then (timed). Then the index's
 //! segments' bytes, and each query by its number (never its words), as the window runs it: from
 //! the frame that sets the query (the command takes none of the search, as the window's) to the
 //! last busy one, each frame the session's tick and the search's units within 6 ms
 //! (`search_step_within`). Each is searched in a session just opened (ticked once: its index
-//! opened, a tick's worth of its summaries' texts made ahead), then again; in a session opened
-//! a moment before (ticked until its summaries' texts are made ahead: the ticks, and the
-//! longest); then the first time in a session the queries before it were searched in, then
-//! again: the work all told, the frames and the longest, the index pages and text pages read,
+//! opened, its summaries handed to the threads that make their texts aside), then again; in a
+//! session opened a moment before (ticked a millisecond apart until its summaries' texts are made
+//! and taken in: the ticks, and the longest); before a session's first tick, as a search typed as
+//! the window opens (each frame the tick, which takes in what the threads made, and the search:
+//! how many texts the search made itself, and how many were made aside); then the first time in a
+//! session the queries before it were searched in, then again: the work all told, the frames and the longest, the index pages and text pages read,
 //! the texts checked, and what the search spent its time on by kind (`SearchWork`). Then each
 //! typed a character at a time in a session just opened, each prefix searched as the window
 //! searches it once the typing pauses, the next typed once it's done or 30 frames on: how many
@@ -79,7 +83,6 @@ fn ms(d: Duration) -> f64 {
 #[test]
 #[ignore]
 fn queries() {
-    let cache = PathBuf::from(std::env::var("MC_CACHE").expect("MC_CACHE: a cache a data file was imported into"));
     let list = std::fs::read_to_string(std::env::var("MC_QUERIES").expect("MC_QUERIES: a file of queries, one a line")).unwrap();
     let queries: Vec<&str> = list.lines().map(str::trim).filter(|q| !q.is_empty()).collect();
     // What each should find, counted apart from the index: a line a query, each read or failing
@@ -96,18 +99,28 @@ fn queries() {
         counts
     });
     let mut wrong = Vec::new();
-    let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
-    store
-        .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
-        .unwrap();
-    let (before, places_before) = crate::store::search::segment_bytes(&store, "d1").unwrap();
+    let (store, account) = if let Ok(data) = std::env::var("MC_DATA") {
+        let data = PathBuf::from(data);
+        let store = Store::open_packed(data.clone(), data.join("MailCraft Files")).unwrap();
+        let account = store.load_accounts().unwrap().first().map(|a| a.id.clone()).expect("an account in MC_DATA");
+        (store, account)
+    } else {
+        let cache = PathBuf::from(std::env::var("MC_CACHE").expect("MC_CACHE: a cache a data file was imported into, or MC_DATA"));
+        let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
+        store
+            .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
+            .unwrap();
+        (store, "d1".to_string())
+    };
+    let (before, places_before) = crate::store::search::segment_bytes(&store, &account).unwrap();
     println!("segments before: {before} bytes, of them places pages {places_before}");
     let opened = Instant::now();
-    drop(crate::store::search::Writer::open(&store, "d1").unwrap());
+    drop(crate::store::search::Writer::open(&store, &account).unwrap());
     println!("writer opened (words made again, if from a build before): {:.2} s", opened.elapsed().as_secs_f64());
-    let (after, places) = crate::store::search::segment_bytes(&store, "d1").unwrap();
+    let (after, places) = crate::store::search::segment_bytes(&store, &account).unwrap();
     println!("segments now: {after} bytes, of them places pages {places}");
-    let fresh = || {
+    // A session as the window opens it, before its first tick.
+    let unticked = || {
         let mut s = Session::open(Some(store.clone()), Clock::new(1_800_000_000, 0));
         s.take_jobs();
         s.set_background_search(true);
@@ -116,6 +129,10 @@ fn queries() {
         if std::env::var_os("MC_NO_PLACES").is_some() {
             s.search_without_places();
         }
+        s
+    };
+    let fresh = || {
+        let mut s = unticked();
         s.tick();
         s
     };
@@ -125,6 +142,7 @@ fn queries() {
         let mut s = fresh();
         let (mut ticks, mut longest) = (1, Duration::ZERO);
         while s.texts_ahead_due() && ticks < 100_000 {
+            std::thread::sleep(Duration::from_millis(1));
             let began = Instant::now();
             s.tick();
             longest = longest.max(began.elapsed());
@@ -186,6 +204,28 @@ fn queries() {
         println!("  by kind: {}", kinds.join(", "));
         if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
             wrong.push(format!("query {} (a moment after opening): {} found, {want} there", i + 1, s.list.len()));
+        }
+    }
+    // Each searched before the session's first tick.
+    for (i, q) in queries.iter().enumerate() {
+        let mut s = unticked();
+        let before = s.search_stats();
+        let (took, kinds) = frames_by_kind(&mut s, q, usize::MAX);
+        let after = s.search_stats();
+        println!(
+            "query {} (at the first tick): {} found, {:.1} ms in {} frames, the longest {:.1} ms; texts made by the search {}, made aside {}",
+            i + 1,
+            s.list.len(),
+            ms(took.iter().sum()),
+            took.len(),
+            ms(took.iter().max().copied().unwrap_or_default()),
+            after.summary_texts.saturating_sub(before.summary_texts),
+            after.summary_texts_aside.saturating_sub(before.summary_texts_aside),
+        );
+        let kinds: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), ms(*t))).collect();
+        println!("  by kind: {}", kinds.join(", "));
+        if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
+            wrong.push(format!("query {} (at the first tick): {} found, {want} there", i + 1, s.list.len()));
         }
     }
     // Each typed a character at a time, in a session just opened.

@@ -73,6 +73,8 @@ pub struct SearchStats {
     pub units: u64,
     /// Summaries' texts made (folded) for searches of the summaries' words.
     pub summary_texts: u64,
+    /// Of those made ahead of searches, the ones made aside, on threads of their own.
+    pub summary_texts_aside: u64,
 }
 
 /// Where a run is in a folder.
@@ -421,7 +423,8 @@ impl Session {
 
     /// What searches have read so far.
     pub fn search_stats(&self) -> SearchStats {
-        SearchStats { summary_texts: self.search_state.texts.made(), ..self.search_state.stats }
+        let texts = &self.search_state.texts;
+        SearchStats { summary_texts: texts.made(), summary_texts_aside: texts.made_aside(), ..self.search_state.stats }
     }
 
     /// Settle a waiting search still running: `true` when it did (and showed what it found).
@@ -624,6 +627,9 @@ impl Session {
             self.terms_unit(run, &account);
             run.cur = Some(cur);
             return 1;
+        }
+        if run.summary_words {
+            self.texts_for_unit(&k, cur.at);
         }
         // A slice of the summaries.
         let Some(st) = self.cache.get(&k) else {
