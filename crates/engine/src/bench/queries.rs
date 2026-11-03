@@ -19,8 +19,9 @@
 //! and taken in: the ticks, and the longest); before a session's first tick, as a search typed as
 //! the window opens (each frame the tick, which takes in what the threads made, and the search:
 //! how many texts the search made itself, and how many were made aside); then the first time in a
-//! session the queries before it were searched in, then again: the work all told, the frames and the longest, the index pages and text pages read,
-//! the texts checked, and what the search spent its time on by kind (`SearchWork`). Then each
+//! session the queries before it were searched in, then again: the work all told, the frames and
+//! the longest, the index pages and text pages read, the texts checked, and what the search spent
+//! its time on by kind (`SearchWork`). Then each
 //! typed a character at a time in a session just opened, each prefix searched as the window
 //! searches it once the typing pauses, the next typed once it's done or 30 frames on: how many
 //! frames, and the longest, which fails it past 8 ms. `MC_TRUTH`, a file of what each query
