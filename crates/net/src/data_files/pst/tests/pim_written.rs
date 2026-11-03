@@ -144,3 +144,54 @@ fn a_written_file_s_calendar_and_contacts_come_in() {
     drop(store);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Outlook's RSS Feeds folder and a feed's folder under it come in as mail folders of their
+/// posts; a recall, a sharing invitation and a contact in a mail folder come in too, the contact
+/// to the address book. Read from a file the writer makes, by the import itself.
+#[test]
+fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-feeds-written-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("Feeds.pst");
+    drop(Writer::create(&path, &message("Hello", "IPM.Note", "Hi.", &[])).unwrap());
+    drop(Writer::create_folder(&path, &["RSS Feeds"], "IPF.Note.OutlookHomepage").unwrap());
+    drop(Writer::create_folder(&path, &["RSS Feeds", "Studio news"], "IPF.Note").unwrap());
+    for title in ["New lenses in stock", "Workshop on Friday"] {
+        drop(
+            Writer::append_in_folder_with_attachments(
+                &path,
+                &["RSS Feeds", "Studio news"],
+                &message(title, "IPM.Post.Rss", "From the feed.", &[]),
+                &[],
+            )
+            .unwrap(),
+        );
+    }
+    drop(Writer::create_folder(&path, &["Kept"], "IPF.Note").unwrap());
+    let card = [
+        UnicodePstProperty::tagged(0x3A06, UnicodePstValue::Unicode("Ana")),
+        named(PSETID_ADDRESS, 0x8083, UnicodePstValue::Unicode("ana@posteo.example")),
+    ];
+    for (subject, class, props) in
+        [("Recall: Plans", "IPM.Outlook.Recall", &[][..]), ("Sharing invitation", "IPM.Sharing", &[][..]), ("Ana", "IPM.Contact", &card[..])]
+    {
+        drop(Writer::append_in_folder_with_attachments(&path, &["Kept"], &message(subject, class, "Text.", props), &[]).unwrap());
+    }
+
+    let store = Store::open(dir.join("cache")).unwrap();
+    let done = import(&path, &store, "a1", &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.contacts, done.skipped), (5, 1, 0), "{done:?}");
+    let feeds = done.folders.iter().find(|f| f.path.ends_with("Studio news")).expect("the feed's folder");
+    assert!(feeds.path.starts_with("RSS Feeds"), "{}", feeds.path);
+    let posts = store.load_folder("a1", &feeds.path).unwrap().messages;
+    assert_eq!(posts.len(), 2);
+    let kept = store.load_folder("a1", "Kept").unwrap().messages;
+    let mut subjects: Vec<&str> = kept.iter().map(|m| m.subject.as_str()).collect();
+    subjects.sort_unstable();
+    assert_eq!(subjects, ["Recall: Plans", "Sharing invitation"]);
+    let pim: Pim = store.load_account_doc("a1", PIM_DOC).unwrap();
+    assert!(pim.cards.iter().any(|c| c.card.emails.iter().any(|e| e.value == "ana@posteo.example")));
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
+}

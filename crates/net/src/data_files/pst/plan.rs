@@ -33,7 +33,8 @@ pub(super) enum Kind {
     Mail,
     /// Contacts, a calendar, tasks, notes or a journal: their items go to the address book and calendar.
     Pim,
-    /// A kind MailCraft has no place for (RSS feeds): its items are counted.
+    /// A kind MailCraft has no place for (a configuration folder, a shortcuts or files list): its
+    /// items are counted.
     LeftOut,
 }
 
@@ -248,10 +249,10 @@ fn look(store: &dyn PstStore, node: u32, index: usize, ctx: &Ctx<'_>) -> io::Res
 }
 
 /// What a folder of class `class` comes in as: no class is mail, in old files.
+/// Outlook's RSS Feeds folder (`IPF.Note.OutlookHomepage`) and its feeds' folders are mail
+/// folders of posts (`IPM.Post.Rss`): they come in as such, the feeds under RSS Feeds.
 fn classify(class: &str) -> Kind {
-    let mail = (class.is_empty() || class.starts_with("IPF.Note") || class.starts_with("IPF.Imap"))
-        // Outlook's RSS Feeds folder is its own bookkeeping, not mail.
-        && !class.starts_with("IPF.Note.OutlookHomepage");
+    let mail = class.is_empty() || ["IPF.Note", "IPF.Imap", "IPF.Rss"].iter().any(|c| class.starts_with(c));
     if mail {
         Kind::Mail
     } else if ["IPF.Contact", "IPF.Appointment", "IPF.Task", "IPF.StickyNote", "IPF.Journal"].iter().any(|k| class.starts_with(k)) {
@@ -511,10 +512,11 @@ mod tests {
         assert_eq!(classify(""), Kind::Mail);
         assert_eq!(classify("IPF.Note"), Kind::Mail);
         assert_eq!(classify("IPF.Imap"), Kind::Mail);
-        assert_eq!(classify("IPF.Note.OutlookHomepage"), Kind::LeftOut);
+        assert_eq!(classify("IPF.Note.OutlookHomepage"), Kind::Mail, "RSS Feeds");
+        assert_eq!(classify("IPF.Configuration"), Kind::LeftOut);
         assert_eq!(classify("IPF.Contact"), Kind::Pim);
         assert_eq!(classify("IPF.Appointment"), Kind::Pim);
         assert_eq!(classify("IPF.Journal"), Kind::Pim);
-        assert_eq!(classify("IPF.RssFeed"), Kind::LeftOut);
+        assert_eq!(classify("IPF.RssFeed"), Kind::Mail);
     }
 }

@@ -234,8 +234,11 @@ behind `catch_unwind`, unreadable items are skipped and counted, and sizes are c
 Outlook keeps its data files open, with byte-range locks, while it runs (in the notification area
 too): opening one then says so instead of trying the older ANSI format. An `.ost` (client magic
 `SO`) is Outlook's offline copy of a server account and is refused with that explanation. The RSS
-Feeds folder (`IPF.Note.OutlookHomepage`) isn't mail, and an empty Outbox (the store's 0x35E2) is
-skipped.
+Feeds folder (`IPF.Note.OutlookHomepage`) and its feeds' folders come in as mail folders of their
+posts (`IPM.Post.Rss`), and an empty Outbox (the store's 0x35E2) is skipped. Outlook's rules
+aren't in any folder the import reads: they're hidden items of the Inbox (its associated
+contents, `IPM.Rule.Version2.Message`), in a format of Outlook's own (MS-OXORULE) that
+MailCraft's rules can't take whole, so they stay out.
 
 The walk over the folder tree lives in `pst.rs`; an item is read from its properties in
 `pst/item.rs`, through `pst/props.rs`'s `Val` (a closure gives each property's value, so tests can
