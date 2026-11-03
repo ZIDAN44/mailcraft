@@ -1,6 +1,7 @@
 //! Message files put into a folder (issue #38), as Outlook takes `.msg` files dropped on one:
 //! `.eml` files as they are, Outlook's `.msg` made standard messages, each filed as mail received
-//! and read; and a `.msg` read to be shown, as a mail file opened with MailCraft.
+//! and read; and a `.msg` read to be shown, as a mail file opened with MailCraft. (With the
+//! imports: they bring mail in from files too.)
 
 use mailcraft_model::Flags;
 
@@ -30,7 +31,7 @@ pub(crate) fn read_message_file(path: &str) -> std::result::Result<Vec<u8>, Stri
 }
 
 /// A file's name, for saying which one couldn't go in.
-pub(super) fn file_name(path: &str) -> String {
+pub(in crate::worker) fn file_name(path: &str) -> String {
     path.rsplit(['/', '\\']).next().unwrap_or(path).to_string()
 }
 
@@ -51,7 +52,7 @@ fn file_each(paths: &[String], mut put: impl FnMut(&[u8]) -> Result<()>) -> (usi
 
 /// Into a folder of an account on this computer (no server): on the pool's thread for changes,
 /// with the others made there.
-pub(super) fn file_here(store: &Store, sink: &Sink, account: &str, folder: &str, paths: &[String]) {
+pub(in crate::worker) fn file_here(store: &Store, sink: &Sink, account: &str, folder: &str, paths: &[String]) {
     let flags = Flags { seen: true, ..Default::default() };
     let (added, failed) = file_each(paths, |raw| crate::pop::file_locally(store, account, folder, raw, flags.clone(), now()).map(|_| ()));
     if added > 0 {
@@ -62,7 +63,7 @@ pub(super) fn file_here(store: &Store, sink: &Sink, account: &str, folder: &str,
 
 impl Pool {
     /// A message file read on a thread of its own, answered by [`Event::MessageFileRead`].
-    pub(super) fn read_message_file(&self, path: String) {
+    pub(in crate::worker) fn read_message_file(&self, path: String) {
         let sink = self.sink.clone();
         let spawned = std::thread::Builder::new().name("mail-message-file".into()).spawn({
             let path = path.clone();
@@ -79,7 +80,7 @@ impl Pool {
 
 impl Worker {
     /// Into a folder of the account's server, each as received and read; the folder read again.
-    pub(super) fn file_messages(&mut self, folder: String, paths: Vec<String>) {
+    pub(in crate::worker) fn file_messages(&mut self, folder: String, paths: Vec<String>) {
         if self.conn.is_none()
             && let Err(e) = self.connect()
         {

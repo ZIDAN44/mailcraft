@@ -15,6 +15,7 @@ use mailcraft_model::pim::{PIM_DOC, Pim};
 use super::*;
 use crate::pst::{ImportOptions, ImportSink, Imported, Planned, Progress, Stop};
 
+pub(super) mod filing;
 mod looking;
 mod rereading;
 use looking::*;

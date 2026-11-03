@@ -79,7 +79,7 @@ impl Edits {
                         }
                     }
                     Edit::File { account, folder, paths } => {
-                        if catch_unwind(AssertUnwindSafe(|| super::filing::file_here(&store, &sink, &account, &folder, &paths))).is_err() {
+                        if catch_unwind(AssertUnwindSafe(|| super::imports::filing::file_here(&store, &sink, &account, &folder, &paths))).is_err() {
                             log::error!("{account}: putting message files in a folder failed unexpectedly");
                         }
                     }
@@ -115,7 +115,7 @@ impl Edits {
             None => edit,
         };
         if let Edit::File { account, folder, paths } = edit {
-            super::filing::file_here(store, sink, &account, &folder, &paths);
+            super::imports::filing::file_here(store, sink, &account, &folder, &paths);
         }
     }
 
