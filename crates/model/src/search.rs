@@ -30,7 +30,9 @@ mod tests;
 
 pub use advanced::Advanced;
 pub use dates::{DateBound, DatePoint, DateSpec, Edge, Relative};
-pub use fold::{MAX_TOKEN_CHARS, TOKENIZER_VERSION, fold_all, fold_text, fold_word, folded_has_phrase, index_tokens, parts, tokens};
+pub use fold::{
+    MAX_TOKEN_CHARS, Placed, TOKENIZER_VERSION, fold_all, fold_text, fold_word, folded_has_phrase, index_tokens, parts, placed_tokens, tokens,
+};
 pub use index::Index;
 pub use matching::{Doc, SummaryText, TextField, TextSource, Tri, indexed};
 use parse::split_tokens;

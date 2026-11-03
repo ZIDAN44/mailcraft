@@ -375,6 +375,33 @@ impl Query {
         out
     }
 
+    /// The phrases of words the text is asked for, each where it's looked for and its folded words
+    /// (as [`TextSource::phrase`] is asked them): an index that keeps its words' places settles
+    /// them. A phrase of no words (`"@"`) isn't one.
+    pub fn text_phrases(&self) -> Vec<(TextField, Vec<String>)> {
+        fn term(t: &Term, out: &mut Vec<(TextField, Vec<String>)>) {
+            let (f, p) = match t {
+                Term::Phrase(f, p) => (f, p),
+                Term::AnyOf(any) => return any.iter().for_each(|t| term(t, out)),
+                _ => return,
+            };
+            let words: Vec<String> = all_words(p).map(Cow::into_owned).collect();
+            if words.is_empty() {
+                return;
+            }
+            for tf in places(f).1 {
+                if !out.iter().any(|(g, w)| g == tf && *w == words) {
+                    out.push((*tf, words.clone()));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for c in &self.clauses {
+            term(&c.term, &mut out);
+        }
+        out
+    }
+
     /// The folded words an index can narrow by: the words of positive text clauses.
     pub fn index_words(&self) -> Vec<String> {
         let mut v = Vec::new();

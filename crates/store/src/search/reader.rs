@@ -2,11 +2,12 @@
 //!
 //! The doc table and each segment's head are held in memory; lexicon, postings and text pages are
 //! read as they're needed, a read transaction a page (none outlives a call), and the latest kept
-//! in small caches keyed by the index's epoch: one of lexicon and postings, one of texts, so
-//! the texts a phrase is checked against don't push out the pages its words are looked up in. A
-//! word is looked for a few pages at a time ([`Reader::scan_prefix`]), so a short prefix of a big
-//! index is spread over as many steps as it takes. [`Reader::refresh`] follows the writer: it
-//! reads only the doc pages and segments a newer generation changed.
+//! in small caches keyed by the index's epoch: one of lexicon and postings, one of places, one of
+//! texts, so the places and texts a phrase is settled from don't push out the pages its words are
+//! looked up in. A word is looked for a few pages at a time ([`Reader::scan_prefix`]), so a short
+//! prefix of a big index is spread over as many steps as it takes; a phrase is settled from its
+//! words' places the same way ([`Reader::scan_phrase`]). [`Reader::refresh`] follows the writer:
+//! it reads only the doc pages and segments a newer generation changed.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,6 +18,10 @@ use super::format::{
     Blob, LexEntry, Meta, Postings, SegInfo, decode_blob, decode_head, decode_lex, decode_post_page, decode_postings, decode_text_page,
 };
 use super::*;
+
+mod phrase;
+
+pub use phrase::{PhraseFound, PhraseScan};
 
 /// What the reader caches of the pages it reads.
 const CACHE_BYTES: usize = 8 << 20;
@@ -114,6 +119,8 @@ pub struct Reader {
     /// Each segment's lexicon pages' first words, in the meta's order.
     heads: Vec<(SegInfo, Vec<Vec<u8>>)>,
     cache: Cache,
+    /// The places pages read lately, apart from `cache`.
+    places: Cache,
     /// The text pages read lately, apart from `cache`.
     texts: Cache,
     /// The lexicon page looked through last, decoded, with the epoch and segment it's of: a word
@@ -175,6 +182,7 @@ impl Reader {
             by_key: HashMap::new(),
             heads: Vec::new(),
             cache: Cache::default(),
+            places: Cache::default(),
             texts: Cache::default(),
             lex_held: None,
             lex_decoded: 0,
@@ -296,10 +304,15 @@ impl Reader {
         self.meta.live
     }
 
-    /// Lexicon, postings and text pages read from the store so far (those its cache held not
-    /// counted): what a search's budget counts.
+    /// Lexicon, postings, places and text pages read from the store so far (those its caches
+    /// held not counted): what a search's budget counts.
     pub fn pages_read(&self) -> u64 {
-        self.cache.reads.wrapping_add(self.texts.reads)
+        self.cache.reads.wrapping_add(self.places.reads).wrapping_add(self.texts.reads)
+    }
+
+    /// Text pages read from the store so far (a phrase checked against the texts kept).
+    pub fn text_pages_read(&self) -> u64 {
+        self.texts.reads
     }
 
     /// About how many bytes it holds in memory: its doc table and the maps over it, the
@@ -316,7 +329,8 @@ impl Reader {
                 n.saturating_add(w.capacity()).saturating_add(size_of::<Vec<u8>>())
             })
         });
-        docs.saturating_add(by_key).saturating_add(folders).saturating_add(heads).saturating_add(self.cache.bytes).saturating_add(self.texts.bytes)
+        let caches = self.cache.bytes.saturating_add(self.places.bytes).saturating_add(self.texts.bytes);
+        docs.saturating_add(by_key).saturating_add(folders).saturating_add(heads).saturating_add(caches)
     }
 
     /// Lexicon pages decoded so far (a page looked through again, unit after unit, isn't).
@@ -441,14 +455,25 @@ impl Reader {
         let path = Name::SegLex(info.id, page).path(&self.base);
         let bytes = self.cache.get(store, epoch, &path)?;
         self.lex_decoded = self.lex_decoded.wrapping_add(1);
-        let entries = Arc::new(decode_lex(&bytes, self.meta.next_doc, info.post_pages).map_err(|what| damaged(&path, what))?);
+        let entries = Arc::new(decode_lex(&bytes, self.meta.next_doc, info.post_pages, info.pos_pages).map_err(|what| damaged(&path, what))?);
         self.lex_held = Some((epoch, *info, page, entries.clone()));
         Ok(entries)
     }
 
     /// Set a word's live docs in `out`; the postings pages read.
     fn postings(&mut self, store: &Store, info: &SegInfo, e: &LexEntry, out: &mut Bits) -> Result<usize> {
-        let (docs, read) = match &e.at {
+        let (docs, read) = self.entry_docs(store, info, e)?;
+        for d in docs {
+            if self.docs.get(d as usize).is_some_and(DocRec::live) {
+                out.set(d);
+            }
+        }
+        Ok(read)
+    }
+
+    /// A word's docs (live or not), and the postings pages read.
+    fn entry_docs(&mut self, store: &Store, info: &SegInfo, e: &LexEntry) -> Result<(Vec<u32>, usize)> {
+        Ok(match &e.at {
             Postings::Inline(docs) => (docs.clone(), 0),
             &Postings::At { page, offset, len } => {
                 let mut bytes: Vec<u8> = Vec::with_capacity((len as usize).min(16 << 20));
@@ -471,13 +496,7 @@ impl Reader {
                 let path = Name::SegPost(info.id, page).path(&self.base);
                 (decode_postings(&bytes, e.df, self.meta.next_doc).map_err(|what| damaged(&path, what))?, read)
             }
-        };
-        for d in docs {
-            if self.docs.get(d as usize).is_some_and(DocRec::live) {
-                out.set(d);
-            }
-        }
-        Ok(read)
+        })
     }
 
     /// A live doc's text and files' names as kept; `None` when none is kept.

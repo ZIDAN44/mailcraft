@@ -7,8 +7,10 @@ use mailcraft_model::search::IndexDoc;
 
 use super::*;
 
+mod pos;
 mod seg;
 
+pub(crate) use pos::{PART, PlacesStream, PosAt, decode_places, decode_pos_page, long_key, needs_places, put_places, split_places};
 pub(crate) use seg::{LexEntry, LexStream, Postings, SegBuilder, SegFiles, SegPage, decode_head, decode_lex, decode_post_page, decode_postings};
 
 /// What was wrong, for the error.
@@ -21,6 +23,7 @@ const BLOB: &[u8; 4] = b"MCSB";
 const HEAD: &[u8; 4] = b"MCSH";
 const LEX: &[u8; 4] = b"MCSL";
 const POST: &[u8; 4] = b"MCSP";
+const POS: &[u8; 4] = b"MCSX";
 /// The files' format. A newer one goes under `search/v2/`; a newer version in `v1` is damage.
 pub(crate) const VERSION: u8 = 1;
 /// A doc record's own version (the 2 bytes after its fields are kept for a later one).
@@ -158,6 +161,8 @@ pub(crate) struct SegInfo {
     pub(crate) terms: u32,
     pub(crate) lex_pages: u32,
     pub(crate) post_pages: u32,
+    /// Its places pages: none in a segment written before they were kept.
+    pub(crate) pos_pages: u32,
     pub(crate) bytes: u64,
     /// The lowest and highest doc its words name: a doc outside them isn't in it.
     pub(crate) lo: u32,
@@ -169,7 +174,8 @@ impl SegInfo {
     pub(crate) fn names(&self) -> impl Iterator<Item = Name> + '_ {
         let lex = (0..self.lex_pages).map(|n| Name::SegLex(self.id, n));
         let post = (0..self.post_pages).map(|n| Name::SegPost(self.id, n));
-        std::iter::once(Name::SegHead(self.id)).chain(lex).chain(post)
+        let pos = (0..self.pos_pages).map(|n| Name::SegPos(self.id, n));
+        std::iter::once(Name::SegHead(self.id)).chain(lex).chain(post).chain(pos)
     }
 }
 
@@ -228,6 +234,7 @@ fn put_name(out: &mut Vec<u8>, n: &Name) {
         Name::SegHead(id) => (2, u64::from(id), 0),
         Name::SegLex(id, p) => (3, u64::from(id), u64::from(p)),
         Name::SegPost(id, p) => (4, u64::from(id), u64::from(p)),
+        Name::SegPos(id, p) => (5, u64::from(id), u64::from(p)),
     };
     out.push(tag);
     put_var(out, a);
@@ -245,6 +252,7 @@ fn get_name(r: &mut Rd<'_>) -> R<Name> {
         2 => Name::SegHead(id()?),
         3 => Name::SegLex(id()?, b),
         4 => Name::SegPost(id()?, b),
+        5 => Name::SegPos(id()?, b),
         _ => return Err("unknown file kind"),
     })
 }
@@ -291,6 +299,11 @@ pub(crate) fn encode_meta(m: &Meta) -> Vec<u8> {
     for (f, rev) in &m.marks {
         put_var(&mut out, u64::from(*f));
         out.extend_from_slice(&rev.to_le_bytes());
+    }
+    // Each segment's places pages, after what a meta from before them ends with.
+    put_len(&mut out, m.segments.len());
+    for s in &m.segments {
+        put_var(&mut out, u64::from(s.pos_pages));
     }
     out
 }
@@ -339,6 +352,7 @@ pub(crate) fn decode_meta(b: &[u8]) -> R<Meta> {
             terms: r.var32()?,
             lex_pages: r.var32()?,
             post_pages: r.var32()?,
+            pos_pages: 0,
             bytes: r.var()?,
             lo: r.var32()?,
             hi: r.var32()?,
@@ -366,6 +380,18 @@ pub(crate) fn decode_meta(b: &[u8]) -> R<Meta> {
             return Err("mark of no folder");
         }
         m.marks.push((f, r.u64()?));
+    }
+    // A meta from before places were kept ends here: its segments have none.
+    if r.left() > 0 {
+        if r.count(MAX_SEGMENTS, 1)? != m.segments.len() {
+            return Err("places pages of other segments");
+        }
+        for s in &mut m.segments {
+            s.pos_pages = r.var32()?;
+            if s.pos_pages as usize > MAX_PAGES {
+                return Err("segment out of range");
+            }
+        }
     }
     r.end()?;
     Ok(m)
@@ -449,25 +475,36 @@ pub(crate) fn kept_text(text: &str) -> &str {
     text.get(..end).unwrap_or_default()
 }
 
-/// A text kept for a message (at most [`MAX_NAMES_BYTES`] of names and [`MAX_BLOB_TEXT`] of
-/// text), and whether some of it was left out.
-pub(crate) fn encode_blob(doc: &IndexDoc) -> (Vec<u8>, bool) {
+/// What is kept of a message's files' names: at most [`MAX_NAMES_BYTES`] of them, each at most
+/// [`MAX_NAME_BYTES`], cut where a character starts (an empty one has nothing to keep); and
+/// whether some of them was left out.
+pub(crate) fn kept_names(all: &[String]) -> (Vec<&str>, bool) {
     let mut names: Vec<&str> = Vec::new();
     let mut room = MAX_NAMES_BYTES;
-    for n in &doc.names {
+    let mut cut = false;
+    for n in all.iter().filter(|n| !n.is_empty()) {
         let mut end = n.len().min(MAX_NAME_BYTES).min(room);
         while !n.is_char_boundary(end) {
             end = end.saturating_sub(1);
         }
-        let Some(n) = n.get(..end) else { continue };
-        if n.is_empty() || names.len() >= usize::from(u16::MAX) {
+        let kept = n.get(..end).unwrap_or_default();
+        if kept.is_empty() || names.len() >= usize::from(u16::MAX) {
+            cut = true;
             break;
         }
-        room -= n.len();
-        names.push(n);
+        cut |= kept.len() < n.len();
+        room -= kept.len();
+        names.push(kept);
     }
+    (names, cut)
+}
+
+/// A text kept for a message (at most [`MAX_NAMES_BYTES`] of names and [`MAX_BLOB_TEXT`] of
+/// text), and whether some of it was left out.
+pub(crate) fn encode_blob(doc: &IndexDoc) -> (Vec<u8>, bool) {
+    let (names, names_cut) = kept_names(&doc.names);
     let text = kept_text(&doc.text);
-    let cut = text.len() < doc.text.len() || names.len() < doc.names.len();
+    let cut = text.len() < doc.text.len() || names_cut;
     // Exactly what it takes: a writer holds thousands of these, counted by their length.
     let names_bytes = names.iter().map(|n| n.len().saturating_add(2)).fold(0, usize::saturating_add);
     let mut out = Vec::with_capacity(BLOB.len() + 1 + 2 + names_bytes + 4 + text.len());

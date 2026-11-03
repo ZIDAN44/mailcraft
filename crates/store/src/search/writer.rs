@@ -11,7 +11,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use mailcraft_model::search::{IndexDoc, TOKENIZER_VERSION, index_tokens};
+use mailcraft_model::search::{IndexDoc, TOKENIZER_VERSION};
 
 use super::format::{
     MAX_META, MAX_NAME_BYTES, MAX_SEGMENTS, Meta, SegBuilder, SegFiles, SegInfo, TextPage, encode_blob, encode_docs, encode_meta, encode_text_page,
@@ -20,8 +20,10 @@ use super::*;
 
 mod commit;
 mod merge;
+mod words;
 
 pub use merge::{RENUMBER_SLACK, TOMBSTONE_AGE};
+pub(crate) use words::{Words, add_words, doc_words, file_word, merge_lists};
 
 /// One account's index being written. One at a time per account: another
 /// [`open`](Writer::open) while it's held is [`StoreError::Busy`].
@@ -42,8 +44,8 @@ pub struct Writer {
     by_key: HashMap<(u16, u32), u32>,
     /// Doc pages changed since the meta.
     dirty: BTreeSet<usize>,
-    /// The words added since, and their docs.
-    words: BTreeMap<Vec<u8>, Vec<u32>>,
+    /// The words added since, their docs and places.
+    words: Words,
     word_bytes: usize,
     word_docs: u32,
     /// Texts of the docs added since, by doc.
@@ -108,89 +110,31 @@ fn other(what: &str) -> io::Error {
     io::Error::other(what.to_string())
 }
 
-/// A doc's words, added to the words to write: the text's, the names', and both's addresses.
-/// Returns the bytes the words took.
-pub(super) fn add_words(words: &mut BTreeMap<Vec<u8>, Vec<u32>>, doc: u32, text: &str, names: &[String]) -> usize {
-    let mut added = 0usize;
-    each_word(text, names, &mut |k| added = added.saturating_add(file_word(words, doc, k)));
-    added
-}
-
-/// A doc's words, each handed to `each` (one may come more than once): the text's, the names',
-/// and both's addresses. A word longer than [`MAX_KEY`] isn't kept.
-fn each_word(text: &str, names: &[String], each: &mut dyn FnMut(Vec<u8>)) {
-    let mut add = |k: Vec<u8>| {
-        if k.len() <= MAX_KEY {
-            each(k);
-        }
-    };
-    for w in index_tokens(text) {
-        add(key(Field::Body, &w));
-    }
-    for n in names {
-        for w in index_tokens(n) {
-            add(key(Field::Names, &w));
-        }
-    }
-    let mut addresses = BTreeSet::new();
-    address_words(text, &mut addresses);
-    for n in names {
-        address_words(n, &mut addresses);
-    }
-    for a in addresses {
-        add(key(Field::Address, &a));
-    }
-}
-
-/// What a new word takes in the words to write besides its key's and its list's bytes: its key
-/// and list in a node of the map, about two-thirds full, with their nodes' links.
-const WORD_ENTRY: usize = 80;
-
-/// A word of `doc` added to the words to write; the bytes it took as the heap holds them (its
-/// key's and its list's room, not their length, and its place in the map), so what a writer
-/// holds is what [`Writer::should_flush`] goes by.
-fn file_word(words: &mut BTreeMap<Vec<u8>, Vec<u32>>, doc: u32, k: Vec<u8>) -> usize {
-    let mut added = 0usize;
-    let room = k.capacity();
-    let list = words.entry(k).or_insert_with(|| {
-        added = room.saturating_add(WORD_ENTRY);
-        Vec::new()
-    });
-    if list.last() != Some(&doc) {
-        let before = list.capacity();
-        list.push(doc);
-        added = added.saturating_add(list.capacity().saturating_sub(before).saturating_mul(4));
-    }
-    added
-}
-
 /// What [`Writer::add`] makes of a message before it files it, made on any thread: its words,
-/// each once, and its text as kept. A data file's import makes it on the threads that read the
-/// items, so its writer, which keeps them in order, only files the words.
+/// each once with its places, and its text as kept. A data file's import makes it on the threads
+/// that read the items, so its writer, which keeps them in order, only files the words.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Ready {
-    words: Vec<Vec<u8>>,
+    words: Vec<(Vec<u8>, Vec<u8>)>,
     blob: Vec<u8>,
     bits: u8,
     files: u16,
 }
 
 impl Ready {
-    /// What search keeps of `doc`. A text longer than a text page keeps is cut (the doc marked
-    /// truncated).
+    /// What search keeps of `doc`: its words read from its text and names as they're kept (a text
+    /// longer than a text page keeps is cut, the doc marked truncated), as they are when they're
+    /// made again from what's kept.
     pub fn of(doc: &IndexDoc) -> Ready {
         let (blob, cut) = encode_blob(doc);
         let bits = doc_bits(doc, cut);
-        let mut words = BTreeSet::new();
-        each_word(format::kept_text(&doc.text), &doc.names, &mut |k| {
-            words.insert(k);
-        });
-        Ready { words: words.into_iter().collect(), blob, bits, files: u16::try_from(doc.files).unwrap_or(u16::MAX) }
+        let words = doc_words(format::kept_text(&doc.text), &format::kept_names(&doc.names).0);
+        Ready { words, blob, bits, files: u16::try_from(doc.files).unwrap_or(u16::MAX) }
     }
 
     /// The bytes it holds.
     pub fn bytes(&self) -> usize {
-        self.words.iter().map(|w| w.len().saturating_add(24)).fold(self.blob.len(), usize::saturating_add)
+        self.words.iter().map(|(w, p)| w.len().saturating_add(p.len()).saturating_add(48)).fold(self.blob.len(), usize::saturating_add)
     }
 }
 
@@ -363,7 +307,7 @@ impl Writer {
         let Ready { words, blob, bits, files } = ready;
         self.docs.push(DocRec { folder, validity: key.validity, uid: key.uid, text: NO_TEXT, files, bits, msgid_hash, size });
         self.by_key.insert((folder, key.uid), id);
-        let added = words.into_iter().map(|k| file_word(&mut self.words, id, k)).fold(0, usize::saturating_add);
+        let added = words.into_iter().map(|(k, places)| file_word(&mut self.words, id, k, &places)).fold(0, usize::saturating_add);
         self.word_bytes = self.word_bytes.saturating_add(added);
         self.word_docs = self.word_docs.saturating_add(1);
         self.text_bytes = self.text_bytes.saturating_add(blob.capacity());
@@ -573,7 +517,9 @@ fn fresh(store: &Store, account: &str) -> Meta {
         for (name, _) in store.files.list(&base.join(sub)) {
             match Name::parse(sub, &name) {
                 Some(Name::Docs { generation: g, .. } | Name::Text { generation: g, .. }) => generation = generation.max(g),
-                Some(Name::SegHead(id) | Name::SegLex(id, _) | Name::SegPost(id, _)) => next_seg = next_seg.max(id.saturating_add(1)),
+                Some(Name::SegHead(id) | Name::SegLex(id, _) | Name::SegPost(id, _) | Name::SegPos(id, _)) => {
+                    next_seg = next_seg.max(id.saturating_add(1))
+                }
                 None => {}
             }
         }

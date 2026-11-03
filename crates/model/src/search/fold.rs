@@ -17,9 +17,10 @@ mod ascii;
 
 pub(crate) use ascii::AsciiWords;
 
-/// Changes whenever what [`index_tokens`] gives changes: what was indexed with another is read
-/// again (2: the parts of words joined by `.`, `:`, `'`, `_`).
-pub const TOKENIZER_VERSION: u32 = 2;
+/// Changes whenever what the index keeps of a text's words changes: what was indexed with another
+/// is read again (2: the parts of words joined by `.`, `:`, `'`, `_`; 3: each word's places,
+/// [`placed_tokens`]).
+pub const TOKENIZER_VERSION: u32 = 3;
 /// Longer "words" (base64 debris, long links) aren't indexed: they only bloat it.
 pub const MAX_TOKEN_CHARS: usize = 40;
 
@@ -80,6 +81,31 @@ pub(super) fn all_words(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
 /// "site.word".
 pub fn index_tokens(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
     with_parts(all_words(text)).filter(|w| w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS)
+}
+
+/// A word search indexes, with its place: which of the text's words (as a phrase reads them, long
+/// ones too, counted from 0) it is, or is a part of.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Placed<'a> {
+    /// A word, at most [`MAX_TOKEN_CHARS`] long.
+    Word(u32, Cow<'a, str>),
+    /// One of the [`parts`] of the word at that place (a phrase never starts or goes on there).
+    Part(u32, String),
+    /// A word too long to index: only its place is kept, so a phrase whose last word may start it
+    /// is checked against the text.
+    Long(u32),
+}
+
+/// A text's [`index_tokens`], each with its place, and the places of its words too long to index:
+/// what a phrase is told from without the text.
+pub fn placed_tokens(text: &str) -> impl Iterator<Item = Placed<'_>> {
+    let fits = |w: &str| w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS;
+    all_words(text).enumerate().flat_map(move |(i, w)| {
+        let at = u32::try_from(i).unwrap_or(u32::MAX);
+        let parts: Vec<Placed<'_>> = parts(&w).filter(|p| fits(p)).map(|p| Placed::Part(at, p.to_string())).collect();
+        let word = if fits(&w) { Placed::Word(at, w) } else { Placed::Long(at) };
+        std::iter::once(word).chain(parts)
+    })
 }
 
 /// Words, each followed by its [`parts`].

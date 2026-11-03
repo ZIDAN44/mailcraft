@@ -295,6 +295,57 @@ fn text_words_are_folded_and_placed() {
     assert_eq!(Query::parse("Ürün \"Ünlü kişi\" -x").index_words(), ["urun", "unlu", "kisi"]);
 }
 
+/// The phrases asked of the text, each where it's looked for, with its folded words (a negated
+/// one too); one of no words isn't one, and one only of the summary isn't asked of the text.
+#[test]
+fn text_phrases_are_folded_and_placed() {
+    let phrases = Query::parse("\"Thank Yöu\" attachment:\"Q3 plan\" -\"x y\" \"@\" subject:\"a b\"").text_phrases();
+    let p = |f, ws: &[&str]| (f, ws.iter().map(|w| w.to_string()).collect::<Vec<_>>());
+    assert_eq!(
+        phrases,
+        [
+            p(TextField::Body, &["thank", "you"]),
+            p(TextField::Names, &["thank", "you"]),
+            p(TextField::Names, &["q3", "plan"]),
+            p(TextField::Body, &["x", "y"]),
+            p(TextField::Names, &["x", "y"]),
+        ]
+    );
+}
+
+/// A text's placed words are its index words, each at the place of the word it is or is a part
+/// of among the words a phrase reads; a word too long to index keeps only its place.
+#[test]
+fn placed_words_are_the_index_words_in_place() {
+    let text = format!("Résumé: see site.word now, 東京 {} l'avion end", "x".repeat(50));
+    let placed: Vec<Placed<'_>> = placed_tokens(&text).collect();
+    let words: Vec<String> = placed
+        .iter()
+        .filter_map(|p| match p {
+            Placed::Word(_, w) => Some(w.to_string()),
+            Placed::Part(_, w) => Some(w.clone()),
+            Placed::Long(_) => None,
+        })
+        .collect();
+    assert_eq!(words, index_tokens(&text).map(|w| w.into_owned()).collect::<Vec<_>>());
+    let all: Vec<String> = fold_all(&text).split(' ').map(String::from).collect();
+    let mut at = 0;
+    for p in &placed {
+        match p {
+            Placed::Word(i, w) => {
+                assert_eq!((*i, all.get(*i as usize)), (at, Some(&w.to_string())));
+                at += 1;
+            }
+            Placed::Long(i) => {
+                assert!(*i == at && all[*i as usize].len() == 50);
+                at += 1;
+            }
+            Placed::Part(i, w) => assert!(*i + 1 == at && all[*i as usize].contains(w.as_str())),
+        }
+    }
+    assert_eq!(at as usize, all.len());
+}
+
 /// An address is split into the words the index holds of it: with another word it finds
 /// what it finds alone, as the summaries do.
 #[test]

@@ -6,6 +6,7 @@ use super::*;
 mod lease;
 mod maint;
 mod memory;
+mod phrase;
 mod scan;
 
 /// The three layouts, each in a folder of its own: memory, the folder layout, data files.
@@ -413,19 +414,26 @@ fn damaged_files_are_errors() {
             Name::Docs { .. } => decode_docs(b, 40, 1, 1).map(|_| ()),
             Name::Text { .. } => decode_text_page(b, 40).map(|t| t.iter().for_each(|(_, b)| drop(decode_blob(b)))),
             Name::SegHead(_) => decode_head(b, &seg).map(|_| ()),
-            Name::SegLex(..) => decode_lex(b, 40, seg.post_pages).map(|_| ()),
+            Name::SegLex(..) => decode_lex(b, 40, seg.post_pages, seg.pos_pages).map(|_| ()),
             Name::SegPost(..) => decode_post_page(b).map(|p| drop(decode_postings(p, 40, 40))),
+            Name::SegPos(..) => decode_pos_page(b).map(|p| {
+                for (n, at) in split_places(p, 40).unwrap_or_default() {
+                    let _ = p.get(at).map(|b| decode_places(b, n));
+                }
+            }),
         };
     };
     let mut x = 0x9e37_79b9_7f4a_7c15u64;
     let mut all: Vec<(Option<Name>, Vec<u8>)> = meta.uses().into_iter().map(|n| (Some(n), s.files.read(&n.path(&dir(&s, "a1"))).unwrap())).collect();
     all.push((None, encode_meta(&meta)));
+    let before_places = Meta { segments: meta.segments.iter().map(|s| SegInfo { pos_pages: 0, ..*s }).collect(), ..meta.clone() };
     for (n, good) in all {
         for cut in 0..good.len() {
             let b = &good[..cut];
             match n {
                 Some(n) => check(n, b),
-                None => assert!(decode_meta(b).is_err()),
+                // Cut where its places pages start, it reads as a meta from before them.
+                None => assert!(decode_meta(b).is_err() || decode_meta(b) == Ok(before_places.clone()), "cut at {cut}"),
             }
         }
         for _ in 0..2000 {

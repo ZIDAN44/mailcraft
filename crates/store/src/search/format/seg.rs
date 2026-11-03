@@ -1,20 +1,27 @@
-//! A segment's files: the head, lexicon pages and postings pages, made from words in rising
-//! order and read back checked.
+//! A segment's files: the head, lexicon pages, postings pages and places pages, made from words
+//! in rising order and read back checked.
 
 use super::*;
 
 /// A lexicon entry's postings kept in it, up to this many docs.
 const INLINE: usize = 8;
+/// A lexicon entry's kind: its postings in postings pages, not in it.
+const AT: u8 = 1;
+/// A lexicon entry's kind: where its places are follows.
+const PLACED: u8 = 2;
 
-/// A segment written: its head, and its lexicon and postings pages not yet [taken](SegBuilder::take).
+/// A segment written: its head, and its lexicon, postings and places pages not yet
+/// [taken](SegBuilder::take).
 #[derive(Debug, Default)]
 pub(crate) struct SegFiles {
     pub(crate) head: Vec<u8>,
     pub(crate) lex: Vec<Vec<u8>>,
     pub(crate) post: Vec<Vec<u8>>,
-    /// The numbers of the first pages in `lex` and `post` (those before were taken).
+    pub(crate) pos: Vec<Vec<u8>>,
+    /// The numbers of the first pages in `lex`, `post` and `pos` (those before were taken).
     pub(crate) lex_from: u32,
     pub(crate) post_from: u32,
+    pub(crate) pos_from: u32,
     pub(crate) terms: u32,
     /// The bytes of the pages taken.
     taken: u64,
@@ -26,7 +33,7 @@ pub(crate) struct SegFiles {
 impl SegFiles {
     /// Its bytes, the pages taken counted.
     pub(crate) fn bytes(&self) -> u64 {
-        let all = self.lex.iter().chain(&self.post).map(Vec::len).fold(self.head.len(), usize::saturating_add);
+        let all = self.lex.iter().chain(&self.post).chain(&self.pos).map(Vec::len).fold(self.head.len(), usize::saturating_add);
         self.taken.saturating_add(all as u64)
     }
 
@@ -38,9 +45,13 @@ impl SegFiles {
         (self.post_from as usize).saturating_add(self.post.len())
     }
 
+    pub(crate) fn pos_pages(&self) -> usize {
+        (self.pos_from as usize).saturating_add(self.pos.len())
+    }
+
     /// The pages held, and the pages held as they're being made: what the builder keeps in memory.
     fn held(&self) -> usize {
-        self.lex.iter().chain(&self.post).map(Vec::len).fold(0, usize::saturating_add)
+        self.lex.iter().chain(&self.post).chain(&self.pos).map(Vec::len).fold(0, usize::saturating_add)
     }
 }
 
@@ -49,6 +60,7 @@ impl SegFiles {
 pub(crate) enum SegPage {
     Lex(u32, Vec<u8>),
     Post(u32, Vec<u8>),
+    Pos(u32, Vec<u8>),
 }
 
 /// Makes a segment from words in rising order.
@@ -61,6 +73,22 @@ pub(crate) struct SegBuilder {
     count: u16,
     prev: Vec<u8>,
     post: Vec<u8>,
+    pos: Vec<u8>,
+}
+
+/// `bytes` added to the pages being made of `magic`, the page under way (`page`) going on into
+/// new ones as each fills to `size`.
+fn spill(page: &mut Vec<u8>, done: &mut Vec<Vec<u8>>, magic: &[u8; 4], size: usize, bytes: &[u8]) {
+    let mut rest = bytes;
+    while !rest.is_empty() {
+        let room = (size + 5).saturating_sub(page.len()).max(1);
+        let (now, later) = rest.split_at(room.min(rest.len()));
+        page.extend_from_slice(now);
+        rest = later;
+        if page.len() >= size + 5 {
+            done.push(std::mem::replace(page, page_start(magic)));
+        }
+    }
 }
 
 fn page_start(magic: &[u8; 4]) -> Vec<u8> {
@@ -71,10 +99,14 @@ fn page_start(magic: &[u8; 4]) -> Vec<u8> {
 }
 
 impl SegBuilder {
-    /// A word (field letter first, at most [`MAX_KEY`] bytes) and its docs, rising.
-    pub(crate) fn push(&mut self, key: &[u8], docs: &[u32]) {
+    /// A word (field letter first, at most [`MAX_KEY`] bytes), its docs, rising, and their places
+    /// ([`put_places`], a block a doc, in their order; none for a word that has none:
+    /// [`needs_places`]). A word that should have places and has none isn't kept.
+    pub(crate) fn push(&mut self, key: &[u8], docs: &[u32], places: &[u8]) {
         let (Some(&first), Some(&last)) = (docs.first(), docs.last()) else { return };
-        if key.is_empty() || key.len() > MAX_KEY {
+        // A block a doc is at least 2 bytes (its count, a place).
+        let unplaced = if needs_places(key) { places.len() < docs.len().saturating_mul(2) } else { !places.is_empty() };
+        if key.is_empty() || key.len() > MAX_KEY || unplaced {
             return;
         }
         if self.done.terms == 0 {
@@ -88,27 +120,29 @@ impl SegBuilder {
             last = Some(d);
         }
         let mut payload = Vec::with_capacity(16);
+        let placed = if places.is_empty() { 0 } else { PLACED };
         if docs.len() <= INLINE {
-            payload.push(0);
+            payload.push(placed);
             payload.extend_from_slice(&list);
         } else {
             if self.post.is_empty() {
                 self.post = page_start(POST);
             }
-            payload.push(1);
+            payload.push(AT | placed);
             put_len(&mut payload, self.done.post_pages());
             put_len(&mut payload, self.post.len() - 5);
             put_len(&mut payload, list.len());
-            let mut rest = list.as_slice();
-            while !rest.is_empty() {
-                let room = (POST_PAGE + 5).saturating_sub(self.post.len()).max(1);
-                let (now, later) = rest.split_at(room.min(rest.len()));
-                self.post.extend_from_slice(now);
-                rest = later;
-                if self.post.len() >= POST_PAGE + 5 {
-                    self.done.post.push(std::mem::replace(&mut self.post, page_start(POST)));
-                }
+            spill(&mut self.post, &mut self.done.post, POST, POST_PAGE, &list);
+        }
+        // Where its places start among the segment's: a page's first word's is in the page's
+        // head, and each word's places follow the one's before.
+        let at = (self.done.pos_pages() as u64).saturating_mul(POS_PAGE as u64).saturating_add(self.pos.len().saturating_sub(5) as u64);
+        if !places.is_empty() {
+            if self.pos.is_empty() {
+                self.pos = page_start(POS);
             }
+            put_len(&mut payload, places.len());
+            spill(&mut self.pos, &mut self.done.pos, POS, POS_PAGE, places);
         }
         let entry = |prev: &[u8]| {
             let shared = prev.iter().zip(key).take_while(|(a, b)| a == b).count();
@@ -128,6 +162,7 @@ impl SegBuilder {
         if self.count == 0 {
             self.page = page_start(LEX);
             self.page.extend_from_slice(&[0, 0]);
+            put_var(&mut self.page, at);
             self.firsts.push((key.to_vec(), 0));
         }
         self.page.extend_from_slice(&e);
@@ -158,13 +193,13 @@ impl SegBuilder {
 
     /// What it holds in memory, in bytes: the pages finished and not taken, and those being made.
     pub(crate) fn held(&self) -> usize {
-        self.done.held().saturating_add(self.page.len()).saturating_add(self.post.len())
+        self.done.held().saturating_add(self.page.len()).saturating_add(self.post.len()).saturating_add(self.pos.len())
     }
 
     /// The pages finished so far, to be written before the segment is: they're no longer held.
     pub(crate) fn take(&mut self) -> Vec<SegPage> {
         let d = &mut self.done;
-        let mut out = Vec::with_capacity(d.lex.len() + d.post.len());
+        let mut out = Vec::with_capacity(d.lex.len() + d.post.len() + d.pos.len());
         for page in d.lex.drain(..) {
             d.taken = d.taken.saturating_add(page.len() as u64);
             out.push(SegPage::Lex(d.lex_from, page));
@@ -175,6 +210,11 @@ impl SegBuilder {
             out.push(SegPage::Post(d.post_from, page));
             d.post_from = d.post_from.saturating_add(1);
         }
+        for page in d.pos.drain(..) {
+            d.taken = d.taken.saturating_add(page.len() as u64);
+            out.push(SegPage::Pos(d.pos_from, page));
+            d.pos_from = d.pos_from.saturating_add(1);
+        }
         out
     }
 
@@ -182,6 +222,9 @@ impl SegBuilder {
         self.close_page();
         if self.post.len() > 5 {
             self.done.post.push(std::mem::take(&mut self.post));
+        }
+        if self.pos.len() > 5 {
+            self.done.pos.push(std::mem::take(&mut self.pos));
         }
         let mut head = page_start(HEAD);
         put_len(&mut head, self.done.lex_pages());
@@ -237,11 +280,14 @@ pub(crate) struct LexEntry {
     pub(crate) key: Vec<u8>,
     pub(crate) df: u32,
     pub(crate) at: Postings,
+    /// Where its places are: none for an address, nor in a segment from before they were kept.
+    pub(crate) pos: Option<PosAt>,
 }
 
-/// A lexicon page of a segment with `post_pages` postings pages, in an index of `next_doc` docs.
-pub(crate) fn decode_lex(b: &[u8], next_doc: u32, post_pages: u32) -> R<Vec<LexEntry>> {
-    let mut page = LexStream::new(b.to_vec(), next_doc, post_pages)?;
+/// A lexicon page of a segment with `post_pages` postings pages and `pos_pages` places pages, in
+/// an index of `next_doc` docs.
+pub(crate) fn decode_lex(b: &[u8], next_doc: u32, post_pages: u32, pos_pages: u32) -> R<Vec<LexEntry>> {
+    let mut page = LexStream::new(b.to_vec(), next_doc, post_pages, pos_pages)?;
     let mut out: Vec<LexEntry> = Vec::with_capacity(page.left);
     while let Some(e) = page.next_entry()? {
         out.push(e);
@@ -259,12 +305,15 @@ pub(crate) struct LexStream {
     prev: Vec<u8>,
     next_doc: u32,
     post_pages: u32,
+    pos_pages: u32,
+    /// Where the next word's places start among the segment's.
+    places_at: u64,
 }
 
 impl LexStream {
-    /// A lexicon page of a segment with `post_pages` postings pages, in an index of `next_doc`
-    /// docs: its head checked.
-    pub(crate) fn new(raw: Vec<u8>, next_doc: u32, post_pages: u32) -> R<LexStream> {
+    /// A lexicon page of a segment with `post_pages` postings pages and `pos_pages` places pages,
+    /// in an index of `next_doc` docs: its head checked.
+    pub(crate) fn new(raw: Vec<u8>, next_doc: u32, post_pages: u32, pos_pages: u32) -> R<LexStream> {
         if raw.len() > LEX_PAGE + MAX_KEY + 64 {
             return Err("too big");
         }
@@ -274,8 +323,12 @@ impl LexStream {
         if n == 0 || n.saturating_mul(4) > r.left() {
             return Err("words past what's there");
         }
+        let places_at = r.var()?;
+        if places_at > u64::from(pos_pages).saturating_mul(POS_PAGE as u64) {
+            return Err("places out of range");
+        }
         let pos = raw.len() - r.left();
-        Ok(LexStream { raw, pos, left: n, prev: Vec::new(), next_doc, post_pages })
+        Ok(LexStream { raw, pos, left: n, prev: Vec::new(), next_doc, post_pages, pos_pages, places_at })
     }
 
     /// What it holds, in bytes.
@@ -307,7 +360,11 @@ impl LexStream {
         if df == 0 || df > next_doc {
             return Err("word in no docs");
         }
-        let at = match r.u8()? {
+        let kind = r.u8()?;
+        if kind & !(AT | PLACED) != 0 {
+            return Err("unknown postings kind");
+        }
+        let at = match kind & AT {
             0 => {
                 if df as usize > INLINE {
                     return Err("too many docs inline");
@@ -329,7 +386,7 @@ impl LexStream {
                 }
                 Postings::Inline(docs)
             }
-            1 => {
+            _ => {
                 let at = Postings::At { page: r.var32()?, offset: r.var32()?, len: r.var32()? };
                 if let Postings::At { page, offset, len } = at
                     && (page >= post_pages || offset as usize > POST_PAGE || (len as usize) < df as usize || u64::from(len) > u64::from(df) * 5)
@@ -338,12 +395,19 @@ impl LexStream {
                 }
                 at
             }
-            _ => return Err("unknown postings kind"),
+        };
+        let pos = match kind & PLACED {
+            0 => None,
+            _ => {
+                let at = PosAt::starting(self.places_at, r.var()?, df, self.pos_pages)?;
+                self.places_at = self.places_at.saturating_add(at.len);
+                Some(at)
+            }
         };
         self.pos = self.raw.len() - r.left();
         self.left -= 1;
         self.prev.clone_from(&key);
-        Ok(Some(LexEntry { key, df, at }))
+        Ok(Some(LexEntry { key, df, at, pos }))
     }
 }
 

@@ -524,8 +524,14 @@ of up to 256 KiB, a longer text alone in one, what phrases are checked against a
 again from when the tokenizer changes, with no message read; one pool of pages for the whole
 index rather than a set per segment: a removed message leaves its page in its own commit, so a
 merge has only words to drop); and immutable segments of words (field letter + folded word: `b`
-text, `n` names, `a` whole addresses and domains), each a head, front-coded lexicon pages and
-varint postings pages. `search::Writer` adds, removes and moves docs in memory and flushes a new
+text, `n` names, `a` whole addresses and domains), each a head, front-coded lexicon pages,
+varint postings pages and places pages (`search/format/pos.rs`: for each word of the text and the
+names, each of its docs' places among the doc's words, a part of a dotted word marked as one, the
+names' words a place apart from one name to the next, and words too long to index by their places
+alone, under `~` and the field's letter; read only to settle a phrase, so a word looked up never
+reads them). An index from before places (tokenizer 2) has its words made again from its kept
+texts when its writer opens, as for any tokenizer change; its meta reads (the places pages' counts
+follow what such a meta ends with). `search::Writer` adds, removes and moves docs in memory and flushes a new
 generation in two steps: `prepare` encodes and compresses its files, `commit` writes them in
 short transactions under names the current meta doesn't use, then the meta with the files it no
 longer uses removed, in one sealed transaction (the data file's last commit, so a crash after it
@@ -545,7 +551,7 @@ log), its searches read the index as the holder's commits leave it, and an index
 is left to the holder to set aside. An index in memory takes no lease. The folder layout's own
 folders lease (above) keeps a CLI's data files from bringing in an index the app is writing,
 and a second app window from the index of the first's folder layout. `search::Reader` holds the doc table
-and the segments' heads, reads lexicon, postings and text pages as needed (a page cache keyed by
+and the segments' heads, reads lexicon, postings, places and text pages as needed (page caches keyed by
 the index's random epoch), looks words up a few pages at a time, and follows the writer by reading
 only what a newer generation changed. Every file is decoded with checks (`search/format.rs`,
 fuzzed by `search_index`); an index that doesn't read back is set aside (`meta.bin.bad`) and made
@@ -567,8 +573,9 @@ epoch) once there are more than twice the live docs and 4,096; merges the segmen
 of a doc removed a day ago or more (the meta keeps since when); merges eight segments of one size
 (powers of 4 docs); and past 24 segments, the smallest eight. A merge streams each segment a
 lexicon page at a time and writes the merged pages as they fill, in transactions nothing names
-yet, then one meta switches to it: it holds a lexicon and a postings page of each segment, the
-pages being written and the longest list of docs, never the segments. Which segments hold a
+yet, then one meta switches to it: it holds a lexicon, a postings and a places page of each
+segment, the pages being written and the longest list of docs and its places, never the
+segments; each doc's places go with it, those of a removed doc left out with its words. Which segments hold a
 removed doc's words is known from each segment's span of doc ids only, so the large segment a
 merge or new ids leave is merged again, whole, a day after any removal in its span (a removed doc
 with no source never had words and needs none); and giving the ids again is one step that can't

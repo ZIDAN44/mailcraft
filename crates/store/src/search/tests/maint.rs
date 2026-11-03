@@ -29,7 +29,7 @@ fn segment_words(s: &Store) -> BTreeSet<Vec<u8>> {
     for seg in &meta.segments {
         for p in 0..seg.lex_pages {
             let bytes = s.files.read(&Name::SegLex(seg.id, p).path(&base)).unwrap();
-            out.extend(decode_lex(&bytes, meta.next_doc, seg.post_pages).unwrap().into_iter().map(|e| e.key));
+            out.extend(decode_lex(&bytes, meta.next_doc, seg.post_pages, seg.pos_pages).unwrap().into_iter().map(|e| e.key));
         }
     }
     out
@@ -123,6 +123,22 @@ proptest! {
                 let want: BTreeSet<(String, u32)> =
                     model.iter().filter(|(_, ws)| ws.iter().any(|w| w.starts_with(prefix))).map(|((f, u), _)| (f.to_string(), *u)).collect();
                 prop_assert_eq!(got, want, "prefix {:?}", prefix);
+            }
+            // A phrase's places carried through it all: what each message's words say.
+            for phrase in [["alpha", "beta"], ["bet", "gam"], ["delta", "d"], ["omega", "alpha"]] {
+                let words: Vec<String> = phrase.map(String::from).to_vec();
+                let got: BTreeSet<(String, u32)> = super::phrase::phrase_docs(&mut r, &s, Field::Body, &words)
+                    .into_iter()
+                    .filter(|(_, yes)| *yes == Some(true))
+                    .filter_map(|(d, _)| r.key(d))
+                    .map(|k| (k.folder, k.uid))
+                    .collect();
+                let want: BTreeSet<(String, u32)> = model
+                    .iter()
+                    .filter(|(_, ws)| ws.windows(2).any(|p| p[0] == phrase[0] && p[1].starts_with(phrase[1])))
+                    .map(|((f, u), _)| (f.to_string(), *u))
+                    .collect();
+                prop_assert_eq!(got, want, "phrase {:?}", phrase);
             }
             prop_assert_eq!(r.live() as usize, model.len());
         }

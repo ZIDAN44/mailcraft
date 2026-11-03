@@ -4,9 +4,10 @@
 //!
 //! A merge reads its segments a lexicon page at a time, in word order, and writes the merged
 //! segment's pages as they fill, in transactions nothing reads yet; one meta then switches to it
-//! and removes the segments it replaces. It holds a lexicon page and a postings page of each
-//! segment it merges, the word being merged and the pages not yet written: k × ([`LEX_PAGE`] +
-//! [`POST_PAGE`]) and the step's budget, and the longest list of docs. Giving the
+//! and removes the segments it replaces. It holds a lexicon page, a postings page and a places
+//! page of each segment it merges, the word being merged and the pages not yet written: k ×
+//! ([`LEX_PAGE`] + [`POST_PAGE`] + [`POS_PAGE`]) and the step's budget, and the longest list of
+//! docs and their places. Giving the
 //! ids again makes the index anew from the texts it keeps (no message is read), under names its
 //! meta doesn't use, and switches to it the same way.
 //!
@@ -17,7 +18,7 @@
 
 use mailcraft_model::search::TOKENIZER_VERSION;
 
-use super::super::format::{LexEntry, LexStream, Postings, SegPage, decode_blob, decode_post_page, decode_postings};
+use super::super::format::{LexEntry, LexStream, PosAt, Postings, SegPage, decode_blob, decode_pos_page, decode_post_page, decode_postings};
 use super::*;
 
 /// How long (seconds) the words of a removed doc may stay in a segment.
@@ -71,30 +72,6 @@ fn within(spans: &[(u32, u32)], doc: u32) -> bool {
     spans.get(i).is_some_and(|s| s.0 <= doc)
 }
 
-/// Two lists of docs, rising, as one.
-fn union(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
-    if a.is_empty() {
-        return b;
-    }
-    let mut out = Vec::with_capacity(a.len().saturating_add(b.len()));
-    let (mut i, mut j) = (a.into_iter().peekable(), b.into_iter().peekable());
-    loop {
-        let next = match (i.peek(), j.peek()) {
-            (Some(x), Some(y)) if x < y => i.next(),
-            (Some(x), Some(y)) if x > y => j.next(),
-            (Some(_), Some(_)) => {
-                j.next();
-                i.next()
-            }
-            (Some(_), None) => i.next(),
-            (None, Some(_)) => j.next(),
-            (None, None) => break,
-        };
-        out.extend(next);
-    }
-    out
-}
-
 /// A segment being merged, read a word at a time.
 struct Input {
     info: SegInfo,
@@ -105,18 +82,21 @@ struct Input {
     word: Option<LexEntry>,
     /// The postings page last read.
     post: Option<(u32, Vec<u8>)>,
+    /// The places page last read.
+    places: Option<(u32, Vec<u8>)>,
 }
 
 impl Input {
     fn new(info: SegInfo) -> Input {
-        Input { info, next_page: 0, page: None, word: None, post: None }
+        Input { info, next_page: 0, page: None, word: None, post: None, places: None }
     }
 
     /// What it holds in memory.
     fn held(&self) -> usize {
         let word = self.word.as_ref().map_or(0, |e| e.key.len() + if let Postings::Inline(d) = &e.at { d.len() * 4 } else { 0 });
         let page = self.page.as_ref().map_or(0, LexStream::held);
-        page.saturating_add(word).saturating_add(self.post.as_ref().map_or(0, |(_, p)| p.len()))
+        let pages = [&self.post, &self.places].into_iter().map(|p| p.as_ref().map_or(0, |(_, p)| p.len())).fold(0, usize::saturating_add);
+        page.saturating_add(word).saturating_add(pages)
     }
 
     /// Its word now, the next lexicon page read when the one held is done; `None` at its end.
@@ -131,12 +111,12 @@ impl Input {
                 continue;
             }
             if self.next_page >= self.info.lex_pages {
-                self.post = None;
+                (self.post, self.places) = (None, None);
                 break;
             }
             let path = Name::SegLex(self.info.id, self.next_page).path(base);
             let bytes = need_file(store, &path).map_err(|e| missing(&path, e))?;
-            self.page = Some(LexStream::new(bytes, next_doc, self.info.post_pages).map_err(|what| damaged(&path, what))?);
+            self.page = Some(LexStream::new(bytes, next_doc, self.info.post_pages, self.info.pos_pages).map_err(|what| damaged(&path, what))?);
             self.next_page += 1;
         }
         Ok(self.word.as_ref())
@@ -171,6 +151,34 @@ impl Input {
             (p, from) = (p.saturating_add(1), 0);
         }
         decode_postings(&bytes, e.df, next_doc).map_err(|what| damaged(&first, what))
+    }
+
+    /// Its word's places, whole (`at`: where they are).
+    fn places(&mut self, store: &Store, base: &Path, at: PosAt) -> Result<Vec<u8>> {
+        let first = Name::SegPos(self.info.id, at.page).path(base);
+        let len = usize::try_from(at.len).map_err(|_| damaged(&first, "places too long"))?;
+        let mut bytes: Vec<u8> = Vec::with_capacity(len.min(16 << 20));
+        let (mut p, mut from) = (at.page, at.offset as usize);
+        while bytes.len() < len {
+            let path = Name::SegPos(self.info.id, p).path(base);
+            if p >= self.info.pos_pages {
+                return Err(damaged(&path, "places past the segment"));
+            }
+            if self.places.as_ref().map(|(n, _)| *n) != Some(p) {
+                self.places = None;
+                self.places = Some((p, need_file(store, &path).map_err(|e| missing(&path, e))?));
+            }
+            let raw = self.places.as_ref().map(|(_, r)| r.as_slice()).unwrap_or_default();
+            let data = decode_pos_page(raw).map_err(|what| damaged(&path, what))?;
+            let rest = data.get(from..).ok_or_else(|| damaged(&path, "places past the page"))?;
+            let want = (len - bytes.len()).min(rest.len());
+            if want == 0 {
+                return Err(damaged(&path, "places past the page"));
+            }
+            bytes.extend_from_slice(rest.get(..want).unwrap_or_default());
+            (p, from) = (p.saturating_add(1), 0);
+        }
+        Ok(bytes)
     }
 }
 
@@ -298,19 +306,26 @@ impl Writer {
             if last.as_ref().is_some_and(|l| key <= *l) {
                 return Err(damaged(&base, "a segment's words out of order"));
             }
-            let mut docs = Vec::new();
+            let mut lists = Vec::new();
             for inp in &mut inputs {
                 let Some(e) = inp.word.take_if(|e| e.key == key) else { continue };
-                docs = union(docs, inp.docs(store, &base, &e, next_doc)?);
+                let docs = inp.docs(store, &base, &e, next_doc)?;
+                let places = match e.pos {
+                    Some(at) => Some(inp.places(store, &base, at)?),
+                    None => None,
+                };
+                lists.push((docs, places));
             }
-            docs.retain(|&d| self.docs.get(d as usize).is_some_and(DocRec::live));
+            let listed = lists.iter().map(|(d, p)| d.len() * 4 + p.as_ref().map_or(0, Vec::len)).fold(0, usize::saturating_add);
+            let live = |d: u32| self.docs.get(d as usize).is_some_and(DocRec::live);
+            let merged = merge_lists(&key, lists, live).map_err(|what| damaged(&base, what))?;
             let held = inputs.iter().map(Input::held).fold(b.held(), usize::saturating_add);
-            peak = peak.max(held.saturating_add(docs.len() * 4));
-            if !docs.is_empty() {
-                for &d in &docs {
+            peak = peak.max(held.saturating_add(listed).saturating_add(merged.docs.len() * 4 + merged.places.len()));
+            if !merged.docs.is_empty() {
+                for &d in &merged.docs {
                     seen.set(d);
                 }
-                b.push(&key, &docs);
+                b.push(&key, &merged.docs, &merged.places);
             }
             last = Some(key);
             if b.held() >= budget {
@@ -386,6 +401,7 @@ impl Writer {
             .map(|p| match p {
                 SegPage::Lex(n, bytes) => self.file(Name::SegLex(id, n), bytes),
                 SegPage::Post(n, bytes) => self.file(Name::SegPost(id, n), bytes),
+                SegPage::Pos(n, bytes) => self.file(Name::SegPos(id, n), bytes),
             })
             .collect();
         self.write_batches(store, files)
@@ -502,6 +518,5 @@ mod tests {
         assert_eq!(s, [(0, 3), (10, 30), (50, 60)]);
         assert!(within(&s, 25) && within(&s, 0) && !within(&s, 4) && !within(&s, 61));
         assert!(holds(&[2, 15], &seg(10, 20)) && !holds(&[2, 25], &seg(10, 20)));
-        assert_eq!(union(vec![1, 3, 5], vec![2, 3, 6]), [1, 2, 3, 5, 6]);
     }
 }

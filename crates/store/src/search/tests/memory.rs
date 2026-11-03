@@ -18,8 +18,8 @@ fn a_kept_text_takes_the_room_its_bytes_need() {
     }
 }
 
-/// The words to write are counted for at least the room their keys and lists take, and their
-/// keys' and lists' places in the map, and not far over it.
+/// The words to write are counted for at least the room their keys, lists and places take, and
+/// their keys' and postings' places in the map, and not far over it.
 #[test]
 fn words_are_counted_as_the_heap_holds_them() {
     let mut words = BTreeMap::new();
@@ -29,7 +29,7 @@ fn words_are_counted_as_the_heap_holds_them() {
         let text = format!("plan week{} item{} note{doc} draft{}", doc % 7, doc % 300, doc / 2);
         counted += writer::add_words(&mut words, doc, &text, &[]);
     }
-    let held: usize = words.iter().map(|(k, v)| k.capacity() + v.capacity() * 4 + 48).sum();
+    let held: usize = words.iter().map(|(k, v)| k.capacity() + v.docs.capacity() * 4 + v.places.capacity() + 72).sum();
     assert!(counted >= held, "counted {counted}, held {held}");
     assert!(counted <= held * 2, "counted {counted}, held {held}");
 }

@@ -15,6 +15,8 @@
 //! s/<id>-h.bin        a segment's head: each lexicon page's first word
 //! s/<id>-l<n>.bin     a lexicon page: words, front-coded, with their postings or where they are
 //! s/<id>-p<n>.bin     a postings page: sorted doc ids as varint deltas
+//! s/<id>-x<n>.bin     a places page: where each word of the text and names is in each of its
+//!                     docs (`format/pos.rs`), read only to settle a phrase
 //! ```
 //!
 //! A word is kept as its field's letter and the word [folded](mailcraft_model::search::fold):
@@ -60,7 +62,7 @@ mod tests;
 
 pub use format::Blob;
 pub use pass::Pass;
-pub use reader::{DocInfo, Reader, ScanCursor};
+pub use reader::{DocInfo, PhraseFound, PhraseScan, Reader, ScanCursor};
 pub use reconcile::{FilesFound, Message, Plan, msgid_hash, plan, revision};
 pub use writer::{Flush, Indexed, RENUMBER_SLACK, Ready, TOMBSTONE_AGE, Writer};
 
@@ -73,6 +75,8 @@ pub const TEXT_PAGE: usize = 256 << 10;
 pub const LEX_PAGE: usize = 64 << 10;
 /// Most bytes in a postings page (a longer list goes on into the next ones).
 pub const POST_PAGE: usize = 256 << 10;
+/// Most bytes in a places page (a word's places go on into the next ones).
+pub const POS_PAGE: usize = 256 << 10;
 /// Longest word kept, its field's letter included: 40 characters of up to 4 bytes.
 pub const MAX_KEY: usize = 1 + 160;
 /// What a writer holds in memory before it must write (its words, postings and texts): it
@@ -207,6 +211,22 @@ impl Bits {
         }
     }
 
+    /// Whether one of docs `lo..=hi` is set.
+    pub fn any_in(&self, lo: u32, hi: u32) -> bool {
+        if lo > hi {
+            return false;
+        }
+        let (first, last) = ((lo / 64) as usize, (hi / 64) as usize);
+        let words = self.words.get(first..=last.min(self.words.len().saturating_sub(1))).unwrap_or_default();
+        words.iter().enumerate().any(|(i, &w)| {
+            let base = (first + i) as u64 * 64;
+            let from = u64::from(lo).saturating_sub(base).min(64);
+            let to = (u64::from(hi) + 1).saturating_sub(base).min(64);
+            let mask = if to - from >= 64 { u64::MAX } else { ((1u64 << (to - from)) - 1) << from };
+            w & mask != 0
+        })
+    }
+
     /// The docs set, in order.
     pub fn ones(&self) -> impl Iterator<Item = u32> + '_ {
         self.words.iter().enumerate().flat_map(|(i, &w)| {
@@ -299,6 +319,7 @@ pub(crate) enum Name {
     SegHead(u32),
     SegLex(u32, u32),
     SegPost(u32, u32),
+    SegPos(u32, u32),
 }
 
 impl Name {
@@ -310,6 +331,7 @@ impl Name {
             Name::SegHead(id) => format!("s/{id}-h.bin"),
             Name::SegLex(id, n) => format!("s/{id}-l{n}.bin"),
             Name::SegPost(id, n) => format!("s/{id}-p{n}.bin"),
+            Name::SegPos(id, n) => format!("s/{id}-x{n}.bin"),
         }
     }
 
@@ -332,6 +354,7 @@ impl Name {
                     ("h", _) => Some(Name::SegHead(id)),
                     (_, Some(n)) if b.starts_with('l') => Some(Name::SegLex(id, n.parse().ok()?)),
                     (_, Some(n)) if b.starts_with('p') => Some(Name::SegPost(id, n.parse().ok()?)),
+                    (_, Some(n)) if b.starts_with('x') => Some(Name::SegPos(id, n.parse().ok()?)),
                     _ => None,
                 }
             }
@@ -542,13 +565,27 @@ pub(crate) fn load_docs(store: &Store, base: &Path, meta: &format::Meta) -> Resu
     Ok(docs)
 }
 
+/// The bytes of an account's index's segments as written (before the store packs them), and of
+/// their places pages among them: what keeping the words' places costs (the bench prints it).
+pub fn segment_bytes(store: &Store, account: &str) -> Result<(u64, u64)> {
+    let Some(meta) = load_meta(store, account)? else { return Ok((0, 0)) };
+    let base = dir(store, account);
+    let mut places = 0u64;
+    for s in &meta.segments {
+        for n in 0..s.pos_pages {
+            places = places.saturating_add(need_file(store, &Name::SegPos(s.id, n).path(&base))?.len() as u64);
+        }
+    }
+    Ok((meta.segments.iter().map(|s| s.bytes).fold(0, u64::saturating_add), places))
+}
+
 /// An index's files as one input (the fuzz target's, `fuzz/fuzz_targets/store/search_index.rs`):
 /// split where each file's four letters start (`MCSM` the meta, then the files it names, in the
 /// order [`Name`] sorts), put in a memory store as account `a1`'s index.
 #[doc(hidden)]
 pub fn hostile_index(input: &[u8]) -> Store {
     let starts: Vec<usize> = (0..input.len())
-        .filter(|&i| input.get(i..i + 4).is_some_and(|m| m.starts_with(b"MCS") && m.get(3).is_some_and(|k| b"MDTHLP".contains(k))))
+        .filter(|&i| input.get(i..i + 4).is_some_and(|m| m.starts_with(b"MCS") && m.get(3).is_some_and(|k| b"MDTHLPX".contains(k))))
         .collect();
     let pieces: Vec<&[u8]> =
         starts.iter().enumerate().filter_map(|(n, &s)| input.get(s..starts.get(n + 1).copied().unwrap_or(input.len()))).collect();
@@ -588,6 +625,23 @@ pub fn exercise_index(store: &Store) {
         }
         for d in 0..r.len().min(64) {
             let _ = (r.text(store, d), r.info(d), r.key(d));
+        }
+        // Phrases settled from their words' places, a page a call (every doc asked about).
+        let mut every = Bits::new(r.len());
+        (0..r.len().min(1 << 16)).for_each(|d| every.set(d));
+        for (field, phrase) in
+            [(Field::Body, &["common", "w"][..]), (Field::Body, &["from", "ana"]), (Field::Names, &["a", "p"]), (Field::Body, &["c"])]
+        {
+            let words: Vec<String> = phrase.iter().map(|w| w.to_string()).collect();
+            let mut scan = PhraseScan::default();
+            for _ in 0..256 {
+                if r.scan_phrase(store, field, &words, &every, &mut scan, 1).unwrap_or(true) {
+                    break;
+                }
+            }
+            for d in 0..r.len().min(64) {
+                let _ = scan.found().has(d);
+            }
         }
     };
     let mut reader = Reader::open(store, "a1").ok().flatten();

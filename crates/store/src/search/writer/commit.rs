@@ -66,8 +66,8 @@ impl Writer {
             meta.tokenizer = 0;
         } else if !self.words.is_empty() {
             let mut b = SegBuilder::default();
-            for (k, docs) in &self.words {
-                b.push(k, docs);
+            for (k, p) in &self.words {
+                b.push(k, &p.docs, &p.places);
             }
             if !b.is_empty() {
                 let id = meta.next_seg;
@@ -92,6 +92,7 @@ impl Writer {
             terms: seg.terms,
             lex_pages: pages(seg.lex_pages())?,
             post_pages: pages(seg.post_pages())?,
+            pos_pages: pages(seg.pos_pages())?,
             bytes: seg.bytes(),
             lo: seg.lo,
             hi: seg.hi,
@@ -106,6 +107,9 @@ impl Writer {
         }
         for (n, page) in (seg.post_from..).zip(seg.post) {
             files.push(self.file(Name::SegPost(id, n), page));
+        }
+        for (n, page) in (seg.pos_from..).zip(seg.pos) {
+            files.push(self.file(Name::SegPos(id, n), page));
         }
     }
 
@@ -342,10 +346,10 @@ impl Writer {
         Ok(())
     }
 
-    pub(super) fn write_segment(&self, store: &Store, meta: &mut Meta, words: BTreeMap<Vec<u8>, Vec<u32>>, docs: u32) -> Result<()> {
+    pub(super) fn write_segment(&self, store: &Store, meta: &mut Meta, words: Words, docs: u32) -> Result<()> {
         let mut b = SegBuilder::default();
-        for (k, list) in &words {
-            b.push(k, list);
+        for (k, p) in &words {
+            b.push(k, &p.docs, &p.places);
         }
         if b.is_empty() {
             return Ok(());
