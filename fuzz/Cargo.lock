@@ -1868,7 +1868,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "outlook-pst-rw"
 version = "1.2.14"
-source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=e0ae9a0a8508a7ad081b8eb941ea21a5e0e0c894#e0ae9a0a8508a7ad081b8eb941ea21a5e0e0c894"
+source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=df74d669cc71a9e5b02e31ac484c707ec67a0d03#df74d669cc71a9e5b02e31ac484c707ec67a0d03"
 dependencies = [
  "byteorder",
  "thiserror",

@@ -170,10 +170,13 @@ pub fn export(
     // Where the mail went, so the contacts, notes and tasks of a new file don't go there.
     let mut taken: Vec<Vec<String>> = Vec::new();
     let mut inside = pim::Written::default();
+    // Where each folder goes; in an ANSI file, folders whose names it would write alike apart.
+    let placed: Vec<Vec<String>> = folders.iter().map(|f| place::place(f, &folders, &targets)).collect();
+    let placed = if format == Format::Ansi { place::apart(&placed, &targets) } else { placed };
     let written = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(), String> {
-        for f in folders.iter().filter(|f| f.selectable) {
+        for (f, folder) in folders.iter().zip(&placed).filter(|(f, _)| f.selectable) {
             let Ok(st) = store.load_folder(account, &f.path) else { continue };
-            let folder = place::place(f, &folders, &targets);
+            let folder = folder.clone();
             taken.push(folder.clone());
             let folder: Vec<&str> = folder.iter().map(String::as_str).collect();
             let mut batch = Vec::new();

@@ -119,3 +119,72 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
     assert_eq!((again.messages, again.already, again.pim_already), (0, 4, 10));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The top folders of an ANSI file: each one's name as written and how many messages it holds.
+fn top(path: &Path) -> Vec<(Vec<u8>, usize)> {
+    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    let any: Rc<dyn PstStore> = AnsiStore::read(Rc::new(AnsiPstFile::open(path).unwrap())).unwrap();
+    let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+    let mut out: Vec<(Vec<u8>, usize)> = top
+        .hierarchy_table()
+        .unwrap()
+        .rows_matrix()
+        .map(|row| {
+            let f = any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap()).unwrap();
+            let name = match f.properties().get(0x3001) {
+                Some(V::String8(name)) => name.buffer().to_vec(),
+                other => panic!("not an 8-bit name: {other:?}"),
+            };
+            (name, f.contents_table().map_or(0, |t| t.rows_matrix().count()))
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// Folders whose names Windows-1252 can't hold whole go into an ANSI file once, each export
+/// adding to the same folder, and two that it would write alike stay apart.
+#[test]
+fn folders_windows_1252_cant_name_stay_one_each() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-ansi-names-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("Old.pst");
+    drop(AnsiPstFile::create_empty(&file).unwrap());
+    let store = Store::open(dir.join("cache")).unwrap();
+    let names = ["Письма", "Отчёты", "Receipts – 2024"];
+    let folder = |path: &str| mailcraft_model::Folder {
+        account: "a1".into(),
+        path: path.into(),
+        role: FolderRole::Other,
+        selectable: true,
+        ..Default::default()
+    };
+    store.save_folders("a1", &names.map(folder)).unwrap();
+    let mut uid = 0;
+    for round in 1..=3 {
+        for name in names {
+            let mut st = store.load_folder("a1", name).unwrap_or_default();
+            uid += 1;
+            st.messages.push(mail(&store, name, uid, &format!("{name} {round}")).into());
+            st.validity = 1;
+            st.uid_next = uid + 1;
+            store.save_folder("a1", name, &st).unwrap();
+        }
+        let done = export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap();
+        assert_eq!((done.messages, done.already), (3, 3 * (round - 1)));
+        // Отчёты comes first and takes `??????`; Письма, written alike, has a number.
+        let mut want = vec![
+            (b"Deleted Items".to_vec(), 0),
+            (b"Inbox".to_vec(), 0),
+            (b"??????".to_vec(), round),
+            (b"?????? (2)".to_vec(), round),
+            (b"Receipts \x96 2024".to_vec(), round),
+        ];
+        want.sort();
+        let mut found = top(&file);
+        found.retain(|(name, _)| !matches!(name.as_slice(), b"Calendar" | b"Contacts" | b"Notes" | b"Tasks"));
+        assert_eq!(found, want, "round {round}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

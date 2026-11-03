@@ -28,7 +28,7 @@ const PSETID_NOTE: GuidValue = GuidValue::new(0x0006_200E, 0, 0, [0xC0, 0, 0, 0,
 /// A note's size in Outlook's window, as Outlook makes one (PidLidNoteWidth, PidLidNoteHeight).
 const NOTE_SIZE: (i32, i32) = (200, 166);
 /// Names tried for a new file's folder that the account's mail took already: "Notes (2)" and on.
-const MAX_SUFFIX: usize = 100;
+pub(super) const MAX_SUFFIX: usize = 100;
 
 /// A property's value.
 pub(super) enum Value {

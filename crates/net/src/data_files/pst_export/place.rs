@@ -86,6 +86,75 @@ pub(super) fn place(f: &Folder, folders: &[Folder], targets: &Targets) -> Vec<St
     }
 }
 
+/// Folder names as an ANSI file keeps them (Windows-1252, a `?` for what it lacks), so folders
+/// whose names it would write alike stay apart: `placed[i]` is where `folders[i]` goes, and each
+/// name of it that is written as another folder's beside it gets a number, "Отчёты (2)", as a
+/// new file's folder taken by the account's mail does. The writer finds a folder by its name as
+/// written, so without one `Письма` and `Отчёты` would be one `??????` folder. The same folder gets
+/// the same name each export: names are given in order of where the folders go, the file's
+/// special folders first.
+pub(super) fn apart(placed: &[Vec<String>], targets: &Targets) -> Vec<Vec<String>> {
+    let mut names = Apart::default();
+    for (_, special) in &targets.0 {
+        names.give(special);
+    }
+    let mut order: Vec<usize> = (0..placed.len()).collect();
+    order.sort_by(|&a, &b| placed.get(a).cmp(&placed.get(b)));
+    let mut out = vec![Vec::new(); placed.len()];
+    for i in order {
+        if let (Some(slot), Some(path)) = (out.get_mut(i), placed.get(i)) {
+            *slot = names.give(path);
+        }
+    }
+    out
+}
+
+/// The names [`apart`] gave.
+#[derive(Default)]
+struct Apart {
+    /// Who took each name as written, beside the folders above it as given: the name asked for.
+    written: std::collections::HashMap<(Vec<Vec<u8>>, Vec<u8>), String>,
+    /// The name each name asked for was given, beside the folders above it as given.
+    given: std::collections::HashMap<(Vec<String>, String), String>,
+}
+
+impl Apart {
+    fn give(&mut self, path: &[String]) -> Vec<String> {
+        let mut out: Vec<String> = Vec::with_capacity(path.len());
+        for name in path {
+            let key = (out.clone(), name.clone());
+            let named = match self.given.get(&key) {
+                Some(named) => named.clone(),
+                None => {
+                    let above: Vec<Vec<u8>> = out.iter().map(|n| written(n)).collect();
+                    let free = |n: &str| self.written.get(&(above.clone(), written(n))).is_none_or(|by| by.eq_ignore_ascii_case(name));
+                    let named = std::iter::once(name.clone())
+                        .chain((2..=super::pim::MAX_SUFFIX).map(|n| format!("{name} ({n})")))
+                        .find(|n| free(n))
+                        .unwrap_or_else(|| name.clone());
+                    self.written.entry((above, written(&named))).or_insert_with(|| name.clone());
+                    self.given.insert(key, named.clone());
+                    named
+                }
+            };
+            out.push(named);
+        }
+        out
+    }
+}
+
+/// `name` as an ANSI file's folder name is written, as the writer compares one (ASCII letters in
+/// lower case): Windows-1252, a `?` for a character it hasn't, a character from U+0080 to U+009F
+/// (as the writer's reader reads a byte back) that byte.
+fn written(name: &str) -> Vec<u8> {
+    name.chars()
+        .map(|c| match u8::try_from(u32::from(c)) {
+            Ok(b) => b.to_ascii_lowercase(),
+            Err(_) => (0x80..=0x9F).find(|&b: &u8| mime::decode_code_page(&[b], 1252).starts_with(c)).unwrap_or(b'?'),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,6 +187,49 @@ mod tests {
         let targets = Targets(vec![(Special::SentItems, vec!["Gesendet".into()])]);
         assert_eq!(place(&folders[1], &folders, &targets), ["Gesendet", "2024"]);
         assert_eq!(place(&folders[2], &folders, &targets), ["Deleted Items"]);
+    }
+
+    /// In an ANSI file, folders whose names it would write alike get numbers, the same each
+    /// time; the file's special folders keep theirs, and a folder's own name, in any case of its
+    /// ASCII letters, is the same folder.
+    #[test]
+    fn names_an_ansi_file_writes_alike_stay_apart() {
+        let p = |s: &[&str]| s.iter().map(|n| n.to_string()).collect::<Vec<_>>();
+        let targets = Targets(vec![(Special::SentItems, p(&["Отправлено"]))]);
+        let placed = [
+            p(&["Письма", "Итоги"]),
+            p(&["Отчёты"]),
+            p(&["Письма"]),
+            p(&["Отчёты", "Итоги"]),
+            p(&["Café"]),
+            p(&["CAFÉ"]),
+            p(&["Получатели"]),
+            p(&["Отправлено", "2024"]),
+            p(&["Receipts – 2024"]),
+            p(&["Rapport"]),
+            p(&["RAPPORT"]),
+        ];
+        let want = [
+            p(&["Письма (2)", "Итоги"]),
+            p(&["Отчёты"]),
+            p(&["Письма (2)"]),
+            p(&["Отчёты", "Итоги"]),
+            p(&["Café"]),
+            p(&["CAFÉ"]),
+            p(&["Получатели (2)"]),
+            p(&["Отправлено", "2024"]),
+            p(&["Receipts – 2024"]),
+            p(&["Rapport"]),
+            p(&["RAPPORT"]),
+        ];
+        assert_eq!(apart(&placed, &targets), want);
+        let mut reversed = placed.clone();
+        reversed.reverse();
+        let mut back = apart(&reversed, &targets);
+        back.reverse();
+        assert_eq!(back, want);
+        assert_eq!(written("Receipts – 2024"), b"receipts \x96 2024");
+        assert_eq!(written("Wysłane"), b"wys?ane");
     }
 
     /// A lookup in a damaged file that fails, or panics in the writer's reader, costs only its
