@@ -199,6 +199,11 @@ impl FolderTexts {
     fn room_ahead(&self) -> bool {
         self.bytes.saturating_add(AHEAD_ROOM) < TEXT_BYTES
     }
+
+    /// The bytes texts made ahead may still come to.
+    fn room_aside(&self) -> usize {
+        TEXT_BYTES.saturating_sub(AHEAD_ROOM).saturating_sub(self.bytes)
+    }
 }
 
 /// The threads summaries' texts are made aside on, once there's something to make.
@@ -221,7 +226,8 @@ impl Session {
     /// to the threads ([`Aside`]), a search running or not, and what they made is taken in while
     /// none runs (a search's units take in what they need, within its share of the frame: taken
     /// in by the tick too, a frame went to 10 ms); without them, [`AHEAD`] a tick while no search
-    /// runs (about 140 frames on that file).
+    /// runs (about 140 frames on that file). What's handed out and not taken in yet stays within
+    /// the room texts are kept in: the rest is handed out as they're taken in.
     pub(crate) fn make_texts_ahead(&mut self) {
         if !self.search_state.run.as_ref().is_some_and(|r| !r.done()) {
             self.take_texts_made(TICK_TAKES, None);
@@ -230,7 +236,20 @@ impl Session {
             return;
         }
         if self.text_threads().is_some() {
-            let keys: Vec<(String, String)> = self.cache.keys().cloned().collect();
+            let state = &self.search_state;
+            let TextThreads::Running(aside) = &state.text_threads else { return };
+            if !aside.has_room(state.texts.room_aside()) {
+                return;
+            }
+            // Only the folders still short of their texts: once they're all made, nothing is
+            // allocated a tick.
+            let mut keys: Vec<(String, String)> = self
+                .cache
+                .iter()
+                .filter(|(k, st)| state.texts.made_of(k) < st.messages.len() && aside.may_hand_out(k))
+                .map(|(k, _)| k.clone())
+                .collect();
+            keys.sort();
             for k in keys {
                 self.hand_out_texts(&k);
             }
@@ -257,6 +276,7 @@ impl Session {
         match &state.text_threads {
             TextThreads::Running(aside) if aside.busy() => true,
             TextThreads::Ticks if state.run.as_ref().is_some_and(|r| !r.done()) => false,
+            TextThreads::Running(aside) => self.cache.iter().any(|(k, st)| texts.made_of(k) < st.messages.len() && !aside.gave_up_on(k)),
             _ => self.cache.iter().any(|(k, st)| texts.made_of(k) < st.messages.len()),
         }
     }
@@ -279,20 +299,21 @@ impl Session {
         }
     }
 
-    /// The texts of folder `k` not made yet handed to the threads, unless they're making some of
-    /// them already (or there are none, or no room: then nothing).
+    /// The texts of folder `k` not made yet handed to the threads, as many as there's room for,
+    /// unless they're making some of them already or failed to (or there are none, or no room:
+    /// then nothing).
     pub(crate) fn hand_out_texts(&mut self, k: &(String, String)) {
         if !self.texts_ahead_allowed() {
             return;
         }
         let Some(st) = self.cache.get(k) else { return };
-        let made = self.search_state.texts.made_of(k);
+        let (made, room) = (self.search_state.texts.made_of(k), self.search_state.texts.room_aside());
         let state = &mut self.search_state;
         let TextThreads::Running(aside) = &mut state.text_threads else { return };
-        if made >= st.messages.len() || aside.busy_with(k) {
+        if made >= st.messages.len() || !aside.may_hand_out(k) {
             return;
         }
-        if !aside.hand_out(k, &st.messages, made) {
+        if !aside.hand_out(k, &st.messages, made, room) {
             log::warn!("search: the threads making summaries' texts have gone; the ticks make them");
             state.text_threads = TextThreads::Ticks;
         }
@@ -322,11 +343,23 @@ impl Session {
                 continue;
             }
             let k = m.key.clone();
+            if m.texts.len() < m.summaries.len() {
+                aside.give_up(&k);
+            }
             let messages = self.cache.get(&k).map(|st| st.messages.as_slice()).unwrap_or_default();
             match state.texts.take_in(&k, messages, m) {
                 Some(waits) => aside.hold(waits),
                 None => taken += 1,
             }
+        }
+    }
+
+    /// A test's: about the bytes of the texts handed to the threads and not taken in yet.
+    #[cfg(test)]
+    pub(crate) fn texts_pending(&self) -> usize {
+        match &self.search_state.text_threads {
+            TextThreads::Running(aside) => aside.pending(),
+            _ => 0,
         }
     }
 

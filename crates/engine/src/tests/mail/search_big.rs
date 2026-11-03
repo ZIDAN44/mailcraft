@@ -33,13 +33,27 @@ fn cold() -> (Session, Truth) {
     (s, truth)
 }
 
+/// [`cold`] as the browser's (no threads): its summaries' texts made by the ticks, a slice a tick,
+/// and by the searches, as they go.
+fn cold_on_ticks() -> (Session, Truth) {
+    let (mut s, truth) = unticked();
+    s.make_texts_on_ticks();
+    s.tick();
+    (s, truth)
+}
+
 /// [`cold`] before its tick.
 fn unticked() -> (Session, Truth) {
     let (store, truth) = mailbox();
+    (session_on(store), *truth)
+}
+
+/// A session newly opened on `store`, searching in the background, not ticked yet.
+fn session_on(store: &Store) -> Session {
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
     s.take_jobs();
     s.set_background_search(true);
-    (s, *truth)
+    s
 }
 
 /// The queries measured, what each should find (`None`: too many words to count here).
@@ -116,11 +130,22 @@ fn search_by(s: &mut Session, q: &str, scope: &str, by: &mut dyn FnMut(&mut Sess
 /// 16 store pages (folders' lists and the index together), checks at most 8 × 512 summaries and
 /// 8 texts (the command's first 4 units, half that), makes at most 8 × 128 summaries' texts (in
 /// a session just opened: 512 a unit took 11–15 ms a step), and reads no message; flags read
-/// nothing of the index; and each finds what the mailbox holds, the list newest first.
+/// nothing of the index; and each finds what the mailbox holds, the list newest first. In a
+/// session whose texts the ticks make ([`cold_on_ticks`], the browser's: the searches make most of
+/// them, as many as the bound allows, whatever threads would have made meanwhile), and in one whose
+/// threads make them aside ([`cold`], the desktop's).
 #[test]
 fn each_step_is_bounded_over_fifty_thousand_messages() {
-    let (mut s, t) = cold();
+    for ticks in [true, false] {
+        let (s, t) = if ticks { cold_on_ticks() } else { cold() };
+        steps_are_bounded(s, t, ticks);
+    }
+}
+
+/// [`each_step_is_bounded_over_fifty_thousand_messages`], over the session `s`.
+fn steps_are_bounded(mut s: Session, t: Truth, ticks: bool) {
     let reads = s.store.as_ref().unwrap().reads();
+    let mut made = 0;
     for (q, want) in queries(&t) {
         let steps = search(&mut s, &q, "all");
         for (i, st) in steps.iter().enumerate() {
@@ -128,6 +153,7 @@ fn each_step_is_bounded_over_fifty_thousand_messages() {
             assert!(d.folder_pages + d.reader_pages <= 2 * n, "{q}: store pages {} + {}", d.folder_pages, d.reader_pages);
             assert!(d.summaries <= 512 * n, "{q}: summaries {}", d.summaries);
             assert!(d.summary_texts <= 128 * n, "{q}: summaries' texts made {}", d.summary_texts);
+            made += d.summary_texts;
             assert!(d.texts <= n, "{q}: texts {}", d.texts);
             assert!(d.units <= n, "{q}: units {}", d.units);
         }
@@ -144,6 +170,9 @@ fn each_step_is_bounded_over_fifty_thousand_messages() {
     }
     assert_eq!(s.store.as_ref().unwrap().reads(), reads, "no message read");
     assert_eq!(s.search_stats().sources, 0);
+    if ticks {
+        assert!(made >= 40_000, "the searches made {made} summaries' texts themselves");
+    }
 }
 
 /// [`cold`], its phrases checked against the texts the index keeps, as they are where its
@@ -213,11 +242,11 @@ fn threads_make_the_texts_aside() {
 
 /// Searches begun before the window's first tick, the texts being made aside meanwhile (a step
 /// takes in what the threads made, and makes only what they haven't yet): each finds what's
-/// there. (Not the flags: another test here marks a message read or unread as it runs.)
+/// there.
 #[test]
 fn a_search_at_the_first_tick_finds_whats_there() {
     let t = mailbox().1;
-    let words = queries(&t).into_iter().filter(|(q, n)| n.is_some() && !q.starts_with("is:"));
+    let words = queries(&t).into_iter().filter(|(_, n)| n.is_some());
     for (q, want) in words {
         let (mut s, _) = unticked();
         search_by(&mut s, &q, "all", &mut |s| {
@@ -384,11 +413,16 @@ fn thirty_five_thousand_found_stream_in() {
 /// What steps find is merged into the list's rows as they stand, not built again from the
 /// summaries: after every step, newest first or oldest first, a message marked read or unread
 /// meanwhile, the rows, where each message's is and each message's row are those the list would
-/// be built with.
+/// be built with. (On a mailbox of its own: marked in the one the others share, their counts of
+/// what's read or unread were off by one while it ran.)
 #[test]
 fn rows_merged_are_the_lists() {
+    let store = Store::memory();
+    big::generate(&store, NOW, Shape::default()).unwrap();
+    big::index(&store, big::ACCOUNT).unwrap();
     for (q, reverse) in [("k", false), ("is:read", true)] {
-        let (mut s, _) = cold();
+        let mut s = session_on(&store);
+        s.tick();
         s.prefs.reverse_sort = reverse;
         s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
         let mut steps = 0;

@@ -475,7 +475,9 @@ words an account, and as many phrases settled from their words' places), 512 sum
 texts of the folders in memory are made ahead of any search while they fit in the room they're kept
 in, `make_texts_ahead`, the window asking for frames until they're made. On the desktop, a tick
 hands each folder's list to threads of their own, 512 summaries a batch (`folder_text/aside.rs`, up
-to 4 threads), and takes back 16 batches a tick at most, a search's unit 2, its own folder's first,
+to 4 threads), as many as fit the room with what's kept and what's handed out and not taken in yet
+(about, from the summaries' lengths: the rest as they're taken in; a folder a batch of which fails
+isn't handed out again), and takes back 16 batches a tick at most, a search's unit 2, its own folder's first,
 each only while its summaries are still the ones at their places in the list: a search typed as the
 window opens makes only what they haven't made yet. The browser has no threads: there, 256 a tick
 while no search runs, 160 ticks of 1.2-2.5 ms on a real file's 34,691), a message's kept text read or

@@ -3247,4 +3247,14 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   to it); a session's 50,000 made aside, each batch handed out once, none made on its thread;
   searches begun before the first tick find what's there; the first found shown at the next
   step's start, its units within a third of the budget; and without threads the ticks make them
-  as before.
+  as before. A review then found every folder handed out at the first tick whatever the room:
+  a big mailbox's texts waited to be taken in at well past the 48 MB they're kept in, and the
+  threads made what was thrown away. What's handed out now stays within the room with what's kept,
+  about (the bytes of each batch's texts reckoned from its summaries' lengths), the rest handed out
+  as batches are taken in; a folder a batch of which fails to be made isn't handed out again (it
+  was, each tick, the window asking for frames for good), its searches making its texts; and the
+  tick hands out only the folders still short of texts (it copied every folder's key each tick).
+  Tested: a folder whose texts come to more than the room keeps what's handed out and kept within
+  it; a batch made to fail is handed out once; and the bounds of every query's steps hold over
+  50,000 with the texts made by the ticks, as the browser's (the threads had made most of them, so
+  the bound on what a unit makes itself was barely checked).

@@ -1,5 +1,6 @@
 //! Tests: the texts made ahead of any search push out none a search made, and those made aside
-//! are taken in only where they still fit the folder's list.
+//! are taken in only where they still fit the folder's list; what's handed to the threads stays
+//! within the room, and a batch they fail to make isn't handed out again.
 
 use super::*;
 
@@ -52,7 +53,7 @@ fn texts_made_ahead_push_out_none_a_search_made() {
 fn made(messages: &[SharedSummary], range: std::ops::Range<usize>) -> aside::Made {
     let summaries = messages[range.clone()].to_vec();
     let texts = summaries.iter().map(|m| SummaryText::of(m)).collect();
-    aside::Made { key: key("F"), start: range.start, summaries, texts }
+    aside::Made { key: key("F"), start: range.start, summaries, texts, bytes: 0 }
 }
 
 /// Texts made aside are taken in where they follow what's kept: those past it wait, those
@@ -100,4 +101,77 @@ fn texts_made_aside_fit_the_list_as_it_is() {
     for (at, m) in list.iter().enumerate() {
         assert_eq!(t.kept(&m.key, at), Some(&SummaryText::of(m)), "{at}");
     }
+}
+
+/// A session searching in the background, its cache holding folder `F` of `messages`.
+fn session_with(messages: Vec<SharedSummary>) -> Session {
+    let mut s = Session::open(Some(mailcraft_store::Store::memory()), mailcraft_model::dates::Clock::new(0, 0));
+    s.set_background_search(true);
+    s.cache.insert(key("F"), mailcraft_store::FolderState { validity: 1, messages, ..Default::default() });
+    s
+}
+
+/// Tick until no more texts are due ahead (a minute at most), checking `each` after each tick.
+fn tick_until_settled(s: &mut Session, mut each: impl FnMut(&Session)) {
+    let began = std::time::Instant::now();
+    s.tick();
+    each(s);
+    while s.texts_ahead_due() {
+        assert!(began.elapsed() < std::time::Duration::from_secs(60), "settled in a minute");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        s.tick();
+        each(s);
+    }
+}
+
+/// A folder whose texts come to more than the room they're kept in: what's handed to the threads
+/// and not taken in yet stays within that room, about, a batch at most past it (all of it was
+/// handed out at the first tick, and waited to be taken in at well past the room), and what's
+/// kept stops short of it.
+#[test]
+fn texts_handed_out_stay_within_the_room() {
+    let subject = "abc ".repeat(1_500);
+    let messages: Vec<SharedSummary> = (1..=5_000)
+        .map(|uid| {
+            Summary { key: MessageKey { account: "a".into(), folder: "F".into(), validity: 1, uid }, subject: subject.clone(), ..Default::default() }
+                .into()
+        })
+        .collect();
+    let each = SummaryText::of(&messages[0]).bytes();
+    assert!(each * messages.len() > TEXT_BYTES, "more than the room: {each} bytes each");
+    let mut s = session_with(messages);
+    let room = TEXT_BYTES - AHEAD_ROOM;
+    let mut most = 0;
+    tick_until_settled(&mut s, |s| {
+        let (kept, pending) = (s.search_state.texts.bytes, s.texts_pending());
+        most = most.max(kept + pending);
+        assert!(kept + pending <= room + aside::BATCH * each * 3 / 2, "{kept} kept, {pending} handed out");
+    });
+    assert!(s.texts_handed_out() > 1, "{} handed out", s.texts_handed_out());
+    let kept = s.search_state.texts.bytes;
+    assert!(kept < TEXT_BYTES && s.search_state.texts.made_of(&key("F")) < 5_000, "{kept} kept");
+    assert!(most > room / 2, "made most of the room: {most}");
+}
+
+/// A batch the threads fail to make (unexpectedly) isn't handed out again: its folder's texts
+/// before it are taken in, and the window stops asking for frames for it (the batch came back
+/// with no texts, was handed out again each tick, failed again, and the window asked for frames
+/// for good).
+#[test]
+fn a_batch_that_fails_isnt_handed_out_again() {
+    let messages: Vec<SharedSummary> = (1..=600)
+        .map(|uid| {
+            let subject = if uid == 520 { aside::FAULT.to_string() } else { format!("s{uid}") };
+            Summary { key: MessageKey { account: "a".into(), folder: "F".into(), validity: 1, uid }, subject, ..Default::default() }.into()
+        })
+        .collect();
+    let mut s = session_with(messages);
+    tick_until_settled(&mut s, |_| {});
+    for _ in 0..20 {
+        s.tick();
+    }
+    assert!(!s.texts_ahead_due());
+    assert_eq!(s.texts_handed_out(), 2, "each batch handed out once");
+    assert_eq!(s.search_state.texts.made_of(&key("F")), aside::BATCH, "those before it taken in");
+    assert_eq!(s.texts_pending(), 0);
 }

@@ -8,7 +8,9 @@
 //! window only takes them in, a batch at a time. What a thread made is taken only while each of
 //! its summaries is still the one at its place in the folder's list (the same summary, not only
 //! the same uid: one changed in place since is another), so a list that changed meanwhile has
-//! nothing stale taken into it.
+//! nothing stale taken into it. What's handed out at a time is held to the room texts are kept
+//! in ([`Aside::hand_out`]): handed out all at once, a big mailbox's waited to be taken in at
+//! well past it.
 
 use std::sync::{Arc, mpsc};
 #[cfg(not(target_arch = "wasm32"))]
@@ -36,6 +38,8 @@ struct Batch {
     key: (String, String),
     start: usize,
     summaries: Vec<SharedSummary>,
+    /// About the bytes of their texts ([`about`]).
+    bytes: usize,
 }
 
 /// Texts made aside: the summaries they were made of, from `start` in their folder's list.
@@ -43,7 +47,10 @@ pub(crate) struct Made {
     pub(crate) key: (String, String),
     pub(crate) start: usize,
     pub(crate) summaries: Vec<SharedSummary>,
+    /// One a summary; fewer when making them failed unexpectedly.
     pub(crate) texts: Vec<SummaryText>,
+    /// About their bytes, as handed out ([`about`]).
+    pub(crate) bytes: usize,
 }
 
 /// The threads making texts, and what's handed to them.
@@ -57,11 +64,16 @@ pub(crate) struct Aside {
     /// Made, not taken in yet: waiting for the batches before them in their folder, or for
     /// the next tick's or unit's turn.
     held: Vec<Made>,
+    /// About the bytes of the texts handed out and not taken in (or let go of) yet.
+    pending: usize,
+    /// Folders a batch of which failed to be made (unexpectedly): not handed out again, their
+    /// texts made by the searches that need them.
+    gave_up: HashSet<(String, String)>,
 }
 
 impl std::fmt::Debug for Aside {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Aside").field("out", &self.out).field("held", &self.held.len()).finish()
+        f.debug_struct("Aside").field("out", &self.out).field("held", &self.held.len()).field("pending", &self.pending).finish()
     }
 }
 
@@ -81,11 +93,15 @@ impl Aside {
                     // Held only while one is taken, not while it's made.
                     let next = batches.lock().unwrap_or_else(PoisonError::into_inner).recv();
                     let Ok(b) = next else { break };
-                    let texts =
-                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.summaries.iter().map(|m| SummaryText::of(m)).collect::<Vec<_>>()));
-                    // (One that failed unexpectedly comes back with none: the search makes them.)
+                    let texts = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        #[cfg(test)]
+                        fault(&b.summaries);
+                        b.summaries.iter().map(|m| SummaryText::of(m)).collect::<Vec<_>>()
+                    }));
+                    // (One that failed unexpectedly comes back with none: its folder isn't handed
+                    // out again, and the searches make them.)
                     let texts = texts.unwrap_or_default();
-                    if made.send(Made { key: b.key, start: b.start, summaries: b.summaries, texts }).is_err() {
+                    if made.send(Made { key: b.key, start: b.start, summaries: b.summaries, texts, bytes: b.bytes }).is_err() {
                         break;
                     }
                 }
@@ -95,7 +111,7 @@ impl Aside {
                 Err(e) => log::warn!("search: a thread to make summaries' texts on didn't start: {e}"),
             }
         }
-        (started > 0).then(|| Aside { to, from, out: HashMap::new(), handed: 0, held: Vec::new() })
+        (started > 0).then(|| Aside { to, from, out: HashMap::new(), handed: 0, held: Vec::new(), pending: 0, gave_up: HashSet::new() })
     }
 
     /// No threads in the browser: the ticks make the texts.
@@ -104,20 +120,57 @@ impl Aside {
         None
     }
 
-    /// Hand out the texts of `messages[from..]` (the folder `key`'s list), a batch a thread.
-    /// `false`: the threads are gone.
-    pub(crate) fn hand_out(&mut self, key: &(String, String), messages: &[SharedSummary], from: usize) -> bool {
+    /// Hand out the texts of `messages[from..]` (the folder `key`'s list), a batch a thread,
+    /// while those handed out and not taken in yet come to at most `room` bytes, about (one batch
+    /// at least, when none is: the rest is handed out as they're taken in). `false`: the threads
+    /// are gone.
+    pub(crate) fn hand_out(&mut self, key: &(String, String), messages: &[SharedSummary], from: usize, room: usize) -> bool {
         let mut start = from;
         while let Some(chunk) = messages.get(start..).filter(|c| !c.is_empty()) {
             let chunk = chunk.get(..BATCH.min(chunk.len())).unwrap_or_default();
-            if self.to.send(Batch { key: key.clone(), start, summaries: chunk.to_vec() }).is_err() {
+            let bytes = chunk.iter().map(|m| about(m)).fold(0usize, usize::saturating_add);
+            if self.pending > 0 && self.pending.saturating_add(bytes) > room {
+                break;
+            }
+            if self.to.send(Batch { key: key.clone(), start, summaries: chunk.to_vec(), bytes }).is_err() {
                 return false;
             }
             *self.out.entry(key.clone()).or_default() += 1;
             self.handed = self.handed.wrapping_add(1);
+            self.pending = self.pending.saturating_add(bytes);
             start = start.saturating_add(chunk.len());
         }
         true
+    }
+
+    /// Whether `key`'s texts may be handed out now: none being made or waiting, and none of its
+    /// batches failed.
+    pub(crate) fn may_hand_out(&self, key: &(String, String)) -> bool {
+        !self.busy_with(key) && !self.gave_up.contains(key)
+    }
+
+    /// Whether more may be handed out within `room` bytes, about.
+    pub(crate) fn has_room(&self, room: usize) -> bool {
+        self.pending < room
+    }
+
+    /// Whether a batch of `key`'s failed to be made: the searches make its texts.
+    pub(crate) fn gave_up_on(&self, key: &(String, String)) -> bool {
+        self.gave_up.contains(key)
+    }
+
+    /// A batch of `key`'s failed to be made: it isn't handed out again (it failed again and
+    /// again, a thread kept at it and the window asking for frames for good).
+    pub(crate) fn give_up(&mut self, key: &(String, String)) {
+        if self.gave_up.insert(key.clone()) {
+            log::warn!("search: making a folder's summaries' texts aside failed; its searches make them");
+        }
+    }
+
+    /// A test's: about the bytes of the texts handed out and not taken in (or let go of) yet.
+    #[cfg(test)]
+    pub(crate) fn pending(&self) -> usize {
+        self.pending
     }
 
     /// Whether `key`'s texts are being made, or wait to be taken in (handed out again meanwhile,
@@ -136,7 +189,9 @@ impl Aside {
     /// gives back what waits for batches before it ([`Aside::hold`]).
     pub(crate) fn take(&mut self) -> Vec<Made> {
         let mut all = std::mem::take(&mut self.held);
+        let mut gone = all.iter().map(|m| m.bytes).fold(0usize, usize::saturating_add);
         while let Ok(m) = self.from.try_recv() {
+            gone = gone.saturating_add(m.bytes);
             if let Some(n) = self.out.get_mut(&m.key) {
                 *n = n.saturating_sub(1);
                 if *n == 0 {
@@ -145,6 +200,8 @@ impl Aside {
             }
             all.push(m);
         }
+        // (Counted again for those given back.)
+        self.pending = self.pending.saturating_sub(gone);
         all
     }
 
@@ -152,13 +209,34 @@ impl Aside {
     /// is, those before it were let go of, and it goes too).
     pub(crate) fn hold(&mut self, m: Made) {
         if self.out.get(&m.key).is_some_and(|n| *n > 0) {
-            self.held.push(m);
+            self.defer(m);
         }
     }
 
     /// `m` waits for the next turn to take texts in.
     pub(crate) fn defer(&mut self, m: Made) {
+        self.pending = self.pending.saturating_add(m.bytes);
         self.held.push(m);
+    }
+}
+
+/// About the bytes of `m`'s text ([`SummaryText::bytes`]), before it's made: its subject and
+/// addresses twice (folded and as written), its preview once.
+fn about(m: &Summary) -> usize {
+    let addresses = std::iter::once(&m.from).chain(&m.to).chain(&m.cc);
+    let raw = addresses.map(|a| a.name.len().saturating_add(a.email.len()).saturating_add(2)).fold(m.subject.len(), usize::saturating_add);
+    raw.saturating_mul(2).saturating_add(m.preview.len()).saturating_add(std::mem::size_of::<SummaryText>())
+}
+
+/// A test's: making the texts of a batch with a summary of this subject fails, as a fault would.
+#[cfg(test)]
+pub(crate) const FAULT: &str = "\u{1}a fault made for a test";
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+fn fault(summaries: &[SharedSummary]) {
+    if summaries.iter().any(|m| m.subject == FAULT) {
+        panic!("a fault made for a test");
     }
 }
 
