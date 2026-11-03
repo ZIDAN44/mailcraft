@@ -76,6 +76,8 @@ pub enum Icon {
     Lock,
     /// A rosette with a tick (signed mail).
     Seal,
+    /// A tick on its own (a follow-up marked complete).
+    Done,
 }
 
 struct Pen<'a> {
@@ -375,6 +377,10 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 .collect();
             pen.closed(&pts);
             pen.line(&[(5.4, 8.2), (7.2, 10.0), (10.8, 6.2)]);
+        }
+        Icon::Done => {
+            // A tick, its short stroke down to the left of its foot.
+            pen.line(&[(2.5, 8.6), (6.2, 12.3), (13.5, 3.7)]);
         }
         Icon::Steps => {
             pen.line(&[(3.0, 4.0), (7.0, 8.0), (3.0, 12.0)]);

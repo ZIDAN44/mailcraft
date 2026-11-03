@@ -672,6 +672,8 @@ month	May	5月
 	Follow up. Due today.	フォローアップ。期限は今日です。
 	Follow up. Due {date}.	フォローアップ。期限は {date} です。
 	Follow up. Overdue: it was due {date}.	フォローアップ。期限切れ: 期限は {date} でした。
+	Completed.	完了しました。
+	Completed on {date}.	{date} に完了しました。
 	This message was sent with high importance.	このメッセージは重要度 - 高で送信されました。
 	This message was sent with low importance.	このメッセージは重要度 - 低で送信されました。
 	Delay delivery	配信タイミング

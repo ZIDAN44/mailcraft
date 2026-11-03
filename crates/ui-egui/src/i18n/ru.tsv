@@ -669,6 +669,8 @@
 	Follow up. Due today.	К исполнению. Срок — сегодня.
 	Follow up. Due {date}.	К исполнению. Срок — {date}.
 	Follow up. Overdue: it was due {date}.	К исполнению. Просрочено: срок был {date}.
+	Completed.	Выполнено.
+	Completed on {date}.	Выполнено {date}.
 	This message was sent with high importance.	Это сообщение отправлено с высокой важностью.
 	This message was sent with low importance.	Это сообщение отправлено с низкой важностью.
 	Delay delivery	Задержать доставку

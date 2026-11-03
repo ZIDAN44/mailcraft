@@ -386,6 +386,7 @@ fn message_row(
             (marks.external, "External"),
             (unread, "Unread"),
             (m.flags.flagged, "Flagged"),
+            (m.flags.follow_up_complete(), "Completed"),
             (m.has_attachments, "Has attachments"),
         ] {
             if on {
@@ -499,6 +500,8 @@ fn message_row(
         }
         if m.flags.flagged {
             marker(Icon::Flag, t.flag, &mut icons_w);
+        } else if m.flags.follow_up_complete() {
+            marker(Icon::Done, t.dim, &mut icons_w);
         }
         if m.has_attachments {
             marker(Icon::Attach, t.dim, &mut icons_w);

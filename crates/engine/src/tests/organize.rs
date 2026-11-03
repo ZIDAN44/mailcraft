@@ -89,7 +89,7 @@ fn flags_filters_and_conversations() {
     assert_eq!(s.list.len(), 4, "a picture, a proof, a turnaround and an invitation");
     s.run("list.filter", &json!({"value": "all"})).unwrap();
 
-    // Follow Up: flagged with a day it's due; Mark Complete and unflagging forget it.
+    // Follow Up: flagged with a day it's due; Mark Complete and unflagging put it away.
     let turnaround = |s: &Session| s.list.iter().find(|m| m.subject == "Character turnarounds").cloned().unwrap();
     s.run("list.select", &k).unwrap();
     let today = mailcraft_model::dates::today(&s.clock);
@@ -99,7 +99,7 @@ fn flags_filters_and_conversations() {
     assert_eq!(s.follow_up_due(&turnaround(&s)).map(mailcraft_model::dates::day_string).as_deref(), Some("2026-12-01"));
     assert!(s.run("mail.flag", &json!({"due": "someday"})).is_err());
     s.run("mail.flag", &json!({"complete": true})).unwrap();
-    assert!(!turnaround(&s).flags.flagged && s.prefs.follow_up.is_empty());
+    assert!(!turnaround(&s).flags.flagged && s.follow_up_due(&turnaround(&s)).is_none());
     s.run("mail.flag", &json!({"due": "thisWeek"})).unwrap();
     s.run("mail.flag", &json!({"on": false})).unwrap();
     assert!(s.follow_up_due(&turnaround(&s)).is_none() && s.prefs.follow_up.is_empty());

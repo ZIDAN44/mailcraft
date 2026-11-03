@@ -72,6 +72,7 @@ const SYSTEM: &[&str] = &[
     "$ToDo",
     // MailCraft's own.
     crate::PINNED,
+    crate::FOLLOW_UP_COMPLETE,
 ];
 
 /// Whether `k` is a keyword some program sets for its own purposes (junk marks, `$Forwarded`,
@@ -242,9 +243,20 @@ mod tests {
 
     #[test]
     fn system_keywords_and_checks() {
-        for k in
-            ["$Forwarded", "$mdnsent", "$Junk", "junk", "NonJunk", "NotJunk", "$SubmitPending", "$MailFlagBit2", "$Pinned", "\\Seen", "JunkRecorded"]
-        {
+        for k in [
+            "$Forwarded",
+            "$mdnsent",
+            "$Junk",
+            "junk",
+            "NonJunk",
+            "NotJunk",
+            "$SubmitPending",
+            "$MailFlagBit2",
+            "$Pinned",
+            "$FollowUpComplete",
+            "\\Seen",
+            "JunkRecorded",
+        ] {
             assert!(is_system_keyword(k), "{k}");
         }
         for k in ["$label1", "$label6", "to=20do", "work", "$Mail"] {

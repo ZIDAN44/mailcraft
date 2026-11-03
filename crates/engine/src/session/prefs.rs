@@ -116,8 +116,13 @@ pub struct Prefs {
     pub pane_order: Vec<String>,
     /// When flagged messages are due (Follow Up › Today, Tomorrow…): Message-ID → local day.
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "checked_days")]
     pub follow_up: BTreeMap<String, i64>,
+    /// When follow-ups were marked complete (Follow Up › Mark Complete): Message-ID → local day.
+    /// The mark itself is the message's [`FOLLOW_UP_COMPLETE`](mailcraft_model::FOLLOW_UP_COMPLETE)
+    /// keyword; the day goes into an Outlook data file with it.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "checked_days")]
+    pub follow_up_done: BTreeMap<String, i64>,
     /// The imports' due-day notes taken into `follow_up`, by account: each note's fingerprint
     /// ([`Session::imported_follow_up_at_start`]). Saved with `follow_up`, it says at the next
     /// start that the note's days are kept here, so the note can go.
@@ -254,6 +259,7 @@ impl Default for Prefs {
             work_offline: false,
             ignored: BTreeSet::new(),
             follow_up: BTreeMap::new(),
+            follow_up_done: BTreeMap::new(),
             follow_up_taken: BTreeMap::new(),
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
@@ -290,6 +296,16 @@ pub const ACCENTS: [(&str, &str); 8] = [
     ("orange", "#b35a14"),
     ("green", "#2a7d3a"),
 ];
+
+/// Follow-up days read from disk: only what are days (a key too long or empty, a day out of
+/// [`FOLLOW_UP_DAYS`](mailcraft_model::organize::FOLLOW_UP_DAYS), past
+/// [`MAX_FOLLOW_UP`](mailcraft_model::organize::MAX_FOLLOW_UP) are left out).
+fn checked_days<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<String, i64>, D::Error> {
+    let read = <BTreeMap<String, i64> as serde::Deserialize>::deserialize(d)?;
+    let mut kept = BTreeMap::new();
+    mailcraft_model::organize::merge_follow_up(&mut kept, read);
+    Ok(kept)
+}
 
 /// An accent as it's kept: a name from [`ACCENTS`] or `#rrggbb` (lower case); `""` for
 /// MailCraft's own. `None` when it's neither.

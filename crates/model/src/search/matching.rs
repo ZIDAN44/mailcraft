@@ -432,6 +432,7 @@ fn clause(term: &Term, doc: &Doc<'_>) -> Tri {
         Term::Unread(b) => Tri::from(!m.flags.seen == *b),
         Term::Flagged(b) => Tri::from(m.flags.flagged == *b),
         Term::Keyword(k) => Tri::from(m.flags.has(k) || m.flags.has(&crate::keyword_for(k))),
+        Term::Complete => Tri::from(m.flags.follow_up_complete()),
         Term::Important => Tri::from(m.importance > 0),
         Term::Awaiting => Tri::from(doc.awaiting),
         // A keyword not in the list shows as a category too (issue #28): any but a system one.

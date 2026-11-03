@@ -262,6 +262,8 @@ pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
                 not(&mut out);
                 out.extend([atom("KEYWORD"), atom(k)]);
             }
+            // Complete and not flagged again (asked negated, it's checked here).
+            Term::Complete if !c.negated => out.extend([atom("KEYWORD"), atom(mailcraft_model::FOLLOW_UP_COMPLETE), atom("UNFLAGGED")]),
             _ => {}
         }
     }

@@ -669,6 +669,8 @@
 	Follow up. Due today.	待處理。今天到期。
 	Follow up. Due {date}.	待處理。{date} 到期。
 	Follow up. Overdue: it was due {date}.	待處理。已逾期:原定 {date} 到期。
+	Completed.	已完成。
+	Completed on {date}.	已於 {date} 完成。
 	This message was sent with high importance.	此郵件以高重要性傳送。
 	This message was sent with low importance.	此郵件以低重要性傳送。
 	Delay delivery	延遲傳遞

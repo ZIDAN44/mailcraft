@@ -273,10 +273,21 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     // What Outlook says above a message: its follow-up date, its importance.
                     let due = summary.as_ref().and_then(|m| s.follow_up_due(m));
                     let flagged = summary.as_ref().is_some_and(|m| m.flags.flagged);
+                    let complete = summary.as_ref().is_some_and(|m| m.flags.follow_up_complete());
                     let importance = summary.as_ref().map_or(0, |m| m.importance);
-                    if flagged || importance != 0 {
+                    if flagged || complete || importance != 0 {
                         ui.horizontal_wrapped(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
+                            if complete {
+                                let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                                icons::paint(ui.painter(), ir, Icon::Done, t.dim);
+                                let text = match summary.as_ref().and_then(|m| s.follow_up_done(m)) {
+                                    Some(d) => tf!("Completed on {date}.", date = crate::i18n::date(&dates::day_label(d))),
+                                    None => tl!("Completed.").to_string(),
+                                };
+                                ui.label(RichText::new(text).color(t.dim).small());
+                                ui.add_space(10.0);
+                            }
                             if flagged {
                                 let today = dates::today(&s.clock);
                                 let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());

@@ -63,7 +63,7 @@ pub(super) fn person(a: Option<&mailcraft_model::EmailAddress>) -> String {
 }
 
 /// The fixed headings an arranged list shows (for translations).
-pub const ARRANGE_HEADINGS: [&str; 13] = [
+pub const ARRANGE_HEADINGS: [&str; 14] = [
     "Under 10 KB",
     "10 to 25 KB",
     "25 to 100 KB",
@@ -72,12 +72,18 @@ pub const ARRANGE_HEADINGS: [&str; 13] = [
     "1 to 5 MB",
     "Over 5 MB",
     "Flagged",
+    "Completed",
     "Not flagged",
     "With attachments",
     "Without attachments",
     "(no subject)",
     "(nobody)",
 ];
+
+/// Where a list arranged by the flag puts a message: flagged first, then those marked complete.
+fn flag_rank(m: &Summary) -> u8 {
+    if m.flags.flagged { 2 } else { u8::from(m.flags.follow_up_complete()) }
+}
 
 /// The size range a message is shown under.
 pub(super) fn size_group(size: u32) -> &'static str {
@@ -120,7 +126,7 @@ pub fn arrange_list<S: std::borrow::Borrow<Summary>>(list: &mut [S], arrange: Ar
         let (x, y): (&Summary, &Summary) = (a.borrow(), b.borrow());
         let primary = match arrange {
             Arrange::Size => y.size.cmp(&x.size),
-            Arrange::Flag => y.flags.flagged.cmp(&x.flags.flagged),
+            Arrange::Flag => flag_rank(y).cmp(&flag_rank(x)),
             Arrange::Attachments => y.has_attachments.cmp(&x.has_attachments),
             Arrange::Date | Arrange::From | Arrange::To | Arrange::Subject => y.when().cmp(&x.when()),
         };
@@ -181,7 +187,11 @@ impl Session {
                 Arrange::To => Row::Group(m.map(|m| person(m.to.first())).unwrap_or_default()),
                 Arrange::Subject => Row::Group(m.map(|m| m.base_subject()).unwrap_or_default()),
                 Arrange::Size => Row::Header(size_group(m.map_or(0, |m| m.size))),
-                Arrange::Flag => Row::Header(if m.is_some_and(|m| m.flags.flagged) { "Flagged" } else { "Not flagged" }),
+                Arrange::Flag => Row::Header(match m.map(|m| flag_rank(m)) {
+                    Some(2) => "Flagged",
+                    Some(1) => "Completed",
+                    _ => "Not flagged",
+                }),
                 Arrange::Attachments => Row::Header(if m.is_some_and(|m| m.has_attachments) { "With attachments" } else { "Without attachments" }),
             };
             let heading = match heading {

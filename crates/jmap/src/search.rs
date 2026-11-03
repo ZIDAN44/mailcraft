@@ -53,6 +53,10 @@ pub fn search_filter(query: &str) -> Option<Value> {
             // Any keyword atom (RFC 8621 §4.1.1 allows what IMAP does): Thunderbird's `to=20do`
             // too (issue #28).
             Term::Keyword(k) if mailcraft_model::is_keyword(k) => conds.push(keyword(k, !c.negated)),
+            // Complete and not flagged again (asked negated, it's checked here).
+            Term::Complete if !c.negated => {
+                conds.extend([keyword(mailcraft_model::FOLLOW_UP_COMPLETE, true), keyword("$flagged", false)]);
+            }
             _ => {}
         }
     }

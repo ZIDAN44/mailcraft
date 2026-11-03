@@ -670,6 +670,8 @@
 	Follow up. Due today.	Assurer un suivi. Échéance aujourd'hui.
 	Follow up. Due {date}.	Assurer un suivi. Échéance : {date}.
 	Follow up. Overdue: it was due {date}.	Assurer un suivi. En retard : échéance le {date}.
+	Completed.	Terminé.
+	Completed on {date}.	Terminé le {date}.
 	This message was sent with high importance.	Ce message a été envoyé avec une importance haute.
 	This message was sent with low importance.	Ce message a été envoyé avec une importance faible.
 	Delay delivery	Différer la remise

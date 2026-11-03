@@ -671,6 +671,8 @@ month	May	مايو
 	Follow up. Due today.	متابعة. مستحقة اليوم.
 	Follow up. Due {date}.	متابعة. مستحقة في {date}.
 	Follow up. Overdue: it was due {date}.	متابعة. متأخرة: كانت مستحقة في {date}.
+	Completed.	مكتملة.
+	Completed on {date}.	اكتملت في {date}.
 	This message was sent with high importance.	أُرسلت هذه الرسالة بأهمية عالية.
 	This message was sent with low importance.	أُرسلت هذه الرسالة بأهمية منخفضة.
 	Delay delivery	تأخير التسليم

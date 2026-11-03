@@ -373,6 +373,7 @@ pub(super) fn summary_json(m: &mailcraft_model::Summary) -> Value {
         "preview": m.preview,
         "unread": !m.flags.seen,
         "flagged": m.flags.flagged,
+        "complete": m.flags.follow_up_complete(),
         "attachments": m.has_attachments,
     })
 }

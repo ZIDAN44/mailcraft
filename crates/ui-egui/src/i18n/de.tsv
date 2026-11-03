@@ -670,6 +670,8 @@
 	Follow up. Due today.	Nachverfolgung. Heute fällig.
 	Follow up. Due {date}.	Nachverfolgung. Fällig am {date}.
 	Follow up. Overdue: it was due {date}.	Nachverfolgung. Überfällig: fällig war {date}.
+	Completed.	Erledigt.
+	Completed on {date}.	Erledigt am {date}.
 	This message was sent with high importance.	Diese Nachricht wurde mit hoher Wichtigkeit gesendet.
 	This message was sent with low importance.	Diese Nachricht wurde mit niedriger Wichtigkeit gesendet.
 	Delay delivery	Übermittlung verzögern

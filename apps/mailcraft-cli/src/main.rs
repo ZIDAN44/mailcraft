@@ -337,7 +337,13 @@ fn run() -> Result<(), String> {
             outln!("{} ({} messages)", r["view"].as_str().unwrap_or(""), r["total"]);
             for m in r["messages"].as_array().into_iter().flatten() {
                 let mark = if m["unread"].as_bool() == Some(true) { "●" } else { " " };
-                let flag = if m["flagged"].as_bool() == Some(true) { "⚑" } else { " " };
+                let flag = if m["flagged"].as_bool() == Some(true) {
+                    "⚑"
+                } else if m["complete"].as_bool() == Some(true) {
+                    "✓"
+                } else {
+                    " "
+                };
                 let att = if m["attachments"].as_bool() == Some(true) { "📎" } else { "  " };
                 let when = full_time(m["date"].as_i64().unwrap_or(0), &s.clock);
                 // Who it's from doesn't add up, or it's from outside the organisation (issue #29).

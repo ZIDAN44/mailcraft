@@ -35,6 +35,15 @@ fn a_query_becomes_imap_search_keys() {
         Some(vec![a("KEYWORD"), a("to=20do"), a("NOT"), a("KEYWORD"), a("&x-moz-ab12")])
     );
     assert_eq!(imap_criteria("keyword:a]b"), None);
+    // A follow-up marked complete: the keyword on mail not flagged again; negated, left to the
+    // list (NOT of both would need an OR).
+    assert_eq!(imap_criteria("is:complete"), Some(vec![a("KEYWORD"), a("$FollowUpComplete"), a("UNFLAGGED")]));
+    assert_eq!(imap_criteria("-is:complete"), None);
+    assert_eq!(
+        mailcraft_jmap::search_filter("is:complete"),
+        Some(serde_json::json!({"operator": "AND", "conditions": [{"hasKeyword": "$FollowUpComplete"}, {"notKeyword": "$flagged"}]}))
+    );
+    assert_eq!(mailcraft_jmap::search_filter("-is:complete"), None);
     // Files' names are asked of the whole text, which finds more: so only when they're wanted,
     // never negated (NOT TEXT would leave out mail that only mentions the name).
     assert_eq!(imap_criteria("attachment:plan"), Some(vec![a("TEXT"), st("plan")]));

@@ -243,3 +243,44 @@ fn categories_from_other_programs_render_and_join_the_list() {
     frame(&ctx, &mut a, vec![]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A follow-up marked complete shows as done: the list row says so (and draws its tick where the
+/// flag was), the reading pane says on which day, and Clear Flag takes it away.
+#[test]
+fn a_completed_follow_up_shows_as_done() {
+    let (mut a, dir) = app("follow-up-complete");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
+        tree.nodes.iter().filter_map(|(_, n)| n.label().or(n.value()).map(str::to_string)).collect()
+    };
+    frame(&ctx, &mut a, vec![]);
+    let m = a.session.list[1].clone();
+    a.run("list.open", json!({"key": m.key.to_id()}));
+    a.run("mail.flag", json!({"due": "tomorrow"}));
+    a.run("mail.flag", json!({"complete": true}));
+    for dark in [Some(false), Some(true)] {
+        a.ui.dark = dark;
+        frame(&ctx, &mut a, vec![]);
+    }
+    let shown = labels(&ctx, &mut a);
+    let spoken = format!("{}, {}, ", m.from.display(), m.subject);
+    let row = shown.iter().find(|l| l.starts_with(&spoken)).cloned().unwrap_or_default();
+    assert!(row.contains("Completed") && !row.contains("Flagged"), "{row}");
+    let today = mailcraft_engine::model::dates::day_label(mailcraft_engine::model::dates::today(&a.session.clock));
+    assert!(shown.iter().any(|l| l.starts_with("Completed on ") && l.contains(&today)), "{shown:?}");
+    // Arranged by the flag, under its own heading.
+    a.run("view.arrange", json!({"by": "flag"}));
+    assert!(a.session.rows().contains(&mailcraft_engine::Row::Header("Completed")));
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.arrange", json!({"by": "date"}));
+    // Cleared: neither.
+    a.run("mail.flag", json!({"on": false}));
+    let shown = labels(&ctx, &mut a);
+    assert!(!shown.iter().any(|l| l.contains("Completed")), "{shown:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}

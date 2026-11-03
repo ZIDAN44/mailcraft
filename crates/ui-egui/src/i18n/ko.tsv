@@ -669,6 +669,8 @@
 	Follow up. Due today.	후속 조치. 오늘까지입니다.
 	Follow up. Due {date}.	후속 조치. 기한: {date}.
 	Follow up. Overdue: it was due {date}.	후속 조치. 기한 지남: {date}까지였습니다.
+	Completed.	완료됨.
+	Completed on {date}.	{date}에 완료됨.
 	This message was sent with high importance.	이 메시지는 높은 중요도로 보낸 것입니다.
 	This message was sent with low importance.	이 메시지는 낮은 중요도로 보낸 것입니다.
 	Delay delivery	배달 지연

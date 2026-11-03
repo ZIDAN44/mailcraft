@@ -671,6 +671,8 @@ month	May	מאי
 	Follow up. Due today.	מעקב. היעד היום.
 	Follow up. Due {date}.	מעקב. היעד: {date}.
 	Follow up. Overdue: it was due {date}.	מעקב. באיחור: היעד היה {date}.
+	Completed.	הושלם.
+	Completed on {date}.	הושלם ב-{date}.
 	This message was sent with high importance.	הודעה זו נשלחה בחשיבות גבוהה.
 	This message was sent with low importance.	הודעה זו נשלחה בחשיבות נמוכה.
 	Delay delivery	השהה מסירה

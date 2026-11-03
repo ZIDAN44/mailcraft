@@ -181,6 +181,7 @@ impl Query {
                         "flagged" => Some(Term::Flagged(true)),
                         "unflagged" => Some(Term::Flagged(false)),
                         "pinned" => Some(Term::Keyword(crate::PINNED.to_string())),
+                        "complete" | "completed" => Some(Term::Complete),
                         "important" => Some(Term::Important),
                         "categorized" | "categorised" => Some(Term::Categorized(Vec::new())),
                         "awaiting" | "awaitingreply" | "unanswered" => Some(Term::Awaiting),

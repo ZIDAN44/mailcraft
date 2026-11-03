@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 pub use addr::EmailAddress;
 pub use dates::zone;
 pub use signature::Signature;
-pub use summary::{Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
+pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
 // Clean Up is a part of conversations, kept under its old path.
 pub use job::{Event, HeldKey, Job, Op, Private, Revocation, Secret, SyncStatus};
 pub use thread::cleanup;

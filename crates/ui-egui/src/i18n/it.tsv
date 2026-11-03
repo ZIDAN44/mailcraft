@@ -669,6 +669,8 @@
 	Follow up. Due today.	Completamento. Scade oggi.
 	Follow up. Due {date}.	Completamento. Scade il {date}.
 	Follow up. Overdue: it was due {date}.	Completamento. In ritardo: scadeva il {date}.
+	Completed.	Completato.
+	Completed on {date}.	Completato il {date}.
 	This message was sent with high importance.	Questo messaggio è stato inviato con priorità alta.
 	This message was sent with low importance.	Questo messaggio è stato inviato con priorità bassa.
 	Delay delivery	Ritarda recapito

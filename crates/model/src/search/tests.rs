@@ -106,6 +106,13 @@ fn matching() {
     m2.importance = 1;
     m2.flags.keywords = vec!["$Pinned".into(), "work".into()];
     assert!(q("is:important is:categorized", &m2));
+    assert!(!q("is:complete", &m2));
+    m2.flags.keywords.push(crate::FOLLOW_UP_COMPLETE.into());
+    m2.flags.flagged = false;
+    assert!(q("is:complete", &m2) && q("is:completed", &m2) && !q("-is:complete", &m2));
+    // Flagged again elsewhere, the keyword left behind: flagged, as the list shows it.
+    m2.flags.flagged = true;
+    assert!(!q("is:complete", &m2) && q("-is:complete", &m2) && q("is:flagged", &m2));
     let label = Query { clauses: vec![Clause { term: Term::Categorized(vec!["$label1".into()]), negated: false }], problems: Vec::new() };
     assert_eq!(eval(&label, &m2, &""), Tri::Yes, "a keyword not in the list counts");
     m2.flags.keywords = vec!["$Pinned".into(), "$Forwarded".into(), "NonJunk".into(), "$MailFlagBit1".into()];

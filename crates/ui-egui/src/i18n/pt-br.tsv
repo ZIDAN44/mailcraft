@@ -670,6 +670,8 @@
 	Follow up. Due today.	Acompanhamento. Vence hoje.
 	Follow up. Due {date}.	Acompanhamento. Vence em {date}.
 	Follow up. Overdue: it was due {date}.	Acompanhamento. Atrasado: vencia em {date}.
+	Completed.	Concluído.
+	Completed on {date}.	Concluído em {date}.
 	This message was sent with high importance.	Esta mensagem foi enviada com alta prioridade.
 	This message was sent with low importance.	Esta mensagem foi enviada com baixa prioridade.
 	Delay delivery	Atrasar entrega

@@ -669,6 +669,8 @@
 	Follow up. Due today.	Opvolgen. Vervalt vandaag.
 	Follow up. Due {date}.	Opvolgen. Vervalt {date}.
 	Follow up. Overdue: it was due {date}.	Opvolgen. Te laat: het verviel {date}.
+	Completed.	Voltooid.
+	Completed on {date}.	Voltooid op {date}.
 	This message was sent with high importance.	Dit bericht is verzonden met hoge urgentie.
 	This message was sent with low importance.	Dit bericht is verzonden met lage urgentie.
 	Delay delivery	Bezorging uitstellen

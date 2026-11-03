@@ -67,6 +67,9 @@ pub enum Term {
     /// Carries a keyword (`keyword:x`; `category:` names are mapped to keywords by the caller,
     /// and match the keyword spelled as the name too). `is:pinned` is the `$Pinned` keyword.
     Keyword(String),
+    /// Its follow-up marked complete and not flagged again since (`is:complete`:
+    /// [`Flags::follow_up_complete`](crate::Flags::follow_up_complete)).
+    Complete,
     /// Marked high importance by its sender (`is:important`).
     Important,
     /// Carries one of these keywords (`is:categorized`: the caller fills in its categories'

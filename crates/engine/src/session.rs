@@ -313,6 +313,10 @@ pub enum Undo {
     Move { account: String, to: String, back: Vec<(String, String)> },
     /// Flags or keywords changed: the changes that put them back.
     Ops { account: String, ops: Vec<Op> },
+    /// Follow-ups changed (flagged, cleared, marked complete): the flag and keyword changes that
+    /// put them back, by account, and each message's due and done days as they were, by its
+    /// follow-up id.
+    FollowUp { ops: Vec<(String, Vec<Op>)>, days: Vec<(String, Option<i64>, Option<i64>)> },
 }
 
 /// Changes Undo remembers.
