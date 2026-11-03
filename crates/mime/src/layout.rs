@@ -307,7 +307,14 @@ impl Node {
     /// How wide it wants to be: `width`, held to `max-width` (a 600-pixel column that narrows on
     /// a phone is `width: 100%; max-width: 600px`).
     fn width(&self) -> Option<Width> {
-        let own = self.style("width").or_else(|| self.attr("width").map(str::to_string)).and_then(|v| parse_width(&v));
+        // A style a browser can't read (a unit it doesn't know) leaves the attribute's; `auto`
+        // and the like set none.
+        let styled = self.style("width");
+        let own = match styled.as_deref().map(str::trim) {
+            Some("auto" | "inherit" | "initial" | "unset" | "fit-content" | "max-content" | "min-content") => None,
+            Some(v) => parse_width(v).or_else(|| self.attr("width").and_then(parse_width)),
+            None => self.attr("width").and_then(parse_width),
+        };
         match (own, self.style("max-width").and_then(|v| parse_width(&v))) {
             (Some(Width::Px(w)), Some(Width::Px(m))) => Some(Width::Px(w.min(m))),
             (None | Some(Width::Percent(100)), Some(Width::Px(m))) => Some(Width::Px(m)),
@@ -795,7 +802,13 @@ pub fn html_layout(html: &str) -> Vec<Block> {
         collect_css(&root, &mut css, 0);
         let mut ctx = Ctx { css, cells: 0, color: None };
         let body = find(&root, "body", 0).unwrap_or(&root);
-        let out = blocks(&body.kids, &mut ctx, 0);
+        // A body of a set width is a column of that width, as a box would be.
+        let out = if body.tag == "body" && matches!(body.width(), Some(Width::Px(_))) {
+            let column = Node { tag: "div".into(), attrs: body.attrs.clone(), kids: body.kids.iter().map(copy).collect() };
+            blocks(&[Kid::El(column)], &mut ctx, 0)
+        } else {
+            blocks(&body.kids, &mut ctx, 0)
+        };
         if ctx.cells > MAX_CELLS { Vec::new() } else { out }
     });
     match built {
@@ -804,14 +817,26 @@ pub fn html_layout(html: &str) -> Vec<Block> {
     }
 }
 
-/// A CSS or attribute width: `600`, `600px`, `80%`.
+/// A CSS or attribute width: `600`, `600px`, `450pt` (as Outlook writes them), `37.5em`, `80%`.
 fn parse_width(v: &str) -> Option<Width> {
     let v = v.trim();
     if let Some(p) = v.strip_suffix('%') {
-        return p.trim().parse::<f32>().ok().filter(|p| *p > 0.0).map(|p| Width::Percent(p.min(100.0) as u8));
+        return p.trim().parse::<f32>().ok().filter(|p| p.is_finite() && *p > 0.0).map(|p| Width::Percent(p.min(100.0) as u8));
     }
-    let px = v.trim_end_matches("px").trim().parse::<f32>().ok()?;
+    let px = length_px(v)?;
     (px >= 1.0).then(|| Width::Px(px.min(4000.0) as u32))
+}
+
+/// A CSS length in pixels: a bare number or `px`, and the absolute units (`pt`, `pc`, `in`,
+/// `cm`, `mm`) and `em` / `rem` (of a 16-pixel font), as mail written by Outlook and by email
+/// frameworks sizes its columns; `None` for anything else (`auto`, `50%`, `10vw`).
+pub(crate) fn length_px(v: &str) -> Option<f32> {
+    let v = v.trim().to_ascii_lowercase();
+    let units: [(&str, f32); 8] =
+        [("px", 1.0), ("pt", 4.0 / 3.0), ("pc", 16.0), ("in", 96.0), ("cm", 96.0 / 2.54), ("mm", 96.0 / 25.4), ("rem", 16.0), ("em", 16.0)];
+    let (number, scale) = units.iter().find_map(|(u, k)| v.strip_suffix(u).map(|n| (n, *k))).unwrap_or((v.as_str(), 1.0));
+    let n = number.trim().parse::<f32>().ok().filter(|n| n.is_finite() && *n >= 0.0)?;
+    Some((n * scale).min(100_000.0))
 }
 
 fn find<'a>(n: &'a Node, tag: &str, depth: usize) -> Option<&'a Node> {

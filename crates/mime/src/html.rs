@@ -27,12 +27,10 @@ pub struct ImageSize {
 /// Most pictures whose sizes are read from one piece of HTML.
 const MAX_SIZED: usize = 2000;
 
-/// A length in CSS pixels (`300`, `300px`), at most 4000; `None` for anything else (`auto`, `50%`,
-/// `10em`).
+/// A length in CSS pixels (`300`, `300px`, `225pt`, `3.125in`), at most 4000; `None` for anything
+/// else (`auto`, `50%`).
 fn css_px(v: &str) -> Option<u32> {
-    let v = v.trim();
-    let n = v.strip_suffix("px").unwrap_or(v).trim().parse::<f32>().ok()?;
-    (n.is_finite() && n >= 0.0).then(|| n.min(4000.0) as u32)
+    layout::length_px(v).map(|n| n.min(4000.0) as u32)
 }
 
 /// The size each `<img>` of `html` sets, in order, with its address (`src`).

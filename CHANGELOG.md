@@ -49,6 +49,7 @@ on GitHub.
 - Two MailCraft windows, or the CLI beside the app, can't overwrite each other's mail folders.
 - Opening a message no longer waits for a folder, or the calendars, to finish syncing: the account's second connection brings it (#24).
 - On IMAP accounts, a big message with attachments shows its text at once, its files listed; they download after (#24).
+- Centred columns sized in points or ems, as Outlook and email tools write them, keep their width instead of filling the window (#41).
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.

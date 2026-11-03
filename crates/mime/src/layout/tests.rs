@@ -199,6 +199,42 @@ fn a_centred_column_of_a_set_width_keeps_its_width() {
     assert!(html_layout("<p>Plain <b>mail</b></p><table><tr><td>one cell</td></tr></table>").is_empty());
 }
 
+/// Issue #41: a centred column whose width is in points (as Outlook and Word write it), in `em`
+/// or `rem` (as email frameworks write it), set on the body, or given by an attribute beside a
+/// style width a browser can't read, keeps its width instead of filling the window.
+#[test]
+fn a_centred_column_in_points_or_ems_keeps_its_width() {
+    let column = |html: &str| -> Option<(Option<Width>, Align)> {
+        fn first(b: &[Block]) -> Option<(Option<Width>, Align)> {
+            let Some(Block::Table(t)) = b.first() else { return None };
+            if matches!(t.width, Some(Width::Px(_))) {
+                return Some((t.width, t.align));
+            }
+            first(&t.rows.first()?.first()?.blocks)
+        }
+        first(&html_layout(&inline_css(html)))
+    };
+    let word = r#"<div class=WordSection1><div align=center><table class=MsoNormalTable border=0 cellspacing=0 cellpadding=0 width=600
+        style='width:450.0pt;mso-cellspacing:0cm' align=center><tr><td style='padding:0cm'><p class=MsoNormal>Hello from Outlook</p></td></tr></table></div></div>"#;
+    assert_eq!(column(word), Some((Some(Width::Px(600)), Align::Center)));
+    let framework = r#"<body style="background-color:#ffffff"><table align="center" width="100%" role="presentation"
+        style="max-width:37.5em;margin:0 auto"><tbody><tr style="width:100%"><td><p>Your code is ready.</p></td></tr></tbody></table></body>"#;
+    assert_eq!(column(framework), Some((Some(Width::Px(600)), Align::Center)));
+    assert_eq!(column(r#"<div style="width:40rem;margin:0 auto"><p>rem</p></div>"#), Some((Some(Width::Px(640)), Align::Center)));
+    assert_eq!(column(r#"<div style="width:6.25in;margin:0 auto"><p>inches</p></div>"#), Some((Some(Width::Px(600)), Align::Center)));
+    assert_eq!(column(r#"<body style="width:600px;margin:0 auto"><p>In the body itself</p></body>"#), Some((Some(Width::Px(600)), Align::Center)));
+    assert_eq!(
+        column(r#"<table width="560" align="center" style="width:35vw"><tr><td>Unread unit</td></tr></table>"#).map(|c| c.0),
+        Some(Some(Width::Px(560)))
+    );
+    // A style a browser reads still wins over the attribute, and `auto` sets no width.
+    assert!(html_layout(r#"<table width="600" align="center" style="width:100%"><tr><td>Full width</td></tr></table>"#).is_empty());
+    assert!(html_layout(r#"<table width="600" style="width:auto"><tr><td>Auto</td></tr></table>"#).is_empty());
+    assert_eq!(length_px("12pt"), Some(16.0));
+    assert_eq!(length_px("2.54cm").map(f32::round), Some(96.0));
+    assert_eq!((length_px("-3px"), length_px("1e9px"), length_px("NaNpx"), length_px("10vw")), (None, Some(100_000.0), None, None));
+}
+
 /// A business card (issue #11): the photo's column as wide as the photo, the details beside it.
 #[test]
 fn a_photo_column_is_as_wide_as_its_photo() {
