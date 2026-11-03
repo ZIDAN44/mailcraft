@@ -214,10 +214,11 @@ fn lines(text: &str) -> Vec<Line> {
     let text = text.get(..end).unwrap_or_default();
     let mut unfolded: Vec<String> = Vec::new();
     for l in text.split('\n') {
-        let l = l.strip_suffix('\r').unwrap_or(l);
+        // A CR inside a line is taken out, as writing takes it out: what's read is what's written.
+        let l = l.replace('\r', "");
         match (l.strip_prefix(' ').or_else(|| l.strip_prefix('\t')), unfolded.last_mut()) {
             (Some(rest), Some(prev)) => prev.push_str(rest),
-            _ => unfolded.push(l.to_string()),
+            _ => unfolded.push(l),
         }
     }
     unfolded
@@ -401,8 +402,14 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
     let mut depth_in_event = 0usize;
     // Which of the event's CLASS, TRANSP and busy status have come (kept past the cap).
     let mut showing_seen = 0u8;
+    // The lines outside every event, where its to-dos are: an event's are its own, whatever they
+    // begin and end, so a to-do it holds is never one of the file's too.
+    let mut outside: Vec<&Line> = Vec::new();
     for l in &all {
         let n = l.name.as_str();
+        if ev.is_none() && !(n == "BEGIN" && l.value.trim().eq_ignore_ascii_case("VEVENT")) {
+            outside.push(l);
+        }
         if n == "BEGIN" {
             let what = l.value.trim().to_ascii_uppercase();
             if what == "VEVENT" && ev.is_none() {
@@ -546,7 +553,7 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             }
         }
     }
-    cal.tasks = read_tasks(&all, &zones);
+    cal.tasks = read_tasks(&outside, &zones);
     cal
 }
 
@@ -565,6 +572,46 @@ fn fold(line: &str, out: &mut String) {
         width += n;
     }
     out.push_str("\r\n");
+}
+
+/// Lines kept as written (an event's or a task's, a zone's definition), made whole to write back:
+/// line breaks taken out, every component they begin ended (by its own name), an `END` that ends
+/// nothing left out, and a component named in `left_out` left out with all it holds (a `VEVENT`
+/// in a task would begin an event when read back). Read back, they begin and end what they did.
+fn whole<'a>(raw: impl IntoIterator<Item = &'a String>, left_out: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    // The components open around the line: each one's name, and whether it's written.
+    let mut open: Vec<(String, bool)> = Vec::new();
+    for r in raw {
+        let s = r.replace(['\r', '\n'], "");
+        // Not a folded line's next part, nor nothing.
+        let s = s.trim_start_matches([' ', '\t']);
+        let Some(l) = parse_line(s) else { continue };
+        let writing = open.iter().all(|(_, w)| *w);
+        match l.name.as_str() {
+            "BEGIN" => {
+                let name = l.value.trim().to_string();
+                let w = writing && !left_out.iter().any(|x| name.eq_ignore_ascii_case(x));
+                if w {
+                    out.push(s.to_string());
+                }
+                open.push((name, w));
+            }
+            "END" => {
+                if let Some((name, true)) = open.pop() {
+                    out.push(format!("END:{name}"));
+                }
+            }
+            _ if writing => out.push(s.to_string()),
+            _ => {}
+        }
+    }
+    while let Some((name, w)) = open.pop() {
+        if w {
+            out.push(format!("END:{name}"));
+        }
+    }
+    out
 }
 
 fn stamp(t: i64) -> String {
@@ -664,7 +711,7 @@ fn write_one(e: &CalEvent, now: i64, purpose: Purpose, out: &mut String) {
     for a in &e.attendees {
         lines.push(mailbox("ATTENDEE", a, client));
     }
-    lines.extend(e.extra.iter().filter(|x| purpose == Purpose::Server || !is_guest_copy_line(x)).map(|x| x.replace(['\r', '\n'], "")));
+    lines.extend(whole(e.extra.iter().filter(|x| purpose == Purpose::Server || !is_guest_copy_line(x)), &[]));
     lines.push("END:VEVENT".into());
     for l in lines {
         fold(&l, out);
@@ -714,8 +761,10 @@ fn write_all(events: &[CalEvent], tasks: &[crate::pim::Task], method: Option<&st
             None => continue,
         };
         written.push(&e.tzid);
-        for l in definition {
-            fold(&l.replace(['\r', '\n'], ""), &mut out);
+        // Whole, and holding no event, task or calendar: a definition cut short, or with one of
+        // those in it, would swallow what's written after it.
+        for l in whole(&definition, &["VEVENT", "VTODO", "VCALENDAR"]) {
+            fold(&l, &mut out);
         }
     }
     for e in events {

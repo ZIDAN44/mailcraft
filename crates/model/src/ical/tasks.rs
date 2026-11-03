@@ -34,8 +34,9 @@ fn day_of(zones: &FileZones, l: &Line) -> Option<i64> {
     Some(zones.local.local(t).div_euclid(86_400).saturating_mul(86_400))
 }
 
-/// The tasks in a calendar file's lines (those at its top level: one nested in an event isn't).
-pub(super) fn read_tasks(all: &[Line], zones: &FileZones) -> Vec<Task> {
+/// The tasks in a calendar file's lines outside its events (those at its top level: one nested
+/// in another component isn't).
+pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
     let mut out = Vec::new();
     let mut cur: Option<Reading<'_>> = None;
     // Components open around the line: outside a task, those besides the calendar itself; in
@@ -46,7 +47,7 @@ pub(super) fn read_tasks(all: &[Line], zones: &FileZones) -> Vec<Task> {
     let mut depth = 0usize;
     let mut in_alarm = false;
     let mut keep = false;
-    for l in all {
+    for &l in all {
         let what = || l.value.trim().to_ascii_uppercase();
         match l.name.as_str() {
             "BEGIN" => {
@@ -225,7 +226,7 @@ pub fn write_task(t: &Task, now: i64, out: &mut String) {
     if let Some(r) = &t.rrule {
         lines.push(format!("RRULE:{}", clean(r)));
     }
-    lines.extend(t.extra.iter().map(|x| clean(x)));
+    lines.extend(whole(&t.extra, &["VEVENT"]));
     if let Some(at) = t.reminder {
         lines.extend([
             "BEGIN:VALARM".to_string(),

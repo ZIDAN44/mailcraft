@@ -105,3 +105,80 @@ fn todo_past_the_kept_lines_stays_whole() {
     let back = parse(&write_calendar(&[], &cal.tasks, 0), 0);
     assert_eq!(back.tasks.iter().map(|t| t.uid.as_str()).collect::<Vec<_>>(), ["a", "b"]);
 }
+
+/// The tasks and events in a calendar written and read back.
+fn round_trip(text: &str) -> (usize, usize, usize, usize) {
+    let cal = parse(text, 3600);
+    let back = parse(&write_calendar(&cal.events, &cal.tasks, 0), 3600);
+    (cal.tasks.len(), back.tasks.len(), cal.events.len(), back.events.len())
+}
+
+/// A to-do inside an event is the event's, whatever stray `END`s come before it (found by
+/// fuzzing: it was read as the file's too, and written inside the event and after it).
+#[test]
+fn todo_in_an_event_is_the_events() {
+    let text = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e\r\nEND:VTODO\r\nBEGIN:VTODO\r\nUID:t\r\nEND:VTODO\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let cal = parse(text, 0);
+    assert!(cal.tasks.is_empty());
+    assert_eq!(cal.events[0].extra, ["BEGIN:VTODO", "UID:t", "END:VTODO"]);
+    assert_eq!(round_trip(text), (0, 0, 1, 1));
+}
+
+/// What an event or a zone keeps as written never swallows the to-dos written after it: an
+/// `END` with another name that ends what an event holds, a zone cut off at the end of the file,
+/// a CR inside a line (found by fuzzing: the to-do after them was lost).
+#[test]
+fn todos_after_kept_lines_come_back() {
+    let in_event = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e\r\nBEGIN:X\r\nEND:VCALENDAR\r\nEND:VEVENT\r\nBEGIN:VTODO\r\nUID:t\r\nEND:VTODO\r\n";
+    assert_eq!(round_trip(in_event), (1, 1, 1, 1));
+    assert!(parse(in_event, 0).events[0].extra.contains(&"END:VCALENDAR".to_string()));
+    assert!(write_calendar(&parse(in_event, 0).events, &[], 0).contains("BEGIN:X\r\nEND:X\r\n"));
+    let zone_cut = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e\r\nDTSTART;TZID=Nowhere:20261103T100000\r\nEND:VEVENT\r\n\
+BEGIN:VTODO\r\nUID:t\r\nEND:VTODO\r\nBEGIN:VTIMEZONE\r\nTZID:Nowhere\r\nBEGIN:STANDARD\r\nTZOFFSETTO:+0100\r\nBEGIN:VTODO\r\n";
+    assert_eq!(round_trip(zone_cut), (1, 1, 1, 1));
+    let cr =
+        "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nX-A:1\rBEGIN:VEVENT\r\nEND:VTODO\r\nBEGIN:VTODO\r\nUID:u\r\nX-B:\rEND:VTODO\r\nEND:VTODO\r\n";
+    assert_eq!(round_trip(cr), (2, 2, 0, 0));
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(2000))]
+
+    /// Any calendar, however its components begin and end, writes back with as many to-dos and
+    /// events as it was read with.
+    #[test]
+    fn todos_and_events_survive_writing(picks in proptest::collection::vec(0usize..PIECES.len(), 0..40)) {
+        let text: String = picks.iter().filter_map(|i| PIECES.get(*i)).copied().collect();
+        let (tasks, tasks_back, events, events_back) = round_trip(&text);
+        proptest::prop_assert_eq!((tasks, events), (tasks_back, events_back), "{:?}", text);
+    }
+}
+
+/// What the proptest builds calendars of.
+const PIECES: &[&str] = &[
+    "BEGIN:VCALENDAR\r\n",
+    "END:VCALENDAR\r\n",
+    "BEGIN:VEVENT\r\n",
+    "END:VEVENT\r\n",
+    "BEGIN:VTODO\r\n",
+    "END:VTODO\r\n",
+    "BEGIN:VALARM\r\n",
+    "END:VALARM\r\n",
+    "BEGIN:VTIMEZONE\r\n",
+    "END:VTIMEZONE\r\n",
+    "BEGIN:STANDARD\r\n",
+    "END:STANDARD\r\n",
+    "BEGIN:X\r\n",
+    "END:X\r\n",
+    "UID:a\r\n",
+    "TZID:Z\r\n",
+    "DTSTART;TZID=Z:20261103T100000\r\n",
+    "DUE:20261105\r\n",
+    "TRIGGER:-PT1H\r\n",
+    "TZOFFSETTO:+0100\r\n",
+    "X-A:\r",
+    "BEG\rIN:VTODO\r\n",
+    " IN:VEVENT\r\n",
+    "\u{0}\r\n",
+    "BEGIN:VTARY:x;RELATED=END:-PT1H\r\n",
+];
