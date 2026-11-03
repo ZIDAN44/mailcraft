@@ -47,6 +47,8 @@ pub(super) struct Owned {
     pub(super) files: Vec<File>,
     /// Where its source is in the cache: its files left there are read from it when written.
     pub(super) key: MessageKey,
+    /// Its class when what it is says so: signed or encrypted mail, a report ([`super::kinds`]).
+    pub(super) kind: Option<&'static str>,
     /// Its header block, as it came (`PidTagTransportMessageHeaders`).
     pub(super) headers: String,
     pub(super) in_reply_to: String,
@@ -62,9 +64,9 @@ pub(super) struct Owned {
 }
 
 impl Owned {
-    /// Its class (PidTagMessageClass).
+    /// Its class (PidTagMessageClass): what it is, else a meeting's mail, else `IPM.Note`.
     pub(super) fn class(&self) -> &'static str {
-        self.meeting.as_ref().map_or("IPM.Note", |m| m.class)
+        self.kind.or(self.meeting.as_ref().map(|m| m.class)).unwrap_or("IPM.Note")
     }
 
     /// The bytes it holds until it is written: its text, its files' (not those left in the
@@ -140,8 +142,16 @@ pub(super) fn owned_in(raw: &[u8], received: i64, state: State, owner: &super::c
         recipients.extend(list.iter().filter(|a| !a.email.is_empty()).map(|a| (a.name.clone(), a.email.clone(), kind)));
     }
     let headers = header_block(raw);
-    let meeting = if path.is_empty() { super::meeting::of(raw, &p, owner) } else { None };
-    let files = super::files::of(raw, &p, path, owner);
+    // Signed or encrypted mail is its one smime.p7m; other mail its files and attached messages.
+    let (body, html, files, kind, meeting) = match super::kinds::protected(raw, &p) {
+        Some(s) => (s.body, s.html, vec![s.file], Some(s.class), None),
+        None => {
+            let meeting = if path.is_empty() { super::meeting::of(raw, &p, owner) } else { None };
+            let kind = super::kinds::report(&headers, raw, &p);
+            let files = super::files::of(raw, &p, path, owner);
+            (p.text.clone(), mime::html_body(raw), files, kind, meeting)
+        }
+    };
     let field = |name: &str| header_value(&headers, name).unwrap_or_default();
     let importance = match field("Importance").to_ascii_lowercase().as_str() {
         "high" => 2,
@@ -163,14 +173,15 @@ pub(super) fn owned_in(raw: &[u8], received: i64, state: State, owner: &super::c
         subject: p.subject,
         from: (p.from.name, p.from.email),
         recipients,
-        body: p.text,
-        html: mime::html_body(raw),
+        body,
+        html,
         message_id: bracket(&p.message_id),
         received: filetime(if received > 0 { received } else { p.date }),
         // No `Date:`: no submit time, not 1970.
         date: if p.date > 0 { filetime(p.date) } else { 0 },
         files,
         key: MessageKey::default(),
+        kind,
         headers: if headers.len() <= MAX_HEADERS { headers } else { String::new() },
         in_reply_to: bracket(&p.in_reply_to),
         references: p.references.iter().map(|id| bracket(id)).collect::<Vec<_>>().join(" "),

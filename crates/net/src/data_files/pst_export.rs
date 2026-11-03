@@ -7,9 +7,9 @@
 //! its addresses (Bcc too), text and HTML bodies, attachments and header block, and with what the
 //! store keeps of it: read or not, a draft, flagged (and when it's due), answered or forwarded,
 //! its categories, importance and sensitivity ([`item`]); a meeting's request, cancellation or
-//! answer as Outlook's meeting mail, with the meeting's own properties ([`meeting`]); an attached
-//! message as the message it is, and files of any size, a big one read from the cache as it's
-//! written ([`files`]).
+//! answer as Outlook's meeting mail, with the meeting's own properties ([`meeting`]); signed and
+//! encrypted mail and reports as Outlook keeps them ([`kinds`]); an attached message as the
+//! message it is, and files of any size, a big one read from the cache as it's written ([`files`]).
 //! Messages only known by their headers (never opened, on an account that keeps headers only)
 //! are counted as skipped. The account's calendar, contacts, contact groups, notes and tasks go
 //! in as Outlook's own items, in the file's Calendar, Contacts, Notes and Tasks folders
@@ -42,6 +42,7 @@ mod calendar;
 mod contact;
 mod files;
 mod item;
+mod kinds;
 mod meeting;
 mod pattern;
 mod pim;
@@ -281,6 +282,13 @@ fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, cre
             log::info!("the data file's {special:?} can't be recorded: {e}");
         }
     }
+}
+
+/// The class an export gives the message in `raw` (signed, encrypted, a report, meeting mail or
+/// a note), its files and attached messages read as it reads them. For the fuzz target.
+#[doc(hidden)]
+pub fn message_class(raw: &[u8]) -> Option<&'static str> {
+    item::owned(raw, 0, item::State::default(), &calendar::Owner::default()).map(|m| m.class())
 }
 
 /// A task's rule as the pattern an export writes for a task whose first day is `from`, and

@@ -1,8 +1,17 @@
-//! Mail that is more than a note through a data file: attached messages, exported as Outlook
-//! keeps them and read back by the import.
+//! Mail that is more than a note through a data file: attached messages, signed and encrypted
+//! mail, meeting mail and reports, exported as Outlook keeps them and read back by the import.
 
 use super::*;
+use mailcraft_mime::smime::{self, Protection};
 use outlook_pst::messaging::attachment::{Attachment as _, AttachmentData, UnicodeAttachment};
+
+/// The S/MIME fixtures were made on 2026-10-24; their certificates run for two years.
+const NOW: i64 = 1_792_900_000;
+
+fn riley() -> mailcraft_smime::Identity {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../smime/testdata/riley-aes.p12");
+    mailcraft_smime::read_p12(&std::fs::read(path).unwrap(), "secret").unwrap()
+}
 
 fn scratch(label: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-kinds-{label}-{}", std::process::id()));
@@ -139,5 +148,119 @@ fn attached_messages_go_in_as_messages() {
     let p = mime::parse(&raw).unwrap();
     assert_eq!(p.attachments.len(), 1);
     assert_eq!(mime::attachment_data(&raw, p.attachments[0].index).as_deref(), Some(&b"found it"[..]));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A clear-signed message goes in as `IPM.Note.SMIME.MultipartSigned` and comes back with its
+/// signature verifying over the same bytes; an encrypted one as `IPM.Note.SMIME`, its body empty,
+/// and it still decrypts; an opaque signature's CMS comes back as it was.
+#[test]
+fn signed_and_encrypted_mail_goes_in_as_outlook_keeps_it() {
+    let dir = scratch("smime");
+    let id = riley();
+    let cert = id.certificate().to_vec();
+    let mut sign = |entity: &[u8]| mailcraft_smime::sign(entity, &id, NOW, &mut rand_core::OsRng).map_err(|e| format!("{e:?}"));
+    let plain = build(&draft("Signed", "Approved, with a file.", vec![file("terms.txt", "text/plain", b"the terms")]), "s1@studio.example");
+    let signed = smime::protect(&plain, Some(&mut sign), None, false, false, "=_sig").unwrap();
+    let Protection::Signed { content, .. } = smime::protection(&signed) else { panic!("not signed") };
+    let mut encrypt = |entity: &[u8]| {
+        mailcraft_smime::encrypt(entity, std::slice::from_ref(&cert), mailcraft_smime::Cipher::Aes256Cbc, &mut rand_core::OsRng)
+            .map_err(|e| format!("{e:?}"))
+    };
+    let secret =
+        smime::protect(&build(&draft("Sealed", "Secret plans.", Vec::new()), "s2@studio.example"), None, Some(&mut encrypt), false, false, "=_e")
+            .unwrap();
+    // A made-up opaque signature: its bytes come back, whatever they hold.
+    let mut cms = vec![0x30, 0x80, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02, 0xA0, 0x80];
+    cms.extend([0x5A; 40]);
+    let outer = b"From: Riley <riley@studio.example>\r\nTo: ana@studio.example\r\nSubject: Opaque\r\nDate: Mon, 2 Nov 2026 10:00:00 +0000\r\nMessage-ID: <s3@studio.example>\r\n";
+    let opaque = smime::pkcs7_message(outer, &cms, "signed-data");
+    let (path, back) = round_trip(&dir, &[signed, secret, opaque]);
+
+    for (subject, class, mime_type) in [
+        ("Signed", "IPM.Note.SMIME.MultipartSigned", "multipart/signed"),
+        ("Sealed", "IPM.Note.SMIME", "application/pkcs7-mime"),
+        ("Opaque", "IPM.Note.SMIME", "application/pkcs7-mime"),
+    ] {
+        let m = in_file(&path, subject);
+        assert_eq!(text(m.properties().get(0x001A)).as_deref(), Some(class));
+        let files = attachments_of(&m);
+        assert_eq!(files.len(), 1, "{subject}: the signed message's file is inside it");
+        assert_eq!(text(files[0].properties().get(0x3707)).as_deref(), Some("smime.p7m"));
+        assert_eq!(text(files[0].properties().get(0x370E)).as_deref(), Some(mime_type));
+    }
+    assert_eq!(text(in_file(&path, "Signed").properties().get(0x1000)).as_deref().map(str::trim), Some("Approved, with a file."));
+    // An encrypted message's body is nothing: what it says is inside.
+    assert_eq!(text(in_file(&path, "Sealed").properties().get(0x1000)).unwrap_or_default(), "");
+
+    let raw = imported(&back, "Signed");
+    let Protection::Signed { content: back_content, signature } = smime::protection(&raw) else { panic!("not signed after the round trip") };
+    assert_eq!(back_content, content);
+    assert!(mailcraft_smime::verify(&signature, Some(&back_content)).is_ok(), "the signature verifies");
+    let raw = imported(&back, "Sealed");
+    let Protection::Encrypted(cms_back) = smime::protection(&raw) else { panic!("not encrypted after the round trip") };
+    let (entity, _) = mailcraft_smime::decrypt(&cms_back, &id, &mut rand_core::OsRng).unwrap();
+    assert!(String::from_utf8_lossy(&entity).contains("Secret plans."));
+    assert_eq!(smime::protection(&imported(&back, "Opaque")), Protection::Opaque(cms));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A report: its header, a text, its status and the message it returns.
+fn report(id: &str, kind: &str, status: &str, returned: (&str, &[u8])) -> Vec<u8> {
+    let mut raw = format!(
+        "From: Mail Delivery <postmaster@studio.example>\r\nTo: riley@studio.example\r\nSubject: Report {id}\r\n\
+         Date: Mon, 2 Nov 2026 10:00:00 +0000\r\nMessage-ID: <{id}@studio.example>\r\nMIME-Version: 1.0\r\n\
+         Content-Type: multipart/report; report-type={kind}; boundary=\"r1\"\r\n\r\n\
+         --r1\r\nContent-Type: text/plain\r\n\r\nAbout your message.\r\n\
+         --r1\r\nContent-Type: message/{kind}\r\n\r\n{status}\r\n\
+         --r1\r\nContent-Type: {}\r\n\r\n",
+        returned.0
+    )
+    .into_bytes();
+    raw.extend_from_slice(returned.1);
+    raw.extend_from_slice(b"\r\n--r1--\r\n");
+    raw
+}
+
+/// A meeting request is meeting mail with its calendar; a delivery report and a read receipt keep
+/// a report's class, and come back as reports, the returned message attached as a message.
+#[test]
+fn meeting_mail_and_reports_keep_their_classes() {
+    let dir = scratch("reports");
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:review@studio.example\r\nDTSTAMP:20261101T100000Z\r\n\
+               DTSTART:20261110T100000Z\r\nDTEND:20261110T110000Z\r\nSUMMARY:Review\r\nORGANIZER:mailto:riley@studio.example\r\n\
+               ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:ana@studio.example\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let invite = build(&draft("Review", "Join us.", vec![file("invite.ics", "text/calendar; method=REQUEST", ics.as_bytes())]), "m1@studio.example");
+    let sent = build(&draft("Proposal", "Here it is.", Vec::new()), "p1@studio.example");
+    let dsn = "Reporting-MTA: dns; mx.studio.example\r\n\r\nFinal-Recipient: rfc822; nobody@studio.example\r\nAction: failed\r\nStatus: 5.1.1";
+    let mdn =
+        "Reporting-UA: mail.studio.example\r\nFinal-Recipient: rfc822; ana@studio.example\r\nDisposition: manual-action/MDN-sent-manually; displayed";
+    let bounce = report("ndr", "delivery-status", dsn, ("message/rfc822", &sent));
+    let head = sent.get(..sent.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 2).unwrap();
+    let receipt = report("read", "disposition-notification", mdn, ("text/rfc822-headers", head));
+    let (path, back) = round_trip(&dir, &[invite, bounce, receipt]);
+
+    let class = |subject: &str| text(in_file(&path, subject).properties().get(0x001A));
+    assert_eq!(class("Review").as_deref(), Some("IPM.Schedule.Meeting.Request"));
+    assert_eq!(class("Report ndr").as_deref(), Some("REPORT.IPM.Note.NDR"));
+    assert_eq!(class("Report read").as_deref(), Some("REPORT.IPM.Note.IPNRN"));
+    // The bounce's returned message is an attached message in the file.
+    let files = attachments_of(&in_file(&path, "Report ndr"));
+    let attached = files.iter().find_map(|a| a.embedded_message()).unwrap();
+    assert_eq!(text(attached.properties().get(0x0037)).as_deref(), Some("Proposal"));
+
+    let raw = imported(&back, "Review");
+    let p = mime::parse(&raw).unwrap();
+    let cal = p.attachments.iter().find(|a| a.mime.starts_with("text/calendar")).unwrap();
+    assert!(mime::attachment_text(&raw, cal.index).unwrap().contains("METHOD:REQUEST"));
+    for (subject, kind, returned) in
+        [("Report ndr", "delivery-status", "message/rfc822"), ("Report read", "disposition-notification", "text/rfc822-headers")]
+    {
+        let raw = imported(&back, subject);
+        let text = String::from_utf8_lossy(&raw);
+        assert!(text.contains(&format!("multipart/report; report-type={kind}")), "{text}");
+        let p = mime::parse(&raw).unwrap();
+        assert!(p.attachments.iter().any(|a| a.mime == returned), "{subject}: {:?}", p.attachments);
+    }
     let _ = std::fs::remove_dir_all(&dir);
 }
