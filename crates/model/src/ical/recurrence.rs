@@ -180,12 +180,22 @@ pub(super) fn month_day(y: i64, m: u32, md: i32) -> Option<i64> {
 
 /// Every start of a (possibly recurring) event, from its first, up to `before`. A rule repeats at
 /// the same wall-clock time in the event's zone (09:00 stays 09:00 there when summer time
-/// starts), on that zone's days; each occurrence is then turned into UTC on its own date.
+/// starts), on that zone's days; each occurrence is then turned into UTC on its own date. An
+/// hourly, minutely or secondly rule steps from the start by so long, on the days it allows.
 pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
     let Some(rule) = e.rrule.as_deref().map(Rule::parse).filter(|r| !r.freq.is_empty()) else {
         return vec![e.start];
     };
     let zone = zone_of(e);
+    let step = match rule.freq.as_str() {
+        "HOURLY" => Some(3600i64),
+        "MINUTELY" => Some(60),
+        "SECONDLY" => Some(1),
+        _ => None,
+    };
+    if let Some(step) = step {
+        return within_days(e, &rule, step.saturating_mul(rule.interval), zone.as_ref(), before);
+    }
     let local_start = zone.as_ref().map_or(e.start, |z| z.local(e.start));
     let start_day = local_start.div_euclid(86_400);
     let time = local_start.rem_euclid(86_400);
@@ -226,6 +236,35 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
         if steps > MAX_STEPS {
             break;
         }
+    }
+    out
+}
+
+/// The starts of an hourly, minutely or secondly series `e` (its `rule`), `step` seconds apart,
+/// on the days its rule allows where it is (`zone`), up to `before`.
+fn within_days(e: &CalEvent, rule: &Rule, step: i64, zone: Option<&EventZone>, before: i64) -> Vec<i64> {
+    let mut out = Vec::new();
+    let mut produced = 0usize;
+    for k in 0..MAX_STEPS {
+        let Some(t) = i64::try_from(k).ok().and_then(|k| k.checked_mul(step)).and_then(|d| e.start.checked_add(d)) else { break };
+        let local = zone.map_or(t, |z| z.local(t));
+        let past_until = match rule.until {
+            Some(Until::Utc(u)) => t > u,
+            Some(Until::Local(u)) => local > u,
+            None => false,
+        };
+        if past_until || t >= before {
+            break;
+        }
+        let day = local.div_euclid(86_400);
+        if !rule.weekday_ok(day) || !rule.month_day_ok(day) || !(rule.by_month.is_empty() || rule.by_month.contains(&civil_from_days(day).1)) {
+            continue;
+        }
+        produced += 1;
+        if rule.count.is_some_and(|c| produced > c) || out.len() >= MAX_OCCURRENCES * 10 {
+            break;
+        }
+        out.push(t);
     }
     out
 }

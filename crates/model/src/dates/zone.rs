@@ -128,6 +128,12 @@ impl Zone {
         }
     }
 
+    /// Its Windows name (`W. Europe Standard Time`), when it is the zone CLDR gives for one.
+    pub fn windows_name(&self) -> Option<&'static str> {
+        let name = self.name()?;
+        WINDOWS.iter().find(|(iana, _)| *iana == name).map(|(_, w)| *w)
+    }
+
     /// Its IANA name, if it has one.
     pub fn name(&self) -> Option<&'static str> {
         match self {
@@ -215,10 +221,16 @@ mod tests {
         for junk in ["", "Mars/Olympus", "+99", "+", "/", "//////////", &"a/".repeat(500), "-0x:00", "+é"] {
             assert_eq!(Zone::named(junk), None, "{junk}");
         }
-        // Every Windows name stands for a zone of the database.
+        // Every Windows name stands for a zone of the database, and that zone gives it back.
         for (iana, w) in WINDOWS {
             assert!(Zone::named(iana).is_some() && Zone::named(w).is_some(), "{w} → {iana}");
+            let zone = Zone::named(iana).unwrap();
+            if zone.name().is_some() {
+                assert_eq!(zone.windows_name(), Some(*w));
+            }
         }
+        assert_eq!(Zone::named("Europe/Lisbon").and_then(|z| z.windows_name()), None);
+        assert_eq!(Zone::Fixed(3600).windows_name(), None);
     }
 
     #[test]

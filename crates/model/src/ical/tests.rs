@@ -304,7 +304,8 @@ fn recurrences() {
     // Endless rules stop at the window and the caps.
     let e = mk("FREQ=DAILY", mon);
     assert_eq!(starts(&e, mon + 10 * 86_400).len(), 10);
-    assert!(starts(&mk("FREQ=SECONDLY", mon), i64::MAX).is_empty());
+    // An endless secondly rule stops at the cap of occurrences.
+    assert_eq!(starts(&mk("FREQ=SECONDLY", mon), i64::MAX).len(), MAX_OCCURRENCES * 10);
     assert!(starts(&mk("FREQ=DAILY;BYMONTH=13", mon), mon + 400 * 86_400).len() <= 400);
 
     // Occurrences in a window, with an exception and a moved instance.

@@ -9,7 +9,9 @@
 //!
 //! Recurrence (`RRULE`) covers what calendars use day to day: daily, weekly, monthly and yearly
 //! with `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` (with ordinals for monthly and yearly rules),
-//! `BYMONTHDAY`, `BYMONTH` and `BYSETPOS`. A series repeats at its wall-clock time in its zone
+//! `BYMONTHDAY`, `BYMONTH` and `BYSETPOS`; hourly, minutely and secondly ones every so long
+//! from the start, on the days `BYDAY`, `BYMONTHDAY` and `BYMONTH` allow. A series repeats at its
+//! wall-clock time in its zone
 //! (each occurrence turned into UTC on its own date, so summer time doesn't move it), on that
 //! zone's days; `EXDATE` removes occurrences and `RECURRENCE-ID` instances replace them, both
 //! matched as instants. Expansion is capped.
@@ -39,9 +41,11 @@ pub use showing::*;
 use tasks::*;
 pub use tasks::{TASK_STATUS, write_task};
 use zones::*;
+pub use zones::{ZoneChange, ZoneRule, wall_clock, zone_rule};
 
-/// The most occurrences produced for one event in one expansion.
-const MAX_OCCURRENCES: usize = 2000;
+/// The most occurrences produced for one event in one expansion (and written, one by one, for a
+/// series a format can't keep as its rule).
+pub const MAX_OCCURRENCES: usize = 2000;
 /// The most rule iterations tried (rules that rarely match).
 const MAX_STEPS: usize = 50_000;
 /// The longest input read: as much as a file opened is (a calendar exported with its events' files reads

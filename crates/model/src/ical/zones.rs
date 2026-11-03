@@ -322,3 +322,78 @@ pub(super) fn zone_definition(id: &str, zone: Zone, year: i64) -> Vec<String> {
     out.push("END:VTIMEZONE".into());
     out
 }
+
+/// When the clocks change to one time or the other, as Outlook keeps it (MS-OXOCAL 2.2.1.39's
+/// SYSTEMTIME in "day of month" form): the month, which of its weekdays (1 to 4, 5 the last), the
+/// weekday (0 Sunday) and the local time on the clock before the change, in seconds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ZoneChange {
+    pub month: u32,
+    pub nth: u32,
+    pub weekday: u32,
+    pub time: i64,
+}
+
+/// An event's zone in a year as Outlook keeps a zone (PidLidTimeZoneStruct, a TZRULE): its
+/// standard and summer offsets (seconds east of UTC; the same when it has no summer time) and,
+/// when the clocks change twice that year, when each starts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ZoneRule {
+    pub standard: i64,
+    pub daylight: i64,
+    pub to_standard: Option<ZoneChange>,
+    pub to_daylight: Option<ZoneChange>,
+}
+
+/// The rule of the zone `e`'s times are in (its `TZID`, the database's or the file's), as its
+/// clocks change in `year`; `None` for UTC, all-day and floating events. A zone whose clocks change
+/// other than twice that year is its offset at the event's start, all year.
+pub fn zone_rule(e: &CalEvent, year: i64) -> Option<ZoneRule> {
+    let zone = zone_of(e)?;
+    let offset = |t: i64| zone.local(t).saturating_sub(t);
+    let year = year.clamp(1971, 9998);
+    let (from, to) = (days_from_civil(year, 1, 1) * 86_400, days_from_civil(year + 1, 1, 1) * 86_400);
+    let mut changes: Vec<(i64, i64, i64)> = Vec::new();
+    let mut before = offset(from);
+    let mut t = from;
+    while t < to && changes.len() < 4 {
+        let next = t + 86_400;
+        let after = offset(next);
+        if after != before {
+            let (mut lo, mut hi) = (t, next);
+            while hi - lo > 1 {
+                let mid = lo + (hi - lo) / 2;
+                if offset(mid) == after { hi = mid } else { lo = mid }
+            }
+            changes.push((hi, before, after));
+            before = after;
+        }
+        t = next;
+    }
+    let change = |(at, from, _): (i64, i64, i64)| {
+        let local = at.saturating_add(from);
+        let day = local.div_euclid(86_400);
+        let (y, m, d) = civil_from_days(day);
+        let month_len = month_day(y, m, -1).map_or(31, |last| last - days_from_civil(y, m, 1) + 1);
+        let nth = if i64::from(d) + 7 > month_len { 5 } else { (d - 1) / 7 + 1 };
+        let weekday = u32::try_from((day + 4).rem_euclid(7)).unwrap_or(0);
+        ZoneChange { month: m, nth, weekday, time: local.rem_euclid(86_400) }
+    };
+    match changes[..] {
+        [a, b] => {
+            // Summer time is the change that puts the clocks forward.
+            let (summer, winter) = if a.2 > a.1 { (a, b) } else { (b, a) };
+            Some(ZoneRule { standard: winter.2, daylight: summer.2, to_standard: Some(change(winter)), to_daylight: Some(change(summer)) })
+        }
+        _ => {
+            let o = offset(e.start);
+            Some(ZoneRule { standard: o, daylight: o, to_standard: None, to_daylight: None })
+        }
+    }
+}
+
+/// The wall-clock time (seconds since the epoch, as if it were UTC) of the instant `t` where `e`
+/// is: in its zone, else `t` itself (UTC, all-day and floating events).
+pub fn wall_clock(e: &CalEvent, t: i64) -> i64 {
+    zone_of(e).map_or(t, |z| z.local(t))
+}
