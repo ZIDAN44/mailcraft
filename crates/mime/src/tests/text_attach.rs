@@ -146,6 +146,29 @@ fn other_text_files_are_what_they_were() {
     assert_eq!(attachment_data(&raw, 2).as_deref(), Some(&b"@@not base64@@"[..]));
 }
 
+/// A file moved out of its parse ([`attachment_data_moved`], for big files) is what
+/// [`attachment_data`] copies out: a decoded file, a file sent as it is, a text file, an attached
+/// message, an empty file; and nothing for an attachment the message doesn't have.
+#[test]
+fn a_file_moved_out_of_its_parse_is_the_file() {
+    let inner = message(&[(file("text/plain", "inner.txt", "7bit"), LATIN.to_vec())]);
+    let bin: Vec<u8> = (0..=255u8).cycle().take(5000).collect();
+    let raw = message(&[
+        (file("application/octet-stream", "b64.bin", "base64"), base64(&bin).into_bytes()),
+        (file("application/octet-stream", "raw.bin", "8bit"), b"as it is \xff".to_vec()),
+        (file("text/plain; charset=windows-1252", "latin.txt", "quoted-printable"), quoted_printable(LATIN).into_bytes()),
+        ("Content-Type: message/rfc822\r\nContent-Disposition: attachment; filename=\"in.eml\"".to_string(), inner),
+        (file("application/octet-stream", "empty.bin", "base64"), Vec::new()),
+    ]);
+    let p = parse(&raw).unwrap();
+    assert_eq!(p.attachments.len(), 5, "{:?}", p.attachments);
+    for a in &p.attachments {
+        assert_eq!(attachment_data_moved(&raw, a.index), attachment_data(&raw, a.index), "{}", a.name);
+    }
+    assert_eq!(attachment_data_moved(&raw, 0).as_deref(), Some(&bin[..]));
+    assert_eq!(attachment_data_moved(&raw, 9), None);
+}
+
 proptest! {
     /// Any bytes sent as a text file, in base64 or quoted-printable, come back as they were.
     #[test]

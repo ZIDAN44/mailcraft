@@ -453,6 +453,23 @@ pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     attachments_data(raw, &[index], usize::MAX, usize::MAX).pop().map(|(_, d)| d)
 }
 
+/// [`attachment_data`] for a big file: a decoded file's bytes are moved out of the parse rather
+/// than copied, so the message and the file are held once each, not the file twice.
+pub fn attachment_data_moved(raw: &[u8], index: usize) -> Option<Vec<u8>> {
+    let mut m = MessageParser::default().parse(raw)?;
+    let at = {
+        let (found, _) = attached(&m);
+        let part = found.into_iter().find(|a| a.info.index == index)?.part;
+        part.filter(|p| matches!(p.body, mail_parser::PartType::Binary(_) | mail_parser::PartType::InlineBinary(_)))
+            .and_then(|p| m.parts.iter().position(|q| std::ptr::eq(q, p)))
+    };
+    let Some(at) = at else { return attachment_data(raw, index) };
+    match std::mem::replace(&mut m.parts.get_mut(at)?.body, mail_parser::PartType::Text(Cow::Borrowed(""))) {
+        mail_parser::PartType::Binary(data) | mail_parser::PartType::InlineBinary(data) => Some(data.into_owned()),
+        _ => None,
+    }
+}
+
 /// Attachment `index` as text to show: a text file read in the charset it names (its bytes,
 /// saved as they came, are [`attachment_data`]'s).
 pub fn attachment_text(raw: &[u8], index: usize) -> Option<String> {
