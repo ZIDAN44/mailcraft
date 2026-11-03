@@ -63,6 +63,15 @@ impl Format {
         }
     }
 
+    /// Take the messages `ids` out of the file at `path`, in one commit: their rows leave their
+    /// folders' tables, their folders count again, and the space they held is free for the next.
+    pub(super) fn delete(self, path: &Path, ids: &[NodeId]) -> io::Result<()> {
+        match self {
+            Format::Unicode => UnicodePstFile::delete_messages(path, ids).map(drop),
+            Format::Ansi => AnsiPstFile::delete_messages(path, ids).map(drop),
+        }
+    }
+
     /// Make the folders of `names` that are missing, the last with `class`.
     pub(super) fn create_folder(self, path: &Path, names: &[&str], class: &str) -> io::Result<()> {
         match self {

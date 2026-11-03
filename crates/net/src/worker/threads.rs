@@ -143,7 +143,16 @@ impl Pool {
         let store = self.store.clone();
         let spawned = std::thread::Builder::new().name("mail-export".into()).spawn(move || {
             let mut progress = |messages| {
-                sink.emit(Event::Exported { account: account.clone(), messages, skipped: 0, already: 0, occurrences: 0, done: false, error: None })
+                sink.emit(Event::Exported {
+                    account: account.clone(),
+                    messages,
+                    skipped: 0,
+                    already: 0,
+                    occurrences: 0,
+                    replaced: 0,
+                    done: false,
+                    error: None,
+                })
             };
             let event = match crate::pst_export::export(&store, &account, &name, std::path::Path::new(&path), &follow_up, &mut progress) {
                 Ok(done) => Event::Exported {
@@ -152,10 +161,11 @@ impl Pool {
                     skipped: done.skipped,
                     already: done.already,
                     occurrences: done.occurrences,
+                    replaced: done.pim_replaced,
                     done: true,
                     error: None,
                 },
-                Err(e) => Event::Exported { account, messages: 0, skipped: 0, already: 0, occurrences: 0, done: true, error: Some(e) },
+                Err(e) => Event::Exported { account, messages: 0, skipped: 0, already: 0, occurrences: 0, replaced: 0, done: true, error: Some(e) },
             };
             sink.emit(event);
         });

@@ -164,7 +164,10 @@ fn an_account_round_trips_through_a_data_file() {
     std::fs::remove_file(&file).unwrap();
     let mut ticks = 0;
     let done = export(&store, "a1", "Riley's mail", &file, &due, &mut |_| ticks += 1).unwrap();
-    assert_eq!(done, Exported { messages: 7, skipped: 1, already: 0, events: 1, occurrences: 0, tasks: 1, notes: 0, contacts: 1, pim_already: 0 });
+    assert_eq!(
+        done,
+        Exported { messages: 7, skipped: 1, already: 0, events: 1, occurrences: 0, tasks: 1, notes: 0, contacts: 1, pim_already: 0, pim_replaced: 0 }
+    );
     // The calendar is inside it too: nothing beside it.
     assert!(!dir.join("Out Calendar.ics").exists() && !dir.join("Out Contacts.vcf").exists());
     assert_eq!(UnicodePstFile::special_folder(&file, Special::Calendar).unwrap(), Some(vec!["Calendar".to_string()]));
@@ -514,3 +517,4 @@ mod big;
 mod calendar;
 mod kinds;
 mod pim;
+mod replace;

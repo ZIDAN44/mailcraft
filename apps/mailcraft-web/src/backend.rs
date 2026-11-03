@@ -716,6 +716,7 @@ impl Backend for WebBackend {
                     skipped: 0,
                     already: 0,
                     occurrences: 0,
+                    replaced: 0,
                     done: true,
                     error: Some("writing Outlook data files needs the desktop app".into()),
                 },

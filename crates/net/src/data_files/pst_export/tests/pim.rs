@@ -303,7 +303,7 @@ fn a_file_added_to_keeps_its_own_contacts() {
 
 /// Added to, a file's own item with the same name and text as one of the account's doesn't stand
 /// for it, nor do two of the account's with the same title stand for each other; one changed
-/// since it was exported goes in again (beside its earlier copy). A mail folder of the file named
+/// since it was exported goes in again, in place of its earlier copy. A mail folder of the file named
 /// as Outlook names one of its folders keeps its mail: the notes go beside it.
 #[test]
 fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
@@ -353,25 +353,26 @@ fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
     assert_eq!((done.contacts, done.notes, done.tasks, done.pim_already), (1, 1, 1, 0), "{done:?}");
     assert_eq!(UnicodePstFile::special_folder(&file, Special::Notes).unwrap(), Some(vec!["Notes (2)".to_string()]));
 
-    // The card's phone changed, the task done, a second task of the same title: those go in.
+    // The card's phone changed, the task done, a second task of the same title: those go in,
+    // the card and the task in place of their earlier copies, the file's own card kept.
     pim.cards[0].card.phones[0].value = "+1 2".into();
     pim.tasks[0].task.status = TaskStatus::Completed;
     pim.tasks.push(water("t2", 11));
     store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
     let done = export(&store, "a1", "Mine", &file, NONE, &mut |_| {}).unwrap();
-    assert_eq!((done.contacts, done.notes, done.tasks, done.pim_already), (1, 0, 2, 1), "{done:?}");
+    assert_eq!((done.contacts, done.notes, done.tasks, done.pim_already, done.pim_replaced), (1, 0, 2, 1, 2), "{done:?}");
 
     let back = Store::open(dir.join("back")).unwrap();
     let imported = crate::pst::import(&file, &back, "b1", &mut |_| {}).unwrap();
-    assert_eq!((imported.messages, imported.contacts, imported.notes, imported.tasks), (2, 3, 1, 3), "{imported:?}");
+    assert_eq!((imported.messages, imported.contacts, imported.notes, imported.tasks), (2, 2, 1, 2), "{imported:?}");
     let got: Pim = back.load_account_doc("b1", mailcraft_model::pim::PIM_DOC).unwrap();
     let mut phones: Vec<Vec<String>> = got.cards.iter().map(|c| c.card.phones.iter().map(|p| p.value.clone()).collect()).collect();
     phones.sort();
-    assert_eq!(phones, [vec![], vec!["+1 1".to_string()], vec!["+1 2".to_string()]]);
-    assert!(got.cards.iter().filter(|c| c.card.emails.iter().any(|e| e.value == "sam@other.example")).count() == 2);
+    assert_eq!(phones, [vec![], vec!["+1 2".to_string()]]);
+    assert!(got.cards.iter().filter(|c| c.card.emails.iter().any(|e| e.value == "sam@other.example")).count() == 1);
     let mut tasks: Vec<(Option<i64>, bool)> = got.tasks.iter().map(|t| (t.task.due, t.task.is_done())).collect();
     tasks.sort();
-    assert_eq!(tasks, [(Some(day(4)), false), (Some(day(4)), true), (Some(day(11)), false)]);
+    assert_eq!(tasks, [(Some(day(4)), true), (Some(day(11)), false)]);
     let folders = back.load_folders("b1").unwrap();
     assert!(folders.iter().any(|f| f.path == "Notes" && f.total == 1), "{folders:?}");
     let _ = std::fs::remove_dir_all(&dir);

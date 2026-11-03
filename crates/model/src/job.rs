@@ -523,6 +523,10 @@ pub enum Event {
         /// of its own.
         #[serde(default)]
         occurrences: usize,
+        /// Calendar items, contacts, notes and tasks changed since a data file added to had
+        /// them, written in place of their earlier copies.
+        #[serde(default)]
+        replaced: usize,
         done: bool,
         error: Option<String>,
     },

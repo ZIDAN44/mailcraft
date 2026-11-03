@@ -6,9 +6,11 @@
 //! ([`task`]). A file added to keeps its own items, and those it records as its
 //! special folders take the account's. Each item is marked with its uid and a digest of what went
 //! in (`pst_pim::EXPORTED_ITEM`): added to again, an item the file has as it is now isn't written
-//! twice, and one changed since goes in again (beside its earlier copy, as the writer can't take an
-//! item out of a folder). What Outlook has no place for stays in the item's text, as the import
-//! reads it back (`pst_pim::rest`).
+//! twice, and one changed since goes in again in place of its earlier copy, which is taken out
+//! once the new one is in (so a failure between the two leaves both, never neither). Items the
+//! file has of a uid the account no longer has stay: the export can't tell one the user deleted
+//! from one the account never had here (a file shared by two accounts). What Outlook has no place
+//! for stays in the item's text, as the import reads it back (`pst_pim::rest`).
 
 use mailcraft_model::pim::{NOTE_COLORS, NOTE_YELLOW, Note, Pim};
 use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
@@ -17,6 +19,7 @@ use outlook_pst::{UnicodePstName, UnicodePstSpecialFolder as Special, UnicodePst
 use super::item::{PSETID_COMMON, filetime};
 use super::*;
 use outlook_pst::ltp::prop_context::GuidValue;
+use std::collections::HashMap;
 
 mod batch;
 use batch::write_batch;
@@ -233,6 +236,9 @@ pub(super) struct Written {
     pub(super) notes: usize,
     pub(super) tasks: usize,
     pub(super) already: usize,
+    /// Items changed since the file had them, written in place of their earlier copies (among
+    /// the counts above).
+    pub(super) replaced: usize,
 }
 
 /// The account's items for each of the file's folders, those it has, each marked; `now` is when
@@ -293,15 +299,20 @@ pub(super) fn write(
     for (role, items) in all {
         let (names, recorded) = folder_for(path, format, role, existing, taken);
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
-        // Added to again: an item the folder has as it is now isn't written twice.
-        let had = if existing { already(path, format, &names) } else { HashSet::new() };
+        // Added to again: an item the folder has as it is now isn't written twice, and the
+        // copies it has of an item as it was before (its uid, another digest) go once the item
+        // is in as it is now.
+        let had = if existing { already(path, format, &names) } else { Vec::new() };
+        let earlier = earlier_copies(&had, &items);
+        let marks: HashSet<&str> = had.iter().map(|(m, _)| m.as_str()).collect();
         let count = items.len();
-        let items: Vec<Item> = items.into_iter().filter(|i| mark(i).is_none_or(|m| !had.contains(m))).collect();
+        let items: Vec<Item> = items.into_iter().filter(|i| mark(i).is_none_or(|m| !marks.contains(m))).collect();
         if items.len() < count {
             log::info!("{} of the account's {role:?} items are in the data file already", count - items.len());
             done.already += count - items.len();
         }
         let count = items.len();
+        let replaced = items.iter().filter_map(mark).filter(|m| earlier.uids.contains(uid_of(m))).count();
         format.create_folder(path, &names, role.container_class()).map_err(|e| e.to_string())?;
         let mut start = 0;
         while start < items.len() {
@@ -312,6 +323,14 @@ pub(super) fn write(
             }
             write_batch(path, format, &names, items.get(start..end).unwrap_or_default())?;
             start = end;
+        }
+        // The earlier copies, now that the items are in: one that can't be taken out stays
+        // beside its new copy, as before the writer could, and the log says why.
+        if !earlier.ids.is_empty() {
+            match format.delete(path, &earlier.ids) {
+                Ok(()) => done.replaced += replaced,
+                Err(e) => log::info!("{} earlier copies of the account's {role:?} items stay in the data file: {e}", earlier.ids.len()),
+            }
         }
         match role {
             Special::Calendar => {
@@ -381,37 +400,68 @@ fn top_folders(path: &Path, format: Format) -> Vec<(String, String)> {
     }
 }
 
+/// The uid a mark names (all of it but the digest on its last line).
+fn uid_of(mark: &str) -> &str {
+    mark.rsplit_once('\n').map_or(mark, |(uid, _)| uid)
+}
+
+/// The copies a folder has of the account's items as they were before.
+struct Earlier {
+    ids: Vec<NodeId>,
+    /// The uids of those items.
+    uids: HashSet<String>,
+}
+
+/// The items of `had` (a folder's, by mark) that are copies of one of `items` as it was before:
+/// marked with its uid and a digest none of the account's items of that uid has now (a series'
+/// occurrences written one by one share its uid).
+fn earlier_copies(had: &[(String, NodeId)], items: &[Item]) -> Earlier {
+    let mut now: HashMap<&str, HashSet<&str>> = HashMap::new();
+    for m in items.iter().filter_map(mark) {
+        now.entry(uid_of(m)).or_default().insert(m);
+    }
+    let mut earlier = Earlier { ids: Vec::new(), uids: HashSet::new() };
+    for (m, id) in had {
+        if now.get(uid_of(m)).is_some_and(|marks| !marks.contains(m.as_str())) {
+            earlier.ids.push(*id);
+            earlier.uids.insert(uid_of(m).to_string());
+        }
+    }
+    earlier
+}
+
 /// The marks of the items in the folder at `names` of the file at `path` (those MailCraft
-/// exported: the file's own have none, and are never taken for the account's); none when there
-/// is no such folder, or it can't be read (a panic in the reader too).
-fn already(path: &Path, format: Format, names: &[&str]) -> HashSet<String> {
-    let read = std::panic::catch_unwind(|| -> io::Result<HashSet<String>> {
+/// exported: the file's own have none, and are never taken for the account's), each with its
+/// node; none when there is no such folder, or it can't be read (a panic in the reader too).
+fn already(path: &Path, format: Format, names: &[&str]) -> Vec<(String, NodeId)> {
+    let read = std::panic::catch_unwind(|| -> io::Result<Vec<(String, NodeId)>> {
         let any = format.store(path)?;
-        let Some(id) = crate::pst_pim::Named::of(any.as_ref()).exported() else { return Ok(HashSet::new()) };
+        let Some(id) = crate::pst_pim::Named::of(any.as_ref()).exported() else { return Ok(Vec::new()) };
         let open = |row: u32| any.properties().make_entry_id(NodeId::from(row)).and_then(|e| any.open_folder(&e));
         let mut folder = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;
         for name in names {
-            let Some(table) = folder.hierarchy_table() else { return Ok(HashSet::new()) };
+            let Some(table) = folder.hierarchy_table() else { return Ok(Vec::new()) };
             let next = table
                 .rows_matrix()
                 .filter_map(|row| open(u32::from(row.id())).ok())
                 .find(|f| f.properties().display_name().is_ok_and(|n| n == *name));
-            let Some(next) = next else { return Ok(HashSet::new()) };
+            let Some(next) = next else { return Ok(Vec::new()) };
             folder = next;
         }
-        let mut out = HashSet::new();
+        let mut out = Vec::new();
         for row in folder.contents_table().map(|t| t.rows_matrix().collect::<Vec<_>>()).unwrap_or_default() {
-            let Ok(entry) = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))) else { continue };
+            let node = NodeId::from(u32::from(row.id()));
+            let Ok(entry) = any.properties().make_entry_id(node) else { continue };
             let Ok(m) = any.open_message(&entry, Some(&[id])) else { continue };
             if let Some(mark) = m.properties().get(id).and_then(crate::pst::text_of) {
-                out.insert(mark);
+                out.push((mark, node));
             }
         }
         Ok(out)
     });
     match read {
         Ok(Ok(found)) => found,
-        _ => HashSet::new(),
+        _ => Vec::new(),
     }
 }
 

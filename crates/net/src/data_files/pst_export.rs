@@ -88,6 +88,9 @@ pub struct Exported {
     pub contacts: usize,
     /// …and those a file added to had already, as they are now (an export marks each it writes).
     pub pim_already: usize,
+    /// …and those changed since a file added to had them, written in place of their earlier
+    /// copies (among those written).
+    pub pim_replaced: usize,
 }
 
 /// The `Message-ID`s in an existing data file's folders (a file the writer can add to: the Unicode
@@ -238,6 +241,7 @@ pub fn export(
                 notes: inside.notes,
                 contacts: inside.contacts,
                 pim_already: inside.already,
+                pim_replaced: inside.replaced,
                 ..done
             })
         }

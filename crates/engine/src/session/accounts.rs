@@ -157,8 +157,8 @@ impl Session {
 
     /// How an export is going; `left`: messages not on this computer, ones the data file already
     /// had, and occurrences of series Outlook can't keep the rule of, each written on its own.
-    pub(super) fn exported(&mut self, account: &str, messages: usize, left: (usize, usize, usize), done: bool, error: Option<String>) {
-        let (skipped, already, occurrences) = left;
+    pub(super) fn exported(&mut self, account: &str, messages: usize, left: (usize, usize, usize, usize), done: bool, error: Option<String>) {
+        let (skipped, already, occurrences, replaced) = left;
         let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
         match (done, error) {
             (false, _) => self.notice(format!("{name}: {messages} messages exported so far…"), false),
@@ -173,6 +173,11 @@ impl Session {
                 }
                 if occurrences > 0 {
                     more.push(format!("{occurrences} occurrences of series whose rule Outlook can't keep went in one by one"));
+                }
+                if replaced > 0 {
+                    more.push(format!(
+                        "{replaced} calendar items, contacts, notes or tasks changed since the last export replaced their earlier copies"
+                    ));
                 }
                 let more = if more.is_empty() { String::new() } else { format!(" ({})", more.join("; ")) };
                 self.notice(format!("{name}: {messages} messages exported{more}"), false);
