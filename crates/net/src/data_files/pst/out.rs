@@ -7,6 +7,7 @@ use super::lanes::Built;
 use super::resume::CheckState;
 use super::*;
 
+mod follow_up;
 mod indexing;
 mod pim;
 mod room;
@@ -60,6 +61,8 @@ pub(super) struct Out<'a> {
     /// when first needed).
     pub(super) pim: Pim,
     pim_files: Option<usize>,
+    /// The days flagged messages read so far are due.
+    pub(super) due: follow_up::Due,
     /// Sources read (compressed already) but not yet written, and their size as kept.
     pub(super) pending: Vec<(MessageKey, mailcraft_store::Prepared)>,
     pub(super) pending_bytes: usize,
@@ -114,6 +117,7 @@ impl<'a> Out<'a> {
             folders_total: 0,
             pim: Pim::default(),
             pim_files: None,
+            due: follow_up::Due::default(),
             pending: Vec::new(),
             pending_bytes: 0,
             pending_raw: 0,
@@ -326,11 +330,12 @@ impl Out<'_> {
             self.budget.release(charge);
             return;
         };
-        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out, .. } = b;
+        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out, due, .. } = b;
         let uid = st.uid_next;
         st.uid_next = uid.saturating_add(1);
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
         summary.key = key.clone();
+        self.due.note(&summary, due);
         let size = summary.size;
         let msgid = mailcraft_store::search::msgid_hash(&summary.message_id);
         st.waiting.push(summary);
@@ -629,6 +634,11 @@ impl Out<'_> {
             if let Err(e) = self.tally.time(Phase::Commit, || self.store.save_account_doc(self.account, PIM_DOC, &self.pim)) {
                 last_save.get_or_insert(e.to_string());
             }
+        }
+        if !self.writes_stopped()
+            && let Err(e) = self.save_due()
+        {
+            last_save.get_or_insert(e);
         }
         if stopped != Some(StopHow::Cancel) {
             self.ending(CheckState::Done);

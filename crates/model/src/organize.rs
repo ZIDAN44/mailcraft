@@ -207,6 +207,36 @@ pub fn date_of(day: i64) -> (i64, u32, u32) {
     civil_from_days(day)
 }
 
+/// The account document an import of an Outlook data file leaves the days its flagged messages
+/// are due in (local days, by [`Summary::follow_up_id`]), for the engine to take into the
+/// preferences' own as the import ends: IMAP has nowhere for them, so they're kept there.
+pub const FOLLOW_UP_DOC: &str = "follow-up.json";
+/// The most due days kept, in the preferences and in an import's [`FOLLOW_UP_DOC`].
+pub const MAX_FOLLOW_UP: usize = 10_000;
+/// The longest a due day's key is kept (a Message-ID's header line is at most 998 bytes).
+pub const MAX_FOLLOW_UP_ID: usize = 998;
+/// The days a follow-up can be due on: 1900-01-01 to 4500-12-31 (Outlook's 4501-01-01 is its
+/// "no date").
+pub const FOLLOW_UP_DAYS: std::ops::RangeInclusive<i64> = -25_567..=924_428;
+
+/// `from`'s due days put in `into` where it has none for that message (a day set here stays),
+/// up to [`MAX_FOLLOW_UP`] in all; keys too long or days out of [`FOLLOW_UP_DAYS`] are left
+/// out. How many were added.
+pub fn merge_follow_up(into: &mut std::collections::BTreeMap<String, i64>, from: std::collections::BTreeMap<String, i64>) -> usize {
+    let mut added = 0;
+    for (id, day) in from {
+        if into.len() >= MAX_FOLLOW_UP {
+            break;
+        }
+        if id.trim().is_empty() || id.len() > MAX_FOLLOW_UP_ID || !FOLLOW_UP_DAYS.contains(&day) || into.contains_key(&id) {
+            continue;
+        }
+        into.insert(id, day);
+        added += 1;
+    }
+    added
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,5 +314,28 @@ mod tests {
         let c = default_categories();
         assert_eq!(c[0].keyword, "$label1");
         assert_eq!(Category::new(" Clients ", 6), Category { name: "Clients".into(), keyword: "clients".into(), color: 6 });
+    }
+
+    /// An import's due days go in beside the user's: a day set here stays, junk is left out, and
+    /// no more than the most kept go in.
+    #[test]
+    fn imported_due_days_merge_under_the_users() {
+        use crate::dates::days_from_civil;
+        use std::collections::BTreeMap;
+        assert_eq!(FOLLOW_UP_DAYS, days_from_civil(1900, 1, 1)..=days_from_civil(4501, 1, 1) - 1);
+        let mut mine = BTreeMap::from([("a@x".to_string(), 20_000)]);
+        let theirs = BTreeMap::from([
+            ("a@x".to_string(), 20_001),
+            ("b@x".to_string(), 20_002),
+            ("c@x".to_string(), days_from_civil(4501, 1, 1)),
+            ("d@x".to_string(), i64::MIN),
+            (" ".to_string(), 20_003),
+            ("e".repeat(MAX_FOLLOW_UP_ID + 1), 20_004),
+        ]);
+        assert_eq!(merge_follow_up(&mut mine, theirs), 1);
+        assert_eq!(mine, BTreeMap::from([("a@x".to_string(), 20_000), ("b@x".to_string(), 20_002)]));
+        let many: BTreeMap<String, i64> = (0..MAX_FOLLOW_UP + 5).map(|i| (format!("{i}@x"), 20_000)).collect();
+        merge_follow_up(&mut mine, many);
+        assert_eq!(mine.len(), MAX_FOLLOW_UP);
     }
 }

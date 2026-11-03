@@ -222,3 +222,50 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
     drop(store);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A message Outlook flagged for a day comes in with it (PidLidTaskDueDate, else
+/// PidLidTaskStartDate, near the day's midnight): left for the engine in the account's
+/// follow-up note, by its Message-ID. Not flagged, or a time that's no day (Outlook's 4501-01-01,
+/// one out of range, a value that isn't a time), it comes in with none.
+#[test]
+fn a_written_file_s_flagged_mail_comes_in_with_its_due_day() {
+    use mailcraft_model::organize::FOLLOW_UP_DOC;
+    use std::collections::BTreeMap;
+    const PSETID_TASK: GuidValue = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-due-written-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("Flags.pst");
+    drop(Writer::create(&path, &message("Hello", "IPM.Note", "Hi.", &[])).unwrap());
+    let day = days_from_civil(2026, 11, 20);
+    let midnight = UnicodePstValue::Time(filetime(day * 86_400));
+    let flag = |status| UnicodePstProperty::tagged(0x1090, UnicodePstValue::Integer32(status));
+    let due = |v| named(PSETID_TASK, 0x8105, v);
+    let start = |v| named(PSETID_TASK, 0x8104, v);
+    let cases: [(&str, Vec<UnicodePstProperty<'_>>); 7] = [
+        ("due@studio.example", vec![flag(2), due(midnight), start(UnicodePstValue::Time(filetime((day - 3) * 86_400)))]),
+        // Its start alone, a few hours off its midnight (written in another time zone).
+        ("start@studio.example", vec![flag(2), start(UnicodePstValue::Time(filetime((day + 1) * 86_400 - 5 * 3600)))]),
+        ("done@studio.example", vec![flag(1), due(midnight)]),
+        ("none@studio.example", vec![flag(2), due(UnicodePstValue::Time(filetime(days_from_civil(4501, 1, 1) * 86_400)))]),
+        ("far@studio.example", vec![flag(2), due(UnicodePstValue::Time(i64::MAX)), start(UnicodePstValue::Time(i64::MIN))]),
+        ("number@studio.example", vec![flag(2), due(UnicodePstValue::Integer32(7))]),
+        ("unflagged@studio.example", vec![due(midnight)]),
+    ];
+    drop(Writer::create_folder(&path, &["Kept"], "IPF.Note").unwrap());
+    for (id, props) in &cases {
+        let m = UnicodePstMessage { message_id: id, ..message("Flagged", "IPM.Note", "Text.", props) };
+        drop(Writer::append_in_folder_with_attachments(&path, &["Kept"], &m, &[]).unwrap());
+    }
+
+    let store = Store::open(dir.join("cache")).unwrap();
+    let done = import(&path, &store, "a1", &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.skipped), (8, 0), "{done:?}");
+    let days: BTreeMap<String, i64> = store.load_account_doc("a1", FOLLOW_UP_DOC).unwrap();
+    assert_eq!(days, BTreeMap::from([("due@studio.example".to_string(), day), ("start@studio.example".to_string(), day + 1)]));
+    let kept = store.load_folder("a1", "Kept").unwrap().messages;
+    let flagged: Vec<&str> = kept.iter().filter(|m| m.flags.flagged).map(|m| m.message_id.as_str()).collect();
+    assert_eq!(flagged.len(), 5, "{flagged:?}");
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
+}

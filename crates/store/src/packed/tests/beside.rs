@@ -177,6 +177,11 @@ fn a_file_read_again_adds_what_it_has_new_and_keeps_what_was_done_here() {
     for (uid, id) in [(1, "one@x"), (2, "two@x"), (3, "three@x"), (4, "four@x")] {
         put(&fresh, "r", "INBOX", uid, id, false);
     }
+    // Flagged in the file for a day, the new one and one already here.
+    let flagged: Vec<MessageKey> = [1, 4].map(|uid| MessageKey { account: "r".into(), folder: "INBOX".into(), validity: 1, uid }).into();
+    fresh.apply_op("r", &mailcraft_model::Op::SetFlag { keys: flagged, flag: mailcraft_model::Flag::Flagged, on: true }).unwrap();
+    let due = std::collections::BTreeMap::from([("one@x".to_string(), 20_100), ("four@x".to_string(), 20_400)]);
+    fresh.save_account_doc("r", mailcraft_model::organize::FOLLOW_UP_DOC, &due).unwrap();
     put(&fresh, "r", "Projects", 1, "five@x", true);
     let mut theirs = Pim::default();
     for (i, text) in ["old", "new"].iter().enumerate() {
@@ -204,6 +209,9 @@ fn a_file_read_again_adds_what_it_has_new_and_keeps_what_was_done_here() {
     let pim: Pim = s.load_account_doc("a1", "pim.json").unwrap();
     assert_eq!(pim.notes.iter().map(|n| n.note.text.as_str()).collect::<Vec<_>>(), ["new"], "the note deleted here stays deleted");
     assert!(pim.notes[0].note.uid.starts_with("pst-a1-"));
+    // The new flagged one's day is left for the engine to take; the one here already has its own.
+    let due: std::collections::BTreeMap<String, i64> = s.load_account_doc("a1", mailcraft_model::organize::FOLLOW_UP_DOC).unwrap();
+    assert_eq!(due, std::collections::BTreeMap::from([("four@x".to_string(), 20_400)]));
     // Read once more: nothing new.
     let again = s.merge_from("a1", &fresh, "r").unwrap();
     assert_eq!((again.messages, again.notes), (0, 0));

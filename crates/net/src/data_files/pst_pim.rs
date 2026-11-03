@@ -127,6 +127,12 @@ impl Named {
         self.exported
     }
 
+    /// The properties holding when a flagged message is due and starts (PidLidTaskDueDate,
+    /// PidLidTaskStartDate), as Outlook marks one flagged for a day.
+    pub(crate) fn flag_days(&self) -> [Option<u16>; 2] {
+        [self.id(PSETID_TASK, 0x8105), self.id(PSETID_TASK, 0x8104)]
+    }
+
     fn id(&self, set: GuidKey, lid: u32) -> Option<u16> {
         self.ids.get(&(set, lid)).copied()
     }

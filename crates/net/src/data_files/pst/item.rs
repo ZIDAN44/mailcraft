@@ -29,6 +29,8 @@ pub(super) struct Item {
     pub(super) thread_topic: String,
     pub(super) sensitivity: u8,
     pub(super) flags: Flags,
+    /// The local day it's flagged to be followed up by, when it's flagged for one.
+    pub(super) due: Option<i64>,
     pub(super) files: Vec<File>,
     /// A contact's picture: its type and bytes.
     pub(super) photo: Option<(String, Vec<u8>)>,
@@ -228,6 +230,10 @@ pub(super) fn item_of<'a>(
             }
         }
     }
+    // The day it's due (PidLidTaskDueDate, else PidLidTaskStartDate), when it's flagged.
+    if follow_up {
+        it.due = named.flag_days().into_iter().flatten().find_map(|id| p(id).and_then(|v| due_day(&v)));
+    }
     let headers = super::rebuild::usable_headers(&it.headers);
     for row in recipients {
         let get = |id: u16| row(id).and_then(Val::into_text).unwrap_or_default();
@@ -275,6 +281,17 @@ pub(super) fn item_of<'a>(
 /// the HTML names their `cid:`. A plain body is kept over RTF of its own, whose simple HTML
 /// leaves out tables, pictures and objects the text still has, and over RTF that isn't `in_sync`
 /// with it (the text is newer).
+/// A flag's due day from its time (100 ns since 1601, at the day's midnight as Outlook keeps
+/// it, the export too): the local day it falls on, the nearest midnight's, as days since 1970.
+/// None out of [`FOLLOW_UP_DAYS`](mailcraft_model::organize::FOLLOW_UP_DAYS) (Outlook's
+/// 4501-01-01, "no date", among them).
+pub(super) fn due_day(v: &Val<'_>) -> Option<i64> {
+    let Val::Time(t) = v else { return None };
+    let seconds = t.checked_div(10_000_000)?.checked_sub(11_644_473_600)?;
+    let day = seconds.checked_add(43_200)?.div_euclid(86_400);
+    mailcraft_model::organize::FOLLOW_UP_DAYS.contains(&day).then_some(day)
+}
+
 fn rtf_into(it: &mut Item, compressed: &[u8], in_sync: bool) {
     let plain = !it.body.trim().is_empty();
     if plain && !in_sync {

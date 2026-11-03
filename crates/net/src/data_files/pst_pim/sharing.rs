@@ -64,12 +64,14 @@ pub(crate) fn sharing_lines<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Name
 }
 
 impl Named {
-    /// The names the `pst_item` fuzz target's properties have: the categories at 0x8000, and a
+    /// The names the `pst_item` fuzz target's properties have: the categories at 0x8000, a
     /// sharing invitation's at 0x8001 to 0x8006 (what's shared, its kinds, its address, who
-    /// shares it, their address), so its hostile values reach [`sharing_lines`] and [`put_before`].
+    /// shares it, their address), so its hostile values reach [`sharing_lines`] and [`put_before`];
+    /// and a flag's due and start days at 0x8007 and 0x8008.
     pub(crate) fn for_fuzzing() -> Named {
         let lids = [REMOTE_NAME, REMOTE_TYPE, LOCAL_TYPE, REMOTE_PATH, INITIATOR_NAME, INITIATOR_SMTP];
-        let ids = (0x8001u16..).zip(lids).map(|(id, lid)| ((PSETID_SHARING, lid), id)).collect();
+        let mut ids: std::collections::HashMap<_, _> = (0x8001u16..).zip(lids).map(|(id, lid)| ((PSETID_SHARING, lid), id)).collect();
+        ids.extend([((super::PSETID_TASK, 0x8105), 0x8007), ((super::PSETID_TASK, 0x8104), 0x8008)]);
         Named { ids, keywords: Some(0x8000), ..Default::default() }
     }
 }

@@ -389,3 +389,43 @@ fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
     drop(third);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The days an import's flagged messages are due come into the preferences as it ends, and as a
+/// read of its file again ends: a day set here stays, junk is left out, and a day cleared here
+/// isn't brought back by the next read.
+#[test]
+fn an_import_s_due_days_come_in_under_the_user_s() {
+    use mailcraft_model::organize::FOLLOW_UP_DOC;
+    use std::collections::BTreeMap;
+    let (mut s, dir, pst) = with_file("due");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    let store = s.store.clone().unwrap();
+    s.prefs.follow_up.insert("mine@x".into(), 20_000);
+    let days = BTreeMap::from([("kept@x".to_string(), 20_100), ("mine@x".to_string(), 20_200), ("junk@x".to_string(), i64::MAX)]);
+    store.save_account_doc(&id, FOLLOW_UP_DOC, &days).unwrap();
+    imported(&mut s, &id, &pst);
+    let flagged = |message_id: &str| mailcraft_model::Summary {
+        message_id: message_id.into(),
+        flags: mailcraft_model::Flags { flagged: true, ..Default::default() },
+        ..Default::default()
+    };
+    assert_eq!(s.follow_up_due(&flagged("kept@x")), Some(20_100));
+    assert_eq!(s.follow_up_due(&flagged("mine@x")), Some(20_000), "the user's day stays");
+    assert_eq!(s.follow_up_due(&flagged("junk@x")), None);
+    let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_DOC).unwrap();
+    assert!(left.is_empty(), "taken: {left:?}");
+
+    // Cleared here, then the file read again: what the read brought comes in, the cleared one
+    // doesn't come back.
+    s.prefs.follow_up.remove("kept@x");
+    s.run("account.importPst", &json!({"path": pst, "changes": "read"})).unwrap();
+    s.take_jobs();
+    store.save_account_doc(&id, FOLLOW_UP_DOC, &BTreeMap::from([("new@x".to_string(), 20_300)])).unwrap();
+    let report = mailcraft_model::job::ImportReport { messages: 1, ..Default::default() };
+    s.apply(Event::Imported { account: id.clone(), messages: 1, skipped: 0, done: true, error: None, report: Some(Box::new(report)) });
+    assert_eq!(s.follow_up_due(&flagged("new@x")), Some(20_300));
+    assert_eq!(s.follow_up_due(&flagged("kept@x")), None);
+    drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}

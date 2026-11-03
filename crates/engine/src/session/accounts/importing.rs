@@ -10,6 +10,7 @@ use mailcraft_model::job::{Blocked, DataFileFacts, DataSource, Eta, ImportPhase,
 use super::*;
 
 mod beside;
+mod follow_up;
 mod note;
 mod stopping;
 
@@ -648,8 +649,10 @@ impl Session {
         self.load_imported_pim(account);
     }
 
-    /// The data file's contacts and calendar, written next to its mail.
+    /// The data file's contacts and calendar, written next to its mail, and the days its flagged
+    /// messages are due.
     fn load_imported_pim(&mut self, account: &str) {
+        self.take_imported_follow_up(account);
         if let Some(store) = self.store.clone()
             && let Ok(mut p) = store.load_account_doc::<mailcraft_model::pim::Pim>(account, mailcraft_model::pim::PIM_DOC)
         {

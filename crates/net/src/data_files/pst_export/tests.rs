@@ -183,8 +183,8 @@ fn an_account_round_trips_through_a_data_file() {
         assert_eq!(UnicodePstFile::special_folder(&file, special).unwrap(), Some(vec![name.to_string()]), "{special:?}");
     }
     assert_eq!(UnicodePstFile::special_folder(&file, Special::Outbox).unwrap(), None);
-    // What the import doesn't read back: the follow-up's text, icon and day, and that the
-    // addresses are SMTP ones.
+    // The follow-up's day, and what the import doesn't read back: its text and icon, and that
+    // the addresses are SMTP ones.
     let task_due = named_id(&file, 0x0006_2003, 0x8105).unwrap();
     let task_start = named_id(&file, 0x0006_2003, 0x8104).unwrap();
     let flag_request = named_id(&file, 0x0006_2008, 0x8530).unwrap();
@@ -223,6 +223,9 @@ fn an_account_round_trips_through_a_data_file() {
     let plan = inbox.messages.iter().find(|m| m.subject == "Plan — café").unwrap();
     assert!(!plan.flags.seen && plan.flags.flagged && !plan.flags.draft, "{:?}", plan.flags);
     assert_eq!(plan.flags.keywords, ["to=20do", "$label1"]);
+    // The day it's due, left for the engine by its Message-ID.
+    let due_back: BTreeMap<String, i64> = back.load_account_doc("b1", mailcraft_model::organize::FOLLOW_UP_DOC).unwrap();
+    assert_eq!(due_back, due);
     assert_eq!(plan.importance, 1);
     assert_eq!(plan.received, plan.date + 3600);
     let raw = back.read_body(&MessageKey { account: "b1".into(), folder: "INBOX".into(), validity: 1, uid: plan.key.uid }).unwrap();

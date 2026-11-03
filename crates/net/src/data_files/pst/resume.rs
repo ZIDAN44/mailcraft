@@ -442,6 +442,7 @@ impl Out<'_> {
                 Err(e) => log::warn!("import: the contacts and calendar read so far couldn't be read: {e}"),
             }
         }
+        self.resume_due();
         let note = &mut self.note;
         note.source = cp.source;
         note.runs = cp.runs;
@@ -663,7 +664,8 @@ impl Out<'_> {
     }
 
     /// The checkpoint as things stand (every source handed to the store is written), and the
-    /// contacts and calendar to go with it when they changed: the documents to write.
+    /// contacts and calendar, and the due days, to go with it when they changed: the documents to
+    /// write.
     pub(super) fn checkpoint_docs(&self) -> Vec<(&'static str, Vec<u8>)> {
         let (state, current) = match &self.note.ending {
             Some((state, current)) => (*state, current.clone()),
@@ -701,6 +703,7 @@ impl Out<'_> {
                 Err(e) => log::warn!("import: {e}"),
             }
         }
+        docs.extend(self.due_doc());
         match serde_json::to_vec(&cp) {
             Ok(b) => docs.push((CHECKPOINT_DOC, b)),
             Err(e) => log::warn!("import: {e}"),
@@ -714,6 +717,7 @@ impl Out<'_> {
         self.note.last = Some(Instant::now());
         if ok {
             self.note.pim_dirty = false;
+            self.due_written();
             self.room_kept();
         }
     }

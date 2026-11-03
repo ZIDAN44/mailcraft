@@ -409,7 +409,7 @@ impl Session {
         for m in &sel {
             let id = follow_up_id(m);
             match due.filter(|_| !complete) {
-                Some(d) if self.prefs.follow_up.len() < 10_000 || self.prefs.follow_up.contains_key(&id) => {
+                Some(d) if self.prefs.follow_up.len() < mailcraft_model::organize::MAX_FOLLOW_UP || self.prefs.follow_up.contains_key(&id) => {
                     self.prefs.follow_up.insert(id, d);
                 }
                 _ => {
