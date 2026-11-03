@@ -232,3 +232,49 @@ fn rules_within_a_day() {
     assert_eq!(starts(&ny, i64::MAX), [start + 5 * 3600, start + 6 * 3600]);
     let _ = starts(&CalEvent { start: i64::MAX - 10, ..e("FREQ=HOURLY") }, i64::MAX);
 }
+
+/// `BYHOUR`, `BYMINUTE` and `BYSECOND` give a day's times (or an hour's), and limit an hourly
+/// rule's steps: an hourly rule at three hours a day makes three a day, not 24, and a daily one
+/// at two hours two a day; `BYSETPOS` picks among the day's times too.
+#[test]
+fn rules_at_hours_minutes_and_seconds() {
+    let day = days_from_civil(2026, 11, 2) * 86_400; // a Monday
+    let e = |start: i64, rule: &str| CalEvent { start, end: start + 600, rrule: Some(rule.into()), ..Default::default() };
+    let at = |e: &CalEvent| starts(e, i64::MAX).iter().map(|t| (t - day) / 60).collect::<Vec<_>>();
+    let h = |n: i64| n * 60;
+    assert_eq!(at(&e(day + 9 * 3600, "FREQ=HOURLY;BYHOUR=9,10,11;COUNT=6")), [h(9), h(10), h(11), h(33), h(34), h(35)]);
+    assert_eq!(at(&e(day + 9 * 3600, "FREQ=DAILY;BYHOUR=9,17;COUNT=4")), [h(9), h(17), h(33), h(41)]);
+    // Minutes: the start's hour when the rule says none; seconds the start's.
+    assert_eq!(at(&e(day + 9 * 3600, "FREQ=DAILY;BYMINUTE=0,30;COUNT=3")), [h(9), h(9) + 30, h(33)]);
+    assert_eq!(at(&e(day + 9 * 3600 + 1800, "FREQ=HOURLY;BYMINUTE=0,30;COUNT=3")), [h(9) + 30, h(10), h(10) + 30]);
+    assert_eq!(starts(&e(day, "FREQ=MINUTELY;BYSECOND=0,20,40;COUNT=4"), i64::MAX), [day, day + 20, day + 40, day + 60]);
+    // The last time of each weekday.
+    assert_eq!(at(&e(day + 8 * 3600, "FREQ=DAILY;BYHOUR=8,12,16;BYSETPOS=-1;COUNT=2")), [h(16), h(40)]);
+    // In a zone, at its wall-clock hours, summer or winter.
+    let there = CalEvent { tzid: "America/New_York".into(), ..e(ny().to_utc(day + 9 * 3600), "FREQ=DAILY;BYHOUR=9,17;COUNT=2") };
+    assert_eq!(starts(&there, i64::MAX), [ny().to_utc(day + 9 * 3600), ny().to_utc(day + 17 * 3600)]);
+    // Hostile numbers are passed over.
+    assert_eq!(at(&e(day + 9 * 3600, "FREQ=DAILY;BYHOUR=99,-1,x;COUNT=2")), [h(9), h(33)]);
+}
+
+/// `RDATE` adds occurrences, to a rule's or to an event's own start; read in the event's zone,
+/// written back, and none in a changed occurrence.
+#[test]
+fn added_dates() {
+    let text = cal("BEGIN:VEVENT\r\nUID:r\r\nDTSTART;TZID=America/New_York:20261102T090000\r\nDTEND;TZID=America/New_York:20261102T100000\r\n\
+RDATE;TZID=America/New_York:20261105T140000,20261110T090000\r\nRDATE;VALUE=PERIOD:20261120T150000Z/PT1H\r\nEND:VEVENT\r\n");
+    let e = &parse(&text, 0).events[0];
+    let local = |d: u32, h: i64| ny().to_utc(days_from_civil(2026, 11, d) * 86_400 + h * 3600);
+    let period = days_from_civil(2026, 11, 20) * 86_400 + 15 * 3600;
+    assert_eq!(e.rdates, [local(5, 14), local(10, 9), period]);
+    assert!(e.extra.iter().all(|l| !l.starts_with("RDATE")));
+    assert_eq!(starts(e, i64::MAX), [local(2, 9), local(5, 14), local(10, 9), period]);
+    assert_eq!(starts(e, local(6, 0)), [local(2, 9), local(5, 14)]);
+    let back = parse(&write(std::slice::from_ref(e), None, 0), 0).events;
+    assert_eq!(back[0].rdates, e.rdates);
+    // With a rule: both, in order, once each.
+    let both = CalEvent { rrule: Some("FREQ=DAILY;COUNT=2".into()), rdates: vec![local(3, 9), local(5, 14)], ..e.clone() };
+    assert_eq!(starts(&both, i64::MAX), [local(2, 9), local(3, 9), local(5, 14)]);
+    let changed = CalEvent { recurrence_id: Some(local(5, 14)), ..e.clone() };
+    assert!(!write(&[changed], None, 0).contains("RDATE"));
+}

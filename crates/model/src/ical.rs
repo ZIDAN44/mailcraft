@@ -9,9 +9,10 @@
 //!
 //! Recurrence (`RRULE`) covers what calendars use day to day: daily, weekly, monthly and yearly
 //! with `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` (with ordinals for monthly and yearly rules),
-//! `BYMONTHDAY`, `BYMONTH` and `BYSETPOS`; hourly, minutely and secondly ones every so long
-//! from the start, on the days `BYDAY`, `BYMONTHDAY` and `BYMONTH` allow. A series repeats at its
-//! wall-clock time in its zone
+//! `BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, and `BYHOUR`, `BYMINUTE` and `BYSECOND` (the times of
+//! each day, or of each hour or minute); hourly, minutely and secondly ones every so long from the
+//! start, on the days `BYDAY`, `BYMONTHDAY` and `BYMONTH` allow; and `RDATE`'s added dates. A
+//! series repeats at its wall-clock time in its zone
 //! (each occurrence turned into UTC on its own date, so summer time doesn't move it), on that
 //! zone's days; `EXDATE` removes occurrences and `RECURRENCE-ID` instances replace them, both
 //! matched as instants. Expansion is capped.
@@ -94,6 +95,10 @@ pub struct CalEvent {
     pub rrule: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exdates: Vec<i64>,
+    /// Occurrences added to the rule's (`RDATE`; a period's start), or, with no rule, to the
+    /// event's own start.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rdates: Vec<i64>,
     /// The occurrence this instance replaces.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recurrence_id: Option<i64>,
@@ -432,12 +437,15 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
                         e.recurrence_id = zones.time(x, &e.tzid).map(|(t, _, _)| t);
                         continue;
                     }
+                    let list = if x.name == "RDATE" { &mut e.rdates } else { &mut e.exdates };
                     for v in x.value.split(',') {
+                        // A period (`RDATE;VALUE=PERIOD`) starts the occurrence.
+                        let v = v.split('/').next().unwrap_or(v);
                         let one = Line { value: v.to_string(), ..x.clone() };
                         if let Some((t, _, _)) = zones.time(&one, &e.tzid)
-                            && e.exdates.len() < 1000
+                            && list.len() < 1000
                         {
-                            e.exdates.push(t);
+                            list.push(t);
                         }
                     }
                 }
@@ -504,7 +512,7 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             }
             "DURATION" => *dur = duration(&l.value),
             "RRULE" => e.rrule = Some(l.value.trim().to_string()),
-            "EXDATE" | "RECURRENCE-ID" => {
+            "EXDATE" | "RDATE" | "RECURRENCE-ID" => {
                 if pending.len() < 1000 {
                     pending.push(l);
                 }
@@ -627,6 +635,10 @@ fn write_one(e: &CalEvent, now: i64, purpose: Purpose, out: &mut String) {
     }
     for x in &e.exdates {
         lines.push(if e.all_day { format!("EXDATE;VALUE=DATE:{}", day(*x)) } else { when("EXDATE", *x) });
+    }
+    // A changed occurrence adds none.
+    for x in e.rdates.iter().filter(|_| e.recurrence_id.is_none()) {
+        lines.push(if e.all_day { format!("RDATE;VALUE=DATE:{}", day(*x)) } else { when("RDATE", *x) });
     }
     if !e.summary.is_empty() {
         lines.push(format!("SUMMARY:{}", escape(&e.summary)));

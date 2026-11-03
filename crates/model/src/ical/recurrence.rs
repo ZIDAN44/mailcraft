@@ -22,6 +22,10 @@ pub(super) struct Rule {
     pub(super) by_month: Vec<u32>,
     /// Which of each period's days count (1-based; negative from the end).
     pub(super) by_set_pos: Vec<i32>,
+    /// The hours, minutes and seconds of the occurrences (none: the start's).
+    pub(super) by_hour: Vec<i64>,
+    pub(super) by_minute: Vec<i64>,
+    pub(super) by_second: Vec<i64>,
 }
 
 impl Rule {
@@ -60,6 +64,9 @@ impl Rule {
                 "BYSETPOS" => {
                     r.by_set_pos = v.split(',').filter_map(|p| p.trim().parse().ok()).filter(|p: &i32| *p != 0 && p.abs() <= 366).take(31).collect()
                 }
+                "BYHOUR" => r.by_hour = numbers(v, 23),
+                "BYMINUTE" => r.by_minute = numbers(v, 59),
+                "BYSECOND" => r.by_second = numbers(v, 59),
                 _ => {}
             }
         }
@@ -98,9 +105,34 @@ impl Rule {
         }
     }
 
+    /// The times of day (seconds from midnight, in order) a day of the series has occurrences
+    /// at: `BYHOUR`, `BYMINUTE` and `BYSECOND`'s, each the start's (`time`) when the rule says
+    /// none.
+    fn times_of_day(&self, time: i64) -> Vec<i64> {
+        let or = |v: &[i64], own: i64| if v.is_empty() { vec![own] } else { v.to_vec() };
+        let mut out = Vec::new();
+        for h in or(&self.by_hour, time / 3600) {
+            for m in or(&self.by_minute, time / 60 % 60) {
+                out.extend(or(&self.by_second, time % 60).into_iter().map(|s| h * 3600 + m * 60 + s));
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// The local times (seconds) of the period containing `day` that are occurrences, in order:
+    /// its days, each at the day's times (`times`), picked by `BYSETPOS` among them all.
+    fn moments_in_period(&self, day: i64, start_day: i64, times: &[i64]) -> Vec<i64> {
+        let days = self.candidate_days(day, start_day);
+        let all: Vec<i64> = days.iter().flat_map(|d| times.iter().map(move |t| d.saturating_mul(86_400).saturating_add(*t))).collect();
+        self.pick(all)
+    }
+
     /// The candidate days (since the epoch) of the period containing `day`, in order: what the
-    /// rule's parts make of it, limited by the others, then picked by `BYSETPOS`.
-    pub(super) fn days_in_period(&self, day: i64, start_day: i64) -> Vec<i64> {
+    /// rule's parts make of it, limited by the others (`BYSETPOS` picks among them and their
+    /// times).
+    fn candidate_days(&self, day: i64, start_day: i64) -> Vec<i64> {
         let (y, m, _) = civil_from_days(day);
         let (_, sm, sd) = civil_from_days(start_day);
         let wd = |x: i64| (x + 3).rem_euclid(7) as u32;
@@ -124,6 +156,11 @@ impl Rule {
         }
         v.sort_unstable();
         v.dedup();
+        v
+    }
+
+    /// Those of a period's candidates (in order) that `BYSETPOS` picks; all without it.
+    fn pick(&self, v: Vec<i64>) -> Vec<i64> {
         if self.by_set_pos.is_empty() {
             return v;
         }
@@ -163,6 +200,14 @@ impl Rule {
     }
 }
 
+/// A `BYHOUR`, `BYMINUTE` or `BYSECOND` list: its numbers from 0 to `max`.
+fn numbers(v: &str, max: i64) -> Vec<i64> {
+    let mut out: Vec<i64> = v.split(',').filter_map(|n| n.trim().parse().ok()).filter(|n| (0..=max).contains(n)).take(60).collect();
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
 /// Every `weekday` (0 Monday) of a month, as days since the epoch.
 fn every_weekday(y: i64, m: u32, weekday: u32) -> Vec<i64> {
     let Some(first) = nth_weekday(y, m, 1, weekday) else { return Vec::new() };
@@ -182,7 +227,20 @@ pub(super) fn month_day(y: i64, m: u32, md: i32) -> Option<i64> {
 /// the same wall-clock time in the event's zone (09:00 stays 09:00 there when summer time
 /// starts), on that zone's days; each occurrence is then turned into UTC on its own date. An
 /// hourly, minutely or secondly rule steps from the start by so long, on the days it allows.
+/// `RDATE`'s dates are occurrences too, with the rule's or without one.
 pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
+    let mut out = by_rule(e, before);
+    if !e.rdates.is_empty() {
+        out.extend(e.rdates.iter().copied().filter(|t| *t < before));
+        out.sort_unstable();
+        out.dedup();
+        out.truncate(MAX_OCCURRENCES * 10);
+    }
+    out
+}
+
+/// The starts the event's rule makes (its own start without one).
+fn by_rule(e: &CalEvent, before: i64) -> Vec<i64> {
     let Some(rule) = e.rrule.as_deref().map(Rule::parse).filter(|r| !r.freq.is_empty()) else {
         return vec![e.start];
     };
@@ -198,19 +256,18 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
     }
     let local_start = zone.as_ref().map_or(e.start, |z| z.local(e.start));
     let start_day = local_start.div_euclid(86_400);
-    let time = local_start.rem_euclid(86_400);
+    let times = rule.times_of_day(local_start.rem_euclid(86_400));
     let mut out = Vec::new();
     let mut produced = 0usize;
     let mut steps = 0usize;
     let mut k = 0i64;
     'periods: while let Some(p) = rule.period(start_day, k) {
         k += 1;
-        for day in rule.days_in_period(if k == 1 { start_day } else { p }, start_day) {
+        for local in rule.moments_in_period(if k == 1 { start_day } else { p }, start_day, &times) {
             steps += 1;
             if steps > MAX_STEPS {
                 break 'periods;
             }
-            let local = day.saturating_mul(86_400).saturating_add(time);
             if local < local_start {
                 continue;
             }
@@ -241,30 +298,66 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
 }
 
 /// The starts of an hourly, minutely or secondly series `e` (its `rule`), `step` seconds apart,
-/// on the days its rule allows where it is (`zone`), up to `before`.
+/// on the days its rule allows where it is (`zone`), up to `before`. Within each step's hour
+/// (hourly) or minute (minutely), `BYMINUTE` and `BYSECOND` give its times; `BYHOUR`, and those
+/// of a finer step, limit them.
 fn within_days(e: &CalEvent, rule: &Rule, step: i64, zone: Option<&EventZone>, before: i64) -> Vec<i64> {
     let mut out = Vec::new();
     let mut produced = 0usize;
-    for k in 0..MAX_STEPS {
+    let mut steps = 0usize;
+    let first = zone.map_or(e.start, |z| z.local(e.start));
+    'steps: for k in 0..MAX_STEPS {
         let Some(t) = i64::try_from(k).ok().and_then(|k| k.checked_mul(step)).and_then(|d| e.start.checked_add(d)) else { break };
         let local = zone.map_or(t, |z| z.local(t));
-        let past_until = match rule.until {
-            Some(Until::Utc(u)) => t > u,
-            Some(Until::Local(u)) => local > u,
-            None => false,
+        // The step's own time, or those the rule gives within its hour or minute.
+        let moments: Vec<i64> = match rule.freq.as_str() {
+            "HOURLY" if !rule.by_minute.is_empty() || !rule.by_second.is_empty() => {
+                let hour = local.saturating_sub(local.rem_euclid(3600));
+                let minutes = if rule.by_minute.is_empty() { vec![local.rem_euclid(3600) / 60] } else { rule.by_minute.clone() };
+                let seconds = if rule.by_second.is_empty() { vec![local.rem_euclid(60)] } else { rule.by_second.clone() };
+                minutes.iter().flat_map(|m| seconds.iter().map(move |s| hour.saturating_add(m * 60 + s))).collect()
+            }
+            "MINUTELY" if !rule.by_second.is_empty() => {
+                let minute = local.saturating_sub(local.rem_euclid(60));
+                rule.by_second.iter().map(|s| minute.saturating_add(*s)).collect()
+            }
+            _ => vec![local],
         };
-        if past_until || t >= before {
-            break;
+        for m in moments {
+            steps += 1;
+            if steps > MAX_STEPS {
+                break 'steps;
+            }
+            if m < first {
+                continue;
+            }
+            let at = if m == local { t } else { zone.map_or(m, |z| z.to_utc(m)) };
+            let past_until = match rule.until {
+                Some(Until::Utc(u)) => at > u,
+                Some(Until::Local(u)) => m > u,
+                None => false,
+            };
+            if past_until || at >= before {
+                break 'steps;
+            }
+            let day = m.div_euclid(86_400);
+            let in_day = m.rem_euclid(86_400);
+            let allows = |v: &[i64], n: i64| v.is_empty() || v.contains(&n);
+            if !rule.weekday_ok(day)
+                || !rule.month_day_ok(day)
+                || !(rule.by_month.is_empty() || rule.by_month.contains(&civil_from_days(day).1))
+                || !allows(&rule.by_hour, in_day / 3600)
+                || !allows(&rule.by_minute, in_day / 60 % 60)
+                || !allows(&rule.by_second, in_day % 60)
+            {
+                continue;
+            }
+            produced += 1;
+            if rule.count.is_some_and(|c| produced > c) || out.len() >= MAX_OCCURRENCES * 10 {
+                break 'steps;
+            }
+            out.push(at);
         }
-        let day = local.div_euclid(86_400);
-        if !rule.weekday_ok(day) || !rule.month_day_ok(day) || !(rule.by_month.is_empty() || rule.by_month.contains(&civil_from_days(day).1)) {
-            continue;
-        }
-        produced += 1;
-        if rule.count.is_some_and(|c| produced > c) || out.len() >= MAX_OCCURRENCES * 10 {
-            break;
-        }
-        out.push(t);
     }
     out
 }
