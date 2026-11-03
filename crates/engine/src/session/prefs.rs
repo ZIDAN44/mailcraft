@@ -118,6 +118,11 @@ pub struct Prefs {
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default)]
     pub follow_up: BTreeMap<String, i64>,
+    /// The imports' due-day notes taken into `follow_up`, by account: each note's fingerprint
+    /// ([`Session::imported_follow_up_at_start`]). Saved with `follow_up`, it says at the next
+    /// start that the note's days are kept here, so the note can go.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub follow_up_taken: BTreeMap<String, u64>,
     /// Quick Steps: actions done to the selection in one go ([`quick_steps`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quick_steps: Vec<quick_steps::QuickStep>,
@@ -249,6 +254,7 @@ impl Default for Prefs {
             work_offline: false,
             ignored: BTreeSet::new(),
             follow_up: BTreeMap::new(),
+            follow_up_taken: BTreeMap::new(),
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
             animations: true,

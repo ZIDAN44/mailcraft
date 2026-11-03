@@ -3015,8 +3015,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   10,000 at most, so the import leaves them in the account's `follow-up.json`
   (`pst/out/follow_up.rs`, written with each checkpoint and at the end, read again going on), a
   read of the file again carries the days of the messages it adds (`Store::merge_from`), and the
-  engine takes them in as either ends, a day set in MailCraft staying, then empties the note so a
-  day cleared since isn't brought back. A file the writer makes with seven flagged and unflagged
+  engine takes them in as either ends, a day set in MailCraft staying and a day cleared since not
+  brought back. The note stays until the preferences holding its days are saved (they're written
+  every few seconds): taking it notes its fingerprint there, and the next start empties a note
+  the saved preferences hold and takes in again one they don't, so MailCraft ended in between
+  loses no day. A file the writer makes with seven flagged and unflagged
   messages comes in with the two days it should have, and an exported account's day comes back
   in a fresh one.
 - **Search on the 41 GB file, measured against every aim:** measured again once the arcs that made

@@ -4,7 +4,7 @@
 //! they changed) and at the end, for the engine to take into the preferences, which is where
 //! MailCraft keeps them.
 
-use mailcraft_model::organize::{FOLLOW_UP_DOC, MAX_FOLLOW_UP, MAX_FOLLOW_UP_ID};
+use mailcraft_model::organize::{FOLLOW_UP_DOC, MAX_FOLLOW_UP, MAX_FOLLOW_UP_ID, merge_follow_up};
 
 use super::*;
 
@@ -43,10 +43,17 @@ impl Out<'_> {
     }
 
     /// Going on from a checkpoint: the due days read before it (none when there's no note of
-    /// them, or it can't be read).
+    /// them, or it can't be read; what isn't a due day, too long a key or a day out of range,
+    /// is left out, and the note written clean with the next checkpoint).
     pub(in crate::data_files::pst) fn resume_due(&mut self) {
         match self.store.load_account_doc::<BTreeMap<String, i64>>(self.account, FOLLOW_UP_DOC) {
-            Ok(days) => self.due.days = days.into_iter().take(MAX_FOLLOW_UP).collect(),
+            Ok(days) => {
+                let read = days.len();
+                let mut kept = BTreeMap::new();
+                merge_follow_up(&mut kept, days);
+                self.due.dirty = kept.len() != read;
+                self.due.days = kept;
+            }
             Err(e) => log::warn!("import: the due days read so far couldn't be read: {e}"),
         }
     }

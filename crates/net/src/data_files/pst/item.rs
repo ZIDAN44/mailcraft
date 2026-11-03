@@ -276,11 +276,6 @@ pub(super) fn item_of<'a>(
     it
 }
 
-/// A body kept as compressed RTF (`PidTagRtfCompressed`) and no HTML: the HTML it wraps, or,
-/// when the item has no text, its own formatting or its text. Its pictures are then inline, as
-/// the HTML names their `cid:`. A plain body is kept over RTF of its own, whose simple HTML
-/// leaves out tables, pictures and objects the text still has, and over RTF that isn't `in_sync`
-/// with it (the text is newer).
 /// A flag's due day from its time (100 ns since 1601, at the day's midnight as Outlook keeps
 /// it, the export too): the local day it falls on, the nearest midnight's, as days since 1970.
 /// None out of [`FOLLOW_UP_DAYS`](mailcraft_model::organize::FOLLOW_UP_DAYS) (Outlook's
@@ -292,6 +287,11 @@ pub(super) fn due_day(v: &Val<'_>) -> Option<i64> {
     mailcraft_model::organize::FOLLOW_UP_DAYS.contains(&day).then_some(day)
 }
 
+/// A body kept as compressed RTF (`PidTagRtfCompressed`) and no HTML: the HTML it wraps, or,
+/// when the item has no text, its own formatting or its text. Its pictures are then inline, as
+/// the HTML names their `cid:`. A plain body is kept over RTF of its own, whose simple HTML
+/// leaves out tables, pictures and objects the text still has, and over RTF that isn't `in_sync`
+/// with it (the text is newer).
 fn rtf_into(it: &mut Item, compressed: &[u8], in_sync: bool) {
     let plain = !it.body.trim().is_empty();
     if plain && !in_sync {

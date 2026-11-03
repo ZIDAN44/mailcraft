@@ -139,6 +139,7 @@ impl Session {
     /// Bring back snoozed mail that is due (and what else waits for its time: the list's date
     /// headings on a new day). Called often (each frame, each CLI run): cheap when nothing is due.
     pub fn tick(&mut self) {
+        self.imported_follow_up_at_start();
         self.let_go_some();
         self.open_indexes_ahead();
         self.make_texts_ahead();
