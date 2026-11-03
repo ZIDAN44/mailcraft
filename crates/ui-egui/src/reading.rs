@@ -21,6 +21,7 @@ mod people;
 mod pictures;
 mod security;
 pub(crate) mod text_selection;
+mod videos;
 pub(crate) use attachments::decode;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;
@@ -37,6 +38,7 @@ pub(crate) use long_text::{CHUNK, chunks};
 use people::*;
 pub(crate) use pictures::{Got, Pictures, Want};
 pub(crate) use text_selection::TextSelection;
+pub(crate) use videos::Videos;
 
 pub fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     if s.compose.as_ref().is_some_and(|c| crate::compose_inline(c, ui.ctx())) {

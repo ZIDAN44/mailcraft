@@ -2769,6 +2769,15 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   fixed yet: which of a message's attachment chips or pictures costs that first frame isn't
   known. Frames that seemed slower came from the measuring: a probe line appended to a file from
   the window's thread took 20–270 ms now and then.
+- **Holding Down: a video's first frame:** timed again by part with probes that only hand their
+  lines to a thread of their own, the one frame over 16 ms left in holds of Down on the 41 GB
+  file's data file was the first of a message with eight attachments, one a 1.7 MB video: its chip
+  read the message (6.5 ms), took the video out of it (5.1 ms) and wrote it to a file for the
+  platform's decoder (0.7 ms), all in that frame (16.9 ms), and the frame the platform made was
+  decoded in a frame too. Both now go to the pictures lane (`reading/videos.rs`): the chip shows
+  its kind's icon meanwhile, and work for a message left is cancelled. A test hands the lane's work
+  to itself and finds no file written and nothing decoded in a frame (both were before), the
+  thumbnail shown once the work ran, and the work of a message left doing nothing.
 - **Attached messages as deep as they go:** a `.pst` item's attached messages came in three
   levels deep, and a fourth was counted as too deep. The cap is now 32 (`pst.rs` `MAX_NESTING`), a
   guard against a damaged or hostile file that no real one comes near: the whole item stays
