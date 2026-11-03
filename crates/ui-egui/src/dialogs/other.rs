@@ -120,6 +120,34 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             !cancel
         }
+        Dialog::PgpKey { account, path, passphrase } => {
+            ui.set_width(420.0);
+            title(ui, t, "Import OpenPGP key");
+            let file = path.rsplit(['/', '\\']).next().unwrap_or(path.as_str()).to_string();
+            let ask = tf!("The passphrase {file} is locked with (none, if it has none):", file = file);
+            ui.add(egui::Label::new(RichText::new(ask).color(t.dim)).wrap());
+            ui.add_space(8.0);
+            let r = ui.add(egui::TextEdit::singleline(passphrase).password(true).desired_width(f32::INFINITY));
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            ui.add_space(4.0);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(tl!("Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept."))
+                        .color(t.faint)
+                        .small(),
+                )
+                .wrap(),
+            );
+            let (ok, cancel) = buttons(ui, t, "Import", true);
+            if ok || enter {
+                acts.push(Action::Run("pgp.import", json!({"account": account, "path": path, "passphrase": passphrase})));
+                return false;
+            }
+            !cancel
+        }
         Dialog::SmartCard { account, module, pin, system } => smart_card(ui, s, t, acts, account, module, pin, *system),
         Dialog::OpenSharedCalendar { email, error } => {
             ui.set_width(420.0);

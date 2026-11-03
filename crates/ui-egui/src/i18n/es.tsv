@@ -1563,3 +1563,47 @@ month	May	mayo
 	React	Reaccionar
 	Send a reaction to everyone it went to	Enviar una reacción a todos los que lo recibieron
 	Reacted with {emoji}: {people}	Reaccionaron con {emoji}: {people}
+	its key ran out on {date}	su clave caducó el {date}
+	its key isn't valid until {date}	su clave no es válida hasta el {date}
+	its key is for {addresses}, not for the sender	su clave es para {addresses}, no para el remitente
+	its owner withdrew the key on {date}	su dueño retiró la clave el {date}
+	OpenPGP key {fingerprint}	Clave OpenPGP {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	Firmado por {signer}: la firma es válida (clave OpenPGP {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	Firmado con la clave OpenPGP {key}, que MailCraft no tiene, así que no se puede comprobar la firma.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	Su clave llega con su correo (Autocrypt), o se puede importar en Archivo › Información › Seguridad.
+	Encryption available: every recipient can receive it (S/MIME)	Cifrado disponible: todos los destinatarios pueden recibirlo (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	Cifrado disponible: todos los destinatarios pueden recibirlo (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	Cifrado no disponible para {names}: no hay certificado ni clave OpenPGP para ellos
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	Firmar y cifrar con S/MIME u OpenPGP; Automático elige el que todos los destinatarios pueden recibir
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	Firmado con tu certificado o clave OpenPGP: los destinatarios saben que es tuyo y que no ha cambiado
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	Solo los destinatarios pueden leerlo: cada uno necesita un certificado o una clave OpenPGP que MailCraft tenga
+	Signing and encryption	Firma y cifrado
+	Encrypt when every recipient can receive it	Cifrar cuando todos los destinatarios puedan recibirlo
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	Un mensaje nuevo se cifra solo mientras MailCraft tenga un certificado o una clave OpenPGP de todos sus destinatarios.
+	Withdrawn on {date}	Retirada el {date}
+	It ran out on {date}	Caducó el {date}
+	Valid until {date}	Válida hasta el {date}
+	No end date	Sin fecha de caducidad
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	Firma y cifra con OpenPGP, como hacen muchas personas y programas de correo: con tu propia clave y las claves de las personas a las que escribes.
+	OpenPGP keys work in the desktop app	Las claves OpenPGP funcionan en la aplicación de escritorio
+	No OpenPGP key	Sin clave OpenPGP
+	Import your secret key file (.asc or .gpg), with its passphrase.	Importa el archivo de tu clave secreta (.asc o .gpg), con su frase de contraseña.
+	Import key…	Importar clave…
+	Forget this key: its secret part goes from the keychain too	Olvidar esta clave: su parte secreta se borra también del llavero
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	Una clave nueva se encarga de firmar y descifrar; la que está en uso se guarda para descifrar el correo antiguo
+	Older key {key}: kept to decrypt mail sent to it	Clave anterior {key}: se guarda para descifrar el correo enviado a ella
+	Forget this key: mail encrypted to it can't be read any more	Olvidar esta clave: el correo cifrado con ella ya no se podrá leer
+	Sign and decrypt with this key again; the one in use is kept to decrypt	Volver a firmar y descifrar con esta clave; la que está en uso se guarda para descifrar
+	Send your public key with your mail	Enviar tu clave pública con tu correo
+	Their mail programs can then encrypt their answers (Autocrypt).	Así sus programas de correo pueden cifrar sus respuestas (Autocrypt).
+	Keys of the people you write to: {n}	Claves de las personas a las que escribes: {n}
+	They come with their mail, or from a key file they gave you.	Llegan con su correo, o de un archivo de clave que te dieron.
+	Import someone's key…	Importar la clave de alguien…
+	Import OpenPGP key	Importar clave OpenPGP
+	The passphrase {file} is locked with (none, if it has none):	La frase de contraseña que protege {file} (vacía, si no tiene):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Su parte secreta se guarda en el llavero del sistema, no en los archivos de MailCraft; la frase de contraseña no se guarda.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	esta cuenta no tiene una clave OpenPGP para descifrarlo (Archivo › Información › Seguridad)
+	it can't be decrypted with your OpenPGP key	no se puede descifrar con tu clave OpenPGP
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	tus claves OpenPGP las usa la aplicación de escritorio de MailCraft, no el navegador

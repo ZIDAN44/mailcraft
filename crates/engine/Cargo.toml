@@ -13,6 +13,7 @@ workspace = true
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-smime = { workspace = true }
+mailcraft-pgp = { workspace = true }
 mailcraft-store = { workspace = true }
 mailcraft-print = { workspace = true }
 serde = { workspace = true }

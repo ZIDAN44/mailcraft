@@ -1562,3 +1562,47 @@ month	May	Май
 	React	Реакция
 	Send a reaction to everyone it went to	Отправить реакцию всем получателям
 	Reacted with {emoji}: {people}	Отреагировали {emoji}: {people}
+	its key ran out on {date}	срок действия его ключа истёк {date}
+	its key isn't valid until {date}	его ключ действует только с {date}
+	its key is for {addresses}, not for the sender	его ключ выдан для {addresses}, а не для отправителя
+	its owner withdrew the key on {date}	владелец отозвал ключ {date}
+	OpenPGP key {fingerprint}	Ключ OpenPGP {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	Подписано: {signer}. Подпись верна (ключ OpenPGP {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	Подписано ключом OpenPGP {key}, которого нет в MailCraft, поэтому подпись проверить нельзя.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	Ключ приходит вместе с его письмами (Autocrypt), или его можно импортировать в разделе Файл › Сведения › Безопасность.
+	Encryption available: every recipient can receive it (S/MIME)	Шифрование доступно: все получатели могут его принять (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	Шифрование доступно: все получатели могут его принять (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	Шифрование недоступно для {names}: для них нет ни сертификата, ни ключа OpenPGP
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	Подписывать и шифровать с помощью S/MIME или OpenPGP; «Автоматически» выбирает то, что могут принять все получатели
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	Подписано вашим сертификатом или ключом OpenPGP: получатели видят, что письмо от вас и не изменено
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	Прочитать его смогут только получатели: для каждого нужен сертификат или ключ OpenPGP, который есть в MailCraft
+	Signing and encryption	Подпись и шифрование
+	Encrypt when every recipient can receive it	Шифровать, когда все получатели могут его принять
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	Новое письмо шифруется само, пока у MailCraft есть сертификат или ключ OpenPGP для каждого получателя.
+	Withdrawn on {date}	Отозван {date}
+	It ran out on {date}	Срок истёк {date}
+	Valid until {date}	Действует до {date}
+	No end date	Без срока действия
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	Подписывайте и шифруйте письма с помощью OpenPGP, как это делают многие люди и почтовые программы: своим ключом и ключами тех, кому пишете.
+	OpenPGP keys work in the desktop app	Ключи OpenPGP работают в настольном приложении
+	No OpenPGP key	Нет ключа OpenPGP
+	Import your secret key file (.asc or .gpg), with its passphrase.	Импортируйте файл своего секретного ключа (.asc или .gpg) вместе с его парольной фразой.
+	Import key…	Импортировать ключ…
+	Forget this key: its secret part goes from the keychain too	Забыть этот ключ: его секретная часть тоже удаляется из связки ключей
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	Новый ключ берёт на себя подпись и расшифровку; текущий остаётся, чтобы расшифровывать старые письма
+	Older key {key}: kept to decrypt mail sent to it	Прежний ключ {key}: хранится, чтобы расшифровывать отправленные на него письма
+	Forget this key: mail encrypted to it can't be read any more	Забыть этот ключ: зашифрованные для него письма больше нельзя будет прочитать
+	Sign and decrypt with this key again; the one in use is kept to decrypt	Снова подписывать и расшифровывать этим ключом; текущий остаётся для расшифровки
+	Send your public key with your mail	Отправлять свой открытый ключ вместе с письмами
+	Their mail programs can then encrypt their answers (Autocrypt).	Тогда их почтовые программы смогут шифровать ответы (Autocrypt).
+	Keys of the people you write to: {n}	Ключи тех, кому вы пишете: {n}
+	They come with their mail, or from a key file they gave you.	Они приходят вместе с их письмами или из файла ключа, который вам дали.
+	Import someone's key…	Импортировать чужой ключ…
+	Import OpenPGP key	Импортировать ключ OpenPGP
+	The passphrase {file} is locked with (none, if it has none):	Парольная фраза, которой защищён {file} (пусто, если её нет):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Секретная часть хранится в системной связке ключей, а не в файлах MailCraft; парольная фраза не сохраняется.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	у этой учётной записи нет ключа OpenPGP для расшифровки (Файл › Сведения › Безопасность)
+	it can't be decrypted with your OpenPGP key	его нельзя расшифровать вашим ключом OpenPGP
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	ваши ключи OpenPGP используются настольным приложением MailCraft, а не в браузере

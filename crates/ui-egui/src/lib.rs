@@ -160,6 +160,10 @@ pub enum Action {
     ImportCertificate(String),
     /// The browser: open the account's certificate it keeps, with its password, for this page.
     UnlockCertificate(String),
+    /// Pick an OpenPGP secret key file for an account, then ask its passphrase.
+    ImportPgpKey(String),
+    /// Pick a file of correspondents' OpenPGP keys for an account, and keep them.
+    ImportPublicKey(String),
     /// Choose a certificate on a smart card (or in the system's keychain) for an account.
     UseSmartCard(String),
     /// Choose one of the system's own certificates (Windows' store, the macOS Keychain).

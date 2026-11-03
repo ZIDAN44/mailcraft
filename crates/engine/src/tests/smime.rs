@@ -6,6 +6,8 @@ use super::*;
 use crate::session::{Lock, Seal};
 use mailcraft_smime as smime;
 
+mod pgp;
+
 /// After the test certificates were made, before they run out.
 const LATER: i64 = 1_792_900_000;
 

@@ -1558,3 +1558,47 @@ month	May	mei
 	React	Reageren
 	Send a reaction to everyone it went to	Een reactie sturen naar iedereen die het kreeg
 	Reacted with {emoji}: {people}	Gereageerd met {emoji}: {people}
+	its key ran out on {date}	de sleutel is verlopen op {date}
+	its key isn't valid until {date}	de sleutel is pas geldig vanaf {date}
+	its key is for {addresses}, not for the sender	de sleutel is voor {addresses}, niet voor de afzender
+	its owner withdrew the key on {date}	de eigenaar heeft de sleutel ingetrokken op {date}
+	OpenPGP key {fingerprint}	OpenPGP-sleutel {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	Ondertekend door {signer}: de handtekening klopt (OpenPGP-sleutel {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	Ondertekend met de OpenPGP-sleutel {key}, die MailCraft niet heeft, dus de handtekening kan niet worden gecontroleerd.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	Hun sleutel komt mee met hun mail (Autocrypt), of kan worden geïmporteerd in Bestand › Info › Beveiliging.
+	Encryption available: every recipient can receive it (S/MIME)	Versleuteling mogelijk: alle ontvangers kunnen het ontvangen (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	Versleuteling mogelijk: alle ontvangers kunnen het ontvangen (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	Versleuteling niet mogelijk voor {names}: er is geen certificaat of OpenPGP-sleutel voor hen
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	Ondertekenen en versleutelen met S/MIME of OpenPGP; Automatisch neemt wat alle ontvangers kunnen ontvangen
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	Ondertekend met uw certificaat of OpenPGP-sleutel: de ontvangers zien dat het van u is en ongewijzigd
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	Alleen de ontvangers kunnen het lezen: voor elk is een certificaat of OpenPGP-sleutel nodig die MailCraft heeft
+	Signing and encryption	Ondertekenen en versleutelen
+	Encrypt when every recipient can receive it	Versleutelen als alle ontvangers het kunnen ontvangen
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	Een nieuw bericht wordt vanzelf versleuteld zolang MailCraft een certificaat of OpenPGP-sleutel heeft voor iedereen erin.
+	Withdrawn on {date}	Ingetrokken op {date}
+	It ran out on {date}	Verlopen op {date}
+	Valid until {date}	Geldig tot {date}
+	No end date	Geen einddatum
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	Onderteken en versleutel met OpenPGP, zoals veel mensen en mailprogramma's doen: met uw eigen sleutel en de sleutels van de mensen aan wie u schrijft.
+	OpenPGP keys work in the desktop app	OpenPGP-sleutels werken in de desktop-app
+	No OpenPGP key	Geen OpenPGP-sleutel
+	Import your secret key file (.asc or .gpg), with its passphrase.	Importeer het bestand van uw geheime sleutel (.asc of .gpg), met de wachtwoordzin.
+	Import key…	Sleutel importeren…
+	Forget this key: its secret part goes from the keychain too	Deze sleutel vergeten: het geheime deel verdwijnt ook uit de sleutelhanger
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	Een nieuwe sleutel neemt ondertekenen en ontsleutelen over; de huidige blijft om oude mail te ontsleutelen
+	Older key {key}: kept to decrypt mail sent to it	Oudere sleutel {key}: bewaard om mail te ontsleutelen die eraan is gestuurd
+	Forget this key: mail encrypted to it can't be read any more	Deze sleutel vergeten: mail die ermee is versleuteld kan dan niet meer worden gelezen
+	Sign and decrypt with this key again; the one in use is kept to decrypt	Weer met deze sleutel ondertekenen en ontsleutelen; de huidige blijft om te ontsleutelen
+	Send your public key with your mail	Uw openbare sleutel met uw mail meesturen
+	Their mail programs can then encrypt their answers (Autocrypt).	Hun mailprogramma's kunnen hun antwoorden dan versleutelen (Autocrypt).
+	Keys of the people you write to: {n}	Sleutels van de mensen aan wie u schrijft: {n}
+	They come with their mail, or from a key file they gave you.	Ze komen mee met hun mail, of uit een sleutelbestand dat ze u gaven.
+	Import someone's key…	Sleutel van iemand importeren…
+	Import OpenPGP key	OpenPGP-sleutel importeren
+	The passphrase {file} is locked with (none, if it has none):	De wachtwoordzin waarmee {file} is beveiligd (leeg als er geen is):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Het geheime deel wordt in de sleutelhanger van het systeem bewaard, niet in de bestanden van MailCraft; de wachtwoordzin wordt niet bewaard.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	dit account heeft geen OpenPGP-sleutel om het te ontsleutelen (Bestand › Info › Beveiliging)
+	it can't be decrypted with your OpenPGP key	het kan niet worden ontsleuteld met uw OpenPGP-sleutel
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	uw OpenPGP-sleutels worden gebruikt door de desktop-app van MailCraft, niet in de browser

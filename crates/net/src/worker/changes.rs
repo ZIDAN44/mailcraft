@@ -198,6 +198,7 @@ impl Worker {
             | Job::CheckRevocation { .. }
             | Job::FindHeldKeys { .. }
             | Job::UseHeldKey { .. }
+            | Job::Pgp { .. }
             | Job::CheckUpdates
             | Job::StopSearch => {}
             Job::Start { .. }

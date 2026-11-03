@@ -1559,3 +1559,47 @@ month	May	5月
 	React	回应
 	Send a reaction to everyone it went to	向所有收件人发送回应
 	Reacted with {emoji}: {people}	以 {emoji} 回应：{people}
+	its key ran out on {date}	其密钥已于 {date} 过期
+	its key isn't valid until {date}	其密钥在 {date} 之前无效
+	its key is for {addresses}, not for the sender	其密钥属于 {addresses}，不属于发件人
+	its owner withdrew the key on {date}	其所有者已于 {date} 撤销该密钥
+	OpenPGP key {fingerprint}	OpenPGP 密钥 {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	由 {signer} 签名：签名有效（OpenPGP 密钥 {key}）。
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	用 MailCraft 没有的 OpenPGP 密钥 {key} 签名，因此无法验证签名。
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	对方的密钥随其邮件一起到达（Autocrypt），也可以在 文件 › 信息 › 安全 中导入。
+	Encryption available: every recipient can receive it (S/MIME)	可以加密：所有收件人都能接收（S/MIME）
+	Encryption available: every recipient can receive it (OpenPGP)	可以加密：所有收件人都能接收（OpenPGP）
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	无法为 {names} 加密：没有他们的证书或 OpenPGP 密钥
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	用 S/MIME 或 OpenPGP 签名和加密；自动会选择所有收件人都能接收的那一种
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	用你的证书或 OpenPGP 密钥签名：收件人能知道邮件来自你且未被更改
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	只有收件人能阅读：每位收件人都需要有 MailCraft 中的证书或 OpenPGP 密钥
+	Signing and encryption	签名与加密
+	Encrypt when every recipient can receive it	当所有收件人都能接收时加密
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	只要 MailCraft 有每位收件人的证书或 OpenPGP 密钥，新邮件就会自动加密。
+	Withdrawn on {date}	已于 {date} 撤销
+	It ran out on {date}	已于 {date} 过期
+	Valid until {date}	有效期至 {date}
+	No end date	无到期日
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	像许多人和邮件程序那样，用 OpenPGP 签名和加密：用你自己的密钥，以及你写信对象的密钥。
+	OpenPGP keys work in the desktop app	OpenPGP 密钥可在桌面应用中使用
+	No OpenPGP key	没有 OpenPGP 密钥
+	Import your secret key file (.asc or .gpg), with its passphrase.	导入你的私钥文件（.asc 或 .gpg）及其密码短语。
+	Import key…	导入密钥…
+	Forget this key: its secret part goes from the keychain too	忘记此密钥：其私密部分也会从钥匙串中删除
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	新密钥接手签名和解密；正在使用的密钥会保留，用于解密旧邮件
+	Older key {key}: kept to decrypt mail sent to it	旧密钥 {key}：保留用于解密发给它的邮件
+	Forget this key: mail encrypted to it can't be read any more	忘记此密钥：用它加密的邮件将无法再阅读
+	Sign and decrypt with this key again; the one in use is kept to decrypt	重新用此密钥签名和解密；正在使用的密钥会保留用于解密
+	Send your public key with your mail	随邮件发送你的公钥
+	Their mail programs can then encrypt their answers (Autocrypt).	这样对方的邮件程序就能加密回复（Autocrypt）。
+	Keys of the people you write to: {n}	你写信对象的密钥：{n}
+	They come with their mail, or from a key file they gave you.	它们随对方的邮件一起到达，或来自对方给你的密钥文件。
+	Import someone's key…	导入别人的密钥…
+	Import OpenPGP key	导入 OpenPGP 密钥
+	The passphrase {file} is locked with (none, if it has none):	保护 {file} 的密码短语（没有就留空）：
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	其私密部分保存在系统钥匙串中，而不在 MailCraft 的文件里；密码短语不会保存。
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	此帐户没有可用于解密的 OpenPGP 密钥（文件 › 信息 › 安全）
+	it can't be decrypted with your OpenPGP key	无法用你的 OpenPGP 密钥解密
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	你的 OpenPGP 密钥由 MailCraft 桌面应用使用，而不在浏览器中使用

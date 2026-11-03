@@ -138,8 +138,23 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
         });
         older(s, t, ui, &id, acts);
         other_sources(ui, t, &id, acts);
+        let known = s.smime_settings(&id).known.len();
+        if known > 0 {
+            setting_row(ui, t, false, name(t, &tf!("Certificates from signed mail: {n}", n = known)), None, |_| {});
+        }
+    });
+}
+
+/// What new messages do (sign, encrypt, hide the subject), whichever the account signs and
+/// encrypts with.
+pub(super) fn defaults(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut Vec<Action>) {
+    let id = a.config.id.clone();
+    if !s.can_protect(&id) {
+        return;
+    }
+    card(ui, t, tl!("Signing and encryption"), None, |ui| {
         let settings = s.smime_settings(&id);
-        setting_row(ui, t, false, name(t, tl!("Sign new messages")), None, |ui| {
+        setting_row(ui, t, true, name(t, tl!("Sign new messages")), None, |ui| {
             let mut on = settings.sign;
             if widgets::switch(ui, t, &mut on, tl!("Sign new messages")).changed() {
                 acts.push(Action::Run("security.defaults", json!({"account": id, "sign": on})));
@@ -162,6 +177,19 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
             ui,
             t,
             false,
+            name(t, tl!("Encrypt when every recipient can receive it")),
+            Some(note(t, tl!("A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it."))),
+            |ui| {
+                let mut on = settings.auto_encrypt;
+                if widgets::switch(ui, t, &mut on, tl!("Encrypt when every recipient can receive it")).changed() {
+                    acts.push(Action::Run("security.defaults", json!({"account": id, "autoEncrypt": on})));
+                }
+            },
+        );
+        setting_row(
+            ui,
+            t,
+            false,
             name(t, tl!("Hide the subject of encrypted mail")),
             Some(note(t, tl!("On the way it reads [...]; the real one is inside, for its recipients (header protection)."))),
             |ui| {
@@ -173,7 +201,7 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
         );
         // The browser (gap 7): certificates opened again on the next visit, their password sealed
         // with a key that never leaves this browser.
-        if s.jmap_only {
+        if s.jmap_only && s.identity(&id).is_some() {
             setting_row(
                 ui,
                 t,
@@ -192,10 +220,6 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                     }
                 },
             );
-        }
-        let known = settings.known.len();
-        if known > 0 {
-            setting_row(ui, t, false, name(t, &tf!("Certificates from signed mail: {n}", n = known)), None, |_| {});
         }
     });
 }

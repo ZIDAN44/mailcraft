@@ -389,6 +389,26 @@ fn sent_folder(sh: &Rcs, id: &str, given: Option<String>) -> Option<String> {
 const BROWSER_SMIME: &str = "smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser";
 /// Revocation servers don't let a web page ask them.
 const BROWSER_REVOCATION: &str = "the browser can't ask a certificate's authority";
+/// OpenPGP keys of one's own are the desktop app's for now (docs/gaps.md).
+const BROWSER_PGP: &str = "your OpenPGP keys are used by the MailCraft desktop app, not in the browser";
+
+/// OpenPGP work with the account's own keys: not in the browser (a draft is saved as it is).
+fn pgp(sh: &Rcs, id: &str, work: mailcraft_engine::model::PgpWork) {
+    use mailcraft_engine::model::PgpWork;
+    match work {
+        PgpWork::Decrypt { key, .. } => emit(sh, Event::PgpDecrypted { key, content: None, signature: None, error: Some(BROWSER_PGP.into()) }),
+        PgpWork::Protect { id: msg, .. } => {
+            emit(sh, Event::Protected { account: id.to_string(), id: msg, raw: None, error: Some(BROWSER_PGP.into()) })
+        }
+        PgpWork::SealDraft { raw, folder, replaces, .. } => {
+            notice(sh, id, format!("the draft couldn't be encrypted, so it's saved as it is: {BROWSER_PGP}"));
+            enqueue(sh, id, Task::Job(Job::SaveDraft { account: id.to_string(), raw: raw.0, folder, replaces }));
+        }
+        PgpWork::Import { .. } | PgpWork::Use { .. } | PgpWork::Forget { .. } => {
+            emit(sh, Event::PgpKeys { account: id.to_string(), keys: Vec::new(), imported: None, error: Some(BROWSER_PGP.into()) })
+        }
+    }
+}
 
 async fn job(sh: &Rcs, id: &str, j: Job) {
     let store = store(sh);
@@ -533,6 +553,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
                 status: mailcraft_engine::model::Revocation::Unknown { why: BROWSER_REVOCATION.into() },
             },
         ),
+        Job::Pgp { work, .. } => pgp(sh, id, work),
         Job::FindHeldKeys { .. } => emit(sh, Event::HeldKeys { keys: Vec::new(), error: Some(BROWSER_SMIME.into()) }),
         Job::UseHeldKey { .. } => emit(
             sh,

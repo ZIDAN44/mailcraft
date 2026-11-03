@@ -11,9 +11,13 @@ impl Session {
         // An account's data file had to itself by a compaction: what it sends waits for it.
         let Some(e) = self.defer_for_compaction(e) else { return };
         match e {
-            e @ (Event::Identity { .. } | Event::Protected { .. } | Event::Decrypted { .. } | Event::Revocation { .. } | Event::HeldKeys { .. }) => {
-                self.apply_smime(e)
-            }
+            e @ (Event::Identity { .. }
+            | Event::Protected { .. }
+            | Event::Decrypted { .. }
+            | Event::Revocation { .. }
+            | Event::HeldKeys { .. }
+            | Event::PgpKeys { .. }
+            | Event::PgpDecrypted { .. }) => self.apply_smime(e),
             Event::Status { account, status } => {
                 // Show more ended (with nothing new, or failing): its footer can be asked again.
                 if !matches!(status, SyncStatus::Syncing { .. } | SyncStatus::Connecting)

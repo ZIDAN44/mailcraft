@@ -273,6 +273,7 @@ impl Pool {
             | Job::CheckRevocation { .. }
             | Job::FindHeldKeys { .. }
             | Job::UseHeldKey { .. }) => self.smime(j),
+            Job::Pgp { account, work } => self.pgp(account, work),
             Job::SealDraft { account, raw, folder, replaces, keep } => {
                 let raw = self.seal(&account, raw.0);
                 let account = account.id;
@@ -348,6 +349,7 @@ impl Pool {
                     self.creds.delete_smtp(&c);
                     // Its certificates' keys and its calendar server's password go with it.
                     smime::forget_all(self.creds.as_ref(), &c);
+                    pgp::forget_all(self.creds.as_ref(), &c);
                     self.creds.delete_secret(&c, DAV_SECRET);
                     self.creds.delete_secret(&c, DIRECTORY_SECRET);
                 }
@@ -553,6 +555,7 @@ mod filing;
 mod imports;
 mod indexing;
 mod opening;
+mod pgp;
 mod remote;
 mod send;
 mod smime;

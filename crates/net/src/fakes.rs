@@ -5,4 +5,5 @@ pub(crate) mod fake_dav;
 pub(crate) mod fake_ews;
 pub(crate) mod fake_graph;
 pub(crate) mod fake_jmap;
+mod real_pgp;
 mod real_servers;

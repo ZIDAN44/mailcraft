@@ -154,6 +154,12 @@ pub enum Dialog {
         data: Option<Vec<u8>>,
         password: String,
     },
+    /// The passphrase of an OpenPGP secret key file being imported, from `path`.
+    PgpKey {
+        account: String,
+        path: String,
+        passphrase: String,
+    },
     /// A certificate on a smart card (its PKCS #11 module and PIN), or (`system`) in the system's
     /// own store.
     SmartCard {
@@ -624,6 +630,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::OpenSharedCalendar { .. }
         | Dialog::SubscribeCalendar { .. }
         | Dialog::Certificate { .. }
+        | Dialog::PgpKey { .. }
         | Dialog::SmartCard { .. }
         | Dialog::Event(..)
         | Dialog::Task(..)

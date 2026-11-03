@@ -117,6 +117,11 @@ pub trait Services {
     fn pick_certificate(&mut self) -> Option<PathBuf> {
         None
     }
+    /// An OpenPGP key file (`.asc`, `.gpg`, `.key`) to import (`None` when cancelled, or where
+    /// there's no file picker).
+    fn pick_pgp_key(&mut self) -> Option<PathBuf> {
+        None
+    }
     /// A folder to save into (`None` when cancelled).
     fn pick_folder(&mut self) -> Option<PathBuf> {
         None

@@ -89,11 +89,17 @@ pub struct Compose {
     /// The Replies to row is shown.
     #[serde(default)]
     pub show_reply_to: bool,
-    /// S/MIME: signed, and encrypted to its recipients, as it's sent.
+    /// Signed, and encrypted to its recipients, as it's sent: with S/MIME or OpenPGP (`scheme`;
+    /// `None`: whichever every recipient can receive), encryption following the recipients while
+    /// `encrypt_auto` (the account's option, until the user chooses).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub sign: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub encrypt: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheme: Option<Scheme>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub encrypt_auto: bool,
 }
 
 impl Compose {
@@ -230,7 +236,12 @@ impl Session {
 
     pub fn reply_compose(&mut self, mode: ReplyMode) -> CmdResult {
         let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-        let encrypted = r.security.as_ref().is_some_and(|s| matches!(s.lock, Some(Lock::Open { .. }))) && self.identity(&r.key.account).is_some();
+        let encrypted = r.security.as_ref().is_some_and(|s| matches!(s.lock, Some(Lock::Open { .. }))) && self.can_protect(&r.key.account);
+        // Answered the way it came, when the account can.
+        let came_as = r.security.as_ref().map(|s| if s.pgp { Scheme::Pgp } else { Scheme::Smime });
+        let scheme = came_as.filter(|s| {
+            encrypted && if *s == Scheme::Pgp { self.pgp_key(&r.key.account).is_some() } else { self.identity(&r.key.account).is_some() }
+        });
         // The reply's own copy (the quote's pictures are put in it), the one shown left as it is.
         let mut parsed = Arc::unwrap_or_clone(r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?);
         // Forwarded, its files go with it: not before they've come.
@@ -277,6 +288,7 @@ impl Session {
             // An answer to encrypted mail quotes it: encrypted too, and signed, when it can be.
             sign: encrypted,
             encrypt: encrypted,
+            scheme,
             window: self.prefs.reply_window,
             ..Default::default()
         });
@@ -415,6 +427,8 @@ impl Session {
             d.seven_bit = true;
         }
         let (raw, from) = self.compose_bytes(&c, &d)?;
+        // The account's OpenPGP key goes along, for answers to be encrypted (Autocrypt).
+        let raw = self.with_autocrypt(&c.account, raw);
         let recipients = d.recipients();
         if let Some(job) = self.protect_job(&c, &raw, &recipients, &from)? {
             self.jobs.push(job);
@@ -549,6 +563,10 @@ impl Session {
     fn draft_job(&self, c: &Compose, raw: Vec<u8>, folder: String, keep: bool) -> Job {
         let config = self.account(&c.account).map(|a| a.config.clone());
         match config {
+            Some(account) if self.seals_with_pgp(c) => Job::Pgp {
+                account,
+                work: mailcraft_model::PgpWork::SealDraft { raw: mailcraft_model::Private(raw), folder, replaces: c.draft.clone(), keep },
+            },
             Some(account) if c.encrypt && self.identity(&c.account).is_some() => {
                 Job::SealDraft { account, raw: mailcraft_model::Private(raw), folder, replaces: c.draft.clone(), keep }
             }

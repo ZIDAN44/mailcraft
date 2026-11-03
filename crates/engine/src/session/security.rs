@@ -14,8 +14,11 @@ use mailcraft_smime as smime;
 use super::*;
 
 mod cards;
+mod pgp;
 mod revocation;
 pub use cards::CardSearch;
+pub(crate) use pgp::PgpState;
+pub use pgp::{KeySource, KnownKey, PGP_DOC, PgpSettings, Reach, Scheme};
 pub use revocation::RevocationCheck;
 pub(crate) use revocation::Revocations;
 
@@ -43,6 +46,10 @@ pub struct SmimeSettings {
     /// Encrypted mail shows its subject on the way (header protection's `[...]` left out).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub keep_subject: bool,
+    /// New messages are encrypted by themselves while every recipient can receive it (S/MIME
+    /// or OpenPGP), until the user chooses (issue #6).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub auto_encrypt: bool,
     /// The browser (gap 7): the certificates stay unlocked between visits, their password
     /// encrypted with a key the browser won't let out.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -70,6 +77,8 @@ pub struct Security {
     pub signed: Option<SignedBy>,
     /// Its subject and addresses came from inside, where they were protected (RFC 9788).
     pub headers: bool,
+    /// It was protected with OpenPGP, not S/MIME.
+    pub pgp: bool,
 }
 
 impl Security {
@@ -98,6 +107,8 @@ pub struct SignedBy {
     pub seal: Seal,
     /// The signer's certificate, when the signature could be read.
     pub cert: Option<smime::CertInfo>,
+    /// Or, signed with OpenPGP, the signer's key.
+    pub key: Option<mailcraft_pgp::KeyInfo>,
     pub at: Option<i64>,
     /// Made with SHA-1.
     pub weak: bool,
@@ -113,6 +124,8 @@ pub enum Seal {
     Untrusted(Vec<smime::Problem>),
     /// It doesn't hold (the message changed after it was signed), or can't be read: why.
     Broken(String),
+    /// OpenPGP: made with a key MailCraft doesn't have (its key ID), so it can't be checked.
+    UnknownKey(String),
 }
 
 /// A message waiting for [`Event::Protected`] before it goes.
@@ -135,6 +148,7 @@ impl Session {
             let s: SmimeSettings = store.load_account_doc(&a.config.id, SMIME_DOC).unwrap_or_default();
             self.smime.insert(a.config.id.clone(), s);
         }
+        self.load_pgp();
     }
 
     fn save_smime(&mut self, account: &str) {
@@ -225,10 +239,15 @@ impl Session {
     pub fn forget_identity(&mut self, account: &str) -> CmdResult {
         let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
         self.jobs.push(Job::ForgetIdentity { account: config });
+        let keeps_pgp = self.pgp_key(account).is_some();
         let s = self.smime.entry(account.to_string()).or_default();
         s.chain.clear();
-        s.sign = false;
-        s.encrypt = false;
+        // With an OpenPGP key left, new messages are still signed and encrypted as chosen.
+        if !keeps_pgp {
+            s.sign = false;
+            s.encrypt = false;
+            s.auto_encrypt = false;
+        }
         self.save_smime(account);
         Ok(serde_json::json!({ "forgotten": account }))
     }
@@ -247,14 +266,24 @@ impl Session {
     }
 
     /// Whether new messages from `account` are signed or encrypted.
-    pub fn set_smime_defaults(&mut self, account: &str, sign: Option<bool>, encrypt: Option<bool>, keep_subject: Option<bool>) -> CmdResult {
+    pub fn set_smime_defaults(
+        &mut self,
+        account: &str,
+        sign: Option<bool>,
+        encrypt: Option<bool>,
+        keep_subject: Option<bool>,
+        auto_encrypt: Option<bool>,
+    ) -> CmdResult {
         if self.account(account).is_none() {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
-        let has = self.identity(account).is_some();
+        let has = self.can_protect(account);
         let s = self.smime.entry(account.to_string()).or_default();
-        if (sign == Some(true) || encrypt == Some(true)) && !has {
-            return Err(CmdError::Disabled("import a certificate for the account first".into()));
+        if (sign == Some(true) || encrypt == Some(true) || auto_encrypt == Some(true)) && !has {
+            return Err(CmdError::Disabled("import a certificate or an OpenPGP key for the account first".into()));
+        }
+        if let Some(v) = auto_encrypt {
+            s.auto_encrypt = v;
         }
         if let Some(v) = sign {
             s.sign = v;
@@ -265,17 +294,24 @@ impl Session {
         if let Some(v) = keep_subject {
             s.keep_subject = v;
         }
-        let out = serde_json::json!({ "sign": s.sign, "encrypt": s.encrypt, "keepSubject": s.keep_subject });
+        let out = serde_json::json!({ "sign": s.sign, "encrypt": s.encrypt, "keepSubject": s.keep_subject, "autoEncrypt": s.auto_encrypt });
         self.save_smime(account);
         Ok(out)
+    }
+
+    /// Whether the account can sign and encrypt at all: it has a certificate or an OpenPGP key.
+    pub fn can_protect(&self, account: &str) -> bool {
+        self.identity(account).is_some() || self.pgp_key(account).is_some()
     }
 
     /// A new message takes its account's settings.
     pub(super) fn smime_defaults(&self, c: &mut Compose) {
         let s = self.smime_settings(&c.account);
-        if !s.chain.is_empty() {
+        if self.can_protect(&c.account) {
             c.sign |= s.sign;
             c.encrypt |= s.encrypt;
+            // Encryption follows the recipients, unless it's on already.
+            c.encrypt_auto = s.auto_encrypt && !c.encrypt;
         }
     }
 
@@ -290,9 +326,21 @@ impl Session {
         let mut cur = raw.to_vec();
         let mut sec = Security::default();
         let mut any = false;
+        // The keys it brings (Autocrypt, attached), first: its own signature may be by one.
+        self.learn_keys(&key.account, raw);
         for _ in 0..4 {
             match mime::smime::protection(&cur) {
-                mime::smime::Protection::None => break,
+                mime::smime::Protection::None => match self.unwrap_pgp(key, &cur, &mut sec) {
+                    pgp::Step::Not => break,
+                    pgp::Step::Next(next) => {
+                        any = true;
+                        cur = next;
+                    }
+                    pgp::Step::Stop => {
+                        any = true;
+                        break;
+                    }
+                },
                 mime::smime::Protection::Signed { content, signature } => {
                     any = true;
                     if sec.signed.is_none() {
@@ -337,6 +385,10 @@ impl Session {
                 }
             }
         }
+        // Keys attached inside what was protected.
+        if any {
+            self.learn_keys(&key.account, &cur);
+        }
         (std::borrow::Cow::Owned(cur), any.then_some(sec))
     }
 
@@ -345,7 +397,10 @@ impl Session {
         let mut cur = self.store.as_ref()?.read_body(key)?;
         for _ in 0..4 {
             cur = match mime::smime::protection(&cur) {
-                mime::smime::Protection::None => break,
+                mime::smime::Protection::None => match self.readable_pgp(key, &cur) {
+                    Some(next) => next,
+                    None => break,
+                },
                 mime::smime::Protection::Signed { content, .. } => mime::smime::with_entity(&cur, &content),
                 mime::smime::Protection::Opaque(cms) => match smime::carried(&cms) {
                     Ok(c) => mime::smime::with_entity(&cur, &c),
@@ -387,6 +442,7 @@ impl Session {
                 SignedBy {
                     seal: if problems.is_empty() { Seal::Trusted } else { Seal::Untrusted(problems) },
                     cert: smime::cert::info(&signed.signer).ok(),
+                    key: None,
                     at: signed.signed_at,
                     weak: signed.weak,
                     revocation,
@@ -398,6 +454,7 @@ impl Session {
                     other => other.to_string(),
                 }),
                 cert: None,
+                key: None,
                 at: None,
                 weak: false,
                 revocation: None,
@@ -442,6 +499,9 @@ impl Session {
     pub(super) fn protect_job(&mut self, c: &Compose, raw: &[u8], recipients: &[String], from: &str) -> Result<Option<Job>, CmdError> {
         if !c.sign && !c.encrypt {
             return Ok(None);
+        }
+        if self.scheme_for(c, recipients) == Scheme::Pgp {
+            return self.pgp_protect_job(c, raw, recipients, from).map(Some);
         }
         let s = self.smime_settings(&c.account);
         let config = self.account(&c.account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
@@ -571,6 +631,7 @@ impl Session {
             }
             Event::Revocation { cert, status } => self.heard_revocation(cert, status),
             Event::HeldKeys { keys, error } => self.heard_held_keys(keys, error),
+            e @ (Event::PgpKeys { .. } | Event::PgpDecrypted { .. }) => self.apply_pgp(e),
             _ => {}
         }
     }

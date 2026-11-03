@@ -153,6 +153,7 @@ pub(crate) fn tour() {
             Dialog::Password { account: "sample".into(), email: "x".into(), password: String::new() },
             Dialog::Certificate { account: "sample".into(), path: "riley.p12".into(), data: None, password: String::new() },
             Dialog::Certificate { account: "sample".into(), path: String::new(), data: None, password: String::new() },
+            Dialog::PgpKey { account: "sample".into(), path: "ana-secret.asc".into(), passphrase: String::new() },
             Dialog::SmartCard { account: "sample".into(), module: "/usr/lib/opensc-pkcs11.so".into(), pin: "1234".into(), system: false },
             Dialog::SmartCard { account: "sample".into(), module: String::new(), pin: String::new(), system: true },
             Dialog::new_folder("sample", Some("Projects")),

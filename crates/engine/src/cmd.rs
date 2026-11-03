@@ -90,6 +90,7 @@ pub(crate) use files::message_preview;
 mod home;
 mod meetings;
 mod navigation;
+mod pgp;
 mod pim;
 mod security;
 mod signatures;
@@ -108,6 +109,7 @@ pub fn registry() -> Registry {
     all.extend(meetings::commands());
     all.extend(files::commands());
     all.extend(security::commands());
+    all.extend(pgp::commands());
     all.extend(accounts::commands());
     all.extend(data_files::commands());
     all.extend(signatures::commands());

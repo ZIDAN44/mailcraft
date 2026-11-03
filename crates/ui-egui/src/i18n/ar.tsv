@@ -1558,3 +1558,47 @@ month	May	مايو
 	React	تفاعل
 	Send a reaction to everyone it went to	أرسل تفاعلًا إلى كل من أُرسلت إليه
 	Reacted with {emoji}: {people}	تفاعلوا بـ {emoji}: {people}
+	its key ran out on {date}	انتهت صلاحية مفتاحه في {date}
+	its key isn't valid until {date}	مفتاحه غير صالح قبل {date}
+	its key is for {addresses}, not for the sender	مفتاحه مخصص لـ {addresses}، وليس للمرسل
+	its owner withdrew the key on {date}	سحب صاحبه المفتاح في {date}
+	OpenPGP key {fingerprint}	مفتاح OpenPGP {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	موقّعة من {signer}: التوقيع صحيح (مفتاح OpenPGP {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	موقّعة بمفتاح OpenPGP {key} غير الموجود لدى MailCraft، لذا لا يمكن التحقق من التوقيع.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	يصل مفتاحه مع بريده (Autocrypt)، أو يمكن استيراده من ملف › معلومات › الأمان.
+	Encryption available: every recipient can receive it (S/MIME)	التشفير متاح: يمكن لكل المستلمين استلامها (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	التشفير متاح: يمكن لكل المستلمين استلامها (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	التشفير غير متاح لـ {names}: لا توجد لهم شهادة ولا مفتاح OpenPGP
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	التوقيع والتشفير باستخدام S/MIME أو OpenPGP؛ «تلقائي» يختار ما يمكن لكل المستلمين استلامه
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	موقّعة بشهادتك أو مفتاح OpenPGP الخاص بك: يعرف المستلمون أنها منك ولم تتغير
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	لا يقرؤها إلا المستلمون: يحتاج كل منهم إلى شهادة أو مفتاح OpenPGP لدى MailCraft
+	Signing and encryption	التوقيع والتشفير
+	Encrypt when every recipient can receive it	التشفير عندما يستطيع كل المستلمين استلامها
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	تُشفَّر الرسالة الجديدة تلقائيًا ما دام لدى MailCraft شهادة أو مفتاح OpenPGP لكل من فيها.
+	Withdrawn on {date}	سُحب في {date}
+	It ran out on {date}	انتهت صلاحيته في {date}
+	Valid until {date}	صالح حتى {date}
+	No end date	بلا تاريخ انتهاء
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	وقّع وشفّر باستخدام OpenPGP، كما يفعل كثير من الناس وبرامج البريد: بمفتاحك أنت ومفاتيح من تراسلهم.
+	OpenPGP keys work in the desktop app	مفاتيح OpenPGP تعمل في تطبيق سطح المكتب
+	No OpenPGP key	لا يوجد مفتاح OpenPGP
+	Import your secret key file (.asc or .gpg), with its passphrase.	استورد ملف مفتاحك السري (.asc أو .gpg) مع عبارة المرور الخاصة به.
+	Import key…	استيراد مفتاح…
+	Forget this key: its secret part goes from the keychain too	نسيان هذا المفتاح: يُحذف جزؤه السري من سلسلة المفاتيح أيضًا
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	يتولى مفتاح جديد التوقيع وفك التشفير؛ ويُحتفظ بالمفتاح المستخدم لفك تشفير البريد القديم
+	Older key {key}: kept to decrypt mail sent to it	مفتاح أقدم {key}: يُحتفظ به لفك تشفير البريد المرسل إليه
+	Forget this key: mail encrypted to it can't be read any more	نسيان هذا المفتاح: لن يمكن بعد ذلك قراءة البريد المشفّر به
+	Sign and decrypt with this key again; the one in use is kept to decrypt	التوقيع وفك التشفير بهذا المفتاح مجددًا؛ ويُحتفظ بالمفتاح المستخدم لفك التشفير
+	Send your public key with your mail	إرسال مفتاحك العام مع بريدك
+	Their mail programs can then encrypt their answers (Autocrypt).	عندها تستطيع برامج بريدهم تشفير ردودهم (Autocrypt).
+	Keys of the people you write to: {n}	مفاتيح من تراسلهم: {n}
+	They come with their mail, or from a key file they gave you.	تصل مع بريدهم، أو من ملف مفتاح أعطوك إياه.
+	Import someone's key…	استيراد مفتاح شخص ما…
+	Import OpenPGP key	استيراد مفتاح OpenPGP
+	The passphrase {file} is locked with (none, if it has none):	عبارة المرور التي يحميها بها {file} (اتركها فارغة إن لم تكن له عبارة):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	يُحفظ جزؤه السري في سلسلة مفاتيح النظام، وليس في ملفات MailCraft؛ ولا تُحفظ عبارة المرور.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	ليس لهذا الحساب مفتاح OpenPGP لفك تشفيرها (ملف › معلومات › الأمان)
+	it can't be decrypted with your OpenPGP key	لا يمكن فك تشفيرها بمفتاح OpenPGP الخاص بك
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	يستخدم تطبيق MailCraft لسطح المكتب مفاتيح OpenPGP الخاصة بك، لا المتصفح

@@ -369,11 +369,14 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     let clock = s.clock;
     // Delay Delivery holds mail in the Outbox, which only a server account's sends from.
     let can_delay = s.compose.as_ref().and_then(|c| s.account(&c.account)).is_some_and(|a| !a.is_local());
-    // S/MIME's switches, for an account with a certificate.
+    // Sign and Encrypt, for an account with a certificate or an OpenPGP key; which of the two,
+    // when it has both; whether everyone in it can receive it encrypted (issue #6).
     let has_cert = s.compose.as_ref().is_some_and(|c| s.identity(&c.account).is_some());
     // Mail goes only from an account that can send it (none set up, or a data file, can't).
     let blocked = s.compose_send_block();
     let blocked_text = blocked.map(send_block_text);
+    let has_pgp = s.compose.as_ref().is_some_and(|c| s.pgp_key(&c.account).is_some());
+    let reach = s.encryption_reach();
     let signatures: Vec<String> = s
         .compose
         .as_ref()
@@ -513,31 +516,35 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                     {
                         c.read_receipt = receipt;
                     }
-                    if has_cert {
+                    if has_cert || has_pgp {
                         let toggle = |ui: &mut Ui, on: &mut bool, icon: Icon, label: &str, about: &str| {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
                             icons::paint(ui.painter(), r, icon, if *on { t.accent } else { t.dim });
                             ui.checkbox(on, RichText::new(tl!(label)).small()).on_hover_text(tl!(about)).changed()
                         };
+                        let (sign_about, encrypt_about) = if has_pgp {
+                            (
+                                "Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged",
+                                "Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has",
+                            )
+                        } else {
+                            (
+                                "Signed with your certificate: the recipients can tell it's from you and unchanged",
+                                "Only the recipients can read it: each needs to have sent you a signed message",
+                            )
+                        };
                         let mut sign = c.sign;
-                        if toggle(
-                            ui,
-                            &mut sign,
-                            Icon::Seal,
-                            "Sign",
-                            "Signed with your certificate: the recipients can tell it's from you and unchanged",
-                        ) {
+                        if toggle(ui, &mut sign, Icon::Seal, "Sign", sign_about) {
                             c.sign = sign;
                         }
                         let mut encrypt = c.encrypt;
-                        if toggle(
-                            ui,
-                            &mut encrypt,
-                            Icon::Lock,
-                            "Encrypt",
-                            "Only the recipients can read it: each needs to have sent you a signed message",
-                        ) {
+                        if toggle(ui, &mut encrypt, Icon::Lock, "Encrypt", encrypt_about) {
                             c.encrypt = encrypt;
+                            // Chosen: encryption no longer follows the recipients.
+                            c.encrypt_auto = false;
+                        }
+                        if has_cert && has_pgp {
+                            security::scheme_menu(ui, c);
                         }
                     }
                     // Outlook's Delay Delivery and Direct Replies To.
@@ -637,6 +644,12 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                         crate::bidi::vertical(ui, |ui| {
                             field(ui, &t, "Replies to", &mut c.reply_to, "Where replies go instead of to you", true, false)
                         });
+                    });
+                }
+                if let Some(r) = reach.as_ref().filter(|r| !matches!(r, mailcraft_engine::Reach::NotSetUp | mailcraft_engine::Reach::NoOne)) {
+                    ui.horizontal(|ui| {
+                        ui.add_space(76.0 + LABEL_W);
+                        security::encryption_line(ui, &t, r, c.encrypt);
                     });
                 }
                 ui.horizontal(|ui| {

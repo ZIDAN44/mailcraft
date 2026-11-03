@@ -19,6 +19,7 @@ mod data_file;
 pub(crate) use data_file::report_line;
 mod meetings;
 mod options;
+mod pgp;
 mod security;
 use options::options;
 
@@ -356,9 +357,11 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             }
         });
     });
-    // S/MIME, for accounts that send mail.
+    // S/MIME and OpenPGP, for accounts that send mail.
     if !a.is_data_file() {
         security::security(s, t, ui, a, acts);
+        pgp::pgp(s, t, ui, a, acts);
+        security::defaults(s, t, ui, a, acts);
     }
 
     // Automatic replies: on or off, and a button to change them where the server has them.

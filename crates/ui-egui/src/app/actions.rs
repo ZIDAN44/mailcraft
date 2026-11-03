@@ -237,6 +237,19 @@ impl MailApp {
             Action::UnlockCertificate(account) => {
                 self.ui.dialog = Some(Dialog::Certificate { account, path: String::new(), data: None, password: String::new() });
             }
+            Action::ImportPgpKey(account) => {
+                if let Some(path) = self.services.pick_pgp_key() {
+                    self.ui.dialog = Some(Dialog::PgpKey { account, path: path.to_string_lossy().into_owned(), passphrase: String::new() });
+                }
+            }
+            Action::ImportPublicKey(account) => {
+                if let Some(path) = self.services.pick_pgp_key() {
+                    // The session says what it kept.
+                    if let Err(e) = self.session.run("pgp.importPublic", &json!({"account": account, "path": path.to_string_lossy()})) {
+                        self.session.notice(e.to_string(), true);
+                    }
+                }
+            }
             Action::UseSmartCard(account) => {
                 let module = self.session.card_search().modules.first().cloned().unwrap_or_default();
                 self.ui.dialog = Some(Dialog::SmartCard { account, module, pin: String::new(), system: false });

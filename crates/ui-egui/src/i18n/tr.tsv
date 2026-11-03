@@ -1563,3 +1563,47 @@ month	May	Mayıs
 	React	Tepki ver
 	Send a reaction to everyone it went to	Gönderildiği herkese bir tepki gönder
 	Reacted with {emoji}: {people}	{emoji} ile tepki verenler: {people}
+	its key ran out on {date}	anahtarının süresi {date} tarihinde doldu
+	its key isn't valid until {date}	anahtarı {date} tarihinden önce geçerli değil
+	its key is for {addresses}, not for the sender	anahtarı göndericinin değil, {addresses} adresinin
+	its owner withdrew the key on {date}	sahibi anahtarı {date} tarihinde geri çekti
+	OpenPGP key {fingerprint}	OpenPGP anahtarı {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	İmzalayan: {signer}; imza geçerli (OpenPGP anahtarı {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	MailCraft'ta olmayan {key} OpenPGP anahtarıyla imzalanmış, bu yüzden imza denetlenemiyor.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	Anahtarları postalarıyla birlikte gelir (Autocrypt) ya da Dosya › Bilgi › Güvenlik bölümünden içe aktarılabilir.
+	Encryption available: every recipient can receive it (S/MIME)	Şifreleme kullanılabilir: tüm alıcılar alabilir (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	Şifreleme kullanılabilir: tüm alıcılar alabilir (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	{names} için şifreleme kullanılamıyor: onlar için sertifika ya da OpenPGP anahtarı yok
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	S/MIME ya da OpenPGP ile imzala ve şifrele; Otomatik, tüm alıcıların alabileceğini seçer
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	Sertifikanızla ya da OpenPGP anahtarınızla imzalanır: alıcılar sizden geldiğini ve değişmediğini anlar
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	Yalnızca alıcılar okuyabilir: her biri için MailCraft'ta bir sertifika ya da OpenPGP anahtarı olmalı
+	Signing and encryption	İmzalama ve şifreleme
+	Encrypt when every recipient can receive it	Tüm alıcılar alabildiğinde şifrele
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	MailCraft'ta içindeki herkes için bir sertifika ya da OpenPGP anahtarı olduğu sürece yeni ileti kendiliğinden şifrelenir.
+	Withdrawn on {date}	{date} tarihinde geri çekildi
+	It ran out on {date}	Süresi {date} tarihinde doldu
+	Valid until {date}	{date} tarihine kadar geçerli
+	No end date	Bitiş tarihi yok
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	Pek çok kişinin ve posta programının yaptığı gibi OpenPGP ile imzalayın ve şifreleyin: kendi anahtarınızla ve yazıştığınız kişilerin anahtarlarıyla.
+	OpenPGP keys work in the desktop app	OpenPGP anahtarları masaüstü uygulamasında çalışır
+	No OpenPGP key	OpenPGP anahtarı yok
+	Import your secret key file (.asc or .gpg), with its passphrase.	Gizli anahtar dosyanızı (.asc ya da .gpg) parolasıyla birlikte içe aktarın.
+	Import key…	Anahtarı içe aktar…
+	Forget this key: its secret part goes from the keychain too	Bu anahtarı unut: gizli bölümü de anahtarlıktan silinir
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	Yeni bir anahtar imzalamayı ve şifre çözmeyi üstlenir; kullanılan anahtar eski postaların şifresini çözmek için saklanır
+	Older key {key}: kept to decrypt mail sent to it	Eski anahtar {key}: ona gönderilen postaların şifresini çözmek için saklanır
+	Forget this key: mail encrypted to it can't be read any more	Bu anahtarı unut: onunla şifrelenen postalar artık okunamaz
+	Sign and decrypt with this key again; the one in use is kept to decrypt	Bu anahtarla yeniden imzala ve şifre çöz; kullanılan anahtar şifre çözmek için saklanır
+	Send your public key with your mail	Ortak anahtarınızı postalarınızla gönder
+	Their mail programs can then encrypt their answers (Autocrypt).	Böylece posta programları yanıtlarını şifreleyebilir (Autocrypt).
+	Keys of the people you write to: {n}	Yazıştığınız kişilerin anahtarları: {n}
+	They come with their mail, or from a key file they gave you.	Postalarıyla birlikte gelirler ya da size verdikleri bir anahtar dosyasından alınırlar.
+	Import someone's key…	Birinin anahtarını içe aktar…
+	Import OpenPGP key	OpenPGP anahtarını içe aktar
+	The passphrase {file} is locked with (none, if it has none):	{file} dosyasını koruyan parola (yoksa boş bırakın):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Gizli bölümü MailCraft'ın dosyalarında değil, sistemin anahtarlığında tutulur; parola saklanmaz.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	bu hesabın şifreyi çözecek OpenPGP anahtarı yok (Dosya › Bilgi › Güvenlik)
+	it can't be decrypted with your OpenPGP key	OpenPGP anahtarınızla şifresi çözülemiyor
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP anahtarlarınızı tarayıcı değil, MailCraft masaüstü uygulaması kullanır

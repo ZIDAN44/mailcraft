@@ -43,7 +43,10 @@ pub use mailbox_settings::{Compacting, Compaction, IDLE_AFTER_S};
 pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
 pub use searching::{IndexPass, SearchProgress, SearchStats, SearchWork};
-pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
+pub use security::{
+    CardSearch, KeySource, KnownCert, KnownKey, Lock, PGP_DOC, PgpSettings, Reach, RevocationCheck, SMIME_DOC, Scheme, Seal, Security, SignedBy,
+    SmimeSettings,
+};
 pub use writing::{Compose, Reactions, SendBlock, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
@@ -486,6 +489,8 @@ pub struct Session {
     protecting: HashMap<u64, security::Protecting>,
     revocation: security::Revocations,
     cards: security::CardSearch,
+    /// OpenPGP: each account's keys and its correspondents', signatures found in decrypted mail.
+    pgp: security::PgpState,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
@@ -614,6 +619,7 @@ impl Session {
             protecting: HashMap::new(),
             revocation: Default::default(),
             cards: Default::default(),
+            pgp: Default::default(),
             seen_uid: HashMap::new(),
             arrived_invites: Vec::new(),
             new_mail: Vec::new(),

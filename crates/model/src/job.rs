@@ -243,6 +243,47 @@ pub enum Job {
     /// [`HeldKey::at`]; `pin` kept in the system's keychain for it). Answered by
     /// [`Event::Identity`].
     UseHeldKey { account: AccountConfig, at: String, cert: Vec<u8>, pin: Option<Secret> },
+    /// OpenPGP work with the account's own keys, whose secret parts the network layer keeps in
+    /// the system's keychain (issue #36).
+    Pgp { account: AccountConfig, work: PgpWork },
+}
+
+/// What [`Job::Pgp`] does.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "work", rename_all = "camelCase")]
+pub enum PgpWork {
+    /// Keep the secret key in `file` (a key file as it is, opened with `passphrase`), which then
+    /// signs and decrypts; the one in use until now is kept to decrypt. Answered by
+    /// [`Event::PgpKeys`].
+    Import { file: Private, passphrase: Secret },
+    /// Sign and decrypt with key `fingerprint` again; the one in use is kept to decrypt. Answered
+    /// by [`Event::PgpKeys`].
+    Use { fingerprint: String },
+    /// Forget key `fingerprint` and its secret part. Answered by [`Event::PgpKeys`].
+    Forget { fingerprint: String },
+    /// Decrypt `data` (an OpenPGP message) with the account's keys, a signature inside checked
+    /// with `verify_with` (public keys); `inline`: it was a PGP block in a text (what it holds is
+    /// text in `charset`, not a MIME entity). Answered by [`Event::PgpDecrypted`].
+    Decrypt { key: MessageKey, data: Vec<u8>, inline: bool, charset: String, verify_with: Vec<Vec<u8>> },
+    /// Sign (`sign`) and/or encrypt (to `encrypt_to`, public keys, the account's own among them;
+    /// empty: not encrypted) a message about to be sent, as PGP/MIME; its header fields inside
+    /// too, the Subject outside `[...]` with `hide_subject`. Answered by [`Event::Protected`].
+    Protect { id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, hide_subject: bool },
+    /// A draft of a message to be encrypted, encrypted to the account's own key first, then saved
+    /// as [`Job::SaveDraft`] (or kept as [`Job::KeepDraft`], `keep`).
+    SealDraft { raw: Private, folder: String, replaces: Option<MessageKey>, keep: bool },
+}
+
+/// What a signature inside an OpenPGP message says (checked with the keys the job gave).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "seal", rename_all = "camelCase")]
+pub enum PgpSignature {
+    /// It holds, by the `key`th of the keys given, made at `at`; `weak`: over SHA-1 or older.
+    Good { key: usize, at: Option<i64>, weak: bool },
+    /// It doesn't hold.
+    Bad,
+    /// It was made by a key not given (its key ID).
+    Unknown { key_id: String },
 }
 
 impl Job {
@@ -296,6 +337,7 @@ impl Job {
             | Job::Protect { account, .. }
             | Job::SealDraft { account, .. }
             | Job::UseHeldKey { account, .. }
+            | Job::Pgp { account, .. }
             | Job::Decrypt { account, .. } => &account.id,
         }
     }
@@ -617,6 +659,22 @@ pub enum Event {
         cert: Vec<u8>,
         status: Revocation,
     },
+    /// The account's own OpenPGP keys after [`PgpWork::Import`], `Use` or `Forget`: their public
+    /// parts (binary), the one that signs and decrypts first; `imported`: the fingerprint of the
+    /// key just kept; or why it couldn't be done.
+    PgpKeys {
+        account: String,
+        keys: Vec<Vec<u8>>,
+        imported: Option<String>,
+        error: Option<String>,
+    },
+    /// What [`PgpWork::Decrypt`] found inside (a MIME entity), and what a signature in it says.
+    PgpDecrypted {
+        key: MessageKey,
+        content: Option<Private>,
+        signature: Option<PgpSignature>,
+        error: Option<String>,
+    },
 }
 
 #[cfg(test)]
@@ -629,6 +687,12 @@ mod tests {
         assert!(!format!("{j:?}").contains("hunter2"));
         let e = Event::Decrypted { key: MessageKey::default(), content: Some(Private(b"the plan".to_vec())), authenticated: true, error: None };
         assert!(!format!("{e:?}").contains("the plan"), "what decrypted mail says never prints");
+        let j = Job::Pgp {
+            account: AccountConfig::default(),
+            work: PgpWork::Import { file: Private(b"-----BEGIN PGP PRIVATE KEY BLOCK-----".to_vec()), passphrase: Secret("hunter2".into()) },
+        };
+        let shown = format!("{j:?}");
+        assert!(!shown.contains("hunter2") && !shown.contains("45, 45"), "neither the passphrase nor the key file: {shown}");
     }
 
     #[test]

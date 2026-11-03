@@ -29,7 +29,7 @@ pub use dates::zone;
 pub use signature::Signature;
 pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
 // Clean Up is a part of conversations, kept under its old path.
-pub use job::{Event, HeldKey, Job, Op, Private, Revocation, Secret, SyncStatus};
+pub use job::{Event, HeldKey, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
 pub use thread::cleanup;
 
 /// How a connection to a server is secured.

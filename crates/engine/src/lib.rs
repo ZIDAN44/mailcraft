@@ -21,14 +21,15 @@ use serde_json::Value;
 
 pub use mailcraft_mime as mime;
 pub use mailcraft_model as model;
+pub use mailcraft_pgp as pgp;
 pub use mailcraft_smime as smime;
 pub use mailcraft_store as store;
 pub use session::{
     ACCENTS, ARRANGE_HEADINGS, AccountState, Arrange, BodyWork, CardSearch, Compacting, Compaction, Compose, Filed, FolderRef, IDLE_AFTER_S,
-    ImportState, Imports, IndexPass, KnownCert, ListFilter, Lock, MoveTarget, NotesOrder, Notice, PANICS_CAUGHT, PaneSection, Picture, Prefs,
-    PreparedBody, Reactions, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, SMIME_DOC, SOURCE_SHOWN, Seal, SearchProgress, SearchScope,
-    SearchStats, SearchWork, Security, SendBlock, SendCheck, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings,
-    SourceView, UpdateCheck, VacationState, View, accent_code, accent_rgb,
+    ImportState, Imports, IndexPass, KeySource, KnownCert, KnownKey, ListFilter, Lock, MoveTarget, NotesOrder, Notice, PANICS_CAUGHT, PGP_DOC,
+    PaneSection, PgpSettings, Picture, Prefs, PreparedBody, Reach, Reactions, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, SMIME_DOC,
+    SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security, SendBlock, SendCheck, SenderAddresses, SenderMarks,
+    ServerSearch, Session, SignedBy, SmimeSettings, SourceView, UpdateCheck, VacationState, View, accent_code, accent_rgb,
     invite::{AnsweredInvites, Invite, InviteProblem, Route},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,

@@ -1563,3 +1563,47 @@ month	May	Mai
 	React	Reagieren
 	Send a reaction to everyone it went to	Eine Reaktion an alle Empfänger senden
 	Reacted with {emoji}: {people}	Mit {emoji} reagiert: {people}
+	its key ran out on {date}	sein Schlüssel ist am {date} abgelaufen
+	its key isn't valid until {date}	sein Schlüssel ist erst ab {date} gültig
+	its key is for {addresses}, not for the sender	sein Schlüssel gilt für {addresses}, nicht für den Absender
+	its owner withdrew the key on {date}	sein Inhaber hat den Schlüssel am {date} zurückgezogen
+	OpenPGP key {fingerprint}	OpenPGP-Schlüssel {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	Signiert von {signer}: Die Signatur ist gültig (OpenPGP-Schlüssel {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	Signiert mit dem OpenPGP-Schlüssel {key}, den MailCraft nicht hat, daher lässt sich die Signatur nicht prüfen.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	Der Schlüssel kommt mit den Mails dieser Person (Autocrypt) oder lässt sich unter Datei › Informationen › Sicherheit importieren.
+	Encryption available: every recipient can receive it (S/MIME)	Verschlüsselung möglich: Alle Empfänger können sie empfangen (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	Verschlüsselung möglich: Alle Empfänger können sie empfangen (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	Keine Verschlüsselung möglich für {names}: Für sie gibt es weder Zertifikat noch OpenPGP-Schlüssel
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	Mit S/MIME oder OpenPGP signieren und verschlüsseln; „Automatisch“ nimmt das, was alle Empfänger empfangen können
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	Mit Ihrem Zertifikat oder OpenPGP-Schlüssel signiert: Die Empfänger sehen, dass die Nachricht von Ihnen kommt und unverändert ist
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	Nur die Empfänger können sie lesen: Für jeden braucht MailCraft ein Zertifikat oder einen OpenPGP-Schlüssel
+	Signing and encryption	Signieren und Verschlüsseln
+	Encrypt when every recipient can receive it	Verschlüsseln, wenn alle Empfänger es empfangen können
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	Eine neue Nachricht wird von selbst verschlüsselt, solange MailCraft für alle Empfänger ein Zertifikat oder einen OpenPGP-Schlüssel hat.
+	Withdrawn on {date}	Zurückgezogen am {date}
+	It ran out on {date}	Am {date} abgelaufen
+	Valid until {date}	Gültig bis {date}
+	No end date	Ohne Ablaufdatum
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	Signieren und verschlüsseln Sie mit OpenPGP, wie es viele Menschen und Mailprogramme tun: mit Ihrem eigenen Schlüssel und den Schlüsseln der Menschen, denen Sie schreiben.
+	OpenPGP keys work in the desktop app	OpenPGP-Schlüssel funktionieren in der Desktop-App
+	No OpenPGP key	Kein OpenPGP-Schlüssel
+	Import your secret key file (.asc or .gpg), with its passphrase.	Importieren Sie die Datei Ihres geheimen Schlüssels (.asc oder .gpg) mit ihrer Passphrase.
+	Import key…	Schlüssel importieren…
+	Forget this key: its secret part goes from the keychain too	Diesen Schlüssel vergessen: Sein geheimer Teil wird auch aus dem Schlüsselbund entfernt
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	Ein neuer Schlüssel übernimmt Signieren und Entschlüsseln; der bisherige bleibt, um alte Mails zu entschlüsseln
+	Older key {key}: kept to decrypt mail sent to it	Älterer Schlüssel {key}: bleibt, um an ihn gesendete Mails zu entschlüsseln
+	Forget this key: mail encrypted to it can't be read any more	Diesen Schlüssel vergessen: Damit verschlüsselte Mails lassen sich dann nicht mehr lesen
+	Sign and decrypt with this key again; the one in use is kept to decrypt	Wieder mit diesem Schlüssel signieren und entschlüsseln; der bisherige bleibt zum Entschlüsseln
+	Send your public key with your mail	Ihren öffentlichen Schlüssel mit Ihren Mails senden
+	Their mail programs can then encrypt their answers (Autocrypt).	Die Mailprogramme der Empfänger können ihre Antworten dann verschlüsseln (Autocrypt).
+	Keys of the people you write to: {n}	Schlüssel der Menschen, denen Sie schreiben: {n}
+	They come with their mail, or from a key file they gave you.	Sie kommen mit deren Mails oder aus einer Schlüsseldatei, die Sie von ihnen haben.
+	Import someone's key…	Schlüssel einer Person importieren…
+	Import OpenPGP key	OpenPGP-Schlüssel importieren
+	The passphrase {file} is locked with (none, if it has none):	Die Passphrase, mit der {file} geschützt ist (leer lassen, wenn es keine gibt):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Der geheime Teil wird im Schlüsselbund des Systems gespeichert, nicht in den Dateien von MailCraft; die Passphrase wird nicht gespeichert.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	dieses Konto hat keinen OpenPGP-Schlüssel zum Entschlüsseln (Datei › Informationen › Sicherheit)
+	it can't be decrypted with your OpenPGP key	sie lässt sich mit Ihrem OpenPGP-Schlüssel nicht entschlüsseln
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	Ihre OpenPGP-Schlüssel werden von der MailCraft-Desktop-App verwendet, nicht im Browser

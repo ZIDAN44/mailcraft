@@ -281,6 +281,11 @@ impl Services for Desktop {
             self.dialog("Import certificate").add_filter("Certificate with its key", &["p12", "pfx"]).add_filter("All files", &["*"]).pick_file();
         self.used(file, false)
     }
+    fn pick_pgp_key(&mut self) -> Option<PathBuf> {
+        let file =
+            self.dialog("Import OpenPGP key").add_filter("OpenPGP key", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"]).pick_file();
+        self.used(file, false)
+    }
     fn pick_rules_file(&mut self) -> Option<PathBuf> {
         let file = self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file();
         self.used(file, false)

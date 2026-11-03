@@ -54,9 +54,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account"?: string}"#),
         CommandSpec::new("security.defaults", "Sign or encrypt new messages", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
-            s.set_smime_defaults(&account, p::bool(v, "sign"), p::bool(v, "encrypt"), p::bool(v, "keepSubject"))
+            s.set_smime_defaults(&account, p::bool(v, "sign"), p::bool(v, "encrypt"), p::bool(v, "keepSubject"), p::bool(v, "autoEncrypt"))
         })
-        .params(r#"{"sign"?: bool, "encrypt"?: bool, "keepSubject"?: bool (encrypted mail shows its subject on the way, not "[...]"), "account"?: string}"#),
+        .params(
+            r#"{"sign"?: bool, "encrypt"?: bool, "keepSubject"?: bool (encrypted mail shows its subject on the way, not "[...]"), "autoEncrypt"?: bool (new messages encrypted by themselves while every recipient can receive it), "account"?: string}"#,
+        ),
         CommandSpec::new("security.keepUnlocked", "Keep unlocked in this browser", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             s.keep_unlocked(&account, p::bool(v, "on").unwrap_or(true))
@@ -66,18 +68,41 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.security", "Sign and Encrypt", "Message › Options", |s, v| {
             let c = s.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
             let wants = p::bool(v, "sign") == Some(true) || p::bool(v, "encrypt") == Some(true);
-            if wants && s.identity(&c.account).is_none() {
-                return Err(CmdError::Disabled("import a certificate for the account first (File › Info › Security)".into()));
+            if wants && !s.can_protect(&c.account) {
+                return Err(CmdError::Disabled("import a certificate or an OpenPGP key for the account first (File › Info › Security)".into()));
             }
+            let scheme = match p::str(v, "scheme") {
+                None => None,
+                Some("smime") if s.identity(&c.account).is_some() => Some(Some(crate::Scheme::Smime)),
+                Some("pgp") if s.pgp_key(&c.account).is_some() => Some(Some(crate::Scheme::Pgp)),
+                Some("auto") => Some(None),
+                Some(other) => return Err(CmdError::Params(format!("`scheme`: smime, pgp or auto, one the account has (not `{other}`)"))),
+            };
             let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
             if let Some(on) = p::bool(v, "sign") {
                 c.sign = on;
             }
             if let Some(on) = p::bool(v, "encrypt") {
                 c.encrypt = on;
+                // Chosen: no longer following the recipients.
+                c.encrypt_auto = false;
             }
-            Ok(json!({ "sign": c.sign, "encrypt": c.encrypt }))
+            if let Some(sc) = scheme {
+                c.scheme = sc;
+            }
+            Ok(json!({ "sign": c.sign, "encrypt": c.encrypt, "scheme": c.scheme }))
         })
-        .params(r#"{"sign"?: bool, "encrypt"?: bool}"#),
+        .params(r#"{"sign"?: bool, "encrypt"?: bool, "scheme"?: "smime" | "pgp" | "auto" (S/MIME, OpenPGP, or whichever every recipient can receive)}"#),
+        CommandSpec::new("compose.encryption", "Can it be encrypted?", "Message › Options", |s, _| {
+            let reach = s.encryption_reach().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            let encrypt = s.compose.as_ref().is_some_and(|c| c.encrypt);
+            Ok(match reach {
+                crate::Reach::NotSetUp => json!({ "setUp": false, "encrypt": encrypt }),
+                crate::Reach::NoOne => json!({ "setUp": true, "recipients": 0, "encrypt": encrypt }),
+                crate::Reach::Everyone(scheme) => json!({ "setUp": true, "everyone": true, "scheme": scheme, "encrypt": encrypt }),
+                crate::Reach::Missing { scheme, who } => json!({ "setUp": true, "everyone": false, "scheme": scheme, "missing": who, "encrypt": encrypt }),
+            })
+        })
+        .params("{}"),
     ]
 }
