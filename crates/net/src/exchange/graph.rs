@@ -409,10 +409,27 @@ fn flags(m: &Value) -> Flags {
     if m.get("isDraft").and_then(Value::as_bool) == Some(true) {
         names.push("\\Draft");
     }
-    if m.get("flag").and_then(|f| f.get("flagStatus")).and_then(Value::as_str) == Some("flagged") {
-        names.push("\\Flagged");
+    match m.get("flag").and_then(|f| f.get("flagStatus")).and_then(Value::as_str) {
+        Some("flagged") => names.push("\\Flagged"),
+        // Marked complete: Graph keeps one status for both.
+        Some("complete") => names.push(mailcraft_model::FOLLOW_UP_COMPLETE),
+        _ => {}
     }
     Flags::from_imap(names)
+}
+
+/// The change a flag or follow-up op makes to a message on the server (`None`: nothing Graph
+/// keeps). Graph's one `flagStatus` holds both the flag and the follow-up marked complete: the
+/// engine sends the keyword taken off before the flag is set, and put on after it.
+fn flag_patch(op: &Op) -> Option<Value> {
+    match op {
+        Op::SetFlag { flag: Flag::Seen, on, .. } => Some(json!({"isRead": on})),
+        Op::SetFlag { flag: Flag::Flagged, on, .. } => Some(json!({"flag": {"flagStatus": if *on { "flagged" } else { "notFlagged" }}})),
+        Op::SetKeyword { keyword, on, .. } if keyword.eq_ignore_ascii_case(mailcraft_model::FOLLOW_UP_COMPLETE) => {
+            Some(json!({"flag": {"flagStatus": if *on { "complete" } else { "notFlagged" }}}))
+        }
+        _ => None,
+    }
 }
 
 /// `{"emailAddress": {"name", "address"}}` as a header value.
@@ -563,6 +580,7 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
             next.seen = f.seen;
             next.flagged = f.flagged;
             next.draft = f.draft;
+            next.set_keyword(mailcraft_model::FOLLOW_UP_COMPLETE, f.follow_up_complete());
             if next != m.flags {
                 SharedSummary::make_mut(m).flags = next;
                 report.changed += 1;
@@ -721,10 +739,11 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
         c.batch_ok(&reqs)
     };
     match op {
-        Op::SetFlag { keys, flag: Flag::Seen, on } => patch_all(keys, json!({"isRead": on})),
-        Op::SetFlag { keys, flag: Flag::Flagged, on } => patch_all(keys, json!({"flag": {"flagStatus": if *on { "flagged" } else { "notFlagged" }}})),
-        // Answered and forwarded are Exchange's to set; categories stay on this computer.
-        Op::SetFlag { .. } | Op::SetKeyword { .. } => Ok(()),
+        Op::SetFlag { keys, .. } | Op::SetKeyword { keys, .. } => match flag_patch(op) {
+            Some(patch) => patch_all(keys, patch),
+            // Answered and forwarded are Exchange's to set; categories stay on this computer.
+            None => Ok(()),
+        },
         Op::Move { keys, to } => {
             let dest = st.mailbox(to)?.to_string();
             let reqs: Vec<(&str, String, Option<Value>)> = ids(keys)
@@ -817,7 +836,26 @@ mod tests {
         let own = json!({"internetMessageHeaders": [{"name": "Subject", "value": "Own"}, {"name": "Bad Name", "value": "x"}]});
         assert_eq!(String::from_utf8(header_block(&own)).unwrap(), "Subject: Own\r\n\r\n");
         let f = flags(&json!({"isRead": true, "flag": {"flagStatus": "flagged"}, "isDraft": false}));
-        assert!(f.seen && f.flagged && !f.draft);
+        assert!(f.seen && f.flagged && !f.draft && !f.follow_up_complete());
+        let f = flags(&json!({"flag": {"flagStatus": "complete", "completedDateTime": {"dateTime": "2026-10-30T00:00:00", "timeZone": "UTC"}}}));
+        assert!(!f.flagged && f.follow_up_complete(), "{f:?}");
+        assert!(!flags(&json!({"flag": {"flagStatus": "notFlagged"}})).has(mailcraft_model::FOLLOW_UP_COMPLETE));
+    }
+
+    /// Mark Complete, its Undo and a flag set again reach Graph's one flag status in the order
+    /// the engine sends them; other keywords (categories) stay on this computer.
+    #[test]
+    fn follow_up_changes_as_graph_keeps_them() {
+        let keys = vec![MessageKey::default()];
+        let status = |op: Op| flag_patch(&op).and_then(|p| p["flag"]["flagStatus"].as_str().map(str::to_string));
+        let flag = |on| Op::SetFlag { keys: keys.clone(), flag: Flag::Flagged, on };
+        let complete = |on| Op::SetKeyword { keys: keys.clone(), keyword: mailcraft_model::FOLLOW_UP_COMPLETE.into(), on };
+        // Mark Complete: the flag off, then complete.
+        assert_eq!([status(flag(false)), status(complete(true))], [Some("notFlagged".into()), Some("complete".into())]);
+        // Its Undo, or flagged again: the keyword off, then the flag on.
+        assert_eq!([status(complete(false)), status(flag(true))], [Some("notFlagged".into()), Some("flagged".into())]);
+        assert_eq!(flag_patch(&Op::SetKeyword { keys: keys.clone(), keyword: "work".into(), on: true }), None);
+        assert_eq!(flag_patch(&Op::SetFlag { keys, flag: Flag::Seen, on: true }), Some(json!({"isRead": true})));
     }
 
     #[test]
