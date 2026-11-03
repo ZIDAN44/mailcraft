@@ -396,8 +396,16 @@ impl MailApp {
         }
         self.pictures_drawn(&ctx);
 
+        // A search a command started here (the box's, once the typing pauses) runs after the
+        // frame was drawn and takes only its first few units: the next frame shows and steps it
+        // now, not at the next wake (the settings tick: on a real file the results waited 2–5 s).
+        let mut searched = false;
         for a in acts {
+            searched |= matches!(a, Action::Run(id, _) if id.starts_with("search")) || matches!(a, Action::Search(_));
             self.act(a);
+        }
+        if searched || self.session.search_progress().is_some_and(|p| !p.done) {
+            ctx.request_repaint();
         }
         self.send_body_work(&ctx);
         self.flush_jobs();

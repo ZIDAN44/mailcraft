@@ -2621,3 +2621,13 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   steps 3.0–3.6 ms at p99 and at worst; every frame of `is:read`, `is:unread`, the domain and
   the one-letter word, warm or just opened, at most 6.5 ms. The memory it saves is in **What the
   lists in memory take, and sharing them**, above.
+- **Search results as soon as the typing pauses:** the search box runs its search a quarter of a
+  second after the last key, through a command that takes only the search's first few units
+  after the frame was drawn; the frames after step the rest. That frame asked for its next in
+  20 s, so on the 41 GB file the results waited for something else to wake the window (its
+  settings tick, every 5 s): from setting the query to the first frame searching took 2.4 s at
+  the median and 5.3 s at most, and in 9 of 76 queries the list still showed the folder 4 s
+  later, though the search itself takes 3–24 ms. A frame that runs a search command, or has a
+  search still under way, now asks for the next at once. A headless test runs the window's
+  frames only when it asks for them, as the desktop app does, and finds the results of a word
+  over 50,000 messages drawn 0.25 s after the key (20.25 s before).

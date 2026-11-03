@@ -95,3 +95,44 @@ fn down_through_twelve_thousand_builds_no_rows() {
         assert!(p99 <= std::time::Duration::from_millis(30), "a Down's frame took {p99:?}");
     }
 }
+
+/// A search the box starts once the typing pauses is stepped and shown by the frames that follow
+/// at once, with frames run only when the window asks for them, as the desktop app runs them.
+/// The box's search ran after the frame was drawn and stepped only a few units: that frame asked
+/// for its next in 20 s, so the results waited on something else waking the window (the 5 s
+/// settings tick on a real file).
+#[test]
+fn a_search_shows_without_waiting_for_a_wake() {
+    let _alone = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+    let ctx = egui::Context::default();
+    let (mut a, t) = big_app();
+    a.session.prefs.animations = false;
+    // No motion, and the window isn't focused: a list's scroll bar easing in, or a cursor's
+    // blink, would wake it.
+    let wake = |a: &mut MailApp, time: f64, events: Vec<Event>| {
+        let screen = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0)));
+        let input = RawInput { screen_rect: screen, events, time: Some(time), focused: false, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        out.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |v| v.repaint_delay)
+    };
+    wake(&mut a, 0.0, vec![]);
+    a.ui.focus_search = true;
+    wake(&mut a, 0.25, vec![]);
+    let typed_at = 0.5;
+    let mut time = typed_at;
+    let mut delay = wake(&mut a, time, vec![Event::Text(big::RARE.to_string())]);
+    let shown = |a: &MailApp| a.session.search.as_ref().is_some_and(|(s, _)| s == big::RARE) && a.session.search_progress().is_some_and(|p| p.done);
+    let mut frames = 0;
+    // Until the search is done: stepped early in a frame, its results are drawn in it.
+    while !shown(&a) && frames < 10_000 {
+        time += delay.min(std::time::Duration::from_secs(60)).as_secs_f64();
+        delay = wake(&mut a, time, vec![]);
+        frames += 1;
+    }
+    let waited = time - typed_at;
+    eprintln!("{frames} frames, results drawn {waited:.3} s after the last key");
+    assert!(shown(&a), "the search finished");
+    assert_eq!(a.session.list.len(), t.rare);
+    assert!(waited < 0.5, "the results waited {waited:.3} s after the last key (the pause is 0.25 s)");
+}
