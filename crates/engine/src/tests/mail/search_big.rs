@@ -387,23 +387,24 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// Hand-run, in release (`cargo test -p mailcraft-engine --release --lib search_big -- --ignored
 /// --nocapture`; `MC_QUERY` for one query): how long each query takes over the mailbox, all
 /// told and step by step, from a session just opened and again: in steps of 8 units, and in
-/// frames as the window takes them (as many units as fit in 6 ms). It holds the budgets the
-/// searches meet (search.md §11), so a slower one fails it: a word, warm, 20 ms all told (25 ms
-/// before each summary was looked through once for it) and 4 ms a step at p99, each frame at
-/// most 8 ms; a word in a session just opened ([`cold`]: its index opened by the window's first
-/// tick, its summaries' texts made as it goes), alone or after the other queries, 90 ms all told
-/// and 4 ms a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word
-/// warm 60 ms all told and 6 ms a step, at p99 and at worst, and just opened 300 ms all told;
-/// and every frame of `is:read`, `is:unread`, the domain and the one-letter word, which find
-/// 15,000 to 47,387, at most 8 ms, warm or just opened (the lists sharing the folders'
-/// summaries, the run's sets holding no strings, and the list put together at a step's start:
-/// each copied every summary found, hashed its key's strings and showed them past the frame's
-/// end, 10-16 ms); and the common phrase, in frames, just opened or searched again, 150 ms all
-/// told (its words' places settle it: its 16,667 candidates' texts read and folded took 322-454
-/// ms just opened, 128-142 ms searched again). Printed only: the index pages each read, the
-/// index's segments' bytes (its places pages' among them), and the tick that opens the index
-/// ahead, with what the index then holds in memory (and after the queries). A machine busy with
-/// other builds slows every query alike and can fail it: run it on one at rest.
+/// frames as the window takes them (the units that fit in 6 ms, `search_step_within`). It holds
+/// the budgets the searches meet (search.md §11), so a slower one fails it: every frame of every
+/// query, just opened or searched again, at most 8 ms, the frames that show 15,000 to 47,387
+/// found among them (the lists sharing the folders' summaries, the run's sets holding no
+/// strings, and the list put together at a step's start: each copied every summary found,
+/// hashed its key's strings and showed them past the frame's end, 10-16 ms; and a unit begun
+/// only while one as long as the frame's longest so far still fits); a word, warm, 20 ms all
+/// told (25 ms before each summary was looked through once for it) and 4 ms a step at p99; a
+/// word in a session just opened ([`cold`]: its index opened by the window's first tick, its
+/// summaries' texts made as it goes), alone or after the other queries, 90 ms all told and 4 ms
+/// a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word warm 60 ms
+/// all told and 6 ms a step, at p99 and at worst, and just opened 300 ms all told; and the
+/// common phrase, in frames, just opened or searched again, 150 ms all told (its words' places
+/// settle it: its 16,667 candidates' texts read and folded took 322-454 ms just opened, 128-142
+/// ms searched again). Printed only: the index pages each read, the index's segments' bytes (its
+/// places pages' among them), and the tick that opens the index ahead, with what the index then
+/// holds in memory (and after the queries). A machine busy with other builds slows every query
+/// alike and can fail it: run it on one at rest.
 #[test]
 #[ignore]
 fn how_long_searches_take() {
@@ -418,7 +419,7 @@ fn how_long_searches_take() {
     let only = std::env::var("MC_QUERY").ok();
     let mut frame = |s: &mut Session| {
         let began = Instant::now();
-        s.search_step_while(4096, &mut || began.elapsed() < Duration::from_millis(6)).done
+        s.search_step_within(4096, Duration::from_millis(6), &mut || began.elapsed(), &mut |_| {}).done
     };
     for (q, _) in queries(&t).into_iter().filter(|(q, _)| only.as_ref().is_none_or(|o| o == q)) {
         for cache in ["cold", "warm", "cold, frames", "warm, frames"] {
@@ -440,17 +441,17 @@ fn how_long_searches_take() {
                 times.len(),
             );
             let word = [big::RARE, "zurich", big::CJK, big::FAR].contains(&q.as_str());
-            let many = ["is:read", "is:unread", big::DOMAIN, "k"].contains(&q.as_str());
             let phrase = q == format!("\"{}\"", big::PHRASE);
             let ms = Duration::from_millis;
+            if cache.ends_with("frames") {
+                assert!(most <= ms(8), "{q} ({cache}): a frame of {most:?}");
+            }
             match cache {
                 "warm" if word => assert!(all <= ms(20) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
-                "warm, frames" if word => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
                 "cold" if word => assert!(all <= ms(90) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
                 "warm" | "cold" if q == "is:unread" => assert!(all <= ms(15), "{q}: {all:?}"),
                 "warm" if q == "k" => assert!(all <= ms(60) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
                 "cold" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
-                "cold, frames" | "warm, frames" if many => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
                 "cold, frames" | "warm, frames" if phrase => assert!(all <= ms(150), "{q}: {all:?}"),
                 _ => {}
             }

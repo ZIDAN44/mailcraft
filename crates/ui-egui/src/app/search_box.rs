@@ -7,7 +7,8 @@ use crate::*;
 
 /// How long the search box waits after the last key before searching, in seconds.
 const SEARCH_PAUSE: f64 = 0.25;
-/// Most of a frame a search's work takes (the rest draws it), checked after each unit of it.
+/// Most of a frame a search's work takes (the rest draws it): a unit of it is begun only while one
+/// as long as the frame's longest so far still fits (`Session::search_step_within`).
 const SEARCH_BUDGET: web_time::Duration = web_time::Duration::from_millis(6);
 /// Units of a search's work at most a frame (each bounded: a page of a list, 512 summaries, a
 /// few index pages), however quick they are.
@@ -103,7 +104,7 @@ impl MailApp {
             }
             times.add(of.as_ref(), work, took);
         };
-        let p = self.session.search_step_timed(SEARCH_UNITS, &mut || began.elapsed() < SEARCH_BUDGET, &mut timed);
+        let p = self.session.search_step_within(SEARCH_UNITS, SEARCH_BUDGET, &mut || began.elapsed(), &mut timed);
         self.ui.search_spent = began.elapsed();
         self.ui.search_times.frame();
         if p.done {

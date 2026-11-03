@@ -5,6 +5,8 @@
 //! for 6 ms a frame: one unit didn't stop. Each part of a step now says what it was as it ends,
 //! and the window logs one that takes longer than a frame should, by its kind.
 
+use std::time::Duration;
+
 use super::*;
 
 /// What a part of a search's step does.
@@ -61,6 +63,29 @@ impl Session {
     /// asks its clock: the engine reads none). What's found is shown once, at the end.
     pub fn search_step_while(&mut self, units: u32, more: &mut dyn FnMut() -> bool) -> SearchProgress {
         self.search_step_timed(units, more, &mut |_| {})
+    }
+
+    /// [`Session::search_step_timed`] within `budget` of a frame, `elapsed` telling how long the
+    /// frame has run so far (the window's clock: the engine reads none): a unit is begun only
+    /// while one as long as the longest of the frame's so far still fits in it. Units differ (a
+    /// look-up of two index pages took up to 3.5 ms on a real file, most well under 1 ms): asked
+    /// only whether the budget was spent, a long one begun near its end held a frame to 8.5 ms.
+    pub fn search_step_within(
+        &mut self,
+        units: u32,
+        budget: Duration,
+        elapsed: &mut dyn FnMut() -> Duration,
+        done: &mut dyn FnMut(SearchWork),
+    ) -> SearchProgress {
+        let mut last = elapsed();
+        let mut longest = Duration::ZERO;
+        let mut more = || {
+            let now = elapsed();
+            longest = longest.max(now.saturating_sub(last));
+            last = now;
+            now.saturating_add(longest) < budget
+        };
+        self.search_step_timed(units, &mut more, done)
     }
 
     /// [`Session::search_step_while`], telling `done` what each part of the step was as it ends

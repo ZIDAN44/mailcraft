@@ -2,6 +2,7 @@
 
 use super::*;
 use std::collections::HashSet;
+use std::time::Duration;
 
 use crate::session::{SearchStats, SearchWork};
 
@@ -503,6 +504,55 @@ fn a_step_stops_when_asked() {
     }
     assert_eq!(s.list.len(), 2400 / 7);
     drop(s);
+}
+
+/// Within a frame's budget, a unit is begun only while one as long as the longest of the frame's
+/// so far still fits: units of 1.5 ms in a budget of 6 ms run at most three a frame (4.5 ms),
+/// where asked only whether the budget was spent they ran four, to 6 ms, and a long one begun
+/// near the end went past it (a look-up of 3.5 ms begun so held a real file's frame to 8.5 ms).
+#[test]
+fn a_frame_begins_no_unit_it_cant_fit() {
+    let (budget, unit) = (Duration::from_millis(6), Duration::from_micros(1500));
+    // The most units a frame ran, each taking 1.5 ms by the clock given, and what was found.
+    let most = |within: bool| {
+        let mut s = generated(4, 600, 0, true);
+        s.set_background_search(true);
+        s.start_search("zanzibar", SearchScope::All, false);
+        let (mut most, mut frames) = (0, 0);
+        loop {
+            let units = s.search_stats().units;
+            let mut now = Duration::ZERO;
+            let p = if within {
+                // Asked once as the frame's step begins, then after each unit.
+                let mut asked = 0u32;
+                s.search_step_within(
+                    64,
+                    budget,
+                    &mut || {
+                        asked += 1;
+                        if asked > 1 {
+                            now += unit;
+                        }
+                        now
+                    },
+                    &mut |_| {},
+                )
+            } else {
+                s.search_step_while(64, &mut || {
+                    now += unit;
+                    now < budget
+                })
+            };
+            most = most.max(s.search_stats().units - units);
+            frames += 1;
+            assert!(frames < 10_000);
+            if p.done {
+                return (most, s.list.len());
+            }
+        }
+    };
+    assert_eq!(most(true), (3, 2400 / 7));
+    assert_eq!(most(false), (4, 2400 / 7));
 }
 
 /// A search that stops part-way (a bug) goes, and the indexes it was reading are left unread,

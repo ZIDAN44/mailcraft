@@ -496,8 +496,11 @@ message's text said is kept for the search (flags are never text), so a flag cha
 weighed again for that message alone (`search_patched`). A message the index doesn't have yet may be
 missing (`missing`); a search that waits (the CLI, scripts, tests: the default) reads it from its
 source instead (`mime::index_doc`), so it finds what the index would. The window turns waiting off
-(`set_background_search`) and steps the search for 6 ms of each frame (`search_step_timed`, which
-asks the window's clock after each unit and tells it what each part of the step was, `SearchWork`,
+(`set_background_search`) and steps the search within 6 ms of each frame (`search_step_within`: a
+unit is begun only while one as long as the frame's longest so far still fits, so a look-up of two
+index pages, up to 3.5 ms on a real file, isn't begun just before the budget ends; over
+`search_step_timed`, which asks the window's clock after each unit and tells it what each part of
+the step was, `SearchWork`,
 `searching/work.rs`: the window logs a part over 50 ms by its kind; the engine reads no clock). A
 frame that runs a search command, or still has a search running, asks for the next frame at once:
 the command, run after the frame was drawn, takes none of the search in the window
