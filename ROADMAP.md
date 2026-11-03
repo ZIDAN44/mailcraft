@@ -236,18 +236,17 @@ local-first, media-aware v1); the fuller request is
    its sent items as the whole import does.
    An opened `.pst` keeps MailCraft's copy beside it, never written into itself: opened again it
    goes on with that copy, and once Outlook has changed it, what's new is read into the copy.
-   Searching the 41 GB file meets its aims once the window has been open a moment, but for a
-   common phrase's first search (119–154 ms against 150 ms): the summaries' texts are made ahead,
-   a frame begins no unit it can't fit, and what each query finds is held to an independent count
-   of the file.
+   Searching the 41 GB file meets its aims from the moment the window opens, but for a common
+   phrase's first search (119–154 ms against 150 ms): the summaries' texts are made aside on
+   threads of their own, a frame begins no unit it can't fit and leaves room to lay out the first
+   rows found, and what each query finds is held to an independent count of the file.
 33. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, right-to-left inside dialogs, menus and the editor, Wayland drag-out, public folders
    on Exchange Online, S/MIME in the browser (revocation, smart cards and the system store), what
    the `.pst` libraries can't do yet, signed releases with a signature on updates and macOS updates
-   without an administrator, and on a big data file a common phrase's first search now and then, a
-   search typed as the window opens and read
-   marks still over their budgets, and the search index's places (the
-   owner's call on its size).
+   without an administrator, and on a big data file a common phrase's first search now and then
+   and read marks still over their budgets, and the search index's places (the owner's call on
+   its size).
 
 ## Progress log
 

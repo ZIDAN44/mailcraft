@@ -5,6 +5,7 @@
 //! for 6 ms a frame: one unit didn't stop. Each part of a step now says what it was as it ends,
 //! and the window logs one that takes longer than a frame should, by its kind.
 
+use std::cell::Cell;
 use std::time::Duration;
 
 use super::*;
@@ -70,6 +71,9 @@ impl Session {
     /// while one as long as the longest of the frame's so far still fits in it. Units differ (a
     /// look-up of two index pages took up to 3.5 ms on a real file, most well under 1 ms): asked
     /// only whether the budget was spent, a long one begun near its end held a frame to 8.5 ms.
+    /// The step that first shows what the run found does so at its start, its units then within
+    /// a third of the budget: the window lays out a list of new rows in that frame (2.3–4.6 ms
+    /// on a real file), and shown after a whole budget's units it held the frame to 8.9–11.3 ms.
     pub fn search_step_within(
         &mut self,
         units: u32,
@@ -79,19 +83,34 @@ impl Session {
     ) -> SearchProgress {
         let mut last = elapsed();
         let mut longest = Duration::ZERO;
+        let first_shown = Cell::new(false);
         let mut more = || {
             let now = elapsed();
             longest = longest.max(now.saturating_sub(last));
             last = now;
+            let budget = if first_shown.get() { budget / 3 } else { budget };
             now.saturating_add(longest) < budget
         };
-        self.search_step_timed(units, &mut more, done)
+        self.step_showing(units, &mut more, done, &first_shown)
     }
 
     /// [`Session::search_step_while`], telling `done` what each part of the step was as it ends
     /// (its kind of unit, or the indexes followed and what's found shown around them), so the
     /// window can time each against its clock.
     pub fn search_step_timed(&mut self, units: u32, more: &mut dyn FnMut() -> bool, done: &mut dyn FnMut(SearchWork)) -> SearchProgress {
+        self.step_showing(units, more, done, &Cell::new(false))
+    }
+
+    /// [`Session::search_step_timed`], `first_shown` set when the step's start first shows what
+    /// the run found; what a run found before anything of it was shown waits for the next step's
+    /// start when the step stopped for the frame's time.
+    fn step_showing(
+        &mut self,
+        units: u32,
+        more: &mut dyn FnMut() -> bool,
+        done: &mut dyn FnMut(SearchWork),
+        first_shown: &Cell<bool>,
+    ) -> SearchProgress {
         self.let_go_some();
         let Some(mut run) = self.search_state.run.take() else { return SearchProgress { done: true, ..Default::default() } };
         // A data file it reads is had to itself by a compaction: it waits (on the window's
@@ -108,11 +127,15 @@ impl Session {
             // What earlier steps found, shown before this one's units (where the window's
             // clock counts it), taking as many of its units as its rows ask, all but one; then
             // what this one found, if that's cheap.
+            let first = !run.shown_any;
             let shown = self.publish_due(&mut run, true).min(units.saturating_sub(1));
+            first_shown.set(first && run.shown_any);
             self.search_state.stats.units = self.search_state.stats.units.saturating_add(u64::from(shown));
             done(SearchWork::Show);
-            self.run_units(&mut run, units.saturating_sub(shown), more, done);
-            self.publish_due(&mut run, false);
+            let out_of_time = self.run_units(&mut run, units.saturating_sub(shown), more, done);
+            if run.shown_any || !out_of_time {
+                self.publish_due(&mut run, false);
+            }
             done(SearchWork::Show);
         }));
         if went.is_err() {

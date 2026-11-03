@@ -555,6 +555,51 @@ fn a_frame_begins_no_unit_it_cant_fit() {
     assert_eq!(most(false), (4, 2400 / 7));
 }
 
+/// What a run finds first isn't shown after a frame's whole budget of units (the window then
+/// lays out a list of new rows past the frame's 8 ms): it waits for the next step's start, whose
+/// units then run within a third of the budget (units of 1.5 ms in 6 ms: one).
+#[test]
+fn the_first_found_show_at_a_steps_start() {
+    let (budget, unit) = (Duration::from_millis(6), Duration::from_micros(1500));
+    let mut s = generated(4, 600, 0, true);
+    s.set_background_search(true);
+    s.set_search_first_units(0);
+    s.run("search.run", &json!({"query": "zanzibar", "scope": "all"})).unwrap();
+    let frame = |s: &mut Session| {
+        let units = s.search_stats().units;
+        let mut asked = 0u32;
+        let mut now = Duration::ZERO;
+        let mut clock = || {
+            asked += 1;
+            if asked > 1 {
+                now += unit;
+            }
+            now
+        };
+        let p = s.search_step_within(64, budget, &mut clock, &mut |_| {});
+        (p, s.search_stats().units - units)
+    };
+    let mut frames = 0;
+    loop {
+        let (p, units) = frame(&mut s);
+        assert!(s.list.is_empty() && !p.done, "nothing shown yet");
+        assert_eq!(units, 3);
+        if p.found > 0 {
+            break;
+        }
+        frames += 1;
+        assert!(frames < 1000);
+    }
+    let (_, units) = frame(&mut s);
+    assert!(!s.list.is_empty(), "shown at the next step's start");
+    assert_eq!(units, 1, "its units within a third of the budget");
+    // Then whole frames again, what's found shown at their ends as before.
+    let (_, units) = frame(&mut s);
+    assert_eq!(units, 3);
+    while !frame(&mut s).0.done {}
+    assert_eq!(s.list.len(), 2400 / 7);
+}
+
 /// A search that stops part-way (a bug) goes, and the indexes it was reading are left unread,
 /// so the next search can't stop on them again: what they would find may be missing, until
 /// their writer writes them again.

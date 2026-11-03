@@ -508,7 +508,10 @@ missing (`missing`); a search that waits (the CLI, scripts, tests: the default) 
 source instead (`mime::index_doc`), so it finds what the index would. The window turns waiting off
 (`set_background_search`) and steps the search within 6 ms of each frame (`search_step_within`: a
 unit is begun only while one as long as the frame's longest so far still fits, so a look-up of two
-index pages, up to 3.5 ms on a real file, isn't begun just before the budget ends; over
+index pages, up to 3.5 ms on a real file, isn't begun just before the budget ends; what a run
+finds first waits for the next step's start when a step stopped for the frame's time, and that
+step's units then run within a third of the budget, leaving the frame room to lay out the first
+rows found; over
 `search_step_timed`, which asks the window's clock after each unit and tells it what each part of
 the step was, `SearchWork`,
 `searching/work.rs`: the window logs a part over 50 ms by its kind; the engine reads no clock). A

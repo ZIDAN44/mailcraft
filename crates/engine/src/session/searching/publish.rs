@@ -78,6 +78,7 @@ impl Session {
         let due = shown.saturating_add(run.fresh.len()) <= SHOWN_AT_ONCE || (start && run.unshown_steps >= shown / ROWS_A_STEP);
         if due {
             self.publish_stream(run);
+            run.shown_any = true;
             run.unshown_steps = 0;
             return u32::try_from(self.list.len() / ROWS_A_UNIT).unwrap_or(u32::MAX);
         }

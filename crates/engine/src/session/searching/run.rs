@@ -138,6 +138,8 @@ pub(crate) struct SearchRun {
     pub(crate) gone: HashSet<RunKey>,
     /// Steps since what was found was last shown.
     pub(crate) unshown_steps: usize,
+    /// Something it found has been shown.
+    pub(crate) shown_any: bool,
     /// Found before in a folder being scanned again: let go at its end unless found again.
     recheck: HashSet<RunKey>,
     verify: VecDeque<Candidate>,
@@ -213,6 +215,7 @@ impl SearchRun {
             fresh: Vec::new(),
             gone: HashSet::new(),
             unshown_steps: 0,
+            shown_any: false,
             recheck: HashSet::new(),
             verify: VecDeque::new(),
             verify_sorted: true,
@@ -439,8 +442,8 @@ impl Session {
     }
 
     /// At most `units` units, asking `more` after each whether to go on, and telling `done`
-    /// what each was ([`SearchWork`]).
-    pub(super) fn run_units(&mut self, run: &mut SearchRun, units: u32, more: &mut dyn FnMut() -> bool, done: &mut dyn FnMut(SearchWork)) {
+    /// what each was ([`SearchWork`]): whether `more` stopped them (the frame's time was spent).
+    pub(super) fn run_units(&mut self, run: &mut SearchRun, units: u32, more: &mut dyn FnMut() -> bool, done: &mut dyn FnMut(SearchWork)) -> bool {
         #[cfg(test)]
         self.search_test_fault();
         let mut left = units.max(1);
@@ -472,9 +475,10 @@ impl Session {
             self.search_state.stats.units = self.search_state.stats.units.saturating_add(u64::from(spent));
             left = left.saturating_sub(spent);
             if !more() {
-                break;
+                return true;
             }
         }
+        false
     }
 
     /// A test's: the next step of the search stops part-way, as a bug would.
