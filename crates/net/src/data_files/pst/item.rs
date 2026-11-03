@@ -56,8 +56,11 @@ pub(super) enum Got {
     File(File),
     /// A contact's picture (its type and bytes), which goes on its card.
     Photo(String, Vec<u8>),
-    /// A link to a file that isn't here (or isn't read: a web reference), kept as a short text
-    /// file naming it, and counted as a link.
+    /// A link to a file elsewhere, not read yet: the walk of the item's attachments reads its
+    /// file within what the item still has room for (`embedded.rs`), or names it ([`Link::named`]).
+    Linked(Link),
+    /// A link to a file that isn't here (or isn't read: a web reference, or one past what the
+    /// item has room for), kept as a short text file naming it, and counted as a link.
     Link(File),
     /// Not part of the message, or nothing in it: not counted.
     Nothing,
@@ -84,6 +87,8 @@ impl Files {
                 }
             }
             Got::Nothing => {}
+            // Not read here: only the walk of an item's attachments, which keeps their room, reads.
+            Got::Linked(link) => self.add(link.named()),
             Got::Link(f) => {
                 self.files.push(f);
                 self.add(Got::Left(SkipReason::AttachmentLink));
@@ -322,7 +327,7 @@ pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str, top: b
             Got::File(File::Data { name: name_of(&s), mime: s(0x370E), cid: s(0x3712), data: b.buffer().to_vec() })
         }
         Some(AttachmentData::Message(_)) => return None,
-        None if link(&p) => linked(&p, &read_linked),
+        None if link(&p) => link_of(&p, class),
         None => Got::Nothing,
     })
 }
@@ -368,7 +373,7 @@ pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>, cl
     if hidden(p, class, top) {
         Got::Nothing
     } else if link(p) {
-        linked(p, &read_linked)
+        link_of(p, class)
     } else if kept_empty(e, method) {
         let name = name_of(&s);
         let mime = Some(s(0x370E)).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&name).to_string());
@@ -422,54 +427,162 @@ pub(super) fn link<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>) -> bool {
     matches!(p(0x3705), Some(Val::Int(2 | 3 | 4 | 7)))
 }
 
-/// The longest link kept, in characters (Windows' longest path).
+/// The longest link kept, in characters (Windows' longest path); and the longest name of a
+/// link's file.
 const MAX_LINK: usize = 32_767;
+const MAX_LINK_NAME: usize = 255;
 
-/// A link attachment (`p`, its properties): the file its path names (PidTagAttachLongPathname,
-/// else PidTagAttachPathname) when `read` reads it from this computer; else, when it names
-/// anything, a short text file holding the path or address, counted as a link, so what was there
-/// is seen. A web reference is never read: an address in a data file isn't fetched.
-pub(super) fn linked<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, read: &dyn Fn(&str) -> Option<Vec<u8>>) -> Got {
+/// A link to a file elsewhere (an attachment by reference, or by web reference), as read from its
+/// attachment: the path or address, and what its file is called.
+pub(super) struct Link {
+    pub(super) path: String,
+    pub(super) name: String,
+    mime: String,
+    cid: String,
+    /// A web reference: an address in a data file is never fetched.
+    pub(super) web: bool,
+    /// The most bytes its file may have to come in (a contact's, calendar item's, task's or
+    /// note's files are kept smaller than a message's).
+    pub(super) cap: usize,
+}
+
+impl Link {
+    /// Its file, read (`data`).
+    pub(super) fn file(self, data: Vec<u8>) -> Got {
+        let mime = Some(self.mime).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&self.name).to_string());
+        Got::File(File::Data { name: self.name, mime, cid: self.cid, data })
+    }
+
+    /// A short text file naming its path or address, counted as a link.
+    pub(super) fn named(self) -> Got {
+        Got::Link(File::Data {
+            name: format!("{} (link).txt", self.name),
+            mime: "text/plain".into(),
+            cid: String::new(),
+            data: format!("{}\r\n", self.path).into_bytes(),
+        })
+    }
+
+    /// Its file when `read` reads it (`read(path, cap)`: at most `room` bytes, and its own cap);
+    /// else it is named. A web reference is never read.
+    pub(super) fn resolve(self, room: usize, read: &dyn Fn(&str, usize) -> Option<Vec<u8>>) -> Got {
+        let cap = room.min(self.cap);
+        match (!self.web).then(|| read(&self.path, cap)).flatten().filter(|d| d.len() <= cap) {
+            Some(data) => self.file(data),
+            None => self.named(),
+        }
+    }
+}
+
+/// A link attachment (`p`, its properties) in a message of class `class`: the path its
+/// PidTagAttachLongPathname (else PidTagAttachPathname) names, and its file's name, for the walk
+/// of the item's attachments to read or name; when it names nothing, it is counted as a link.
+pub(super) fn link_of<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> Got {
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     let path: String = [s(0x370D), s(0x3708)].into_iter().map(|t| t.trim().to_string()).find(|t| !t.is_empty()).unwrap_or_default();
     let path: String = path.chars().map(|c| if c.is_control() { ' ' } else { c }).take(MAX_LINK).collect();
+    if path.is_empty() {
+        return Got::Left(SkipReason::AttachmentLink);
+    }
     let web = matches!(p(0x3705), Some(Val::Int(7)));
     let given = [s(0x3707), s(0x3704), s(0x3001)].into_iter().find(|n| !n.trim().is_empty());
     // The file's own name, else the path's last part.
     let leaf = path.rsplit(['\\', '/']).next().filter(|l| !l.trim().is_empty()).map(str::to_string);
     let name = given.or(leaf).unwrap_or_else(|| "attachment".into());
-    if path.is_empty() {
-        return Got::Left(SkipReason::AttachmentLink);
-    }
-    if !web && let Some(data) = read(&path) {
-        let mime = Some(s(0x370E)).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&name).to_string());
-        return Got::File(File::Data { name, mime, cid: s(0x3712), data });
-    }
-    Got::Link(File::Data {
-        name: format!("{name} (link).txt"),
-        mime: "text/plain".into(),
-        cid: String::new(),
-        data: format!("{path}\r\n").into_bytes(),
-    })
+    let name: String = name.chars().map(|c| if c.is_control() { ' ' } else { c }).take(MAX_LINK_NAME).collect();
+    let cap = if super::lanes::is_pim(class) { super::out::MAX_PIM_FILE } else { MAX_ATTACHMENT };
+    Got::Linked(Link { path, name, mime: s(0x370E), cid: s(0x3712), web, cap })
 }
 
-/// The file at `path` on this computer, when it is one MailCraft may read for an import: a path
-/// on a local drive (`C:\…`, or `/…` elsewhere; never a network path, `\\server\…` or `//…`,
-/// whose read would reach another computer, nor a device's), naming a file itself (not a link),
-/// of at most [`MAX_ATTACHMENT`] bytes.
-pub(super) fn read_linked(path: &str) -> Option<Vec<u8>> {
+/// A link attachment (`p`, its properties, in a mail item) resolved at once: its file when `read`
+/// reads it (within [`MAX_ATTACHMENT`]), else named. For a test's, and the fuzz target's, one
+/// file.
+pub(super) fn linked<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, read: &dyn Fn(&str, usize) -> Option<Vec<u8>>) -> Got {
+    match link_of(p, "") {
+        Got::Linked(link) => link.resolve(MAX_ATTACHMENT, read),
+        got => got,
+    }
+}
+
+/// Links whose read took [`SLOW_LINK`] or more, in one import, after which it reads no more: a
+/// drive that is gone (a network drive's, a disc's) answers each read only when it times out.
+const MAX_SLOW_LINKS: usize = 4;
+const SLOW_LINK: Duration = Duration::from_secs(2);
+
+/// An import's reads of links' files: they stop once [`MAX_SLOW_LINKS`] have been slow.
+#[derive(Default)]
+pub(super) struct LinkReads {
+    slow: std::sync::atomic::AtomicUsize,
+}
+
+impl LinkReads {
+    /// [`read_linked`], unless reads have stopped.
+    pub(super) fn read(&self, path: &str, cap: usize) -> Option<Vec<u8>> {
+        self.read_with(path, cap, &read_linked, SLOW_LINK)
+    }
+
+    /// `read`, timed: one taking `slow` or more counts towards stopping.
+    pub(super) fn read_with(&self, path: &str, cap: usize, read: &dyn Fn(&str, usize) -> Option<Vec<u8>>, slow: Duration) -> Option<Vec<u8>> {
+        if self.slow.load(Ordering::Relaxed) >= MAX_SLOW_LINKS {
+            return None;
+        }
+        let began = Instant::now();
+        let got = read(path, cap);
+        if began.elapsed() >= slow && self.slow.fetch_add(1, Ordering::Relaxed).saturating_add(1) == MAX_SLOW_LINKS {
+            log::info!("links' files are read no more in this import: {MAX_SLOW_LINKS} reads were slow");
+        }
+        got
+    }
+}
+
+/// The file at `path` on this computer, when it is one MailCraft may read for an import, of at
+/// most `cap` bytes (a bigger one isn't opened): a path on a local drive (`C:\…`, or `/…`
+/// elsewhere; never a network path, `\\server\…` or `//…`, whose read would reach another
+/// computer, nor a device's), with no `.` or `..` in it, that goes through no link or junction
+/// (which could lead to another computer) and names a file itself; on Unix, never under `/proc`,
+/// `/sys` or `/dev`, whose files tell of the system (a process's environment).
+/// A drive letter the user mapped to a network share is read as a local drive is: it is the
+/// user's own share, not one a data file names, and it can't be told apart without a system call
+/// MailCraft has no safe wrapper for.
+pub(super) fn read_linked(path: &str, cap: usize) -> Option<Vec<u8>> {
     if !local_path(path) {
         return None;
     }
     let p = Path::new(path);
+    if !plain_path(p) {
+        return None;
+    }
     let meta = std::fs::symlink_metadata(p).ok()?;
-    let cap = u64::try_from(MAX_ATTACHMENT).ok()?;
+    let cap = u64::try_from(cap).ok()?;
     if !meta.is_file() || meta.len() > cap {
         return None;
     }
+    let file = std::fs::File::open(p).ok()?;
+    // What was opened is still a file within the cap.
+    let opened = file.metadata().ok()?;
+    if !opened.is_file() || opened.len() > cap {
+        return None;
+    }
     let mut data = Vec::new();
-    io::Read::read_to_end(&mut io::Read::take(std::fs::File::open(p).ok()?, cap.saturating_add(1)), &mut data).ok()?;
-    (data.len() <= MAX_ATTACHMENT).then_some(data)
+    io::Read::read_to_end(&mut io::Read::take(file, cap.saturating_add(1)), &mut data).ok()?;
+    (u64::try_from(data.len()).ok()? <= cap).then_some(data)
+}
+
+/// Whether `p` (an absolute path) has only plain parts: no `.` or `..`, no folder on the way that
+/// is a link or junction, and, on Unix, isn't under `/proc`, `/sys` or `/dev`.
+fn plain_path(p: &Path) -> bool {
+    use std::path::Component;
+    if p.components().any(|c| matches!(c, Component::CurDir | Component::ParentDir)) {
+        return false;
+    }
+    if !cfg!(windows) && ["/proc", "/sys", "/dev"].iter().any(|d| p.starts_with(d)) {
+        return false;
+    }
+    // Every folder on the way, from the drive's top down (the drive's top itself is where any
+    // path on it goes; the file is its caller's to check).
+    let mut folders: Vec<&Path> = p.ancestors().skip(1).collect();
+    folders.pop();
+    folders.iter().rev().all(|f| std::fs::symlink_metadata(f).is_ok_and(|m| m.is_dir() && !m.file_type().is_symlink()))
 }
 
 /// Whether `path` is an absolute path on one of this computer's drives, as this system writes

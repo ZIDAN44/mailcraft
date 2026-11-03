@@ -161,6 +161,64 @@ fn a_link_brings_its_file_when_it_is_here() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A link's file is read only when it fits what's asked (a bigger one isn't opened), by a plain
+/// path: none with `..` in it, none through a link or junction to a folder (which could lead to
+/// another computer), and on Unix none of the system's own (a process's environment).
+#[test]
+fn a_link_s_file_is_read_only_by_a_plain_path() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-link-paths-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("in")).unwrap();
+    let here = dir.join("in").join("plan.pdf");
+    std::fs::write(&here, b"%PDF-1.7 plan").unwrap();
+    let path = here.to_string_lossy().into_owned();
+    assert_eq!(read_linked(&path, 100).as_deref(), Some(&b"%PDF-1.7 plan"[..]));
+    assert_eq!(read_linked(&path, 13).as_deref(), Some(&b"%PDF-1.7 plan"[..]));
+    assert!(read_linked(&path, 12).is_none(), "bigger than asked");
+    let round = dir.join("in").join("..").join("in").join("plan.pdf");
+    assert!(read_linked(&round.to_string_lossy(), 100).is_none(), "a path with .. in it");
+    // A junction (Windows) or link (Unix) to the folder: refused, where the system lets a test make one.
+    let link = dir.join("through");
+    #[cfg(windows)]
+    let made = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J", &link.to_string_lossy(), &dir.join("in").to_string_lossy()])
+        .output()
+        .is_ok_and(|o| o.status.success());
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink(dir.join("in"), &link).is_ok();
+    if made {
+        assert!(std::fs::read(link.join("plan.pdf")).is_ok());
+        assert!(read_linked(&link.join("plan.pdf").to_string_lossy(), 100).is_none(), "through a junction");
+    }
+    #[cfg(unix)]
+    assert!(read_linked("/proc/self/environ", 1 << 20).is_none() && read_linked("/dev/zero", 1 << 20).is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Once a few reads of links' files were slow (a drive that is gone answers only when it times
+/// out), the import reads no more of them.
+#[test]
+fn slow_link_reads_stop_reading_links() {
+    use std::time::Duration;
+    let reads = super::super::item::LinkReads::default();
+    let asked = std::cell::Cell::new(0);
+    let read = |_: &str, _: usize| {
+        asked.set(asked.get() + 1);
+        None
+    };
+    for _ in 0..10 {
+        reads.read_with("C:\\gone\\plan.pdf", 100, &read, Duration::ZERO);
+    }
+    assert_eq!(asked.get(), 4);
+    // Quick reads don't count.
+    let quick = super::super::item::LinkReads::default();
+    asked.set(0);
+    for _ in 0..10 {
+        quick.read_with("C:\\gone\\plan.pdf", 100, &read, Duration::from_secs(60));
+    }
+    assert_eq!(asked.get(), 10);
+}
+
 /// The files left out of the messages that came in are counted by reason, without counting
 /// those messages as skipped; an item that didn't come in (of a kind with no place, counted as
 /// itself) counts none.

@@ -12,6 +12,8 @@ mod pim;
 mod room;
 pub(super) mod sent_ids;
 
+pub(super) use pim::MAX_PIM_FILE;
+
 /// Message sources written to the cache together (one transaction): at most this many…
 const BATCH_MESSAGES: usize = 2000;
 /// …or this many bytes as kept: a transaction short enough that a write from the window (a

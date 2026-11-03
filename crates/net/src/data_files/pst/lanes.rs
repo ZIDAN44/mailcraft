@@ -99,6 +99,8 @@ pub(super) struct Ctx<'a> {
     pub(super) orphaned: AtomicBool,
     /// Which kind of file it is, once the planner has opened it: 1 Unicode, 2 the older ANSI.
     pub(super) format: std::sync::atomic::AtomicU8,
+    /// Links' files read, which stop once a drive is too slow to answer.
+    pub(super) links: item::LinkReads,
     /// Items the lanes have taken, for a test's faults.
     #[cfg(test)]
     pub(super) items_taken: std::sync::atomic::AtomicU64,
@@ -123,6 +125,7 @@ impl<'a> Ctx<'a> {
             live: AtomicUsize::new(0),
             orphaned: AtomicBool::new(false),
             format: std::sync::atomic::AtomicU8::new(0),
+            links: item::LinkReads::default(),
             #[cfg(test)]
             items_taken: std::sync::atomic::AtomicU64::new(0),
         }
@@ -147,6 +150,7 @@ impl<'a> Ctx<'a> {
             live: AtomicUsize::new(0),
             orphaned: AtomicBool::new(false),
             format: std::sync::atomic::AtomicU8::new(0),
+            links: item::LinkReads::default(),
             #[cfg(test)]
             items_taken: std::sync::atomic::AtomicU64::new(0),
         }
@@ -463,7 +467,7 @@ macro_rules! lane {
                 });
                 let entry = store.properties().make_entry_id(NodeId::from(node))?;
                 let m = <$message>::read(store, &entry, None)?;
-                Ok(item_with_files(&Held { m, named }))
+                Ok(item_with_files(&Held { m, named }, &|path, cap| ctx.links.read(path, cap)))
             };
             let reset = || {
                 if let Ok(mut h) = held.try_borrow_mut() {

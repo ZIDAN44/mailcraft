@@ -5,8 +5,8 @@
 
 use std::cell::Cell;
 
-use super::super::embedded::{Holder, MAX_NODES, Part, Walk, item_in, item_with_files};
-use super::super::item::{File, Got, Item, from_row, item_of};
+use super::super::embedded::{Holder, MAX_LINK_READS, MAX_NODES, Part, Walk, item_in, item_with_files};
+use super::super::item::{File, Got, Item, from_row, item_of, link_of};
 use super::super::rebuild::to_raw;
 use super::*;
 
@@ -17,6 +17,8 @@ enum Fake {
     File(usize),
     Message(usize),
     Hidden(usize),
+    /// A link naming a file elsewhere (by reference).
+    Link,
 }
 
 /// A made-up message: its class, subject, search key, attachments and the bytes of its body.
@@ -48,6 +50,14 @@ impl Holder for At<'_> {
                         Part::Got(Got::File(file))
                     }
                     Fake::Message(at) => Part::Message(At { at, ..*self }),
+                    Fake::Link => {
+                        let row = |id: u16| match id {
+                            0x3705 => Some(Val::Int(2)),
+                            0x370D => Some(Val::Text(r"C:\plans\plan.pdf".into())),
+                            _ => None,
+                        };
+                        Part::Got(link_of(&row, self.layout[self.at].class))
+                    }
                     // Whether a hidden attached message is left out is the file's rule, from its
                     // row (a hidden attachment holding a message), as for one the reader fails on.
                     Fake::Hidden(at) => {
@@ -118,7 +128,7 @@ fn an_attached_message_comes_in_with_its_own_files() {
     use Fake::{File as F, Message as M};
     let layout = [node("A", Some(b"a"), vec![F(3), M(1)]), node("B", Some(b"b"), vec![F(1), M(2)]), node("C", None, vec![F(2)])];
     let reads = Cell::new(0);
-    let it = item_with_files(&At { layout: &layout, at: 0, reads: &reads });
+    let it = item_with_files(&At { layout: &layout, at: 0, reads: &reads }, &|_, _| None);
     assert_eq!(shape(&it), "A[f3, B[f1, C[f2]]]");
     assert!(it.left_out.is_empty());
 }
@@ -167,7 +177,7 @@ fn attached_messages_stop_thirty_two_levels_down() {
 fn a_deep_chain_rebuilds_and_opens_level_by_level() {
     let forty = chain(40);
     let reads = Cell::new(0);
-    let it = item_with_files(&At { layout: &forty, at: 0, reads: &reads });
+    let it = item_with_files(&At { layout: &forty, at: 0, reads: &reads }, &|_, _| None);
     let raw = to_raw(it, "deep@x.invalid").unwrap();
     // Search reads the text of four of them (`index_text`'s depth, counting each one's multipart).
     let words = mailcraft_mime::index_doc(&raw).joined();
@@ -289,4 +299,42 @@ fn an_attached_appointment_keeps_its_changed_occurrences_hidden() {
     let (shape, left, _) = read(&mail, &mut Walk::new());
     assert_eq!(shape, "Mail[f3, Series[f2], Kept[]]");
     assert!(left.is_empty(), "{left:?}");
+}
+
+/// A file whose attachment table holds thousands of links, all naming one file here: the file is
+/// looked for [`MAX_LINK_READS`] times, each read asked for no more than the room the item has
+/// left; the rest are named in short text files, which take room too, and once there is none
+/// they're counted as too big. A file bigger than the room left is named, not read and dropped.
+#[test]
+fn thousands_of_links_are_read_within_the_item_s_room() {
+    let layout = [node("A", None, vec![Fake::Link; 5000])];
+    let asked = Cell::new(0usize);
+    let caps = std::cell::RefCell::new(Vec::new());
+    let read = |_: &str, cap: usize| {
+        asked.set(asked.get() + 1);
+        caps.borrow_mut().push(cap);
+        (cap >= 1000).then(|| vec![7; 1000])
+    };
+    // Room for 40 files and some of the names.
+    let text = "C:\\plans\\plan.pdf\r\n".len();
+    let room = 40 * 1000 + 30 * text;
+    let reads = Cell::new(0);
+    let it = item_in(&At { layout: &layout, at: 0, reads: &reads }, &mut Walk::reading(room, &read));
+    assert_eq!(asked.get(), MAX_LINK_READS, "the file is looked for at most so many times");
+    assert!(caps.borrow().windows(2).all(|w| w[1] <= w[0]) && caps.borrow()[0] == room, "each read asked for the room left");
+    let read_in = it.files.iter().filter(|f| matches!(f, File::Data { name, .. } if name == "plan.pdf")).count();
+    let named = it.files.iter().filter(|f| matches!(f, File::Data { name, .. } if name == "plan.pdf (link).txt")).count();
+    assert_eq!(read_in, 40, "the files that fit came in");
+    let held: usize = it.files.iter().map(|f| if let File::Data { data, .. } = f { data.len() } else { 0 }).sum();
+    assert!(held <= room, "{held} > {room}");
+    let left: BTreeMap<_, _> = it.left_out.into_iter().collect();
+    assert_eq!(left.get(&SkipReason::AttachmentLink), Some(&named));
+    assert_eq!(read_in + named + left.get(&SkipReason::AttachmentTooBig).copied().unwrap_or(0), 5000);
+    assert!(named > 0 && left.contains_key(&SkipReason::AttachmentTooBig));
+
+    // A contact's link asks for no more than a contact's file keeps.
+    let contact = [Node { class: "IPM.Contact", ..node("C", None, vec![Fake::Link]) }];
+    caps.borrow_mut().clear();
+    item_in(&At { layout: &contact, at: 0, reads: &reads }, &mut Walk::reading(room, &read));
+    assert!(caps.borrow()[0] < 1 << 20);
 }

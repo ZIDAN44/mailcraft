@@ -771,7 +771,7 @@ pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>])
             let mime = find(props, 0x370E).and_then(Val::into_text).unwrap_or_default();
             vec![File::Data { name: "smime.p7m".into(), mime, cid: String::new(), data: data.to_vec() }]
         }
-        _ if item::link(&get) => match item::linked(&get, &|_| None) {
+        _ if item::link(&get) => match item::linked(&get, &|_, _| None) {
             item::Got::Link(f) | item::Got::File(f) => vec![f],
             _ => Vec::new(),
         },

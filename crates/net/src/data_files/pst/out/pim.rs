@@ -14,6 +14,9 @@ use super::*;
 
 /// A file of a contact, calendar item, task or note kept at most, as its line holds it (base64)…
 const MAX_FILE: usize = 1 << 20;
+/// The most bytes such a file has to fit in [`MAX_FILE`] as its line (base64, with its name and
+/// type): a link's file bigger than this isn't read for one, but named.
+pub(in crate::data_files::pst) const MAX_PIM_FILE: usize = MAX_FILE / 4 * 3 - 4096;
 /// …and all of them in the account's contacts, calendar, tasks and notes: half what a calendar or
 /// address book file is read to, leaving the rest to their text and the folding of their lines.
 const MAX_FILES: usize = 8 << 20;
