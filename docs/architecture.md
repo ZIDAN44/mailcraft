@@ -36,6 +36,7 @@
 `cargo xtask wasm` checks that every crate but `net`, and the web app, build for `wasm32`.
 
 Threads stay out of the portable crates. Slow work in the window (decoding a message's pictures,
+writing a video attachment out for the platform's decoder and decoding the frame it makes,
 reading and parsing the open message) goes through `Services::background` to a lane: the desktop app runs one thread per lane
 (`apps/mailcraft/src/desktop/lanes.rs`), each piece of work under `catch_unwind`, and gives a
 lane caught on cancelled work for 30 seconds a new thread. Where the work is given back (the
@@ -494,7 +495,8 @@ source instead (`mime::index_doc`), so it finds what the index would. The window
 asks the window's clock after each unit and tells it what each part of the step was, `SearchWork`,
 `searching/work.rs`: the window logs a part over 50 ms by its kind; the engine reads no clock). A
 frame that runs a search command, or still has a search running, asks for the next frame at once:
-the command takes only the first few units, after the frame was drawn. A
+the command, run after the frame was drawn, takes none of the search in the window
+(`set_search_first_units`; four units elsewhere), and the next frame steps it in its share. A
 folder's list isn't read while read marks wait to be written (the read would wait for them): the
 step goes on and reads it once they're on disk. What's found is merged into the list by date
 (`searching/publish.rs`): at the step's end while the list holds at most 4,096 messages, else at the
