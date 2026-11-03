@@ -659,7 +659,7 @@ fn an_import_asks_for_the_index_at_its_end() {
     let mut s = sample_session("index-import");
     s.set_indexing(true);
     s.take_jobs();
-    s.import_pst("C:/Mail/old.pst", false).unwrap();
+    s.import_pst("C:/Mail/old.pst", false, None).unwrap();
     let id = match s.take_jobs().as_slice() {
         [Job::ImportPst { account, .. }] => account.clone(),
         jobs => panic!("{jobs:?}"),

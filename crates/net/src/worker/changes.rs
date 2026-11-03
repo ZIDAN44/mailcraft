@@ -175,6 +175,7 @@ impl Worker {
             | Job::SignIn { .. }
             | Job::AllowDirectory { .. }
             | Job::ImportPst { .. }
+            | Job::RereadDataFile { .. }
             | Job::InspectDataFile { .. }
             | Job::StopImport { .. }
             | Job::KeepImport { .. }

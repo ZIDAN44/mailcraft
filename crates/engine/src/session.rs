@@ -37,7 +37,7 @@ mod security;
 mod writing;
 #[cfg(test)]
 pub(crate) use accounts::REMOVE_BACKSTOP;
-pub use accounts::{ImportState, Imports};
+pub use accounts::{Changes, ImportState, Imports};
 pub use mailbox_settings::{Compacting, Compaction, IDLE_AFTER_S};
 #[cfg(test)]
 pub(crate) use opening::source_lines;

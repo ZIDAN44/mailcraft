@@ -9,7 +9,11 @@ use mailcraft_model::job::{Blocked, DataFileFacts, DataSource, Eta, ImportPhase,
 
 use super::*;
 
+mod beside;
 mod note;
+mod stopping;
+
+pub use beside::Changes;
 
 /// Where each account's mail came from, and how far its import got (beside `rules.json`).
 pub(crate) const IMPORTS_DOC: &str = "imports.json";
@@ -63,6 +67,8 @@ pub struct ImportState {
     /// The folders its plan found, in the order they come in (the window shows those not in yet
     /// as an outline); none until a run has planned the file.
     pub planned: Vec<PlannedFolder>,
+    /// The file read again into the account's copy of it (`beside.rs`), not imported.
+    pub rereading: bool,
     /// Events applied since the removal was asked for.
     waited: u32,
 }
@@ -313,8 +319,13 @@ impl Session {
     }
 
     /// Open an Outlook data file (`.pst`): a new account on this computer, named after the file,
-    /// that the import fills. A file already open as another account is refused unless `again`.
-    pub fn import_pst(&mut self, path: &str, again: bool) -> CmdResult {
+    /// that the import fills, keeping its copy beside the file (`beside.rs`); MailCraft's own
+    /// (`.mailcraft`) is copied in with the other data files. A file already open as another
+    /// account is refused unless `again` (another copy), or read again into it with `changes`
+    /// "read". A copy beside it from an earlier opening is gone on with; the file changed since,
+    /// `changes` says whether it's read again into the copy ("read") or the copy opened as it was
+    /// ("keep"), and it's asked for otherwise.
+    pub fn import_pst(&mut self, path: &str, again: bool, changes: Option<Changes>) -> CmdResult {
         let path = path.trim();
         if path.is_empty() {
             return Err(CmdError::Params("`path` is required".into()));
@@ -324,12 +335,33 @@ impl Session {
         }
         let key = self.facts_for(path).map(|f| f.record_key.clone()).unwrap_or_default();
         if !again && let Some(a) = self.duplicate_of(path, &key, None) {
+            if changes == Some(Changes::Read) {
+                return self.reread(&a, path);
+            }
             let name = self.account(&a).map(|x| x.config.name.clone()).unwrap_or_default();
             return Err(CmdError::Params(format!("this data file is already open as {name} ({a}); pass again: true to import another copy")));
         }
+        let found = self.copy_found(path);
+        if found.as_ref().is_some_and(|f| f.changed) && changes.is_none() {
+            return Err(CmdError::Params(
+                "the file has changed since MailCraft's copy beside it was read: pass changes: \"read\" to read what's new into the copy, or \"keep\" to open the copy as it was".into(),
+            ));
+        }
+        let id = found.as_ref().map_or_else(|| self.new_account_id(), |f| self.id_for_copy(f));
+        self.data_file_account(&id, path);
+        // Its copy beside the file: the one found there, gone on with, or one the import makes.
+        if let Some(found) = self.place_copy(&id, path) {
+            return self.open_copy(&id, path, &found, changes);
+        }
+        self.queue_import(&id, path, false);
+        Ok(serde_json::json!({ "account": id, "importing": true }))
+    }
+
+    /// A new account `id` on this computer for the data file at `path`, named after the file.
+    fn data_file_account(&mut self, id: &str, path: &str) {
         let file = file_name(path);
         let stem = file.rsplit_once('.').map_or(file.as_str(), |(s, _)| s).trim().to_string();
-        let id = self.new_account_id();
+        let id = id.to_string();
         let config = AccountConfig {
             id: id.clone(),
             name: if stem.is_empty() { file.clone() } else { stem },
@@ -346,8 +378,6 @@ impl Session {
             vacation: VacationState::Unknown,
         });
         self.save_accounts();
-        self.queue_import(&id, path, false);
-        Ok(serde_json::json!({ "account": id, "importing": true }))
     }
 
     /// Bring an existing data file's mail into a new account before it first connects (Outlook's
@@ -433,6 +463,10 @@ impl Session {
             self.importing.running.insert(account.to_string(), ImportState { file, live: true, ..ImportState::default() });
         }
         let Some(st) = self.importing.running.get_mut(account) else { return };
+        // Read again, it's over: nothing was added.
+        if st.rereading && matches!(p.phase, ImportPhase::Paused | ImportPhase::Blocked) {
+            return self.reread_stopped(account, p);
+        }
         // Being thrown away with its account: nothing more of it counts.
         if st.removing {
             return;
@@ -489,6 +523,9 @@ impl Session {
                 self.import_started(account);
             }
             return;
+        }
+        if self.importing.running.get(account).is_some_and(|s| s.rereading) {
+            return self.reread_ended(account, messages, error, report);
         }
         self.import_ended(account);
         let Some(name) = self.account(account).map(|a| a.config.email.clone()) else { return };
@@ -602,8 +639,11 @@ impl Session {
         if let Some(e) = error {
             log::warn!("{account}: an import thrown away: {e}");
         }
-        if self.importing.running.get(account).is_some_and(|s| s.removing) {
-            self.finish_removal(account, Leaves::Nothing);
+        match self.importing.running.get(account) {
+            // A file read again into its copy: the copy stays, as a removed account's does.
+            Some(s) if s.removing && s.rereading => self.finish_removal(account, Leaves::DataFile),
+            Some(s) if s.removing => self.finish_removal(account, Leaves::Nothing),
+            _ => {}
         }
     }
 
@@ -616,6 +656,11 @@ impl Session {
             st.waited = 0;
             st.stopping = Some(StopHow::Discard);
             st.progress.phase = ImportPhase::Stopping;
+            // Read again into its copy: the copy stays, as a removed account's does.
+            if st.rereading {
+                self.jobs.push(Job::StopImport { account: account.to_string(), how: StopHow::Discard });
+                return Some(Ok(serde_json::json!({ "removing": account, "dataFile": null })));
+            }
             let path = st.path.clone();
             self.importing.sources.entry(account.to_string()).or_insert_with(|| DataSource { path, ..DataSource::default() }).stage =
                 ImportStage::Removing;
@@ -647,133 +692,13 @@ impl Session {
         for (a, s) in self.importing.running.iter_mut().filter(|(_, s)| s.removing) {
             s.waited = s.waited.saturating_add(1);
             if s.waited >= REMOVE_BACKSTOP {
-                due.push(a.clone());
+                due.push((a.clone(), s.rereading));
             }
         }
-        for a in due {
+        for (a, rereading) in due {
             log::warn!("{a}: its import didn't say it stopped; removed without it");
-            self.finish_removal(&a, Leaves::ForImport);
-        }
-    }
-
-    /// Stop the imports into `accounts`, as `how` says (kept to go on, or paused).
-    pub fn stop_import(&mut self, accounts: &[String], how: StopHow) -> CmdResult {
-        if how == StopHow::Discard {
-            return Err(CmdError::Params("an import is thrown away by removing its account".into()));
-        }
-        let mut stopping = Vec::new();
-        for a in accounts {
-            let Some(st) = self.importing.running.get_mut(a).filter(|s| s.live && !s.removing) else { continue };
-            st.stopping = Some(how);
-            st.progress.phase = ImportPhase::Stopping;
-            self.jobs.push(Job::StopImport { account: a.clone(), how });
-            stopping.push(a.clone());
-        }
-        if stopping.is_empty() {
-            return Err(CmdError::Disabled("nothing is being imported".into()));
-        }
-        Ok(serde_json::json!({ "stopping": stopping, "how": how }))
-    }
-
-    /// The import waiting on the user, unless it's being read or the account removed.
-    fn stopped_import(&self, account: &str) -> Result<&ImportState, CmdError> {
-        if self.account(account).is_none() {
-            return Err(CmdError::Params(format!("no account `{account}`")));
-        }
-        if self.importing.keeping.contains_key(account) {
-            return Err(CmdError::Failed("what was imported is being kept".into()));
-        }
-        match self.importing.running.get(account) {
-            None => Err(CmdError::Params("no import of this account is waiting".into())),
-            Some(s) if s.removing => Err(CmdError::Failed("this account is being removed".into())),
-            Some(s) if s.live => Err(CmdError::Failed("the data file is being imported".into())),
-            Some(s) => Ok(s),
-        }
-    }
-
-    /// Go on with an import stopped or interrupted, from where it stopped.
-    pub fn resume_import(&mut self, account: &str) -> CmdResult {
-        self.compaction_holds_import(account)?;
-        let st = self.stopped_import(account)?;
-        let path = self.importing.sources.get(account).map(|s| s.path.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| st.path.clone());
-        if path.is_empty() {
-            return Err(CmdError::Params("where its data file is isn't known: import it again, giving `path`".into()));
-        }
-        self.queue_import(account, &path, true);
-        Ok(serde_json::json!({ "account": account, "importing": true }))
-    }
-
-    /// Start an import stopped, interrupted or lost again from the beginning: what came in goes
-    /// (the account stays), and the data file at `path` (else the one it came from) is read.
-    pub fn restart_import(&mut self, account: &str, path: Option<&str>) -> CmdResult {
-        self.compaction_holds_import(account)?;
-        let st = self.stopped_import(account)?;
-        let path = match path.map(str::trim).filter(|p| !p.is_empty()) {
-            Some(p) => p.to_string(),
-            None => self.importing.sources.get(account).map(|s| s.path.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| st.path.clone()),
-        };
-        if path.is_empty() {
-            return Err(CmdError::Params("`path` is required".into()));
-        }
-        if path.len() > PATH_MAX {
-            return Err(CmdError::Params("`path` is too long".into()));
-        }
-        if let Some(store) = &self.store {
-            store.delete_account(account).map_err(|e| CmdError::Failed(e.to_string()))?;
-        }
-        if let Some(a) = self.account_mut(account) {
-            a.folders.clear();
-        }
-        self.cache.retain(|(a, _), _| a != account);
-        self.seen_uid.retain(|(a, _), _| a != account);
-        self.search_folders_changed(account);
-        self.pim.remove(account);
-        self.pim_unread.remove(account);
-        self.contacts = None;
-        self.queue_import(account, &path, false);
-        if matches!(&self.view, View::Folder { account: va, .. } if va == account) {
-            self.refresh_list();
-        }
-        Ok(serde_json::json!({ "account": account, "importing": true }))
-    }
-
-    /// Keep what a stopped import brought in, as it is: it won't go on. The folder a pause left
-    /// part-way through, kept out of the list until then, comes in with what it has: the network
-    /// side finishes it from the import's note, sends the folders and says it's done
-    /// ([`Self::import_kept`]). Only then is the import over and the account (a POP one, which
-    /// writes the Inbox) connects.
-    pub fn keep_imported(&mut self, account: &str) -> CmdResult {
-        self.compaction_holds_import(account)?;
-        self.stopped_import(account)?;
-        if let Some(st) = self.importing.running.remove(account) {
-            self.importing.keeping.insert(account.to_string(), st);
-        }
-        self.jobs.push(Job::KeepImport { account: account.to_string() });
-        Ok(serde_json::json!({ "account": account, "kept": true }))
-    }
-
-    /// What a stopped import brought in is kept as it is: the import is over, the contacts and
-    /// calendar read so far are the account's, and its connection, held till now, goes ahead.
-    /// Not all of it (`error`): it waits again to go on or be kept, and the account stays
-    /// unconnected (a Keep tried again would write over what a POP account fetched meanwhile).
-    pub(crate) fn import_kept(&mut self, account: &str, error: Option<String>) {
-        let Some(st) = self.importing.keeping.remove(account) else { return };
-        if self.account(account).is_none() {
-            return;
-        }
-        if let Some(e) = error {
-            let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
-            self.importing.running.insert(account.to_string(), st);
-            self.notice(format!("{name}: what was imported couldn't all be kept: {e}"), true);
-            return;
-        }
-        if let Some(row) = self.importing.sources.get_mut(account) {
-            row.stage = ImportStage::Done;
-            self.save_imports();
-        }
-        self.load_imported_pim(account);
-        if let Some(start) = self.held.remove(account) {
-            self.jobs.push(start);
+            // A file read again never removes the copy it reads into.
+            self.finish_removal(&a, if rereading { Leaves::DataFile } else { Leaves::ForImport });
         }
     }
 

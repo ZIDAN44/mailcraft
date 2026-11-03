@@ -1543,3 +1543,10 @@ month	May	maio
 	High	Alta
 	Hide completed	Ocultar concluídas
 	Tasks: {n}	Tarefas: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	A cópia deste arquivo feita pelo MailCraft está ao lado dele, com o que foi alterado no MailCraft: {file}
+	The file has changed since MailCraft read it.	O arquivo mudou desde que o MailCraft o leu.
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	Não é possível gravar na pasta deste arquivo: a cópia do MailCraft, de cerca de {size}, vai para {folder}.
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	O MailCraft mantém a sua própria cópia ao lado do arquivo, de cerca de {size}, em {folder}. O arquivo em si nunca é alterado.
+	There isn't room for the copy beside the file. Free up space on that drive.	Não há espaço para a cópia ao lado do arquivo. Libere espaço nessa unidade.
+	Read the changes in	Ler as alterações
+	Open as it was	Abrir como estava

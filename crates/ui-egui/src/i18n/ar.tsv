@@ -1538,3 +1538,10 @@ month	May	مايو
 	High	عالية
 	Hide completed	إخفاء المكتملة
 	Tasks: {n}	المهام: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	نسخة MailCraft من هذا الملف بجانبه، وفيها ما تغيّر في MailCraft: {file}
+	The file has changed since MailCraft read it.	تغيّر الملف منذ أن قرأه MailCraft.
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	لا يمكن الكتابة في مجلد هذا الملف: نسخة MailCraft، بحجم {size} تقريبًا، تُحفظ في {folder}.
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	يحتفظ MailCraft بنسخته الخاصة بجانب الملف، بحجم {size} تقريبًا، في {folder}. أما الملف نفسه فلا يتغيّر أبدًا.
+	There isn't room for the copy beside the file. Free up space on that drive.	لا توجد مساحة كافية للنسخة بجانب الملف. حرّر بعض المساحة على ذلك القرص.
+	Read the changes in	قراءة التغييرات
+	Open as it was	فتح كما كان

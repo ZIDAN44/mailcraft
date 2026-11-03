@@ -201,10 +201,13 @@ pub enum Action {
     DragOut(usize),
     /// Choose an Outlook data file and look at it before it's imported.
     OpenDataFile,
-    /// Import the data file at `path` (`again`: though it's open as another account already).
+    /// Import the data file at `path` (`again`: though it's open as another account already;
+    /// `changes`: what becomes of a file changed since MailCraft's copy of it was read, "read"
+    /// or "keep").
     ImportDataFile {
         path: String,
         again: bool,
+        changes: Option<&'static str>,
     },
     /// Show how an account's import is going, beside the status bar.
     ImportDetails(String),

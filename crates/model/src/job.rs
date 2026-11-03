@@ -161,6 +161,10 @@ pub enum Job {
         #[serde(default)]
         resume: bool,
     },
+    /// Read an Outlook data file again into the account that keeps its copy, the file having
+    /// changed since: what it has that the copy hasn't is added, and nothing of the copy changes
+    /// otherwise. Progress and the end come as for [`Job::ImportPst`].
+    RereadDataFile { account: String, path: String },
     /// Look at a data file before importing it: what it holds, and the room its copy needs.
     /// Answered by [`Event::DataFileInspected`].
     InspectDataFile { path: String },
@@ -255,6 +259,7 @@ impl Job {
             | Job::SearchDirectory { account, .. }
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
+            | Job::RereadDataFile { account, .. }
             | Job::StopImport { account, .. }
             | Job::KeepImport { account }
             | Job::Index { account, .. }

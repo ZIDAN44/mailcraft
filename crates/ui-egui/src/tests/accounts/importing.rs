@@ -357,7 +357,7 @@ fn a_data_file_is_looked_at_before_it_is_imported() {
     assert!(has(&texts, "There isn't room for the copy"), "{texts:?}");
 
     // Imported: the dialog goes, the account comes, and the status bar takes it from there.
-    a.act(Action::ImportDataFile { path: PATH.into(), again: false });
+    a.act(Action::ImportDataFile { path: PATH.into(), again: false, changes: None });
     assert!(a.session.imports().any(|(_, st)| st.path == PATH));
     a.session.take_jobs();
     // The same file again: caught, with another copy only when asked for.
@@ -365,9 +365,9 @@ fn a_data_file_is_looked_at_before_it_is_imported() {
     let texts = drawn(&ctx, &mut a);
     assert!(has(&texts, "This data file is already open as Archive."), "{texts:?}");
     let before = a.session.accounts.len();
-    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: false });
+    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: false, changes: None });
     assert_eq!(a.session.accounts.len(), before, "refused");
-    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: true });
+    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: true, changes: None });
     assert_eq!(a.session.accounts.len(), before + 1);
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -531,4 +531,45 @@ fn inbox(account: &str) -> mailcraft_engine::model::Folder {
         selectable: true,
         ..Default::default()
     }
+}
+
+/// An Outlook file's copy goes beside it, and the dialog says so; elsewhere when its folder can't
+/// be written; the copy made there before is opened, and a file changed since asks whether to
+/// read what's new into it or open it as it was.
+#[test]
+fn an_outlook_files_copy_is_beside_it_and_found_again() {
+    let (mut a, dir) = app("import-beside");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let path = "D:/Mail/Old.pst";
+    let facts = |copy: &str, changed: bool, elsewhere: bool| DataFileFacts {
+        kind: "pst".into(),
+        messages: 40,
+        folders: 3,
+        estimate: 3 << 20,
+        need: if copy.is_empty() { 4 << 20 } else { 0 },
+        free: Some(8 << 30),
+        destination: if elsewhere { "C:/Users/me/Documents/MailCraft Files".into() } else { "D:/Mail".into() },
+        elsewhere,
+        copy: copy.into(),
+        copy_changed: changed,
+        ..Default::default()
+    };
+    let show = |a: &mut MailApp, f: DataFileFacts| {
+        a.session.apply(MailEvent::DataFileInspected { path: path.into(), facts: Box::new(f) });
+        a.ui.dialog = Some(Dialog::OpenDataFile { path: path.into() });
+        drawn(&ctx, a)
+    };
+    let texts = show(&mut a, facts("", false, false));
+    assert!(has(&texts, "beside the file, about 3.0 MB, in D:/Mail. The file itself is never changed."), "{texts:?}");
+    assert!(has(&texts, "Import"));
+    let texts = show(&mut a, facts("", false, true));
+    assert!(has(&texts, "This file's folder can't be written"), "{texts:?}");
+    let texts = show(&mut a, facts("D:/Mail/Old.mailcraft", false, false));
+    assert!(has(&texts, "with what was changed in MailCraft: D:/Mail/Old.mailcraft") && has(&texts, "Open"), "{texts:?}");
+    assert!(!has(&texts, "The file has changed") && !has(&texts, "Free there"), "{texts:?}");
+    let texts = show(&mut a, facts("D:/Mail/Old.mailcraft", true, false));
+    assert!(has(&texts, "The file has changed since MailCraft read it."), "{texts:?}");
+    assert!(has(&texts, "Read the changes in") && has(&texts, "Open as it was"), "{texts:?}");
+    let _ = std::fs::remove_dir_all(dir);
 }

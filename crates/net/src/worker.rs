@@ -242,6 +242,7 @@ impl Pool {
                 }
             }
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
+            Job::RereadDataFile { account, path } => self.reread_data_file(account, path),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
             Job::StopImport { account, how } => self.stop_import(&account, how),
             Job::KeepImport { account } => self.keep_import(account),

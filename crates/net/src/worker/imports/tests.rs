@@ -12,6 +12,8 @@ use super::*;
 use crate::pst::Fault;
 use crate::space::{Filling, LOW_SPACE};
 
+mod beside;
+
 /// Accounts whose imports a test puts a fault in: slowed down (each item, in milliseconds), or
 /// failing to plan a folder.
 fn faults() -> &'static Mutex<HashMap<String, Fault>> {
@@ -702,7 +704,9 @@ fn a_file_looked_at_says_the_room_for_its_copy() {
     assert!(facts.estimate > 0 && facts.estimate <= facts.bytes, "{facts:?}");
     assert!(facts.need > facts.estimate, "{facts:?}");
     assert_eq!((facts.free, drive.asks()), (Some(5 << 30), 1));
-    assert_eq!(Path::new(&facts.destination), store.data_files_dir().unwrap());
+    // An Outlook file's copy goes beside it: none there yet.
+    assert_eq!(Path::new(&facts.destination), dir.as_path());
+    assert!(!facts.elsewhere && facts.copy.is_empty() && store.data_files_dir().is_some(), "{facts:?}");
     // Not a data file at all: what can be told still is.
     let junk = dir.join("junk.pst");
     std::fs::write(&junk, b"not a data file").unwrap();

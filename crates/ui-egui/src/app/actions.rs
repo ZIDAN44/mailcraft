@@ -184,10 +184,12 @@ impl MailApp {
                 }
             }
             // The status bar and the folder pane show how it goes from here.
-            Action::ImportDataFile { path, again } => match self.session.run("account.importPst", &json!({"path": path, "again": again})) {
-                Ok(_) => self.ui.backstage = None,
-                Err(e) => self.session.notice(e.to_string(), true),
-            },
+            Action::ImportDataFile { path, again, changes } => {
+                match self.session.run("account.importPst", &json!({"path": path, "again": again, "changes": changes})) {
+                    Ok(_) => self.ui.backstage = None,
+                    Err(e) => self.session.notice(e.to_string(), true),
+                }
+            }
             Action::ImportDetails(account) => self.ui.import_details = Some(account),
             Action::ExportDataFile(account) => {
                 // Named after the account's address, as Outlook names a data file.

@@ -1538,3 +1538,10 @@ month	May	מאי
 	High	גבוהה
 	Hide completed	הסתר שהושלמו
 	Tasks: {n}	משימות: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	העותק של MailCraft מהקובץ הזה נמצא לצדו, עם מה שהשתנה ב־MailCraft: {file}
+	The file has changed since MailCraft read it.	הקובץ השתנה מאז ש־MailCraft קרא אותו.
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	אי אפשר לכתוב לתיקייה של הקובץ הזה: העותק של MailCraft, בגודל של כ־{size}, יישמר ב־{folder}.
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft שומר עותק משלו לצד הקובץ, בגודל של כ־{size}, ב־{folder}. הקובץ עצמו לעולם אינו משתנה.
+	There isn't room for the copy beside the file. Free up space on that drive.	אין מקום לעותק לצד הקובץ. פנו מקום בכונן הזה.
+	Read the changes in	לקרוא את השינויים
+	Open as it was	לפתוח כפי שהיה

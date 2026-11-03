@@ -549,6 +549,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::Discover { .. }
         | Job::SignIn { .. }
         | Job::ImportPst { .. }
+        | Job::RereadDataFile { .. }
         | Job::InspectDataFile { .. }
         | Job::StopImport { .. }
         | Job::KeepImport { .. }
@@ -686,7 +687,7 @@ impl Backend for WebBackend {
             Job::SignIn { account } => {
                 status(sh, &account.id, SyncStatus::NeedsPassword { error: "signing in through Google or Microsoft needs the desktop app".into() })
             }
-            Job::ImportPst { account, .. } => {
+            Job::ImportPst { account, .. } | Job::RereadDataFile { account, .. } => {
                 emit(sh, Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(DESKTOP_PST.into()), report: None })
             }
             Job::InspectDataFile { path } => {

@@ -1539,3 +1539,10 @@ month	May	5月
 	High	高
 	Hide completed	隐藏已完成
 	Tasks: {n}	任务: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	MailCraft 对此文件的副本就在它旁边，包含在 MailCraft 中所做的更改: {file}
+	The file has changed since MailCraft read it.	自 MailCraft 读取以来，此文件已更改。
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	无法写入此文件所在的文件夹: MailCraft 的副本 (大约 {size}) 将放在 {folder} 中。
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft 会在文件旁边 ({folder}) 保留自己的副本，大约 {size}。文件本身永远不会被更改。
+	There isn't room for the copy beside the file. Free up space on that drive.	文件旁边没有足够的空间存放副本。请释放该驱动器上的空间。
+	Read the changes in	读入更改
+	Open as it was	按原样打开

@@ -1542,3 +1542,10 @@ month	May	5월
 	High	높음
 	Hide completed	완료된 작업 숨기기
 	Tasks: {n}	작업: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	이 파일의 MailCraft 사본은 파일 옆에 있으며, MailCraft에서 바꾼 내용이 들어 있습니다: {file}
+	The file has changed since MailCraft read it.	MailCraft가 읽은 뒤로 파일이 바뀌었습니다.
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	이 파일의 폴더에 쓸 수 없습니다. 약 {size} 크기의 MailCraft 사본은 {folder}에 둡니다.
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft가 약 {size} 크기의 자체 사본을 파일 옆({folder})에 둡니다. 파일 자체는 절대 바뀌지 않습니다.
+	There isn't room for the copy beside the file. Free up space on that drive.	파일 옆에 사본을 둘 공간이 없습니다. 그 드라이브의 공간을 확보하세요.
+	Read the changes in	변경 내용 읽어 오기
+	Open as it was	이전 상태로 열기

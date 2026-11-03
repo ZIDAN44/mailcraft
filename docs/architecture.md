@@ -73,7 +73,10 @@ keeps an account in `<address> - <name>.pst` in Documents\Outlook Files
 (`crates/store/src/packed.rs`): a crash-safe single-file database (redb) holding the account's
 cache, keyed by the paths the store always used. The account list and the app's own state stay
 in the per-user app folder (`%APPDATA%\MailCraft`). `.pst` is only read (an Outlook data file
-opened gets a `.mailcraft` file of its own; Outlook's file isn't touched) and written (export).
+opened gets a `.mailcraft` file of its own beside it, `archive.pst` → `archive.mailcraft`, named in
+`datafiles.json` by its whole path, `crates/store/src/beside.rs`; with the other data files when
+its folder can't be written; MailCraft never writes into an Outlook file it opens) and written
+(export).
 Account folders from before are brought into data files when the store opens, and removed once
 read back; not while a store on the folder layout has them open, here or in another copy of
 MailCraft: every such store holds `<root>/.locks/folders.lock` for its life (shared by
@@ -386,7 +389,13 @@ written (`Compose`), preferences and status-bar notices.
   own, a panic said as a file that couldn't be looked at; the copy's expected size, the room
   asked for and the room free in the data files' folder with them); a file already open as another
   account (the same path however written, or the same record key) is imported again only with
-  `again`. Progress isn't said in notices: the window shows it (`account.importStatus` for the
+  `again`. An Outlook file's copy goes beside it (`Store::place_beside`); opened again once its
+  account is gone, the copy found there (its import's note read from it read-only:
+  `packed/beside.rs`) is gone on with (`accounts/importing/beside.rs`), and a file changed since
+  is read again into it on request (`Job::RereadDataFile`, `worker/imports/rereading.rs`): read
+  into a store of its own beside the data files, then `Store::merge_from` adds what the copy hasn't
+  and didn't have from the file before (`import-seen.json`, written as each import ends), nothing
+  of the copy changed otherwise. Progress isn't said in notices: the window shows it (`account.importStatus` for the
   CLI and tests). In the window (`ui-egui/src/app/importing.rs`, its questions and summary in
   `dialogs/importing.rs`) an import is the status bar's background segment, ahead of the search
   index's build: its bar from `ImportProgress::permille` (items and bytes weighed by

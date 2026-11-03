@@ -225,6 +225,8 @@ local-first, media-aware v1); the fuller request is
    as Outlook's own items in its Contacts, Notes and Tasks folders. A `.pst` brings in what it
    still left out: attached messages 32 deep, recalls and sharing invitations, contacts filed with
    mail, the files links point to, RSS feeds, and the files on notes, shown in the Notes pane.
+   An opened `.pst` keeps MailCraft's copy beside it, never written into itself: opened again it
+   goes on with that copy, and once Outlook has changed it, what's new is read into the copy.
 33. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, right-to-left inside dialogs, menus and the editor, Wayland drag-out, public folders
    on Exchange Online, S/MIME in the browser (revocation, smart cards and the system store), what

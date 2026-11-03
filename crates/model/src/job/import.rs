@@ -280,6 +280,13 @@ pub struct DataFileFacts {
     /// Room left where it would be written (`None`: couldn't be told), and that folder.
     pub free: Option<u64>,
     pub destination: String,
+    /// An Outlook file's copy goes beside it; it goes in `destination` with the other data files
+    /// when the file's folder can't be written.
+    pub elsewhere: bool,
+    /// MailCraft's copy of it made earlier, beside it and no account's now ("" when there's
+    /// none): opening the file goes on with it. And whether the file changed since it was read.
+    pub copy: String,
+    pub copy_changed: bool,
     /// Why the file couldn't be looked at.
     pub error: Option<String>,
 }
