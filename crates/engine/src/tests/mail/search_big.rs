@@ -63,6 +63,7 @@ fn delta(before: SearchStats, after: SearchStats) -> SearchStats {
     SearchStats {
         folder_pages: after.folder_pages - before.folder_pages,
         reader_pages: after.reader_pages - before.reader_pages,
+        text_pages: after.text_pages - before.text_pages,
         summaries: after.summaries - before.summaries,
         texts: after.texts - before.texts,
         sources: after.sources - before.sources,
@@ -143,12 +144,39 @@ fn each_step_is_bounded_over_fifty_thousand_messages() {
     assert_eq!(s.search_stats().sources, 0);
 }
 
-/// A common phrase found a few messages a step, over thousands of steps: the list is built
-/// again only as often as its length allows, a few thousand messages' worth a step all told
-/// (each step built all of it again: tens of thousands of messages a step by the end).
+/// [`cold`], its phrases checked against the texts the index keeps, as they are where its
+/// words' places can't tell.
+fn cold_without_places() -> (Session, Truth) {
+    let (mut s, t) = cold();
+    s.search_without_places();
+    (s, t)
+}
+
+/// A common phrase settled from its words' places: none of its 16,667 candidates' texts is read
+/// (each was read and folded), every step stays bounded, and it finds what's there; searched
+/// again, nothing of the index is read.
+#[test]
+fn a_common_phrase_reads_no_text() {
+    let (mut s, t) = cold();
+    let q = format!("\"{}\"", big::PHRASE);
+    let first = search(&mut s, &q, "all");
+    assert_eq!(s.list.len(), t.phrase);
+    let sum = |steps: &[Step], f: fn(&SearchStats) -> u64| steps.iter().map(|st| f(&st.read)).sum::<u64>();
+    assert_eq!(sum(&first, |r| r.text_pages), 0, "no text page read");
+    assert_eq!(sum(&first, |r| r.texts), 0, "no text checked");
+    assert!(first.iter().all(|st| st.read.folder_pages + st.read.reader_pages <= 16), "bounded");
+    let second = search(&mut s, &q, "all");
+    assert_eq!(s.list.len(), t.phrase);
+    assert_eq!(sum(&second, |r| r.reader_pages), 0, "nothing read the second time");
+}
+
+/// A common phrase found a few messages a step, over thousands of steps (checked against the
+/// texts kept): the list is built again only as often as its length allows, a few thousand
+/// messages' worth a step all told (each step built all of it again: tens of thousands of
+/// messages a step by the end).
 #[test]
 fn a_common_phrase_doesnt_build_the_list_each_step() {
-    let (mut s, t) = cold();
+    let (mut s, t) = cold_without_places();
     let steps = search(&mut s, &format!("\"{}\"", big::PHRASE), "all");
     assert_eq!(s.list.len(), t.phrase);
     let rebuilt: usize = steps.iter().map(|st| st.rebuilt).sum();
@@ -177,12 +205,13 @@ fn a_word_searched_again_isnt_looked_up_again() {
     assert!(again <= 1, "{again} the second");
 }
 
-/// The common phrase searched again (typed on, or searched from another view) checks the texts
-/// it folded the first time: nothing of them is read or folded again, and it finds the same. The
-/// next search lets go of what their texts said a slice at a time.
+/// The common phrase checked against the texts kept (as where its places can't tell), searched
+/// again (typed on, or searched from another view), checks the texts it folded the first time:
+/// nothing of them is read or folded again, and it finds the same. The next search lets go of
+/// what their texts said a slice at a time.
 #[test]
 fn a_phrase_searched_again_reads_no_text() {
-    let (mut s, t) = cold();
+    let (mut s, t) = cold_without_places();
     let q = format!("\"{}\"", big::PHRASE);
     let first = search(&mut s, &q, "all");
     let second = search(&mut s, &q, "all");
@@ -200,12 +229,12 @@ fn a_phrase_searched_again_reads_no_text() {
     assert_eq!(s.answers_letting_go(), 0);
 }
 
-/// A phrase's candidates are checked in the index's order (each page of texts read once), the
-/// folder on view still first (one whose mail was indexed late, a third of it with the phrase):
-/// what's on screen is found first of what's checked against its text.
+/// A phrase's candidates checked against their texts are checked in the index's order (each page
+/// of texts read once), the folder on view still first (one whose mail was indexed late, a third
+/// of it with the phrase): what's on screen is found first of what's checked against its text.
 #[test]
 fn a_phrase_checks_the_folder_on_view_first() {
-    let (mut s, t) = cold();
+    let (mut s, t) = cold_without_places();
     s.run("folder.open", &json!({"account": big::ACCOUNT, "folder": "Folder 37"})).unwrap();
     s.run("search.run", &json!({"query": format!("\"{}\"", big::PHRASE), "scope": "all"})).unwrap();
     let found = |s: &Session| -> HashSet<MessageKey> { s.list.iter().map(|m| m.key.clone()).chain(s.search_unshown()).collect() };
@@ -369,11 +398,12 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// 15,000 to 47,387, at most 8 ms, warm or just opened (the lists sharing the folders'
 /// summaries, the run's sets holding no strings, and the list put together at a step's start:
 /// each copied every summary found, hashed its key's strings and showed them past the frame's
-/// end, 10-16 ms). Printed only: the common phrase searched again (150 ms in frames: 128-142
-/// ms), and the tick that opens the index ahead, with what the index then holds in memory (and
-/// after the queries). A machine busy with other builds slows every query alike and can fail
-/// it: run it on one at rest. Not met yet (docs/gaps.md, Open): the common phrase searched the
-/// first time (150 ms in frames: 357-454 ms).
+/// end, 10-16 ms); and the common phrase, in frames, just opened or searched again, 150 ms all
+/// told (its words' places settle it: its 16,667 candidates' texts read and folded took 322-454
+/// ms just opened, 128-142 ms searched again). Printed only: the index pages each read, the
+/// index's segments' bytes (its places pages' among them), and the tick that opens the index
+/// ahead, with what the index then holds in memory (and after the queries). A machine busy with
+/// other builds slows every query alike and can fail it: run it on one at rest.
 #[test]
 #[ignore]
 fn how_long_searches_take() {
@@ -383,6 +413,8 @@ fn how_long_searches_take() {
     let ticked = Instant::now();
     s.tick();
     eprintln!("its index opened ahead by a tick in {:?}, holding {} KiB", ticked.elapsed(), s.search_index_bytes(big::ACCOUNT) / 1024);
+    let (segments, places) = mailcraft_store::search::segment_bytes(&mailbox().0, big::ACCOUNT).unwrap();
+    eprintln!("its segments {} KiB, of them places pages {} KiB", segments / 1024, places / 1024);
     let only = std::env::var("MC_QUERY").ok();
     let mut frame = |s: &mut Session| {
         let began = Instant::now();
@@ -409,6 +441,7 @@ fn how_long_searches_take() {
             );
             let word = [big::RARE, "zurich", big::CJK, big::FAR].contains(&q.as_str());
             let many = ["is:read", "is:unread", big::DOMAIN, "k"].contains(&q.as_str());
+            let phrase = q == format!("\"{}\"", big::PHRASE);
             let ms = Duration::from_millis;
             match cache {
                 "warm" if word => assert!(all <= ms(20) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
@@ -418,6 +451,7 @@ fn how_long_searches_take() {
                 "warm" if q == "k" => assert!(all <= ms(60) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
                 "cold" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
                 "cold, frames" | "warm, frames" if many => assert!(most <= ms(8), "{q}: a frame of {most:?}"),
+                "cold, frames" | "warm, frames" if phrase => assert!(all <= ms(150), "{q}: {all:?}"),
                 _ => {}
             }
         }

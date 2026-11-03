@@ -323,8 +323,9 @@ fn the_has_files_filter_agrees_with_has_attachment() {
 }
 
 /// A word past the first 50,000 characters of a message is found, from the index and from the
-/// source; a phrase across the slices a long text is checked in is found too, the text checked
-/// over several units.
+/// source; a phrase far into a long text is found from its words' places, nothing of the text
+/// read, and checked against the text (as where the places can't tell), across the slices it's
+/// checked in, over several units.
 #[test]
 fn long_texts_are_searched_whole() {
     let mut s = sample_session("search-long");
@@ -351,6 +352,10 @@ fn long_texts_are_searched_whole() {
     assert!(hits(&mut s, "zanzibar"), "from the index");
     let texts = s.search_stats().texts;
     assert!(hits(&mut s, "\"needle haystack\""));
+    assert!(!hits(&mut s, "\"haystack needle\""));
+    assert_eq!(s.search_stats().texts, texts, "settled from the places");
+    s.search_without_places();
+    assert!(hits(&mut s, "\"needle haystack\""));
     assert!(s.search_stats().texts - texts > 2, "checked a slice a unit");
     assert!(!hits(&mut s, "\"haystack needle\""));
     done(s);
@@ -360,9 +365,9 @@ fn long_texts_are_searched_whole() {
 /// pictures only has no word, so `-word` finds it (658 of the 41 GB file's weren't found); one
 /// cut short (past 1,000,000 characters) may hold a word past its cut, which nothing kept can
 /// tell, so it's counted apart, not as "still indexing", and its kept text isn't read for a word.
-/// The part of a dotted word (`xx.quokka`) is a word. A phrase its kept text was read for and
-/// didn't have stays cut short when the message is weighed again (a flag on it, its folder
-/// scanned again): it went back to "still indexing".
+/// The part of a dotted word (`xx.quokka`) is a word. A phrase its words' places say isn't in
+/// what was kept is cut short, its kept text not read, and stays so when the message is weighed
+/// again (a flag on it, its folder scanned again): it went back to "still indexing".
 #[test]
 fn what_the_index_settles_is_not_checked_again() {
     let mut s = sample_session("search-settled");
@@ -397,7 +402,7 @@ fn what_the_index_settles_is_not_checked_again() {
     assert_eq!(search(&mut s, "subject:pictures"), ((true, false, false), (0, 0)));
     let texts = s.search_stats().texts;
     assert_eq!(search(&mut s, "\"beta alpha\""), ((false, false, false), (0, 1)));
-    assert!(s.search_stats().texts > texts, "its kept text read for the phrase");
+    assert_eq!(s.search_stats().texts, texts, "its kept text not read for the phrase");
     let progress = |s: &Session| s.search_progress().map(|p| (p.missing, p.cut_short));
     s.search_patched(std::slice::from_ref(&long));
     settle(&mut s, 1);

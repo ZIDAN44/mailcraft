@@ -461,8 +461,9 @@ the docs of about two pages' worth of its words set (`Reader::scan_prefix`: a on
 thousands of words, their docs in the lexicon page itself, are spread over units too, the lexicon
 page looked through last kept decoded so a page is decoded once however many units read it; a word
 looked up lately is taken as the same generation of the index gave it, `searching/look_up.rs`, 32
-words an account), 512 summaries checked (128 whose folded text is made first, in a session just
-opened), a message's kept text read or 256 KiB of it checked (a phrase across two slices is in the
+words an account, and as many phrases settled from their words' places), 512 summaries checked
+(128 whose folded text is made first, in a session just opened), a message's kept text read or
+256 KiB of it checked (a phrase across two slices is in the
 second, which starts 4 KiB back), or putting the list together at the end (`searching/finish.rs`: a
 search that streamed into the list adds what's left to it, arranged otherwise or put into
 conversations when the list shows them so; one that waited gathers its finds from the folders, a
@@ -479,8 +480,11 @@ texts go when it leaves the listing. The index reader keeps the text pages it re
 from its lexicon and postings pages, so checking texts doesn't push out the pages words are looked
 up in. The summary settles flags, dates, senders and subjects; the index's words settle the text
 (`searching/matching.rs`: `has:attachment` takes the files the index counted, pictures the text
-shows left out); a phrase, or an address the index can't look up, is checked against the text the
-index keeps. A word the index doesn't find in a text cut short isn't: its words are in the index as
+shows left out); a phrase is settled from its words' places in the index once they're looked up
+(`Reader::scan_phrase`, a few pages a unit, for the docs with all its words; one settled lately
+is taken as the same generation gave it), and only where they can't tell (a word of it too long
+to index, or one too long to index just where its last word would be), like an address the index
+can't look up, is it checked against the text the index keeps. A word the index doesn't find in a text cut short isn't: its words are in the index as
 they are in that text, so the message is counted apart (`cut_short`), not as missing. What a
 message's text said is kept for the search (flags are never text), so a flag changed on a result is
 weighed again for that message alone (`search_patched`). A message the index doesn't have yet may be

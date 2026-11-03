@@ -6,10 +6,16 @@
 //! of the 41 GB file for a word found in 7,654 messages, about a quarter of it. The same word
 //! searched again (from another folder, or the query run again) takes what the same generation
 //! of the index gave the last time.
+//!
+//! Once its words are looked up, each phrase asked is settled from its words' places in the index
+//! for the docs with all of them, a few pages a unit too ([`Reader::scan_phrase`]), so no
+//! candidate's text is read for it (its 16,667 candidates' texts read and folded were most of a
+//! common phrase's first search: 322–454 ms in frames over 50,000 messages). A phrase searched
+//! again takes what it found the last time, as a word does.
 
 use std::collections::VecDeque;
 
-use mailcraft_store::search::{Bits, Field, ScanCursor};
+use mailcraft_store::search::{Bits, Field, PhraseFound, PhraseScan, Reader, ScanCursor};
 
 use super::run::{SearchRun, UNIT_PAGES};
 use super::*;
@@ -25,16 +31,58 @@ pub(crate) struct Terms {
     todo: Vec<(Field, String)>,
     cursor: ScanCursor,
     scanning: Option<Bits>,
+    /// The phrases settled from their words' places.
+    phrases: Vec<(Field, Vec<String>, PhraseFound)>,
+    /// Those still to settle, and the one being settled with the docs it's settled for.
+    phrase_todo: Vec<(Field, Vec<String>)>,
+    phrase_scan: Option<(PhraseScan, Bits)>,
 }
 
 impl Terms {
+    /// The words `words` to look up, then the phrases `phrases` to settle.
+    pub(super) fn new(words: Vec<(Field, String)>, phrases: Vec<(Field, Vec<String>)>) -> Terms {
+        Terms { todo: words, phrase_todo: phrases, ..Terms::default() }
+    }
+
     /// Whether `doc` has a word of `field` starting with `word`; `None`: not looked up.
     pub(crate) fn has(&self, field: Field, word: &str, doc: u32) -> Option<bool> {
         self.bits.iter().find(|(f, w, _)| *f == field && w == word).map(|(_, _, b)| b.get(doc))
     }
 
+    /// Whether `doc` (one with every word of the phrase) has the phrase `words` in `field`, as
+    /// its words' places say; `None`: not settled from them (its text must tell).
+    pub(crate) fn phrase(&self, field: Field, words: &[String], doc: u32) -> Option<bool> {
+        self.phrases.iter().find(|(f, w, _)| *f == field && w == words).and_then(|(_, _, p)| p.has(doc))
+    }
+
     pub(super) fn ready(&self) -> bool {
-        self.todo.is_empty()
+        self.todo.is_empty() && self.phrase_todo.is_empty()
+    }
+
+    /// The docs with every word of a phrase, as they were looked up; `None` when one wasn't.
+    fn within(&self, field: Field, words: &[String]) -> Option<Bits> {
+        let mut out: Option<Bits> = None;
+        for w in words {
+            let (_, _, b) = self.bits.iter().find(|(f, x, _)| *f == field && x == w)?;
+            match out.as_mut() {
+                Some(o) => o.and(b),
+                None => out = Some(b.clone()),
+            }
+        }
+        out
+    }
+
+    /// The phrase `words` of `field` settled (`found`, `None`: its texts must tell): the next one
+    /// to settle.
+    fn settled(&mut self, field: Field, words: Vec<String>, found: Option<PhraseFound>) {
+        self.phrases.retain(|(f, w, _)| *f != field || *w != words);
+        if let Some(found) = found {
+            self.phrases.push((field, words, found));
+        }
+        if !self.phrase_todo.is_empty() {
+            self.phrase_todo.remove(0);
+        }
+        self.phrase_scan = None;
     }
 
     /// `word` of `field` found in `bits`: the next word to look up.
@@ -48,12 +96,13 @@ impl Terms {
     }
 }
 
-/// An account's words looked up lately, and the index they were looked up in (its epoch and
-/// generation): another generation has them looked up again.
+/// An account's words looked up lately, the phrases settled, and the index they were of (its
+/// epoch and generation): another generation has them looked up again.
 #[derive(Debug, Default)]
 struct Lately {
     of: (u64, u64),
     words: VecDeque<(Field, String, Bits)>,
+    phrases: VecDeque<(Field, Vec<String>, PhraseFound)>,
 }
 
 /// The words looked up lately, by account.
@@ -72,15 +121,38 @@ impl LookedUp {
 
     /// Keep `word` of `field` looked up: the oldest go past [`LOOKED_UP`].
     fn keep(&mut self, account: &str, of: (u64, u64), field: Field, word: &str, bits: &Bits) {
-        let lately = self.accounts.entry(account.to_string()).or_default();
-        if lately.of != of {
-            *lately = Lately { of, words: VecDeque::new() };
-        }
+        let lately = self.lately(account, of);
         lately.words.retain(|(f, w, _)| *f != field || w != word);
         while lately.words.len() >= LOOKED_UP {
             lately.words.pop_front();
         }
         lately.words.push_back((field, word.to_string(), bits.clone()));
+    }
+
+    /// An account's, for the index as it is (`of`): what was of another generation goes.
+    fn lately(&mut self, account: &str, of: (u64, u64)) -> &mut Lately {
+        let lately = self.accounts.entry(account.to_string()).or_default();
+        if lately.of != of {
+            *lately = Lately { of, ..Lately::default() };
+        }
+        lately
+    }
+
+    /// What the phrase `words` of `field` was found to be in the index as it is (`of`), when it
+    /// was settled lately.
+    fn phrase(&self, account: &str, of: (u64, u64), field: Field, words: &[String]) -> Option<&PhraseFound> {
+        let lately = self.accounts.get(account).filter(|l| l.of == of)?;
+        lately.phrases.iter().find(|(f, w, _)| *f == field && w == words).map(|(_, _, p)| p)
+    }
+
+    /// Keep a phrase settled: the oldest go past [`LOOKED_UP`].
+    fn keep_phrase(&mut self, account: &str, of: (u64, u64), field: Field, words: &[String], found: &PhraseFound) {
+        let lately = self.lately(account, of);
+        lately.phrases.retain(|(f, w, _)| *f != field || w != words);
+        while lately.phrases.len() >= LOOKED_UP {
+            lately.phrases.pop_front();
+        }
+        lately.phrases.push_back((field, words.to_vec(), found.clone()));
     }
 
     /// An account gone: its words go.
@@ -162,7 +234,11 @@ impl Session {
         let (Some(store), Some(reader)) = (self.store.clone(), self.search_state.readers.get_mut(account).and_then(|s| s.reader.as_mut())) else {
             return;
         };
-        let terms = run.terms.entry(account.to_string()).or_insert_with(|| Terms { todo: run.words.clone(), ..Default::default() });
+        #[cfg(test)]
+        let phrases = if self.search_state.places_off { Vec::new() } else { run.phrases.clone() };
+        #[cfg(not(test))]
+        let phrases = run.phrases.clone();
+        let terms = run.terms.entry(account.to_string()).or_insert_with(|| Terms::new(run.words.clone(), phrases));
         let of = (reader.epoch(), reader.generation());
         while terms.scanning.is_none()
             && let Some((field, word)) = terms.todo.first().cloned()
@@ -170,7 +246,17 @@ impl Session {
         {
             terms.found(field, word, bits.clone());
         }
-        let Some((field, word)) = terms.todo.first().cloned() else { return };
+        let Some((field, word)) = terms.todo.first().cloned() else {
+            let read = phrase_unit(&mut self.search_state.looked_up, terms, reader, &store, account, of);
+            self.search_state.stats.reader_pages = self.search_state.stats.reader_pages.saturating_add(read.unwrap_or(0));
+            if read.is_none() {
+                run.terms.remove(account);
+                if let Some(slot) = self.search_state.readers.get_mut(account) {
+                    slot.reader = None;
+                }
+            }
+            return;
+        };
         let before = reader.pages_read();
         let mut bits = terms.scanning.take().unwrap_or_else(|| Bits::new(reader.len()));
         let done = reader.scan_prefix(&store, field, &word, &mut terms.cursor, &mut bits, UNIT_PAGES);
@@ -193,4 +279,44 @@ impl Session {
             }
         }
     }
+}
+
+/// One unit of settling the next phrase from its words' places (one settled lately in the index
+/// as it is, at once): the pages it read, or `None` when the index couldn't be read (read afresh
+/// by the next search; this one goes on without it, as for a word).
+fn phrase_unit(looked_up: &mut LookedUp, terms: &mut Terms, reader: &mut Reader, store: &Store, account: &str, of: (u64, u64)) -> Option<u64> {
+    while terms.phrase_scan.is_none()
+        && let Some((field, words)) = terms.phrase_todo.first().cloned()
+        && let Some(found) = looked_up.phrase(account, of, field, &words)
+    {
+        terms.settled(field, words, Some(found.clone()));
+    }
+    let Some((field, words)) = terms.phrase_todo.first().cloned() else { return Some(0) };
+    let (mut scan, within) = match terms.phrase_scan.take() {
+        Some(s) => s,
+        None => match terms.within(field, &words) {
+            Some(within) => (PhraseScan::default(), within),
+            // A word of it not looked up (too long to index): its texts tell.
+            None => {
+                terms.settled(field, words, None);
+                return Some(0);
+            }
+        },
+    };
+    let before = reader.pages_read();
+    let done = reader.scan_phrase(store, field, &words, &within, &mut scan, UNIT_PAGES);
+    let read = reader.pages_read().saturating_sub(before);
+    match done {
+        Ok(false) => terms.phrase_scan = Some((scan, within)),
+        Ok(true) => {
+            let found = scan.into_found();
+            looked_up.keep_phrase(account, of, field, &words, &found);
+            terms.settled(field, words, Some(found));
+        }
+        Err(e) => {
+            log::warn!("{account}: the search index couldn't be read: {e}");
+            return None;
+        }
+    }
+    Some(read)
 }

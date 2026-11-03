@@ -31,6 +31,7 @@ use crate::store::Store;
 mod files;
 mod memory;
 mod moving;
+mod queries;
 
 fn step<T>(what: &str, f: impl FnOnce() -> T) -> T {
     std::thread::sleep(Duration::from_secs(3));

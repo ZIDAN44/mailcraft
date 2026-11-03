@@ -109,6 +109,9 @@ pub(crate) struct SearchState {
     /// A test's: the next index a tick opens ahead stops part-way, as a bug would.
     #[cfg(test)]
     pub(crate) open_fault: bool,
+    /// A test's: phrases are checked against the texts kept, as for an index without places.
+    #[cfg(test)]
+    pub(crate) places_off: bool,
 }
 
 /// Working out which of the user's messages wait for a reply ([`Session::awaiting_replies`]),

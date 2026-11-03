@@ -136,8 +136,9 @@ impl TextSource for Unindexed {
 }
 
 /// A doc's words as the index found them. A word is there or not; a phrase is not there when
-/// one of its words isn't, and to be checked against the text when all are; an address written
-/// so the index can't look it up (`@studio.example`) is checked too.
+/// one of its words isn't, and when all are, there or not as its words' places say (to be
+/// checked against the text only where they can't tell); an address written so the index can't
+/// look it up (`@studio.example`) is checked too.
 struct IndexText<'a> {
     terms: &'a Terms,
     doc: u32,
@@ -179,7 +180,12 @@ impl TextSource for IndexText<'_> {
                 None => return Tri::Unknown,
             }
         }
-        Tri::Unknown
+        // Its places say what the text kept says: a doc cut short may still have it past the cut.
+        match self.terms.phrase(Field::from(field), phrase, self.doc) {
+            Some(true) => Tri::Yes,
+            Some(false) => self.not_found(field),
+            None => Tri::Unknown,
+        }
     }
 }
 

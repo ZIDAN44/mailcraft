@@ -56,8 +56,10 @@ pub struct SearchProgress {
 pub struct SearchStats {
     /// Pages of folders' lists read.
     pub folder_pages: u64,
-    /// Pages of an index read (lexicon, postings, texts).
+    /// Pages of an index read (lexicon, postings, places, texts).
     pub reader_pages: u64,
+    /// Of those, pages of the texts it keeps (a phrase its places can't settle checked).
+    pub text_pages: u64,
     /// Summaries checked.
     pub summaries: u64,
     /// Units spent checking a message's text.
@@ -109,6 +111,8 @@ pub(crate) struct SearchRun {
     summary_words: bool,
     /// The words to look up in each index.
     pub(super) words: Vec<(Field, String)>,
+    /// The phrases to settle from the index's places, once their words are looked up.
+    pub(super) phrases: Vec<(Field, Vec<String>)>,
     pub(crate) folders: Vec<(String, String)>,
     /// Each of `folders`' share of its messages' keys' hash (`mailboxes::folder_hash`).
     pub(super) folder_hashes: Vec<u64>,
@@ -178,9 +182,11 @@ impl SearchRun {
                 }
             }
         }
+        let phrases = query.text_phrases().into_iter().map(|(tf, words)| (Field::from(tf), words)).collect();
         SearchRun {
             q: q.to_string(),
             scope,
+            phrases,
             needs_text: query.needs_text(),
             asks_files: query.clauses.iter().any(|c| files(&c.term)),
             summary_words: query.clauses.iter().any(|c| summary_words(&c.term)),
@@ -468,6 +474,13 @@ impl Session {
         self.search_state.fault = true;
     }
 
+    /// A test's: phrases are checked against the texts the index keeps, as where its places can't
+    /// tell.
+    #[cfg(test)]
+    pub(crate) fn search_without_places(&mut self) {
+        self.search_state.places_off = true;
+    }
+
     #[cfg(test)]
     fn search_test_fault(&mut self) {
         if std::mem::take(&mut self.search_state.fault) {
@@ -722,10 +735,12 @@ impl Session {
             run.record(v.c.fi, v.c.m, Verdict::Missing, v.c.awaiting, true);
             return 1;
         };
-        let before = reader.pages_read();
+        let (before, texts) = (reader.pages_read(), reader.text_pages_read());
         let said = v.step(reader, &store);
         let read = reader.pages_read().saturating_sub(before);
-        self.search_state.stats.reader_pages = self.search_state.stats.reader_pages.saturating_add(read);
+        let stats = &mut self.search_state.stats;
+        stats.reader_pages = stats.reader_pages.saturating_add(read);
+        stats.text_pages = stats.text_pages.saturating_add(reader.text_pages_read().saturating_sub(texts));
         match said {
             None => run.verifying = Some(v),
             Some(answers) => {
