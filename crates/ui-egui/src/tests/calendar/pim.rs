@@ -143,6 +143,38 @@ fn notes_are_written_on_and_kept() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A note with files shows them at its foot, in both themes; opening one saves it for another
+/// app (which isn't there in a test, and says so), and Save as… asks where first.
+#[test]
+fn a_note_s_files_open_from_the_note() {
+    let (mut a, dir) = app("note-files-ui");
+    let ctx = egui::Context::default();
+    a.run("view.module", json!({"name": "notes"}));
+    let uid = a.session.notes("")[0].note.uid.clone();
+    let line = "ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"swatch.pdf\":JVBERi0xLjc=".to_string();
+    for p in a.session.pim.values_mut() {
+        for n in p.notes.iter_mut().filter(|n| n.note.uid == uid) {
+            n.note.files = vec![line.clone()];
+        }
+    }
+    for dark in [Some(false), Some(true)] {
+        a.ui.dark = dark;
+        frame(&ctx, &mut a, vec![]);
+        frame(&ctx, &mut a, vec![]);
+    }
+    let notices = a.session.notices.len();
+    a.act(crate::Action::NoteFile { uid: uid.clone(), index: 0, open: true });
+    assert!(a.session.notices.iter().skip(notices).any(|n| n.text.contains("swatch.pdf")), "{:?}", a.session.notices);
+    if let Some(open) = mailcraft_engine::store::scratch_dir("open") {
+        assert_eq!(std::fs::read(open.join("swatch.pdf")).unwrap(), b"%PDF-1.7");
+    }
+    // Save as… with nowhere chosen saves nothing and says nothing.
+    let notices = a.session.notices.len();
+    a.act(crate::Action::NoteFile { uid, index: 0, open: false });
+    assert_eq!(a.session.notices.len(), notices);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Issue #1: an invitation opens with its notes to read, its links under their words, and the
 /// dialog fits the window however long the notes are; Edit notes goes back to the box. Issue #4:
 /// the list's footer and the close warning draw.

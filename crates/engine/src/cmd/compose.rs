@@ -373,7 +373,7 @@ pub(super) fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// the file in Protected View. Not on a picture that is one, or plain text: there it guards
 /// nothing, and Windows' Photos asks "Is this file from a trusted source?" before every picture
 /// that has it. Best effort; nothing elsewhere.
-fn mark_from_internet(path: &std::path::Path, data: &[u8]) {
+pub(super) fn mark_from_internet(path: &std::path::Path, data: &[u8]) {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     if cfg!(windows) && !mailcraft_mime::harmless_to_open(&name, data) {
         let mut stream = path.as_os_str().to_owned();

@@ -76,7 +76,7 @@ pub(super) fn item(t: &Task, now: i64) -> Item {
 
 /// A file the task carries as its line holds it: `ATTACH` with its bytes inline (RFC 5545
 /// 3.8.1.1, as the import writes one); `None` for a link or a line that isn't one.
-fn file(line: &str) -> Option<File> {
+pub(super) fn file(line: &str) -> Option<File> {
     let (name, params, value) = parts(line);
     let inline = param(params, "VALUE").is_some_and(|v| v.eq_ignore_ascii_case("BINARY"))
         && param(params, "ENCODING").is_some_and(|e| e.eq_ignore_ascii_case("BASE64"));

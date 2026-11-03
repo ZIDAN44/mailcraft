@@ -129,6 +129,13 @@ pub enum Action {
     FocusSearch,
     /// Make a note and write on it.
     NewNote,
+    /// A note's file (by its place among the note's files): opened in another app, or saved
+    /// where asked.
+    NoteFile {
+        uid: String,
+        index: usize,
+        open: bool,
+    },
     /// Search every folder for this (shown in the box, with the Search tab).
     Search(String),
     SetDark(Option<bool>),

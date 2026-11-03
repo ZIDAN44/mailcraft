@@ -30,7 +30,7 @@ fn scratch(label: &str) -> std::path::PathBuf {
 /// A card with everything Outlook has a field for, and more than it has (a fourth address, a
 /// phone of a kind it hasn't, a third work phone, two more postal addresses, an address's kind,
 /// other properties); one with a birthday without a year; two groups, one whose note lists its
-/// members as the import writes it; two notes; four tasks.
+/// members as the import writes it; two notes, one with a file; four tasks.
 fn account() -> Pim {
     let png = "iVBORw0KGgo=";
     let ana = Card {
@@ -131,8 +131,14 @@ fn account() -> Pim {
         },
     ];
     let notes = vec![
-        Note { uid: "n1".into(), text: "Shopping\nLenses\nTape".into(), color: 1, modified: 1_790_000_000 },
-        Note { uid: "n2".into(), text: "Call back".into(), color: 3, modified: 1_790_000_100 },
+        Note {
+            uid: "n1".into(),
+            text: "Shopping\nLenses\nTape".into(),
+            color: 1,
+            modified: 1_790_000_000,
+            files: vec!["ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"list.pdf\":JVBERi0xLjc=".into()],
+        },
+        Note { uid: "n2".into(), text: "Call back".into(), color: 3, modified: 1_790_000_100, files: Vec::new() },
     ];
     Pim {
         cards: [ana, ben, crew, pair].into_iter().map(|card| StoredCard { book: "local".into(), card, ..Default::default() }).collect(),
@@ -335,7 +341,10 @@ fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
         |uid: &str, d: u32| StoredTask { task: Task { uid: uid.into(), title: "Water plants".into(), due: Some(day(d)), ..Default::default() } };
     let mut pim = Pim {
         cards: vec![StoredCard { book: "local".into(), card, ..Default::default() }],
-        notes: vec![StoredNote { note: Note { uid: "n1".into(), text: "Call back".into(), color: 3, modified: 1 }, ..Default::default() }],
+        notes: vec![StoredNote {
+            note: Note { uid: "n1".into(), text: "Call back".into(), color: 3, modified: 1, files: Vec::new() },
+            ..Default::default()
+        }],
         tasks: vec![water("t1", 4)],
         ..Default::default()
     };

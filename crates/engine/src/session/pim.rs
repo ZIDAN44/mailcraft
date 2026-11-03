@@ -490,9 +490,9 @@ impl Session {
 
 /// A note with the account it's in.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NoteRef {
-    pub account: String,
-    pub note: mailcraft_model::pim::Note,
+pub struct NoteRef<'a> {
+    pub account: &'a str,
+    pub note: &'a mailcraft_model::pim::Note,
 }
 
 impl Session {
@@ -551,20 +551,17 @@ impl Session {
     // ----- notes -----
 
     /// Every note matching a search (in its text), the most recently changed first.
-    pub fn notes(&self, query: &str) -> Vec<NoteRef> {
+    pub fn notes(&self, query: &str) -> Vec<NoteRef<'_>> {
         let q = query.trim().to_lowercase();
         let mut out: Vec<NoteRef> = self
             .pim
             .iter()
             .flat_map(|(a, p)| {
-                p.notes
-                    .iter()
-                    .filter(|n| q.is_empty() || n.note.text.to_lowercase().contains(&q))
-                    .map(|n| NoteRef { account: a.clone(), note: n.note.clone() })
+                p.notes.iter().filter(|n| q.is_empty() || n.note.text.to_lowercase().contains(&q)).map(|n| NoteRef { account: a, note: &n.note })
             })
             .collect();
         // A note's title is its first line, compared without case.
-        let title = |n: &NoteRef| n.note.text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or_default().to_lowercase();
+        let title = |n: &NoteRef<'_>| n.note.text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or_default().to_lowercase();
         match self.prefs.notes_order {
             super::NotesOrder::Modified => out.sort_by(|a, b| b.note.modified.cmp(&a.note.modified).then_with(|| a.note.uid.cmp(&b.note.uid))),
             super::NotesOrder::Title => out.sort_by_cached_key(|n| (title(n), n.note.uid.clone())),
@@ -594,6 +591,7 @@ impl Session {
             text: cap_note(text),
             color: color.unwrap_or(mailcraft_model::pim::NOTE_YELLOW).min(mailcraft_model::pim::NOTE_COLORS - 1),
             modified: self.clock.now,
+            files: Vec::new(),
         };
         let uid = note.uid.clone();
         let remote = self.notes_sync(&account);
@@ -627,6 +625,18 @@ impl Session {
         n.dirty |= remote;
         self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"uid": uid}))
+    }
+
+    /// A note's file `index` (in [`Note::kept_files`]'s order): its name and bytes.
+    ///
+    /// [`Note::kept_files`]: mailcraft_model::pim::Note::kept_files
+    pub fn note_file(&self, uid: &str, index: usize) -> Result<(String, Vec<u8>), CmdError> {
+        let note =
+            self.pim.values().flat_map(|p| &p.notes).find(|n| n.note.uid == uid).ok_or_else(|| CmdError::Params(format!("no note `{uid}`")))?;
+        let files = note.note.kept_files();
+        let f = files.get(index).ok_or_else(|| CmdError::Params(format!("the note has no file {index}")))?;
+        let data = mailcraft_mime::decode_base64(f.base64).ok_or_else(|| CmdError::Failed(format!("{} couldn't be read", f.file_name())))?;
+        Ok((mailcraft_mime::sanitize_filename(f.file_name()), data))
     }
 
     pub fn delete_note(&mut self, uid: &str) -> CmdResult {

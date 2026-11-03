@@ -179,6 +179,54 @@ fn contact_groups_and_journal_entries_come_in() {
     assert_eq!(pim.notes[0].note.text, "Call with the printer\n2023-11-14 22:13–22:58 UTC\nProofs on Monday.\nPaper: matte.");
 }
 
+/// A note's and a journal entry's files come in on the note, each as an event keeps one (its
+/// line, read back by name, type and bytes), an attached message as its `.eml`; one past the
+/// cap on a file is counted as too big, as a card's or an event's is.
+#[test]
+fn notes_and_journal_entries_keep_their_files() {
+    let s = Scratch::new("note-files");
+    let mut progress = |_| {};
+    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let file = |name: &str, data: Vec<u8>| File::Data { name: name.into(), mime: "application/pdf".into(), cid: String::new(), data };
+    let mail = Item { class: "IPM.Note".into(), subject: "Proofs".into(), body: "Attached.".into(), date: 1_700_000_000, ..Default::default() };
+    out.add_pim(Item {
+        class: "IPM.StickyNote".into(),
+        body: "Paper\r\n170 gsm".into(),
+        date: 1_700_000_000,
+        files: vec![file("swatch.pdf", b"%PDF-1.7 swatch".to_vec()), File::Message(Box::new(mail)), file("huge.pdf", vec![0; 2 << 20])],
+        extra: Some(Extra::default()),
+        ..Default::default()
+    });
+    out.add_pim(Item {
+        class: "IPM.Activity".into(),
+        subject: "Call".into(),
+        date: 1_700_000_000,
+        files: vec![file("minutes.pdf", b"%PDF-1.7 minutes".to_vec())],
+        extra: Some(Extra::default()),
+        ..Default::default()
+    });
+    let done = out.finish();
+    assert_eq!((done.notes, done.skipped), (2, 0));
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentTooBig, 1)]);
+    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let files = |i: usize| -> Vec<(String, String, Vec<u8>)> {
+        pim.notes[i]
+            .note
+            .kept_files()
+            .iter()
+            .map(|f| (f.file_name().to_string(), f.mime.to_string(), mailcraft_mime::decode_base64(f.base64).unwrap()))
+            .collect()
+    };
+    let note = files(0);
+    assert_eq!(
+        note.iter().map(|(n, m, _)| (n.as_str(), m.as_str())).collect::<Vec<_>>(),
+        [("swatch.pdf", "application/pdf"), ("Proofs.eml", "message/rfc822")]
+    );
+    assert_eq!(note[0].2, b"%PDF-1.7 swatch");
+    assert_eq!(mailcraft_mime::parse(&note[1].2).unwrap().subject, "Proofs");
+    assert_eq!(files(1).iter().map(|(n, _, d)| (n.as_str(), d.len())).collect::<Vec<_>>(), [("minutes.pdf", 16)]);
+}
+
 /// Every task comes in as a task, due or not, done or not, with its files; none is left out, and
 /// none lands in the calendar (the calendar draws a due one from the task). A task request is a
 /// task too; flagged mail stays mail.

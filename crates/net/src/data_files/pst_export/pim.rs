@@ -177,7 +177,8 @@ fn items(pim: &Pim, now: i64) -> Vec<(Special, Vec<Item>)> {
     [(Special::Contacts, contacts), (Special::Notes, notes), (Special::Tasks, tasks)].into_iter().filter(|(_, items)| !items.is_empty()).collect()
 }
 
-/// A note (MS-OXONOTE 2.2.1): its text the body, its first line the subject, its colour.
+/// A note (MS-OXONOTE 2.2.1): its text the body, its first line the subject, its colour, and its
+/// files as the item's attachments (as a task's go).
 fn note(n: &Note, now: i64) -> Item {
     let color = if n.color < NOTE_COLORS { n.color } else { NOTE_YELLOW };
     Item {
@@ -190,7 +191,7 @@ fn note(n: &Note, now: i64) -> Item {
             lid(PSETID_NOTE, 0x8B02, Value::Int(NOTE_SIZE.0)),
             lid(PSETID_NOTE, 0x8B03, Value::Int(NOTE_SIZE.1)),
         ],
-        files: Vec::new(),
+        files: n.files.iter().filter_map(|l| super::task::file(l)).collect(),
     }
 }
 

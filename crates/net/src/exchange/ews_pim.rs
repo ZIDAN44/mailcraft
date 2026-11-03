@@ -465,7 +465,7 @@ pub fn note_of(it: &El) -> Option<StoredNote> {
     Some(StoredNote {
         href: href.clone(),
         etag: id.attr("ChangeKey").unwrap_or("").to_string(),
-        note: Note { uid: href, text: text.replace("\r\n", "\n"), color, modified },
+        note: Note { uid: href, text: text.replace("\r\n", "\n"), color, modified, files: Vec::new() },
         dirty: false,
     })
 }

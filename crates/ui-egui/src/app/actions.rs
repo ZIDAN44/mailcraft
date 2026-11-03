@@ -368,6 +368,11 @@ impl MailApp {
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
             }
+            Action::NoteFile { uid, index, .. } if self.services.downloads() => match self.session.note_file(&uid, index) {
+                Ok((name, b)) => self.services.download(&name, &b),
+                Err(e) => self.session.notice(e.to_string(), true),
+            },
+            Action::NoteFile { uid, index, open } => self.note_file(&uid, index, open),
             Action::SaveAttachment(i) | Action::OpenAttachment(i) if self.services.downloads() => {
                 let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(i));
                 match self.session.attachment_bytes(i) {
@@ -661,6 +666,37 @@ impl MailApp {
                 self.session.notice(e.to_string(), true);
                 None
             }
+        }
+    }
+
+    /// A note's file `index`, opened in another app (saved for it first, never when it could run
+    /// a program) or saved where asked.
+    fn note_file(&mut self, uid: &str, index: usize, open: bool) {
+        let name = self
+            .session
+            .notes("")
+            .iter()
+            .find(|n| n.note.uid == uid)
+            .and_then(|n| n.note.kept_files().get(index).map(|f| mailcraft_engine::mime::sanitize_filename(f.file_name())))
+            .unwrap_or_else(|| "attachment".into());
+        let path = if open {
+            let Some(dir) = mailcraft_engine::store::scratch_dir("open") else {
+                self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
+                return;
+            };
+            dir.join(&name)
+        } else {
+            let Some(path) = self.services.save_path(&name) else { return };
+            path
+        };
+        match self.session.run("note.saveFile", &json!({"uid": uid, "index": index, "path": path.to_string_lossy(), "open": open})) {
+            Ok(_) if open => {
+                if let Err(e) = self.services.open_path(&path) {
+                    self.session.notice(tf!("{name} could not be opened: {error}", name = name, error = e), true);
+                }
+            }
+            Ok(_) => self.session.notice(tf!("Saved {path}", path = path.display()), false),
+            Err(e) => self.session.notice(e.to_string(), true),
         }
     }
 

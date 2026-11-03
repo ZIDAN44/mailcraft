@@ -1,6 +1,8 @@
 //! Notes, as Outlook's Notes module: coloured sticky notes, written straight onto. A click on a
 //! note writes on it (the text is saved when the note is left); right-click gives its colours
 //! and Delete. Exchange accounts keep them in the mailbox's Notes folder, others on this computer.
+//! A note from an Outlook data file may carry files: a paperclip at its foot lists them, each to
+//! open or save.
 
 use egui::{Color32, Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Session;
@@ -125,8 +127,9 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
     let inner = rect.shrink2(vec2(12.0, 10.0));
     let when = crate::i18n::date(&dates::list_time(n.note.modified, &s.clock));
     ui.painter().text(egui::pos2(inner.left(), inner.bottom()), egui::Align2::LEFT_BOTTOM, when, theme::regular(11.0), INK.gamma_multiply(0.55));
+    let on_files = files(ui, n, inner, id, acts);
     let text_rect = egui::Rect::from_min_max(inner.min, egui::pos2(inner.right(), inner.bottom() - 18.0));
-    let mut pressed = resp.is_pointer_button_down_on() || resp.clicked();
+    let mut pressed = resp.is_pointer_button_down_on() || resp.clicked() || on_files;
     if editing {
         let mut text = st.note_edit.as_ref().map(|(_, x)| x.clone()).unwrap_or_default();
         // In a child of its own over the paper, so the row of notes doesn't move.
@@ -197,4 +200,38 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
         }
     });
     pressed
+}
+
+/// A note's files, when it has some: a paperclip and their number at its foot (left of its folded
+/// corner), whose menu lists each with its size, to open or save. True when the pointer pressed
+/// on it.
+fn files(ui: &mut Ui, n: &mailcraft_engine::NoteRef<'_>, inner: egui::Rect, id: egui::Id, acts: &mut Vec<Action>) -> bool {
+    let files = n.note.kept_files();
+    if files.is_empty() {
+        return false;
+    }
+    let count = files.len().to_string();
+    let chip = egui::Rect::from_min_size(egui::pos2(inner.right() - 52.0, inner.bottom() - 16.0), vec2(40.0, 16.0));
+    let resp = ui.interact(chip, id.with("files"), Sense::click()).on_hover_text(tf!("{n} attachments", n = files.len()));
+    let ink = if resp.hovered() { INK } else { INK.gamma_multiply(0.7) };
+    let icon = egui::Rect::from_min_size(chip.min + vec2(4.0, 1.0), vec2(14.0, 14.0));
+    icons::paint(ui.painter(), icon, Icon::Attach, ink);
+    ui.painter().text(egui::pos2(icon.right() + 3.0, chip.center().y), egui::Align2::LEFT_CENTER, count, theme::regular(11.0), ink);
+    let uid = &n.note.uid;
+    egui::Popup::menu(&resp).show(|ui| {
+        for (index, f) in files.iter().enumerate() {
+            ui.label(format!("{} ({})", f.file_name(), widgets::human_size(f.size())));
+            ui.horizontal(|ui| {
+                if ui.button(tl!("Open")).clicked() {
+                    acts.push(Action::NoteFile { uid: uid.clone(), index, open: true });
+                    ui.close();
+                }
+                if ui.button(tl!("Save as…")).clicked() {
+                    acts.push(Action::NoteFile { uid: uid.clone(), index, open: false });
+                    ui.close();
+                }
+            });
+        }
+    });
+    resp.is_pointer_button_down_on() || resp.clicked()
 }

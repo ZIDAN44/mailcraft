@@ -147,7 +147,8 @@ fn a_written_file_s_calendar_and_contacts_come_in() {
 
 /// Outlook's RSS Feeds folder and a feed's folder under it come in as mail folders of their
 /// posts; a recall, a sharing invitation and a contact in a mail folder come in too, the contact
-/// to the address book. Read from a file the writer makes, by the import itself.
+/// to the address book; a note comes in with its file. Read from a file the writer makes, by the
+/// import itself.
 #[test]
 fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-feeds-written-{}", std::process::id()));
@@ -178,10 +179,18 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
     {
         drop(Writer::append_in_folder_with_attachments(&path, &["Kept"], &message(subject, class, "Text.", props), &[]).unwrap());
     }
+    // A note with a file.
+    drop(Writer::create_folder(&path, &["Notes"], "IPF.StickyNote").unwrap());
+    let swatch = file("swatch.pdf", "application/pdf", b"%PDF-1.7 swatch");
+    drop(Writer::append_in_folder_with_attachments(&path, &["Notes"], &message("Paper", "IPM.StickyNote", "Paper", &[]), &[swatch]).unwrap());
+    // The fuzz target's seed (`fuzz/seeds/pst/import-rest`) is this file: kept where asked.
+    if let Some(to) = std::env::var_os("MC_PST_SEED") {
+        std::fs::copy(&path, to).unwrap();
+    }
 
     let store = Store::open(dir.join("cache")).unwrap();
     let done = import(&path, &store, "a1", &mut |_| {}).unwrap();
-    assert_eq!((done.messages, done.contacts, done.skipped), (5, 1, 0), "{done:?}");
+    assert_eq!((done.messages, done.contacts, done.notes, done.skipped), (5, 1, 1, 0), "{done:?}");
     let feeds = done.folders.iter().find(|f| f.path.ends_with("Studio news")).expect("the feed's folder");
     assert!(feeds.path.starts_with("RSS Feeds"), "{}", feeds.path);
     let posts = store.load_folder("a1", &feeds.path).unwrap().messages;
@@ -192,6 +201,10 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
     assert_eq!(subjects, ["Recall: Plans", "Sharing invitation"]);
     let pim: Pim = store.load_account_doc("a1", PIM_DOC).unwrap();
     assert!(pim.cards.iter().any(|c| c.card.emails.iter().any(|e| e.value == "ana@posteo.example")));
+    let note = &pim.notes[0].note;
+    let kept = note.kept_files();
+    let files: Vec<(&str, &str)> = kept.iter().map(|f| (f.file_name(), f.mime)).collect();
+    assert_eq!((note.text.as_str(), files), ("Paper", vec![("swatch.pdf", "application/pdf")]));
     drop(store);
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -1,9 +1,9 @@
 //! Contacts, contact groups, calendar items, tasks, notes and journal entries as they come in.
 //! A repeating appointment's changed occurrences come in as events of their own, each replacing
 //! its occurrence (`RECURRENCE-ID`); an exception item that is none of them is counted. Every
-//! task comes in as a task, with a due day or not. The files of a contact, calendar item or task
-//! come in on its card, event or task (`pst_pim::files`); a note and a journal entry have nowhere
-//! to keep one. The account's contacts, calendar and tasks are one document, written whole at
+//! task comes in as a task, with a due day or not. The files of a contact, calendar item, task,
+//! note or journal entry come in on its card, event, task or note (`pst_pim::files`; a note keeps
+//! them as an event does). The account's contacts, calendar and tasks are one document, written whole at
 //! each change and each checkpoint, and its calendar and cards go out as one `.ics` and one `.vcf`
 //! (a calendar saved beside an exported data file, a server's address book) that MailCraft must
 //! read back (in full up to 16 MiB each), so the files kept there are held to [`MAX_FILE`] each
@@ -12,9 +12,9 @@
 use super::super::item::EXCEPTION;
 use super::*;
 
-/// A file of a contact, calendar item or task kept at most, as its line holds it (base64)…
+/// A file of a contact, calendar item, task or note kept at most, as its line holds it (base64)…
 const MAX_FILE: usize = 1 << 20;
-/// …and all of them in the account's contacts, calendar and tasks: half what a calendar or
+/// …and all of them in the account's contacts, calendar, tasks and notes: half what a calendar or
 /// address book file is read to, leaving the rest to their text and the folding of their lines.
 const MAX_FILES: usize = 8 << 20;
 
@@ -34,7 +34,8 @@ impl Out<'_> {
                 self.skip(SkipReason::ItemNotUsable, 1);
                 return;
             }
-            let note = Note { uid, text, color: NOTE_YELLOW, modified: x.modified.unwrap_or(it.date) };
+            let files = self.event_files(files, &uid);
+            let note = Note { uid, text, color: NOTE_YELLOW, modified: x.modified.unwrap_or(it.date), files };
             self.pim.notes.push(StoredNote { note, ..Default::default() });
         } else if class.starts_with("ipm.distlist") {
             let mut card = crate::pst_pim::group_of(&x, &it.subject, &it.body, uid.clone());
@@ -47,8 +48,14 @@ impl Out<'_> {
                 self.skip(SkipReason::ItemNotUsable, 1);
                 return;
             }
-            let note =
-                Note { uid, text: text.trim_end().to_string(), color: x.note_color.unwrap_or(NOTE_YELLOW), modified: x.modified.unwrap_or(it.date) };
+            let files = self.event_files(files, &uid);
+            let note = Note {
+                uid,
+                text: text.trim_end().to_string(),
+                color: x.note_color.unwrap_or(NOTE_YELLOW),
+                modified: x.modified.unwrap_or(it.date),
+                files,
+            };
             self.pim.notes.push(StoredNote { note, ..Default::default() });
         } else if class.starts_with("ipm.task") {
             // Every task, due or not: its files as an event keeps its own.
@@ -148,7 +155,8 @@ impl Out<'_> {
             let cards = self.pim.cards.iter().flat_map(|c| &c.card.extra);
             let events = self.pim.events.iter().flat_map(|e| &e.event.extra);
             let tasks = self.pim.tasks.iter().flat_map(|t| &t.task.extra);
-            cards.chain(events).chain(tasks).filter(|l| crate::pst_pim::is_file_line(l)).map(String::len).fold(0, usize::saturating_add)
+            let notes = self.pim.notes.iter().flat_map(|n| &n.note.files);
+            cards.chain(events).chain(tasks).chain(notes).filter(|l| crate::pst_pim::is_file_line(l)).map(String::len).fold(0, usize::saturating_add)
         });
         let fits = |n: usize| n <= MAX_FILE && kept.saturating_add(n) <= MAX_FILES;
         // Its bytes in base64, before they're written out.

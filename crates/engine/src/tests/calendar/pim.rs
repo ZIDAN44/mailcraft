@@ -385,12 +385,12 @@ fn notes_are_written_coloured_and_deleted() {
         mailcraft_model::pim::StoredNote { note: mailcraft_model::pim::Note { uid: "note:X1".into(), ..stored.note.clone() }, ..stored.clone() };
     let other = mailcraft_model::pim::StoredNote {
         href: "note:X2".into(),
-        note: mailcraft_model::pim::Note { uid: "note:X2".into(), text: "From Outlook".into(), color: 2, modified: 1 },
+        note: mailcraft_model::pim::Note { uid: "note:X2".into(), text: "From Outlook".into(), color: 2, modified: 1, files: Vec::new() },
         ..Default::default()
     };
     let sync = mailcraft_model::pim::DavSync { pushed_notes: vec![stored], notes: Some(vec![server_copy, other]), ..Default::default() };
     s.apply_dav(&id, &sync);
-    let texts: Vec<String> = s.notes("").into_iter().map(|n| n.note.text).collect();
+    let texts: Vec<String> = s.notes("").into_iter().map(|n| n.note.text.clone()).collect();
     assert_eq!(texts.len(), 2, "{texts:?}: the note sent isn't doubled");
     assert!(texts.contains(&"From Outlook".to_string()) && texts.contains(&"Sync me".to_string()));
     let _ = uid;

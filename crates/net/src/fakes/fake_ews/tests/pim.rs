@@ -98,7 +98,7 @@ fn sticky_notes_sync_with_the_notes_folder() {
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let mut pim = Pim::default();
     pim.notes.push(StoredNote {
-        note: Note { uid: "n-local".into(), text: "Buy paper\n170 gsm".into(), color: 1, modified: 5 },
+        note: Note { uid: "n-local".into(), text: "Buy paper\n170 gsm".into(), color: 1, modified: 5, files: Vec::new() },
         dirty: true,
         ..Default::default()
     });

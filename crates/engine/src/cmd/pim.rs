@@ -304,7 +304,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let list: Vec<Value> = s
                 .notes(p::str(v, "query").unwrap_or(""))
                 .into_iter()
-                .map(|n| json!({"uid": n.note.uid, "text": n.note.text, "color": n.note.color, "modified": n.note.modified, "account": n.account}))
+                .map(|n| {
+                    let files: Vec<Value> = n.note.kept_files().iter().map(|f| json!({"name": f.file_name(), "type": f.mime, "size": f.size()})).collect();
+                    json!({"uid": n.note.uid, "text": n.note.text, "color": n.note.color, "modified": n.note.modified, "account": n.account, "files": files})
+                })
                 .collect();
             Ok(json!({"notes": list}))
         })
@@ -320,6 +323,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"uid": string, "text"?: string, "color"?: 0|1|2|3|4}"#),
         CommandSpec::new("note.delete", "Delete note", "Notes", |s, v| s.delete_note(p::req_str(v, "uid")?)).params(r#"{"uid": string}"#),
+        CommandSpec::new("note.saveFile", "Save note's file", "Notes", save_note_file)
+            .params(r#"{"uid": string, "index": number (its place among the note's files), "path": string, "open"?: bool (saved to be opened by another app: never a file that runs code)}"#),
     ]
 }
 
@@ -503,4 +508,22 @@ pub(super) fn organized_by_me(s: &Session, e: &mailcraft_model::ical::CalEvent) 
         && e.organizer.as_ref().is_some_and(|o| {
             s.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(&o.email) || a.config.username.eq_ignore_ascii_case(&o.email))
         })
+}
+
+/// Save a note's file where asked, as an attachment is saved: one to be opened by another app is
+/// never a program, and Windows is told it came from elsewhere.
+fn save_note_file(s: &mut Session, v: &Value) -> CmdResult {
+    let uid = p::req_str(v, "uid")?;
+    let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
+    let path = p::req_str(v, "path")?;
+    if p::bool(v, "open").unwrap_or(false) {
+        let name = std::path::Path::new(path).file_name().unwrap_or_default().to_string_lossy().into_owned();
+        if mailcraft_mime::runs_code(&name) {
+            return Err(CmdError::Disabled(format!("{name} could run a program, so it isn't opened from here; save it and check it first")));
+        }
+    }
+    let (_, data) = s.note_file(uid, index)?;
+    std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    super::compose::mark_from_internet(std::path::Path::new(path), &data);
+    Ok(json!({"saved": path, "bytes": data.len()}))
 }

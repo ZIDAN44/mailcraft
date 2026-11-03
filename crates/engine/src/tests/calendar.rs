@@ -8,6 +8,7 @@ mod calendar_find;
 mod invite_placing;
 mod invites;
 mod meetings;
+mod notes;
 mod pim;
 mod scheduling;
 mod sogo;

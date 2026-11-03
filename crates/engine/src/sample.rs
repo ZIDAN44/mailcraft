@@ -721,7 +721,7 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
     p.cards = cards.into_iter().map(|card| StoredCard { book: LOCAL.into(), card, ..Default::default() }).collect();
     // Notes (Outlook's Notes), kept on this computer.
     let note = |uid: &str, text: &str, color: u8, ago: i64| mailcraft_model::pim::StoredNote {
-        note: mailcraft_model::pim::Note { uid: format!("{uid}@sample.mailcraft"), text: text.into(), color, modified: now - ago },
+        note: mailcraft_model::pim::Note { uid: format!("{uid}@sample.mailcraft"), text: text.into(), color, modified: now - ago, files: Vec::new() },
         ..Default::default()
     };
     p.notes = vec![

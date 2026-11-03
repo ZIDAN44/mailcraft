@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::ical::CalEvent;
 use crate::vcard::Card;
 
+mod kept_file;
 mod task;
+pub use kept_file::{KeptFile, kept_file};
 pub use task::*;
 
 /// The id of a calendar or address book that lives on this computer only.
@@ -150,7 +152,7 @@ pub fn calendar_link(s: &str) -> Option<String> {
     (link.len() <= MAX_CALENDAR_LINK).then_some(link)
 }
 
-/// A note, as Outlook's Notes keeps them: text, and a colour.
+/// A note, as Outlook's Notes keeps them: text, a colour, and the files it carries.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Note {
     pub uid: String,
@@ -161,6 +163,10 @@ pub struct Note {
     /// When it was last changed (Unix seconds).
     #[serde(default)]
     pub modified: i64,
+    /// Its files (a note from an Outlook data file can carry some), each the line an event and a
+    /// task keep one in ([`kept_file`]): `ATTACH` with its bytes inline.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<String>,
 }
 
 fn yellow() -> u8 {
@@ -176,6 +182,11 @@ impl Note {
     /// Its first line: what a list of notes shows as its title.
     pub fn title(&self) -> &str {
         self.text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("")
+    }
+
+    /// Its files, in order (a line that isn't one left out).
+    pub fn kept_files(&self) -> Vec<KeptFile<'_>> {
+        self.files.iter().filter_map(|l| kept_file(l)).collect()
     }
 }
 

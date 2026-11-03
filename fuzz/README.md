@@ -52,7 +52,9 @@ file as damaged, the right answer for a damaged file: that target aborts only on
 MailCraft's own code, and a panic in the reader (built from MailCraft's fork) is not one.
 Its seeds are the patches' starting point and a whole file whose first attachment holds a
 message and whose second is a zero-byte file (as `pst/tests/reader.rs` makes it), so the reader's
-paths for those are fuzzed too. `pst_append` has no such exception: the writer, built from
+paths for those are fuzzed too, and one with an RSS Feeds folder and a feed's posts, a recall, a
+sharing invitation and a contact in a mail folder, and a note with a file (`import-rest`, written
+by `pst/tests/pim_written.rs` with `MC_PST_SEED` set). `pst_append` has no such exception: the writer, built from
 MailCraft's fork (`craft/rw-1.2.14`), reads the file it adds to as the reader does and turns a
 damaged one into an error, so a panic anywhere in it is a crash to fix there; so is an append
 that succeeds while a message that read before it no longer reads as it did.
