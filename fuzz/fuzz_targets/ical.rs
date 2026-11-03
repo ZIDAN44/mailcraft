@@ -23,9 +23,10 @@ fuzz_target!(|data: &[u8]| {
     }
     let written = ical::write(&cal.events, cal.method.as_deref(), 0);
     let _ = ical::parse(&written, 3600);
-    // Its to-dos (`VTODO`), written with the events as an exported calendar is, and read back.
+    // Its to-dos (`VTODO`), written with the events as an exported calendar is, and read back:
+    // every one of them, so what a to-do keeps as written never swallows the ones after it.
     let exported = ical::write_calendar(&cal.events, &cal.tasks, 0);
-    let _ = ical::parse(&exported, 3600);
+    assert_eq!(ical::parse(&exported, 3600).tasks.len(), cal.tasks.len());
     let _ = ical::duration(&text);
     let _ = ical::unescape(&text);
     let _ = ical::split_text_list(&text);

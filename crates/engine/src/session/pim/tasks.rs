@@ -4,7 +4,7 @@
 //! copied into the events. Marking a repeating task done keeps a done copy and moves the task to
 //! its next due day, as Outlook does.
 
-use mailcraft_model::pim::{StoredTask, Task, task_day};
+use mailcraft_model::pim::{StoredTask, TASK_NOTES_KEPT, Task, task_day};
 use mailcraft_model::search::{fold_all, folded_has_phrase};
 
 use super::reminders::REMINDER_KEPT_AFTER_END;
@@ -13,7 +13,7 @@ use super::*;
 /// Most tasks an account keeps, and most characters in a title and in the notes.
 const MAX_TASKS: usize = 10_000;
 const MAX_TITLE: usize = 1_000;
-const MAX_NOTES: usize = 100_000;
+const MAX_NOTES: usize = TASK_NOTES_KEPT;
 /// How far ahead a repeating task's next due day is looked for.
 const NEXT_WITHIN: i64 = 10 * 366 * 86_400;
 /// The calendar a task is drawn in (it's no calendar's).
@@ -24,6 +24,13 @@ pub const TASKS_CALENDAR: &str = "tasks";
 pub struct TaskRef {
     pub account: String,
     pub task: Task,
+}
+
+/// A task in the list, with the account it's in: borrowed, as the list is drawn every frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ListedTask<'a> {
+    pub account: &'a str,
+    pub task: &'a Task,
 }
 
 /// How tasks are listed (Outlook's Arrange by for tasks). Done ones go last whichever it is.
@@ -64,13 +71,20 @@ fn task_matches(t: &Task, words: &[String]) -> bool {
     if words.is_empty() {
         return true;
     }
+    let has_all = |text: &str| words.iter().all(|w| folded_has_phrase(text, std::slice::from_ref(w)));
+    // Its title and categories first: the notes, longer, only when those don't hold every word.
+    let short = fold_all(&format!("{} {}", t.title, t.categories.join(" ")));
+    if has_all(&short) {
+        return true;
+    }
     let notes: String = t.notes.chars().take(64 * 1024).collect();
-    let text = fold_all(&format!("{} {} {}", t.title, notes, t.categories.join(" ")));
-    words.iter().all(|w| folded_has_phrase(&text, std::slice::from_ref(w)))
+    has_all(&format!("{short} {}", fold_all(&notes)))
 }
 
-fn check_task(t: &Task) -> Result<(), CmdError> {
-    if t.title.trim().is_empty() {
+/// A task as given: a title, unless `before` (the task as it was) had none either, as one
+/// brought in from Outlook or a calendar file may not; due no earlier than it starts.
+fn check_task(t: &Task, before: Option<&Task>) -> Result<(), CmdError> {
+    if t.title.trim().is_empty() && before.is_none_or(|b| !b.title.trim().is_empty()) {
         return Err(CmdError::Params("give the task a title".into()));
     }
     if let (Some(s), Some(d)) = (t.start, t.due)
@@ -79,6 +93,25 @@ fn check_task(t: &Task) -> Result<(), CmdError> {
         return Err(CmdError::Params("the task is due before it starts".into()));
     }
     Ok(())
+}
+
+/// A rule with `COUNT` counted down by the time just done (`None`: that was its last), so a
+/// series that ends after so many times ends; any other rule as it is.
+fn count_down(rule: &str) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for part in rule.split(';') {
+        match part.split_once('=') {
+            Some((k, n)) if k.trim().eq_ignore_ascii_case("COUNT") => {
+                let left = n.trim().parse::<u64>().unwrap_or(0).saturating_sub(1);
+                if left == 0 {
+                    return None;
+                }
+                parts.push(format!("COUNT={left}"));
+            }
+            _ => parts.push(part.to_string()),
+        }
+    }
+    Some(parts.join(";"))
 }
 
 /// Its text held to what's kept, its days to whole days, its status and percent in step.
@@ -93,23 +126,23 @@ fn tidy(t: &mut Task, now: i64) {
 impl Session {
     /// Every task matching a search (in its title, notes and categories), in the order chosen;
     /// done ones last, and left out when the list hides them.
-    pub fn tasks(&self, query: &str) -> Vec<TaskRef> {
+    pub fn tasks(&self, query: &str) -> Vec<ListedTask<'_>> {
         let words: Vec<String> = fold_all(query).split(' ').filter(|w| !w.is_empty()).map(str::to_string).collect();
         let hide_done = self.prefs.tasks_hide_done;
-        let mut out: Vec<TaskRef> = self
+        let mut out: Vec<ListedTask<'_>> = self
             .pim
             .iter()
             .flat_map(|(a, p)| {
                 p.tasks
                     .iter()
                     .filter(|t| !(hide_done && t.task.is_done()) && task_matches(&t.task, &words))
-                    .map(|t| TaskRef { account: a.clone(), task: t.task.clone() })
+                    .map(|t| ListedTask { account: a, task: &t.task })
             })
             .collect();
-        let title = |r: &TaskRef| r.task.title.trim().to_lowercase();
+        let title = |r: &ListedTask<'_>| r.task.title.trim().to_lowercase();
         // No due day sorts after every due day.
-        let due = |r: &TaskRef| r.task.due.unwrap_or(i64::MAX);
-        let rank = |r: &TaskRef| std::cmp::Reverse(r.task.priority);
+        let due = |r: &ListedTask<'_>| r.task.due.unwrap_or(i64::MAX);
+        let rank = |r: &ListedTask<'_>| std::cmp::Reverse(r.task.priority);
         match self.prefs.tasks_order {
             TasksOrder::Due => out.sort_by_cached_key(|r| (r.task.is_done(), due(r), rank(r), title(r), r.task.uid.clone())),
             TasksOrder::Priority => out.sort_by_cached_key(|r| (r.task.is_done(), rank(r), due(r), title(r), r.task.uid.clone())),
@@ -129,17 +162,43 @@ impl Session {
     }
 
     /// Add a task; returns its uid (a new one when it has none, or its own is taken).
-    pub fn create_task(&mut self, account: Option<&str>, mut t: Task) -> CmdResult {
+    pub fn create_task(&mut self, account: Option<&str>, t: Task) -> CmdResult {
+        check_task(&t, None)?;
+        self.add_task(account, t, false)
+    }
+
+    /// Add a to-do from a calendar file: one with the uid of a task already in the account
+    /// takes its place (as an event from a file does), so opening the file again doesn't add
+    /// its to-dos twice. It keeps its title (even none) and when it was changed, and starts no
+    /// later than it's due.
+    pub fn open_task(&mut self, account: Option<&str>, mut t: Task) -> CmdResult {
+        if let (Some(s), Some(d)) = (t.start, t.due)
+            && s > d
+        {
+            t.start = Some(d);
+        }
+        self.add_task(account, t, true)
+    }
+
+    /// Add a task as it is. `from_file`: it replaces the account's task with its uid and keeps
+    /// its own changed time (else a taken uid gets a new one, and the task is changed now).
+    fn add_task(&mut self, account: Option<&str>, mut t: Task, from_file: bool) -> CmdResult {
         let account = self.pim_account(account)?;
-        check_task(&t)?;
-        if t.uid.trim().is_empty() || self.find_task(&t.uid).is_some() {
+        let taken = self.find_task(&t.uid).map(|r| r.account);
+        let replaces = from_file && !t.uid.trim().is_empty() && taken.as_deref() == Some(account.as_str());
+        if t.uid.trim().is_empty() || (taken.is_some() && !replaces) {
             t.uid = self.new_uid();
         }
         let now = self.clock.now;
         tidy(&mut t, now);
-        t.modified = now;
+        if !from_file || t.modified <= 0 {
+            t.modified = now;
+        }
         let uid = t.uid.clone();
         let p = self.pim_mut(&account);
+        if replaces {
+            p.tasks.retain(|x| x.task.uid != uid);
+        }
         if p.tasks.len() >= MAX_TASKS {
             return Err(CmdError::Params(format!("an account keeps at most {MAX_TASKS} tasks")));
         }
@@ -158,7 +217,7 @@ impl Session {
         let mut t = before.clone();
         change(&mut t);
         t.uid = before.uid.clone();
-        check_task(&t)?;
+        check_task(&t, Some(&before))?;
         tidy(&mut t, now);
         if t == before {
             return Ok(serde_json::json!({"uid": uid, "changed": false}));
@@ -170,25 +229,27 @@ impl Session {
     }
 
     /// Mark a task done or not. A repeating one marked done stays, moved to its next due day,
-    /// and a done copy of this time is kept beside it (its uid in the answer's `done`).
+    /// and a done copy of this time is kept beside it (its uid in the answer's `done`); one
+    /// whose rule ends after so many times (`COUNT`) counts down, and is done after its last.
     pub fn complete_task(&mut self, uid: &str, done: bool) -> CmdResult {
         let Some(r) = self.find_task(uid) else { return Err(CmdError::Params(format!("no task `{uid}`"))) };
         let now = self.clock.now;
         let next = match (&r.task.rrule, r.task.due.or(r.task.start)) {
-            (Some(rule), Some(from)) if done && !r.task.is_done() => next_due(rule, from),
+            (Some(rule), Some(from)) if done && !r.task.is_done() => next_due(rule, from).zip(count_down(rule)),
             _ => None,
         };
-        let Some(next) = next else { return self.update_task(uid, |t| t.set_done(done, now)) };
+        let Some((next, rule)) = next else { return self.update_task(uid, |t| t.set_done(done, now)) };
         // This time, done.
         let mut copy = r.task.clone();
         copy.uid = String::new();
         copy.rrule = None;
         copy.reminder = None;
         copy.set_done(true, now);
-        let copied = self.create_task(Some(&r.account), copy)?;
+        let copied = self.add_task(Some(&r.account), copy, false)?;
         // The task, from its next time on.
         let shift = next.saturating_sub(r.task.due.or(r.task.start).unwrap_or(next));
         self.update_task(uid, |t| {
+            t.rrule = Some(rule);
             t.start = t.start.map(|s| s.saturating_add(shift));
             t.due = t.due.map(|d| d.saturating_add(shift));
             t.reminder = t.reminder.map(|d| d.saturating_add(shift));

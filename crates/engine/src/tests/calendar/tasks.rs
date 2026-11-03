@@ -85,7 +85,7 @@ fn a_repeating_task_moves_on_when_done() {
 #[test]
 fn tasks_can_be_arranged() {
     let mut s = sample_session("tasks-order");
-    let titles = |s: &Session| s.tasks("").into_iter().filter(|t| !t.task.is_done()).map(|t| t.task.title).collect::<Vec<_>>();
+    let titles = |s: &Session| s.tasks("").into_iter().filter(|t| !t.task.is_done()).map(|t| t.task.title.clone()).collect::<Vec<_>>();
     s.run("task.arrange", &json!({"by": "due"})).unwrap();
     let by_due = titles(&s);
     assert_eq!(by_due.first().map(String::as_str), Some("Order the festival posters"), "the late one first");
@@ -161,5 +161,74 @@ fn a_tasks_reminder_rings() {
     // Due long ago: its reminder doesn't ring now.
     s.run("task.create", &json!({"title": "Old", "due": "2020-01-01", "reminder": "2020-01-01T09:00"})).unwrap();
     assert!(due(&s).is_empty());
+    done(s);
+}
+
+/// A rule that ends after so many times counts down as the task moves on, and the task is done
+/// after its last time, with no copy for a time past it.
+#[test]
+fn a_repeating_task_with_a_count_ends() {
+    let mut s = sample_session("tasks-count");
+    let uid = s.run("task.create", &json!({"title": "c", "due": "2026-11-05", "repeat": "FREQ=DAILY;COUNT=2"})).unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first = s.run("task.complete", &json!({"uid": uid})).unwrap();
+    assert!(first["done"].is_string());
+    let t = s.find_task(&uid).unwrap().task;
+    assert_eq!((t.due, t.rrule.as_deref(), t.is_done()), (Some(day(2026, 11, 6)), Some("FREQ=DAILY;COUNT=1"), false));
+    let count = |s: &Session| s.tasks("").len();
+    let before = count(&s);
+    let last = s.run("task.complete", &json!({"uid": uid})).unwrap();
+    assert!(last.get("done").is_none(), "{last}");
+    assert!(s.find_task(&uid).unwrap().task.is_done());
+    assert_eq!(count(&s), before, "no copy for a time past the last");
+    done(s);
+}
+
+/// A task brought in with no title (Outlook keeps tasks with no subject) can be done, taken
+/// back up and changed; emptying a title that was there is still refused.
+#[test]
+fn an_untitled_task_can_be_done_and_changed() {
+    let mut s = sample_session("tasks-untitled");
+    let task = mailcraft_model::pim::Task { uid: "imp-1".into(), due: Some(day(2026, 11, 5)), ..Default::default() };
+    s.pim.values_mut().next().unwrap().tasks.push(mailcraft_model::pim::StoredTask { task });
+    s.run("task.update", &json!({"uid": "imp-1", "percent": 50})).unwrap();
+    assert_eq!(s.find_task("imp-1").unwrap().task.percent, 50);
+    s.run("task.complete", &json!({"uid": "imp-1"})).unwrap();
+    assert!(s.find_task("imp-1").unwrap().task.is_done());
+    s.run("task.complete", &json!({"uid": "imp-1", "done": false})).unwrap();
+    // Repeating: its done copy comes in untitled too.
+    s.run("task.update", &json!({"uid": "imp-1", "repeat": "weekly"})).unwrap();
+    let r = s.run("task.complete", &json!({"uid": "imp-1"})).unwrap();
+    assert_eq!(s.find_task(r["done"].as_str().unwrap()).unwrap().task.title, "");
+    // A title given, then taken away: refused.
+    s.run("task.update", &json!({"uid": "imp-1", "title": "Named"})).unwrap();
+    assert!(s.run("task.update", &json!({"uid": "imp-1", "title": " "})).is_err());
+    done(s);
+}
+
+/// A calendar file's to-dos come in whatever they lack (a title; a start no later than the due
+/// day), keep when they were changed, and opening the file again replaces them, not adds them.
+#[test]
+fn a_calendar_file_opened_twice_keeps_one_of_each_todo() {
+    let mut s = sample_session("tasks-file-again");
+    let dir = std::env::temp_dir().join(format!("mailcraft-tasks-again-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("todos.ics");
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:untitled-1\r\nDUE;VALUE=DATE:20261105\r\nLAST-MODIFIED:20261001T120000Z\r\nEND:VTODO\r\n\
+BEGIN:VTODO\r\nUID:backwards-1\r\nSUMMARY:Backwards\r\nDTSTART;VALUE=DATE:20261110\r\nDUE;VALUE=DATE:20261105\r\nEND:VTODO\r\nEND:VCALENDAR\r\n";
+    std::fs::write(&path, ics).unwrap();
+    let before = s.tasks("").len();
+    for _ in 0..2 {
+        let r = s.run("file.open", &json!({"path": path.to_string_lossy()})).unwrap();
+        assert_eq!((r["tasks"].as_u64(), r["skipped"].as_u64()), (Some(2), Some(0)), "{r}");
+    }
+    assert_eq!(s.tasks("").len(), before + 2, "opened twice, each once");
+    let untitled = s.find_task("untitled-1").unwrap().task;
+    assert_eq!((untitled.title.as_str(), untitled.modified), ("", mailcraft_model::dates::days_from_civil(2026, 10, 1) * 86_400 + 12 * 3600));
+    let backwards = s.find_task("backwards-1").unwrap().task;
+    assert_eq!((backwards.start, backwards.due), (Some(day(2026, 11, 5)), Some(day(2026, 11, 5))));
+    let _ = std::fs::remove_dir_all(&dir);
     done(s);
 }

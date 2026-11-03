@@ -39,10 +39,13 @@ pub(super) fn read_tasks(all: &[Line], zones: &FileZones) -> Vec<Task> {
     let mut out = Vec::new();
     let mut cur: Option<Reading<'_>> = None;
     // Components open around the line: outside a task, those besides the calendar itself; in
-    // one, those nested in it (and whether the outermost of them is an alarm).
+    // one, those nested in it, whether the outermost of them is an alarm, and whether it's kept
+    // (one that begins once the task's kept lines are full is left out whole, so what's kept
+    // always ends what it begins).
     let mut outer = 0usize;
     let mut depth = 0usize;
     let mut in_alarm = false;
+    let mut keep = false;
     for l in all {
         let what = || l.value.trim().to_ascii_uppercase();
         match l.name.as_str() {
@@ -53,6 +56,7 @@ pub(super) fn read_tasks(all: &[Line], zones: &FileZones) -> Vec<Task> {
                             cur = Some(Reading::default());
                             depth = 0;
                             in_alarm = false;
+                            keep = false;
                         }
                         "VCALENDAR" => {}
                         _ => outer = outer.saturating_add(1),
@@ -60,9 +64,11 @@ pub(super) fn read_tasks(all: &[Line], zones: &FileZones) -> Vec<Task> {
                     continue;
                 };
                 depth = depth.saturating_add(1);
-                if depth == 1 && what() == "VALARM" {
-                    in_alarm = true;
-                } else if !in_alarm && r.task.extra.len() < MAX_EXTRA {
+                if depth == 1 {
+                    in_alarm = what() == "VALARM";
+                    keep = !in_alarm && r.task.extra.len() < MAX_EXTRA;
+                }
+                if keep {
                     r.task.extra.push(l.raw.clone());
                 }
                 continue;
@@ -76,11 +82,12 @@ pub(super) fn read_tasks(all: &[Line], zones: &FileZones) -> Vec<Task> {
                 };
                 if depth > 0 {
                     depth -= 1;
-                    if !in_alarm && r.task.extra.len() < MAX_EXTRA {
+                    if keep {
                         r.task.extra.push(l.raw.clone());
                     }
                     if depth == 0 {
                         in_alarm = false;
+                        keep = false;
                     }
                     continue;
                 }
@@ -98,7 +105,7 @@ pub(super) fn read_tasks(all: &[Line], zones: &FileZones) -> Vec<Task> {
         if depth > 0 {
             if in_alarm && l.name == "TRIGGER" && r.trigger.is_none() {
                 r.trigger = Some(l);
-            } else if !in_alarm && r.task.extra.len() < MAX_EXTRA {
+            } else if keep && r.task.extra.len() < MAX_EXTRA {
                 r.task.extra.push(l.raw.clone());
             }
             continue;

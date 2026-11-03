@@ -7,7 +7,7 @@
 use egui::{Align2, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::dates;
 use mailcraft_engine::model::pim::{TaskPriority, TaskStatus};
-use mailcraft_engine::{Session, TaskRef, TasksOrder};
+use mailcraft_engine::{ListedTask, Session, TasksOrder};
 use serde_json::json;
 
 use crate::icons::{self, Icon};
@@ -143,8 +143,8 @@ fn headings(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
 
 /// One task: its done box, title (and its notes' first line or categories under it), due day,
 /// status and priority.
-fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &TaskRef, acts: &mut Vec<Action>) {
-    let task = &r.task;
+fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_>, acts: &mut Vec<Action>) {
+    let task = r.task;
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::click());
     let picked = st.task.as_deref() == Some(task.uid.as_str());
     if picked {

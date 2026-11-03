@@ -33,8 +33,8 @@ pub use session::{
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
     pim::{
-        ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, EVENT_HITS_MAX, EventHit, EventWhen, LocalEvents, Module, NoteRef, Person, TASKS_CALENDAR,
-        TaskRef, TasksOrder, parse_local,
+        ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, EVENT_HITS_MAX, EventHit, EventWhen, ListedTask, LocalEvents, Module, NoteRef, Person,
+        TASKS_CALENDAR, TaskRef, TasksOrder, parse_local,
     },
     quick_steps::QuickStep,
     search_folders::SearchFolder,

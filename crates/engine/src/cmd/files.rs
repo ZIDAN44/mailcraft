@@ -78,10 +78,10 @@ fn open_mail_file(s: &mut Session, v: &Value) -> CmdResult {
                     Err(_) => skipped += 1,
                 }
             }
-            // Its to-dos go to the tasks.
+            // Its to-dos go to the tasks (in place of those with their uids, as events do).
             let mut tasks = 0usize;
             for t in cal.tasks {
-                match s.create_task(None, t) {
+                match s.open_task(None, t) {
                     Ok(_) => tasks += 1,
                     Err(e @ CmdError::Disabled(_)) => return Err(e),
                     Err(_) => skipped += 1,

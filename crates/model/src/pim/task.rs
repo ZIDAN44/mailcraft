@@ -84,6 +84,10 @@ impl TaskPriority {
     }
 }
 
+/// The most characters of a task's notes kept, however it came (made here, from Outlook or a
+/// calendar file).
+pub const TASK_NOTES_KEPT: usize = 100_000;
+
 /// A task. Its start and due days are dates, kept as UTC midnight of the day (as all-day events
 /// keep theirs); when it was done and its reminder are times.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

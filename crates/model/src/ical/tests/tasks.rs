@@ -86,3 +86,22 @@ BEGIN:VTODO\r\nUID:c\r\nDUE:garbage\r\nSTATUS:\r\nBEGIN:X-THING\r\nX-A:1\r\nEND:
     // Cut off mid-task: nothing half-read.
     assert!(parse("BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:z\r\n", 0).tasks.is_empty());
 }
+
+/// A to-do with more lines than are kept: a component nested past the limit is left out whole,
+/// so the task written back still ends what it begins and the to-dos after it come back.
+#[test]
+fn todo_past_the_kept_lines_stays_whole() {
+    let mut text = String::from("BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:a\r\n");
+    for i in 0..199 {
+        text.push_str(&format!("X-L{i}:v\r\n"));
+    }
+    text.push_str("BEGIN:X-THING\r\nX-IN:1\r\nEND:X-THING\r\nBEGIN:X-MORE\r\nEND:X-MORE\r\nEND:VTODO\r\n");
+    text.push_str("BEGIN:VTODO\r\nUID:b\r\nEND:VTODO\r\nEND:VCALENDAR\r\n");
+    let cal = parse(&text, 0);
+    assert_eq!(cal.tasks.iter().map(|t| t.uid.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+    let extra = &cal.tasks[0].extra;
+    let begins = extra.iter().filter(|l| l.starts_with("BEGIN:")).count();
+    assert_eq!(begins, extra.iter().filter(|l| l.starts_with("END:")).count());
+    let back = parse(&write_calendar(&[], &cal.tasks, 0), 0);
+    assert_eq!(back.tasks.iter().map(|t| t.uid.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+}

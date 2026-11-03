@@ -30,7 +30,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .key("Mod+4"),
         CommandSpec::new("task.list", "Tasks", "Tasks", |s, v| {
-            let list: Vec<Value> = s.tasks(p::str(v, "query").unwrap_or("")).iter().map(|r| task_json(&r.account, &r.task)).collect();
+            let list: Vec<Value> = s.tasks(p::str(v, "query").unwrap_or("")).iter().map(|r| task_json(r.account, r.task)).collect();
             Ok(json!({"tasks": list}))
         })
         .params(r#"{"query"?: string (words of its title, notes or categories)}"#),

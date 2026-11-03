@@ -20,7 +20,7 @@ pub use local::LocalEvents;
 mod reminders;
 mod sync;
 mod tasks;
-pub use tasks::{TASKS_CALENDAR, TaskRef, TasksOrder};
+pub use tasks::{ListedTask, TASKS_CALENDAR, TaskRef, TasksOrder};
 pub mod web;
 
 /// The part of the app on screen.

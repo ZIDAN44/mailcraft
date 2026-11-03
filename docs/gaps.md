@@ -1437,7 +1437,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   when asked, and searched from the box at the top (words, whatever their accents). A task opens
   in a form with its start and due days, status and percent complete, priority, reminder,
   repeat, categories and notes. Marking a repeating task done keeps a done copy and moves the
-  task to its next due day, as Outlook does. A task with a due day shows in the calendar that
+  task to its next due day, as Outlook does (one set to end after so many times counts down,
+  and is done after its last). A task with a due day shows in the calendar that
   day, drawn from the task (a box before its title) and opened as one, not copied into the
   events, and its reminder rings in the Reminders window. Tasks are kept with the account's
   calendar and contacts on this computer: no server keeps them (no CalDAV or Microsoft To Do
@@ -1446,9 +1447,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   read into a rule as an appointment's is, its importance as priority, its reminder, categories
   and files), and its report counts them. An export's calendar file beside the `.pst` carries
   them as to-dos (`VTODO`, RFC 5545 §3.6.2), and a calendar file opened brings its to-dos in as
-  tasks; Waiting and Deferred, which iCalendar has no word for, go as `X-MAILCRAFT-TASK-STATUS`.
+  tasks (one with no title, as Outlook allows, among them; opened again, a file's to-dos take
+  the place of those with their uids instead of coming in twice); Waiting and Deferred, which
+  iCalendar has no word for, go as `X-MAILCRAFT-TASK-STATUS`.
   Commands: `task.list`, `task.create`, `task.update`, `task.complete`, `task.delete`,
-  `task.arrange`, `task.hideDone`. The `ical` fuzz target reads, writes and reads back to-dos,
+  `task.arrange`, `task.hideDone`. The `ical` fuzz target reads, writes and reads back to-dos
+  (every one of them comes back),
   and `pst_recurrence` makes a task of its pattern; a file the writer makes with a Tasks folder
   is imported whole in a test (the writer has no 64-bit floats, so percent complete is tried on
   the item's values alone).

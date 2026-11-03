@@ -4,7 +4,7 @@
 //! (PidLidTaskRecurrence, the same RecurrencePattern a repeating appointment's starts with) read
 //! into an RFC 5545 rule. A task with no day at all comes in as one.
 
-use mailcraft_model::pim::{Task, TaskPriority, TaskStatus, task_day};
+use mailcraft_model::pim::{TASK_NOTES_KEPT, Task, TaskPriority, TaskStatus, task_day};
 
 use super::*;
 
@@ -24,7 +24,7 @@ pub(crate) fn task_of(x: &Extra, subject: &str, body: &str, importance: i8, uid:
     let mut t = Task {
         uid,
         title: subject.trim().to_string(),
-        notes: body.replace("\r\n", "\n").trim().to_string(),
+        notes: body.replace("\r\n", "\n").trim().chars().take(TASK_NOTES_KEPT).collect(),
         start,
         due,
         completed: x.completed.filter(|_| status == TaskStatus::Completed),
