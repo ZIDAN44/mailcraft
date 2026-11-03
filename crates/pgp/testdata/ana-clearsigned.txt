@@ -1,0 +1,13 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Hi Riley,
+signed in the text itself.
+Ana
+-----BEGIN PGP SIGNATURE-----
+
+iIkEARYKADEWIQQiYBHOceMzFiNKz8tBaZU8+jWwTQUCaupMtBMcYW5hQHBvc3Rl
+by5leGFtcGxlAAoJEEFplTz6NbBNR/0BAJf7oxvnbXklz2JvpwECh6ZLNC2Bx7X/
+B2cbDlHyAl4fAQDvjnIW5KkzeKVtnCyubXd5yJbgDHcdR0fdNkwD+qepDg==
+=P4yT
+-----END PGP SIGNATURE-----

@@ -1,0 +1,26 @@
+[package]
+name = "mailcraft-pgp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "MailCraft OpenPGP (RFC 9580, PGP/MIME RFC 3156, Autocrypt): keys read and checked, mail signed, encrypted, decrypted and verified (pure Rust on rPGP, wasm-safe)"
+
+[lints]
+workspace = true
+
+# rPGP (MIT OR Apache-2.0), of the RustCrypto generation the S/MIME crate uses (digest 0.10,
+# rsa 0.9, p256 0.13), so each is built once. bzip2 is left out: GnuPG compresses with ZIP and
+# ZLIB, and MailCraft sends uncompressed.
+[dependencies]
+pgp = { version = "0.21", default-features = false }
+serde = { workspace = true }
+thiserror = { workspace = true }
+rand_core = "0.6"
+
+# In the browser: its clock (rPGP stamps what it signs) and `crypto.getRandomValues`.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+pgp = { version = "0.21", default-features = false, features = ["wasm"] }
+
+[dev-dependencies]
+rand_core = { version = "0.6", features = ["getrandom"] }
