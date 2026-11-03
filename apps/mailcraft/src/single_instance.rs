@@ -462,6 +462,8 @@ mod tests {
         {
             use std::io::{Read, Write};
             let mut s = UnixStream::connect(&path).unwrap();
+            // Bounded, as a launch's own read is: a close Windows loses can't hang the test.
+            s.set_read_timeout(Some(TIMEOUT * 2)).unwrap();
             s.write_all(b"open C:/x\n").unwrap();
             let mut reply = Vec::new();
             let _ = s.read_to_end(&mut reply);
@@ -522,6 +524,7 @@ mod tests {
         ];
         for g in &guesses {
             let mut s = UnixStream::connect(&path).unwrap();
+            s.set_read_timeout(Some(TIMEOUT * 2)).unwrap();
             s.write_all(g.as_bytes()).unwrap();
             let mut reply = Vec::new();
             let _ = s.read_to_end(&mut reply);
@@ -530,6 +533,7 @@ mod tests {
         assert!(first.take().is_none(), "nothing handed over");
         // The right key: accepted.
         let mut s = UnixStream::connect(&path).unwrap();
+        s.set_read_timeout(Some(TIMEOUT * 2)).unwrap();
         s.write_all(request(&first.key, &["mailto:a@x.example".into()]).as_bytes()).unwrap();
         let mut reply = String::new();
         let _ = s.read_to_string(&mut reply);
