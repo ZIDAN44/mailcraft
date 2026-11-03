@@ -241,7 +241,8 @@ local-first, media-aware v1); the fuller request is
    browser, right-to-left inside dialogs, menus and the editor, Wayland drag-out, public folders
    on Exchange Online, S/MIME in the browser (revocation, smart cards and the system store), what
    the `.pst` libraries can't do yet, signed releases with a signature on updates and macOS updates
-   without an administrator, and on a big data file a search typed as the window opens and read
+   without an administrator, and on a big data file a common phrase's first search now and then, a
+   search typed as the window opens and read
    marks still over their budgets, and the search index's places (the
    owner's call on its size).
 
