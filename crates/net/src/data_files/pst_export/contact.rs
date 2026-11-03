@@ -223,6 +223,7 @@ fn contact(card: &Card, now: i64) -> Item {
         modified: filetime(now),
         props,
         files,
+        ..Default::default()
     }
 }
 
@@ -288,6 +289,7 @@ fn group_item(card: &Card, now: i64) -> Item {
         modified: filetime(now),
         props,
         files,
+        ..Default::default()
     }
 }
 

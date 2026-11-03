@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 9d78a600f1add6127e8fd3064fb907dc3ac40b23111f1ff8436a37cf5567c0d0 # shrinks to (rule, _) = ("FREQ=DAILY;INTERVAL=1", true), day = 0, minute = 0, zone = "", all_day = false, deleted = [33, 33]
+cc 1790a3da2f369d1225807934afc52d9f456fc0548a25ef997dc1de6bfb077474 # shrinks to (rule, _) = ("FREQ=YEARLY;INTERVAL=1;BYMONTH=M;BYDAY=-1SU", false), day = 880, minute = 80, zone = "America/New_York", all_day = false, deleted = []

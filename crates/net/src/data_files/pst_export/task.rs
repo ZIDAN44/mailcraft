@@ -71,6 +71,7 @@ pub(super) fn item(t: &Task, now: i64) -> Item {
         modified: filetime(if t.modified > 0 { t.modified } else { now }),
         props,
         files,
+        ..Default::default()
     }
 }
 

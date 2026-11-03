@@ -221,8 +221,10 @@ local-first, media-aware v1); the fuller request is
 32. **v0.32 — Pictures open without asking**
    A task list (Outlook's Tasks): every `.pst` task comes in, due or not, is edited, done and
    repeated here, is drawn in the calendar on its due day, and goes as a to-do in calendar files.
-   An exported `.pst` carries the account's contacts, contact groups, notes and tasks inside it,
-   as Outlook's own items in its Contacts, Notes and Tasks folders. A `.pst` brings in what it
+   An exported `.pst` carries the account's calendar, contacts, contact groups, notes and tasks
+   inside it, as Outlook's own items in its Calendar, Contacts, Notes and Tasks folders (repeating
+   appointments with their changed occurrences, meetings with their guests' answers), and meeting
+   mail as Outlook's meeting items: nothing beside it. A `.pst` brings in what it
    still left out: attached messages 32 deep, recalls and sharing invitations, contacts filed with
    mail, the files links point to, RSS feeds, and the files on notes, shown in the Notes pane.
    An opened `.pst` keeps MailCraft's copy beside it, never written into itself: opened again it

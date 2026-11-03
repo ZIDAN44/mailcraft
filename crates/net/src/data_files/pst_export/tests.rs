@@ -163,12 +163,10 @@ fn an_account_round_trips_through_a_data_file() {
     std::fs::remove_file(&file).unwrap();
     let mut ticks = 0;
     let done = export(&store, "a1", "Riley's mail", &file, &due, &mut |_| ticks += 1).unwrap();
-    assert_eq!(done, Exported { messages: 7, skipped: 1, already: 0, events: 1, tasks: 1, notes: 0, contacts: 1, pim_already: 0 });
-    // The calendar beside it, without the task, which is inside; no address book beside it.
-    let ics = std::fs::read_to_string(dir.join("Out Calendar.ics")).unwrap();
-    assert!(ics.contains("SUMMARY:Screening") && ics.contains("BEGIN:VCALENDAR"), "{ics}");
-    assert!(mailcraft_model::ical::parse(&ics, 0).tasks.is_empty(), "{ics}");
-    assert!(!dir.join("Out Contacts.vcf").exists());
+    assert_eq!(done, Exported { messages: 7, skipped: 1, already: 0, events: 1, occurrences: 0, tasks: 1, notes: 0, contacts: 1, pim_already: 0 });
+    // The calendar is inside it too: nothing beside it.
+    assert!(!dir.join("Out Calendar.ics").exists() && !dir.join("Out Contacts.vcf").exists());
+    assert_eq!(UnicodePstFile::special_folder(&file, Special::Calendar).unwrap(), Some(vec!["Calendar".to_string()]));
     assert!(ticks > 0);
 
     // The file records its special folders, as Outlook names them.
@@ -208,7 +206,7 @@ fn an_account_round_trips_through_a_data_file() {
     // Read back with the importer.
     let back = Store::open(dir.join("back")).unwrap();
     let imported = crate::pst::import(&file, &back, "b1", &mut |_| {}).unwrap();
-    assert_eq!((imported.messages, imported.contacts, imported.tasks), (7, 1, 1), "{imported:?}");
+    assert_eq!((imported.messages, imported.contacts, imported.tasks, imported.events), (7, 1, 1, 1), "{imported:?}");
     let all = back.load_folders("b1").unwrap();
     for (role, path) in
         [(FolderRole::Sent, "Sent Items"), (FolderRole::Trash, "Deleted Items"), (FolderRole::Drafts, "Drafts"), (FolderRole::Junk, "Junk Email")]
@@ -249,7 +247,7 @@ fn an_account_round_trips_through_a_data_file() {
     // Exported again into the same file (issue #18): added to, nothing twice; a new message goes
     // in beside the ones there, and the special folders stay the file's.
     let again = export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap();
-    assert_eq!((again.messages, again.already, again.contacts, again.tasks, again.pim_already), (0, 7, 0, 0, 2));
+    assert_eq!((again.messages, again.already, again.events, again.contacts, again.tasks, again.pim_already), (0, 7, 0, 0, 0, 3));
     let mut inbox = store.load_folder("a1", "INBOX").unwrap();
     inbox.messages.push(mk("INBOX", 3, "Third", false, Flags::default(), &plain).into());
     store.save_folder("a1", "INBOX", &inbox).unwrap();
@@ -257,8 +255,8 @@ fn an_account_round_trips_through_a_data_file() {
     assert_eq!((more.messages, more.already), (1, 7));
     let back = Store::open(dir.join("back2")).unwrap();
     let imported = crate::pst::import(&file, &back, "b2", &mut |_| {}).unwrap();
-    // The contact and the task once each.
-    assert_eq!((imported.messages, imported.contacts, imported.tasks), (8, 1, 1), "{imported:?}");
+    // The event, the contact and the task once each.
+    assert_eq!((imported.messages, imported.events, imported.contacts, imported.tasks), (8, 1, 1, 1), "{imported:?}");
     let subjects: Vec<String> = back.load_folder("b2", "INBOX").unwrap().messages.iter().map(|m| m.subject.clone()).collect();
     assert_eq!(subjects.iter().filter(|s| *s == "Second").count(), 1, "{subjects:?}");
     assert!(subjects.contains(&"Third".to_string()), "{subjects:?}");
@@ -509,4 +507,5 @@ fn an_ansi_data_file_says_which_format_it_is() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+mod calendar;
 mod pim;

@@ -1,8 +1,9 @@
 //! The account's contacts, contact groups, notes and tasks as Outlook items, in the data file's
-//! own Contacts, Notes and Tasks folders (MS-OXOCNTC, MS-OXONOTE, MS-OXOTASK; the folders recorded
-//! as the file's, MS-OXOSFLD 2.2, so Outlook shows them as its own): a card as an `IPM.Contact`
-//! or, a group's, an `IPM.DistList` ([`contact`]), a note as an `IPM.StickyNote`, a task as an
-//! `IPM.Task` ([`task`]). A file added to keeps its own items, and those it records as its
+//! own Calendar, Contacts, Notes and Tasks folders (MS-OXOCAL, MS-OXOCNTC, MS-OXONOTE, MS-OXOTASK;
+//! the folders recorded as the file's, MS-OXOSFLD 2.2, so Outlook shows them as its own): an event
+//! as an `IPM.Appointment` ([`calendar`]), a card as an `IPM.Contact` or, a group's, an
+//! `IPM.DistList` ([`contact`]), a note as an `IPM.StickyNote`, a task as an `IPM.Task`
+//! ([`task`]). A file added to keeps its own items, and those it records as its
 //! special folders take the account's. Each item is marked with its uid and a digest of what went
 //! in (`pst_pim::EXPORTED_ITEM`): added to again, an item the file has as it is now isn't written
 //! twice, and one changed since goes in again (beside its earlier copy, as the writer can't take an
@@ -16,6 +17,10 @@ use outlook_pst::{UnicodePstName, UnicodePstSpecialFolder as Special, UnicodePst
 use super::item::{PSETID_COMMON, filetime};
 use super::*;
 use outlook_pst::ltp::prop_context::GuidValue;
+
+mod batch;
+use batch::write_batch;
+pub(super) use batch::{Lists, lists, properties};
 
 /// PSETID_Address and PSETID_Note (MS-OXPROPS 1.3.2).
 pub(super) const PSETID_ADDRESS: GuidValue = GuidValue::new(0x0006_2004, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
@@ -63,7 +68,26 @@ pub(super) struct File {
     pub(super) picture: bool,
 }
 
+/// Someone an item is to: an appointment's organizer or one of its attendees, with its
+/// PidTagRecipientFlags and PidTagRecipientTrackStatus when it has them (MS-OXOCAL 2.2.4.10).
+#[derive(Clone)]
+pub(super) struct Person {
+    pub(super) name: String,
+    pub(super) email: String,
+    pub(super) kind: UnicodePstRecipientType,
+    pub(super) flags: Option<i32>,
+    pub(super) track: Option<i32>,
+}
+
+/// An item attached to another, hidden: an appointment's changed occurrence (MS-OXOCAL 2.2.10.1),
+/// with the attachment's own properties (tagged).
+pub(super) struct Attached {
+    pub(super) item: Item,
+    pub(super) props: Vec<(u16, Value)>,
+}
+
 /// An item, ready to write.
+#[derive(Default)]
 pub(super) struct Item {
     pub(super) class: &'static str,
     pub(super) subject: String,
@@ -74,6 +98,13 @@ pub(super) struct Item {
     pub(super) modified: i64,
     pub(super) props: Vec<(Key, Value)>,
     pub(super) files: Vec<File>,
+    /// Who it's from (name, address): an appointment's organizer.
+    pub(super) sender: (String, String),
+    pub(super) people: Vec<Person>,
+    pub(super) attached: Vec<Attached>,
+    /// An occurrence of a series whose rule the pattern can't say, written on its own (not part
+    /// of what it is: counted only).
+    pub(super) occurrence: bool,
 }
 
 impl Item {
@@ -85,7 +116,8 @@ impl Item {
             Value::Bins(b) => b.iter().map(Vec::len).sum(),
             _ => 8,
         });
-        self.body.len().saturating_add(props.sum()).saturating_add(self.files.iter().map(|f| f.data.len()).sum())
+        let attached = self.attached.iter().map(|a| a.item.bytes()).fold(0usize, usize::saturating_add);
+        self.body.len().saturating_add(props.sum()).saturating_add(self.files.iter().map(|f| f.data.len()).sum()).saturating_add(attached)
     }
 
     /// The item marked as the account's item `uid`, with a digest of all that is written of it
@@ -103,6 +135,11 @@ impl Item {
     /// with its length, so the same item always gives the same digest, whatever version wrote it.
     fn digest(&self) -> u64 {
         let mut h = Fnv(0xCBF2_9CE4_8422_2325);
+        self.digest_into(&mut h);
+        h.0
+    }
+
+    fn digest_into(&self, h: &mut Fnv) {
         h.part(self.class.as_bytes());
         h.part(self.subject.as_bytes());
         h.part(self.body.as_bytes());
@@ -116,22 +153,7 @@ impl Item {
                 Key::Keywords => h.part(&[2]),
                 Key::Exported => h.part(&[3]),
             }
-            match value {
-                Value::Int(n) => h.part(&[&[0][..], &n.to_le_bytes()].concat()),
-                Value::Bool(b) => h.part(&[1, u8::from(*b)]),
-                Value::Time(t) => h.part(&[&[2][..], &t.to_le_bytes()].concat()),
-                Value::Float(f) => h.part(&[&[3][..], &f.to_bits().to_le_bytes()].concat()),
-                Value::Text(s) => h.part(&[&[4][..], s.as_bytes()].concat()),
-                Value::Bin(b) => h.part(&[&[5][..], b].concat()),
-                Value::Texts(t) => {
-                    h.part(&[6]);
-                    t.iter().for_each(|s| h.part(s.as_bytes()));
-                }
-                Value::Bins(b) => {
-                    h.part(&[7]);
-                    b.iter().for_each(|x| h.part(x));
-                }
-            }
+            value_digest(h, value);
         }
         for f in &self.files {
             h.part(f.name.as_bytes());
@@ -139,7 +161,48 @@ impl Item {
             h.part(&f.data);
             h.part(&[u8::from(f.picture)]);
         }
-        h.0
+        // An appointment's organizer, guests and changed occurrences (none: nothing more, so the
+        // digest of an item without them is what it was).
+        if !self.sender.1.is_empty() || !self.people.is_empty() || !self.attached.is_empty() {
+            h.part(self.sender.0.as_bytes());
+            h.part(self.sender.1.as_bytes());
+            for p in &self.people {
+                let n = |v: Option<i32>| {
+                    v.map_or([0; 5], |n| {
+                        let b = n.to_le_bytes();
+                        [1, b[0], b[1], b[2], b[3]]
+                    })
+                };
+                h.part(&[p.name.as_bytes(), &[0], p.email.as_bytes(), &[0, p.kind as u8], &n(p.flags), &n(p.track)].concat());
+            }
+            for a in &self.attached {
+                a.item.digest_into(h);
+                for (id, v) in &a.props {
+                    h.part(&id.to_le_bytes());
+                    value_digest(h, v);
+                }
+            }
+        }
+    }
+}
+
+/// A value into a digest being made.
+fn value_digest(h: &mut Fnv, value: &Value) {
+    match value {
+        Value::Int(n) => h.part(&[&[0][..], &n.to_le_bytes()].concat()),
+        Value::Bool(b) => h.part(&[1, u8::from(*b)]),
+        Value::Time(t) => h.part(&[&[2][..], &t.to_le_bytes()].concat()),
+        Value::Float(f) => h.part(&[&[3][..], &f.to_bits().to_le_bytes()].concat()),
+        Value::Text(s) => h.part(&[&[4][..], s.as_bytes()].concat()),
+        Value::Bin(b) => h.part(&[&[5][..], b].concat()),
+        Value::Texts(t) => {
+            h.part(&[6]);
+            t.iter().for_each(|s| h.part(s.as_bytes()));
+        }
+        Value::Bins(b) => {
+            h.part(&[7]);
+            b.iter().for_each(|x| h.part(x));
+        }
     }
 }
 
@@ -162,6 +225,10 @@ pub(super) fn crlf(s: &str) -> String {
 /// What went into the data file, and what a file added to had already (as it is now).
 #[derive(Default)]
 pub(super) struct Written {
+    pub(super) events: usize,
+    /// Occurrences of series whose rule Outlook's pattern can't say, each written as an
+    /// appointment of its own (among `events`).
+    pub(super) occurrences: usize,
     pub(super) contacts: usize,
     pub(super) notes: usize,
     pub(super) tasks: usize,
@@ -171,10 +238,13 @@ pub(super) struct Written {
 /// The account's items for each of the file's folders, those it has, each marked; `now` is when
 /// the export runs (Unix seconds), a card's time.
 fn items(pim: &Pim, now: i64) -> Vec<(Special, Vec<Item>)> {
+    let events: Vec<&mailcraft_model::ical::CalEvent> = pim.events.iter().map(|e| &e.event).collect();
+    let calendar = super::calendar::items(&events, now).into_iter().map(|(uid, item)| item.marked(&uid)).collect();
     let contacts: Vec<Item> = pim.cards.iter().map(|c| super::contact::item(&c.card, now).marked(&c.card.uid)).collect();
     let notes = pim.notes.iter().map(|n| note(&n.note, now).marked(&n.note.uid)).collect();
     let tasks = pim.tasks.iter().map(|t| super::task::item(&t.task, now).marked(&t.task.uid)).collect();
-    [(Special::Contacts, contacts), (Special::Notes, notes), (Special::Tasks, tasks)].into_iter().filter(|(_, items)| !items.is_empty()).collect()
+    let all = [(Special::Calendar, calendar), (Special::Contacts, contacts), (Special::Notes, notes), (Special::Tasks, tasks)];
+    all.into_iter().filter(|(_, items)| !items.is_empty()).collect()
 }
 
 /// A note (MS-OXONOTE 2.2.1): its text the body, its first line the subject, its colour, and its
@@ -192,10 +262,11 @@ fn note(n: &Note, now: i64) -> Item {
             lid(PSETID_NOTE, 0x8B03, Value::Int(NOTE_SIZE.1)),
         ],
         files: n.files.iter().filter_map(|l| super::task::file(l)).collect(),
+        ..Default::default()
     }
 }
 
-/// Write the account's contacts, notes and tasks (`pim`) into the data file at `path` (made when
+/// Write the account's calendar, contacts, notes and tasks (`pim`) into the data file at `path` (made when
 /// there is none yet: `created`); `existing`: a file added to, whose special folders take them;
 /// `taken`: where the account's mail went, so a new folder isn't one of those. The file has the
 /// mail by then: one that can't record a folder as its own keeps the items, and the log says why.
@@ -233,6 +304,10 @@ pub(super) fn write(path: &Path, pim: &Pim, taken: &[Vec<String>], existing: boo
             start = end;
         }
         match role {
+            Special::Calendar => {
+                done.events = count;
+                done.occurrences = items.iter().filter(|i| i.occurrence).count();
+            }
             Special::Contacts => done.contacts = count,
             Special::Notes => done.notes = count,
             _ => done.tasks = count,
@@ -337,99 +412,6 @@ fn already(path: &Path, names: &[&str]) -> HashSet<String> {
         Ok(Ok(found)) => found,
         _ => HashSet::new(),
     }
-}
-
-/// The multi-valued properties' lists of an item, in the order of its properties.
-struct Lists<'a> {
-    texts: Vec<Vec<&'a str>>,
-    bins: Vec<Vec<&'a [u8]>>,
-}
-
-fn lists(item: &Item) -> Lists<'_> {
-    let mut l = Lists { texts: Vec::new(), bins: Vec::new() };
-    for (_, v) in &item.props {
-        match v {
-            Value::Texts(t) => l.texts.push(t.iter().map(String::as_str).collect()),
-            Value::Bins(b) => l.bins.push(b.iter().map(Vec::as_slice).collect()),
-            _ => {}
-        }
-    }
-    l
-}
-
-/// An item's properties as the writer takes them.
-fn properties<'a>(item: &'a Item, lists: &'a Lists<'a>) -> Vec<UnicodePstProperty<'a>> {
-    let (mut texts, mut bins) = (lists.texts.iter(), lists.bins.iter());
-    let mut out = Vec::new();
-    for (key, value) in &item.props {
-        let value = match value {
-            Value::Int(n) => UnicodePstValue::Integer32(*n),
-            Value::Bool(b) => UnicodePstValue::Boolean(*b),
-            Value::Time(t) => UnicodePstValue::Time(*t),
-            Value::Float(f) => UnicodePstValue::Floating64(*f),
-            Value::Text(s) => UnicodePstValue::Unicode(s),
-            Value::Bin(b) => UnicodePstValue::Binary(b),
-            Value::Texts(_) => match texts.next() {
-                Some(t) => UnicodePstValue::MultipleUnicode(t),
-                None => continue,
-            },
-            Value::Bins(_) => match bins.next() {
-                Some(b) => UnicodePstValue::MultipleBinary(b),
-                None => continue,
-            },
-        };
-        out.push(match key {
-            Key::Tag(id) => UnicodePstProperty::tagged(*id, value),
-            Key::Lid(set, id) => UnicodePstProperty::named(*set, UnicodePstName::Id(*id), value),
-            Key::Keywords => UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String("Keywords"), value),
-            Key::Exported => UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String(crate::pst_pim::EXPORTED_ITEM), value),
-        });
-    }
-    out
-}
-
-fn write_batch(path: &Path, folder: &[&str], batch: &[Item]) -> Result<(), String> {
-    // PidTagAttachmentContactPhoto, and hidden, as Outlook marks a contact's picture.
-    let picture =
-        [UnicodePstProperty::tagged(0x7FFF, UnicodePstValue::Boolean(true)), UnicodePstProperty::tagged(0x7FFE, UnicodePstValue::Boolean(true))];
-    let lists: Vec<Lists<'_>> = batch.iter().map(lists).collect();
-    let properties: Vec<Vec<UnicodePstProperty<'_>>> = batch.iter().zip(&lists).map(|(item, l)| properties(item, l)).collect();
-    let files: Vec<Vec<UnicodePstAttachment<'_>>> = batch
-        .iter()
-        .map(|item| {
-            item.files
-                .iter()
-                .map(|f| UnicodePstAttachment {
-                    filename: &f.name,
-                    mime_type: &f.mime,
-                    data: &f.data,
-                    properties: if f.picture { &picture } else { &[] },
-                    ..Default::default()
-                })
-                .collect()
-        })
-        .collect();
-    let messages: Vec<UnicodePstBatchMessage<'_>> = batch
-        .iter()
-        .zip(&properties)
-        .zip(&files)
-        .map(|((item, p), f)| UnicodePstBatchMessage {
-            message: UnicodePstMessage {
-                subject: &item.subject,
-                sender_name: "",
-                sender_email: "",
-                recipients: &[],
-                body: &item.body,
-                html_body: None,
-                message_id: "",
-                delivery_time: item.modified,
-                message_class: item.class,
-                properties: p,
-            },
-            attachments: f,
-        })
-        .collect();
-    append(path, folder, &messages)
 }
 
 /// The categories, as an item's `Keywords`.

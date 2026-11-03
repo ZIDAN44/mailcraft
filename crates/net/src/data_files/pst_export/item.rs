@@ -52,6 +52,16 @@ pub(super) struct Owned {
     pub(super) importance: i32,
     pub(super) sensitivity: Option<i32>,
     pub(super) state: State,
+    /// A meeting's request, cancellation or answer: its class and the meeting's properties
+    /// (`super::meeting`); else none, an `IPM.Note`.
+    pub(super) meeting: Option<super::meeting::Meeting>,
+}
+
+impl Owned {
+    /// Its class (PidTagMessageClass).
+    pub(super) fn class(&self) -> &'static str {
+        self.meeting.as_ref().map_or("IPM.Note", |m| m.class)
+    }
 }
 
 /// What the store keeps of a message beyond its source.
@@ -111,6 +121,7 @@ pub(super) fn owned(raw: &[u8], received: i64, state: State) -> Option<Owned> {
         .filter(|a| a.size <= MAX_ATTACHMENT)
         .filter_map(|a| Some((a.name.clone(), a.mime.clone(), a.content_id.clone(), mime::attachment_data(raw, a.index)?)))
         .collect();
+    let meeting = super::meeting::of(raw, &p);
     let headers = header_block(raw);
     let field = |name: &str| header_value(&headers, name).unwrap_or_default();
     let importance = match field("Importance").to_ascii_lowercase().as_str() {
@@ -146,6 +157,7 @@ pub(super) fn owned(raw: &[u8], received: i64, state: State) -> Option<Owned> {
         importance,
         sensitivity,
         state,
+        meeting,
     })
 }
 

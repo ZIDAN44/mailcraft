@@ -6,11 +6,12 @@
 //! Deleted Items, Drafts and Junk Email ([`place`]). Each message whose body is here goes in with
 //! its addresses (Bcc too), text and HTML bodies, attachments and header block, and with what the
 //! store keeps of it: read or not, a draft, flagged (and when it's due), answered or forwarded,
-//! its categories, importance and sensitivity ([`item`]). Messages only known by their headers
-//! (never opened, on an account that keeps headers only) are counted as skipped. The account's
-//! contacts, contact groups, notes and tasks go in as Outlook's own items, in the file's Contacts,
-//! Notes and Tasks folders ([`pim`]). Events aren't mapped onto Outlook's items yet, so the
-//! account's calendar goes beside the file as `… Calendar.ics`, which every calendar reads.
+//! its categories, importance and sensitivity ([`item`]); a meeting's request, cancellation or
+//! answer as Outlook's meeting mail, with the meeting's own properties ([`meeting`]). Messages
+//! only known by their headers (never opened, on an account that keeps headers only) are counted
+//! as skipped. The account's calendar, contacts, contact groups, notes and tasks go in as
+//! Outlook's own items, in the file's Calendar, Contacts, Notes and Tasks folders ([`pim`],
+//! [`calendar`]): nothing is written beside the file.
 //!
 //! A data file that's already there is added to, as Outlook's export does (issue #18): its mail
 //! stays, the account's goes into folders of the same names, and messages already in it (by
@@ -35,8 +36,10 @@ use outlook_pst::{
     UnicodePstRecipientType,
 };
 
+mod calendar;
 mod contact;
 mod item;
+mod meeting;
 mod pattern;
 mod pim;
 mod place;
@@ -64,8 +67,11 @@ pub struct Exported {
     pub skipped: usize,
     /// Messages a data file already there had (by `Message-ID`), not written again.
     pub already: usize,
-    /// Events written beside the data file (its calendar).
+    /// The account's events written into it as appointments (a series is one)…
     pub events: usize,
+    /// …of which occurrences of a series whose rule Outlook's pattern can't say, each written as
+    /// an appointment of its own (MS-OXOCAL has no place for the rule).
+    pub occurrences: usize,
     /// The account's tasks, notes and people (contact groups among them) written into it…
     pub tasks: usize,
     pub notes: usize,
@@ -212,26 +218,24 @@ pub fn export(
             if let Err(e) = std::fs::rename(&temp, path) {
                 return Err(format!("the data file couldn't be replaced ({e}): the mail is in {}", temp.display()));
             }
-            let events = calendar_beside(&pim, path, now).map_err(|e| e.to_string())?;
-            Ok(Exported { events, tasks: inside.tasks, notes: inside.notes, contacts: inside.contacts, pim_already: inside.already, ..done })
+            if inside.occurrences > 0 {
+                log::info!("{} occurrences of series whose rule Outlook can't keep went in one by one", inside.occurrences);
+            }
+            Ok(Exported {
+                events: inside.events,
+                occurrences: inside.occurrences,
+                tasks: inside.tasks,
+                notes: inside.notes,
+                contacts: inside.contacts,
+                pim_already: inside.already,
+                ..done
+            })
         }
         Err(e) => {
             let _ = std::fs::remove_file(&temp);
             Err(e)
         }
     }
-}
-
-/// The account's calendar beside the data file (its tasks are inside it): the events written.
-fn calendar_beside(pim: &mailcraft_model::pim::Pim, path: &Path, now: i64) -> mailcraft_store::Result<usize> {
-    let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Mail".into());
-    let dir = path.parent().unwrap_or(Path::new("."));
-    let events: Vec<mailcraft_model::ical::CalEvent> = pim.events.iter().map(|e| e.event.clone()).collect();
-    if !events.is_empty() {
-        let ics = mailcraft_model::ical::write_calendar(&events, &[], now);
-        mailcraft_store::write_atomic(&dir.join(format!("{stem} Calendar.ics")), ics.as_bytes())?;
-    }
-    Ok(events.len())
 }
 
 /// Record the folders of the account's special roles as the file's own special folders, unless
@@ -285,7 +289,16 @@ fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> R
         })
         .collect();
     let categories: Vec<Vec<&str>> = batch.iter().map(|m| m.state.categories.iter().map(String::as_str).collect()).collect();
-    let properties: Vec<_> = batch.iter().zip(&categories).map(|(m, c)| item::properties(m, c)).collect();
+    // A meeting's own properties beside the message's.
+    let none = Vec::new();
+    let meetings: Vec<&Vec<(pim::Key, pim::Value)>> = batch.iter().map(|m| m.meeting.as_ref().map_or(&none, |x| &x.props)).collect();
+    let lists: Vec<pim::Lists<'_>> = meetings.iter().map(|p| pim::lists(p)).collect();
+    let properties: Vec<Vec<UnicodePstProperty<'_>>> = batch
+        .iter()
+        .zip(&categories)
+        .zip(meetings.iter().zip(&lists))
+        .map(|((m, c), (p, l))| [item::properties(m, c), pim::properties(p, l)].concat())
+        .collect();
     let messages: Vec<UnicodePstBatchMessage<'_>> = batch
         .iter()
         .zip(&recipients)
@@ -301,7 +314,7 @@ fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> R
                 html_body: m.html.as_deref(),
                 message_id: &m.message_id,
                 delivery_time: m.received,
-                message_class: "IPM.Note",
+                message_class: m.class(),
                 properties: p,
             },
             attachments: f,
@@ -359,4 +372,28 @@ pub fn task_pattern(rule: &str, from: i64) -> Option<(Vec<u8>, bool)> {
 pub fn read_back_text(body: &str) -> (mailcraft_model::vcard::Card, mailcraft_model::pim::Task) {
     let x = crate::pst_pim::Extra::default();
     (crate::pst_pim::card_of(&x, body, "c".into()), crate::pst_pim::task_of(&x, "Task", body, 0, "t".into()))
+}
+
+/// The pattern an export writes for a repeating appointment starting at `start` (Unix seconds,
+/// in the zone `tzid`, an hour long) with `rule`, each of `moves` a changed occurrence: (which
+/// occurrence, how far it moved in seconds, its title); `None` when the pattern can't say the
+/// series. For the fuzz target, whose reader reads it back.
+#[doc(hidden)]
+pub fn appointment_pattern(rule: &str, start: i64, tzid: &str, moves: &[(usize, i64, &str)]) -> Option<Vec<u8>> {
+    use mailcraft_model::ical::{self, CalEvent};
+    let e = CalEvent { uid: "u".into(), start, end: start.saturating_add(3600), tzid: tzid.into(), rrule: Some(rule.into()), ..Default::default() };
+    let all = ical::starts(&e, i64::MAX);
+    let own: Vec<CalEvent> = moves
+        .iter()
+        .filter_map(|(i, by, title)| {
+            let r = *all.get(i.checked_rem(all.len())?)?;
+            let s = r.saturating_add(*by);
+            Some(CalEvent { recurrence_id: Some(r), start: s, end: s.saturating_add(3600), summary: (*title).into(), rrule: None, ..e.clone() })
+        })
+        .collect();
+    let own: Vec<&CalEvent> = own.iter().collect();
+    calendar::series(&e, &own)?.into_iter().find_map(|(k, v)| match (k, v) {
+        (pim::Key::Lid(_, 0x8216), pim::Value::Bin(b)) => Some(b),
+        _ => None,
+    })
 }

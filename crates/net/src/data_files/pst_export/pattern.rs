@@ -2,8 +2,9 @@
 //! task's PidLidTaskRecurrence takes and `pst_pim::recur` reads: daily every so many days, weekly
 //! on some days, monthly on a day of the month, its last day or the nth of a weekday, yearly on
 //! the first occurrence's day or the nth of a weekday in its month; ending on a day, after so many
-//! times, or never. A rule it can't say (hourly, `BYSETPOS`, several days of the month…) has no
-//! pattern, and one it says differently from the rule is checked by reading it back ([`says`]).
+//! times, or never; with the days of occurrences deleted and changed, for an appointment's
+//! (`super::calendar`). A rule it can't say (hourly, `BYSETPOS`, several days of the month…) has
+//! no pattern, and one it says differently from the rule is checked by reading it back ([`says`]).
 
 use mailcraft_model::dates::{civil_from_days, days_from_civil};
 
@@ -74,6 +75,13 @@ fn parse(rule: &str) -> Option<Rule> {
 /// The pattern of `rule` for a task whose first day is `from` (Unix seconds, its midnight in
 /// UTC); `None` when the pattern can't say it.
 pub(super) fn write(rule: &str, from: i64) -> Option<Vec<u8>> {
+    write_with(rule, from, &[], &[])
+}
+
+/// The pattern of `rule` whose first day is `from` (its midnight, local), with the days
+/// (minutes from 1601, local midnights, in order) of the occurrences `deleted` (those changed
+/// among them) and of those changed, on the days they are now (`modified`).
+pub(super) fn write_with(rule: &str, from: i64, deleted: &[u32], modified: &[u32]) -> Option<Vec<u8>> {
     let r = parse(rule)?;
     let day = from.div_euclid(86_400);
     let (y, m, d) = civil_from_days(day);
@@ -141,8 +149,12 @@ pub(super) fn write(rule: &str, from: i64) -> Option<Vec<u8>> {
     }
     let mut words = vec![first, period, 0];
     words.extend(specific);
-    // FirstDOW the rule's; no deleted or changed occurrences.
-    words.extend([end_type, count, r.week_start, 0, 0, start, end]);
+    // FirstDOW the rule's, then the deleted and the changed occurrences.
+    words.extend([end_type, count, r.week_start, u32::try_from(deleted.len()).ok()?]);
+    words.extend(deleted);
+    words.push(u32::try_from(modified.len()).ok()?);
+    words.extend(modified);
+    words.extend([start, end]);
     for w in words {
         out.extend(w.to_le_bytes());
     }
@@ -150,7 +162,7 @@ pub(super) fn write(rule: &str, from: i64) -> Option<Vec<u8>> {
 }
 
 /// Minutes from 1601 to the start of `day` (days since 1970), as a pattern keeps a day.
-fn minutes(day: i64) -> Option<u32> {
+pub(super) fn minutes(day: i64) -> Option<u32> {
     u32::try_from(day.checked_mul(1440)?.checked_add(EPOCH_MINUTES)?).ok()
 }
 
