@@ -9,11 +9,12 @@
 //! its categories, importance and sensitivity ([`item`]); a meeting's request, cancellation or
 //! answer as Outlook's meeting mail, with the meeting's own properties ([`meeting`]); signed and
 //! encrypted mail and reports as Outlook keeps them ([`kinds`]); an attached message as the
-//! message it is, and files of any size, a big one read from the cache as it's written ([`files`]).
+//! message it is, and files of any size, a big one kept in a file of its own until its batch is
+//! written ([`files`]).
 //! Messages only known by their headers (never opened, on an account that keeps headers only)
 //! are counted as skipped. The account's calendar, contacts, contact groups, notes and tasks go
 //! in as Outlook's own items, in the file's Calendar, Contacts, Notes and Tasks folders
-//! ([`pim`], [`calendar`]): nothing is written beside the file.
+//! ([`pim`], [`calendar`]): nothing stays beside the file.
 //!
 //! A data file that's already there is added to, as Outlook's export does (issue #18): its mail
 //! stays, the account's goes into folders of the same names, and messages already in it (by
@@ -58,9 +59,11 @@ use writing::{append, write};
 /// Messages written per commit to the file, at most: the writer rewrites the folder's table of
 /// contents with each, so a big folder written a hundred at a time took longer with every batch.
 const BATCH: usize = 2000;
-/// …and the bytes they hold (their text and files; not the big files left in the cache until
-/// they are written, [`files::HELD_UP_TO`]), at most.
+/// …and the bytes they hold (their text and files; not the big files waiting in files of their
+/// own until they are written, [`files::HELD_UP_TO`]), at most…
 const BATCH_BYTES: usize = 48 << 20;
+/// …and the bytes of those big files, at most: the room they take beside the data file.
+const SPILL_BYTES: u64 = 2 << 30;
 /// How deep folders in a data file already there are looked through.
 const MAX_DEPTH: usize = 64;
 
@@ -156,6 +159,7 @@ pub fn export(
     let mut done = Exported::default();
     let temp = path.with_extension("pst.part");
     let _ = std::fs::remove_file(&temp);
+    let spill = files::Spill::new(path.with_extension("pst.part-files"));
     // Added to: a copy of it, with the messages it has already left out.
     let existing = path.is_file();
     let had = if existing { ids_in(path)? } else { HashSet::new() };
@@ -182,25 +186,26 @@ pub fn export(
             for s in &st.messages {
                 let key = MessageKey { account: account.to_string(), folder: f.path.clone(), validity: s.key.validity, uid: s.key.uid };
                 let state = item::state(s, f.role, follow_up);
-                match store.read_body(&key).and_then(|raw| item::owned(&raw, s.received, state, &owner)) {
+                match store.read_body(&key).and_then(|raw| item::owned(&raw, s.received, state, &owner, Some(&spill))) {
                     Some(m) if !m.message_id.is_empty() && had.contains(&mailcraft_model::thread::norm_id(&m.message_id)) => done.already += 1,
-                    Some(mut m) => {
+                    Some(m) => {
                         bytes = bytes.saturating_add(m.held());
-                        m.key = key;
                         batch.push(m);
                     }
                     None => done.skipped += 1,
                 }
-                if batch.len() >= BATCH || bytes >= BATCH_BYTES {
+                if batch.len() >= BATCH || bytes >= BATCH_BYTES || spill.bytes() >= SPILL_BYTES {
                     let n = batch.len();
-                    write(store, &temp, &folder, &std::mem::take(&mut batch), &mut created)?;
+                    write(&temp, &folder, &std::mem::take(&mut batch), &mut created)?;
+                    spill.clear();
                     bytes = 0;
                     done.messages += n;
                     progress(done.messages);
                 }
             }
             if !batch.is_empty() {
-                write(store, &temp, &folder, &batch, &mut created)?;
+                write(&temp, &folder, &batch, &mut created)?;
+                spill.clear();
                 done.messages += batch.len();
                 progress(done.messages);
             }
@@ -288,7 +293,7 @@ fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, cre
 /// a note), its files and attached messages read as it reads them. For the fuzz target.
 #[doc(hidden)]
 pub fn message_class(raw: &[u8]) -> Option<&'static str> {
-    item::owned(raw, 0, item::State::default(), &calendar::Owner::default()).map(|m| m.class())
+    item::owned(raw, 0, item::State::default(), &calendar::Owner::default(), None).map(|m| m.class())
 }
 
 /// A task's rule as the pattern an export writes for a task whose first day is `from`, and

@@ -167,6 +167,12 @@ fn a_file_moved_out_of_its_parse_is_the_file() {
     }
     assert_eq!(attachment_data_moved(&raw, 0).as_deref(), Some(&bin[..]));
     assert_eq!(attachment_data_moved(&raw, 9), None);
+    // All of them from one parse, each once: an index asked twice, and one it doesn't have.
+    let mut all = Vec::new();
+    attachments_moved(&raw, &[4, 0, 3, 1, 2, 0, 9], &mut |index, data| all.push((index, data)));
+    all.sort();
+    let each: Vec<_> = p.attachments.iter().map(|a| (a.index, attachment_data(&raw, a.index).unwrap())).collect();
+    assert_eq!(all, each);
 }
 
 proptest! {

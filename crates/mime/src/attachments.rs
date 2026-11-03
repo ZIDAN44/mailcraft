@@ -456,17 +456,48 @@ pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
 /// [`attachment_data`] for a big file: a decoded file's bytes are moved out of the parse rather
 /// than copied, so the message and the file are held once each, not the file twice.
 pub fn attachment_data_moved(raw: &[u8], index: usize) -> Option<Vec<u8>> {
-    let mut m = MessageParser::default().parse(raw)?;
-    let at = {
+    let mut out = None;
+    attachments_moved(raw, &[index], &mut |_, data| out = Some(data));
+    out
+}
+
+/// [`attachment_data_moved`] for several files from one parse: `each` is handed each of `wanted`
+/// the message has (each once, in no set order), one at a time, so a message with 30 big files
+/// is parsed once, not 30 times, and holds no file twice.
+pub fn attachments_moved(raw: &[u8], wanted: &[usize], each: &mut dyn FnMut(usize, Vec<u8>)) {
+    let mut wanted = wanted.to_vec();
+    wanted.sort_unstable();
+    wanted.dedup();
+    if wanted.is_empty() {
+        return;
+    }
+    let Some(mut m) = MessageParser::default().parse(raw) else { return };
+    // A decoded file's place among the parts, to move it out once nothing borrows the parse;
+    // any other (a text file, an attached message) is copied out as `attachment_data` does.
+    let mut binary: Vec<(usize, usize)> = Vec::new();
+    {
         let (found, _) = attached(&m);
-        let part = found.into_iter().find(|a| a.info.index == index)?.part;
-        part.filter(|p| matches!(p.body, mail_parser::PartType::Binary(_) | mail_parser::PartType::InlineBinary(_)))
-            .and_then(|p| m.parts.iter().position(|q| std::ptr::eq(q, p)))
-    };
-    let Some(at) = at else { return attachment_data(raw, index) };
-    match std::mem::replace(&mut m.parts.get_mut(at)?.body, mail_parser::PartType::Text(Cow::Borrowed(""))) {
-        mail_parser::PartType::Binary(data) | mail_parser::PartType::InlineBinary(data) => Some(data.into_owned()),
-        _ => None,
+        for a in found {
+            // Each once.
+            let Ok(w) = wanted.binary_search(&a.info.index) else { continue };
+            wanted.remove(w);
+            let at = a
+                .part
+                .filter(|p| matches!(p.body, mail_parser::PartType::Binary(_) | mail_parser::PartType::InlineBinary(_)))
+                .and_then(|p| m.parts.iter().position(|q| std::ptr::eq(q, p)));
+            match at {
+                Some(at) => binary.push((a.info.index, at)),
+                None => each(a.info.index, a.part.and_then(|p| sent_bytes(&m, p)).unwrap_or_else(|| a.data.into_owned())),
+            }
+        }
+    }
+    for (index, at) in binary {
+        let Some(part) = m.parts.get_mut(at) else { continue };
+        if let mail_parser::PartType::Binary(data) | mail_parser::PartType::InlineBinary(data) =
+            std::mem::replace(&mut part.body, mail_parser::PartType::Text(Cow::Borrowed("")))
+        {
+            each(index, data.into_owned());
+        }
     }
 }
 

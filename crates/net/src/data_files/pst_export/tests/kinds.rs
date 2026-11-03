@@ -264,3 +264,105 @@ fn meeting_mail_and_reports_keep_their_classes() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A big file's bytes, the `n`th file's: not one repeated block.
+fn big_file(n: u8, len: usize) -> Vec<u8> {
+    (0..len).map(|at| ((at as u64).wrapping_add(u64::from(n)).wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 56) as u8).collect()
+}
+
+/// A big file waits in a file of its own, not in the cache: a message whose source leaves the
+/// cache between its batch's collecting and its writing (a sync's expunge, a move) is still
+/// written whole, and the export leaves nothing beside its file.
+#[test]
+fn a_big_file_doesnt_need_the_cache_once_collected() {
+    let dir = scratch("waits");
+    let data = big_file(1, 5 << 20);
+    let raw = build(&draft("Footage", "The take.", vec![file("take.bin", "application/octet-stream", &data)]), "take@studio.example");
+    let store = Store::open(dir.join("cache")).unwrap();
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    store.write_body(&key, &raw).unwrap();
+    let spill = files::Spill::new(dir.join("Mail.pst.part-files"));
+    let m = item::owned(&store.read_body(&key).unwrap(), 0, item::State::default(), &Default::default(), Some(&spill)).unwrap();
+    assert!(matches!(m.files.as_slice(), [files::File::Stored { .. }]));
+    assert!(spill.bytes() >= 5 << 20);
+    store.remove_body(&key);
+    let path = dir.join("Mail.pst");
+    let mut created = false;
+    write(&path, &["Inbox"], &[m], &mut created).unwrap();
+    spill.clear();
+    assert!(!dir.join("Mail.pst.part-files").exists());
+    let got = attachments_of(&in_file(&path, "Footage"));
+    assert!(matches!(got[0].data(), Some(AttachmentData::Binary(b)) if b.buffer() == data.as_slice()));
+
+    // Through a whole export: the file byte for byte, and nothing left beside it.
+    let again = scratch("waits-export");
+    let (path, _) = round_trip(&again, &[raw]);
+    let got = attachments_of(&in_file(&path, "Footage"));
+    assert!(matches!(got[0].data(), Some(AttachmentData::Binary(b)) if b.buffer() == data.as_slice()));
+    assert!(!again.join("Mail.pst.part-files").exists() && !again.join("Mail.pst.part").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&again);
+}
+
+/// Attached messages hold what they decode while those below them are read: past their room
+/// ([`files::MAX_ATTACHED`]) the next one down stays a `.eml` file, rather than each level holding
+/// a copy of all below it.
+#[test]
+fn attached_messages_hold_no_more_than_their_room() {
+    let level =
+        |subject: &str, inner: (&str, &str, &[u8])| build(&draft(subject, "Level.", vec![file(inner.0, inner.1, inner.2)]), "l@studio.example");
+    let three = level("Level 3", ("big.bin", "application/octet-stream", &big_file(3, 1 << 20)));
+    let two = level("Level 2", ("Level 3.eml", "message/rfc822", &three));
+    let one = level("Level 1", ("Level 2.eml", "message/rfc822", &two));
+    let top = level("Top", ("Level 1.eml", "message/rfc822", &one));
+    // Room for Level 1 and Level 2, not Level 3 as well.
+    let room = one.len() + two.len() + three.len() / 2;
+    let m = item::owned_in(&top, 0, item::State::default(), &Default::default(), &[], None, room).unwrap();
+    fn inner(m: &item::Owned) -> Option<&item::Owned> {
+        match m.files.as_slice() {
+            [files::File::Message { message, .. }] => Some(message.as_ref()),
+            _ => None,
+        }
+    }
+    let two_in = inner(inner(&m).unwrap()).unwrap();
+    assert_eq!(two_in.subject, "Level 2");
+    assert!(matches!(two_in.files.as_slice(), [files::File::Data { name, .. }] if name == "Level 3.eml"), "Level 3 stays a file");
+    // With the room it has, all three are attached messages.
+    let m = item::owned(&top, 0, item::State::default(), &Default::default(), None).unwrap();
+    let three_in = inner(inner(inner(&m).unwrap()).unwrap()).unwrap();
+    assert_eq!(three_in.subject, "Level 3");
+}
+
+/// A name as long as a message's names get keeps its extension, and a `Content-ID` too long for
+/// an attachment's block is cut with the HTML's reference to it, so the picture still shows;
+/// both go into the data file.
+#[test]
+fn long_names_keep_their_extension_and_long_ids_their_pictures() {
+    let dir = scratch("long-names");
+    let name = format!("{}.pdf", "report ".repeat(50));
+    let cid = format!("{}@studio.example", "c".repeat(1200));
+    // By hand: MailCraft's own mail never carries such a Content-ID.
+    let raw = format!(
+        "From: Riley <riley@studio.example>\r\nTo: Ana <ana@studio.example>\r\nSubject: Long names\r\nMessage-ID: <long-names@studio.example>\r\n\
+         MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+         --b\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>See <img src=\"cid:{cid}\"></p>\r\n\
+         --b\r\nContent-Type: image/png\r\nContent-ID: <{cid}>\r\nContent-Disposition: attachment; filename=\"p.png\"\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\niVBORw==\r\n\
+         --b\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"{name}\"\r\n\r\n%PDF-1.4\r\n--b--\r\n"
+    )
+    .into_bytes();
+    let m = item::owned(&raw, 0, item::State::default(), &Default::default(), None).unwrap();
+    let [files::File::Data { cid: Some(short_cid), .. }, files::File::Data { name: short, .. }] = m.files.as_slice() else {
+        panic!("two files: {:?}", mime::parse(&raw).map(|p| p.attachments))
+    };
+    assert!(short.ends_with(".pdf") && short.chars().count() <= 255, "{short}");
+    assert_eq!(short_cid.chars().count(), 1000);
+    assert!(cid.starts_with(short_cid.as_str()));
+    assert!(m.html.as_deref().is_some_and(|h| h.contains(&format!("cid:{short_cid}\""))), "{:?}", m.html);
+
+    let (path, _) = round_trip(&dir, &[raw]);
+    let got = attachments_of(&in_file(&path, "Long names"));
+    assert_eq!(text(got[0].properties().get(0x3712)).as_deref(), Some(short_cid.as_str()));
+    assert_eq!(text(got[1].properties().get(0x3707)).as_deref(), Some(short.as_str()));
+    let _ = std::fs::remove_dir_all(&dir);
+}

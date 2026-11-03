@@ -12,7 +12,7 @@ const BIG: usize = 120 << 20;
 /// Where the cache to export is, for the export's own process.
 const DIR_VAR: &str = "MC_EXPORT_BIG_DIR";
 /// The most the export may add to its process's peak working set: one message's source and its
-/// file decoded beside it (290 MB measured), and the writer's blocks on their way. Both files
+/// file decoded beside it (289 MB measured), and the writer's blocks on their way. Both files
 /// held with their batch, as before, came to 411 MB.
 const MAX_GROWTH: u64 = 350 << 20;
 
@@ -21,6 +21,19 @@ const MAX_GROWTH: u64 = 350 << 20;
 fn byte(n: usize, at: usize) -> u8 {
     let x = (at as u64).wrapping_add(n as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
     (x >> 56) as u8
+}
+
+/// Whether this system says what a process's peak working set is ([`peak`]): elsewhere the
+/// memory bound isn't checked, only the file.
+const MEASURED: bool = cfg!(any(windows, target_os = "linux"));
+
+/// A folder taken away when the test ends, passed or not: it holds about 1 GB.
+struct Scratch(std::path::PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 /// This process's peak working set, in bytes (Windows' count, asked of PowerShell; Linux's
@@ -84,7 +97,8 @@ fn files_in(path: &Path) -> usize {
 
 #[test]
 fn big_files_are_written_with_bounded_memory() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-big-{}", std::process::id()));
+    let scratch = Scratch(std::env::temp_dir().join(format!("mailcraft-pst-export-big-{}", std::process::id())));
+    let dir = scratch.0.clone();
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let store = Store::open(dir.join("cache")).unwrap();
@@ -125,9 +139,13 @@ fn big_files_are_written_with_bounded_memory() {
     let said = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success(), "{said}{}", String::from_utf8_lossy(&out.stderr));
     assert!(said.contains("1 passed"), "{said}");
-    if let Some(growth) = said.split("peak-growth:").nth(1).and_then(|g| g.split_whitespace().next()?.parse::<u64>().ok()) {
-        println!("the export's peak working set grew by {} MB", growth >> 20);
-        assert!(growth <= MAX_GROWTH, "the export held {} MB", growth >> 20);
+    match said.split("peak-growth:").nth(1).and_then(|g| g.split_whitespace().next()?.parse::<u64>().ok()) {
+        Some(growth) => {
+            println!("the export's peak working set grew by {} MB", growth >> 20);
+            assert!(growth <= MAX_GROWTH, "the export held {} MB", growth >> 20);
+        }
+        None if MEASURED => panic!("the export's peak working set wasn't measured: {said}"),
+        None => {}
     }
 
     // Both files in the data file, byte for byte.
@@ -140,5 +158,6 @@ fn big_files_are_written_with_bounded_memory() {
     assert_eq!(imported.messages, 2, "{imported:?}");
     assert_eq!(imported.skips.get(&mailcraft_model::job::SkipReason::AttachmentTooBig), Some(&2), "{imported:?}");
     drop(back);
-    std::fs::remove_dir_all(&dir).unwrap();
+    drop(scratch);
+    assert!(!dir.exists());
 }
