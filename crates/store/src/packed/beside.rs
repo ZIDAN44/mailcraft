@@ -17,6 +17,8 @@ const NOTE_MAX: usize = 64 << 20;
 /// The import's note in a data file, and the account's folder list.
 const NOTE: &str = "import.json";
 const FOLDERS: &str = "folders.json";
+/// Added to a copy's name for the file made to try its folder.
+const PROBE: &str = "-probe";
 
 /// A path as compared for "the same file": case ignored (Windows' and macOS's file systems), and
 /// `/` as `\`.
@@ -26,11 +28,16 @@ fn same_key(p: &Path) -> String {
 
 impl Packs {
     /// Where the copy of `source` goes: the first of its names beside it that's a copy made from
-    /// a file of that name and no account's now, else the first name that's free, when its
-    /// folder can be written (the file made there and removed at once says so); with the other
-    /// data files otherwise. `take`: that account's data file is the one beside from now on.
-    pub(crate) fn beside(&self, source: &Path, take: Option<&str>) -> Beside {
+    /// a file of that name, no account's now and writable (unless `fresh`: a copy of its own),
+    /// else the first name that's free, when its folder can be written (a file of MailCraft's
+    /// made there and removed at once says so); with the other data files otherwise. `take`:
+    /// that account's data file is the one beside from now on. The folder is looked at without
+    /// the data files' names held: it may be a slow drive or share, and naming any data file
+    /// waits on them.
+    pub(crate) fn beside(&self, source: &Path, take: Option<&str>, fresh: bool) -> Beside {
         let elsewhere = Beside { path: self.dir.clone(), found: None, elsewhere: true };
+        // A path named from where MailCraft runs (the CLI's) is in that folder.
+        let source = std::path::absolute(source).unwrap_or_else(|_| source.to_path_buf());
         let (Some(dir), Some(stem), Some(file)) = (
             source.parent().filter(|d| d.is_absolute()),
             source.file_stem().and_then(|s| s.to_str()).map(str::trim).filter(|s| !s.is_empty()),
@@ -41,8 +48,7 @@ impl Packs {
         if dir.to_str().is_none() {
             return elsewhere;
         }
-        let mut names = Packs::lock(&self.names);
-        let held: HashSet<String> = names.values().map(|n| same_key(&self.dir.join(n))).collect();
+        let held: HashSet<String> = Packs::lock(&self.names).values().map(|n| same_key(&self.dir.join(n))).collect();
         for i in 1..=TRIES {
             let name = if i == 1 { format!("{stem}.{EXTENSION}") } else { format!("{stem} ({i}).{EXTENSION}") };
             let path = dir.join(name);
@@ -51,9 +57,11 @@ impl Packs {
             }
             let found = match fs::symlink_metadata(&path) {
                 Ok(m) if m.is_file() => match note_of(&path, file) {
-                    Some(found) => Some(found),
-                    // Another file: the next name.
-                    None => continue,
+                    // A copy that can't be written (read-only, or on a share refusing writes)
+                    // can't be the account's: the next name, if the folder takes one.
+                    Some(found) if !fresh && can_write(&path) => Some(found),
+                    // Another file, or a copy not to go on with: the next name.
+                    _ => continue,
                 },
                 Ok(_) => continue,
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
@@ -65,6 +73,11 @@ impl Packs {
                 Err(_) => return elsewhere,
             };
             if let (Some(account), Some(p)) = (take, path.to_str()) {
+                let mut names = Packs::lock(&self.names);
+                // Another account's since it was looked at: the next name.
+                if names.values().any(|n| same_key(&self.dir.join(n)) == same_key(&path)) {
+                    continue;
+                }
                 names.insert(account.to_string(), p.to_string());
                 if let Ok(json) = serde_json::to_vec_pretty(&*names) {
                     let _ = write_atomic(&self.root.join(NAMES), &json);
@@ -76,18 +89,30 @@ impl Packs {
     }
 }
 
-/// Whether a file can be made at `path` (nothing there): it's made, and removed at once.
+/// Whether a file can be made at `path` (nothing there): one of MailCraft's own is made beside
+/// it (`archive.mailcraft-probe`), and removed at once, so one left by a crash between the two
+/// never takes the copy's name (it's removed the next time the folder is tried).
 fn writable(path: &Path) -> bool {
-    match OpenOptions::new().write(true).create_new(true).open(path) {
+    let mut probe = path.as_os_str().to_os_string();
+    probe.push(PROBE);
+    let probe = PathBuf::from(probe);
+    let _ = fs::remove_file(&probe);
+    match OpenOptions::new().write(true).create_new(true).open(&probe) {
         Ok(f) => {
             drop(f);
-            if let Err(e) = fs::remove_file(path) {
-                log::warn!("{}: made to see the folder can be written, but not removed: {e}", path.display());
+            if let Err(e) = fs::remove_file(&probe) {
+                log::warn!("{}: made to see the folder can be written, but not removed: {e}", probe.display());
             }
             true
         }
         Err(_) => false,
     }
+}
+
+/// Whether the file at `path` can be written: opened to write (nothing written, nor its length
+/// changed), and closed.
+fn can_write(path: &Path) -> bool {
+    OpenOptions::new().write(true).open(path).is_ok()
 }
 
 /// What the data file at `path` says of the file it was made from, when it's a copy of a file
@@ -100,6 +125,7 @@ fn note_of(path: &Path, source: &str) -> Option<Found> {
     let table = tx.open_table(FILES).ok()?;
     let read = |key: &str| read_file(&tx, &table, key).ok().flatten().filter(|b| b.len() <= NOTE_MAX);
     let note: serde_json::Value = serde_json::from_slice(&read(NOTE)?).ok()?;
+    let seen = table.get(crate::SEEN_DOC).ok().flatten().is_some();
     let src = note.get("source")?;
     let noted = src.get("path")?.as_str()?;
     if !noted.rsplit(['/', '\\']).next().is_some_and(|n| n.eq_ignore_ascii_case(source)) {
@@ -115,5 +141,6 @@ fn note_of(path: &Path, source: &str) -> Option<Found> {
         modified: src.get("modified").and_then(serde_json::Value::as_i64).unwrap_or(0),
         changed: false,
         account,
+        seen,
     })
 }

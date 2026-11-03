@@ -38,6 +38,10 @@ fn ids(store: &Store, account: &str, folder: &str) -> Vec<String> {
 #[test]
 fn an_opened_file_is_never_written_and_its_copy_beside_it_keeps_the_changes() {
     let (dir, pst, store, mut p) = setup("beside", 3, 2, "b1", 0);
+    // Two with no Message-ID of their own: the import makes one up, naming the file's tag, which
+    // the next write to the file changes.
+    add_to_file(&pst, "No id, kept", "");
+    add_to_file(&pst, "No id, deleted", "");
     let before = as_it_is(&pst);
     store.save_accounts(&[mailcraft_model::AccountConfig { id: "b1".into(), email: "in.pst".into(), ..Default::default() }]).unwrap();
     let copy = dir.join("in.mailcraft");
@@ -46,16 +50,24 @@ fn an_opened_file_is_never_written_and_its_copy_beside_it_keeps_the_changes() {
     // Opened: the copy is made beside it, nothing with the other data files.
     p.submit(Job::ImportPst { account: "b1".into(), path: pst.clone(), resume: false });
     let seen = events_until(&p, Duration::from_secs(60), ended);
-    assert!(matches!(seen.last(), Some(Event::Imported { messages: 5, error: None, .. })), "{seen:?}");
+    assert!(matches!(seen.last(), Some(Event::Imported { messages: 7, error: None, .. })), "{seen:?}");
     assert_eq!(store.data_file("b1").as_deref(), Some(copy.as_path()));
     assert!(copy.is_file() && data_files(&dir).is_empty(), "{:?}", data_files(&dir));
-    assert_eq!(ids(&store, "b1", "INBOX"), ["r0-0@run.example", "r0-1@run.example", "r0-2@run.example"]);
+    let made_up = |store: &Store| {
+        let inbox = store.load_folder("b1", "INBOX").unwrap();
+        let mut v: Vec<String> = inbox.messages.iter().filter(|m| m.message_id.ends_with("@mailcraft.invalid")).map(|m| m.subject.clone()).collect();
+        v.sort();
+        v
+    };
+    assert_eq!(made_up(&store), ["No id, deleted", "No id, kept"]);
+    let real = |store: &Store| ids(store, "b1", "INBOX").into_iter().filter(|i| !i.ends_with("@mailcraft.invalid")).collect::<Vec<_>>();
+    assert_eq!(real(&store), ["r0-0@run.example", "r0-1@run.example", "r0-2@run.example"]);
 
-    // Changed in MailCraft: one read, one deleted.
+    // Changed in MailCraft: one read, two deleted.
     let inbox = store.load_folder("b1", "INBOX").unwrap();
-    let key = |id: &str| inbox.messages.iter().find(|m| m.message_id == id).unwrap().key.clone();
+    let key = |id: &str| inbox.messages.iter().find(|m| m.message_id == id || m.subject == id).unwrap().key.clone();
     store.apply_op("b1", &Op::SetFlag { keys: vec![key("r0-0@run.example")], flag: Flag::Seen, on: true }).unwrap();
-    store.apply_op("b1", &Op::Expunge { keys: vec![key("r0-1@run.example")] }).unwrap();
+    store.apply_op("b1", &Op::Expunge { keys: vec![key("r0-1@run.example"), key("No id, deleted")] }).unwrap();
     // Closed: the file is as it was, to the byte and the time it last changed.
     drop(p);
     drop(store);
@@ -73,8 +85,10 @@ fn an_opened_file_is_never_written_and_its_copy_beside_it_keeps_the_changes() {
     let seen = events_until(&p, Duration::from_secs(60), ended);
     let Some(Event::Imported { messages: 1, error: None, report: Some(report), .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!((report.messages, report.folders), (1, 1));
-    // What's new came in; what was done in MailCraft stayed done.
-    assert_eq!(ids(&store, "b1", "INBOX"), ["late@run.example", "r0-0@run.example", "r0-2@run.example"]);
+    // What's new came in; what was done in MailCraft stayed done, the messages with no
+    // Message-ID of their own neither doubled nor brought back.
+    assert_eq!(real(&store), ["late@run.example", "r0-0@run.example", "r0-2@run.example"]);
+    assert_eq!(made_up(&store), ["No id, kept"]);
     let inbox = store.load_folder("b1", "INBOX").unwrap();
     assert!(inbox.messages.iter().find(|m| m.message_id == "r0-0@run.example").unwrap().flags.seen);
     assert!(as_it_is(&pst) == changed, "the data file read again was written");

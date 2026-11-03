@@ -33,6 +33,9 @@ pub struct Found {
     pub changed: bool,
     /// The account it was last, as its folder list names it ("" when it doesn't say).
     pub account: String,
+    /// It notes what came in from the file ([`Store::has_seen`]): the file changed since can be
+    /// read into it again.
+    pub seen: bool,
 }
 
 /// A file's size and when it last changed (Unix seconds), as the file system says; `None` when
@@ -61,7 +64,7 @@ impl Store {
     /// (whether the folder can be written is tried by making the copy's file and removing it at
     /// once). `None` when the cache doesn't keep accounts in data files.
     pub fn copy_beside(&self, source: &Path) -> Option<Beside> {
-        self.beside(source, None)
+        self.beside(source, None, false)
     }
 
     /// [`Store::copy_beside`], and `account`'s data file is that copy from now on: the one found
@@ -71,19 +74,28 @@ impl Store {
         if self.data_file(account).is_some() {
             return None;
         }
-        self.beside(source, Some(account))
+        self.beside(source, Some(account), false)
     }
 
-    fn beside(&self, source: &Path, take: Option<&str>) -> Option<Beside> {
+    /// [`Store::place_beside`] for a copy of its own: one found there is passed over (another
+    /// copy of a file already open as an account).
+    pub fn place_new_beside(&self, account: &str, source: &Path) -> Option<Beside> {
+        if self.data_file(account).is_some() {
+            return None;
+        }
+        self.beside(source, Some(account), true)
+    }
+
+    fn beside(&self, source: &Path, take: Option<&str>, fresh: bool) -> Option<Beside> {
         #[cfg(not(target_arch = "wasm32"))]
         if let Files::Packed(x) = &self.files.main {
-            let mut beside = x.beside(source, take.map(safe_segment).as_deref());
+            let mut beside = x.beside(source, take.map(safe_segment).as_deref(), fresh);
             if let Some(found) = beside.found.as_mut() {
                 found.changed = stamp(source).is_none_or(|now| now != (found.size, found.modified));
             }
             return Some(beside);
         }
-        let _ = (source, take);
+        let _ = (source, take, fresh);
         None
     }
 

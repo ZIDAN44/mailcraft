@@ -334,6 +334,7 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
         // It can't go on (the file changed, went, or is held, or the drive is full): it waits on
         // the user. Stopped for want of room part-way, what came in is kept, as when paused.
         Ok(done) if done.blocked.is_some() => {
+            noted(store, account);
             if !done.folders.is_empty() {
                 sink.emit(Event::Folders { account: account.to_string(), folders: done.folders });
             }
@@ -345,16 +346,16 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
         // Paused: what came in is kept, and only a word that it stopped is said, with the folders
         // finished (the last of them may not have been said yet).
         Ok(done) if done.stopped == Some(StopHow::Pause) => {
+            noted(store, account);
             sink.emit(Event::Folders { account: account.to_string(), folders: done.folders });
             told.last.imported = done.messages;
             told.last.skipped = done.skipped;
             told.say(ImportPhase::Paused);
         }
         Ok(done) => {
-            // Whole: what came in is noted, for the file read again later (`rereading.rs`).
-            if done.stopped.is_none() {
-                noted(store, account);
-            }
+            // What came in is noted, for the file read again later (`rereading.rs`): whole, or
+            // stopped part-way, so what's deleted here before it goes on stays noted.
+            noted(store, account);
             let mut report = report_of(&done, path, store, account, began);
             report.stopped = done.stopped;
             report.stopped_in.clone_from(&done.stopped_in);
@@ -395,7 +396,8 @@ fn keep(store: &Store, sink: &Sink, account: &str, stop: &Stop) {
 }
 
 /// What an import brought in, noted as the file's (`Store::note_imported`): a later read of the
-/// file adds only what it has new. Not noted, that read takes what's in the account then.
+/// file adds only what it has new. Not noted, the file isn't read again (`Store::merge_from`
+/// refuses).
 fn noted(store: &Store, account: &str) {
     if let Err(e) = store.note_imported(account) {
         log::warn!("{account}: what came in from its data file wasn't noted: {e}");

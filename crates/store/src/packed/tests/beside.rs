@@ -88,9 +88,12 @@ fn an_opened_files_copy_is_kept_beside_it_and_found_again() {
     std::fs::write(docs.join("Notes.mailcraft"), b"someone else's file").unwrap();
     assert_eq!(s.copy_beside(&other).unwrap().path, docs.join("Notes (2).mailcraft"));
     assert_eq!(std::fs::read(docs.join("Notes.mailcraft")).unwrap(), b"someone else's file", "left as it was");
-    // A file named by no folder, or one whose folder isn't there to write: with the others.
+    // A file named from where MailCraft runs is in that folder; one whose folder isn't there to
+    // write goes with the others.
     let b = s.copy_beside(std::path::Path::new("Archive.pst")).unwrap();
-    assert!(b.elsewhere && b.path == t.join("MailCraft Files"));
+    let here = std::env::current_dir().unwrap();
+    assert!(!b.elsewhere && b.path == here.join("Archive.mailcraft"), "{b:?}");
+    assert!(!here.join("Archive.mailcraft-probe").exists());
     let b = s.copy_beside(&t.join("gone").join("Archive.pst")).unwrap();
     assert!(b.elsewhere, "{b:?}");
     // A cache that doesn't keep data files has nowhere to put one.
@@ -204,6 +207,133 @@ fn a_file_read_again_adds_what_it_has_new_and_keeps_what_was_done_here() {
     // Read once more: nothing new.
     let again = s.merge_from("a1", &fresh, "r").unwrap();
     assert_eq!((again.messages, again.notes), (0, 0));
+    drop((s, fresh));
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// Trying the folder leaves nothing at the copy's name, even when a crash came between making
+/// the file that tries it and removing it: that one is MailCraft's own, and removed next time.
+#[test]
+fn trying_the_folder_never_takes_the_copys_name() {
+    let t = temp("beside-probe");
+    let docs = t.join("Documents");
+    std::fs::create_dir_all(&docs).unwrap();
+    let pst = docs.join("Fresh.pst");
+    std::fs::write(&pst, b"x").unwrap();
+    std::fs::write(docs.join("Fresh.mailcraft-probe"), b"").unwrap();
+    let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+    let b = s.copy_beside(&pst).unwrap();
+    assert_eq!((b.path, b.elsewhere), (docs.join("Fresh.mailcraft"), false));
+    assert!(!docs.join("Fresh.mailcraft").exists() && !docs.join("Fresh.mailcraft-probe").exists());
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// A copy found beside the file is passed over when it can't be written (read-only here), and
+/// for another copy of its own (`place_new_beside`).
+#[test]
+fn a_copy_found_is_taken_only_when_it_can_be_written_and_wanted() {
+    let t = temp("beside-found");
+    let docs = t.join("Documents");
+    std::fs::create_dir_all(&docs).unwrap();
+    let pst = docs.join("Archive.pst");
+    std::fs::write(&pst, b"!BDN not really a pst").unwrap();
+    let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+    s.save_accounts(&[account("a1", "Archive.pst"), account("a2", "Archive.pst")]).unwrap();
+    s.place_beside("a1", &pst).unwrap();
+    put(&s, "a1", "INBOX", 1, "one@x", false);
+    note(&s, "a1", &pst, "done");
+    s.note_imported("a1").unwrap();
+    s.remove_account("a1").unwrap();
+    let copy = docs.join("Archive.mailcraft");
+    let found = s.copy_beside(&pst).unwrap();
+    assert_eq!(found.path, copy);
+    assert!(found.found.is_some_and(|f| f.seen), "it notes what came in");
+    // Another copy of its own: the next name, the one found left alone.
+    let fresh = s.place_new_beside("a2", &pst).unwrap();
+    assert_eq!((fresh.path, fresh.found), (docs.join("Archive (2).mailcraft"), None));
+    s.remove_account("a2").unwrap();
+    // Read-only: passed over (running as root on Unix, everything can be written).
+    let mut perms = std::fs::metadata(&copy).unwrap().permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(&copy, perms.clone()).unwrap();
+    if std::fs::OpenOptions::new().write(true).open(&copy).is_err() {
+        let b = s.copy_beside(&pst).unwrap();
+        assert_eq!((b.path, b.found, b.elsewhere), (docs.join("Archive (2).mailcraft"), None, false));
+    }
+    #[allow(clippy::permissions_set_readonly_false)]
+    perms.set_readonly(false);
+    std::fs::set_permissions(&copy, perms).unwrap();
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// An item with no Message-ID of its own has one made up by the import, naming the account and
+/// the file's tag (both other the next time the file is read) and its node: it's known by its
+/// node, so read again it's neither doubled nor, deleted here, brought back.
+#[test]
+fn a_message_with_no_message_id_of_its_own_isnt_doubled_or_brought_back() {
+    let t = temp("merge-made-up");
+    let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+    s.save_accounts(&[account("a1", "Archive.pst")]).unwrap();
+    let gone = put(&s, "a1", "Drafts", 1, "pst.a1.0badcafe.21@mailcraft.invalid", false);
+    put(&s, "a1", "Drafts", 2, "pst.a1.0badcafe.22@mailcraft.invalid", false);
+    s.note_imported("a1").unwrap();
+    s.apply_op("a1", &mailcraft_model::Op::Expunge { keys: vec![gone] }).unwrap();
+    let fresh = Store::open_packed(t.join("fresh"), t.join("fresh").join("files")).unwrap();
+    fresh.save_accounts(&[account("reread", "Archive.pst")]).unwrap();
+    for (uid, node) in [(1, "21"), (2, "22"), (3, "23")] {
+        put(&fresh, "reread", "Drafts", uid, &format!("pst.reread.12345678.{node}@mailcraft.invalid"), false);
+    }
+    let merged = s.merge_from("a1", &fresh, "reread").unwrap();
+    assert_eq!(merged.messages, 1, "{merged:?}");
+    assert_eq!(ids(&s, "a1", "Drafts"), ["pst.a1.0badcafe.22@mailcraft.invalid", "pst.reread.12345678.23@mailcraft.invalid"]);
+    assert_eq!(s.merge_from("a1", &fresh, "reread").unwrap().messages, 0);
+    drop((s, fresh));
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// What came in is noted as an import stops part-way too, beside what was noted before: a message
+/// deleted here before it went on isn't brought back by a read of the file later.
+#[test]
+fn what_came_in_before_a_pause_stays_noted() {
+    let t = temp("merge-paused");
+    let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+    s.save_accounts(&[account("a1", "Archive.pst")]).unwrap();
+    let one = put(&s, "a1", "INBOX", 1, "one@x", false);
+    // Paused: noted; then deleted here; then it goes on, and ends.
+    s.note_imported("a1").unwrap();
+    s.apply_op("a1", &mailcraft_model::Op::Expunge { keys: vec![one] }).unwrap();
+    put(&s, "a1", "INBOX", 2, "two@x", false);
+    s.note_imported("a1").unwrap();
+    let fresh = Store::open_packed(t.join("fresh"), t.join("fresh").join("files")).unwrap();
+    fresh.save_accounts(&[account("r", "Archive.pst")]).unwrap();
+    for (uid, id) in [(1, "one@x"), (2, "two@x"), (3, "three@x")] {
+        put(&fresh, "r", "INBOX", uid, id, false);
+    }
+    assert_eq!(s.merge_from("a1", &fresh, "r").unwrap().messages, 1);
+    assert_eq!(ids(&s, "a1", "INBOX"), ["three@x", "two@x"]);
+    drop((s, fresh));
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// An account with no note of what came in from its file (opened before MailCraft kept one), or
+/// one that can't be read, isn't read into: everything deleted here would come back.
+#[test]
+fn no_note_of_what_came_in_refuses_a_read_again() {
+    let t = temp("merge-no-note");
+    let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
+    s.save_accounts(&[account("a1", "Archive.pst")]).unwrap();
+    put(&s, "a1", "INBOX", 1, "one@x", false);
+    let fresh = Store::open_packed(t.join("fresh"), t.join("fresh").join("files")).unwrap();
+    fresh.save_accounts(&[account("r", "Archive.pst")]).unwrap();
+    put(&fresh, "r", "INBOX", 1, "two@x", false);
+    assert!(!s.has_seen("a1"));
+    assert!(s.merge_from("a1", &fresh, "r").is_err());
+    s.save_account_doc("a1", crate::SEEN_DOC, &"not a note").unwrap();
+    assert!(s.merge_from("a1", &fresh, "r").is_err());
+    assert!(s.has_seen("a1"), "a damaged note is left where it is");
+    assert_eq!(ids(&s, "a1", "INBOX"), ["one@x"], "nothing added");
     drop((s, fresh));
     let _ = std::fs::remove_dir_all(&t);
 }
