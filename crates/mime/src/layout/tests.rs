@@ -235,6 +235,27 @@ fn a_centred_column_in_points_or_ems_keeps_its_width() {
     assert_eq!((length_px("-3px"), length_px("1e9px"), length_px("NaNpx"), length_px("10vw")), (None, Some(100_000.0), None, None));
 }
 
+/// Issue #41, as Outlook shows it: a title centred in the column (`text-align: center`) stays
+/// centred, and its size, set on a span inside `<b>` as Outlook writes it, makes it a title.
+#[test]
+fn a_centred_title_in_a_column_stays_centred_and_big() {
+    let html = r#"<table width=600 style='width:450.0pt' align=center><tr><td>
+        <p class=MsoNormal style='text-align:center'><b><span style='font-size:20.0pt;color:#1F3864'>Quarterly update</span></b></p>
+        <p class=MsoNormal>Hello everyone,</p></td></tr></table>"#;
+    let b = html_layout(&inline_css(html));
+    let Block::Table(column) = &b[0] else { panic!("{b:?}") };
+    let cell = &column.rows[0][0].blocks;
+    let Block::Table(title) = &cell[0] else { panic!("{cell:?}") };
+    assert_eq!((title.align, title.width, title.rows[0][0].align), (Align::Center, None, Align::Center));
+    let Block::Text(lines) = &title.rows[0][0].blocks[0] else { panic!() };
+    let span = lines.iter().flatten().find(|s| s.text.contains("Quarterly")).unwrap();
+    assert!(span.heading > 0 && span.bold, "{span:?}");
+    assert_eq!(span.color, Some([0x1F, 0x38, 0x64]));
+    assert!(matches!(&cell[1], Block::Text(t) if t.iter().flatten().any(|s| s.text.contains("Hello") && s.heading == 0)), "{cell:?}");
+    // Text that flows (no column) keeps flowing: no layout for a centred paragraph alone.
+    assert!(html_layout(r#"<p style="text-align:center">Just centred</p>"#).is_empty());
+}
+
 /// A business card (issue #11): the photo's column as wide as the photo, the details beside it.
 #[test]
 fn a_photo_column_is_as_wide_as_its_photo() {

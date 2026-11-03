@@ -174,13 +174,15 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     }));
                 }
             }
-            // Pictures centred in a block of their own (a report's charts): a centred cell.
+            // Pictures, or text, centred in a block of their own (a report's charts, a title
+            // `text-align: center` in a newsletter's column, issue #41): a centred cell. Laid-out
+            // mail only: text that flows has no alignment of its own.
             Kid::El(n)
                 if depth < MAX_DEPTH
                     && matches!(n.tag.as_str(), "div" | "p" | "center")
                     && (n.tag == "center" || n.align() == Align::Center)
-                    && n.has_picture(0)
-                    && !n.has_block_inside(0) =>
+                    && (n.has_picture(0) || (depth > 0 && n.has_text(0)))
+                    && (!n.has_block_inside(0) || n.holds_a_title()) =>
             {
                 flush(&mut pending, &mut out, ctx);
                 ctx.cells += 1;

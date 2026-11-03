@@ -561,6 +561,27 @@ impl Node {
             })
     }
 
+    /// Whether the only blocks inside it are titles (`<h1>`…`<h6>` holding text), as a paragraph
+    /// sized as a title is made one.
+    fn holds_a_title(&self) -> bool {
+        self.kids.iter().all(|k| match k {
+            Kid::Text(_) => true,
+            Kid::El(e) if !block_tag(&e.tag) => !e.has_block_inside(0),
+            Kid::El(e) => e.tag.len() == 2 && e.tag.starts_with('h') && e.tag != "hr" && !e.has_block_inside(0),
+        })
+    }
+
+    /// The size of the one element it wraps, through inline wrappers (`<b><span style="font-size:
+    /// 20pt">`, as Outlook writes a title), when that's all it holds.
+    fn wrapped_font_size(&self, depth: usize) -> Option<f32> {
+        if depth > 4 || block_tag(&self.tag) {
+            return None;
+        }
+        let mut kids = self.kids.iter().filter(|k| !matches!(k, Kid::Text(t) if t.trim().is_empty()));
+        let (Some(Kid::El(only)), None) = (kids.next(), kids.next()) else { return None };
+        only.font_size().or_else(|| only.wrapped_font_size(depth + 1))
+    }
+
     /// Its size in pixels, when its style or `<font size>` sets one.
     fn font_size(&self) -> Option<f32> {
         self.style("font-size")
@@ -677,7 +698,7 @@ fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<Ancestor>,
     let parent_is_block = block_tag(&n.tag);
     for k in &mut n.kids {
         let Kid::El(kid) = k else { continue };
-        let level = kid.font_size().map_or(0, heading_for);
+        let level = kid.font_size().or_else(|| kid.wrapped_font_size(0)).map_or(0, heading_for);
         let is_heading = kid.tag.len() == 2 && kid.tag.starts_with('h') && kid.tag != "hr";
         if level == 0 || is_heading || !kid.has_text(0) || kid.has_block_inside(0) {
             continue;
