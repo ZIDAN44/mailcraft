@@ -47,6 +47,8 @@ on GitHub.
 - A drive that fills during an import pauses it, instead of failing every message after.
 - A sign-in that fails to save leaves no stray entries in Windows Credential Manager.
 - Two MailCraft windows, or the CLI beside the app, can't overwrite each other's mail folders.
+- Opening a message no longer waits for a folder, or the calendars, to finish syncing: the account's second connection brings it (#24).
+- On IMAP accounts, a big message with attachments shows its text at once, its files listed; they download after (#24).
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.

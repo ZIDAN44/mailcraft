@@ -100,7 +100,11 @@ fn real_imap_server() {
         store.load_folder("r1", "INBOX").unwrap().messages.into_iter().find(|m| m.subject == "Big attachment").expect("the big message is kept");
     let began = Instant::now();
     pool.submit(Job::FetchBody { key: big.key.clone() });
-    let seen = until(&pool, 180, "the big message", |e| matches!(e, Event::Body { key, .. } | Event::BodyFailed { key, .. } if *key == big.key));
+    // Its text first (issue #24), then the whole of it.
+    let whole = |raw: &[u8]| !mailcraft_mime::is_text_first(raw);
+    let seen = until(&pool, 180, "the big message", |e| {
+        matches!(e, Event::Body { key, raw } if *key == big.key && whole(raw)) || matches!(e, Event::BodyFailed { key, .. } if *key == big.key)
+    });
     match seen.last() {
         Some(Event::Body { raw, .. }) => {
             eprintln!("big message: {} bytes in {:?}", raw.len(), began.elapsed());
@@ -125,6 +129,68 @@ fn real_imap_server() {
     eprintln!("new mail noticed in {:?}", began.elapsed());
     pool.submit(Job::Remove { account: "r1".into() });
     let _ = std::fs::remove_dir_all(store.root());
+}
+
+/// Issue #24 on a real IMAP server (`MAILCRAFT_REAL_TEXT_FIRST="127.0.0.1:3143 user password"`,
+/// a mailbox of its own): a message with a 10 MB file and a picture shows its text from its
+/// structure first, the files listed with no bytes; the whole of it comes after, as it was put.
+#[test]
+#[ignore]
+fn real_imap_text_first() {
+    let Some((imap, user, pass, _)) = server("MAILCRAFT_REAL_TEXT_FIRST") else {
+        eprintln!("MAILCRAFT_REAL_TEXT_FIRST isn't set: skipped");
+        return;
+    };
+    let id = std::process::id();
+    let file =
+        "QUJDRA".repeat(10 << 20).chars().collect::<Vec<_>>().chunks(76).map(|l| l.iter().collect::<String>()).collect::<Vec<_>>().join("\r\n");
+    let raw = format!(
+        "From: Sam <sam@studio.test>\r\nTo: {user}\r\nSubject: Rushes {id}\r\nMessage-ID: <rushes{id}@studio.test>\r\nDate: Tue, 3 Nov 2026 10:00:00 +0000\r\n\
+         MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"B{id}\"\r\n\r\n\
+         --B{id}\r\nContent-Type: multipart/related; boundary=\"R{id}\"\r\n\r\n\
+         --R{id}\r\nContent-Type: text/html; charset=iso-8859-1\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n<p>Les notes, =E0 lire tout de suite.</p><img src=3D\"cid:still{id}@x\">\r\n\
+         --R{id}\r\nContent-Type: image/png\r\nContent-ID: <still{id}@x>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--R{id}--\r\n\
+         --B{id}\r\nContent-Type: video/quicktime\r\nContent-Disposition: attachment; filename*=utf-8''r%C3%BCsh%20reel.mov\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\n{file}\r\n--B{id}--\r\n"
+    );
+    let mut c = crate::imap::Client::connect(&imap).unwrap();
+    c.login(&user, &pass).unwrap();
+    c.append("INBOX", "", raw.as_bytes()).unwrap();
+    c.logout();
+    let store = crate::fake::store("real-text-first");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    pool.opts.prefetch = 0;
+    let account = AccountConfig {
+        id: "r1".into(),
+        email: user.clone(),
+        username: user.clone(),
+        imap,
+        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+        ..Default::default()
+    };
+    pool.submit(Job::Start { account, password: Some(Secret(pass)) });
+    until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let subject = format!("Rushes {id}");
+    let m = store.load_folder("r1", "INBOX").unwrap().messages.into_iter().find(|m| m.subject == subject).expect("the message is listed");
+    let began = Instant::now();
+    pool.submit(Job::FetchBody { key: m.key.clone() });
+    let seen = until(&pool, 60, "its text", |e| matches!(e, Event::Body { key, .. } if *key == m.key));
+    let first_after = began.elapsed();
+    let Some(Event::Body { raw: first, .. }) = seen.last() else { panic!("no body") };
+    assert!(mailcraft_mime::is_text_first(first), "its text first");
+    let p = mailcraft_mime::parse(first).unwrap();
+    assert!(p.text.contains("Les notes, à lire tout de suite."), "{}", p.text);
+    let files: Vec<(String, usize, bool)> = p.attachments.iter().map(|a| (a.name.clone(), a.size, a.inline)).collect();
+    eprintln!("text first: {} bytes in {first_after:?}; files {files:?}", first.len());
+    assert!(files.iter().any(|(n, s, inline)| n == "rüsh reel.mov" && *s > 40_000_000 && !inline), "{files:?}");
+    assert!(files.iter().any(|f| f.2), "the picture, inline: {files:?}");
+    assert!(first.len() < 8192);
+    let seen =
+        until(&pool, 180, "the whole of it", |e| matches!(e, Event::Body { key, raw } if *key == m.key && !mailcraft_mime::is_text_first(raw)));
+    let Some(Event::Body { raw: whole, .. }) = seen.last() else { panic!("no body") };
+    eprintln!("whole: {} bytes in {:?}", whole.len(), began.elapsed());
+    assert_eq!(mailcraft_mime::parse(whole).unwrap().subject, subject);
+    assert!(store.has_body(&m.key));
 }
 
 /// A real SMTP server: a message sent, then found in the recipient's mailbox over IMAP; a

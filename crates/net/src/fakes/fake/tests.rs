@@ -8,6 +8,8 @@ use mailcraft_model::{AccountConfig, Event, Flag, FolderRole, Job, MessageKey, O
 use super::*;
 use crate::worker::apply_remote;
 
+mod opening;
+
 #[test]
 fn wrong_password_is_an_auth_error() {
     let st = State::new();

@@ -117,6 +117,24 @@ fn a_code_right_before_non_ascii_text_never_panics() {
     assert_eq!(super::conn::space_after_code(b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n".to_vec()), b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n");
 }
 
+/// A signed or encrypted message never comes as its text first (only its whole source shows it
+/// and checks it); nor one of a single part. Neither asks for more than its structure.
+#[test]
+fn signed_and_single_part_mail_comes_whole() {
+    for structure in [
+        r#"(("TEXT" "PLAIN" NIL NIL NIL "7BIT" 10 1)("APPLICATION" "PKCS7-SIGNATURE" NIL NIL NIL "BASE64" 900000) "SIGNED" NIL NIL NIL)"#,
+        r#"("APPLICATION" "PKCS7-MIME" ("SMIME-TYPE" "enveloped-data") NIL NIL "BASE64" 900000)"#,
+        r#"(("TEXT" "PLAIN" NIL NIL NIL "7BIT" 10 1)("APPLICATION" "PKCS7-MIME" NIL NIL NIL "BASE64" 900000) "MIXED" NIL NIL NIL)"#,
+        r#"("TEXT" "PLAIN" NIL NIL NIL "7BIT" 900000 1)"#,
+    ] {
+        let s = format!("* OK ready\r\n* 1 FETCH (UID 1 BODYSTRUCTURE {structure})\r\nM1 OK done\r\n");
+        let mut c = Client::from_stream(Script::new(s.as_bytes())).unwrap();
+        assert_eq!(c.text_first(1).unwrap(), None, "{structure}");
+        let sent = String::from_utf8_lossy(&c.conn.into_inner().written).into_owned();
+        assert!(!sent.contains("BODY.PEEK"), "{sent}");
+    }
+}
+
 /// A hostile server's lists nested a hundred thousand deep don't overflow the stack (they did,
 /// in imap-proto's parser, from a thousand), even on a thread with Windows' 1 MB main stack;
 /// real nesting parses.

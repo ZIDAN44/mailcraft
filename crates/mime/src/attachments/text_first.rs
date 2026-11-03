@@ -69,6 +69,24 @@ pub fn text_first(d: &Draft, from: &EmailAddress, date: i64, message_id: &str, f
     Ok(out)
 }
 
+/// A file's name from a part's parameters as an IMAP server lists them (`BODYSTRUCTURE`): the
+/// disposition's `filename`, else the type's `name`, in RFC 2231's or RFC 2047's form decoded.
+pub fn part_name(disposition: &[(String, String)], type_params: &[(String, String)]) -> Option<String> {
+    let line = |params: &[(String, String)]| {
+        params
+            .iter()
+            .take(32)
+            .filter(|(k, v)| !k.is_empty() && k.bytes().all(|b| b.is_ascii_graphic() && b != b'=' && b != b';') && !v.contains(['\r', '\n']))
+            .map(|(k, v)| format!("; {k}=\"{}\"", v.replace('\\', "\\\\").replace('"', "\\\"")))
+            .collect::<String>()
+    };
+    let raw = format!("Content-Type: application/octet-stream{}\r\nContent-Disposition: attachment{}\r\n\r\n", line(type_params), line(disposition));
+    let m = MessageParser::default().parse(raw.as_bytes())?;
+    let p = m.parts.first()?;
+    let name = p.content_disposition().and_then(|d| d.attribute("filename")).or_else(|| p.content_type().and_then(|t| t.attribute("name")))?;
+    Some(name.trim().to_string()).filter(|n| !n.is_empty())
+}
+
 /// Whether a message is its text first, its files still to come ([`text_first`]).
 pub fn is_text_first(raw: &[u8]) -> bool {
     // The header block only (a body could quote the name).

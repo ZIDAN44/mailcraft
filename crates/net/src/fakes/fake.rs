@@ -55,6 +55,9 @@ pub struct State {
     /// new keywords, as on a shared folder without the right to write); a STORE of another
     /// keyword is taken and forgotten, as Dovecot does.
     pub permanent_flags: Option<&'static str>,
+    /// Commands containing this text take this long (a big folder on a slow server): the
+    /// connection that sent it waits, others don't.
+    pub stall_on: Option<(String, std::time::Duration)>,
 }
 
 impl State {
@@ -77,6 +80,7 @@ impl State {
             deliver_on: None,
             create_under: None,
             permanent_flags: None,
+            stall_on: None,
         }))
     }
 
@@ -254,6 +258,10 @@ impl Fake {
         if upper_line.contains(" SEARCH ") && upper_line.contains(" TEXT ") {
             let delay = self.st.lock().map(|s| s.search_delay).unwrap_or_default();
             std::thread::sleep(delay);
+        }
+        let stall = self.st.lock().ok().and_then(|s| s.stall_on.clone()).filter(|(text, _)| line.contains(text.as_str()));
+        if let Some((_, how_long)) = stall {
+            std::thread::sleep(how_long);
         }
         let st = self.st.clone();
         let mut st = st.lock().unwrap();
@@ -470,6 +478,15 @@ impl Fake {
                             let end = m.raw.windows(4).position(|w| w == b"\r\n\r\n").map_or(m.raw.len(), |p| p + 4);
                             item.extend(format!(" BODY[HEADER] {{{end}}}\r\n").as_bytes());
                             item.extend(&m.raw[..end]);
+                        }
+                        if upper.contains("BODYSTRUCTURE") {
+                            item.extend(format!(" BODYSTRUCTURE {}", structure::Part::of(&m.raw).structure()).as_bytes());
+                        }
+                        for (spec, path, mime) in structure::asked_sections(&upper) {
+                            if let Some(data) = structure::Part::of(&m.raw).section(&path, mime) {
+                                item.extend(format!(" BODY[{spec}] {{{}}}\r\n", data.len()).as_bytes());
+                                item.extend(&data);
+                            }
                         }
                         if upper.contains("BODY.PEEK[]") {
                             item.extend(format!(" BODY[] {{{}}}\r\n", m.raw.len()).as_bytes());
@@ -834,5 +851,6 @@ fn login(st: &Arc<Mutex<State>>) -> Client<Fake> {
     c
 }
 
+mod structure;
 #[cfg(test)]
 mod tests;

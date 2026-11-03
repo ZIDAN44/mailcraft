@@ -11,7 +11,7 @@ mod text_first;
 pub use index_text::index_doc;
 #[doc(hidden)]
 pub use index_text::{IndexStats, index_doc_stats};
-pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, text_first};
+pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, part_name, text_first};
 
 /// A part's size: its bytes, or, with none yet (a message's text that came first, issue #24), the
 /// size its `Content-Disposition` gives (RFC 2183's `size`).

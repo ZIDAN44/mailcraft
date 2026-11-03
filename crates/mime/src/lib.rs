@@ -38,8 +38,8 @@ mod tnef;
 mod trackers;
 pub use attachments::{
     AttachmentInfo, AttachmentKind, HtmlRefs, MAX_WANTED, PendingFile, TEXT_FIRST, attachment_data, attachment_data_moved, attachment_out,
-    attachment_text, attachments_data, attachments_moved, craft_app_for, draft_carries_files, index_doc, is_text_first, kind_of, quoted_pictures,
-    text_first, text_preview_kind,
+    attachment_text, attachments_data, attachments_moved, craft_app_for, draft_carries_files, index_doc, is_text_first, kind_of, part_name,
+    quoted_pictures, text_first, text_preview_kind,
 };
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};

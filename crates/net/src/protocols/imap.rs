@@ -16,10 +16,12 @@ use crate::stream::{self, IO_TIMEOUT, Stream, Timeouts};
 use crate::{NetError, Result};
 
 mod conn;
+mod text_first;
 use conn::check_unknown;
 #[cfg(test)]
 use conn::literal_len;
 pub use conn::{Conn, Limits};
+pub use text_first::TEXT_FIRST_OVER;
 
 /// Largest literal accepted (a message source).
 pub const MAX_LITERAL: usize = 64 << 20;

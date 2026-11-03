@@ -15,23 +15,43 @@ impl Worker {
     /// whatever the main connection is doing. It connects when there's something to do, and lets
     /// go of an idle connection after a while.
     pub(super) fn run_quick(mut self, rx: Receiver<Job>) {
+        let mut waiting: VecDeque<Job> = VecDeque::new();
         loop {
-            let job = match rx.recv_timeout(QUICK_IDLE) {
-                Ok(j) => j,
-                Err(RecvTimeoutError::Timeout) => {
-                    self.let_go();
-                    continue;
+            if waiting.is_empty() {
+                match rx.recv_timeout(QUICK_IDLE) {
+                    Ok(j) => waiting.push_back(j),
+                    Err(RecvTimeoutError::Timeout) => {
+                        self.let_go();
+                        continue;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => break,
                 }
-                Err(RecvTimeoutError::Disconnected) => break,
-            };
+            }
+            while let Ok(j) = rx.try_recv() {
+                waiting.push_back(j);
+            }
+            // A message just opened goes ahead of the whole of one opened before (issue #24).
+            let whole_only = |k: &MessageKey| self.whole_only.lock().is_ok_and(|w| w.contains(k));
+            let next = waiting.iter().position(|j| matches!(j, Job::FetchBody { key } if !whole_only(key))).unwrap_or(0);
+            let Some(job) = waiting.remove(next) else { continue };
             self.fresh_token();
             match job {
                 Job::Send { account, id, raw, from, recipients, sent_folder } => {
                     self.send_quick(Job::Send { account, id, raw, from, recipients, sent_folder });
                 }
                 j @ (Job::GetVacation { .. } | Job::SetVacation { .. }) => self.handle(j),
-                // Only the main connection sends these: a message whose text it gave first.
-                Job::FetchBody { key } => self.fetch_for_main(key),
+                // The whole of a message whose text the main connection gave first; or one opened
+                // while the main connection was busy, its text first when that's quicker.
+                Job::FetchBody { key } => {
+                    if self.whole_only.lock().is_ok_and(|mut w| w.remove(&key)) {
+                        self.fetch_for_main(key);
+                    } else if self.fetch_opened(key.clone()) {
+                        if let Ok(mut w) = self.whole_only.lock() {
+                            w.insert(key.clone());
+                        }
+                        waiting.push_back(Job::FetchBody { key });
+                    }
+                }
                 // Anything else belongs to the main connection.
                 other => {
                     if let Some(m) = &self.main {

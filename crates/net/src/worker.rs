@@ -7,7 +7,7 @@
 //! password stops retrying until the user enters a new one.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -52,6 +52,8 @@ struct Handle {
     /// replies): it never waits behind a sync. `None` where it can't be used (POP, JMAP sends).
     quick: Option<Sender<Job>>,
     quick_thread: Option<JoinHandle<()>>,
+    /// The main connection is at work: a message opened meanwhile goes to the second one.
+    busy: Arc<AtomicBool>,
     /// The main connection's way to the second one, emptied when the account stops: otherwise
     /// each would keep the other's queue open, and neither thread would end.
     quick_link: QuickLink,
@@ -398,6 +400,12 @@ impl Pool {
                 let quick = self.configs.get(&id).is_some_and(|c| quick_job(&other, c));
                 match self.workers.get(&id) {
                     Some(h) => {
+                        // A message opened while the main connection syncs a folder, or the
+                        // calendars, doesn't wait for that to end (issue #24).
+                        let opened = matches!(other, Job::FetchBody { .. })
+                            && h.busy.load(Ordering::Relaxed)
+                            && self.configs.get(&id).is_some_and(|c| c.pop.is_none());
+                        let quick = quick || opened;
                         // Sending and automatic replies go on the second connection; if it has
                         // stopped, the main one does it (after its sync).
                         let other = match h.quick.as_ref().filter(|_| quick) {
@@ -482,6 +490,8 @@ impl Pool {
         q.sieve_port = self.sieve_port;
         q.main = Some(tx.clone());
         q.given_back = w.given_back.clone();
+        q.whole_only = w.whole_only.clone();
+        let busy = w.busy.clone();
         let quick_thread = std::thread::Builder::new().name(format!("mail-{}-quick", account.id)).spawn(move || q.run_quick(qrx)).ok();
         let quick = quick_thread.is_some().then_some(qtx);
         let quick_link: QuickLink = Arc::new(Mutex::new(quick.clone()));
@@ -489,7 +499,7 @@ impl Pool {
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
-                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread, quick_link });
+                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread, busy, quick_link });
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
         }
@@ -530,6 +540,7 @@ mod directory;
 mod edits;
 mod imports;
 mod indexing;
+mod opening;
 mod remote;
 mod send;
 mod smime;
@@ -591,6 +602,11 @@ struct Worker {
     /// Messages it couldn't get, shared with it: those it gives back are downloaded on the main
     /// connection (one opened again meanwhile is handed to it again, not downloaded twice).
     given_back: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
+    /// Messages whose text the main connection gave first, shared with the second one: of those
+    /// it brings only the whole (others it's handed were opened while the main one was busy).
+    whole_only: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
+    /// Set while the main connection works rather than waits ([`Worker::working`]).
+    busy: Arc<AtomicBool>,
     backoff: Duration,
     next_attempt: Instant,
     last_full: Option<Instant>,
@@ -648,6 +664,8 @@ impl Worker {
             rest: VecDeque::new(),
             quick: Arc::default(),
             given_back: Arc::default(),
+            whole_only: Arc::default(),
+            busy: Arc::default(),
             backoff: Duration::from_secs(5),
             next_attempt: Instant::now(),
             last_full: None,
@@ -701,6 +719,7 @@ impl Worker {
     fn run(mut self, rx: Receiver<Job>) {
         self.status(SyncStatus::Connecting);
         while !self.closed {
+            self.working(true);
             self.drain(&rx);
             if self.closed {
                 break;
@@ -716,6 +735,7 @@ impl Worker {
             }
             if self.conn.is_none() {
                 if self.auth_failed {
+                    self.working(false);
                     match rx.recv() {
                         Ok(j) => push_job(&mut self.queue, j),
                         Err(_) => break,
@@ -724,6 +744,7 @@ impl Worker {
                 }
                 let wait = self.next_attempt.saturating_duration_since(Instant::now());
                 if !wait.is_zero() {
+                    self.working(false);
                     match rx.recv_timeout(wait) {
                         Ok(j) => push_job(&mut self.queue, j),
                         Err(RecvTimeoutError::Timeout) => {}

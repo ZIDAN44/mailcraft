@@ -532,6 +532,26 @@ pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &Messa
     Ok((raw, filled))
 }
 
+/// A big message's text first (issue #24): its header and text parts only, its files listed but
+/// not downloaded; `None` when it's here already, small, or has no files to leave for later
+/// (then [`fetch_body`] brings it whole).
+pub fn fetch_text<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &MessageKey) -> Result<Option<Vec<u8>>> {
+    if store.has_body(key) {
+        return Ok(None);
+    }
+    let fs = store.load_folder(&key.account, &key.folder)?;
+    if !fs.find(key.uid).is_some_and(|m| m.size >= crate::imap::TEXT_FIRST_OVER) {
+        return Ok(None);
+    }
+    if c.selected() != Some(key.folder.as_str()) {
+        let info = c.select(&key.folder, false)?;
+        if info.validity != key.validity {
+            return Ok(None);
+        }
+    }
+    c.text_first(key.uid)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

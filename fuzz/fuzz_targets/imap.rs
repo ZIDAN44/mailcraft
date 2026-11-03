@@ -56,6 +56,7 @@ fuzz_target!(|data: &[u8]| {
     let _ = c.quota();
     let _ = c.append("Drafts", r"(\Draft)", b"Subject: x\r\n\r\nbody\r\n");
     let _ = c.uid_move_to("1:3", "Trash");
+    let _ = c.text_first(1);
     let _ = c.noop();
     let _ = c.take_news();
 });
