@@ -88,6 +88,7 @@ winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457
 # does, adds to permute- and cyclic-encoded files, as Outlook makes them, and writes a message's
 # class, tagged and named properties (64-bit floats among them), folders' classes and special
 # folders (the Contacts, Notes and Tasks too), attached messages and an attachment's own
-# properties, makes a file with no message, and adds to Outlook 97–2002's ANSI files too): the
-# fork's craft/rw-1.2.14 branch, whose PATCHES.md lists them. Dropped once a release has them.
-outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "df74d669cc71a9e5b02e31ac484c707ec67a0d03" }
+# properties, makes a file with no message, adds to Outlook 97–2002's ANSI files too, and takes
+# messages out of a file again): the fork's craft/rw-1.2.14 branch, whose PATCHES.md lists them.
+# Dropped once a release has them.
+outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "60cefd986b159d5f934d8291e4317dc96e0cd35b" }

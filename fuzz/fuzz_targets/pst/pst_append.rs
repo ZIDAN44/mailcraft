@@ -17,10 +17,14 @@
 //! know where Sent, Trash, Drafts and Junk go: their entry IDs, the folders they name and the
 //! hierarchy down to them, all from the damaged file.
 //!
+//! Then a message that read before is taken out again, as an export takes out the earlier copy
+//! of an item changed since: the others still read as they did, and it no longer does.
+//!
 //! Every panic counts: the writer reads the file it adds to as its reader does, and a damaged
 //! file is an error (its fork's PATCHES.md), so there is no fence here, unlike `pst`'s. So does
 //! an append that succeeds but loses mail: every message that read before it (all of its
-//! properties, as they were) still has to, and the one added has to as well.
+//! properties, as they were) still has to, and the one added has to as well; and so does a
+//! deletion that succeeds but takes another message with it or leaves the one it took.
 #![no_main]
 
 use std::collections::{BTreeMap, HashSet};
@@ -186,11 +190,23 @@ fuzz_target!(|data: &[u8]| {
         UnicodePstFile::append_many_in_folder_with_attachments(&path, &["Inbox"], &batch).is_ok()
     };
     let after = if added { messages(&path, ansi) } else { BTreeMap::new() };
-    let _ = std::fs::remove_file(&path);
     if added {
         // An append that succeeds keeps what the file held and adds what it says it wrote.
         let lost = before.iter().filter(|(node, was)| after.get(*node) != Some(*was)).count();
         assert_eq!(lost, 0, "{lost} of {} messages no longer read as they did", before.len());
         assert!(after.keys().any(|node| !before.contains_key(node)), "the added message doesn't read");
     }
+    // A message that read before taken out again: the rest stay as they were.
+    if let Some(&gone) = before.keys().next().filter(|_| added) {
+        let ids = [NodeId::from(gone)];
+        let deleted =
+            if ansi { AnsiPstFile::delete_messages(&path, &ids).is_ok() } else { UnicodePstFile::delete_messages(&path, &ids).is_ok() };
+        if deleted {
+            let left = messages(&path, ansi);
+            assert!(!left.contains_key(&gone), "the message taken out still reads");
+            let lost = after.iter().filter(|(node, was)| **node != gone && left.get(*node) != Some(*was)).count();
+            assert_eq!(lost, 0, "{lost} of {} messages no longer read as they did once one was taken out", after.len());
+        }
+    }
+    let _ = std::fs::remove_file(&path);
 });
