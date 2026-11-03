@@ -101,6 +101,8 @@ const MAX_IDS: usize = 256;
 const MAX_THREAD_BLOCKS: usize = 50;
 /// Categories kept on an item.
 const MAX_KEYWORDS: usize = 64;
+/// A meeting's guests' answers kept (one per recipient row).
+const MAX_ANSWERS: usize = 10_000;
 /// Longest Thread-Topic written, in characters.
 const MAX_TOPIC: usize = 512;
 /// Longest message id kept, in bytes: `Message-ID: <…>` stays within a header line's 998.

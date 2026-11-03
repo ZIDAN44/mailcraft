@@ -248,6 +248,19 @@ pub(super) fn item_of<'a>(
         };
         let name = clean_name(&get(0x3001));
         let a = EmailAddress::new(if name.is_empty() { one_off_name } else { name }, address);
+        // A meeting's organizer (PidTagRecipientFlags' recipOrganizer) is its organizer, not one
+        // of its guests; each guest's answer is its PidTagRecipientTrackStatus (MS-OXOCAL 2.2.4.10).
+        if let Some(x) = it.extra.as_mut() {
+            if matches!(row(0x5FFD), Some(Val::Int(f)) if f & 0x2 != 0) {
+                x.organizer.get_or_insert(a);
+                continue;
+            }
+            if let Some(Val::Int(t)) = row(0x5FFF)
+                && x.answers.len() < MAX_ANSWERS
+            {
+                x.answers.push((a.email.to_ascii_lowercase(), t));
+            }
+        }
         match row(0x0C15) {
             Some(Val::Int(2)) => it.cc.push(a),
             Some(Val::Int(3)) => it.bcc.push(a),

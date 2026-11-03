@@ -88,12 +88,19 @@ pub(crate) struct Pattern {
 
 /// A recurrence pattern as (rule, deleted occurrences), given the first occurrence's start (UTC).
 pub(crate) fn recurrence(blob: &[u8], start: i64) -> Option<(String, Vec<i64>)> {
-    pattern(blob, start).map(|p| (p.rule, p.exdates))
+    recurrence_in(blob, start, "")
+}
+
+/// [`recurrence`] of an appointment whose times are in the zone `tzid` (empty: none known).
+pub(crate) fn recurrence_in(blob: &[u8], start: i64, tzid: &str) -> Option<(String, Vec<i64>)> {
+    pattern(blob, start, tzid).map(|p| (p.rule, p.exdates))
 }
 
 /// A recurrence pattern, given the first occurrence's start (UTC): its rule, the occurrences
-/// deleted and those changed.
-pub(crate) fn pattern(blob: &[u8], start: i64) -> Option<Pattern> {
+/// deleted and those changed. Its local times are in the zone `tzid` when the time zone database
+/// knows it (each turned into UTC on its own date, summer or winter), else at the first
+/// occurrence's offset.
+pub(crate) fn pattern(blob: &[u8], start: i64, tzid: &str) -> Option<Pattern> {
     let mut b = Bytes(blob, 0);
     let (_reader, _writer) = (b.u16()?, b.u16()?);
     let frequency = b.u16()?;
@@ -139,7 +146,8 @@ pub(crate) fn pattern(blob: &[u8], start: i64) -> Option<Pattern> {
         (0x200C, 0x0003) => format!("FREQ=MONTHLY;INTERVAL={};BYDAY={}", period.max(1), byday(a, Some(nth(c)))),
         (0x200D, 0x0002 | 0x0004) => format!("FREQ=YEARLY;INTERVAL={}", (period / 12).max(1)),
         (0x200D, 0x0003) => {
-            let (_, month, _) = civil_from_days(start.div_euclid(86_400));
+            // Its month: the first day's, where the series is (its UTC start may be in the next).
+            let (_, month, _) = civil_from_days((first_day - EPOCH_MINUTES).div_euclid(1440));
             format!("FREQ=YEARLY;INTERVAL={};BYMONTH={month};BYDAY={}", (period / 12).max(1), byday(a, Some(nth(c))))
         }
         _ => return None,
@@ -167,7 +175,14 @@ pub(crate) fn pattern(blob: &[u8], start: i64) -> Option<Pattern> {
     if shift.saturating_abs() > 2 * 86_400 {
         return Some(Pattern { rule, ..Default::default() });
     }
-    let utc = |local_minutes: i64| (local_minutes - EPOCH_MINUTES).saturating_mul(60).saturating_add(shift);
+    let zone = mailcraft_model::zone::Zone::named(tzid).filter(|_| !tzid.trim().is_empty());
+    let utc = |local_minutes: i64| {
+        let local = local_minutes.saturating_sub(EPOCH_MINUTES).saturating_mul(60);
+        match zone {
+            Some(z) => z.to_utc(local),
+            None => local.saturating_add(shift),
+        }
+    };
     // A changed occurrence is deleted as well, on the day it was: not an EXDATE, as the event
     // that replaces it takes it. Without its ExceptionInfo, the day it's on now says which.
     let day = |minutes: i64| minutes.div_euclid(1440);
@@ -316,7 +331,8 @@ pub(crate) fn changed_events(
     own: &[Own<'_>],
 ) -> Vec<(CalEvent, Option<usize>)> {
     let Some(start) = x.start else { return Vec::new() };
-    let Some(p) = pattern(&x.recurrence, start) else { return Vec::new() };
+    let tzid = if x.all_day { "" } else { x.tzid.as_str() };
+    let Some(p) = pattern(&x.recurrence, start, tzid) else { return Vec::new() };
     let mut taken = vec![false; own.len()];
     let mut out = Vec::new();
     // What each occurrence starts from: the series without its pattern (which may be big, and
@@ -362,6 +378,10 @@ pub(crate) fn changed_events(
             _ => body,
         };
         let guests = item.map(|o| o.people).filter(|p| !p.is_empty()).unwrap_or(people);
+        // Its own guests' answers, when it has guests of its own.
+        if let Some(o) = item.filter(|o| !o.people.is_empty()) {
+            one.answers = o.x.answers.clone();
+        }
         let Some(mut e) = event_of(&one, summary, text, from, guests, uid.to_string()) else { continue };
         e.recurrence_id = Some(if x.all_day { day(c.original) } else { c.original });
         out.push((e, found));
@@ -404,6 +424,9 @@ pub(crate) fn changed_events(
         }
         let text = if o.body.trim().is_empty() { body } else { o.body };
         let guests = Some(o.people).filter(|p| !p.is_empty()).unwrap_or(people);
+        if !o.people.is_empty() {
+            one.answers = o.x.answers.clone();
+        }
         let Some(mut e) = event_of(&one, subject, text, from, guests, uid.to_string()) else { continue };
         e.recurrence_id = Some(original);
         out.push((e, Some(i)));

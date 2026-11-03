@@ -348,7 +348,7 @@ fn a_pattern_s_changed_occurrences() {
     let at = |d: u32, h: i64| days_from_civil(2026, 10, d) * 86_400 + h * 3600;
     for writer in [0x3008, 0x3009] {
         let (b, start) = series(writer);
-        let p = pattern(&b, start).unwrap();
+        let p = pattern(&b, start, "").unwrap();
         assert_eq!(p.rule, "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;COUNT=10");
         assert_eq!(p.exdates, [at(7, 7)], "{writer:x}");
         assert_eq!(p.changed.len(), 2);
@@ -365,19 +365,19 @@ fn a_pattern_s_changed_occurrences() {
     }
     // Without its ExtendedException, the 8-bit text is kept.
     let (b, start) = series(0x3008);
-    let p = pattern(&b[..b.len() - 70], start).unwrap();
+    let p = pattern(&b[..b.len() - 70], start, "").unwrap();
     assert_eq!(p.changed[0].subject.as_deref(), Some("Review (moved)"));
     // Cut anywhere or damaged anywhere, never a crash, and the rule stays.
     for n in 0..b.len() {
-        let _ = pattern(&b[..n], start);
+        let _ = pattern(&b[..n], start, "");
         let mut bad = b.clone();
         bad[n] = 0xFF;
-        let _ = pattern(&bad, start);
+        let _ = pattern(&bad, start, "");
     }
     for start in [i64::MIN, -1, 0, i64::MAX] {
-        let _ = pattern(&b, start);
+        let _ = pattern(&b, start, "");
     }
-    assert_eq!(pattern(&b[..b.len() - 1], start).unwrap().rule, "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;COUNT=10");
+    assert_eq!(pattern(&b[..b.len() - 1], start, "").unwrap().rule, "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;COUNT=10");
     // The fuzz target's seed is this series, as its input has it (the start, then the pattern).
     let seed = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fuzz/seeds/pst_recurrence/weekly_changed")).unwrap();
     let (begins, blob) = seed.split_first_chunk::<8>().unwrap();
@@ -594,4 +594,22 @@ fn a_sharing_invitation_says_what_it_shares() {
     assert_eq!((body.as_str(), html.as_deref()), ("Kept", Some("<p>x</p>")));
     let odd = HashMap::from([(0x8005, Val::Text(r"\\server\share\cal".into())), (0x8004, Val::Text("not an address".into()))]);
     assert!(sharing_lines(&|id| odd.get(&id).cloned(), &named).is_empty());
+}
+
+/// A meeting's uid from its global object id: the uid a calendar other than Outlook gave it
+/// (`vCal-Uid`), else the id in hexadecimal without the day of the occurrence it names; a short
+/// or damaged id is its hexadecimal, and a size past its end reads what's there.
+#[test]
+fn uids_from_global_object_ids() {
+    let head = [0x04, 0, 0, 0, 0x82, 0, 0xE0, 0, 0x74, 0xC5, 0xB7, 0x10, 0x1A, 0x82, 0xE0, 0x08];
+    let id = |day: [u8; 4], data: &[u8], size: u32| [&head[..], &day, &[0; 16], &size.to_le_bytes(), data].concat();
+    let vcal = [&b"vCal-Uid\x01\0\0\0"[..], b"review@studio.example", &[0]].concat();
+    assert_eq!(uid_of(&id([0; 4], &vcal, vcal.len() as u32)), "review@studio.example");
+    assert_eq!(uid_of(&id([0x07, 0xEA, 11, 10], &vcal, vcal.len() as u32)), "review@studio.example");
+    let outlook = id([0x07, 0xEA, 11, 10], &[0xAB; 16], 16);
+    let hex = uid_of(&outlook);
+    assert!(hex.starts_with("040000008200E00074C5B7101A82E00800000000") && hex.ends_with(&"AB".repeat(16)), "{hex}");
+    assert_eq!(uid_of(&[0x12, 0x34]), "1234");
+    assert_eq!(uid_of(&id([0; 4], &vcal, u32::MAX)), "review@studio.example");
+    assert!(uid_of(&id([0; 4], b"vCal-Uid\x01\0\0\0\0", 13)).starts_with("0400"), "an empty uid is the id");
 }
