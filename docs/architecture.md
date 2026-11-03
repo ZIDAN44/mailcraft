@@ -284,8 +284,10 @@ written (`Compose`), preferences and status-bar notices.
   cache, or as it arrived, then parsed) that the window runs on the reading lane, latest only,
   and hands back to `finish_body`; a result for a message the pane moved on from is let go.
   Signed or encrypted mail is still unwrapped on the session's thread (it needs its keys).
-  `Session::run` finishes the waiting body before any command but moving about the list, so a
-  command acts on the message as shown; the CLI and the tests never defer.
+  `Session::run` finishes the waiting body before any command but moving about the list and
+  those that change the list or the search without acting on the message (`leaves_body_waiting`:
+  a search run, remembered or cleared, a filter, the sort), so a command acts on the message as
+  shown; the CLI and the tests never defer.
 
 - The list is indexed as it's built (`refresh_list` → `ListNav` in `session/mailboxes/nav.rs`):
   `index_of`, `summary`, `selected_iter` and `first_selected` are lookups, not passes over the

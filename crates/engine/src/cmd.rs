@@ -26,7 +26,8 @@ fn has_reading(s: &Session) -> Option<&'static str> {
 }
 
 /// Commands that only move about the list (or open another message) or change the list or the
-/// view without acting on the open message (a search typed, a filter, the sort), and those about
+/// view without acting on the open message (a search typed or remembered as the box is left
+/// for a result, a filter, the sort), and those about
 /// an account's data file (the window tells the idle policy how long it's been every half
 /// minute): they leave its body being got ready on another thread, where every other command
 /// waits for it.
@@ -50,6 +51,9 @@ pub(crate) fn leaves_body_waiting(id: &str) -> bool {
             | "list.messages"
             | "search.run"
             | "search.clear"
+            | "search.remember"
+            | "search.forgetRecent"
+            | "searchFolder.open"
             | "view.arrange"
             | "view.reverseSort"
             | "view.folderPane"

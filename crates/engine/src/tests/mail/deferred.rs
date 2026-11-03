@@ -146,6 +146,37 @@ fn a_command_finishes_the_body_first() {
     done(s);
 }
 
+/// Searching doesn't wait for the open message either: the search box, left for a result,
+/// remembers its search, and the window used to get that result's body ready on its own thread
+/// for it (a 24 ms frame measured on a real mailbox). The body is still got ready elsewhere.
+#[test]
+fn searching_leaves_the_body_waiting() {
+    let mut s = sample_session("deferred-search");
+    s.defer_bodies(true);
+    s.run("searchFolder.create", &json!({"name": "Storyboards", "query": "storyboard"})).unwrap();
+    s.run("search.run", &json!({"query": "storyboard"})).unwrap();
+    let k = s.list[0].key.clone();
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    let parsed = s.bodies_parsed_here();
+    for (id, params) in [("search.remember", json!({"query": "storyboard"})), ("search.forgetRecent", json!({}))] {
+        s.run(id, &params).unwrap();
+        assert!(s.body_waiting(&k) && s.reading.as_ref().unwrap().parsed.is_none(), "{id} waits for nothing");
+        assert_eq!(s.bodies_parsed_here(), parsed, "{id}");
+    }
+    let w = s.take_body_work().unwrap();
+    s.finish_body(w.run());
+    assert!(s.reading.as_ref().unwrap().parsed.is_some(), "and it shows when it's ready");
+    // A Search Folder opened, or a search run again, starts another search: nothing is got
+    // ready here for the message it leaves.
+    s.run("list.open", &json!({"key": s.list[1].key.to_id()})).unwrap();
+    let parsed = s.bodies_parsed_here();
+    s.run("searchFolder.open", &json!({"name": "Storyboards"})).unwrap();
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    s.run("search.run", &json!({"query": "storyboard", "remember": true})).unwrap();
+    assert_eq!(s.bodies_parsed_here(), parsed);
+    done(s);
+}
+
 /// A message the parser trips on (a panic) shows that it couldn't be read; the session goes on.
 #[test]
 fn a_panicking_parse_shows_an_error() {
