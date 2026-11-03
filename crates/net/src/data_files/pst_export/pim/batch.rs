@@ -107,7 +107,7 @@ fn message<'a>(item: &'a Item, p: &'a [UnicodePstProperty<'a>], r: &'a [UnicodeP
     }
 }
 
-pub(super) fn write_batch(path: &Path, folder: &[&str], batch: &[Item]) -> Result<(), String> {
+pub(super) fn write_batch(path: &Path, format: Format, folder: &[&str], batch: &[Item]) -> Result<(), String> {
     // PidTagAttachmentContactPhoto, and hidden, as Outlook marks a contact's picture.
     let picture =
         [UnicodePstProperty::tagged(0x7FFF, UnicodePstValue::Boolean(true)), UnicodePstProperty::tagged(0x7FFE, UnicodePstValue::Boolean(true))];
@@ -155,5 +155,5 @@ pub(super) fn write_batch(path: &Path, folder: &[&str], batch: &[Item]) -> Resul
         .zip(&attachments)
         .map(|(((item, p), r), f)| UnicodePstBatchMessage { message: message(item, p, r), attachments: f })
         .collect();
-    append(path, folder, &messages)
+    append(path, format, folder, &messages)
 }

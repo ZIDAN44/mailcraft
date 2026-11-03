@@ -27,7 +27,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             };
             s.export_pst(&account, &path)
         })
-        .params(r#"{"path": string (the .pst file to write; one already there in Outlook's Unicode format, encoded or not, is added to, its messages not written twice), "account"?: string (default: the current one)}"#),
+        .params(r#"{"path": string (the .pst file to write; one already there in Outlook's Unicode format or Outlook 97–2002's ANSI one, encoded or not, is added to, its messages not written twice), "account"?: string (default: the current one)}"#),
         CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
             let email = p::req_str(v, "email")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&email) {

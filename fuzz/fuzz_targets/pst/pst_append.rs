@@ -9,7 +9,9 @@
 //! one the writer made (an Inbox with a message and its attachment, and a folder beside it),
 //! with the input read as five-byte patches (a little-endian offset, then the byte to put
 //! there). An input that starts like a data file (`!BDN`) is used whole: the seeds have one
-//! encoded as Outlook encodes its files (permute), so the writer's encoded paths are fuzzed too.
+//! encoded as Outlook encodes its files (permute), so the writer's encoded paths are fuzzed too,
+//! and one in Outlook 97–2002's ANSI format (an account exported into one), added to through
+//! `AnsiPstFile` and read with the reader's ANSI types.
 //!
 //! Before the append, the special folders the file records are looked up, as an export does to
 //! know where Sent, Trash, Drafts and Junk go: their entry IDs, the folders they name and the
@@ -29,10 +31,10 @@ use std::sync::OnceLock;
 use libfuzzer_sys::fuzz_target;
 use outlook_pst::ltp::prop_context::GuidValue;
 use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
-use outlook_pst::messaging::store::{Store as _, UnicodeStore};
+use outlook_pst::messaging::store::{AnsiStore, Store, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::{
-    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstAttachmentSource, UnicodePstBatchMessage,
+    ADD_MAX_VALUE_SIZE, AnsiPstFile, UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstAttachmentSource, UnicodePstBatchMessage,
     UnicodePstEmbeddedMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName, UnicodePstProperty, UnicodePstPropertyKey as Key,
     UnicodePstSpecialFolder as Special, UnicodePstValue as Value,
 };
@@ -98,13 +100,33 @@ fn good_file() -> Vec<u8> {
 
 static GOOD: OnceLock<Vec<u8>> = OnceLock::new();
 
+/// Whether the data file whose first bytes are `head` is in Outlook 97–2002's ANSI format
+/// (`wVer` 14 or 15, MS-PST 2.2.2.6).
+fn ansi(head: &[u8]) -> bool {
+    matches!(head.get(10..12), Some(&[14 | 15, 0]))
+}
+
+/// The file at `path`'s store, in its format, read within the limit the writer reads a file it
+/// adds to with.
+fn store(path: &Path, ansi: bool) -> Option<Rc<dyn Store>> {
+    if ansi {
+        let pst = AnsiPstFile::open(path).ok()?;
+        pst.set_max_value_size(ADD_MAX_VALUE_SIZE);
+        let store: Rc<dyn Store> = AnsiStore::read(Rc::new(pst)).ok()?;
+        Some(store)
+    } else {
+        let pst = UnicodePstFile::open(path).ok()?;
+        pst.set_max_value_size(ADD_MAX_VALUE_SIZE);
+        let store: Rc<dyn Store> = UnicodeStore::read(Rc::new(pst)).ok()?;
+        Some(store)
+    }
+}
+
 /// Every message the file's folders list that reads, by node, with its properties as text; read
 /// within the limit the writer reads a file it adds to with.
-fn messages(path: &Path) -> BTreeMap<u32, String> {
+fn messages(path: &Path, ansi: bool) -> BTreeMap<u32, String> {
     let mut out = BTreeMap::new();
-    let Ok(pst) = UnicodePstFile::open(path) else { return out };
-    pst.set_max_value_size(ADD_MAX_VALUE_SIZE);
-    let Ok(store) = UnicodeStore::read(Rc::new(pst)) else { return out };
+    let Some(store) = store(path, ansi) else { return out };
     let Ok(top) = store.properties().ipm_sub_tree_entry_id() else { return out };
     let mut stack = vec![(top, 0)];
     let mut seen = HashSet::new();
@@ -141,6 +163,7 @@ fuzz_target!(|data: &[u8]| {
         }
         file
     };
+    let ansi = ansi(&file);
     let path = scratch("existing.pst");
     if std::fs::write(&path, &file).is_err() {
         return;
@@ -154,11 +177,15 @@ fuzz_target!(|data: &[u8]| {
     let attachments = [notes(), attached, read];
     let batch = [UnicodePstBatchMessage { message: message("Added"), attachments: &attachments }];
     for role in [Special::DeletedItems, Special::SentItems, Special::Outbox, Special::Drafts, Special::JunkEmail] {
-        let _ = UnicodePstFile::special_folder(&path, role);
+        let _ = if ansi { AnsiPstFile::special_folder(&path, role) } else { UnicodePstFile::special_folder(&path, role) };
     }
-    let before = messages(&path);
-    let added = UnicodePstFile::append_many_in_folder_with_attachments(&path, &["Inbox"], &batch).is_ok();
-    let after = if added { messages(&path) } else { BTreeMap::new() };
+    let before = messages(&path, ansi);
+    let added = if ansi {
+        AnsiPstFile::append_many_in_folder_with_attachments(&path, &["Inbox"], &batch).is_ok()
+    } else {
+        UnicodePstFile::append_many_in_folder_with_attachments(&path, &["Inbox"], &batch).is_ok()
+    };
+    let after = if added { messages(&path, ansi) } else { BTreeMap::new() };
     let _ = std::fs::remove_file(&path);
     if added {
         // An append that succeeds keeps what the file held and adds what it says it wrote.

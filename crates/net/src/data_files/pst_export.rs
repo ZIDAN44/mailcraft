@@ -19,9 +19,10 @@
 //! A data file that's already there is added to, as Outlook's export does (issue #18): its mail
 //! stays, the account's goes into folders of the same names, and messages already in it (by
 //! `Message-ID`) aren't written twice. That is a file in the Unicode format Outlook 2003 and later
-//! make, encoded as Outlook encodes them (the writer is MailCraft's fork, which adds to those) or
-//! not; Outlook 97–2002's ANSI format can't be added to. The file is written as a copy that
-//! replaces it at the end, so a failed export leaves it as it was.
+//! make or in Outlook 97–2002's ANSI one ([`format`]: its strings 8-bit, in Windows-1252 or, for a
+//! message whose text it can't hold, UTF-8), encoded as Outlook encodes them or not (the writer
+//! is MailCraft's fork, which adds to all of those). The file is written as a copy that replaces
+//! it at the end, so a failed export leaves it as it was.
 
 use std::collections::{BTreeMap, HashSet};
 use std::io;
@@ -31,7 +32,6 @@ use std::rc::Rc;
 use mailcraft_mime as mime;
 use mailcraft_model::{Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::Store;
-use outlook_pst::messaging::message::{Message as _, UnicodeMessage};
 use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::{
@@ -42,6 +42,7 @@ use outlook_pst::{
 mod calendar;
 mod contact;
 mod files;
+mod format;
 mod item;
 mod kinds;
 mod meeting;
@@ -53,6 +54,7 @@ mod task;
 mod tests;
 mod writing;
 
+use format::Format;
 use item::Owned;
 use writing::{append, write};
 
@@ -88,12 +90,8 @@ pub struct Exported {
     pub pim_already: usize,
 }
 
-/// `wVer` of Outlook 97–2002's ANSI data files (MS-PST 2.2.2.6: 14 or 15; Unicode files say 23
-/// or more).
-const ANSI_VERSIONS: [u16; 2] = [14, 15];
-
 /// The `Message-ID`s in an existing data file's folders (a file the writer can add to: the Unicode
-/// format, encoded or not, not Outlook 97–2002's ANSI one nor Outlook's offline copy of a server
+/// format or Outlook 97–2002's ANSI one, encoded or not, not Outlook's offline copy of a server
 /// account).
 fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
     let mut head = [0u8; 12];
@@ -101,22 +99,17 @@ fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
     if !head.starts_with(b"!BDN") || head.get(8..10) != Some(b"SM") {
         return Err("it isn't an Outlook data file: choose another name to make a new one".into());
     }
-    if ANSI_VERSIONS.contains(&u16::from_le_bytes([head[10], head[11]])) {
-        return Err("this data file is in Outlook 97–2002's format, which mail can't be added to yet: choose another name to make a new one".into());
-    }
+    let format = Format::of_head(&head);
     let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<HashSet<String>> {
-        let pst = outlook_pst::UnicodePstFile::open(path)?;
-        pst.set_max_value_size(super::pst::MAX_VALUE);
-        let store = UnicodeStore::read(Rc::new(pst))?;
+        let any = format.store(path)?;
         let mut ids = HashSet::new();
-        let any: Rc<dyn PstStore> = store.clone();
         let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;
         let mut stack = vec![(top, 0usize)];
         while let Some((folder, depth)) = stack.pop() {
             if let Some(contents) = folder.contents_table() {
                 for row in contents.rows_matrix() {
                     let Ok(entry) = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))) else { continue };
-                    let Ok(m) = UnicodeMessage::read(store.clone(), &entry, Some(&[0x1035])) else { continue };
+                    let Ok(m) = any.open_message(&entry, Some(&[0x1035])) else { continue };
                     if let Some(id) = m.properties().get(0x1035).and_then(crate::pst::text_of) {
                         ids.insert(mailcraft_model::thread::norm_id(&id));
                     }
@@ -167,8 +160,10 @@ pub fn export(
         std::fs::copy(path, &temp).map_err(|e| e.to_string())?;
     }
     let mut created = existing;
+    // A file added to keeps its format; a new one is Unicode.
+    let format = if existing { Format::of(&temp) } else { Format::Unicode };
     // The special folders a file added to records, else the names a new one gets.
-    let targets = place::Targets::of(existing.then_some(temp.as_path()));
+    let targets = place::Targets::of(existing.then_some(temp.as_path()), format);
     let pim: mailcraft_model::pim::Pim = store.load_account_doc(account, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0);
     let owner = owner(store, account, &pim);
@@ -196,7 +191,7 @@ pub fn export(
                 }
                 if batch.len() >= BATCH || bytes >= BATCH_BYTES || spill.bytes() >= SPILL_BYTES {
                     let n = batch.len();
-                    write(&temp, &folder, &std::mem::take(&mut batch), &mut created)?;
+                    write(&temp, format, &folder, &std::mem::take(&mut batch), &mut created)?;
                     spill.clear();
                     bytes = 0;
                     done.messages += n;
@@ -204,14 +199,14 @@ pub fn export(
                 }
             }
             if !batch.is_empty() {
-                write(&temp, &folder, &batch, &mut created)?;
+                write(&temp, format, &folder, &batch, &mut created)?;
                 spill.clear();
                 done.messages += batch.len();
                 progress(done.messages);
             }
         }
-        record_special(&temp, &folders, &targets, created);
-        inside = pim::write(&temp, &pim, &taken, existing, &mut created, now, &owner)?;
+        record_special(&temp, format, &folders, &targets, created);
+        inside = pim::write(&temp, format, &pim, &taken, existing, &mut created, now, &owner)?;
         Ok(())
     }));
     let result = match written {
@@ -265,7 +260,7 @@ fn owner(store: &Store, account: &str, pim: &mailcraft_model::pim::Pim) -> calen
 /// the file records one already (a file added to keeps its own); made when they have no mail.
 /// The mail is in by then: a file that can't take the record keeps it as written, and the log
 /// says why.
-fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, created: bool) {
+fn record_special(path: &Path, format: Format, folders: &[Folder], targets: &place::Targets, created: bool) {
     if !created {
         return;
     }
@@ -273,7 +268,7 @@ fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, cre
         if !folders.iter().any(|f| f.selectable && f.role == role) {
             continue;
         }
-        match UnicodePstFile::special_folder(path, special) {
+        match format.special_folder(path, special) {
             Ok(Some(_)) => continue,
             Ok(None) => {}
             Err(e) => {
@@ -283,7 +278,7 @@ fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, cre
         }
         let names = targets.get(special);
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
-        if let Err(e) = UnicodePstFile::set_special_folder(path, special, &names) {
+        if let Err(e) = format.set_special_folder(path, special, &names) {
             log::info!("the data file's {special:?} can't be recorded: {e}");
         }
     }

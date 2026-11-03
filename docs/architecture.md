@@ -660,7 +660,9 @@ known, else its date).
   (`fake_graph.rs`), Exchange Web Services with NTLM (`fake_ews.rs`; NTLM also against the
   MS-NLMP test vectors), CalDAV/CardDAV (`fake_dav.rs`) and ManageSieve servers driving accounts
   through the same pool. Outlook data files are exported with `outlook-pst-rw` (MailCraft's fork, which adds to
-  files Outlook made, permute- or cyclic-encoded, trusts their allocation map only when it agrees
+  files Outlook made, in the Unicode format or Outlook 97–2002's ANSI one (`pst_export/format.rs`
+  picks `UnicodePstFile` or `AnsiPstFile` by the file's `wVer`; a new file is Unicode),
+  permute- or cyclic-encoded, trusts their allocation map only when it agrees
   with the B-trees, writes a message's class with any tagged or named property, adding names to
   the file's name-to-ID map, and records special folders, and is fuzzed adding to a damaged one,
   `pst_append`, which checks that every message that read before still reads) and read back by

@@ -46,9 +46,9 @@ impl Targets {
     /// The file at `path`'s (none when there's no file yet). The file is one being added to, so
     /// anything wrong in it, a panic in the writer's reader too, costs only its record: that
     /// folder gets the name a new file gives it.
-    pub(super) fn of(path: Option<&Path>) -> Targets {
+    pub(super) fn of(path: Option<&Path>, format: Format) -> Targets {
         Targets::found(|s| match path {
-            Some(p) => UnicodePstFile::special_folder(p, s),
+            Some(p) => format.special_folder(p, s),
             None => Ok(None),
         })
     }
@@ -107,7 +107,7 @@ mod tests {
             folder("Trashy", FolderRole::Other),
             folder("Projects", FolderRole::Other),
         ];
-        let targets = Targets::of(None);
+        let targets = Targets::of(None, Format::Unicode);
         let at = |i: usize| place(&folders[i], &folders, &targets);
         assert_eq!(at(0), ["Sent Items"]);
         assert_eq!(at(1), ["Sent Items", "2024"]);

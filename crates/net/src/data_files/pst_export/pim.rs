@@ -273,6 +273,7 @@ fn note(n: &Note, now: i64) -> Item {
 /// the items, and the log says why.
 pub(super) fn write(
     path: &Path,
+    format: Format,
     pim: &Pim,
     taken: &[Vec<String>],
     existing: bool,
@@ -290,10 +291,10 @@ pub(super) fn write(
         *created = true;
     }
     for (role, items) in all {
-        let (names, recorded) = folder_for(path, role, existing, taken);
+        let (names, recorded) = folder_for(path, format, role, existing, taken);
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
         // Added to again: an item the folder has as it is now isn't written twice.
-        let had = if existing { already(path, &names) } else { HashSet::new() };
+        let had = if existing { already(path, format, &names) } else { HashSet::new() };
         let count = items.len();
         let items: Vec<Item> = items.into_iter().filter(|i| mark(i).is_none_or(|m| !had.contains(m))).collect();
         if items.len() < count {
@@ -301,7 +302,7 @@ pub(super) fn write(
             done.already += count - items.len();
         }
         let count = items.len();
-        UnicodePstFile::create_folder(path, &names, role.container_class()).map_err(|e| e.to_string())?;
+        format.create_folder(path, &names, role.container_class()).map_err(|e| e.to_string())?;
         let mut start = 0;
         while start < items.len() {
             let (mut end, mut bytes) = (start, 0usize);
@@ -309,7 +310,7 @@ pub(super) fn write(
                 bytes = bytes.saturating_add(items.get(end).map_or(0, Item::bytes));
                 end += 1;
             }
-            write_batch(path, &names, items.get(start..end).unwrap_or_default())?;
+            write_batch(path, format, &names, items.get(start..end).unwrap_or_default())?;
             start = end;
         }
         match role {
@@ -321,7 +322,7 @@ pub(super) fn write(
             Special::Notes => done.notes = count,
             _ => done.tasks = count,
         }
-        if !recorded && let Err(e) = UnicodePstFile::set_special_folder(path, role, &names) {
+        if !recorded && let Err(e) = format.set_special_folder(path, role, &names) {
             log::info!("the data file's {role:?} can't be recorded: {e}");
         }
     }
@@ -332,11 +333,11 @@ pub(super) fn write(
 /// file added to records (a panic in the writer's reader costs only that), else the role's name,
 /// or that name with a number when the account's mail took it, or a file added to has a folder of
 /// another kind by that name (its mail folder `Notes`, say).
-fn folder_for(path: &Path, role: Special, existing: bool, taken: &[Vec<String>]) -> (Vec<String>, bool) {
-    if existing && let Ok(Ok(Some(names))) = std::panic::catch_unwind(|| UnicodePstFile::special_folder(path, role)) {
+fn folder_for(path: &Path, format: Format, role: Special, existing: bool, taken: &[Vec<String>]) -> (Vec<String>, bool) {
+    if existing && let Ok(Ok(Some(names))) = std::panic::catch_unwind(|| format.special_folder(path, role)) {
         return (names, true);
     }
-    let other = if existing { top_folders(path) } else { Vec::new() };
+    let other = if existing { top_folders(path, format) } else { Vec::new() };
     let other: Vec<&str> = other.iter().filter(|(_, class)| !class.eq_ignore_ascii_case(role.container_class())).map(|(n, _)| n.as_str()).collect();
     let free = |name: &str| {
         !taken.iter().any(|t| t.first().is_some_and(|f| f.eq_ignore_ascii_case(name))) && !other.iter().any(|o| o.eq_ignore_ascii_case(name))
@@ -357,20 +358,11 @@ fn mark(item: &Item) -> Option<&str> {
     })
 }
 
-/// The file at `path` opened by the reader, its store and the store as the reader's trait.
-fn open_store(path: &Path) -> io::Result<(Rc<UnicodeStore>, Rc<dyn PstStore>)> {
-    let pst = outlook_pst::UnicodePstFile::open(path)?;
-    pst.set_max_value_size(super::super::pst::MAX_VALUE);
-    let store = UnicodeStore::read(Rc::new(pst))?;
-    let any: Rc<dyn PstStore> = store.clone();
-    Ok((store, any))
-}
-
 /// The folders at the top of the file at `path`: each one's name and container class (a folder
 /// that says none holds mail, `IPF.Note`); none when it can't be read (a panic in the reader too).
-fn top_folders(path: &Path) -> Vec<(String, String)> {
+fn top_folders(path: &Path, format: Format) -> Vec<(String, String)> {
     let read = std::panic::catch_unwind(|| -> io::Result<Vec<(String, String)>> {
-        let (_, any) = open_store(path)?;
+        let any = format.store(path)?;
         let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;
         let Some(table) = top.hierarchy_table() else { return Ok(Vec::new()) };
         let mut out = Vec::new();
@@ -392,9 +384,9 @@ fn top_folders(path: &Path) -> Vec<(String, String)> {
 /// The marks of the items in the folder at `names` of the file at `path` (those MailCraft
 /// exported: the file's own have none, and are never taken for the account's); none when there
 /// is no such folder, or it can't be read (a panic in the reader too).
-fn already(path: &Path, names: &[&str]) -> HashSet<String> {
+fn already(path: &Path, format: Format, names: &[&str]) -> HashSet<String> {
     let read = std::panic::catch_unwind(|| -> io::Result<HashSet<String>> {
-        let (store, any) = open_store(path)?;
+        let any = format.store(path)?;
         let Some(id) = crate::pst_pim::Named::of(any.as_ref()).exported() else { return Ok(HashSet::new()) };
         let open = |row: u32| any.properties().make_entry_id(NodeId::from(row)).and_then(|e| any.open_folder(&e));
         let mut folder = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;
@@ -410,7 +402,7 @@ fn already(path: &Path, names: &[&str]) -> HashSet<String> {
         let mut out = HashSet::new();
         for row in folder.contents_table().map(|t| t.rows_matrix().collect::<Vec<_>>()).unwrap_or_default() {
             let Ok(entry) = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))) else { continue };
-            let Ok(m) = UnicodeMessage::read(store.clone(), &entry, Some(&[id])) else { continue };
+            let Ok(m) = any.open_message(&entry, Some(&[id])) else { continue };
             if let Some(mark) = m.properties().get(id).and_then(crate::pst::text_of) {
                 out.insert(mark);
             }

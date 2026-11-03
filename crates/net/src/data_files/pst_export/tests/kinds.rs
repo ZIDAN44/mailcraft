@@ -288,7 +288,7 @@ fn a_big_file_doesnt_need_the_cache_once_collected() {
     store.remove_body(&key);
     let path = dir.join("Mail.pst");
     let mut created = false;
-    write(&path, &["Inbox"], &[m], &mut created).unwrap();
+    write(&path, Format::Unicode, &["Inbox"], &[m], &mut created).unwrap();
     spill.clear();
     assert!(!dir.join("Mail.pst.part-files").exists());
     let got = attachments_of(&in_file(&path, "Footage"));

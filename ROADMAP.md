@@ -225,7 +225,8 @@ local-first, media-aware v1); the fuller request is
    inside it, as Outlook's own items in its Calendar, Contacts, Notes and Tasks folders (repeating
    appointments with their changed occurrences, meetings with their guests' answers), and meeting
    mail as Outlook's meeting items: nothing beside it; attached messages go in as messages,
-   signed and encrypted mail and reports as Outlook keeps them, and files of any size. A `.pst`
+   signed and encrypted mail and reports as Outlook keeps them, and files of any size; a `.pst`
+   in Outlook 97–2002's ANSI format is added to as well. A `.pst`
    brings in what it still left out: attached messages 32 deep, recalls and sharing invitations,
    contacts filed with mail, the files links point to, RSS feeds, and the files on notes, shown in
    the Notes pane.

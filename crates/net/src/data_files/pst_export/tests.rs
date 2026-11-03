@@ -2,6 +2,7 @@ use super::*;
 use mailcraft_model::{EmailAddress, Flags};
 use mailcraft_store::FolderState;
 use outlook_pst::UnicodePstSpecialFolder as Special;
+use outlook_pst::messaging::message::{Message as _, UnicodeMessage};
 
 const NONE: &BTreeMap<String, i64> = &BTreeMap::new();
 
@@ -491,9 +492,10 @@ fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Outlook 97–2002's ANSI files say so, before anything is read or written.
+/// An Outlook 97–2002 file that is only a header (damaged) says it can't be read, before
+/// anything is written.
 #[test]
-fn an_ansi_data_file_says_which_format_it_is() {
+fn a_damaged_ansi_data_file_says_it_cant_be_read() {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-ansi-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -502,11 +504,12 @@ fn an_ansi_data_file_says_which_format_it_is() {
     head.extend_from_slice(&14u16.to_le_bytes());
     head.resize(1024, 0);
     std::fs::write(&file, &head).unwrap();
-    assert!(ids_in(&file).is_err_and(|e| e.contains("Outlook 97–2002's format")));
+    assert!(ids_in(&file).is_err_and(|e| e.contains("can't be read")));
     assert_eq!(std::fs::read(&file).unwrap(), head);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+mod ansi;
 mod big;
 mod calendar;
 mod kinds;

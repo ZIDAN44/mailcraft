@@ -31,7 +31,7 @@ fn scratch(label: &str) -> std::path::PathBuf {
 /// phone of a kind it hasn't, a third work phone, two more postal addresses, an address's kind,
 /// other properties); one with a birthday without a year; two groups, one whose note lists its
 /// members as the import writes it; two notes, one with a file; four tasks.
-fn account() -> Pim {
+pub(super) fn account() -> Pim {
     let png = "iVBORw0KGgo=";
     let ana = Card {
         uid: "c1".into(),
