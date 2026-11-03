@@ -399,7 +399,7 @@ impl MailApp {
         self.pictures_drawn(&ctx);
 
         // A search a command started here (the box's, once the typing pauses) runs after the
-        // frame was drawn and takes only its first few units: the next frame shows and steps it
+        // frame was drawn and takes none of its units there: the next frame steps and shows it
         // now, not at the next wake (the settings tick: on a real file the results waited 2–5 s).
         let mut searched = false;
         for a in acts {

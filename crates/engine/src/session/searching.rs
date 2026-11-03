@@ -55,7 +55,8 @@ pub(crate) struct Indexing {
 const READER_REFRESH: i64 = 2;
 /// Units a search steps when it starts in the background: a small mailbox's search is there at
 /// once. Few: the command takes them whatever the time (sixteen of a cold mailbox's, their
-/// summaries' text made, held the frame searching for 20 ms); the window steps the rest.
+/// summaries' text made, held the frame searching for 20 ms); the window steps the rest. The
+/// window itself has its command take none ([`Session::set_search_first_units`]).
 const FIRST_UNITS: u32 = 4;
 /// Summaries of a list a search replaced let go of a step (or a tick).
 const LET_GO: usize = 4096;
@@ -90,6 +91,9 @@ pub(crate) struct SearchState {
     pub(crate) pinned: HashSet<(String, String)>,
     /// Searches don't wait: the window steps them each frame ([`Session::set_background_search`]).
     background: bool,
+    /// Units the search command takes itself, searching in the background (`None`:
+    /// [`FIRST_UNITS`]; [`Session::set_search_first_units`]).
+    first_units: Option<u32>,
     pub(crate) stats: SearchStats,
     /// The list a search started over, let go of [`LET_GO`] summaries a step: letting go of tens
     /// of thousands at once (each with its strings) held the frame that searched for 10–20 ms.
@@ -197,6 +201,15 @@ impl Session {
     /// a search is settled before it returns (the CLI, scripts and tests).
     pub fn set_background_search(&mut self, on: bool) {
         self.search_state.background = on;
+    }
+
+    /// Searching in the background, the units of the search the command that starts it takes
+    /// itself (four, unless set): the window has it take none, and steps the search within its
+    /// share of the next frame, which it asks for at once. Four units, each bounded by pages and
+    /// summaries rather than time, held the frame that searched for 16–20 ms on a real file
+    /// (one word's look-up read cold took 10.7 ms of it).
+    pub fn set_search_first_units(&mut self, units: u32) {
+        self.search_state.first_units = Some(units);
     }
 
     /// Whether searches run in the background.
@@ -475,7 +488,10 @@ impl Session {
             let shown = std::mem::take(&mut self.list);
             self.let_go(shown);
             self.refresh_list();
-            self.search_step(FIRST_UNITS);
+            let units = self.search_state.first_units.unwrap_or(FIRST_UNITS);
+            if units > 0 {
+                self.search_step(units);
+            }
         }
         self.list.len()
     }

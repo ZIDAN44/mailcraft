@@ -2778,6 +2778,20 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   its kind's icon meanwhile, and work for a message left is cancelled. A test hands the lane's work
   to itself and finds no file written and nothing decoded in a frame (both were before), the
   thumbnail shown once the work ran, and the work of a message left doing nothing.
+- **Searching: the frame of the search command:** timed by part on the same data file, no frame
+  of the 20 queries set whole, typed a character at a time or cleared went over 13.5 ms but those
+  that ran the search command, after the frame was drawn: its four units, bounded by pages and
+  summaries rather than time, took 16.1 ms once (a word's look-up read cold, 10.7 ms of it) and
+  19.2 ms for the first search after a fresh index pass. In the window the command now takes
+  none of the search, and the next frame, asked for at once, steps it within its 6 ms share (the
+  list drawn in the frame of the command is the one before it, so nothing shows empty
+  meanwhile); a test finds no unit taken by the command and the search done by the frames after.
+  Clearing a search after a result was marked read or unread, which builds the folder's list of
+  10,941 again rather than showing the one kept, took 2–5 ms. The 357 ms frame of round two's
+  first search after an index pass and its 177 ms frame at a clear weren't seen again in three
+  sessions on fresh copies, the first search right after the pass or after holds of Down: those
+  probes appended a line to a file from the window's thread at the search command and at every
+  step, which alone made frames of 20–270 ms.
 - **Attached messages as deep as they go:** a `.pst` item's attached messages came in three
   levels deep, and a fourth was counted as too deep. The cap is now 32 (`pst.rs` `MAX_NESTING`), a
   guard against a damaged or hostile file that no real one comes near: the whole item stays

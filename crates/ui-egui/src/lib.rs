@@ -424,9 +424,11 @@ impl MailApp {
         let mut session = session;
         session.set_zone(services.zone().as_deref());
         // The window's network side keeps each account's search index up, and the window steps
-        // searches a little each frame rather than waiting for them.
+        // searches a little each frame rather than waiting for them: none of a search in the
+        // command that starts it, after the frame was drawn, but in the next frame's share.
         session.set_indexing(true);
         session.set_background_search(true);
+        session.set_search_first_units(0);
         match services.take_data_moved() {
             Some(Ok(to)) => session.notice(tf!("Your mail is now kept in {folder}", folder = to.display().to_string()), false),
             Some(Err(e)) => session.notice(tf!("Your mail couldn't be moved, so it stays where it was: {error}", error = e), true),

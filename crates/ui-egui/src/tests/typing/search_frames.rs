@@ -111,6 +111,30 @@ fn a_search_typed_never_holds_a_frame() {
     assert_eq!(waited, found, "the same as a search that waits");
 }
 
+/// The command that starts a search takes none of it in the window: run after the frame was
+/// drawn, its four units held that frame for 16–20 ms on a real file. The next frame, asked for
+/// at once, steps it within its share, and the frames after find it all.
+#[test]
+fn the_search_command_takes_none_of_the_search_in_the_window() {
+    let ctx = egui::Context::default();
+    let mut a = generated(3, 700);
+    frame(&ctx, &mut a, vec![]);
+    let before = a.session.search_stats().units;
+    a.act(crate::Action::Run("search.run", json!({"query": "zanzibar", "scope": "all"})));
+    assert_eq!(a.session.search_stats().units, before, "no unit of it in the command");
+    assert!(a.session.search_progress().is_some_and(|p| !p.done));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.search_stats().units > before, "the next frame stepped it");
+    for _ in 0..100 {
+        if a.session.search_progress().is_some_and(|p| p.done) {
+            break;
+        }
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert!(a.session.search_progress().is_some_and(|p| p.done));
+    assert_eq!(a.session.list.len(), 2_100 / 7);
+}
+
 /// While a search runs the list says so; mail the index doesn't have yet "may be missing", how
 /// far the index has come with it, as the status bar shows; a date that isn't one is said; and
 /// advanced search has the received dates.
