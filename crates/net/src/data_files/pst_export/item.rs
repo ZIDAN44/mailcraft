@@ -8,8 +8,8 @@ use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
 use pst_rw::{UnicodePstName, UnicodePstProperty, UnicodePstValue};
 
 /// PSETID_Common and PSETID_Task (MS-OXPROPS 1.3.2).
-const PSETID_COMMON: GuidValue = GuidValue::new(0x0006_2008, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
-const PSETID_TASK: GuidValue = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+pub(super) const PSETID_COMMON: GuidValue = GuidValue::new(0x0006_2008, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+pub(super) const PSETID_TASK: GuidValue = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
 
 /// `PidTagMessageFlags`' mfRead and mfUnsent (MS-OXCMSG 2.2.1.6).
 const READ: i32 = 0x1;
@@ -70,7 +70,7 @@ pub(super) struct State {
 }
 
 /// Unix seconds as 100 ns since 1601 (0 before then).
-fn filetime(unix: i64) -> i64 {
+pub(super) fn filetime(unix: i64) -> i64 {
     unix.saturating_add(EPOCH_1601).saturating_mul(10_000_000).max(0)
 }
 

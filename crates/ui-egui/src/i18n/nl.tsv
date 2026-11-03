@@ -563,7 +563,7 @@
 	DOMAIN\\user, or the email address	DOMEIN\\gebruiker, of het e-mailadres
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Voor Exchange-servers van je organisatie, via Exchange Web Services. Meldt zich aan met je netwerkgebruikersnaam en -wachtwoord.
 	Found automatically when left empty	Wordt automatisch gevonden als je dit leeg laat
-	Its calendar and contacts go beside it, as .ics and .vcf files.	De agenda en contactpersonen komen ernaast, als .ics- en .vcf-bestanden.
+	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	De contactpersonen, notities en taken komen erin, de agenda ernaast als .ics-bestand.
 	You can close this window.	Je kunt dit venster sluiten.
 	Browse…	Bladeren…
 	Existing Outlook data file (optional)	Bestaand Outlook-gegevensbestand (optioneel)

@@ -65,7 +65,7 @@ use open::Recycle;
 use out::Out;
 #[doc(hidden)]
 pub use props::Val;
-pub(crate) use props::{one_off_address, text_of};
+pub(crate) use props::{one_off_address, one_off_entry_id, text_of};
 #[doc(hidden)]
 pub use resume::checkpoint_from_bytes;
 pub use resume::keep_as_is;

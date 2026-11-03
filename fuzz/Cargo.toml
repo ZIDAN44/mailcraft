@@ -23,6 +23,7 @@ bin = [
     { name = "pst_item", bench = false, test = false, doc = false, path = "fuzz_targets/pst_item.rs" }, # a .pst item rebuilt from its properties
     { name = "pst_props", bench = false, test = false, doc = false, path = "fuzz_targets/pst_props.rs" }, # text in a data file's properties, by code page
     { name = "pst_recurrence", bench = false, test = false, doc = false, path = "fuzz_targets/pim/pst_recurrence.rs" }, # a .pst appointment's recurrence and its changed occurrences
+    { name = "pst_pim_text", bench = false, test = false, doc = false, path = "fuzz_targets/pim/pst_pim_text.rs" }, # what an export keeps in a contact's and a task's text, and a task's rule as a pattern
     { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
     { name = "search_index", bench = false, test = false, doc = false, path = "fuzz_targets/store/search_index.rs" }, # the search index's files read back
     { name = "signature", bench = false, test = false, doc = false, path = "fuzz_targets/signature.rs" }, # signatures as HTML code and saved web pages

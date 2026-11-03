@@ -4,7 +4,8 @@
 //! task comes in as a task, with a due day or not. The files of a contact, calendar item or task
 //! come in on its card, event or task (`pst_pim::files`); a note and a journal entry have nowhere
 //! to keep one. The account's contacts, calendar and tasks are one document, written whole at
-//! each change and each checkpoint, and exported as one `.ics` and one `.vcf` that MailCraft must
+//! each change and each checkpoint, and its calendar and cards go out as one `.ics` and one `.vcf`
+//! (a calendar saved beside an exported data file, a server's address book) that MailCraft must
 //! read back (in full up to 16 MiB each), so the files kept there are held to [`MAX_FILE`] each
 //! and [`MAX_FILES`] in all, and those past either are counted as too big.
 
@@ -55,7 +56,8 @@ impl Out<'_> {
             if task.modified == 0 {
                 task.modified = it.date;
             }
-            task.extra = self.event_files(files, &uid);
+            let files = self.event_files(files, &uid);
+            task.extra.extend(files);
             self.pim.tasks.push(StoredTask { task });
         } else if class.starts_with("ipm.contact") {
             let mut card = crate::pst_pim::card_of(&x, &it.body, uid.clone());

@@ -459,7 +459,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                 t,
                 true,
                 name(t, tl!("Account")),
-                Some(note(t, tl!("Its calendar and contacts go beside it, as .ics and .vcf files."))),
+                Some(note(t, tl!("Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file."))),
                 |ui| {
                     if ui.button(tl!("Export…")).clicked() {
                         acts.push(Action::ExportDataFile(id.clone()));

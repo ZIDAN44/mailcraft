@@ -291,7 +291,7 @@ fn a_contact_s_picture() {
 }
 
 /// The files kept on cards and events stay within what MailCraft reads back: the contacts and
-/// calendar exported as one `.vcf` and one `.ics` (as `pst_export` writes them) read back whole,
+/// calendar written out as one `.vcf` and one `.ics` (as MailCraft writes them) read back whole,
 /// every card and event with every file that was kept; those past the cap are counted.
 #[test]
 fn kept_files_read_back_from_the_exported_files() {

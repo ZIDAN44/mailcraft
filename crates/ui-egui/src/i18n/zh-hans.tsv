@@ -566,7 +566,7 @@ month	May	5月
 	DOMAIN\\user, or the email address	域\\用户，或电子邮件地址
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	用于你所在组织运行的 Exchange 服务器，通过 Exchange Web Services。使用你的网络用户名和密码登录。
 	Found automatically when left empty	留空时自动查找
-	Its calendar and contacts go beside it, as .ics and .vcf files.	日历和联系人以 .ics 和 .vcf 文件保存在旁边。
+	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	联系人、备注和任务保存在其中，日历以 .ics 文件保存在旁边。
 	You can close this window.	可以关闭此窗口了。
 	Browse…	浏览…
 	Existing Outlook data file (optional)	现有的 Outlook 数据文件（可选）

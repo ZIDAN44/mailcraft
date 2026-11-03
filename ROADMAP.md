@@ -221,6 +221,8 @@ local-first, media-aware v1); the fuller request is
 32. **v0.32 — Pictures open without asking**
    A task list (Outlook's Tasks): every `.pst` task comes in, due or not, is edited, done and
    repeated here, is drawn in the calendar on its due day, and goes as a to-do in calendar files.
+   An exported `.pst` carries the account's contacts, contact groups, notes and tasks inside it,
+   as Outlook's own items in its Contacts, Notes and Tasks folders.
 33. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the
    browser, right-to-left inside dialogs, menus and the editor, Wayland drag-out, public folders
    on Exchange Online, S/MIME in the browser (revocation, smart cards and the system store), what

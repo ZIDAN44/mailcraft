@@ -20,10 +20,12 @@ use crate::pst::Val;
 
 mod files;
 mod recur;
+mod rest;
 mod tasks;
 pub(crate) use files::{card_file, card_photo, event_file, is_file_line};
-use recur::recurrence;
+pub(crate) use recur::recurrence;
 pub(crate) use recur::{Own, changed_events};
+pub(crate) use rest::{split_rest, with_rest};
 pub use tasks::repeating_task;
 pub(crate) use tasks::task_of;
 
@@ -138,6 +140,8 @@ pub(crate) struct Extra {
     pub family: String,
     pub company: String,
     pub title: String,
+    /// A contact's web page (PidLidHtml, else its business or personal home page).
+    pub web: String,
     pub emails: Vec<String>,
     pub phones: Vec<(String, &'static str)>,
     /// Business, home and other addresses.
@@ -227,6 +231,7 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> 
             x.addresses.push(a);
         }
     }
+    x.web = [ns(PSETID_ADDRESS, 0x802B), s(0x3A51), s(0x3A50)].into_iter().map(|w| w.trim().to_string()).find(|w| !w.is_empty()).unwrap_or_default();
     x.birthday = p(0x3A42).and_then(|v| v.time());
     x.start = time(PSETID_APPOINTMENT, 0x820D, 0x0060);
     x.end = time(PSETID_APPOINTMENT, 0x820E, 0x0061);
@@ -321,6 +326,13 @@ fn members(one_offs: Option<Val<'_>>, wrapped: Option<Val<'_>>) -> Vec<(String, 
     out
 }
 
+/// A contact group's member as [`members`] reads one from PidLidDistributionListMembers: the
+/// one-off entry id `one_off` wrapped (MS-OXCDATA 2.2.5.2: no flags, the wrapping provider, a type
+/// of 0, a one-off).
+pub(crate) fn wrapped_entry_id(one_off: &[u8]) -> Vec<u8> {
+    [&[0u8; 4][..], &WRAPPED, &[0], one_off].concat()
+}
+
 /// The contact group as a card (vCard 4's `KIND:group`, a `MEMBER` for each member) whose note
 /// lists its members, above its own text.
 pub(crate) fn group_of(x: &Extra, subject: &str, body: &str, uid: String) -> Card {
@@ -358,10 +370,12 @@ pub(crate) fn journal_text(x: &Extra, subject: &str, body: &str) -> String {
         .join("\n")
 }
 
-/// The contact as a card.
+/// The contact as a card: its web page a `URL`, and what an export kept in its text (a card of
+/// what Outlook has no place for, `rest`) back where it was.
 pub(crate) fn card_of(x: &Extra, body: &str, uid: String) -> Card {
     let name = if x.display.trim().is_empty() { format!("{} {}", x.given, x.family).trim().to_string() } else { x.display.trim().to_string() };
-    Card {
+    let (note, rest) = split_rest(&body.replace("\r\n", "\n"), "VCARD");
+    let mut card = Card {
         uid,
         name,
         given: x.given.clone(),
@@ -370,7 +384,7 @@ pub(crate) fn card_of(x: &Extra, body: &str, uid: String) -> Card {
         phones: x.phones.iter().map(|(v, k)| Typed { value: v.clone(), kind: (*k).to_string() }).collect(),
         org: x.company.clone(),
         title: x.title.clone(),
-        note: body.trim().to_string(),
+        note,
         addresses: x.addresses.clone(),
         // Kept as the start of the day where it was set, in UTC.
         birthday: x
@@ -381,7 +395,28 @@ pub(crate) fn card_of(x: &Extra, body: &str, uid: String) -> Card {
             })
             .unwrap_or_default(),
         extra: Vec::new(),
+    };
+    if !x.web.is_empty() {
+        card.extra.push(format!("URL:{}", x.web.replace(['\r', '\n'], "")));
     }
+    let more =
+        if rest.is_empty() { None } else { mailcraft_model::vcard::parse(&format!("BEGIN:VCARD\r\n{}\r\nEND:VCARD\r\n", rest.join("\r\n"))).pop() };
+    if let Some(more) = more {
+        // An address's kind, which Outlook doesn't keep, beside the address it kept.
+        for e in more.emails {
+            match card.emails.iter_mut().find(|c| c.value == e.value && c.kind.is_empty()) {
+                Some(c) => c.kind = e.kind,
+                None => card.emails.push(e),
+            }
+        }
+        card.phones.extend(more.phones);
+        card.addresses.extend(more.addresses);
+        if !more.birthday.is_empty() {
+            card.birthday = more.birthday;
+        }
+        card.extra.extend(more.extra);
+    }
+    card
 }
 
 /// The appointment as an event (None without a start).

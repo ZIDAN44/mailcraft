@@ -25,6 +25,7 @@ libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
 | `pst_item` | a `.pst` mail item rebuilt as a message from hostile property values: the headers made from them (Thread-Index, Thread-Topic, Sensitivity) stay on clean lines of their own; recipients' one-off entry ids; categories as keywords; an original header's `multipart/report` type |
 | `pst_props` | text in a data file's properties: an HTML body or an 8-bit string in its code page (a declared charset, byte-order marks), and the bytes in a code page of each kind MailCraft reads (the input names any other) |
 | `pst_recurrence` | a `.pst` appointment's recurrence pattern: its rule, deleted occurrences and changed ones (their times, 8-bit and UTF-16 subjects and rooms), each changed one an event replacing one occurrence; the calendar they make written and read again |
+| `pst_pim_text` | what an export to a data file keeps in a contact's and a task's text (a card's or a to-do's lines after it) read back into the card and the task, held to what they keep; a task's rule as the recurrence pattern the export writes, which the import reads |
 | `signature` | a signature as HTML code or a saved web page (Outlook's `.htm`): made harmless, its pictures out and back, its text, as sent |
 | `tnef` | Outlook's `winmail.dat`: its files, body and attached messages, compressed RTF and the HTML or text in it, and as a message's attachment |
 

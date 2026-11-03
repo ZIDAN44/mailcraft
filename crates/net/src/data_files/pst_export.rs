@@ -7,10 +7,10 @@
 //! its addresses (Bcc too), text and HTML bodies, attachments and header block, and with what the
 //! store keeps of it: read or not, a draft, flagged (and when it's due), answered or forwarded,
 //! its categories, importance and sensitivity ([`item`]). Messages only known by their headers
-//! (never opened, on an account that keeps headers only) are counted as skipped. Contacts and
-//! events aren't mapped onto Outlook's items yet, so the account's calendar and contacts go
-//! beside the file in the standard formats every calendar and address book reads
-//! (`… Calendar.ics`, `… Contacts.vcf`).
+//! (never opened, on an account that keeps headers only) are counted as skipped. The account's
+//! contacts, contact groups, notes and tasks go in as Outlook's own items, in the file's Contacts,
+//! Notes and Tasks folders ([`pim`]). Events aren't mapped onto Outlook's items yet, so the
+//! account's calendar goes beside the file as `… Calendar.ics`, which every calendar reads.
 //!
 //! A data file that's already there is added to, as Outlook's export does (issue #18): its mail
 //! stays, the account's goes into folders of the same names, and messages already in it (by
@@ -35,8 +35,12 @@ use pst_rw::{
     UnicodePstRecipientType,
 };
 
+mod contact;
 mod item;
+mod pattern;
+mod pim;
 mod place;
+mod task;
 #[cfg(test)]
 mod tests;
 
@@ -60,9 +64,12 @@ pub struct Exported {
     pub skipped: usize,
     /// Messages a data file already there had (by `Message-ID`), not written again.
     pub already: usize,
-    /// Events, tasks and people written beside the data file.
+    /// Events written beside the data file (its calendar).
     pub events: usize,
+    /// The account's tasks, notes and people (contact groups among them) in it: written, or there
+    /// already in a file added to.
     pub tasks: usize,
+    pub notes: usize,
     pub contacts: usize,
 }
 
@@ -146,10 +153,16 @@ pub fn export(
     let mut created = existing;
     // The special folders a file added to records, else the names a new one gets.
     let targets = place::Targets::of(existing.then_some(temp.as_path()));
+    let pim: mailcraft_model::pim::Pim = store.load_account_doc(account, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0);
+    // Where the mail went, so the contacts, notes and tasks of a new file don't go there.
+    let mut taken: Vec<Vec<String>> = Vec::new();
+    let mut inside = pim::Written::default();
     let written = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(), String> {
         for f in folders.iter().filter(|f| f.selectable) {
             let Ok(st) = store.load_folder(account, &f.path) else { continue };
             let folder = place::place(f, &folders, &targets);
+            taken.push(folder.clone());
             let folder: Vec<&str> = folder.iter().map(String::as_str).collect();
             let mut batch = Vec::new();
             let mut bytes = 0usize;
@@ -179,6 +192,7 @@ pub fn export(
             }
         }
         record_special(&temp, &folders, &targets, created);
+        inside = pim::write(&temp, &pim, &taken, existing, &mut created, now)?;
         Ok(())
     }));
     let result = match written {
@@ -197,8 +211,8 @@ pub fn export(
             if let Err(e) = std::fs::rename(&temp, path) {
                 return Err(format!("the data file couldn't be replaced ({e}): the mail is in {}", temp.display()));
             }
-            let (events, tasks, contacts) = pim_beside(store, account, path).map_err(|e| e.to_string())?;
-            Ok(Exported { events, tasks, contacts, ..done })
+            let events = calendar_beside(&pim, path, now).map_err(|e| e.to_string())?;
+            Ok(Exported { events, tasks: inside.tasks, notes: inside.notes, contacts: inside.contacts, ..done })
         }
         Err(e) => {
             let _ = std::fs::remove_file(&temp);
@@ -207,24 +221,16 @@ pub fn export(
     }
 }
 
-/// The account's calendar and contacts beside the data file: (events, tasks, people) written.
-/// Its tasks go in the calendar file as to-dos (`VTODO`), until they go inside the data file.
-fn pim_beside(store: &Store, account: &str, path: &Path) -> mailcraft_store::Result<(usize, usize, usize)> {
-    let pim: mailcraft_model::pim::Pim = store.load_account_doc(account, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+/// The account's calendar beside the data file (its tasks are inside it): the events written.
+fn calendar_beside(pim: &mailcraft_model::pim::Pim, path: &Path, now: i64) -> mailcraft_store::Result<usize> {
     let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Mail".into());
     let dir = path.parent().unwrap_or(Path::new("."));
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0);
     let events: Vec<mailcraft_model::ical::CalEvent> = pim.events.iter().map(|e| e.event.clone()).collect();
-    let tasks: Vec<mailcraft_model::pim::Task> = pim.tasks.iter().map(|t| t.task.clone()).collect();
-    if !events.is_empty() || !tasks.is_empty() {
-        let ics = mailcraft_model::ical::write_calendar(&events, &tasks, now);
+    if !events.is_empty() {
+        let ics = mailcraft_model::ical::write_calendar(&events, &[], now);
         mailcraft_store::write_atomic(&dir.join(format!("{stem} Calendar.ics")), ics.as_bytes())?;
     }
-    if !pim.cards.is_empty() {
-        let cards: String = pim.cards.iter().map(|c| mailcraft_model::vcard::write(&c.card)).collect();
-        mailcraft_store::write_atomic(&dir.join(format!("{stem} Contacts.vcf")), cards.as_bytes())?;
-    }
-    Ok((events.len(), tasks.len(), pim.cards.len()))
+    Ok(events.len())
 }
 
 /// Record the folders of the account's special roles as the file's own special folders, unless
@@ -333,4 +339,21 @@ fn append(path: &Path, folder: &[&str], batch: &[UnicodePstBatchMessage<'_>]) ->
         .map(|(m, p)| UnicodePstBatchMessage { message: UnicodePstMessage { properties: p, ..m.message }, attachments: m.attachments })
         .collect();
     UnicodePstFile::append_many_in_folder_with_attachments(path, folder, &batch).map(drop).map_err(|e| e.to_string())
+}
+
+/// A task's rule as the pattern an export writes for a task whose first day is `from`, and
+/// whether it reads back as the rule (else the task's text keeps the rule). For the fuzz target.
+#[doc(hidden)]
+pub fn task_pattern(rule: &str, from: i64) -> Option<(Vec<u8>, bool)> {
+    let p = pattern::write(rule, from)?;
+    let says = pattern::says(&p, from, rule);
+    Some((p, says))
+}
+
+/// A contact's and a task's text as the import reads it back, what an export kept there
+/// (`pst_pim::rest`) put back in its place. For the fuzz target.
+#[doc(hidden)]
+pub fn read_back_text(body: &str) -> (mailcraft_model::vcard::Card, mailcraft_model::pim::Task) {
+    let x = crate::pst_pim::Extra::default();
+    (crate::pst_pim::card_of(&x, body, "c".into()), crate::pst_pim::task_of(&x, "Task", body, 0, "t".into()))
 }

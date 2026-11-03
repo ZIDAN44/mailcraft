@@ -389,6 +389,19 @@ pub fn write(c: &Card) -> String {
     lines.push(format!("UID:{}", c.uid.replace(['\r', '\n'], "")));
     lines.push(format!("FN:{}", esc(&c.display())));
     lines.push(format!("N:{};{};;;", esc(&c.family), esc(&c.given)));
+    lines.extend(property_lines(c));
+    lines.push("END:VCARD".into());
+    let mut out = String::new();
+    for l in lines {
+        fold(&l, &mut out);
+    }
+    out
+}
+
+/// A card's properties past its uid and names, as unfolded content lines: its addresses, phones,
+/// organization, title, note, postal addresses, birthday and the rest, those it has.
+pub fn property_lines(c: &Card) -> Vec<String> {
+    let mut lines = Vec::new();
     let typed = |prop: &str, t: &Typed| {
         let kind = t.kind.replace(|ch: char| !ch.is_ascii_alphanumeric() && ch != '-', "");
         if kind.is_empty() {
@@ -420,12 +433,7 @@ pub fn write(c: &Card) -> String {
         });
     }
     lines.extend(c.extra.iter().map(|x| x.replace(['\r', '\n'], "")));
-    lines.push("END:VCARD".into());
-    let mut out = String::new();
-    for l in lines {
-        fold(&l, &mut out);
-    }
-    out
+    lines
 }
 
 #[cfg(test)]

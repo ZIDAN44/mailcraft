@@ -174,6 +174,16 @@ fn thread_index(m: &Message<'_>) -> Option<Vec<u8>> {
     mail_parser::decoders::base64::base64_decode(clean.as_bytes())
 }
 
+/// Base64 text as bytes, its spaces and line breaks passed over (`None` when it isn't base64):
+/// a card's picture and files (`data:` URIs) as an export writes them into a data file.
+pub fn decode_base64(text: &str) -> Option<Vec<u8>> {
+    let clean: Vec<u8> = text.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+    if clean.is_empty() {
+        return Some(Vec::new());
+    }
+    mail_parser::decoders::base64::base64_decode(&clean)
+}
+
 /// How important the sender marked a message: 1 high, -1 low, 0 normal. `Importance` (RFC 2156),
 /// else the de-facto `X-Priority` (1–2 high, 4–5 low), else `Priority` (urgent, non-urgent).
 pub(crate) fn importance(m: &Message<'_>) -> i8 {

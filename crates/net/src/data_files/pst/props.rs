@@ -103,6 +103,24 @@ const ONE_OFF: [u8; 16] = [0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D,
 /// Longest one-off entry id read.
 const MAX_ONE_OFF: usize = 1024;
 
+/// A one-off entry id for `name` at the SMTP `address`, as [`one_off_address`] reads one: in
+/// UTF-16, flagged so (0x9001: Unicode, no rich text), its name shortened to keep the whole within
+/// what is read.
+pub(crate) fn one_off_entry_id(name: &str, address: &str) -> Vec<u8> {
+    let utf16 = |s: &str| s.encode_utf16().chain(Some(0)).flat_map(u16::to_le_bytes).collect::<Vec<u8>>();
+    let tail = [utf16("SMTP"), utf16(address)].concat();
+    let room = MAX_ONE_OFF.saturating_sub(24 + tail.len()) / 2;
+    let name: String = name
+        .chars()
+        .filter(|c| !c.is_control())
+        .scan(0usize, |units, c| {
+            *units += c.len_utf16();
+            (*units < room).then_some(c)
+        })
+        .collect();
+    [&[0u8; 4][..], &ONE_OFF, &[0, 0, 0x01, 0x90], &utf16(&name), &tail].concat()
+}
+
 /// The display name and email address in a one-off entry id (MS-OXCDATA 2.2.5.1): four flag
 /// bytes, the one-off provider, a version and flags (0x8000: its strings are UTF-16), then the
 /// display name, the address type and the address, each ending in a NUL. `None` unless it is one
