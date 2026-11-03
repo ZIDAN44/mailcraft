@@ -212,7 +212,7 @@ pub fn export(
             }
         }
         record_special(&temp, format, &folders, &targets, created);
-        inside = pim::write(&temp, format, &pim, &taken, existing, &mut created, now, &owner)?;
+        inside = pim::write(&temp, format, &pim, &taken, existing, &mut created, now, &owner, account)?;
         Ok(())
     }));
     let result = match written {

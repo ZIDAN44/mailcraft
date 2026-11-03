@@ -3051,16 +3051,22 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   leaves its folder's contents table and any search folder's that lists it, the folder's content
   and unread counts are counted again in it and in its parent's hierarchy table, a deletion is
   noted in the search update queue for Outlook's search folders, and the allocation map is
-  written again, so the next blocks take the space. The export finds a folder's items by the
-  uid in their mark: one whose digest is no longer the account's is taken out once the item is
-  in as it is now (so a failure between the two leaves both, never neither, and the log says
-  why), a copy an earlier MailCraft left beside it too, and the export's notice counts the items
-  replaced. An item of a uid the account no longer has stays: the export can't tell one the user
-  deleted from one the account never had here (a file shared by two accounts), and the account's
-  deletions aren't looked at. Tested by exporting the same account twice with an event, a card, a
-  note and a task changed, into a new Unicode file and into an ANSI one: each folder then holds
-  one copy of each, the changed ones as they are now and the unchanged ones untouched (the same
-  node), read back so by the import; and by the fork's own tests (deleting until a folder is
+  written again, so the next blocks take the space. An item's mark now names the account too (a
+  digest of its id) beside its uid and digest, and the export finds a folder's items by it: the
+  account's copy whose digest is no longer the account's is taken out once the item is in as it
+  is now (so a failure between the two leaves both, never neither, and the log says why), a copy
+  an earlier export of the account left beside it too, and the export's notice counts the items
+  replaced. Another account's copy of the same uid stays: two accounts exported into one file
+  each keep theirs (a meeting is in its organizer's calendar and its guest's, each as that
+  account has it), and a mark an earlier build wrote without an account is never taken out. An
+  item of a uid the account no longer has stays: the export can't tell one the user deleted from
+  one the account never had here, and the account's deletions aren't looked at. Tested by
+  exporting the same account twice with an event, a card, a note and a task changed, into a new
+  Unicode file and into an ANSI one: each folder then holds one copy of each, the changed ones as
+  they are now and the unchanged ones untouched (the same node), read back so by the import; by
+  exporting two accounts with the same meeting (one organizing, one invited) and a card of the
+  same uid into one file, each again in turn, then one with its meeting changed: both copies of
+  each stay, and only the changed account's meeting is replaced; and by the fork's own tests (deleting until a folder is
   empty, from Outlook's own file with a search folder listing a message, a 600 KB message's space
   taken by the next). On a copy of the 41 GB file Outlook made, the account's 13 items were
   exported twice with four changed between: its 34,691 messages in 56 folders all read before,

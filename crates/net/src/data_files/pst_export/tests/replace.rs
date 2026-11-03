@@ -138,3 +138,67 @@ fn changed_items_replace_their_earlier_copies() {
 fn changed_items_replace_their_earlier_copies_in_an_ansi_file() {
     exported_again_in_place("ansi", true);
 }
+
+/// Two accounts exported into one file, each with a meeting of the same uid (the organizer's and
+/// the guest's, so each written as its account has it) and a card of the same uid with other
+/// fields: exported again, each keeps its own copies, and a change in one takes out only its own.
+#[test]
+fn two_accounts_in_one_file_keep_their_own_copies() {
+    let dir = scratch("two");
+    let file = dir.join("Out.pst");
+    let store = Store::open(dir.join("cache")).unwrap();
+    let person = |email: &str, name: &str, partstat: &str| mailcraft_model::ical::Attendee {
+        email: email.into(),
+        name: name.into(),
+        partstat: partstat.into(),
+        rsvp: partstat == "NEEDS-ACTION",
+    };
+    let meeting = |partstat: &str| StoredEvent {
+        calendar: "local".into(),
+        event: CalEvent {
+            uid: "review@studio.example".into(),
+            summary: "Review".into(),
+            start: 1_792_000_800,
+            end: 1_792_004_400,
+            organizer: Some(person("riley@studio.example", "Riley", "")),
+            attendees: vec![person("ana@studio.example", "Ana", partstat)],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let card = |name: &str| StoredCard {
+        book: "local".into(),
+        card: Card { uid: "shared-card".into(), name: name.into(), ..Default::default() },
+        ..Default::default()
+    };
+    let config = |id: &str, email: &str| mailcraft_model::AccountConfig { id: id.into(), email: email.into(), ..Default::default() };
+    store.save_accounts(&[config("a1", "riley@studio.example"), config("a2", "ana@studio.example")]).unwrap();
+    let mut one = Pim { events: vec![meeting("NEEDS-ACTION")], cards: vec![card("Sam Ortiz")], ..Default::default() };
+    let two = Pim { events: vec![meeting("ACCEPTED")], cards: vec![card("Sam Ortiz-Vega")], ..Default::default() };
+    store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &one).unwrap();
+    store.save_account_doc("a2", mailcraft_model::pim::PIM_DOC, &two).unwrap();
+    let counts = |account: &str| {
+        let d = export(&store, account, "Both", &file, NONE, &mut |_| {}).unwrap();
+        (d.events, d.contacts, d.pim_already, d.pim_replaced)
+    };
+    assert_eq!(counts("a1"), (1, 1, 0, 0));
+    assert_eq!(counts("a2"), (1, 1, 0, 0));
+    let both = items(&file);
+    assert_eq!(subjects(&both, "Calendar"), ["Review", "Review"]);
+    assert_eq!(subjects(&both, "Contacts").len(), 2);
+
+    // Again, each in turn: nothing written, nothing of the other's taken out.
+    assert_eq!(counts("a1"), (0, 0, 2, 0));
+    assert_eq!(counts("a2"), (0, 0, 2, 0));
+    assert_eq!(items(&file), both);
+
+    // The first account's meeting changes: its copy is replaced, the guest's stays.
+    one.events[0].event.summary = "Review, moved".into();
+    store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &one).unwrap();
+    assert_eq!(counts("a1"), (1, 0, 1, 1));
+    assert_eq!(counts("a2"), (0, 0, 2, 0));
+    let after = items(&file);
+    assert_eq!(subjects(&after, "Calendar"), ["Review", "Review, moved"]);
+    assert_eq!(after.get("Contacts"), both.get("Contacts"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

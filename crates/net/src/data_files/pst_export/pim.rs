@@ -4,13 +4,15 @@
 //! as an `IPM.Appointment` ([`calendar`]), a card as an `IPM.Contact` or, a group's, an
 //! `IPM.DistList` ([`contact`]), a note as an `IPM.StickyNote`, a task as an `IPM.Task`
 //! ([`task`]). A file added to keeps its own items, and those it records as its
-//! special folders take the account's. Each item is marked with its uid and a digest of what went
-//! in (`pst_pim::EXPORTED_ITEM`): added to again, an item the file has as it is now isn't written
-//! twice, and one changed since goes in again in place of its earlier copy, which is taken out
-//! once the new one is in (so a failure between the two leaves both, never neither). Items the
-//! file has of a uid the account no longer has stay: the export can't tell one the user deleted
-//! from one the account never had here (a file shared by two accounts). What Outlook has no place
-//! for stays in the item's text, as the import reads it back (`pst_pim::rest`).
+//! special folders take the account's. Each item is marked with its uid, the account's and a
+//! digest of what went in (`pst_pim::EXPORTED_ITEM`): added to again, an item the file has as it
+//! is now isn't written twice, and one changed since goes in again in place of the account's
+//! earlier copy, which is taken out once the new one is in (so a failure between the two leaves
+//! both, never neither). Another account's copy of the same uid stays (a meeting is in its
+//! organizer's calendar and its guest's, as each has it), as do items the file has of a uid the
+//! account no longer has: the export can't tell one the user deleted from one the account never
+//! had here. What Outlook has no place for stays in the item's text, as the import reads it back
+//! (`pst_pim::rest`).
 
 use mailcraft_model::pim::{NOTE_COLORS, NOTE_YELLOW, Note, Pim};
 use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
@@ -123,12 +125,13 @@ impl Item {
         self.body.len().saturating_add(props.sum()).saturating_add(self.files.iter().map(|f| f.data.len()).sum()).saturating_add(attached)
     }
 
-    /// The item marked as the account's item `uid`, with a digest of all that is written of it
-    /// but when (a card's is when it's exported); unmarked without a uid.
-    fn marked(mut self, uid: &str) -> Item {
+    /// The item marked as the item `uid` of the account `owner` names ([`owner_key`]), with a
+    /// digest of all that is written of it but when (a card's is when it's exported); unmarked
+    /// without a uid.
+    fn marked(mut self, uid: &str, owner: &str) -> Item {
         let uid = uid.replace(['\r', '\n'], "");
         if !uid.trim().is_empty() {
-            let mark = format!("{uid}\n{:016x}", self.digest());
+            let mark = format!("{uid}\n{owner}\n{:016x}", self.digest());
             self.props.push((Key::Exported, Value::Text(mark)));
         }
         self
@@ -241,14 +244,23 @@ pub(super) struct Written {
     pub(super) replaced: usize,
 }
 
-/// The account's items for each of the file's folders, those it has, each marked; `now` is when
-/// the export runs (Unix seconds), a card's time; `owner`: whose calendar it is.
-fn items(pim: &Pim, now: i64, owner: &super::calendar::Owner) -> Vec<(Special, Vec<Item>)> {
+/// What a mark says of the account whose item it is: a digest of its id (16 hex digits), so two
+/// accounts exported into one file each know their own copies and never take out the other's.
+fn owner_key(account: &str) -> String {
+    let mut h = Fnv(0xCBF2_9CE4_8422_2325);
+    h.part(account.as_bytes());
+    format!("{:016x}", h.0)
+}
+
+/// The account's items for each of the file's folders, those it has, each marked as `account`'s;
+/// `now` is when the export runs (Unix seconds), a card's time; `owner`: whose calendar it is.
+fn items(pim: &Pim, now: i64, owner: &super::calendar::Owner, account: &str) -> Vec<(Special, Vec<Item>)> {
+    let key = owner_key(account);
     let events: Vec<&mailcraft_model::ical::CalEvent> = pim.events.iter().map(|e| &e.event).collect();
-    let calendar = super::calendar::items(&events, now, owner).into_iter().map(|(uid, item)| item.marked(&uid)).collect();
-    let contacts: Vec<Item> = pim.cards.iter().map(|c| super::contact::item(&c.card, now).marked(&c.card.uid)).collect();
-    let notes = pim.notes.iter().map(|n| note(&n.note, now).marked(&n.note.uid)).collect();
-    let tasks = pim.tasks.iter().map(|t| super::task::item(&t.task, now).marked(&t.task.uid)).collect();
+    let calendar = super::calendar::items(&events, now, owner).into_iter().map(|(uid, item)| item.marked(&uid, &key)).collect();
+    let contacts: Vec<Item> = pim.cards.iter().map(|c| super::contact::item(&c.card, now).marked(&c.card.uid, &key)).collect();
+    let notes = pim.notes.iter().map(|n| note(&n.note, now).marked(&n.note.uid, &key)).collect();
+    let tasks = pim.tasks.iter().map(|t| super::task::item(&t.task, now).marked(&t.task.uid, &key)).collect();
     let all = [(Special::Calendar, calendar), (Special::Contacts, contacts), (Special::Notes, notes), (Special::Tasks, tasks)];
     all.into_iter().filter(|(_, items)| !items.is_empty()).collect()
 }
@@ -275,8 +287,9 @@ fn note(n: &Note, now: i64) -> Item {
 /// Write the account's calendar, contacts, notes and tasks (`pim`) into the data file at `path` (made when
 /// there is none yet: `created`); `existing`: a file added to, whose special folders take them;
 /// `taken`: where the account's mail went, so a new folder isn't one of those; `owner`: whose
-/// calendar it is. The file has the mail by then: one that can't record a folder as its own keeps
-/// the items, and the log says why.
+/// calendar it is; `account`: whose items they are, so its earlier copies are told from another
+/// account's. The file has the mail by then: one that can't record a folder as its own keeps the
+/// items, and the log says why.
 pub(super) fn write(
     path: &Path,
     format: Format,
@@ -286,9 +299,11 @@ pub(super) fn write(
     created: &mut bool,
     now: i64,
     owner: &super::calendar::Owner,
+    account: &str,
 ) -> Result<Written, String> {
     let mut done = Written::default();
-    let all = items(pim, now, owner);
+    let all = items(pim, now, owner, account);
+    let key = owner_key(account);
     if all.is_empty() {
         return Ok(done);
     }
@@ -303,10 +318,10 @@ pub(super) fn write(
         // copies it has of an item as it was before (its uid, another digest) go once the item
         // is in as it is now.
         let had = if existing { already(path, format, &names) } else { Vec::new() };
-        let earlier = earlier_copies(&had, &items);
+        let earlier = earlier_copies(&had, &items, &key);
         let marks: HashSet<&str> = had.iter().map(|(m, _)| m.as_str()).collect();
         let count = items.len();
-        let items: Vec<Item> = items.into_iter().filter(|i| mark(i).is_none_or(|m| !marks.contains(m))).collect();
+        let items: Vec<Item> = items.into_iter().filter(|i| mark(i).is_none_or(|m| !has(&marks, m))).collect();
         if items.len() < count {
             log::info!("{} of the account's {role:?} items are in the data file already", count - items.len());
             done.already += count - items.len();
@@ -400,9 +415,27 @@ fn top_folders(path: &Path, format: Format) -> Vec<(String, String)> {
     }
 }
 
-/// The uid a mark names (all of it but the digest on its last line).
+/// What a mark says: the item's uid, the account whose it is ([`owner_key`]; none in a mark an
+/// earlier MailCraft wrote, two lines, whose account can't be known) and the digest, each on a
+/// line of its own (a uid has no line ends).
+fn parts(mark: &str) -> (&str, Option<&str>, &str) {
+    let Some((rest, digest)) = mark.rsplit_once('\n') else { return (mark, None, "") };
+    match rest.rsplit_once('\n') {
+        Some((uid, owner)) => (uid, Some(owner), digest),
+        None => (rest, None, digest),
+    }
+}
+
+/// The uid a mark names.
 fn uid_of(mark: &str) -> &str {
-    mark.rsplit_once('\n').map_or(mark, |(uid, _)| uid)
+    parts(mark).0
+}
+
+/// Whether a folder whose items carry `marks` has the item marked `mark` as it is now: marked so,
+/// or by an earlier MailCraft with its uid and digest and no account.
+fn has(marks: &HashSet<&str>, mark: &str) -> bool {
+    let (uid, _, digest) = parts(mark);
+    marks.contains(mark) || marks.contains(format!("{uid}\n{digest}").as_str())
 }
 
 /// The copies a folder has of the account's items as they were before.
@@ -412,19 +445,22 @@ struct Earlier {
     uids: HashSet<String>,
 }
 
-/// The items of `had` (a folder's, by mark) that are copies of one of `items` as it was before:
-/// marked with its uid and a digest none of the account's items of that uid has now (a series'
-/// occurrences written one by one share its uid).
-fn earlier_copies(had: &[(String, NodeId)], items: &[Item]) -> Earlier {
+/// The items of `had` (a folder's, by mark) that are the account's copies (marked with `owner`,
+/// [`owner_key`]) of one of `items` as it was before: marked with its uid and a digest none of the
+/// account's items of that uid has now (a series' occurrences written one by one share its uid).
+/// Another account's copy of an item with the same uid (a meeting in the organizer's calendar and
+/// a guest's) stays, as does one whose mark names no account.
+fn earlier_copies(had: &[(String, NodeId)], items: &[Item], owner: &str) -> Earlier {
     let mut now: HashMap<&str, HashSet<&str>> = HashMap::new();
     for m in items.iter().filter_map(mark) {
         now.entry(uid_of(m)).or_default().insert(m);
     }
     let mut earlier = Earlier { ids: Vec::new(), uids: HashSet::new() };
     for (m, id) in had {
-        if now.get(uid_of(m)).is_some_and(|marks| !marks.contains(m.as_str())) {
+        let (uid, whose, _) = parts(m);
+        if whose == Some(owner) && now.get(uid).is_some_and(|marks| !marks.contains(m.as_str())) {
             earlier.ids.push(*id);
-            earlier.uids.insert(uid_of(m).to_string());
+            earlier.uids.insert(uid.to_string());
         }
     }
     earlier
