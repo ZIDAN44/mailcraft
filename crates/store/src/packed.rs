@@ -4,7 +4,9 @@
 //! an account's folder lives in `<files>/<name>.mailcraft`, a crash-safe single-file database
 //! (redb) with one table from path to bytes; files directly in `<root>` (the account list, the
 //! app's state) stay ordinary files there. `<files>` is "MailCraft Files" in Documents unless
-//! moved (`location.rs`); which file is whose is kept in `<root>/datafiles.json`.
+//! moved (`location.rs`); which file is whose is kept in `<root>/datafiles.json`. An Outlook
+//! data file opened as a mailbox has its copy beside it instead, named there by its whole path
+//! (`beside.rs`).
 //!
 //! Data files are hostile input like everything else: one that can't be read is set aside
 //! (`.damaged`) and a new one started, never a crash. Folders from before (an account's folder
@@ -24,6 +26,7 @@ use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
 use crate::{CACHE, CommitTimes, OpenProgress, Prepared, Result, StoreError, io_err, write_atomic};
 
+mod beside;
 mod commit;
 mod compact;
 #[cfg(any(test, feature = "test-drive"))]

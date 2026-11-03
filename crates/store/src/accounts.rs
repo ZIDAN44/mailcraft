@@ -208,25 +208,7 @@ impl Store {
         read?;
         sealed?;
         // Folders and messages name the account they belong to: this one now.
-        let mut folders = self.load_folders(account)?;
-        if folders.iter().any(|f| f.account != account) {
-            for f in &mut folders {
-                f.account = account.to_string();
-            }
-            self.save_folders(account, &folders)?;
-        }
-        let mut messages = 0;
-        for f in folders {
-            let mut st = self.load_folder(account, &f.path)?;
-            messages += st.messages.len();
-            if st.messages.iter().any(|m| m.key.account != account) {
-                for m in &mut st.messages {
-                    SharedSummary::make_mut(m).key.account = account.to_string();
-                }
-                self.save_folder(account, &f.path, &st)?;
-            }
-        }
-        Ok(messages)
+        self.claim_folders(account)
     }
 
     /// Bytes an account's cache takes on disk (message sources, summaries, the Outbox).

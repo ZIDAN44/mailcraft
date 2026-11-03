@@ -462,9 +462,11 @@ impl Packs {
     /// one) told to [`Packs::progress`] and marked in `checked`.
     fn builder(&self, name: &str, checked: &Arc<AtomicBool>, cache: usize) -> redb::Builder {
         let mut b = Database::builder();
-        let (progress, name, checked) = (self.progress.clone(), name.to_string(), checked.clone());
-        // Its size, for how far a pass over it has come.
-        let path = self.dir.join(&name);
+        // Its size, for how far a pass over it has come; told by its file name (a copy beside an
+        // Outlook data file is named by its whole path).
+        let path = self.dir.join(name);
+        let name = shown(name);
+        let (progress, checked) = (self.progress.clone(), checked.clone());
         b.set_cache_size(cache).set_repair_callback(move |s| {
             if !checked.swap(true, Ordering::AcqRel) {
                 progress.sized(fs::metadata(&path).map_or(0, |m| m.len()));
@@ -484,6 +486,7 @@ impl Packs {
         files.sort();
         self.progress.start(files.len());
         for (name, account) in &files {
+            let name = &shown(name);
             self.progress.opening(name);
             match self.db(account, false) {
                 Ok(_) => {}
@@ -499,4 +502,10 @@ impl Packs {
         }
         Ok(())
     }
+}
+
+/// A data file's name as it's shown: the file's own (a copy beside an Outlook data file is named
+/// by its whole path).
+fn shown(name: &str) -> String {
+    Path::new(name).file_name().and_then(|n| n.to_str()).unwrap_or(name).to_string()
 }

@@ -442,14 +442,24 @@ impl Packs {
 
     /// Copies left by compactions that didn't end (a crash), removed: the data files they were of
     /// are as they were.
+    /// Those beside an Outlook data file too (each looked for by its own name: the folder is the
+    /// user's).
     pub(super) fn remove_copies(&self) {
-        let Ok(rd) = fs::read_dir(&self.dir) else { return };
-        for e in rd.flatten() {
-            if e.file_name().to_str().is_some_and(is_copy) && e.file_type().is_ok_and(|t| t.is_file()) {
-                match fs::remove_file(e.path()) {
-                    Ok(()) => log::info!("{}: a copy left by a compaction that didn't end, removed", e.path().display()),
-                    Err(e2) => log::warn!("{}: not removed: {e2}", e.path().display()),
+        let remove = |path: &Path| match fs::remove_file(path) {
+            Ok(()) => log::info!("{}: a copy left by a compaction that didn't end, removed", path.display()),
+            Err(e) => log::warn!("{}: not removed: {e}", path.display()),
+        };
+        if let Ok(rd) = fs::read_dir(&self.dir) {
+            for e in rd.flatten() {
+                if e.file_name().to_str().is_some_and(is_copy) && e.file_type().is_ok_and(|t| t.is_file()) {
+                    remove(&e.path());
                 }
+            }
+        }
+        let beside: Vec<PathBuf> = Packs::lock(&self.names).values().map(Path::new).filter(|p| p.is_absolute()).map(copy_path).collect();
+        for copy in beside {
+            if fs::symlink_metadata(&copy).is_ok_and(|m| m.is_file()) {
+                remove(&copy);
             }
         }
     }
