@@ -133,6 +133,11 @@ impl Named {
         [self.id(PSETID_TASK, 0x8105), self.id(PSETID_TASK, 0x8104)]
     }
 
+    /// The property holding the day a follow-up was marked complete (PidLidTaskDateCompleted).
+    pub(crate) fn flag_done(&self) -> Option<u16> {
+        self.id(PSETID_TASK, 0x810F)
+    }
+
     fn id(&self, set: GuidKey, lid: u32) -> Option<u16> {
         self.ids.get(&(set, lid)).copied()
     }

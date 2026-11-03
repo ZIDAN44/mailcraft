@@ -183,6 +183,11 @@ fn a_file_read_again_adds_what_it_has_new_and_keeps_what_was_done_here() {
     let due = std::collections::BTreeMap::from([("one@x".to_string(), 20_100), ("four@x".to_string(), 20_400)]);
     fresh.save_account_doc("r", mailcraft_model::organize::FOLLOW_UP_DOC, &due).unwrap();
     put(&fresh, "r", "Projects", 1, "five@x", true);
+    // Its follow-up marked complete in the file, on a day.
+    let five = vec![MessageKey { account: "r".into(), folder: "Projects".into(), validity: 1, uid: 1 }];
+    fresh.apply_op("r", &mailcraft_model::Op::SetKeyword { keys: five, keyword: mailcraft_model::FOLLOW_UP_COMPLETE.into(), on: true }).unwrap();
+    let done = std::collections::BTreeMap::from([("five@x".to_string(), 20_390), ("one@x".to_string(), 20_391)]);
+    fresh.save_account_doc("r", mailcraft_model::organize::FOLLOW_UP_DONE_DOC, &done).unwrap();
     let mut theirs = Pim::default();
     for (i, text) in ["old", "new"].iter().enumerate() {
         let note = mailcraft_model::pim::Note { uid: format!("pst-r-{i}@mailcraft.invalid"), text: (*text).into(), ..Default::default() };
@@ -212,6 +217,9 @@ fn a_file_read_again_adds_what_it_has_new_and_keeps_what_was_done_here() {
     // The new flagged one's day is left for the engine to take; the one here already has its own.
     let due: std::collections::BTreeMap<String, i64> = s.load_account_doc("a1", mailcraft_model::organize::FOLLOW_UP_DOC).unwrap();
     assert_eq!(due, std::collections::BTreeMap::from([("four@x".to_string(), 20_400)]));
+    // And the new completed one's day it was done.
+    let done: std::collections::BTreeMap<String, i64> = s.load_account_doc("a1", mailcraft_model::organize::FOLLOW_UP_DONE_DOC).unwrap();
+    assert_eq!(done, std::collections::BTreeMap::from([("five@x".to_string(), 20_390)]));
     // Read once more: nothing new.
     let again = s.merge_from("a1", &fresh, "r").unwrap();
     assert_eq!((again.messages, again.notes), (0, 0));

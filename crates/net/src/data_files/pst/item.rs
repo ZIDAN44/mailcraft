@@ -29,8 +29,11 @@ pub(super) struct Item {
     pub(super) thread_topic: String,
     pub(super) sensitivity: u8,
     pub(super) flags: Flags,
-    /// The local day it's flagged to be followed up by, when it's flagged for one.
+    /// The local day it's flagged to be followed up by, when it's flagged for one (or was, its
+    /// follow-up marked complete).
     pub(super) due: Option<i64>,
+    /// The day its follow-up was marked complete, when it was and the file says when.
+    pub(super) done: Option<i64>,
     pub(super) files: Vec<File>,
     /// A contact's picture: its type and bytes.
     pub(super) photo: Option<(String, Vec<u8>)>,
@@ -210,6 +213,8 @@ pub(super) fn item_of<'a>(
         _ => 0,
     };
     let follow_up = matches!(p(0x1090), Some(Val::Int(2)));
+    // Its follow-up marked complete (followupComplete): no longer flagged, but done.
+    let complete = matches!(p(0x1090), Some(Val::Int(1)));
     // The last thing done to it (PidTagLastVerbExecuted): reply, reply to all, forward; or,
     // without one, its forwarded icon (PidTagIconIndex).
     let verb = match p(0x1081) {
@@ -220,6 +225,9 @@ pub(super) fn item_of<'a>(
     let forwarded = verb == 0x0068 || (verb == 0 && matches!(p(0x1080), Some(Val::Int(0x0106))));
     // MSGFLAG_READ, MSGFLAG_UNSENT.
     it.flags = Flags { seen: flags & 0x1 != 0, draft: flags & 0x8 != 0, flagged: follow_up, answered: replied, forwarded, ..Default::default() };
+    if complete {
+        it.flags.keywords.push(mailcraft_model::FOLLOW_UP_COMPLETE.to_string());
+    }
     // Its categories, as the keywords MailCraft keeps them as (a name that would make one of
     // the system's, `$Junk` say, is left out).
     if let Some(Val::Texts(names)) = named.keywords().and_then(p) {
@@ -230,9 +238,14 @@ pub(super) fn item_of<'a>(
             }
         }
     }
-    // The day it's due (PidLidTaskDueDate, else PidLidTaskStartDate), when it's flagged.
-    if follow_up {
+    // The day it's due (PidLidTaskDueDate, else PidLidTaskStartDate), when it's flagged or done.
+    if follow_up || complete {
         it.due = named.flag_days().into_iter().flatten().find_map(|id| p(id).and_then(|v| due_day(&v)));
+    }
+    // The day it was done: PidLidTaskDateCompleted (a day's midnight), else
+    // PidTagFlagCompleteTime (a moment: its day in UTC).
+    if complete {
+        it.done = named.flag_done().and_then(p).and_then(|v| due_day(&v)).or_else(|| p(0x1091).and_then(|v| moment_day(&v)));
     }
     let headers = super::rebuild::usable_headers(&it.headers);
     for row in recipients {
@@ -284,6 +297,14 @@ pub(super) fn due_day(v: &Val<'_>) -> Option<i64> {
     let Val::Time(t) = v else { return None };
     let seconds = t.checked_div(10_000_000)?.checked_sub(11_644_473_600)?;
     let day = seconds.checked_add(43_200)?.div_euclid(86_400);
+    mailcraft_model::organize::FOLLOW_UP_DAYS.contains(&day).then_some(day)
+}
+
+/// The day of a moment (100 ns since 1601, UTC), as days since 1970: None out of
+/// [`FOLLOW_UP_DAYS`](mailcraft_model::organize::FOLLOW_UP_DAYS).
+pub(super) fn moment_day(v: &Val<'_>) -> Option<i64> {
+    let Val::Time(t) = v else { return None };
+    let day = t.checked_div(10_000_000)?.checked_sub(11_644_473_600)?.div_euclid(86_400);
     mailcraft_model::organize::FOLLOW_UP_DAYS.contains(&day).then_some(day)
 }
 

@@ -61,7 +61,7 @@ pub(super) struct Out<'a> {
     /// when first needed).
     pub(super) pim: Pim,
     pim_files: Option<usize>,
-    /// The days flagged messages read so far are due.
+    /// The days flagged messages read so far are due, and completed ones were done.
     pub(super) due: follow_up::Due,
     /// Sources read (compressed already) but not yet written, and their size as kept.
     pub(super) pending: Vec<(MessageKey, mailcraft_store::Prepared)>,
@@ -330,12 +330,12 @@ impl Out<'_> {
             self.budget.release(charge);
             return;
         };
-        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out, due, .. } = b;
+        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out, due, done, .. } = b;
         let uid = st.uid_next;
         st.uid_next = uid.saturating_add(1);
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
         summary.key = key.clone();
-        self.due.note(&summary, due);
+        self.due.note(&summary, due, done);
         let size = summary.size;
         let msgid = mailcraft_store::search::msgid_hash(&summary.message_id);
         st.waiting.push(summary);

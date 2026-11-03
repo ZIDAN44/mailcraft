@@ -50,9 +50,9 @@ pub struct Imports {
     finished: Vec<String>,
     /// `imports.json` couldn't be read: never written over.
     unread: bool,
-    /// The imports' due-day notes taken into the preferences since MailCraft started, by
-    /// account: a day in one isn't taken again (cleared since, it stays cleared).
-    follow_up_taken: BTreeMap<String, BTreeMap<String, i64>>,
+    /// The imports' due-day and done-day notes taken into the preferences since MailCraft
+    /// started, by account: a day in one isn't taken again (cleared since, it stays cleared).
+    follow_up_taken: BTreeMap<String, mailcraft_model::organize::FollowUpDays>,
     /// The notes left from before this start were looked at (the first tick).
     follow_up_looked: bool,
 }

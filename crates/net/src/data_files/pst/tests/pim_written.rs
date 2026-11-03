@@ -226,10 +226,12 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
 /// A message Outlook flagged for a day comes in with it (PidLidTaskDueDate, else
 /// PidLidTaskStartDate, near the day's midnight): left for the engine in the account's
 /// follow-up note, by its Message-ID. Not flagged, or a time that's no day (Outlook's 4501-01-01,
-/// one out of range, a value that isn't a time), it comes in with none.
+/// one out of range, a value that isn't a time), it comes in with none. Marked complete (status
+/// 1), it comes in so, with the day it was done (PidLidTaskDateCompleted, else the UTC day of
+/// PidTagFlagCompleteTime) in the done note.
 #[test]
 fn a_written_file_s_flagged_mail_comes_in_with_its_due_day() {
-    use mailcraft_model::organize::FOLLOW_UP_DOC;
+    use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC};
     use std::collections::BTreeMap;
     const PSETID_TASK: GuidValue = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-due-written-{}", std::process::id()));
@@ -242,11 +244,16 @@ fn a_written_file_s_flagged_mail_comes_in_with_its_due_day() {
     let flag = |status| UnicodePstProperty::tagged(0x1090, UnicodePstValue::Integer32(status));
     let due = |v| named(PSETID_TASK, 0x8105, v);
     let start = |v| named(PSETID_TASK, 0x8104, v);
-    let cases: [(&str, Vec<UnicodePstProperty<'_>>); 7] = [
+    let done_on = |v| named(PSETID_TASK, 0x810F, v);
+    let done_at = |day: i64| UnicodePstProperty::tagged(0x1091, UnicodePstValue::Time(filetime(day * 86_400 + 15 * 3600)));
+    let cases: [(&str, Vec<UnicodePstProperty<'_>>); 8] = [
         ("due@studio.example", vec![flag(2), due(midnight), start(UnicodePstValue::Time(filetime((day - 3) * 86_400)))]),
         // Its start alone, a few hours off its midnight (written in another time zone).
         ("start@studio.example", vec![flag(2), start(UnicodePstValue::Time(filetime((day + 1) * 86_400 - 5 * 3600)))]),
-        ("done@studio.example", vec![flag(1), due(midnight)]),
+        // Marked complete: done two days before (PidLidTaskDateCompleted, over the moment).
+        ("done@studio.example", vec![flag(1), due(midnight), done_on(UnicodePstValue::Time(filetime((day - 2) * 86_400))), done_at(day - 5)]),
+        // Its moment alone, in the afternoon: that day.
+        ("finished@studio.example", vec![flag(1), done_at(day - 1)]),
         ("none@studio.example", vec![flag(2), due(UnicodePstValue::Time(filetime(days_from_civil(4501, 1, 1) * 86_400)))]),
         ("far@studio.example", vec![flag(2), due(UnicodePstValue::Time(i64::MAX)), start(UnicodePstValue::Time(i64::MIN))]),
         ("number@studio.example", vec![flag(2), due(UnicodePstValue::Integer32(7))]),
@@ -260,12 +267,19 @@ fn a_written_file_s_flagged_mail_comes_in_with_its_due_day() {
 
     let store = Store::open(dir.join("cache")).unwrap();
     let done = import(&path, &store, "a1", &mut |_| {}).unwrap();
-    assert_eq!((done.messages, done.skipped), (8, 0), "{done:?}");
+    assert_eq!((done.messages, done.skipped), (9, 0), "{done:?}");
     let days: BTreeMap<String, i64> = store.load_account_doc("a1", FOLLOW_UP_DOC).unwrap();
-    assert_eq!(days, BTreeMap::from([("due@studio.example".to_string(), day), ("start@studio.example".to_string(), day + 1)]));
+    let ids = |pairs: &[(&str, i64)]| pairs.iter().map(|(id, d)| (id.to_string(), *d)).collect::<BTreeMap<_, _>>();
+    assert_eq!(days, ids(&[("due@studio.example", day), ("start@studio.example", day + 1), ("done@studio.example", day)]));
+    let done_days: BTreeMap<String, i64> = store.load_account_doc("a1", FOLLOW_UP_DONE_DOC).unwrap();
+    assert_eq!(done_days, ids(&[("done@studio.example", day - 2), ("finished@studio.example", day - 1)]));
     let kept = store.load_folder("a1", "Kept").unwrap().messages;
     let flagged: Vec<&str> = kept.iter().filter(|m| m.flags.flagged).map(|m| m.message_id.as_str()).collect();
     assert_eq!(flagged.len(), 5, "{flagged:?}");
+    // Status 1: complete, not flagged, the mark not a category.
+    let mut complete: Vec<&str> = kept.iter().filter(|m| m.flags.follow_up_complete()).map(|m| m.message_id.as_str()).collect();
+    complete.sort_unstable();
+    assert_eq!(complete, ["done@studio.example", "finished@studio.example"]);
     drop(store);
     let _ = std::fs::remove_dir_all(&dir);
 }

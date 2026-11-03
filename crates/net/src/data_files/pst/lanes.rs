@@ -72,8 +72,9 @@ pub(super) struct Built {
     /// given as a sent item, for the writer to note.
     pub(super) reply: Option<(u64, String)>,
     pub(super) given: Option<Given>,
-    /// The local day it's flagged to be followed up by.
+    /// The local day it's flagged to be followed up by, and the day it was done.
     pub(super) due: Option<i64>,
+    pub(super) done: Option<i64>,
 }
 
 /// What an import's threads share.
@@ -392,7 +393,7 @@ fn weight(it: &Item) -> u64 {
 pub(super) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tally: &Tally) -> Outcome {
     // What the report counts, read before the item goes into its message.
     let (charset_unsupported, body_not_converted, without_address) = (it.charset_unsupported, it.body_not_converted, it.recipients_without_address);
-    let due = it.due;
+    let (due, done) = (it.due, it.done);
     let left_out = std::mem::take(&mut it.left_out);
     let (raw, glance) = match tally.time(Phase::Build, || message(it, fallback)) {
         Ok(r) => r,
@@ -420,6 +421,7 @@ pub(super) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tall
         reply: None,
         given: None,
         due,
+        done,
     }))
 }
 

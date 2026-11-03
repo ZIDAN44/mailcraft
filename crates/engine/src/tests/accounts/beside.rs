@@ -390,14 +390,14 @@ fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// The days an import's flagged messages are due come into the preferences as it ends, and as a
-/// read of its file again ends: a day set here stays, junk is left out, and a day cleared here
-/// isn't brought back by the next read. The note stays until the preferences holding its days
-/// were saved: at the next start it's emptied when they were, and taken again when MailCraft
-/// ended before they were.
+/// The days an import's flagged messages are due, and its completed ones were done, come into
+/// the preferences as it ends, and as a read of its file again ends: a day set here stays, junk
+/// is left out, and a day cleared here isn't brought back by the next read. The notes stay until
+/// the preferences holding their days were saved: at the next start they're emptied when they
+/// were, and taken again when MailCraft ended before they were.
 #[test]
 fn an_import_s_due_days_come_in_under_the_user_s() {
-    use mailcraft_model::organize::FOLLOW_UP_DOC;
+    use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC};
     use std::collections::BTreeMap;
     let (mut s, dir, pst) = with_file("due");
     let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
@@ -406,10 +406,18 @@ fn an_import_s_due_days_come_in_under_the_user_s() {
     s.prefs.follow_up.insert("mine@x".into(), 20_000);
     let days = BTreeMap::from([("kept@x".to_string(), 20_100), ("mine@x".to_string(), 20_200), ("junk@x".to_string(), i64::MAX)]);
     store.save_account_doc(&id, FOLLOW_UP_DOC, &days).unwrap();
+    // And the day one marked complete in the file was done.
+    let done = BTreeMap::from([("fin@x".to_string(), 20_050)]);
+    store.save_account_doc(&id, FOLLOW_UP_DONE_DOC, &done).unwrap();
     imported(&mut s, &id, &pst);
     let flagged = |message_id: &str| mailcraft_model::Summary {
         message_id: message_id.into(),
         flags: mailcraft_model::Flags { flagged: true, ..Default::default() },
+        ..Default::default()
+    };
+    let complete = |message_id: &str| mailcraft_model::Summary {
+        message_id: message_id.into(),
+        flags: mailcraft_model::Flags { keywords: vec![mailcraft_model::FOLLOW_UP_COMPLETE.into()], ..Default::default() },
         ..Default::default()
     };
     assert_eq!(s.follow_up_due(&flagged("kept@x")), Some(20_100));
@@ -417,19 +425,27 @@ fn an_import_s_due_days_come_in_under_the_user_s() {
     assert_eq!(s.follow_up_due(&flagged("junk@x")), None);
     let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_DOC).unwrap();
     assert_eq!(left, days, "kept until the preferences are saved");
+    let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_DONE_DOC).unwrap();
+    assert_eq!(left, done, "kept until the preferences are saved");
+    assert_eq!(s.follow_up_done(&complete("fin@x")), Some(20_050));
 
     // Cleared here, then the file read again (its days put beside those in the note): what the
     // read brought comes in, the cleared one doesn't come back.
     s.prefs.follow_up.remove("kept@x");
+    s.prefs.follow_up_done.remove("fin@x");
     s.run("account.importPst", &json!({"path": pst, "changes": "read"})).unwrap();
     s.take_jobs();
     let mut more = days.clone();
     more.insert("new@x".into(), 20_300);
     store.save_account_doc(&id, FOLLOW_UP_DOC, &more).unwrap();
+    let mut more_done = done.clone();
+    more_done.insert("fin2@x".into(), 20_060);
+    store.save_account_doc(&id, FOLLOW_UP_DONE_DOC, &more_done).unwrap();
     let report = mailcraft_model::job::ImportReport { messages: 1, ..Default::default() };
     s.apply(Event::Imported { account: id.clone(), messages: 1, skipped: 0, done: true, error: None, report: Some(Box::new(report)) });
     assert_eq!(s.follow_up_due(&flagged("new@x")), Some(20_300));
     assert_eq!(s.follow_up_due(&flagged("kept@x")), None);
+    assert_eq!((s.follow_up_done(&complete("fin2@x")), s.follow_up_done(&complete("fin@x"))), (Some(20_060), None));
     let saved: crate::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     drop(s);
 
@@ -443,6 +459,10 @@ fn an_import_s_due_days_come_in_under_the_user_s() {
     assert_eq!(crashed.follow_up_due(&flagged("mine@x")), Some(20_000), "the user's day stays");
     let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_DOC).unwrap();
     assert_eq!(left, more, "kept: these preferences aren't saved either");
+    assert_eq!(crashed.follow_up_done(&complete("fin@x")), Some(20_050));
+    assert_eq!(crashed.follow_up_done(&complete("fin2@x")), Some(20_060));
+    let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_DONE_DOC).unwrap();
+    assert_eq!(left, more_done);
     drop(crashed);
 
     // Saved: at the next start the note goes, and the day cleared stays cleared.
@@ -451,7 +471,10 @@ fn an_import_s_due_days_come_in_under_the_user_s() {
     next.tick();
     let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_DOC).unwrap();
     assert!(left.is_empty(), "taken: {left:?}");
+    let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_DONE_DOC).unwrap();
+    assert!(left.is_empty(), "taken: {left:?}");
     assert!(next.prefs.follow_up_taken.is_empty());
+    assert_eq!((next.follow_up_done(&complete("fin@x")), next.follow_up_done(&complete("fin2@x"))), (None, Some(20_060)));
     assert_eq!(next.follow_up_due(&flagged("kept@x")), None);
     assert_eq!(next.follow_up_due(&flagged("new@x")), Some(20_300));
     drop(next);

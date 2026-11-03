@@ -517,6 +517,65 @@ fn a_damaged_ansi_data_file_says_it_cant_be_read() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A follow-up marked complete goes into the file as Outlook keeps one (status complete, when,
+/// no red flag) and comes back through the import complete, with the days it was due and done;
+/// a flagged one stays flagged.
+#[test]
+fn a_completed_follow_up_round_trips() {
+    use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC};
+    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-complete-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Store::open(dir.join("cache")).unwrap();
+    let complete = Flags { seen: true, keywords: vec![mailcraft_model::FOLLOW_UP_COMPLETE.into()], ..Default::default() };
+    let flagged = Flags { flagged: true, ..Default::default() };
+    let mut messages = Vec::new();
+    for (uid, subject, id, flags) in [(1, "Done", "done@studio.example", complete), (2, "Open", "open@studio.example", flagged)] {
+        let d = mime::Draft {
+            to: vec![EmailAddress::new("Ana", "ana@studio.example")],
+            subject: subject.into(),
+            body: "Text.".into(),
+            ..Default::default()
+        };
+        let raw = mime::build(&d, &EmailAddress::new("Riley", "riley@studio.example"), 1_790_000_000, id).unwrap();
+        let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
+        store.write_body(&key, &raw).unwrap();
+        messages.push(mime::summary_from_full(&raw, key, flags, 10, 0).into());
+    }
+    store.save_folder("a1", "INBOX", &FolderState { validity: 1, uid_next: 3, messages, ..Default::default() }).unwrap();
+    let inbox =
+        mailcraft_model::Folder { account: "a1".into(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    store.save_folders("a1", &[inbox]).unwrap();
+    let due = BTreeMap::from([("done@studio.example".to_string(), 20_400), ("open@studio.example".to_string(), 20_410)]);
+    let done = BTreeMap::from([("done@studio.example".to_string(), 20_390), ("open@studio.example".to_string(), 20_391)]);
+    let path = dir.join("Done.pst");
+    let days = FollowUpDays { due: due.clone(), done };
+    assert_eq!(export(&store, "a1", "Done", &path, &days, &mut |_| {}).unwrap().messages, 2);
+
+    let midnight = |day: i64| (day * 86_400 + 11_644_473_600) * 10_000_000;
+    let [status, when, icon, to_do] = props_of(&path, &["Inbox"], "Done", &[0x1090, 0x1091, 0x1095, 0x0E2B]).try_into().unwrap();
+    assert!(matches!(status, Some(V::Integer32(1))), "{status:?}");
+    assert!(matches!(when, Some(V::Time(t)) if t == midnight(20_390)), "{when:?}");
+    assert!(icon.is_none() && matches!(to_do, Some(V::Integer32(1))));
+    let [status, when] = props_of(&path, &["Inbox"], "Open", &[0x1090, 0x1091]).try_into().unwrap();
+    assert!(matches!(status, Some(V::Integer32(2))) && when.is_none());
+
+    let back = Store::open(dir.join("back")).unwrap();
+    crate::pst::import(&path, &back, "b1", &mut |_| {}).unwrap();
+    let inbox = back.load_folder("b1", "INBOX").unwrap();
+    let of = |subject: &str| inbox.messages.iter().find(|m| m.subject == subject).unwrap().flags.clone();
+    let (d, o) = (of("Done"), of("Open"));
+    assert!(d.follow_up_complete() && !d.flagged && d.seen, "{d:?}");
+    assert!(o.flagged && !o.has(mailcraft_model::FOLLOW_UP_COMPLETE), "{o:?}");
+    let due_back: BTreeMap<String, i64> = back.load_account_doc("b1", FOLLOW_UP_DOC).unwrap();
+    assert_eq!(due_back, due);
+    let done_back: BTreeMap<String, i64> = back.load_account_doc("b1", FOLLOW_UP_DONE_DOC).unwrap();
+    assert_eq!(done_back, BTreeMap::from([("done@studio.example".to_string(), 20_390)]), "only the completed one's");
+    drop((store, back));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 mod ansi;
 mod big;
 mod calendar;

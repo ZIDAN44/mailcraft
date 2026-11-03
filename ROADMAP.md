@@ -230,7 +230,8 @@ local-first, media-aware v1); the fuller request is
    into it replacing its earlier copy. A `.pst`
    brings in what it still left out: attached messages 32 deep, recalls and sharing invitations,
    contacts filed with mail, the files links point to, RSS feeds, the files on notes, shown in
-   the Notes pane, and the day a flagged message is due.
+   the Notes pane, and the day a flagged message is due. A follow-up marked complete stays
+   complete, with a tick and the day it was done, into and out of a `.pst`.
    An opened `.pst` keeps MailCraft's copy beside it, never written into itself: opened again it
    goes on with that copy, and once Outlook has changed it, what's new is read into the copy.
    Searching the 41 GB file meets its aims once the window has been open a moment, but for a

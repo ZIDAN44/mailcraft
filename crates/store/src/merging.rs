@@ -9,7 +9,7 @@
 //! Message-ID is the same message, so it doesn't).
 
 use mailcraft_model::FolderRole;
-use mailcraft_model::organize::{FOLLOW_UP_DOC, merge_follow_up};
+use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC, merge_follow_up};
 use mailcraft_model::pim::{LOCAL, PIM_DOC, Pim};
 
 use crate::*;
@@ -153,7 +153,7 @@ impl Store {
             have.extend(self.load_folder(account, &f.path)?.messages.iter().map(|m| message_id(m)));
         }
         let mut merged = Merged::default();
-        // The flagged messages added: their follow-up ids in the file's store, and here.
+        // The flagged (or completed) messages added: their follow-up ids in the file's store, and here.
         let mut flagged: Vec<(String, String)> = Vec::new();
         let mut theirs = from.load_folders(from_account)?;
         // Parents before the folders inside them.
@@ -185,7 +185,7 @@ impl Store {
                     };
                     let mut s = Summary::clone(m);
                     s.key = key.clone();
-                    if s.flags.flagged {
+                    if s.flags.flagged || s.flags.follow_up_complete() {
                         flagged.push((m.follow_up_id(), s.follow_up_id()));
                     }
                     bodies.push((key, raw));
@@ -199,8 +199,10 @@ impl Store {
             merged.folders.push(f.path.clone());
         }
         [merged.cards, merged.events, merged.notes, merged.tasks] = self.merge_pim(account, from, from_account, &mut seen_items)?;
-        if let Err(e) = self.merge_due(account, from, from_account, &flagged) {
-            log::warn!("{account}: the days its new flagged messages are due weren't kept: {e}");
+        for doc in [FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC] {
+            if let Err(e) = self.merge_due(account, from, from_account, &flagged, doc) {
+                log::warn!("{account}: the days of its new messages' follow-ups weren't kept: {e}");
+            }
         }
         self.save_seen(account, Seen { messages: seen_messages.into_iter().collect(), items: seen_items.into_iter().collect() })?;
         Ok(merged)
@@ -256,21 +258,22 @@ impl Store {
         self.write_folders(account, &list)
     }
 
-    /// The days the file gave the flagged messages added (`flagged`: each one's follow-up id in
-    /// `from_account`, and in `account`), put in `account`'s [`FOLLOW_UP_DOC`] for the engine to
-    /// take, beside any it hasn't taken yet.
-    fn merge_due(&self, account: &str, from: &Store, from_account: &str, flagged: &[(String, String)]) -> Result<()> {
+    /// The days the file gave the flagged (or completed) messages added (`flagged`: each one's
+    /// follow-up id in `from_account`, and in `account`), put in `account`'s `doc` (the due days'
+    /// [`FOLLOW_UP_DOC`] or the done days' [`FOLLOW_UP_DONE_DOC`]) for the engine to take, beside
+    /// any it hasn't taken yet.
+    fn merge_due(&self, account: &str, from: &Store, from_account: &str, flagged: &[(String, String)], doc: &str) -> Result<()> {
         if flagged.is_empty() {
             return Ok(());
         }
-        let theirs: BTreeMap<String, i64> = from.load_account_doc(from_account, FOLLOW_UP_DOC)?;
+        let theirs: BTreeMap<String, i64> = from.load_account_doc(from_account, doc)?;
         let carried: BTreeMap<String, i64> = flagged.iter().filter_map(|(there, here)| theirs.get(there).map(|day| (here.clone(), *day))).collect();
         if carried.is_empty() {
             return Ok(());
         }
-        let mut ours: BTreeMap<String, i64> = self.load_account_doc(account, FOLLOW_UP_DOC)?;
+        let mut ours: BTreeMap<String, i64> = self.load_account_doc(account, doc)?;
         if merge_follow_up(&mut ours, carried) > 0 {
-            self.save_account_doc(account, FOLLOW_UP_DOC, &ours)?;
+            self.save_account_doc(account, doc, &ours)?;
         }
         Ok(())
     }

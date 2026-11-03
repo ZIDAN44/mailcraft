@@ -201,11 +201,12 @@ fn cancelled_before_the_paused_folder_is_reached_keeps_its_list() {
 }
 
 /// Gone on with from a checkpoint (after a cut, nothing at its end saved them), the import goes
-/// on with the due days read before it: they're in what the next checkpoint writes, the note
-/// cleaned of what isn't a due day (a key too long, a day out of range: the note is from disk).
+/// on with the due and done days read before it: they're in what the next checkpoint writes,
+/// each note cleaned of what isn't a day (a key too long, a day out of range, no key: the notes
+/// are from disk).
 #[test]
 fn going_on_keeps_the_due_days_read_before_the_checkpoint() {
-    use mailcraft_model::organize::{FOLLOW_UP_DOC, MAX_FOLLOW_UP_ID};
+    use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC, MAX_FOLLOW_UP_ID};
     use std::collections::BTreeMap;
     let (dir, pst) = data_file("resume-due", 5, false);
     let store = store_at(&dir, "part");
@@ -218,14 +219,24 @@ fn going_on_keeps_the_due_days_read_before_the_checkpoint() {
         ("early@x".to_string(), -1_000_000),
     ]);
     store.save_account_doc("a1", FOLLOW_UP_DOC, &read).unwrap();
+    let done = BTreeMap::from([
+        ("finished@x".to_string(), 20_390),
+        ("x".repeat(MAX_FOLLOW_UP_ID + 1), 20_390),
+        ("far@x".to_string(), i64::MAX - 3),
+        (" ".to_string(), 20_390),
+    ]);
+    store.save_account_doc("a1", FOLLOW_UP_DONE_DOC, &done).unwrap();
     let o = opts(2, None);
     let mut sink = |_| {};
     let mut out = Out::new(&store, "a1", &o, &mut sink);
     out.resume_from(cp);
-    let (doc, bytes) = out.due_doc().expect("cleaned, written with the next checkpoint");
-    assert_eq!(doc, FOLLOW_UP_DOC);
-    let days: BTreeMap<String, i64> = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(days, BTreeMap::from([("before@x".to_string(), 20_400)]));
+    let docs = out.due_doc();
+    let doc = |name: &str| -> BTreeMap<String, i64> {
+        let (_, bytes) = docs.iter().find(|(n, _)| *n == name).expect("cleaned, written with the next checkpoint");
+        serde_json::from_slice(bytes).unwrap()
+    };
+    assert_eq!(doc(FOLLOW_UP_DOC), BTreeMap::from([("before@x".to_string(), 20_400)]));
+    assert_eq!(doc(FOLLOW_UP_DONE_DOC), BTreeMap::from([("finished@x".to_string(), 20_390)]));
     drop(out);
     let _ = std::fs::remove_dir_all(&dir);
 }
