@@ -390,6 +390,11 @@ impl Packs {
         if !create && !path.exists() {
             return Ok(None);
         }
+        // A copy beside an Outlook file another data folder took over: theirs, never opened here
+        // to write (`owner.rs`). Its account here says why until it's removed.
+        if let Some(folder) = self.held_elsewhere(&name, &path) {
+            return Err(taken_over(&path, &folder));
+        }
         let checked = Arc::new(AtomicBool::new(false));
         let _over = CheckOver(&self.progress);
         let held = self.still_held(account);
@@ -434,6 +439,8 @@ impl Packs {
                     Packs::lock(&self.fresh).insert(account.to_string());
                 }
             }
+        } else if let Some(folder) = self.held_elsewhere_open(&name, &db) {
+            return Err(taken_over(&path, &folder));
         }
         let db = Arc::new(db);
         let mut open = Packs::lock(&self.open);
@@ -503,6 +510,11 @@ impl Packs {
         }
         Ok(())
     }
+}
+
+/// Why a copy beside an Outlook file isn't opened: another data folder (at `folder`) took it over.
+fn taken_over(path: &Path, folder: &str) -> io::Error {
+    other(format!("{} is an account in another MailCraft data folder now, {folder}: open it there, or remove its account here", path.display()))
 }
 
 /// A data file's name as it's shown: the file's own (a copy beside an Outlook data file is named

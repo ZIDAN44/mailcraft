@@ -413,6 +413,108 @@ fn a_copy_is_its_data_folders_and_another_is_told() {
     let _ = std::fs::remove_dir_all(&t);
 }
 
+/// Taken over by another data folder, the copy is never opened by the one that had it, which
+/// still names it: its account there says why, from the start, and nothing of the copy is
+/// written. Removed there, the copy stays the other one's.
+#[test]
+fn a_copy_taken_over_isnt_opened_by_the_folder_that_had_it() {
+    let t = temp("beside-taken-over");
+    let docs = t.join("Documents");
+    std::fs::create_dir_all(&docs).unwrap();
+    let pst = docs.join("Archive.pst");
+    std::fs::write(&pst, b"!BDN not really a pst").unwrap();
+    let copy = docs.join("Archive.mailcraft");
+    let (one, two) = (t.join("one"), t.join("two"));
+    let s1 = Store::open_packed(&one, t.join("Files 1")).unwrap();
+    s1.save_accounts(&[account("a1", "Archive.pst")]).unwrap();
+    s1.place_beside("a1", &pst).unwrap();
+    put(&s1, "a1", "INBOX", 1, "one@x", false);
+    note(&s1, "a1", &pst, "done");
+    drop(s1);
+    let s2 = Store::open_packed(&two, t.join("Files 2")).unwrap();
+    let id2 = s2.data_folder_id().unwrap();
+    s2.save_accounts(&[account("b1", "Archive.pst")]).unwrap();
+    assert!(s2.place_beside("b1", &pst).unwrap().found.is_some_and(|f| f.held));
+    s2.claim_folders("b1").unwrap();
+    drop(s2);
+
+    let before = std::fs::read(&copy).unwrap();
+    let s1 = Store::packed(&one, t.join("Files 1")).unwrap();
+    s1.open_data_files().unwrap();
+    let problems = s1.open_progress().problems();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    let two_path = two.to_string_lossy().into_owned();
+    assert!(problems[0].1.contains("another MailCraft data folder") && problems[0].1.contains(&two_path), "{problems:?}");
+    let used = s1.load_folders("a1").unwrap_err().to_string();
+    assert!(used.contains("another MailCraft data folder") && used.contains(&two_path), "{used}");
+    assert!(std::fs::read(&copy).unwrap() == before, "nothing of the copy written");
+    // Its account removed here: the record still names the second, which holds it.
+    assert_eq!(s1.remove_account("a1").unwrap().as_deref(), Some(copy.as_path()));
+    drop(s1);
+    let s3 = Store::open_packed(t.join("three"), t.join("Files 3")).unwrap();
+    let f = s3.copy_beside(&pst).unwrap().found.unwrap();
+    assert_eq!((f.owner.as_str(), f.held), (id2.as_str(), true));
+    drop(s3);
+    // The second opens it as its own still.
+    let s2 = Store::open_packed(&two, t.join("Files 2")).unwrap();
+    assert_eq!(s2.load_folders("b1").unwrap().len(), 1);
+    drop(s2);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// A copy's record naming a data folder that isn't on this computer's own drives (a share, a
+/// device): the folder isn't looked at (a read from a share could hand the user's sign-in to its
+/// server), and the copy counts as held there.
+#[test]
+fn an_owner_on_a_share_is_never_looked_at() {
+    use super::super::owner::{local_root, still_has};
+    let copy = std::path::Path::new("C:/Mail/Archive.mailcraft");
+    for path in [
+        r"\\host.invalid\share\MailCraft",
+        "//host.invalid/share/MailCraft",
+        r"\/host.invalid\share",
+        r"/\host.invalid\share",
+        r"\\?\UNC\host.invalid\share",
+        r"\\?\C:\MailCraft",
+        r"\\.\pipe\MailCraft",
+        r"\\.\C:\MailCraft",
+        "C:MailCraft",
+        "MailCraft",
+        "",
+        "C:/Mail\0/x",
+    ] {
+        assert!(local_root(path).is_none(), "{path}");
+        assert!(still_has(path, &"0".repeat(32), copy), "{path}");
+    }
+    assert!(local_root(&format!("C:/{}", "a".repeat(5000))).is_none(), "over-long");
+    let local = if cfg!(windows) { r"C:\Users\me\MailCraft" } else { "/home/me/MailCraft" };
+    assert_eq!(local_root(local), Some(std::path::Path::new(local)));
+
+    // Through a copy found beside a file: held, and not looked at.
+    let t = temp("beside-owner-share");
+    let docs = t.join("Documents");
+    std::fs::create_dir_all(&docs).unwrap();
+    let pst = docs.join("Archive.pst");
+    std::fs::write(&pst, b"!BDN not really a pst").unwrap();
+    let s1 = Store::open_packed(t.join("one"), t.join("Files 1")).unwrap();
+    s1.save_accounts(&[account("a1", "Archive.pst")]).unwrap();
+    s1.place_beside("a1", &pst).unwrap();
+    note(&s1, "a1", &pst, "done");
+    drop(s1);
+    {
+        let db = redb::Database::create(docs.join("Archive.mailcraft")).unwrap();
+        let tx = db.begin_write().unwrap();
+        let record = serde_json::json!({"id": "1".repeat(32), "path": r"\\host.invalid\share\MailCraft"}).to_string();
+        tx.open_table(super::super::health::META).unwrap().insert("owner", record.as_bytes()).unwrap();
+        tx.commit().unwrap();
+    }
+    let s2 = Store::open_packed(t.join("two"), t.join("Files 2")).unwrap();
+    let f = s2.copy_beside(&pst).unwrap().found.unwrap();
+    assert_eq!((f.owner_path.as_str(), f.held), (r"\\host.invalid\share\MailCraft", true));
+    drop(s2);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// A data folder's id file that isn't one is set aside, and a new id made; never fatal.
 #[test]
 fn a_damaged_data_folder_id_is_set_aside() {

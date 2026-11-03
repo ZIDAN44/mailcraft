@@ -4,7 +4,9 @@
 //! an Outlook file found by another data folder (the CLI's, a `--data` run) is then told apart
 //! from one no account has: it's that folder's while the folder is there and still names it as
 //! an account's data file (`datafiles.json`, the only thing of it read), and taken on only when
-//! the user says so. A copy from before this has no owner, and is anyone's, as it was.
+//! the user says so. A copy from before this has no owner, and is anyone's, as it was. Taken over,
+//! a copy is never opened again by the folder that had it ([`Packs::held_elsewhere`]), and the
+//! folder a record names is looked at only on this computer's own drives ([`local_root`]).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -17,6 +19,8 @@ pub(super) const OWNER: &str = "owner";
 /// The most of an owner record, an id file or another folder's list of data files read.
 const OWNER_MAX: usize = 8 << 10;
 const LIST_MAX: u64 = 16 << 20;
+/// The longest owner path looked at (bytes).
+const PATH_MAX: usize = 4096;
 /// Ids made, so two made at once in this process differ whatever the clock says.
 static MADE: AtomicUsize = AtomicUsize::new(0);
 
@@ -86,8 +90,14 @@ pub fn fuzz_data_folder(input: &[u8]) -> bool {
     let id_ok = id_from(input).is_none_or(|id| usable(&id));
     let (id, path) = owner_from(input);
     let owner_ok = if id.is_empty() { path.is_empty() } else { usable(&id) };
+    // A folder looked at is never a share's or a device's.
+    let path_ok = local_root(&path).is_none_or(|p| {
+        let p = p.to_string_lossy();
+        let shared = [r"\\", "//", r"\/", r"/\"].iter().any(|s| p.starts_with(s));
+        p.len() <= PATH_MAX && !p.contains('\0') && !shared && p.as_ref() == path
+    });
     let _ = names_copy(input, &beside::same_key(Path::new("C:/Mail/Archive.mailcraft")));
-    id_ok && owner_ok
+    id_ok && owner_ok && path_ok
 }
 
 /// The id of the data folder at `root`, made when it has none: written whole to a file of its
@@ -148,15 +158,33 @@ pub(super) fn owner_of(tx: &redb::ReadTransaction) -> (String, String) {
     }
 }
 
+/// The folder an owner record names, when it's one to look at: an absolute path on one of this
+/// computer's drives, as this system writes one (`X:\…` or `X:/…` on Windows, `/…` elsewhere);
+/// never two slashes at its start (a share, `\\?\…` or `\\.\…`), no NUL, and not over-long.
+pub(super) fn local_root(path: &str) -> Option<&Path> {
+    if path.len() > PATH_MAX || path.contains('\0') || [r"\\", "//", r"\/", r"/\"].iter().any(|p| path.starts_with(p)) {
+        return None;
+    }
+    let b = path.as_bytes();
+    let local = if cfg!(windows) { matches!(b, [d, b':', b'\\' | b'/', ..] if d.is_ascii_alphabetic()) } else { b.first() == Some(&b'/') };
+    // Whatever the text says, only a drive's own path or a plain root is gone to.
+    let plain = Path::new(path).components().next().is_some_and(|c| match c {
+        std::path::Component::Prefix(p) => matches!(p.kind(), std::path::Prefix::Disk(_)),
+        std::path::Component::RootDir => true,
+        _ => false,
+    });
+    (local && plain).then(|| Path::new(path))
+}
+
 /// Whether the data folder at `path` whose id is `id` still has the copy at `copy` as one of its
 /// accounts' data files: it does unless the folder is gone, is another data folder now, or its
 /// list of data files (read only, and nothing else of it) doesn't name the copy. Anything that
-/// can't be told says it does.
+/// can't be told says it does, and so does a folder that isn't on this computer's own drives
+/// ([`local_root`]): the path comes from a file found beside another (from a zip, a USB stick, a
+/// share), and a read from a share could hand the user's sign-in to its server, so it isn't
+/// looked at. The user can still take the copy over.
 pub(crate) fn still_has(path: &str, id: &str, copy: &Path) -> bool {
-    let root = Path::new(path);
-    if path.is_empty() || !root.is_absolute() {
-        return true;
-    }
+    let Some(root) = local_root(path) else { return true };
     match fs::metadata(root) {
         Ok(m) if !m.is_dir() => return false,
         Ok(_) => {}
@@ -209,14 +237,83 @@ impl Packs {
         }
     }
 
-    /// `account`'s data file is this folder's (`ours`), or no folder's: its owner record written,
-    /// or taken out. Nothing to do when it has no file.
+    /// `account`'s data file is this folder's (`ours`: taken on, whoever's it was), or no
+    /// folder's: its owner record written, or taken out, but only when it names this folder (or
+    /// no folder): another's, it stays theirs (one that took the copy over, its account here
+    /// removed after). Nothing to do when it has no file.
     pub(crate) fn set_owner(&self, account: &str, ours: bool) -> io::Result<()> {
-        let Some(db) = self.db(account, false)? else { return Ok(()) };
+        let db = if ours { TakingOver::with(|| self.db(account, false))? } else { self.db(account, false)? };
+        let Some(db) = db else { return Ok(()) };
         let record = if ours { self.owner_record() } else { None };
+        let me = self.folder_id().unwrap_or_default();
         seal_with(&db, &self.seals, account, |tx| match &record {
             Some(r) => write_meta(tx, &[(OWNER, r.as_slice())]),
-            None => tx.open_table(META).map_err(disk)?.remove(OWNER).map(drop).map_err(disk),
+            None => {
+                let mut table = tx.open_table(META).map_err(disk)?;
+                let now = table.get(OWNER).map_err(disk)?.map(|v| owner_from(v.value()).0).unwrap_or_default();
+                if now.is_empty() || now == me { table.remove(OWNER).map(drop).map_err(disk) } else { Ok(()) }
+            }
         })
+    }
+
+    /// The data folder that has the copy beside an Outlook file at `path` (`name`d by its whole
+    /// path in this folder's list) as an account's data file, when that's another than this one:
+    /// it took the copy over. Read before the copy is opened to write (opened read only, as a copy
+    /// found beside a file is), so nothing of it is written here; `None` when it's this folder's,
+    /// no folder's, or can't be told (a copy not closed properly is told once it's open:
+    /// [`Packs::foreign_owner`]). The data folder's path is the one its record names.
+    pub(super) fn held_elsewhere(&self, name: &str, path: &Path) -> Option<String> {
+        if !Path::new(name).is_absolute() || TakingOver::now() {
+            return None;
+        }
+        let db = redb::ReadOnlyDatabase::open(path).ok()?;
+        let tx = db.begin_read().ok()?;
+        self.foreign_owner(&tx)
+    }
+
+    /// [`Packs::held_elsewhere`] for a copy open already (one that couldn't be read before it
+    /// opened: it wasn't closed properly, and was checked as it opened).
+    pub(super) fn held_elsewhere_open(&self, name: &str, db: &Database) -> Option<String> {
+        if !Path::new(name).is_absolute() || TakingOver::now() {
+            return None;
+        }
+        self.foreign_owner(&db.begin_read().ok()?)
+    }
+
+    /// The path of the other data folder a data file's record (in `tx`) says it's an account of:
+    /// not this folder's id, nor this folder's path (its id set aside as damaged and made again,
+    /// it's still the folder that made the file). `None` when it's this one's or no folder's, or
+    /// this folder has no id to tell by.
+    pub(super) fn foreign_owner(&self, tx: &redb::ReadTransaction) -> Option<String> {
+        let (id, path) = owner_of(tx);
+        let me = self.folder_id()?;
+        let here = beside::same_key(&self.root);
+        (!id.is_empty() && id != me && beside::same_key(Path::new(&path)) != here).then_some(path)
+    }
+}
+
+thread_local! {
+    /// This thread takes a copy over ([`TakingOver`]): it's opened whoever's it was.
+    static TAKING_OVER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// A copy another data folder has, opened on this thread to be taken over (its record then made
+/// this folder's), for as long as `f` runs.
+struct TakingOver(bool);
+
+impl TakingOver {
+    fn with<T>(f: impl FnOnce() -> T) -> T {
+        let _taking = TakingOver(TAKING_OVER.with(|t| t.replace(true)));
+        f()
+    }
+
+    fn now() -> bool {
+        TAKING_OVER.with(std::cell::Cell::get)
+    }
+}
+
+impl Drop for TakingOver {
+    fn drop(&mut self) {
+        TAKING_OVER.with(|t| t.set(self.0));
     }
 }
