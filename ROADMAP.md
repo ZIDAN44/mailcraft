@@ -12,7 +12,7 @@ local-first, media-aware v1); the fuller request is
 |---|---|
 | Crates | 10 libraries + 3 apps + xtask |
 | Commands | 267 (`mailcraft-cli commands`) |
-| Tests | 1,561 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
+| Tests | 1,679 (unit, in-memory IMAP, JMAP, Graph, EWS (mail, calendars, contacts, Autodiscover), CalDAV/CardDAV and ManageSieve servers, NTLM test vectors, SMTP and HTTP stubs, data files, TCP end-to-end, an X server drag, headless UI) |
 | Languages | 14 (English, Spanish, French, German, Dutch, Brazilian Portuguese, Italian, Russian, Japanese, Korean, Simplified and Traditional Chinese, Arabic, Hebrew) |
 | Platforms | Windows, macOS, Linux; the browser (JMAP accounts) |
 
@@ -231,7 +231,9 @@ local-first, media-aware v1); the fuller request is
    brings in what it still left out: attached messages 32 deep, recalls and sharing invitations,
    contacts filed with mail, the files links point to, RSS feeds, the files on notes, shown in
    the Notes pane, and the day a flagged message is due. A follow-up marked complete stays
-   complete, with a tick and the day it was done, into and out of a `.pst`.
+   complete, with a tick and the day it was done, into and out of a `.pst`. A sign-in that
+   fails to save leaves no parts in Windows Credential Manager, and an import gone on with keeps
+   its sent items as the whole import does.
    An opened `.pst` keeps MailCraft's copy beside it, never written into itself: opened again it
    goes on with that copy, and once Outlook has changed it, what's new is read into the copy.
    Searching the 41 GB file meets its aims once the window has been open a moment, but for a

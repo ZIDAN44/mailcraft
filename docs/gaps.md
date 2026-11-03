@@ -2041,8 +2041,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   item the id the reply answers, when the item has none of its own (and no original header). Nothing is guessed: replies
   answering two ids give none, an id a message read has already isn't given, and one is given
   once. Up to 16 MB of replies and ids are kept, with the import's checkpoint (an import gone on
-  with gives the same ids); past that, sent items keep the ids made up for them. Replies in Sent
-  Items itself (to your own mail) aren't used, and drafts get none.
+  with gives the same ids, and since v0.32 the same sources: see "An import gone on with, sent
+  items as the whole one" there); past that, sent items keep the ids made up for them. Replies
+  in Sent Items itself (to your own mail) aren't used, and drafts get none.
 - **Signed and encrypted mail from a `.pst`:** it came in with its signature or its encrypted
   content as a file, `smime.p7m`, that nothing could check or open. Outlook keeps that content
   whole; it is now put back as the message's content, under the message's own header fields, so
@@ -3000,10 +3001,11 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   `craft/rw-1.2.14`), two copies of the same reader with the same fixes. The writer's fork already
   carried each of the reader's fixes with its test, so the import now reads with it too and
   `outlook-pst` is gone: one fork to keep, one `[patch.crates-io]` pin, one reader for what is
-  read in and what is added to (`craft/1.2.0` is deleted, the owner's call: no MailCraft that was
-  pushed pins it). On the 41 GB real file, imported twice with each, the messages, folders and skip reasons
-  were the same, and so was the digest of every message, folder and list read back; the import
-  took 87–91 s with either, in 600–630 MB at its peak.
+  read in and what is added to. The fork has one branch, `craft/rw-1.2.14` (`craft/1.2.0` is
+  deleted, the owner's call: no MailCraft that was pushed pins it). On the 41 GB real file,
+  imported twice with each, the messages, folders and skip reasons were the same, and so was the
+  digest of every message, folder and list read back; the import took 87–91 s with either, in
+  600–630 MB at its peak.
 - **A flagged message's due day, on the way back in:** the export wrote the day a flagged message
   is due as the task's start and due dates (`PidLidTaskStartDate`, `PidLidTaskDueDate`), as
   Outlook does, but the import read only the flag, so a message flagged for Friday came back
@@ -3184,3 +3186,30 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   import pins a message that carries it, and one without it (any of Outlook's) or with it false
   comes in unpinned (`pst_export/tests/pinned.rs`). Outlook keeps the property and ignores it, so
   it shows no pin: a limit of its format.
+- **A sign-in that fails to save leaves nothing in Credential Manager:** a secret longer than one
+  Windows Credential Manager entry (a Microsoft refresh token) is kept in parts, written before
+  the first so a half-written set never reads as whole. When a later write failed, the parts
+  already written stayed with nothing naming them, and removing the secret removed only the parts
+  its first one named; stopped test runs left 226 such entries, until Credential Manager refused
+  any more (Windows error 8). A failed save now removes the parts it wrote past those the secret
+  had before, and removing a secret removes every part it could have, orphans of earlier versions
+  included. Two threads writing and deleting entries of their own at once lost some of them (2
+  runs of 15), so this process's keychain calls take turns. The keychain tests sit beside the code
+  (`apps/mailcraft/src/secrets.rs`), remove their entries when they fail and first remove what
+  stopped runs left (a `test-` entry whose process isn't running). Tested: orphaned parts removed
+  with the secret, 20 runs of both tests side by side leaving nothing behind, and a planted entry
+  of a stopped run removed.
+- **An import gone on with, sent items as the whole one:** the lanes reading Sent Items give an
+  item the id its replies answer unless a message read before it has that id, and the writer
+  takes back, in order, one an earlier message has. The ids the sent items had and were given
+  went into the same set as those read before them, so an import cut off, paused or cancelled
+  while Sent Items was read, then gone on with, gave its lanes that set from the checkpoint: a
+  sent item answered with the id an earlier one was given got none and was built with its
+  made-up id from the start. Its Message-ID came out the same, but its MIME boundary, made from
+  the id it was built with, did not, so the two imports kept different sources whenever a
+  checkpoint fell between the two items (3 runs of 12 of the test). The ids read and given once
+  Sent Items is read are now kept apart (`later`, in the checkpoint too): the lanes give from
+  those seen before them, as at the start, and the writer takes back from both; a checkpoint
+  written before is read as it was. Tested: a map read back from a checkpoint taken between two
+  such sent items gives what it gave at the start (failed before), and the import test passes 40
+  runs of 40.
