@@ -82,18 +82,43 @@ fn part_name(user: &str, n: usize) -> String {
     format!("{user}|part{n}")
 }
 
+/// Keychain calls from this process, one at a time: two threads writing and deleting entries of
+/// their own in Windows' Credential Manager at once lost some of them (an entry deleted came
+/// back, another's parts stayed), seen in 2 of 15 runs of the tests below.
+static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn one_at_a_time() -> std::sync::MutexGuard<'static, ()> {
+    ONE_AT_A_TIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// Keep `secret` under `user`.
 pub fn store(service: &str, user: &str, secret: &str) -> Result<(), String> {
+    let _turn = one_at_a_time();
     #[cfg(windows)]
     {
         let parts = split(secret)?;
         let had = parts_kept(service, user);
+        // A write that fails leaves no parts past what the secret kept before had: nothing would
+        // ever name them again, and Credential Manager fills up until it refuses any entry.
+        let undo = |written: usize| {
+            for n in had.max(1) + 1..=written {
+                if let Ok(e) = keyring::Entry::new(service, &part_name(user, n)) {
+                    let _ = e.delete_credential();
+                }
+            }
+        };
         // The other parts first, the first last: a set half-written never reads as whole.
         for (i, p) in parts.iter().enumerate().skip(1) {
-            keyring::Entry::new(service, &part_name(user, i + 1)).and_then(|e| e.set_secret(p)).map_err(|e| e.to_string())?;
+            if let Err(e) = keyring::Entry::new(service, &part_name(user, i + 1)).and_then(|e| e.set_secret(p)) {
+                undo(i);
+                return Err(e.to_string());
+            }
         }
         let first = parts.first().ok_or("nothing to keep")?;
-        keyring::Entry::new(service, user).and_then(|e| e.set_secret(first)).map_err(|e| e.to_string())?;
+        if let Err(e) = keyring::Entry::new(service, user).and_then(|e| e.set_secret(first)) {
+            undo(parts.len());
+            return Err(e.to_string());
+        }
         // A longer secret before this one left parts this one hasn't.
         for n in parts.len() + 1..=had {
             if let Ok(e) = keyring::Entry::new(service, &part_name(user, n)) {
@@ -110,6 +135,7 @@ pub fn store(service: &str, user: &str, secret: &str) -> Result<(), String> {
 
 /// The secret kept under `user`.
 pub fn load(service: &str, user: &str) -> Option<String> {
+    let _turn = one_at_a_time();
     #[cfg(windows)]
     {
         let first = keyring::Entry::new(service, user).ok()?.get_secret().ok()?;
@@ -123,10 +149,12 @@ pub fn load(service: &str, user: &str) -> Option<String> {
     }
 }
 
-/// Forget the secret kept under `user`, every part of it.
+/// Forget the secret kept under `user`, every part of it, and any part a write that failed in
+/// an earlier version left behind (no first part names those).
 pub fn remove(service: &str, user: &str) {
+    let _turn = one_at_a_time();
     #[cfg(windows)]
-    for n in 2..=parts_kept(service, user) {
+    for n in 2..=MAX_PARTS {
         if let Ok(e) = keyring::Entry::new(service, &part_name(user, n)) {
             let _ = e.delete_credential();
         }
@@ -230,5 +258,106 @@ mod tests {
         for bad in [&b"MCK1:"[..], b"MCK1:x:abc", b"MCK1:0:abc", b"MCK1:99:abc", b"MCK1:3"] {
             assert_eq!(header(bad), None, "{bad:?}");
         }
+    }
+
+    /// Removes a keychain test's entries when it ends, failed or not.
+    #[cfg(windows)]
+    struct Cleanup<F: FnMut()>(F);
+
+    #[cfg(windows)]
+    impl<F: FnMut()> Drop for Cleanup<F> {
+        fn drop(&mut self) {
+            (self.0)()
+        }
+    }
+
+    /// The entries of keychain test runs that were stopped before they could remove them (`test-`
+    /// and a process id no longer running). 226 of them once filled Credential Manager until
+    /// Windows refused any more (error 8), and every run after failed.
+    #[cfg(windows)]
+    fn remove_stopped_runs_entries() {
+        use std::process::Command;
+        let Ok(list) = Command::new("cmdkey").arg("/list").output() else { return };
+        let suffix = format!(".{SERVICE}");
+        for line in String::from_utf8_lossy(&list.stdout).lines() {
+            let Some((_, target)) = line.split_once("target=") else { continue };
+            let target = target.trim();
+            let pid = target.strip_prefix("test-").and_then(|r| r.split('|').next()).and_then(|p| p.parse::<u32>().ok());
+            let Some(pid) = pid.filter(|&p| p != std::process::id()) else { continue };
+            // When tasklist can't say, the run is taken as still going: never another's entries.
+            let stopped = Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"])
+                .output()
+                .is_ok_and(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).contains(&format!("\"{pid}\"")));
+            if target.ends_with(&suffix) && stopped {
+                let _ = Command::new("cmdkey").arg(format!("/delete:{target}")).output();
+            }
+        }
+    }
+
+    /// Issue #5: a Microsoft 365 sign-in (a refresh token of about 2,000 characters, and more
+    /// with more claims) couldn't be kept in Windows' Credential Manager. Run here against the
+    /// real keychain, under an entry of the test's own that it removes.
+    #[cfg(windows)]
+    #[test]
+    fn a_long_sign_in_is_kept_in_the_keychain() {
+        remove_stopped_runs_entries();
+        let token: String = (0..2000).map(|i| char::from(b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_."[i * 7 % 65])).collect();
+        let mut a = AccountConfig::guess("keychain-test@contoso.example");
+        a.id = format!("test-{}", std::process::id());
+        let k = Keychain;
+        let _cleanup = Cleanup(|| k.delete(&a));
+        let kept = k.set(&a, &token);
+        let back = k.get(&a);
+        k.delete(&a);
+        assert_eq!(kept, Ok(()));
+        assert_eq!(back.as_deref(), Some(token.as_str()));
+        assert_eq!(k.get(&a), None, "removed with the account");
+    }
+
+    /// Trying to break it, on the real keychain: a password kept by an earlier version (UTF-16,
+    /// one entry) still reads and is replaced; a secret growing and shrinking leaves no stale
+    /// parts; a very long one and one in other scripts come back whole; removing leaves nothing.
+    #[cfg(windows)]
+    #[test]
+    fn the_keychain_keeps_secrets_growing_shrinking_and_old() {
+        remove_stopped_runs_entries();
+        let user = format!("test-{}|grow|example", std::process::id());
+        let _cleanup = Cleanup(|| remove(SERVICE, &user));
+        let parts_left = || {
+            let _turn = one_at_a_time();
+            (2..=MAX_PARTS).filter(|n| keyring::Entry::new(SERVICE, &format!("{user}|part{n}")).is_ok_and(|e| e.get_secret().is_ok())).count()
+        };
+        // As an earlier MailCraft kept it.
+        {
+            let _turn = one_at_a_time();
+            keyring::Entry::new(SERVICE, &user).unwrap().set_password("old pässword").unwrap()
+        };
+        assert_eq!(load(SERVICE, &user).as_deref(), Some("old pässword"));
+        let long = "t".repeat(7000);
+        store(SERVICE, &user, &long).unwrap();
+        assert_eq!(load(SERVICE, &user).as_deref(), Some(long.as_str()));
+        assert_eq!(parts_left(), 2, "7000 bytes in three entries");
+        store(SERVICE, &user, "short").unwrap();
+        assert_eq!(load(SERVICE, &user).as_deref(), Some("short"));
+        assert_eq!(parts_left(), 0, "the longer one's parts went");
+        let huge: String = "密码🔑-".repeat(3000);
+        store(SERVICE, &user, &huge).unwrap();
+        assert_eq!(load(SERVICE, &user).as_deref(), Some(huge.as_str()));
+        remove(SERVICE, &user);
+        assert_eq!(load(SERVICE, &user), None);
+        assert_eq!(parts_left(), 0, "every part removed");
+        assert!(store(SERVICE, &user, &"x".repeat(200_000)).is_err(), "too long is refused, not cut");
+        assert_eq!(load(SERVICE, &user), None, "and nothing half-kept");
+        assert_eq!(parts_left(), 0, "no parts of the refused one either");
+        // Parts with no first part to name them, as a write that failed partway left them in
+        // earlier versions (127 of them filled Credential Manager): removing takes them too.
+        for n in [2, 9, MAX_PARTS] {
+            let _turn = one_at_a_time();
+            keyring::Entry::new(SERVICE, &format!("{user}|part{n}")).unwrap().set_secret(b"orphan").unwrap();
+        }
+        assert_eq!(parts_left(), 3);
+        remove(SERVICE, &user);
+        assert_eq!(parts_left(), 0, "orphaned parts removed");
     }
 }
