@@ -89,6 +89,11 @@ impl MailApp {
     /// what's shown until the next search starts (it takes this one's place).
     pub(crate) fn step_search(&mut self, ctx: &egui::Context) {
         self.ui.search_spent = web_time::Duration::ZERO;
+        // Summaries' texts are made ahead of the first search a slice a tick: the frames go on
+        // until they're made.
+        if self.session.texts_ahead_due() {
+            ctx.request_repaint();
+        }
         if !self.session.search_progress().is_some_and(|p| !p.done) {
             return;
         }

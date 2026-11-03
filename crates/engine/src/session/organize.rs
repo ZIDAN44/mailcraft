@@ -141,6 +141,7 @@ impl Session {
     pub fn tick(&mut self) {
         self.let_go_some();
         self.open_indexes_ahead();
+        self.make_texts_ahead();
         self.marks_kept();
         self.flush_due_outbox();
         self.read_when_due();

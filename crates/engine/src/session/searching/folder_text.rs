@@ -13,6 +13,11 @@ use super::*;
 
 /// Most bytes of summary text kept, all folders told; the least recently used go first.
 pub(crate) const TEXT_BYTES: usize = 48 << 20;
+/// Summaries' texts a tick makes ahead of any search ([`Session::make_texts_ahead`]): about a
+/// millisecond's worth of a real file's summaries.
+pub(crate) const AHEAD: usize = 256;
+/// Room in [`TEXT_BYTES`] texts made ahead leave: they never push out texts a search made.
+const AHEAD_ROOM: usize = 2 << 20;
 
 /// One folder's texts, aligned with its list.
 #[derive(Debug, Default)]
@@ -140,5 +145,43 @@ impl FolderTexts {
     /// Summary texts made so far (what keeping them saves).
     pub(crate) fn made(&self) -> u64 {
         self.made
+    }
+
+    /// How many of a folder's texts are kept, from its list's start.
+    fn made_of(&self, account: &str, folder: &str) -> usize {
+        self.folders.get(&(account.to_string(), folder.to_string())).map_or(0, |ft| ft.texts.len())
+    }
+
+    /// Whether texts made ahead still fit, pushing none out.
+    fn room_ahead(&self) -> bool {
+        self.bytes.saturating_add(AHEAD_ROOM) < TEXT_BYTES
+    }
+}
+
+impl Session {
+    /// Make summaries' texts ahead of any search, [`AHEAD`] a tick, while searches run in the
+    /// background and none is running: a search in a session just opened made every summary's
+    /// text as it went (on a real file, 110 ms of a word's 125-140 ms the first time). Made in
+    /// the ticks after the window opens instead (about 140 frames there), within the room texts
+    /// are kept in, the first search finds them made, as the index is opened ahead.
+    pub(crate) fn make_texts_ahead(&mut self) {
+        if !self.texts_ahead_due() {
+            return;
+        }
+        let texts = &mut self.search_state.texts;
+        let next = self.cache.iter().filter(|((a, f), st)| texts.made_of(a, f) < st.messages.len()).min_by(|x, y| x.0.cmp(y.0));
+        if let Some(((a, f), st)) = next {
+            texts.texts(a, f, &st.messages, 0..st.messages.len(), AHEAD);
+        }
+    }
+
+    /// Whether a tick still has summaries' texts to make ahead of any search: the window asks for
+    /// frames meanwhile.
+    pub fn texts_ahead_due(&self) -> bool {
+        let texts = &self.search_state.texts;
+        self.search_state.background
+            && !self.search_state.run.as_ref().is_some_and(|r| !r.done())
+            && texts.room_ahead()
+            && self.cache.iter().any(|((a, f), st)| texts.made_of(a, f) < st.messages.len())
     }
 }

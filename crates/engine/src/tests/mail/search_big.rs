@@ -26,7 +26,7 @@ fn mailbox() -> &'static (Store, Truth) {
 
 /// A session newly opened on the mailbox, searching in the background as the window does, and
 /// ticked once, as the window ticks it before anyone can type: its index is open, nothing of it
-/// read yet and no summary's text made.
+/// read yet and only a tick's worth of its summaries' texts made ahead.
 fn cold() -> (Session, Truth) {
     let (mut s, truth) = unticked();
     s.tick();
@@ -150,6 +150,34 @@ fn cold_without_places() -> (Session, Truth) {
     let (mut s, t) = cold();
     s.search_without_places();
     (s, t)
+}
+
+/// The ticks after a session opens make its summaries' texts ahead, a slice a tick, all 50,000
+/// in a couple of hundred: the first search then makes none and finds what's there. A search
+/// running stops them, and texts made ahead never push out others.
+#[test]
+fn ticks_make_the_texts_ahead() {
+    let (mut s, t) = unticked();
+    let mut ticks = 0;
+    while s.texts_ahead_due() {
+        let made = s.search_stats().summary_texts;
+        s.tick();
+        let now = s.search_stats().summary_texts;
+        assert!(now > made && now - made <= 256, "{} made a tick", now - made);
+        ticks += 1;
+        assert!(ticks < 1000);
+    }
+    let made = s.search_stats().summary_texts;
+    assert!(made >= 50_000 && ticks <= 50_000 / 256 + 41, "{made} made in {ticks} ticks");
+    search(&mut s, big::RARE, "all");
+    assert_eq!((s.search_stats().summary_texts, s.list.len()), (made, t.rare), "none made by the search");
+    // A search running: no tick makes any.
+    let (mut s, _) = unticked();
+    s.run("search.run", &json!({"query": big::RARE, "scope": "all"})).unwrap();
+    assert!(!s.texts_ahead_due());
+    let made = s.search_stats().summary_texts;
+    s.tick();
+    assert_eq!(s.search_stats().summary_texts, made);
 }
 
 /// A common phrase settled from its words' places: none of its 16,667 candidates' texts is read
@@ -396,8 +424,8 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// only while one as long as the frame's longest so far still fits); a word, warm, 20 ms all
 /// told (25 ms before each summary was looked through once for it) and 4 ms a step at p99; a
 /// word in a session just opened ([`cold`]: its index opened by the window's first tick, its
-/// summaries' texts made as it goes), alone or after the other queries, 90 ms all told and 4 ms
-/// a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word warm 60 ms
+/// summaries' texts but that tick's made as it goes), alone or after the other queries, 90 ms all
+/// told and 4 ms a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word warm 60 ms
 /// all told and 6 ms a step, at p99 and at worst, and just opened 300 ms all told; and the
 /// common phrase, in frames, just opened or searched again, 150 ms all told (its words' places
 /// settle it: its 16,667 candidates' texts read and folded took 322-454 ms just opened, 128-142
