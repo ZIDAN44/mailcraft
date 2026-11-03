@@ -13,7 +13,8 @@ fn as_it_is(pst: &str) -> (Vec<u8>, std::time::SystemTime) {
 
 /// A message added to the file's Inbox, as Outlook would add one.
 fn add_to_file(pst: &str, subject: &str, id: &str) {
-    let recipients = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To }];
+    let recipients =
+        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
     let message = UnicodePstMessage {
         subject,
         sender_name: "Ana",

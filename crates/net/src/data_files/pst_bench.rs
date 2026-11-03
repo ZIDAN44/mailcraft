@@ -145,7 +145,12 @@ fn make() {
                 let unix = 1_700_000_000 + k as i64 * 60;
                 owned.push((subject, body, html, format!("<m{k}@bench.example>"), file, (unix + 11_644_473_600) * 10_000_000));
             }
-            let recipients = [UnicodePstRecipient { name: "Zoe Park", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To }];
+            let recipients = [UnicodePstRecipient {
+                name: "Zoe Park",
+                email: "zoe@studio.example",
+                recipient_type: UnicodePstRecipientType::To,
+                ..Default::default()
+            }];
             let files: Vec<Vec<UnicodePstAttachment<'_>>> = owned
                 .iter()
                 .map(|o| {
@@ -516,7 +521,8 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
     let n = mailcraft_store::PAGE_MESSAGES * 2 + 808;
     let owned: Vec<(String, String, i64)> =
         (0..n).map(|k| (format!("Report #{k}"), format!("<p{k}@bench.example>"), 1_700_000_000 + k as i64 * 60)).collect();
-    let recipients = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To }];
+    let recipients =
+        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
     let batch: Vec<UnicodePstBatchMessage<'_>> = owned
         .iter()
         .map(|o| UnicodePstBatchMessage {

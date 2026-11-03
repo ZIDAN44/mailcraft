@@ -56,7 +56,8 @@ fn setup(name: &str, inbox: usize, projects: usize, account: &str, ms: u64) -> (
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let pst = dir.join("in.pst");
-    let recipients = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To }];
+    let recipients =
+        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
     for (f, (folder, n)) in [("Inbox", inbox), ("Projects", projects)].into_iter().enumerate() {
         if n == 0 {
             continue;

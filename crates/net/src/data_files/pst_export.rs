@@ -265,7 +265,9 @@ fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, cre
 fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> Result<(), String> {
     let recipients: Vec<Vec<UnicodePstRecipient<'_>>> = batch
         .iter()
-        .map(|m| m.recipients.iter().map(|(name, email, kind)| UnicodePstRecipient { name, email, recipient_type: *kind }).collect())
+        .map(|m| {
+            m.recipients.iter().map(|(name, email, kind)| UnicodePstRecipient { name, email, recipient_type: *kind, ..Default::default() }).collect()
+        })
         .collect();
     let files: Vec<Vec<UnicodePstAttachment<'_>>> = batch
         .iter()

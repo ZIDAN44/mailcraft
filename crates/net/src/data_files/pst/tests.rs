@@ -707,8 +707,8 @@ fn imports_a_data_file() {
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Archive 2024.pst");
     let recipients = [
-        UnicodePstRecipient { name: "Ana Ruiz", email: "ana@example.com", recipient_type: UnicodePstRecipientType::To },
-        UnicodePstRecipient { name: "Ben", email: "ben@example.com", recipient_type: UnicodePstRecipientType::Cc },
+        UnicodePstRecipient { name: "Ana Ruiz", email: "ana@example.com", recipient_type: UnicodePstRecipientType::To, ..Default::default() },
+        UnicodePstRecipient { name: "Ben", email: "ben@example.com", recipient_type: UnicodePstRecipientType::Cc, ..Default::default() },
     ];
     let message = UnicodePstMessage {
         subject: "Quarterly plan — café",

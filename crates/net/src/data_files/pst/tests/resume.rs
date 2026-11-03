@@ -328,7 +328,7 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
     let before = (checkpoint(&store), store.load_folders("a1").unwrap());
     let (done, _) = go_on(&dir.join("gone.pst"), &store, None);
     assert_eq!(done.blocked, Some(Blocked::SourceMissing));
-    let to = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To }];
+    let to = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
     let more = UnicodePstMessage {
         subject: "One more",
         sender_name: "Ana",

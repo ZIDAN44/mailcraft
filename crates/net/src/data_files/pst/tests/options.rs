@@ -21,7 +21,8 @@ fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
     let pst = dir.join("in.pst");
     let owned: Vec<(String, String)> = (0..n).map(|k| (format!("Report #{k}"), format!("<r{k}@run.example>"))).collect();
     let body = "Here is the week's plan, as agreed. ".repeat(40);
-    let recipients = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To }];
+    let recipients =
+        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
     let batch: Vec<UnicodePstBatchMessage<'_>> = owned
         .iter()
         .enumerate()

@@ -90,4 +90,4 @@ winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457
 # folders (the Contacts, Notes and Tasks too), attached messages and an attachment's own
 # properties, and makes a file with no message): the fork's craft/rw-1.2.14 branch, whose
 # PATCHES.md lists them. Dropped once a release has them.
-outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "1aa9c252846a1a258e5453e8fbcf9a505a9844a5" }
+outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "414800311e1bfc1d320c834a4c0525a7115b9c5e" }

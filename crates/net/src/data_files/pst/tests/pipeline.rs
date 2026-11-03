@@ -25,7 +25,8 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let pst = dir.join("in.pst");
-    let recipients = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To }];
+    let recipients =
+        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
     let body = "Here is the week's plan, as agreed. ".repeat(20);
     let blobs: Vec<Vec<u8>> = (0..per_folder).map(|k| file_bytes(k, big)).collect();
     for (f, folder) in [&["Inbox"][..], &["Projects"], &["Projects", "2024"]].into_iter().enumerate() {
