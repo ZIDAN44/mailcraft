@@ -16,7 +16,9 @@ pub(crate) const TEXT_BYTES: usize = 48 << 20;
 /// Summaries' texts a tick makes ahead of any search ([`Session::make_texts_ahead`]): about a
 /// millisecond's worth of a real file's summaries.
 pub(crate) const AHEAD: usize = 256;
-/// Room in [`TEXT_BYTES`] texts made ahead leave: they never push out texts a search made.
+/// Room in [`TEXT_BYTES`] texts made ahead leave: they stop short of it and are never trimmed
+/// for, so they push out no texts a search made; and the folders they're made for count as used
+/// least lately, so a search needing room lets them go before any it used.
 const AHEAD_ROOM: usize = 2 << 20;
 
 /// One folder's texts, aligned with its list.
@@ -51,10 +53,29 @@ impl FolderTexts {
         range: std::ops::Range<usize>,
         make: usize,
     ) -> &[SummaryText] {
-        self.tick = self.tick.wrapping_add(1);
         let k = (account.to_string(), folder.to_string());
+        let start = range.start;
+        let end = self.make(&k, messages, range, make, false);
+        let start = start.min(end);
+        self.folders.get(&k).and_then(|ft| ft.texts.get(start..end)).unwrap_or_default()
+    }
+
+    /// Up to `make` (at least one) of a folder's texts made, from where they're kept to, ahead of
+    /// any search: the folder isn't counted as used, and they stop short of [`AHEAD_ROOM`] (one
+    /// bigger than that room alone may go past it, with nothing trimmed for it).
+    fn ahead(&mut self, k: &(String, String), messages: &[SharedSummary], make: usize) {
+        self.make(k, messages, 0..messages.len(), make, true);
+    }
+
+    /// The texts of `range` made (up to `make`), for a search or `ahead`: where those made end.
+    fn make(&mut self, k: &(String, String), messages: &[SharedSummary], range: std::ops::Range<usize>, make: usize, ahead: bool) -> usize {
+        if !ahead {
+            self.tick = self.tick.wrapping_add(1);
+        }
         let ft = self.folders.entry(k.clone()).or_default();
-        ft.used = self.tick;
+        if !ahead {
+            ft.used = self.tick;
+        }
         // Kept only while each is still the message at its place.
         let mut keep = ft.uids.len().min(messages.len());
         if let Some(i) = ft.uids.iter().zip(messages).position(|(u, m)| *u != m.key.uid) {
@@ -70,7 +91,11 @@ impl FolderTexts {
         let most = ft.texts.len().saturating_add(make).max(range.start.saturating_add(1));
         let end = range.end.min(messages.len()).min(most);
         let mut added = 0usize;
+        let room = TEXT_BYTES.saturating_sub(AHEAD_ROOM);
         for m in messages.get(ft.texts.len()..end).unwrap_or_default() {
+            if ahead && self.bytes.saturating_add(added) >= room {
+                break;
+            }
             let st = SummaryText::of(m);
             added = added.saturating_add(st.bytes());
             ft.uids.push(m.key.uid);
@@ -78,12 +103,12 @@ impl FolderTexts {
             self.made = self.made.wrapping_add(1);
         }
         ft.bytes = ft.bytes.saturating_add(added);
+        let made = ft.texts.len().min(end);
         self.bytes = self.bytes.saturating_add(added);
-        if self.bytes > TEXT_BYTES {
-            self.trim(&k);
+        if !ahead && self.bytes > TEXT_BYTES {
+            self.trim(k);
         }
-        let start = range.start.min(end);
-        self.folders.get(&k).and_then(|ft| ft.texts.get(start..end)).unwrap_or_default()
+        made
     }
 
     /// Let the least recently used folders' texts go until they fit, never `keep`'s.
@@ -147,9 +172,10 @@ impl FolderTexts {
         self.made
     }
 
-    /// How many of a folder's texts are kept, from its list's start.
-    fn made_of(&self, account: &str, folder: &str) -> usize {
-        self.folders.get(&(account.to_string(), folder.to_string())).map_or(0, |ft| ft.texts.len())
+    /// How many of a folder's texts are kept, from its list's start (asked of every folder each
+    /// frame: its key is borrowed, nothing allocated).
+    fn made_of(&self, k: &(String, String)) -> usize {
+        self.folders.get(k).map_or(0, |ft| ft.texts.len())
     }
 
     /// Whether texts made ahead still fit, pushing none out.
@@ -165,13 +191,13 @@ impl Session {
     /// the ticks after the window opens instead (about 140 frames there), within the room texts
     /// are kept in, the first search finds them made, as the index is opened ahead.
     pub(crate) fn make_texts_ahead(&mut self) {
-        if !self.texts_ahead_due() {
+        if !self.texts_ahead_allowed() {
             return;
         }
         let texts = &mut self.search_state.texts;
-        let next = self.cache.iter().filter(|((a, f), st)| texts.made_of(a, f) < st.messages.len()).min_by(|x, y| x.0.cmp(y.0));
-        if let Some(((a, f), st)) = next {
-            texts.texts(a, f, &st.messages, 0..st.messages.len(), AHEAD);
+        let next = self.cache.iter().filter(|(k, st)| texts.made_of(k) < st.messages.len()).min_by(|x, y| x.0.cmp(y.0));
+        if let Some((k, st)) = next {
+            texts.ahead(k, &st.messages, AHEAD);
         }
     }
 
@@ -179,9 +205,14 @@ impl Session {
     /// frames meanwhile.
     pub fn texts_ahead_due(&self) -> bool {
         let texts = &self.search_state.texts;
-        self.search_state.background
-            && !self.search_state.run.as_ref().is_some_and(|r| !r.done())
-            && texts.room_ahead()
-            && self.cache.iter().any(|((a, f), st)| texts.made_of(a, f) < st.messages.len())
+        self.texts_ahead_allowed() && self.cache.iter().any(|(k, st)| texts.made_of(k) < st.messages.len())
+    }
+
+    /// Whether texts may be made ahead now: searching in the background, none running, and room.
+    fn texts_ahead_allowed(&self) -> bool {
+        self.search_state.background && !self.search_state.run.as_ref().is_some_and(|r| !r.done()) && self.search_state.texts.room_ahead()
     }
 }
+
+#[cfg(test)]
+mod tests;
