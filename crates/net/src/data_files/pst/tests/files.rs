@@ -108,6 +108,9 @@ fn a_link_brings_its_file_when_it_is_here() {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-link-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
+    // The real path: macOS's temp folder is under /var, a link to /private/var, and a link is refused.
+    #[cfg(not(windows))]
+    let dir = std::fs::canonicalize(&dir).unwrap();
     let here = dir.join("plan.pdf");
     std::fs::write(&here, b"%PDF-1.7 plan").unwrap();
     let here = here.to_string_lossy().into_owned();
@@ -169,6 +172,9 @@ fn a_link_s_file_is_read_only_by_a_plain_path() {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-link-paths-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("in")).unwrap();
+    // The real path: macOS's temp folder is under /var, a link to /private/var, and a link is refused.
+    #[cfg(not(windows))]
+    let dir = std::fs::canonicalize(&dir).unwrap();
     let here = dir.join("in").join("plan.pdf");
     std::fs::write(&here, b"%PDF-1.7 plan").unwrap();
     let path = here.to_string_lossy().into_owned();

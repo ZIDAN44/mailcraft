@@ -159,7 +159,9 @@ fn a_stop_is_never_lowered() {
 fn an_import_counts_where_its_time_went() {
     let (dir, pst) = data_file("stats", 600);
     let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
-    let done = import_with(&pst, &store, "t1", &one_lane(), &mut |_| {}).unwrap();
+    // No timed checkpoint: on a slow machine one would write the batch in two, holding less.
+    let o = ImportOptions { checkpoint_every: Some(std::time::Duration::from_secs(3600)), ..one_lane() };
+    let done = import_with(&pst, &store, "t1", &o, &mut |_| {}).unwrap();
     let s = done.stats;
     assert_eq!((done.messages, s.lanes), (600, 1));
     assert!(s.write_ms + s.commit_ms + s.writer_idle_ms <= s.total_ms, "{s:?}");
