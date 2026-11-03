@@ -113,7 +113,7 @@ pub(crate) fn pattern(blob: &[u8], start: i64) -> Option<Pattern> {
     }
     let end_type = b.u32()?;
     let count = b.u32()?;
-    let _first_dow = b.u32()?;
+    let first_dow = b.u32()?;
     let deleted_count = usize::try_from(b.u32()?).ok()?.min(MAX_EXCEPTIONS);
     let deleted: Vec<i64> = (0..deleted_count).map(|_| b.u32().map(i64::from)).collect::<Option<_>>()?;
     let modified_count = usize::try_from(b.u32()?).ok()?.min(MAX_EXCEPTIONS);
@@ -144,6 +144,14 @@ pub(crate) fn pattern(blob: &[u8], start: i64) -> Option<Pattern> {
         }
         _ => return None,
     };
+    // The day weeks start on (FirstDOW) says which weeks an every-so-many-weeks rule takes
+    // (RFC 5545's WKST); Sunday, as a rule's default, needn't be said.
+    if (frequency, pattern) == (0x200B, 0x0001)
+        && period > 1
+        && let Some(day) = usize::try_from(first_dow).ok().filter(|d| *d > 0).and_then(|d| DAYS.get(d))
+    {
+        rule.push_str(&format!(";WKST={day}"));
+    }
     match end_type {
         0x2021 => {
             let (y, m, d) = civil_from_days((end_day - EPOCH_MINUTES).div_euclid(1440));

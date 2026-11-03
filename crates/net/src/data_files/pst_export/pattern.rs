@@ -33,6 +33,8 @@ struct Rule {
     count: Option<u32>,
     /// The last day (days since 1970).
     until: Option<i64>,
+    /// The day weeks start on (`WKST`: 0 Sunday, the default).
+    week_start: u32,
 }
 
 fn parse(rule: &str) -> Option<Rule> {
@@ -62,7 +64,7 @@ fn parse(rule: &str) -> Option<Rule> {
             }
             "BYMONTHDAY" => r.month_day = Some(v.parse().ok()?),
             "BYMONTH" => r.month = Some(v.parse().ok().filter(|m| (1..=12).contains(m))?),
-            "WKST" if v.eq_ignore_ascii_case("SU") || r.interval == 1 => {}
+            "WKST" => r.week_start = DAYS.iter().position(|x| x.eq_ignore_ascii_case(v)).and_then(|i| u32::try_from(i).ok())?,
             _ => return None,
         }
     }
@@ -97,7 +99,8 @@ pub(super) fn write(rule: &str, from: i64) -> Option<Vec<u8>> {
         }
         "WEEKLY" if r.days.iter().all(|(n, _)| *n == 0) && r.month_day.is_none() && r.month.is_none() => {
             let mask = if r.days.is_empty() { 1 << weekday } else { mask(&r.days) };
-            let week = minutes(day - i64::from(weekday))?;
+            // The start of its week, the week starting on the rule's day.
+            let week = minutes(day - i64::from((weekday + 7 - r.week_start) % 7))?;
             (0x200B, 0x0001, r.interval, vec![mask], week % r.interval.checked_mul(10_080)?)
         }
         "MONTHLY" if r.month.is_none() => {
@@ -138,8 +141,8 @@ pub(super) fn write(rule: &str, from: i64) -> Option<Vec<u8>> {
     }
     let mut words = vec![first, period, 0];
     words.extend(specific);
-    // FirstDOW Sunday; no deleted or changed occurrences.
-    words.extend([end_type, count, 0, 0, 0, start, end]);
+    // FirstDOW the rule's; no deleted or changed occurrences.
+    words.extend([end_type, count, r.week_start, 0, 0, start, end]);
     for w in words {
         out.extend(w.to_le_bytes());
     }
@@ -153,7 +156,8 @@ fn minutes(day: i64) -> Option<u32> {
 
 /// Whether the pattern `p`, read back as the import reads it from the task's first day `from`,
 /// says what `rule` says (the same parts, `INTERVAL=1` said or not, the days in any order, an
-/// end on the same day).
+/// end on the same day, the day weeks start on where it matters: every so many weeks, and not
+/// Sunday, the default).
 pub(super) fn says(p: &[u8], from: i64, rule: &str) -> bool {
     let parts = |r: &str| {
         let mut out: Vec<(String, String)> = r
@@ -172,8 +176,11 @@ pub(super) fn says(p: &[u8], from: i64, rule: &str) -> bool {
                 };
                 (k, v)
             })
-            .filter(|(k, v)| !(k == "INTERVAL" && v == "1") && k != "WKST")
+            .filter(|(k, v)| !(k == "INTERVAL" && v == "1"))
             .collect();
+        let has = |k: &str, f: &dyn Fn(&str) -> bool| out.iter().any(|(key, v)| key == k && f(v));
+        let weeks = has("FREQ", &|v| v == "WEEKLY") && has("INTERVAL", &|_| true);
+        out.retain(|(k, v)| k != "WKST" || (weeks && v != "SU"));
         out.sort();
         out
     };
@@ -217,6 +224,24 @@ mod tests {
         }
         // Said another way than the rule: read back, it isn't the rule (the task keeps the rule).
         assert!(!says(&write("FREQ=WEEKLY", from).unwrap(), from, "FREQ=WEEKLY"));
+        // The day weeks start on, wherever the rule says it: the pattern's FirstDOW, and read back
+        // where it matters; a pattern whose weeks start another day doesn't say the rule.
+        for (rule, dow) in [
+            ("FREQ=WEEKLY;WKST=MO;INTERVAL=2;BYDAY=SU,MO", 1),
+            ("FREQ=WEEKLY;INTERVAL=2;BYDAY=SU,MO;WKST=MO", 1),
+            ("FREQ=WEEKLY;INTERVAL=2;BYDAY=TU;WKST=SU", 0),
+            ("FREQ=WEEKLY;WKST=MO;BYDAY=TU", 1),
+            ("FREQ=DAILY;WKST=SA", 6),
+        ] {
+            let p = write(rule, from).unwrap_or_else(|| panic!("{rule}"));
+            // After the header, three words and a weekly pattern's days: the end, the count, then it.
+            let at = if rule.contains("DAILY") { 30 } else { 34 };
+            assert_eq!(u32::from_le_bytes(p[at..at + 4].try_into().unwrap()), dow, "{rule}");
+            assert!(says(&p, from, rule), "{rule}: {:?}", crate::pst_pim::recurrence(&p, from));
+        }
+        let sunday = write("FREQ=WEEKLY;INTERVAL=2;BYDAY=SU,MO", from).unwrap();
+        assert!(!says(&sunday, from, "FREQ=WEEKLY;WKST=MO;INTERVAL=2;BYDAY=SU,MO"));
+        assert!(write("FREQ=WEEKLY;WKST=XX", from).is_none());
         let p = write("FREQ=DAILY;UNTIL=20261110", from).unwrap();
         assert!(says(&p, from, "FREQ=DAILY;UNTIL=20261110"));
         assert!(!says(&p, from, "FREQ=DAILY;UNTIL=20261111"));

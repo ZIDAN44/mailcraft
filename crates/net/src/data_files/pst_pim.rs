@@ -59,12 +59,19 @@ fn key(g: &GuidValue) -> GuidKey {
     (g.data1(), g.data2(), g.data3(), *g.data4())
 }
 
-/// The data file's named properties: (property set, number) → property id; and the one named
-/// by a string that the import reads, the categories (`Keywords` in PS_PUBLIC_STRINGS).
+/// The property (in PS_PUBLIC_STRINGS) an export marks each contact, note and task with: the
+/// item's uid in the account and a digest of what was written, so a file added to again tells
+/// the items it has from MailCraft from changed ones and from its own (`pst_export::pim`).
+pub(crate) const EXPORTED_ITEM: &str = "X-MailCraft-Item";
+
+/// The data file's named properties: (property set, number) → property id; and those named by a
+/// string that MailCraft reads, the categories (`Keywords` in PS_PUBLIC_STRINGS) and an exported
+/// item's mark ([`EXPORTED_ITEM`]).
 #[derive(Default)]
 pub(crate) struct Named {
     ids: HashMap<(GuidKey, u32), u16>,
     keywords: Option<u16>,
+    exported: Option<u16>,
 }
 
 impl Named {
@@ -91,11 +98,12 @@ impl Named {
                 NamedPropertyId::Number(lid) => {
                     named.ids.insert((set, lid), e.prop_id());
                 }
-                NamedPropertyId::StringOffset(at) => {
-                    if set == key(&PS_PUBLIC_STRINGS) && name_at(strings, at).is_some_and(|n| n.eq_ignore_ascii_case("Keywords")) {
-                        named.keywords = Some(e.prop_id());
-                    }
-                }
+                NamedPropertyId::StringOffset(at) if set == key(&PS_PUBLIC_STRINGS) => match name_at(strings, at) {
+                    Some(n) if n.eq_ignore_ascii_case("Keywords") => named.keywords = Some(e.prop_id()),
+                    Some(n) if n.eq_ignore_ascii_case(EXPORTED_ITEM) => named.exported = Some(e.prop_id()),
+                    _ => {}
+                },
+                NamedPropertyId::StringOffset(_) => {}
             }
         }
         named
@@ -109,6 +117,11 @@ impl Named {
     /// The property holding an item's categories.
     pub(crate) fn keywords(&self) -> Option<u16> {
         self.keywords
+    }
+
+    /// The property holding an exported item's mark ([`EXPORTED_ITEM`]).
+    pub(crate) fn exported(&self) -> Option<u16> {
+        self.exported
     }
 
     fn id(&self, set: GuidKey, lid: u32) -> Option<u16> {

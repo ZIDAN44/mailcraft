@@ -17,7 +17,21 @@ fuzz_target!(|input: &[u8]| {
     let text = String::from_utf8_lossy(text);
     let (card, task) = pst_export::read_back_text(&text);
     assert!(card.emails.len() <= 50 && card.phones.len() <= 50 && card.addresses.len() <= 20 && card.extra.len() <= 201);
-    assert!(task.extra.len() <= 1_000);
+    // A to-do's lines as a to-do keeps them: none of its own says the task's uid, title, days or
+    // rule, and each component one begins is ended (so none ends the to-do).
+    assert!(task.extra.len() <= 200);
+    let mut open: Vec<String> = Vec::new();
+    for l in &task.extra {
+        let name = l.split([':', ';']).next().unwrap_or_default().trim().to_ascii_uppercase();
+        let value = l.split_once(':').map_or("", |(_, v)| v).trim().to_ascii_uppercase();
+        match name.as_str() {
+            "BEGIN" => open.push(value),
+            "END" => assert_eq!(open.pop().as_deref(), Some(value.as_str()), "{l}"),
+            "UID" | "SUMMARY" | "DTSTART" | "DUE" | "RRULE" => assert!(!open.is_empty(), "{l}"),
+            _ => {}
+        }
+    }
+    assert!(open.is_empty());
     let rule = text.lines().next().unwrap_or_default();
     if let Some((pattern, _)) = pst_export::task_pattern(rule, from) {
         // The pattern counts from the task's first day: a task due then reads it.

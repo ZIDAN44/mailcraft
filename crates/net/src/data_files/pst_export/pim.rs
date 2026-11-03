@@ -3,8 +3,11 @@
 //! as the file's, MS-OXOSFLD 2.2, so Outlook shows them as its own): a card as an `IPM.Contact`
 //! or, a group's, an `IPM.DistList` ([`contact`]), a note as an `IPM.StickyNote`, a task as an
 //! `IPM.Task` ([`task`]). A file added to keeps its own items, and those it records as its
-//! special folders take the account's. What Outlook has no place for stays in the item's text,
-//! as the import reads it back (`pst_pim::rest`).
+//! special folders take the account's. Each item is marked with its uid and a digest of what went
+//! in (`pst_pim::EXPORTED_ITEM`): added to again, an item the file has as it is now isn't written
+//! twice, and one changed since goes in again (beside its earlier copy, as the writer can't take an
+//! item out of a folder). What Outlook has no place for stays in the item's text, as the import
+//! reads it back (`pst_pim::rest`).
 
 use mailcraft_model::pim::{NOTE_COLORS, NOTE_YELLOW, Note, Pim};
 use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
@@ -35,11 +38,13 @@ pub(super) enum Value {
     Bins(Vec<Vec<u8>>),
 }
 
-/// Which property: tagged, named by a number in a property set, or the categories (`Keywords`).
+/// Which property: tagged, named by a number in a property set, the categories (`Keywords`), or
+/// the item's mark (`pst_pim::EXPORTED_ITEM`).
 pub(super) enum Key {
     Tag(u16),
     Lid(GuidValue, u32),
     Keywords,
+    Exported,
 }
 
 pub(super) fn tag(id: u16, value: Value) -> (Key, Value) {
@@ -82,6 +87,71 @@ impl Item {
         });
         self.body.len().saturating_add(props.sum()).saturating_add(self.files.iter().map(|f| f.data.len()).sum())
     }
+
+    /// The item marked as the account's item `uid`, with a digest of all that is written of it
+    /// but when (a card's is when it's exported); unmarked without a uid.
+    fn marked(mut self, uid: &str) -> Item {
+        let uid = uid.replace(['\r', '\n'], "");
+        if !uid.trim().is_empty() {
+            let mark = format!("{uid}\n{:016x}", self.digest());
+            self.props.push((Key::Exported, Value::Text(mark)));
+        }
+        self
+    }
+
+    /// FNV-1a (64 bits) over the item's class, subject, text, properties and files, each part
+    /// with its length, so the same item always gives the same digest, whatever version wrote it.
+    fn digest(&self) -> u64 {
+        let mut h = Fnv(0xCBF2_9CE4_8422_2325);
+        h.part(self.class.as_bytes());
+        h.part(self.subject.as_bytes());
+        h.part(self.body.as_bytes());
+        for (key, value) in &self.props {
+            match key {
+                Key::Tag(id) => h.part(&[&[0][..], &id.to_le_bytes()].concat()),
+                Key::Lid(set, id) => {
+                    let set = [&set.data1().to_le_bytes()[..], &set.data2().to_le_bytes(), &set.data3().to_le_bytes(), set.data4()].concat();
+                    h.part(&[&[1][..], &set, &id.to_le_bytes()].concat());
+                }
+                Key::Keywords => h.part(&[2]),
+                Key::Exported => h.part(&[3]),
+            }
+            match value {
+                Value::Int(n) => h.part(&[&[0][..], &n.to_le_bytes()].concat()),
+                Value::Bool(b) => h.part(&[1, u8::from(*b)]),
+                Value::Time(t) => h.part(&[&[2][..], &t.to_le_bytes()].concat()),
+                Value::Float(f) => h.part(&[&[3][..], &f.to_bits().to_le_bytes()].concat()),
+                Value::Text(s) => h.part(&[&[4][..], s.as_bytes()].concat()),
+                Value::Bin(b) => h.part(&[&[5][..], b].concat()),
+                Value::Texts(t) => {
+                    h.part(&[6]);
+                    t.iter().for_each(|s| h.part(s.as_bytes()));
+                }
+                Value::Bins(b) => {
+                    h.part(&[7]);
+                    b.iter().for_each(|x| h.part(x));
+                }
+            }
+        }
+        for f in &self.files {
+            h.part(f.name.as_bytes());
+            h.part(f.mime.as_bytes());
+            h.part(&f.data);
+            h.part(&[u8::from(f.picture)]);
+        }
+        h.0
+    }
+}
+
+/// An FNV-1a hash being made.
+struct Fnv(u64);
+
+impl Fnv {
+    fn part(&mut self, bytes: &[u8]) {
+        for b in u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes().iter().chain(bytes) {
+            self.0 = (self.0 ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01B3);
+        }
+    }
 }
 
 /// Text with Outlook's line ends (CR LF).
@@ -89,20 +159,21 @@ pub(super) fn crlf(s: &str) -> String {
     s.replace("\r\n", "\n").replace('\n', "\r\n")
 }
 
-/// What went into the data file.
+/// What went into the data file, and what a file added to had already (as it is now).
 #[derive(Default)]
 pub(super) struct Written {
     pub(super) contacts: usize,
     pub(super) notes: usize,
     pub(super) tasks: usize,
+    pub(super) already: usize,
 }
 
-/// The account's items for each of the file's folders, those it has; `now` is when the export
-/// runs (Unix seconds), a card's time.
+/// The account's items for each of the file's folders, those it has, each marked; `now` is when
+/// the export runs (Unix seconds), a card's time.
 fn items(pim: &Pim, now: i64) -> Vec<(Special, Vec<Item>)> {
-    let contacts: Vec<Item> = pim.cards.iter().map(|c| super::contact::item(&c.card, now)).collect();
-    let notes = pim.notes.iter().map(|n| note(&n.note, now)).collect();
-    let tasks = pim.tasks.iter().map(|t| super::task::item(&t.task, now)).collect();
+    let contacts: Vec<Item> = pim.cards.iter().map(|c| super::contact::item(&c.card, now).marked(&c.card.uid)).collect();
+    let notes = pim.notes.iter().map(|n| note(&n.note, now).marked(&n.note.uid)).collect();
+    let tasks = pim.tasks.iter().map(|t| super::task::item(&t.task, now).marked(&t.task.uid)).collect();
     [(Special::Contacts, contacts), (Special::Notes, notes), (Special::Tasks, tasks)].into_iter().filter(|(_, items)| !items.is_empty()).collect()
 }
 
@@ -140,13 +211,15 @@ pub(super) fn write(path: &Path, pim: &Pim, taken: &[Vec<String>], existing: boo
     for (role, items) in all {
         let (names, recorded) = folder_for(path, role, existing, taken);
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
-        // Added to again: what the folder has already isn't written twice.
+        // Added to again: an item the folder has as it is now isn't written twice.
         let had = if existing { already(path, &names) } else { HashSet::new() };
         let count = items.len();
-        let items: Vec<Item> = items.into_iter().filter(|i| !had.contains(&same(i.class, &i.subject, &i.body))).collect();
+        let items: Vec<Item> = items.into_iter().filter(|i| mark(i).is_none_or(|m| !had.contains(m))).collect();
         if items.len() < count {
             log::info!("{} of the account's {role:?} items are in the data file already", count - items.len());
+            done.already += count - items.len();
         }
+        let count = items.len();
         UnicodePstFile::create_folder(path, &names, role.container_class()).map_err(|e| e.to_string())?;
         let mut start = 0;
         while start < items.len() {
@@ -172,12 +245,17 @@ pub(super) fn write(path: &Path, pim: &Pim, taken: &[Vec<String>], existing: boo
 
 /// The folder `role`'s items go in, and whether the file records it as such already: the one a
 /// file added to records (a panic in the writer's reader costs only that), else the role's name,
-/// or that name with a number when the account's mail took it.
+/// or that name with a number when the account's mail took it, or a file added to has a folder of
+/// another kind by that name (its mail folder `Notes`, say).
 fn folder_for(path: &Path, role: Special, existing: bool, taken: &[Vec<String>]) -> (Vec<String>, bool) {
     if existing && let Ok(Ok(Some(names))) = std::panic::catch_unwind(|| UnicodePstFile::special_folder(path, role)) {
         return (names, true);
     }
-    let free = |name: &str| !taken.iter().any(|t| t.first().is_some_and(|f| f.eq_ignore_ascii_case(name)));
+    let other = if existing { top_folders(path) } else { Vec::new() };
+    let other: Vec<&str> = other.iter().filter(|(_, class)| !class.eq_ignore_ascii_case(role.container_class())).map(|(n, _)| n.as_str()).collect();
+    let free = |name: &str| {
+        !taken.iter().any(|t| t.first().is_some_and(|f| f.eq_ignore_ascii_case(name))) && !other.iter().any(|o| o.eq_ignore_ascii_case(name))
+    };
     let name = role.default_name();
     let name = std::iter::once(name.to_string())
         .chain((2..=MAX_SUFFIX).map(|n| format!("{name} ({n})")))
@@ -186,20 +264,53 @@ fn folder_for(path: &Path, role: Special, existing: bool, taken: &[Vec<String>])
     (vec![name], false)
 }
 
-/// What tells an item from another in a folder: its class, subject and text (its time is when it
-/// was exported, for a card).
-fn same(class: &str, subject: &str, body: &str) -> (String, String, String) {
-    (class.to_ascii_lowercase(), subject.trim().to_string(), body.replace("\r\n", "\n").trim().to_string())
+/// The mark an item carries (`pst_pim::EXPORTED_ITEM`), when it has a uid.
+fn mark(item: &Item) -> Option<&str> {
+    item.props.iter().find_map(|(k, v)| match (k, v) {
+        (Key::Exported, Value::Text(m)) => Some(m.as_str()),
+        _ => None,
+    })
 }
 
-/// What the items in the folder at `names` of the file at `path` are (by [`same`]); none when
-/// there is no such folder, or it can't be read (a panic in the reader too).
-fn already(path: &Path, names: &[&str]) -> HashSet<(String, String, String)> {
-    let read = std::panic::catch_unwind(|| -> io::Result<HashSet<(String, String, String)>> {
-        let pst = outlook_pst::UnicodePstFile::open(path)?;
-        pst.set_max_value_size(super::super::pst::MAX_VALUE);
-        let store = UnicodeStore::read(Rc::new(pst))?;
-        let any: Rc<dyn PstStore> = store.clone();
+/// The file at `path` opened by the reader, its store and the store as the reader's trait.
+fn open_store(path: &Path) -> io::Result<(Rc<UnicodeStore>, Rc<dyn PstStore>)> {
+    let pst = outlook_pst::UnicodePstFile::open(path)?;
+    pst.set_max_value_size(super::super::pst::MAX_VALUE);
+    let store = UnicodeStore::read(Rc::new(pst))?;
+    let any: Rc<dyn PstStore> = store.clone();
+    Ok((store, any))
+}
+
+/// The folders at the top of the file at `path`: each one's name and container class (a folder
+/// that says none holds mail, `IPF.Note`); none when it can't be read (a panic in the reader too).
+fn top_folders(path: &Path) -> Vec<(String, String)> {
+    let read = std::panic::catch_unwind(|| -> io::Result<Vec<(String, String)>> {
+        let (_, any) = open_store(path)?;
+        let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;
+        let Some(table) = top.hierarchy_table() else { return Ok(Vec::new()) };
+        let mut out = Vec::new();
+        for row in table.rows_matrix() {
+            let Ok(f) = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| any.open_folder(&e)) else { continue };
+            let Ok(name) = f.properties().display_name() else { continue };
+            let class =
+                f.properties().get(0x3613).and_then(crate::pst::text_of).filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "IPF.Note".into());
+            out.push((name, class));
+        }
+        Ok(out)
+    });
+    match read {
+        Ok(Ok(found)) => found,
+        _ => Vec::new(),
+    }
+}
+
+/// The marks of the items in the folder at `names` of the file at `path` (those MailCraft
+/// exported: the file's own have none, and are never taken for the account's); none when there
+/// is no such folder, or it can't be read (a panic in the reader too).
+fn already(path: &Path, names: &[&str]) -> HashSet<String> {
+    let read = std::panic::catch_unwind(|| -> io::Result<HashSet<String>> {
+        let (store, any) = open_store(path)?;
+        let Some(id) = crate::pst_pim::Named::of(any.as_ref()).exported() else { return Ok(HashSet::new()) };
         let open = |row: u32| any.properties().make_entry_id(NodeId::from(row)).and_then(|e| any.open_folder(&e));
         let mut folder = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;
         for name in names {
@@ -214,9 +325,10 @@ fn already(path: &Path, names: &[&str]) -> HashSet<(String, String, String)> {
         let mut out = HashSet::new();
         for row in folder.contents_table().map(|t| t.rows_matrix().collect::<Vec<_>>()).unwrap_or_default() {
             let Ok(entry) = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))) else { continue };
-            let Ok(m) = UnicodeMessage::read(store.clone(), &entry, Some(&[0x001A, 0x0037, 0x1000])) else { continue };
-            let text = |id: u16| m.properties().get(id).and_then(crate::pst::text_of).unwrap_or_default();
-            out.insert(same(&text(0x001A), &text(0x0037), &text(0x1000)));
+            let Ok(m) = UnicodeMessage::read(store.clone(), &entry, Some(&[id])) else { continue };
+            if let Some(mark) = m.properties().get(id).and_then(crate::pst::text_of) {
+                out.insert(mark);
+            }
         }
         Ok(out)
     });
@@ -269,6 +381,7 @@ fn properties<'a>(item: &'a Item, lists: &'a Lists<'a>) -> Vec<UnicodePstPropert
             Key::Tag(id) => UnicodePstProperty::tagged(*id, value),
             Key::Lid(set, id) => UnicodePstProperty::named(*set, UnicodePstName::Id(*id), value),
             Key::Keywords => UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String("Keywords"), value),
+            Key::Exported => UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String(crate::pst_pim::EXPORTED_ITEM), value),
         });
     }
     out

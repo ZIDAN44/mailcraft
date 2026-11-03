@@ -83,7 +83,7 @@ fn recurrence_patterns_become_rules() {
 #[test]
 fn a_mistyped_named_time_hides_the_fallback() {
     let ids = HashMap::from([((PSETID_APPOINTMENT, 0x820D), 0x8001), ((PSETID_APPOINTMENT, 0x820E), 0x8002)]);
-    let named = Named { ids, keywords: None };
+    let named = Named { ids, keywords: None, ..Default::default() };
     let props = HashMap::from([(0x8001, Val::Other), (0x8002, Val::Time(133_485_408_000_000_000)), (0x0060, Val::Time(133_485_408_000_000_000))]);
     let x = extract(&|id| props.get(&id).cloned(), &named);
     assert_eq!((x.start, x.end), (None, Some(1_704_067_200)));
@@ -136,7 +136,7 @@ fn a_contact_group_s_members() {
     let wrapped_ana = wrap(0x00, &ana);
     let contact = wrap(0xC3, &[1, 2, 3, 4]);
     let ids = HashMap::from([((PSETID_ADDRESS, 0x8054), 0x8001), ((PSETID_ADDRESS, 0x8055), 0x8002)]);
-    let named = Named { ids, keywords: None };
+    let named = Named { ids, keywords: None, ..Default::default() };
     let props = HashMap::from([
         (0x8001, Val::Bins(vec![&ana[..], &[0xFF; 3][..]])),
         (0x8002, Val::Bins(vec![&wrapped_ana[..], &wrapped_ben[..], &contact[..], &[][..]])),
@@ -161,7 +161,7 @@ fn an_event_keeps_its_categories_show_as_privacy_and_reminder() {
         ((PSETID_COMMON, 0x8501), 0x8004),
         ((PSETID_APPOINTMENT, 0x8201), 0x8005),
     ]);
-    let named = Named { ids, keywords: Some(0x8006) };
+    let named = Named { ids, keywords: Some(0x8006), ..Default::default() };
     let event = |busy: i64, sensitivity: i64, reminder: Option<i64>| {
         let mut props = HashMap::from([
             (0x8001, Val::Time(133_485_408_000_000_000)),
@@ -454,7 +454,7 @@ fn changed_occurrences_become_events() {
 fn a_huge_pattern_is_read_to_its_cap() {
     let (mut b, start) = series(0x3009);
     b.resize(MAX_PATTERN * 2, 0xAB);
-    let named = Named { ids: HashMap::from([((PSETID_APPOINTMENT, 0x8216), 0x8001)]), keywords: None };
+    let named = Named { ids: HashMap::from([((PSETID_APPOINTMENT, 0x8216), 0x8001)]), keywords: None, ..Default::default() };
     let props = HashMap::from([(0x8001, Val::Bin(&b))]);
     let x = Extra { start: Some(start), end: Some(start + 3600), ..extract(&|id| props.get(&id).cloned(), &named) };
     assert_eq!(x.recurrence.len(), MAX_PATTERN);
@@ -499,7 +499,7 @@ fn a_task_s_properties() {
         ((PSETID_TASK, 0x810F), 0x8008),
         ((PSETID_TASK, 0x811C), 0x8009),
     ]);
-    let named = Named { ids, keywords: None };
+    let named = Named { ids, keywords: None, ..Default::default() };
     // Weekly on Thursdays, from 2026-11-05 (local midnight two hours east: 22:00 the day before).
     let full = blob(0x200B, 0x0001, 1, &[0b001_0000], (0x2023, 0), &[], &[], minutes(2026, 11, 5));
     let pattern = full[..full.len() - 12].to_vec();
@@ -529,4 +529,29 @@ fn a_task_s_properties() {
     let junk = HashMap::from([(0x8001, Val::Int(99)), (0x8005, Val::Bin(&[1, 2, 3])), (0x8002, Val::Float(7.5f64.to_bits()))]);
     let t = task_of(&extract(&|id| junk.get(&id).cloned(), &named), "", "", 0, "u3".into());
     assert_eq!((t.status, t.percent, t.rrule, t.due, t.reminder), (TaskStatus::NotStarted, 0, None, None, None));
+}
+
+/// What a task's text kept is read as a to-do: a line in it that would give the task another
+/// uid or title, end the to-do early or begin an event of its own isn't kept, nor written out
+/// again with the task.
+#[test]
+fn a_task_s_text_can_t_smuggle_lines_into_its_to_do() {
+    let x = Extra::default();
+    let body = "Notes\r\n\r\nBEGIN:VTODO\r\nX-MAILCRAFT-REST:1\r\nX-KEEP:1\r\nUID:victim-uid\r\nSUMMARY:Other\r\nRRULE:FREQ=DAILY\r\n\
+                END:VTODO\r\nBEGIN:VEVENT\r\nSUMMARY:x\r\nEND:VEVENT\r\nBEGIN:VCALENDAR\r\nEND:VTODO";
+    let t = task_of(&x, "Task", body, 0, "u1".into());
+    assert_eq!((t.uid.as_str(), t.title.as_str(), t.notes.as_str()), ("u1", "Task", "Notes"));
+    assert_eq!(t.rrule.as_deref(), Some("FREQ=DAILY"));
+    assert_eq!(t.extra, ["X-KEEP:1"]);
+    let mut out = String::new();
+    mailcraft_model::ical::write_task(&t, 0, &mut out);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.iter().filter(|l| l.starts_with("UID:")).collect::<Vec<_>>(), [&"UID:u1"]);
+    assert!(!out.contains("VEVENT") && !out.contains("VCALENDAR") && out.matches("END:VTODO").count() == 1, "{out}");
+    // A component it begins is kept whole, and held to what a to-do keeps.
+    let many: String = (0..1_500).map(|i| format!("X-L:{i}\r\n")).collect();
+    let body = format!("BEGIN:VTODO\r\nX-MAILCRAFT-REST:1\r\nBEGIN:X-PART\r\nX-IN:1\r\nEND:X-PART\r\n{many}END:VTODO");
+    let t = task_of(&x, "Task", &body, 0, "u2".into());
+    assert_eq!(t.extra.get(..3), Some(&["BEGIN:X-PART".to_string(), "X-IN:1".into(), "END:X-PART".into()][..]));
+    assert!(t.extra.len() <= 200);
 }

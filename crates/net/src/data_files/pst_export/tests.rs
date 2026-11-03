@@ -163,7 +163,7 @@ fn an_account_round_trips_through_a_data_file() {
     std::fs::remove_file(&file).unwrap();
     let mut ticks = 0;
     let done = export(&store, "a1", "Riley's mail", &file, &due, &mut |_| ticks += 1).unwrap();
-    assert_eq!(done, Exported { messages: 7, skipped: 1, already: 0, events: 1, tasks: 1, notes: 0, contacts: 1 });
+    assert_eq!(done, Exported { messages: 7, skipped: 1, already: 0, events: 1, tasks: 1, notes: 0, contacts: 1, pim_already: 0 });
     // The calendar beside it, without the task, which is inside; no address book beside it.
     let ics = std::fs::read_to_string(dir.join("Out Calendar.ics")).unwrap();
     assert!(ics.contains("SUMMARY:Screening") && ics.contains("BEGIN:VCALENDAR"), "{ics}");
@@ -249,7 +249,7 @@ fn an_account_round_trips_through_a_data_file() {
     // Exported again into the same file (issue #18): added to, nothing twice; a new message goes
     // in beside the ones there, and the special folders stay the file's.
     let again = export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap();
-    assert_eq!((again.messages, again.already, again.contacts, again.tasks), (0, 7, 1, 1));
+    assert_eq!((again.messages, again.already, again.contacts, again.tasks, again.pim_already), (0, 7, 0, 0, 2));
     let mut inbox = store.load_folder("a1", "INBOX").unwrap();
     inbox.messages.push(mk("INBOX", 3, "Third", false, Flags::default(), &plain).into());
     store.save_folder("a1", "INBOX", &inbox).unwrap();

@@ -66,11 +66,12 @@ pub struct Exported {
     pub already: usize,
     /// Events written beside the data file (its calendar).
     pub events: usize,
-    /// The account's tasks, notes and people (contact groups among them) in it: written, or there
-    /// already in a file added to.
+    /// The account's tasks, notes and people (contact groups among them) written into it…
     pub tasks: usize,
     pub notes: usize,
     pub contacts: usize,
+    /// …and those a file added to had already, as they are now (an export marks each it writes).
+    pub pim_already: usize,
 }
 
 /// `wVer` of Outlook 97–2002's ANSI data files (MS-PST 2.2.2.6: 14 or 15; Unicode files say 23
@@ -212,7 +213,7 @@ pub fn export(
                 return Err(format!("the data file couldn't be replaced ({e}): the mail is in {}", temp.display()));
             }
             let events = calendar_beside(&pim, path, now).map_err(|e| e.to_string())?;
-            Ok(Exported { events, tasks: inside.tasks, notes: inside.notes, contacts: inside.contacts, ..done })
+            Ok(Exported { events, tasks: inside.tasks, notes: inside.notes, contacts: inside.contacts, pim_already: inside.already, ..done })
         }
         Err(e) => {
             let _ = std::fs::remove_file(&temp);

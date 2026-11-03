@@ -14,11 +14,11 @@ use super::*;
 pub(crate) fn task_of(x: &Extra, subject: &str, body: &str, importance: i8, uid: String) -> Task {
     let start = x.task_start.map(task_day);
     let due = x.due.map(task_day);
-    let (notes, mut rest) = split_rest(&body.replace("\r\n", "\n"), "VTODO");
-    let said = rest.iter().position(|l| l.get(..6).is_some_and(|h| h.eq_ignore_ascii_case("RRULE:"))).map(|i| rest.remove(i));
+    let (notes, rest) = split_rest(&body.replace("\r\n", "\n"), "VTODO");
+    let (said, rest) = kept(&rest);
     // The pattern counts from the task's first day: its start, else the day it's due.
     let rrule = match (said, x.task_recurrence.is_empty(), start.or(due)) {
-        (Some(line), ..) => line.get(6..).map(|r| r.trim().to_string()).filter(|r| !r.is_empty()),
+        (Some(rule), ..) => Some(rule),
         (None, false, Some(from)) => recurrence(&x.task_recurrence, from).map(|(rule, _)| rule),
         _ => None,
     };
@@ -55,6 +55,56 @@ pub(crate) fn task_of(x: &Extra, subject: &str, body: &str, importance: i8, uid:
     let at = t.completed.unwrap_or(t.modified);
     t.settle(at);
     t
+}
+
+/// What a task's text kept (`lines`, a to-do's content lines) read as a to-do is: its rule, and
+/// the lines MailCraft keeps as they are. Only those: a line that would say the task's uid, title
+/// or days, or end the to-do and begin something else, isn't one the task takes, and those kept
+/// are held to what a to-do keeps, each component they begin ended.
+fn kept(lines: &[String]) -> (Option<String>, Vec<String>) {
+    if lines.is_empty() {
+        return (None, Vec::new());
+    }
+    let text = format!("BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\n{}\r\nEND:VTODO\r\nEND:VCALENDAR\r\n", lines.join("\r\n"));
+    match mailcraft_model::ical::parse(&text, 0).tasks.into_iter().next() {
+        Some(t) => (t.rrule, nested_well(t.extra)),
+        None => (None, Vec::new()),
+    }
+}
+
+/// `lines` when each component one begins is ended by its own name (`BEGIN:X` … `END:X`); else
+/// only those outside any component, so an `END:VTODO` can't close the to-do early for a reader
+/// that goes by names.
+fn nested_well(lines: Vec<String>) -> Vec<String> {
+    let edge = |l: &str, word: &str| {
+        let (head, value) = l.split_once(':').unwrap_or((l, ""));
+        let name = head.split(';').next().unwrap_or_default();
+        name.trim().eq_ignore_ascii_case(word).then(|| value.trim().to_ascii_uppercase())
+    };
+    let mut open: Vec<String> = Vec::new();
+    let mut well = true;
+    for l in &lines {
+        if let Some(name) = edge(l, "BEGIN") {
+            open.push(name);
+        } else if let Some(name) = edge(l, "END") {
+            well &= open.pop().is_some_and(|o| o == name);
+        }
+    }
+    if well && open.is_empty() {
+        return lines;
+    }
+    let mut depth = 0usize;
+    let mut out = Vec::new();
+    for l in lines {
+        if edge(&l, "BEGIN").is_some() {
+            depth = depth.saturating_add(1);
+        } else if edge(&l, "END").is_some() {
+            depth = depth.saturating_sub(1);
+        } else if depth == 0 {
+            out.push(l);
+        }
+    }
+    out
 }
 
 /// A repeating task's pattern (PidLidTaskRecurrence) as the import reads it, the task due on
