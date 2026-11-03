@@ -165,11 +165,22 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     s.run("account.exportPst", &json!({"path": "C:/out/Archive.pst", "account": id})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::ExportPst { account, path, name, follow_up }]
         if *account == id && path == "C:/out/Archive.pst" && name == "Archive 2024" && follow_up.get("due@example.com") == Some(&20_000)));
-    s.apply(Event::Exported { account: id.clone(), messages: 100, skipped: 0, already: 0, done: false, error: None });
+    s.apply(Event::Exported { account: id.clone(), messages: 100, skipped: 0, already: 0, occurrences: 0, done: false, error: None });
     assert!(s.notices.last().is_some_and(|n| n.text.contains("100 messages exported so far")));
-    s.apply(Event::Exported { account: id.clone(), messages: 120, skipped: 3, already: 0, done: true, error: None });
+    s.apply(Event::Exported { account: id.clone(), messages: 120, skipped: 3, already: 0, occurrences: 0, done: true, error: None });
     assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("120 messages exported (3 not on this computer")));
-    s.apply(Event::Exported { account: id.clone(), messages: 0, skipped: 0, already: 0, done: true, error: Some("disk full".into()) });
+    // A series Outlook can't keep the rule of, written one occurrence at a time: the user is told.
+    s.apply(Event::Exported { account: id.clone(), messages: 5, skipped: 0, already: 0, occurrences: 40, done: true, error: None });
+    assert!(s.notices.last().is_some_and(|n| n.text.contains("5 messages exported (40 occurrences of series whose rule Outlook can't keep")));
+    s.apply(Event::Exported {
+        account: id.clone(),
+        messages: 0,
+        skipped: 0,
+        already: 0,
+        occurrences: 0,
+        done: true,
+        error: Some("disk full".into()),
+    });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("disk full")));
     done(s);
 }

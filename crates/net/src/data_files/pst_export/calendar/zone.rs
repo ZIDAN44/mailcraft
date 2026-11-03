@@ -3,8 +3,9 @@
 //! (PidLidTimeZoneDescription: the event's `TZID`, which the import reads back) and its
 //! definitions (2.2.1.41's TZDEFINITION with one TZRULE: when it starts and ends,
 //! PidLidAppointmentTimeZoneDefinitionStartDisplay and EndDisplay, and a series',
-//! …DefinitionRecur), keyed by Windows' name for the zone when it has one. All-day events and those
-//! in no zone are in UTC.
+//! …DefinitionRecur), keyed by Windows' name for the zone when it has one. All-day events are in
+//! this computer's zone, as Outlook keeps them (UTC when it isn't known), and those in no zone in
+//! UTC.
 
 use super::*;
 use mailcraft_model::ical::{ZoneChange, ZoneRule};
@@ -94,8 +95,16 @@ fn definition(key: &str, r: &ZoneRule, year: u16, flags: u16) -> Vec<u8> {
     out
 }
 
-/// The zone properties of an appointment for `e` (a series': `recurring`).
-pub(super) fn properties(e: &CalEvent, recurring: bool) -> Vec<(Key, Value)> {
+/// The zone properties of an appointment for `e` (a series': `recurring`); an all-day one's, of
+/// this computer's zone (`owner`'s).
+pub(super) fn properties(e: &CalEvent, recurring: bool, owner: &Owner) -> Vec<(Key, Value)> {
+    let here;
+    let e = if e.all_day && owner.zone != Zone::UTC {
+        here = CalEvent { tzid: owner.zone.id(), start: owner.instant(e, e.start), ..Default::default() };
+        &here
+    } else {
+        e
+    };
     let (r, year) = rule(e);
     let id = if e.all_day || e.tzid.trim().is_empty() { "UTC".to_string() } else { e.tzid.trim().replace(['\r', '\n'], "") };
     let key = Zone::named(&id).and_then(|z| z.windows_name()).map_or_else(|| id.clone(), str::to_string);
@@ -135,7 +144,7 @@ mod tests {
         assert_eq!(d.len(), 2 + 2 + 6 + key * 2 + 66);
         assert_eq!(u16::from_le_bytes([d[2], d[3]]) as usize, 6 + key * 2);
         // The import reads its key name back.
-        let props = properties(&e, true);
+        let props = properties(&e, true, &Owner::default());
         let names: Vec<_> = props
             .iter()
             .filter_map(|(k, v)| match (k, v) {

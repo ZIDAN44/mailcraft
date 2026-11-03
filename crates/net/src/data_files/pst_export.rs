@@ -162,6 +162,7 @@ pub fn export(
     let targets = place::Targets::of(existing.then_some(temp.as_path()));
     let pim: mailcraft_model::pim::Pim = store.load_account_doc(account, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0);
+    let owner = owner(store, account, &pim);
     // Where the mail went, so the contacts, notes and tasks of a new file don't go there.
     let mut taken: Vec<Vec<String>> = Vec::new();
     let mut inside = pim::Written::default();
@@ -176,7 +177,7 @@ pub fn export(
             for s in &st.messages {
                 let key = MessageKey { account: account.to_string(), folder: f.path.clone(), validity: s.key.validity, uid: s.key.uid };
                 let state = item::state(s, f.role, follow_up);
-                match store.read_body(&key).and_then(|raw| item::owned(&raw, s.received, state)) {
+                match store.read_body(&key).and_then(|raw| item::owned(&raw, s.received, state, &owner)) {
                     Some(m) if !m.message_id.is_empty() && had.contains(&mailcraft_model::thread::norm_id(&m.message_id)) => done.already += 1,
                     Some(m) => {
                         bytes += m.body.len() + m.html.as_ref().map_or(0, String::len) + m.files.iter().map(|f| f.3.len()).sum::<usize>();
@@ -199,7 +200,7 @@ pub fn export(
             }
         }
         record_special(&temp, &folders, &targets, created);
-        inside = pim::write(&temp, &pim, &taken, existing, &mut created, now)?;
+        inside = pim::write(&temp, &pim, &taken, existing, &mut created, now, &owner)?;
         Ok(())
     }));
     let result = match written {
@@ -236,6 +237,17 @@ pub fn export(
             Err(e)
         }
     }
+}
+
+/// Whose mail and calendar `account`'s are: its addresses (the one it sends from, the one it
+/// signs in as, the one its provider says it signed in as), the meetings its calendar keeps as a
+/// guest, and this computer's zone.
+fn owner(store: &Store, account: &str, pim: &mailcraft_model::pim::Pim) -> calendar::Owner {
+    let config = store.load_accounts().unwrap_or_default().into_iter().find(|a| a.id == account);
+    let me =
+        config.map(|a| [a.email, a.username, a.oauth_user.unwrap_or_default()].into_iter().filter(|m| m.contains('@')).collect()).unwrap_or_default();
+    let zone = iana_time_zone::get_timezone().ok().and_then(|z| mailcraft_model::zone::Zone::named(&z)).unwrap_or_default();
+    calendar::Owner { me, guest: pim.guest_copies.clone(), zone }
 }
 
 /// Record the folders of the account's special roles as the file's own special folders, unless
@@ -392,7 +404,7 @@ pub fn appointment_pattern(rule: &str, start: i64, tzid: &str, moves: &[(usize, 
         })
         .collect();
     let own: Vec<&CalEvent> = own.iter().collect();
-    calendar::series(&e, &own)?.into_iter().find_map(|(k, v)| match (k, v) {
+    calendar::series(&e, &own, &calendar::Owner::default(), false)?.into_iter().find_map(|(k, v)| match (k, v) {
         (pim::Key::Lid(_, 0x8216), pim::Value::Bin(b)) => Some(b),
         _ => None,
     })

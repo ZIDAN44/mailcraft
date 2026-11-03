@@ -509,6 +509,8 @@ pub(crate) fn event_of(x: &Extra, subject: &str, body: &str, from: &EmailAddress
     }
     let tzid = if x.all_day { String::new() } else { x.tzid.clone() };
     let (rrule, exdates) = match recurrence_in(&x.recurrence, x.start.unwrap_or(start), &tzid) {
+        // An all-day series' deleted days at its local midnights: their days, as its start.
+        Some((r, ex)) if x.all_day => (Some(r), ex.into_iter().map(|t| t.saturating_add(43_200).div_euclid(86_400).saturating_mul(86_400)).collect()),
         Some((r, ex)) => (Some(r), ex),
         None => (None, Vec::new()),
     };

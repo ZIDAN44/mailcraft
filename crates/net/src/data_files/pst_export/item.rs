@@ -108,8 +108,9 @@ pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, due: &BTreeM
     }
 }
 
-/// The message in `raw`, with `state`; `received` is when it was received (Unix seconds).
-pub(super) fn owned(raw: &[u8], received: i64, state: State) -> Option<Owned> {
+/// The message in `raw`, with `state`; `received` is when it was received (Unix seconds);
+/// `owner`: whose mail it is, for a meeting it carries.
+pub(super) fn owned(raw: &[u8], received: i64, state: State, owner: &super::calendar::Owner) -> Option<Owned> {
     let p = mime::parse(raw)?;
     let mut recipients = Vec::new();
     for (list, kind) in [(&p.to, UnicodePstRecipientType::To), (&p.cc, UnicodePstRecipientType::Cc), (&p.bcc, UnicodePstRecipientType::Bcc)] {
@@ -121,7 +122,7 @@ pub(super) fn owned(raw: &[u8], received: i64, state: State) -> Option<Owned> {
         .filter(|a| a.size <= MAX_ATTACHMENT)
         .filter_map(|a| Some((a.name.clone(), a.mime.clone(), a.content_id.clone(), mime::attachment_data(raw, a.index)?)))
         .collect();
-    let meeting = super::meeting::of(raw, &p);
+    let meeting = super::meeting::of(raw, &p, owner);
     let headers = header_block(raw);
     let field = |name: &str| header_value(&headers, name).unwrap_or_default();
     let importance = match field("Importance").to_ascii_lowercase().as_str() {
@@ -254,7 +255,7 @@ mod tests {
         // lines aren't header fields.
         let raw = b"Subject: x\nFrom: a@b\n\nImportance: high\r\nSensitivity: Private\r\n\r\nmore";
         assert_eq!(header_block(raw), "Subject: x\nFrom: a@b\r\n");
-        let m = owned(raw, 0, State::default()).unwrap();
+        let m = owned(raw, 0, State::default(), &Default::default()).unwrap();
         assert_eq!((m.importance, m.sensitivity), (1, None));
     }
 
@@ -262,10 +263,10 @@ mod tests {
     #[test]
     fn no_date_no_submit_time() {
         let submit = |m: &Owned| properties(m, &[]).iter().any(|p| matches!(p.key, outlook_pst::UnicodePstPropertyKey::Tag(0x0039)));
-        let m = owned(b"Subject: x\r\nFrom: a@b\r\n\r\nbody", 0, State::default()).unwrap();
+        let m = owned(b"Subject: x\r\nFrom: a@b\r\n\r\nbody", 0, State::default(), &Default::default()).unwrap();
         assert_eq!(m.date, 0);
         assert!(!submit(&m));
-        let m = owned(b"Date: Mon, 1 Jan 2024 00:00:00 +0000\r\nSubject: x\r\n\r\nbody", 0, State::default()).unwrap();
+        let m = owned(b"Date: Mon, 1 Jan 2024 00:00:00 +0000\r\nSubject: x\r\n\r\nbody", 0, State::default(), &Default::default()).unwrap();
         assert_eq!(m.date, (1_704_067_200 + EPOCH_1601) * 10_000_000);
         assert!(submit(&m));
     }

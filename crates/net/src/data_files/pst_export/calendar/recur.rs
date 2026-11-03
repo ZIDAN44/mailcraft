@@ -57,8 +57,12 @@ fn minutes(local: i64) -> Option<u32> {
 /// `RECURRENCE-ID`; called off: deleted); `None` when the pattern can't say its rule, or the
 /// import wouldn't read it back as the same occurrences. `now` stands in for when an occurrence
 /// was last changed when it doesn't say.
-pub(super) fn series(e: &CalEvent, own: &[&CalEvent], now: i64) -> Option<Series> {
+pub(super) fn series(e: &CalEvent, own: &[&CalEvent], now: i64, owner: &Owner, invited: bool) -> Option<Series> {
     let rule = e.rrule.as_deref()?.trim();
+    // Added dates (`RDATE`) are none of a pattern's.
+    if !e.rdates.is_empty() {
+        return None;
+    }
     let all = ical::starts(e, i64::MAX);
     let local = |t: i64| ical::wall_clock(e, t);
     let first = local(e.start);
@@ -112,8 +116,10 @@ pub(super) fn series(e: &CalEvent, own: &[&CalEvent], now: i64) -> Option<Series
     let midnight = |t: i64| t.saturating_sub(local(t).rem_euclid(86_400));
     let last = all.last().copied().unwrap_or(e.start);
     let ends = rule.to_ascii_uppercase().contains("COUNT=") || rule.to_ascii_uppercase().contains("UNTIL=");
+    // An all-day series' days begin at this computer's midnights.
+    let midnight = |t: i64| owner.instant(e, midnight(t));
     let clip_end = if ends { filetime(midnight(last)) } else { NO_END.saturating_mul(60).saturating_mul(TICKS) };
-    let attached = changed.iter().filter_map(|o| Some(super::exception(e, o, o.recurrence_id?, &local, now))).collect();
+    let attached = changed.iter().filter_map(|o| Some(super::exception(e, o, o.recurrence_id?, &local, now, owner, invited))).collect();
     Some(Series { pattern: blob, kind, clip: (filetime(midnight(e.start)), clip_end), changed: attached, taken })
 }
 

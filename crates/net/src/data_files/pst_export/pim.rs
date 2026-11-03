@@ -236,10 +236,10 @@ pub(super) struct Written {
 }
 
 /// The account's items for each of the file's folders, those it has, each marked; `now` is when
-/// the export runs (Unix seconds), a card's time.
-fn items(pim: &Pim, now: i64) -> Vec<(Special, Vec<Item>)> {
+/// the export runs (Unix seconds), a card's time; `owner`: whose calendar it is.
+fn items(pim: &Pim, now: i64, owner: &super::calendar::Owner) -> Vec<(Special, Vec<Item>)> {
     let events: Vec<&mailcraft_model::ical::CalEvent> = pim.events.iter().map(|e| &e.event).collect();
-    let calendar = super::calendar::items(&events, now).into_iter().map(|(uid, item)| item.marked(&uid)).collect();
+    let calendar = super::calendar::items(&events, now, owner).into_iter().map(|(uid, item)| item.marked(&uid)).collect();
     let contacts: Vec<Item> = pim.cards.iter().map(|c| super::contact::item(&c.card, now).marked(&c.card.uid)).collect();
     let notes = pim.notes.iter().map(|n| note(&n.note, now).marked(&n.note.uid)).collect();
     let tasks = pim.tasks.iter().map(|t| super::task::item(&t.task, now).marked(&t.task.uid)).collect();
@@ -268,11 +268,20 @@ fn note(n: &Note, now: i64) -> Item {
 
 /// Write the account's calendar, contacts, notes and tasks (`pim`) into the data file at `path` (made when
 /// there is none yet: `created`); `existing`: a file added to, whose special folders take them;
-/// `taken`: where the account's mail went, so a new folder isn't one of those. The file has the
-/// mail by then: one that can't record a folder as its own keeps the items, and the log says why.
-pub(super) fn write(path: &Path, pim: &Pim, taken: &[Vec<String>], existing: bool, created: &mut bool, now: i64) -> Result<Written, String> {
+/// `taken`: where the account's mail went, so a new folder isn't one of those; `owner`: whose
+/// calendar it is. The file has the mail by then: one that can't record a folder as its own keeps
+/// the items, and the log says why.
+pub(super) fn write(
+    path: &Path,
+    pim: &Pim,
+    taken: &[Vec<String>],
+    existing: bool,
+    created: &mut bool,
+    now: i64,
+    owner: &super::calendar::Owner,
+) -> Result<Written, String> {
     let mut done = Written::default();
-    let all = items(pim, now);
+    let all = items(pim, now, owner);
     if all.is_empty() {
         return Ok(done);
     }
