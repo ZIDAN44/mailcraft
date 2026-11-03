@@ -246,6 +246,17 @@ impl Pool {
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
             Job::RereadDataFile { account, path } => self.reread_data_file(account, path),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
+            Job::ReadMessageFile { path } => self.read_message_file(path),
+            // Into an account on this computer: with the other changes to its mail. An account
+            // with a server that isn't connected can't take them now.
+            Job::FileMessages { account, folder, paths } if !self.workers.contains_key(&account) => {
+                if self.configs.contains_key(&account) {
+                    let failed = paths.iter().map(|p| (filing::file_name(p), "the account is offline".to_string())).collect();
+                    self.sink.emit(Event::MessagesFiled { account, folder, added: 0, failed });
+                } else {
+                    self.edits.file(&self.store, &self.sink, account, folder, paths);
+                }
+            }
             Job::StopImport { account, how } => self.stop_import(&account, how),
             Job::KeepImport { account } => self.keep_import(account),
             Job::DataFileHealth { account } => self.data_file_health(account),
@@ -538,6 +549,7 @@ mod connect;
 mod credentials;
 mod directory;
 mod edits;
+mod filing;
 mod imports;
 mod indexing;
 mod opening;

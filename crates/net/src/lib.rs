@@ -31,7 +31,7 @@ pub mod worker;
 
 // Each module by its own name, wherever its file sits (`mailcraft_net::ews`, `crate::imap`).
 use data_files::pst_pim;
-pub use data_files::{pst, pst_export, space};
+pub use data_files::{msg, pst, pst_export, space};
 use exchange::ews_pim;
 pub use exchange::{ews, graph, graph_pim, kerberos, ntlm};
 #[cfg(test)]

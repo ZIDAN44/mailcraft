@@ -663,6 +663,8 @@ impl MailApp {
                         let added = tf!("Added to your contacts from {file}: {n}", file = name, n = tally(&v, "added"));
                         self.session.notice(format!("{added}{left_out}"), false);
                     }
+                    // An Outlook message file: shown once it's read (`pump`).
+                    Some("reading") => {}
                     _ => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
                 }
             }
@@ -687,6 +689,7 @@ impl MailApp {
         for e in self.backend.poll() {
             self.session.apply(e);
         }
+        self.files_filed();
         // Sign-in pages go to the browser.
         for url in std::mem::take(&mut self.session.open_urls) {
             if let Err(e) = self.services.open_url(&url) {

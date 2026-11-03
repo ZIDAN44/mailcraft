@@ -16,6 +16,20 @@ pub(crate) use prepare::BodyLane;
 pub use prepare::{BodyWork, PreparedBody};
 
 impl Session {
+    /// A message file read by the network layer (issue #38), to show as `file.open` shows one.
+    pub(crate) fn message_file_read(&mut self, path: &str, raw: Result<Vec<u8>, String>) {
+        let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
+        self.opened_file = Some(match raw {
+            Ok(raw) => crate::cmd::message_preview(self, &name, &raw),
+            Err(e) => Err(CmdError::Failed(format!("{name} can't be read as a message: {e}"))),
+        });
+    }
+
+    /// What drops of message files on folders did, since last asked.
+    pub fn take_filed(&mut self) -> Vec<Filed> {
+        std::mem::take(&mut self.filed)
+    }
+
     pub fn open_view(&mut self, view: View) {
         self.view = view;
         self.search = None;

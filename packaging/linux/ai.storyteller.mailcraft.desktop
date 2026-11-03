@@ -13,4 +13,4 @@ Categories=Network;Email;Office;
 Keywords=email;mail;e-mail;imap;smtp;inbox;outlook;
 # Offered as the mail app (mailto: links) and for mail, calendar and contact files; the desktop's
 # settings make it the default. %U hands them over as links (apps/mailcraft/src/args.rs).
-MimeType=x-scheme-handler/mailto;message/rfc822;text/calendar;text/vcard;text/x-vcard;text/directory;
+MimeType=x-scheme-handler/mailto;message/rfc822;application/vnd.ms-outlook;text/calendar;text/vcard;text/x-vcard;text/directory;

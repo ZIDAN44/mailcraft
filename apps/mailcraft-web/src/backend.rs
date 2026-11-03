@@ -551,6 +551,8 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::ImportPst { .. }
         | Job::RereadDataFile { .. }
         | Job::InspectDataFile { .. }
+        | Job::FileMessages { .. }
+        | Job::ReadMessageFile { .. }
         | Job::StopImport { .. }
         | Job::KeepImport { .. }
         | Job::ExportPst { .. }
@@ -673,6 +675,8 @@ async fn fetch_calendar(sh: Rcs, account: String, calendar: String, url: String)
 const MAX_CALENDAR: usize = 20 << 20;
 /// Why an Outlook data file isn't opened here.
 const DESKTOP_PST: &str = "opening Outlook data files needs the desktop app";
+/// Why message files aren't read here.
+const DESKTOP_FILES: &str = "reading message files from the computer needs the desktop app";
 
 impl Backend for WebBackend {
     fn submit(&mut self, job: Job) {
@@ -694,6 +698,12 @@ impl Backend for WebBackend {
                 let facts = Box::new(DataFileFacts { path: path.clone(), error: Some(DESKTOP_PST.into()), ..DataFileFacts::default() });
                 emit(sh, Event::DataFileInspected { path, facts })
             }
+            // A page reads no files by their paths (issue #38).
+            Job::FileMessages { account, folder, paths } => {
+                let failed = paths.into_iter().map(|p| (p, DESKTOP_FILES.to_string())).collect();
+                emit(sh, Event::MessagesFiled { account, folder, added: 0, failed })
+            }
+            Job::ReadMessageFile { path } => emit(sh, Event::MessageFileRead { path, raw: Err(DESKTOP_FILES.into()) }),
             // No import runs here to stop; nothing is left of one to keep.
             Job::StopImport { .. } => {}
             Job::KeepImport { account } => emit(sh, Event::ImportKept { account, error: None }),

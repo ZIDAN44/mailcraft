@@ -152,6 +152,13 @@ pub enum Job {
     /// Ask where MailCraft is published for its recent releases (File › About › Check for
     /// updates); answered by [`Event::Releases`].
     CheckUpdates,
+    /// Put message files into a folder of the account, as mail received and read: `.eml` as they
+    /// are, Outlook's `.msg` made standard messages (issue #38). Answered by
+    /// [`Event::MessagesFiled`].
+    FileMessages { account: String, folder: String, paths: Vec<String> },
+    /// Read a message file (an Outlook `.msg`) as a standard message, to show it. Answered by
+    /// [`Event::MessageFileRead`].
+    ReadMessageFile { path: String },
     /// Read an Outlook data file (`.pst`) into an account with no server; `resume`: go on with an
     /// import that stopped, from where it stopped. Progress comes as [`Event::ImportProgress`],
     /// the end as [`Event::Imported`].
@@ -259,6 +266,7 @@ impl Job {
             | Job::SearchDirectory { account, .. }
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
+            | Job::FileMessages { account, .. }
             | Job::RereadDataFile { account, .. }
             | Job::StopImport { account, .. }
             | Job::KeepImport { account }
@@ -269,6 +277,7 @@ impl Job {
             | Job::CompactDataFile { account, .. }
             | Job::CancelCompact { account } => account,
             Job::FetchUrl { .. }
+            | Job::ReadMessageFile { .. }
             | Job::InspectDataFile { .. }
             | Job::Discover { .. }
             | Job::WorkOffline { .. }
@@ -483,6 +492,19 @@ pub enum Event {
         folder: String,
         with: Vec<u32>,
         without: Vec<u32>,
+    },
+    /// What [`Job::FileMessages`] did: how many went into the folder, and the files that
+    /// couldn't (their names, and why).
+    MessagesFiled {
+        account: String,
+        folder: String,
+        added: usize,
+        failed: Vec<(String, String)>,
+    },
+    /// A message file read ([`Job::ReadMessageFile`]): the message, or why it can't be read.
+    MessageFileRead {
+        path: String,
+        raw: Result<Vec<u8>, String>,
     },
     /// What [`Job::InspectDataFile`] found (its `error` says why it couldn't look).
     DataFileInspected {

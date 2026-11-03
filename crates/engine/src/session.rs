@@ -329,6 +329,16 @@ pub struct FolderRef {
     pub folder: String,
 }
 
+/// What a drop of message files on a folder did (issue #38).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Filed {
+    pub account: String,
+    pub folder: String,
+    pub added: usize,
+    /// The files that couldn't go in: their names, and why.
+    pub failed: Vec<(String, String)>,
+}
+
 /// Said of the files of a message whose text came first, while they come (issue #24).
 pub(crate) const STILL_COMING: &str = "its attachments are still downloading: a moment";
 
@@ -424,6 +434,12 @@ pub struct Session {
     pub prefs: Prefs,
     pub clock: Clock,
     pub notices: Vec<Notice>,
+    /// Message files put into folders (issue #38), for the window to say: what each drop did,
+    /// taken as said ([`Session::take_filed`]).
+    pub filed: Vec<Filed>,
+    /// A message file the network layer read (an Outlook `.msg`) to show, as `file.open` answers
+    /// one it reads itself; taken as shown.
+    pub opened_file: Option<CmdResult>,
     /// What the last changes can be put back to, newest last (Undo, Ctrl+Z).
     pub undo: Vec<Undo>,
     /// Bumped whenever `list` changes.
@@ -434,7 +450,7 @@ pub struct Session {
     pub outbox: Vec<(String, OutboxItem)>,
     /// Held-back Outbox messages already asked to be sent when their time came.
     flushed: BTreeSet<u64>,
-    jobs: Vec<Job>,
+    pub(crate) jobs: Vec<Job>,
     pub(crate) cache: HashMap<(String, String), FolderState>,
     /// The cached folders, the least recently used first.
     pub(crate) cache_order: Vec<(String, String)>,
@@ -572,6 +588,8 @@ impl Session {
             prefs: Prefs::default(),
             clock,
             notices: Vec::new(),
+            filed: Vec::new(),
+            opened_file: None,
             undo: Vec::new(),
             revision: 0,
             pim_revision: 0,

@@ -1556,3 +1556,6 @@ month	May	Май
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Откройте её там или заберите сюда: тогда она будет принадлежать этой папке данных, а её учётную запись там следует удалить.
 	Take it over and read the changes in	Забрать и прочитать изменения
 	Take it over	Забрать сюда
+	Drop to add them to {folder}	Отпустите, чтобы добавить их в {folder}
+	Added to {folder}: {n}	Добавлено в {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	Не удалось добавить {file} в {folder}: {error}

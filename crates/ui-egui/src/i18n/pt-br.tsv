@@ -1557,3 +1557,6 @@ month	May	maio
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Abra-a lá ou assuma-a aqui: ela passa a ser desta pasta de dados, e a conta dela lá deve ser removida.
 	Take it over and read the changes in	Assumir e ler as alterações
 	Take it over	Assumir
+	Drop to add them to {folder}	Solte para adicioná-los a {folder}
+	Added to {folder}: {n}	Adicionados a {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	Não foi possível adicionar {file} a {folder}: {error}

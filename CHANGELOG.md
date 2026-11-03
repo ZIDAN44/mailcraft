@@ -25,6 +25,7 @@ on GitHub.
 - Pause, stop or continue an import. An import cut off by a crash or by closing MailCraft goes on where it stopped.
 - **Compact now** in **File › Info › Mailbox settings**. MailCraft also compacts data files when left idle, and on close if you turn that on in **File › Options › Data files**.
 - Turkish as an interface language (#34).
+- Drop Outlook message files (`.msg`) or `.eml` files on MailCraft to put them in the folder open, as read mail, with their files and attached messages. A `.msg` opened from the desktop shows like an `.eml` (#38).
 
 ### Changed
 - Opened or saved pictures and plain text files no longer carry Windows' "from the internet" mark, so Photos doesn't ask whether to trust them. Office files, PDFs, web pages, archives and programs keep the mark.

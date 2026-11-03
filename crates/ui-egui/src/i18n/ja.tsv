@@ -1553,3 +1553,6 @@ month	May	5月
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	そちらで開くか、ここに引き継いでください。引き継ぐとこのデータ フォルダーのものになり、そちらのアカウントは削除してください。
 	Take it over and read the changes in	引き継いで変更を読み込む
 	Take it over	引き継ぐ
+	Drop to add them to {folder}	ドロップして {folder} に追加
+	Added to {folder}: {n}	{folder} に追加しました: {n}
+	Couldn't add {file} to {folder}: {error}	{file} を {folder} に追加できませんでした: {error}

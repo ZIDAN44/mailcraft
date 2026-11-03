@@ -1556,3 +1556,6 @@ month	May	5月
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	請在那裡開啟，或在此接管：接管後它屬於此資料資料夾，那裡的帳戶應予移除。
 	Take it over and read the changes in	接管並讀入變更
 	Take it over	接管
+	Drop to add them to {folder}	放開即可加入 {folder}
+	Added to {folder}: {n}	已加入 {folder}：{n}
+	Couldn't add {file} to {folder}: {error}	無法將 {file} 加入 {folder}：{error}

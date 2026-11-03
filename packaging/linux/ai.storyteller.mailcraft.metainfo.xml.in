@@ -60,6 +60,7 @@
     <binary>mailcraft</binary>
     <mediatype>x-scheme-handler/mailto</mediatype>
     <mediatype>message/rfc822</mediatype>
+    <mediatype>application/vnd.ms-outlook</mediatype>
     <mediatype>text/calendar</mediatype>
     <mediatype>text/vcard</mediatype>
     <mediatype>text/x-vcard</mediatype>

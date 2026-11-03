@@ -1557,3 +1557,6 @@ month	May	mai
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Ouvrez-la là-bas, ou reprenez-la ici : elle appartient alors à ce dossier de données, et son compte là-bas devrait être supprimé.
 	Take it over and read the changes in	La reprendre et lire les modifications
 	Take it over	La reprendre
+	Drop to add them to {folder}	Déposez-les pour les ajouter à {folder}
+	Added to {folder}: {n}	Ajoutés à {folder} : {n}
+	Couldn't add {file} to {folder}: {error}	Impossible d'ajouter {file} à {folder} : {error}

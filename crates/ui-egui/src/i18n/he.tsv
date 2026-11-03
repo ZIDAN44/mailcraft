@@ -1552,3 +1552,6 @@ month	May	מאי
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	פתחו אותו שם, או קחו אותו לכאן: הוא יהיה אז של תיקיית הנתונים הזו, ויש להסיר את החשבון שלו שם.
 	Take it over and read the changes in	לקחת ולקרוא את השינויים
 	Take it over	לקחת לכאן
+	Drop to add them to {folder}	שחררו כדי להוסיף אותם אל {folder}
+	Added to {folder}: {n}	נוספו אל {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	לא ניתן להוסיף את {file} אל {folder}: {error}

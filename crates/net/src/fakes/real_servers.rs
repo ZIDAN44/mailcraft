@@ -193,6 +193,64 @@ fn real_imap_text_first() {
     assert!(store.has_body(&m.key));
 }
 
+/// Issue #38 on a real IMAP server (`MAILCRAFT_REAL_FILING="127.0.0.1:3143 user password"`): an
+/// Outlook `.msg` and an `.eml` dropped on a folder go to the server as read mail, and come back
+/// in the folder's list; a file that isn't a message is said.
+#[test]
+#[ignore]
+fn real_imap_message_files() {
+    let Some((imap, user, pass, _)) = server("MAILCRAFT_REAL_FILING") else {
+        eprintln!("MAILCRAFT_REAL_FILING isn't set: skipped");
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("mailcraft-real-filing-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let id = std::process::id();
+    let (msg, eml, png) = (dir.join("figures.msg"), dir.join("hello.eml"), dir.join("photo.png"));
+    std::fs::write(&msg, crate::data_files::msg::tests::sample()).unwrap();
+    std::fs::write(
+        &eml,
+        format!("From: Zoe <zoe@studio.test>\r\nTo: {user}\r\nSubject: Saved hello {id}\r\nMessage-ID: <saved{id}@studio.test>\r\n\r\nHi.\r\n"),
+    )
+    .unwrap();
+    std::fs::write(&png, b"\x89PNG\r\n\x1a\n").unwrap();
+    let store = crate::fake::store("real-filing");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    pool.opts.prefetch = 0;
+    let account = AccountConfig {
+        id: "r1".into(),
+        email: user.clone(),
+        username: user.clone(),
+        imap: imap.clone(),
+        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+        ..Default::default()
+    };
+    pool.submit(Job::Start { account, password: Some(Secret(pass.clone())) });
+    until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let paths = [&msg, &eml, &png].iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    pool.submit(Job::FileMessages { account: "r1".into(), folder: "INBOX".into(), paths });
+    let seen = until(&pool, 60, "filed", |e| matches!(e, Event::MessagesFiled { .. }));
+    let Some(Event::MessagesFiled { added, failed, .. }) = seen.last() else { panic!() };
+    eprintln!("added {added}, failed {failed:?}");
+    assert_eq!((*added, failed.len()), (2, 1));
+    let listed = store.load_folder("r1", "INBOX").unwrap();
+    let subject = format!("Saved hello {id}");
+    assert!(listed.messages.iter().any(|m| m.subject == subject && m.flags.seen), "the .eml, read");
+    assert!(listed.messages.iter().any(|m| m.subject == "Quarterly figures — räder" && m.has_attachments), "the .msg, with its files");
+    // As the server keeps it: the .msg's files and attached message there.
+    let mut c = crate::imap::Client::connect(&imap).unwrap();
+    c.login(&user, &pass).unwrap();
+    c.select("INBOX", true).unwrap();
+    let found = c.uid_search("SUBJECT \"Quarterly figures\"").unwrap();
+    let last = *found.last().expect("on the server");
+    let raw = c.uid_fetch(&last.to_string(), "UID BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap();
+    let p = mailcraft_mime::parse(&raw).unwrap();
+    let names: Vec<&str> = p.attachments.iter().map(|a| a.name.as_str()).collect();
+    eprintln!("on the server: {} bytes, files {names:?}", raw.len());
+    assert!(names.contains(&"figures.csv") && p.attachments.iter().any(|a| a.mime == "message/rfc822"), "{names:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Issue #40 on a real CalDAV server (`MAILCRAFT_REAL_CALDAV`, as below): an event's reminder
 /// dismissed here is stored as its alarm acknowledged (RFC 9074), and read back so, from a copy
 /// another program would read; the alarm itself stays.

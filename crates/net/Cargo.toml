@@ -35,6 +35,9 @@ quick-xml = "0.42"
 # Outlook data files (.pst), read for importing and written for exporting (MIT; Microsoft's reader
 # with a writer added, whose library keeps the reader's name, `outlook_pst`).
 outlook-pst-rw = "1.2.14"
+# Outlook message files (.msg) are compound files (MS-CFB), read with cfb (MIT), as WordCraft
+# reads .doc files.
+cfb = "0.15"
 # The room left on a drive, before and while a data file is imported (MIT / Apache-2.0).
 fs4 = "1.1"
 # NTLM sign-in for on-premises Exchange (EWS): MD4, MD5 and HMAC (RustCrypto, MIT / Apache-2.0).

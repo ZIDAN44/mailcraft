@@ -116,6 +116,12 @@ impl Session {
                 self.imported(&account, messages, skipped, done, error, report.as_deref())
             }
             Event::DataFileInspected { path, facts } => self.data_file_inspected(&path, facts),
+            Event::MessagesFiled { account, folder, added, failed } => {
+                if self.filed.len() < 100 {
+                    self.filed.push(Filed { account, folder, added, failed });
+                }
+            }
+            Event::MessageFileRead { path, raw } => self.message_file_read(&path, raw),
             Event::DataFileHealth { account, health, error } => self.health_measured(&account, health.map(|h| *h), error),
             Event::Compacting { account, phase, work, exclusive_s } => self.compacting(&account, phase, work, exclusive_s),
             Event::Compacted { account, report } => self.compacted(&account, *report),

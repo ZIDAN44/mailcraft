@@ -131,6 +131,27 @@ pub(super) fn message_class(m: &dyn Message, code_page: u32) -> String {
     m.properties().get(0x001A).map(|v| val(v, code_page)).and_then(Val::into_text).unwrap_or_default()
 }
 
+/// An item from a message read outside a data file ([`Loose`]), its attached messages items too,
+/// down to [`MAX_NESTING`] levels (those past it are left out).
+pub(super) fn loose_item(m: &Loose<'_>, named: &crate::pst_pim::Named, depth: usize) -> Item {
+    fn find<'a>(list: &[(u16, Val<'a>)], id: u16) -> Option<Val<'a>> {
+        list.iter().find(|(i, _)| *i == id).map(|(_, v)| v.clone())
+    }
+    let files: Vec<File> = m
+        .files
+        .iter()
+        .filter_map(|f| match f {
+            LooseFile::Data { name, mime, cid, data } => {
+                Some(File::Data { name: name.clone(), mime: mime.clone(), cid: cid.clone(), data: data.clone() })
+            }
+            LooseFile::Message(inner) if depth + 1 < MAX_NESTING => Some(File::Message(Box::new(loose_item(inner, named, depth + 1)))),
+            LooseFile::Message(_) => None,
+        })
+        .collect();
+    let rows: Vec<_> = m.recipients.iter().map(|r| move |id: u16| find(r, id)).collect();
+    item_of(&|id| find(&m.props, id), &rows, files, named)
+}
+
 /// An item from its properties (`p`) and its recipients' (one getter per recipient).
 pub(super) fn item_of<'a>(
     p: &dyn Fn(u16) -> Option<Val<'a>>,

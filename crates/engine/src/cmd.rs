@@ -85,6 +85,8 @@ mod compose;
 pub use compose::insert_picture_at;
 mod data_files;
 mod files;
+pub use files::is_message_file;
+pub(crate) use files::message_preview;
 mod home;
 mod meetings;
 mod navigation;

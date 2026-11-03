@@ -151,6 +151,7 @@ impl Worker {
                     }
                 }
             }
+            Job::FileMessages { folder, paths, .. } => self.file_messages(folder, paths),
             Job::FlushOutbox { .. } => self.flush_outbox(),
             Job::SyncDav { .. } => self.sync_dav(),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
@@ -175,6 +176,7 @@ impl Worker {
             | Job::SignIn { .. }
             | Job::AllowDirectory { .. }
             | Job::ImportPst { .. }
+            | Job::ReadMessageFile { .. }
             | Job::RereadDataFile { .. }
             | Job::InspectDataFile { .. }
             | Job::StopImport { .. }

@@ -148,3 +148,54 @@ fn without_an_account_nothing_is_added() {
     let link = s.run("mail.mailto", &json!({ "url": "mailto:solo@farm.example" }));
     assert!(matches!(link, Err(CmdError::Disabled(_))));
 }
+
+/// Issue #38: message files dropped on the window go into the folder open, filed by the network
+/// layer, which says how many went in; anything but a folder open (All Inboxes), or no files,
+/// is refused. An Outlook `.msg` opened with MailCraft is read by the network layer and shown
+/// when it comes.
+#[test]
+fn message_files_go_into_the_folder_open_and_a_msg_is_shown_when_read() {
+    let mut s = sample_session("message-files");
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let r = s.run("file.addToFolder", &json!({"paths": ["C:/mail/Quarterly figures.msg", "  ", "C:/mail/hello.eml"]})).unwrap();
+    assert_eq!((r["folder"].as_str(), r["files"].as_u64()), (Some("INBOX"), Some(2)));
+    let jobs = s.take_jobs();
+    assert!(
+        jobs.iter()
+            .any(|j| matches!(j, Job::FileMessages { account, folder, paths } if account == "sample" && folder == "INBOX" && paths.len() == 2)),
+        "{jobs:?}"
+    );
+    assert!(s.run("file.addToFolder", &json!({"paths": []})).is_err());
+    assert!(s.run("file.addToFolder", &json!({"paths": ["a.msg"], "folder": "Nowhere"})).is_err());
+    s.run("folder.unified", &json!({"role": "inbox"})).unwrap();
+    assert!(s.run("file.addToFolder", &json!({"paths": ["a.msg"]})).is_err(), "no one folder open");
+    s.apply(Event::MessagesFiled {
+        account: "sample".into(),
+        folder: "INBOX".into(),
+        added: 1,
+        failed: vec![("hello.eml".into(), "not a message".into())],
+    });
+    assert_eq!(s.take_filed().iter().map(|f| (f.added, f.failed.len())).collect::<Vec<_>>(), [(1, 1)]);
+    assert!(s.take_filed().is_empty());
+    assert!(mailcraft_engine_is_message_file("x.MSG") && mailcraft_engine_is_message_file("y.eml") && !mailcraft_engine_is_message_file("z.pdf"));
+
+    // A .msg opened: read elsewhere, then shown.
+    let t = TempFolder::new("msg");
+    let at = t.put("Quarterly figures.msg", &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0, 0]);
+    let r = open_path(&mut s, &at).unwrap();
+    assert_eq!(r["kind"], "reading");
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::ReadMessageFile { path } if path.ends_with("Quarterly figures.msg"))));
+    let raw = b"From: Sam <sam@studio.test>\r\nTo: me@studio.test\r\nSubject: Quarterly figures\r\n\r\nHello.\r\n".to_vec();
+    s.apply(Event::MessageFileRead { path: at.display().to_string(), raw: Ok(raw) });
+    let shown = s.opened_file.take().unwrap().unwrap();
+    assert_eq!(
+        (shown["kind"].as_str(), shown["subject"].as_str(), shown["name"].as_str()),
+        (Some("message"), Some("Quarterly figures"), Some("Quarterly figures.msg"))
+    );
+    s.apply(Event::MessageFileRead { path: at.display().to_string(), raw: Err("the file is damaged".into()) });
+    assert!(s.opened_file.take().unwrap().is_err());
+}
+
+fn mailcraft_engine_is_message_file(path: &str) -> bool {
+    crate::cmd::is_message_file(path)
+}

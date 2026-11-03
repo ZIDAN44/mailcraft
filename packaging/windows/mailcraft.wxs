@@ -6,7 +6,7 @@
 
   Per-machine install into Program Files, a Start Menu shortcut, and mailcraft.exe on the App
   Paths list (so Win+R `mailcraft` starts it), and MailCraft offered as the mail app and for
-  .eml, .ics and .vcf files (MailcraftDefaultApp, below).
+  .eml, .msg, .ics and .vcf files (MailcraftDefaultApp, below).
 
   UpgradeCode is fixed for MailCraft forever (playbook §6); never change it.
 -->
@@ -92,6 +92,7 @@
           </RegistryKey>
           <RegistryKey Key="FileAssociations">
             <RegistryValue Name=".eml" Type="string" Value="MailCraft.eml" />
+            <RegistryValue Name=".msg" Type="string" Value="MailCraft.msg" />
             <RegistryValue Name=".ics" Type="string" Value="MailCraft.ics" />
             <RegistryValue Name=".vcf" Type="string" Value="MailCraft.vcf" />
           </RegistryKey>
@@ -105,6 +106,7 @@
           </RegistryKey>
           <RegistryKey Key="SupportedTypes">
             <RegistryValue Name=".eml" Type="string" Value="" />
+            <RegistryValue Name=".msg" Type="string" Value="" />
             <RegistryValue Name=".ics" Type="string" Value="" />
             <RegistryValue Name=".vcf" Type="string" Value="" />
           </RegistryKey>
@@ -135,6 +137,20 @@
         </RegistryKey>
         <RegistryKey Root="HKLM" Key="Software\Classes\.eml\OpenWithProgids">
           <RegistryValue Name="MailCraft.eml" Type="string" Value="" />
+        </RegistryKey>
+
+        <!-- .msg (Outlook's saved message): offered under Open with, never taken from Outlook. -->
+        <RegistryKey Root="HKLM" Key="Software\Classes\MailCraft.msg">
+          <RegistryValue Type="string" Value="Outlook message file" />
+          <RegistryKey Key="DefaultIcon">
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot;,0" />
+          </RegistryKey>
+          <RegistryKey Key="shell\open\command">
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; &quot;%1&quot;" />
+          </RegistryKey>
+        </RegistryKey>
+        <RegistryKey Root="HKLM" Key="Software\Classes\.msg\OpenWithProgids">
+          <RegistryValue Name="MailCraft.msg" Type="string" Value="" />
         </RegistryKey>
 
         <!-- .ics -->

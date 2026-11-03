@@ -1552,3 +1552,6 @@ month	May	mei
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Open het daar, of neem het hier over: het hoort dan bij deze gegevensmap, en het account daar moet worden verwijderd.
 	Take it over and read the changes in	Overnemen en de wijzigingen inlezen
 	Take it over	Overnemen
+	Drop to add them to {folder}	Laat los om ze aan {folder} toe te voegen
+	Added to {folder}: {n}	Toegevoegd aan {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	{file} kon niet aan {folder} worden toegevoegd: {error}

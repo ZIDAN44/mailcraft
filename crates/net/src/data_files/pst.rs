@@ -74,6 +74,27 @@ pub(crate) use props::{one_off_address, one_off_entry_id, text_of};
 pub use resume::checkpoint_from_bytes;
 pub use resume::keep_as_is;
 
+/// A message from outside a data file (an Outlook `.msg`, issue #38), as the import reads an
+/// item: its properties, its recipients' and its files, each attached message one of these.
+pub(crate) struct Loose<'a> {
+    pub props: Vec<(u16, Val<'a>)>,
+    pub recipients: Vec<Vec<(u16, Val<'a>)>>,
+    pub files: Vec<LooseFile<'a>>,
+}
+
+/// One of a [`Loose`] message's files.
+pub(crate) enum LooseFile<'a> {
+    Data { name: String, mime: String, cid: String, data: Vec<u8> },
+    Message(Box<Loose<'a>>),
+}
+
+/// The loose message as a standard one, as the import writes an item (`named`: the file's
+/// named properties).
+pub(crate) fn loose_message(m: &Loose<'_>, named: &crate::pst_pim::Named) -> Result<Vec<u8>, String> {
+    let it = item::loose_item(m, named, 0);
+    rebuild::to_raw(it, "msg@mailcraft.invalid")
+}
+
 /// Folders nested deeper than this are left out.
 const MAX_DEPTH: usize = 32;
 /// Attachments larger than this are left out of the imported message.

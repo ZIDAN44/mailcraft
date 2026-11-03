@@ -24,6 +24,8 @@ enum Edit {
     /// A change to make, and the account's thread to wake after (none when it isn't running);
     /// how many times the account had been removed when it was made ([`Store::while_kept`]).
     Apply { account: String, op: Op, wake: Option<Sender<Job>>, seen: u64 },
+    /// Message files to put into a folder of an account on this computer (issue #38).
+    File { account: String, folder: String, paths: Vec<String> },
     /// Answered once every change before it is on disk.
     Flush(Sender<()>),
 }
@@ -76,6 +78,11 @@ impl Edits {
                             echo_failed(&sink, &account, folders, "a change to mail failed unexpectedly".into());
                         }
                     }
+                    Edit::File { account, folder, paths } => {
+                        if catch_unwind(AssertUnwindSafe(|| super::filing::file_here(&store, &sink, &account, &folder, &paths))).is_err() {
+                            log::error!("{account}: putting message files in a folder failed unexpectedly");
+                        }
+                    }
                     Edit::Flush(done) => {
                         let _ = done.send(());
                     }
@@ -88,6 +95,27 @@ impl Edits {
                 self.thread = Some(t);
             }
             Err(e) => log::warn!("changes to mail: {e}"),
+        }
+    }
+
+    /// Put message files into a folder of an account on this computer, after the changes before.
+    pub(super) fn file(&mut self, store: &Store, sink: &Sink, account: String, folder: String, paths: Vec<String>) {
+        if self.tx.is_none() {
+            self.start(store, sink);
+        }
+        let edit = Edit::File { account, folder, paths };
+        let edit = match self.tx.as_ref() {
+            Some(tx) => match tx.send(edit) {
+                Ok(()) => return,
+                Err(mpsc::SendError(edit)) => {
+                    self.tx = None;
+                    edit
+                }
+            },
+            None => edit,
+        };
+        if let Edit::File { account, folder, paths } = edit {
+            super::filing::file_here(store, sink, &account, &folder, &paths);
         }
     }
 

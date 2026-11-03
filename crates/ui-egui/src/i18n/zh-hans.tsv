@@ -1553,3 +1553,6 @@ month	May	5月
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	请在那里打开，或在此接管：接管后它属于此数据文件夹，那里的帐户应予删除。
 	Take it over and read the changes in	接管并读入更改
 	Take it over	接管
+	Drop to add them to {folder}	放下即可添加到 {folder}
+	Added to {folder}: {n}	已添加到 {folder}：{n}
+	Couldn't add {file} to {folder}: {error}	无法将 {file} 添加到 {folder}：{error}

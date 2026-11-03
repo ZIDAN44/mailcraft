@@ -31,7 +31,7 @@ pub(crate) use sharing::{put_before, sharing_lines};
 pub use tasks::repeating_task;
 pub(crate) use tasks::task_of;
 
-type GuidKey = (u32, u16, u16, [u8; 8]);
+pub(crate) type GuidKey = (u32, u16, u16, [u8; 8]);
 const OLE: [u8; 8] = [0xC0, 0, 0, 0, 0, 0, 0, 0x46];
 const PSETID_ADDRESS: GuidKey = (0x0006_2004, 0, 0, OLE);
 const PSETID_APPOINTMENT: GuidKey = (0x0006_2002, 0, 0, OLE);
@@ -113,6 +113,28 @@ impl Named {
                     _ => {}
                 },
                 NamedPropertyId::StringOffset(_) => {}
+            }
+        }
+        named
+    }
+
+    /// The named properties of an Outlook message file (`.msg`, MS-OXMSG §2.2.3): each its set
+    /// (`None`: PS_MAPI; the empty GUID: PS_PUBLIC_STRINGS), its number or name, and its id.
+    pub(crate) fn of_names(entries: impl Iterator<Item = (Option<GuidKey>, Result<u32, String>, u16)>) -> Named {
+        let mut named = Named::default();
+        for (set, name, id) in entries.take(MAX_NAMES) {
+            let set = match set {
+                None => key(&PS_MAPI),
+                Some(g) if g == (0, 0, 0, [0; 8]) => key(&PS_PUBLIC_STRINGS),
+                Some(g) => g,
+            };
+            match name {
+                Ok(lid) => {
+                    named.ids.insert((set, lid), id);
+                }
+                Err(n) if set == key(&PS_PUBLIC_STRINGS) && n.eq_ignore_ascii_case("Keywords") => named.keywords = Some(id),
+                Err(n) if set == key(&PS_PUBLIC_STRINGS) && n.eq_ignore_ascii_case(PINNED) => named.pinned = Some(id),
+                Err(_) => {}
             }
         }
         named

@@ -1557,3 +1557,6 @@ month	May	Mai
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Öffnen Sie sie dort, oder übernehmen Sie sie hier: Sie gehört dann zu diesem Datenordner, und ihr Konto dort sollte entfernt werden.
 	Take it over and read the changes in	Übernehmen und die Änderungen einlesen
 	Take it over	Übernehmen
+	Drop to add them to {folder}	Ablegen, um sie zu {folder} hinzuzufügen
+	Added to {folder}: {n}	Zu {folder} hinzugefügt: {n}
+	Couldn't add {file} to {folder}: {error}	{file} konnte nicht zu {folder} hinzugefügt werden: {error}

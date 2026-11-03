@@ -1557,3 +1557,6 @@ month	May	mayo
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Ábrala allí o tómela aquí: pasa a ser de esta carpeta de datos, y su cuenta allí debería quitarse.
 	Take it over and read the changes in	Tomarla y leer los cambios
 	Take it over	Tomarla aquí
+	Drop to add them to {folder}	Suéltelos para añadirlos a {folder}
+	Added to {folder}: {n}	Añadidos a {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	No se pudo añadir {file} a {folder}: {error}

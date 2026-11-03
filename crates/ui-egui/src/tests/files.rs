@@ -170,3 +170,54 @@ fn files_dropped_on_the_main_window_start_a_message() {
     assert_eq!(attached(&a), ["brief.pdf", "notes.txt"]);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A backend that keeps the jobs it's given.
+#[derive(Clone, Default)]
+struct Kept(std::sync::Arc<std::sync::Mutex<Vec<mailcraft_engine::model::Job>>>);
+
+impl crate::Backend for Kept {
+    fn submit(&mut self, job: mailcraft_engine::model::Job) {
+        if let Ok(mut j) = self.0.lock() {
+            j.push(job);
+        }
+    }
+    fn poll(&mut self) -> Vec<mailcraft_engine::model::Event> {
+        Vec::new()
+    }
+}
+
+/// Issue #38: Outlook message files and `.eml` files dropped on the main window go into the
+/// folder open (it says so while they're held over it); other files dropped with them start a
+/// message with them attached. What went in is said once the folder has them.
+#[test]
+fn message_files_dropped_on_the_window_go_into_the_folder_open() {
+    let (mut a, dir) = app("drop-messages");
+    let kept = Kept::default();
+    a.backend = Box::new(kept.clone());
+    let ctx = egui::Context::default();
+    a.session.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    frame(&ctx, &mut a, vec![]);
+    let (msg, eml, pdf) = (dir.join("figures.msg"), dir.join("hello.eml"), dir.join("brief.pdf"));
+    for (p, b) in [(&msg, &b"\xD0\xCF\x11\xE0"[..]), (&eml, b"Subject: x\r\n\r\ny"), (&pdf, b"%PDF-1.4")] {
+        std::fs::write(p, b).unwrap();
+    }
+    let dropped: Vec<egui::DroppedFileHandle> =
+        vec![std::sync::Arc::new(LetGo(msg.clone())), std::sync::Arc::new(LetGo(eml.clone())), std::sync::Arc::new(LetGo(pdf))];
+    let screen = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0)));
+    let mut out = ctx.run_ui(RawInput { screen_rect: screen, dropped_files: dropped, ..Default::default() }, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    frame(&ctx, &mut a, vec![]);
+    let jobs = kept.0.lock().unwrap().clone();
+    let filed: Vec<&Vec<String>> = jobs
+        .iter()
+        .filter_map(|j| {
+            if let mailcraft_engine::model::Job::FileMessages { folder, paths, .. } = j { (folder == "INBOX").then_some(paths) } else { None }
+        })
+        .collect();
+    assert_eq!(filed, [&vec![msg.to_string_lossy().into_owned(), eml.to_string_lossy().into_owned()]], "{jobs:?}");
+    assert_eq!(attached(&a), ["brief.pdf"], "the rest attached to a new message");
+    a.session.apply(mailcraft_engine::model::Event::MessagesFiled { account: "sample".into(), folder: "INBOX".into(), added: 2, failed: Vec::new() });
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.notices.last().is_some_and(|n| n.text.contains('2') && !n.error), "{:?}", a.session.notices.last());
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -1556,3 +1556,6 @@ month	May	maggio
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Aprila lì, oppure prendila qui: diventa di questa cartella dati, e il suo account lì andrebbe rimosso.
 	Take it over and read the changes in	Prendila e leggi le modifiche
 	Take it over	Prendila qui
+	Drop to add them to {folder}	Rilascia per aggiungerli a {folder}
+	Added to {folder}: {n}	Aggiunti a {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	Impossibile aggiungere {file} a {folder}: {error}

@@ -1552,3 +1552,6 @@ month	May	مايو
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	افتحه هناك، أو تولَّه هنا: يصبح عندئذٍ تابعًا لمجلد البيانات هذا، ويجب إزالة حسابه هناك.
 	Take it over and read the changes in	تولِّيه وقراءة التغييرات
 	Take it over	تولِّيه
+	Drop to add them to {folder}	أفلتها لإضافتها إلى {folder}
+	Added to {folder}: {n}	أُضيفت إلى {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	تعذّرت إضافة {file} إلى {folder}: {error}

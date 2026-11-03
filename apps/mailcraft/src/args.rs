@@ -23,7 +23,7 @@ Usage: mailcraft [options] [mailto:LINK | FILE]…
   --version, -V     print the version
   --help, -h        print this
 
-A mailto: link starts a new message; a .eml file is shown, and a .ics or .vcf
+A mailto: link starts a new message; a .eml or .msg file is shown, and a .ics or .vcf
 file's events or people are added. If MailCraft is running, they open there.
 
 A portable copy keeps its data beside the app when portable.txt is there.

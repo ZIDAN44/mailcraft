@@ -1557,3 +1557,6 @@ month	May	Mayıs
 	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Orada açın ya da burada devralın: o zaman bu veri klasörüne ait olur ve oradaki hesabı kaldırılmalıdır.
 	Take it over and read the changes in	Devral ve değişiklikleri oku
 	Take it over	Devral
+	Drop to add them to {folder}	{folder} klasörüne eklemek için bırakın
+	Added to {folder}: {n}	{folder} klasörüne eklendi: {n}
+	Couldn't add {file} to {folder}: {error}	{file}, {folder} klasörüne eklenemedi: {error}
