@@ -98,21 +98,49 @@ impl Drop for Scratch {
     }
 }
 
-/// A post and a document in a mail folder come in as mail; a recall, a sharing invitation and a
-/// contact there are counted as left out, not dropped unsaid.
+/// A post (an RSS feed's too), a document, a recall and its report, a sharing invitation and a
+/// task request in a mail folder come in as mail, with their subject, text and sender; a contact
+/// there goes to the address book as one in a contacts folder does; another kind is counted as
+/// left out, not dropped unsaid.
 #[test]
 fn posts_and_documents_are_mail_and_other_kinds_are_counted() {
     let s = Scratch::new("kinds");
     let mut progress = |_| {};
     let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
     let path = out.add_folder(None, "Inbox");
-    for class in ["IPM.Post", "IPM.Document.Word.Document.12", "IPM.Note", "IPM.Outlook.Recall", "IPM.Sharing", "IPM.Contact"] {
-        out.add_message(&path, Item { class: class.into(), subject: class.into(), date: 1_700_000_000, ..Default::default() });
+    let mail = [
+        "IPM.Post",
+        "IPM.Post.Rss",
+        "IPM.Document.Word.Document.12",
+        "IPM.Note",
+        "IPM.Outlook.Recall",
+        "IPM.Recall.Report.Success",
+        "IPM.Sharing",
+        "IPM.TaskRequest",
+    ];
+    for class in mail {
+        let from = EmailAddress::new("Riley", "riley@studio.example");
+        out.add_message(
+            &path,
+            Item { class: class.into(), subject: class.into(), body: format!("Text of {class}"), from, date: 1_700_000_000, ..Default::default() },
+        );
     }
+    let contact = Extra { display: "Ana Lima".into(), emails: vec!["ana@posteo.example".into()], ..Default::default() };
+    out.add_message(&path, Item { class: "IPM.Contact".into(), extra: Some(contact), ..Default::default() });
+    out.add_message(&path, Item { class: "IPM.Configuration.Junk".into(), subject: "x".into(), ..Default::default() });
     out.save_folder(&path);
     let done = out.finish();
-    assert_eq!((done.messages, done.skipped), (3, 3));
-    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::ItemNotUsable, 3)]);
+    assert_eq!((done.messages, done.contacts, done.skipped), (mail.len(), 1, 1));
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::ItemNotUsable, 1)]);
+    let list = s.1.load_folder("d1", &path).unwrap().messages;
+    for class in mail {
+        let m = list.iter().find(|m| m.subject == class).expect(class);
+        assert_eq!(m.from.email, "riley@studio.example");
+        let raw = s.1.load_body(&m.key).unwrap().unwrap();
+        assert!(mailcraft_mime::parse(&raw).unwrap().text.contains(&format!("Text of {class}")), "{class}");
+    }
+    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    assert!(pim.cards.iter().any(|c| c.card.emails.iter().any(|e| e.value == "ana@posteo.example")));
 }
 
 /// A contact group comes in as a group card with its members; a journal entry as a note with

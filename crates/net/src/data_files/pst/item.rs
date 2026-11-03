@@ -164,6 +164,10 @@ pub(super) fn item_of<'a>(
         let in_sync = !matches!(p(0x0E1F), Some(Val::Bool(false)));
         rtf_into(&mut it, rtf, in_sync);
     }
+    // A sharing invitation says what it shares, whatever its own text says.
+    if class.starts_with("ipm.sharing") {
+        crate::pst_pim::put_before(&crate::pst_pim::sharing_lines(p, named), &mut it.body, &mut it.html);
+    }
     it.message_id = message_ids(&s(0x1035)).into_iter().next().unwrap_or_default();
     it.in_reply_to = message_ids(&s(0x1042)).into_iter().next().unwrap_or_default();
     it.references = message_ids(&s(0x1039));

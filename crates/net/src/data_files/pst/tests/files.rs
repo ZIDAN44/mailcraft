@@ -100,8 +100,8 @@ fn an_unreadable_attachment_comes_from_its_row() {
 }
 
 /// The files left out of the messages that came in are counted by reason, without counting
-/// those messages as skipped; a message that didn't come in (a contact in a mail folder, counted
-/// as itself) counts none.
+/// those messages as skipped; an item that didn't come in (of a kind with no place, counted as
+/// itself) counts none.
 #[test]
 fn files_left_out_are_counted_by_reason() {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-left-out-{}", std::process::id()));
@@ -127,7 +127,7 @@ fn files_left_out_are_counted_by_reason() {
     let link = || Got::Left(SkipReason::AttachmentLink);
     out.add_message(&path, mail(vec![link(), link(), Got::Nothing]));
     out.add_message(&path, mail(vec![link(), Got::Left(SkipReason::AttachmentUnreadable), Got::File(data_file("plan.pdf", "application/pdf", ""))]));
-    out.add_message(&path, Item { class: "IPM.Contact".into(), ..mail(vec![link()]) });
+    out.add_message(&path, Item { class: "IPM.Configuration.Junk".into(), ..mail(vec![link()]) });
     let done = out.finish();
     assert_eq!((done.messages, done.skipped), (2, 1));
     assert_eq!(

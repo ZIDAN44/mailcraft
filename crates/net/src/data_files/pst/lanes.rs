@@ -312,7 +312,10 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
     };
     #[cfg(test)]
     tests::touch(ctx, job, &mut it);
-    if !job.pim && !is_mail(&it.class) {
+    // A contact, calendar item, task, note or journal entry in a mail folder goes where one in a
+    // folder of its own does.
+    let pim = job.pim || is_pim(&it.class);
+    if !pim && !is_mail(&it.class) {
         return Outcome::NotMail;
     }
     // An item bigger than the file said waits for room for what it is (unless it's the one the
@@ -324,7 +327,7 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
         }
         *charge = need;
     }
-    if job.pim {
+    if pim {
         return Outcome::Pim(Box::new(it));
     }
     let fallback = format!("pst.{}.{}.{:x}@mailcraft.invalid", ctx.account, ctx.filetag, job.node);
@@ -342,15 +345,23 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
 }
 
 /// Whether an item of `class` comes in as mail: meeting requests and receipts are mail too, and so
-/// are a post and a document; appointments, contacts and tasks in a mail folder aren't.
+/// are a post (an RSS feed's among them), a document, a recall (and its report), a sharing
+/// invitation and a task request; appointments, contacts and tasks in a mail folder aren't
+/// ([`is_pim`]).
 pub(super) fn is_mail(class: &str) -> bool {
     let class = class.to_ascii_lowercase();
     class.is_empty()
-        || class.starts_with("ipm.note")
-        || class.starts_with("ipm.schedule")
-        || class.starts_with("report.")
-        || class.starts_with("ipm.post")
-        || class.starts_with("ipm.document")
+        || ["ipm.note", "ipm.schedule", "report.", "ipm.post", "ipm.document", "ipm.outlook.recall", "ipm.recall", "ipm.sharing", "ipm.taskrequest"]
+            .iter()
+            .any(|c| class.starts_with(c))
+}
+
+/// Whether an item of `class` is a contact, contact group, calendar item, task, note or journal
+/// entry, which goes to the address book, calendar, tasks or notes wherever it's found.
+pub(super) fn is_pim(class: &str) -> bool {
+    let class = class.to_ascii_lowercase();
+    !class.starts_with("ipm.taskrequest")
+        && ["ipm.contact", "ipm.distlist", "ipm.appointment", "ipm.task", "ipm.stickynote", "ipm.activity"].iter().any(|c| class.starts_with(c))
 }
 
 /// An item's bytes as read: its text and its files'.

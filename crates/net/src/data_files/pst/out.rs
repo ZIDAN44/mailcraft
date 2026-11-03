@@ -299,6 +299,10 @@ impl Out<'_> {
     /// An item made into a message (in a test, as a lane would), into the folder at `path`.
     #[cfg(test)]
     pub(super) fn add_message(&mut self, path: &str, it: Item) {
+        if super::lanes::is_pim(&it.class) {
+            self.add_pim(it);
+            return;
+        }
         if !super::lanes::is_mail(&it.class) {
             self.skip(SkipReason::ItemNotUsable, 1);
             return;

@@ -21,11 +21,13 @@ use crate::pst::Val;
 mod files;
 mod recur;
 mod rest;
+mod sharing;
 mod tasks;
 pub(crate) use files::{card_file, card_photo, event_file, is_file_line};
 pub(crate) use recur::recurrence;
 pub(crate) use recur::{Own, changed_events};
 pub(crate) use rest::{split_rest, with_rest};
+pub(crate) use sharing::{put_before, sharing_lines};
 pub use tasks::repeating_task;
 pub(crate) use tasks::task_of;
 

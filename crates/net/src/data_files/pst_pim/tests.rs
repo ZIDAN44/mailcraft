@@ -555,3 +555,43 @@ fn a_task_s_text_can_t_smuggle_lines_into_its_to_do() {
     assert_eq!(t.extra.get(..3), Some(&["BEGIN:X-PART".to_string(), "X-IN:1".into(), "END:X-PART".into()][..]));
     assert!(t.extra.len() <= 200);
 }
+
+/// A sharing invitation says what it shares, who shares it and an internet calendar's address,
+/// from its sharing properties, before its own text and in its HTML; one that says none of it, or
+/// only hostile values, is left as it is, and no value breaks a line.
+#[test]
+fn a_sharing_invitation_says_what_it_shares() {
+    const SHARING: GuidKey = (0x0006_2040, 0, 0, OLE);
+    let ids = HashMap::from([
+        ((SHARING, 0x8A05), 0x8001),
+        ((SHARING, 0x8A1D), 0x8002),
+        ((SHARING, 0x8A07), 0x8003),
+        ((SHARING, 0x8A08), 0x8004),
+        ((SHARING, 0x8A04), 0x8005),
+    ]);
+    let named = Named { ids, keywords: None, ..Default::default() };
+    let props = HashMap::from([
+        (0x8001, Val::Text("Studio\r\nbookings".into())),
+        (0x8002, Val::Text("IPF.Appointment".into())),
+        (0x8003, Val::Text("Ana".into())),
+        (0x8004, Val::Text("ana@posteo.example".into())),
+        (0x8005, Val::Text("https://cal.example/ana.ics".into())),
+    ]);
+    let lines = sharing_lines(&|id| props.get(&id).cloned(), &named);
+    assert_eq!(lines, ["Shared calendar: Studio  bookings", "Shared by Ana <ana@posteo.example>", "Address: https://cal.example/ana.ics"]);
+    let (mut body, mut html) = (String::new(), Some("<html><BODY class=x><p>Hi & welcome</p></body></html>".to_string()));
+    put_before(&lines[1..2], &mut body, &mut html);
+    assert_eq!(body, "Shared by Ana <ana@posteo.example>\n\nHi & welcome");
+    assert_eq!(html.as_deref(), Some("<html><BODY class=x><p>Shared by Ana &lt;ana@posteo.example&gt;</p><p>Hi & welcome</p></body></html>"));
+    let (mut body, mut html) = ("Take a look.".to_string(), None);
+    put_before(&lines[..1], &mut body, &mut html);
+    assert_eq!((body.as_str(), html), ("Shared calendar: Studio  bookings\n\nTake a look.", None));
+    // Nothing said: the text stays as it is; a path that isn't a web address isn't one.
+    let none = sharing_lines(&|_| None, &named);
+    assert!(none.is_empty());
+    let (mut body, mut html) = ("Kept".to_string(), Some("<p>x</p>".to_string()));
+    put_before(&none, &mut body, &mut html);
+    assert_eq!((body.as_str(), html.as_deref()), ("Kept", Some("<p>x</p>")));
+    let odd = HashMap::from([(0x8005, Val::Text(r"\\server\share\cal".into())), (0x8004, Val::Text("not an address".into()))]);
+    assert!(sharing_lines(&|id| odd.get(&id).cloned(), &named).is_empty());
+}
