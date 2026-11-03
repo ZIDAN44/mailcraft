@@ -5,7 +5,9 @@
 //! number, yes/no, time, UTF-16 text, texts; 5 starts the next recipient's properties), a little-endian
 //! length (two bytes) and the value; 0x3701 is the item's one file (an S/MIME item's content),
 //! 0x370E its type; or, with 0x3705 saying a link (2, 3, 4, 7), the link its pathnames (0x370D,
-//! 0x3708) name, kept as a short text file (nothing is read). Every header line the import writes (all but an original
+//! 0x3708) name, kept as a short text file (nothing is read). 0x8000 is the categories, and 0x8001
+//! to 0x8006 a sharing invitation's properties (what it shares, of what kind, where, by whom).
+//! Every header line the import writes (all but an original
 //! header's own) must stay a line of its own: no control characters, at most 998 bytes; those
 //! it adds from the properties (Thread-Index, Thread-Topic, Sensitivity) ASCII too.
 #![no_main]

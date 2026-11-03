@@ -18,6 +18,7 @@ use super::super::import;
 /// PSETID_Appointment and PSETID_Address (MS-OXPROPS 1.3.2).
 const PSETID_APPOINTMENT: GuidValue = GuidValue::new(0x0006_2002, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
 const PSETID_ADDRESS: GuidValue = GuidValue::new(0x0006_2004, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+const PSETID_SHARING: GuidValue = GuidValue::new(0x0006_2040, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
 
 /// Unix seconds as a FILETIME.
 fn filetime(t: i64) -> i64 {
@@ -174,8 +175,16 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
         UnicodePstProperty::tagged(0x3A06, UnicodePstValue::Unicode("Ana")),
         named(PSETID_ADDRESS, 0x8083, UnicodePstValue::Unicode("ana@posteo.example")),
     ];
+    // What the invitation shares: a calendar, by whom, at an internet address.
+    let shared = [
+        named(PSETID_SHARING, 0x8A05, UnicodePstValue::Unicode("Studio bookings")),
+        named(PSETID_SHARING, 0x8A1D, UnicodePstValue::Unicode("IPF.Appointment")),
+        named(PSETID_SHARING, 0x8A07, UnicodePstValue::Unicode("Ana")),
+        named(PSETID_SHARING, 0x8A08, UnicodePstValue::Unicode("ana@posteo.example")),
+        named(PSETID_SHARING, 0x8A04, UnicodePstValue::Unicode("webcal://calendar.example/studio.ics")),
+    ];
     for (subject, class, props) in
-        [("Recall: Plans", "IPM.Outlook.Recall", &[][..]), ("Sharing invitation", "IPM.Sharing", &[][..]), ("Ana", "IPM.Contact", &card[..])]
+        [("Recall: Plans", "IPM.Outlook.Recall", &[][..]), ("Sharing invitation", "IPM.Sharing", &shared[..]), ("Ana", "IPM.Contact", &card[..])]
     {
         drop(Writer::append_in_folder_with_attachments(&path, &["Kept"], &message(subject, class, "Text.", props), &[]).unwrap());
     }
@@ -199,6 +208,11 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
     let mut subjects: Vec<&str> = kept.iter().map(|m| m.subject.as_str()).collect();
     subjects.sort_unstable();
     assert_eq!(subjects, ["Recall: Plans", "Sharing invitation"]);
+    let invitation = kept.iter().find(|m| m.subject == "Sharing invitation").unwrap();
+    let text = mailcraft_mime::parse(&store.load_body(&invitation.key).unwrap().unwrap()).unwrap().text;
+    for line in ["Shared calendar: Studio bookings", "Shared by Ana <ana@posteo.example>", "webcal://calendar.example/studio.ics"] {
+        assert!(text.contains(line), "{line}: {text}");
+    }
     let pim: Pim = store.load_account_doc("a1", PIM_DOC).unwrap();
     assert!(pim.cards.iter().any(|c| c.card.emails.iter().any(|e| e.value == "ana@posteo.example")));
     let note = &pim.notes[0].note;

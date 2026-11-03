@@ -63,6 +63,17 @@ pub(crate) fn sharing_lines<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Name
     lines
 }
 
+impl Named {
+    /// The names the `pst_item` fuzz target's properties have: the categories at 0x8000, and a
+    /// sharing invitation's at 0x8001 to 0x8006 (what's shared, its kinds, its address, who
+    /// shares it, their address), so its hostile values reach [`sharing_lines`] and [`put_before`].
+    pub(crate) fn for_fuzzing() -> Named {
+        let lids = [REMOTE_NAME, REMOTE_TYPE, LOCAL_TYPE, REMOTE_PATH, INITIATOR_NAME, INITIATOR_SMTP];
+        let ids = (0x8001u16..).zip(lids).map(|(id, lid)| ((PSETID_SHARING, lid), id)).collect();
+        Named { ids, keywords: Some(0x8000), ..Default::default() }
+    }
+}
+
 /// `lines` put before a message's text (`body`) and its HTML, when it has some: the HTML is what
 /// the reading pane shows, and the text what search and the preview read.
 pub(crate) fn put_before(lines: &[String], body: &mut String, html: &mut Option<String>) {

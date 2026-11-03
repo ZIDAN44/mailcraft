@@ -2685,7 +2685,9 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   brought back to life; it is counted, as before. Tested on made-up items of each kind, on a file
   the writer makes with a contact in the Inbox and a contact, an appointment, a task and a note in
   Deleted Items, and on sharing properties with line breaks, HTML and values that aren't
-  addresses; the `pst_item` fuzz target has a recall and a sharing invitation among its seeds.
+  addresses; the `pst_item` fuzz target maps its properties 0x8001 to 0x8006 to the sharing ones,
+  so its invitation seed, and what it's mutated to, reaches the lines and their place in the HTML;
+  the whole-file seed's invitation carries them too.
 - **Attachments that are links:** an attachment Outlook kept as a link to a file elsewhere (by
   reference, resolved, reference only, or on the web: PidTagAttachMethod 2, 3, 4, 7) was only
   counted, and the message showed nothing of it. When its path (PidTagAttachLongPathname, else

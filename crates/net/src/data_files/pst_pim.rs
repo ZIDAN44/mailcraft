@@ -112,6 +112,7 @@ impl Named {
     }
 
     /// Only the categories' property known, at `id` (for tests and the fuzz target).
+    #[cfg(test)]
     pub(crate) fn with_keywords(id: u16) -> Named {
         Named { keywords: Some(id), ..Default::default() }
     }

@@ -105,3 +105,28 @@ fn the_original_header_goes_back_without_doubling_the_source() {
     assert!(raw.starts_with(b"Received: "), "the original header is back");
     assert!(raw.capacity() - raw.len() <= raw.len() / 100, "{} held for {} bytes", raw.capacity(), raw.len());
 }
+
+/// The fuzz target's item reaches a sharing invitation's lines: its properties 0x8001 to 0x8006
+/// are the sharing ones, which go before its text (and into its HTML's body).
+#[test]
+fn the_fuzz_target_s_invitation_says_what_it_shares() {
+    let html = b"<html><BODY class=x><p>Take a look.</p></body></html>";
+    let props = [
+        (0x001A, Val::Text("IPM.Sharing".into())),
+        (0x1013, Val::Bin(html)),
+        (0x8001, Val::Text("Studio bookings".into())),
+        (0x8002, Val::Text("IPF.Appointment".into())),
+        (0x8005, Val::Text("Ana".into())),
+    ];
+    let (raw, _) = crate::pst::rebuilt(&props, &[]).unwrap();
+    let parsed = mailcraft_mime::parse(&raw).unwrap();
+    assert!(
+        parsed.text.starts_with(
+            "Shared calendar: Studio bookings
+Shared by Ana"
+        ),
+        "{}",
+        parsed.text
+    );
+    assert!(parsed.had_html);
+}
