@@ -33,7 +33,7 @@ mod services;
 // Each part by its own name, wherever its file sits (`crate::list`, `mailcraft_ui_egui::theme`).
 use dialogs::pim_dialogs;
 pub use look::thumbs::VideoFrame;
-pub use look::{bidi, craft_fonts, icons, motion, theme};
+pub use look::{bidi, craft_fonts, faces, icons, motion, theme};
 use look::{progress, thumbs, widgets};
 pub use panes::backstage;
 use panes::{calendar, list, nav, notes, organize, people, reminders, tasks};

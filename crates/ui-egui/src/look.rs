@@ -3,6 +3,7 @@
 
 pub mod bidi;
 pub mod craft_fonts;
+pub mod faces;
 pub mod icons;
 pub mod motion;
 pub(crate) mod progress;
