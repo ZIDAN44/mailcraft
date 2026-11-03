@@ -7,7 +7,7 @@ mod nav;
 mod patch;
 mod rows;
 pub(crate) use echo::Echoes;
-pub(crate) use nav::{ListNav, folder_hash, key_hash, key_hash_in};
+pub(crate) use nav::{ListNav, NO_ROW, folder_hash, key_hash, key_hash_in};
 pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
 
 impl Session {
@@ -503,6 +503,17 @@ impl Session {
         self.threads = all;
         self.list = list;
         self.rebuild_rows();
+        self.list_taken();
+    }
+
+    /// [`Session::take_list_with`] for a search streaming, its conversations left for its end,
+    /// with its rows, message rows and each message's row as they were merged (what
+    /// [`Session::build_rows`] would make of it).
+    pub(super) fn take_list_rows(&mut self, list: Vec<SharedSummary>, hashes: Vec<u64>, rows: (Vec<Row>, Vec<u32>, Vec<u32>)) {
+        self.nav.build_hashed(&list, hashes, &[], self.prefs.conversations, true);
+        self.threads = Vec::new();
+        self.list = list;
+        self.take_rows(rows);
         self.list_taken();
     }
 

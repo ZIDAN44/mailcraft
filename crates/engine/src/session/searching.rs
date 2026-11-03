@@ -16,6 +16,7 @@ mod found;
 mod kept;
 mod look_up;
 mod matching;
+mod merge;
 mod publish;
 mod run;
 mod work;
@@ -116,6 +117,9 @@ pub(crate) struct SearchState {
     /// A test's: phrases are checked against the texts kept, as for an index without places.
     #[cfg(test)]
     pub(crate) places_off: bool,
+    /// A test's: how many times what was found was merged into the list's rows as they stood.
+    #[cfg(test)]
+    pub(crate) rows_merged: usize,
 }
 
 /// Working out which of the user's messages wait for a reply ([`Session::awaiting_replies`]),
@@ -544,6 +548,12 @@ impl Session {
     #[cfg(test)]
     pub(crate) fn search_unshown(&self) -> Vec<MessageKey> {
         self.search_state.run.as_ref().map(|r| r.fresh.iter().map(|f| f.m.key.clone()).collect()).unwrap_or_default()
+    }
+
+    /// How many times what searches found was merged into the list's rows as they stood.
+    #[cfg(test)]
+    pub(crate) fn rows_merged(&self) -> usize {
+        self.search_state.rows_merged
     }
 
     /// How many folders the search keeps in the cache.

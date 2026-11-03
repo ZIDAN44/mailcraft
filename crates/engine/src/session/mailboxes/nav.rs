@@ -13,7 +13,7 @@ use super::*;
 const NO_THREAD: u32 = u32::MAX;
 
 /// No row (in [`ListNav::msg_pos_of_list`] and [`ListNav::msg_rows`]).
-pub(super) const NO_ROW: u32 = u32::MAX;
+pub(crate) const NO_ROW: u32 = u32::MAX;
 
 /// Where each message of [`Session::list`] is, and the conversation it's in.
 ///
@@ -330,7 +330,12 @@ impl Session {
 
     /// Build the rows again from the list (`refresh_list`, a new day).
     pub(crate) fn rebuild_rows(&mut self) {
-        let (rows, msg_rows, msg_pos_of_list) = self.build_rows();
+        let rows = self.build_rows();
+        self.take_rows(rows);
+    }
+
+    /// Show `rows`, made for the list as it is ([`Session::build_rows`]'s).
+    pub(crate) fn take_rows(&mut self, (rows, msg_rows, msg_pos_of_list): (Vec<Row>, Vec<u32>, Vec<u32>)) {
         self.nav.rows = rows;
         self.nav.msg_rows = msg_rows;
         self.nav.msg_pos_of_list = msg_pos_of_list;

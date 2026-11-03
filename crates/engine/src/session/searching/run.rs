@@ -4,8 +4,10 @@
 //! A unit is one of: a page of a folder's list read; up to [`UNIT_PAGES`] pages of an
 //! account's index looked through for a word; [`UNIT_MESSAGES`] summaries checked; a message's
 //! text read, or [`VERIFY_BYTES`](super::matching::VERIFY_BYTES) of it checked; (waiting only)
-//! a message's source read; a step of putting the list together at the end. The folders a run
-//! reads are kept in the cache while it lasts. Nothing in it reads the clock or the network.
+//! a message's source read; a step of putting the list together at the end. What a step shows of
+//! what earlier ones found, at its start, takes a unit for each few thousand rows it shows (all
+//! the step's units but one at most). The folders a run reads are kept in the cache while it
+//! lasts. Nothing in it reads the clock or the network.
 //!
 //! Each folder in scope is read, its account's index opened and the query's words looked up in
 //! it, then its summaries checked: the summary settles flags, dates, senders and subjects; the
@@ -24,6 +26,7 @@ use super::folded::TextOf;
 use super::found::{Fresh, RunKey, folder_hashes};
 use super::look_up::Terms;
 use super::matching::{Answers, Candidate, Index, Recorder, Verdict, Verifying, classify, from_source};
+use super::merge::Shown;
 use super::work::SearchWork;
 use super::*;
 
@@ -149,6 +152,8 @@ pub(crate) struct SearchRun {
     /// change since merged in: its end needs only what's left to show.
     pub(crate) owns_list: bool,
     pub(super) finish: Finish,
+    /// What it keeps of the list it showed, to merge into ([`merge`](super::merge)).
+    pub(super) shown: Shown,
     /// What the unit under way is doing ([`SearchWork`]).
     pub(super) work: SearchWork,
 }
@@ -217,6 +222,7 @@ impl SearchRun {
             cut_short: HashSet::new(),
             owns_list: false,
             finish: Finish::Due,
+            shown: Shown::default(),
             work: SearchWork::Summaries,
         }
     }

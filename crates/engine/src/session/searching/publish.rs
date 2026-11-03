@@ -7,11 +7,9 @@
 //! their text said is kept. Mail coming into or leaving a folder has that folder scanned again;
 //! folders appearing or going start the search again.
 
-use std::cmp::Ordering;
-
-use super::super::mailboxes::key_hash;
 use super::found::RunKey;
 use super::matching::{Index, Verdict, classify};
+use super::merge::{date_order, when_order};
 use super::run::SearchRun;
 use super::*;
 
@@ -27,18 +25,11 @@ const SHOWN_AT_ONCE: usize = 4096;
 /// common phrase found a few messages a step over tens of thousands built a list of tens of
 /// thousands each time (a cold search of 50,000 messages took 14 s, nearly all of it that).
 const ROWS_A_STEP: usize = 2048;
-
-/// [`date_order`] of two messages that came at `a` and `b` (`Equal`: at the same time, their
-/// keys tell).
-fn when_order(a: i64, b: i64, reverse: bool) -> Ordering {
-    if reverse { a.cmp(&b) } else { b.cmp(&a) }
-}
-
-/// The order the list is in by date (the order a search streams in), as `arrange_list` makes it.
-fn date_order(a: &Summary, b: &Summary, reverse: bool) -> Ordering {
-    let newest = b.when().cmp(&a.when()).then_with(|| b.key.cmp(&a.key));
-    if reverse { a.when().cmp(&b.when()).then(newest) } else { newest }
-}
+/// Rows of the list shown merged in about the time of a unit (a unit making 128 summaries' texts
+/// took 0.15 ms; merging 12,000 found into 27,000 shown, 1.8 ms): what a step shows at its start
+/// takes as many of its units. Taking none, the step that showed them went on to its 8 units
+/// whatever they cost.
+const ROWS_A_UNIT: usize = 4096;
 
 impl Session {
     /// What the run found, as the folders hold it now (a folder let go of meanwhile: as the list
@@ -77,20 +68,23 @@ impl Session {
 
     /// Show what the run found and let go of since the list was last shown, when it's due: at a
     /// step's end (`start` false) only while the list is short, else at the start of a step once
-    /// enough steps went by ([`ROWS_A_STEP`]).
-    pub(crate) fn publish_due(&mut self, run: &mut SearchRun, start: bool) {
+    /// enough steps went by ([`ROWS_A_STEP`]). The units it took ([`ROWS_A_UNIT`]).
+    pub(crate) fn publish_due(&mut self, run: &mut SearchRun, start: bool) -> u32 {
         // Nothing left to read: the run's end shows it (one list built, not two).
         if run.done() || run.wait || (run.fresh.is_empty() && run.gone.is_empty()) || (start && run.idle()) {
-            return;
+            return 0;
         }
         let shown = self.list.len();
         let due = shown.saturating_add(run.fresh.len()) <= SHOWN_AT_ONCE || (start && run.unshown_steps >= shown / ROWS_A_STEP);
         if due {
             self.publish_stream(run);
             run.unshown_steps = 0;
-        } else if !start {
+            return u32::try_from(self.list.len() / ROWS_A_UNIT).unwrap_or(u32::MAX);
+        }
+        if !start {
             run.unshown_steps = run.unshown_steps.saturating_add(1);
         }
+        0
     }
 
     /// Show what the run found and let go of since the list was last shown: merged into the list
@@ -115,35 +109,8 @@ impl Session {
             return;
         }
         fresh.sort_by(|a, b| when_order(a.0, b.0, reverse).then_with(|| date_order(&a.2, &b.2, reverse)));
-        // The hashes the list's index was built of, kept with the messages they're of: only
-        // what's new is hashed (each key hashed again was half of building the index again).
-        let kept = self.take_hashes().unwrap_or_default();
-        let old = std::mem::take(&mut self.list);
-        let known = kept.len() == old.len();
-        let gone_hashes: HashSet<u64> = gone.iter().map(key_hash).collect();
-        let mut list = Vec::with_capacity(old.len() + fresh.len());
-        let mut hashes = Vec::with_capacity(old.len() + fresh.len());
-        let mut fresh = fresh.into_iter().peekable();
-        for (i, m) in old.into_iter().enumerate() {
-            let h = kept.get(i).copied().filter(|_| known).unwrap_or_else(|| key_hash(&m.key));
-            if !gone_hashes.is_empty() && gone_hashes.contains(&h) && gone.contains(&m.key) {
-                continue;
-            }
-            let when = m.when();
-            while let Some((_, fh, f)) =
-                fresh.next_if(|(fw, _, f)| when_order(*fw, when, reverse).then_with(|| date_order(f, &m, reverse)) == Ordering::Less)
-            {
-                list.push(f);
-                hashes.push(fh);
-            }
-            list.push(m);
-            hashes.push(h);
-        }
-        for (_, fh, f) in fresh {
-            list.push(f);
-            hashes.push(fh);
-        }
-        self.take_list_with(list, hashes, false);
+        let merged = self.merge_shown(run, fresh, &gone);
+        self.take_merged(run, merged);
     }
 
     /// Flags or categories changed on `keys` (in the cache already): weighed again against the

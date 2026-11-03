@@ -515,7 +515,11 @@ folder's list isn't read while read marks wait to be written (the read would wai
 step goes on and reads it once they're on disk. What's found is merged into the list by date
 (`searching/publish.rs`): at the step's end while the list holds at most 4,096 messages, else at the
 start of a later step (where the window's clock counts it) once a step has gone by for each 2,048
-messages it holds, so a long list isn't built again every step; the list's index keeps its keys'
+messages it holds, so a long list isn't built again every step, and that showing takes a unit of
+the step's for each 4,096 rows it shows (all but one at most); the list's rows are merged with
+what's new as they stand, the run keeping when each message it showed came and the buffers the
+last merge left (`searching/merge.rs`: no listed summary is read), where they're as a search
+streaming builds them (by date, no conversations or pinned mail); the list's index keeps its keys'
 hashes for that (`ListNav::build_hashed`), what's found carries its key's hash, made from its
 folder's (`key_hash_in`: no key's strings hashed again), and a run's sets hold a message as its
 folder's place, validity and number (`searching/found.rs`, `RunKey`), copying no strings; the

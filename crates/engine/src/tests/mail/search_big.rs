@@ -332,6 +332,35 @@ fn thirty_five_thousand_found_stream_in() {
     assert_eq!(s.letting_go(), 0);
 }
 
+/// What steps find is merged into the list's rows as they stand, not built again from the
+/// summaries: after every step, newest first or oldest first, a message marked read or unread
+/// meanwhile, the rows, where each message's is and each message's row are those the list would
+/// be built with.
+#[test]
+fn rows_merged_are_the_lists() {
+    for (q, reverse) in [("k", false), ("is:read", true)] {
+        let (mut s, _) = cold();
+        s.prefs.reverse_sort = reverse;
+        s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
+        let mut steps = 0;
+        loop {
+            let done = s.search_step(8).done;
+            steps += 1;
+            let (rows, msg_rows, of_list) = s.build_rows();
+            assert_eq!((s.nav.rows == rows, s.nav.msg_rows == msg_rows, s.nav.msg_pos_of_list == of_list), (true, true, true), "{q}: step {steps}");
+            if done {
+                break;
+            }
+            if steps == 6
+                && let Some(k) = s.list.get(s.list.len() / 2).map(|m| m.key.clone())
+            {
+                s.apply_op(&k.account.clone(), Op::SetFlag { keys: vec![k], flag: Flag::Seen, on: q == "k" });
+            }
+        }
+        assert!(s.list.len() > 30_000 && s.rows_merged() >= 5, "{q}: {} shown, rows merged {} times", s.list.len(), s.rows_merged());
+    }
+}
+
 /// The list a run shows at its end is put together as a step's first unit, never after others:
 /// begun late in the window's frame, showing 35,000 found ran past it by 5-8 ms.
 #[test]
@@ -425,10 +454,11 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// told (25 ms before each summary was looked through once for it) and 4 ms a step at p99; a
 /// word in a session just opened ([`cold`]: its index opened by the window's first tick, its
 /// summaries' texts but that tick's made as it goes), alone or after the other queries, 90 ms all
-/// told and 4 ms a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word warm 60 ms
-/// all told and 6 ms a step, at p99 and at worst, and just opened 300 ms all told and 8 ms a step
-/// (aimed at 6, not met: its longest steps show 12,000 found merged into 27,000 and put the
-/// 47,387 together at the end, 3.8–7.4 ms, the same work that takes up to 5.7 ms warm); and the
+/// told and 4 ms a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word
+/// 6 ms a step at p99 and at worst, warm (60 ms all told) or just opened (300 ms), where its
+/// longest steps show 12,000 found merged into 27,000 and the 47,387 put together at the end
+/// (3.8–7.4 ms, its rows built again from the summaries and the step's 8 units run after: its
+/// rows are merged with what's new, and what a step shows takes its units); and the
 /// common phrase, in frames, just opened or searched again, 150 ms all told (its words' places
 /// settle it: its 16,667 candidates' texts read and folded took 322-454 ms just opened, 128-142
 /// ms searched again). Printed only: the index pages each read, the index's segments' bytes (its
@@ -481,8 +511,7 @@ fn how_long_searches_take() {
                 "cold" if word => assert!(all <= ms(90) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
                 "warm" | "cold" if q == "is:unread" => assert!(all <= ms(15), "{q}: {all:?}"),
                 "warm" if q == "k" => assert!(all <= ms(60) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
-                // Its 6 ms a step isn't met just opened (Open, 8 in gaps.md): held to a frame's 8.
-                "cold" if q == "k" => assert!(all <= ms(300) && p99 <= ms(8) && most <= ms(8), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
+                "cold" if q == "k" => assert!(all <= ms(300) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
                 "cold, frames" | "warm, frames" if phrase => assert!(all <= ms(150), "{q}: {all:?}"),
                 _ => {}
             }

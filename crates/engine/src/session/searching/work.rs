@@ -106,10 +106,12 @@ impl Session {
             self.follow_indexes(&mut run);
             done(SearchWork::FollowIndexes);
             // What earlier steps found, shown before this one's units (where the window's
-            // clock counts it); then what this one found, if that's cheap.
-            self.publish_due(&mut run, true);
+            // clock counts it), taking as many of its units as its rows ask, all but one; then
+            // what this one found, if that's cheap.
+            let shown = self.publish_due(&mut run, true).min(units.saturating_sub(1));
+            self.search_state.stats.units = self.search_state.stats.units.saturating_add(u64::from(shown));
             done(SearchWork::Show);
-            self.run_units(&mut run, units, more, done);
+            self.run_units(&mut run, units.saturating_sub(shown), more, done);
             self.publish_due(&mut run, false);
             done(SearchWork::Show);
         }));
