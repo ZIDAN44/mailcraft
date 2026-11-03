@@ -224,3 +224,115 @@ fn another_copy_is_a_new_one_beside_the_file() {
     drop(s);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A session on the MailCraft data folder `app` (and its data files) in `dir`.
+fn on_folder(dir: &Path, app: &str) -> Session {
+    let store = Store::open_packed(dir.join(app), dir.join(format!("{app} Files"))).unwrap();
+    Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0))
+}
+
+/// Wait for the copy beside `pst` to be closed by a session dropped (its read marks' thread lets
+/// go of its store a moment later), as seen from `s`.
+fn closed(s: &Session, pst: &str) {
+    for _ in 0..400 {
+        if s.store.as_ref().and_then(|st| st.copy_beside(Path::new(pst))).is_some_and(|b| b.found.is_some()) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+}
+
+/// Opened in one data folder, then closed: another data folder (the CLI's, a `--data` run) is
+/// refused the copy beside the file and told which folder has it, and takes it over only when
+/// asked; the copy is then its own.
+#[test]
+fn a_copy_another_data_folder_has_is_refused_until_taken_over() {
+    let (mut s, dir, pst) = with_file("owner");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported(&mut s, &id, &pst);
+    // Closed (MailCraft quit): the account and its copy stay that folder's.
+    drop(s);
+
+    let mut other = on_folder(&dir, "other");
+    closed(&other, &pst);
+    let refused = other.run("account.importPst", &json!({"path": pst})).unwrap_err();
+    let app = dir.join("app").to_string_lossy().into_owned();
+    assert!(refused.to_string().contains("another MailCraft data folder") && refused.to_string().contains(&app), "{refused}");
+    assert!(refused.to_string().contains("takeOver"), "{refused}");
+    assert!(other.notices.last().is_some_and(|n| n.error && n.text.contains(&app)), "{:?}", other.notices.last());
+    assert!(other.accounts.is_empty() && other.take_jobs().is_empty(), "nothing opened");
+    // Taken over: opened as it was left, and this folder's from now on.
+    let opened = other.run("account.importPst", &json!({"path": pst, "takeOver": true})).unwrap();
+    assert_eq!((opened["reopened"].as_bool(), opened["importing"].as_bool()), (Some(true), Some(false)), "{opened}");
+    let taken = opened["account"].as_str().unwrap().to_string();
+    assert_eq!(other.account(&taken).unwrap().folders.len(), 1);
+    let store = other.store.clone().unwrap();
+    other.run("account.remove", &json!({"account": taken})).unwrap();
+    // Removed there: no folder's now, so the first opens it again without asking.
+    drop((other, store));
+    let mut s = on_folder(&dir, "app");
+    assert!(s.account(&id).is_some(), "the first folder still has its account");
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    closed(&s, &pst);
+    let opened = s.run("account.importPst", &json!({"path": pst})).unwrap();
+    assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
+    drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A copy made before copies said whose they are has no owner record, as one whose account was
+/// removed has none (it's taken out): no folder's, it opens in any data folder as before.
+#[test]
+fn a_copy_with_no_owner_opens_anywhere() {
+    let (mut s, dir, pst) = with_file("no-owner");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported(&mut s, &id, &pst);
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    drop(s);
+    let mut other = on_folder(&dir, "other");
+    closed(&other, &pst);
+    let found = other.store.as_ref().and_then(|st| st.copy_beside(Path::new(&pst))).and_then(|b| b.found).unwrap();
+    assert_eq!((found.owner.as_str(), found.held), ("", false));
+    let opened = other.run("account.importPst", &json!({"path": pst})).unwrap();
+    assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
+    drop(other);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The data folder that had the copy is gone (or no longer names it): the copy opens elsewhere
+/// without asking. A damaged id file is set aside on the way, never fatal.
+#[test]
+fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
+    let (mut s, dir, pst) = with_file("owner-gone");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported(&mut s, &id, &pst);
+    drop(s);
+    // Its list of data files no longer names the copy (the folder's other files are left).
+    std::fs::write(dir.join("app").join("datafiles.json"), b"{}").unwrap();
+    std::fs::create_dir_all(dir.join("other")).unwrap();
+    std::fs::write(dir.join("other").join("datafolder.json"), b"\x00junk").unwrap();
+    let mut other = on_folder(&dir, "other");
+    closed(&other, &pst);
+    let opened = other.run("account.importPst", &json!({"path": pst})).unwrap();
+    assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
+    assert_eq!(std::fs::read(dir.join("other").join("datafolder.json.damaged")).unwrap(), b"\x00junk");
+    let taken = opened["account"].as_str().unwrap().to_string();
+    other.run("account.remove", &json!({"account": taken})).unwrap();
+    drop(other);
+    // The other one's again, and closed; that folder removed: a third opens it as well.
+    let mut other = on_folder(&dir, "other");
+    closed(&other, &pst);
+    other.run("account.importPst", &json!({"path": pst})).unwrap();
+    drop(other);
+    let mut third = on_folder(&dir, "third");
+    closed(&third, &pst);
+    assert!(third.run("account.importPst", &json!({"path": pst})).is_err(), "the other one has it");
+    std::fs::remove_dir_all(dir.join("other")).unwrap();
+    let opened = third.run("account.importPst", &json!({"path": pst})).unwrap();
+    assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
+    drop(third);
+    let _ = std::fs::remove_dir_all(&dir);
+}

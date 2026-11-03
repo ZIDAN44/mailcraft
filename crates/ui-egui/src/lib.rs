@@ -203,11 +203,13 @@ pub enum Action {
     OpenDataFile,
     /// Import the data file at `path` (`again`: though it's open as another account already;
     /// `changes`: what becomes of a file changed since MailCraft's copy of it was read, "read"
-    /// or "keep").
+    /// or "keep"; `take_over`: its copy is an account in another MailCraft data folder, and
+    /// becomes this one's).
     ImportDataFile {
         path: String,
         again: bool,
         changes: Option<&'static str>,
+        take_over: bool,
     },
     /// Show how an account's import is going, beside the status bar.
     ImportDetails(String),

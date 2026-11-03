@@ -1546,3 +1546,7 @@ month	May	مايو
 	There isn't room for the copy beside the file. Free up space on that drive.	لا توجد مساحة كافية للنسخة بجانب الملف. حرّر بعض المساحة على ذلك القرص.
 	Read the changes in	قراءة التغييرات
 	Open as it was	فتح كما كان
+	It's an account in another MailCraft data folder: {folder}	إنه حساب في مجلد بيانات MailCraft آخر: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	افتحه هناك، أو تولَّه هنا: يصبح عندئذٍ تابعًا لمجلد البيانات هذا، ويجب إزالة حسابه هناك.
+	Take it over and read the changes in	تولِّيه وقراءة التغييرات
+	Take it over	تولِّيه

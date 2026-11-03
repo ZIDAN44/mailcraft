@@ -1546,3 +1546,7 @@ month	May	mei
 	There isn't room for the copy beside the file. Free up space on that drive.	Er is geen ruimte voor de kopie naast het bestand. Maak ruimte vrij op dat station.
 	Read the changes in	Wijzigingen inlezen
 	Open as it was	Openen zoals het was
+	It's an account in another MailCraft data folder: {folder}	Het is een account in een andere MailCraft-gegevensmap: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Open het daar, of neem het hier over: het hoort dan bij deze gegevensmap, en het account daar moet worden verwijderd.
+	Take it over and read the changes in	Overnemen en de wijzigingen inlezen
+	Take it over	Overnemen

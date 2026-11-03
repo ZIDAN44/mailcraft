@@ -328,8 +328,10 @@ impl Session {
     /// account is refused unless `again` (another copy), or read again into it with `changes`
     /// "read". A copy beside it from an earlier opening is gone on with; the file changed since,
     /// `changes` says whether it's read again into the copy ("read") or the copy opened as it was
-    /// ("keep"), and it's asked for otherwise.
-    pub fn import_pst(&mut self, path: &str, again: bool, changes: Option<Changes>) -> CmdResult {
+    /// ("keep"), and it's asked for otherwise. A copy that's an account of another MailCraft data
+    /// folder still there is refused, and the user told which, unless `take_over`: it's then this
+    /// folder's.
+    pub fn import_pst(&mut self, path: &str, again: bool, changes: Option<Changes>, take_over: bool) -> CmdResult {
         let path = path.trim();
         if path.is_empty() {
             return Err(CmdError::Params("`path` is required".into()));
@@ -347,6 +349,9 @@ impl Session {
         }
         // Another copy is one of its own: a copy found beside the file isn't gone on with.
         let found = if again { None } else { self.copy_found(path) };
+        if let Some(f) = found.as_ref().filter(|f| f.held && !take_over) {
+            return Err(self.held_elsewhere(path, f));
+        }
         if found.as_ref().is_some_and(|f| f.changed) && changes.is_none() {
             return Err(CmdError::Params(
                 "the file has changed since MailCraft's copy beside it was read: pass changes: \"read\" to read what's new into the copy, or \"keep\" to open the copy as it was".into(),

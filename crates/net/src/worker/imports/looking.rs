@@ -45,6 +45,9 @@ impl Pool {
                     facts.copy = b.path.to_string_lossy().into_owned();
                     facts.copy_changed = f.changed;
                     facts.copy_rereadable = f.seen;
+                    if f.held {
+                        facts.copy_held_by.clone_from(&f.owner_path);
+                    }
                     // A copy whole and up to date is opened as it is: nothing to write.
                     if !f.changed && f.state == "done" {
                         (facts.estimate, facts.need) = (0, 0);

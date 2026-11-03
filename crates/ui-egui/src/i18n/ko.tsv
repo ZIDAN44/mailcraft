@@ -1550,3 +1550,7 @@ month	May	5월
 	There isn't room for the copy beside the file. Free up space on that drive.	파일 옆에 사본을 둘 공간이 없습니다. 그 드라이브의 공간을 확보하세요.
 	Read the changes in	변경 내용 읽어 오기
 	Open as it was	이전 상태로 열기
+	It's an account in another MailCraft data folder: {folder}	다른 MailCraft 데이터 폴더의 계정입니다: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	그곳에서 열거나 여기로 가져오세요. 가져오면 이 데이터 폴더의 것이 되며, 그곳의 계정은 제거해야 합니다.
+	Take it over and read the changes in	가져와서 변경 내용 읽기
+	Take it over	가져오기

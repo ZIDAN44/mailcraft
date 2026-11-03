@@ -31,9 +31,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("account.importPst", "Open Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             let changes = crate::session::Changes::parse(p::str(v, "changes"))?;
-            s.import_pst(&path, p::bool(v, "again").unwrap_or(false), changes)
+            s.import_pst(&path, p::bool(v, "again").unwrap_or(false), changes, p::bool(v, "takeOver").unwrap_or(false))
         })
-        .params(r#"{"path": string (a .pst or .mailcraft data file; its mail goes into a new account on this computer, an Outlook file's copy beside it: archive.pst's in archive.mailcraft, gone on with when it's opened again), "again"?: bool (import it though it's already open as another account), "changes"?: "read" (the file changed since its copy was read, or it's open already: what it has new is added to the copy) | "keep" (the copy opened as it was read)}"#),
+        .params(r#"{"path": string (a .pst or .mailcraft data file; its mail goes into a new account on this computer, an Outlook file's copy beside it: archive.pst's in archive.mailcraft, gone on with when it's opened again), "again"?: bool (import it though it's already open as another account), "changes"?: "read" (the file changed since its copy was read, or it's open already: what it has new is added to the copy) | "keep" (the copy opened as it was read), "takeOver"?: bool (its copy is an account of another MailCraft data folder: take it over here; it's refused otherwise, naming that folder)}"#),
         CommandSpec::new("account.stopImport", "Stop importing", "Folder pane › account menu", |s, v| {
             let how = match p::str(v, "how") {
                 None | Some("cancel") => StopHow::Cancel,

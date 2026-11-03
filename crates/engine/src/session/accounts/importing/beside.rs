@@ -4,7 +4,10 @@
 //! removed, the file goes on with that copy. Changed since the copy read it, the user says
 //! whether to read what's new into the copy ([`Changes::Read`]: added, nothing of the copy
 //! changed otherwise) or to open the copy as it was read ([`Changes::Keep`]). A folder that can't
-//! be written has the copy go with the other data files, and the user is told where.
+//! be written has the copy go with the other data files, and the user is told where. A copy
+//! that's an account of another MailCraft data folder (the CLI's, a `--data` run), one still
+//! there that still names it, isn't opened here unless the user takes it over: the user is told
+//! which folder has it.
 
 use std::path::Path;
 
@@ -57,6 +60,16 @@ impl Session {
             return None;
         }
         self.store.as_ref().and_then(|s| s.copy_beside(Path::new(path))).and_then(|b| b.found)
+    }
+
+    /// Why the copy found beside the Outlook file at `path` isn't opened: it's an account of
+    /// another data folder (said in a notice too, for the window).
+    pub(super) fn held_elsewhere(&mut self, path: &str, found: &Found) -> CmdError {
+        let (file, folder) = (file_name(path), found.owner_path.clone());
+        self.notice(format!("{file}: MailCraft's copy beside it is an account in another MailCraft data folder, {folder}"), true);
+        CmdError::Params(format!(
+            "MailCraft's copy beside this file is an account in another MailCraft data folder ({folder}): open it there, or pass takeOver: true to take it over here"
+        ))
     }
 
     /// `account`'s data file is MailCraft's copy beside the Outlook file at `path` (a new one when

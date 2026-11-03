@@ -357,7 +357,7 @@ fn a_data_file_is_looked_at_before_it_is_imported() {
     assert!(has(&texts, "There isn't room for the copy"), "{texts:?}");
 
     // Imported: the dialog goes, the account comes, and the status bar takes it from there.
-    a.act(Action::ImportDataFile { path: PATH.into(), again: false, changes: None });
+    a.act(Action::ImportDataFile { path: PATH.into(), again: false, changes: None, take_over: false });
     assert!(a.session.imports().any(|(_, st)| st.path == PATH));
     a.session.take_jobs();
     // The same file again: caught, with another copy only when asked for.
@@ -365,9 +365,9 @@ fn a_data_file_is_looked_at_before_it_is_imported() {
     let texts = drawn(&ctx, &mut a);
     assert!(has(&texts, "This data file is already open as Archive."), "{texts:?}");
     let before = a.session.accounts.len();
-    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: false, changes: None });
+    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: false, changes: None, take_over: false });
     assert_eq!(a.session.accounts.len(), before, "refused");
-    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: true, changes: None });
+    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: true, changes: None, take_over: false });
     assert_eq!(a.session.accounts.len(), before + 1);
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -576,5 +576,12 @@ fn an_outlook_files_copy_is_beside_it_and_found_again() {
     let texts = show(&mut a, DataFileFacts { copy_rereadable: false, ..facts("D:/Mail/Old.mailcraft", true, false) });
     assert!(has(&texts, "its changes can't be read in") && has(&texts, "Open as it was"), "{texts:?}");
     assert!(!has(&texts, "Read the changes in"), "{texts:?}");
+    // A copy that's an account in another data folder: said which, and taken over only when asked.
+    let held = |changed: bool| DataFileFacts { copy_held_by: "E:/Other MailCraft".into(), ..facts("D:/Mail/Old.mailcraft", changed, false) };
+    let texts = show(&mut a, held(false));
+    assert!(has(&texts, "It's an account in another MailCraft data folder: E:/Other MailCraft"), "{texts:?}");
+    assert!(has(&texts, "Take it over") && has(&texts, "Import another copy") && !has(&texts, "Take it over and read"), "{texts:?}");
+    let texts = show(&mut a, held(true));
+    assert!(has(&texts, "Take it over and read the changes in") && !has(&texts, "Open as it was"), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }

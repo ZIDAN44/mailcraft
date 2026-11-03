@@ -1550,3 +1550,7 @@ month	May	Май
 	There isn't room for the copy beside the file. Free up space on that drive.	Рядом с файлом не хватает места для копии. Освободите место на этом диске.
 	Read the changes in	Прочитать изменения
 	Open as it was	Открыть как было
+	It's an account in another MailCraft data folder: {folder}	Это учётная запись в другой папке данных MailCraft: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Откройте её там или заберите сюда: тогда она будет принадлежать этой папке данных, а её учётную запись там следует удалить.
+	Take it over and read the changes in	Забрать и прочитать изменения
+	Take it over	Забрать сюда

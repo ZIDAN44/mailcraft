@@ -184,8 +184,8 @@ impl MailApp {
                 }
             }
             // The status bar and the folder pane show how it goes from here.
-            Action::ImportDataFile { path, again, changes } => {
-                match self.session.run("account.importPst", &json!({"path": path, "again": again, "changes": changes})) {
+            Action::ImportDataFile { path, again, changes, take_over } => {
+                match self.session.run("account.importPst", &json!({"path": path, "again": again, "changes": changes, "takeOver": take_over})) {
                     Ok(_) => self.ui.backstage = None,
                     Err(e) => self.session.notice(e.to_string(), true),
                 }

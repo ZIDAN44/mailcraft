@@ -1550,3 +1550,7 @@ month	May	5月
 	There isn't room for the copy beside the file. Free up space on that drive.	檔案旁邊沒有足夠的空間存放副本。請釋放該磁碟機上的空間。
 	Read the changes in	讀入變更
 	Open as it was	按原樣開啟
+	It's an account in another MailCraft data folder: {folder}	它是另一個 MailCraft 資料資料夾中的帳戶：{folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	請在那裡開啟，或在此接管：接管後它屬於此資料資料夾，那裡的帳戶應予移除。
+	Take it over and read the changes in	接管並讀入變更
+	Take it over	接管

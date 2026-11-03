@@ -717,5 +717,18 @@ fn a_file_looked_at_says_the_room_for_its_copy() {
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
     assert!(facts.error.is_some() && !facts.destination.is_empty(), "{facts:?}");
     assert!(facts.free.is_some(), "the drive's own room: {facts:?}");
+    // A copy beside it made by another MailCraft data folder, closed now: said to be that one's.
+    let theirs = dir.join("their data");
+    let other = Store::open_packed(&theirs, dir.join("their files")).unwrap();
+    other.place_beside("t1", Path::new(&pst)).unwrap();
+    let (size, modified) = mailcraft_store::file_stamp(Path::new(&pst)).unwrap();
+    other
+        .save_account_doc("t1", "import.json", &serde_json::json!({"state": "done", "source": {"path": pst, "size": size, "modified": modified}}))
+        .unwrap();
+    drop(other);
+    p.submit(Job::InspectDataFile { path: pst.clone() });
+    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert!(!facts.copy.is_empty() && facts.copy_held_by == theirs.to_string_lossy(), "{facts:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }

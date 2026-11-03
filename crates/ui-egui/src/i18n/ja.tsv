@@ -1547,3 +1547,7 @@ month	May	5月
 	There isn't room for the copy beside the file. Free up space on that drive.	ファイルの隣にコピーを置く空き容量がありません。そのドライブの空き容量を増やしてください。
 	Read the changes in	変更を読み込む
 	Open as it was	以前のまま開く
+	It's an account in another MailCraft data folder: {folder}	別の MailCraft データ フォルダーのアカウントです: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	そちらで開くか、ここに引き継いでください。引き継ぐとこのデータ フォルダーのものになり、そちらのアカウントは削除してください。
+	Take it over and read the changes in	引き継いで変更を読み込む
+	Take it over	引き継ぐ

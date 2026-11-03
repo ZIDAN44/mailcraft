@@ -1551,3 +1551,7 @@ month	May	maio
 	There isn't room for the copy beside the file. Free up space on that drive.	Não há espaço para a cópia ao lado do arquivo. Libere espaço nessa unidade.
 	Read the changes in	Ler as alterações
 	Open as it was	Abrir como estava
+	It's an account in another MailCraft data folder: {folder}	É uma conta em outra pasta de dados do MailCraft: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Abra-a lá ou assuma-a aqui: ela passa a ser desta pasta de dados, e a conta dela lá deve ser removida.
+	Take it over and read the changes in	Assumir e ler as alterações
+	Take it over	Assumir

@@ -290,6 +290,9 @@ pub struct DataFileFacts {
     /// That copy notes what came in from the file, so what the file has new can be read into it
     /// (one made before MailCraft noted it can only be opened as it was).
     pub copy_rereadable: bool,
+    /// That copy is an account in another MailCraft data folder, still there: its path ("" when
+    /// it's no other folder's). Opened here only when the user takes it over.
+    pub copy_held_by: String,
     /// Why the file couldn't be looked at.
     pub error: Option<String>,
 }

@@ -1546,3 +1546,7 @@ month	May	מאי
 	There isn't room for the copy beside the file. Free up space on that drive.	אין מקום לעותק לצד הקובץ. פנו מקום בכונן הזה.
 	Read the changes in	לקרוא את השינויים
 	Open as it was	לפתוח כפי שהיה
+	It's an account in another MailCraft data folder: {folder}	זה חשבון בתיקיית נתונים אחרת של MailCraft: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	פתחו אותו שם, או קחו אותו לכאן: הוא יהיה אז של תיקיית הנתונים הזו, ויש להסיר את החשבון שלו שם.
+	Take it over and read the changes in	לקחת ולקרוא את השינויים
+	Take it over	לקחת לכאן

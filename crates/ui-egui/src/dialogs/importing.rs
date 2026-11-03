@@ -94,6 +94,8 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
     let mut can_import = false;
     // MailCraft's copy beside the file from before, and whether the file changed since.
     let (mut copy, mut changed, mut rereadable) = (false, false, false);
+    // That copy an account in another MailCraft data folder: the folder.
+    let mut held = String::new();
     match s.data_file_facts(path) {
         None => {
             // Not looked at (or forgotten since): asked for, once.
@@ -119,6 +121,16 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
             let about = widgets::human_bytes(f.estimate);
             if copy {
                 say(ui, tf!("MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}", file = f.copy), t.dim);
+                if !f.copy_held_by.is_empty() {
+                    held.clone_from(&f.copy_held_by);
+                    say(ui, tf!("It's an account in another MailCraft data folder: {folder}", folder = held), t.warn);
+                    say(
+                        ui,
+                        tl!("Open it there, or take it over here: it's then this data folder's, and its account there should be removed.")
+                            .to_string(),
+                        t.dim,
+                    );
+                }
                 if changed {
                     say(ui, tl!("The file has changed since MailCraft read it.").to_string(), t.warn);
                     if !rereadable {
@@ -190,11 +202,11 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
                 keep = false;
             }
             if ui.add_enabled(can_import, egui::Button::new(tl!("Import another copy"))).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: true, changes: None });
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: true, changes: None, take_over: false });
                 keep = false;
             }
             if rereadable && s.import_state(&other).is_none() && ui.button(tl!("Read the changes in")).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read") });
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read"), take_over: false });
                 keep = false;
             }
             if s.import_state(&other).is_some_and(|st| !st.live && !st.removing) && ui.button(tl!("Continue importing")).clicked() {
@@ -210,6 +222,30 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
         });
         return keep;
     }
+    // The copy another data folder has: taken over (as it was, or with what's new read in), or
+    // another copy of the file made.
+    if !held.is_empty() {
+        let mut keep = true;
+        ui.add_space(6.0);
+        button_row(ui, |ui| {
+            if ui.button(tl!("Cancel")).clicked() {
+                keep = false;
+            }
+            if ui.add_enabled(can_import, egui::Button::new(tl!("Import another copy"))).clicked() {
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: true, changes: None, take_over: false });
+                keep = false;
+            }
+            if changed && rereadable && ui.add_enabled(can_import, egui::Button::new(tl!("Take it over and read the changes in"))).clicked() {
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read"), take_over: true });
+                keep = false;
+            }
+            if ui.add_enabled(can_import, egui::Button::new(tl!("Take it over"))).clicked() {
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: changed.then_some("keep"), take_over: true });
+                keep = false;
+            }
+        });
+        return keep;
+    }
     // The copy from before, the file changed since: opened as it was, or what's new read in.
     if copy && changed {
         let mut keep = true;
@@ -219,11 +255,11 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
                 keep = false;
             }
             if ui.button(tl!("Open as it was")).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("keep") });
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("keep"), take_over: false });
                 keep = false;
             }
             if rereadable && ui.add_enabled(can_import, egui::Button::new(tl!("Read the changes in"))).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read") });
+                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read"), take_over: false });
                 keep = false;
             }
         });
@@ -231,7 +267,7 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
     }
     let (ok, cancel) = buttons(ui, t, if copy { "Open" } else { "Import" }, can_import);
     if ok {
-        acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: None });
+        acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: None, take_over: false });
         return false;
     }
     !cancel
