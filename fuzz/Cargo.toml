@@ -55,4 +55,4 @@ package.mail-parser.debug-assertions = false
 # workspace's.
 [patch.crates-io]
 outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "b3a2ed1eb4217b567aebfd447c6730d64c1fd2a0" }
-outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "9de6c3e85250fef98a8a72e0912cb7a053925cac" }
+outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "4c0449aae457ce2441c5167fae25537680ec7a11" }
