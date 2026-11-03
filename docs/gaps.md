@@ -2092,7 +2092,8 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   import paused and gone on with, the next index pass looks at the lists of most folders again
   (30,342 messages' worth, none of them read). And the time left, which waits on the owner (or
   the plan): from half done it was 4–26% off (10% aimed at), and before that up to twice the
-  time it took (20% aimed at), and no estimate from a rate can meet the 10% on this file. Even
+  time it took (20% aimed at; less since, in **The time left from a tenth done**), and no
+  estimate from a rate can meet the 10% on this file. Even
   the run's own average over the whole of it, known ahead, would have been off by up to 13% from
   half done (the import going faster and slower than its average, folder by folder, by more
   than their sizes tell), and weighing each item by its size (its bytes raised to a power, or a
@@ -2631,3 +2632,12 @@ Built on Remo Laubacher's pull requests #12–#16; what follows is where v0.29 e
   search still under way, now asks for the next at once. A headless test runs the window's
   frames only when it asks for them, as the desktop app does, and finds the results of a word
   over 50,000 messages drawn 0.25 s after the key (20.25 s before).
+- **The time left from a tenth done:** the rate the time left goes by was seeded with the run's
+  average at its first second, which held the walk for the totals (1.9 s of a real file's
+  import), and the moving average (30 s) had come only half way from it to the real rate when
+  first shown, 20 s in: "About 4 min left" with 96 s left. The rate is now timed from the run's
+  first progress, the plain average since then until a time constant has passed and the moving
+  average after. Replayed over nine imports of the 41 GB file, the worst from a tenth done went
+  from 41–155% off (85% at the median) to 24–66% (36%); from half done it stays within the runs'
+  spread (1–44% off against 4–42%). A test with a walk of 1, 2 and 5 s, then a steady rate, is
+  within 20% from the first time said (53% off before).

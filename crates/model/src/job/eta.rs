@@ -29,6 +29,8 @@ pub struct Eta {
     done: u64,
     total: u64,
     run_work0: u64,
+    /// The run's first progress (worker time and work), the rate's origin; `None`: none yet.
+    origin: Option<(u64, u64)>,
     /// The last sample the rate was taken at.
     sample_ms: u64,
     sample_work: u64,
@@ -59,18 +61,30 @@ impl Eta {
             self.moved_at = now_ui;
         }
         (self.run_ms, self.done, self.total) = (run_ms, done, total);
+        // The rate is timed from the run's first progress: the walk for the totals before it does
+        // no work. Seeded with a first second that held the walk, the moving average was still
+        // half way from it when first shown, 20 s in: a real file's import said 4 min with 96 s left.
+        let Some((origin_ms, origin_work)) = self.origin else {
+            if done > self.run_work0 {
+                self.origin = Some((run_ms, done));
+                (self.sample_ms, self.sample_work) = (run_ms, done);
+            }
+            return;
+        };
         let dt = run_ms.saturating_sub(self.sample_ms);
         if dt < SAMPLE_MS {
             return;
         }
         let delta = done.saturating_sub(self.sample_work);
-        if self.rate > 0.0 {
+        let since = run_ms.saturating_sub(origin_ms);
+        if self.rate > 0.0 && since as f64 >= TAU_MS {
             // Weighted by the time between samples, so irregular ones count for what they cover.
             let alpha = 1.0 - (-(dt as f64) / TAU_MS).exp();
             self.rate += alpha * (delta as f64 / dt as f64 - self.rate);
         } else {
-            // Seeded with the run's average so far (its first seconds include the walk).
-            self.rate = done.saturating_sub(self.run_work0) as f64 / run_ms.max(1) as f64;
+            // The plain average since the work began, until the moving average has had a time
+            // constant to go by.
+            self.rate = done.saturating_sub(origin_work) as f64 / since.max(1) as f64;
         }
         (self.sample_ms, self.sample_work) = (run_ms, done);
         if !self.rate.is_finite() || self.rate <= 0.0 {
@@ -143,7 +157,8 @@ mod tests {
             }
         }
         assert!(eta.remaining_s(63_000).is_some(), "said by then");
-        // Told it began at nothing, the work of the runs before reads as done in this one: far off.
+        // Told it began at nothing, it still goes by the work done since this run's first
+        // progress, not the runs' before it.
         let mut wrong = Eta::default();
         let mut done = start;
         for t in 0..60u64 {
@@ -151,7 +166,7 @@ mod tests {
             wrong.sample((t + 1) * 1000, done, total, 0, (t + 1) * 1000 + 3000);
         }
         let truth = (total - done) as f64 / rate as f64;
-        assert!(!close(wrong.remaining_s(63_000), truth, 0.20), "{:?} vs {truth}", wrong.remaining_s(63_000));
+        assert!(close(wrong.remaining_s(63_000), truth, 0.20), "{:?} vs {truth}", wrong.remaining_s(63_000));
     }
 
     #[test]
@@ -163,6 +178,32 @@ mod tests {
         assert!(close(eta.remaining_s(103_000), truth, 0.01), "{:?} vs {truth}", eta.remaining_s(103_000));
         // Between samples it counts down.
         assert!(close(eta.remaining_s(113_000), truth - 10.0, 0.01));
+    }
+
+    /// The walk for the totals takes the run's first seconds, then the work goes at a steady
+    /// rate: the first time said, 20 s in, is within 20% (it was twice the truth), and so is
+    /// each one after.
+    #[test]
+    fn the_walk_before_the_work_doesnt_count_against_its_rate() {
+        let (rate, total) = (1_000_000, 100_000_000);
+        for walk_s in [1, 2, 5] {
+            let mut eta = Eta::default();
+            for t in 1..=walk_s {
+                eta.sample(t * 1000, 0, total, 0, t * 1000);
+            }
+            let mut done = 0;
+            let mut first = None;
+            for t in walk_s + 1..=60 {
+                done += rate;
+                eta.sample(t * 1000, done, total, 0, t * 1000);
+                let truth = (total - done) as f64 / rate as f64;
+                if let Some(s) = eta.remaining_s(t * 1000) {
+                    first.get_or_insert(t);
+                    assert!(close(Some(s), truth, 0.20), "walk {walk_s} s: {s} s at {t} s vs {truth}");
+                }
+            }
+            assert_eq!(first, Some(20), "walk {walk_s} s: said from 20 s in");
+        }
     }
 
     #[test]
