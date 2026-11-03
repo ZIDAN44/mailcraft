@@ -480,6 +480,8 @@ source instead (`mime::index_doc`), so it finds what the index would. The window
 (`set_background_search`) and steps the search for 6 ms of each frame (`search_step_timed`, which
 asks the window's clock after each unit and tells it what each part of the step was, `SearchWork`,
 `searching/work.rs`: the window logs a part over 50 ms by its kind; the engine reads no clock). A
+frame that runs a search command, or still has a search running, asks for the next frame at once:
+the command takes only the first few units, after the frame was drawn. A
 folder's list isn't read while read marks wait to be written (the read would wait for them): the
 step goes on and reads it once they're on disk. What's found is merged into the list by date
 (`searching/publish.rs`): at the step's end while the list holds at most 4,096 messages, else at the
