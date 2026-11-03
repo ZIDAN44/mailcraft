@@ -31,6 +31,7 @@ In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JM
 | L1 | `mailcraft-store` | model | The local cache: one redb data file per account, or plain files plus JSON; atomic writes; the search index |
 | L1 | `mailcraft-print` | — | Messages as PDF pages, with an embedded TrueType font |
 | L1 | `mailcraft-smime` | — | S/MIME (RFC 8551) on RustCrypto, with keys behind a `PrivateKey` trait; wasm-safe |
+| L1 | `mailcraft-pgp` | — | OpenPGP (RFC 9580) on rPGP: keys and their self-signatures, signing, encrypting, decrypting, verifying; Autocrypt headers; inline PGP blocks; wasm-safe |
 | L2 | `mailcraft-keys` | smime | Keys on smart cards (PKCS #11), in the macOS Keychain and in the Windows certificate store; native only |
 | L2 | `mailcraft-jmap` | model, mime, store | JMAP, async over a two-method `Http` trait; wasm-safe |
 | L3 | `mailcraft-net` | model, mime, store, jmap | All network and `.pst` I/O; native only; TLS through `rustls` |

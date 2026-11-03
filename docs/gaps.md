@@ -55,6 +55,19 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** An Ed25519 signature on updates and releases needs a signing key that only the
   owner can create.
 
+### 5. OpenPGP: what isn't done yet
+
+- **Impact:** Your own OpenPGP key works in the desktop app only: in the browser, OpenPGP mail
+  sent to you stays locked and can't be signed or encrypted with OpenPGP. Inline PGP is read only
+  in a message that is one plain text (quoted-printable or 8-bit); a PGP block in an HTML message,
+  in a base64 text, or beside attachments isn't. MailCraft encrypts with version 4 keys
+  (SEIPDv1), so a correspondent with only a version 6 key can't be encrypted to. A key's
+  trust comes from where it came from (their own mail, or a file you imported): there's no web of
+  trust and no key servers.
+- **Workaround:** Read OpenPGP mail in the desktop app; ask for version 4 keys.
+- **Cause:** The browser keeps no secret keys yet (its S/MIME certificates' way, a file locked
+  with its password, would need an unlock dialog of its own). The rest is left for later.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

@@ -27,6 +27,12 @@ on GitHub.
 - Turkish as an interface language (#34).
 - Drop Outlook message files (`.msg`) or `.eml` files on MailCraft to put them in the folder open, as read mail, with their files and attached messages. A `.msg` opened from the desktop shows like an `.eml` (#38).
 - React to a message with an emoji (**React**, beside **Forward**). The reaction goes to everyone the message went to (RFC 9078), and the reactions others send show under the message (#39).
+- OpenPGP beside S/MIME: import your secret key file in **File › Info › Security** (its passphrase isn't kept; the key stays in the system keychain). Older keys stay to decrypt old mail (#36).
+- PGP/MIME and inline PGP mail is decrypted for showing, and the reading pane says who signed it and whether the signature holds (#36).
+- People's OpenPGP keys come from their mail's `Autocrypt:` header and attached keys, or from a key file you import. Your own key goes out with your mail, so answers can be encrypted (#36).
+- Sign and encrypt with OpenPGP as PGP/MIME, to yourself too so Sent Items stays readable. With both a certificate and a key, the message uses the one every recipient can receive, or the one you pick (#36).
+- The message you're writing says whether every recipient can receive it encrypted, and names those who can't (#6).
+- **Encrypt when every recipient can receive it** in **File › Info › Security** turns encryption on by itself while that's so. It's off unless you turn it on (#6).
 
 ### Changed
 - Opened or saved pictures and plain text files no longer carry Windows' "from the internet" mark, so Photos doesn't ask whether to trust them. Office files, PDFs, web pages, archives and programs keep the mark.

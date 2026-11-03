@@ -69,7 +69,7 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 | Layer | Crate | Job |
 |---|---|---|
 | L0 | `model` | data model, jobs/events, threading, search, dates (pure, wasm) |
-| L1 | `mime`, `store`, `print`, `smime` | MIME parse/build; the cache (on disk, or in memory for the browser); PDF export; S/MIME |
+| L1 | `mime`, `store`, `print`, `smime`, `pgp` | MIME parse/build; the cache (on disk, or in memory for the browser); PDF export; S/MIME; OpenPGP |
 | L2 | `jmap`, `keys` | the JMAP transport, async over any HTTP client (portable, wasm); keys on smart cards, in the macOS Keychain and the Windows certificate store (native only) |
 | L3 | `net` | IMAP client + sync, SMTP, JMAP push, Microsoft Graph, CalDAV/CardDAV, ManageSieve, `.pst` import, HTTP/DNS/OAuth, worker pool (native only) |
 | L4 | `engine` | sans-I/O `Session` + command registry |
