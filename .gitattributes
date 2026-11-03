@@ -1,0 +1,3 @@
+# Test files whose exact bytes matter (signed and encrypted MIME parts end lines in CR LF): no
+# line-ending conversion on checkout.
+crates/pgp/testdata/** -text
