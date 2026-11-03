@@ -426,7 +426,9 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// word in a session just opened ([`cold`]: its index opened by the window's first tick, its
 /// summaries' texts but that tick's made as it goes), alone or after the other queries, 90 ms all
 /// told and 4 ms a step at p99; `is:unread`, warm or just opened, 15 ms all told; a one-letter word warm 60 ms
-/// all told and 6 ms a step, at p99 and at worst, and just opened 300 ms all told; and the
+/// all told and 6 ms a step, at p99 and at worst, and just opened 300 ms all told and 8 ms a step
+/// (aimed at 6, not met: its longest steps show 12,000 found merged into 27,000 and put the
+/// 47,387 together at the end, 3.8–7.4 ms, the same work that takes up to 5.7 ms warm); and the
 /// common phrase, in frames, just opened or searched again, 150 ms all told (its words' places
 /// settle it: its 16,667 candidates' texts read and folded took 322-454 ms just opened, 128-142
 /// ms searched again). Printed only: the index pages each read, the index's segments' bytes (its
@@ -479,7 +481,8 @@ fn how_long_searches_take() {
                 "cold" if word => assert!(all <= ms(90) && p99 <= ms(4), "{q}: {all:?}, p99 {p99:?}"),
                 "warm" | "cold" if q == "is:unread" => assert!(all <= ms(15), "{q}: {all:?}"),
                 "warm" if q == "k" => assert!(all <= ms(60) && p99 <= ms(6) && most <= ms(6), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
-                "cold" if q == "k" => assert!(all <= ms(300), "{q}: {all:?}"),
+                // Its 6 ms a step isn't met just opened (Open, 8 in gaps.md): held to a frame's 8.
+                "cold" if q == "k" => assert!(all <= ms(300) && p99 <= ms(8) && most <= ms(8), "{q}: {all:?}, p99 {p99:?}, worst {most:?}"),
                 "cold, frames" | "warm, frames" if phrase => assert!(all <= ms(150), "{q}: {all:?}"),
                 _ => {}
             }

@@ -19,10 +19,11 @@
 //! the texts checked, and what the search spent its time on by kind (`SearchWork`). Then each
 //! typed a character at a time in a session just opened, each prefix searched as the window
 //! searches it once the typing pauses, the next typed once it's done or 30 frames on: how many
-//! frames, and the longest. `MC_TRUTH`, a file of what each query should find (a line each, its
-//! count first, as an independent count of the mailbox says), fails it when a search finds
-//! another number. `MC_NO_PLACES` checks phrases against the texts kept instead, as a build
-//! before places did, to compare.
+//! frames, and the longest, which fails it past 8 ms. `MC_TRUTH`, a file of what each query
+//! should find (a line each, its count first, as an independent count of the mailbox says), fails
+//! it when a search finds another number, or a line has no count or there's not one a query.
+//! `MC_NO_PLACES` checks phrases against the texts kept instead, as a build before places did,
+//! to compare.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -81,10 +82,18 @@ fn queries() {
     let cache = PathBuf::from(std::env::var("MC_CACHE").expect("MC_CACHE: a cache a data file was imported into"));
     let list = std::fs::read_to_string(std::env::var("MC_QUERIES").expect("MC_QUERIES: a file of queries, one a line")).unwrap();
     let queries: Vec<&str> = list.lines().map(str::trim).filter(|q| !q.is_empty()).collect();
-    // What each should find, counted apart from the index.
+    // What each should find, counted apart from the index: a line a query, each read or failing
+    // (one skipped would hold every count after it to the wrong query).
     let truth: Option<Vec<usize>> = std::env::var("MC_TRUTH").ok().map(|f| {
         let t = std::fs::read_to_string(f).unwrap();
-        t.lines().filter_map(|l| l.split_whitespace().next()?.parse().ok()).collect()
+        let counts: Vec<usize> = t
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .enumerate()
+            .map(|(i, l)| l.split_whitespace().next().and_then(|n| n.parse().ok()).unwrap_or_else(|| panic!("MC_TRUTH line {}: no count", i + 1)))
+            .collect();
+        assert_eq!(counts.len(), queries.len(), "MC_TRUTH: a count for each query");
+        counts
     });
     let mut wrong = Vec::new();
     let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
@@ -158,16 +167,23 @@ fn queries() {
     // Each the first time in a session opened a moment before.
     for (i, q) in queries.iter().enumerate() {
         let (mut s, ticks, longest) = settled();
-        let took = frames(&mut s, q, usize::MAX);
+        let before = s.search_stats();
+        let (took, kinds) = frames_by_kind(&mut s, q, usize::MAX);
+        let d = delta(before, s.search_stats());
         println!(
-            "query {} (a moment after opening, {ticks} ticks, the longest {:.1} ms): {} found, {:.1} ms in {} frames, the longest {:.1} ms",
+            "query {} (a moment after opening, {ticks} ticks, the longest {:.1} ms): {} found, {:.1} ms in {} frames, the longest {:.1} ms; index pages {}, text pages {}, texts checked {}",
             i + 1,
             ms(longest),
             s.list.len(),
             ms(took.iter().sum()),
             took.len(),
             ms(took.iter().max().copied().unwrap_or_default()),
+            d.reader_pages,
+            d.text_pages,
+            d.texts,
         );
+        let kinds: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), ms(*t))).collect();
+        println!("  by kind: {}", kinds.join(", "));
         if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
             wrong.push(format!("query {} (a moment after opening): {} found, {want} there", i + 1, s.list.len()));
         }
@@ -192,8 +208,11 @@ fn queries() {
         every.extend(took);
     }
     every.sort();
-    println!("typed, all: {} frames, the longest {:.1} ms", every.len(), ms(every.last().copied().unwrap_or_default()));
+    let longest = every.last().copied().unwrap_or_default();
+    println!("typed, all: {} frames, the longest {:.1} ms", every.len(), ms(longest));
     assert!(wrong.is_empty(), "found other than there is: {wrong:?}");
+    // A frame of the window's is 8 ms at most, typing as searching (run on a machine at rest).
+    assert!(longest <= Duration::from_millis(8), "a typed frame of {:.1} ms", ms(longest));
 }
 
 fn delta(before: SearchStats, after: SearchStats) -> SearchStats {
