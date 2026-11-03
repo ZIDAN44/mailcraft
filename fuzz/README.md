@@ -1,61 +1,76 @@
 # Fuzzing
 
-Fuzz targets for the parsers that read network and disk input (CLAUDE.md, "Never crash"). This
-is its own Cargo workspace, outside the main one, so the main build never needs nightly or
-libFuzzer. `.github/workflows/fuzz.yml` runs every target weekly on Linux.
+Every parser that reads network or disk input has a fuzz target here, because MailCraft must never
+crash on hostile input (see "Never crash" in [CLAUDE.md](../CLAUDE.md)). The targets live in a
+workspace of their own, so the main build never needs a nightly toolchain.
+`.github/workflows/fuzz.yml` runs every target once a week.
+
+## Run a target
+
+You need Linux, macOS or WSL, a nightly toolchain, and cargo-fuzz (`cargo install cargo-fuzz`).
+
+1. Go to this folder: `cd fuzz`.
+2. Run the target with its seeds and dictionary. This runs `imap` for five minutes:
+
+   ```bash
+   cargo +nightly fuzz run -O imap corpus/imap seeds/imap -- -dict=dicts/imap.dict -max_total_time=300
+   ```
+
+The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both folders.
+
+## Add a target
+
+1. List the target in `fuzz/Cargo.toml` and write its source in `fuzz_targets/<target>.rs`. When
+   that folder is full, put the source in a subfolder named for its role (for example
+   `fuzz_targets/store/`).
+2. Add at least one seed file in `seeds/<target>/`.
+3. Add a dictionary in `dicts/<target>.dict`. libFuzzer stops when a dictionary is missing.
+4. Run `cargo xtask fuzz` (part of `cargo xtask ci`). It checks that every target has all three.
+
+## Fix a crash
+
+1. Find the input that crashed in `artifacts/<target>/`. The weekly run also keeps it as a
+   downloadable artifact.
+2. Replay it: `cargo +nightly fuzz run -O <target> <file>`.
+3. Fix the code.
+4. Add a regression test next to the code you fixed.
+
+## What counts as a crash
+
+- Every panic counts, even one that `catch_unwind` would catch.
+- `pst` is the one exception. `pst::import` runs the `.pst` reader (from the fork
+  [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs), `craft/rw-1.2.14`) behind
+  `catch_unwind`, so only a panic in MailCraft's own code counts.
+- `pst_append` has no exception. A damaged file must give an error, and adding mail must leave the
+  earlier messages unchanged.
+- Some `pst` and `pst_append` seeds are written by tests run with `MC_PST_SEED` or
+  `MC_PST_ANSI_SEED` set. The tests are `pst/tests/pim_written.rs` and `pst_export/tests/ansi.rs`,
+  both under `crates/net/src/data_files/`.
+
+## Targets
 
 | Target | What it reads |
 |---|---|
-| `mime_parse` | a message source: parse, list summary, search text, HTML body, attachments |
-| `index_text` | a message source read for search: boundaries found, text parts decoded, files counted and named but never decoded, pictures the HTML shows told from files |
-| `html` | an HTML body: text, formatted lines, columns, CSS, links and pictures, trackers and cleaned links, hidden text; MailCraft's markup |
-| `ical` | an iCalendar file (events and to-dos), written back and read again; a WebDAV `multistatus` answer |
-| `vcard` | a vCard file, each card written back and read again |
-| `http` | an HTTP answer read whole and streamed to a file (lengths, chunks, to the end), a download's `Content-Range`; GitHub's release list, `SHA256SUMS.txt`, its quota header and tags |
-| `imap` | everything an IMAP server sends through a session (greeting to MOVE, with a folder sync) |
-| `jmap` | a JMAP server's answers (split at form feeds) through sign-in, folder list and folder sync; push events; URLs |
-| `search` | the search box: the query language, its dates on any clock, a query checked against a message and its text, folding, the Advanced form, JMAP filters, modified UTF-7; lookalike senders, known names on other addresses, External |
-| `data_file` | an account's data file as a build before 0.32 may have left it, damaged any way (files whole and in pieces, notes of any length, pieces missing, compressed or raw, the search index's, its `meta` table): its health measured, then compressed again, stopped after a batch and gone on with, and every file that read back before reads back the same |
-| `data_folder` | a MailCraft data folder's own files as another data folder reads them, damaged any way: its id (`datafolder.json`), a data file's record of the folder it's an account of, and its list of data files; whatever is taken from them is an id as MailCraft makes them, or nothing |
-| `search_index` | an account's search index as its files read back (meta, doc table, text pages, segments with their places pages), each damaged any way: opened, words looked up whole and a page at a time, phrases settled from their words' places a page at a time, texts read, a commit followed, and written to |
-| `photo` | a JPEG or PNG file: where it was taken left out, and the result checked for anything left |
-| `smime` | S/MIME: BER, signatures (detached and opaque), encrypted mail opened with a test key, certificates, `.p12` files; a message told signed or encrypted from its header alone, never wrongly told it isn't |
-| `pst` | an Outlook data file: a good exported file with the input as byte patches, or a whole file |
-| `pst_append` | mail added to an Outlook data file already there, as an export adds to one: a file the writer made with the input as byte patches, or a whole file (a seed is one encoded as Outlook encodes its files, another one in Outlook 97–2002's ANSI format, written by `pst_export/tests/ansi.rs` with `MC_PST_ANSI_SEED` set, added to as one), the special folders it records looked up (entry IDs, the folders they name, the hierarchy down to them), then a message with a file appended (unread, flagged, in a category: tagged properties, and named ones looked up in the file's name-to-ID map and added to it) and every message that read before read again, as it was, beside the one added; then one of those taken out again (as an export takes out an item's earlier copy), the rest still reading as they did and it no longer |
-| `import_checkpoint` | an import's checkpoint read back from an account's data file: checked (counts, folders named once and where they're used, the part-way folder's list tail), and one that would be gone on from written again and read back the same |
-| `pst_item` | a `.pst` mail item rebuilt as a message from hostile property values: the headers made from them (Thread-Index, Thread-Topic, Sensitivity) stay on clean lines of their own; recipients' one-off entry ids; categories as keywords; a sharing invitation's lines put before its text and in its HTML; a link kept as a text file naming it; an original header's `multipart/report` type |
-| `pst_props` | text in a data file's properties: an HTML body or an 8-bit string in its code page (a declared charset, byte-order marks), and the bytes in a code page of each kind MailCraft reads (the input names any other) |
-| `pst_recurrence` | a `.pst` appointment's recurrence pattern: its rule, deleted occurrences and changed ones (their times, 8-bit and UTF-16 subjects and rooms), each changed one an event replacing one occurrence; the calendar they make written and read again; and a rule, zone and changed occurrences as the export writes their pattern, read back as a series |
-| `pst_pim_text` | what an export to a data file keeps in a contact's and a task's text (a card's or a to-do's lines after it) read back into the card and the task, held to what they keep; a task's rule as the recurrence pattern the export writes, which the import reads |
-| `signature` | a signature as HTML code or a saved web page (Outlook's `.htm`): made harmless, its pictures out and back, its text, as sent |
-| `tnef` | Outlook's `winmail.dat`: its files, body and attached messages, compressed RTF and the HTML or text in it, and as a message's attachment |
-
-## Running
-
-Linux or macOS (or WSL), with a nightly toolchain and `cargo install cargo-fuzz`:
-
-```bash
-cd fuzz
-cargo +nightly fuzz run -O imap corpus/imap seeds/imap -- -dict=dicts/imap.dict -max_total_time=300
-```
-
-`seeds/` holds a hand-written valid input per target and `dicts/` the protocol's keywords, both
-to get the fuzzer past the first line quickly; a new target needs both (`cargo xtask fuzz`, part
-of `cargo xtask ci`, checks). `corpus/` and `artifacts/` stay out of git. A
-crash leaves its input in `artifacts/<target>/`: replay it with
-`cargo +nightly fuzz run -O <target> <file>`, fix the code, and add the input to a regression test
-next to the code (never only to the corpus).
-
-Every panic counts as a crash, even one MailCraft's own `catch_unwind` fences would catch (the
-HTML converter's, for instance): there the message would lose its formatting, so it is worth a
-fix. The exception is `pst`, where `pst::import` fences the outlook-pst reader and reports the
-file as damaged, the right answer for a damaged file: that target aborts only on a panic in
-MailCraft's own code, and a panic in the reader (built from MailCraft's fork) is not one.
-Its seeds are the patches' starting point and a whole file whose first attachment holds a
-message and whose second is a zero-byte file (as `pst/tests/reader.rs` makes it), so the reader's
-paths for those are fuzzed too, and one with an RSS Feeds folder and a feed's posts, a recall, a
-sharing invitation and a contact in a mail folder, and a note with a file (`import-rest`, written
-by `pst/tests/pim_written.rs` with `MC_PST_SEED` set). `pst_append` has no such exception: the writer, built from
-MailCraft's fork (`craft/rw-1.2.14`), reads the file it adds to as the reader does and turns a
-damaged one into an error, so a panic anywhere in it is a crash to fix there; so is an append
-that succeeds while a message that read before it no longer reads as it did.
+| `mime_parse` | A message source: parse, summary, search text, HTML, attachments |
+| `index_text` | A message source read for the search index |
+| `html` | An HTML body: text, layout, CSS, links, pictures, trackers |
+| `ical` | iCalendar, written and read back; WebDAV `multistatus` replies |
+| `vcard` | vCard, written and read back |
+| `http` | HTTP answers, whole and streamed; `Content-Range`; release data and `SHA256SUMS.txt` |
+| `imap` | A whole IMAP session, including a folder sync |
+| `jmap` | JMAP sign-in, sync, push events and URLs |
+| `search` | The query language, dates, the **Advanced** form, JMAP filters, modified UTF-7 |
+| `data_file` | A damaged account data file |
+| `data_folder` | A damaged data folder's own files |
+| `search_index` | A damaged search index |
+| `photo` | A JPEG or PNG with its location removed |
+| `smime` | BER, signatures, encrypted mail, certificates, `.p12` files |
+| `pst` | A `.pst` file (Outlook data file), patched or whole |
+| `pst_append` | Mail added to a `.pst` file and removed; other messages stay unchanged |
+| `import_checkpoint` | An import checkpoint, read and written back |
+| `pst_item` | A `.pst` mail item built from hostile property values |
+| `pst_props` | HTML bodies and 8-bit strings in their code pages |
+| `pst_recurrence` | A recurrence pattern, read and written |
+| `pst_pim_text` | Contact and task text, exported and read back |
+| `signature` | A signature as HTML code or a saved web page |
+| `tnef` | `winmail.dat` (TNEF): files, body, attached messages, compressed RTF |

@@ -1,63 +1,77 @@
-# Hosting MailCraft for the web
+# Host MailCraft on the web
 
-`mailcraft-web-<version>.zip` (from the GitHub release, or `packaging/web/package.sh`) holds a
-static site in `mailcraft-web-<version>/`:
+The web build of MailCraft is a static site with no server-side code, so any static host works.
+In the browser, MailCraft connects to JMAP accounts only.
+
+## What's in the zip
+
+Each release has a `mailcraft-web-<version>.zip`. Everything sits in one folder,
+`mailcraft-web-<version>/`.
 
 | File | What it is |
 |---|---|
-| `index.html` | The page. It loads everything through relative URLs. |
-| `mailcraft-web-<hash>.js` | wasm-bindgen glue (generated, ES module) |
-| `mailcraft-web-<hash>_bg.wasm` | The app |
-| `_headers`, `.htaccess` | Sample header rules for Netlify/Cloudflare Pages and Apache |
+| `index.html` | The page |
+| `mailcraft-web-<hash>.js` | The wasm-bindgen glue that loads the app |
+| `mailcraft-web-<hash>_bg.wasm` | The app itself |
+| `_headers` | Sample server settings for Netlify and Cloudflare Pages |
+| `.htaccess` | Sample server settings for Apache |
+| `fonts/` | The Simplified Chinese font, in release builds; fetched only when needed |
+| `HOSTING.md` | This page |
+| `README.md`, licences, `ATTRIBUTION.md` | The project's readme, licences and credits |
 
-There is no server-side code. Upload the folder's contents anywhere that serves static files.
+All URLs in the page are relative (`public_url = "./"` in `apps/mailcraft-web/Trunk.toml`). The
+site works from any path, inside an `<iframe>` or from a CDN bucket.
+
+## Put it online
+
+1. Get the zip from the GitHub release, or build it yourself with `packaging/web/package.sh`.
+   Building needs `trunk` (`cargo install trunk --locked`) and the `wasm32-unknown-unknown` target.
+2. Upload the contents of the `mailcraft-web-<version>/` folder to your static host.
+3. Set the [server settings](#server-settings) below. The sample `_headers` and `.htaccess` cover
+   the MIME types, caching and compression.
+4. Make the JMAP server accept requests from your page. It must send CORS headers for the page's
+   origin: `Access-Control-Allow-Origin`, and `Authorization` in `Access-Control-Allow-Headers`.
+   Or serve MailCraft from the JMAP server's own domain, which needs no CORS.
+
+## Server settings
+
+| Setting | Value |
+|---|---|
+| MIME types | `.wasm` as `application/wasm`, `.js` as `text/javascript` |
+| Compression | gzip or Brotli for `.wasm`, `.js` and `.html` |
+| Caching, hashed files | `Cache-Control: public, max-age=31536000, immutable` |
+| Caching, `index.html` | `Cache-Control: no-cache` |
+| HTTPS | Required for WebGPU, the clipboard and JMAP passwords |
+| CSP | `connect-src` includes the JMAP origin; `script-src` includes `'wasm-unsafe-eval'` |
+
+Without HTTPS, MailCraft draws with WebGL2 instead of WebGPU.
 
 ## What works in the browser
 
-A web page can't open IMAP or SMTP connections, so the browser version syncs **JMAP** accounts
-(RFC 8620/8621: Fastmail, Stalwart, Cyrus, Apache James…) over `fetch`, with the same code as the
-desktop app. Everything else in the window works as on the desktop: the list, conversations,
-reading, writing with attachments, folders, rules, categories, search, the calendar and people
-kept with the account, signed and encrypted mail (S/MIME), and every language.
+- **Accounts:** JMAP only (RFC 8620 and 8621), over `fetch`. The rest of the window works as on
+  the desktop.
+- **Passwords** stay in the tab's memory. After a reload, MailCraft asks for them again.
+- **Storage:** mail and accounts are kept in the browser's IndexedDB. If IndexedDB isn't
+  available, accounts go to local storage and mail isn't kept. Settings always go to local
+  storage.
+- **S/MIME `.p12` files** are stored as they came, still encrypted with their password.
+  **Unlock…** opens them.
+- **Saving and printing** download a file. **Print** downloads a PDF.
+- **Desktop only:** IMAP and SMTP, Google and Microsoft sign-in, Exchange, `.pst` files,
+  CalDAV and CardDAV, notifications, smart cards, certificate revocation checks, and dragging
+  attachments out.
 
-- **The mail server must allow the page.** The browser only lets the page talk to a JMAP server
-  that answers with CORS headers for the page's origin (`Access-Control-Allow-Origin`, and
-  `Authorization` in `Access-Control-Allow-Headers`). Without them, connecting fails with
-  "the server may not allow web pages to reach it". Serving MailCraft from the mail server's own
-  domain avoids the question.
-- **Passwords are never kept.** They stay in the tab's memory; after a reload MailCraft asks
-  again. The account list, folder lists and settings are kept in the page's `localStorage`
-  (no mail, no passwords). Mail is cached in memory and synced again on each visit.
-- **Certificates stay locked with their passwords.** An S/MIME certificate's `.p12` file is kept
-  in the page's storage as it came, encrypted with its password, which isn't kept; after a reload
-  Unlock… opens every certificate that password fits. A renewed certificate keeps the old one, to
-  read mail sent to it. Smart cards, the system's certificate store and revocation checks are the
-  desktop app's.
-- **Desktop only:** IMAP/SMTP, Google and Microsoft sign-in, Exchange (Microsoft Graph), opening
-  Outlook data files, CalDAV/CardDAV sync, desktop notifications, dragging attachments out.
-- **Files are downloads.** Save attachment, Save as and Save as PDF download the file; Print
-  downloads the PDF to print from the browser's viewer.
-- `?sample` opens the sample mailbox (nothing is kept); `?webgl` forces the WebGL2 renderer.
+Two URL flags help with testing:
 
-## Any path works
+- `?sample` opens the sample mailbox. Nothing is kept.
+- `?webgl` forces WebGL2 even where WebGPU is available.
 
-All URLs in `index.html` are relative (`public_url = "./"` in `apps/mailcraft-web/Trunk.toml`),
-so the site works at a domain root, under a prefix (`https://example.com/mail/`) and from a CDN
-bucket. The asset names carry a content hash, so they can be cached forever; only `index.html`
-needs revalidation.
+## Test it locally
 
-## Required server settings
+In the unzipped folder, run:
 
-- **MIME type:** serve `.wasm` as `application/wasm` (browsers refuse to stream-compile it
-  otherwise) and `.js` as `text/javascript`.
-- **Compression:** turn on gzip or Brotli for `.wasm`, `.js` and `.html`.
-- **Caching:** `Cache-Control: public, max-age=31536000, immutable` on the hashed `.wasm` and
-  `.js` files, and `no-cache` on `index.html`.
-- **HTTPS:** WebGPU and the clipboard need a secure context (`https://` or
-  `http://localhost`); elsewhere the app falls back to WebGL2. A JMAP password should only ever
-  travel over HTTPS anyway.
-- **Content Security Policy:** if you send one, `connect-src` must include your JMAP server's
-  origin, and `script-src` needs `'wasm-unsafe-eval'`.
+```sh
+python3 -m http.server 8774
+```
 
-Local test: `python3 -m http.server 8774` inside the folder, then open http://localhost:8774/
-(or http://localhost:8774/?sample).
+Then open http://localhost:8774/?sample.

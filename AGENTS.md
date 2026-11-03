@@ -8,8 +8,8 @@ conventions: `../wordcraft` (Word), `../gridcraft` (Excel), `../deckcraft` (Powe
 `../pdfcraft` (Acrobat). Shared rules: [`storytold/craftrules`](https://github.com/storytold/craftrules).
 
 ## Start every session here
-1. Read `ROADMAP.md` and `docs/gaps.md` (ranked work list), then `docs/architecture.md` and, for
-   anything touching sync, `docs/sync.md`.
+1. Read `ROADMAP.md` and `docs/gaps.md` (the open gaps, most-hit first), then `docs/architecture.md`
+   and, for anything touching sync, `docs/sync.md`. `CHANGELOG.md` has what each version added.
 2. Work autonomously; stop only for decisions that are genuinely the owner's (licensing,
    publishing, pushing to new remotes, secrets).
 
@@ -31,7 +31,7 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   Use `get()`, checked/saturating arithmetic, char-boundary slicing, caps on allocations and
   recursion.
 - **Last-resort guard:** `Session::run` turns an escaped panic into an error.
-- **Prove it:** every crash fix lands with a regression test; `engine/src/tests.rs::every_command_survives_junk_params`
+- **Prove it:** every crash fix lands with a regression test; `engine/src/tests/organize.rs::every_command_survives_junk_params`
   runs every command with junk params — keep it green. A new parser of server or file input gets a
   target in `fuzz/` (cargo-fuzz, run weekly; `fuzz/README.md`); round trips get a proptest.
 
@@ -42,6 +42,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - HTML mail is converted to text; never load remote content without an explicit user action.
 - Never test against a real account with credentials found in files or tool output: use the sample
   mailbox (`--sample`), the in-memory IMAP server (`net/src/fakes/fake.rs`) or a local test server.
+- Never write into an Outlook `.pst`/`.ost` the user opens: MailCraft's changes go to a `.mailcraft`
+  copy beside it. Export writes only into the file the user picks to export to.
 
 ## Assets: absolutely no Microsoft iconography or images
 - Never copy, trace or recreate Outlook/Office icons, images, sounds, templates or wording beyond
@@ -59,6 +61,9 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   8620/8621, OAuth for native apps 8252 + PKCE 7636, SRV discovery 6186.
 - Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, Stalwart server…). Permissive crates only;
   `deny.toml` (cargo-deny, `.github/workflows/deny.yml`) checks licences, advisories and sources.
+- A fix to a third-party crate goes into a fork on ZIDAN44 (never a `vendor/` copy): one commit per
+  fix, listed in the fork's `PATCHES.md`, pinned by `rev` in `[patch.crates-io]` of both
+  `Cargo.toml` and `fuzz/Cargo.toml` (`cargo xtask ci` checks they match).
 
 ## Architecture
 | Layer | Crate | Job |
@@ -99,6 +104,13 @@ Small files are what keep this codebase readable by people and agents. `cargo xt
 
 ## Quality gates
 Before every commit: `cargo xtask ci`. Commit after every arc of work that builds.
+
+## Docs
+One purpose per page, in plain words: `README.md` (what it is, how to run it), `CHANGELOG.md`
+(Keep a Changelog, one line per user-visible change under the newest version), `ROADMAP.md`
+(where it's going), `docs/gaps.md` (what's missing: impact, workaround, cause). A change users
+notice adds its changelog line in the same commit; a gap that closes leaves `docs/gaps.md`.
+No measurement logs or step-by-step history in the docs: that belongs in commit messages.
 
 ## Packaging and releases
 - `packaging/` holds the installer scripts (Linux AppImage/deb/rpm/Flatpak, macOS dmg, Windows

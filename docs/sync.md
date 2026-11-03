@@ -1,266 +1,155 @@
 # How MailCraft syncs
 
-MailCraft is local-first: the UI only ever reads the on-disk cache (`crates/store`), and per-account
-worker threads (`crates/net/src/worker.rs`) keep that cache in step with the server. This page
-describes the algorithm and the standards it follows.
+MailCraft shows only what is in its local cache, so it works offline. One worker thread per
+account (`crates/net/src/worker.rs`) keeps that cache in step with the server.
 
-## Per-folder state
+## The local cache
 
-For every folder the cache keeps (`FolderState`):
+The local cache lives on disk and is managed by the `store` crate (`crates/store`).
 
-| Field | Meaning | Source |
-|---|---|---|
-| `validity` | UIDVALIDITY when the cache was filled | RFC 3501 §2.3.1.1 |
-| `uid_next` | UIDNEXT at the last sync; UIDs at or above it are new | RFC 3501 §2.3.1.1 |
-| `highest_modseq` | HIGHESTMODSEQ at the last sync (0 without CONDSTORE) | RFC 7162 §3.1 |
-| `messages` | summaries (headers, flags, size, preview), newest first | |
+- Each folder keeps a `FolderState` with the folder's message summaries, newest first, and three
+  counters from the server:
+  - `validity`, the folder's UIDVALIDITY. The server changes it when the folder's message numbers
+    (UIDs) are no longer valid.
+  - `uid_next`, the folder's UIDNEXT: the UID the next new message will get.
+  - `highest_modseq`, the server's change counter. It comes from CONDSTORE (RFC 7162), which lets
+    MailCraft ask only for flags that changed. It is 0 on servers without CONDSTORE.
+- Each message's source is saved as `<validity>/<uid>.eml`.
+- A message is identified by its account, folder, UIDVALIDITY and UID (`MessageKey`). A key is
+  never reused for another message.
 
-Message sources live next to it as `<validity>/<uid>.eml`. A message is identified everywhere by
-`(account, folder, UIDVALIDITY, UID)` (`MessageKey`), which RFC 3501 guarantees is never reused.
+## Syncing an IMAP folder
 
-## A folder sync (`crates/net/src/sync.rs`)
+`crates/net/src/sync.rs` syncs one folder in these steps:
 
-1. **SELECT** the folder (with `(CONDSTORE)` when the server offers it). With QRESYNC enabled and a
-   cached state, the SELECT carries `(QRESYNC (<uidvalidity> <modseq> <cached range>))` and the
-   server answers steps 3 and 4 itself: `VANISHED (EARLIER)` lists the expunged UIDs and FETCH
-   responses carry the changed flags (RFC 7162 §3.2.5), so only new mail is left to ask for.
-2. **UIDVALIDITY check.** If it differs from the cache, every cached UID is meaningless: drop the
-   folder's cache, including pending changes for it, and start over (RFC 4549 §4.1).
-3. **Flag changes** for cached messages:
-   - with CONDSTORE: `UID FETCH <cached range> (UID FLAGS) (CHANGEDSINCE <modseq>)` returns only what
-     changed, and the fetch is skipped entirely when HIGHESTMODSEQ hasn't moved;
-   - without: `UID FETCH <cached range> (UID FLAGS)` and compare.
-4. **Deletions:** `UID SEARCH UID <cached range>` lists the survivors; everything else (and its cached
-   source) is removed.
-5. **New mail:** `UID SEARCH UID <UIDNEXT>:*` (filtered, since `n:*` always returns the last message)
-   then headers for those UIDs in chunks: `UID FETCH … (UID FLAGS RFC822.SIZE INTERNALDATE BODY.PEEK[HEADER])`.
-   The first sync of a folder fetches only the newest `window` messages (1000 by default).
-6. **Save** the new state atomically (temporary file + rename).
-7. **Prefetch** the newest sources (40 by default, up to 2 MB each) with `BODY.PEEK[]` so they open
-   instantly, can be searched, and fill in previews. Bigger or older messages download when opened.
-8. **Counts:** `UID SEARCH UNSEEN` for the folder's unread count.
+1. **Open the folder** with `SELECT … (CONDSTORE)`. When the folder is already cached, MailCraft
+   uses `(QRESYNC …)` instead. QRESYNC (RFC 7162) makes the server report deleted messages and
+   changed flags itself.
+2. **Check UIDVALIDITY.** If it changed, MailCraft drops the folder's cache and its pending
+   changes (RFC 4549).
+3. **Update flags.** With CONDSTORE, MailCraft fetches only flags `CHANGEDSINCE <modseq>`, and
+   skips this step when nothing changed. Without it, MailCraft fetches every flag.
+4. **Remove deleted mail.** A `UID SEARCH` over the cached range finds which UIDs remain. Cached
+   messages that are missing are removed.
+5. **Fetch new mail.** `UID SEARCH UID <UIDNEXT>:*` finds new messages, and their headers arrive
+   in chunks. A first sync takes the newest 1,000 by default.
+6. **Save** the folder atomically: MailCraft writes a temporary file, then renames it.
+7. **Download the newest 40 messages** of up to 2 MB each. Other messages download when opened.
+8. **Count unread mail** with `UID SEARCH UNSEEN`.
 
-`PEEK` is used everywhere so syncing never marks mail as read.
+Every fetch uses `PEEK`, so syncing never marks mail as read.
 
 ## The worker loop
 
-- On start: connect (TLS, or STARTTLS with a fresh capability list), authenticate (`AUTHENTICATE PLAIN`
-  with SASL-IR when offered, else `LOGIN`; non-ASCII credentials go as literals), `ENABLE QRESYNC`
-  (or `ENABLE CONDSTORE` without it).
-- Replay pending offline changes, then **sync all**: `LIST` (special-use roles from RFC 6154
-  attributes, or the usual names), then every selectable folder, Inbox first. Between folders the
-  worker serves body fetches and uploads queued edits, so the UI stays responsive during a long
-  first sync. The status turns Online when mail is done; CalDAV/EWS calendars and contacts run
-  afterwards.
-- Then **wait for mail**: `IDLE` on the Inbox (RFC 2177) in half-second slices, so new jobs interrupt
-  it at once; re-issued every 10 minutes (servers drop IDLE after 30). Without IDLE, poll every 2
-  minutes. A full sync runs every 15 minutes.
-- **Failures:** a broken connection is retried with exponential back-off (5 s → 5 min). A refused
-  password stops retrying and asks the user (`NeedsPassword`). A refused command is reported and
-  the cache is resynced.
-- **While its data file is compacted** in place (`crates/net/src/worker/compact.rs`), the part
-  that has the file to itself pauses the account: its jobs wait in the pool (no body is fetched,
-  no change uploaded, so no events pile up for the window), a sync already under way waits for the
-  file in the store, and both go on as soon as it's given back.
+Each account's worker repeats these stages:
 
-## Offline changes (RFC 4549 "pending actions")
+- **Connect.** The worker connects over TLS or STARTTLS and signs in with `AUTHENTICATE PLAIN` or
+  `LOGIN`. It then turns on QRESYNC with `ENABLE QRESYNC`, or CONDSTORE where QRESYNC is missing.
+- **Sync everything.** The worker:
+  1. replays pending offline changes;
+  2. lists the folders with `LIST`, and finds each folder's role (Sent, Drafts…) from SPECIAL-USE
+     (RFC 6154) or from the usual folder names;
+  3. syncs every folder, Inbox first, and downloads messages the user opens between folders;
+  4. syncs calendars and contacts.
+- **Wait for new mail.** IDLE (RFC 2177) keeps a connection open so the server can announce new
+  mail at once. The worker IDLEs on the Inbox and renews it every 10 minutes. On servers without
+  IDLE it checks every 2 minutes. Every 15 minutes it runs a full sync.
+- **Handle failures.**
+  - A lost connection is retried after a growing pause, from 5 seconds up to 5 minutes.
+  - If the server refuses the password, MailCraft asks the user for it (`NeedsPassword`).
+  - If the server refuses a command, MailCraft reports it and syncs the folder again.
+- **Compact the data file.** While `worker/compact.rs` compacts the account's data file, the
+  account's sync pauses.
 
-Flag changes, moves and deletes are applied to the cache immediately (the UI updates before the
-server answers) and appended to `<account>/ops.json` by the pool on a thread of its own for changes
-(`worker/edits.rs`, one for every account, so they keep their order), not by the account thread,
-which may be busy for minutes, nor on the UI's; a store-wide mutex guards the file's
-read-modify-write. The account thread is woken once the change is on disk, closing waits for the
-changes queued, and an export to a data file starts after them. An account removed meanwhile
-(its files go at once, on the UI's thread) has its queued changes dropped, not written back
-(`Store::while_kept`).
-When connected, the worker replays them oldest first, deleting each entry once the server accepts
-or rejects it, also between folders of a full sync. After a folder is re-read from the server,
-queued ops that touch it are applied to the new cache again:
+## Offline changes
 
-- flags: `UID STORE <set> +FLAGS.SILENT (…)` / `-FLAGS.SILENT`;
-- move: `UID MOVE` (RFC 6851), else `UID COPY` + `\Deleted` + `UID EXPUNGE` (RFC 4315; plain
-  `EXPUNGE` only as a last resort);
-- delete permanently: `\Deleted` + `UID EXPUNGE`.
+MailCraft follows RFC 4549, which describes how a client works while disconnected.
 
-Keys whose UIDVALIDITY no longer matches are skipped rather than applied to whatever now has that
-UID. If the server refuses a change, it is dropped, the folder's sync state is reset (forcing a full
-flag comparison) and the user is told.
-
-Folder changes (create, rename, move, delete) are pending actions too: `CREATE` + `SUBSCRIBE`,
-`RENAME` (subfolders follow; the cache directories move with them), `DELETE`. Deleting a folder
-first moves it into Deleted Items, like mail.
+- Flags, moves, deletes and folder changes show in the local cache at once. `worker/edits.rs`
+  also queues them, in order, in `<account>/ops.json`.
+- Once connected, the worker replays the queue, oldest first. It removes each entry when the
+  server answers.
+- Each change becomes one IMAP command:
+  - **Flags:** `UID STORE ±FLAGS.SILENT`.
+  - **Move:** `UID MOVE`. On servers without MOVE: `UID COPY`, then `\Deleted`, then
+    `UID EXPUNGE`.
+- If a queued change carries an outdated UIDVALIDITY, the worker skips it.
+- If the server refuses a change, the worker drops it, syncs the folder again from scratch and
+  tells the user.
+- Deleting a folder moves it to **Deleted Items** first.
 
 ## Sending
 
-Messages are built with `mail-builder` (Bcc never written into the message), submitted over SMTP
-(implicit TLS on 465 preferred per RFC 8314, or STARTTLS on 587), then filed in Sent Items with
-`APPEND (\Seen)` — except on Gmail, which files sent mail itself. Replies set `In-Reply-To` and
-`References` (trimmed per RFC 5322 §3.6.4) and the original gets `\Answered` (or `$Forwarded`).
+Mail that can't go right away waits in the **Outbox** (`<account>/outbox/`) and goes later.
 
-**Outbox.** A message that can't go out now (no network, refused connection, TLS failure, a
-timeout, or an SMTP 4xx "try later") is written to `<account>/outbox/<id>.eml` with its envelope in
-`<id>.json`, and the compose window closes as if sent. The worker tries again after connecting,
-after every full sync and on *Send now*, oldest first, stopping at the first failure that may
-clear up. A permanent refusal (5xx) keeps the message in the Outbox with the error until the user
-edits or deletes it.
+- MailCraft builds each message with `mail-builder`. The message has no Bcc header.
+- It sends over SMTP on port 465 (TLS from the start) or 587 (STARTTLS).
+- It files a copy in **Sent Items** with `APPEND (\Seen)`. Gmail files its own copy, so MailCraft
+  doesn't.
+- A reply sets `In-Reply-To` and `References`. The original message gets the `\Answered` or
+  `$Forwarded` flag.
+- A message waits in the Outbox when MailCraft is offline, the server times out or SMTP answers
+  with a temporary error (4xx). MailCraft retries it after connecting, after each sync and on
+  **Send now**.
+- If SMTP refuses a message for good (5xx), it stays in the Outbox with the error. Edit or delete
+  it to clear it.
 
-## JMAP accounts (`crates/jmap`)
+## Other account types
 
-An account with a JMAP session address (`AccountConfig::jmap`, RFC 8620/8621) syncs over HTTPS
-instead of IMAP and SMTP, behind the same jobs and events. Each request is one POST of a batch of
-method calls, signed in with Basic authentication or an OAuth bearer token.
+Every account type shares the same jobs, events, local cache and Outbox. Servers that name
+messages with strings get stable numbers in their place, used as UIDs under UIDVALIDITY 1.
 
-- **Keys.** JMAP message ids are strings that stay the same across mailboxes. The worker numbers
-  them as it first sees them (`<account>/jmap.json`, numbers never reused) and uses the number as
-  the UID, with a constant UIDVALIDITY of 1, so the cache, the engine and offline changes are the
-  same as for IMAP. Numbers no cached message or pending change uses are pruned after a full sync.
-- **Folders** are named by their path of mailbox names joined by `/` (the Inbox is `INBOX`); the
-  mailbox id behind each path is kept with the numbers. Roles come from the mailbox `role`.
-- **A folder sync** is two requests: `Email/query` (newest first, up to the window) with an
-  `Email/get` of the keywords by back-reference and the mailbox's counts, then the `headers` of
-  the messages not cached yet. Mail that leaves the window leaves the cache. The newest sources
-  are downloaded as blobs.
-- **Changes** are `Email/set` patches (`keywords/$seen`, `mailboxIds/<id>`), destroys for
-  permanent deletion, and `Mailbox/set` for folders.
-- **Sending** uploads the message, imports it into Sent (`$seen`) and submits it with
-  `EmailSubmission/set` from the identity for the sender; a refused submission removes the copy.
-  Offline sends use the same Outbox. Drafts are imported with `$draft`.
-- **Push.** Between jobs the worker holds the session's event stream open (RFC 8620 §7.3,
-  `text/event-stream`), reading it in half-second slices so jobs never wait, the way IMAP holds
-  IDLE; a `state` event syncs the Inbox. Servers without an event stream are polled every two
-  minutes.
+- **JMAP** (`crates/jmap`) bundles calls into a few HTTPS requests: `Email/query`, `Email/get`,
+  `Email/set` and `EmailSubmission/set`. The server pushes changes over an event stream; without
+  one, MailCraft checks every 2 minutes. The client is async over an `Http` trait, so the
+  browser uses it too.
+- **Microsoft Graph** (`crates/net/src/exchange/graph.rs`) serves Exchange Online accounts
+  without IMAP.
+  - It signs in with OAuth and asks for ids that don't change when a message moves.
+  - It fetches headers in `$batch` requests and waits as told by `Retry-After` when the server
+    answers 429 (too many requests).
+  - It sends the message's MIME source with `sendMail`.
+- **EWS** (`crates/net/src/exchange/ews.rs`), Exchange Web Services, serves on-premises Exchange
+  2010 SP2 and later.
+  - It signs in with NTLMv2 (Windows sign-in) or Basic, and finds the server with Autodiscover.
+  - Calendars and contacts are in `ews_pim.rs`.
+  - A moved message shows as a new one.
+- **POP** (`crates/net/src/protocols/pop.rs`) gives an Inbox plus local folders. MailCraft
+  downloads each message whose `UIDL` it hasn't seen. With `popDelete` set, it then deletes them
+  from the server.
 
-The transport is written once (`mailcraft-jmap`, async over an `Http` trait) and shared: the
-desktop worker runs it over its own HTTP client, the browser app over `fetch`.
+## Calendars and contacts
 
-## Exchange Online through Microsoft Graph (`crates/net/src/exchange/graph.rs`)
+`crates/net/src/protocols/dav.rs` syncs calendars over CalDAV and contacts over CardDAV.
 
-An account with a Graph address (`AccountConfig::graph`) syncs with Exchange Online through the
-Microsoft Graph REST API, signed in with an OAuth token that asks for Graph's mail permissions
-(`Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`). It works where an organisation has
-switched IMAP off.
+- MailCraft finds the servers as RFC 6764 describes, or uses the ones set by hand in
+  `account.dav`.
+- A sync sends local changes first, each guarded by its etag so it never overwrites a newer
+  server copy. It then reads each collection whose `getctag` changed.
+- Meeting invitations travel by mail as iMIP (RFC 6047). **Accept**, **Tentative** or
+  **Decline** updates the calendar and sends the reply.
 
-- **Ids** are asked for in their immutable form (`Prefer: IdType="ImmutableId"`), so a message
-  keeps its id when it moves; they are numbered like JMAP's, with the same folder paths.
-- **Folders** come from `/me/mailFolders` and each one's `childFolders`, following
-  `@odata.nextLink` pages on the same server only. The well-known folders (`inbox`, `sentitems`,
-  `deleteditems`…) are looked up in one JSON batch for their roles; the Outbox and Exchange's own
-  bookkeeping folders are left out.
-- **A folder sync** pages through `/mailFolders/{id}/messages` with the summary fields
-  (`LIST_FIELDS`; `internetMessageHeaders` excluded because it slows listings to the point of
-  gateway timeouts). If at most 20 messages are new, each is then fetched with its internet
-  headers via `$batch`, four entries per batch to stay within Exchange Online's per-mailbox
-  concurrency, every entry carrying its own `Prefer: IdType="ImmutableId"` (a batch's outer
-  headers don't apply to its entries). With more new messages the listing's fields are used as
-  they are, and the References/List-Id headers are filled in when the source is downloaded.
-  HTTP 429 answers, top-level or per entry, are retried after `Retry-After` (at most 4 attempts,
-  20 s per wait). Sources come from `/messages/{id}/$value`; mail with attachments downloads when
-  opened.
-- **Changes** are `PATCH`es (`isRead`, `flag`), `move`, `DELETE` and folder calls, batched.
-- **Sending** posts the MIME source to `sendMail`, which files the copy in Sent Items; recipients
-  only on the envelope go in a `Bcc:` header, which Exchange strips. Drafts are made from MIME and
-  moved where they belong.
-- **Automatic replies** are the mailbox settings' `automaticRepliesSetting` (scheduled when the
-  dates are set). Graph doesn't tell a mailbox's size to its owner, so there is no quota.
+## Automatic replies on IMAP
 
-## On-premises Exchange through EWS (`crates/net/src/exchange/ews.rs`)
+`crates/net/src/protocols/sieve.rs` sets automatic replies through ManageSieve. It writes a Sieve
+`vacation` script that `include`s the user's existing script, so the user's own rules keep
+working.
 
-An account with an EWS address (`AccountConfig::ews`, `https://<server>/EWS/Exchange.asmx`) syncs
-with an organisation's own Exchange server (2010 SP2 and later) through Exchange Web Services, for
-servers that don't offer IMAP. Every call is SOAP over HTTPS.
+## .pst files
 
-- **Signing in** follows what the server's first `401` offers: NTLMv2 (`crates/net/src/exchange/ntlm.rs`,
-  as `NTLM` or `Negotiate`) on a connection kept open, since NTLM signs in the connection rather
-  than each request; or Basic. The user name is `DOMAIN\user` or an address; the password stays
-  in the keychain. Plain `http://` is refused except for local test servers.
-- **Folders** come from one deep `FindFolder` under the message folder root, in pages; the
-  distinguished folders (`inbox`, `sentitems`, `deleteditems`…) are looked up in one `GetFolder`
-  for their roles, and the Outbox, Exchange's bookkeeping folders and calendar, contact and task
-  folders are left out.
-- **A folder sync** finds the newest items with their read, flag (`PidTagFlagStatus`) and draft
-  (`PidTagMessageFlags`) state, then the details of those not cached yet with `GetItem`, fifty at a
-  time; sources are `GetItem` with the MIME content. Item ids are numbered like JMAP's; Exchange
-  gives a moved item a new id, so it shows up as a new message in its new folder.
-- **Changes** are `UpdateItem`, `MoveItem`, `DeleteItem` and the folder calls, fifty items a call.
-- **Sending** is `CreateItem` with the MIME source and `SendAndSaveCopy` (the copy goes to Sent
-  Items); envelope-only recipients go in a `Bcc:` header. Drafts are `CreateItem` with `SaveOnly`,
-  marked unsent.
-- **Automatic replies** are `Get`/`SetUserOofSettings`. There is no quota over EWS.
-- **Finding the server:** an account added without one asks Autodiscover (POX, MS-OXDSCLI) at the
-  domain's `autodiscover.` host and the domain itself, signed in as the user, following one
-  redirect; the EWS address found is kept with the account.
-- **Calendars and contacts** (`crates/net/src/exchange/ews_pim.rs`) are the mailbox's Calendar and
-  Contacts folders, synced like CalDAV / CardDAV: changes here first (appointments updated field
-  by field, contacts made again, never any meeting mail), then both folders read in full.
-  Recurrences go through Graph's pattern-and-range shape, so one RRULE mapping serves both.
+`crates/net/src/data_files/pst.rs` opens a `.pst` file (Outlook data file) as an account with no
+server.
 
-## Calendars and address books (`crates/net/src/protocols/dav.rs`)
+- It reads the file with the fork
+  [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs) and rebuilds each item as a
+  standard message.
+- It treats the file as hostile input. Reading runs behind `catch_unwind`, bad items are skipped
+  and counted, and sizes are capped.
+- It refuses `.ost` files.
 
-Password accounts sync calendars over CalDAV (RFC 4791) and address books over CardDAV
-(RFC 6352). The homes are found as RFC 6764 describes: an SRV record and the path its TXT
-record gives (Posteo's `path=/` on port 8443), that server's `/.well-known/` address and root,
-then the `/.well-known/` addresses on the mail domain, its `caldav.`/`carddav.` hosts and the IMAP
-host, through the user's principal; a server with none is asked again a day later. An address
-given by hand (`account.dav`: the server's own, a home, or one calendar or address book) is
-followed to its home instead, signed in with its own user name and password when it has one (the
-password in the keychain as `dav`); changing it moves the old server's items out of the way, and
-a sync writes only to the server its homes are on. A sync first sends what changed
-here (deletions with `If-Match`, edits guarded by the item's etag so a newer copy on the server is
-never overwritten, new items with `If-None-Match: *`), then reads each collection whose `getctag`
-moved: the etags by `PROPFIND`, and the new or changed items by `calendar-multiget` /
-`addressbook-multiget`. The engine merges the result: what changed here meanwhile stays to be sent.
+## In the browser
 
-**Invitations** travel by mail (iTIP over iMIP, RFC 5546/6047): a `text/calendar` part with
-`METHOD:REQUEST` shows as an invitation card (Accept, Tentative, Decline), which updates the
-calendar and mails a `REPLY` to the organizer; replies and `CANCEL`s update the event; events with
-guests send them requests when saved and cancellations when deleted.
-
-## Automatic replies on IMAP servers (`crates/net/src/protocols/sieve.rs`)
-
-On IMAP hosts, automatic replies are a Sieve script (RFC 5228) with a `vacation` action
-(RFC 5230), limited to dates with `currentdate` (RFC 5260), kept over ManageSieve (RFC 5804). A
-script the user already runs stays in charge of their other rules: ours `include`s it (RFC 6609).
-
-## Outlook data files (`crates/net/src/data_files/pst.rs`)
-
-*Open Outlook data file* creates an account with no server named after the file and reads the
-`.pst` (MS-PST, Unicode or ANSI, with Microsoft's reader, from MailCraft's fork of `outlook-pst-rw`) on a thread of its own:
-the mail folders under the top of the mailbox become folders, and each mail item is written
-again as a standard message from its properties (addresses, dates, text and HTML bodies,
-attachments, pictures shown by `cid:`, embedded messages, read and follow-up flags), keeping its
-original internet headers when it came in by mail. The file is hostile input: the reader runs
-behind `catch_unwind`, unreadable items are skipped and counted, and sizes are capped.
-
-Outlook keeps its data files open, with byte-range locks, while it runs (in the notification area
-too): opening one then says so instead of trying the older ANSI format. An `.ost` (client magic
-`SO`) is Outlook's offline copy of a server account and is refused with that explanation. The RSS
-Feeds folder (`IPF.Note.OutlookHomepage`) and its feeds' folders come in as mail folders of their
-posts (`IPM.Post.Rss`), and an empty Outbox (the store's 0x35E2) is skipped. Outlook's rules
-aren't in any folder the import reads: they're hidden items of the Inbox (its associated
-contents, `IPM.Rule.Version2.Message`), in a format of Outlook's own (MS-OXORULE) that
-MailCraft's rules can't take whole, so they stay out.
-
-The walk over the folder tree lives in `pst.rs`; an item is read from its properties in
-`pst/item.rs`, through `pst/props.rs`'s `Val` (a closure gives each property's value, so tests can
-build items without a file), written out again in `pst/rebuild.rs`, and saved by `pst/out.rs`.
-
-## POP accounts (`crates/net/src/protocols/pop.rs`)
-
-A POP account (RFC 1939; SSL/TLS, `STLS` or none; `USER`/`PASS` or `AUTH XOAUTH2`) has the
-folders Outlook gives one, all on this computer: Inbox, Drafts, Sent Items, Deleted Items and
-Junk Email. Syncing the Inbox opens a session, lists `UIDL`, downloads (`RETR`) each message
-not seen before into the cache, saving the seen ids (`pop-seen.json`) after every message, and
-quits; with `popDelete` each one is then marked `DELE`, else a copy stays on the server. Lines
-and messages are capped and nothing with CR or LF is ever sent. Every other change (flags,
-moves, deletes, drafts, the sent copy) is made in the cache only; the worker carries out moves
-itself, since no server copy comes back. `account.add` with `pst` holds the account's first
-connection until that data file has come into it (Outlook's "use an existing data file").
-
-## In the browser (`apps/mailcraft-web`)
-
-The web build keeps the cache in memory, mirrored to IndexedDB, and runs each account's jobs in
-order over JMAP and `fetch`. New mail comes by push: the session's event stream is read through
-`fetch` (an `EventSource` can't send the `Authorization` header), a `state` event syncs the Inbox,
-and the Inbox syncs once whenever the stream opens. Without push the Inbox is polled every two
-minutes; everything syncs every eight checks either way. Passwords stay in the tab; after a
-reload the account asks for its password again.
+In the web build (`apps/mailcraft-web`), the local cache lives in memory and is copied to
+IndexedDB. Jobs run over JMAP through `fetch`. New mail comes by push, and MailCraft checks every
+2 minutes when the push stream is closed. Passwords stay in the browser tab only. See
+[hosting the web build](../packaging/web/README.md).
