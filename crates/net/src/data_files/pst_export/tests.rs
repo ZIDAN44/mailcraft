@@ -3,8 +3,9 @@ use mailcraft_model::{EmailAddress, Flags};
 use mailcraft_store::FolderState;
 use outlook_pst::UnicodePstSpecialFolder as Special;
 use outlook_pst::messaging::message::{Message as _, UnicodeMessage};
+use std::collections::BTreeMap;
 
-const NONE: &BTreeMap<String, i64> = &BTreeMap::new();
+const NONE: &FollowUpDays = &FollowUpDays { due: BTreeMap::new(), done: BTreeMap::new() };
 
 /// A data file's named property: its ID, by its property set's data1 (PSETID_Task's is
 /// 0x00062003) and LID, as the writer's own reader reads the file's map.
@@ -163,7 +164,8 @@ fn an_account_round_trips_through_a_data_file() {
     assert_eq!(std::fs::read(&file).unwrap(), b"an older file");
     std::fs::remove_file(&file).unwrap();
     let mut ticks = 0;
-    let done = export(&store, "a1", "Riley's mail", &file, &due, &mut |_| ticks += 1).unwrap();
+    let days = FollowUpDays { due: due.clone(), ..Default::default() };
+    let done = export(&store, "a1", "Riley's mail", &file, &days, &mut |_| ticks += 1).unwrap();
     assert_eq!(
         done,
         Exported { messages: 7, skipped: 1, already: 0, events: 1, occurrences: 0, tasks: 1, notes: 0, contacts: 1, pim_already: 0, pim_replaced: 0 }

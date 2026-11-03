@@ -136,7 +136,7 @@ impl Pool {
     }
 
     /// Export to a data file on a thread of its own.
-    pub(super) fn export_pst(&mut self, account: String, path: String, name: String, follow_up: std::collections::BTreeMap<String, i64>) {
+    pub(super) fn export_pst(&mut self, account: String, path: String, name: String, follow_up: mailcraft_model::organize::FollowUpDays) {
         // With the changes made just before it.
         self.edits.flush();
         let sink = self.sink.clone();

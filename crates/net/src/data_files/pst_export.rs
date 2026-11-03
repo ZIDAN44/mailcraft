@@ -24,12 +24,13 @@
 //! is MailCraft's fork, which adds to all of those). The file is written as a copy that replaces
 //! it at the end, so a failed export leaves it as it was.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::io;
 use std::path::Path;
 use std::rc::Rc;
 
 use mailcraft_mime as mime;
+use mailcraft_model::organize::FollowUpDays;
 use mailcraft_model::{Folder, FolderRole, MessageKey, utf7};
 use mailcraft_store::Store;
 use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
@@ -140,15 +141,15 @@ fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
 }
 
 /// Write `account`'s mail to a data file at `path`, named `name` when it's new; a file already
-/// there is added to. `follow_up`: when flagged messages are due (local days, by
-/// [`mailcraft_model::Summary::follow_up_id`]). Calls `progress` with the number of messages
+/// there is added to. `follow_up`: when flagged messages are due and completed ones were done
+/// (local days, by [`mailcraft_model::Summary::follow_up_id`]). Calls `progress` with the number of messages
 /// written so far.
 pub fn export(
     store: &Store,
     account: &str,
     name: &str,
     path: &Path,
-    follow_up: &BTreeMap<String, i64>,
+    follow_up: &FollowUpDays,
     progress: &mut dyn FnMut(usize),
 ) -> Result<Exported, String> {
     let folders = store.load_folders(account).map_err(|e| e.to_string())?;

@@ -1,6 +1,6 @@
 //! A message as it goes into the data file: its text, addresses and files from its source, and
-//! what the store keeps of it (read, flagged, answered, categories, when it's due) as the
-//! properties Outlook keeps them in.
+//! what the store keeps of it (read, flagged or its follow-up complete, answered, categories, when
+//! it's due) as the properties Outlook keeps them in.
 
 use super::files::{File, Spill};
 use super::*;
@@ -21,11 +21,13 @@ const VERB_REPLY: i32 = 102;
 const VERB_FORWARD: i32 = 104;
 const ICON_REPLIED: i32 = 0x105;
 const ICON_FORWARDED: i32 = 0x106;
-/// `PidTagFlagStatus` flagged, `PidTagFollowupIcon` red flag, `PidTagToDoItemFlags` marked
-/// (MS-OXOFLAG 2.2.1).
+/// `PidTagFlagStatus` complete and flagged, `PidTagFollowupIcon` red flag, `PidTagToDoItemFlags`
+/// marked (MS-OXOFLAG 2.2.1), and `PidLidTaskStatus` complete (MS-OXOTASK 2.2.2.2.2).
+const COMPLETE: i32 = 1;
 const FLAGGED: i32 = 2;
 const RED_FLAG: i32 = 6;
 const TO_DO_MARKED: i32 = 1;
+const TASK_COMPLETE: i32 = 2;
 /// Seconds from 1601-01-01 to 1970-01-01.
 const EPOCH_1601: i64 = 11_644_473_600;
 /// The longest header block written (`PidTagTransportMessageHeaders`): a longer one is left out,
@@ -86,10 +88,15 @@ pub(super) struct State {
     /// A draft: in the Drafts folder, or flagged `\Draft`.
     pub(super) draft: bool,
     pub(super) flagged: bool,
+    /// Its follow-up marked complete (and not flagged since).
+    pub(super) complete: bool,
     pub(super) answered: bool,
     pub(super) forwarded: bool,
-    /// When a flagged message is due: 100 ns since 1601, at midnight of its day.
+    /// When a flagged message is due, or a completed one was: 100 ns since 1601, at midnight of
+    /// its day.
     pub(super) due: Option<i64>,
+    /// When a completed one was marked complete, the same way.
+    pub(super) done: Option<i64>,
     /// Its categories, by name.
     pub(super) categories: Vec<String>,
 }
@@ -99,9 +106,9 @@ pub(super) fn filetime(unix: i64) -> i64 {
     unix.saturating_add(EPOCH_1601).saturating_mul(10_000_000).max(0)
 }
 
-/// What the store keeps of `s`, a message in a folder of role `role`; `due` is when the flagged
-/// ones are due (local days, by [`Summary::follow_up_id`]).
-pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, due: &BTreeMap<String, i64>) -> State {
+/// What the store keeps of `s`, a message in a folder of role `role`; `days`: when flagged ones
+/// are due and completed ones were done (local days, by [`Summary::follow_up_id`]).
+pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, days: &FollowUpDays) -> State {
     let f = &s.flags;
     let categories = f
         .keywords
@@ -111,14 +118,21 @@ pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, due: &BTreeM
         .filter(|name| !name.trim().is_empty())
         .collect();
     // A day as its midnight: Outlook keeps a due date as the day's, not a moment in a time zone.
-    let due = f.flagged.then(|| due.get(&s.follow_up_id()).map(|day| filetime(day.saturating_mul(86_400)))).flatten();
+    // A completed follow-up keeps the day it was due, as Outlook keeps it.
+    let complete = f.follow_up_complete();
+    let midnight = |day: &i64| filetime(day.saturating_mul(86_400));
+    let id = (f.flagged || complete).then(|| s.follow_up_id());
+    let due = id.as_ref().and_then(|id| days.due.get(id)).map(midnight);
+    let done = id.as_ref().filter(|_| complete).and_then(|id| days.done.get(id)).map(midnight);
     State {
         read: f.seen,
         draft: f.draft || role == FolderRole::Drafts,
         flagged: f.flagged,
+        complete,
         answered: f.answered,
         forwarded: f.forwarded,
         due,
+        done,
         categories,
     }
 }
@@ -253,17 +267,32 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<Uni
         // The sender's and the sent-representing address types and addresses.
         out.extend([text(0x0C1E, "SMTP"), text(0x0064, "SMTP"), text(0x0065, &m.from.1), text(0x5D01, &m.from.1), text(0x5D02, &m.from.1)]);
     }
-    if st.flagged {
+    let task = |lid, value| UnicodePstProperty::named(PSETID_TASK, UnicodePstName::Id(lid), value);
+    if st.flagged || st.complete {
         out.extend([
-            int(0x1090, FLAGGED),
-            int(0x1095, RED_FLAG),
+            int(0x1090, if st.flagged { FLAGGED } else { COMPLETE }),
             int(0x0E2B, TO_DO_MARKED),
             UnicodePstProperty::named(PSETID_COMMON, UnicodePstName::Id(0x8530), UnicodePstValue::Unicode("Follow up")),
         ]);
+        if st.flagged {
+            out.push(int(0x1095, RED_FLAG));
+        } else {
+            // Done (MS-OXOFLAG, MS-OXOTASK): PidLidTaskStatus, PidLidPercentComplete and
+            // PidLidTaskComplete say so, with when (PidTagFlagCompleteTime,
+            // PidLidTaskDateCompleted) when MailCraft knows the day; the red flag's icon goes.
+            out.extend([
+                task(0x8101, UnicodePstValue::Integer32(TASK_COMPLETE)),
+                task(0x8102, UnicodePstValue::Floating64(1.0)),
+                task(0x811C, UnicodePstValue::Boolean(true)),
+            ]);
+            if let Some(done) = st.done {
+                out.extend([UnicodePstProperty::tagged(0x1091, UnicodePstValue::Time(done)), task(0x810F, UnicodePstValue::Time(done))]);
+            }
+        }
         if let Some(due) = st.due {
             // PidLidTaskStartDate and PidLidTaskDueDate: MailCraft keeps the day it's due only.
             for lid in [0x8104, 0x8105] {
-                out.push(UnicodePstProperty::named(PSETID_TASK, UnicodePstName::Id(lid), UnicodePstValue::Time(due)));
+                out.push(task(lid, UnicodePstValue::Time(due)));
             }
         }
     }
@@ -281,6 +310,7 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<Uni
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn header_fields() {
@@ -315,7 +345,7 @@ mod tests {
         let mut s = mailcraft_model::Summary { message_id: "m1@example.com".into(), ..Default::default() };
         s.flags.flagged = true;
         s.flags.keywords = vec!["to=20do".into(), "$Junk".into(), "$label1".into()];
-        let due = BTreeMap::from([("m1@example.com".to_string(), 1)]);
+        let due = FollowUpDays { due: BTreeMap::from([("m1@example.com".to_string(), 1)]), ..Default::default() };
         let st = state(&s, FolderRole::Drafts, &due);
         assert!(st.draft && st.flagged && !st.read);
         assert_eq!(st.categories, ["to do", "$label1"]);
@@ -323,5 +353,58 @@ mod tests {
         assert_eq!(st.due, Some((86_400 + EPOCH_1601) * 10_000_000));
         s.flags.flagged = false;
         assert_eq!(state(&s, FolderRole::Inbox, &due).due, None);
+    }
+
+    /// A follow-up marked complete goes in as Outlook keeps one: status complete, still a to-do,
+    /// the task's own marks of done, and when (the day it was done, at its midnight) when that's
+    /// known; no red flag. A flagged one is flagged, whatever keyword it has left.
+    #[test]
+    fn a_completed_follow_up_s_properties() {
+        use outlook_pst::UnicodePstPropertyKey as Key;
+        let mut s = mailcraft_model::Summary { message_id: "m1@example.com".into(), ..Default::default() };
+        s.flags.keywords = vec![mailcraft_model::FOLLOW_UP_COMPLETE.into()];
+        let days = FollowUpDays {
+            due: BTreeMap::from([("m1@example.com".to_string(), 3)]),
+            done: BTreeMap::from([("m1@example.com".to_string(), 2), ("other@example.com".to_string(), 9)]),
+        };
+        let st = state(&s, FolderRole::Inbox, &days);
+        let midnight = |day: i64| (day * 86_400 + EPOCH_1601) * 10_000_000;
+        assert!(st.complete && !st.flagged && st.categories.is_empty(), "{st:?}");
+        assert_eq!((st.due, st.done), (Some(midnight(3)), Some(midnight(2))));
+        let m = owned(b"Subject: x\r\n\r\nbody", 0, st, &Default::default(), None).unwrap();
+        let props = properties(&m, &[]);
+        let tag = |id: u16| props.iter().find(|p| matches!(p.key, Key::Tag(t) if t == id)).map(|p| &p.value);
+        let task = |lid: u32| {
+            props
+                .iter()
+                .find(|p| matches!(&p.key, Key::Named(set, UnicodePstName::Id(l)) if set.data1() == PSETID_TASK.data1() && *l == lid))
+                .map(|p| &p.value)
+        };
+        assert!(matches!(tag(0x1090), Some(UnicodePstValue::Integer32(COMPLETE))));
+        assert!(matches!(tag(0x0E2B), Some(UnicodePstValue::Integer32(TO_DO_MARKED))));
+        assert!(matches!(tag(0x1091), Some(UnicodePstValue::Time(t)) if *t == midnight(2)));
+        assert!(tag(0x1095).is_none(), "no red flag");
+        assert!(matches!(task(0x8101), Some(UnicodePstValue::Integer32(TASK_COMPLETE))));
+        assert!(matches!(task(0x8102), Some(UnicodePstValue::Floating64(p)) if (*p - 1.0).abs() < f64::EPSILON));
+        assert!(matches!(task(0x811C), Some(UnicodePstValue::Boolean(true))));
+        assert!(matches!(task(0x810F), Some(UnicodePstValue::Time(t)) if *t == midnight(2)));
+        assert!(matches!(task(0x8105), Some(UnicodePstValue::Time(t)) if *t == midnight(3)));
+
+        // Its day not known: complete all the same, without when.
+        let st = state(&s, FolderRole::Inbox, &FollowUpDays::default());
+        assert!(st.complete && st.done.is_none());
+        let m = owned(b"Subject: x\r\n\r\nbody", 0, st, &Default::default(), None).unwrap();
+        let props = properties(&m, &[]);
+        assert!(props.iter().any(|p| matches!((p.key, p.value), (Key::Tag(0x1090), UnicodePstValue::Integer32(COMPLETE)))));
+        assert!(!props.iter().any(|p| matches!(p.key, Key::Tag(0x1091))));
+
+        // Flagged again elsewhere, the keyword left behind: flagged, not complete.
+        s.flags.flagged = true;
+        let st = state(&s, FolderRole::Inbox, &days);
+        assert!(st.flagged && !st.complete && st.done.is_none());
+        let m = owned(b"Subject: x\r\n\r\nbody", 0, st, &Default::default(), None).unwrap();
+        let props = properties(&m, &[]);
+        assert!(props.iter().any(|p| matches!((p.key, p.value), (Key::Tag(0x1090), UnicodePstValue::Integer32(FLAGGED)))));
+        assert!(props.iter().any(|p| matches!(p.key, Key::Tag(0x1095))) && !props.iter().any(|p| matches!(p.key, Key::Tag(0x1091))));
     }
 }

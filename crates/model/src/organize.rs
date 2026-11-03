@@ -211,7 +211,11 @@ pub fn date_of(day: i64) -> (i64, u32, u32) {
 /// are due in (local days, by [`Summary::follow_up_id`]), for the engine to take into the
 /// preferences' own as the import ends: IMAP has nowhere for them, so they're kept there.
 pub const FOLLOW_UP_DOC: &str = "follow-up.json";
-/// The most due days kept, in the preferences and in an import's [`FOLLOW_UP_DOC`].
+/// Beside it, the days its messages marked complete were completed on (`PidTagFlagCompleteTime`),
+/// taken into the preferences' own (`Prefs::follow_up_done`) the same way.
+pub const FOLLOW_UP_DONE_DOC: &str = "follow-up-done.json";
+/// The most due days kept, in the preferences and in an import's [`FOLLOW_UP_DOC`]; and the most
+/// days completed, in each of theirs.
 pub const MAX_FOLLOW_UP: usize = 10_000;
 /// The longest a due day's key is kept (a Message-ID's header line is at most 998 bytes).
 pub const MAX_FOLLOW_UP_ID: usize = 998;
@@ -235,6 +239,17 @@ pub fn merge_follow_up(into: &mut std::collections::BTreeMap<String, i64>, from:
         added += 1;
     }
     added
+}
+
+/// The days of an account's follow-ups, as an export writes them (local days, by
+/// [`Summary::follow_up_id`]): when flagged messages are due, and when the ones marked complete
+/// were completed.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FollowUpDays {
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub due: std::collections::BTreeMap<String, i64>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub done: std::collections::BTreeMap<String, i64>,
 }
 
 #[cfg(test)]

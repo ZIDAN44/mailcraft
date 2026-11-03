@@ -176,13 +176,13 @@ pub enum Job {
     /// the folder list changed).
     KeepImport { account: String },
     /// Write the account's mail to an Outlook data file, which opens as `name`; `follow_up`:
-    /// when flagged messages are due, by [`crate::Summary::follow_up_id`] (local days).
+    /// when flagged messages are due, and when completed ones were done.
     ExportPst {
         account: String,
         path: String,
         name: String,
-        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-        follow_up: std::collections::BTreeMap<String, i64>,
+        #[serde(default)]
+        follow_up: crate::organize::FollowUpDays,
     },
     /// Measure how the account's data file is doing (quick: nothing of the mail is read).
     /// Answered by [`Event::DataFileHealth`].

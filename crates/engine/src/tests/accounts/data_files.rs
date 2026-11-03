@@ -162,9 +162,11 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     assert!(s.run("account.exportPst", &json!({"path": "out.pst", "account": "nope"})).is_err());
     // When flagged messages are due, kept only here, goes along.
     s.prefs.follow_up.insert("due@example.com".into(), 20_000);
+    s.prefs.follow_up_done.insert("done@example.com".into(), 19_990);
     s.run("account.exportPst", &json!({"path": "C:/out/Archive.pst", "account": id})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::ExportPst { account, path, name, follow_up }]
-        if *account == id && path == "C:/out/Archive.pst" && name == "Archive 2024" && follow_up.get("due@example.com") == Some(&20_000)));
+        if *account == id && path == "C:/out/Archive.pst" && name == "Archive 2024" && follow_up.due.get("due@example.com") == Some(&20_000)
+            && follow_up.done.get("done@example.com") == Some(&19_990)));
     s.apply(Event::Exported { account: id.clone(), messages: 100, skipped: 0, already: 0, occurrences: 0, replaced: 0, done: false, error: None });
     assert!(s.notices.last().is_some_and(|n| n.text.contains("100 messages exported so far")));
     s.apply(Event::Exported { account: id.clone(), messages: 120, skipped: 3, already: 0, occurrences: 0, replaced: 0, done: true, error: None });
