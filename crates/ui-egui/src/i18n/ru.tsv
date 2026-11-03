@@ -1544,6 +1544,7 @@ month	May	Май
 	Tasks: {n}	Задач: {n}
 	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	Копия этого файла в MailCraft лежит рядом с ним, со всем, что было изменено в MailCraft: {file}
 	The file has changed since MailCraft read it.	Файл изменился с тех пор, как MailCraft его прочитал.
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	MailCraft не сохранил запись о том, что раньше пришло из этого файла, поэтому его изменения нельзя прочитать.
 	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	В папку этого файла нельзя записывать: копия MailCraft размером около {size} будет в папке {folder}.
 	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft хранит собственную копию рядом с файлом, размером около {size}, в папке {folder}. Сам файл никогда не изменяется.
 	There isn't room for the copy beside the file. Free up space on that drive.	Рядом с файлом не хватает места для копии. Освободите место на этом диске.

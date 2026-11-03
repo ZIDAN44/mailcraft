@@ -71,9 +71,9 @@ impl Session {
         if let Some(store) = &self.store {
             store.delete_account(account).map_err(|e| CmdError::Failed(e.to_string()))?;
         }
-        // An Outlook file's copy is made beside it again.
+        // An Outlook file's copy is made beside it again (a new one: none found there is taken).
         if self.account(account).is_some_and(AccountState::is_data_file) {
-            self.place_copy(account, &path);
+            self.place_copy(account, &path, true);
         }
         if let Some(a) = self.account_mut(account) {
             a.folders.clear();

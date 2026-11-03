@@ -1544,6 +1544,7 @@ month	May	5月
 	Tasks: {n}	任務: {n}
 	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	MailCraft 對此檔案的副本就在它旁邊，包含在 MailCraft 中所做的變更: {file}
 	The file has changed since MailCraft read it.	自 MailCraft 讀取以來，此檔案已變更。
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	MailCraft 沒有記錄之前從此檔案匯入的內容，因此無法讀入其變更。
 	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	無法寫入此檔案所在的資料夾: MailCraft 的副本 (大約 {size}) 將放在 {folder} 中。
 	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft 會在檔案旁邊 ({folder}) 保留自己的副本，大約 {size}。檔案本身永遠不會被變更。
 	There isn't room for the copy beside the file. Free up space on that drive.	檔案旁邊沒有足夠的空間存放副本。請釋放該磁碟機上的空間。

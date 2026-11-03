@@ -287,6 +287,9 @@ pub struct DataFileFacts {
     /// none): opening the file goes on with it. And whether the file changed since it was read.
     pub copy: String,
     pub copy_changed: bool,
+    /// That copy notes what came in from the file, so what the file has new can be read into it
+    /// (one made before MailCraft noted it can only be opened as it was).
+    pub copy_rereadable: bool,
     /// Why the file couldn't be looked at.
     pub error: Option<String>,
 }

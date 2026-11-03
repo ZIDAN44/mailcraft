@@ -19,8 +19,14 @@ fn with_file(name: &str) -> (Session, PathBuf, String) {
 }
 
 /// What an import of `path` into `account` leaves, as the network side writes it: an Inbox with
-/// a message, and its note, done.
+/// a message, its note, done, and the note of what came in.
 fn imported(s: &mut Session, account: &str, path: &str) {
+    imported_as(s, account, path, "done", true);
+}
+
+/// [`imported`], its note saying how far it got (`state`), and with the note of what came in
+/// only when `seen` (an import made before MailCraft noted it had none).
+fn imported_as(s: &mut Session, account: &str, path: &str, state: &str, seen: bool) {
     let store = s.store.clone().unwrap();
     let inbox = mailcraft_model::Folder {
         account: account.into(),
@@ -38,7 +44,10 @@ fn imported(s: &mut Session, account: &str, path: &str) {
     st.messages.push(mailcraft_model::Summary { key, subject: "kept".into(), message_id: "kept@x".into(), ..Default::default() }.into());
     store.save_folder(account, "INBOX", &st).unwrap();
     let (size, modified) = mailcraft_store::file_stamp(Path::new(path)).unwrap();
-    store.save_account_doc(account, "import.json", &json!({"state": "done", "source": {"path": path, "size": size, "modified": modified}})).unwrap();
+    store.save_account_doc(account, "import.json", &json!({"state": state, "source": {"path": path, "size": size, "modified": modified}})).unwrap();
+    if seen {
+        store.note_imported(account).unwrap();
+    }
     s.apply(Event::Folders { account: account.into(), folders: vec![inbox] });
     s.apply(Event::Imported { account: account.into(), messages: 1, skipped: 0, done: true, error: None, report: None });
 }
@@ -133,6 +142,85 @@ fn a_copy_whose_account_id_was_given_again_is_opened_as_a_new_one() {
     let st = s.store.as_ref().unwrap().load_folder(&again, "INBOX").unwrap();
     assert_eq!(st.messages[0].key.account, again);
     assert!(s.account(&again).unwrap().folders.iter().all(|f| f.account == again));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A copy with no note of what came in from its file (opened before MailCraft kept one): what's
+/// new in the file can't be told from what was deleted here, so it isn't read in, whether the
+/// file's account is open or the copy is found again; opened as it was, it is.
+#[test]
+fn a_copy_with_no_note_of_what_came_in_isnt_read_into_again() {
+    let (mut s, dir, pst) = with_file("no-note");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported_as(&mut s, &id, &pst, "done", false);
+    assert!(!s.can_read_changes(&id));
+    std::fs::write(&pst, b"an Outlook file, as far as this test goes, with more in it now").unwrap();
+    let refused = s.run("account.importPst", &json!({"path": pst, "changes": "read"})).unwrap_err();
+    assert!(refused.to_string().contains("no note"), "{refused}");
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::RereadDataFile { .. })));
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    s.take_jobs();
+    let refused = s.run("account.importPst", &json!({"path": pst, "changes": "read"})).unwrap_err();
+    assert!(refused.to_string().contains("no note"), "{refused}");
+    assert!(s.accounts.is_empty(), "nothing opened");
+    let kept = s.run("account.importPst", &json!({"path": pst, "changes": "keep"})).unwrap();
+    assert_eq!(kept["reopened"].as_bool(), Some(true), "{kept}");
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::RereadDataFile { .. })));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A copy found beside the file whose import was cut off goes on; that run failing before
+/// anything more came in (the file can't be read now) keeps the account and its copy, with what
+/// was changed in MailCraft, and the import waits to go on.
+#[test]
+fn a_copy_gone_on_with_survives_a_run_that_fails() {
+    let (mut s, dir, pst) = with_file("resume-fails");
+    let copy = dir.join("Documents").join("Archive.mailcraft");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported_as(&mut s, &id, &pst, "running", true);
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    s.take_jobs();
+    let opened = s.run("account.importPst", &json!({"path": pst})).unwrap();
+    let again = opened["account"].as_str().unwrap().to_string();
+    assert_eq!(opened["importing"].as_bool(), Some(true), "{opened}");
+    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { resume: true, .. }]));
+    s.apply(Event::Imported { account: again.clone(), messages: 0, skipped: 0, done: true, error: Some("the file is held".into()), report: None });
+    assert!(copy.is_file(), "the copy beside the file stays");
+    assert!(s.account(&again).is_some_and(|a| a.folders.len() == 1), "the account stays, its mail too");
+    assert!(s.import_state(&again).is_some_and(|st| !st.live), "it waits to go on");
+    assert_eq!(s.data_source(&again).map(|r| r.stage), Some(mailcraft_model::job::ImportStage::Stopped));
+    assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("couldn't go on")), "{:?}", s.notices.last());
+    drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Another copy of a file open already is one of its own: a copy found beside the file, an
+/// earlier account's, isn't taken for it.
+#[test]
+fn another_copy_is_a_new_one_beside_the_file() {
+    let (mut s, dir, pst) = with_file("again");
+    let docs = dir.join("Documents");
+    let first = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported(&mut s, &first, &pst);
+    let second = s.run("account.importPst", &json!({"path": pst, "again": true})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported(&mut s, &second, &pst);
+    assert_eq!(s.store.as_ref().unwrap().data_file(&second), Some(docs.join("Archive (2).mailcraft")));
+    // The second goes; the file changed since; another copy again is a new one, not that one.
+    s.run("account.remove", &json!({"account": second})).unwrap();
+    s.take_jobs();
+    std::fs::write(&pst, b"an Outlook file, as far as this test goes, with more in it now").unwrap();
+    let third = s.run("account.importPst", &json!({"path": pst, "again": true})).unwrap();
+    assert_eq!(third["importing"].as_bool(), Some(true), "{third}");
+    let third = third["account"].as_str().unwrap().to_string();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { resume: false, .. }]));
+    assert_eq!(s.store.as_ref().unwrap().data_file(&third), Some(docs.join("Archive (3).mailcraft")));
+    assert!(docs.join("Archive (2).mailcraft").is_file(), "the earlier copy is left as it was");
     drop(s);
     let _ = std::fs::remove_dir_all(&dir);
 }

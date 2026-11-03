@@ -1540,6 +1540,7 @@ month	May	mei
 	Tasks: {n}	Taken: {n}
 	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	De kopie die MailCraft van dit bestand heeft, staat ernaast, met wat in MailCraft is gewijzigd: {file}
 	The file has changed since MailCraft read it.	Het bestand is gewijzigd sinds MailCraft het heeft gelezen.
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	MailCraft heeft niet bijgehouden wat er eerder uit dit bestand is gekomen, dus de wijzigingen kunnen niet worden ingelezen.
 	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	In de map van dit bestand kan niet worden geschreven: de kopie van MailCraft, ongeveer {size}, komt in {folder}.
 	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft bewaart een eigen kopie naast het bestand, ongeveer {size}, in {folder}. Het bestand zelf wordt nooit gewijzigd.
 	There isn't room for the copy beside the file. Free up space on that drive.	Er is geen ruimte voor de kopie naast het bestand. Maak ruimte vrij op dat station.

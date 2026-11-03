@@ -1541,6 +1541,7 @@ month	May	5月
 	Tasks: {n}	タスク: {n}
 	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	このファイルの MailCraft のコピーはファイルの隣にあり、MailCraft で変更した内容が入っています: {file}
 	The file has changed since MailCraft read it.	MailCraft が読み込んだ後に、このファイルは変更されています。
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	MailCraft はこのファイルから以前に取り込んだ内容を記録していないため、変更を読み込めません。
 	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	このファイルのフォルダーには書き込めません: MailCraft のコピー (約 {size}) は {folder} に置かれます。
 	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft は約 {size} の独自のコピーをファイルの隣 ({folder}) に置きます。ファイル自体が変更されることはありません。
 	There isn't room for the copy beside the file. Free up space on that drive.	ファイルの隣にコピーを置く空き容量がありません。そのドライブの空き容量を増やしてください。

@@ -40,6 +40,10 @@ pub(super) fn is_outlook(path: &str) -> bool {
     lower.ends_with(".pst") || lower.ends_with(".ost")
 }
 
+/// Why a copy with no note of what came in from its file isn't read into again.
+pub(super) const NO_NOTE: &str =
+    "MailCraft has no note of what came in from this file before, so its changes can't be told from what was deleted in MailCraft and aren't read in";
+
 /// Whether an id read from a file can be an account's: as MailCraft gives them.
 fn usable_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
@@ -55,14 +59,17 @@ impl Session {
         self.store.as_ref().and_then(|s| s.copy_beside(Path::new(path))).and_then(|b| b.found)
     }
 
-    /// `account`'s data file is MailCraft's copy beside the Outlook file at `path`; one that can't
-    /// go there goes with the other data files, and the user is told where. The copy found there,
-    /// when there is one.
-    pub(super) fn place_copy(&mut self, account: &str, path: &str) -> Option<Found> {
+    /// `account`'s data file is MailCraft's copy beside the Outlook file at `path` (a new one when
+    /// `fresh`, another copy of a file open already); one that can't go there goes with the other
+    /// data files, and the user is told where. The copy found there, when there is one.
+    pub(super) fn place_copy(&mut self, account: &str, path: &str, fresh: bool) -> Option<Found> {
         if !is_outlook(path) {
             return None;
         }
-        let beside = self.store.as_ref().and_then(|s| s.place_beside(account, Path::new(path)))?;
+        let place = |s: &mailcraft_store::Store| {
+            if fresh { s.place_new_beside(account, Path::new(path)) } else { s.place_beside(account, Path::new(path)) }
+        };
+        let beside = self.store.as_ref().and_then(place)?;
         if beside.elsewhere {
             let file = file_name(path);
             let folder = beside.path.display().to_string();
@@ -136,12 +143,22 @@ impl Session {
         Ok(serde_json::json!({ "account": id, "importing": importing, "reopened": true, "dataFile": copy }))
     }
 
+    /// Whether what's new in `account`'s data file can be read into it: its copy notes what came
+    /// in from the file before (one opened before MailCraft noted it doesn't, and what's new in
+    /// the file couldn't be told from what was deleted here).
+    pub fn can_read_changes(&self, account: &str) -> bool {
+        self.store.as_ref().is_some_and(|s| s.has_seen(account))
+    }
+
     /// Read the Outlook file at `path` again into `account`, the account keeping its copy: what
     /// it has new is added. Not while the account imports, is compacted, or isn't one opened
-    /// from a data file.
+    /// from a data file, nor when its copy has no note of what came in before.
     pub(super) fn reread(&mut self, account: &str, path: &str) -> CmdResult {
         if !self.account(account).is_some_and(AccountState::is_data_file) {
             return Err(CmdError::Params(format!("`{account}` isn't a data file opened here")));
+        }
+        if !self.can_read_changes(account) {
+            return Err(CmdError::Failed(format!("{NO_NOTE}: import another copy of it to see them")));
         }
         self.compaction_holds_import(account)?;
         self.import_holds(account)?;

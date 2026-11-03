@@ -1545,6 +1545,7 @@ month	May	Mai
 	Tasks: {n}	Aufgaben: {n}
 	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	Die Kopie von MailCraft liegt neben dieser Datei, mit allem, was in MailCraft geändert wurde: {file}
 	The file has changed since MailCraft read it.	Die Datei hat sich geändert, seit MailCraft sie gelesen hat.
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	MailCraft hat nicht festgehalten, was zuvor aus dieser Datei übernommen wurde, daher können ihre Änderungen nicht eingelesen werden.
 	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	In den Ordner dieser Datei kann nicht geschrieben werden: Die Kopie von MailCraft, etwa {size}, kommt nach {folder}.
 	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft legt eine eigene Kopie neben der Datei an, etwa {size}, in {folder}. Die Datei selbst wird nie geändert.
 	There isn't room for the copy beside the file. Free up space on that drive.	Neben der Datei ist nicht genug Platz für die Kopie. Geben Sie auf diesem Laufwerk Speicherplatz frei.

@@ -553,6 +553,7 @@ fn an_outlook_files_copy_is_beside_it_and_found_again() {
         elsewhere,
         copy: copy.into(),
         copy_changed: changed,
+        copy_rereadable: true,
         ..Default::default()
     };
     let show = |a: &mut MailApp, f: DataFileFacts| {
@@ -571,5 +572,9 @@ fn an_outlook_files_copy_is_beside_it_and_found_again() {
     let texts = show(&mut a, facts("D:/Mail/Old.mailcraft", true, false));
     assert!(has(&texts, "The file has changed since MailCraft read it."), "{texts:?}");
     assert!(has(&texts, "Read the changes in") && has(&texts, "Open as it was"), "{texts:?}");
+    // A copy with no note of what came in from the file: opened as it was only.
+    let texts = show(&mut a, DataFileFacts { copy_rereadable: false, ..facts("D:/Mail/Old.mailcraft", true, false) });
+    assert!(has(&texts, "its changes can't be read in") && has(&texts, "Open as it was"), "{texts:?}");
+    assert!(!has(&texts, "Read the changes in"), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }

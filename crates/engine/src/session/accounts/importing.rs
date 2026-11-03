@@ -14,6 +14,7 @@ mod note;
 mod stopping;
 
 pub use beside::Changes;
+use beside::NO_NOTE;
 
 /// Where each account's mail came from, and how far its import got (beside `rules.json`).
 pub(crate) const IMPORTS_DOC: &str = "imports.json";
@@ -69,6 +70,9 @@ pub struct ImportState {
     pub planned: Vec<PlannedFolder>,
     /// The file read again into the account's copy of it (`beside.rs`), not imported.
     pub rereading: bool,
+    /// An import gone on with (resumed): what came in before is the account's, and stays
+    /// whatever becomes of this run.
+    pub resumed: bool,
     /// Events applied since the removal was asked for.
     waited: u32,
 }
@@ -310,7 +314,7 @@ impl Session {
         }
         self.importing.sources.insert(account.to_string(), row);
         self.save_imports();
-        let state = ImportState { file: file_name(path), path: path.to_string(), live: true, ..ImportState::default() };
+        let state = ImportState { file: file_name(path), path: path.to_string(), live: true, resumed: resume, ..ImportState::default() };
         self.importing.running.insert(account.to_string(), state);
         if let Some(a) = self.account_mut(account) {
             a.status = SyncStatus::Syncing { folder: String::new() };
@@ -341,16 +345,20 @@ impl Session {
             let name = self.account(&a).map(|x| x.config.name.clone()).unwrap_or_default();
             return Err(CmdError::Params(format!("this data file is already open as {name} ({a}); pass again: true to import another copy")));
         }
-        let found = self.copy_found(path);
+        // Another copy is one of its own: a copy found beside the file isn't gone on with.
+        let found = if again { None } else { self.copy_found(path) };
         if found.as_ref().is_some_and(|f| f.changed) && changes.is_none() {
             return Err(CmdError::Params(
                 "the file has changed since MailCraft's copy beside it was read: pass changes: \"read\" to read what's new into the copy, or \"keep\" to open the copy as it was".into(),
             ));
         }
+        if changes == Some(Changes::Read) && found.as_ref().is_some_and(|f| f.changed && !f.seen) {
+            return Err(CmdError::Params(format!("{NO_NOTE}: pass changes: \"keep\" to open the copy as it was")));
+        }
         let id = found.as_ref().map_or_else(|| self.new_account_id(), |f| self.id_for_copy(f));
         self.data_file_account(&id, path);
         // Its copy beside the file: the one found there, gone on with, or one the import makes.
-        if let Some(found) = self.place_copy(&id, path) {
+        if let Some(found) = self.place_copy(&id, path, again) {
             return self.open_copy(&id, path, &found, changes);
         }
         self.queue_import(&id, path, false);
@@ -555,7 +563,15 @@ impl Session {
                 return;
             }
         }
+        let resumed = self.importing.running.get(account).is_some_and(|s| s.resumed);
         match error {
+            Some(e) if !came_in && resumed => {
+                // Gone on with, nothing more came in: what came in before stays (in a copy
+                // beside an Outlook file, with what was changed in MailCraft), and the import
+                // waits to go on or be kept as it is.
+                self.import_waits(account);
+                self.notice(format!("{name}: importing couldn't go on: {e}. What was imported stays, and it can go on later"), true);
+            }
             Some(e) if !came_in => {
                 // Nothing came in: the account goes again, and the file it was starting.
                 let _ = self.drop_account(account, Leaves::Nothing);
@@ -607,17 +623,24 @@ impl Session {
     /// Stopped as asked: what came in stays, the folder it was part-way through too, and the
     /// import waits to go on or to be kept as it is (a POP account's connection with it).
     fn import_cancelled(&mut self, account: &str, name: &str, messages: usize, report: Option<&ImportReport>) {
+        if let Some(row) = self.importing.sources.get_mut(account) {
+            row.report = report.cloned();
+        }
+        self.import_waits(account);
+        self.notice(format!("{name}: importing stopped with {messages} messages imported; it can go on later"), false);
+    }
+
+    /// The import stops where it got to, and waits to go on or to be kept as it is.
+    fn import_waits(&mut self, account: &str) {
         if let Some(st) = self.importing.running.get_mut(account) {
             st.stopping = None;
             st.progress.phase = ImportPhase::Paused;
         }
         if let Some(row) = self.importing.sources.get_mut(account) {
             row.stage = ImportStage::Stopped;
-            row.report = report.cloned();
             self.save_imports();
         }
         self.load_imported_pim(account);
-        self.notice(format!("{name}: importing stopped with {messages} messages imported; it can go on later"), false);
     }
 
     /// The data file's contacts and calendar, written next to its mail.

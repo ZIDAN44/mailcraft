@@ -93,7 +93,7 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
     ui.add_space(4.0);
     let mut can_import = false;
     // MailCraft's copy beside the file from before, and whether the file changed since.
-    let (mut copy, mut changed) = (false, false);
+    let (mut copy, mut changed, mut rereadable) = (false, false, false);
     match s.data_file_facts(path) {
         None => {
             // Not looked at (or forgotten since): asked for, once.
@@ -115,12 +115,19 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
             let items = f.messages.saturating_add(f.pim_items);
             say(ui, tf!("{items} items in {folders} folders", items = items, folders = f.folders), t.text);
             let outlook = f.kind.starts_with("pst");
-            (copy, changed) = (!f.copy.is_empty(), f.copy_changed);
+            (copy, changed, rereadable) = (!f.copy.is_empty(), f.copy_changed, f.copy_rereadable);
             let about = widgets::human_bytes(f.estimate);
             if copy {
                 say(ui, tf!("MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}", file = f.copy), t.dim);
                 if changed {
                     say(ui, tl!("The file has changed since MailCraft read it.").to_string(), t.warn);
+                    if !rereadable {
+                        say(
+                            ui,
+                            tl!("MailCraft has no note of what came in from this file before, so its changes can't be read in.").to_string(),
+                            t.dim,
+                        );
+                    }
                 }
             } else if f.estimate > 0 && !f.destination.is_empty() {
                 let words = if outlook && f.elsewhere {
@@ -167,8 +174,14 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
             .data_file_facts(path)
             .zip(s.data_source(&other))
             .is_some_and(|(f, r)| f.error.is_none() && f.kind.starts_with("pst") && r.size > 0 && (f.size, f.modified) != (r.size, r.modified));
+        // Its copy notes what came in from the file before: what's new can be told from what was
+        // deleted here.
+        let rereadable = stale && s.can_read_changes(&other);
         if stale {
             say(ui, tl!("The file has changed since MailCraft read it.").to_string(), t.warn);
+            if !rereadable {
+                say(ui, tl!("MailCraft has no note of what came in from this file before, so its changes can't be read in.").to_string(), t.dim);
+            }
         }
         let mut keep = true;
         ui.add_space(6.0);
@@ -180,7 +193,7 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
                 acts.push(Action::ImportDataFile { path: path.to_string(), again: true, changes: None });
                 keep = false;
             }
-            if stale && s.import_state(&other).is_none() && ui.button(tl!("Read the changes in")).clicked() {
+            if rereadable && s.import_state(&other).is_none() && ui.button(tl!("Read the changes in")).clicked() {
                 acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read") });
                 keep = false;
             }
@@ -209,7 +222,7 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
                 acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("keep") });
                 keep = false;
             }
-            if ui.add_enabled(can_import, egui::Button::new(tl!("Read the changes in"))).clicked() {
+            if rereadable && ui.add_enabled(can_import, egui::Button::new(tl!("Read the changes in"))).clicked() {
                 acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read") });
                 keep = false;
             }

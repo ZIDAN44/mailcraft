@@ -44,6 +44,7 @@ impl Pool {
                 if let Some(f) = found {
                     facts.copy = b.path.to_string_lossy().into_owned();
                     facts.copy_changed = f.changed;
+                    facts.copy_rereadable = f.seen;
                     // A copy whole and up to date is opened as it is: nothing to write.
                     if !f.changed && f.state == "done" {
                         (facts.estimate, facts.need) = (0, 0);
