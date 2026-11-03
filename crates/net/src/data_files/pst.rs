@@ -82,8 +82,12 @@ const MAX_CHARGE: u64 = 128 * 1024 * 1024;
 pub(crate) const MAX_VALUE: u64 = 256 * 1024 * 1024;
 /// Original headers longer than this are not kept.
 const MAX_HEADERS: usize = 256 * 1024;
-/// Embedded messages inside embedded messages… stop here.
-const MAX_NESTING: usize = 3;
+/// Attached messages inside attached messages… stop here: a guard against a damaged or hostile
+/// file, which no real one comes near (the whole item is bounded besides, by `embedded`'s
+/// `MAX_NODES` and [`MAX_ITEM_BYTES`]). Each level is an `.eml` inside the one holding it, sent
+/// as it is (7bit or 8bit), which mail-parser reads without recursing; opened, each is read on
+/// its own.
+const MAX_NESTING: usize = 32;
 /// The files of one item, its attached messages' included, come to at most this; files past it
 /// are left out.
 pub(crate) const MAX_ITEM_BYTES: usize = 128 * 1024 * 1024;

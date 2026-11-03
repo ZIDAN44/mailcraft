@@ -1,5 +1,6 @@
 //! An item's attachments with the messages attached to it, and theirs in turn: each attached
-//! message comes in as an attached `.eml` with its own files, down to [`MAX_NESTING`] levels.
+//! message comes in as an attached `.eml` with its own files, down to [`MAX_NESTING`] levels
+//! (a deeper one is counted as too deep, unread: no real file nests so far).
 //! What a damaged file can make of this is bounded for the whole item: at most [`MAX_NODES`]
 //! attachments of attached messages are read, the files kept (an attached message's text
 //! counted with them) come to at most [`MAX_ITEM_BYTES`], and an attached message that is one of the messages holding it (its

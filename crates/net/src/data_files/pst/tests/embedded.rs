@@ -1,5 +1,5 @@
 //! An item's attached messages, read through the same seam as the file's (`Holder`) from
-//! messages made up here: each comes in with its own files, down to three levels, and a layout a
+//! messages made up here: each comes in with its own files, down to 32 levels, and a layout a
 //! damaged file can make (a message attached to itself, one attached a thousand times over, files
 //! of more than an item holds) is read once, within its limits.
 
@@ -7,6 +7,7 @@ use std::cell::Cell;
 
 use super::super::embedded::{Holder, MAX_NODES, Part, Walk, item_in, item_with_files};
 use super::super::item::{File, Got, Item, from_row, item_of};
+use super::super::rebuild::to_raw;
 use super::*;
 
 /// One of a made-up message's attachments: a file of so many bytes, or the message at that
@@ -122,21 +123,87 @@ fn an_attached_message_comes_in_with_its_own_files() {
     assert!(it.left_out.is_empty());
 }
 
-/// Three levels of attached messages come in; a fourth is counted as too deep, unread.
+/// A chain of `n` messages, each holding a file of one byte and the next: subjects `m0`, `m1`…,
+/// each with a search key of its own.
+fn chain(n: usize) -> Vec<Node> {
+    (0..n)
+        .map(|i| {
+            let parts = if i + 1 < n { vec![Fake::File(1), Fake::Message(i + 1)] } else { vec![Fake::File(1)] };
+            let name: &'static str = Box::leak(format!("m{i}").into_boxed_str());
+            node(name, Some(name.as_bytes()), parts)
+        })
+        .collect()
+}
+
+/// The shape a chain read `levels` messages deep has: `m0[f1, m1[f1, …]]`.
+fn chain_shape(levels: usize) -> String {
+    let mut s = String::new();
+    for i in (0..levels).rev() {
+        s = if s.is_empty() { format!("m{i}[f1]") } else { format!("m{i}[f1, {s}]") };
+    }
+    s
+}
+
+/// Attached messages six deep come in whole; forty deep, the item and 32 levels of attached
+/// messages do, and the 33rd is counted as too deep, unread (its own attachments with it).
 #[test]
-fn attached_messages_stop_three_levels_down() {
-    use Fake::{File as F, Message as M};
-    let layout = [
-        node("A", Some(b"a"), vec![M(1)]),
-        node("B", Some(b"b"), vec![M(2)]),
-        node("C", Some(b"c"), vec![M(3)]),
-        node("D", Some(b"d"), vec![F(1), M(4)]),
-        node("E", Some(b"e"), vec![F(1)]),
-    ];
-    let (shape, left, reads) = read(&layout, &mut Walk::new());
-    assert_eq!(shape, "A[B[C[D[f1]]]]");
+fn attached_messages_stop_thirty_two_levels_down() {
+    let six = chain(6);
+    let (shape, left, reads) = read(&six, &mut Walk::new());
+    assert_eq!(shape, chain_shape(6));
+    assert!(left.is_empty(), "{left:?}");
+    assert_eq!(reads, 11);
+    let forty = chain(40);
+    let (shape, left, reads) = read(&forty, &mut Walk::new());
+    assert_eq!(shape, chain_shape(MAX_NESTING + 1));
     assert_eq!(left, [(SkipReason::EmbeddedTooDeep, 1)]);
-    assert_eq!(reads, 5, "E's own attachment isn't read");
+    assert_eq!(reads, 2 * (MAX_NESTING + 1), "the 34th message's attachments aren't read");
+}
+
+/// The message rebuilt from a chain forty deep holds an attached `.eml` in each `.eml`, as deep
+/// as the chain came in, each parsed and opened on its own as the reading pane opens one; its
+/// files are all there, and the rebuild is the same as from the item.
+#[test]
+fn a_deep_chain_rebuilds_and_opens_level_by_level() {
+    let forty = chain(40);
+    let reads = Cell::new(0);
+    let it = item_with_files(&At { layout: &forty, at: 0, reads: &reads });
+    let raw = to_raw(it, "deep@x.invalid").unwrap();
+    // Search reads the text of four of them (`index_text`'s depth, counting each one's multipart).
+    let words = mailcraft_mime::index_doc(&raw).joined();
+    assert!(words.contains("m4.eml") && !words.contains("m5"), "{words}");
+    let mut level = raw;
+    let mut depth = 0;
+    loop {
+        let p = mailcraft_mime::parse(&level).expect("each level parses");
+        assert_eq!(p.subject, format!("m{depth}"));
+        let names: Vec<&str> = p.attachments.iter().map(|a| a.name.as_str()).collect();
+        let Some(inner) = p.attachments.iter().find(|a| a.mime == "message/rfc822") else {
+            assert_eq!(names, ["f1"]);
+            break;
+        };
+        assert_eq!(names, ["f1".to_string(), format!("m{}.eml", depth + 1)]);
+        level = mailcraft_mime::attachment_data(&level, inner.index).expect("its bytes");
+        depth += 1;
+    }
+    assert_eq!(depth, MAX_NESTING);
+}
+
+/// The rebuild stops at the reader's depth whatever item it's handed: an item made deeper than
+/// the reader makes them keeps [`MAX_NESTING`] levels, and its recursion stays bounded.
+#[test]
+fn the_rebuild_stops_at_the_reader_s_depth() {
+    let mut it = Item { subject: "bottom".into(), ..Default::default() };
+    for i in 0..100 {
+        it = Item { subject: format!("l{i}"), files: vec![File::Message(Box::new(it))], ..Default::default() };
+    }
+    let mut level = to_raw(it, "deeper@x.invalid").unwrap();
+    let mut depth = 0;
+    while let Some(inner) = mailcraft_mime::parse(&level).unwrap().attachments.into_iter().find(|a| a.mime == "message/rfc822") {
+        level = mailcraft_mime::attachment_data(&level, inner.index).unwrap();
+        depth += 1;
+    }
+    assert_eq!(depth, MAX_NESTING);
 }
 
 /// A message attached to itself, or to the message it is attached to, is read once: met again on
@@ -153,9 +220,10 @@ fn a_message_attached_to_itself_is_read_once() {
     let twice = [node("A", Some(b"a"), vec![M(1), M(1)]), node("B", Some(b"b"), vec![F(1)])];
     assert_eq!(read(&twice, &mut Walk::new()).0, "A[B[f1], B[f1]]");
     let keyless = [node("A", None, vec![F(1), M(0)])];
-    let (shape, left, _) = read(&keyless, &mut Walk::new());
-    assert_eq!(shape, "A[f1, A[f1, A[f1, A[f1]]]]");
+    let (shape, left, reads) = read(&keyless, &mut Walk::new());
+    assert_eq!(shape, format!("{}A[f1]{}", "A[f1, ".repeat(MAX_NESTING), "]".repeat(MAX_NESTING)));
     assert_eq!(left, [(SkipReason::EmbeddedTooDeep, 1)]);
+    assert_eq!(reads, 2 * (MAX_NESTING + 1));
 }
 
 /// Attached messages that attach the same message over and over (ten of ten of ten…) read at

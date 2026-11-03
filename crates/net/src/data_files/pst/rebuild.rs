@@ -14,9 +14,14 @@ pub(super) struct Glance {
 }
 
 /// The item as a standard message.
-pub(super) fn to_raw(mut it: Item, fallback_id: &str) -> Result<Vec<u8>, String> {
+pub(super) fn to_raw(it: Item, fallback_id: &str) -> Result<Vec<u8>, String> {
+    attached_raw(it, fallback_id, 0)
+}
+
+/// [`to_raw`] for a message `depth` attached messages down from the item.
+fn attached_raw(mut it: Item, fallback_id: &str, depth: usize) -> Result<Vec<u8>, String> {
     let text = take_text(&mut it);
-    Ok(build(it, text, fallback_id)?.0)
+    Ok(build(it, text, fallback_id, depth)?.0)
 }
 
 /// The item as a standard message, and what its summary takes from the item (whether the message
@@ -28,7 +33,7 @@ pub(super) fn message(mut it: Item, fallback_id: &str) -> Result<(Vec<u8>, Glanc
     let text = take_text(&mut it);
     let mut glance =
         Glance { flags: std::mem::take(&mut it.flags), date: it.date, received: it.received, has_files: false, preview: mime::preview(&text) };
-    let (raw, files) = build(it, text, fallback_id)?;
+    let (raw, files) = build(it, text, fallback_id, 0)?;
     glance.has_files = files;
     Ok((raw, glance))
 }
@@ -44,8 +49,9 @@ fn take_text(it: &mut Item) -> String {
 
 /// The message, from an item whose text is `text`. The item's parts move into the message: its
 /// files are not copied, and are let go of once the message is written. With it, whether the
-/// message carries a file.
-fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool), String> {
+/// message carries a file. `depth`: attached messages down from the item; the reader stops at
+/// [`MAX_NESTING`], and so does this, whatever item it's handed, so its recursion stays bounded.
+fn build(mut it: Item, text: String, fallback_id: &str, depth: usize) -> Result<(Vec<u8>, bool), String> {
     // An S/MIME item's content, kept aside to go back in once its header fields are made.
     let protected = super::protected::kind(&it.class).and_then(|kind| Some((kind, super::protected::content(&it.files)?.to_vec())));
     // A meeting request's, cancellation's or answer's calendar, unless it carries one already.
@@ -84,9 +90,10 @@ fn build(mut it: Item, text: String, fallback_id: &str) -> Result<(Vec<u8>, bool
                     d.attachments.push(OutAttachment { name, mime, data, content_id: cid.to_string() });
                 }
             }
+            File::Message(_) if depth >= MAX_NESTING => log::info!("an attached message deeper than {MAX_NESTING} was left out"),
             File::Message(inner) => {
                 let subject = if inner.subject.trim().is_empty() { "message".to_string() } else { inner.subject.trim().to_string() };
-                let raw = to_raw(*inner, &format!("{fallback_id}.1"))?;
+                let raw = attached_raw(*inner, &format!("{fallback_id}.1"), depth.saturating_add(1))?;
                 d.attachments.push(OutAttachment { name: format!("{subject}.eml"), mime: "message/rfc822".into(), data: raw, ..Default::default() });
             }
         }

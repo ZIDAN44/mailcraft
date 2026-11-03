@@ -5,7 +5,8 @@
 use mailcraft_model::Summary;
 use serde::Serialize;
 
-/// Attached messages are followed this deep (the import brings in three levels).
+/// Attached messages are counted this deep (the import brings in up to 32 levels; no real file
+/// measured nests past three).
 const LEVELS: usize = 4;
 
 /// The counts, over every message read back.
