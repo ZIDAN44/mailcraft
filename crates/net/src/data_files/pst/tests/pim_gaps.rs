@@ -467,3 +467,51 @@ fn a_data_files_tasks_come_in() {
     drop(store);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A file the writer made with a contact in the Inbox and a contact, an appointment, a task and a
+/// note in Deleted Items: the Inbox's comes in to the address book; what was thrown away doesn't
+/// come back to the address book, calendar, tasks or notes, and is counted; the mail beside it
+/// comes in.
+#[test]
+fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
+    use pst_rw::{UnicodePstFile as Writer, UnicodePstMessage};
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-trash-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let pst = dir.join("trash.pst");
+    fn message<'a>(subject: &'a str, id: &'a str, class: &'a str) -> UnicodePstMessage<'a> {
+        UnicodePstMessage {
+            subject,
+            sender_name: "Riley",
+            sender_email: "riley@studio.example",
+            recipients: &[],
+            body: "Notes",
+            html_body: None,
+            message_id: id,
+            delivery_time: (1_700_000_000 + 11_644_473_600) * 10_000_000,
+            message_class: class,
+            properties: &[],
+        }
+    }
+    Writer::create_in_folder_with_attachments(&pst, &["Inbox"], &message("Hello", "<m1@studio.example>", "IPM.Note"), &[]).unwrap();
+    drop(Writer::append_in_folder(&pst, &["Inbox"], &message("Ana Lima", "<c1@studio.example>", "IPM.Contact")).unwrap());
+    let thrown = [
+        ("Bea Costa", "<c2@studio.example>", "IPM.Contact"),
+        ("Stage call", "<a1@studio.example>", "IPM.Appointment"),
+        ("Book the stage", "<t1@studio.example>", "IPM.Task"),
+        ("Door code", "<n1@studio.example>", "IPM.StickyNote"),
+        ("Old news", "<m2@studio.example>", "IPM.Note"),
+    ];
+    for (subject, id, class) in thrown {
+        drop(Writer::append_in_folder(&pst, &["Deleted Items"], &message(subject, id, class)).unwrap());
+    }
+    let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
+    let done = super::super::import(&pst, &store, "t1", &mut |_| {}).unwrap();
+    assert_eq!((done.messages, done.contacts, done.events, done.tasks, done.notes), (2, 1, 0, 0, 0), "{done:?}");
+    assert_eq!(done.skips.get(&SkipReason::ItemNotUsable), Some(&4), "{done:?}");
+    let pim: Pim = store.load_account_doc("t1", PIM_DOC).unwrap();
+    assert_eq!(pim.cards.len(), 1);
+    assert!(pim.events.is_empty() && pim.tasks.is_empty() && pim.notes.is_empty());
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
+}

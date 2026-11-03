@@ -281,6 +281,7 @@ fn made(items: &[Item], sent: Option<&Arc<SentIds>>) -> Vec<(Vec<u8>, Option<(u6
         charge: 1,
         folder: 0,
         pim: false,
+        trash: false,
         folder_node: 9,
         row: n as u64,
         sent: sent.cloned(),

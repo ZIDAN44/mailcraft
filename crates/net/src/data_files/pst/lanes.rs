@@ -32,6 +32,8 @@ pub(super) struct Job {
     /// node and the item's row in it (from 0), where a checkpoint notes it.
     pub(super) folder: usize,
     pub(super) pim: bool,
+    /// In Deleted Items or a folder under it (`PlanFolder::trash`).
+    pub(super) trash: bool,
     pub(super) folder_node: u32,
     pub(super) row: u64,
     /// In the Sent Items folder, read last: the replies read before it, which give its items
@@ -313,8 +315,8 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
     #[cfg(test)]
     tests::touch(ctx, job, &mut it);
     // A contact, calendar item, task, note or journal entry in a mail folder goes where one in a
-    // folder of its own does.
-    let pim = job.pim || is_pim(&it.class);
+    // folder of its own does; one in Deleted Items was thrown away, and is only counted.
+    let pim = job.pim || (!job.trash && is_pim(&it.class));
     if !pim && !is_mail(&it.class) {
         return Outcome::NotMail;
     }

@@ -46,6 +46,9 @@ pub(super) struct PlanFolder {
     pub(super) kind: Kind,
     pub(super) rows: u64,
     pub(super) bytes: u64,
+    /// The file's Deleted Items folder, or one under it: a contact, calendar item, task or note
+    /// there was thrown away, and stays out of the address book, calendar, tasks and notes.
+    pub(super) trash: bool,
 }
 
 #[derive(Default)]
@@ -134,8 +137,8 @@ pub(super) fn plan(store: &dyn PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
     let top = store.properties().ipm_sub_tree_entry_id().and_then(|e| store.open_folder(&e))?;
     let mut plan = Plan { record_key: record_key(store), ..Plan::default() };
     let mut guard = Guard::default();
-    let outbox = special_folder(store, 0x35E2);
-    visit(store, &*top, None, 0, outbox, &mut guard, &mut plan, ctx);
+    let special = Special { outbox: special_folder(store, 0x35E2), wastebasket: special_folder(store, 0x35E3) };
+    visit(store, &*top, (None, false), 0, &special, &mut guard, &mut plan, ctx);
     plan.sent = special_folder(store, 0x35E4);
     // A test's file has no Sent Items folder of its own: one is named.
     #[cfg(test)]
@@ -155,13 +158,21 @@ struct Looked {
     name: String,
 }
 
+/// The store's special folders the plan treats as such: the Outbox and Deleted Items.
+struct Special {
+    outbox: Option<u32>,
+    wastebasket: Option<u32>,
+}
+
+/// Plan the folders under `folder`: they go under `parent` (`.0`), and are thrown away (`.1`)
+/// when it's Deleted Items or under it.
 #[allow(clippy::too_many_arguments)]
 fn visit(
     store: &dyn PstStore,
     folder: &dyn PstFolder,
-    parent: Option<usize>,
+    (parent, trash): (Option<usize>, bool),
     depth: usize,
-    outbox: Option<u32>,
+    special: &Special,
     guard: &mut Guard,
     plan: &mut Plan,
     ctx: &Ctx<'_>,
@@ -212,11 +223,12 @@ fn visit(
             }
         };
         // Outlook's own Outbox, when it has nothing waiting (MailCraft has an Outbox of its own).
-        if rows == 0 && outbox == Some(node) {
+        if rows == 0 && special.outbox == Some(node) {
             continue;
         }
         let index = plan.folders.len();
-        plan.folders.push(PlanFolder { node, parent, name, kind, rows, bytes });
+        let trash = trash || special.wastebasket == Some(node);
+        plan.folders.push(PlanFolder { node, parent, name, kind, rows, bytes, trash });
         if kind != Kind::LeftOut {
             plan.items = plan.items.saturating_add(rows);
             plan.bytes = plan.bytes.saturating_add(bytes);
@@ -228,7 +240,7 @@ fn visit(
         // The folders under a mail folder go in it; those under any other, beside it (mail
         // comes in, and ones of its kind are read too).
         let under = if kind == Kind::Mail { Some(index) } else { parent };
-        visit(store, &*sub, under, depth + 1, outbox, guard, plan, ctx);
+        visit(store, &*sub, (under, trash), depth + 1, special, guard, plan, ctx);
     }
 }
 
@@ -304,12 +316,13 @@ impl Feed {
     /// Hand a job to the lanes (`sent`: one of the Sent Items folder, with the replies read
     /// before it), waiting while they have [`JOBS`] waiting already; false once they're gone, or
     /// the import is stopping (`stopped`).
-    fn job(&mut self, node: u32, size: u64, at: (usize, u32, u64), pim: bool, sent: Option<&Arc<SentIds>>, stopped: &dyn Fn() -> bool) -> bool {
+    fn job(&mut self, node: u32, size: u64, at: (usize, &PlanFolder, u64), sent: Option<&Arc<SentIds>>, stopped: &dyn Fn() -> bool) -> bool {
         let seq = self.seq;
         self.seq = self.seq.saturating_add(1);
         let charge = budget::charge_for(i64::try_from(size).ok().filter(|s| *s > 0));
-        let (folder, folder_node, row) = at;
-        let mut job = Job { seq, node, size, charge, folder, pim, folder_node, row, sent: sent.cloned() };
+        let (folder, f, row) = at;
+        let (pim, trash, folder_node) = (f.kind == Kind::Pim, f.trash, f.node);
+        let mut job = Job { seq, node, size, charge, folder, pim, trash, folder_node, row, sent: sent.cloned() };
         loop {
             match self.jobs.try_send(job) {
                 Ok(()) => return true,
@@ -449,7 +462,7 @@ fn folder(store: &dyn PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, c
                         _ => size,
                     };
                     feed.handed += 1;
-                    if !feed.job(node, size, (index, f.node, row), f.kind == Kind::Pim, sent, &stopped) {
+                    if !feed.job(node, size, (index, f, row), sent, &stopped) {
                         return false;
                     }
                 }
@@ -477,7 +490,8 @@ fn record_key(store: &dyn PstStore) -> String {
     }
 }
 
-/// The node of one of the store's special folders (`0x35E2`: the Outbox, `0x35E4`: Sent Items),
+/// The node of one of the store's special folders (`0x35E2`: the Outbox, `0x35E3`: Deleted
+/// Items, `0x35E4`: Sent Items),
 /// from its entry id (flags, the store's 16-byte key, then the node id).
 fn special_folder(store: &dyn PstStore, prop: u16) -> Option<u32> {
     let (_, v) = store.properties().iter().find(|(id, _)| **id == prop)?;
