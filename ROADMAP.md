@@ -227,7 +227,7 @@ local-first, media-aware v1); the fuller request is
    mail as Outlook's meeting items: nothing beside it; attached messages go in as messages,
    signed and encrypted mail and reports as Outlook keeps them, and files of any size; a `.pst`
    in Outlook 97–2002's ANSI format is added to as well, an item changed since an earlier export
-   into it replacing its earlier copy. A `.pst`
+   into it replacing its earlier copy; pinned mail comes back from one pinned. A `.pst`
    brings in what it still left out: attached messages 32 deep, recalls and sharing invitations,
    contacts filed with mail, the files links point to, RSS feeds, the files on notes, shown in
    the Notes pane, and the day a flagged message is due. A follow-up marked complete stays

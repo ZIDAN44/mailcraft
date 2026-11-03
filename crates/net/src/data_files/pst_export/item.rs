@@ -1,6 +1,6 @@
 //! A message as it goes into the data file: its text, addresses and files from its source, and
 //! what the store keeps of it (read, flagged or its follow-up complete, answered, categories, when
-//! it's due) as the properties Outlook keeps them in.
+//! it's due) as the properties Outlook keeps them in, and its pinning as MailCraft's own.
 
 use super::files::{File, Spill};
 use super::*;
@@ -99,6 +99,9 @@ pub(super) struct State {
     pub(super) done: Option<i64>,
     /// Its categories, by name.
     pub(super) categories: Vec<String>,
+    /// Pinned to the top of its folder (`$Pinned`): Outlook's files have no pin, so it goes in
+    /// as MailCraft's own property (`pst_pim::PINNED`).
+    pub(super) pinned: bool,
 }
 
 /// Unix seconds as 100 ns since 1601 (0 before then).
@@ -134,6 +137,7 @@ pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, days: &Follo
         due,
         done,
         categories,
+        pinned: f.pinned(),
     }
 }
 
@@ -244,7 +248,8 @@ pub(super) fn header_value(head: &str, name: &str) -> Option<String> {
 
 /// What the message is beyond the writer's own list: its read, draft and follow-up state, its
 /// categories (`categories`, the names in `m.state`), how important and private it is, its
-/// header block, what it answers, when it was sent and that its addresses are SMTP ones.
+/// header block, what it answers, when it was sent and that its addresses are SMTP ones; and
+/// whether it is pinned, which only MailCraft reads.
 pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<UnicodePstProperty<'a>> {
     let int = |id, n| UnicodePstProperty::tagged(id, UnicodePstValue::Integer32(n));
     let text = |id, s: &'a str| UnicodePstProperty::tagged(id, UnicodePstValue::Unicode(s));
@@ -304,6 +309,11 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<Uni
     if !categories.is_empty() {
         out.push(UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String("Keywords"), UnicodePstValue::MultipleUnicode(categories)));
     }
+    if st.pinned {
+        // MS-OXPROPS has no pin: a PtypBoolean of MailCraft's, named in PS_PUBLIC_STRINGS as the
+        // PIM items' mark is, which Outlook keeps and ignores.
+        out.push(UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String(crate::pst_pim::PINNED), UnicodePstValue::Boolean(true)));
+    }
     out
 }
 
@@ -344,10 +354,11 @@ mod tests {
     fn state_from_a_summary() {
         let mut s = mailcraft_model::Summary { message_id: "m1@example.com".into(), ..Default::default() };
         s.flags.flagged = true;
-        s.flags.keywords = vec!["to=20do".into(), "$Junk".into(), "$label1".into()];
+        s.flags.keywords = vec!["to=20do".into(), "$Junk".into(), "$label1".into(), "$Pinned".into()];
         let due = FollowUpDays { due: BTreeMap::from([("m1@example.com".to_string(), 1)]), ..Default::default() };
         let st = state(&s, FolderRole::Drafts, &due);
-        assert!(st.draft && st.flagged && !st.read);
+        assert!(st.draft && st.flagged && !st.read && st.pinned);
+        // Pinning is no category.
         assert_eq!(st.categories, ["to do", "$label1"]);
         // Midnight of 1970-01-02.
         assert_eq!(st.due, Some((86_400 + EPOCH_1601) * 10_000_000));
@@ -406,5 +417,28 @@ mod tests {
         let props = properties(&m, &[]);
         assert!(props.iter().any(|p| matches!((p.key, p.value), (Key::Tag(0x1090), UnicodePstValue::Integer32(FLAGGED)))));
         assert!(props.iter().any(|p| matches!(p.key, Key::Tag(0x1095))) && !props.iter().any(|p| matches!(p.key, Key::Tag(0x1091))));
+    }
+
+    /// A pinned message carries MailCraft's pin, a true PtypBoolean named in PS_PUBLIC_STRINGS;
+    /// one that isn't, nothing of it.
+    #[test]
+    fn a_pinned_message_s_properties() {
+        use outlook_pst::UnicodePstPropertyKey as Key;
+        let pin = |props: &[UnicodePstProperty<'_>]| {
+            props
+                .iter()
+                .filter(|p| matches!(&p.key, Key::Named(set, UnicodePstName::String(n)) if set.data1() == PS_PUBLIC_STRINGS.data1() && *n == crate::pst_pim::PINNED))
+                .map(|p| matches!(p.value, UnicodePstValue::Boolean(true)))
+                .collect::<Vec<_>>()
+        };
+        let mut s = mailcraft_model::Summary::default();
+        let message = |s: &mailcraft_model::Summary| {
+            owned(b"Subject: x\r\n\r\nbody", 0, state(s, FolderRole::Inbox, &FollowUpDays::default()), &Default::default(), None).unwrap()
+        };
+        s.flags.set_keyword(mailcraft_model::PINNED, true);
+        assert_eq!(pin(&properties(&message(&s), &[])), [true]);
+        s.flags.set_keyword(mailcraft_model::PINNED, false);
+        let m = message(&s);
+        assert!(pin(&properties(&m, &[])).is_empty());
     }
 }

@@ -66,14 +66,20 @@ fn key(g: &GuidValue) -> GuidKey {
 /// the items it has from MailCraft from changed ones and from its own (`pst_export::pim`).
 pub(crate) const EXPORTED_ITEM: &str = "X-MailCraft-Item";
 
+/// The property (in PS_PUBLIC_STRINGS, a PtypBoolean) an export gives a pinned message: MS-OXPROPS
+/// has no pin (Outlook's files keep none), so it is MailCraft's own, which Outlook ignores and
+/// the import reads back as `$Pinned` (`pst_export::item`).
+pub(crate) const PINNED: &str = "X-MailCraft-Pinned";
+
 /// The data file's named properties: (property set, number) → property id; and those named by a
-/// string that MailCraft reads, the categories (`Keywords` in PS_PUBLIC_STRINGS) and an exported
-/// item's mark ([`EXPORTED_ITEM`]).
+/// string that MailCraft reads, the categories (`Keywords` in PS_PUBLIC_STRINGS), an exported
+/// item's mark ([`EXPORTED_ITEM`]) and a message's pin ([`PINNED`]).
 #[derive(Default)]
 pub(crate) struct Named {
     ids: HashMap<(GuidKey, u32), u16>,
     keywords: Option<u16>,
     exported: Option<u16>,
+    pinned: Option<u16>,
 }
 
 impl Named {
@@ -103,6 +109,7 @@ impl Named {
                 NamedPropertyId::StringOffset(at) if set == key(&PS_PUBLIC_STRINGS) => match name_at(strings, at) {
                     Some(n) if n.eq_ignore_ascii_case("Keywords") => named.keywords = Some(e.prop_id()),
                     Some(n) if n.eq_ignore_ascii_case(EXPORTED_ITEM) => named.exported = Some(e.prop_id()),
+                    Some(n) if n.eq_ignore_ascii_case(PINNED) => named.pinned = Some(e.prop_id()),
                     _ => {}
                 },
                 NamedPropertyId::StringOffset(_) => {}
@@ -136,6 +143,11 @@ impl Named {
     /// The property holding the day a follow-up was marked complete (PidLidTaskDateCompleted).
     pub(crate) fn flag_done(&self) -> Option<u16> {
         self.id(PSETID_TASK, 0x810F)
+    }
+
+    /// The property holding a message's pin ([`PINNED`]).
+    pub(crate) fn pinned(&self) -> Option<u16> {
+        self.pinned
     }
 
     fn id(&self, set: GuidKey, lid: u32) -> Option<u16> {

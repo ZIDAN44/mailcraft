@@ -247,6 +247,10 @@ pub(super) fn item_of<'a>(
     if complete {
         it.done = named.flag_done().and_then(p).and_then(|v| due_day(&v)).or_else(|| p(0x1091).and_then(|v| moment_day(&v)));
     }
+    // Pinned in MailCraft before it went into the file (`pst_pim::PINNED`): Outlook keeps no pin.
+    if matches!(named.pinned().and_then(p), Some(Val::Bool(true))) {
+        it.flags.set_keyword(mailcraft_model::PINNED, true);
+    }
     let headers = super::rebuild::usable_headers(&it.headers);
     for row in recipients {
         let get = |id: u16| row(id).and_then(Val::into_text).unwrap_or_default();

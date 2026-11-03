@@ -581,4 +581,5 @@ mod big;
 mod calendar;
 mod kinds;
 mod pim;
+mod pinned;
 mod replace;
