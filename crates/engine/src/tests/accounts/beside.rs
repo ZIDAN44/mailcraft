@@ -232,7 +232,7 @@ fn on_folder(dir: &Path, app: &str) -> Session {
 }
 
 /// Wait for the copy beside `pst` to be closed by a session dropped (its read marks' thread lets
-/// go of its store a moment later), as seen from `s`.
+/// go of its store a moment later), as seen from `s`. Never seen closed, the test fails here.
 fn closed(s: &Session, pst: &str) {
     for _ in 0..400 {
         if s.store.as_ref().and_then(|st| st.copy_beside(Path::new(pst))).is_some_and(|b| b.found.is_some()) {
@@ -240,6 +240,13 @@ fn closed(s: &Session, pst: &str) {
         }
         std::thread::sleep(std::time::Duration::from_millis(25));
     }
+    panic!("the copy beside {pst} was never seen closed");
+}
+
+/// Whether `e` is the refusal of a copy the data folder at `folder` has.
+fn refused_for(e: &CmdError, folder: &Path) -> bool {
+    let e = e.to_string();
+    e.contains("another MailCraft data folder") && e.contains(&*folder.to_string_lossy())
 }
 
 /// Opened in one data folder, then closed: another data folder (the CLI's, a `--data` run) is
@@ -256,11 +263,17 @@ fn a_copy_another_data_folder_has_is_refused_until_taken_over() {
 
     let mut other = on_folder(&dir, "other");
     closed(&other, &pst);
+    // The window looked at the file before the copy was there: what it knows is put right, so
+    // the Open dialog says who has the copy and offers to take it over.
+    other.data_file_inspected(&pst, Box::new(mailcraft_model::job::DataFileFacts { kind: "pst".into(), ..Default::default() }));
     let refused = other.run("account.importPst", &json!({"path": pst})).unwrap_err();
     let app = dir.join("app").to_string_lossy().into_owned();
-    assert!(refused.to_string().contains("another MailCraft data folder") && refused.to_string().contains(&app), "{refused}");
+    assert!(refused_for(&refused, &dir.join("app")), "{refused}");
     assert!(refused.to_string().contains("takeOver"), "{refused}");
     assert!(other.notices.last().is_some_and(|n| n.error && n.text.contains(&app)), "{:?}", other.notices.last());
+    let facts = other.data_file_facts(&pst).unwrap();
+    assert_eq!(facts.copy_held_by, app);
+    assert_eq!(Path::new(&facts.copy), dir.join("Documents").join("Archive.mailcraft"));
     assert!(other.accounts.is_empty() && other.take_jobs().is_empty(), "nothing opened");
     // Taken over: opened as it was left, and this folder's from now on.
     let opened = other.run("account.importPst", &json!({"path": pst, "takeOver": true})).unwrap();
@@ -278,6 +291,45 @@ fn a_copy_another_data_folder_has_is_refused_until_taken_over() {
     let opened = s.run("account.importPst", &json!({"path": pst})).unwrap();
     assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
     drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Taken over by another data folder, the copy is that folder's: the one that had it never opens
+/// it again (its account there says why), and removing that account leaves the copy the other
+/// folder's, so a third is still refused, told which has it.
+#[test]
+fn a_copy_taken_over_stays_taken_when_the_first_removes_its_account() {
+    let (mut s, dir, pst) = with_file("taken-over");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    imported(&mut s, &id, &pst);
+    drop(s);
+    let mut other = on_folder(&dir, "other");
+    closed(&other, &pst);
+    let opened = other.run("account.importPst", &json!({"path": pst, "takeOver": true})).unwrap();
+    let taken = opened["account"].as_str().unwrap().to_string();
+    drop(other);
+    closed(&on_folder(&dir, "looking"), &pst);
+
+    let copy = dir.join("Documents").join("Archive.mailcraft");
+    let before = std::fs::read(&copy).unwrap();
+    let mut s = on_folder(&dir, "app");
+    assert!(s.account(&id).is_some(), "still listed in the first");
+    let used = s.store.as_ref().unwrap().load_folders(&id).unwrap_err();
+    assert!(used.to_string().contains("another MailCraft data folder"), "{used}");
+    assert!(std::fs::read(&copy).unwrap() == before, "nothing of the copy written by the first");
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    assert!(s.account(&id).is_none());
+    drop(s);
+
+    let mut third = on_folder(&dir, "third");
+    closed(&third, &pst);
+    let refused = third.run("account.importPst", &json!({"path": pst})).unwrap_err();
+    assert!(refused_for(&refused, &dir.join("other")), "the second still has it: {refused}");
+    drop(third);
+    let other = on_folder(&dir, "other");
+    assert_eq!(other.account(&taken).unwrap().folders.len(), 1, "the second's still");
+    drop(other);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -329,7 +381,8 @@ fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
     drop(other);
     let mut third = on_folder(&dir, "third");
     closed(&third, &pst);
-    assert!(third.run("account.importPst", &json!({"path": pst})).is_err(), "the other one has it");
+    let refused = third.run("account.importPst", &json!({"path": pst})).unwrap_err();
+    assert!(refused_for(&refused, &dir.join("other")), "the other one has it: {refused}");
     std::fs::remove_dir_all(dir.join("other")).unwrap();
     let opened = third.run("account.importPst", &json!({"path": pst})).unwrap();
     assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");

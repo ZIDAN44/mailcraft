@@ -66,6 +66,16 @@ impl Session {
     /// another data folder (said in a notice too, for the window).
     pub(super) fn held_elsewhere(&mut self, path: &str, found: &Found) -> CmdError {
         let (file, folder) = (file_name(path), found.owner_path.clone());
+        // What the window knows of the file says so too: it said the copy was free (or wasn't
+        // there) when it looked.
+        let copy = self.store.as_ref().and_then(|s| s.copy_beside(Path::new(path))).map(|b| b.path.to_string_lossy().into_owned());
+        if let Some(f) = self.importing.inspected.iter_mut().rev().find(|(p, _)| p == path).and_then(|(_, f)| f.as_deref_mut()) {
+            f.copy_held_by.clone_from(&folder);
+            (f.copy_changed, f.copy_rereadable) = (found.changed, found.seen);
+            if let Some(copy) = copy {
+                f.copy = copy;
+            }
+        }
         self.notice(format!("{file}: MailCraft's copy beside it is an account in another MailCraft data folder, {folder}"), true);
         CmdError::Params(format!(
             "MailCraft's copy beside this file is an account in another MailCraft data folder ({folder}): open it there, or pass takeOver: true to take it over here"

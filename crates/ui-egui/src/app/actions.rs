@@ -187,6 +187,11 @@ impl MailApp {
             Action::ImportDataFile { path, again, changes, take_over } => {
                 match self.session.run("account.importPst", &json!({"path": path, "again": again, "changes": changes, "takeOver": take_over})) {
                     Ok(_) => self.ui.backstage = None,
+                    // Its copy found held by another data folder since the file was looked at:
+                    // the dialog again, saying so and offering to take it over.
+                    Err(_) if !take_over && !again && self.session.data_file_facts(&path).is_some_and(|f| !f.copy_held_by.is_empty()) => {
+                        self.ui.dialog = Some(Dialog::OpenDataFile { path });
+                    }
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
             }

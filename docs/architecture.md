@@ -396,7 +396,8 @@ written (`Compose`), preferences and status-bar notices.
   account is gone, the copy found there (its import's note read from it read-only:
   `packed/beside.rs`) is gone on with (`accounts/importing/beside.rs`) unless another MailCraft
   data folder still has it (each data folder's id in `datafolder.json`, each data file's owner in
-  its `meta` table, `packed/owner.rs`: refused unless `takeOver`), and a file changed since
+  its `meta` table, `packed/owner.rs`: refused unless `takeOver`; a copy another folder took
+  over is never opened by the one that had it, `Packs::db`), and a file changed since
   is read again into it on request (`Job::RereadDataFile`, `worker/imports/rereading.rs`): read
   into a store of its own beside the data files, then `Store::merge_from` adds what the copy hasn't
   and didn't have from the file before (`import-seen.json`, written as each import ends), nothing
