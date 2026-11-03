@@ -3,7 +3,7 @@
 use proptest::prelude::*;
 
 use super::*;
-use crate::search::fold::AsciiWords;
+use crate::search::fold::{AsciiWords, pieces};
 use proptest::strategy::ValueTree;
 
 /// How [`SummaryText::with_parts`] made a summary's text before: a string for each part, word
@@ -114,6 +114,17 @@ proptest! {
         let ours: Vec<&str> = AsciiWords::new(&text).collect();
         let theirs: Vec<&str> = unicode_segmentation::UnicodeSegmentation::unicode_words(text.as_str()).collect();
         prop_assert_eq!(ours, theirs);
+    }
+
+    /// A text cut into pieces at its ASCII spaces and line ends splits into the words the whole
+    /// does: with what joins a character to a space before it (combining marks, format characters,
+    /// joiners), regional indicators, CJK and line ends around them.
+    #[test]
+    fn pieces_split_into_the_same_words(text in "[a-z0-9:.',_ \r\n\t\x0b\u{a0}\u{301}\u{903}\u{ad}\u{200d}\u{200b}\u{1f1e6}\u{1f600}\u{2019}\u{e9}\u{3000}\u{6771}\u{4eac}\u{30ab}\u{5d0}\u{5f4}\u{85}\u{2028}]{0,40}") {
+        let ours: Vec<&str> = pieces(&text).flat_map(|p| unicode_segmentation::UnicodeSegmentation::unicode_words(p)).collect();
+        let theirs: Vec<&str> = unicode_segmentation::UnicodeSegmentation::unicode_words(text.as_str()).collect();
+        prop_assert_eq!(ours, theirs);
+        prop_assert_eq!(pieces(&text).collect::<String>(), text.clone());
     }
 }
 

@@ -16,6 +16,8 @@ use super::fold_table::FOLD;
 mod ascii;
 
 pub(crate) use ascii::AsciiWords;
+#[cfg(test)]
+pub(crate) use ascii::pieces;
 
 /// Changes whenever what the index keeps of a text's words changes: what was indexed with another
 /// is read again (2: the parts of words joined by `.`, `:`, `'`, `_`; 3: each word's places,
@@ -182,7 +184,14 @@ pub(super) fn fold_all_into(text: &str, start: usize, out: &mut String, pieces: 
     if text.is_ascii() {
         AsciiWords::new(text).for_each(|w| fold_one_into(w, true, start, out, pieces));
     } else {
-        text.unicode_words().for_each(|w| fold_one_into(w, w.is_ascii(), start, out, pieces));
+        // Most of a text that isn't ASCII all through still is, between its spaces.
+        for piece in ascii::pieces(text) {
+            if piece.is_ascii() {
+                AsciiWords::new(piece).for_each(|w| fold_one_into(w, true, start, out, pieces));
+            } else {
+                piece.unicode_words().for_each(|w| fold_one_into(w, w.is_ascii(), start, out, pieces));
+            }
+        }
     }
 }
 
