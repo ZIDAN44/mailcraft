@@ -2,6 +2,7 @@
 //! what the store keeps of it (read, flagged, answered, categories, when it's due) as the
 //! properties Outlook keeps them in.
 
+use super::files::File;
 use super::*;
 use outlook_pst::ltp::prop_context::GuidValue;
 use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
@@ -42,7 +43,10 @@ pub(super) struct Owned {
     /// When it was received (delivery), and its `Date:` (submitted): 100 ns since 1601.
     pub(super) received: i64,
     pub(super) date: i64,
-    pub(super) files: Vec<(String, String, Option<String>, Vec<u8>)>,
+    /// Its files and attached messages ([`super::files`]).
+    pub(super) files: Vec<File>,
+    /// Where its source is in the cache: its files left there are read from it when written.
+    pub(super) key: MessageKey,
     /// Its header block, as it came (`PidTagTransportMessageHeaders`).
     pub(super) headers: String,
     pub(super) in_reply_to: String,
@@ -61,6 +65,17 @@ impl Owned {
     /// Its class (PidTagMessageClass).
     pub(super) fn class(&self) -> &'static str {
         self.meeting.as_ref().map_or("IPM.Note", |m| m.class)
+    }
+
+    /// The bytes it holds until it is written: its text, its files' (not those left in the
+    /// cache) and its attached messages'.
+    pub(super) fn held(&self) -> usize {
+        let files = self.files.iter().map(|f| match f {
+            File::Data { data, .. } => data.len(),
+            File::Stored { .. } => 0,
+            File::Message { message, .. } => message.held(),
+        });
+        [self.body.len(), self.html.as_ref().map_or(0, String::len), self.headers.len()].into_iter().chain(files).fold(0, usize::saturating_add)
     }
 }
 
@@ -111,19 +126,22 @@ pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, due: &BTreeM
 /// The message in `raw`, with `state`; `received` is when it was received (Unix seconds);
 /// `owner`: whose mail it is, for a meeting it carries.
 pub(super) fn owned(raw: &[u8], received: i64, state: State, owner: &super::calendar::Owner) -> Option<Owned> {
+    owned_in(raw, received, state, owner, &[])
+}
+
+/// [`owned`] for a message attached `path.len()` deep (`path`: the index of each attached
+/// message down to it among its holder's attachments, empty for the message itself). An
+/// attached message carries no meeting's properties: Outlook takes a meeting from a message it
+/// received, not from one attached to it.
+pub(super) fn owned_in(raw: &[u8], received: i64, state: State, owner: &super::calendar::Owner, path: &[usize]) -> Option<Owned> {
     let p = mime::parse(raw)?;
     let mut recipients = Vec::new();
     for (list, kind) in [(&p.to, UnicodePstRecipientType::To), (&p.cc, UnicodePstRecipientType::Cc), (&p.bcc, UnicodePstRecipientType::Bcc)] {
         recipients.extend(list.iter().filter(|a| !a.email.is_empty()).map(|a| (a.name.clone(), a.email.clone(), kind)));
     }
-    let files = p
-        .attachments
-        .iter()
-        .filter(|a| a.size <= MAX_ATTACHMENT)
-        .filter_map(|a| Some((a.name.clone(), a.mime.clone(), a.content_id.clone(), mime::attachment_data(raw, a.index)?)))
-        .collect();
-    let meeting = super::meeting::of(raw, &p, owner);
     let headers = header_block(raw);
+    let meeting = if path.is_empty() { super::meeting::of(raw, &p, owner) } else { None };
+    let files = super::files::of(raw, &p, path, owner);
     let field = |name: &str| header_value(&headers, name).unwrap_or_default();
     let importance = match field("Importance").to_ascii_lowercase().as_str() {
         "high" => 2,
@@ -152,6 +170,7 @@ pub(super) fn owned(raw: &[u8], received: i64, state: State, owner: &super::cale
         // No `Date:`: no submit time, not 1970.
         date: if p.date > 0 { filetime(p.date) } else { 0 },
         files,
+        key: MessageKey::default(),
         headers: if headers.len() <= MAX_HEADERS { headers } else { String::new() },
         in_reply_to: bracket(&p.in_reply_to),
         references: p.references.iter().map(|id| bracket(id)).collect::<Vec<_>>().join(" "),
@@ -172,7 +191,7 @@ fn header_block(raw: &[u8]) -> String {
 }
 
 /// A header field's value in a header block, its folded lines unfolded.
-fn header_value(head: &str, name: &str) -> Option<String> {
+pub(super) fn header_value(head: &str, name: &str) -> Option<String> {
     let mut lines = head.lines();
     while let Some(line) = lines.next() {
         let Some((n, value)) = line.split_once(':') else { continue };

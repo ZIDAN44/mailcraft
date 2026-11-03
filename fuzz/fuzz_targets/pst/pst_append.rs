@@ -2,7 +2,8 @@
 //! the file damaged any way, then one message with a file appended by the writer (MailCraft's
 //! fork of outlook-pst-rw), and what it then holds read back. Each message carries what an export
 //! gives one: tagged properties, and named ones the writer looks up in the file's (damaged)
-//! name-to-ID map and adds to it.
+//! name-to-ID map and adds to it; the one added also a message attached to it, with a file of its
+//! own, and a file the writer reads from a source as it writes it.
 //!
 //! Random bytes rarely get past a `.pst`'s header, so most inputs damage a good file instead:
 //! one the writer made (an Inbox with a message and its attachment, and a folder beside it),
@@ -31,8 +32,9 @@ use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
 use outlook_pst::messaging::store::{Store as _, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
 use outlook_pst::{
-    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName, UnicodePstProperty,
-    UnicodePstPropertyKey as Key, UnicodePstSpecialFolder as Special, UnicodePstValue as Value,
+    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstAttachmentSource, UnicodePstBatchMessage,
+    UnicodePstEmbeddedMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName, UnicodePstProperty, UnicodePstPropertyKey as Key,
+    UnicodePstSpecialFolder as Special, UnicodePstValue as Value,
 };
 
 /// PSETID_Common.
@@ -67,6 +69,19 @@ fn message(subject: &str) -> UnicodePstMessage<'_> {
 
 fn notes() -> UnicodePstAttachment<'static> {
     UnicodePstAttachment { filename: "notes.txt", mime_type: "text/plain", content_id: None, data: b"remember", ..Default::default() }
+}
+
+/// A file of 20,000 bytes, read as it is written.
+struct Source;
+
+impl UnicodePstAttachmentSource for Source {
+    fn size(&self) -> u64 {
+        20_000
+    }
+
+    fn open(&self) -> std::io::Result<Box<dyn std::io::Read + '_>> {
+        Ok(Box::new(std::io::Read::take(std::io::repeat(b'x'), 20_000)))
+    }
 }
 
 /// A data file the writer made: Inbox with one message and its file, and Projects beside it.
@@ -130,7 +145,13 @@ fuzz_target!(|data: &[u8]| {
     if std::fs::write(&path, &file).is_err() {
         return;
     }
-    let attachments = [notes()];
+    let attached = UnicodePstAttachment {
+        filename: "Forwarded",
+        content: UnicodePstAttachmentContent::Message(Box::new(UnicodePstEmbeddedMessage { message: message("Forwarded"), attachments: vec![notes()] })),
+        ..Default::default()
+    };
+    let read = UnicodePstAttachment { filename: "big.bin", content: UnicodePstAttachmentContent::Source(&Source), ..Default::default() };
+    let attachments = [notes(), attached, read];
     let batch = [UnicodePstBatchMessage { message: message("Added"), attachments: &attachments }];
     for role in [Special::DeletedItems, Special::SentItems, Special::Outbox, Special::Drafts, Special::JunkEmail] {
         let _ = UnicodePstFile::special_folder(&path, role);

@@ -7,11 +7,13 @@
 //! its addresses (Bcc too), text and HTML bodies, attachments and header block, and with what the
 //! store keeps of it: read or not, a draft, flagged (and when it's due), answered or forwarded,
 //! its categories, importance and sensitivity ([`item`]); a meeting's request, cancellation or
-//! answer as Outlook's meeting mail, with the meeting's own properties ([`meeting`]). Messages
-//! only known by their headers (never opened, on an account that keeps headers only) are counted
-//! as skipped. The account's calendar, contacts, contact groups, notes and tasks go in as
-//! Outlook's own items, in the file's Calendar, Contacts, Notes and Tasks folders ([`pim`],
-//! [`calendar`]): nothing is written beside the file.
+//! answer as Outlook's meeting mail, with the meeting's own properties ([`meeting`]); an attached
+//! message as the message it is, and files of any size, a big one read from the cache as it's
+//! written ([`files`]).
+//! Messages only known by their headers (never opened, on an account that keeps headers only)
+//! are counted as skipped. The account's calendar, contacts, contact groups, notes and tasks go
+//! in as Outlook's own items, in the file's Calendar, Contacts, Notes and Tasks folders
+//! ([`pim`], [`calendar`]): nothing is written beside the file.
 //!
 //! A data file that's already there is added to, as Outlook's export does (issue #18): its mail
 //! stays, the account's goes into folders of the same names, and messages already in it (by
@@ -38,6 +40,7 @@ use outlook_pst::{
 
 mod calendar;
 mod contact;
+mod files;
 mod item;
 mod meeting;
 mod pattern;
@@ -46,16 +49,17 @@ mod place;
 mod task;
 #[cfg(test)]
 mod tests;
+mod writing;
 
 use item::Owned;
+use writing::{append, write};
 
 /// Messages written per commit to the file, at most: the writer rewrites the folder's table of
 /// contents with each, so a big folder written a hundred at a time took longer with every batch.
 const BATCH: usize = 2000;
-/// …and their bytes (attachments and all), at most.
+/// …and the bytes they hold (their text and files; not the big files left in the cache until
+/// they are written, [`files::HELD_UP_TO`]), at most.
 const BATCH_BYTES: usize = 48 << 20;
-/// Attachments larger than this are left out.
-const MAX_ATTACHMENT: usize = 100 * 1024 * 1024;
 /// How deep folders in a data file already there are looked through.
 const MAX_DEPTH: usize = 64;
 
@@ -179,22 +183,23 @@ pub fn export(
                 let state = item::state(s, f.role, follow_up);
                 match store.read_body(&key).and_then(|raw| item::owned(&raw, s.received, state, &owner)) {
                     Some(m) if !m.message_id.is_empty() && had.contains(&mailcraft_model::thread::norm_id(&m.message_id)) => done.already += 1,
-                    Some(m) => {
-                        bytes += m.body.len() + m.html.as_ref().map_or(0, String::len) + m.files.iter().map(|f| f.3.len()).sum::<usize>();
+                    Some(mut m) => {
+                        bytes = bytes.saturating_add(m.held());
+                        m.key = key;
                         batch.push(m);
                     }
                     None => done.skipped += 1,
                 }
                 if batch.len() >= BATCH || bytes >= BATCH_BYTES {
                     let n = batch.len();
-                    write(&temp, &folder, &std::mem::take(&mut batch), &mut created)?;
+                    write(store, &temp, &folder, &std::mem::take(&mut batch), &mut created)?;
                     bytes = 0;
                     done.messages += n;
                     progress(done.messages);
                 }
             }
             if !batch.is_empty() {
-                write(&temp, &folder, &batch, &mut created)?;
+                write(store, &temp, &folder, &batch, &mut created)?;
                 done.messages += batch.len();
                 progress(done.messages);
             }
@@ -276,97 +281,6 @@ fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, cre
             log::info!("the data file's {special:?} can't be recorded: {e}");
         }
     }
-}
-
-fn write(path: &Path, folder: &[&str], batch: &[Owned], created: &mut bool) -> Result<(), String> {
-    let recipients: Vec<Vec<UnicodePstRecipient<'_>>> = batch
-        .iter()
-        .map(|m| {
-            m.recipients.iter().map(|(name, email, kind)| UnicodePstRecipient { name, email, recipient_type: *kind, ..Default::default() }).collect()
-        })
-        .collect();
-    let files: Vec<Vec<UnicodePstAttachment<'_>>> = batch
-        .iter()
-        .map(|m| {
-            m.files
-                .iter()
-                .map(|(filename, mime_type, cid, data)| UnicodePstAttachment {
-                    filename,
-                    mime_type,
-                    content_id: cid.as_deref(),
-                    data,
-                    ..Default::default()
-                })
-                .collect()
-        })
-        .collect();
-    let categories: Vec<Vec<&str>> = batch.iter().map(|m| m.state.categories.iter().map(String::as_str).collect()).collect();
-    // A meeting's own properties beside the message's.
-    let none = Vec::new();
-    let meetings: Vec<&Vec<(pim::Key, pim::Value)>> = batch.iter().map(|m| m.meeting.as_ref().map_or(&none, |x| &x.props)).collect();
-    let lists: Vec<pim::Lists<'_>> = meetings.iter().map(|p| pim::lists(p)).collect();
-    let properties: Vec<Vec<UnicodePstProperty<'_>>> = batch
-        .iter()
-        .zip(&categories)
-        .zip(meetings.iter().zip(&lists))
-        .map(|((m, c), (p, l))| [item::properties(m, c), pim::properties(p, l)].concat())
-        .collect();
-    let messages: Vec<UnicodePstBatchMessage<'_>> = batch
-        .iter()
-        .zip(&recipients)
-        .zip(&files)
-        .zip(&properties)
-        .map(|(((m, r), f), p)| UnicodePstBatchMessage {
-            message: UnicodePstMessage {
-                subject: &m.subject,
-                sender_name: &m.from.0,
-                sender_email: &m.from.1,
-                recipients: r,
-                body: &m.body,
-                html_body: m.html.as_deref(),
-                message_id: &m.message_id,
-                delivery_time: m.received,
-                message_class: m.class(),
-                properties: p,
-            },
-            attachments: f,
-        })
-        .collect();
-    let (first, rest) = match (*created, messages.split_first()) {
-        (_, None) => return Ok(()),
-        (true, _) => (None, messages.as_slice()),
-        (false, Some((first, rest))) => (Some(first), rest),
-    };
-    if let Some(first) = first {
-        UnicodePstFile::create_in_folder_with_attachments(path, folder, &first.message, first.attachments).map_err(|e| e.to_string())?;
-        *created = true;
-    }
-    if !rest.is_empty() {
-        append(path, folder, rest)?;
-    }
-    Ok(())
-}
-
-/// Add `batch` to the file at `path`. A file whose name-to-ID map can't take names (damaged, or
-/// made by a program that keeps it some other way) gets the batch without its named properties:
-/// the mail goes in, without its follow-up text, due days and categories, and the log says why.
-fn append(path: &Path, folder: &[&str], batch: &[UnicodePstBatchMessage<'_>]) -> Result<(), String> {
-    let Err(e) = UnicodePstFile::append_many_in_folder_with_attachments(path, folder, batch) else { return Ok(()) };
-    let named = |p: &UnicodePstProperty<'_>| matches!(p.key, UnicodePstPropertyKey::Named(..));
-    // The fork's writer says so before it writes any of the batch's messages (their folder may be
-    // made by then, and stays).
-    if !e.to_string().starts_with("name-to-ID map") || !batch.iter().any(|m| m.message.properties.iter().any(named)) {
-        return Err(e.to_string());
-    }
-    log::info!("the data file's name-to-ID map can't be added to ({e}): mail written without its flags' text, due days and categories");
-    let tagged: Vec<Vec<UnicodePstProperty<'_>>> =
-        batch.iter().map(|m| m.message.properties.iter().filter(|p| !named(p)).copied().collect()).collect();
-    let batch: Vec<UnicodePstBatchMessage<'_>> = batch
-        .iter()
-        .zip(&tagged)
-        .map(|(m, p)| UnicodePstBatchMessage { message: UnicodePstMessage { properties: p, ..m.message }, attachments: m.attachments })
-        .collect();
-    UnicodePstFile::append_many_in_folder_with_attachments(path, folder, &batch).map(drop).map_err(|e| e.to_string())
 }
 
 /// A task's rule as the pattern an export writes for a task whose first day is `from`, and

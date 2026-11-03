@@ -224,9 +224,10 @@ local-first, media-aware v1); the fuller request is
    An exported `.pst` carries the account's calendar, contacts, contact groups, notes and tasks
    inside it, as Outlook's own items in its Calendar, Contacts, Notes and Tasks folders (repeating
    appointments with their changed occurrences, meetings with their guests' answers), and meeting
-   mail as Outlook's meeting items: nothing beside it. A `.pst` brings in what it
-   still left out: attached messages 32 deep, recalls and sharing invitations, contacts filed with
-   mail, the files links point to, RSS feeds, and the files on notes, shown in the Notes pane.
+   mail as Outlook's meeting items: nothing beside it; attached messages go in as messages, and
+   files of any size. A `.pst` brings in what it still left out: attached messages 32 deep,
+   recalls and sharing invitations, contacts filed with mail, the files links point to, RSS feeds,
+   and the files on notes, shown in the Notes pane.
    An opened `.pst` keeps MailCraft's copy beside it, never written into itself: opened again it
    goes on with that copy, and once Outlook has changed it, what's new is read into the copy.
 33. **Next:** what's left in [docs/gaps.md](docs/gaps.md): a relay for IMAP accounts in the

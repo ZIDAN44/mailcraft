@@ -1,8 +1,9 @@
 //! An Outlook data file (`.pst`) as the user picks it to import: read into an empty cache.
 //!
 //! Random bytes rarely get past a `.pst`'s header, so most inputs damage a good file instead:
-//! one MailCraft exported (two folders, mail with an attachment, an event and a contact), with
-//! the input read as five-byte patches (a little-endian offset, then the byte to put there).
+//! one MailCraft exported (two folders, mail with a file and an attached message, an event and a
+//! contact), with the input read as five-byte patches (a little-endian offset, then the byte to
+//! put there).
 //! An input that starts like a data file (`!BDN`) is read as one, whole.
 //!
 //! The import runs as the app's does, with its planner (which reads the folders and hands out
@@ -36,7 +37,11 @@ fn good_file() -> Vec<u8> {
             body: "Hello there.".into(),
             html: Some("<p>Hello <b>there</b>.</p>".into()),
             attachments: if with_file {
-                vec![mime::OutAttachment { name: "notes.txt".into(), mime: "text/plain".into(), data: b"remember".to_vec(), ..Default::default() }]
+                let inner = b"From: ana@example.com\r\nSubject: Earlier\r\n\r\nThe first one.\r\n".to_vec();
+                vec![
+                    mime::OutAttachment { name: "notes.txt".into(), mime: "text/plain".into(), data: b"remember".to_vec(), ..Default::default() },
+                    mime::OutAttachment { name: "Earlier.eml".into(), mime: "message/rfc822".into(), data: inner, ..Default::default() },
+                ]
             } else {
                 Vec::new()
             },

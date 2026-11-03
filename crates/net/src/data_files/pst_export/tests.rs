@@ -507,5 +507,7 @@ fn an_ansi_data_file_says_which_format_it_is() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+mod big;
 mod calendar;
+mod kinds;
 mod pim;
