@@ -8,6 +8,45 @@ use super::*;
 /// Longest line accepted outside literals.
 const MAX_LINE: usize = 1 << 20;
 
+/// Deepest nesting of parenthesised lists in one response passed to the parser. A message's
+/// `BODYSTRUCTURE` takes about two levels per level of MIME parts (its parameters are a list).
+pub(super) const MAX_NESTING: usize = 64;
+
+/// How deep a response's parenthesised lists nest, outside quoted strings and literals.
+pub(super) fn nesting(raw: &[u8]) -> usize {
+    let (mut depth, mut deepest, mut i) = (0usize, 0usize, 0usize);
+    let mut quoted = false;
+    while let Some(&b) = raw.get(i) {
+        i += 1;
+        if quoted {
+            match b {
+                b'\\' => i += 1,
+                b'"' => quoted = false,
+                _ => {}
+            }
+            continue;
+        }
+        match b {
+            b'"' => quoted = true,
+            b'(' => {
+                depth += 1;
+                deepest = deepest.max(depth);
+            }
+            b')' => depth = depth.saturating_sub(1),
+            // A literal: its bytes, after the line end, are data.
+            b'\n' => {
+                let line = raw.get(..i.saturating_sub(1)).unwrap_or_default();
+                let line = line.strip_suffix(b"\r").unwrap_or(line);
+                if let Some(n) = literal_len(line) {
+                    i = i.saturating_add(n);
+                }
+            }
+            _ => {}
+        }
+    }
+    deepest
+}
+
 /// What one command may cost: the bytes and number of its responses, and how long it may run.
 /// Past any of them the command fails with a protocol error, which drops the connection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -165,6 +204,11 @@ impl<S: Read + Write> Conn<S> {
         // imap-proto wants CRLF line ends; tolerate servers that send bare LF.
         let fixed = if raw.ends_with(b"\r\n") { raw } else { crlf_line_ends(&raw) };
         let fixed = space_after_code(fixed);
+        // imap-proto parses lists by recursion: a thousand nested `(` overflow the thread's
+        // stack, which no `Result` catches. Nothing real nests that deep.
+        if nesting(&fixed) > MAX_NESTING {
+            return Ok(Err(fixed));
+        }
         Ok(match Response::parse(&fixed) {
             Ok((_, r)) => Ok(r.into_owned()),
             Err(_) => Err(fixed),

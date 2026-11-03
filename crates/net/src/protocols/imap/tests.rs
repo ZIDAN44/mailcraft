@@ -116,3 +116,27 @@ fn a_code_right_before_non_ascii_text_never_panics() {
     // Inside a quoted string the bracket isn't a code: left as it was.
     assert_eq!(super::conn::space_after_code(b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n".to_vec()), b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n");
 }
+
+/// A hostile server's lists nested a hundred thousand deep don't overflow the stack (they did,
+/// in imap-proto's parser, from a thousand), even on a thread with Windows' 1 MB main stack;
+/// real nesting parses.
+#[test]
+fn deeply_nested_lists_dont_overflow_the_stack() {
+    let h = std::thread::Builder::new().stack_size(1 << 20).spawn(|| {
+        let mut out = Vec::new();
+        for depth in [30usize, conn::MAX_NESTING - 1, conn::MAX_NESTING + 1, 1000, 100_000] {
+            let mut s = b"* OK ready\r\n* 1 FETCH (UID 1 BODYSTRUCTURE ".to_vec();
+            s.extend(std::iter::repeat_n(b'(', depth));
+            s.extend(b"\"TEXT\" \"PLAIN\" NIL NIL NIL \"7BIT\" 1 1");
+            s.extend(std::iter::repeat_n(b')', depth));
+            s.extend(b")\r\nM1 OK done\r\n");
+            let mut c = Client::from_stream(Script::new(&s)).unwrap();
+            out.push((depth, c.uid_fetch("1", "UID BODYSTRUCTURE", "").is_ok()));
+        }
+        out
+    });
+    let out = h.unwrap().join().expect("no overflow");
+    assert!(out.iter().all(|(_, ok)| *ok), "{out:?}");
+    // The count skips quoted strings and literals.
+    assert_eq!(conn::nesting(b"* 1 FETCH (UID 1 BODY[] {5}\r\n(((((\r\n FLAGS (\"((\" \\Seen))"), 2);
+}

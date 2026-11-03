@@ -52,6 +52,7 @@ on GitHub.
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.
 - Mail goes only from an account that can send. With only a data file open, the message form offers **Add an account**.
 - A `.pst` attachment that links to a file is read only from this computer's drives, never from the network or the web.
+- A server's answer with lists nested a thousand deep can no longer crash MailCraft.
 
 ## 0.31.0 - 2026-10-31
 
