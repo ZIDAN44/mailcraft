@@ -31,8 +31,8 @@ use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
 use pst_rw::messaging::store::{Store as _, UnicodeStore};
 use pst_rw::ndb::node_id::NodeId;
 use pst_rw::{
-    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName,
-    UnicodePstProperty, UnicodePstPropertyKey as Key, UnicodePstSpecialFolder as Special, UnicodePstValue as Value,
+    ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName, UnicodePstProperty,
+    UnicodePstPropertyKey as Key, UnicodePstSpecialFolder as Special, UnicodePstValue as Value,
 };
 
 /// PSETID_Common.

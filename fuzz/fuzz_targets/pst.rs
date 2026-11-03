@@ -46,7 +46,7 @@ fn good_file() -> Vec<u8> {
             mime::build(&d, &EmailAddress::new("Riley", "riley@example.com"), 1_704_067_200, &format!("m{uid}@example.com")).unwrap_or_default();
         let key = MessageKey { account: "a1".into(), folder: folder.into(), validity: 1, uid };
         let _ = store.write_body(&key, &raw);
-        mime::summary_from_full(&raw, key, Flags::default(), 10, 0)
+        std::sync::Arc::new(mime::summary_from_full(&raw, key, Flags::default(), 10, 0))
     };
     let folder =
         |path: &str, role| Folder { account: "a1".into(), path: path.into(), delimiter: Some('/'), role, selectable: true, ..Default::default() };
