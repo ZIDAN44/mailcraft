@@ -34,7 +34,7 @@ of your mail on your computer, so it works offline.
 - **Search:** works offline, with `from:`, `subject:`, `has:attachment`, `is:unread` and more.
 - **Calendar and people:** day, week and month views, meeting invitations, an address book, and CalDAV/CardDAV.
 - **Private and secure:** MailCraft talks only to your servers, always over TLS. Passwords stay in the system keychain. Remote pictures load only when you ask. S/MIME signs and encrypts.
-- **Everywhere:** Windows, macOS, Linux and the browser (JMAP accounts only), in 14 interface languages.
+- **Everywhere:** Windows, macOS, Linux and the browser (JMAP accounts only), in 15 interface languages.
 - **Scriptable:** every action is a command with an id. The ribbon, shortcuts, the CLI and `--cmd` all run the same commands.
 
 ## Install

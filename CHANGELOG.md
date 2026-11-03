@@ -24,6 +24,7 @@ on GitHub.
 - Before an import, MailCraft shows what the `.pst` file holds and the room its copy needs. During it, a progress bar shows the time left.
 - Pause, stop or continue an import. An import cut off by a crash or by closing MailCraft goes on where it stopped.
 - **Compact now** in **File › Info › Mailbox settings**. MailCraft also compacts data files when left idle, and on close if you turn that on in **File › Options › Data files**.
+- Turkish as an interface language (#34).
 
 ### Changed
 - Opened or saved pictures and plain text files no longer carry Windows' "from the internet" mark, so Photos doesn't ask whether to trust them. Office files, PDFs, web pages, archives and programs keep the mark.

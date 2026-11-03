@@ -452,6 +452,9 @@ fn tags_templates_and_dates() {
     assert_eq!(lang_from_tag("ko-KR").map(Lang::code), Some("ko"));
     assert_eq!(lang_from_tag("it_IT.UTF-8").map(Lang::code), Some("it"));
     assert_eq!(lang_from_tag("ru").map(Lang::code), Some("ru"));
+    assert_eq!(lang_from_tag("tr").map(Lang::code), Some("tr"));
+    assert_eq!(lang_from_tag("tr-TR").map(Lang::code), Some("tr"));
+    assert_eq!(lang_from_tag("tr_TR.UTF-8").map(Lang::code), Some("tr"));
     assert_eq!(lang_from_tag("de-AT").map(Lang::code), Some("de"));
     assert_eq!(lang_from_tag("C"), Some(Lang::EN));
     assert_eq!(lang_from_tag("xx"), None);

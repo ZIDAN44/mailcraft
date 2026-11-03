@@ -1,0 +1,1559 @@
+# MailCraft interface strings: Turkish (Türkçe).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  Klasörler yükleniyor…
+	(Top level)	(En üst düzey)
+	(no subject)	(konu yok)
+	1 attachment	1 ek
+	1. List	1. Liste
+	</>	</>
+	Accounts	Hesaplar
+	Accounts and settings	Hesaplar ve ayarlar
+	Add a subject	Konu ekleyin
+	Add account…	Hesap ekle…
+	Add an account	Hesap ekle
+	Add an email account	E-posta hesabı ekle
+	Added to new messages, replies and forwards.	Yeni iletilere, yanıtlara ve iletmelere eklenir.
+	All	Tümü
+	All Inboxes	Tüm Gelen Kutuları
+	All Sent	Tüm Gönderilenler
+	All caught up: nothing in this folder.	Hepsi tamam: bu klasörde hiçbir şey yok.
+	All folders	Tüm klasörler
+	Always show from {sender}	Gönderen {sender} olduğunda her zaman göster
+	Apr	Nis
+	Archive	Arşivle
+	Archive (Backspace)	Arşivle (Backspace)
+	Ask before deleting for good	Kalıcı olarak silmeden önce sor
+	At the top of {account}	{account} hesabının en üstünde
+	Attach file	Dosya ekle
+	Audio	Ses
+	Aug	Ağu
+	B	K
+	Bcc	Bcc
+	Bold (Ctrl+B)	Kalın (Ctrl+B)
+	Bottom	Alt
+	Bulleted list	Madde işaretli liste
+	Cancel	İptal
+	Categorize	Kategori ata
+	Category	Kategori
+	Cc	Cc
+	Cc / Bcc	Cc / Bcc
+	Cc: {names}	Cc: {names}
+	Choose…	Seç…
+	Clear search	Aramayı temizle
+	Close	Kapat
+	Code	Kod
+	Compact	Sıkı
+	Connect	Bağlan
+	Connecting…	Bağlanılıyor…
+	Conversations	Konuşmalar
+	Create	Oluştur
+	Create rule…	Kural oluştur…
+	Dark	Koyu
+	Date	Tarih
+	Dec	Ara
+	Delete	Sil
+	Delete (Del)	Sil (Del)
+	Delete folder…	Klasörü sil…
+	Delete permanently?	Kalıcı olarak silinsin mi?
+	Delete “{folder}”?	“{folder}” silinsin mi?
+	Deleted Items	Silinmiş Öğeler
+	Discard	At
+	Disconnected: {error}	Bağlantı kesildi: {error}
+	Document	Belge
+	Don't run later rules on mail this one matches	Bu kuralın eşleştiği postalarda sonraki kuralları çalıştırma
+	Downloading the message…	İleti indiriliyor…
+	Downloading the attachments…	Ekler indiriliyor…
+	Draft saved	Taslak kaydedildi
+	Drafts	Taslaklar
+	Edit	Düzenle
+	Edit rule	Kuralı düzenle
+	Email address	E-posta adresi
+	Enter the password for {email}.	{email} için parolayı girin.
+	Favorites	Sık Kullanılanlar
+	Feb	Şub
+	File	Dosya
+	Flag	Bayrakla
+	Flag / Unflag (Insert)	Bayrakla / Bayrağı kaldır (Insert)
+	Flagged	Bayraklı
+	Focused	Odaklanmış
+	Focused Inbox	Odaklanmış Gelen Kutusu
+	Focused Inbox: put newsletters and automatic mail in Other	Odaklanmış Gelen Kutusu: bültenleri ve otomatik postaları Diğer'e koy
+	Folder	Klasör
+	Folder name	Klasör adı
+	Forward	İlet
+	Forward (Ctrl+F)	İlet (Ctrl+F)
+	Fri	Cum
+	Friday	Cuma
+	From	Gönderen
+	From contains	Gönderen şunu içerir
+	From {names}	Gönderen: {names}
+	Group messages by conversation	İletileri konuşmaya göre grupla
+	Has attachments	Eki var
+	Has files	Dosyası var
+	Heading	Başlık
+	Hidden from the other recipients	Diğer alıcılardan gizli
+	Home	Giriş
+	I	İ
+	If it {condition}: {action}	Eğer {condition} ise: {action}
+	Important	Önemli
+	Inbox	Gelen Kutusu
+	Incoming mail (IMAP)	Gelen posta (IMAP)
+	Insert a picture (or paste one)	Resim ekle (veya yapıştır)
+	Inside {folder} ({account})	{folder} içinde ({account})
+	Is a newsletter or list mail	Bülten veya liste postası
+	Italic (Ctrl+I)	İtalik (Ctrl+I)
+	Items: {n}	Öğe: {n}
+	Jan	Oca
+	Jul	Tem
+	Jun	Haz
+	Junk Email	Gereksiz E-posta
+	Language	Dil
+	Last month	Geçen ay
+	Last week	Geçen hafta
+	Later	Daha sonra
+	Later today	Bugün daha sonra
+	Light	Açık
+	Link	Bağlantı
+	Link (Ctrl+K)	Bağlantı (Ctrl+K)
+	Links like {link} aren't opened	{link} gibi bağlantılar açılmaz
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Önce yerel: posta, hızlı çevrimdışı arama için bu bilgisayarda önbelleğe alınır. Parolalar sistem anahtarlığında kalır.
+	Looking up the server settings…	Sunucu ayarları aranıyor…
+	Mail from {sender}	Gönderen {sender} olan posta
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · bir ArtCraft uygulaması · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	Posta listesi: aboneliği bırakmak için {address}
+	Mar	Mar
+	Mark all as read	Tümünü okundu olarak işaretle
+	Mark as read	Okundu olarak işaretle
+	Mark as unread	Okunmadı olarak işaretle
+	Mark read	Okundu yap
+	Mark unread	Okunmadı yap
+	May	May
+	Message preview	İleti önizlemesi
+	Message sent	İleti gönderildi
+	Messages waiting to be sent	Gönderilmeyi bekleyen iletiler
+	Messages without a subject are easy to overlook.	Konusu olmayan iletiler kolayca gözden kaçabilir.
+	Mon	Pzt
+	Monday	Pazartesi
+	Move	Taşı
+	Move 1 message	1 iletiyi taşı
+	Move folder…	Klasörü taşı…
+	Move to	Şuraya taşı
+	Move to a folder (Ctrl+Shift+V)	Klasöre taşı (Ctrl+Shift+V)
+	Move to folder	Klasöre taşı
+	Move to…	Şuraya taşı…
+	Move {n} messages	{n} iletiyi taşı
+	Move “{folder}” to	“{folder}” klasörünü şuraya taşı
+	Name	Ad
+	Names <addresses>, separated by ; or ,	Adlar <adresler>, ; veya , ile ayrılmış
+	New category	Yeni kategori
+	New category…	Yeni kategori…
+	New folder	Yeni klasör
+	New folder…	Yeni klasör…
+	New mail	Yeni posta
+	New mail (Ctrl+N)	Yeni posta (Ctrl+N)
+	New rule	Yeni kural
+	New rule…	Yeni kural…
+	Next week	Gelecek hafta
+	No published settings: the usual server names are filled in. Check them under Server settings.	Yayımlanmış ayar yok: olağan sunucu adları dolduruldu. Bunları Sunucu ayarları altında denetleyin.
+	No results. Try fewer words, or search all folders.	Sonuç yok. Daha az sözcük deneyin veya tüm klasörlerde arayın.
+	No rules yet.	Henüz kural yok.
+	None (unsafe)	Yok (güvensiz)
+	Not an email address: {address}	E-posta adresi değil: {address}
+	Not junk	Gereksiz değil
+	Not sent: {error}	Gönderilmedi: {error}
+	Nothing matches this filter.	Bu filtreyle eşleşen bir şey yok.
+	Nov	Kas
+	Numbered list	Numaralı liste
+	Oct	Eki
+	Off	Kapalı
+	Offline	Çevrimdışı
+	Older	Daha eski
+	On / off	Açık / kapalı
+	Open	Aç
+	Open as a PDF to print	Yazdırmak için PDF olarak aç
+	Open in {app}	{app} ile aç
+	Open it in the Craft app for this kind of file	Bu tür dosyalar için olan Craft uygulamasında aç
+	Open with the system's app	Sistemin uygulamasıyla aç
+	Opened as a PDF: print it from the viewer	PDF olarak açıldı: görüntüleyiciden yazdırın
+	Options	Seçenekler
+	Other	Diğer
+	Outbox	Giden Kutusu
+	Outbox: {n}	Giden Kutusu: {n}
+	Outgoing mail (SMTP)	Giden posta (SMTP)
+	Password	Parola
+	Password needed	Parola gerekli
+	Password…	Parola…
+	Personal	Kişisel
+	Pick messages from one account to move them to a folder.	Bir klasöre taşımak için tek bir hesaptan ileti seçin.
+	Picture	Resim
+	Pictures from the web are hidden to protect your privacy.	Gizliliğinizi korumak için web'den gelen resimler gizlendi.
+	Picture…	Resim…
+	Pin	Sabitle
+	Plain text	Düz metin
+	Preview	Önizleme
+	Print	Yazdır
+	Put newsletters and automatic mail in Other	Bültenleri ve otomatik postaları Diğer'e koy
+	Quote	Alıntı
+	Reading pane	Okuma bölmesi
+	Remove	Kaldır
+	Remove account?	Hesap kaldırılsın mı?
+	Remove account…	Hesabı kaldır…
+	Remove from Favorites	Sık Kullanılanlardan kaldır
+	Remove…	Kaldır…
+	Rename	Yeniden adlandır
+	Rename folder	Klasörü yeniden adlandır
+	Rename folder…	Klasörü yeniden adlandır…
+	Reply	Yanıtla
+	Reply (Ctrl+R)	Yanıtla (Ctrl+R)
+	Reply all	Tümünü yanıtla
+	Reply all (Ctrl+Shift+R)	Tümünü yanıtla (Ctrl+Shift+R)
+	Report junk	Gereksiz olarak bildir
+	Results for “{query}”	“{query}” için sonuçlar
+	Right	Sağ
+	Rules	Kurallar
+	Rules run on new mail as it arrives in an Inbox, in this order.	Kurallar, bir Gelen Kutusuna gelen yeni postalarda bu sırayla çalışır.
+	Rules…	Kurallar…
+	Run now	Şimdi çalıştır
+	Run on the folder on screen	Ekrandaki klasörde çalıştır
+	S	Ü
+	Same as the system	Sistemle aynı
+	Sample mailbox (offline)	Örnek posta kutusu (çevrimdışı)
+	Sample mailbox, kept on this computer only	Örnek posta kutusu, yalnızca bu bilgisayarda tutulur
+	Sat	Cmt
+	Saturday	Cumartesi
+	Save	Kaydet
+	Save all…	Tümünü kaydet…
+	Save as PDF…	PDF olarak kaydet…
+	Save as email (.eml)…	E-posta olarak kaydet (.eml)…
+	Save as…	Farklı kaydet…
+	Save draft	Taslağı kaydet
+	Save draft (Ctrl+S)	Taslağı kaydet (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	Giden Kutusuna kaydedildi: yeniden çevrimiçi olduğunuzda gönderilecek
+	Saved {n} attachments in {folder}	{n} ek {folder} klasörüne kaydedildi
+	Saved {path}	Kaydedildi: {path}
+	Search folders	Klasörlerde ara
+	Search mail (from:, subject:, has:attachment…)	Postada ara (from:, subject:, has:attachment…)
+	Select a message first.	Önce bir ileti seçin.
+	Send	Gönder
+	Send (Ctrl+Enter)	Gönder (Ctrl+Enter)
+	Send / Receive	Gönder / Al
+	Send / Receive all folders (F9)	Tüm klasörleri gönder / al (F9)
+	Send anyway	Yine de gönder
+	Send now	Şimdi gönder
+	Send without a subject?	Konu olmadan gönderilsin mi?
+	Send without formatting	Biçimlendirme olmadan gönder
+	Sender, recipients or subject contain	Gönderen, alıcılar veya konu şunu içerir
+	Sending…	Gönderiliyor…
+	Sent Items	Gönderilmiş Öğeler
+	Sep	Eyl
+	Server settings	Sunucu ayarları
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Sunucular: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	Ayarlar bulundu: {source}
+	Show a desktop notification when new mail arrives	Yeni posta geldiğinde masaüstü bildirimi göster
+	Show as plain text	Düz metin olarak göster
+	Show formatted	Biçimli göster
+	Show in Favorites	Sık Kullanılanlarda göster
+	Show pictures	Resimleri göster
+	Shown as text.	Metin olarak gösteriliyor.
+	Shown on mail you send	Gönderdiğiniz postalarda gösterilir
+	Sign in	Oturum aç
+	Sign in again	Yeniden oturum aç
+	Sign in again…	Yeniden oturum aç…
+	Sign in with {provider}	{provider} ile oturum aç
+	Signature	İmza
+	Signature…	İmza…
+	Snooze	Ertele
+	Stop showing pictures from this sender	Bu göndericiden gelen resimleri göstermeyi bırak
+	Strikethrough	Üstü çizili
+	Subject	Konu
+	Subject contains	Konu şunu içerir
+	Sun	Paz
+	Sunday	Pazar
+	Switch to dark mode	Koyu moda geç
+	Switch to light mode	Açık moda geç
+	System	Sistem
+	Text	Metin
+	Text or address	Metin veya adres
+	The PDF couldn't be opened: {error}	PDF açılamadı: {error}
+	The folder and everything in it will be moved to Deleted Items.	Klasör ve içindeki her şey Silinmiş Öğeler'e taşınacak.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Klasör, alt klasörleri ve içlerindeki tüm postalar kalıcı olarak silinecek. Bu işlem geri alınamaz.
+	The link couldn't be opened: {error}	Bağlantı açılamadı: {error}
+	The sign-in page couldn't be opened: {error}	Oturum açma sayfası açılamadı: {error}
+	Theme	Tema
+	Then	Sonra
+	These {n} messages will be deleted for good. This can't be undone.	Bu {n} ileti kalıcı olarak silinecek. Bu işlem geri alınamaz.
+	This folder	Bu klasör
+	This message couldn't be downloaded: {error}	Bu ileti indirilemedi: {error}
+	This message will be deleted for good. This can't be undone.	Bu ileti kalıcı olarak silinecek. Bu işlem geri alınamaz.
+	This weekend	Bu hafta sonu
+	Three weeks ago	Üç hafta önce
+	Thu	Per
+	Thursday	Perşembe
+	To	Kime
+	To do	Yapılacak
+	To or Cc contains	Kime veya Cc şunu içerir
+	To: {names}	Kime: {names}
+	Today	Bugün
+	Tomorrow	Yarın
+	Try again	Yeniden dene
+	Tue	Sal
+	Tuesday	Salı
+	Two weeks ago	İki hafta önce
+	Unflag	Bayrağı kaldır
+	Unpin	Sabitlemeyi kaldır
+	Unread	Okunmamış
+	Unread: {n}	Okunmamış: {n}
+	Upcoming	Yaklaşan
+	Update folder	Klasörü güncelle
+	Updated {time}	Güncellendi: {time}
+	Updating {folder}…	{folder} güncelleniyor…
+	User name	Kullanıcı adı
+	Usually the email address	Genellikle e-posta adresi
+	Video	Video
+	View	Görünüm
+	Waiting in the Outbox. Last try: {error}	Giden Kutusunda bekliyor. Son deneme: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	Giden Kutusunda bekliyor: yeniden çevrimiçi olduğunuzda gönderilecek.
+	Wed	Çar
+	Wednesday	Çarşamba
+	Welcome to MailCraft	MailCraft'a hoş geldiniz
+	When mail	Posta şöyleyse
+	Without encryption your password travels in the clear. Use only for local test servers.	Şifreleme olmadan parolanız açık olarak iletilir. Yalnızca yerel test sunucuları için kullanın.
+	Work	İş
+	Write your message…	İletinizi yazın…
+	Yesterday	Dün
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Postanız, bilgisayarınızda. Herhangi bir IMAP hesabı ekleyin: iletiler bu cihazda tutulur, böylece hızlı aranır ve çevrimdışı okunabilir. Parolanız sistem anahtarlığında kalır.
+	Your name	Adınız
+	categorize {category}	{category} kategorisini ata
+	folder	klasör
+	from “{text}”	gönderen “{text}”
+	in your browser: no password stored	tarayıcınızda: parola saklanmaz
+	mentions “{text}”	“{text}” geçiyor
+	move to {folder}	{folder} klasörüne taşı
+	subject has “{text}”	konuda “{text}” var
+	you@example.com	you@example.com
+	{app} couldn't open it: {error}	{app} bunu açamadı: {error}
+	{a} and {b}	{a} ve {b}
+	{a}, {b} and others	{a}, {b} ve diğerleri
+	{email} (sample)	{email} (örnek)
+	{name} could not be opened: {error}	{name} açılamadı: {error}
+	{n} attachments	{n} ek
+	{n} messages in this conversation	Bu konuşmada {n} ileti
+	{n} new messages	{n} yeni ileti
+	• List	• Liste
+	Select a message to read it	Okumak için bir ileti seçin
+	MailCraft – Sample mailbox	MailCraft – Örnek posta kutusu
+
+	Mail server	Posta sunucusu
+	IMAP and SMTP	IMAP ve SMTP
+	JMAP	JMAP
+	JMAP session address	JMAP oturum adresi
+	Server: {url} (JMAP)	Sunucu: {url} (JMAP)
+	Open in new window	Yeni pencerede aç
+	{subject} – Message	{subject} – İleti
+	About	Hakkında
+	About MailCraft	MailCraft hakkında
+	Account information	Hesap bilgileri
+	Account settings	Hesap ayarları
+	An ArtCraft app · MIT OR Apache-2.0	Bir ArtCraft uygulaması · MIT OR Apache-2.0
+	Automatic replies	Otomatik yanıtlar
+	Back	Geri
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	E-posta standartlarından yola çıkılarak açık olarak geliştirildi: başka posta uygulamalarından kod, simge veya varlık yok.
+	Change this account's name, servers and sign-in, or its signature.	Bu hesabın adını, sunucularını ve oturum açma bilgilerini ya da imzasını değiştirin.
+	Checking with the server…	Sunucuyla denetleniyor…
+	Compact list	Sıkı liste
+	Don't send automatic replies	Otomatik yanıt gönderme
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Açık oldukları sürece her gönderici günde bir yanıt alır. Posta sunucunuzda tutulurlar, bu yüzden bu bilgisayar kapalıyken de çalışırlar.
+	Empty	Boşalt
+	Empty Deleted Items…	Silinmiş Öğeler'i boşalt…
+	Empty Junk Email…	Gereksiz E-posta'yı boşalt…
+	Empty “{folder}”?	“{folder}” boşaltılsın mı?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	İçindeki her şey, bu bilgisayara indirilmemiş postalar da dahil, kalıcı olarak silinecek. Bu işlem geri alınamaz.
+	General	Genel
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	Şu tarihe kadar uzaktayım…
+	Inbox and notifications	Gelen Kutusu ve bildirimler
+	Info	Bilgi
+	Kept on this computer: {size}	Bu bilgisayarda tutulan: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft yalnızca kendi posta sunucularınızla, şifreli bağlantılar üzerinden konuşur. Web'den gelen resimler yalnızca siz istediğinizde yüklenir.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	Posta kutusu
+	Mailbox settings	Posta kutusu ayarları
+	Manage rules	Kuralları yönet
+	Mark messages as read when opened	Açılan iletileri okundu olarak işaretle
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	Henüz gönderici yok.
+	Not available: the sample mailbox has no server.	Kullanılamıyor: örnek posta kutusunun sunucusu yok.
+	Not available: {error}	Kullanılamıyor: {error}
+	On	Açık
+	On from {from}	{from} tarihinden itibaren açık
+	On from {from} until {until}	{from} – {until} arasında açık
+	On until {until}	{until} tarihine kadar açık
+	Only between these days	Yalnızca bu günler arasında
+	Pictures from the web load only when you ask. These senders' pictures always load:	Web'den gelen resimler yalnızca siz istediğinizde yüklenir. Bu göndericilerin resimleri her zaman yüklenir:
+	Privacy	Gizlilik
+	Reading	Okuma
+	Rules: {n}	Kurallar: {n}
+	Sample mailbox	Örnek posta kutusu
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	Postanızın ne kadar yer kapladığını görün; Silinmiş Öğeler'i ve Gereksiz E-posta'yı boşaltın.
+	Send automatic replies	Otomatik yanıt gönder
+	Server settings…	Sunucu ayarları…
+	Read all mail as plain text	Tüm postaları düz metin olarak oku
+	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Biçimlendirme, renkler ve resimler dışarıda bırakılır. Bir iletinin üstündeki Biçimli göster, o iletiyi gönderildiği gibi gösterir.
+	Show mail without its formatting	Postayı biçimlendirmesi olmadan göster
+	Show a line of each message in the list	Listede her iletiden bir satır göster
+	Sort new mail as it arrives: move it, flag it, categorize it.	Yeni postaları geldikçe düzenleyin: taşıyın, bayraklayın, kategori atayın.
+	Source code and issues	Kaynak kodu ve sorunlar
+	Subject (optional)	Konu (isteğe bağlı)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	İnsanlara uzakta olduğunuzu bildirin: açık oldukları sürece her gönderici bir yanıt alır, bu bilgisayar kapalıyken bile.
+	The server doesn't say how much space is used.	Sunucu ne kadar yer kullanıldığını bildirmiyor.
+	Until	Bitiş
+	{free} free of {total}	Boş: {free} / {total}
+	{used} used on the server	Sunucuda kullanılan: {used}
+	this server doesn't offer automatic replies	bu sunucu otomatik yanıt sunmuyor
+	this server doesn't offer automatic replies (no ManageSieve)	bu sunucu otomatik yanıt sunmuyor (ManageSieve yok)
+	the account is offline	hesap çevrimdışı
+	Drag it to a folder or another app to copy it	Kopyalamak için bir klasöre veya başka bir uygulamaya sürükleyin
+	Accept	Kabul et
+	Accepted	Kabul edildi
+	Add a title	Başlık ekleyin
+	All day	Tüm gün
+	April	Nisan
+	Attendees: {names}	Katılımcılar: {names}
+	August	Ağustos
+	Calendar	Takvim
+	Calendars	Takvimler
+	Changes apply to every occurrence.	Değişiklikler her yinelemeye uygulanır.
+	Company	Şirket
+	Custom	Özel
+	Day	Gün
+	December	Aralık
+	Decline	Reddet
+	Declined	Reddedildi
+	Delete the series	Seriyi sil
+	Delete this occurrence	Bu yinelemeyi sil
+	Edit contact	Kişiyi düzenle
+	Email	E-posta
+	Ends	Bitiş
+	Event	Etkinlik
+	Every day	Her gün
+	Every month	Her ay
+	Every week	Her hafta
+	Every year	Her yıl
+	February	Şubat
+	In the address book of {account}	{account} hesabının adres defterinde
+	January	Ocak
+	Job title	Unvan
+	July	Temmuz
+	June	Haziran
+	Location	Konum
+	Mail	Posta
+	March	Mart
+	Month	Ay
+	Never	Asla
+	New contact	Yeni kişi
+	New event	Yeni etkinlik
+	Next	Sonraki
+	Next month	Gelecek ay
+	No answer yet	Henüz yanıt yok
+	No contacts yet.	Henüz kişi yok.
+	No one matches.	Eşleşen kimse yok.
+	Notes	Notlar
+	November	Kasım
+	October	Ekim
+	One address per line	Her satıra bir adres
+	Organizer: {name}	Düzenleyen: {name}
+	People	Kişiler
+	Phone	Telefon
+	Pick someone to see their details	Ayrıntılarını görmek için birini seçin
+	Previous	Önceki
+	Previous month	Önceki ay
+	Repeat	Tekrarla
+	Search people	Kişilerde ara
+	September	Eylül
+	Starts	Başlangıç
+	Tentative	Belki
+	Week	Hafta
+	Your answer:	Yanıtınız:
+	{from} {month_from} – {to} {month} {year}	{from} {month_from} – {to} {month} {year}
+	{from} – {to} {month} {year}	{from} – {to} {month} {year}
+	{month} {year}	{month} {year}
+	{n} more	{n} tane daha
+	{weekday}, {day} {month} {year}	{day} {month} {year} {weekday}
+	Add to contacts	Kişilere ekle
+	Invite	Davet et
+	Record the answer	Yanıtı kaydet
+	Remove from calendar	Takvimden kaldır
+	Show in calendar	Takvimde göster
+	This event was cancelled.	Bu etkinlik iptal edildi.
+	{name} accepted.	{name} kabul etti.
+	{name} answered.	{name} yanıt verdi.
+	{name} declined.	{name} reddetti.
+	{name} said maybe.	{name} belki dedi.
+	You accepted.	Kabul ettiniz.
+	You said maybe.	Belki dediniz.
+	You declined.	Reddettiniz.
+	Open & Export	Aç ve Dışa Aktar
+	Open data file	Veri dosyası aç
+	Open Outlook data file	Outlook veri dosyası aç
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Bir Outlook veri dosyasının (.pst) postalarını getirin. Klasörleriyle birlikte kendi posta kutusu olarak açılır ve bu bilgisayarda tutulur.
+	Open now: {files}	Şu anda açık: {files}
+	Outlook data file	Outlook veri dosyası
+	Opened from an Outlook data file, kept on this computer only	Bir Outlook veri dosyasından açıldı, yalnızca bu bilgisayarda tutulur
+	Not available: a data file has no server.	Kullanılamıyor: veri dosyasının sunucusu yok.
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	Sunucu: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	MailCraft'ın bu kopyasında Microsoft ile oturum açma ayarlanmamış.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	IMAP'in kapalı olduğu iş ve okul hesapları için Microsoft Graph üzerinden eşitler. Tarayıcıda Microsoft ile oturum açarsınız: parola saklanmaz.
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	Tarayıcıda MailCraft, JMAP sağlayıcılarıyla çalışır. Parolanız yalnızca bu sekmede kalır ve yalnızca posta sunucunuza gönderilir.
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	Postanız tarayıcıda. Bir JMAP hesabı ekleyin (Fastmail gibi): MailCraft posta sunucunuzla doğrudan konuşur ve parolanız yalnızca bu sekmede kalır.
+	Pop out	Ayır
+	Pop in	Geri yerleştir
+	Back to the reading pane	Okuma bölmesine dön
+	Write it in a window of its own	Ayrı bir pencerede yaz
+	Hide Bcc	Bcc'yi gizle
+	Untitled	Adsız
+	Write new messages in a window of their own	Yeni iletileri ayrı bir pencerede yaz
+	Saved in Drafts	Taslaklar'a kaydedildi
+	Underline (Ctrl+U)	Altı çizili (Ctrl+U)
+	Text highlight color	Metin vurgu rengi
+	Font color	Yazı tipi rengi
+	No color	Renk yok
+	Automatic	Otomatik
+	Bullets (Ctrl+Shift+L)	Madde işaretleri (Ctrl+Shift+L)
+	Numbering	Numaralandırma
+	Decrease indent (Ctrl+Shift+T)	Girintiyi azalt (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	Girintiyi artır (Ctrl+T)
+	Align left (Ctrl+L)	Sola hizala (Ctrl+L)
+	Center (Ctrl+E)	Ortala (Ctrl+E)
+	Align right (Ctrl+R)	Sağa hizala (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	Tüm biçimlendirmeyi temizle (Ctrl+Space)
+	Address Book	Adres Defteri
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	Dosya Ekle
+	Ctrl+K	Ctrl+K
+	Pictures	Resimler
+	Address	Adres
+	Insert	Ekle
+	Remove link	Bağlantıyı kaldır
+	Select Names	Ad Seç
+	Search	Ara
+	Name or address	Ad veya adres
+	All addresses	Tüm adresler
+	Contacts	Kişiler
+	Email Address	E-posta Adresi
+	No one found.	Kimse bulunamadı.
+	To ->	Kime ->
+	Cc ->	Cc ->
+	Bcc ->	Bcc ->
+	OK	Tamam
+	Want to save your changes?	Değişikliklerinizi kaydetmek istiyor musunuz?
+	The message is kept in Drafts if you save it.	Kaydederseniz ileti Taslaklar'da tutulur.
+	Yes	Evet
+	No	Hayır
+	Exporting to {file}…	{file} dosyasına aktarılıyor…
+	Export	Dışa aktar
+	Export to Outlook data file	Outlook veri dosyasına aktar
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	Bir hesabın postalarını klasörleriyle birlikte, Outlook'un ve diğer posta uygulamalarının açabileceği bir Outlook veri dosyasına (.pst) yazın.
+	Exchange server (EWS)	Exchange sunucusu (EWS)
+	Exchange server	Exchange sunucusu
+	Server: {url} (EWS)	Sunucu: {url} (EWS)
+	DOMAIN\\user, or the email address	DOMAIN\\kullanıcı veya e-posta adresi
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Kuruluşunuzun çalıştırdığı Exchange sunucuları için, Exchange Web Services üzerinden. Ağ kullanıcı adınız ve parolanızla oturum açar.
+	Found automatically when left empty	Boş bırakılırsa otomatik olarak bulunur
+	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	Kişileri, notları ve görevleri bunun içine; takvimi ise yanına .ics dosyası olarak yazılır.
+	You can close this window.	Bu pencereyi kapatabilirsiniz.
+	Browse…	Gözat…
+	Existing Outlook data file (optional)	Mevcut Outlook veri dosyası (isteğe bağlı)
+	Incoming mail (POP)	Gelen posta (POP)
+	Mail from an old .pst comes in first	Önce eski bir .pst dosyasındaki postalar alınır
+	POP and SMTP	POP ve SMTP
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Sunucular: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	Yazı tipleri
+	Data files	Veri dosyaları
+	Open folder	Klasörü aç
+	Move…	Taşı…
+	Save as an Outlook data file…	Outlook veri dosyası olarak kaydet…
+	Moves to {folder} the next time MailCraft starts.	Bir sonraki MailCraft açılışında şuraya taşınacak: {folder}
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	MailCraft başlatılırken seçildi (--data veya MAILCRAFT_DATA), bu yüzden buradan taşınamaz.
+	Your mail couldn't be moved, so it stays where it was: {error}	Postanız taşınamadı, olduğu yerde kalıyor: {error}
+	Your mail is now kept in {folder}	Postanız artık şurada tutuluyor: {folder}
+	Your mail moves there the next time MailCraft starts.	Postanız MailCraft bir sonraki başlatılışında oraya taşınır.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	Her hesabın postası, kişileri ve takvimi bu klasördeki bir MailCraft veri dosyasında (.mailcraft) tutulur; tıpkı Outlook'un her hesabı Outlook Files içindeki bir .pst dosyasında tutması gibi. Açtığınız bir Outlook veri dosyası burada kendine ait bir .mailcraft dosyası alır; Outlook'un dosyası olduğu gibi bırakılır. Bir .pst kopyası için Bilgi altındaki Outlook veri dosyası olarak kaydet'i kullanın.
+	Keep a copy of downloaded mail on the server	İndirilen postaların bir kopyasını sunucuda tut
+	Remove it from the server after	Şu süreden sonra sunucudan kaldır
+	days	gün
+	Remove it from the server once it's deleted from Deleted Items	Silinmiş Öğeler'den silindiğinde sunucudan kaldır
+	Arrange by: {field}	Sıralama: {field}
+	By {field} ⏷	Sıralama: {field} ⏷
+	Reverse sort	Sıralamayı ters çevir
+	Size	Boyut
+	Flag status	Bayrak durumu
+	Attachments	Ekler
+	Under 10 KB	10 KB altı
+	10 to 25 KB	10–25 KB
+	25 to 100 KB	25–100 KB
+	100 to 500 KB	100–500 KB
+	500 KB to 1 MB	500 KB – 1 MB
+	1 to 5 MB	1–5 MB
+	Over 5 MB	5 MB üstü
+	Not flagged	Bayraksız
+	With attachments	Ekli
+	Without attachments	Eksiz
+	(nobody)	(kimse)
+	Send / Receive all folders	Tüm klasörleri gönder / al
+	Send all	Tümünü gönder
+	Send what's waiting in the Outbox	Giden Kutusunda bekleyenleri gönder
+	Work offline	Çevrimdışı çalış
+	Working offline	Çevrimdışı çalışılıyor
+	Close every connection: changes, mail you send and drafts wait on this computer	Tüm bağlantıları kapat: değişiklikler, gönderdiğiniz postalar ve taslaklar bu bilgisayarda bekler
+	Undo (Ctrl+Z)	Geri al (Ctrl+Z)
+	Filter	Filtre
+	Categorized	Kategorili
+	To or Cc me	Kime veya Cc'de ben
+	New items	Yeni öğeler
+	Email message	E-posta iletisi
+	Contact	Kişi
+	More delete options	Diğer silme seçenekleri
+	Ignore the conversation	Konuşmayı yoksay
+	Stop ignoring the conversation	Konuşmayı yoksaymayı bırak
+	Its messages, and replies that arrive later, go to Deleted Items	İletileri ve daha sonra gelen yanıtlar Silinmiş Öğeler'e gider
+	Folder pane	Klasör bölmesi
+	Minimize the folder pane	Klasör bölmesini daralt
+	Show the folder pane	Klasör bölmesini göster
+	Save As	Farklı Kaydet
+	Save Attachments	Ekleri Kaydet
+	Exit	Çıkış
+	High importance	Yüksek önem
+	Low importance	Düşük önem
+	Read receipt	Okundu bilgisi
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Alıcılardan okuduklarını onaylamalarını iste (posta uygulamaları bunu yapmayabilir veya onlara sorabilir)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Her sağlayıcıyla çalışır: SMTP ile IMAP veya POP, JMAP ya da Exchange. Parolanız bu bilgisayarın anahtarlığında tutulur ve yalnızca posta sunucunuza gönderilir.
+	Run it now on the mail already in the Inbox	Gelen Kutusundaki mevcut postalarda şimdi çalıştır
+	Run on the mail already in the Inbox	Gelen Kutusundaki mevcut postalarda çalıştır
+	More options	Diğer seçenekler
+	Save As…	Farklı Kaydet…
+	Save All Attachments…	Tüm Ekleri Kaydet…
+	This picture can't be shown.	Bu resim gösterilemiyor.
+	Close Search	Aramayı Kapat
+	Look in	Arama yeri
+	Account	Hesap
+	Account settings…	Hesap ayarları…
+	Delete all…	Tümünü sil…
+	Delete all	Tümünü sil
+	Delete everything in “{folder}”?	“{folder}” içindeki her şey silinsin mi?
+	Every message in it will be moved to Deleted Items.	İçindeki her ileti Silinmiş Öğeler'e taşınacak.
+	Find related	İlgilileri bul
+	Messages in this conversation	Bu konuşmadaki iletiler
+	Messages from sender	Göndericiden gelen iletiler
+	Forward as attachment	Ek olarak ilet
+	Reply with meeting	Toplantıyla yanıtla
+	More actions	Diğer eylemler
+	Ignore	Yoksay
+	Messages	İletiler
+	Open file location	Dosya konumunu aç
+	Properties…	Özellikler…
+	{folder} Properties	{folder} Özellikleri
+	Size on this computer	Bu bilgisayardaki boyut
+	Quick print	Hızlı yazdır
+	Always move to Focused	Her zaman Odaklanmış'a taşı
+	Always move to Other	Her zaman Diğer'e taşı
+	Follow up	Takip et
+	No date	Tarih yok
+	Mark complete	Tamamlandı olarak işaretle
+	Clear flag	Bayrağı temizle
+	This week	Bu hafta
+	Follow up.	Takip edin.
+	Follow up. Due today.	Takip edin. Bugün bitiyor.
+	Follow up. Due {date}.	Takip edin. Son tarih: {date}.
+	Follow up. Overdue: it was due {date}.	Takip edin. Gecikti: son tarih {date} idi.
+	Completed.	Tamamlandı.
+	Completed on {date}.	Tamamlanma: {date}.
+	This message was sent with high importance.	Bu ileti yüksek önemle gönderildi.
+	This message was sent with low importance.	Bu ileti düşük önemle gönderildi.
+	Delay delivery	Teslimi geciktir
+	Don't send before	Şundan önce gönderme
+	Have replies sent to another address	Yanıtlar başka bir adrese gönderilsin
+	Held in the Outbox: it will be sent {when}.	Giden Kutusunda tutuluyor; gönderileceği zaman: {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	Giden Kutusunda tut ve daha sonra gönder (o sırada MailCraft'ın çalışıyor olması gerekir)
+	Replies to	Yanıt adresi
+	Send right away	Hemen gönder
+	Sends {when}	Gönderim: {when}
+	Set	Ayarla
+	Where replies go instead of to you	Yanıtların size değil, gideceği adres
+	In 1 hour	1 saat içinde
+	Tomorrow morning	Yarın sabah
+	Monday morning	Pazartesi sabahı
+	and	ve
+	or	veya
+	delete	sil
+	flag	bayrakla
+	has attachments	ek var
+	is list mail	liste postası
+	mark read	okundu yap
+	pin	sabitle
+	to “{text}”	alıcı “{text}”
+	Add a place	Yer ekleyin
+	Add at least one name in To, Cc or Bcc before sending.	Göndermeden önce Kime, Cc veya Bcc alanına en az bir ad ekleyin.
+	Edit link	Bağlantıyı düzenle
+	Edit link…	Bağlantıyı düzenle…
+	First and last name	Ad ve soyadı
+	Link to	Bağlantı hedefi
+	One number per line	Her satıra bir numara
+	Text to display	Görüntülenecek metin
+	The address itself	Adresin kendisi
+	Web page or file	Web sayfası veya dosya
+	Cut	Kes
+	Copy	Kopyala
+	Paste	Yapıştır
+	Select all	Tümünü seç
+	Link…	Bağlantı…
+	Open link	Bağlantıyı aç
+	Clear formatting	Biçimlendirmeyi temizle
+	Insert link	Bağlantı ekle
+	The selected text	Seçili metin
+	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Outlook.com, Hotmail ve Live adresleri yalnızca Microsoft ile oturum açarak bağlanır: Microsoft artık posta uygulamalarından parola kabul etmiyor. MailCraft'ın bu kopyası Microsoft oturum açma desteğiyle derlenmedi, bu yüzden bu hesabı ekleyemez.
+	Back to message	İletiye dön
+	Esc	Esc
+	Open it in its app, or save it.	Kendi uygulamasında açın veya kaydedin.
+	Page {n}	Sayfa {n}
+	Slide {n}	Slayt {n}
+	The document is empty.	Belge boş.
+	The first {shown} of {total} pages: open it to read the rest.	{total} sayfanın ilk {shown} sayfası: gerisini okumak için açın.
+	The sheet is empty.	Çalışma sayfası boş.
+	There's no preview for this file.	Bu dosya için önizleme yok.
+	{n} people	{n} kişi
+	Cards	Kartlar
+	Phone list	Telefon listesi
+	Full name	Tam ad
+	Search notes	Notlarda ara
+	{n} notes	{n} not
+	No notes yet: New note starts one.	Henüz not yok: Yeni not ile bir tane başlatın.
+	No note matches.	Eşleşen not yok.
+	Write your note…	Notunuzu yazın…
+	Blue	Mavi
+	Green	Yeşil
+	Pink	Pembe
+	Yellow	Sarı
+	White	Beyaz
+	Color	Renk
+	New note	Yeni not
+	Open a shared calendar	Paylaşılan bir takvim aç
+	Open shared calendar…	Paylaşılan takvimi aç…
+	Remove this calendar	Bu takvimi kaldır
+	Shared with you, opened from {account}	Sizinle paylaşıldı, {account} hesabından açıldı
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Kimin takvimi? Exchange'de sizinle paylaştıysa, sizinkinin yanında salt okunur olarak açılır.
+	read-only	salt okunur
+	Public Folders	Ortak Klasörler
+	Copy the whole message	İletinin tamamını kopyala
+	Existing data file (optional)	Mevcut veri dosyası (isteğe bağlı)
+	Mail from an old .pst or .mailcraft file comes in first	Önce eski bir .pst veya .mailcraft dosyasındaki postalar alınır
+	Open a data file	Bir veri dosyası aç
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Bir Outlook veri dosyası (.pst) veya MailCraft veri dosyası (.mailcraft) getirin. Klasörleriyle birlikte kendi posta kutusu olarak açılır ve bu bilgisayarda tutulur.
+	Move up	Yukarı taşı
+	Move down	Aşağı taşı
+	Updating…	Güncelleniyor…
+	All folders are up to date	Tüm klasörler güncel
+	{n} accounts disconnected	{n} hesabın bağlantısı kesildi
+	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Microsoft ile oturum aç
+	Sign in with Microsoft…	Microsoft ile oturum aç…
+	Mailbox won't open	Posta kutusu açılmıyor
+	The mailbox won't open	Posta kutusu açılmıyor
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph, posta kutusuna IMAP olmadan erişir; takvimini ve kişilerini de getirir. Hesap onun üzerinden yeniden başlar: postaları sunucudan indirilir.
+	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP'i açtınız mı ya da tarayıcıda başka bir hesap mı seçtiniz? Yeniden oturum açın
+	Use Microsoft Graph	Microsoft Graph kullan
+	A message opened in its own window (double-click) is always marked as read.	Kendi penceresinde açılan bir ileti (çift tıklama) her zaman okundu olarak işaretlenir.
+	Mark messages as read in the reading pane	Okuma bölmesindeki iletileri okundu olarak işaretle
+	When I choose another message	Başka bir ileti seçtiğimde
+	When it's shown, after	Gösterildiğinde, şu süre sonra
+	seconds	saniye
+	Arrange by	Sıralama
+	Last changed	Son değişiklik
+	Title (A to Z)	Başlık (A'dan Z'ye)
+	Insert signature	İmza ekle
+	Save and insert	Kaydet ve ekle
+	Signatures…	İmzalar…
+	Categories	Kategoriler
+	1 month	1 ay
+	{n} months	{n} ay
+	Day and week show each calendar in a column of its own	Gün ve hafta görünümleri her takvimi ayrı bir sütunda gösterir
+	Drag down to show more months	Daha fazla ay göstermek için aşağı sürükleyin
+	Hidden: click to show it	Gizli: göstermek için tıklayın
+	Shown: click to hide it	Görünür: gizlemek için tıklayın
+	Side by side	Yan yana
+	Mail kept on this computer	Bu bilgisayarda tutulan posta
+	Of each folder, keep	Her klasörden şunu tut
+	Download in full for reading offline	Çevrimdışı okumak için tamamını indir
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Yeni postalar her zaman gelir. Bunların ötesindeki eski postalar sunucuda kalır; her iletinin geri kalanı açıldığında indirilir.
+	the newest 1,000	en yeni 1.000 ileti
+	the newest 40	en yeni 40 ileti
+	all	tümü
+	A different reply for them	Onlar için farklı bir yanıt
+	Inside my organization	Kuruluşumun içinde
+	Outside my organization	Kuruluşumun dışında
+	Anyone	Herkes
+	My contacts only	Yalnızca kişilerim
+	No one	Hiç kimse
+	In a shared address book: read-only	Paylaşılan bir adres defterinde: salt okunur
+	Click a column to sort by it; right-click to choose the columns	Sıralamak için bir sütuna tıklayın; sütunları seçmek için sağ tıklayın
+	Columns	Sütunlar
+	List	Liste
+	Business phone	İş telefonu
+	Mobile phone	Cep telefonu
+	Home phone	Ev telefonu
+	Address book	Adres defteri
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Outlook veya Word'den yapıştırdığınızda görünümünü korur; Ctrl+B, Ctrl+I ve Ctrl+U ile biçimlendirilir.
+	Formatted	Biçimli
+	HTML code	HTML kodu
+	From a file…	Dosyadan…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Başka bir yerde hazırlanmış bir imzanın HTML'ini yapıştırın veya web sayfası olarak kaydedilmiş birini (Outlook'un .htm dosyası) açın. Yazıldığı gibi gönderilir; siz yazarken ileti onun metnini gösterir.
+	{name} can't be read as a signature	{name} imza olarak okunamıyor
+	All contacts	Tüm kişiler
+	Always open with this address book	Her zaman bu adres defteriyle aç
+	Day and week show each calendar in a pane of its own	Gün ve hafta görünümleri her takvimi ayrı bir bölmede gösterir
+	Every contact, in every address book	Tüm adres defterlerindeki tüm kişiler
+	Everyone you've written to or heard from, and your contacts	Yazıştığınız herkes ve kişileriniz
+	Hide {calendar}	{calendar} takvimini gizle
+	Write your signature, or paste it…	İmzanızı yazın veya yapıştırın…
+	Address books	Adres defterleri
+	Birthday	Doğum günü
+	Business	İş
+	City	Şehir
+	Fax	Faks
+	Mobile	Cep
+	Pager	Çağrı cihazı
+	Shared with you through {account}: read-only	{account} üzerinden sizinle paylaşıldı: salt okunur
+	YYYY-MM-DD	YYYY-AA-GG
+	Email 2	E-posta 2
+	Email 3	E-posta 3
+	Business fax	İş faksı
+	Other phone	Diğer telefon
+	Street	Sokak
+	Postal code	Posta kodu
+	State/Province	Eyalet/İl
+	Country/Region	Ülke/Bölge
+	Business address	İş adresi
+	Home address	Ev adresi
+	Delete “{name}”?	“{name}” silinsin mi?
+	Delete this contact?	Bu kişi silinsin mi?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	Bu kişi, hakkında tutulan her şeyle birlikte silinecek. Bu işlem geri alınamaz.
+	Export…	Dışa aktar…
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft'ın kaydettiği bir dosyadaki kuralları ekleyin. Bu bilgisayarda olmayan bir hesaba ait kural kapalı olarak gelir.
+	Change…	Değiştir…
+	Clean up	Toparla
+	Export rules	Kuralları dışa aktar
+	Import rules	Kuralları içe aktar
+	Rules imported: {n}	İçe aktarılan kural: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	İçe aktarılan kural: {n} ({off} tanesi kapalı, çünkü hesapları bu bilgisayarda değil)
+	Import…	İçe aktar…
+	No data file is open.	Açık veri dosyası yok.
+	On the server	Sunucuda
+	On this computer	Bu bilgisayarda
+	Open…	Aç…
+	Remove account	Hesabı kaldır
+	Save your rules in a file, to keep them or to use them on another computer.	Kurallarınızı saklamak veya başka bir bilgisayarda kullanmak için bir dosyaya kaydedin.
+	Rules saved in {file}: {n}	{file} dosyasına kaydedilen kural: {n}
+	Save {n} Selected…	Seçili {n} Öğeyi Kaydet…
+	Run all	Tümünü çalıştır
+	Run every rule that's on, on the mail already in the Inbox	Açık olan her kuralı Gelen Kutusundaki mevcut postalarda çalıştır
+	Find a rule	Kural bul
+	No rule matches.	Eşleşen kural yok.
+	 and {n} more	 ve {n} tane daha
+	Add to contacts…	Kişilere ekle…
+	Copy address	Adresi kopyala
+	Edit contact…	Kişiyi düzenle…
+	Send email	E-posta gönder
+	Add	Ekle
+	Add a shared mailbox	Paylaşılan posta kutusu ekle
+	Add…	Ekle…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Klasörleri bu hesabın altında görünür. Exchange sunucusunda ona erişiminiz olmalıdır; tam erişiminiz olanlar kendiliğinden açılır.
+	Mailboxes you have full access to open by themselves.	Tam erişiminiz olan posta kutuları kendiliğinden açılır.
+	Shared mailboxes	Paylaşılan posta kutuları
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} MailCraft'tan kaldırılacak. Veri dosyası {file}, MailCraft Files klasörünüzde kalır: postalarını yeniden görmek için Dosya › Aç ve Dışa Aktar'dan açın. Sunucuda hiçbir şey silinmez.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} MailCraft'tan kaldırılacak. Sunucuda hiçbir şey silinmez.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} MailCraft'tan kaldırılacak. Veri dosyası {file}, MailCraft Files klasörünüzde kalır: postalarını yeniden görmek için Dosya › Aç ve Dışa Aktar'dan açın.
+	{email} will be removed from MailCraft.	{email} MailCraft'tan kaldırılacak.
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	Arşiv
+
+# A month's full name, where it differs from its short form.
+month	May	Mayıs
+	Add shared mailbox…	Paylaşılan posta kutusu ekle…
+	Remove shared mailbox	Paylaşılan posta kutusunu kaldır
+	Opened by the server for your access to it	Erişiminiz olduğu için sunucu tarafından açıldı
+	Shared mailbox {address}, opened by {email}	Paylaşılan posta kutusu {address}, {email} üzerinden açıldı
+	The outgoing server has its own user name and password	Giden sunucunun kendi kullanıcı adı ve parolası var
+	Its user name	Kullanıcı adı
+	Its password	Parolası
+	Password (unchanged when empty)	Parola (boşsa değişmez)
+	There's no folder to put the attachment in for another app	Eki başka bir uygulama için koyacak klasör yok
+	Check for updates	Güncellemeleri denetle
+	Checking…	Denetleniyor…
+	Couldn't check for updates: {error}	Güncellemeler denetlenemedi: {error}
+	Download	İndir
+	Join meeting	Toplantıya katıl
+	Links:	Bağlantılar:
+	MailCraft {version} is available.	MailCraft {version} kullanıma hazır.
+	What's new	Yenilikler
+	You have the newest version.	En yeni sürümü kullanıyorsunuz.
+	Online only: keep none of this account's mail on this computer	Yalnızca çevrimiçi: bu hesabın hiçbir postasını bu bilgisayarda tutma
+	Online only: none of this account's mail is kept on this computer.	Yalnızca çevrimiçi: bu hesabın hiçbir postası bu bilgisayarda tutulmaz.
+	Online only: {email}	Yalnızca çevrimiçi: {email}
+	New message	Yeni ileti
+	Open MailCraft to read it.	Okumak için MailCraft'ı açın.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Taşınabilir: her şey MailCraft'ın yanındaki MailCraftData klasöründe tutulur; parolalar ise yalnızca kapanana kadar.
+	Close MailCraft?	MailCraft kapatılsın mı?
+	Close anyway	Yine de kapat
+	Edit notes	Notları düzenle
+	Getting them from the server…	Sunucudan alınıyor…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	Postaları sunucuda kalır ve yalnızca MailCraft çalışırken bellekte tutulur: hiçbiri bu bilgisayara yazılmaz ve her ileti açtığınızda indirilir. Gönderdiğiniz postalar doğrudan sunucuya gider; yalnızca henüz gidemeyen postalar (çevrimdışıyken) bekler ve MailCraft önce kapanırsa çevrimdışı yapılan değişikliklerle birlikte kaybolur (size sorulur). Bir sunucudaki takvimler, kişiler ve notlar orada kalır; yalnızca MailCraft'ta tutulanlar kapandığında kaybolur.
+	Mail older than what's kept here is only on the server.	Burada tutulandan daha eski postalar yalnızca sunucudadır.
+	Search the server	Sunucuda ara
+	Searching the server…	Sunucuda aranıyor…
+	Show more	Daha fazla göster
+	The account list (no passwords), the window's settings and the log	Hesap listesi (parolalar olmadan), pencere ayarları ve günlük
+	The server found {n}	Sunucunun bulduğu: {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	Hesapları yalnızca çevrimiçi olduğundan bunlar yalnızca bellekte tutuluyor ve MailCraft şimdi kapanırsa kaybolur: {what}. Önce bağlanıp gönderin (Gönder / Al) veya yine de kapatın.
+	{n} more on the server	Sunucuda {n} tane daha
+	Changes not yet on the server: {n}	Henüz sunucuda olmayan değişiklik: {n}
+	Messages waiting to be sent: {n}	Gönderilmeyi bekleyen ileti: {n}
+	{day} {month}	{day} {month}
+	Restart to update	Güncellemek için yeniden başlat
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} indirildi. MailCraft'ı kapattığınızda yüklenir.
+	Reminder	Anımsatıcı
+	None	Yok
+	1 minute	1 dakika
+	{n} minutes	{n} dakika
+	1 hour	1 saat
+	{n} hours	{n} saat
+	1 day	1 gün
+	{n} days	{n} gün
+	1 week	1 hafta
+	{n} weeks	{n} hafta
+	0 minutes before start	Başlangıçtan 0 dakika önce
+	1 Reminder	1 Anımsatıcı
+	{n} Reminders	{n} Anımsatıcı
+	Click Snooze to be reminded again in:	Şu süre sonra yeniden anımsatılmak için Ertele'ye tıklayın:
+	Dismiss	Kapat
+	Dismiss All	Tümünü Kapat
+	Open Item	Öğeyi Aç
+	Overdue	Gecikmiş
+	Now	Şimdi
+	In {n} minutes	{n} dakika içinde
+	In {n} hours	{n} saat içinde
+	In {n} days	{n} gün içinde
+	Junk	Gereksiz
+	Junk options	Gereksiz posta seçenekleri
+	Junk Email options…	Gereksiz E-posta seçenekleri…
+	Block sender	Göndericiyi engelle
+	Never block sender	Göndericiyi asla engelleme
+	Never block sender's domain	Göndericinin etki alanını asla engelleme
+	Their mail goes to Junk Email from now on	Bundan sonra postaları Gereksiz E-posta'ya gider
+	Their mail is never treated as junk	Postaları hiçbir zaman gereksiz sayılmaz
+	Mail from anyone at their domain is never treated as junk	Etki alanındaki herkesten gelen postalar hiçbir zaman gereksiz sayılmaz
+	Blocked senders	Engellenen göndericiler
+	Safe senders	Güvenilir göndericiler
+	Mail from these addresses and domains goes to Junk Email as it arrives.	Bu adreslerden ve etki alanlarından gelen postalar, gelir gelmez Gereksiz E-posta'ya gider.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	Bu adreslerden ve etki alanlarından gelen postalar hiçbir zaman gereksiz sayılmaz ve resimleri yüklenir.
+	name@example.com or @example.com	ad@example.com veya @example.com
+	And {n} more	Ve {n} tane daha
+	Clean up conversation	Konuşmayı toparla
+	Clean up folder	Klasörü toparla
+	Messages quoted in full by a later reply go to Deleted Items	Daha sonraki bir yanıtta tamamen alıntılanan iletiler Silinmiş Öğeler'e gider
+	Work week	Çalışma haftası
+	No conversations to clean up	Toparlanacak konuşma yok
+	Nothing to clean up: no message is quoted in full by a later reply	Toparlanacak bir şey yok: hiçbir ileti daha sonraki bir yanıtta tamamen alıntılanmamış
+	Search Folders	Arama Klasörleri
+	New Search Folder…	Yeni Arama Klasörü…
+	New Search Folder	Yeni Arama Klasörü
+	Edit Search Folder	Arama Klasörünü Düzenle
+	Customize this Search Folder…	Bu Arama Klasörünü özelleştir…
+	Delete Search Folder	Arama Klasörünü Sil
+	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	Silinmiş Öğeler ve Gereksiz E-posta dışındaki her klasörde bulduğu postaları gösterir.
+	Show	Göster
+	From these people (addresses or names, separated by commas)	Şu kişilerden (adresler veya adlar, virgülle ayrılmış)
+	Search for	Aranacak
+	Unread mail	Okunmamış posta
+	Mail flagged for follow up	Takip için bayraklanan posta
+	Important mail	Önemli posta
+	Categorized mail	Kategorili posta
+	Mail with attachments	Ekli posta
+	Large mail (over 100 KB)	Büyük posta (100 KB üstü)
+	Pinned mail	Sabitlenmiş posta
+	Mail from specific people	Belirli kişilerden gelen posta
+	Quick steps	Hızlı adımlar
+	No Quick Steps yet.	Henüz Hızlı Adım yok.
+	New Quick Step…	Yeni Hızlı Adım…
+	New Quick Step	Yeni Hızlı Adım
+	Edit a Quick Step	Bir Hızlı Adımı düzenle
+	Edit Quick Step	Hızlı Adımı Düzenle
+	Done to the selected mail in one click; the first nine also with Ctrl+Shift+1 to 9.	Seçili postaya tek tıklamayla uygulanır; ilk dokuzu Ctrl+Shift+1–9 ile de.
+	Done	Bitti
+	Then move to	Sonra şuraya taşı
+	Don't move	Taşıma
+	Delete this Quick Step	Bu Hızlı Adımı sil
+	Date & time	Tarih ve saat
+	Word count	Sözcük sayısı
+	Words	Sözcük
+	Characters (no spaces)	Karakter (boşluksuz)
+	Characters (with spaces)	Karakter (boşluklu)
+	Paragraphs	Paragraf
+	Lines	Satır
+	Save the message you're writing?	Yazdığınız ileti kaydedilsin mi?
+	Save the messages you're writing?	Yazdığınız iletiler kaydedilsin mi?
+	It's kept in Drafts if you save it.	Kaydederseniz Taslaklar'da tutulur.
+	{n} messages are being written. They're kept in Drafts if you save them.	{n} ileti yazılıyor. Kaydederseniz Taslaklar'da tutulurlar.
+	Don't save	Kaydetme
+	Also being written:	Ayrıca yazılmakta olanlar:
+	Play animations	Animasyonları oynat
+	Hovers, selections and panes ease into place; off, everything changes at once	Üzerine gelmeler, seçimler ve bölmeler yumuşakça yerine oturur; kapalıyken her şey bir anda değişir
+	Current Folder	Geçerli Klasör
+	Subfolders	Alt klasörler
+	Current Mailbox	Geçerli Posta Kutusu
+	All Mailboxes	Tüm Posta Kutuları
+	Recent searches	Son aramalar
+	Clear recent searches	Son aramaları temizle
+	Advanced search	Gelişmiş arama
+	Message text	İleti metni
+	Other terms	Diğer terimler
+	Clear	Temizle
+	No results. Try fewer words.	Sonuç yok. Daha az sözcük deneyin.
+	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	Bu güncelleme toplantının düzenleyicisi tarafından gönderilmedi, bu yüzden takviminizi değiştiremez.
+	This answer wasn't sent by the guest it's from, so it can't be recorded.	Bu yanıt, ait olduğu konuk tarafından gönderilmedi, bu yüzden kaydedilemez.
+	This invitation is out of date: your calendar has a newer version.	Bu davet güncel değil: takviminizde daha yeni bir sürümü var.
+	Left out because they couldn't be read: {n}	Okunamadığı için dışarıda bırakılan: {n}
+	Added to your calendar from {file}: {n}	{file} dosyasından takviminize eklenen: {n}
+	Added to your contacts from {file}: {n}	{file} dosyasından kişilerinize eklenen: {n}
+	Add an account first: a new message needs an account to send from.	Önce bir hesap ekleyin: yeni bir iletinin gönderileceği bir hesap gerekir.
+	Add an account first: events and people are kept with an account.	Önce bir hesap ekleyin: etkinlikler ve kişiler bir hesapla birlikte tutulur.
+	Couldn't open {file}: {error}	{file} açılamadı: {error}
+	Safety	Güvenlik önlemleri
+	Send where photos were taken	Fotoğrafların çekildiği yeri gönder
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Kapalıyken, bir telefonun fotoğrafa yazdığı konum JPEG ve PNG dosyaları gönderilirken çıkarılır
+	These photos say where they were taken, and go that way (File › Options › Safety)	Bu fotoğraflar çekildikleri yeri söylüyor ve öyle gidecekler (Dosya › Seçenekler › Güvenlik önlemleri)
+	Where these photos were taken is left out as they're sent	Bu fotoğrafların çekildiği yer gönderilirken çıkarılır
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	Dikkat: bu ileti {domain} kaynaklı; {like} gibi görünüyor ama o değil.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	Dikkat: göndericinin adı {shown} olarak görünüyor, ancak ileti {real} adresinden geliyor.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Kimin gönderdiğinden emin olmadıkça bağlantılarını veya eklerini açmayın, yanıt da vermeyin.
+	Check before sending	Göndermeden önce denetleyin
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address}, {like} etki alanında bir adrese benziyor ama değil. Doğru adres mi?
+	{n} people who may not know each other will all see each other's addresses.	Birbirini tanımayabilecek {n} kişi, hepsi birbirinin adresini görecek.
+	Put everyone in Bcc	Herkesi Bcc'ye koy
+	Each of them gets the message without seeing who else did; you're in To	Her biri iletiyi başka kimin aldığını görmeden alır; siz Kime alanındasınız
+	Open links without their tracking	Bağlantıları izleme olmadan aç
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	Bağlantı gerçekte gittiği yerde açılır: gerçek adresi taşıyan yönlendirmelerden çıkarılır, kimin tıkladığını söyleyen etiketler olmadan
+	Links open as they are (File › Options › Safety)	Bağlantılar oldukları gibi açılır (Dosya › Seçenekler › Güvenlik önlemleri)
+	Links open without their tracking tags, and out of redirects that carry the real address	Bağlantılar izleme etiketleri olmadan ve gerçek adresi taşıyan yönlendirmelerden çıkarılarak açılır
+	Links that report clicks: {links}	Tıklamaları bildiren bağlantılar: {links}
+	Tracking pictures, never loaded: {pictures}	İzleme resimleri, hiç yüklenmedi: {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	İzleme resimleri, hiç yüklenmedi: {pictures} · Tıklamaları bildiren bağlantılar: {links}
+	This message hides text from you ({n} words).	Bu ileti sizden metin gizliyor ({n} sözcük).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	Gizli metin, istenmeyen posta filtrelerini atlatmanın veya postanızı sizin yerinize okuyan araçlara ve asistanlara talimat vermenin bir yoludur.
+	Show the hidden text	Gizli metni göster
+	Hide it again	Yeniden gizle
+	Sent mail waiting for a reply	Yanıt bekleyen gönderilmiş posta
+	Awaiting reply	Yanıt bekleniyor
+	its certificate isn't from an authority this computer trusts	sertifikası bu bilgisayarın güvendiği bir yetkiliden değil
+	its certificate ran out on {date}	sertifikasının süresi {date} tarihinde doldu
+	its certificate isn't valid until {date}	sertifikası {date} tarihine kadar geçerli değil
+	its certificate is for {addresses}, not for the sender	sertifikası göndericiye değil, şu adreslere ait: {addresses}
+	its certificate isn't for signing email	sertifikası e-posta imzalamak için değil
+	Encrypted. Decrypting it…	Şifreli. Şifresi çözülüyor…
+	This message is encrypted, and it couldn't be decrypted: {error}	Bu ileti şifreli ve şifresi çözülemedi: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	İmzalı değil, bu yüzden yolda değiştirilmiş olabilir: istediklerine dikkat edin.
+	Encrypted: only you and its other recipients can read it.	Şifreli: yalnızca siz ve diğer alıcıları okuyabilir.
+	Issued by {issuer}, valid until {date}	Veren: {issuer}, geçerlilik sonu: {date}
+	Signed {date}	İmzalanma: {date}
+	Signed with SHA-1, which no longer proves much.	SHA-1 ile imzalanmış; bu artık pek bir şey kanıtlamaz.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	İmzalayan: {signer}; imza geçerli (sertifikayı veren: {issuer}).
+	Signed by {signer}, but {why}.	İmzalayan: {signer}, ancak {why}.
+	The signature doesn't hold: {why}.	İmza geçerli değil: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Bir sertifikayla (S/MIME) iletilerinizi imzalayın ki insanlar sizden geldiğini anlayabilsin; şifreli posta okuyun ve gönderin.
+	Security	Güvenlik
+	No certificate	Sertifika yok
+	Import the .p12 or .pfx file your certificate came in.	Sertifikanızın geldiği .p12 veya .pfx dosyasını içe aktarın.
+	Import certificate…	Sertifikayı içe aktar…
+	It ran out on {date}: messages can't be signed with it any more.	Süresi {date} tarihinde doldu: artık iletiler onunla imzalanamaz.
+	Forget this certificate: its key goes from the keychain too	Bu sertifikayı unut: anahtarı da anahtarlıktan silinir
+	Replace…	Değiştir…
+	Sign new messages	Yeni iletileri imzala
+	Encrypt new messages	Yeni iletileri şifrele
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Her alıcının size önce imzalı bir ileti göndermiş olması gerekir; şifreli postalara verilen yanıtlar her zaman şifrelenir.
+	Certificates from signed mail: {n}	İmzalı postalardan gelen sertifika: {n}
+	Import certificate	Sertifikayı içe aktar
+	The password {file} was saved with:	{file} dosyasının kaydedildiği parola:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	Özel anahtarı MailCraft'ın dosyalarında değil, sistemin anahtarlığında tutulur.
+	Import	İçe aktar
+	Sign	İmzala
+	Encrypt	Şifrele
+	Signed with your certificate: the recipients can tell it's from you and unchanged	Sertifikanızla imzalandı: alıcılar sizden geldiğini ve değiştirilmediğini anlayabilir
+	Only the recipients can read it: each needs to have sent you a signed message	Yalnızca alıcılar okuyabilir: her birinin size önce imzalı bir ileti göndermiş olması gerekir
+	the message was changed after it was signed, or the signature isn't the sender's	ileti imzalandıktan sonra değiştirildi veya imza göndericiye ait değil
+	this account has no certificate to decrypt it with (File › Info › Security)	bu hesabın şifreyi çözecek sertifikası yok (Dosya › Bilgi › Güvenlik)
+	it can't be decrypted with your certificate	sertifikanızla şifresi çözülemiyor
+	its account is gone	hesabı artık yok
+	Hide the subject of encrypted mail	Şifreli postaların konusunu gizle
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	Yolda [...] olarak görünür; gerçeği içeride, alıcıları içindir (üst bilgi koruması).
+	Its subject and addresses were protected inside it too.	Konusu ve adresleri de içeride korunuyordu.
+	Check whether certificates were withdrawn	Sertifikaların geri çekilip çekilmediğini denetle
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	İmzalı posta gösterildiğinde, sertifikanın yetkilisine onu geri çekip çekmediği sorulur. Bu durumda yetkili kimin postasını okuduğunuzu öğrenir
+	Asking its authority whether the certificate was withdrawn…	Sertifikanın geri çekilip çekilmediği yetkilisine soruluyor…
+	Its authority says the certificate wasn't withdrawn.	Yetkilisi sertifikanın geri çekilmediğini söylüyor.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	Sertifikanın geri çekilip çekilmediği denetlenemedi: {why}.
+	its authority withdrew its certificate on {date}	yetkilisi sertifikasını {date} tarihinde geri çekti
+	its certificate doesn't say where to ask	sertifikası nereye sorulacağını belirtmiyor
+	its authority's responder didn't answer	yetkilisinin yanıtlayıcısı yanıt vermedi
+	its authority's list of withdrawn certificates couldn't be had	yetkilisinin geri çekilen sertifikalar listesi alınamadı
+	the certificate's authority isn't known	sertifikanın yetkilisi bilinmiyor
+	the list of withdrawn certificates can't be read	geri çekilen sertifikalar listesi okunamıyor
+	the list isn't from the certificate's authority	liste sertifikanın yetkilisinden değil
+	the list's signature doesn't hold	listenin imzası geçerli değil
+	the list is from the future	liste gelecekten
+	the list is out of date	liste güncel değil
+	a certificate can't be read	bir sertifika okunamıyor
+	the OCSP answer can't be read	OCSP yanıtı okunamıyor
+	the OCSP responder didn't answer	OCSP yanıtlayıcısı yanıt vermedi
+	the OCSP answer is of another kind	OCSP yanıtı başka türde
+	the OCSP answer isn't signed by the certificate's authority	OCSP yanıtı sertifikanın yetkilisi tarafından imzalanmamış
+	the OCSP answer is about another certificate	OCSP yanıtı başka bir sertifikayla ilgili
+	the OCSP answer is from the future	OCSP yanıtı gelecekten
+	the OCSP answer is out of date	OCSP yanıtı güncel değil
+	the OCSP responder doesn't know the certificate	OCSP yanıtlayıcısı sertifikayı tanımıyor
+	Use a smart card	Akıllı kart kullan
+	Use a smart card…	Akıllı kart kullan…
+	Find certificates	Sertifikaları bul
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Sertifikanızın geldiği .p12 veya .pfx dosyasını içe aktarın ya da bir akıllı karttakini kullanın.
+	Look in the Keychain	Anahtar Zinciri'ne bak
+	Looking…	Aranıyor…
+	The card's PIN	Kartın PIN'i
+	The key stays on the card; its PIN is kept in the system's keychain.	Anahtar kartta kalır; PIN'i sistemin anahtarlığında tutulur.
+	The module your card came with (OpenSC's reads most cards):	Kartınızla gelen modül (OpenSC'ninki çoğu kartı okur):
+	Use	Kullan
+	no certificate with its key was found	anahtarıyla birlikte sertifika bulunamadı
+	the PIN is wrong, or the card is locked	PIN yanlış veya kart kilitli
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	bu sistemin anahtarlığı MailCraft için imzalayamıyor: bir akıllı kart modülü kullanın veya bir .p12 dosyası içe aktarın
+	Unlock	Kilidi aç
+	Unlock…	Kilidi aç…
+	Unlock certificate	Sertifikanın kilidini aç
+	Your certificate's password, to use it in this browser until the page is closed:	Sayfa kapanana kadar bu tarayıcıda kullanmak için sertifikanızın parolası:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	Tarayıcı dosyayı parolasıyla kilitli olarak tutar; parolanın kendisi tutulmaz.
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	Bu sayfada imzalamak ve şifre çözmek için parolasını yeniden girin (parolası bu olan her sertifikayı açar)
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	sertifikanız bu tarayıcıda kilitli: parolasıyla kilidini açın (Dosya › Bilgi › Güvenlik)
+	there's no certificate kept in this browser: import its .p12 file	bu tarayıcıda tutulan sertifika yok: .p12 dosyasını içe aktarın
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	akıllı kartlar ve sistemin anahtarlığı tarayıcıda değil, MailCraft masaüstü uygulamasında kullanılır
+	the browser can't ask a certificate's authority	tarayıcı bir sertifikanın yetkilisine soramaz
+	A certificate this computer already has, its key staying where it is	Bu bilgisayarda zaten olan bir sertifika; anahtarı olduğu yerde kalır
+	Look in Windows	Windows'a bak
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	Anahtar Zinciri'nizdeki e-posta sertifikaları. Anahtar orada kalır; macOS kullanılmadan önce sorabilir.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Windows sertifika deponuzdaki (Kişisel) e-posta sertifikaları. Anahtar Windows'ta kalır; kullanılmadan önce sorabilir.
+	Use a certificate from Windows	Windows'tan bir sertifika kullan
+	Use a certificate from the Keychain	Anahtar Zinciri'nden bir sertifika kullan
+	Use one from Windows…	Windows'tan birini kullan…
+	Use one from the Keychain…	Anahtar Zinciri'nden birini kullan…
+	the certificate is in another computer's certificate store	sertifika başka bir bilgisayarın sertifika deposunda
+	Or use one this computer has	Ya da bu bilgisayardakini kullanın
+	On a smart card, or kept by the system: the key stays where it is.	Akıllı kartta veya sistemde tutulan: anahtar olduğu yerde kalır.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows bu EC anahtarıyla anahtar uzlaşması yapamıyor (sağlayıcısı onu yalnızca imzalama için tutuyor olabilir)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	kartın az PIN deneme hakkı kaldı, bu yüzden MailCraft denemeyecek: PIN'i yeniden girin (Dosya › Bilgi › Güvenlik › Akıllı kart kullan…)
+	the list holds only what changed since another one	liste yalnızca başka bir listeden bu yana değişenleri içeriyor
+	the list covers only some certificates or reasons	liste yalnızca bazı sertifikaları veya nedenleri kapsıyor
+	the list is for other certificates	liste başka sertifikalar için
+	the list has a part MailCraft can't read	listede MailCraft'ın okuyamadığı bir bölüm var
+	the list's entry for the certificate can't be read	listenin bu sertifikaya ait kaydı okunamıyor
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	sertifikanın parolası yok, bu yüzden tarayıcı onu sayfa kapanana kadar kullanır ve saklamaz
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	kart PIN'ini istiyor (Dosya › Bilgi › Güvenlik › Akıllı kart kullan… bölümünde girin)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	kart PIN'i reddetti, bu yüzden MailCraft onu unuttu: yeniden denenirse kart kilitlenir (Dosya › Bilgi › Güvenlik › Akıllı kart kullan… bölümünde yeniden girin)
+	Close without updating	Güncellemeden kapat
+	Downloading MailCraft {version}…	MailCraft {version} indiriliyor…
+	Downloading MailCraft {version}… {percent}%	MailCraft {version} indiriliyor… %{percent}
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	MailCraft'ı şimdi kapatırsanız indirme duraklar ve MailCraft'ı bir sonraki açışınızda kaldığı yerden devam eder.
+	Install MailCraft {version} as it closes?	MailCraft {version} kapanırken yüklensin mi?
+	It installs the next time you close MailCraft.	MailCraft'ı bir sonraki kapatışınızda yüklenir.
+	It installs when you close MailCraft.	MailCraft'ı kapattığınızda yüklenir.
+	Keep MailCraft open	MailCraft açık kalsın
+	MailCraft {version} is downloading.	MailCraft {version} indiriliyor.
+	MailCraft {version} is ready	MailCraft {version} hazır
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} hazır. Yüklemek için şimdi yeniden başlatın; yoksa MailCraft'ı kapattığınızda yüklenir.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	Şimdi yüklemek için MailCraft'ı yeniden başlatın; yoksa MailCraft'ı kapattığınızda yüklenir.
+	Restart now	Şimdi yeniden başlat
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Güncelleme indirildi ve denetlendi. MailCraft kapanırken şimdi yüklenir, bu biraz sürer; bittiğinde MailCraft'ı yeniden açın.
+	Update and close	Güncelle ve kapat
+	Windows asks for an administrator's permission.	Windows bir yöneticinin iznini ister.
+	An update is still downloading	Bir güncelleme hâlâ indiriliyor
+	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} indiriliyor ({done} / {total}).
+	Add another…	Başka bir tane ekle…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	Yenilenen bir sertifika imzalamayı ve şifrelemeyi devralır; eski sertifika eski postaları okumak için tutulur
+	Older certificate, valid until {date}: kept to read mail encrypted to it	Eski sertifika, geçerlilik sonu {date}: onunla şifrelenmiş postaları okumak için tutulur
+	Use for sending	Göndermek için kullan
+	Sign and encrypt with this one again; the one in use is kept for reading	Yeniden bununla imzala ve şifrele; kullanımdaki sertifika okumak için tutulur
+	Forget this certificate: mail encrypted to it can't be read any more	Bu sertifikayı unut: onunla şifrelenmiş postalar artık okunamaz
+	Calendars and contacts	Takvimler ve kişiler
+	Calendar server…	Takvim sunucusu…
+	Calendar server (CalDAV)	Takvim sunucusu (CalDAV)
+	Contacts server (CardDAV)	Kişi sunucusu (CardDAV)
+	Calendars at {url}	{url} adresindeki takvimler
+	Calendars come from a server of their own: give its address and sign-in	Takvimler kendi sunucularından gelir: adresini ve oturum açma bilgilerini girin
+	Looked for when the account syncs	Hesap eşitlenirken aranır
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft, takvimlerinizi ve kişilerinizi posta sağlayıcınızın sunucusunda arar. Bulamazsa, sağlayıcınızın yardım sayfalarındaki adresleri girin; aramaya devam etmesi için birini boş bırakın.
+	No calendars were found at the address given: check it, and its sign-in	Verilen adreste takvim bulunamadı: adresi ve oturum açma bilgilerini denetleyin
+	Password (kept: type to change it)	Parola (kayıtlı: değiştirmek için yazın)
+	Some providers want an app password for calendars: make one in your account's settings there.	Bazı sağlayıcılar takvimler için bir uygulama parolası ister: oradaki hesap ayarlarınızdan bir tane oluşturun.
+	The calendar server has its own user name and password	Takvim sunucusunun kendi kullanıcı adı ve parolası var
+	Your provider's calendar server wasn't found: give its address	Sağlayıcınızın takvim sunucusu bulunamadı: adresini girin
+	Classic ribbon	Klasik şerit
+	Big buttons with their names under them, in named groups	Adlandırılmış gruplarda, adları altında yazan büyük düğmeler
+	New	Yeni
+	Respond	Yanıtla
+	Tags	Etiketler
+	Find	Bul
+	Send & Receive	Gönder ve Al
+	Preferences	Tercihler
+	Scope	Kapsam
+	Refine	Hassaslaştır
+	Layout	Düzen
+	Arrangement	Düzenleme
+	Appearance	Görünüm
+	Expand	Genişlet
+	Collapse	Daralt
+	Sent To	Gönderilen Kişi
+	Has Attachments	Eki Var
+	To:	Kime:
+	Cc:	Cc:
+	Accent colour	Vurgu rengi
+	Any colour	Herhangi bir renk
+	Buttons, links, the selection and the top bar	Düğmeler, bağlantılar, seçim ve üst çubuk
+	Everyone in your organisation's directory, asked of the server	Kuruluşunuzun dizinindeki herkes, sunucuya sorularak
+	Global Address List	Genel Adres Listesi
+	Indigo	Çivit
+	Left empty: MailCraft's own	Boş bırakılırsa: MailCraft'ın kendisi
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Yalnızca kuruluşunuzun sunucusu MailCraft'ı reddederse: izin verdiği bir posta programının adı.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	Yalnızca harfler, rakamlar, boşluklar ve noktalama işaretleri; en fazla 256 karakter.
+	Orange	Turuncu
+	Plain top bar	Düz üst çubuk
+	Red	Kırmızı
+	Refresh: search the directory again and read the address books from the server	Yenile: dizinde yeniden ara ve adres defterlerini sunucudan oku
+	Rose	Gül
+	Search the directory now	Dizinde şimdi ara
+	Searching your organisation's directory…	Kuruluşunuzun dizininde aranıyor…
+	Teal	Camgöbeği
+	The directory couldn't be searched: {error}	Dizinde aranamadı: {error}
+	The top bar in the panes' colours instead of the accent colour	Üst çubuk, vurgu rengi yerine bölmelerin renklerinde
+	Type a name to search your organisation's directory.	Kuruluşunuzun dizininde aramak için bir ad yazın.
+	User-Agent (optional)	User-Agent (isteğe bağlı)
+	Violet	Mor
+	Allow searching the directory…	Dizinde aramaya izin ver…
+	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft tarayıcınızda sorar; postanızın oturum açma ayarı olduğu gibi kalır
+	Your organisation's directory needs your permission to be searched from MailCraft.	Kuruluşunuzun dizininde MailCraft'tan arama yapılması için izniniz gerekiyor.
+	Keep unlocked in this browser	Bu tarayıcıda kilidi açık tut
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	Parola, bu tarayıcının oluşturduğu ve asla dışarı vermediği bir anahtarla mühürlenerek tutulur: bu tarayıcı profilini kullanan herkes şifreli postanızı imzalayabilir ve okuyabilir, ama kimse anahtarı başka bir yere götüremez.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	Tarayıcı dosyayı parolasıyla kilitli olarak, parolayı da bu tarayıcıdan hiç çıkmayan bir anahtarla mühürlenmiş olarak tutar.
+	Your certificate's password, to keep it unlocked in this browser:	Bu tarayıcıda kilidini açık tutmak için sertifikanızın parolası:
+	Subscribe to a calendar	Bir takvime abone ol
+	Subscribe to a calendar…	Bir takvime abone ol…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	Takvimin bağlantısını yapıştırın (iCal veya webcal://). Sizinkinin yanında salt okunur olarak görünür ve birkaç saatte bir yeniden okunur.
+	Name (optional)	Ad (isteğe bağlı)
+	Subscribe	Abone ol
+	Couldn't be read: {error}	Okunamadı: {error}
+	Reading it…	Okunuyor…
+	Read {time}	Okunma: {time}
+	couldn't be read	okunamadı
+	Refresh	Yenile
+	Drop to attach them to a new message	Yeni bir iletiye eklemek için bırakın
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} imzaya eklenemez: en fazla 1 MB'lık resimler, en çok 10 tane (PNG, JPEG, GIF, WebP)
+	Original size	Özgün boyut
+	Write replies and forwards in a window of their own	Yanıtları ve iletmeleri ayrı bir pencerede yaz
+	Show Favorites at the top of the folder pane	Sık Kullanılanları klasör bölmesinin en üstünde göster
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Hâlâ gönderilmekte olan ileti: {n}. MailCraft şimdi kapanırsa gitmeyebilirler: biraz bekleyin veya yine de kapatın.
+	Add meeting invitations to the calendar as tentative when they arrive	Toplantı davetlerini geldiklerinde takvime belki olarak ekle
+	Before they're answered; nothing is sent until you answer	Yanıtlanmadan önce; siz yanıtlayana kadar hiçbir şey gönderilmez
+	View message source	İleti kaynağını görüntüle
+	{n} messages selected	{n} ileti seçildi
+	Message source	İleti kaynağı
+	View the message as it came, headers and all	İletiyi geldiği gibi, tüm üst bilgileriyle görüntüle
+	Message	İleti
+	{subject} – Message source	{subject} – İleti kaynağı
+	Whole message	Tüm ileti
+	Header only	Yalnızca üst bilgi
+	Copy all	Tümünü kopyala
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	{size} boyutun yalnızca ilk {shown} kısmı gösteriliyor. E-posta olarak kaydet (.eml) tamamını korur.
+	The source couldn't be downloaded: {error}	Kaynak indirilemedi: {error}
+	Always	Her zaman
+	External	Dış
+	Check who sent it	Kimin gönderdiğini denetleyin
+	Careful: you know {name} as {known}, but this comes from {real}.	Dikkat: {name} kişisini {known} olarak tanıyorsunuz, ancak bu ileti {real} adresinden geliyor.
+	This sender is outside your organisation.	Bu gönderici kuruluşunuzun dışında.
+	Sender addresses in the message list	İleti listesinde gönderici adresleri
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	İletinin geldiği adres, göndericinin adından sonra: tanıdık bir ad herhangi birinin adresinden gelebilir
+	People you don't know	Tanımadığınız kişiler
+	Tag mail from outside your organisation	Kuruluşunuzun dışından gelen postaları etiketle
+	Messages from other domains are tagged External, in the list and above the message	Başka etki alanlarından gelen iletiler, listede ve iletinin üstünde Dış olarak etiketlenir
+	Your organisation's domains	Kuruluşunuzun etki alanları
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Virgülle ayrılmış. Boş bırakılırsa hesaplarınızın etki alanları kullanılır; Gmail gibi posta hizmetleri hariç
+	None: nothing is tagged	Hiçbiri: hiçbir şey etiketlenmez
+	Signatures	İmzalar
+	(none)	(yok)
+	A signature needs a name, on one line.	Bir imzanın tek satırlık bir adı olmalıdır.
+	Default signatures for {email}	{email} için varsayılan imzalar
+	New signature	Yeni imza
+	No signatures yet	Henüz imza yok
+	New messages:	Yeni iletiler:
+	Replies/forwards:	Yanıtlar/iletmeler:
+	Another signature has that name.	Başka bir imza bu ada sahip.
+	Add to the list	Listeye ekle
+	All categories…	Tüm kategoriler…
+	Categories imported: {n} new, {changed} changed	İçe aktarılan kategoriler: {n} yeni, {changed} değişen
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	İçe aktarılan kategoriler: {n} yeni, {changed} değişen, {skipped} dışarıda bırakılan (anahtar sözcükleri burada başka bir kategoriye ait)
+	Categories saved in {file}: {n}	{file} dosyasına kaydedilen kategori: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	Her kategori, sunucudaki postayla birlikte bir anahtar sözcük olarak tutulur; diğer posta programları da bunu görür.
+	Edit category	Kategoriyi düzenle
+	Keyword on the server	Sunucudaki anahtar sözcük
+	Mail that has the old keyword keeps it, shown as a category not in the list.	Eski anahtar sözcüğe sahip postalar onu korur; listede olmayan bir kategori olarak gösterilir.
+	No categories yet.	Henüz kategori yok.
+	Not in the category list	Kategori listesinde yok
+	Not in the category list: click to name it and choose its colour	Kategori listesinde yok: adlandırmak ve rengini seçmek için tıklayın
+	On mail here, not in the list	Buradaki postalarda var, listede yok
+	Other mail programs that set the same keyword show the same category.	Aynı anahtar sözcüğü ayarlayan diğer posta programları aynı kategoriyi gösterir.
+	That keyword has another use.	Bu anahtar sözcüğün başka bir kullanımı var.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Boşluk, tırnak, ters eğik çizgi veya ( ) { } ] % * olmadan en fazla 50 harf, rakam ve simge
+	{name} has that keyword already.	{name} zaten bu anahtar sözcüğe sahip.
+	Messages: {n}	İletiler: {n}
+	All calendars	Tüm takvimler
+	Busy	Meşgul
+	Free	Boş
+	No events match.	Eşleşen etkinlik yok.
+	Out of office	Ofis dışında
+	Past	Geçmiş
+	Private	Özel
+	Private appointment	Özel randevu
+	Search calendar (location:, organizer:, after:…)	Takvimde ara (location:, organizer:, after:…)
+	Show as	Şöyle göster
+	Show time only	Yalnızca saati göster
+	Working elsewhere	Başka yerde çalışıyor
+	After answering a meeting invitation	Bir toplantı davetini yanıtladıktan sonra
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	İletide veya takvimde yanıtlandığında, davet ve önceki sürümleri Gelen Kutusundan çıkar; bir iptal de, işlendikten sonra
+	Leave it	Bırak
+	A folder	Bir klasör
+	Folder for {email}	{email} için klasör
+	Choose a folder	Bir klasör seçin
+	Guests' answers to my meetings go the same way, once recorded	Toplantılarıma gelen konuk yanıtları da kaydedildikten sonra aynı yere gider
+	default	varsayılan
+	New events and invitations go to this calendar	Yeni etkinlikler ve davetler bu takvime gider
+	Use as default calendar	Varsayılan takvim olarak kullan
+	Events kept on this computer only: {count}	Yalnızca bu bilgisayarda tutulan etkinlik: {count}
+	Move them to {calendar}	Bunları {calendar} takvimine taşı
+	Keep them here	Burada tut
+	Online meeting	Çevrimiçi toplantı
+	Online meetings	Çevrimiçi toplantılar
+	Join:	Katıl:
+	Access code:	Erişim kodu:
+	Access code	Erişim kodu
+	Remove online meeting	Çevrimiçi toplantıyı kaldır
+	Add online meeting	Çevrimiçi toplantı ekle
+	Adds {room}: its link as the place, and how to join in the notes	{room} ekler: bağlantısını yer olarak, nasıl katılınacağını notlara
+	Add your meeting rooms under File › Options › Online meetings	Toplantı odalarınızı Dosya › Seçenekler › Çevrimiçi toplantılar altında ekleyin
+	Choose a room	Bir oda seçin
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	Kendi toplantı odalarınız (bir BigBlueButton, Jitsi veya başka bir odanın bağlantısı ve erişim kodu). Bir etkinlikteki Çevrimiçi toplantı ekle bir tane ekler: bağlantısını yer olarak, nasıl katılınacağını notlara.
+	Add an online meeting to all meetings with guests	Konuklu tüm toplantılara çevrimiçi toplantı ekle
+	The first room's, as the meeting is made	Toplantı oluşturulurken ilk odanınki
+	access code {code}	erişim kodu {code}
+	Make default	Varsayılan yap
+	Add online meeting adds this room unless another is chosen	Başka biri seçilmedikçe Çevrimiçi toplantı ekle bu odayı ekler
+	Add room	Oda ekle
+	Meeting hosts	Toplantı sağlayıcıları
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Bu sunuculara giden bağlantılar bir toplantıya katılır (Teams, Zoom, Google Meet, Webex, BigBlueButton odaları ve odalarınızın sunucuları zaten öyledir)
+	Dial-in numbers and other lines for the invitation (optional)	Davet için çevirmeli bağlantı numaraları ve diğer satırlar (isteğe bağlı)
+	Calendar and contacts couldn't be read: changes to them won't be saved	Takvim ve kişiler okunamadı: bunlarda yapılan değişiklikler kaydedilmeyecek
+	Your rules couldn't be read: changes to them won't be saved	Kurallarınız okunamadı: bunlarda yapılan değişiklikler kaydedilmeyecek
+	Snoozed mail couldn't be read: changes to it won't be saved	Ertelenen postalar okunamadı: bunlarda yapılan değişiklikler kaydedilmeyecek
+	Checking your data file	Veri dosyanız denetleniyor
+	Opening your mail…	Postanız açılıyor…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} geçen sefer düzgün kapatılmadı. MailCraft onu denetliyor; büyük bir dosya bir iki dakika sürebilir.
+	{percent}% checked	%{percent} denetlendi
+	{done} of {total} data files	{done} / {total} veri dosyası
+	Some of your mail couldn't be opened	Postalarınızın bir kısmı açılamadı
+	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft onlar olmadan açılır; her hesap, kullandığınızda neyin yanlış olduğunu söyler.
+	Continue	Devam et
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft veri dosyalarını açamadı, bu yüzden bu sefer posta önbelleği olmadan çalışıyor.
+	Indexing {percent}%	Dizinleniyor %{percent}
+	Indexing…	Dizinleniyor…
+	Making your mail searchable: {done} of {total} messages	Postanız aranabilir hâle getiriliyor: {done} / {total} ileti
+	Searching…	Aranıyor…
+	Some results may be missing: still indexing ({percent}%)	Bazı sonuçlar eksik olabilir: dizinleme sürüyor (%{percent})
+	Some results may be missing: still indexing	Bazı sonuçlar eksik olabilir: dizinleme sürüyor
+	Some long messages were searched only in part	Bazı uzun iletilerde yalnızca bir kısmı arandı
+	Couldn't read the date “{value}”	“{value}” tarihi okunamadı
+	Received after	Şundan sonra alınan
+	Received before	Şundan önce alınan
+	About {h} h {m} min left	Yaklaşık {h} sa {m} dk kaldı
+	About {n} min left	Yaklaşık {n} dk kaldı
+	Another program is using the data file.	Veri dosyasını başka bir program kullanıyor.
+	Calendar items: {n}	Takvim öğeleri: {n}
+	Close MailCraft	MailCraft'ı kapat
+	Contacts: {n}	Kişiler: {n}
+	Continue importing	İçe aktarmaya devam et
+	Counting items…	Öğeler sayılıyor…
+	Data: {done} of {total}	Veri: {done} / {total}
+	Folder: {folder} ({n} of {total})	Klasör: {folder} ({n} / {total})
+	Free there: {free}	Oradaki boş alan: {free}
+	Go to Inbox	Gelen Kutusuna git
+	Go to it	Ona git
+	Import another copy	Başka bir kopya içe aktar
+	Import paused	İçe aktarma duraklatıldı
+	Import paused: {done} of {total}	İçe aktarma duraklatıldı: {done} / {total}
+	Import paused: {file}	İçe aktarma duraklatıldı: {file}
+	Import report…	İçe aktarma raporu…
+	Import stopped	İçe aktarma durduruldu
+	Import stopped: {done} of {total}	İçe aktarma durduruldu: {done} / {total}
+	Import stopped: {file}	İçe aktarma durduruldu: {file}
+	Imported {file}	İçe aktarıldı: {file}
+	Importing {file}…	İçe aktarılıyor: {file}…
+	Importing {file}… {percent}%	İçe aktarılıyor: {file}… %{percent}
+	Importing {folder}…	İçe aktarılıyor: {folder}…
+	Importing {folder}… {percent}%	İçe aktarılıyor: {folder}… %{percent}
+	Importing {percent}%	İçe aktarılıyor %{percent}
+	Importing…	İçe aktarılıyor…
+	Keep importing	İçe aktarmayı sürdür
+	Keep what's imported	İçe aktarılanları tut
+	Not imported yet	Henüz içe aktarılmadı
+	Less than a minute left	Bir dakikadan az kaldı
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft {file} dosyasını içe aktarıyor (%{percent}). Şimdi kapatırsanız içe aktarma, MailCraft'ı bir sonraki açışınızda sürer.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft {file} dosyasını içe aktarıyor. Şimdi kapatırsanız içe aktarma, MailCraft'ı bir sonraki açışınızda sürer.
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft yaklaşık {size} boyutunda kendi kopyasını şurada oluşturur: {folder}.
+	Messages: {done} of {total}	İletiler: {done} / {total}
+	Not brought in	Alınmadı
+	Not brought in so far: {n}	Şimdiye kadar alınmayan: {n}
+	Notes: {n}	Notlar: {n}
+	Open an Outlook data file…	Bir Outlook veri dosyası aç…
+	Removing…	Kaldırılıyor…
+	Saved in: {path}	Kaydedildiği yer: {path}
+	Show how the import is going	İçe aktarmanın nasıl gittiğini göster
+	Start again	Yeniden başla
+	Stop	Durdur
+	Stop importing and remove {file}?	İçe aktarma durdurulup {file} kaldırılsın mı?
+	Stop importing {file}?	{file} içe aktarması durdurulsun mu?
+	Stop importing…	İçe aktarmayı durdur…
+	Stopping the import of {file}…	{file} içe aktarması durduruluyor…
+	Stopping…	Durduruluyor…
+	The data file changed after the import began.	Veri dosyası içe aktarma başladıktan sonra değişti.
+	The data file isn't where it was.	Veri dosyası bulunduğu yerde değil.
+	The file is damaged: reading stopped early ({n})	Dosya hasarlı: okuma erken durdu ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	Şimdiye kadar içe aktarılan kısım silinir. Veri dosyasının kendisi değişmez.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	Kopya için yer yok. Yer açın veya MailCraft'ın veri klasörünü taşıyın (Dosya › Seçenekler).
+	There's too little room left on the drive ({free} free).	Sürücüde çok az yer kaldı ({free} boş).
+	This data file is already open as {name}.	Bu veri dosyası zaten {name} olarak açık.
+	This file couldn't be looked at: {error}	Bu dosyaya bakılamadı: {error}
+	What came in goes, and the data file is read from its start.	Gelenler silinir ve veri dosyası baştan okunur.
+	What's imported so far is kept. You can continue later.	Şimdiye kadar içe aktarılanlar tutulur. Daha sonra devam edebilirsiniz.
+	{h} h {m} min	{h} sa {m} dk
+	{items} items in {folders} folders	{folders} klasörde {items} öğe
+	{messages} messages in {folders} folders ({time})	{folders} klasörde {messages} ileti ({time})
+	{n} attached messages couldn't be read	{n} ekli ileti okunamadı
+	{n} attached messages lost some of their files	{n} ekli ileti dosyalarının bir kısmını kaybetti
+	{n} attachments couldn't be read	{n} ek okunamadı
+	{n} attachments were only links to files elsewhere	{n} ek yalnızca başka yerdeki dosyalara bağlantıydı
+	{n} attachments were too big to bring in	{n} ek getirilemeyecek kadar büyüktü
+	{n} contacts, calendar items, tasks or notes couldn't be read	{n} kişi, takvim öğesi, görev veya not okunamadı
+	{n} folders couldn't be read	{n} klasör okunamadı
+	{n} folders of a kind MailCraft has no place for	MailCraft'ta yeri olmayan türden {n} klasör
+	{n} folders were nested too deep	{n} klasör çok derin iç içeydi
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	{n} klasörün listesi kaydedilemedi (postaları listelenmeden tutuluyor)
+	{n} items couldn't be used (such as an empty note)	{n} öğe kullanılamadı (boş bir not gibi)
+	{n} items for other reasons	Başka nedenlerle {n} öğe
+	{n} items in those folders	Bu klasörlerde {n} öğe
+	{n} message texts couldn't be converted	{n} ileti metni dönüştürülemedi
+	{n} message texts were in a character set MailCraft can't read	{n} ileti metni MailCraft'ın okuyamadığı bir karakter kümesindeydi
+	{n} messages couldn't be put back together	{n} ileti yeniden birleştirilemedi
+	{n} messages couldn't be read	{n} ileti okunamadı
+	{n} messages couldn't be saved	{n} ileti kaydedilemedi
+	{n} messages were attached too deep inside others	{n} ileti, başka iletilerin içine çok derin eklenmişti
+	{n} min	{n} dk
+	{n} recipients had no address	{n} alıcının adresi yoktu
+	{n} s	{n} sn
+	{time} so far	Şimdiye kadar {time}
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	Geri verilecek alanı olan bir veri dosyası, en fazla yarım dakika sürecekse MailCraft kapanırken küçültülür. Aksi hâlde MailCraft boşta bırakıldığında ya da Bilgi altındaki Şimdi sıkıştır ile yapılır.
+	Being compacted…	Sıkıştırılıyor…
+	Close now	Şimdi kapat
+	Close without compacting	Sıkıştırmadan kapat
+	Compact data files on close	Kapanışta veri dosyalarını sıkıştır
+	Compact now	Şimdi sıkıştır
+	Compact {file} before closing?	Kapatmadan önce {file} sıkıştırılsın mı?
+	Compact, then close	Sıkıştır, sonra kapat
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Sıkıştırıldı: {before} → {after} ({saved} geri kazanıldı), süre {time}
+	Compacting was stopped; what was done is kept.	Sıkıştırma durduruldu; yapılanlar korunuyor.
+	Compacting {file} before closing…	Kapatmadan önce {file} sıkıştırılıyor…
+	Compacting {file}…	{file} sıkıştırılıyor…
+	Compacting {file}… {percent}%	{file} sıkıştırılıyor… %{percent}
+	Compressing mail again	Posta yeniden sıkıştırılıyor
+	Copying it into a smaller file	Daha küçük bir dosyaya kopyalanıyor
+	Finishing: about {n} s	Bitiriliyor: yaklaşık {n} sn
+	Finishing…	Bitiriliyor…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Silinen postaların kapladığı alanı sürücüye geri verir. Postanız olduğu gibi kalır.
+	Hide	Gizle
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Bunu gizlerseniz arka planda sürer. Postanız olduğu gibi kalır: yalnızca kapladığı alan değişir.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Geri verilecek yaklaşık {size} alanı var, ancak bu {time} sürer; MailCraft'ın kapanırken beklediğinden uzun. Bu sırada bu hesabın hiçbir şeyi açılamaz.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Geri verilecek yaklaşık {size} alanı var. Bu, yeni bir dosyaya kopyalanarak yapılır; büyük bir dosyada dakikalar sürebilir. Bittiğinde MailCraft kapanır.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	Olduğu gibi bırakıldı: sıkıştırma yaklaşık {time} sürer. Şimdi sıkıştır, ne kadar sürerse sürsün bunu yapar.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	MailCraft bu bölümde veri dosyasını yalnız kendisi kullanır, bu yüzden durdurulamaz. Bu sırada bilgisayar kapanırsa hiçbir şey kaybolmaz: dosya MailCraft'ın bir sonraki açılışında denetlenir.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Veri dosyası küçültülüyor: silinen postaların kapladığı alan sürücüye geri veriliyor.
+	Measuring the data file…	Veri dosyası ölçülüyor…
+	Not compacted: {error}	Sıkıştırılmadı: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Şimdi kapatırsanız hiçbir şey kaybolmaz: yapılanlar korunur, gerisi başka bir zaman yapılır.
+	Nothing to give back.	Geri verilecek bir şey yok.
+	Stop compacting	Sıkıştırmayı durdur
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	Burada sıkıştırılamayacak kadar büyük ve sürücüde kopya için yer yok: dosyayı yeniden içe aktarmak onu aynı ölçüde küçültür.
+	You can also compact it later from File › Info, or turn this off in File › Options.	Bunu daha sonra Dosya › Bilgi bölümünden de sıkıştırabilir veya Dosya › Seçenekler bölümünden kapatabilirsiniz.
+	about {n} min	yaklaşık {n} dk
+	about {n} s	yaklaşık {n} sn
+	{size} can be reclaimed	{size} geri kazanılabilir
+	Add an account to send mail.	Posta göndermek için bir hesap ekleyin.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Bir Outlook veri dosyasından posta gönderilemez. Posta göndermek için bir hesap ekleyin.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Yalnızca bu bilgisayarda tutulan bir posta kutusundan posta gönderilemez. Posta göndermek için bir hesap ekleyin.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Bu hesabın giden (SMTP) sunucusu yok. Posta göndermek için hesap ayarlarından bir tane ekleyin.
+	Tasks	Görevler
+	Search tasks	Görevlerde ara
+	New task	Yeni görev
+	Task	Görev
+	All tasks	Tüm görevler
+	Active tasks	Etkin görevler
+	{n} tasks	{n} görev
+	{n} overdue	{n} gecikmiş
+	No tasks yet: New task adds one.	Henüz görev yok: Yeni görev ile bir tane ekleyin.
+	No task matches.	Eşleşen görev yok.
+	Task subject	Görev konusu
+	Due date	Son tarih
+	Status	Durum
+	Priority	Öncelik
+	Mark not complete	Tamamlanmadı olarak işaretle
+	(no title)	(başlık yok)
+	Repeats	Yineleme
+	Start date	Başlangıç tarihi
+	complete	tamamlandı
+	Remind me	Bana anımsat
+	Marked complete, it comes back on its next due date.	Tamamlandı olarak işaretlendiğinde, bir sonraki son tarihinde geri gelir.
+	Not started	Başlamadı
+	In progress	Sürüyor
+	Completed	Tamamlandı
+	Waiting on someone else	Başkasını bekliyor
+	Deferred	Ertelendi
+	Low	Düşük
+	Normal	Normal
+	High	Yüksek
+	Hide completed	Tamamlananları gizle
+	Tasks: {n}	Görevler: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	MailCraft'ın bu dosyanın kopyası, MailCraft'ta değiştirilenlerle birlikte yanında duruyor: {file}
+	The file has changed since MailCraft read it.	Dosya, MailCraft okuduğundan beri değişti.
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	MailCraft'ın bu dosyadan daha önce neyin geldiğine dair kaydı yok, bu yüzden değişiklikleri okunamıyor.
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	Bu dosyanın klasörüne yazılamıyor: MailCraft'ın yaklaşık {size} boyutundaki kopyası şuraya gider: {folder}
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft, dosyanın yanında yaklaşık {size} boyutunda kendi kopyasını tutar, şurada: {folder}. Dosyanın kendisi asla değiştirilmez.
+	There isn't room for the copy beside the file. Free up space on that drive.	Dosyanın yanında kopya için yer yok. O sürücüde yer açın.
+	Read the changes in	Değişiklikleri oku
+	Open as it was	Olduğu gibi aç
+	It's an account in another MailCraft data folder: {folder}	Başka bir MailCraft veri klasöründeki bir hesap: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Orada açın ya da burada devralın: o zaman bu veri klasörüne ait olur ve oradaki hesabı kaldırılmalıdır.
+	Take it over and read the changes in	Devral ve değişiklikleri oku
+	Take it over	Devral
