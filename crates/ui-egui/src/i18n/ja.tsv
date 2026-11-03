@@ -1556,3 +1556,6 @@ month	May	5月
 	Drop to add them to {folder}	ドロップして {folder} に追加
 	Added to {folder}: {n}	{folder} に追加しました: {n}
 	Couldn't add {file} to {folder}: {error}	{file} を {folder} に追加できませんでした: {error}
+	React	リアクション
+	Send a reaction to everyone it went to	受け取った全員にリアクションを送信
+	Reacted with {emoji}: {people}	{emoji} でリアクション: {people}

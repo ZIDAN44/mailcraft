@@ -9,6 +9,7 @@ use super::*;
 use crate::worker::apply_remote;
 
 mod opening;
+mod reactions;
 
 #[test]
 fn wrong_password_is_an_auth_error() {

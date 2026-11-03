@@ -4,8 +4,10 @@ use mailcraft_model::lookalike;
 
 use super::*;
 
+mod reactions;
 mod sending;
 mod signatures;
+pub use reactions::Reactions;
 pub use sending::SendBlock;
 pub use signatures::signature_parts;
 

@@ -1556,3 +1556,6 @@ month	May	5月
 	Drop to add them to {folder}	放下即可添加到 {folder}
 	Added to {folder}: {n}	已添加到 {folder}：{n}
 	Couldn't add {file} to {folder}: {error}	无法将 {file} 添加到 {folder}：{error}
+	React	回应
+	Send a reaction to everyone it went to	向所有收件人发送回应
+	Reacted with {emoji}: {people}	以 {emoji} 回应：{people}

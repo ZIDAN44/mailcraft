@@ -472,6 +472,22 @@ fn prefetch<S: Read + Write>(
         .filter(|m| m.size <= opts.prefetch_max_bytes && !store.has_body(&m.key))
         .map(|m| (m.key.uid, m.size))
         .collect();
+    // Reactions (issue #39): their emoji is in their small body, wanted whatever else is.
+    let mut wanted = wanted;
+    for m in st
+        .messages
+        .iter()
+        .filter(|m| {
+            m.reaction == mailcraft_model::summary::REACTION_TO_READ
+                && m.size <= mailcraft_model::summary::REACTION_MAX_BYTES
+                && !store.has_body(&m.key)
+        })
+        .take(200)
+    {
+        if !wanted.iter().any(|(u, _)| *u == m.key.uid) {
+            wanted.push((m.key.uid, m.size));
+        }
+    }
     if wanted.is_empty() {
         return Ok(0);
     }

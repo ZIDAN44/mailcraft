@@ -1555,3 +1555,6 @@ month	May	مايو
 	Drop to add them to {folder}	أفلتها لإضافتها إلى {folder}
 	Added to {folder}: {n}	أُضيفت إلى {folder}: {n}
 	Couldn't add {file} to {folder}: {error}	تعذّرت إضافة {file} إلى {folder}: {error}
+	React	تفاعل
+	Send a reaction to everyone it went to	أرسل تفاعلًا إلى كل من أُرسلت إليه
+	Reacted with {emoji}: {people}	تفاعلوا بـ {emoji}: {people}

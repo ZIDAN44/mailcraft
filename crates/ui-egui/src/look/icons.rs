@@ -78,6 +78,8 @@ pub enum Icon {
     Seal,
     /// A tick on its own (a follow-up marked complete).
     Done,
+    /// A smiling face (reactions).
+    Smile,
 }
 
 struct Pen<'a> {
@@ -381,6 +383,13 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Done => {
             // A tick, its short stroke down to the left of its foot.
             pen.line(&[(2.5, 8.6), (6.2, 12.3), (13.5, 3.7)]);
+        }
+        Icon::Smile => {
+            // A round face: two eyes, and a smile below them.
+            pen.circle(8.0, 8.0, 6.2);
+            pen.dot(5.8, 6.4, 0.9);
+            pen.dot(10.2, 6.4, 0.9);
+            pen.line(&[(4.9, 9.4), (6.2, 10.9), (8.0, 11.5), (9.8, 10.9), (11.1, 9.4)]);
         }
         Icon::Steps => {
             pen.line(&[(3.0, 4.0), (7.0, 8.0), (3.0, 12.0)]);

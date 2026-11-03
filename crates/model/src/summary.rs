@@ -270,7 +270,18 @@ pub struct Summary {
     pub thread_parent: u64,
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub thread_conversation: u64,
+    /// A reaction to the message it answers (RFC 9078, issue #39): its emoji; empty for other
+    /// mail; [`REACTION_TO_READ`] while only its header is here.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reaction: String,
 }
+
+/// [`Summary::reaction`] of a message whose header says it's a reaction, its emoji (in its
+/// body) not here yet: the sync brings such a small body at once.
+pub const REACTION_TO_READ: &str = "…";
+
+/// A reaction's body is this small at most to come with its header.
+pub const REACTION_MAX_BYTES: u32 = 16 << 10;
 
 /// What a message's header says protects it (S/MIME, RFC 8551 §3.2).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

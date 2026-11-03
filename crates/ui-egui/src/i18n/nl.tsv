@@ -1555,3 +1555,6 @@ month	May	mei
 	Drop to add them to {folder}	Laat los om ze aan {folder} toe te voegen
 	Added to {folder}: {n}	Toegevoegd aan {folder}: {n}
 	Couldn't add {file} to {folder}: {error}	{file} kon niet aan {folder} worden toegevoegd: {error}
+	React	Reageren
+	Send a reaction to everyone it went to	Een reactie sturen naar iedereen die het kreeg
+	Reacted with {emoji}: {people}	Gereageerd met {emoji}: {people}

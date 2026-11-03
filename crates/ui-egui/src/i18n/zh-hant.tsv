@@ -1559,3 +1559,6 @@ month	May	5月
 	Drop to add them to {folder}	放開即可加入 {folder}
 	Added to {folder}: {n}	已加入 {folder}：{n}
 	Couldn't add {file} to {folder}: {error}	無法將 {file} 加入 {folder}：{error}
+	React	回應
+	Send a reaction to everyone it went to	向所有收件人傳送回應
+	Reacted with {emoji}: {people}	以 {emoji} 回應：{people}

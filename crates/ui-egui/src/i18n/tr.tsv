@@ -1560,3 +1560,6 @@ month	May	Mayıs
 	Drop to add them to {folder}	{folder} klasörüne eklemek için bırakın
 	Added to {folder}: {n}	{folder} klasörüne eklendi: {n}
 	Couldn't add {file} to {folder}: {error}	{file}, {folder} klasörüne eklenemedi: {error}
+	React	Tepki ver
+	Send a reaction to everyone it went to	Gönderildiği herkese bir tepki gönder
+	Reacted with {emoji}: {people}	{emoji} ile tepki verenler: {people}

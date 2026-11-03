@@ -44,7 +44,7 @@ pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
 pub use searching::{IndexPass, SearchProgress, SearchStats, SearchWork};
 pub use security::{CardSearch, KnownCert, Lock, RevocationCheck, SMIME_DOC, Seal, Security, SignedBy, SmimeSettings};
-pub use writing::{Compose, SendBlock, SendCheck, signature_parts};
+pub use writing::{Compose, Reactions, SendBlock, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
 pub(crate) use mailboxes::arrange_list;
@@ -753,7 +753,7 @@ impl Session {
         }
     }
 
-    fn fresh_id(&mut self) -> u64 {
+    pub(crate) fn fresh_id(&mut self) -> u64 {
         self.next_id += 1;
         self.next_id
     }
@@ -763,7 +763,7 @@ impl Session {
         format!("{:016x}@mailcraft", self.random())
     }
 
-    fn random(&mut self) -> u64 {
+    pub(crate) fn random(&mut self) -> u64 {
         // xorshift64*: unique Message-IDs, not cryptography.
         let mut x = self.seed.max(1);
         x ^= x >> 12;

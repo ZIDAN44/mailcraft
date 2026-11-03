@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod reactions;
 mod sending;
 
 #[test]

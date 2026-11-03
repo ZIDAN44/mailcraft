@@ -19,6 +19,7 @@ mod compose;
 mod long_text;
 mod people;
 mod pictures;
+mod reactions;
 mod security;
 pub(crate) mod text_selection;
 mod videos;
@@ -358,6 +359,14 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                             if widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
                                 acts.push(Action::Run("mail.forward", json!({})));
                             }
+                            // Not to a reaction itself, a list's mail, or encrypted mail (it would go
+                            // unencrypted).
+                            if summary.as_ref().is_none_or(|m| m.reaction.is_empty() && !m.bulk)
+                                && !p.bulk
+                                && r.security.as_ref().is_none_or(|sec| sec.lock.is_none())
+                            {
+                                reactions::react_button(ui, &t, acts);
+                            }
                             ui.add_space(6.0);
                             if widgets::pill_button(ui, Icon::Print, "Print", &t).on_hover_text(tl!("Open as a PDF to print")).clicked() {
                                 acts.push(Action::Print);
@@ -393,6 +402,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                         });
                     }
                     ui.add_space(12.0);
+                    reactions::reactions_row(s, &t, ui, &r.key, acts);
                     if !in_window {
                         invite_card(s, st, ui, &r.key, acts);
                     }

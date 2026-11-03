@@ -251,6 +251,59 @@ fn real_imap_message_files() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Issue #39 through a real server (`MAILCRAFT_REAL_REACTION="127.0.0.1:3025 ana@studio.test
+/// anapw 127.0.0.1:3143 ben@studio.test benpw"`: SMTP and the sender, then IMAP and the
+/// recipient): a reaction sent to a message arrives marked a reaction, threaded under it, and
+/// its summary, from the recipient's sync, says so.
+#[test]
+#[ignore]
+fn real_reaction_round_trip() {
+    let Some((smtp, from, from_pw, more)) = server("MAILCRAFT_REAL_REACTION") else {
+        eprintln!("MAILCRAFT_REAL_REACTION isn't set: skipped");
+        return;
+    };
+    let [imap_at, to, to_pw] = more.as_slice() else { panic!("…: smtp user password imap user password") };
+    let (host, port) = imap_at.rsplit_once(':').unwrap();
+    let imap = ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None };
+    let id = std::process::id();
+    let original = format!(
+        "From: Ben <{to}>\r\nTo: Ana <{from}>\r\nSubject: Launch plan {id}\r\nMessage-ID: <plan{id}@studio.test>\r\n\r\nHere's the plan.\r\n"
+    );
+    let parsed = mailcraft_mime::parse(original.as_bytes()).unwrap();
+    let me = mailcraft_model::EmailAddress::new("Ana", from.as_str());
+    let raw = mailcraft_mime::reaction(&parsed, "🎉", &me, std::slice::from_ref(&from), 1_793_700_000, &format!("<react{id}@studio.test>")).unwrap();
+    crate::smtp::send(&smtp, &from, &from_pw, &from, std::slice::from_ref(to), &raw).unwrap();
+    let store = crate::fake::store("real-reaction");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    // Nothing downloaded ahead: the reaction's body comes because its header says what it is.
+    pool.opts.prefetch = 0;
+    let account = AccountConfig {
+        id: "r1".into(),
+        email: to.clone(),
+        username: to.clone(),
+        imap,
+        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+        ..Default::default()
+    };
+    pool.submit(Job::Start { account, password: Some(Secret(to_pw.clone())) });
+    until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let subject = format!("Re: Launch plan {id}");
+    let end = Instant::now() + Duration::from_secs(30);
+    let got = loop {
+        let found = store.load_folder("r1", "INBOX").unwrap().messages.into_iter().find(|m| m.subject == subject);
+        match found {
+            Some(m) if !m.reaction.is_empty() => break m,
+            _ if Instant::now() > end => panic!("the reaction didn't arrive marked as one"),
+            _ => {
+                pool.submit(Job::SyncFolder { account: "r1".into(), folder: "INBOX".into() });
+                let _ = pool.wait(Duration::from_millis(500));
+            }
+        }
+    };
+    eprintln!("arrived: {:?} answering {}", got.reaction, got.in_reply_to);
+    assert_eq!((got.reaction.as_str(), got.in_reply_to.as_str()), ("🎉", format!("plan{id}@studio.test").as_str()));
+}
+
 /// Issue #40 on a real CalDAV server (`MAILCRAFT_REAL_CALDAV`, as below): an event's reminder
 /// dismissed here is stored as its alarm acknowledged (RFC 9074), and read back so, from a copy
 /// another program would read; the alarm itself stays.

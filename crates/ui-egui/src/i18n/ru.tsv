@@ -1559,3 +1559,6 @@ month	May	Май
 	Drop to add them to {folder}	Отпустите, чтобы добавить их в {folder}
 	Added to {folder}: {n}	Добавлено в {folder}: {n}
 	Couldn't add {file} to {folder}: {error}	Не удалось добавить {file} в {folder}: {error}
+	React	Реакция
+	Send a reaction to everyone it went to	Отправить реакцию всем получателям
+	Reacted with {emoji}: {people}	Отреагировали {emoji}: {people}

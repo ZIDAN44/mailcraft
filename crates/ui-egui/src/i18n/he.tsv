@@ -1555,3 +1555,6 @@ month	May	מאי
 	Drop to add them to {folder}	שחררו כדי להוסיף אותם אל {folder}
 	Added to {folder}: {n}	נוספו אל {folder}: {n}
 	Couldn't add {file} to {folder}: {error}	לא ניתן להוסיף את {file} אל {folder}: {error}
+	React	תגובה
+	Send a reaction to everyone it went to	שליחת תגובה לכל מי שקיבל אותה
+	Reacted with {emoji}: {people}	הגיבו ב-{emoji}: {people}

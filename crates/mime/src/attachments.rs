@@ -7,10 +7,13 @@ use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
 mod index_text;
+mod reactions;
 mod text_first;
 pub use index_text::index_doc;
 #[doc(hidden)]
 pub use index_text::{IndexStats, index_doc_stats};
+pub(crate) use reactions::reaction_of;
+pub use reactions::{REACTIONS, is_reaction_text, reaction};
 pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, part_name, text_first};
 
 /// A part's size: its bytes, or, with none yet (a message's text that came first, issue #24), the

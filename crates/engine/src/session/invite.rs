@@ -126,7 +126,7 @@ fn same_version(msg: &CalEvent, stored: &CalEvent) -> bool {
 
 impl Session {
     /// The user's addresses (lower case).
-    fn my_addresses(&self) -> Vec<String> {
+    pub(crate) fn my_addresses(&self) -> Vec<String> {
         self.accounts
             .iter()
             .flat_map(|a| [a.config.email.trim().to_ascii_lowercase(), a.config.username.trim().to_ascii_lowercase()])

@@ -1560,3 +1560,6 @@ month	May	mayo
 	Drop to add them to {folder}	Suéltelos para añadirlos a {folder}
 	Added to {folder}: {n}	Añadidos a {folder}: {n}
 	Couldn't add {file} to {folder}: {error}	No se pudo añadir {file} a {folder}: {error}
+	React	Reaccionar
+	Send a reaction to everyone it went to	Enviar una reacción a todos los que lo recibieron
+	Reacted with {emoji}: {people}	Reaccionaron con {emoji}: {people}

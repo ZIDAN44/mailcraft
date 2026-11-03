@@ -43,7 +43,8 @@ pub use attachments::{
 };
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};
-use attachments::{attached, has_real_attachments};
+pub use attachments::{REACTIONS, is_reaction_text, reaction};
+use attachments::{attached, has_real_attachments, reaction_of};
 use files::attachment_name;
 pub use files::{alt_code_char, alt_code_pages, harmless_to_open, mime_from_name, runs_code, sanitize_filename};
 pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
@@ -155,6 +156,12 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
             )
         }),
         importance: importance(m),
+        reaction: match reaction_of(m) {
+            r if r.is_empty() && m.root_part().content_disposition().is_some_and(|d| d.ctype().eq_ignore_ascii_case("reaction")) => {
+                mailcraft_model::summary::REACTION_TO_READ.to_string()
+            }
+            r => r,
+        },
         ..Default::default()
     };
     if let Some(index) = thread_index(m) {
@@ -269,6 +276,9 @@ pub struct Parsed {
     /// from this message's own header: whatever account it came through.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub bulk: bool,
+    /// A reaction to the message it answers (RFC 9078): its emoji, as [`Summary::reaction`].
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reaction: String,
 }
 
 /// A run of text in a rich (HTML) message, with its formatting.
@@ -389,6 +399,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         trackers: tracking,
         unsubscribe,
         bulk: is_bulk(&m),
+        reaction: reaction_of(&m),
     })
 }
 

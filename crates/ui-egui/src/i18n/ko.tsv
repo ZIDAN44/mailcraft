@@ -1559,3 +1559,6 @@ month	May	5월
 	Drop to add them to {folder}	놓으면 {folder}에 추가됩니다
 	Added to {folder}: {n}	{folder}에 추가됨: {n}
 	Couldn't add {file} to {folder}: {error}	{file}을(를) {folder}에 추가할 수 없습니다: {error}
+	React	반응
+	Send a reaction to everyone it went to	받은 모든 사람에게 반응 보내기
+	Reacted with {emoji}: {people}	{emoji}(으)로 반응: {people}
