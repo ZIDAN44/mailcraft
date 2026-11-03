@@ -7,6 +7,7 @@
 use std::collections::HashSet;
 use std::fs::OpenOptions;
 
+use super::owner::{owner_of, still_has};
 use super::*;
 use crate::{Beside, Found};
 
@@ -22,7 +23,7 @@ const PROBE: &str = "-probe";
 
 /// A path as compared for "the same file": case ignored (Windows' and macOS's file systems), and
 /// `/` as `\`.
-fn same_key(p: &Path) -> String {
+pub(super) fn same_key(p: &Path) -> String {
     p.to_string_lossy().replace('/', "\\").to_lowercase()
 }
 
@@ -55,7 +56,7 @@ impl Packs {
             if held.contains(&same_key(&path)) {
                 continue;
             }
-            let found = match fs::symlink_metadata(&path) {
+            let mut found = match fs::symlink_metadata(&path) {
                 Ok(m) if m.is_file() => match note_of(&path, file) {
                     // A copy that can't be written (read-only, or on a share refusing writes)
                     // can't be the account's: the next name, if the folder takes one.
@@ -72,15 +73,30 @@ impl Packs {
                 }
                 Err(_) => return elsewhere,
             };
+            // Whose it is: this data folder's, no one's, or another's that still has it.
+            if let Some(f) = found.as_mut()
+                && !f.owner.is_empty()
+            {
+                f.ours = self.folder_id().is_some_and(|id| id == f.owner);
+                f.held = !f.ours && still_has(&f.owner_path, &f.owner, &path);
+            }
             if let (Some(account), Some(p)) = (take, path.to_str()) {
-                let mut names = Packs::lock(&self.names);
-                // Another account's since it was looked at: the next name.
-                if names.values().any(|n| same_key(&self.dir.join(n)) == same_key(&path)) {
-                    continue;
+                {
+                    let mut names = Packs::lock(&self.names);
+                    // Another account's since it was looked at: the next name.
+                    if names.values().any(|n| same_key(&self.dir.join(n)) == same_key(&path)) {
+                        continue;
+                    }
+                    names.insert(account.to_string(), p.to_string());
+                    if let Ok(json) = serde_json::to_vec_pretty(&*names) {
+                        let _ = write_atomic(&self.root.join(NAMES), &json);
+                    }
                 }
-                names.insert(account.to_string(), p.to_string());
-                if let Ok(json) = serde_json::to_vec_pretty(&*names) {
-                    let _ = write_atomic(&self.root.join(NAMES), &json);
+                // Taken on: this folder's from now on (a copy made new says so as it's made).
+                if found.as_ref().is_some_and(|f| !f.ours)
+                    && let Err(e) = self.set_owner(account, true)
+                {
+                    log::warn!("{}: couldn't be noted as this data folder's: {e}", path.display());
                 }
             }
             return Beside { path, found, elsewhere: false };
@@ -126,6 +142,7 @@ fn note_of(path: &Path, source: &str) -> Option<Found> {
     let read = |key: &str| read_file(&tx, &table, key).ok().flatten().filter(|b| b.len() <= NOTE_MAX);
     let note: serde_json::Value = serde_json::from_slice(&read(NOTE)?).ok()?;
     let seen = table.get(crate::SEEN_DOC).ok().flatten().is_some();
+    let (owner, owner_path) = owner_of(&tx);
     let src = note.get("source")?;
     let noted = src.get("path")?.as_str()?;
     if !noted.rsplit(['/', '\\']).next().is_some_and(|n| n.eq_ignore_ascii_case(source)) {
@@ -142,5 +159,9 @@ fn note_of(path: &Path, source: &str) -> Option<Found> {
         changed: false,
         account,
         seen,
+        owner,
+        owner_path,
+        ours: false,
+        held: false,
     })
 }

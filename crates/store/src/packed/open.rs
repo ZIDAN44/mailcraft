@@ -423,10 +423,11 @@ impl Packs {
         }
         // Made new: it says at once, sealed, that everything in it is kept as this build keeps it
         // (a first commit not waited for to the disk would be lost to a crash or a full drive,
-        // and the file would read as one from before for good). Not sealed, its writes say so
-        // until one of them reaches the disk.
+        // and the file would read as one from before for good), and which data folder it's an
+        // account of (`owner.rs`). Not sealed, its writes say so until one of them reaches the
+        // disk.
         if fresh {
-            match seal_with(&db, &self.seals, account, |tx| write_meta(tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice())])) {
+            match seal_with(&db, &self.seals, account, |tx| self.write_fresh_meta(tx)) {
                 Ok(()) => {}
                 Err(e) => {
                     log::warn!("{}: made, but couldn't say how it's kept yet: {e}", path.display());

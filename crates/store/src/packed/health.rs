@@ -70,6 +70,8 @@ pub(super) struct Meta {
     pub(super) saved: u64,
     pub(super) passed: u64,
     pub(super) pace: u64,
+    /// The data folder it's an account of, as kept (`owner.rs`), carried into a compacted copy.
+    pub(super) owner: Option<Vec<u8>>,
 }
 
 /// A u64 as kept (8 bytes, little-endian).
@@ -95,6 +97,7 @@ pub(super) fn read_meta(tx: &redb::ReadTransaction) -> io::Result<Meta> {
         passed: value(PASSED)?.as_deref().and_then(u64_of).unwrap_or(0),
         // Only what `next_pace` can come to: a crafted one doesn't make a big file seem quick.
         pace: value(PACE)?.as_deref().and_then(u64_of).filter(|p| (PACE_ONE / 20..=PACE_ONE * 20).contains(p)).unwrap_or(0),
+        owner: value(super::owner::OWNER)?,
     })
 }
 

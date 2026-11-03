@@ -418,7 +418,12 @@ impl Packs {
         tx.set_quick_repair(true);
         let counted = [(DEFLATE, DEFLATE_NOW), (PACE, meta.pace), (STAYED_RAW, meta.stayed_raw), (SAVED, meta.saved), (PASSED, meta.passed)];
         let counted: Vec<(&str, [u8; 8])> = counted.iter().map(|(k, v)| (*k, v.to_le_bytes())).collect();
-        write_meta(&tx, &counted.iter().map(|(k, v)| (*k, v.as_slice())).collect::<Vec<_>>())?;
+        let mut values: Vec<(&str, &[u8])> = counted.iter().map(|(k, v)| (*k, v.as_slice())).collect();
+        // Still the account of the data folder it was.
+        if let Some(owner) = &meta.owner {
+            values.push((OWNER, owner.as_slice()));
+        }
+        write_meta(&tx, &values)?;
         tx.commit().map_err(disk)?;
         drop(new);
         drop(db);

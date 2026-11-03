@@ -227,6 +227,10 @@ impl Store {
         }
         #[cfg(not(target_arch = "wasm32"))]
         if let Files::Packed(x) = &self.files.main {
+            // Kept where it is, no data folder's: another may take it on.
+            if let Err(e) = x.set_owner(&safe_segment(account), false) {
+                log::warn!("{account}: its data file couldn't be noted as no data folder's: {e}");
+            }
             let kept = x.let_go(&safe_segment(account));
             // A folder from before data files, if one is still there.
             let _ = fs::remove_dir_all(self.account_dir(account));

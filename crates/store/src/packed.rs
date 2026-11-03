@@ -35,6 +35,7 @@ mod handles;
 mod health;
 mod kept;
 mod open;
+mod owner;
 mod shrink;
 use commit::*;
 pub use compact::fuzz_data_file;
@@ -43,6 +44,8 @@ use kept::*;
 pub(crate) use kept::{pack_owned, unpack};
 pub(crate) use open::no_waiting;
 use open::*;
+use owner::OWNER;
+pub use owner::fuzz_data_folder;
 use shrink::Journal;
 
 /// A data file's extension.
@@ -147,6 +150,8 @@ pub(crate) struct Packs {
     /// Accounts whose data file is being copied to compact it, and what's written to it
     /// meanwhile (`shrink.rs`).
     copying: Mutex<HashMap<String, Journal>>,
+    /// This data folder's own id, once it's been read or made (`owner.rs`).
+    id: std::sync::OnceLock<String>,
     /// A test's compaction in place: run just before it (an error stops it there).
     #[cfg(test)]
     pub(super) compact_hook: Mutex<Option<Box<dyn Fn() -> io::Result<()> + Send>>>,
@@ -184,6 +189,7 @@ impl Packs {
             recompressing: Mutex::default(),
             writes: Writes::default(),
             copying: Mutex::default(),
+            id: std::sync::OnceLock::new(),
             #[cfg(test)]
             compact_hook: Mutex::default(),
         })

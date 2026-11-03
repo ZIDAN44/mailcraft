@@ -444,7 +444,7 @@ impl Packs {
         // them reaches the disk: one that doesn't is lost to a crash or a full drive.
         let fresh = Packs::lock(&self.fresh).contains(account);
         if fresh {
-            write_meta(&tx, &[(DEFLATE, DEFLATE_NOW.to_le_bytes().as_slice())])?;
+            self.write_fresh_meta(&tx)?;
         }
         // Being copied (asked with the writer held: the copy took it once after it began, so a
         // write that didn't see it had committed by then): what this changes is taken again.

@@ -26,10 +26,10 @@ pub mod search;
 #[cfg(not(target_arch = "wasm32"))]
 pub use packed::EXTENSION as DATA_FILE_EXTENSION;
 #[cfg(not(target_arch = "wasm32"))]
-#[doc(hidden)]
-pub use packed::fuzz_data_file;
-#[cfg(not(target_arch = "wasm32"))]
 pub use packed::growth as data_file_growth;
+#[cfg(not(target_arch = "wasm32"))]
+#[doc(hidden)]
+pub use packed::{fuzz_data_file, fuzz_data_folder};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;

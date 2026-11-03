@@ -544,6 +544,8 @@ pub fn fuzz_data_file(input: &[u8]) -> bool {
     let db = Arc::new(db);
     if let Ok(tx) = db.begin_read() {
         let _ = read_meta(&tx);
+        // Whose it says it is (a copy beside an Outlook file found by another data folder).
+        let _ = super::owner::owner_of(&tx);
         let _ = walk(&tx, true);
     }
     let before = read_all(&db);

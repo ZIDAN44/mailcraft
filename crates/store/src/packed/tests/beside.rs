@@ -337,3 +337,127 @@ fn no_note_of_what_came_in_refuses_a_read_again() {
     drop((s, fresh));
     let _ = std::fs::remove_dir_all(&t);
 }
+
+/// A copy says which data folder it's an account of: another data folder finding it with the
+/// first one closed is told it's held there, and takes it on only when asked (it's then its
+/// own); held no longer once the first one is gone, no longer names it, or let it go.
+#[test]
+fn a_copy_is_its_data_folders_and_another_is_told() {
+    let t = temp("beside-owner");
+    let docs = t.join("Documents");
+    std::fs::create_dir_all(&docs).unwrap();
+    let pst = docs.join("Archive.pst");
+    std::fs::write(&pst, b"!BDN not really a pst").unwrap();
+    let copy = docs.join("Archive.mailcraft");
+    let (one, two) = (t.join("one"), t.join("two"));
+    let s1 = Store::open_packed(&one, t.join("Files 1")).unwrap();
+    let id1 = s1.data_folder_id().unwrap();
+    assert_eq!(s1.data_folder_id().as_deref(), Some(id1.as_str()), "made once");
+    s1.save_accounts(&[account("a1", "Archive.pst")]).unwrap();
+    s1.place_beside("a1", &pst).unwrap();
+    put(&s1, "a1", "INBOX", 1, "one@x", false);
+    note(&s1, "a1", &pst, "done");
+    drop(s1);
+
+    // The first one closed: the second finds the copy, held by the first.
+    let s2 = Store::open_packed(&two, t.join("Files 2")).unwrap();
+    let id2 = s2.data_folder_id().unwrap();
+    assert_ne!(id1, id2);
+    let f = s2.copy_beside(&pst).unwrap().found.unwrap();
+    assert_eq!((f.owner.as_str(), f.owner_path.as_str(), f.ours, f.held), (id1.as_str(), one.to_string_lossy().as_ref(), false, true));
+    // Its own data folder (MailCraft started again on it) sees it as its own.
+    let again = Store::open_packed(&one, t.join("Files 1")).unwrap();
+    assert_eq!(again.data_folder_id(), Some(id1.clone()), "the same id, read back");
+    // Named by the first as a1's: not one of its to place again.
+    drop(again);
+
+    // Taken over: the second's now, and held by it as the first sees it.
+    s2.save_accounts(&[account("b1", "Archive.pst")]).unwrap();
+    assert!(s2.place_beside("b1", &pst).unwrap().found.is_some_and(|f| f.held));
+    s2.claim_folders("b1").unwrap();
+    assert_eq!(s2.remove_account("b1").unwrap().as_deref(), Some(copy.as_path()));
+    // Removed there: no folder's, anyone's to take on (the first one's list still names it, but
+    // its record says no folder has it now).
+    let f = s2.copy_beside(&pst).unwrap().found.unwrap();
+    assert_eq!((f.owner.as_str(), f.ours, f.held), ("", false, false));
+
+    // Placed again by the second, and compacted by copying: still the second's.
+    s2.save_accounts(&[account("b2", "Archive.pst")]).unwrap();
+    s2.place_beside("b2", &pst).unwrap();
+    s2.claim_folders("b2").unwrap();
+    assert!(s2.copy_data_file("b2", &mut |_| true, &mut || true).unwrap().is_some());
+    drop(s2);
+    let s1 = Store::open_packed(&one, t.join("Files 1")).unwrap();
+    let f = s1.copy_beside(&docs.join("Archive.pst")).unwrap();
+    // The first still names it a1's: the next name for it, as for any copy an account has.
+    assert_eq!(f.path, docs.join("Archive (2).mailcraft"));
+    drop(s1);
+    // Another data folder's view: held by the second, which names it b2's.
+    let s3 = Store::open_packed(t.join("three"), t.join("Files 3")).unwrap();
+    let f = s3.copy_beside(&pst).unwrap().found.unwrap();
+    assert_eq!((f.owner.as_str(), f.held), (id2.as_str(), true), "compacted, it's still the second's");
+    // The second no longer names it: not held.
+    std::fs::write(two.join("datafiles.json"), b"{}").unwrap();
+    assert!(!s3.copy_beside(&pst).unwrap().found.unwrap().held);
+    // A list that can't be read counts as naming it.
+    std::fs::write(two.join("datafiles.json"), b"not json").unwrap();
+    assert!(s3.copy_beside(&pst).unwrap().found.unwrap().held);
+    // Another data folder there now: not held.
+    std::fs::write(two.join("datafolder.json"), format!("{{\"id\":\"{}\"}}", "0".repeat(32))).unwrap();
+    assert!(!s3.copy_beside(&pst).unwrap().found.unwrap().held);
+    // The second gone: not held.
+    std::fs::remove_dir_all(&two).unwrap();
+    let f = s3.copy_beside(&pst).unwrap().found.unwrap();
+    assert_eq!((f.owner.as_str(), f.held), (id2.as_str(), false));
+    drop(s3);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// A data folder's id file that isn't one is set aside, and a new id made; never fatal.
+#[test]
+fn a_damaged_data_folder_id_is_set_aside() {
+    let t = temp("beside-owner-junk");
+    let root = t.join("app");
+    std::fs::create_dir_all(&root).unwrap();
+    for junk in [&b"not json"[..], br#"{"id":"../../x"}"#, br#"{"id":42}"#, &[0xff, 0xfe, 0x00][..]] {
+        std::fs::write(root.join("datafolder.json"), junk).unwrap();
+        let s = Store::open_packed(&root, t.join("Files")).unwrap();
+        let id = s.data_folder_id().unwrap();
+        assert!(id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()), "{id}");
+        assert_eq!(std::fs::read(root.join("datafolder.json.damaged")).unwrap(), junk, "set aside as it was");
+        assert_eq!(super::super::owner::read_folder_id(&root).unwrap(), Some(id));
+    }
+    // A folder in its place is set aside as well, and its data files work all the same.
+    let other = t.join("other");
+    std::fs::create_dir_all(other.join("datafolder.json")).unwrap();
+    let s = Store::open_packed(&other, t.join("Files 2")).unwrap();
+    s.save_accounts(&[account("a1", "x@y")]).unwrap();
+    put(&s, "a1", "INBOX", 1, "one@x", false);
+    assert!(s.load_folders("a1").unwrap().len() == 1);
+    assert!(s.data_folder_id().is_some() && other.join("datafolder.json.damaged").is_dir());
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
+/// The fuzz target's input: its seeds, and junk of every kind, read as a data folder's files.
+#[test]
+fn a_data_folders_files_read_as_hostile_input() {
+    let seeds = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/data_folder");
+    for e in std::fs::read_dir(&seeds).unwrap() {
+        assert!(crate::fuzz_data_folder(&std::fs::read(e.unwrap().path()).unwrap()));
+    }
+    let id = "0123456789abcdef0123456789abcdef";
+    let deep = format!("{{\"a\":{}}}", "[".repeat(200));
+    let junk = [
+        format!("{{\"id\":\"{}\"}}", id.to_uppercase()),
+        format!("{{\"id\":\"{id}0\",\"path\":\"x\"}}"),
+        format!("{{\"id\":[\"{id}\"]}}"),
+        "{\"path\":\"C:/x\"}".to_string(),
+        "[1,2,3]".to_string(),
+        deep,
+    ];
+    for j in &junk {
+        assert!(crate::fuzz_data_folder(j.as_bytes()), "{j}");
+    }
+    assert!(crate::fuzz_data_folder(&[0, 0xff, 0xfe]));
+}

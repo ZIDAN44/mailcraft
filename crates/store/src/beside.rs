@@ -5,6 +5,10 @@
 //! Opened again, the same file finds its copy there (made from a file of that name, and no
 //! account's now) and goes on with it. A folder that can't be written (read-only media, a
 //! protected folder, a share refusing writes) has the copy go with the other data files.
+//!
+//! A copy says which MailCraft data folder it's an account of (`packed/owner.rs`): another data
+//! folder (the CLI's, a `--data` run) finding it is told it's held there ([`Found::held`]) while
+//! that folder is there and still names it, and takes it on only when asked to.
 
 use crate::*;
 
@@ -36,6 +40,16 @@ pub struct Found {
     /// It notes what came in from the file ([`Store::has_seen`]): the file changed since can be
     /// read into it again.
     pub seen: bool,
+    /// The MailCraft data folder it's an account of, by its id, and that folder's path to show
+    /// ("" for both: made before copies said so, or no folder's since its account was removed).
+    pub owner: String,
+    pub owner_path: String,
+    /// That folder is this one.
+    pub ours: bool,
+    /// Another data folder has it: one that's still there and still names it as an account's
+    /// data file (only its list of data files read; whatever can't be read counts as having it).
+    /// Opened here only when the user takes it over.
+    pub held: bool,
 }
 
 /// A file's size and when it last changed (Unix seconds), as the file system says; `None` when
@@ -96,6 +110,17 @@ impl Store {
             return Some(beside);
         }
         let _ = (source, take, fresh);
+        None
+    }
+
+    /// This data folder's own id, made the first time it's asked for (`datafolder.json` in its
+    /// root); `None` for a cache that doesn't keep accounts in data files, or one whose folder
+    /// can't be written.
+    pub fn data_folder_id(&self) -> Option<String> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Files::Packed(x) = &self.files.main {
+            return x.folder_id();
+        }
         None
     }
 
