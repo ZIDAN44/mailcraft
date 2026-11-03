@@ -757,18 +757,24 @@ fn calendar_items(pim: &Pim) -> usize {
 /// A mail item rebuilt as a message from its properties and its recipients' alone, as the
 /// import writes it, with its summary: for the fuzz target, which hands it hostile values. Its
 /// categories are property 0x8000; its one file, when it has one, the bytes of 0x3701 (an
-/// attachment's data), of the type 0x370E says.
+/// attachment's data), of the type 0x370E says, or, when 0x3705 says a link, the link its
+/// pathnames (0x370D, 0x3708) name, as one not on this computer (nothing is read).
 #[doc(hidden)]
 pub fn rebuilt<'a>(props: &[(u16, Val<'a>)], recipients: &[Vec<(u16, Val<'a>)>]) -> Result<(Vec<u8>, mailcraft_model::Summary), String> {
     fn find<'a>(list: &[(u16, Val<'a>)], id: u16) -> Option<Val<'a>> {
         list.iter().find(|(i, _)| *i == id).map(|(_, v)| v.clone())
     }
     let rows: Vec<_> = recipients.iter().map(|r| move |id: u16| find(r, id)).collect();
+    let get = |id: u16| find(props, id);
     let files = match find(props, 0x3701) {
         Some(Val::Bin(data)) => {
             let mime = find(props, 0x370E).and_then(Val::into_text).unwrap_or_default();
             vec![File::Data { name: "smime.p7m".into(), mime, cid: String::new(), data: data.to_vec() }]
         }
+        _ if item::link(&get) => match item::linked(&get, &|_| None) {
+            item::Got::Link(f) | item::Got::File(f) => vec![f],
+            _ => Vec::new(),
+        },
         _ => Vec::new(),
     };
     let it = item::item_of(&|id| find(props, id), &rows, files, &crate::pst_pim::Named::with_keywords(0x8000));

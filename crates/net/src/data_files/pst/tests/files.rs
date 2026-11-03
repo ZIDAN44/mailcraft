@@ -1,7 +1,7 @@
 //! The files of an item's attachments: one the reader fails on is read from its row, the ones
 //! left out are counted, and the paperclip is the one the rebuilt source gives.
 
-use super::super::item::{File, Files, Got, from_row};
+use super::super::item::{File, Files, Got, from_row, linked, local_path, read_linked};
 use super::super::rebuild::{message, summary_of};
 use super::*;
 
@@ -92,11 +92,73 @@ fn an_unreadable_attachment_comes_from_its_row() {
     let mut flagged = hidden.clone();
     flagged.insert(0x7FFD, Val::Int(0x1));
     assert!(matches!(in_class(&flagged, "IPM.Schedule.Meeting.Request", true), Got::File(_)), "a meeting's hidden file");
-    for method in [2, 4, 7] {
+    for method in [2, 3, 4, 7] {
         let mut link = short.clone();
         link.insert(0x3705, Val::Int(method));
-        assert!(matches!(get(&link, &other), Got::Left(SkipReason::AttachmentLink)), "method {method}");
+        assert!(matches!(get(&link, &other), Got::Left(SkipReason::AttachmentLink)), "method {method}: no path, nothing to name");
     }
+}
+
+/// A link names a file elsewhere (by reference, resolved, only, or on the web): one on this
+/// computer's drive comes in as the file, with the attachment's name; one that isn't there, a
+/// network path, a web address (never fetched) or a link too big comes in as a short text file
+/// naming the path, counted as a link.
+#[test]
+fn a_link_brings_its_file_when_it_is_here() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pst-link-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let here = dir.join("plan.pdf");
+    std::fs::write(&here, b"%PDF-1.7 plan").unwrap();
+    let here = here.to_string_lossy().into_owned();
+    let row = |method: i64, path: &str| -> HashMap<u16, Val<'static>> {
+        HashMap::from([(0x3705, Val::Int(method)), (0x370D, Val::Text(path.to_string().into())), (0x3707, Val::Text("Plan.pdf".into()))])
+    };
+    let got = |r: &HashMap<u16, Val<'static>>| linked(&|id| r.get(&id).cloned(), &read_linked);
+    for method in [2, 3, 4] {
+        let Got::File(File::Data { name, mime, data, .. }) = got(&row(method, &here)) else { panic!("method {method}: the file is read") };
+        assert_eq!((name.as_str(), mime.as_str(), data.as_slice()), ("Plan.pdf", "application/pdf", &b"%PDF-1.7 plan"[..]));
+    }
+    let missing = dir.join("gone.docx").to_string_lossy().into_owned();
+    let text = |g: Got| match g {
+        Got::Link(File::Data { name, mime, data, .. }) => (name, mime, String::from_utf8(data).unwrap()),
+        _ => panic!("a link kept as text"),
+    };
+    assert_eq!(text(got(&row(2, &missing))), ("Plan.pdf (link).txt".to_string(), "text/plain".to_string(), format!("{missing}\r\n")));
+    // A web reference isn't read, even when its path is a file here.
+    assert_eq!(text(got(&row(7, &here))).2, format!("{here}\r\n"));
+    assert_eq!(text(got(&row(7, "https://share.example/plan.pdf"))).2, "https://share.example/plan.pdf\r\n");
+    // A network path is never read: its name and the path are kept, its line breaks spaces.
+    let unc = r"\\files.example\share\plan.pdf";
+    assert!(!local_path(unc) && !local_path("//files.example/share") && !local_path(r"\/x") && !local_path("plan.pdf"));
+    assert_eq!(text(got(&row(4, &format!("{unc}\r\n")))).2, format!("{unc}\r\n"));
+    // No name of its own: the path's last part.
+    let bare = HashMap::from([(0x3705, Val::Int(2)), (0x3708, Val::Text(missing.clone().into()))]);
+    assert_eq!(text(got(&bare)).0, "gone.docx (link).txt");
+    // A folder isn't a file.
+    assert!(matches!(got(&row(2, &dir.to_string_lossy())), Got::Link(_)));
+    assert!(local_path(&here));
+
+    // Through the import: the file and the text come in, the text counted as a link.
+    let store = Store::open(dir.join("store")).unwrap();
+    let mut progress = |_| {};
+    let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
+    let path = out.add_folder(None, "Inbox");
+    let mut files = Files::default();
+    files.add(got(&row(2, &here)));
+    files.add(got(&row(2, &missing)));
+    out.add_message(
+        &path,
+        Item { class: "IPM.Note".into(), subject: "Plans".into(), files: files.files, left_out: files.left_out, ..Default::default() },
+    );
+    let done = out.finish();
+    assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentLink, 1)]);
+    let m = store.load_folder("d1", &path).unwrap().messages.remove(0);
+    let raw = store.load_body(&m.key).unwrap().unwrap();
+    let names: Vec<String> = mailcraft_mime::parse(&raw).unwrap().attachments.into_iter().map(|a| a.name).collect();
+    assert_eq!(names, ["Plan.pdf", "Plan.pdf (link).txt"]);
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The files left out of the messages that came in are counted by reason, without counting
