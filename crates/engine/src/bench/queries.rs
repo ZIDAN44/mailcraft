@@ -8,12 +8,21 @@
 //!
 //! The account's index writer is opened first, as the app's indexer opens it: an index from a
 //! build before has its words made again from the texts it keeps then (timed). Then the index's
-//! segments' bytes, and each query by its number (never its words): searched in a session just
-//! opened (its index opened by the window's first tick), then again; then each the first time in
-//! a session the queries before it were searched in, then again; in frames of 6 ms of work as
-//! the window steps it, from the frame that sets the query to the last busy one: the work all
-//! told, the frames, the index pages and text pages read, and the texts checked. `MC_NO_PLACES`
-//! checks phrases against the texts kept instead, as a build before places did, to compare.
+//! segments' bytes, and each query by its number (never its words), as the window runs it: from
+//! the frame that sets the query (the command takes none of the search, as the window's) to the
+//! last busy one, each frame the session's tick and the search's units within 6 ms
+//! (`search_step_within`). Each is searched in a session just opened (ticked once: its index
+//! opened, a tick's worth of its summaries' texts made ahead), then again; in a session opened
+//! a moment before (ticked until its summaries' texts are made ahead: the ticks, and the
+//! longest); then the first time in a session the queries before it were searched in, then
+//! again: the work all told, the frames and the longest, the index pages and text pages read,
+//! the texts checked, and what the search spent its time on by kind (`SearchWork`). Then each
+//! typed a character at a time in a session just opened, each prefix searched as the window
+//! searches it once the typing pauses, the next typed once it's done or 30 frames on: how many
+//! frames, and the longest. `MC_TRUTH`, a file of what each query should find (a line each, its
+//! count first, as an independent count of the mailbox says), fails it when a search finds
+//! another number. `MC_NO_PLACES` checks phrases against the texts kept instead, as a build
+//! before places did, to compare.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -22,8 +31,49 @@ use serde_json::json;
 
 use crate::Session;
 use crate::model::dates::Clock;
-use crate::session::SearchStats;
+use crate::session::{SearchStats, SearchWork};
 use crate::store::Store;
+
+/// Most frames a prefix typed gets before the next character comes.
+const TYPED_FRAMES: usize = 30;
+
+/// Search `q` as the window does: the frame that sets the query, then a frame at a time (the
+/// session's tick and 6 ms of the search) until it's done, or `most` frames: what each took.
+fn frames(s: &mut Session, q: &str, most: usize) -> Vec<Duration> {
+    frames_by_kind(s, q, most).0
+}
+
+/// [`frames`], with the time the search spent on each kind of its work, the most first (as the
+/// window logs it when a search ends).
+fn frames_by_kind(s: &mut Session, q: &str, most: usize) -> (Vec<Duration>, Vec<(SearchWork, Duration)>) {
+    let began = Instant::now();
+    s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
+    let mut took = vec![began.elapsed()];
+    let mut kinds: Vec<(SearchWork, Duration)> = Vec::new();
+    while took.len() < most {
+        let began = Instant::now();
+        s.tick();
+        let mut last = Instant::now();
+        let p = s.search_step_within(4096, Duration::from_millis(6), &mut || began.elapsed(), &mut |w| {
+            let now = Instant::now();
+            match kinds.iter_mut().find(|(k, _)| *k == w) {
+                Some((_, t)) => *t += now - last,
+                None => kinds.push((w, now - last)),
+            }
+            last = now;
+        });
+        took.push(began.elapsed());
+        if p.done {
+            break;
+        }
+    }
+    kinds.sort_by_key(|k| std::cmp::Reverse(k.1));
+    (took, kinds)
+}
+
+fn ms(d: Duration) -> f64 {
+    d.as_secs_f64() * 1000.0
+}
 
 #[test]
 #[ignore]
@@ -31,6 +81,12 @@ fn queries() {
     let cache = PathBuf::from(std::env::var("MC_CACHE").expect("MC_CACHE: a cache a data file was imported into"));
     let list = std::fs::read_to_string(std::env::var("MC_QUERIES").expect("MC_QUERIES: a file of queries, one a line")).unwrap();
     let queries: Vec<&str> = list.lines().map(str::trim).filter(|q| !q.is_empty()).collect();
+    // What each should find, counted apart from the index.
+    let truth: Option<Vec<usize>> = std::env::var("MC_TRUTH").ok().map(|f| {
+        let t = std::fs::read_to_string(f).unwrap();
+        t.lines().filter_map(|l| l.split_whitespace().next()?.parse().ok()).collect()
+    });
+    let mut wrong = Vec::new();
     let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
     store
         .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
@@ -46,12 +102,26 @@ fn queries() {
         let mut s = Session::open(Some(store.clone()), Clock::new(1_800_000_000, 0));
         s.take_jobs();
         s.set_background_search(true);
+        s.set_search_first_units(0);
         // `MC_NO_PLACES`: phrases checked against the texts kept, as before places, to compare.
         if std::env::var_os("MC_NO_PLACES").is_some() {
             s.search_without_places();
         }
         s.tick();
         s
+    };
+    // A session ticked as the window ticks it once it's open, until its summaries' texts are
+    // made ahead: how many ticks, and the longest.
+    let settled = || {
+        let mut s = fresh();
+        let (mut ticks, mut longest) = (1, Duration::ZERO);
+        while s.texts_ahead_due() && ticks < 100_000 {
+            let began = Instant::now();
+            s.tick();
+            longest = longest.max(began.elapsed());
+            ticks += 1;
+        }
+        (s, ticks, longest)
     };
     // Each query in a session just opened, then each in one session after the queries before
     // it (its summaries' texts made by the first: a query searched the first time in a session
@@ -64,32 +134,66 @@ fn queries() {
         let rounds: &[&str] = if alone { &["just opened", "again"] } else { &["first time in use", "again"] };
         for &round in rounds {
             let before = s.search_stats();
-            let mut all = Duration::ZERO;
-            let began = Instant::now();
-            s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
-            all += began.elapsed();
-            let mut frames = 1;
-            loop {
-                let began = Instant::now();
-                let p = s.search_step_while(4096, &mut || began.elapsed() < Duration::from_millis(6));
-                all += began.elapsed();
-                frames += 1;
-                if p.done {
-                    break;
-                }
-            }
+            let (took, kinds) = frames_by_kind(s, q, usize::MAX);
             let d = delta(before, s.search_stats());
+            let worst = took.iter().max().copied().unwrap_or_default();
             println!(
-                "query {} ({round}): {} found, {:.1} ms in {frames} frames; index pages {}, text pages {}, texts checked {}",
+                "query {} ({round}): {} found, {:.1} ms in {} frames, the longest {:.1} ms; index pages {}, text pages {}, texts checked {}",
                 i + 1,
                 s.list.len(),
-                all.as_secs_f64() * 1000.0,
+                ms(took.iter().sum()),
+                took.len(),
+                ms(worst),
                 d.reader_pages,
                 d.text_pages,
                 d.texts,
             );
+            let kinds: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), ms(*t))).collect();
+            println!("  by kind: {}", kinds.join(", "));
+            if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
+                wrong.push(format!("query {} ({round}): {} found, {want} there", i + 1, s.list.len()));
+            }
         }
     }
+    // Each the first time in a session opened a moment before.
+    for (i, q) in queries.iter().enumerate() {
+        let (mut s, ticks, longest) = settled();
+        let took = frames(&mut s, q, usize::MAX);
+        println!(
+            "query {} (a moment after opening, {ticks} ticks, the longest {:.1} ms): {} found, {:.1} ms in {} frames, the longest {:.1} ms",
+            i + 1,
+            ms(longest),
+            s.list.len(),
+            ms(took.iter().sum()),
+            took.len(),
+            ms(took.iter().max().copied().unwrap_or_default()),
+        );
+        if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
+            wrong.push(format!("query {} (a moment after opening): {} found, {want} there", i + 1, s.list.len()));
+        }
+    }
+    // Each typed a character at a time, in a session just opened.
+    let mut every = Vec::new();
+    for (i, q) in queries.iter().enumerate() {
+        let mut s = fresh();
+        let mut took = Vec::new();
+        for (end, _) in q.char_indices().skip(1).chain([(q.len(), ' ')]) {
+            took.extend(frames(&mut s, q.get(..end).unwrap_or(q), TYPED_FRAMES));
+        }
+        took.sort();
+        let p99 = took.get(took.len() * 99 / 100).copied().unwrap_or_default();
+        println!(
+            "query {} typed: {} frames, p99 {:.1} ms, the longest {:.1} ms",
+            i + 1,
+            took.len(),
+            ms(p99),
+            ms(took.last().copied().unwrap_or_default())
+        );
+        every.extend(took);
+    }
+    every.sort();
+    println!("typed, all: {} frames, the longest {:.1} ms", every.len(), ms(every.last().copied().unwrap_or_default()));
+    assert!(wrong.is_empty(), "found other than there is: {wrong:?}");
 }
 
 fn delta(before: SearchStats, after: SearchStats) -> SearchStats {
