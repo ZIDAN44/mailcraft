@@ -157,16 +157,32 @@ mod tests {
             }
         }
         assert!(eta.remaining_s(63_000).is_some(), "said by then");
-        // Told it began at nothing, it still goes by the work done since this run's first
-        // progress, not the runs' before it.
-        let mut wrong = Eta::default();
-        let mut done = start;
-        for t in 0..60u64 {
-            done += rate;
-            wrong.sample((t + 1) * 1000, done, total, 0, (t + 1) * 1000 + 3000);
-        }
-        let truth = (total - done) as f64 / rate as f64;
-        assert!(close(wrong.remaining_s(63_000), truth, 0.20), "{:?} vs {truth}", wrong.remaining_s(63_000));
+    }
+
+    /// A run going on walks for its totals too, reporting the work it began from: what it says
+    /// it began from is what keeps that walk out of its rate.
+    #[test]
+    fn a_run_gone_on_times_its_rate_from_its_own_first_progress() {
+        let (rate, total) = (1_000_000, 1_000_000_000);
+        let start = total * 4 / 10;
+        let first_said = |run_work0: u64| {
+            let mut eta = Eta::default();
+            for t in 1..=5u64 {
+                eta.sample(t * 1000, start, total, run_work0, t * 1000 + 3000);
+            }
+            let mut done = start;
+            for t in 6..=20u64 {
+                done += rate;
+                eta.sample(t * 1000, done, total, run_work0, t * 1000 + 3000);
+            }
+            (eta.remaining_s(23_000), (total - done) as f64 / rate as f64)
+        };
+        let (said, truth) = first_said(start);
+        assert!(close(said, truth, 0.05), "{said:?} vs {truth}");
+        // Told it began at nothing, the work it began from is its first progress, and the walk
+        // counts against its rate.
+        let (said, truth) = first_said(0);
+        assert!(said.is_some() && !close(said, truth, 0.20), "{said:?} vs {truth}");
     }
 
     #[test]
