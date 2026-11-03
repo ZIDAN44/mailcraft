@@ -429,6 +429,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
         }
     }
+    // Reminders dismissed or snoozed here (issue #40).
+    reminders::answer_all(c, pim, &mut out);
     for k in pim.cards.iter().filter(|k| k.dirty) {
         let body = card_json(&k.card);
         let r = match k.href.strip_prefix("contact:") {
@@ -498,6 +500,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     mailcraft_model::pim::separate_shared_uids(&mut out.events);
     Ok(out)
 }
+
+mod reminders;
 
 #[cfg(test)]
 mod tests {

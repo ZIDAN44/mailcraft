@@ -624,3 +624,50 @@ fn private_show_as_and_a_meeting_together_through_graph() {
     assert_eq!(back.online_meeting().as_deref(), Some(room.url.as_str()));
     assert_eq!(back.description.matches("---- Online meeting").count(), 1, "{}", back.description);
 }
+
+/// Issue #40 against the fake Graph: a reminder dismissed here is dismissed on the event; one
+/// snoozed on an occurrence of a series is snoozed on that occurrence (found among the series'
+/// instances) until its time; one whose event is gone is dropped. Each is said answered.
+#[test]
+fn reminders_answered_here_are_answered_on_graph() {
+    use mailcraft_model::pim::{Pim, ReminderAnswer};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"));
+    d.calendars.push(("CAL1".into(), "Calendar".into()));
+    d.events.push(serde_json::json!({"id": "EV-one", "calendar": "CAL1", "subject": "Dentist"}));
+    d.events.push(serde_json::json!({"id": "EV-series", "calendar": "CAL1", "subject": "Stand-up"}));
+    let at = |t: &str| serde_json::json!({"dateTime": t, "timeZone": "UTC"});
+    d.instances.push((
+        "EV-series".into(),
+        vec![
+            serde_json::json!({"id": "EV-series-3", "start": at("2026-11-03T09:00:00.0000000")}),
+            serde_json::json!({"id": "EV-series-4", "start": at("2026-11-04T09:00:00.0000000")}),
+        ],
+    ));
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    let nov4 = 1_793_782_800; // 2026-11-04 09:00 UTC
+    let answer = |uid: &str, href: &str, series: bool, snooze_until: Option<i64>| ReminderAnswer {
+        calendar: "CAL1".into(),
+        href: href.into(),
+        uid: uid.into(),
+        occurrence: nov4,
+        series,
+        snooze_until,
+    };
+    let pim = Pim {
+        reminder_answers: vec![
+            answer("one", "EV-one", false, None),
+            answer("series", "EV-series", true, Some(nov4 - 300)),
+            answer("gone", "EV-gone", false, None),
+        ],
+        ..Default::default()
+    };
+    let sync = crate::graph_pim::sync(&c, &pim, nov4 - 900).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    assert_eq!(sync.answered, [("one".to_string(), nov4), ("series".to_string(), nov4), ("gone".to_string(), nov4)]);
+    let d = server.data.lock().unwrap();
+    let done: Vec<(&str, &str)> = d.reminders.iter().map(|(a, id, _)| (a.as_str(), id.as_str())).collect();
+    assert_eq!(done, [("dismissReminder", "EV-one"), ("snoozeReminder", "EV-series-4")]);
+    assert_eq!(d.reminders[1].2["newReminderTime"], serde_json::json!({"dateTime": "2026-11-04T08:55:00", "timeZone": "UTC"}));
+}

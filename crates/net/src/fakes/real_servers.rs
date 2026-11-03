@@ -193,6 +193,56 @@ fn real_imap_text_first() {
     assert!(store.has_body(&m.key));
 }
 
+/// Issue #40 on a real CalDAV server (`MAILCRAFT_REAL_CALDAV`, as below): an event's reminder
+/// dismissed here is stored as its alarm acknowledged (RFC 9074), and read back so, from a copy
+/// another program would read; the alarm itself stays.
+#[test]
+#[ignore]
+fn real_caldav_dismissed_reminder() {
+    use mailcraft_model::ical::{CalEvent, acknowledge, acknowledged, reminder_minutes, set_reminder};
+    use mailcraft_model::pim::{Pim, StoredEvent};
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALDAV") else {
+        eprintln!("MAILCRAFT_REAL_CALDAV isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
+    let dav = crate::dav::Dav::new(user, password);
+    let at = crate::dav::Where { email: user, username: "", imap_host: "127.0.0.1", caldav: Some(url), carddav: None };
+    let zone = mailcraft_model::zone::Zone::Fixed(0);
+    let now = 1_793_782_000;
+    let sync = |pim: &Pim| {
+        let s = crate::dav::sync(&dav, &at, pim, now, zone).unwrap();
+        assert!(s.errors.is_empty(), "{:?}", s.errors);
+        s
+    };
+    let first = sync(&Pim::default());
+    let cal = first.calendars.as_ref().and_then(|c| c.iter().find(|c| !c.read_only)).map(|c| c.id.clone()).expect("a calendar to write to");
+    let uid = format!("mc32-reminder-{}@mailcraft", std::process::id());
+    let mut e = CalEvent { uid: uid.clone(), summary: "Dentist".into(), start: now + 900, end: now + 4500, dtstamp: now, ..Default::default() };
+    set_reminder(&mut e, Some(15));
+    let mut pim = Pim { calendars: first.calendars.clone().unwrap_or_default(), caldav_home: first.caldav_home.clone(), ..Default::default() };
+    pim.events.push(StoredEvent { calendar: cal.clone(), event: e, dirty: true, ..Default::default() });
+    let s = sync(&pim);
+    let mut stored = s.pushed_events.iter().find(|x| x.event.uid == uid).cloned().expect("stored");
+    // Dismissed here, as the engine does: acknowledged now, sent again.
+    acknowledge(&mut stored.event, now);
+    stored.dirty = true;
+    pim.events = vec![stored.clone()];
+    let s = sync(&pim);
+    assert!(s.pushed_events.iter().any(|x| x.event.uid == uid), "sent again");
+    let got = dav.multiget(crate::dav::Kind::Calendars, &cal, std::slice::from_ref(&stored.href)).unwrap();
+    let text = got.first().map(|g| g.2.clone()).unwrap_or_default();
+    eprintln!("--- stored:\n{text}");
+    let alarm = text.split("BEGIN:VALARM").nth(1).and_then(|a| a.split("END:VALARM").next()).unwrap_or_default();
+    assert!(alarm.contains("ACKNOWLEDGED:") && alarm.contains("TRIGGER"), "{text}");
+    // Read back from scratch, as another program reads it.
+    let fresh = sync(&Pim::default());
+    let back = fresh.events.iter().find(|x| x.event.uid == uid).expect("read back");
+    assert_eq!((acknowledged(&back.event), reminder_minutes(&back.event)), (Some(now), Some(15)));
+    let _ = dav.delete(&stored.href, "");
+}
+
 /// A real SMTP server: a message sent, then found in the recipient's mailbox over IMAP; a
 /// refused sign-in, where the server refuses one, is a sign-in failure, not a refusal of the
 /// message.

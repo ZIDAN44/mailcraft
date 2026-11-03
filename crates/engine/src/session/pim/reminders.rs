@@ -45,6 +45,11 @@ impl Session {
                     let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
                     let occurrence = e.recurrence_id.unwrap_or(o.start);
                     let key = format!("{account}|{}|{occurrence}", e.uid);
+                    // Dismissed in another calendar program, which wrote so into the event
+                    // (RFC 9074's `ACKNOWLEDGED`).
+                    if ical::acknowledged(e).is_some_and(|at| at >= start - minutes * 60) && !self.prefs.reminders.contains_key(&key) {
+                        continue;
+                    }
                     let due = match self.prefs.reminders.get(&key) {
                         Some(0) => continue,
                         Some(until) => *until,
@@ -84,6 +89,7 @@ impl Session {
         };
         for k in &keys {
             self.prefs.reminders.insert(k.clone(), 0);
+            self.tell_server_reminder(k, None, now);
         }
         self.forget_old_reminders(now);
         keys.len()
@@ -92,7 +98,61 @@ impl Session {
     /// Snooze a reminder until `until` (Unix seconds).
     pub fn snooze_reminder(&mut self, key: &str, until: i64) {
         self.prefs.reminders.insert(key.to_string(), until.max(1));
+        self.tell_server_reminder(key, Some(until.max(1)), now_or(until));
         self.forget_old_reminders(now_or(until));
+    }
+
+    /// Tell the event's server a reminder was answered here, so the user's other programs
+    /// (Outlook) don't show it again (issue #40): an Exchange server through its own action at
+    /// the next sync ([`ReminderAnswer`]); a CalDAV server by the event's alarm acknowledged at
+    /// `now` (RFC 9074), which every client reads. A snooze stays here on a CalDAV server.
+    fn tell_server_reminder(&mut self, key: &str, snooze_until: Option<i64>, now: i64) {
+        let mut parts = key.rsplitn(3, '|');
+        let (Some(occurrence), Some(uid), Some(account)) = (parts.next().and_then(|o| o.parse::<i64>().ok()), parts.next(), parts.next()) else {
+            return;
+        };
+        let Some(config) = self.account(account).map(|a| a.config.clone()) else { return };
+        if config.is_local() {
+            return;
+        }
+        let exchange = config.graph.is_some() || config.ews.is_some();
+        let p = self.pim_mut(account);
+        let writable = |cal: &str| {
+            cal != LOCAL
+                && mailcraft_model::pim::shared_calendar_owner(cal).is_none()
+                && !mailcraft_model::pim::is_web_calendar(cal)
+                && !p.calendars.iter().any(|c| c.id == cal && c.read_only)
+        };
+        // The occurrence's own copy (a changed one), else its series.
+        let at = p
+            .events
+            .iter()
+            .position(|e| e.event.uid == uid && e.event.recurrence_id == Some(occurrence))
+            .or_else(|| p.events.iter().position(|e| e.event.uid == uid && e.event.recurrence_id.is_none()));
+        // Exchange needs the item's id; a CalDAV event not stored yet takes the answer with it.
+        let Some(i) = at.filter(|&i| p.events.get(i).is_some_and(|e| writable(&e.calendar) && (!exchange || !e.href.is_empty()))) else { return };
+        let Some(stored) = p.events.get(i).cloned() else { return };
+        if exchange {
+            p.reminder_answers.retain(|a| !(a.uid == uid && a.occurrence == occurrence));
+            if p.reminder_answers.len() >= mailcraft_model::pim::MAX_REMINDER_ANSWERS {
+                p.reminder_answers.remove(0);
+            }
+            p.reminder_answers.push(mailcraft_model::pim::ReminderAnswer {
+                calendar: stored.calendar.clone(),
+                href: stored.href.clone(),
+                uid: uid.to_string(),
+                occurrence,
+                series: stored.event.rrule.is_some() && stored.event.recurrence_id.is_none(),
+                snooze_until,
+            });
+        } else if snooze_until.is_none() {
+            let Some(e) = p.events.get_mut(i) else { return };
+            ical::acknowledge(&mut e.event, now);
+            e.dirty = true;
+        } else {
+            return;
+        }
+        self.after_pim_change(account, true);
     }
 
     /// Answers for occurrences long past go (and the list is kept small).

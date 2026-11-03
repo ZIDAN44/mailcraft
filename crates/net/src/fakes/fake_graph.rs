@@ -67,6 +67,12 @@ pub struct Data {
     pub directory_token: Option<String>,
     /// `/users` refuses the search (a guest, a tenant hiding its users): `/me/people` is asked.
     pub users_forbidden: bool,
+    /// A series' occurrences, as `/me/events/{id}/instances` lists them: (series id, its
+    /// occurrences' `{id, start}`).
+    pub instances: Vec<(String, Vec<Value>)>,
+    /// Reminders answered (issue #40): (`dismissReminder` or `snoozeReminder`, the event's or
+    /// occurrence's id, the request's body).
+    pub reminders: Vec<(String, String, Value)>,
     /// The bearer token and headers of the request being answered.
     bearer: String,
     headers: Vec<(String, String)>,
@@ -496,6 +502,18 @@ impl Data {
             ("DELETE", ["me", "contacts", id]) => {
                 self.contacts.retain(|c| c["id"] != *id);
                 (204, Vec::new(), "text/plain")
+            }
+            ("GET", ["me", "events", id, "instances"]) if q("startDateTime").is_some() && q("endDateTime").is_some() => {
+                let list = self.instances.iter().find(|(series, _)| series == id).map(|(_, l)| l.clone());
+                list.map_or_else(not_found, |l| ok(json!({ "value": l })))
+            }
+            ("POST", ["me", "events", id, action @ ("dismissReminder" | "snoozeReminder")]) => {
+                let known = self.events.iter().any(|e| e["id"] == *id) || self.instances.iter().flat_map(|(_, l)| l).any(|o| o["id"] == *id);
+                if !known {
+                    return not_found();
+                }
+                self.reminders.push(((*action).to_string(), (*id).to_string(), input.clone()));
+                (202, Vec::new(), "text/plain")
             }
             _ => not_found(),
         }

@@ -280,10 +280,34 @@ pub struct Pim {
     /// what they're about; kept, so a restart doesn't lose them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notices: Vec<Notice>,
+    /// Reminders dismissed or snoozed here, for an Exchange server to learn (issue #40): Outlook
+    /// shows them again otherwise. A CalDAV server learns them from the event itself (its
+    /// alarm's `ACKNOWLEDGED`, RFC 9074).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reminder_answers: Vec<ReminderAnswer>,
 }
 
 /// The most notices kept waiting for the server.
 pub const MAX_NOTICES: usize = 500;
+/// The most reminder answers kept waiting for the server.
+pub const MAX_REMINDER_ANSWERS: usize = 500;
+
+/// A reminder answered here, waiting for the server ([`Pim::reminder_answers`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReminderAnswer {
+    pub calendar: String,
+    /// The event's item on the server (a series' when it recurs).
+    pub href: String,
+    pub uid: String,
+    /// The occurrence's start (Unix seconds).
+    pub occurrence: i64,
+    /// One occurrence of a series.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub series: bool,
+    /// Snoozed until then; `None`: dismissed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snooze_until: Option<i64>,
+}
 
 /// A meeting message (iTIP) waiting for the calendar server: the organizer's invitation or
 /// change goes with the version the server stored (SOGo raises its `SEQUENCE`), a cancellation
@@ -364,6 +388,10 @@ pub struct DavSync {
     /// Whether the calendar server schedules (`calendar-auto-schedule`); `None`: not asked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_schedule: Option<bool>,
+    /// Reminder answers the server took, or that no longer apply there (the event is gone): by
+    /// uid and occurrence.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub answered: Vec<(String, i64)>,
 }
 
 impl Pim {

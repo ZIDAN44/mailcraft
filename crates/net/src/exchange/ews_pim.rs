@@ -664,6 +664,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
         }
     }
+    // Reminders dismissed or snoozed here (issue #40).
+    reminders::answer_all(c, pim, &mut out);
     for k in pim.cards.iter().filter(|k| k.dirty) {
         // Made again: a contact's addresses and numbers are simplest replaced whole.
         if let Some(old) = k.href.strip_prefix("contact:")
@@ -863,6 +865,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     mailcraft_model::pim::separate_shared_uids(&mut out.events);
     Ok(out)
 }
+
+mod reminders;
 
 #[cfg(test)]
 mod tests;

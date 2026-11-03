@@ -568,3 +568,69 @@ fn private_show_as_and_a_meeting_together_through_exchange() {
     assert_eq!(back.online_meeting().as_deref(), Some(room.url.as_str()));
     assert_eq!(back.location, room.url);
 }
+
+/// Issue #40 against the fake EWS: reminders answered here are found among the server's
+/// (an occurrence's by its series and start) and dismissed or snoozed there; one no longer
+/// listed is dropped. An Exchange older than 2013, which refuses those operations, has a single
+/// event's reminder turned off instead.
+#[test]
+fn reminders_answered_here_are_answered_on_exchange() {
+    use mailcraft_model::pim::{Pim, ReminderAnswer};
+    let nov4 = 1_793_782_800; // 2026-11-04 09:00 UTC
+    let answer = |uid: &str, href: &str, series: bool, snooze_until: Option<i64>| ReminderAnswer {
+        calendar: "calendar".into(),
+        href: href.into(),
+        uid: uid.into(),
+        occurrence: nov4,
+        series,
+        snooze_until,
+    };
+    let pim = Pim {
+        reminder_answers: vec![
+            answer("one", "E-one", false, None),
+            answer("series", "E-series", true, Some(nov4 - 300)),
+            answer("gone", "E-gone", false, None),
+        ],
+        ..Default::default()
+    };
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let cal = d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    let one = parse(
+        "<t:CalendarItem><t:Subject>Dentist</t:Subject><t:Start>2026-11-04T09:00:00Z</t:Start><t:ReminderIsSet>true</t:ReminderIsSet></t:CalendarItem>",
+    );
+    d.pim.push(("E-one".into(), cal, one.kids[0].clone()));
+    d.reminders.listed = vec![
+        ("E-one".into(), String::new(), "2026-11-04T09:00:00Z".into()),
+        ("E-series-3".into(), "E-series".into(), "2026-11-03T09:00:00Z".into()),
+        ("E-series-4".into(), "E-series".into(), "2026-11-04T09:00:00Z".into()),
+    ];
+    let server = serve(d);
+    let user = format!("{DOMAIN}\\{USER}");
+    let c = crate::ews::Client::connect(&server.url, &user, PASSWORD, "riley@contoso.example").unwrap();
+    let sync = crate::ews_pim::sync(&c, &pim, nov4 - 900).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    assert_eq!(sync.answered, [("one".to_string(), nov4), ("series".to_string(), nov4), ("gone".to_string(), nov4)]);
+    {
+        let d = server.data.lock().unwrap();
+        assert_eq!(
+            d.reminders.done,
+            [("Dismiss".to_string(), "E-one".to_string(), String::new()), ("Snooze".into(), "E-series-4".into(), "2026-11-04T08:55:00Z".into())]
+        );
+    }
+
+    // Exchange 2010: GetReminders is refused; the single event's reminder is turned off.
+    server.data.lock().unwrap().reminders.before_2013 = true;
+    let sync = crate::ews_pim::sync(
+        &c,
+        &Pim { reminder_answers: vec![answer("one", "E-one", false, None), answer("series", "E-series", true, None)], ..Default::default() },
+        nov4,
+    )
+    .unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    assert_eq!(sync.answered.len(), 2, "neither waits: a series' can't be told to that server");
+    let d = server.data.lock().unwrap();
+    let item = &d.pim.iter().find(|(id, _, _)| id == "E-one").unwrap().2;
+    assert_eq!(item.text_of("ReminderIsSet"), Some("false"));
+}

@@ -158,7 +158,16 @@ impl Client {
 
     /// [`Client::call`] where the request is sent, without looking elsewhere.
     pub(super) fn call_here(&self, body: &str) -> Result<El> {
-        let resp = self.post(envelope(body).into_bytes())?;
+        self.call_raw(envelope(body))
+    }
+
+    /// An operation of Exchange 2013 and later, in the user's own mailbox: the answer's elements.
+    pub(crate) fn call_2013(&self, body: &str) -> Result<El> {
+        self.call_raw(envelope_as("Exchange2013", body))
+    }
+
+    fn call_raw(&self, envelope: String) -> Result<El> {
+        let resp = self.post(envelope.into_bytes())?;
         let text = String::from_utf8_lossy(&resp.body);
         let doc = parse(&text);
         if let Some(fault) = doc.find("Fault") {

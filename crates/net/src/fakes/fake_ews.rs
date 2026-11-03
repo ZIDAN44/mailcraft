@@ -102,6 +102,8 @@ pub struct Data {
     pub only_agent: Option<String>,
     /// Signed in by a front in front of it (a Kerberos one): no sign-in asked here.
     pub open: bool,
+    /// Its reminders (issue #40).
+    pub reminders: reminders::Reminders,
     next: u32,
 }
 
@@ -140,6 +142,7 @@ impl Default for Data {
             agents: Vec::new(),
             only_agent: None,
             open: false,
+            reminders: Default::default(),
             next: 0,
         };
         d.folders.push(Fo {
@@ -405,6 +408,7 @@ impl Data {
             // Shallow (public folders): the folders right under the one asked for.
             // The directory: every name or address with a word starting with the search, up to
             // 100, as Exchange's ambiguous name resolution; several are a warning.
+            "GetReminders" | "PerformReminderAction" => out.push(self.reminders_answer(op)),
             "ResolveNames" if op.attr("SearchScope") == Some("ActiveDirectory") => {
                 out.push(self.directory_answer(op));
             }
@@ -929,13 +933,29 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
         }
         let mut d = shared.lock().unwrap();
         d.calls.push(op.name.clone());
+        let version = doc.find("RequestServerVersion").and_then(|v| v.attr("Version")).unwrap_or_default().to_string();
+        if d.refuses_version(&op.name, &version) {
+            drop(d);
+            let fault = "<soap:Envelope><soap:Body><soap:Fault><faultcode>a:ErrorInvalidServerVersion</faultcode>\
+                         <faultstring>The specified server version is invalid.</faultstring></soap:Fault></soap:Body></soap:Envelope>";
+            respond(&mut s, 500, &[], fault.as_bytes());
+            continue;
+        }
         d.routed = routed;
         if !anchor.is_empty() && d.anchors.len() < 1000 {
             d.anchors.push(anchor);
         }
         let (name, parts) = d.route(&op);
         drop(d);
-        let inner = if name.starts_with("GetUserOof") || name.starts_with("SetUserOof") {
+        let reminders = name.starts_with("GetReminders") || name.starts_with("PerformReminderAction");
+        let class = if !reminders {
+            String::new()
+        } else if parts.concat().contains(">NoError<") {
+            " ResponseClass=\"Success\"".to_string()
+        } else {
+            " ResponseClass=\"Error\"".to_string()
+        };
+        let inner = if name.starts_with("GetUserOof") || name.starts_with("SetUserOof") || reminders {
             parts.concat()
         } else {
             let tag = name.trim_end_matches("Response").to_string() + "ResponseMessage";
@@ -945,7 +965,7 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
             )
         };
         let xml = format!(
-            "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><m:{name} xmlns:m=\"m\" xmlns:t=\"t\">{inner}</m:{name}></s:Body></s:Envelope>"
+            "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><m:{name}{class} xmlns:m=\"m\" xmlns:t=\"t\">{inner}</m:{name}></s:Body></s:Envelope>"
         );
         respond(&mut s, 200, &[], xml.as_bytes());
     }
@@ -959,5 +979,6 @@ fn xml(e: &El) -> String {
 }
 
 mod directory;
+mod reminders;
 #[cfg(test)]
 mod tests;

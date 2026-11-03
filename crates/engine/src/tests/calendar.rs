@@ -10,6 +10,7 @@ mod invites;
 mod meetings;
 mod notes;
 mod pim;
+mod reminders;
 mod scheduling;
 mod sogo;
 mod tasks;

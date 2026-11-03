@@ -19,6 +19,7 @@ impl Session {
             p.auto_schedule = schedules;
         }
         p.deleted.retain(|t| !sync.deleted.contains(&t.href));
+        p.reminder_answers.retain(|a| !sync.answered.iter().any(|(uid, at)| *uid == a.uid && *at == a.occurrence));
         // Changes the server refused for good (SOGo's roles): its copy, read again in this
         // sync, comes back in their place.
         for e in p.events.iter_mut().filter(|e| sync.refused.contains(&e.event.uid)) {

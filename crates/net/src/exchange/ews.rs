@@ -234,12 +234,18 @@ pub fn esc(s: &str) -> String {
 }
 
 fn envelope(body: &str) -> String {
+    envelope_as("Exchange2010_SP2", body)
+}
+
+/// The request under a server version of its own: operations Exchange 2013 brought (reminders)
+/// are refused under the version the rest asks for.
+fn envelope_as(version: &str, body: &str) -> String {
     format!(
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
 <soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" \
 xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\" \
 xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\">\
-<soap:Header><t:RequestServerVersion Version=\"Exchange2010_SP2\"/></soap:Header>\
+<soap:Header><t:RequestServerVersion Version=\"{version}\"/></soap:Header>\
 <soap:Body>{body}</soap:Body></soap:Envelope>"
     )
 }
@@ -425,7 +431,7 @@ fn alternative_mailboxes(xml: &str) -> Vec<Alternative> {
 }
 
 /// What a `…ResponseMessage` said.
-fn check_message(m: &El) -> Result<()> {
+pub(crate) fn check_message(m: &El) -> Result<()> {
     match m.attr("ResponseClass") {
         Some("Error") => {
             let code = m.text_of("ResponseCode").unwrap_or("");
