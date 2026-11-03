@@ -14,7 +14,7 @@ use outlook_pst::messaging::attachment::{Attachment, AttachmentData, UnicodeAtta
 use outlook_pst::messaging::message::{Message, UnicodeMessage};
 use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
-use pst_rw::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage};
+use outlook_pst::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage};
 
 use mailcraft_model::job::SkipReason;
 

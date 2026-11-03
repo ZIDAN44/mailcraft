@@ -3,7 +3,7 @@
 
 use mailcraft_model::job::StopHow;
 use mailcraft_store::Store;
-use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 use std::path::PathBuf;
 
 use super::super::{ImportOptions, Stop, import, import_with};

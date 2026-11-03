@@ -1,16 +1,16 @@
 use super::*;
 use mailcraft_model::{EmailAddress, Flags};
 use mailcraft_store::FolderState;
-use pst_rw::UnicodePstSpecialFolder as Special;
+use outlook_pst::UnicodePstSpecialFolder as Special;
 
 const NONE: &BTreeMap<String, i64> = &BTreeMap::new();
 
 /// A data file's named property: its ID, by its property set's data1 (PSETID_Task's is
 /// 0x00062003) and LID, as the writer's own reader reads the file's map.
 fn named_id(path: &Path, set: u32, lid: u32) -> Option<u16> {
-    use pst_rw::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId};
-    let store = pst_rw::messaging::store::UnicodeStore::read(Rc::new(pst_rw::UnicodePstFile::open(path).ok()?)).ok()?;
-    let map = pst_rw::messaging::store::Store::named_property_map(store.as_ref()).ok()?;
+    use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId};
+    let store = outlook_pst::messaging::store::UnicodeStore::read(Rc::new(outlook_pst::UnicodePstFile::open(path).ok()?)).ok()?;
+    let map = outlook_pst::messaging::store::Store::named_property_map(store.as_ref()).ok()?;
     let guids = map.properties().stream_guid().ok()?;
     map.properties().stream_entry().ok()?.into_iter().find_map(|e| match (e.guid(), e.id()) {
         (NamedPropertyGuid::GuidIndex(i), NamedPropertyId::Number(n)) if n == lid && guids.get(usize::from(i))?.data1() == set => Some(e.prop_id()),

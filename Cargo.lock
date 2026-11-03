@@ -3670,7 +3670,6 @@ dependencies = [
  "mailcraft-store",
  "md-5",
  "md4",
- "outlook-pst",
  "outlook-pst-rw",
  "proptest",
  "quick-xml 0.42.0",
@@ -4622,19 +4621,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "outlook-pst"
-version = "1.2.0"
-source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=b3a2ed1eb4217b567aebfd447c6730d64c1fd2a0#b3a2ed1eb4217b567aebfd447c6730d64c1fd2a0"
-dependencies = [
- "byteorder",
- "thiserror 2.0.21",
- "tracing",
-]
-
-[[package]]
 name = "outlook-pst-rw"
 version = "1.2.14"
-source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=4c0449aae457ce2441c5167fae25537680ec7a11#4c0449aae457ce2441c5167fae25537680ec7a11"
+source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=1aa9c252846a1a258e5453e8fbcf9a505a9844a5#1aa9c252846a1a258e5453e8fbcf9a505a9844a5"
 dependencies = [
  "byteorder",
  "thiserror 2.0.21",

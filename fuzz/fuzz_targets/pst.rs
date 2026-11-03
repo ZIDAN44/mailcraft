@@ -8,7 +8,7 @@
 //! The import runs as the app's does, with its planner (which reads the folders and hands out
 //! their items) and one lane, so a run is the same each time; the lanes' coordination has unit
 //! tests of its own. Each thread fences the reader with `catch_unwind` and calls a file that
-//! panics it damaged, so a panic inside outlook-pst (an overflow on a damaged block count, say)
+//! panics it damaged, so a panic inside the .pst reader (an overflow on a damaged block count, say)
 //! is the expected answer here, not a crash. A panic in MailCraft's own code still aborts the run.
 #![no_main]
 

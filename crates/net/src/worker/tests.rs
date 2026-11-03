@@ -404,7 +404,7 @@ fn no_pass_runs_during_an_import() {
 /// its end has nothing to add, and reads nothing.
 #[test]
 fn an_imported_file_leaves_nothing_to_index() {
-    use pst_rw::{UnicodePstFile, UnicodePstMessage};
+    use outlook_pst::{UnicodePstFile, UnicodePstMessage};
     let t = std::env::temp_dir().join(format!("mailcraft-worker-import-index-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&t);
     std::fs::create_dir_all(&t).unwrap();

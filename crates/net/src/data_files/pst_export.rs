@@ -30,7 +30,7 @@ use mailcraft_store::Store;
 use outlook_pst::messaging::message::{Message as _, UnicodeMessage};
 use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
 use outlook_pst::ndb::node_id::NodeId;
-use pst_rw::{
+use outlook_pst::{
     UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstProperty, UnicodePstPropertyKey, UnicodePstRecipient,
     UnicodePstRecipientType,
 };

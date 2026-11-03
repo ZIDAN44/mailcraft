@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use mailcraft_model::{Folder, FolderRole};
 use mailcraft_store::Store;
-use pst_rw::{
+use outlook_pst::{
     UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType,
 };
 

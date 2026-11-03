@@ -12,12 +12,10 @@ About page. The app icon files in `assets/app-icon/`
 are rendered by `cargo xtask icons` from MailCraft's own drawing in `xtask/src/icons.rs`.
 
 Third-party code built from a fork rather than taken from crates.io as it is published:
-Microsoft's [outlook-pst](https://github.com/microsoft/outlook-pst-rs) 1.2.0 (MIT, its `LICENSE`),
-from [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs)'s `craft/1.2.0` branch
-with the fixes listed in its `PATCHES.md`; and Dong Shin's
-[outlook-pst-rw](https://github.com/dongs0104/outlook-pst-rs) 1.2.14 (MIT, its `LICENSE`), a fork
-of the same reader, from the same repository's `craft/rw-1.2.14` branch with the fixes listed in
-that branch's `PATCHES.md`. Neither adds asset files.
+Dong Shin's [outlook-pst-rw](https://github.com/dongs0104/outlook-pst-rs) 1.2.14 (MIT, its
+`LICENSE`), a fork of Microsoft's [outlook-pst](https://github.com/microsoft/outlook-pst-rs) reader
+with a writer added, from [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs)'s
+`craft/rw-1.2.14` branch with the fixes listed in its `PATCHES.md`. It adds no asset files.
 
 | Path | Author | Source | Licence |
 |---|---|---|---|

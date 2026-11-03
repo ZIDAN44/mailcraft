@@ -10,7 +10,7 @@ use mailcraft_model::job::{Blocked, SkipReason, StopHow};
 use mailcraft_model::pim::{PIM_DOC, Pim};
 use mailcraft_store::Store;
 use mailcraft_store::search::{self, Writer as IndexWriter};
-use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
 use super::super::item::Item;
 use super::super::lanes::tests::Fault;

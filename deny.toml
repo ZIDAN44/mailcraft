@@ -16,8 +16,8 @@ targets = [
 
 # Where crates may come from: crates.io, which is cargo-deny's one allowed registry unless told
 # otherwise, the two forks the Craft apps share (egui 0.37 and winit 0.30.13) and MailCraft's
-# fork of the .pst reader and writer (outlook-pst 1.2.0 and outlook-pst-rw 1.2.14, two branches
-# of one repository), each pinned to an immutable revision in Cargo.toml's [patch.crates-io].
+# fork of the .pst reader and writer (outlook-pst-rw 1.2.14, its craft/rw-1.2.14 branch), each
+# pinned to an immutable revision in Cargo.toml's [patch.crates-io].
 # Nothing else.
 [sources]
 unknown-git = "deny"

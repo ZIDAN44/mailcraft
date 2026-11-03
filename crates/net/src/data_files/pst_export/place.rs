@@ -3,7 +3,7 @@
 //! own special folders.
 
 use super::*;
-use pst_rw::UnicodePstSpecialFolder as Special;
+use outlook_pst::UnicodePstSpecialFolder as Special;
 
 /// The roles that have a special folder in a data file. MailCraft has no Outbox folder.
 pub(super) const SPECIAL: [(FolderRole, Special); 4] = [

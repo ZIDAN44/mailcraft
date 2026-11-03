@@ -3,9 +3,9 @@
 //! properties Outlook keeps them in.
 
 use super::*;
-use pst_rw::ltp::prop_context::GuidValue;
-use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
-use pst_rw::{UnicodePstName, UnicodePstProperty, UnicodePstValue};
+use outlook_pst::ltp::prop_context::GuidValue;
+use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
+use outlook_pst::{UnicodePstName, UnicodePstProperty, UnicodePstValue};
 
 /// PSETID_Common and PSETID_Task (MS-OXPROPS 1.3.2).
 pub(super) const PSETID_COMMON: GuidValue = GuidValue::new(0x0006_2008, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
@@ -249,7 +249,7 @@ mod tests {
     /// A message without a `Date:` gets no submit time, not 1970-01-01.
     #[test]
     fn no_date_no_submit_time() {
-        let submit = |m: &Owned| properties(m, &[]).iter().any(|p| matches!(p.key, pst_rw::UnicodePstPropertyKey::Tag(0x0039)));
+        let submit = |m: &Owned| properties(m, &[]).iter().any(|p| matches!(p.key, outlook_pst::UnicodePstPropertyKey::Tag(0x0039)));
         let m = owned(b"Subject: x\r\nFrom: a@b\r\n\r\nbody", 0, State::default()).unwrap();
         assert_eq!(m.date, 0);
         assert!(!submit(&m));

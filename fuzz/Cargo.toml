@@ -40,7 +40,7 @@ mailcraft-mime.path = "../crates/mime" # MIME, HTML and markup
 mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
 mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
 mailcraft-smime.path = "../crates/smime" # S/MIME
-pst_rw = { package = "outlook-pst-rw", version = "1.2.14" } # the .pst writer, from MailCraft's fork below
+outlook-pst-rw = "1.2.14" # the .pst reader and writer, from MailCraft's fork below
 rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
 mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to, the search index
 
@@ -52,8 +52,7 @@ debug-assertions = true
 overflow-checks = true
 package.mail-parser.debug-assertions = false
 
-# The .pst reader and writer with MailCraft's fixes, the same revisions of the fork as the main
+# The .pst reader and writer with MailCraft's fixes, the same revision of the fork as the main
 # workspace's.
 [patch.crates-io]
-outlook-pst = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "b3a2ed1eb4217b567aebfd447c6730d64c1fd2a0" }
-outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "4c0449aae457ce2441c5167fae25537680ec7a11" }
+outlook-pst-rw = { git = "https://github.com/ZIDAN44/outlook-pst-rs.git", rev = "1aa9c252846a1a258e5453e8fbcf9a505a9844a5" }

@@ -1,6 +1,7 @@
 //! Importing an Outlook data file (`.pst`) into an account kept on this computer.
 //!
-//! The file is read with Microsoft's MIT-licensed `outlook-pst` crate (MS-PST): the folder tree
+//! The file is read with Microsoft's MIT-licensed reader (MS-PST), from MailCraft's fork of
+//! `outlook-pst-rw`, which the export writes with too (library `outlook_pst`): the folder tree
 //! under the top of the mailbox becomes folders, and each mail item is written out again as a
 //! standard message (RFC 5322 / MIME) from its properties (MS-OXCMSG / MS-OXPROPS), keeping the
 //! original headers when the item has them. Contacts, contact groups and calendar items go to the

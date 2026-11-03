@@ -7,8 +7,8 @@
 use mailcraft_model::dates::days_from_civil;
 use mailcraft_model::pim::{PIM_DOC, Pim};
 use mailcraft_store::Store;
-use pst_rw::ltp::prop_context::GuidValue;
-use pst_rw::{
+use outlook_pst::ltp::prop_context::GuidValue;
+use outlook_pst::{
     UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstEmbeddedMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstName,
     UnicodePstProperty, UnicodePstValue,
 };

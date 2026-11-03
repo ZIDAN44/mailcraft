@@ -412,8 +412,8 @@ fn kept_files_read_back_from_the_exported_files() {
 /// from the file's own named properties; the mail beside them stays mail.
 #[test]
 fn a_data_files_tasks_come_in() {
-    use pst_rw::ltp::prop_context::GuidValue;
-    use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstName, UnicodePstProperty, UnicodePstValue};
+    use outlook_pst::ltp::prop_context::GuidValue;
+    use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstName, UnicodePstProperty, UnicodePstValue};
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-tasks-file-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -474,7 +474,7 @@ fn a_data_files_tasks_come_in() {
 /// comes in.
 #[test]
 fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
-    use pst_rw::{UnicodePstFile as Writer, UnicodePstMessage};
+    use outlook_pst::{UnicodePstFile as Writer, UnicodePstMessage};
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-trash-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

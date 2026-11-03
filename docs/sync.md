@@ -224,7 +224,7 @@ script the user already runs stays in charge of their other rules: ours `include
 ## Outlook data files (`crates/net/src/data_files/pst.rs`)
 
 *Open Outlook data file* creates an account with no server named after the file and reads the
-`.pst` (MS-PST, Unicode or ANSI, with Microsoft's `outlook-pst` crate) on a thread of its own:
+`.pst` (MS-PST, Unicode or ANSI, with Microsoft's reader, from MailCraft's fork of `outlook-pst-rw`) on a thread of its own:
 the mail folders under the top of the mailbox become folders, and each mail item is written
 again as a standard message from its properties (addresses, dates, text and HTML bodies,
 attachments, pictures shown by `cid:`, embedded messages, read and follow-up flags), keeping its

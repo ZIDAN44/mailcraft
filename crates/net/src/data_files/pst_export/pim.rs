@@ -10,12 +10,12 @@
 //! reads it back (`pst_pim::rest`).
 
 use mailcraft_model::pim::{NOTE_COLORS, NOTE_YELLOW, Note, Pim};
-use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
-use pst_rw::{UnicodePstName, UnicodePstSpecialFolder as Special, UnicodePstValue};
+use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
+use outlook_pst::{UnicodePstName, UnicodePstSpecialFolder as Special, UnicodePstValue};
 
 use super::item::{PSETID_COMMON, filetime};
 use super::*;
-use pst_rw::ltp::prop_context::GuidValue;
+use outlook_pst::ltp::prop_context::GuidValue;
 
 /// PSETID_Address and PSETID_Note (MS-OXPROPS 1.3.2).
 pub(super) const PSETID_ADDRESS: GuidValue = GuidValue::new(0x0006_2004, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);

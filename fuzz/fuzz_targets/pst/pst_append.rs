@@ -26,11 +26,11 @@ use std::rc::Rc;
 use std::sync::OnceLock;
 
 use libfuzzer_sys::fuzz_target;
-use pst_rw::ltp::prop_context::GuidValue;
-use pst_rw::messaging::named_prop::PS_PUBLIC_STRINGS;
-use pst_rw::messaging::store::{Store as _, UnicodeStore};
-use pst_rw::ndb::node_id::NodeId;
-use pst_rw::{
+use outlook_pst::ltp::prop_context::GuidValue;
+use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
+use outlook_pst::messaging::store::{Store as _, UnicodeStore};
+use outlook_pst::ndb::node_id::NodeId;
+use outlook_pst::{
     ADD_MAX_VALUE_SIZE, UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstName, UnicodePstProperty,
     UnicodePstPropertyKey as Key, UnicodePstSpecialFolder as Special, UnicodePstValue as Value,
 };

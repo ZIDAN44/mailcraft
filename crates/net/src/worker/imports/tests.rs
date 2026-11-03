@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 
 use mailcraft_model::Summary;
 use mailcraft_model::job::{ImportPhase, StopHow};
-use pst_rw::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
 use super::*;
 use crate::pst::Fault;

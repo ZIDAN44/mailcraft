@@ -701,7 +701,7 @@ fn junk_is_refused_and_nothing_is_written() {
 
 #[test]
 fn imports_a_data_file() {
-    use pst_rw::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+    use outlook_pst::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

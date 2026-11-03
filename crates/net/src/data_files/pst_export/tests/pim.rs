@@ -258,8 +258,8 @@ fn a_file_added_to_keeps_its_own_contacts() {
     drop(UnicodePstFile::create(&file, &first).unwrap());
     drop(UnicodePstFile::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap());
     let given = [
-        UnicodePstProperty::tagged(0x3001, pst_rw::UnicodePstValue::Unicode("Zoe Park")),
-        UnicodePstProperty::tagged(0x3A06, pst_rw::UnicodePstValue::Unicode("Zoe")),
+        UnicodePstProperty::tagged(0x3001, outlook_pst::UnicodePstValue::Unicode("Zoe Park")),
+        UnicodePstProperty::tagged(0x3A06, outlook_pst::UnicodePstValue::Unicode("Zoe")),
     ];
     let zoe = UnicodePstMessage { subject: "Zoe Park", message_class: "IPM.Contact", message_id: "", body: "", properties: &given, ..first };
     drop(UnicodePstFile::append_in_folder(&file, &["Kontakte"], &zoe).unwrap());
@@ -324,7 +324,7 @@ fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
     drop(UnicodePstFile::create(&file, &first).unwrap());
     drop(UnicodePstFile::append_in_folder(&file, &["Notes"], &UnicodePstMessage { message_id: "<field@example.com>", ..first }).unwrap());
     drop(UnicodePstFile::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap());
-    let name = [UnicodePstProperty::tagged(0x3001, pst_rw::UnicodePstValue::Unicode("Sam Lee"))];
+    let name = [UnicodePstProperty::tagged(0x3001, outlook_pst::UnicodePstValue::Unicode("Sam Lee"))];
     let sam = UnicodePstMessage { subject: "Sam Lee", message_class: "IPM.Contact", message_id: "", body: "", properties: &name, ..first };
     drop(UnicodePstFile::append_in_folder(&file, &["Kontakte"], &sam).unwrap());
 
