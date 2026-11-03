@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use mailcraft_model::search::{Placed, placed_tokens};
 
-use super::super::format::{PART, R, long_key, needs_places, put_places, put_var, split_places};
+use super::super::format::{R, long_key, needs_places, put_places, put_var, split_places};
 use super::*;
 
 /// A word's docs, rising, and their places: a block a doc, in the same order (none for an
@@ -21,9 +21,10 @@ pub(crate) type Words = BTreeMap<Vec<u8>, Posting>;
 
 /// A doc's words, each once, with its block of places (empty for an address, which has none):
 /// the text's, the names' and both's addresses. A word longer than [`MAX_KEY`] is kept as a long
-/// word (its place alone), as one too long to index is.
+/// word (its place alone), as one too long to index is. A part of a dotted word is a word with no
+/// place: one the doc has only so has a block of none.
 pub(crate) fn doc_words<S: AsRef<str>>(text: &str, names: &[S]) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let mut placed: Vec<(Vec<u8>, u32)> = Vec::new();
+    let mut placed: Vec<(Vec<u8>, Option<u32>)> = Vec::new();
     place(Field::Body, text, 0, &mut placed);
     // A place left between names: no phrase runs from one into the next.
     let mut at = 0u32;
@@ -36,7 +37,7 @@ pub(crate) fn doc_words<S: AsRef<str>>(text: &str, names: &[S]) -> Vec<(Vec<u8>,
     let mut places: Vec<u32> = Vec::new();
     let mut it = placed.into_iter().peekable();
     while let Some((k, p)) = it.next() {
-        places.push(p);
+        places.extend(p);
         if it.peek().is_some_and(|(next, _)| *next == k) {
             continue;
         }
@@ -60,24 +61,24 @@ pub(crate) fn doc_words<S: AsRef<str>>(text: &str, names: &[S]) -> Vec<(Vec<u8>,
     out
 }
 
-/// The words of `text` in `field`, each with its place (from `from` on), added to `out`; one past
-/// the last place.
-fn place(field: Field, text: &str, from: u32, out: &mut Vec<(Vec<u8>, u32)>) -> u32 {
+/// The words of `text` in `field`, each with its place (from `from` on; none for a part, which no
+/// phrase reads), added to `out`; one past the last place.
+fn place(field: Field, text: &str, from: u32, out: &mut Vec<(Vec<u8>, Option<u32>)>) -> u32 {
     let mut end = from;
     for p in placed_tokens(text) {
         let (k, at, part) = match p {
-            Placed::Word(at, w) => (key(field, &w), at, 0),
-            Placed::Part(at, w) => (key(field, &w), at, PART),
-            Placed::Long(at) => (long_key(field), at, 0),
+            Placed::Word(at, w) => (key(field, &w), at, false),
+            Placed::Part(at, w) => (key(field, &w), at, true),
+            Placed::Long(at) => (long_key(field), at, false),
         };
         let at = from.saturating_add(at);
         end = end.max(at.saturating_add(1));
-        let place = at.saturating_mul(2) | part;
-        match k.len() <= MAX_KEY {
-            true => out.push((k, place)),
+        match (k.len() <= MAX_KEY, part) {
+            (true, true) => out.push((k, None)),
+            (true, false) => out.push((k, Some(at))),
             // Too long to keep: a part goes, a word is a long one.
-            false if part == 0 => out.push((long_key(field), place)),
-            false => {}
+            (false, false) => out.push((long_key(field), Some(at))),
+            (false, true) => {}
         }
     }
     end
@@ -115,7 +116,8 @@ pub(crate) fn file_word(words: &mut Words, doc: u32, k: Vec<u8>, block: &[u8]) -
 
 /// A word's lists from several segments (its docs, and their places when it has them) made one:
 /// docs rising, each once (its block from the first list that has it), only those `keep` keeps.
-/// A word that should have places and whose list hasn't is damage.
+/// A word that should have places and whose list hasn't is a part in each of those docs (a block
+/// of no places each).
 pub(crate) fn merge_lists(key: &[u8], lists: Vec<(Vec<u32>, Option<Vec<u8>>)>, keep: impl Fn(u32) -> bool) -> R<Posting> {
     if !needs_places(key) {
         let mut docs: Vec<u32> = lists.into_iter().flat_map(|(d, _)| d).collect();
@@ -127,8 +129,11 @@ pub(crate) fn merge_lists(key: &[u8], lists: Vec<(Vec<u32>, Option<Vec<u8>>)>, k
     // Each doc's block, as (doc, list, its count, where its bytes are), from every list.
     let mut blocks: Vec<(u32, usize, usize, Range<usize>)> = Vec::new();
     for (i, (docs, places)) in lists.iter().enumerate() {
-        let places = places.as_ref().ok_or("a word without its places")?;
-        for (&doc, (count, at)) in docs.iter().zip(split_places(places, docs.len())?) {
+        let blocks_of = match places {
+            Some(p) => split_places(p, docs.len())?,
+            None => vec![(0, 0..0); docs.len()],
+        };
+        for (&doc, (count, at)) in docs.iter().zip(blocks_of) {
             if keep(doc) {
                 blocks.push((doc, i, count, at));
             }
@@ -138,7 +143,11 @@ pub(crate) fn merge_lists(key: &[u8], lists: Vec<(Vec<u32>, Option<Vec<u8>>)>, k
     blocks.dedup_by_key(|(doc, _, _, _)| *doc);
     let mut out = Posting { docs: Vec::with_capacity(blocks.len()), places: Vec::new() };
     for (doc, i, count, at) in blocks {
-        let bytes = lists.get(i).and_then(|(_, p)| p.as_ref()).and_then(|p| p.get(at)).ok_or("places past the list")?;
+        let bytes = match lists.get(i).map(|(_, p)| p.as_ref()) {
+            Some(Some(p)) => p.get(at).ok_or("places past the list")?,
+            Some(None) => &[],
+            None => return Err("places past the list"),
+        };
         out.docs.push(doc);
         put_var(&mut out.places, count as u64);
         out.places.extend_from_slice(bytes);

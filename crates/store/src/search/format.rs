@@ -10,7 +10,7 @@ use super::*;
 mod pos;
 mod seg;
 
-pub(crate) use pos::{PART, PlacesStream, PosAt, decode_places, decode_pos_page, long_key, needs_places, put_places, split_places};
+pub(crate) use pos::{PlacesStream, PosAt, decode_places, decode_pos_page, kept_places, long_key, needs_places, put_places, split_places};
 pub(crate) use seg::{LexEntry, LexStream, Postings, SegBuilder, SegFiles, SegPage, decode_head, decode_lex, decode_post_page, decode_postings};
 
 /// What was wrong, for the error.

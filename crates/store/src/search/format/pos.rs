@@ -4,21 +4,22 @@
 //! A word's places follow its postings, a block a doc in the same order: the count of its places,
 //! then the places rising, the first as it is and each after as the step from the one before (no
 //! length: a block passed over is read to its end a byte at a time, cheaper than a byte more a
-//! doc a word, a third of most blocks). A place is the word's place among the doc's words (as a phrase reads them,
-//! [`placed_tokens`](mailcraft_model::search::placed_tokens)) doubled, plus 1 for one of a
-//! word's parts. The names' words go on from one name to the next with a place left between, so
-//! no phrase runs from one name into the next. A field's words too long to index have their
-//! places under [`long_key`]. Everything read back is checked, as the rest of the index is.
+//! doc a word, a third of most blocks). A place is the word's place among the doc's words (as a
+//! phrase reads them, [`placed_tokens`](mailcraft_model::search::placed_tokens)). The parts of
+//! dotted words ("site.word") are words of the postings but have no places, as no phrase starts
+//! or goes on at one: a doc that has the word only as a part has a block of no places, and a word
+//! no doc of the segment has whole has no places at all. The names' words go on from one name to
+//! the next with a place left between, so no phrase runs from one name into the next. A field's
+//! words too long to index have their places under [`long_key`]. Everything read back is
+//! checked, as the rest of the index is.
 
 use std::ops::Range;
 
 use super::*;
 
-/// A place that is one of a word's parts, not a word.
-pub(crate) const PART: u32 = 1;
-/// Most places one doc can have for a word: one a word of its text and names kept, a gap after
-/// each name, doubled.
-const MAX_PLACES: u64 = 2 * (MAX_BLOB_TEXT as u64 + MAX_NAMES_BYTES as u64 + (1 << 17));
+/// Most places one doc can have for a word: one a word of its text and names kept, and a gap
+/// after each name.
+const MAX_PLACES: u64 = MAX_BLOB_TEXT as u64 + MAX_NAMES_BYTES as u64 + (1 << 17);
 /// Most bytes of a place.
 const MAX_PLACE_BYTES: usize = 5;
 
@@ -34,7 +35,8 @@ pub fn long_key(field: Field) -> Vec<u8> {
     vec![b'~', field.letter()]
 }
 
-/// A doc's places of a word (rising, none twice), added to `out` as its block.
+/// A doc's places of a word (rising, none twice; none when the doc has it only as a part), added
+/// to `out` as its block.
 pub(crate) fn put_places(out: &mut Vec<u8>, places: &[u32]) {
     put_len(out, places.len());
     let mut last: Option<u32> = None;
@@ -54,7 +56,7 @@ fn block_at(b: &[u8]) -> R<Option<(usize, Range<usize>)>> {
         Err(_) if b.len() < 10 => return Ok(None),
         Err(e) => return Err(e),
     };
-    if count == 0 || count > MAX_PLACES {
+    if count > MAX_PLACES {
         return Err("places out of range");
     }
     let count = usize::try_from(count).map_err(|_| "places out of range")?;
@@ -94,6 +96,12 @@ pub(crate) fn decode_places(b: &[u8], count: usize) -> R<Vec<u32>> {
     }
     r.end()?;
     Ok(out)
+}
+
+/// The places a word in `docs` docs keeps: none when no doc's block has any (the word is only
+/// ever a part there: a block with places is at least 2 bytes, one without 1).
+pub(crate) fn kept_places(docs: usize, places: &[u8]) -> &[u8] {
+    if places.len() == docs { &[] } else { places }
 }
 
 /// A word's places whole (`df` docs'), split into each doc's block: its count of places and where
@@ -139,7 +147,8 @@ impl PosAt {
         let page = u32::try_from(start / POS_PAGE as u64).map_err(|_| "places out of range")?;
         let at = PosAt { page, offset: (start % POS_PAGE as u64) as u32, len };
         let room = u64::from(pos_pages.saturating_sub(at.page)).saturating_mul(POS_PAGE as u64);
-        if at.page >= pos_pages || at.offset as usize > POS_PAGE || at.len < u64::from(df).saturating_mul(2) || at.len > room {
+        // A block a doc, at least a byte, and one with places at least 2.
+        if at.page >= pos_pages || at.offset as usize > POS_PAGE || at.len <= u64::from(df) || at.len > room {
             return Err("places out of range");
         }
         Ok(at)
@@ -219,7 +228,7 @@ mod tests {
     /// errors.
     #[test]
     fn places_read_back_however_they_come() {
-        let docs: Vec<Vec<u32>> = vec![vec![0], vec![2, 3, 10, 400_000], (0..3000).map(|i| i * 2).collect(), vec![u32::MAX - 1]];
+        let docs: Vec<Vec<u32>> = vec![vec![0], vec![], vec![2, 3, 10, 400_000], (0..3000).map(|i| i * 2).collect(), vec![u32::MAX - 1]];
         let mut stream = Vec::new();
         for d in &docs {
             put_places(&mut stream, d);
@@ -240,9 +249,15 @@ mod tests {
         }
         assert!(decode_places(&[5, 0], 2).is_err(), "a step of nothing");
         assert!(decode_places(&[5], 2).is_err(), "more places than bytes");
+        let mut s = PlacesStream::new(PosAt { page: 0, offset: 0, len: 3 }, 2);
+        s.feed(&[0, 1, 4]);
+        assert_eq!(s.next_block().unwrap(), Some((0, 0, &[][..])), "a doc with the word only as a part");
+        assert_eq!(s.next_block().unwrap(), Some((1, 1, &[4][..])));
+        s.finish().unwrap();
         let mut s = PlacesStream::new(PosAt { page: 0, offset: 0, len: 2 }, 1);
         s.feed(&[0, 1]);
-        assert!(s.next_block().is_err(), "a doc with no places");
+        assert_eq!(s.next_block().unwrap(), Some((0, 0, &[][..])));
+        assert!(s.next_block().is_err(), "bytes past a doc with no places");
         let mut s = PlacesStream::new(PosAt { page: 0, offset: 0, len: 3 }, 1);
         s.feed(&[2, 9, 0x80]);
         assert!(s.next_block().is_err(), "a block past the stream");
@@ -251,5 +266,8 @@ mod tests {
         assert!(s.next_block().is_err(), "a place too long");
         assert!(split_places(&[1, 4, 1, 5, 7], 2).is_err(), "bytes past the blocks");
         assert_eq!(split_places(&[1, 4, 2, 5, 7], 2).unwrap(), [(1, 1..2), (2, 3..5)]);
+        assert_eq!(split_places(&[0, 1, 4], 2).unwrap(), [(0, 1..1), (1, 2..3)]);
+        assert_eq!(kept_places(2, &[0, 0]), &[] as &[u8], "a word only ever a part");
+        assert_eq!(kept_places(2, &[0, 1, 4]), &[0, 1, 4]);
     }
 }

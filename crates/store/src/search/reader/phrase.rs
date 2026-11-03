@@ -8,14 +8,15 @@
 //!
 //! What the places can't tell is left to the text: a word of the phrase too long to index (or with
 //! a space folded into it), and a long word (one too long to index) just where the last word would
-//! be, which may start with it. A word without places (a segment from before they were kept, or
-//! one damaged) leaves its docs to the text too.
+//! be, which may start with it. A word without places is in the segment only as a part of dotted
+//! words ("site.word"), where no phrase starts or goes on: its docs aren't read, and no doc of the
+//! segment holds the phrase there (as the last word, it's passed over for the next starting so).
 
 use std::collections::BTreeMap;
 
 use mailcraft_model::search::MAX_TOKEN_CHARS;
 
-use super::super::format::{PART, PlacesStream, decode_places, decode_pos_page, long_key};
+use super::super::format::{PlacesStream, decode_places, decode_pos_page, long_key};
 use super::*;
 
 /// What a phrase's places said: the docs that hold it, and those they can't tell of.
@@ -149,11 +150,12 @@ impl Reader {
                     };
                 }
                 // A word found: its docs read, and its places to read (each a unit of its own).
+                // One with none is only ever a part here: no doc of the segment holds the phrase
+                // with it, and the last word goes on to the next word starting so.
                 _ if scan.stream.is_none() && scan.entry.is_some() => {
                     let Some(e) = scan.entry.take() else { continue };
                     scan.stream = self.places_of(store, &info, &e, &mut read)?;
-                    if scan.stream.is_none() {
-                        unsure_in(scan, within, &info);
+                    if scan.stream.is_none() && !matches!(scan.stage, Stage::Last { .. }) {
                         end_segment(scan);
                     }
                 }
@@ -238,7 +240,8 @@ impl Reader {
         Ok(entries.binary_search_by(|e| e.key.as_slice().cmp(key)).ok().and_then(|i| entries.get(i)).cloned())
     }
 
-    /// A word's places to read, its docs read first; `None` when it has none kept.
+    /// A word's places to read, its docs read first; `None` when it has none kept (it's only ever
+    /// a part in the segment), its docs not read.
     fn places_of(&mut self, store: &Store, info: &SegInfo, e: &LexEntry, read: &mut usize) -> Result<Option<Stream>> {
         let Some(at) = e.pos else { return Ok(None) };
         let (docs, pages) = self.entry_docs(store, info, e)?;
@@ -317,18 +320,17 @@ fn wanted(scan: &PhraseScan, stage: Stage, within: &Bits, n: usize, doc: u32) ->
 /// A doc's places (rising) of the word under way weighed: where the phrase may start kept, or
 /// the doc found to hold it, or left to its text.
 fn weigh(scan: &mut PhraseScan, stage: Stage, n: usize, doc: u32, places: &[u32]) {
-    let whole: Vec<u32> = places.iter().filter(|p| *p & PART == 0).map(|p| p >> 1).collect();
     // Whether the word is at `at` places after a place the phrase may start at (any, alone).
     let follows = |starts: Option<&Vec<u32>>, at: usize| match starts {
-        None => !whole.is_empty(),
-        Some(s) => s.iter().any(|p| p.checked_add(u32::try_from(at).unwrap_or(u32::MAX)).is_some_and(|q| whole.binary_search(&q).is_ok())),
+        None => !places.is_empty(),
+        Some(s) => s.iter().any(|p| p.checked_add(u32::try_from(at).unwrap_or(u32::MAX)).is_some_and(|q| places.binary_search(&q).is_ok())),
     };
     let starts = if n > 1 { scan.starts.get(&doc) } else { None };
     match stage {
         Stage::Segment => {}
         Stage::Word(0) => {
-            if !whole.is_empty() {
-                scan.starts.insert(doc, whole);
+            if !places.is_empty() {
+                scan.starts.insert(doc, places.to_vec());
             }
         }
         Stage::Word(i) => {
@@ -336,7 +338,7 @@ fn weigh(scan: &mut PhraseScan, stage: Stage, n: usize, doc: u32, places: &[u32]
             let kept: Vec<u32> = s
                 .iter()
                 .copied()
-                .filter(|p| p.checked_add(u32::try_from(i).unwrap_or(u32::MAX)).is_some_and(|q| whole.binary_search(&q).is_ok()))
+                .filter(|p| p.checked_add(u32::try_from(i).unwrap_or(u32::MAX)).is_some_and(|q| places.binary_search(&q).is_ok()))
                 .collect();
             if !kept.is_empty() {
                 scan.next.insert(doc, kept);
@@ -352,13 +354,6 @@ fn weigh(scan: &mut PhraseScan, stage: Stage, n: usize, doc: u32, places: &[u32]
                 scan.found.unsure.set(doc);
             }
         }
-    }
-}
-
-/// The docs of `within` in a segment's span left to their texts: its places can't tell.
-fn unsure_in(scan: &mut PhraseScan, within: &Bits, info: &SegInfo) {
-    for d in within.ones().skip_while(|d| *d < info.lo).take_while(|d| *d <= info.hi) {
-        scan.found.unsure.set(d);
     }
 }
 

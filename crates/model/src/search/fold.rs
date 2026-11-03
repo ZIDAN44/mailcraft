@@ -21,8 +21,9 @@ pub(crate) use ascii::pieces;
 
 /// Changes whenever what the index keeps of a text's words changes: what was indexed with another
 /// is read again (2: the parts of words joined by `.`, `:`, `'`, `_`; 3: each word's places,
-/// [`placed_tokens`]).
-pub const TOKENIZER_VERSION: u32 = 3;
+/// [`placed_tokens`]; 4: no places for those parts, which no phrase reads, and places no longer
+/// doubled to mark them).
+pub const TOKENIZER_VERSION: u32 = 4;
 /// Longer "words" (base64 debris, long links) aren't indexed: they only bloat it.
 pub const MAX_TOKEN_CHARS: usize = 40;
 

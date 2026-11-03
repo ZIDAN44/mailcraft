@@ -546,9 +546,11 @@ index rather than a set per segment: a removed message leaves its page in its ow
 merge has only words to drop); and immutable segments of words (field letter + folded word: `b`
 text, `n` names, `a` whole addresses and domains), each a head, front-coded lexicon pages,
 varint postings pages and places pages (`search/format/pos.rs`: for each word of the text and the
-names, each of its docs' places among the doc's words, a part of a dotted word marked as one, the
-names' words a place apart from one name to the next, and words too long to index by their places
-alone, under `~` and the field's letter; read only to settle a phrase, so a word looked up never
+names, each of its docs' places among the doc's words, the names' words a place apart from one
+name to the next; a part of a dotted word, which no phrase starts or goes on at, keeps none: a
+doc with the word only as a part has a block of no places, and a word only ever a part in a
+segment no places there at all, so the phrase reader never reads its docs (tokenizer 4); and
+words too long to index by their places alone, under `~` and the field's letter; read only to settle a phrase, so a word looked up never
 reads them). An index from before places (tokenizer 2) has its words made again from its kept
 texts when its writer opens, as for any tokenizer change; its meta reads (the places pages' counts
 follow what such a meta ends with). `search::Writer` adds, removes and moves docs in memory and flushes a new

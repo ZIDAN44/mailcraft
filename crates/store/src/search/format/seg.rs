@@ -101,11 +101,13 @@ fn page_start(magic: &[u8; 4]) -> Vec<u8> {
 impl SegBuilder {
     /// A word (field letter first, at most [`MAX_KEY`] bytes), its docs, rising, and their places
     /// ([`put_places`], a block a doc, in their order; none for a word that has none:
-    /// [`needs_places`]). A word that should have places and has none isn't kept.
+    /// [`needs_places`]). A word whose docs have it only as a part keeps no places
+    /// ([`kept_places`]); one that should have places and whose blocks are short isn't kept.
     pub(crate) fn push(&mut self, key: &[u8], docs: &[u32], places: &[u8]) {
         let (Some(&first), Some(&last)) = (docs.first(), docs.last()) else { return };
-        // A block a doc is at least 2 bytes (its count, a place).
-        let unplaced = if needs_places(key) { places.len() < docs.len().saturating_mul(2) } else { !places.is_empty() };
+        // A block a doc is at least a byte (its count).
+        let unplaced = if needs_places(key) { places.len() < docs.len() } else { !places.is_empty() };
+        let places = kept_places(docs.len(), places);
         if key.is_empty() || key.len() > MAX_KEY || unplaced {
             return;
         }

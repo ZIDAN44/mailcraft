@@ -1,6 +1,7 @@
 //! Phrases settled from their words' places: the same answers as the text gives, on texts of
 //! every kind, carried through merges and ids given again, read a few pages a call, and made
-//! for an index from before places were kept.
+//! for an index from before places were kept. The parts of dotted words are found as words but
+//! keep no places.
 
 use std::collections::BTreeMap;
 
@@ -86,9 +87,9 @@ proptest! {
     #![proptest_config(ProptestConfig { cases: 96, ..ProptestConfig::default() })]
 
     /// Texts of accents, CJK, dotted words, repeated words and words too long to index, in the
-    /// text and in the files' names, over two segments: what the places say of a phrase (taken
-    /// from a text, its last word cut to a prefix, or made up) is what the text says, but where a
-    /// long word may be its last word's.
+    /// text and in the files' names, over two segments and then merged into one: what the places
+    /// say of a phrase (taken from a text, its last word cut to a prefix, or made up) is what the
+    /// text says, but where a long word may be its last word's.
     #[test]
     fn places_say_what_the_text_says(
         docs in prop::collection::vec((prop::collection::vec((0usize..22, 0usize..5), 0..24), prop::collection::vec(prop::collection::vec((0usize..22, 0usize..5), 0..4), 0..3)), 1..6),
@@ -122,7 +123,11 @@ proptest! {
         }
         prop_assume!(!words.is_empty());
         let mut r = Reader::open(&s, "a1").unwrap().unwrap();
-        for field in [Field::Body, Field::Names] {
+        for (merged, field) in [(false, Field::Body), (false, Field::Names), (true, Field::Body), (true, Field::Names)] {
+            if merged && field == Field::Body {
+                fill_to_merge(&mut w, &s);
+                r.refresh(&s).unwrap();
+            }
             let got = phrase_docs(&mut r, &s, field, &words);
             for (doc, body, names) in &kept {
                 let want = match field {
@@ -170,6 +175,95 @@ fn a_phrase_is_in_one_name_and_starts_at_a_word() {
     assert_eq!(ask(&mut r, Field::Body, "now the the up").get(&a), Some(&Some(true)), "across punctuation");
     assert_eq!(ask(&mut r, Field::Body, "now the up").get(&a), Some(&Some(false)));
     assert_eq!(ask(&mut r, Field::Body, "update the").get(&a), Some(&Some(false)), "out of order");
+}
+
+/// Segments of a filler doc each (no word of the tests') flushed until the segments are enough
+/// to merge, then merged into one.
+fn fill_to_merge(w: &mut Writer, s: &Store) {
+    for uid in 1..=8 {
+        w.add(&mk("Filler", uid), 1, 1, &text("zq", &[], 0)).unwrap();
+        w.flush(s).unwrap();
+    }
+    while w.merge_step(s, 0, 1).unwrap() {}
+    assert_eq!(load_meta(s, "a1").unwrap().unwrap().segments.len(), 1, "merged into one");
+}
+
+/// A part of a dotted word is found as a word, but keeps no place: a word only ever a part in a
+/// segment has no places there (and its docs aren't read for a phrase), one that's also whole
+/// somewhere has a block of none for each doc with it only as a part. Phrases with it are told
+/// from the whole words' places all the same, after a merge too.
+#[test]
+fn a_dotted_words_parts_are_words_without_places() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let a = w.add(&mk("INBOX", 1), 1, 1, &text("see site.word now, only.dotted here", &["plan.v2 final.pdf"], 1)).unwrap();
+    let b = w.add(&mk("INBOX", 2), 1, 1, &text("the word now", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let c = w.add(&mk("INBOX", 3), 1, 1, &text("dotted here", &[], 0)).unwrap();
+    w.flush(&s).unwrap();
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    for (field, word, want) in [
+        (Field::Body, "word", vec![a, b]),
+        (Field::Body, "site", vec![a]),
+        (Field::Body, "dotted", vec![a, c]),
+        (Field::Body, "only", vec![a]),
+        (Field::Names, "v2", vec![a]),
+    ] {
+        assert_eq!(found(&mut r, &s, field, word), want, "{word}");
+    }
+    // Each segment's words: which keep places, and how many each doc has.
+    let entries = |s: &Store| -> BTreeMap<(u32, Vec<u8>), Option<Vec<usize>>> {
+        let meta = load_meta(s, "a1").unwrap().unwrap();
+        let mut out = BTreeMap::new();
+        for seg in &meta.segments {
+            let base = dir(s, "a1");
+            let pos: Vec<u8> = (0..seg.pos_pages)
+                .flat_map(|p| decode_pos_page(&s.files.read(&Name::SegPos(seg.id, p).path(&base)).unwrap()).unwrap().to_vec())
+                .collect();
+            for p in 0..seg.lex_pages {
+                let lex = s.files.read(&Name::SegLex(seg.id, p).path(&base)).unwrap();
+                for e in decode_lex(&lex, meta.next_doc, seg.post_pages, seg.pos_pages).unwrap() {
+                    let counts = e.pos.map(|at| {
+                        let start = at.page as usize * POS_PAGE + at.offset as usize;
+                        let bytes = &pos[start..start + at.len as usize];
+                        split_places(bytes, e.df as usize).unwrap().into_iter().map(|(n, _)| n).collect()
+                    });
+                    out.insert((seg.id, e.key), counts);
+                }
+            }
+        }
+        out
+    };
+    let of = |all: &BTreeMap<(u32, Vec<u8>), Option<Vec<usize>>>, word: &str| -> Vec<Option<Vec<usize>>> {
+        all.iter().filter(|((_, k), _)| *k == key(Field::Body, word)).map(|(_, v)| v.clone()).collect()
+    };
+    let all = entries(&s);
+    assert_eq!(of(&all, "site"), [None], "only ever a part: no places");
+    assert_eq!(of(&all, "only"), [None]);
+    assert_eq!(of(&all, "word"), [Some(vec![0, 1])], "a block of none where it's only a part");
+    assert_eq!(of(&all, "site.word"), [Some(vec![1])]);
+    assert_eq!(of(&all, "dotted"), [None, Some(vec![1])], "a part in one segment, whole in the next");
+    assert_eq!(all.iter().filter(|((_, k), _)| *k == key(Field::Names, "v2")).map(|(_, v)| v.clone()).collect::<Vec<_>>(), [None], "a name's part");
+    let ws = |p: &str| p.split(' ').map(String::from).collect::<Vec<_>>();
+    for when in ["", "merged"] {
+        assert_eq!(phrase_docs(&mut r, &s, Field::Body, &ws("word now")), BTreeMap::from([(a, Some(false)), (b, Some(true))]), "{when}");
+        assert_eq!(phrase_docs(&mut r, &s, Field::Body, &ws("dotted here")), BTreeMap::from([(a, Some(false)), (c, Some(true))]), "{when}");
+        assert_eq!(phrase_docs(&mut r, &s, Field::Body, &ws("only.dotted he")), BTreeMap::from([(a, Some(true))]), "{when}");
+        assert_eq!(
+            phrase_docs(&mut r, &s, Field::Body, &ws("now si")),
+            BTreeMap::from([(a, Some(false))]),
+            "{when}: a part isn't a last word's start"
+        );
+        assert_eq!(phrase_docs(&mut r, &s, Field::Names, &ws("v2 final")).get(&a), Some(&Some(false)), "{when}");
+        assert_eq!(phrase_docs(&mut r, &s, Field::Names, &ws("plan.v2 final")).get(&a), Some(&Some(true)), "{when}");
+        if when.is_empty() {
+            fill_to_merge(&mut w, &s);
+            assert!(r.refresh(&s).unwrap());
+        }
+    }
+    let all = entries(&s);
+    assert_eq!(of(&all, "dotted"), [Some(vec![0, 1])], "merged: a block of none for the doc with it only as a part");
+    assert_eq!(of(&all, "site"), [None]);
 }
 
 /// A word too long to index where the phrase's last word would be leaves the doc to its text
