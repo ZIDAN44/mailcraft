@@ -94,12 +94,15 @@ pub struct Spot {
 /// What the import has read of the replies to sent items (`out/sent_ids.rs`): each reply's
 /// parent index (a hash) and the id it answers ("" when replies to it answer two), and the real
 /// ids read (their hashes); `full` once past what's kept, when nothing is; `frozen` once the
-/// sent items are read, when the ids they have and are given are kept past that (one each).
+/// sent items are read, when the ids they have and are given are kept past that (one each), in
+/// `later`: apart from `seen`, so an import gone on with gives the sent items it has still to
+/// read the ids the one that never stopped gave them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SentMap {
     pub replies: Vec<SentReply>,
     pub seen: Vec<u64>,
+    pub later: Vec<u64>,
     pub full: bool,
     pub frozen: bool,
 }
@@ -116,9 +119,10 @@ impl SentMap {
     /// ids no longer than one kept.
     pub(super) fn sound(&self) -> bool {
         let most = super::out::sent_ids::MAX_BYTES / 16;
-        // Frozen, the Sent Items folder's rows add an id each at most.
-        let seen = if self.frozen { most.saturating_add(super::plan::MAX_ROWS) } else { most };
-        self.replies.len() <= most && self.seen.len() <= seen && self.replies.iter().all(|r| r.id.len() <= MAX_ID)
+        // Frozen, the Sent Items folder's rows add an id each at most (to `seen` itself in a
+        // checkpoint written before `later` was kept apart).
+        let (seen, later) = if self.frozen { (most.saturating_add(super::plan::MAX_ROWS), super::plan::MAX_ROWS) } else { (most, 0) };
+        self.replies.len() <= most && self.seen.len() <= seen && self.later.len() <= later && self.replies.iter().all(|r| r.id.len() <= MAX_ID)
     }
 
     /// A checkpoint's without one (written before sent items were given ids): the replies read

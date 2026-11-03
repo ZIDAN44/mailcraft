@@ -37,8 +37,12 @@ pub(in super::super) struct SentIds {
     /// A reply's parent index (its hash) and the id it answers; none when replies with that
     /// parent answer two.
     replies: HashMap<u64, Option<String>>,
-    /// The real ids read, and those given (their hashes).
+    /// The real ids read before the sent items (their hashes).
     seen: HashSet<u64>,
+    /// Those read and given since (the sent items' own): apart, so the lanes of an import gone
+    /// on with give from what was seen when the sent items began, as the one that never
+    /// stopped did, and the writer takes back what they give twice.
+    later: HashSet<u64>,
     bytes: usize,
     /// Past [`MAX_BYTES`]: nothing is kept, and no id is given.
     full: bool,
@@ -73,6 +77,11 @@ impl SentIds {
                 ids.bytes = ids.bytes.saturating_add(SEEN_BYTES);
             }
         }
+        for h in &map.later {
+            if !ids.seen.contains(h) && ids.later.insert(*h) {
+                ids.bytes = ids.bytes.saturating_add(SEEN_BYTES);
+            }
+        }
         // Frozen, the sent items' ids were kept past it, as they are from here.
         if !ids.frozen && ids.bytes > MAX_BYTES {
             ids.fill();
@@ -86,7 +95,9 @@ impl SentIds {
         replies.sort_by_key(|r| r.key);
         let mut seen: Vec<u64> = self.seen.iter().copied().collect();
         seen.sort_unstable();
-        SentMap { replies, seen, full: self.full, frozen: self.frozen }
+        let mut later: Vec<u64> = self.later.iter().copied().collect();
+        later.sort_unstable();
+        SentMap { replies, seen, later, full: self.full, frozen: self.frozen }
     }
 
     /// Past what's kept: let go of it all, and give nothing from here.
@@ -94,6 +105,7 @@ impl SentIds {
         self.full = true;
         self.replies = HashMap::new();
         self.seen = HashSet::new();
+        self.later = HashSet::new();
         self.bytes = 0;
     }
 
@@ -103,7 +115,7 @@ impl SentIds {
         if self.full {
             return;
         }
-        if !own.is_empty() && !own.ends_with(MADE_UP) && self.seen.insert(msgid_hash(own)) {
+        if !own.is_empty() && !own.ends_with(MADE_UP) && self.see(msgid_hash(own)) {
             self.bytes = self.bytes.saturating_add(SEEN_BYTES);
         }
         // Once the sent items are read, what they answer can't be given any more (their folder
@@ -131,11 +143,23 @@ impl SentIds {
         if self.full {
             return false;
         }
-        let fresh = self.seen.insert(msgid_hash(id));
+        let fresh = self.see(msgid_hash(id));
         if fresh {
             self.bytes = self.bytes.saturating_add(SEEN_BYTES);
         }
         fresh
+    }
+
+    /// An id read or given: kept with those seen before the sent items, or once they're read,
+    /// apart (`later`); false when it was seen already.
+    fn see(&mut self, h: u64) -> bool {
+        if self.seen.contains(&h) {
+            false
+        } else if self.frozen {
+            self.later.insert(h)
+        } else {
+            self.seen.insert(h)
+        }
     }
 
     /// The sent items are read from here: the replies as they stand, for the lanes.
@@ -145,7 +169,8 @@ impl SentIds {
     }
 
     /// The id the replies answer for the message whose own index has the hash `own`, unless
-    /// it's ambiguous or a message read has it.
+    /// it's ambiguous or a message read before the sent items has it (one read or given since
+    /// is the writer's to take back, in the planner's order, wherever the import stopped).
     pub(in super::super) fn lookup(&self, own: u64) -> Option<&str> {
         if self.full || own == 0 {
             return None;
@@ -337,6 +362,30 @@ mod tests {
         assert!(!many.sound());
         assert!(SentMap { frozen: true, ..many.clone() }.sound());
         assert!(SentIds::from_map(&many).is_full());
+        assert!(!SentMap { later: vec![1], ..SentMap::default() }.sound(), "kept apart before the sent items");
+    }
+
+    /// Gone on with from a checkpoint taken while the sent items are read, the lanes give what
+    /// they gave when the sent items began: a second sent item answered with the id the first
+    /// was given (or the id a sent item has of its own) is given it too, and the writer takes it
+    /// back, so its source is the one the import that never stopped kept.
+    #[test]
+    fn going_on_gives_what_the_sent_items_were_given_from_the_start() {
+        let (a, b) = (index(7, &[]), index(8, &[]));
+        let mut ids = SentIds::default();
+        ids.note(reply(&a, "a@studio.example"), "r1@ana.example");
+        ids.note(reply(&b, "b@studio.example"), "r2@ana.example");
+        let lanes = ids.freeze();
+        assert!(ids.claim("a@studio.example"), "the first sent item");
+        ids.note(None, "b@studio.example");
+        let back = SentIds::from_map(&ids.to_map()).freeze();
+        for k in [key(&a), key(&b)] {
+            assert_eq!(back.lookup(k), lanes.lookup(k), "the same ids given");
+        }
+        let mut back = SentIds::from_map(&ids.to_map());
+        assert!(!back.claim("a@studio.example") && !back.claim("b@studio.example"), "and taken back");
+        assert!(back.claim("c@studio.example"));
+        assert_eq!(SentIds::from_map(&back.to_map()).to_map(), back.to_map());
     }
 
     fn item(index_of: Vec<u8>, own: &str, headers: &str) -> Item {
