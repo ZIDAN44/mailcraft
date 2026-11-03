@@ -8,6 +8,8 @@
 
 use mail_parser::{MessageParser, MessagePart, MimeHeaders};
 
+pub mod pgp;
+
 /// What protects a whole message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Protection {
@@ -62,10 +64,11 @@ fn kind_of(head: &MessagePart<'_>) -> Kind {
 }
 
 /// Whether `raw` is signed or encrypted as a whole, read from its header alone (the body of a
-/// message that isn't, 30 MB of pictures say, is never parsed). When it says no, [`protection`]
-/// is `None`.
+/// message that isn't, 30 MB of pictures say, is never parsed): with S/MIME, or with OpenPGP or
+/// carrying keys for it ([`pgp::may_carry`]). When it says no, [`protection`] and
+/// [`pgp::protection`] are `None`.
 pub fn is_protected(raw: &[u8]) -> bool {
-    raw.len() <= RAW_MAX && head_kind(raw) != Kind::None
+    raw.len() <= RAW_MAX && (head_kind(raw) != Kind::None || pgp::may_carry(raw))
 }
 
 fn head_kind(raw: &[u8]) -> Kind {
@@ -369,8 +372,9 @@ fn quoted_printable(text: &str) -> Vec<u8> {
 /// What sent the message (`X-Mailer`, `User-Agent`) isn't copied inside: it says nothing to the
 /// reader, and servers strip it for privacy (docker-mailserver's Postfix does, and Postfix applies
 /// such rules to every MIME part's header too), which would break a clear signature over a copy.
+/// Nor is the sender's key (`Autocrypt:`, a kilobyte or more): it's for the way, read outside.
 pub fn protect_headers(outer: &[u8], entity: &[u8], encrypted: bool, hide_subject: bool) -> (Vec<u8>, Vec<u8>) {
-    const NOT_PROTECTED: [&str; 2] = ["x-mailer", "user-agent"];
+    const NOT_PROTECTED: [&str; 3] = ["x-mailer", "user-agent", "autocrypt"];
     let entity = crlf(entity);
     let (head, body) = entity_parts(&entity);
     let content: Vec<(String, Vec<u8>)> = fields(head).into_iter().filter(|(n, _)| n.starts_with("content-")).collect();
@@ -543,12 +547,12 @@ pub fn smime_type_of(cms: &[u8]) -> Option<&'static str> {
     (rest.strip_prefix(&SMIME)?.first() == Some(&23)).then_some("authEnveloped-data")
 }
 
-/// Whether an attachment is S/MIME's own (the signature or the encrypted content), not the
-/// sender's file: it isn't listed among a protected message's attachments.
+/// Whether an attachment is S/MIME's own (the signature or the encrypted content), or PGP/MIME's,
+/// not the sender's file: it isn't listed among a protected message's attachments.
 pub fn is_smime_part(mime: &str, name: &str) -> bool {
     let m = mime.to_ascii_lowercase();
     let n = name.to_ascii_lowercase();
-    m.contains("pkcs7-signature") || m.contains("pkcs7-mime") || n == "smime.p7s" || n == "smime.p7m"
+    m.contains("pkcs7-signature") || m.contains("pkcs7-mime") || n == "smime.p7s" || n == "smime.p7m" || pgp::is_pgp_part(mime, name)
 }
 
 /// What signs and what encrypts a message for [`protect`]: each takes the MIME entity and gives

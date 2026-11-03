@@ -34,6 +34,7 @@ mod hidden;
 mod html;
 mod photos;
 pub mod smime;
+pub use smime::pgp;
 mod tnef;
 mod trackers;
 pub use attachments::{

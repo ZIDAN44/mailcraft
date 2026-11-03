@@ -305,9 +305,13 @@ impl Smime {
         let lower = |v: Option<&str>| v.map(|s| s.trim().to_ascii_lowercase()).unwrap_or_default();
         if kind == "multipart" && subtype == "signed" {
             return match lower(protocol).as_str() {
-                "application/pkcs7-signature" | "application/x-pkcs7-signature" => Smime::Signed,
+                "application/pkcs7-signature" | "application/x-pkcs7-signature" | "application/pgp-signature" => Smime::Signed,
                 _ => Smime::None,
             };
+        }
+        // PGP/MIME (RFC 3156) shows the same way.
+        if kind == "multipart" && subtype == "encrypted" && lower(protocol) == "application/pgp-encrypted" {
+            return Smime::Encrypted;
         }
         let p7m = lower(name).ends_with(".p7m");
         if kind == "application" && (subtype == "pkcs7-mime" || subtype == "x-pkcs7-mime" || (subtype == "octet-stream" && p7m)) {

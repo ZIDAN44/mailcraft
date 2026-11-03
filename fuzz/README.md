@@ -66,6 +66,7 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
 | `search_index` | A damaged search index |
 | `photo` | A JPEG or PNG with its location removed |
 | `smime` | BER, signatures, encrypted mail, certificates, `.p12` files |
+| `pgp` | OpenPGP keys, encrypted and signed messages, detached and cleartext signatures; PGP/MIME, inline PGP, Autocrypt headers and attached keys |
 | `pst` | A `.pst` file (Outlook data file), patched or whole |
 | `pst_append` | Mail added to a `.pst` file and removed; other messages stay unchanged |
 | `import_checkpoint` | An import checkpoint, read and written back |

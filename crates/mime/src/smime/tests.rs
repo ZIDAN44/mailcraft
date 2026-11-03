@@ -75,7 +75,9 @@ fn an_octet_stream_p7m_is_protected_in_each_header_form() {
 fn the_header_alone_says_whether_a_message_is_protected() {
     assert!(is_protected(SIGNED.as_bytes()));
     assert!(is_protected(b"Content-Type: application/x-pkcs7-mime\r\n\r\nAQID\r\n"));
-    assert!(!is_protected(SIGNED.replace("pkcs7-signature\";", "pgp-signature\";").as_bytes()));
+    assert!(!is_protected(SIGNED.replace("pkcs7-signature\";", "unknown-signature\";").as_bytes()));
+    // PGP/MIME is too (taken apart by `pgp::protection`).
+    assert!(is_protected(SIGNED.replace("pkcs7-signature\";", "pgp-signature\";").as_bytes()));
     assert!(!is_protected(b"Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"\r\n\r\nno boundary\r\n"));
     let disguised = "From: a@b.example\r\nContent-Type: text/plain\r\n\r\nContent-Type: application/pkcs7-mime; name=smime.p7m\r\n\r\nAQID\r\n";
     assert!(!is_protected(disguised.as_bytes()));
@@ -208,7 +210,16 @@ Content-Type: multipart/signed; protocol=\"application/pgp-signature\"; boundary
 
 "
         ),
-        Smime::None
+        Smime::Signed
+    );
+    assert_eq!(
+        summary(
+            "From: a@b.example
+Content-Type: multipart/encrypted; protocol=\"application/pgp-encrypted\"; boundary=x
+
+"
+        ),
+        Smime::Encrypted
     );
     assert_eq!(
         summary(
