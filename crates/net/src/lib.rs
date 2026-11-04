@@ -1,6 +1,7 @@
 //! MailCraft's network layer (native builds only).
 //!
-//! * [`stream`]: TCP with timeouts, TLS through rustls (Mozilla's root store), STARTTLS.
+//! * [`stream`]: TCP with timeouts, TLS through rustls (Mozilla's roots and the system's, less
+//!   what the system distrusts), STARTTLS.
 //! * [`imap`]: a small, strict IMAP4rev1 client (RFC 3501) on top of `imap-proto`'s parser,
 //!   with the extensions sync relies on: UIDPLUS, MOVE, CONDSTORE, IDLE, SPECIAL-USE, SASL-IR.
 //! * [`sync`]: the folder synchronisation algorithm (RFC 4549, RFC 7162).

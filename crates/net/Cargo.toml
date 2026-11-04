@@ -49,6 +49,8 @@ thiserror = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 # The system's DNS resolvers (account autoconfiguration).
 ipconfig = "0.3"
+# The certificates Windows distrusts (`Disallowed`), refused even when among the roots.
+schannel = "0.1"
 
 [dev-dependencies]
 # The S/MIME round trip reads the test certificates (PEM).

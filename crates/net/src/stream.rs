@@ -6,10 +6,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use rustls::pki_types::{CertificateDer, ServerName};
-use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::{NetError, Result};
+
+pub(crate) mod trust;
+pub(crate) use trust::system_roots;
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 pub const IO_TIMEOUT: Duration = Duration::from_secs(60);
@@ -69,46 +72,14 @@ impl Timeouts for TcpStream {
     }
 }
 
-/// The root certificates this computer trusts for servers, read once: the Windows certificate
-/// store, the macOS Keychain, the Linux and BSD bundle (or `SSL_CERT_FILE` / `SSL_CERT_DIR`).
-/// An internal CA that IT installed for an on-premises server (Exchange, a company IMAP server)
-/// is then trusted next to the bundled Mozilla roots. For SMTP too ([`crate::protocols::smtp`]).
-pub(crate) fn system_roots() -> &'static [CertificateDer<'static>] {
-    static ROOTS: OnceLock<Vec<CertificateDer<'static>>> = OnceLock::new();
-    ROOTS.get_or_init(|| {
-        let found = rustls_native_certs::load_native_certs();
-        for e in found.errors.iter().take(3) {
-            log::info!("system roots: {e}");
-        }
-        let usable = usable_roots(found.certs);
-        log::info!("TLS: {} system root certificates", usable.len());
-        usable
-    })
-}
-
-/// The certificates rustls can take as roots. A store can hold one it can't read; given to
-/// lettre, that one would fail every message sent, to every server.
-pub(crate) fn usable_roots(certs: Vec<CertificateDer<'static>>) -> Vec<CertificateDer<'static>> {
-    certs.into_iter().filter(|c| RootCertStore::empty().add(c.clone()).is_ok()).collect()
-}
-
-/// The bundled Mozilla roots and `extra` (the system's).
-fn root_store(extra: &[CertificateDer<'static>]) -> RootCertStore {
-    let mut roots = RootCertStore::empty();
-    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    roots.add_parsable_certificates(extra.iter().cloned());
-    roots
-}
-
+/// What every TLS connection trusts: the bundled Mozilla roots and the system's, less what the
+/// system distrusts ([`trust`]).
 fn tls_config() -> Result<Arc<ClientConfig>> {
     static CONFIG: OnceLock<std::result::Result<Arc<ClientConfig>, String>> = OnceLock::new();
     CONFIG
         .get_or_init(|| {
-            let roots = root_store(system_roots());
-            ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-                .with_safe_default_protocol_versions()
-                .map(|b| Arc::new(b.with_root_certificates(roots).with_no_client_auth()))
-                .map_err(|e| e.to_string())
+            let roots = trust::root_store(system_roots(), trust::distrusted());
+            trust::client_config(roots, Arc::clone(trust::distrusted()))
         })
         .clone()
         .map_err(NetError::Tls)
@@ -237,96 +208,6 @@ pub fn tls(sock: TcpStream, host: &str) -> Result<Stream> {
         s.conn.complete_io(&mut s.sock).map_err(|e| NetError::Tls(e.to_string()))?;
     }
     Ok(Stream::Tls(Box::new(s)))
-}
-
-/// Certificates for the trust tests: an internal CA as a company's IT runs one, a server it
-/// signed, and bytes no store can use. Made up for MailCraft's tests, valid until 2126; the
-/// keys were thrown away.
-#[cfg(test)]
-pub(crate) mod test_certs {
-    use rustls::pki_types::CertificateDer;
-    use rustls::pki_types::pem::PemObject;
-
-    const INTERNAL_CA: &str = "-----BEGIN CERTIFICATE-----
-MIIBsDCCAVegAwIBAgIUWtdF1YzkvG0MciS3AbXMuleseWcwCgYIKoZIzj0EAwIw
-JTEjMCEGA1UEAwwaTWFpbENyYWZ0IFRlc3QgSW50ZXJuYWwgQ0EwIBcNMjYxMTA0
-MjAwNjU3WhgPMjEyNjEwMTEyMDA2NTdaMCUxIzAhBgNVBAMMGk1haWxDcmFmdCBU
-ZXN0IEludGVybmFsIENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE51BeS15b
-1cjK0hRCAhWrVfTQ5VZLW5tmZ7fP+cyQMuuflHYb2Wxl+JYlmFNV1JwVVBrSi/3/
-rOSlYQNQLzpO7KNjMGEwHQYDVR0OBBYEFIP4fiWnxPcuij9xrsQhdlpxi/ABMB8G
-A1UdIwQYMBaAFIP4fiWnxPcuij9xrsQhdlpxi/ABMA8GA1UdEwEB/wQFMAMBAf8w
-DgYDVR0PAQH/BAQDAgIEMAoGCCqGSM49BAMCA0cAMEQCIHrpZf/NDu6lDDEpmWrd
-lE4owBPA/KRXrV5IK/KDrNYSAiAfXXrCofoIUXVYSb3XOrQALvtYyCn5BAs6gtaJ
-V78zWQ==
------END CERTIFICATE-----";
-
-    /// `mail.corp.test`, signed by [`INTERNAL_CA`].
-    const SERVER: &str = "-----BEGIN CERTIFICATE-----
-MIIBvzCCAWWgAwIBAgIUf5bwuftXZCbaBNoiGLz7OGVoG98wCgYIKoZIzj0EAwIw
-JTEjMCEGA1UEAwwaTWFpbENyYWZ0IFRlc3QgSW50ZXJuYWwgQ0EwIBcNMjYxMTA0
-MjAwNjU3WhgPMjEyNjEwMTEyMDA2NTdaMBkxFzAVBgNVBAMMDm1haWwuY29ycC50
-ZXN0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEucs7+zRAQGUA3+3sY60Yg+hD
-HU0d+NIvaRR3xorwuqu0RQJKwBmPFS4tWAZWq9wvkJFaARheX3x/9WMWzX7Aq6N9
-MHswGQYDVR0RBBIwEIIObWFpbC5jb3JwLnRlc3QwCQYDVR0TBAIwADATBgNVHSUE
-DDAKBggrBgEFBQcDATAdBgNVHQ4EFgQUx+X0e5AZy3KUB0Zaex+CaNesdEAwHwYD
-VR0jBBgwFoAUg/h+JafE9y6KP3GuxCF2WnGL8AEwCgYIKoZIzj0EAwIDSAAwRQIg
-f2yu5bOvVcLTAmSEgVGcq6w+mZ/in904I4oP6yD6I4gCIQDY67WAi8QnEvguqHoA
-YpggYb8CshYV7jE8y++SmHWWyg==
------END CERTIFICATE-----";
-
-    pub(crate) fn internal_ca() -> CertificateDer<'static> {
-        CertificateDer::from_pem_slice(INTERNAL_CA.as_bytes()).unwrap()
-    }
-
-    pub(crate) fn server() -> CertificateDer<'static> {
-        CertificateDer::from_pem_slice(SERVER.as_bytes()).unwrap()
-    }
-
-    /// What a damaged entry in a system store reads as.
-    pub(crate) fn unreadable() -> CertificateDer<'static> {
-        CertificateDer::from(vec![0u8, 0, 0])
-    }
-}
-
-#[cfg(test)]
-mod trust_tests {
-    use std::sync::Arc;
-    use std::time::Duration;
-
-    use rustls::client::WebPkiServerVerifier;
-    use rustls::client::danger::ServerCertVerifier;
-    use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-
-    use super::test_certs::{internal_ca, server, unreadable};
-    use super::{root_store, usable_roots};
-
-    /// Whether `mail.corp.test`'s certificate is trusted with these system roots, in 2030.
-    fn trusted_with(system: &[CertificateDer<'static>]) -> Result<(), rustls::Error> {
-        let provider = Arc::new(rustls::crypto::ring::default_provider());
-        let verifier = WebPkiServerVerifier::builder_with_provider(Arc::new(root_store(system)), provider)
-            .build()
-            .map_err(|e| rustls::Error::General(e.to_string()))?;
-        let name = ServerName::try_from("mail.corp.test").map_err(|e| rustls::Error::General(e.to_string()))?;
-        let when = UnixTime::since_unix_epoch(Duration::from_secs(1_900_000_000));
-        verifier.verify_server_cert(&server(), &[], &name, &[], when).map(|_| ())
-    }
-
-    /// An on-premises server whose certificate comes from the company's own CA: refused with
-    /// only the bundled roots (the error users saw), trusted once the system trusts that CA.
-    #[test]
-    fn a_server_signed_by_a_ca_the_system_trusts_is_trusted() {
-        let without = trusted_with(&[]).err().map(|e| e.to_string()).unwrap_or_default();
-        assert!(without.contains("UnknownIssuer"), "{without}");
-        assert!(trusted_with(&[internal_ca()]).is_ok());
-        assert!(trusted_with(&usable_roots(vec![unreadable(), internal_ca()])).is_ok());
-    }
-
-    /// A certificate rustls can't read is left out of the system's roots; the rest are kept.
-    #[test]
-    fn an_unreadable_root_in_the_store_is_left_out() {
-        assert_eq!(usable_roots(vec![unreadable(), internal_ca(), unreadable()]), vec![internal_ca()]);
-        assert!(usable_roots(vec![]).is_empty());
-    }
 }
 
 #[cfg(test)]

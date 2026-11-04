@@ -60,7 +60,9 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
 
 /// TLS for `host`: lettre's bundled Mozilla roots and `roots` (the system's, which IMAP and
 /// HTTPS trust too). lettre fails the whole build on a root it can't read, so `roots` holds
-/// only usable ones ([`crate::stream::system_roots`]).
+/// only usable ones, the system's distrusted ones already left out
+/// ([`crate::stream::system_roots`]). lettre takes no verifier of ours, so unlike IMAP it can't
+/// also refuse a server or intermediate certificate the system distrusts (`docs/gaps.md`).
 fn tls_parameters(host: &str, roots: &[CertificateDer<'static>]) -> Result<TlsParameters> {
     let mut p = TlsParameters::builder(host.to_string());
     for der in roots {
@@ -233,9 +235,10 @@ pub(crate) mod tests {
     /// doesn't stop sending: given to lettre as it is, it failed every message to every server.
     #[test]
     fn an_unreadable_root_in_the_store_does_not_stop_sending() {
-        use crate::stream::test_certs::{internal_ca, unreadable};
+        use crate::stream::trust::test_certs::{internal_ca, unreadable};
+        use crate::stream::trust::{Distrusted, usable_roots};
         let store = vec![unreadable(), internal_ca()];
-        assert!(tls_parameters("mail.corp.test", &crate::stream::usable_roots(store.clone())).is_ok());
+        assert!(tls_parameters("mail.corp.test", &usable_roots(store.clone(), &Distrusted::new())).is_ok());
         assert!(tls_parameters("mail.corp.test", &[]).is_ok());
         // Why the store is sorted first: lettre refuses the lot.
         assert!(tls_parameters("mail.corp.test", &store).is_err());
