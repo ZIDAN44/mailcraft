@@ -663,13 +663,16 @@ fn plain_path(p: &Path) -> bool {
 
 /// Whether `path` is an absolute path on one of this computer's drives, as this system writes
 /// one: `X:\…` (or `X:/…`) on Windows, `/…` elsewhere; never two slashes at its start (a network
-/// or device path), and no NUL.
+/// or device path), and no NUL. And the Craft apps' own check of a path a document names says
+/// it's a local file (`craft-docpath`): no device name (`NUL`, `COM1`), on Windows no alternate
+/// data stream (`plan.pdf:hidden`), nothing that climbs above its drive.
 pub(super) fn local_path(path: &str) -> bool {
     if path.contains('\0') || path.starts_with("\\\\") || path.starts_with("//") || path.starts_with("\\/") || path.starts_with("/\\") {
         return false;
     }
     let b = path.as_bytes();
-    if cfg!(windows) { matches!(b, [d, b':', b'\\' | b'/', ..] if d.is_ascii_alphabetic()) } else { b.first() == Some(&b'/') }
+    let absolute = if cfg!(windows) { matches!(b, [d, b':', b'\\' | b'/', ..] if d.is_ascii_alphabetic()) } else { b.first() == Some(&b'/') };
+    absolute && craft_docpath::resolve_absolute(path, None).is_ok()
 }
 
 /// A file's name: its long name, its short one, then its display name.

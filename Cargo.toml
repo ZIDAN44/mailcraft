@@ -25,6 +25,11 @@ mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
 mailcraft-ui-egui = { path = "crates/ui-egui" }
 
+# The Craft apps' shared crates (storytold/craft-libs), all at one revision: kept up by the suite,
+# so their fixes reach MailCraft with a bump of this pin.
+craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "38740b43a901022bf8cf0ede19e59ea606dc11a9" }
+craft-docpath = { git = "https://github.com/storytold/craft-libs", rev = "38740b43a901022bf8cf0ede19e59ea606dc11a9" }
+
 # foundation
 thiserror = "2"
 serde = { version = "1", features = ["derive", "rc"] }

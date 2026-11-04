@@ -43,6 +43,10 @@ on GitHub.
 - On Linux, starting MailCraft no longer leaves a busy cursor, and the light or dark setting is followed even when the desktop changes it during start-up or doesn't answer.
 - Screen readers can't close MailCraft by losing track of the focused control.
 - Test builds install an update only once MailCraft has ended, and never one whose checksum file lists it twice with different sums.
+- On a Mac, files MailCraft saves in a folder on a network share no longer fail to save.
+
+### Security
+- An Outlook data file's link to a device (`NUL`, `COM1`) or to a hidden file stream is kept as text, never read.
 
 ## 0.32.0 - 2026-11-04
 

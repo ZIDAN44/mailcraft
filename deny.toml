@@ -23,6 +23,7 @@ targets = [
 unknown-git = "deny"
 unknown-registry = "deny"
 allow-git = [
+    "https://github.com/storytold/craft-libs",
     "https://github.com/storytold/egui",
     "https://github.com/storytold/winit",
     "https://github.com/ZIDAN44/outlook-pst-rs",

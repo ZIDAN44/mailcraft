@@ -141,6 +141,14 @@ fn a_link_brings_its_file_when_it_is_here() {
     // A folder isn't a file.
     assert!(matches!(got(&row(2, &dir.to_string_lossy())), Got::Link(_)));
     assert!(local_path(&here));
+    // A device's name, or (on Windows) a file's hidden stream, is never a file to read.
+    let (top, sep) = if cfg!(windows) { (r"C:\", r"\") } else { ("/", "/") };
+    for odd in [format!("{top}files{sep}NUL"), format!("{top}files{sep}COM1.txt"), format!("{top}files{sep}..{sep}..{sep}x")] {
+        assert!(!local_path(&odd), "{odd}");
+    }
+    if cfg!(windows) {
+        assert!(!local_path(r"C:\files\plan.pdf:hidden") && !local_path(r"C:files\plan.pdf"));
+    }
 
     // Through the import: the file and the text come in, the text counted as a link.
     let store = Store::open(dir.join("store")).unwrap();

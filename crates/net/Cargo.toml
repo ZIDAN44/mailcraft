@@ -15,6 +15,8 @@ mailcraft-mime = { workspace = true }
 mailcraft-smime = { workspace = true }
 mailcraft-pgp = { workspace = true }
 mailcraft-keys = { workspace = true }
+# Whether a path a data file names is a local file to read (the Craft apps' own check).
+craft-docpath = { workspace = true }
 # The system's randomness, for S/MIME's keys and signatures.
 rand_core = { version = "0.6", features = ["getrandom"] }
 # The roots the system trusts (Windows' and macOS' stores, Linux's bundle), for S/MIME signers.

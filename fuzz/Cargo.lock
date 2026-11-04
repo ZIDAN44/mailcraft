@@ -561,6 +561,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-atomic"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=38740b43a901022bf8cf0ede19e59ea606dc11a9#38740b43a901022bf8cf0ede19e59ea606dc11a9"
+dependencies = [
+ "rustix",
+]
+
+[[package]]
+name = "craft-docpath"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=38740b43a901022bf8cf0ede19e59ea606dc11a9#38740b43a901022bf8cf0ede19e59ea606dc11a9"
+
+[[package]]
 name = "crc24"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1978,6 +1991,7 @@ name = "mailcraft-net"
 version = "0.33.0"
 dependencies = [
  "cfb",
+ "craft-docpath",
  "fs4",
  "hmac 0.13.0",
  "iana-time-zone",
@@ -2050,6 +2064,7 @@ dependencies = [
 name = "mailcraft-store"
 version = "0.33.0"
 dependencies = [
+ "craft-atomic",
  "dirs",
  "flate2",
  "log",
