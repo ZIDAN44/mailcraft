@@ -46,7 +46,12 @@ const MAX_HANDED: usize = 64;
 /// The links and files among `args` (everything that isn't an option or an option's value), in
 /// order: links as they are, paths absolute. Junk is kept for the window to say it can't open.
 pub fn handed(args: &[String]) -> Vec<String> {
-    let mut out = Vec::new();
+    handed_with(args, |p| Path::new(p).is_file())
+}
+
+/// [`handed`], with `exists` telling whether a path names a file.
+fn handed_with(args: &[String], exists: impl Fn(&str) -> bool) -> Vec<String> {
+    let mut given = Vec::new();
     let mut skip = false;
     for a in args {
         if std::mem::take(&mut skip) {
@@ -57,11 +62,39 @@ pub fn handed(args: &[String]) -> Vec<String> {
             skip = WITH_VALUE.contains(&a.as_str());
             continue;
         }
-        if out.len() >= MAX_HANDED {
+        // Enough for the most taken split at many spaces; each is looked for on disk.
+        if given.len() >= MAX_HANDED * 8 {
             break;
         }
-        if let Some(h) = one(a) {
-            out.push(h);
+        given.push(a.clone());
+    }
+    rejoin_split_paths(given, exists).iter().filter_map(|a| one(a)).take(MAX_HANDED).collect()
+}
+
+/// Some programs start the mail app with a file's path unquoted (`mailcraft.exe D:\Mail\Order
+/// 42.eml`), so a path with spaces arrives as several arguments. When one names no file but it and
+/// the ones after it, joined with a space, do, they're joined again (the longest such run, at
+/// most 32 arguments); anything else is kept as given (as PdfCraft's launch). Runs of several
+/// spaces can't be told apart: the split lost them.
+fn rejoin_split_paths(args: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<String> {
+    let mut out = Vec::with_capacity(args.len());
+    let mut i = 0;
+    while let Some(first) = args.get(i) {
+        if exists(first) {
+            out.push(first.clone());
+            i += 1;
+            continue;
+        }
+        let end = (i + 2..=args.len().min(i + 32)).rev().find(|&j| args.get(i..j).is_some_and(|run| exists(&run.join(" "))));
+        match end.and_then(|j| Some((j, args.get(i..j)?.join(" ")))) {
+            Some((j, joined)) => {
+                out.push(joined);
+                i = j;
+            }
+            None => {
+                out.push(first.clone());
+                i += 1;
+            }
         }
     }
     out
@@ -143,6 +176,24 @@ mod tests {
     }
 
     /// Paths are made absolute against this launch's folder; `file:` links are read.
+    /// A path a launcher passed unquoted, split at its spaces, is one path again; files that are
+    /// there on their own, links and anything that names nothing stay as given.
+    #[test]
+    fn unquoted_paths_with_spaces_are_joined_again() {
+        let have = [r"D:\Mail\Order 42.eml", r"C:\a b c.eml", r"C:\a.eml", r"C:\x y.ics"];
+        let exists = |p: &str| have.contains(&p);
+        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(rejoin_split_paths(args(&[r"D:\Mail\Order", "42.eml"]), exists), args(&[r"D:\Mail\Order 42.eml"]));
+        assert_eq!(rejoin_split_paths(args(&[r"C:\a", "b", "c.eml", r"C:\a.eml"]), exists), args(&[r"C:\a b c.eml", r"C:\a.eml"]));
+        assert_eq!(rejoin_split_paths(args(&[r"C:\a.eml", r"C:\x", "y.ics"]), exists), args(&[r"C:\a.eml", r"C:\x y.ics"]));
+        assert_eq!(rejoin_split_paths(args(&["mailto:zoe@example.com", "missing.eml"]), exists), args(&["mailto:zoe@example.com", "missing.eml"]));
+        assert!(rejoin_split_paths(Vec::new(), exists).is_empty());
+        // Options before it aren't part of a path.
+        let handed = handed_with(&args(&["--sample", r"D:\Mail\Order", "42.eml"]), exists);
+        assert_eq!(handed.len(), 1);
+        assert!(handed[0].ends_with("Order 42.eml"), "{handed:?}");
+    }
+
     #[test]
     fn paths_are_absolute() {
         let here = std::env::current_dir().unwrap();
