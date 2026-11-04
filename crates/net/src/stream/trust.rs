@@ -37,6 +37,8 @@ pub(crate) fn distrusted() -> &'static Arc<Distrusted> {
     SET.get_or_init(|| Arc::new(load_distrusted()))
 }
 
+/// Windows' Untrusted Certificates, the user's and the computer's, opened read-only. A store
+/// that can't be opened is logged and counts as empty.
 #[cfg(windows)]
 fn load_distrusted() -> Distrusted {
     use schannel::cert_store::CertStoreBuilder;
@@ -52,6 +54,8 @@ fn load_distrusted() -> Distrusted {
     set
 }
 
+/// macOS and the Linux and BSD bundles list no distrusted certificates of their own: a root
+/// the system distrusts is left out of its roots already.
 #[cfg(not(windows))]
 fn load_distrusted() -> Distrusted {
     Distrusted::new()
@@ -93,6 +97,8 @@ struct Distrusting {
 }
 
 impl ServerCertVerifier for Distrusting {
+    /// Refused as revoked when the server's certificate or an intermediate is distrusted;
+    /// otherwise WebPKI's verdict.
     fn verify_server_cert(
         &self,
         end_entity: &CertificateDer<'_>,
