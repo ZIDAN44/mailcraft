@@ -9,7 +9,6 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::process::Command;
 
 /// The most lines in one Rust file.
 pub const MAX_LINES: usize = 1000;
@@ -23,14 +22,10 @@ type Sizes = (BTreeMap<String, usize>, BTreeMap<String, usize>);
 
 /// The workspace's Rust files (tracked or new, not ignored) and their line counts.
 fn measure(root: &Path) -> Result<Sizes, String> {
-    let out = Command::new("git")
-        .current_dir(root)
-        .args(["ls-files", "--cached", "--others", "--exclude-standard", "*.rs"])
-        .output()
-        .map_err(|e| format!("git ls-files: {e}"))?;
+    let listed = crate::git_files(root, Some("*.rs"))?;
     let mut files = BTreeMap::new();
     let mut dirs: BTreeMap<String, usize> = BTreeMap::new();
-    for f in String::from_utf8_lossy(&out.stdout).lines() {
+    for f in &listed {
         // Listed but deleted from the working tree: not there to count.
         let Ok(text) = std::fs::read_to_string(root.join(f)) else { continue };
         files.insert(f.to_string(), text.lines().count());

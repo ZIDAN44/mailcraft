@@ -155,15 +155,38 @@ fn cmd_layers() -> Result<(), String> {
 const ASSET_EXT: &[&str] =
     &["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "icns", "svg", "pdf", "ttf", "otf", "woff", "woff2", "mp3", "wav", "mp4", "eml"];
 
+/// The files git knows of under `root` (tracked, and new ones not ignored), matching `only`
+/// when given. Listed NUL-separated, so a name with non-ASCII letters isn't quoted (and left out
+/// of every check); a listing that fails is an error, never an empty list that passes (as
+/// WordCraft's xtask).
+fn git_files(root: &Path, only: Option<&str>) -> Result<Vec<String>, String> {
+    let mut git = Command::new("git");
+    git.current_dir(root).args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"]);
+    if let Some(pattern) = only {
+        git.arg(pattern);
+    }
+    let out = git.output().map_err(|e| format!("git ls-files: {e}"))?;
+    if !out.status.success() {
+        return Err(format!("git ls-files failed ({}): {}", out.status, String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    Ok(nul_separated(&out.stdout))
+}
+
+/// The paths in `git ls-files -z` output.
+fn nul_separated(stdout: &[u8]) -> Vec<String> {
+    stdout.split(|b| *b == 0).filter(|p| !p.is_empty()).map(|p| String::from_utf8_lossy(p).into_owned()).collect()
+}
+
 fn cmd_assets() -> Result<(), String> {
-    let out = Command::new("git")
-        .current_dir(root())
-        .args(["ls-files", "--cached", "--others", "--exclude-standard"])
-        .output()
-        .map_err(|e| format!("git ls-files: {e}"))?;
-    let md = std::fs::read_to_string(root().join("ATTRIBUTION.md")).map_err(|e| format!("ATTRIBUTION.md: {e}"))?;
-    let missing: Vec<String> = String::from_utf8_lossy(&out.stdout)
-        .lines()
+    assets(&root())
+}
+
+fn assets(root: &Path) -> Result<(), String> {
+    let files = git_files(root, None)?;
+    let md = std::fs::read_to_string(root.join("ATTRIBUTION.md")).map_err(|e| format!("ATTRIBUTION.md: {e}"))?;
+    let missing: Vec<String> = files
+        .iter()
+        .map(String::as_str)
         .filter(|f| {
             let ext = Path::new(f).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).unwrap_or_default();
             ASSET_EXT.contains(&ext.as_str()) || f.starts_with("assets/")
@@ -292,5 +315,23 @@ mod tests {
         assert_eq!(pin(&both, "outlook-pst").as_deref(), Some("https://f.git@3c"));
         assert_eq!(pin(ok, "outlook-pst"), None, "another crate's pin isn't this one's");
         assert!(patched(&root()).is_ok(), "{:?}", patched(&root()));
+    }
+
+    /// Names are read whole, non-ASCII ones too; a listing that fails (no checkout) fails the
+    /// check instead of passing with nothing checked.
+    #[test]
+    fn file_listings_are_whole_and_never_silently_empty() {
+        assert_eq!(nul_separated(b"assets/\xc3\xa9 b.png\0docs/x.svg\0"), vec!["assets/é b.png".to_string(), "docs/x.svg".into()]);
+        assert!(nul_separated(b"").is_empty());
+        let dir = std::env::temp_dir().join(format!("mailcraft-xtask-nogit-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("ATTRIBUTION.md"), "").unwrap();
+        let in_checkout = Command::new("git").current_dir(&dir).args(["rev-parse", "--git-dir"]).output().is_ok_and(|o| o.status.success());
+        let (listed, checked) = (git_files(&dir, None), assets(&dir));
+        let _ = std::fs::remove_dir_all(&dir);
+        if !in_checkout {
+            assert!(listed.is_err_and(|e| e.starts_with("git ls-files failed")));
+            assert!(checked.is_err());
+        }
     }
 }
