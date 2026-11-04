@@ -49,7 +49,14 @@ pub fn validate(v: &str) -> Result<(), String> {
         return bad();
     }
     if let Some(p) = pre
-        && (p.is_empty() || p.split('.').any(|id| id.is_empty() || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')))
+        && (p.is_empty()
+            || p.split('.').any(|id| {
+                // A number among the pre-release parts has no leading zero (semver; as
+                // PhotoCraft's xtask): `rc.01` sorts unlike what it says.
+                id.is_empty()
+                    || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                    || (id.len() > 1 && id.starts_with('0') && id.bytes().all(|b| b.is_ascii_digit()))
+            }))
     {
         return bad();
     }
@@ -131,6 +138,16 @@ mod tests {
         let crlf = MANIFEST.replace('\n', "\r\n");
         let out = replace(&crlf, "2.0.0").unwrap();
         assert_eq!(out, crlf.replace("\"0.1.0\"", "\"2.0.0\""));
+    }
+
+    #[test]
+    fn prerelease_numbers_have_no_leading_zero() {
+        for bad in ["1.0.0-01", "1.0.0-rc.01", "1.0.0-00.1"] {
+            assert!(validate(bad).is_err(), "{bad}");
+        }
+        for ok in ["1.0.0-0", "1.0.0-rc.0", "1.0.0-01a", "1.0.0-01-2", "1.0.0-rc.10"] {
+            assert!(validate(ok).is_ok(), "{ok}");
+        }
     }
 
     #[test]
