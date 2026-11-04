@@ -1989,6 +1989,7 @@ dependencies = [
  "mailcraft-keys",
  "mailcraft-mime",
  "mailcraft-model",
+ "mailcraft-pgp",
  "mailcraft-smime",
  "mailcraft-store",
  "md-5 0.11.0",
