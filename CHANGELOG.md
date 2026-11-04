@@ -63,6 +63,8 @@ on GitHub.
 - A reminder dismissed or snoozed in MailCraft is dismissed or snoozed on the server too, so Outlook doesn't show it again (Exchange, Microsoft 365, and CalDAV calendars) (#40).
 - A reminder dismissed in another calendar program that says so in the event (RFC 9074) isn't shown again in MailCraft (#40).
 - The message list's filters stay on one line in a narrow pane. Those that don't fit go into a **⋯** menu beside **By Date**.
+- On the File page, a row's buttons and pickers never cover its text, and the page fits a narrow window instead of being cut off.
+- The **Export to Outlook data file** card says calendars go inside the `.pst` file too.
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.

@@ -565,7 +565,7 @@ month	May	مايو
 	DOMAIN\\user, or the email address	DOMAIN\\user، أو عنوان البريد الإلكتروني
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	لخوادم Exchange التي تديرها مؤسستك، عبر Exchange Web Services. يسجّل الدخول باسم مستخدم الشبكة وكلمة المرور.
 	Found automatically when left empty	يُعثر عليه تلقائيًا إذا تُرك فارغًا
-	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	تُحفظ جهات الاتصال والملاحظات والمهام داخله، والتقويم بجانبه كملف ‎.ics.
+	Its contacts, calendar, notes and tasks go inside it too.	تُحفظ جهات الاتصال والتقويم والملاحظات والمهام داخله أيضًا.
 	You can close this window.	يمكنك إغلاق هذه النافذة.
 	Browse…	استعراض…
 	Existing Outlook data file (optional)	ملف بيانات Outlook موجود (اختياري)

@@ -21,6 +21,8 @@ mod meetings;
 mod options;
 mod pgp;
 mod security;
+#[cfg(test)]
+mod tests;
 use options::options;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,7 +125,9 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
         egui::ScrollArea::vertical().auto_shrink(false).id_salt("backstage").show(ui, |ui| {
             egui::Frame::new().inner_margin(Margin { left: 36, right: 36, top: 24, bottom: 32 }).show(ui, |ui| {
-                ui.set_max_width(820.0);
+                // At most this wide, and never wider than the window (`set_max_width` alone widens
+                // the page past a narrow window's edge, where it was cut off rather than wrapped).
+                ui.set_max_width(ui.available_width().min(820.0));
                 match b.page {
                     Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, &mut b, acts),
@@ -196,37 +200,92 @@ fn card(ui: &mut Ui, t: &Tokens, title: &str, about: Option<&str>, body: impl Fn
     ui.add_space(14.0);
 }
 
-/// One row of a card: its name (and a line under it) on the left, its controls against the
-/// right edge, centred on each other; a thin line above every row but the first.
+/// One row of a card: its name (and a line under it) at the start, its controls against the
+/// end, centred on each other; a thin line above every row but the first. The text takes what
+/// the controls leave; when that's too little (a narrow window, wide controls), the controls go
+/// under the text instead, so the two never overlap.
 fn setting_row(ui: &mut Ui, t: &Tokens, first: bool, label: RichText, about: Option<RichText>, control: impl FnOnce(&mut Ui)) {
+    let _ = setting_row_at(ui, t, first, label, about, control);
+}
+
+/// [`setting_row`], saying where the text and the controls went.
+fn setting_row_at(
+    ui: &mut Ui,
+    t: &Tokens,
+    first: bool,
+    label: RichText,
+    about: Option<RichText>,
+    control: impl FnOnce(&mut Ui),
+) -> (egui::Rect, egui::Rect) {
     if !first {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
         ui.painter().rect_filled(r, 0.0, t.border.gamma_multiply(0.6));
     }
     ui.add_space(7.0);
-    let left = (ui.available_width() - 300.0).max(ui.available_width() * 0.45);
-    egui::Sides::new().height(if about.is_some() { 38.0 } else { 28.0 }).show(
-        ui,
-        |ui| match about {
+    // How wide the controls and how tall the text were last time (they're laid out after the
+    // decision to stack, which they decide).
+    let id = ui.scope_id().with(("setting-row", label.text().to_string()));
+    let (controls_w, text_h): (f32, f32) = ui.data(|d| d.get_temp(id)).unwrap_or((300.0, 0.0));
+    let full = ui.available_width();
+    let gap = 24.0;
+    let text = |ui: &mut Ui, label: RichText, about: Option<RichText>| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        match about {
+            Some(about) => {
+                ui.add(egui::Label::new(label).wrap());
+                ui.add(egui::Label::new(about).wrap());
+            }
             // One line, cut short before the controls (all of it on hover).
             None => {
-                ui.scope(|ui| {
-                    ui.set_max_width(left);
-                    ui.add(egui::Label::new(label).truncate());
-                });
+                ui.add(egui::Label::new(label).truncate());
             }
-            Some(about) => {
-                ui.vertical(|ui| {
-                    ui.set_max_width(left);
-                    ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.label(label);
-                    ui.label(about);
-                });
-            }
-        },
-        control,
-    );
-    ui.add_space(7.0);
+        }
+    };
+    if full - controls_w - gap < SETTING_TEXT_MIN {
+        let left = ui.scope_builder(egui::UiBuilder::new().layout(crate::bidi::column()), |ui| text(ui, label, about)).response.rect;
+        ui.add_space(8.0);
+        // Against the end, in the order they have beside the text.
+        let row = ui.scope_builder(egui::UiBuilder::new().layout(crate::bidi::row_from_end(egui::Align::Min).with_main_wrap(true)), control);
+        let w = row.response.rect.width();
+        remember(ui, id, (controls_w, text_h), (if w + gap + SETTING_TEXT_MIN < full { w } else { controls_w.max(w) }, left.height()));
+        ui.add_space(7.0);
+        (left, row.response.rect)
+    } else {
+        let height = text_h.max(if about.is_some() { 38.0 } else { 28.0 });
+        let top = ui.cursor().min;
+        let rect = egui::Rect::from_min_size(top, vec2(full, height));
+        let rtl = crate::i18n::current().rtl();
+        let mut right = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(crate::bidi::row_from_end(egui::Align::Center)));
+        control(&mut right);
+        let controls = right.min_rect();
+        let w = controls.width();
+        let room = (full - w - gap).max(0.0);
+        let mut text_rect = if rtl { rect.with_min_x(rect.max.x - room) } else { rect.with_max_x(rect.min.x + room) };
+        // Centred on the controls (a short text), or the controls on it (a long one).
+        if text_h > 0.0 {
+            text_rect.min.y += ((height - text_h) / 2.0).max(0.0);
+        }
+        let mut left = ui.new_child(egui::UiBuilder::new().max_rect(text_rect).layout(crate::bidi::column()));
+        text(&mut left, label, about);
+        let h = left.min_rect().height();
+        let text = left.min_rect();
+        ui.advance_cursor_after_rect(rect.union(text).union(controls));
+        remember(ui, id, (controls_w, text_h), (w, h));
+        ui.add_space(7.0);
+        (text, controls)
+    }
+}
+
+/// Narrowest the text of a setting row gets beside its controls; any narrower and they go under it.
+const SETTING_TEXT_MIN: f32 = 240.0;
+
+/// Keep a setting row's measures for the next frame, and draw again when they changed (the row
+/// was laid out by the old ones).
+fn remember(ui: &Ui, id: egui::Id, old: (f32, f32), new: (f32, f32)) {
+    if (old.0 - new.0).abs() > 0.5 || (old.1 - new.1).abs() > 0.5 {
+        ui.data_mut(|d| d.insert_temp(id, new));
+        ui.ctx().request_repaint();
+    }
 }
 
 /// A row's name and the line under it, in the page's colours.
@@ -240,7 +299,7 @@ fn note(t: &Tokens, s: &str) -> RichText {
 
 fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Account information");
-    ui.set_max_width(760.0);
+    ui.set_max_width(ui.available_width().min(760.0));
     let Some(a) = b.account.as_deref().and_then(|id| s.account(id)).or_else(|| s.accounts.first()) else {
         ui.label(RichText::new(tl!("Add an email account")).color(t.dim));
         if ui.button(tl!("Add account…")).clicked() {
@@ -422,7 +481,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
 /// Open & Export: Outlook data files, and the rules as a file.
 fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Open & Export");
-    ui.set_max_width(760.0);
+    ui.set_max_width(ui.available_width().min(760.0));
     card(
         ui,
         t,
@@ -462,7 +521,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                 t,
                 true,
                 name(t, tl!("Account")),
-                Some(note(t, tl!("Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file."))),
+                Some(note(t, tl!("Its contacts, calendar, notes and tasks go inside it too."))),
                 |ui| {
                     if ui.button(tl!("Export…")).clicked() {
                         acts.push(Action::ExportDataFile(id.clone()));

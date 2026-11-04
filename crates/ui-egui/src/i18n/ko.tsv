@@ -563,7 +563,7 @@
 	DOMAIN\\user, or the email address	도메인\\사용자 또는 이메일 주소
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	조직에서 운영하는 Exchange 서버용(Exchange Web Services 사용). 네트워크 사용자 이름과 암호로 로그인합니다.
 	Found automatically when left empty	비워 두면 자동으로 찾습니다
-	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	연락처, 메모, 작업은 그 안에, 일정은 옆에 .ics 파일로 저장됩니다.
+	Its contacts, calendar, notes and tasks go inside it too.	연락처, 일정, 메모, 작업도 그 안에 저장됩니다.
 	You can close this window.	이 창을 닫아도 됩니다.
 	Browse…	찾아보기…
 	Existing Outlook data file (optional)	기존 Outlook 데이터 파일(선택 사항)

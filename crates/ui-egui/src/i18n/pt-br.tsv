@@ -564,7 +564,7 @@
 	DOMAIN\\user, or the email address	DOMÍNIO\\usuário, ou o endereço de email
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Para servidores Exchange da sua organização, pelo Exchange Web Services. Entra com seu nome de usuário e senha de rede.
 	Found automatically when left empty	Encontrado automaticamente se ficar vazio
-	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	Os contatos, as notas e as tarefas são salvos dentro dele; a agenda, ao lado, como arquivo .ics.
+	Its contacts, calendar, notes and tasks go inside it too.	Os contatos, a agenda, as notas e as tarefas também são salvos dentro dele.
 	You can close this window.	Você pode fechar esta janela.
 	Browse…	Procurar…
 	Existing Outlook data file (optional)	Arquivo de dados do Outlook existente (opcional)

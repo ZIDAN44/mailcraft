@@ -564,7 +564,7 @@
 	DOMAIN\\user, or the email address	DOMAIN\\kullanıcı veya e-posta adresi
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Kuruluşunuzun çalıştırdığı Exchange sunucuları için, Exchange Web Services üzerinden. Ağ kullanıcı adınız ve parolanızla oturum açar.
 	Found automatically when left empty	Boş bırakılırsa otomatik olarak bulunur
-	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	Kişileri, notları ve görevleri bunun içine; takvimi ise yanına .ics dosyası olarak yazılır.
+	Its contacts, calendar, notes and tasks go inside it too.	Kişiler, takvim, notlar ve görevler de bunun içine yazılır.
 	You can close this window.	Bu pencereyi kapatabilirsiniz.
 	Browse…	Gözat…
 	Existing Outlook data file (optional)	Mevcut Outlook veri dosyası (isteğe bağlı)

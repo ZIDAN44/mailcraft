@@ -563,7 +563,7 @@
 	DOMAIN\\user, or the email address	網域\\使用者，或電子郵件地址
 	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	用於你所屬組織執行的 Exchange 伺服器，透過 Exchange Web Services。使用你的網路使用者名稱與密碼登入。
 	Found automatically when left empty	留空時自動尋找
-	Its contacts, notes and tasks go inside it; its calendar beside it, as an .ics file.	連絡人、附註和任務會存放在其中，行事曆則以 .ics 檔案存放在旁邊。
+	Its contacts, calendar, notes and tasks go inside it too.	連絡人、行事曆、附註和任務也會存放在其中。
 	You can close this window.	可以關閉此視窗了。
 	Browse…	瀏覽…
 	Existing Outlook data file (optional)	現有的 Outlook 資料檔（選用）

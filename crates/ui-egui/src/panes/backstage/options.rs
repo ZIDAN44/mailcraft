@@ -8,7 +8,7 @@ use super::*;
 pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     heading(ui, &t, "Options");
-    ui.set_max_width(760.0);
+    ui.set_max_width(ui.available_width().min(760.0));
     // A card per subject, one setting per row (the helpers Info and Open & Export use too).
     let group = |ui: &mut Ui, title: &str, about: Option<&str>, body: &mut dyn FnMut(&mut Ui)| card(ui, &t, title, about, |ui| body(ui));
     let setting = |ui: &mut Ui, first: bool, label: &str, about: Option<&str>, control: &mut dyn FnMut(&mut Ui)| {
