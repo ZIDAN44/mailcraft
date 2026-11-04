@@ -8,7 +8,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.32.0
+## 0.33.0
+
+*Replies as they came, and fixes shared with the other Craft apps.*
+
+### Added
+- Open a draft from Drafts to carry on writing it (**Edit**, or a double-click), as it was saved: its recipients and Bcc, formatting, signature, pictures, files and the original under a reply. Sending it marks the message it answers.
+- Releases for FreeBSD on 64-bit ARM (aarch64).
+
+### Changed
+- **File › Info › Mailbox settings** gives the data file's location, its Outlook copy and the clean-up each a row of their own.
+- The **Open Outlook data file** dialog shows the file on a card with its size and contents, and a bar of the room its copy takes.
+- **File › Options › Language** lists English first, then the other languages by their own names, accents set aside.
+
+### Fixed
+- Blocks of a newsletter stacked one on another touch, as in Outlook: each table keeps its own spacing and each block its padding, and a pale tint on a pale page still shows (#41).
+- A block whose background is a gradient shows the colour Outlook shows for it (#41).
+- The plain text of mail laid out in tables has no box-drawing lines around each table, and its preview keeps one block's words apart from the next's (#41).
+- Reply, Reply all and Forward keep the original as it came, as Outlook does: mail laid out in columns shows under your text as the reading pane shows it, you change its words where they stand (typing, the ribbon and the shortcuts work in it), and it goes out with its own formatting and pictures.
+- The message list's filters stay on one line in a narrow pane. Those that don't fit go into a **⋯** menu beside **By Date**.
+- On the File page, a row's buttons and pickers never cover its text, and the page fits a narrow window instead of being cut off.
+- The **Export to Outlook data file** card says calendars go inside the `.pst` file too.
+- The View tab folds its buttons to icons in a narrow window, as Home does, instead of scrolling sideways.
+- A message taken back out of the Outbox to change keeps its formatting, its pictures in place and, for a reply, the original under it as it was.
+- Saving a draft again replaces its copy in Drafts on the server instead of adding another, and a server without a Drafts folder gets one.
+- Sent from Drafts, a draft no longer leaves the list saying there's one more on the server.
+- When the graphics driver resets (after sleep, say), MailCraft keeps every message being written in Drafts and closes, instead of freezing or crashing.
+- Esc in a field on the File page leaves the field; the next Esc leaves the File page.
+- On Windows, MailCraft started from Task Scheduler or a remote shell opens in the window already running, not a second one.
+- A file a program hands over unquoted, its path split at the spaces, still opens.
+- The windows of messages being written, opened or shown as source carry MailCraft's icon on Wayland.
+- On Linux, starting MailCraft no longer leaves a busy cursor, and the light or dark setting is followed even when the desktop changes it during start-up or doesn't answer.
+- Screen readers can't close MailCraft by losing track of the focused control.
+- Test builds install an update only once MailCraft has ended, and never one whose checksum file lists it twice with different sums.
+
+## 0.32.0 - 2026-11-04
 
 *Pictures open without asking.*
 
@@ -33,8 +67,6 @@ on GitHub.
 - Sign and encrypt with OpenPGP as PGP/MIME, to yourself too so Sent Items stays readable. With both a certificate and a key, the message uses the one every recipient can receive, or the one you pick (#36).
 - The message you're writing says whether every recipient can receive it encrypted, and names those who can't (#6).
 - **Encrypt when every recipient can receive it** in **File › Info › Security** turns encryption on by itself while that's so. It's off unless you turn it on (#6).
-- Open a draft from Drafts to carry on writing it (**Edit**, or a double-click), as it was saved: its recipients and Bcc, formatting, signature, pictures, files and the original under a reply. Sending it marks the message it answers.
-- Releases for FreeBSD on 64-bit ARM (aarch64).
 
 ### Changed
 - Opened or saved pictures and plain text files no longer carry Windows' "from the internet" mark, so Photos doesn't ask whether to trust them. Office files, PDFs, web pages, archives and programs keep the mark.
@@ -46,9 +78,6 @@ on GitHub.
 - Mail from a `.pst` file is listed by when it arrived, not when it was sent.
 - Mail from a `.pst` file joins conversations by Outlook's conversation index when its ids don't place it.
 - MailCraft reads and writes `.pst` files with one crate, from the fork [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs).
-- **File › Info › Mailbox settings** gives the data file's location, its Outlook copy and the clean-up each a row of their own.
-- The **Open Outlook data file** dialog shows the file on a card with its size and contents, and a bar of the room its copy takes.
-- **File › Options › Language** lists English first, then the other languages by their own names, accents set aside.
 
 ### Fixed
 - Big folders scroll, and long messages with many pictures open, without stutter.
@@ -65,27 +94,8 @@ on GitHub.
 - On IMAP accounts, a big message with attachments shows its text at once, its files listed; they download after (#24).
 - Centred columns sized in points or ems, as Outlook and email tools write them, keep their width instead of filling the window (#41).
 - A title centred in such a column stays centred and keeps its size, as Outlook shows it (#41).
-- Blocks of a newsletter stacked one on another touch, as in Outlook: each table keeps its own spacing and each block its padding, and a pale tint on a pale page still shows (#41).
-- A block whose background is a gradient shows the colour Outlook shows for it (#41).
-- The plain text of mail laid out in tables has no box-drawing lines around each table, and its preview keeps one block's words apart from the next's (#41).
 - A reminder dismissed or snoozed in MailCraft is dismissed or snoozed on the server too, so Outlook doesn't show it again (Exchange, Microsoft 365, and CalDAV calendars) (#40).
 - A reminder dismissed in another calendar program that says so in the event (RFC 9074) isn't shown again in MailCraft (#40).
-- Reply, Reply all and Forward keep the original as it came, as Outlook does: mail laid out in columns shows under your text as the reading pane shows it, you change its words where they stand (typing, the ribbon and the shortcuts work in it), and it goes out with its own formatting and pictures.
-- The message list's filters stay on one line in a narrow pane. Those that don't fit go into a **⋯** menu beside **By Date**.
-- On the File page, a row's buttons and pickers never cover its text, and the page fits a narrow window instead of being cut off.
-- The **Export to Outlook data file** card says calendars go inside the `.pst` file too.
-- The View tab folds its buttons to icons in a narrow window, as Home does, instead of scrolling sideways.
-- A message taken back out of the Outbox to change keeps its formatting, its pictures in place and, for a reply, the original under it as it was.
-- Saving a draft again replaces its copy in Drafts on the server instead of adding another, and a server without a Drafts folder gets one.
-- Sent from Drafts, a draft no longer leaves the list saying there's one more on the server.
-- When the graphics driver resets (after sleep, say), MailCraft keeps every message being written in Drafts and closes, instead of freezing or crashing.
-- Esc in a field on the File page leaves the field; the next Esc leaves the File page.
-- On Windows, MailCraft started from Task Scheduler or a remote shell opens in the window already running, not a second one.
-- A file a program hands over unquoted, its path split at the spaces, still opens.
-- The windows of messages being written, opened or shown as source carry MailCraft's icon on Wayland.
-- On Linux, starting MailCraft no longer leaves a busy cursor, and the light or dark setting is followed even when the desktop changes it during start-up or doesn't answer.
-- Screen readers can't close MailCraft by losing track of the focused control.
-- Test builds install an update only once MailCraft has ended, and never one whose checksum file lists it twice with different sums.
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.
