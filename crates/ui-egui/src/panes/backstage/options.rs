@@ -47,7 +47,7 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 if ui.selectable_label(language == crate::i18n::AUTO, tl!("Same as the system")).clicked() {
                     acts.push(Action::SetLanguage(crate::i18n::AUTO.into()));
                 }
-                for l in crate::i18n::Lang::all() {
+                for l in crate::i18n::Lang::for_picker() {
                     if ui.selectable_label(language == l.code(), l.name()).clicked() {
                         acts.push(Action::SetLanguage(l.code().into()));
                     }

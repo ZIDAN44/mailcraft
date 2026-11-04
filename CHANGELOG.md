@@ -48,6 +48,7 @@ on GitHub.
 - MailCraft reads and writes `.pst` files with one crate, from the fork [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs).
 - **File › Info › Mailbox settings** gives the data file's location, its Outlook copy and the clean-up each a row of their own.
 - The **Open Outlook data file** dialog shows the file on a card with its size and contents, and a bar of the room its copy takes.
+- **File › Options › Language** lists English first, then the other languages by their own names, accents set aside.
 
 ### Fixed
 - Big folders scroll, and long messages with many pictures open, without stutter.

@@ -166,6 +166,19 @@ impl Lang {
     pub fn all() -> impl Iterator<Item = Lang> {
         LANGUAGES.iter().map(Lang)
     }
+    /// The languages as the Language list shows them: English first, then those written in
+    /// Latin letters in the order of their own names with accents set aside (Español between
+    /// Deutsch and Français, Türkçe after Português), then the other scripts (as GridCraft's
+    /// list).
+    pub fn for_picker() -> Vec<Lang> {
+        let mut all: Vec<Lang> = Self::all().collect();
+        all.sort_by_cached_key(|l| {
+            // Latin letters, accented ones too, end before U+0250.
+            let latin = l.name().chars().all(|c| !c.is_alphabetic() || (c as u32) < 0x250);
+            (l.code() != "en", !latin, mailcraft_engine::model::search::fold::fold_all(l.name()), l.name().to_string())
+        });
+        all
+    }
     pub fn from_code(code: &str) -> Option<Lang> {
         LANGUAGES.iter().find(|l| l.code.eq_ignore_ascii_case(code)).map(Lang)
     }

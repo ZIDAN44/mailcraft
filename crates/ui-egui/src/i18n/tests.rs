@@ -522,3 +522,14 @@ fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
         unknown.iter().filter(|s| !s.is_empty() && !catalog.contains_key(*s) && sources.contains(&format!("\"{s}\""))).collect();
     assert!(literal.is_empty(), "drawn, written in the code, but not in the catalogs: {literal:?}");
 }
+
+/// The Language list: English first, the languages in Latin letters by their own names with
+/// accents set aside, then the other scripts; every language once.
+#[test]
+fn the_language_list_reads_in_order() {
+    let names: Vec<&str> = Lang::for_picker().iter().map(|l| l.name()).collect();
+    assert_eq!(names.len(), LANGUAGES.len());
+    let latin = ["English", "Deutsch", "Español", "Français", "Italiano", "Nederlands", "Português (Brasil)", "Türkçe"];
+    assert_eq!(names.get(..latin.len()), Some(&latin[..]), "{names:?}");
+    assert!(names.iter().skip(latin.len()).all(|n| !n.is_ascii()), "{names:?}");
+}
