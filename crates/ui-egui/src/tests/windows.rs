@@ -276,3 +276,27 @@ fn ctrl_q_marks_read_and_keeps_the_window() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Every window of MailCraft's own carries its app id, as the main one does: a Wayland dock
+/// shows MailCraft's icon on it and window rules can match it (as PhotoCraft's). Each is built
+/// from `os_window`, which no window of the UI's own goes around.
+#[test]
+fn windows_of_their_own_carry_the_app_id() {
+    assert_eq!(crate::os_window().app_id.as_deref(), Some(crate::APP_ID));
+    fn walk(dir: &std::path::Path, found: &mut Vec<String>) {
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, found);
+            } else if p.extension().is_some_and(|x| x == "rs") && !p.ends_with("lib.rs") && !p.starts_with(dir.join("tests")) {
+                let text = std::fs::read_to_string(&p).unwrap();
+                if text.contains(concat!("ViewportBuilder::", "default()")) {
+                    found.push(p.display().to_string());
+                }
+            }
+        }
+    }
+    let mut found = Vec::new();
+    walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut found);
+    assert!(found.is_empty(), "windows built without MailCraft's app id: {found:?}");
+}

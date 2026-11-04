@@ -7,7 +7,7 @@
 //! when the first notification is shown (the icon file lives in MailCraft's data folder).
 
 /// MailCraft's id: also the Linux app id and the macOS bundle id.
-pub const APP_ID: &str = "ai.storyteller.mailcraft";
+pub const APP_ID: &str = mailcraft_ui_egui::APP_ID;
 
 /// Whether an installed MailCraft has made Windows know [`APP_ID`]: its Start menu shortcut
 /// (the installer's, for everyone or for this user). A portable copy, which writes nothing to

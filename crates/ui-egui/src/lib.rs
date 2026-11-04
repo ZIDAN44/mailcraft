@@ -50,6 +50,17 @@ use serde_json::{Value, json};
 pub use app::{BootCard, ClipboardRead, WindowPlace, after_open, alt_code_pages, alt_codes, clipboard_keys};
 pub(crate) use app::{SearchDrop, junk_menu, scope_label};
 pub use dialogs::Dialog;
+
+/// MailCraft's id: the Linux app id (its `.desktop` file and icon are named so), the macOS bundle
+/// id and the Windows notifications' app id.
+pub const APP_ID: &str = "ai.storyteller.mailcraft";
+
+/// A window of MailCraft's own beyond the main one (a message being written, one popped out, a
+/// message's source), carrying [`APP_ID`]: without it a Wayland dock shows no icon for it and a
+/// compositor's window rules can't match it (as PhotoCraft's extra windows).
+pub(crate) fn os_window() -> egui::ViewportBuilder {
+    egui::ViewportBuilder::default().with_app_id(APP_ID)
+}
 use icons::Icon;
 pub use services::{Backend, Lane, NullBackend, NullServices, Services, UpdateState, Work};
 use theme::Tokens;

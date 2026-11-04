@@ -54,7 +54,7 @@ impl MailApp {
         let t = self.ui.tokens;
         let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
         let id = egui::ViewportId::from_hash_of(("compose-window", c.id));
-        let builder = egui::ViewportBuilder::default()
+        let builder = crate::os_window()
             .with_title(tf!("{subject} – Message", subject = subject))
             .with_inner_size([900.0, 720.0])
             .with_min_inner_size([520.0, 420.0]);
@@ -164,7 +164,7 @@ impl MailApp {
             let subject =
                 w.parsed.as_ref().map(|p| p.subject.clone()).filter(|s| !s.trim().is_empty()).unwrap_or_else(|| tl!("(no subject)").to_string());
             let id = egui::ViewportId::from_hash_of(("message-window", key.to_id()));
-            let builder = egui::ViewportBuilder::default()
+            let builder = crate::os_window()
                 .with_title(tf!("{subject} – Message", subject = subject))
                 .with_inner_size([940.0, 740.0])
                 .with_min_inner_size([480.0, 360.0]);
