@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 serde_json = { workspace = true }
 # PNG encoding for `cargo xtask icons`.
