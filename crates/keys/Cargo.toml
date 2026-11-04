@@ -9,7 +9,7 @@ description = "MailCraft's private keys held where it can't read them: smart car
 # The workspace's lints, but `unsafe` denied rather than forbidden: the macOS Keychain's and
 # Windows CNG's decrypting have no safe binding, so `src/macos/sec.rs` and `src/windows/cng.rs`
 # (and only they) allow it, each block with its SAFETY: reasoning. Every other crate keeps
-# `unsafe_code = "forbid"`. As PhotoCraft's tablet crate does (craftrules never-crash).
+# `unsafe_code = "forbid"`. As PhotoCraft's tablet crate does (the never-crash rule, CLAUDE.md).
 [lints.rust]
 unsafe_code = "deny"
 

@@ -68,6 +68,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The browser keeps no secret keys yet (its S/MIME certificates' way, a file locked
   with its password, would need an unlock dialog of its own). The rest is left for later.
 
+### 6. Key tips on the ribbon
+
+- **Impact:** Pressing Alt (or F10) shows no letters on the ribbon's tabs and buttons, so its
+  commands can't be reached by Alt letter sequences as in Outlook.
+- **Workaround:** The keyboard shortcuts (Ctrl+N, Ctrl+R, Ctrl+Shift+V…), and Tab through the
+  ribbon.
+- **Cause:** Not built yet. GridCraft has the machinery (a table of key tips, its state and
+  badges, generated tests); MailCraft's letters would have to be watched from Outlook's window,
+  clean room.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

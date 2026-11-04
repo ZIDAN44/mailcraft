@@ -5,7 +5,8 @@ Microsoft Outlook mail workflow over IMAP and SMTP (v1 scope:
 [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177)). It runs natively on
 Windows, macOS and Linux; the engine and UI crates also build for wasm. Siblings with the same
 conventions: `../wordcraft` (Word), `../gridcraft` (Excel), `../deckcraft` (PowerPoint),
-`../pdfcraft` (Acrobat). Shared rules: [`storytold/craftrules`](https://github.com/storytold/craftrules).
+`../pdfcraft` (Acrobat), `../photocraft`. CI and packaging are shared through
+[`storytold/craft-common-actions`](https://github.com/storytold/craft-common-actions).
 
 ## Start every session here
 1. Read `ROADMAP.md` and `docs/gaps.md` (the open gaps, most-hit first), then `docs/architecture.md`
@@ -30,7 +31,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   `ui-egui/src/reading.rs`), cache files (a damaged file is set aside, never fatal), command params.
   Use `get()`, checked/saturating arithmetic, char-boundary slicing, caps on allocations and
   recursion.
-- **Last-resort guard:** `Session::run` turns an escaped panic into an error.
+- **Last-resort guard:** `Session::run` turns an escaped panic into an error, and every panic, on
+  any thread, is logged by where it happened (`apps/mailcraft/src/logfile.rs`, never its message).
 - **Prove it:** every crash fix lands with a regression test; `engine/src/tests/organize.rs::every_command_survives_junk_params`
   runs every command with junk params — keep it green. A new parser of server or file input gets a
   target in `fuzz/` (cargo-fuzz, run weekly; `fuzz/README.md`); round trips get a proptest.
@@ -120,6 +122,14 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
 - The version lives only in `[workspace.package]` (`cargo xtask version [set X.Y.Z]`).
 - After touching workflows, run `npx actions-up` to keep pinned actions current; the
   `craft-common-actions@main` references stay on `main` on purpose.
+- **CI workflows** (as the other Craft apps): workflows call craft-common-actions' shared
+  workflows at `@main`, with their inputs and secrets, and run no jobs of their own. A feature or
+  fix doesn't add or change CI; what the shared workflows can't do goes to a craft-common-actions
+  issue (or a small PR there, safe for every app and no slower). `deny.yml`, `fuzz.yml` and
+  `release-wip.yml` still run their own jobs: nothing is added to them, and each moves only as a
+  task of its own, once a shared workflow runs it.
+- The shared release takes git dependencies from `github.com/storytold/` only; the `.pst` fork
+  pinned from ZIDAN44 stops a release there until it's moved or allowed (the owner's call).
 
 ## Running and looking at the app
 - `cargo run -p mailcraft -- --sample` (local sample mailbox). Script it at start-up:
