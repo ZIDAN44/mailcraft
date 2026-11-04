@@ -243,6 +243,25 @@ Every message is in exactly one conversation. Everything sorts by `Summary::when
 - egui and winit are the Craft forks (storytold/egui, storytold/winit), pinned in the root
   `Cargo.toml` under `[patch.crates-io]`. That egui lays out right-to-left text itself.
 
+## The Craft apps' shared libraries and services
+
+MailCraft uses what the other Craft apps share where it fits, so the suite's fixes reach it.
+
+| Shared piece | Used | Why, or why not |
+|---|---|---|
+| `craft-atomic` (craft-libs) | yes: `crates/store/src/atomic.rs` | The cache's file writes: a new scratch file never written through one at its name, a plain flush where a Mac's network share refuses a full one, renames tried again while Windows holds a file |
+| `craft-docpath` (craft-libs) | yes: `.pst` linked files | Whether a path a data file names is a local file: device names, Windows' file streams and `\\?\` forms refused |
+| craft-fonts, craft-common-actions | yes | The fonts in releases; CI, packaging lint and the FreeBSD and Windows ARM64 builds |
+| Dependabot, `SECURITY.md` | yes | Weekly grouped dependency updates; private vulnerability reports |
+| `craft-update` (craft-libs) | no | Built for signed suite releases: it refuses unsigned builds on Windows and macOS (an Apple team of the suite's), skips pre-releases, and wants an asset's version to equal its tag's. MailCraft's own updater (`docs/updates.md`) takes its ways of telling installs apart instead |
+| `craft-quit` (craft-libs) | not yet | `apple_events::quit` and `MailApp::quit_instead_of_close` are current copies of it; the swap is macOS code, to be built and tried on a Mac |
+| `craft-dialogs` (craft-libs) | not yet | File dialogs that don't block the window (a macOS crash with a blocking one); every file picker would become ask-then-answer, and no Craft app uses it yet |
+| `craft-i18n` | no | Its catalogs are storytold's repository, for its apps; MailCraft's would move there by a PR to it. Its rule that a missing translation never fails is the opposite of MailCraft's |
+| Flatpak OCI publishing (`flatpak-oci.sh`) | no | Publishes to storytold's registry from the shared release, which MailCraft's releases don't use; a Flatpak updates through the software installer |
+| SonarCloud | no | Needs a SonarCloud project and token for ZIDAN44, and its coverage builds run on every push |
+| Contributor credits (`contributors/`) | no | The generator is shared, but the About page credits are each app's own code, for one maintainer |
+| Other craft-libs crates | no | Nothing to replace (audio, PDF, raster, fonts for documents), or a larger rewrite than they'd save (`craft-ui`, `craft-menu`, `craft-print`, `craft-proof`) |
+
 ## Crash safety
 
 MailCraft must never crash; the rules are in `CLAUDE.md`. `Session::run`, lanes and the

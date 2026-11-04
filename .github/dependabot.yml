@@ -1,0 +1,34 @@
+# Dependency updates, as the other Craft apps get them: one grouped pull request per ecosystem,
+# weekly rather than their daily (each pull request runs the CI gate on three systems). The forks
+# pinned by revision (storytold's egui and winit, craft-libs, the .pst fork) aren't touched: they
+# move with the suite, by hand. Actions pinned by commit are kept current here too (as
+# `npx actions-up` does); craft-common-actions stays on @main on purpose.
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    groups:
+      cargo-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "Build"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    groups:
+      actions:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "storytold/craft-common-actions"
+    commit-message:
+      prefix: "Workflows"
