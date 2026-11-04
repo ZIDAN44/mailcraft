@@ -46,6 +46,44 @@ fn file_name(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
+/// The data file on a card: a file's mark, its name (its whole path on hover) and, under it,
+/// `holds` (its size and what's in it, or that it's being counted).
+fn file_card(ui: &mut Ui, t: &Tokens, path: &str, holds: &str) {
+    egui::Frame::new().fill(t.bg).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(egui::Margin::symmetric(12, 10)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), 36.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                let (mark, _) = ui.allocate_exact_size(vec2(36.0, 36.0), egui::Sense::hover());
+                ui.painter().rect_filled(mark, 8.0, t.accent_soft);
+                crate::icons::paint(ui.painter(), egui::Rect::from_center_size(mark.center(), vec2(20.0, 20.0)), Icon::File, t.accent);
+                ui.add_space(4.0);
+                crate::bidi::vertical(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.add(egui::Label::new(RichText::new(file_name(path)).font(crate::theme::bold(15.0)).color(t.text)).truncate())
+                        .on_hover_text(path);
+                    if !holds.is_empty() {
+                        ui.add(egui::Label::new(RichText::new(holds).color(t.dim)).truncate());
+                    }
+                });
+            });
+        },
+    );
+}
+
+/// The room the copy needs (`need` bytes) out of what's free where it goes: a bar of the free
+/// space, the copy's share of it filled (red when it doesn't fit), and how much is free.
+fn room(ui: &mut Ui, t: &Tokens, need: u64, free: u64, short: bool) {
+    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), 6.0), egui::Sense::hover());
+    ui.painter().rect_filled(bar, 3.0, t.border);
+    let share = if short || free == 0 { 1.0 } else { (need as f64 / free as f64).clamp(0.02, 1.0) as f32 };
+    let rtl = crate::i18n::current().rtl();
+    let fill = if rtl { bar.with_min_x(bar.max.x - bar.width() * share) } else { bar.with_max_x(bar.min.x + bar.width() * share) };
+    ui.painter().rect_filled(fill, 3.0, if short { t.danger } else { t.accent });
+    ui.add_space(2.0);
+    say(ui, tf!("Free there: {free}", free = widgets::human_bytes(free)), t.dim);
+}
+
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::OpenDataFile { path } => open_data_file(ui, path, s, t, acts),
@@ -87,22 +125,31 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
 /// (an Outlook file's beside it, never into the file itself) and whether there's room for it, the
 /// copy made there before, and the account it's open as already, if any.
 fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(460.0);
+    ui.set_width(480.0);
     title(ui, t, "Open Outlook data file");
-    ui.label(RichText::new(file_name(path)).strong().color(t.text));
-    ui.add_space(4.0);
+    // The file, and what it holds, on a card of its own: what the rest of the dialog is about.
+    let facts = s.data_file_facts(path);
+    let holds = match facts {
+        None => tl!("Counting items…").to_string(),
+        Some(f) if f.error.is_some() => String::new(),
+        Some(f) => {
+            let items = tf!("{items} items in {folders} folders", items = f.messages.saturating_add(f.pim_items), folders = f.folders);
+            if f.size > 0 { format!("{}   ·   {items}", widgets::human_bytes(f.size)) } else { items }
+        }
+    };
+    file_card(ui, t, path, &holds);
+    ui.add_space(10.0);
     let mut can_import = false;
     // MailCraft's copy beside the file from before, and whether the file changed since.
     let (mut copy, mut changed, mut rereadable) = (false, false, false);
     // That copy an account in another MailCraft data folder: the folder.
     let mut held = String::new();
-    match s.data_file_facts(path) {
+    match facts {
         None => {
             // Not looked at (or forgotten since): asked for, once.
             if !s.inspecting(path) {
                 acts.push(Action::Run("account.inspectDataFile", json!({"path": path})));
             }
-            say(ui, tl!("Counting items…").to_string(), t.dim);
             progress::bar(ui, t, None, vec2(ui.available_width(), 4.0));
         }
         Some(f) if f.error.is_some() => {
@@ -111,11 +158,6 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
             can_import = true;
         }
         Some(f) => {
-            if f.size > 0 {
-                say(ui, widgets::human_bytes(f.size), t.dim);
-            }
-            let items = f.messages.saturating_add(f.pim_items);
-            say(ui, tf!("{items} items in {folders} folders", items = items, folders = f.folders), t.text);
             let outlook = f.kind.starts_with("pst");
             (copy, changed, rereadable) = (!f.copy.is_empty(), f.copy_changed, f.copy_rereadable);
             let about = widgets::human_bytes(f.estimate);
@@ -159,10 +201,11 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
                 };
                 say(ui, words, t.dim);
             }
-            if let Some(free) = f.free.filter(|_| f.need > 0) {
-                say(ui, tf!("Free there: {free}", free = widgets::human_bytes(free)), t.dim);
-            }
             let short = f.free.is_some_and(|free| free < f.need);
+            if let Some(free) = f.free.filter(|_| f.need > 0) {
+                ui.add_space(8.0);
+                room(ui, t, f.need, free, short);
+            }
             if short {
                 ui.add_space(4.0);
                 // Beside the file, only room on its drive helps.

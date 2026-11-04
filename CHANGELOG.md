@@ -45,6 +45,7 @@ on GitHub.
 - Mail from a `.pst` file joins conversations by Outlook's conversation index when its ids don't place it.
 - MailCraft reads and writes `.pst` files with one crate, from the fork [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs).
 - **File › Info › Mailbox settings** gives the data file's location, its Outlook copy and the clean-up each a row of their own.
+- The **Open Outlook data file** dialog shows the file on a card with its size and contents, and a bar of the room its copy takes.
 
 ### Fixed
 - Big folders scroll, and long messages with many pictures open, without stutter.
