@@ -8,7 +8,8 @@
 # macos-15-xlarge), no `release` environment and no signing secrets, so Windows installers are
 # unsigned and the macOS app is ad-hoc signed and not notarized (the packaging scripts fall back
 # to that by themselves); and the result is a published pre-release `v<version>-test.<run>`,
-# never the `v<version>` tag a signed release uses.
+# never the `v<version>` tag a signed release uses. Each job has the shared release's time limit,
+# so a hung build stops instead of running for GitHub's six hours.
 name: Release (unsigned test build)
 
 on:
@@ -48,6 +49,7 @@ jobs:
   version:
     name: version
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.v.outputs.version }}
       date: ${{ steps.v.outputs.date }}
@@ -68,6 +70,7 @@ jobs:
     name: macOS universal
     needs: version
     runs-on: macos-26
+    timeout-minutes: 90
     env:
       VERSION: ${{ needs.version.outputs.version }}
       BUILD_DATE: ${{ needs.version.outputs.date }}
@@ -102,6 +105,7 @@ jobs:
     name: Windows ${{ matrix.arch }}
     needs: version
     runs-on: windows-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -149,6 +153,7 @@ jobs:
     name: Linux ${{ matrix.arch }}
     needs: version
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -199,6 +204,7 @@ jobs:
     name: Flatpak ${{ matrix.arch }}
     needs: [version, linux]
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -234,6 +240,7 @@ jobs:
     # Not 22.04 like the other Linux jobs: Ubuntu never built jammy's ncurses security update for
     # riscv64, so the cross dependencies don't install there.
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     env:
       # Built on 24.04, the binaries need GLIBC_2.39; nfpm.yaml declares it (as release.yml's
       # shared workflow sets it).
@@ -326,6 +333,7 @@ jobs:
     name: Web (wasm)
     needs: version
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
       VERSION: ${{ needs.version.outputs.version }}
       BUILD_DATE: ${{ needs.version.outputs.date }}
@@ -364,6 +372,7 @@ jobs:
     if: "!cancelled() && !contains(needs.*.result, 'failure')"
     needs: [version, macos, windows, linux, linux-riscv64, flatpak, freebsd, web]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
