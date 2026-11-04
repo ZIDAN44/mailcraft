@@ -78,6 +78,7 @@ on GitHub.
 - Saving a draft again replaces its copy in Drafts on the server instead of adding another, and a server without a Drafts folder gets one.
 - Sent from Drafts, a draft no longer leaves the list saying there's one more on the server.
 - On Linux, starting MailCraft no longer leaves a busy cursor, and the light or dark setting is followed even when the desktop changes it during start-up or doesn't answer.
+- Screen readers can't close MailCraft by losing track of the focused control.
 - Test builds install an update only once MailCraft has ended, and never one whose checksum file lists it twice with different sums.
 
 ### Security

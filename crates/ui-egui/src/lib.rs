@@ -21,6 +21,7 @@ macro_rules! tf {
     };
 }
 
+mod a11y;
 mod app;
 mod dialogs;
 pub mod i18n;
@@ -567,6 +568,9 @@ impl MailApp {
         }
         theme::install_fonts_with(ctx, regular, bold, Vec::new(), self.ui.rtl_font.clone());
         self.ui.fonts_ready = true;
+        // Every path into the window comes here first, with its context: from now on a screen
+        // reader's update always carries its focus (`a11y`; added once, however often called).
+        ctx.add_plugin(a11y::FocusGuard);
     }
 
     /// Draw in the chosen language. Chinese, Japanese and Korean fonts are always there as

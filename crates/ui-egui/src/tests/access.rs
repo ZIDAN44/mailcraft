@@ -105,3 +105,55 @@ fn a_question_is_read_as_an_alert_by_its_title() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Every update the window sends is one the system's screen-reader adapter takes: its focus is
+/// among its nodes. The search box holds the keyboard, then the File page covers it (the box isn't
+/// drawn), then a message is written and the page goes: each frame's update is fed to the
+/// consumer the adapters run, which panics, closing the window, on one that breaks the rule
+/// (wordcraft #2726).
+#[test]
+fn every_update_keeps_its_focus_among_its_nodes() {
+    struct Quiet;
+    impl accesskit_consumer::TreeChangeHandler for Quiet {
+        fn node_added(&mut self, _: &accesskit_consumer::NodeRef<'_>) {}
+        fn node_updated(&mut self, _: &accesskit_consumer::NodeRef<'_>, _: &accesskit_consumer::NodeRef<'_>) {}
+        fn focus_moved(&mut self, _: Option<&accesskit_consumer::NodeRef<'_>>, _: Option<&accesskit_consumer::NodeRef<'_>>) {}
+        fn node_removed(&mut self, _: &accesskit_consumer::NodeRef<'_>) {}
+    }
+    let (mut a, dir) = app("access-focus");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let mut tree: Option<accesskit_consumer::Tree> = None;
+    let mut step = |a: &mut MailApp, events: Vec<Event>| {
+        let input =
+            RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let Some(update) = out.platform_output.accesskit_update else { return };
+        assert!(update.nodes.iter().any(|(id, _)| *id == update.focus), "the focus is among the update's nodes");
+        tree = Some(match tree.take() {
+            None => accesskit_consumer::Tree::new(update, true),
+            Some(mut t) => {
+                t.update_and_process_changes(update, &mut Quiet);
+                t
+            }
+        });
+    };
+    for _ in 0..3 {
+        step(&mut a, vec![]);
+    }
+    a.act(crate::Action::FocusSearch);
+    step(&mut a, vec![]);
+    step(&mut a, vec![Event::Text("budget".into())]);
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    step(&mut a, vec![]);
+    step(&mut a, vec![]);
+    a.ui.backstage = None;
+    a.run("mail.new", json!({}));
+    step(&mut a, vec![Event::Text("Hello".into())]);
+    a.run("compose.discard", json!({}));
+    step(&mut a, vec![]);
+    let tree = tree.expect("the window sends AccessKit updates");
+    assert!(tree.state().has_node(tree.state().focus_id_in_tree()));
+    let _ = std::fs::remove_dir_all(dir);
+}
