@@ -78,20 +78,45 @@ pub(super) fn root_store(extra: &[CertificateDer<'static>], distrusted: &Distrus
     roots
 }
 
-/// A client configuration trusting `roots` that refuses a server whose chain holds a
-/// certificate in `distrusted`.
-pub(super) fn client_config(roots: RootCertStore, distrusted: Arc<Distrusted>) -> Result<Arc<ClientConfig>, String> {
+/// The check every connection's certificates get, built once: the bundled Mozilla roots and the
+/// system's, less what the system distrusts.
+pub(crate) fn system_verifier() -> Result<Arc<Distrusting>, String> {
+    static VERIFIER: OnceLock<Result<Arc<Distrusting>, String>> = OnceLock::new();
+    VERIFIER.get_or_init(|| verifier(root_store(system_roots(), distrusted()), Arc::clone(distrusted()))).clone()
+}
+
+/// A check trusting `roots` that refuses a server whose chain holds a certificate in
+/// `distrusted`.
+pub(crate) fn verifier(roots: RootCertStore, distrusted: Arc<Distrusted>) -> Result<Arc<Distrusting>, String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let inner = WebPkiServerVerifier::builder_with_provider(Arc::new(roots), provider.clone()).build().map_err(|e| e.to_string())?;
+    let inner = WebPkiServerVerifier::builder_with_provider(Arc::new(roots), provider).build().map_err(|e| e.to_string())?;
+    Ok(Arc::new(Distrusting { inner, distrusted }))
+}
+
+/// A client configuration whose server certificates `verifier` checks.
+pub(super) fn client_config(verifier: Arc<Distrusting>) -> Result<Arc<ClientConfig>, String> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
     let builder = ClientConfig::builder_with_provider(provider).with_safe_default_protocol_versions().map_err(|e| e.to_string())?;
-    let verifier = Arc::new(Distrusting { inner, distrusted });
     Ok(Arc::new(builder.dangerous().with_custom_certificate_verifier(verifier).with_no_client_auth()))
+}
+
+/// Checks the chain a TLS connection made elsewhere was given as `verifier` checks its own
+/// connections': the server's certificate first, then the CAs it sent along. For lettre (SMTP),
+/// which takes no verifier of ours: called after the handshake, before signing in.
+pub(crate) fn check_chain(verifier: &Distrusting, chain: &[Vec<u8>], host: &str) -> Result<(), rustls::Error> {
+    let Some((leaf, rest)) = chain.split_first() else {
+        return Err(rustls::Error::NoCertificatesPresented);
+    };
+    let leaf = CertificateDer::from(leaf.as_slice());
+    let rest: Vec<CertificateDer<'_>> = rest.iter().map(|c| CertificateDer::from(c.as_slice())).collect();
+    let name = ServerName::try_from(host).map_err(|_| rustls::Error::InvalidCertificate(CertificateError::NotValidForName))?;
+    verifier.verify_server_cert(&leaf, &rest, &name, &[], UnixTime::now()).map(|_| ())
 }
 
 /// rustls's own checks, after refusing a chain the system distrusts part of: a server, or an
 /// intermediate CA, that Windows lists as untrusted (WebPKI doesn't look there).
 #[derive(Debug)]
-struct Distrusting {
+pub(crate) struct Distrusting {
     inner: Arc<WebPkiServerVerifier>,
     distrusted: Arc<Distrusted>,
 }
@@ -136,65 +161,7 @@ impl ServerCertVerifier for Distrusting {
     }
 }
 
-/// Certificates for the trust tests: an internal CA as a company's IT runs one, a server it
-/// signed (with its key, so a test can stand in for the server), and bytes no store can use.
-/// Made up for MailCraft's tests, valid until 2126; the CA's key was thrown away.
 #[cfg(test)]
-pub(crate) mod test_certs {
-    use rustls::pki_types::pem::PemObject;
-    use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-
-    const INTERNAL_CA: &str = "-----BEGIN CERTIFICATE-----
-MIIBsDCCAVegAwIBAgIUWtdF1YzkvG0MciS3AbXMuleseWcwCgYIKoZIzj0EAwIw
-JTEjMCEGA1UEAwwaTWFpbENyYWZ0IFRlc3QgSW50ZXJuYWwgQ0EwIBcNMjYxMTA0
-MjAwNjU3WhgPMjEyNjEwMTEyMDA2NTdaMCUxIzAhBgNVBAMMGk1haWxDcmFmdCBU
-ZXN0IEludGVybmFsIENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE51BeS15b
-1cjK0hRCAhWrVfTQ5VZLW5tmZ7fP+cyQMuuflHYb2Wxl+JYlmFNV1JwVVBrSi/3/
-rOSlYQNQLzpO7KNjMGEwHQYDVR0OBBYEFIP4fiWnxPcuij9xrsQhdlpxi/ABMB8G
-A1UdIwQYMBaAFIP4fiWnxPcuij9xrsQhdlpxi/ABMA8GA1UdEwEB/wQFMAMBAf8w
-DgYDVR0PAQH/BAQDAgIEMAoGCCqGSM49BAMCA0cAMEQCIHrpZf/NDu6lDDEpmWrd
-lE4owBPA/KRXrV5IK/KDrNYSAiAfXXrCofoIUXVYSb3XOrQALvtYyCn5BAs6gtaJ
-V78zWQ==
------END CERTIFICATE-----";
-
-    /// `mail.corp.test`, signed by [`INTERNAL_CA`].
-    const SERVER: &str = "-----BEGIN CERTIFICATE-----
-MIIBvzCCAWWgAwIBAgIUf5bwuftXZCbaBNoiGLz7OGVoG98wCgYIKoZIzj0EAwIw
-JTEjMCEGA1UEAwwaTWFpbENyYWZ0IFRlc3QgSW50ZXJuYWwgQ0EwIBcNMjYxMTA0
-MjAwNjU3WhgPMjEyNjEwMTEyMDA2NTdaMBkxFzAVBgNVBAMMDm1haWwuY29ycC50
-ZXN0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEucs7+zRAQGUA3+3sY60Yg+hD
-HU0d+NIvaRR3xorwuqu0RQJKwBmPFS4tWAZWq9wvkJFaARheX3x/9WMWzX7Aq6N9
-MHswGQYDVR0RBBIwEIIObWFpbC5jb3JwLnRlc3QwCQYDVR0TBAIwADATBgNVHSUE
-DDAKBggrBgEFBQcDATAdBgNVHQ4EFgQUx+X0e5AZy3KUB0Zaex+CaNesdEAwHwYD
-VR0jBBgwFoAUg/h+JafE9y6KP3GuxCF2WnGL8AEwCgYIKoZIzj0EAwIDSAAwRQIg
-f2yu5bOvVcLTAmSEgVGcq6w+mZ/in904I4oP6yD6I4gCIQDY67WAi8QnEvguqHoA
-YpggYb8CshYV7jE8y++SmHWWyg==
------END CERTIFICATE-----";
-
-    /// [`SERVER`]'s key: made up for these tests, never used anywhere else.
-    const SERVER_KEY: &str = "-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgcfknHKaGLJehJLSb
-+brxZ7Qzw3IXhm4g8REJSg1dE/OhRANCAAS5yzv7NEBAZQDf7exjrRiD6EMdTR34
-0i9pFHfGivC6q7RFAkrAGY8VLi1YBlar3C+QkVoBGF5ffH/1YxbNfsCr
------END PRIVATE KEY-----";
-
-    pub(crate) fn internal_ca() -> CertificateDer<'static> {
-        CertificateDer::from_pem_slice(INTERNAL_CA.as_bytes()).unwrap()
-    }
-
-    pub(crate) fn server() -> CertificateDer<'static> {
-        CertificateDer::from_pem_slice(SERVER.as_bytes()).unwrap()
-    }
-
-    pub(crate) fn server_key() -> PrivateKeyDer<'static> {
-        PrivateKeyDer::from_pem_slice(SERVER_KEY.as_bytes()).unwrap()
-    }
-
-    /// What a damaged entry in a system store reads as.
-    pub(crate) fn unreadable() -> CertificateDer<'static> {
-        CertificateDer::from(vec![0u8, 0, 0])
-    }
-}
-
+pub(crate) mod test_certs;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

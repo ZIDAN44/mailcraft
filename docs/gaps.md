@@ -78,16 +78,6 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   badges, generated tests); MailCraft's letters would have to be watched from Outlook's window,
   clean room.
 
-### 7. Sending checks only the roots against what Windows distrusts
-
-- **Impact:** A certificate in Windows' Untrusted Certificates is refused as a root everywhere,
-  and as a server's or intermediate CA's certificate when receiving (IMAP, POP, Sieve, HTTPS).
-  When sending (SMTP), only the roots are checked, so a listed server or intermediate
-  certificate under a trusted root would still be accepted.
-- **Workaround:** Remove the CA above it from the system's trusted roots too.
-- **Cause:** lettre builds its rustls configuration itself and takes no certificate verifier of
-  ours; it would need one (a fork, or a change upstream).
-
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

@@ -12,7 +12,7 @@ use rustls::{ClientConfig, ClientConnection, StreamOwned};
 use crate::{NetError, Result};
 
 pub(crate) mod trust;
-pub(crate) use trust::system_roots;
+pub(crate) use trust::{system_roots, system_verifier};
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 pub const IO_TIMEOUT: Duration = Duration::from_secs(60);
@@ -73,16 +73,10 @@ impl Timeouts for TcpStream {
 }
 
 /// What every TLS connection trusts: the bundled Mozilla roots and the system's, less what the
-/// system distrusts ([`trust`]).
+/// system distrusts ([`trust`]). SMTP's lettre checks the same way ([`trust::check_chain`]).
 fn tls_config() -> Result<Arc<ClientConfig>> {
     static CONFIG: OnceLock<std::result::Result<Arc<ClientConfig>, String>> = OnceLock::new();
-    CONFIG
-        .get_or_init(|| {
-            let roots = trust::root_store(system_roots(), trust::distrusted());
-            trust::client_config(roots, Arc::clone(trust::distrusted()))
-        })
-        .clone()
-        .map_err(NetError::Tls)
+    CONFIG.get_or_init(|| trust::system_verifier().and_then(trust::client_config)).clone().map_err(NetError::Tls)
 }
 
 /// Interleave address families (RFC 8305 §4): sort by each address's rank among those of its

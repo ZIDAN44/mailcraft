@@ -1,16 +1,21 @@
 //! Message submission (RFC 6409) through `lettre`: implicit TLS on 465 (preferred, RFC 8314),
 //! STARTTLS on 587, or plain only for local test servers.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use lettre::address::{Address, Envelope};
-use lettre::transport::smtp::authentication::Credentials;
-use lettre::transport::smtp::client::{Certificate, Tls, TlsParameters};
-use lettre::{SmtpTransport, Transport};
+use lettre::transport::smtp::authentication::{Credentials, DEFAULT_MECHANISMS, Mechanism};
+use lettre::transport::smtp::client::{Certificate, SmtpConnection, TlsParameters};
+use lettre::transport::smtp::extension::ClientId;
 use mailcraft_model::{Security, ServerConfig};
 use rustls::pki_types::CertificateDer;
 
+use crate::stream::trust::{self, Distrusting};
 use crate::{NetError, Result};
+
+#[cfg(test)]
+mod tls_tests;
 
 /// Submit `raw` (an RFC 5322 message) from `from` to `recipients`.
 pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
@@ -28,41 +33,81 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
         return Err(NetError::Smtp("no recipients".into()));
     }
     let envelope = Envelope::new(Some(from), to).map_err(|e| NetError::Smtp(e.to_string()))?;
-    let tls = |host: &str| tls_parameters(host, crate::stream::system_roots());
-    let mut b = SmtpTransport::builder_dangerous(server.host.as_str()).port(server.port).timeout(Some(Duration::from_secs(60)));
-    b = match server.security {
-        Security::Tls => b.tls(Tls::Wrapper(tls(&server.host)?)),
-        Security::StartTls => b.tls(Tls::Required(tls(&server.host)?)),
-        Security::None => b.tls(Tls::None),
+    let trust = Trust { roots: crate::stream::system_roots(), verifier: crate::stream::system_verifier().map_err(NetError::Tls)? };
+    submit(server, SignIn { user, password, oauth }, &envelope, raw, recipients, &trust)
+}
+
+/// Who signs in, and how: a password, or an OAuth access token (XOAUTH2).
+struct SignIn<'a> {
+    user: &'a str,
+    password: &'a str,
+    oauth: bool,
+}
+
+/// What sending trusts: `roots` for lettre's handshake (the system's), and `verifier`, the check
+/// every connection's certificates get ([`trust::check_chain`]).
+struct Trust<'a> {
+    roots: &'a [CertificateDer<'static>],
+    verifier: Arc<Distrusting>,
+}
+
+/// One message over one connection, as lettre's `SmtpTransport` sends it (connect and EHLO,
+/// STARTTLS, AUTH, MAIL / RCPT / DATA, QUIT), with the server's certificates checked between
+/// the handshake and the sign-in: lettre takes no verifier of ours, and only so are a server or
+/// intermediate certificate the system distrusts refused before the password goes out.
+fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: &[u8], recipients: &[String], trust: &Trust<'_>) -> Result<()> {
+    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
+    let host = server.host.as_str();
+    let hello = ClientId::default();
+    let wrapper = match server.security {
+        Security::Tls => Some(tls_parameters(host, trust.roots)?),
+        Security::StartTls | Security::None => None,
     };
-    if !user.is_empty() {
-        b = b.credentials(Credentials::new(user.to_string(), password.to_string()));
-        if oauth {
-            b = b.authentication(vec![lettre::transport::smtp::authentication::Mechanism::Xoauth2]);
+    let mut conn = SmtpConnection::connect((host, server.port), Some(TIMEOUT), &hello, wrapper.as_ref(), None).map_err(failed)?;
+    if server.security == Security::StartTls {
+        conn.starttls(&tls_parameters(host, trust.roots)?, &hello).map_err(failed)?;
+    }
+    if server.security != Security::None {
+        // After a handshake there's always a chain: lettre's call can't come back empty.
+        let chain = conn.certificate_chain().map_err(failed)?;
+        if let Err(e) = trust::check_chain(&trust.verifier, &chain, host) {
+            conn.abort();
+            return Err(NetError::Tls(e.to_string()));
         }
     }
-    let transport = b.build();
-    transport.send_raw(&envelope, raw).map_err(|e| {
-        let msg = e.to_string();
-        if e.is_permanent() {
-            let code = e.status().and_then(|c| c.to_string().parse::<u16>().ok()).unwrap_or(550);
-            refusal(code, &msg, recipients)
-        } else if e.is_transient() {
-            // 4xx: the server asks to try again later.
-            NetError::Later(msg)
-        } else {
-            // No answer at all: no network, refused connection, TLS failure or a timeout.
-            NetError::Io(std::io::Error::other(msg))
-        }
-    })?;
+    if !sign_in.user.is_empty() {
+        let mechanisms: &[Mechanism] = if sign_in.oauth { &[Mechanism::Xoauth2] } else { DEFAULT_MECHANISMS };
+        conn.auth(mechanisms, &Credentials::new(sign_in.user.to_string(), sign_in.password.to_string())).map_err(failed)?;
+    }
+    let sent = conn.send(envelope, raw);
+    conn.abort();
+    sent.map_err(failed)?;
     Ok(())
+}
+
+/// How long the server may take to answer.
+const TIMEOUT: Duration = Duration::from_secs(60);
+
+/// What a failure from lettre means for the message: refused for good, to try again later, or
+/// no answer at all.
+fn failure(e: lettre::transport::smtp::Error, recipients: &[String]) -> NetError {
+    let msg = e.to_string();
+    if e.is_permanent() {
+        let code = e.status().and_then(|c| c.to_string().parse::<u16>().ok()).unwrap_or(550);
+        refusal(code, &msg, recipients)
+    } else if e.is_transient() {
+        // 4xx: the server asks to try again later.
+        NetError::Later(msg)
+    } else {
+        // No answer at all: no network, refused connection, TLS failure or a timeout.
+        NetError::Io(std::io::Error::other(msg))
+    }
 }
 
 /// TLS for `host`: lettre's bundled Mozilla roots and `roots` (the system's, which IMAP and
 /// HTTPS trust too). lettre fails the whole build on a root it can't read, so `roots` holds
 /// only usable ones, the system's distrusted ones already left out
-/// ([`crate::stream::system_roots`]). lettre takes no verifier of ours, so unlike IMAP it can't
-/// also refuse a server or intermediate certificate the system distrusts (`docs/gaps.md`).
+/// ([`crate::stream::system_roots`]). What else the system distrusts, [`submit`] refuses.
 fn tls_parameters(host: &str, roots: &[CertificateDer<'static>]) -> Result<TlsParameters> {
     let mut p = TlsParameters::builder(host.to_string());
     for der in roots {
