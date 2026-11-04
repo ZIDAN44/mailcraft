@@ -24,6 +24,7 @@ on GitHub.
 - **File › Options › Language** lists English first, then the other languages by their own names, accents set aside.
 
 ### Fixed
+- A server whose certificate comes from your organisation's own CA, as an on-premises Exchange often does, connects once that CA is in the system's certificate store (Windows, the macOS Keychain, the Linux bundle), for receiving and sending, instead of failing with "UnknownIssuer". Certificates Windows lists as untrusted stay refused (#37).
 - Blocks of a newsletter stacked one on another touch, as in Outlook: each table keeps its own spacing and each block its padding, and a pale tint on a pale page still shows (#41).
 - A block whose background is a gradient shows the colour Outlook shows for it (#41).
 - The plain text of mail laid out in tables has no box-drawing lines around each table, and its preview keeps one block's words apart from the next's (#41).
