@@ -180,7 +180,7 @@ fn data_pictures(html: &str) -> (String, Vec<InlinePicture>) {
             continue;
         }
         let clean: Vec<u8> = b64.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
-        let Some(data) = mail_parser::decoders::base64::base64_decode(&clean).filter(|d| !d.is_empty() && d.len() <= SIGNATURE_PICTURE_MAX) else {
+        let Some(data) = encodify::base64::LENIENT.decode(&clean).ok().filter(|d| !d.is_empty() && d.len() <= SIGNATURE_PICTURE_MAX) else {
             continue;
         };
         let n = pictures.len() + 1;

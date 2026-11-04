@@ -127,8 +127,8 @@ pub fn decode_code_page(b: &[u8], cp: u32) -> String {
 }
 
 fn decode_with(b: &[u8], name: &[u8]) -> String {
-    match mail_parser::decoders::charsets::map::charset_decoder(name) {
-        Some(f) => f(b),
+    match mail_parser::Charset::from_label(name) {
+        Some(c) => c.decode(b).into_owned(),
         None => String::from_utf8_lossy(b).into_owned(),
     }
 }

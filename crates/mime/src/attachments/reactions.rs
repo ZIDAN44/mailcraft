@@ -30,15 +30,12 @@ pub fn is_reaction_text(text: &str) -> bool {
 /// The reaction a message carries: the text of its part marked `Content-Disposition: reaction`
 /// (the message itself, or one of its parts), when that is emoji only; empty otherwise.
 pub(crate) fn reaction_of(m: &mail_parser::Message<'_>) -> String {
-    for part in m.parts.iter().take(16) {
+    for part in m.root().parts().take(16) {
         let marked = part.content_disposition().is_some_and(|d| d.ctype().eq_ignore_ascii_case("reaction"));
-        if !marked {
+        if !marked || !matches!(part.kind(), PartKind::Text) {
             continue;
         }
-        let text = match &part.body {
-            mail_parser::PartType::Text(t) => t.as_ref(),
-            _ => continue,
-        };
+        let Some(text) = part.text() else { continue };
         let text = text.trim();
         if is_reaction_text(text) {
             return text.split_whitespace().collect::<Vec<_>>().join(" ");

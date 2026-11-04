@@ -296,11 +296,16 @@ fn a_named_text_part_is_a_file() {
     let page = "Content-Type: text/html; name=\"page.html\"\r\nContent-Disposition: inline; filename=\"page.html\"\r\n\r\n<p>page</p>".to_string();
     let d = doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[text("body words"), page])));
     assert_eq!((d.files, d.names.clone()), (1, vec!["page.html".to_string()]));
-    // The body itself may carry a name, and a filename only in the disposition isn't one.
+    // The body itself may carry a name. A filename only in the disposition names a file too
+    // (RFC 8621, as mail-parser 1.0 reads it): Apple Mail sends a text file so, inline, and
+    // Outlook lists it among the files, where it can be saved.
     let first = "Content-Type: text/plain; name=\"body.txt\"\r\n\r\nfirst words".to_string();
     let only_filename = "Content-Type: text/plain\r\nContent-Disposition: inline; filename=\"x.txt\"\r\n\r\nmore words".to_string();
-    let d = doc(&message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[first, only_filename])));
-    assert_eq!((d.files, d.text.as_str()), (0, "first words\nmore words"));
+    let raw = message("multipart/mixed; boundary=\"mix\"", &parts("mix", &[first, only_filename]));
+    let d = doc(&raw);
+    assert_eq!((d.files, d.names.clone(), d.text.as_str()), (1, vec!["x.txt".to_string()], "first words"));
+    let p = parse(&raw).unwrap();
+    assert_eq!((p.text.as_str(), p.attachments.iter().map(|a| a.name.as_str()).collect::<Vec<_>>()), ("first words", vec!["x.txt"]));
 }
 
 /// The HTML shows a part only by a whole `cid:` or an address it refers to: not `cid:image10`

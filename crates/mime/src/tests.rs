@@ -38,6 +38,7 @@ mod importance;
 pub(crate) mod index_text;
 mod kept_cid;
 mod one_parse;
+mod parts_listed;
 mod reactions;
 mod reply_layout;
 mod report;
@@ -228,8 +229,8 @@ fn garbage_never_panics() {
 }
 
 /// A message inside a message inside a multipart, ended by the outer boundary (found by
-/// `fuzz/`): mail-parser trips its own `debug_assert!`, a panic in every debug build until the
-/// workspace's profiles turned its debug assertions off (Cargo.toml).
+/// `fuzz/`): mail-parser 0.11 tripped its own `debug_assert!`, a panic in every debug build
+/// while its debug assertions were on. 1.0 keeps the content as a part, with them on.
 #[test]
 fn nested_messages_ended_by_the_outer_boundary_never_panic() {
     let raw = b"Content-Type:multipart;boundary=b1\n\n--b1Content-Type:message/rfc822\n\nContent-Type:message/rfc822\n\n\n--b1--";
@@ -375,7 +376,8 @@ fn build_round_trips() {
 /// an attached message with 8-bit text), two pictures its HTML shows, as written and as a
 /// signed message must be (7-bit). The digests were taken before `build` stopped copying its
 /// parts, and again when the pictures went out under their names; the `X-Mailer` line, which
-/// carries the version, is left out.
+/// carries the version, is left out. Taken again for mail-builder 2.0.1, which writes no empty
+/// line before a multipart's first boundary (6 bytes: three multiparts).
 #[test]
 fn build_writes_the_same_bytes_as_before() {
     let digest = |raw: &[u8]| {
@@ -417,8 +419,8 @@ fn build_writes_the_same_bytes_as_before() {
     let from = EmailAddress::new("Zoe Park", "zoe@studio.example");
     let raw = build(&d, &from, 1_791_963_000, "g1@studio.example").unwrap();
     let signed = build(&Draft { seven_bit: true, ..d.clone() }, &from, 1_791_963_000, "g1@studio.example").unwrap();
-    assert_eq!((raw.len(), digest(&raw)), (10123, 7_850_003_861_301_803_885));
-    assert_eq!((signed.len(), digest(&signed)), (10135, 17_852_924_195_389_485_945));
+    assert_eq!((raw.len(), digest(&raw)), (10117, 18_148_128_963_542_891_464));
+    assert_eq!((signed.len(), digest(&signed)), (10129, 6_730_857_331_687_958_276));
 }
 
 #[test]

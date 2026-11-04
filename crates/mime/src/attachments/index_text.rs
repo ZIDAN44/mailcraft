@@ -4,11 +4,11 @@
 
 use std::borrow::Cow;
 
-use mail_parser::{MessageParser, MessagePart, MimeHeaders};
+use mail_parser::{Encoding, MessageParser, MessagePart};
 use mailcraft_model::search::{IndexDoc, MAX_INDEX_CHARS};
 use memchr::memmem::Finder;
 
-use super::{HtmlRefs, is_smime, may_be_shown, mime_of, tnef_inline};
+use super::{HtmlRefs, contents, is_smime, may_be_shown, mime_of, tnef_inline};
 use crate::html_to_text;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
@@ -83,7 +83,7 @@ impl Walk {
     fn message(&mut self, raw: &[u8], depth: usize, text_on: bool, attached: bool) {
         let (head, body) = split(raw);
         let parsed = parse_head(head);
-        let part = parsed.as_ref().and_then(|m| m.parts.first());
+        let part = parsed.as_ref().map(|m| m.root_part());
         if attached
             && text_on
             && let Some(s) = parsed.as_ref().and_then(|m| m.subject())
@@ -116,7 +116,7 @@ impl Walk {
     #[allow(clippy::too_many_arguments)]
     fn entity<'b>(
         &mut self,
-        part: Option<&MessagePart<'_>>,
+        part: Option<MessagePart<'_>>,
         whole: &'b [u8],
         body: &'b [u8],
         depth: usize,
@@ -184,7 +184,7 @@ impl Walk {
             .collect();
         let alternative = mime == "multipart/alternative";
         let chosen = alternative.then(|| {
-            let types: Vec<Option<String>> = heads.iter().map(|(_, _, h)| h.as_ref().and_then(|m| m.parts.first()).and_then(mime_of)).collect();
+            let types: Vec<Option<String>> = heads.iter().map(|(_, _, h)| h.as_ref().and_then(|m| mime_of(m.root_part()))).collect();
             types
                 .iter()
                 .position(|t| t.as_deref().is_none_or(|m| m == "text/plain"))
@@ -196,10 +196,11 @@ impl Walk {
                 self.parts_cut();
                 return true;
             }
-            let part = head.as_ref().and_then(|m| m.parts.first());
-            // As mail-parser reads it: past a multipart's first part, a text part that has a name,
-            // or any in a `multipart/related`, is a file; an alternative's are all bodies.
-            let named = part.and_then(|p| p.content_type()).is_some_and(|c| c.attribute("name").is_some());
+            let part = head.as_ref().map(|m| m.root_part());
+            // As mail-parser reads it (RFC 8621): past a multipart's first part, a text part that
+            // has a name (the disposition's `filename`, else the type's `name`), or any in a
+            // `multipart/related`, is a file; an alternative's are all bodies.
+            let named = part.and_then(|p| p.attachment_name()).is_some_and(|n| !n.is_empty());
             let bodily = alternative || i == 0 || (mime != "multipart/related" && !named);
             let on = text_on && chosen.is_none_or(|c| c == i);
             self.entity(part, whole, body, depth + 1, on, bodily, default, scope);
@@ -208,19 +209,16 @@ impl Walk {
     }
 
     /// An attached message: a file named by its subject, whose text joins the message's.
-    fn attached_message(&mut self, part: Option<&MessagePart<'_>>, body: &[u8], name: Option<String>, depth: usize, text_on: bool) {
-        let encoding = part.and_then(|p| p.content_transfer_encoding()).map(str::to_ascii_lowercase).unwrap_or_default();
-        let inner: Option<Cow<'_, [u8]>> = match encoding.trim() {
-            "base64" | "quoted-printable" if body.len() > MAX_LEAF => None,
-            "base64" => {
+    fn attached_message(&mut self, part: Option<MessagePart<'_>>, body: &[u8], name: Option<String>, depth: usize, text_on: bool) {
+        // Decoded as mail-parser decodes the part for the reading pane (`base64 (comment)` is
+        // base64, a byte out of place is passed over).
+        let inner: Option<Cow<'_, [u8]>> = match part.map_or(Encoding::None, |p| p.encoding()) {
+            Encoding::Base64 | Encoding::QuotedPrintable if body.len() > MAX_LEAF => None,
+            Encoding::None => Some(Cow::Borrowed(body)),
+            encoding => {
                 self.stats.decoded_bytes = self.stats.decoded_bytes.saturating_add(body.len());
-                mail_parser::decoders::base64::base64_decode(body).map(Cow::Owned)
+                Some(encoding.decode(body))
             }
-            "quoted-printable" => {
-                self.stats.decoded_bytes = self.stats.decoded_bytes.saturating_add(body.len());
-                mail_parser::decoders::quoted_printable::quoted_printable_decode(body).map(Cow::Owned)
-            }
-            _ => Some(Cow::Borrowed(body)),
         };
         let subject = inner.as_deref().and_then(|m| parse_head(split(m).0)).and_then(|m| m.subject().map(str::to_string));
         let name = name.or_else(|| subject.filter(|s| !s.trim().is_empty()).map(|s| format!("{}.eml", s.chars().take(MAX_NAME).collect::<String>())));
@@ -279,7 +277,7 @@ impl Walk {
         let whole = self.cut(whole, cap);
         self.stats.decoded_bytes = self.stats.decoded_bytes.saturating_add(whole.len());
         let m = MessageParser::default().parse(whole)?;
-        m.parts.first().and_then(|p| p.text_contents()).map(str::to_string)
+        m.root_part().text().map(Cow::into_owned)
     }
 
     /// A single-part entity's bytes, decoded, its first `cap` bytes only.
@@ -287,7 +285,7 @@ impl Walk {
         let whole = self.cut(whole, cap);
         self.stats.decoded_bytes = self.stats.decoded_bytes.saturating_add(whole.len());
         let m = MessageParser::default().parse(whole)?;
-        m.parts.first().map(|p| p.contents().to_vec())
+        Some(contents(m.root_part()).into_owned())
     }
 
     fn cut<'b>(&mut self, bytes: &'b [u8], cap: usize) -> &'b [u8] {
@@ -329,7 +327,7 @@ fn parse_head(head: &[u8]) -> Option<mail_parser::Message<'_>> {
     if head.is_empty() {
         return None;
     }
-    MessageParser::default().parse_headers(head).filter(|m| !m.parts.is_empty())
+    MessageParser::default().parse_headers(head)
 }
 
 /// An entity's header block (with its last line end) and body, split at the first empty line;
@@ -358,8 +356,8 @@ pub(super) fn split(raw: &[u8]) -> (&[u8], &[u8]) {
 /// the start of a line (the body's first byte included), followed by the line end, spaces or
 /// tabs (transport padding), or `--` that closes it; `--boundary-2` isn't one. The line end
 /// before a delimiter belongs to it. A body never closed runs to its end. At most `max` parts;
-/// `true` when some were left out. `None` when the boundary is empty or never comes, as
-/// mail-parser finds it (`--boundary` anywhere).
+/// `true` when some were left out. `None` when the boundary is empty or `--boundary` never comes,
+/// even in the middle of a line (where mail-parser falls back to looking for it).
 pub(super) fn split_parts<'b>(body: &'b [u8], boundary: &[u8], max: usize) -> Option<(Vec<&'b [u8]>, bool)> {
     let mut parts = Vec::new();
     if boundary.is_empty() {

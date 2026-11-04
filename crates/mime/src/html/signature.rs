@@ -141,13 +141,12 @@ pub fn signature_file(bytes: &[u8]) -> String {
         let rest = head.get(i + 8..).unwrap_or("").trim_start_matches(['"', '\'']);
         rest.chars().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_')).collect::<String>()
     });
-    let decode = named
-        .and_then(|n| mail_parser::decoders::charsets::map::charset_decoder(n.as_bytes()))
-        .or_else(|| mail_parser::decoders::charsets::map::charset_decoder(b"windows-1252"));
-    match decode {
-        Some(d) => d(bytes),
-        None => String::from_utf8_lossy(bytes).into_owned(),
-    }
+    // A file that names UTF-8 but isn't (it failed above) was saved in Windows' own.
+    let charset = named
+        .and_then(|n| mail_parser::Charset::from_label(n.as_bytes()))
+        .filter(|c| *c != mail_parser::Charset::Utf8)
+        .unwrap_or(mail_parser::Charset::Windows1252);
+    charset.decode(bytes).into_owned()
 }
 
 /// `html` with its pictures beside it (`src="Riley_files/image001.png"`, as Outlook saves a

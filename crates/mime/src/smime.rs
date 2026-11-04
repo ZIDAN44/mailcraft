@@ -6,7 +6,9 @@
 //! Only a message protected as a whole counts (EFAIL, and signatures spoofed by parts placed
 //! around a signed one): a signed or encrypted part inside some other multipart is an attachment.
 
-use mail_parser::{MessageParser, MessagePart, MimeHeaders};
+use mail_parser::{MessageParser, MessagePart};
+
+use crate::attachments::contents;
 
 pub mod pgp;
 
@@ -43,7 +45,7 @@ enum Kind {
 }
 
 /// What the top-level header fields of a message (`head`, its root part) say protects it.
-fn kind_of(head: &MessagePart<'_>) -> Kind {
+fn kind_of(head: MessagePart<'_>) -> Kind {
     let Some(ct) = head.content_type() else { return Kind::None };
     let kind = ct.ctype().to_ascii_lowercase();
     let sub = ct.subtype().unwrap_or_default().to_ascii_lowercase();
@@ -72,7 +74,7 @@ pub fn is_protected(raw: &[u8]) -> bool {
 }
 
 fn head_kind(raw: &[u8]) -> Kind {
-    MessageParser::default().parse_headers(raw).and_then(|m| m.parts.first().map(kind_of)).unwrap_or(Kind::None)
+    MessageParser::default().parse_headers(raw).map_or(Kind::None, |m| kind_of(m.root_part()))
 }
 
 /// What protects `raw` as a whole. Only a message whose header says so ([`is_protected`]) is
@@ -91,8 +93,8 @@ pub fn protection(raw: &[u8]) -> Protection {
         Kind::Signed(boundary) => {
             let Some(content) = first_part(raw, &boundary) else { return Protection::None };
             let signature = m
-                .parts
-                .iter()
+                .root()
+                .parts()
                 .skip(1)
                 .find(|p| {
                     p.content_type().is_some_and(|c| {
@@ -100,14 +102,14 @@ pub fn protection(raw: &[u8]) -> Protection {
                         c.ctype().eq_ignore_ascii_case("application") && (s == "pkcs7-signature" || s == "x-pkcs7-signature")
                     })
                 })
-                .map(|p| p.contents().to_vec());
+                .map(|p| contents(p).into_owned());
             match signature {
                 Some(signature) if !signature.is_empty() => Protection::Signed { content, signature },
                 _ => Protection::None,
             }
         }
         Kind::Pkcs7 { opaque } => {
-            let body = m.parts.first().map(|p| p.contents().to_vec()).unwrap_or_default();
+            let body = contents(m.root_part()).into_owned();
             if body.is_empty() {
                 Protection::None
             } else if opaque {
