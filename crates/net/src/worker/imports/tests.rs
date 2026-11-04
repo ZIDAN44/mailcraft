@@ -591,7 +591,9 @@ fn a_paused_import_goes_on_where_it_stopped() {
 fn a_paused_import_kept_lists_its_folder_part_way_through() {
     let (dir, pst, store, mut p) = setup("keep", 20, 2000, "k1", 30);
     p.submit(Job::ImportPst { account: "k1".into(), path: pst, resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    // Paused once Projects has some of its messages in (the Inbox's 20 and 20 more), not as soon as
+    // the Inbox is: a fast runner could pause before Projects had any.
+    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done >= 40));
     p.submit(Job::StopImport { account: "k1".into(), how: StopHow::Pause });
     p.submit(Job::KeepImport { account: "k1".into() });
     let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportKept { .. }));
