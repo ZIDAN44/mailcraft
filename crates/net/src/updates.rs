@@ -73,13 +73,28 @@ pub fn releases_since(suffix: Option<&str>, etag: Option<&str>) -> Result<Listin
     Ok(Listing::Changed(parse(&String::from_utf8_lossy(&resp.body), suffix)?, etag))
 }
 
-/// The SHA-256 a `SHA256SUMS.txt` (as `sha256sum` writes it) gives `file`, in lowercase hex.
+/// The SHA-256 a `SHA256SUMS.txt` (as `sha256sum` writes it) gives `file`, in lowercase hex. A
+/// line repeated counts once; a file listed with two different sums has none, whichever line
+/// comes first, so it isn't installed (as craft-libs' updater reads the file).
 pub fn sum_for(sums: &str, file: &str) -> Option<String> {
-    sums.lines().take(10_000).find_map(|line| {
-        let (hash, name) = line.trim().split_once(char::is_whitespace)?;
+    let mut found: Option<String> = None;
+    for line in sums.lines().take(10_000) {
+        let Some((hash, name)) = line.trim().split_once(char::is_whitespace) else { continue };
         let name = name.trim_start().trim_start_matches('*');
-        (name == file && is_sha256(hash)).then(|| hash.to_ascii_lowercase())
-    })
+        if name != file || !is_sha256(hash) {
+            continue;
+        }
+        let hash = hash.to_ascii_lowercase();
+        match &found {
+            None => found = Some(hash),
+            Some(h) if *h == hash => {}
+            Some(_) => {
+                log::warn!("updates: SHA256SUMS.txt lists {file} with different checksums; it isn't installed");
+                return None;
+            }
+        }
+    }
+    found
 }
 
 fn is_sha256(h: &str) -> bool {
@@ -274,6 +289,14 @@ mod tests {
         );
         assert_eq!(sum_for(sums, "mailcraft-x.dmg"), None, "not a checksum");
         assert_eq!(sum_for(sums, "portable.zip"), None, "names match whole");
+        // A file listed twice: the same sum (in either case) is one; two sums are none, in
+        // either order, and the other files keep theirs.
+        let (a, b) = ("a".repeat(64), "b".repeat(64));
+        assert_eq!(sum_for(&format!("{a}  x.msi\n{} *x.msi\n", a.to_ascii_uppercase()), "x.msi"), Some(a.clone()));
+        for text in [format!("{a}  x.msi\n{b}  x.msi\n{a}  y.zip\n"), format!("{b}  x.msi\n{a}  y.zip\n{a}  x.msi\n")] {
+            assert_eq!(sum_for(&text, "x.msi"), None, "{text}");
+            assert_eq!(sum_for(&text, "y.zip"), Some(a.clone()), "{text}");
+        }
         assert_eq!(sha256_hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         // Nothing to check against: refused before anything is fetched.
         let bare = Release { download: msi.download.clone(), ..Default::default() };
