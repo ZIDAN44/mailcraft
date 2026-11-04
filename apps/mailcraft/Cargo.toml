@@ -49,6 +49,9 @@ windows-registry = "0.6"
 # One MailCraft per data folder (`single_instance.rs`): Unix sockets on Windows, which std lacks.
 # The version zbus brings, so it's built once.
 uds_windows = "1.2"
+# The Windows session the single-instance socket is named by (the process token's session id):
+# safe wrappers over Win32, only the `advapi` feature (as PdfCraft has it).
+winsafe = { version = "0.0.29", default-features = false, features = ["advapi"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6", default-features = false, features = ["apple-native"] }

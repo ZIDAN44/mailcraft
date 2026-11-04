@@ -199,16 +199,46 @@ fn socket_path(data: &Path) -> Option<PathBuf> {
     Some(dir.join(socket_name(data, &screen())))
 }
 
-/// The Windows session (`SESSIONNAME`: `Console`, `RDP-Tcp#3`), or the display on Linux and the
-/// BSDs (`WAYLAND_DISPLAY`, else `DISPLAY`): a launch reaches only a window on its own screen.
+/// The Windows session, or the display on Linux and the BSDs (`WAYLAND_DISPLAY`, else
+/// `DISPLAY`): a launch reaches only a window on its own screen.
 fn screen() -> String {
     let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
     if cfg!(windows) {
-        var("SESSIONNAME").unwrap_or_default()
+        windows_session(session_id(), var("SESSIONNAME").as_deref())
     } else if cfg!(target_os = "macos") {
         String::new()
     } else {
         var("WAYLAND_DISPLAY").or_else(|| var("DISPLAY")).unwrap_or_default()
+    }
+}
+
+/// The Windows session this process runs in, from its access token: the console, each Remote
+/// Desktop sign-in and session 0 (services) each have their own. `None` if Windows won't say.
+#[cfg(windows)]
+fn session_id() -> Option<u32> {
+    use winsafe::{HACCESSTOKEN, TokenInfo, co::TOKEN_INFORMATION_CLASS};
+    match HACCESSTOKEN::GetCurrentProcessToken().GetTokenInformation(TOKEN_INFORMATION_CLASS::SessionId) {
+        Ok(TokenInfo::SessionId(id)) => Some(*id),
+        _ => None,
+    }
+}
+
+#[cfg(not(windows))]
+fn session_id() -> Option<u32> {
+    None
+}
+
+/// The Windows session as the socket names it: its id (`session`). A launch from Task Scheduler,
+/// a service or a remote shell has no `SESSIONNAME` but still runs in a session, so it finds that
+/// session's window instead of opening a second MailCraft on the same data; and a window in
+/// another session (the same user at the console and over Remote Desktop) is never reached. Only
+/// when the id can't be read does `SESSIONNAME` (`Console`, `RDP-Tcp#3`…) name it (as PdfCraft's
+/// single instance).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn windows_session(session: Option<u32>, session_name: Option<&str>) -> String {
+    match session {
+        Some(id) => format!("s{id}"),
+        None => session_name.unwrap_or_default().to_string(),
     }
 }
 
@@ -384,6 +414,32 @@ mod tests {
             let len = p.as_os_str().len();
             assert!(len < 104, "{len} bytes: {}", p.display());
         }
+    }
+
+    /// Windows names the screen by the session the process runs in, `SESSIONNAME` only when the
+    /// id can't be read.
+    #[test]
+    fn each_windows_session_has_its_own_socket() {
+        let name = |id, n| socket_name(Path::new(r"C:\d"), &windows_session(id, n));
+        // A launch without SESSIONNAME (Task Scheduler) in the console's session finds the
+        // window opened from Explorer there...
+        assert_eq!(name(Some(1), None), name(Some(1), Some("Console")));
+        // ...and one in a Remote Desktop session never reaches the console's.
+        assert_ne!(name(Some(2), None), name(Some(1), Some("Console")));
+        assert_ne!(name(Some(2), Some("RDP-Tcp#3")), name(Some(3), Some("RDP-Tcp#3")));
+        // Only without an id does SESSIONNAME name it.
+        assert_eq!(name(None, Some("Console")), socket_name(Path::new(r"C:\d"), "Console"));
+        assert_ne!(name(None, Some("RDP-Tcp#3")), name(None, Some("RDP-Tcp#4")));
+        assert_eq!(name(None, None), socket_name(Path::new(r"C:\d"), ""));
+    }
+
+    /// The socket is named by the session this process runs in, which Windows always gives.
+    #[cfg(windows)]
+    #[test]
+    fn this_process_has_a_session_id() {
+        let id = session_id();
+        assert!(id.is_some(), "the access token names the session");
+        assert!(screen().starts_with('s'));
     }
 
     /// One data folder, one name; another folder (`--data`, `--sample`, a portable copy) or
