@@ -75,6 +75,13 @@ pub struct Table {
     /// A picture behind it (`background`, `background-image: url(…)`), covering it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background_image: Option<String>,
+    /// Room between its cells, and around them, in pixels (`cellspacing`, HTML's 2 when not
+    /// said; none with `border-collapse: collapse`); `None` for a box laid out with CSS: none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spacing: Option<u16>,
+    /// Room inside each of its cells that sets none of its own (`cellpadding`, HTML's 1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub padding: Option<u16>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,7 +99,14 @@ pub struct Cell {
     /// Boxes placed over the content (`position: absolute` in a `position: relative` box).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub overlays: Vec<Overlay>,
+    /// Room inside it, in pixels (top, right, bottom, left), when its style sets some
+    /// (`padding`, as mail sets each block's): else its table's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub padding: Option<[u16; 4]>,
 }
+
+/// The most room kept inside or between boxes, in pixels.
+pub const MAX_ROOM: u16 = 200;
 
 /// A box placed over its container: `x` pixels from its left edge (from the right when
 /// `from_right`), `y` from its top (from the bottom when `from_bottom`).
@@ -334,8 +348,24 @@ impl Node {
     }
 
     fn background(&self) -> Option<[u8; 3]> {
-        let v = self.style("background-color").or_else(|| self.style("background")).or_else(|| self.attr("bgcolor").map(str::to_ascii_lowercase))?;
-        color(v.split_whitespace().next()?)
+        // The first that reads: `background-color`, a colour in `background`, the `bgcolor`
+        // attribute (what Outlook shows for a gradient it doesn't draw, issue #41), and last a
+        // gradient's first colour.
+        let own = self.style("background-color").and_then(|v| color(v.split_whitespace().next()?));
+        let shorthand = || {
+            let v = self.style("background")?;
+            if v.contains("gradient(") {
+                return None;
+            }
+            v.split_whitespace().find_map(color)
+        };
+        let attr = || self.attr("bgcolor").map(str::to_ascii_lowercase).and_then(|v| color(&v));
+        let gradient = || {
+            let v = self.style("background").or_else(|| self.style("background-image"))?;
+            let inner = v.get(v.find("gradient(")? + 9..)?;
+            inner.split(',').find_map(|stop| color(stop.split_whitespace().next()?))
+        };
+        own.or_else(shorthand).or_else(attr).or_else(gradient)
     }
 
     fn align(&self) -> Align {
@@ -345,6 +375,48 @@ impl Node {
             "right" | "end" => Align::Right,
             _ => Align::Left,
         }
+    }
+
+    /// The room its style sets inside it (`padding` and `padding-top`…), top, right, bottom,
+    /// left in pixels; `None` when it sets none.
+    fn padding(&self) -> Option<[u16; 4]> {
+        let px = |v: &str| length_px(v).map(|n| (n.round() as u16).min(MAX_ROOM));
+        let mut out: Option<[u16; 4]> = None;
+        if let Some(v) = self.style("padding") {
+            let parts: Vec<u16> = v.split_whitespace().take(4).map(|p| px(p).unwrap_or(0)).collect();
+            out = match parts.as_slice() {
+                [a] => Some([*a; 4]),
+                [a, b] => Some([*a, *b, *a, *b]),
+                [a, b, c] => Some([*a, *b, *c, *b]),
+                [a, b, c, d] => Some([*a, *b, *c, *d]),
+                _ => None,
+            };
+        }
+        for (i, side) in ["padding-top", "padding-right", "padding-bottom", "padding-left"].into_iter().enumerate() {
+            if let Some(n) = self.style(side).as_deref().and_then(px) {
+                let mut p = out.unwrap_or_default();
+                if let Some(slot) = p.get_mut(i) {
+                    *slot = n;
+                }
+                out = Some(p);
+            }
+        }
+        out
+    }
+
+    /// A table's room between and around its cells (`cellspacing`; HTML's 2 when not said).
+    fn cell_spacing(&self) -> u16 {
+        if self.style("border-collapse").is_some_and(|c| c == "collapse") {
+            return 0;
+        }
+        let spacing = self.style("border-spacing").and_then(|v| v.split_whitespace().next().and_then(length_px));
+        let attr = self.attr("cellspacing").and_then(length_px);
+        spacing.or(attr).map_or(2, |n| (n.round() as u16).min(MAX_ROOM))
+    }
+
+    /// A table's room inside its cells (`cellpadding`; HTML's 1 when not said).
+    fn cell_padding(&self) -> u16 {
+        self.attr("cellpadding").and_then(length_px).map_or(1, |n| (n.round() as u16).min(MAX_ROOM))
     }
 
     /// Where a table sits: `align`, or auto side margins.

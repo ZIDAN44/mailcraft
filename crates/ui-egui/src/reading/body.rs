@@ -347,6 +347,9 @@ impl Body<'_> {
             A::Center => Align::Center,
             A::Right => Align::Max,
         };
+        // Blocks stacked straight one on another, as a browser stacks them: what parts them is
+        // their own room (padding, spacing, a paragraph's lines), not the pane's (issue #41).
+        let gap = std::mem::replace(&mut ui.spacing_mut().item_spacing.y, 0.0);
         for b in blocks {
             match b {
                 Block::Text(lines) => {
@@ -379,13 +382,18 @@ impl Body<'_> {
                         ui.allocate_ui_with_layout(vec2(tw, 0.0), egui::Layout::top_down(Align::Min), |ui| {
                             ui.set_width(tw);
                             let fill = tbg.map_or(Color32::TRANSPARENT, |c| Color32::from_rgb(c[0], c[1], c[2]));
-                            let framed = egui::Frame::new().fill(fill).show(ui, |ui| {
+                            // The table's own room between and around its cells (`cellspacing`;
+                            // none for a box of CSS), and inside them (`cellpadding`).
+                            let spacing = f32::from(table.spacing.unwrap_or(0));
+                            let room = Room { spacing, padding: f32::from(table.padding.unwrap_or(0)) };
+                            let framed = egui::Frame::new().fill(fill).inner_margin(room_margin([spacing; 4])).show(ui, |ui| {
                                 // Its place in the drawing: above the fill, under the content.
                                 let slot = ui.painter().add(egui::Shape::Noop);
-                                ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
+                                ui.spacing_mut().item_spacing = vec2(spacing, spacing);
                                 let columns = column_widths(&table.rows);
+                                let inner = (tw - 2.0 * spacing).max(1.0);
                                 for row in &table.rows {
-                                    self.row(st, ui, row, &columns, tw, page, depth);
+                                    self.row(st, ui, row, &columns, inner, page, room, depth);
                                 }
                                 slot
                             });
@@ -398,6 +406,7 @@ impl Body<'_> {
                 Block::Table(_) => {}
             }
         }
+        ui.spacing_mut().item_spacing.y = gap;
     }
 
     /// A picture to put behind a box, when it can be shown (one inside the message, or one on the
@@ -463,10 +472,13 @@ impl Body<'_> {
         columns: &[Option<mime::layout::Width>],
         width: f32,
         page: [u8; 3],
+        room: Room,
         depth: usize,
     ) {
         use mime::layout::Width;
-        const PAD: f32 = 6.0;
+        // The room between the cells side by side comes out of the row's width.
+        let between = room.spacing * row.len().saturating_sub(1) as f32;
+        let width = (width - between).max(1.0);
         let px = |w: Width| match w {
             Width::Px(px) => px as f32,
             Width::Percent(pc) => width * f32::from(pc) / 100.0,
@@ -511,11 +523,13 @@ impl Body<'_> {
             let bg = theme::box_color(c.background, page, &st.tokens);
             let fill = bg.map_or(Color32::TRANSPARENT, |b| Color32::from_rgb(b[0], b[1], b[2]));
             let behind = c.background_image.as_deref().and_then(|src| this.background(st, ui.ctx(), src));
+            // Its own padding, else its table's.
+            let pad = c.padding.map_or([room.padding; 4], |p| p.map(f32::from));
             ui.allocate_ui_with_layout(vec2(w, 0.0), egui::Layout::top_down(Align::Min), |ui| {
                 ui.set_width(w);
-                let framed = egui::Frame::new().fill(fill).inner_margin(PAD).show(ui, |ui| {
+                let framed = egui::Frame::new().fill(fill).inner_margin(room_margin(pad)).show(ui, |ui| {
                     let slot = ui.painter().add(egui::Shape::Noop);
-                    let inner = (w - 2.0 * PAD).max(1.0);
+                    let inner = (w - pad[1] - pad[3]).max(1.0);
                     ui.set_width(inner);
                     this.blocks(st, ui, &c.blocks, inner, bg.unwrap_or(page), c.align, depth + 1);
                     slot
@@ -540,13 +554,26 @@ impl Body<'_> {
             }
         } else {
             ui.horizontal_top(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.spacing_mut().item_spacing.x = room.spacing;
                 for (c, w) in row.iter().zip(&widths) {
                     cell(self, st, ui, c, *w);
                 }
             });
         }
     }
+}
+
+/// A table's room: between and around its cells, and inside those that set none of their own.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Room {
+    spacing: f32,
+    padding: f32,
+}
+
+/// Room in pixels (top, right, bottom, left) as a frame's margin, held to what one takes.
+fn room_margin(p: [f32; 4]) -> Margin {
+    let m = |v: f32| v.round().clamp(0.0, 120.0) as i8;
+    Margin { top: m(p[0]), right: m(p[1]), bottom: m(p[2]), left: m(p[3]) }
 }
 
 /// Draw one picture of an HTML message, `width` the room it's in, at the size the message sets

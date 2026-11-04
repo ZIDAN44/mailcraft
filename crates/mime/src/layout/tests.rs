@@ -267,3 +267,41 @@ fn a_photo_column_is_as_wide_as_its_photo() {
     let Block::Table(t) = &b[0] else { panic!("{b:?}") };
     assert_eq!(t.rows[0][0].width, None);
 }
+
+/// Issue #41, the tester's newsletter: blocks of one width stacked one on another (each its own
+/// table, or a table's rows) touch, as in Outlook: the tables' own room (`cellspacing="0"`,
+/// `cellpadding="0"`) and each cell's padding are kept, a line break between two of them is the
+/// empty line a browser leaves, and a gradient Outlook doesn't draw shows its `bgcolor`.
+#[test]
+fn stacked_blocks_keep_their_own_room() {
+    let html = r##"<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" bgcolor="#fff8cc"><tr><td style="padding:24px">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(90deg,#ffcc00,#c08000)" bgcolor="#f0b800">
+            <tr><td style="padding:20px 10px">BANNER</td></tr></table></td></tr></table>
+        <table width="600" cellpadding="0" cellspacing="0" bgcolor="#fff8cc"><tr><td style="padding:24px 20px 12pt">First block</td></tr></table>
+        <br>
+        <table width="600" cellpadding="4" cellspacing="0"><tr><td bgcolor="#cce8ff">Row one</td></tr><tr><td bgcolor="#b8dcff">Row two</td></tr></table>
+        <table width="600"><tr><td>HTML's own room</td></tr></table>
+        <table width="600" cellspacing="8" style="border-collapse:collapse"><tr><td>Collapsed</td></tr></table>
+        </td></tr></table>"##;
+    let b = html_layout(&inline_css(html));
+    let Block::Table(outer) = &b[0] else { panic!("{b:?}") };
+    let parts = &outer.rows[0][0].blocks;
+    let tables: Vec<&Table> = parts.iter().filter_map(|p| if let Block::Table(t) = p { Some(t) } else { None }).collect();
+    let room: Vec<(Option<u16>, Option<u16>)> = tables.iter().map(|t| (t.spacing, t.padding)).collect();
+    assert_eq!(room, [(Some(0), Some(0)), (Some(0), Some(0)), (Some(0), Some(4)), (Some(2), Some(1)), (Some(0), Some(1))]);
+    assert_eq!(tables[0].rows[0][0].padding, Some([24, 24, 24, 24]));
+    assert_eq!(tables[1].rows[0][0].padding, Some([24, 20, 16, 20]), "a missing side is the second's; points as pixels");
+    assert_eq!(tables[2].rows[0][0].padding, None, "its table's");
+    let Block::Table(banner) = &tables[0].rows[0][0].blocks[0] else { panic!() };
+    assert_eq!(banner.background, Some([0xf0, 0xb8, 0x00]), "the bgcolor under a gradient");
+    assert_eq!(banner.rows[0][0].padding, Some([20, 10, 20, 10]));
+    // The line break between the second block and the rows: one empty line.
+    let at = parts.iter().position(|p| matches!(p, Block::Table(t) if t.padding == Some(4))).unwrap();
+    assert!(matches!(&parts[at - 1], Block::Text(lines) if lines.len() == 1 && lines[0].is_empty()), "{:?}", parts[at - 1]);
+    assert!(matches!(&parts[1], Block::Table(_)), "nothing between the first two: {:?}", parts[1]);
+    // A gradient with no bgcolor: its first colour.
+    let b = html_layout(r#"<table width="600" style="background-image:linear-gradient(#123456, #fff)"><tr><td>x</td></tr></table>"#);
+    let Block::Table(t) = &b[0] else { panic!() };
+    assert_eq!(t.background, Some([0x12, 0x34, 0x56]));
+}

@@ -63,6 +63,8 @@ on GitHub.
 - On IMAP accounts, a big message with attachments shows its text at once, its files listed; they download after (#24).
 - Centred columns sized in points or ems, as Outlook and email tools write them, keep their width instead of filling the window (#41).
 - A title centred in such a column stays centred and keeps its size, as Outlook shows it (#41).
+- Blocks of a newsletter stacked one on another touch, as in Outlook: each table keeps its own spacing and each block its padding, and a pale tint on a pale page still shows (#41).
+- A block whose background is a gradient shows the colour Outlook shows for it (#41).
 - A reminder dismissed or snoozed in MailCraft is dismissed or snoozed on the server too, so Outlook doesn't show it again (Exchange, Microsoft 365, and CalDAV calendars) (#40).
 - A reminder dismissed in another calendar program that says so in the event (RFC 9074) isn't shown again in MailCraft (#40).
 - Reply, Reply all and Forward keep the original as it came, as Outlook does: mail laid out in columns shows under your text as the reading pane shows it, you change its words where they stand (typing, the ribbon and the shortcuts work in it), and it goes out with its own formatting and pictures.

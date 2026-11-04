@@ -39,6 +39,10 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             };
             if !rich.is_empty() {
                 out.push(Block::Text(rich));
+            } else if pending.contains("<br") {
+                // Line breaks alone between two boxes: the empty lines a browser leaves there.
+                let n = pending.matches("<br").count().clamp(1, 4);
+                out.push(Block::Text(vec![Vec::new(); n]));
             }
         }
         pending.clear();
@@ -67,6 +71,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         span: c.attr("colspan").and_then(|s| s.trim().parse::<u16>().ok()).unwrap_or(1).clamp(1, 50),
                                         background_image: c.background_image(),
                                         overlays: Vec::new(),
+                                        padding: c.padding(),
                                     }
                                 })
                                 .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
@@ -84,6 +89,8 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     align: n.table_align(),
                     background: n.background(),
                     background_image: n.background_image(),
+                    spacing: Some(n.cell_spacing()),
+                    padding: Some(n.cell_padding()),
                 }));
             }
             // A box with others placed over it: its content, and theirs on top.
@@ -116,6 +123,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     align: n.align(),
                     span: 1,
                     overlays,
+                    padding: n.padding(),
                     ..Default::default()
                 };
                 out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), ..Default::default() }));
@@ -131,6 +139,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     background_image: n.background_image(),
                     align: n.align(),
                     span: 1,
+                    padding: n.padding(),
                     ..Default::default()
                 };
                 out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), ..Default::default() }));
@@ -156,6 +165,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         span: 1,
                                         background_image: c.background_image(),
                                         overlays: Vec::new(),
+                                        padding: c.padding(),
                                     }
                                 })
                                 .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
@@ -171,6 +181,8 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                         align: n.table_align(),
                         background: n.background(),
                         background_image: n.background_image(),
+                        spacing: None,
+                        padding: None,
                     }));
                 }
             }
@@ -194,6 +206,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                         align: Align::Center,
                         background: None,
                         background_image: None,
+                        ..Default::default()
                     }));
                 }
             }
@@ -206,11 +219,19 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 if !inner.is_empty() {
                     let align = if n.tag == "center" { Align::Center } else { n.table_align() };
                     out.push(Block::Table(Table {
-                        rows: vec![vec![Cell { blocks: inner, align: n.align(), background: n.background(), span: 1, ..Default::default() }]],
+                        rows: vec![vec![Cell {
+                            blocks: inner,
+                            align: n.align(),
+                            background: n.background(),
+                            span: 1,
+                            padding: n.padding(),
+                            ..Default::default()
+                        }]],
                         width: n.width(),
                         align,
                         background: None,
                         background_image: None,
+                        ..Default::default()
                     }));
                 }
             }
@@ -226,6 +247,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                         align: Align::Center,
                         background: n.background(),
                         background_image: None,
+                        ..Default::default()
                     }));
                 } else {
                     out.extend(inner);

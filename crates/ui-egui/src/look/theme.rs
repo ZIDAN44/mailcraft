@@ -312,7 +312,10 @@ pub fn surface_rgb(t: &Tokens) -> [u8; 3] {
 /// close to the page to see goes (a report's light grey stripes, #f0f0f0 on white, stay), and grey
 /// or white ones go in dark mode (the page is dark).
 pub fn box_color(bg: Option<[u8; 3]>, page: [u8; 3], t: &Tokens) -> Option<[u8; 3]> {
-    bg.filter(|b| contrast(*b, page) > 1.06 && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25))
+    // Kept when it can be told from the page: a pale tint (a newsletter's light yellow blocks on
+    // its light grey, issue #41) reads as a box though its contrast with the page is slight.
+    let apart = |b: [u8; 3]| b.iter().zip(page).map(|(x, y)| x.abs_diff(y)).max().unwrap_or(0) >= 12;
+    bg.filter(|b| (contrast(*b, page) > 1.06 || apart(*b)) && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25))
 }
 
 /// [`mail_colors`] for text on `page` (a coloured table cell's background).
@@ -416,6 +419,19 @@ pub fn regular(size: f32) -> egui::FontId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Issue #41: a pale tint on a pale page is still a box (a newsletter's light yellow blocks
+    /// on light grey, as Outlook shows them); the page's own colour, or one a shade off it, isn't.
+    #[test]
+    fn a_pale_tint_is_a_box() {
+        let t = Tokens::light();
+        let grey = [0xf2, 0xf2, 0xf2];
+        assert_eq!(box_color(Some([0xff, 0xf8, 0xcc]), grey, &t), Some([0xff, 0xf8, 0xcc]));
+        assert_eq!(box_color(Some([0xcc, 0xe8, 0xff]), grey, &t), Some([0xcc, 0xe8, 0xff]));
+        assert_eq!(box_color(Some(grey), grey, &t), None);
+        assert_eq!(box_color(Some([0xf4, 0xf4, 0xf4]), grey, &t), None);
+        assert_eq!(box_color(Some([0xff, 0xff, 0xff]), [0xff, 0xff, 0xff], &t), None);
+    }
 
     /// Every theme a user can pick (issue #8): light and dark, MailCraft's teal, each named
     /// accent and colours chosen freely (the hardest: white, black, yellow, pure green, grey),
