@@ -37,7 +37,9 @@ fn a_reply_shows_the_original_as_it_came_and_changes_it_in_place() {
     let cell = mailcraft_engine::Compose { id: crate::reading::cell_id(c.id, n), ..Default::default() };
     ctx.memory_mut(|m| m.request_focus(crate::rich_edit::body_id(&cell)));
     frame(&ctx, &mut a, vec![]);
-    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::CTRL), Event::Text("Hello! ".into())]);
+    // To its start the way every system has: Ctrl+Home is Windows' and Linux's, and macOS reads
+    // Ctrl with a key as Emacs's; Command+Up (Ctrl+Up elsewhere) is the start on all three.
+    frame(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::COMMAND), Event::Text("Hello! ".into())]);
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.as_ref().unwrap();
     let q = c.quote.clone().unwrap();

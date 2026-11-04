@@ -83,9 +83,14 @@ fn the_account_waits_for_a_compaction_in_place() {
     let p = packs(&s);
     let (started, start) = mpsc::channel();
     let started = std::sync::Mutex::new(started);
+    // When the hook ends the compaction still has the file: anything that waited for it starts
+    // after this. (Its thread's own clock after it returns can come later than a waiting read's.)
+    let hook_done = std::sync::Arc::new(std::sync::Mutex::new(None::<Instant>));
+    let done = hook_done.clone();
     *crate::packed::Packs::lock(&p.compact_hook) = Some(Box::new(move || {
         let _ = started.lock().unwrap().send(());
         std::thread::sleep(Duration::from_millis(300));
+        *done.lock().unwrap() = Some(Instant::now());
         Ok(())
     }));
     let stop = AtomicBool::new(false);
@@ -100,10 +105,7 @@ fn the_account_waits_for_a_compaction_in_place() {
                 }
             });
         }
-        let compacting = scope.spawn(|| {
-            let shrunk = s.compact_data_file("a1").unwrap().unwrap();
-            (shrunk, Instant::now())
-        });
+        let compacting = scope.spawn(|| s.compact_data_file("a1").unwrap().unwrap());
         start.recv().unwrap();
         // A read and a removal asked meanwhile wait for it.
         assert!(s.read_body(&kept[5]).is_some());
@@ -111,7 +113,8 @@ fn the_account_waits_for_a_compaction_in_place() {
         stop.store(true, Ordering::Relaxed);
         let gone = s.remove_account("a1").unwrap();
         let removed_at = Instant::now();
-        let (shrunk, done_at) = compacting.join().unwrap();
+        let shrunk = compacting.join().unwrap();
+        let done_at = hook_done.lock().unwrap().expect("the hook ran");
         assert!(shrunk.after < shrunk.before);
         assert!(read_at >= done_at && removed_at >= done_at, "they waited for it");
         assert!(gone.is_some_and(|f| f.exists()), "removed after, its data file kept");
