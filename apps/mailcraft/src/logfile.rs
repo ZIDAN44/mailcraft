@@ -212,9 +212,43 @@ pub fn start(dir: Option<&Path>, echo: bool) -> Option<PathBuf> {
     path.filter(|_| opened)
 }
 
+/// Every panic, on any thread, goes into the log too (then on to the default hook, which prints
+/// it): a command's panic is caught and turned into an error (`Session::run`), but one on a worker
+/// thread (a sync, IDLE, the state writer) reached only standard error, which a window launched
+/// from the desktop doesn't have (as PhotoCraft's crash guard). Only where it happened and on
+/// which thread: a panic's message can quote the text it was handling, and the log never holds
+/// a message's content.
+pub fn log_panics() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let thread = std::thread::current();
+        // The log's own thread can't log its own panic (it may hold what logging takes).
+        if thread.name() != Some("log") {
+            log::error!("{}", panic_line(thread.name(), info.location().map(|l| (l.file(), l.line()))));
+        }
+        default(info);
+    }));
+}
+
+/// The log's line for a panic on thread `thread` at `at` (file and line).
+fn panic_line(thread: Option<&str>, at: Option<(&str, u32)>) -> String {
+    let at = at.map_or_else(|| "an unknown place".to_string(), |(file, line)| format!("{file}:{line}"));
+    format!("internal error: a panic on thread {} at {at}", thread.unwrap_or("(unnamed)"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A panic's line says where and on which thread, never what it said.
+    #[test]
+    fn a_panic_is_logged_by_where_it_happened() {
+        assert_eq!(
+            panic_line(Some("sync a1"), Some(("crates/net/src/sync.rs", 42))),
+            "internal error: a panic on thread sync a1 at crates/net/src/sync.rs:42"
+        );
+        assert_eq!(panic_line(None, None), "internal error: a panic on thread (unnamed) at an unknown place");
+    }
 
     /// A terminal that's gone doesn't end MailCraft (found when its starter exited).
     #[test]

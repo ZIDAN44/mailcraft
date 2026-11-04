@@ -344,6 +344,7 @@ fn main() -> eframe::Result {
     if let Some(path) = logfile::start(root.as_deref(), echo) {
         log::info!("{} started; log at {}", args::version_line(), path.display());
     }
+    logfile::log_panics();
     if let Some(dir) = &portable.dir {
         log::info!("portable: everything is kept in {}", dir.display());
     }
