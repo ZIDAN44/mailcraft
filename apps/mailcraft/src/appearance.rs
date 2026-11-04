@@ -73,7 +73,9 @@ fn watch(dark: &AtomicU8, wake: &dyn Fn()) {
             wake();
         }
     };
-    let Ok(conn) = zbus::blocking::connection::Builder::session().and_then(|b| b.build()) else {
+    // A portal that takes the call and never answers would hold this thread for good: each call
+    // gives up after 2 s (as GridCraft's theme watcher), and the signals are followed anyway.
+    let Ok(conn) = zbus::blocking::connection::Builder::session().and_then(|b| b.method_timeout(std::time::Duration::from_secs(2)).build()) else {
         log::info!("colour scheme: no session bus, so the desktop's theme isn't followed");
         return;
     };
@@ -82,14 +84,19 @@ fn watch(dark: &AtomicU8, wake: &dyn Fn()) {
         let body = reply.body();
         Ok(scheme(&body.deserialize::<Value>()?))
     };
-    match read("ReadOne").or_else(|_| read("Read")) {
-        Ok(v) => store(v),
-        Err(e) => log::info!("colour scheme: can't read the desktop's setting: {e}"),
-    }
-    let follow = || -> zbus::Result<()> {
+    // Subscribed before the first read, so a change made while it's read isn't missed (as
+    // PhotoCraft's watcher): the iterator queues what comes from here on.
+    let subscribe = || -> zbus::Result<zbus::blocking::MessageIterator> {
         let rule =
             zbus::MatchRule::builder().msg_type(zbus::message::Type::Signal).sender(PORTAL)?.interface(SETTINGS)?.member("SettingChanged")?.build();
-        for msg in zbus::blocking::MessageIterator::for_match_rule(rule, &conn, Some(8))? {
+        zbus::blocking::MessageIterator::for_match_rule(rule, &conn, Some(8))
+    };
+    let changes = subscribe_then_read(subscribe, || match read("ReadOne").or_else(|_| read("Read")) {
+        Ok(v) => store(v),
+        Err(e) => log::info!("colour scheme: can't read the desktop's setting: {e}"),
+    });
+    let follow = || -> zbus::Result<()> {
+        for msg in changes? {
             let msg = msg?;
             let body = msg.body();
             let Ok((namespace, key, value)) = body.deserialize::<(String, String, Value<'_>)>() else { continue };
@@ -102,6 +109,15 @@ fn watch(dark: &AtomicU8, wake: &dyn Fn()) {
     if let Err(e) = follow() {
         log::info!("colour scheme: can't follow the desktop's setting: {e}");
     }
+}
+
+/// Subscribe to the changes, then read the setting as it is: in this order, a change made while
+/// it's read comes as a change, where the other way round it was lost.
+#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+fn subscribe_then_read<S>(subscribe: impl FnOnce() -> S, read: impl FnOnce()) -> S {
+    let changes = subscribe();
+    read();
+    changes
 }
 
 #[cfg(test)]
@@ -117,6 +133,29 @@ mod tests {
             s.0.store(from_portal(v), Ordering::Relaxed);
             assert_eq!(s.get(), want, "{v}");
         }
+    }
+
+    /// The desktop switches to dark while MailCraft reads it as light: the switch comes as a
+    /// change, so dark is where it ends.
+    #[test]
+    fn a_switch_while_starting_is_kept() {
+        let s = SystemDark::default();
+        let subscribed = std::cell::Cell::new(false);
+        let queued = std::cell::Cell::new(None);
+        subscribe_then_read(
+            || subscribed.set(true),
+            || {
+                s.0.store(from_portal(2), Ordering::Relaxed);
+                // The desktop changes as the answer comes back: told only to a subscriber.
+                if subscribed.get() {
+                    queued.set(Some(1));
+                }
+            },
+        );
+        if let Some(v) = queued.get() {
+            s.0.store(from_portal(v), Ordering::Relaxed);
+        }
+        assert_eq!(s.get(), Some(true));
     }
 
     /// Against a desktop portal on a real session bus, run by hand (`MAILCRAFT_PORTAL=1`, with
