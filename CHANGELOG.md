@@ -62,6 +62,7 @@ on GitHub.
 - A title centred in such a column stays centred and keeps its size, as Outlook shows it (#41).
 - A reminder dismissed or snoozed in MailCraft is dismissed or snoozed on the server too, so Outlook doesn't show it again (Exchange, Microsoft 365, and CalDAV calendars) (#40).
 - A reminder dismissed in another calendar program that says so in the event (RFC 9074) isn't shown again in MailCraft (#40).
+- The message list's filters stay on one line in a narrow pane. Those that don't fit go into a **⋯** menu beside **By Date**.
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.

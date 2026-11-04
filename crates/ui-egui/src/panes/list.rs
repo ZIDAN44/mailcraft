@@ -82,16 +82,24 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
             0.0
         };
         let left_w = (ui.available_width() - right).max(120.0);
-        ui.allocate_ui_with_layout(vec2(left_w, 22.0), crate::bidi::row_from_start(egui::Align::Center).with_main_wrap(true), |ui| {
-            // The tabs, and a filter chosen from the Home tab's Filter menu when it's another.
-            let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
-            for f in shown {
+        // The tabs, and a filter chosen from the Home tab's Filter menu when it's another. They
+        // stay on one line: those that don't fit go into a "⋯" menu after the rest (the chosen
+        // one always shows), so the head keeps its height however narrow the pane.
+        let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
+        let font = |on: bool| if on { theme::bold(12.5) } else { theme::regular(12.5) };
+        let pad = ui.spacing().button_padding.x * 2.0;
+        let gap = ui.spacing().item_spacing.x;
+        let width = |f: ListFilter| ui.painter().layout_no_wrap(tl!(f.label()).to_string(), font(s.filter == f), t.dim).size().x + pad;
+        let scope = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none());
+        let scope_w = scope.map_or(0.0, |(_, current)| {
+            let label = format!("{} ▾", crate::scope_label(*current));
+            ui.painter().layout_no_wrap(label, egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + pad + 8.0 + gap
+        });
+        let (kept, hidden) = fit_tabs(&shown, s.filter, width, left_w - scope_w, gap);
+        ui.allocate_ui_with_layout(vec2(left_w, 22.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+            for f in kept {
                 let on = s.filter == f;
-                let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(if on {
-                    theme::bold(12.5)
-                } else {
-                    theme::regular(12.5)
-                });
+                let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(font(on));
                 let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
                 if on {
                     ui.painter().line_segment(
@@ -103,8 +111,19 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                     acts.push(Action::Run("list.filter", json!({"value": f.code()})));
                 }
             }
+            if !hidden.is_empty() {
+                let r = more_tabs(ui, t);
+                egui::Popup::menu(&r).show(|ui| {
+                    for f in &hidden {
+                        if ui.selectable_label(false, tl!(f.label())).clicked() {
+                            acts.push(Action::Run("list.filter", json!({"value": f.code()})));
+                            ui.close();
+                        }
+                    }
+                });
+            }
             // A Search Folder always looks everywhere: no scope to pick.
-            if let Some((q, current)) = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none()) {
+            if let Some((q, current)) = scope {
                 ui.add_space(8.0);
                 ui.menu_button(RichText::new(format!("{} ▾", crate::scope_label(*current))).small(), |ui| {
                     for scope in SearchScope::ALL {
@@ -134,6 +153,44 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         }
     });
     search_status(s, t, ui);
+}
+
+/// The filter tabs that fit in `room` (each `width` wide, `gap` apart) and those that go into
+/// the "⋯" menu: in order, the chosen one (`on`) always kept, room left for the menu's button.
+fn fit_tabs(shown: &[ListFilter], on: ListFilter, width: impl Fn(ListFilter) -> f32, room: f32, gap: f32) -> (Vec<ListFilter>, Vec<ListFilter>) {
+    let all: f32 = shown.iter().map(|f| width(*f) + gap).sum();
+    if all - gap <= room {
+        return (shown.to_vec(), Vec::new());
+    }
+    let mut left = room - MORE_W - width(on) - gap;
+    let (mut kept, mut hidden) = (Vec::new(), Vec::new());
+    for f in shown.iter().copied() {
+        if f == on {
+            kept.push(f);
+        } else if hidden.is_empty() && width(f) + gap <= left {
+            left -= width(f) + gap;
+            kept.push(f);
+        } else {
+            hidden.push(f);
+        }
+    }
+    (kept, hidden)
+}
+
+/// How wide the "⋯" button of the filters that don't fit is.
+const MORE_W: f32 = 24.0;
+
+/// The "⋯" button of the filters that don't fit, as quiet as the tabs.
+fn more_tabs(ui: &mut Ui, t: &theme::Tokens) -> egui::Response {
+    let (rect, r) = ui.allocate_exact_size(vec2(MORE_W, 22.0), egui::Sense::click());
+    if r.hovered() {
+        ui.painter().rect_filled(rect, 4.0, t.hover);
+    }
+    for dx in [-5.0, 0.0, 5.0] {
+        ui.painter().circle_filled(rect.center() + vec2(dx, 0.0), 1.5, t.dim);
+    }
+    crate::widgets::named(ui, &r, tl!("Filter"), true, None);
+    r.on_hover_text(tl!("Filter"))
 }
 
 /// How the search is going, under the list's head: still searching; what may be missing (mail
@@ -678,5 +735,33 @@ fn message_row(
     let one_of_several = selected && s.selection.len() > 1;
     if resp.secondary_clicked() && !one_of_several && !s.reading.as_ref().is_some_and(|r| r.key == m.key) {
         acts.push(Action::Open(m.key.clone()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The owner's report: in a narrow list "Has files", then "Flagged", wrapped onto a second
+    /// line. Those that don't fit go into the "⋯" menu instead, in order; the chosen one stays.
+    #[test]
+    fn filter_tabs_that_dont_fit_go_into_a_menu() {
+        let all = ListFilter::ALL.to_vec();
+        let width = |_: ListFilter| 60.0;
+        assert_eq!(fit_tabs(&all, ListFilter::All, width, 1000.0, 4.0), (all.clone(), Vec::new()));
+        let (kept, hidden) = fit_tabs(&all, ListFilter::All, width, 160.0, 4.0);
+        assert_eq!(kept.len() + hidden.len(), all.len());
+        assert!(kept.first() == Some(&ListFilter::All) && !hidden.is_empty());
+        let used: f32 = kept.iter().map(|_| 64.0).sum::<f32>() + MORE_W;
+        assert!(used <= 160.0 + 4.0, "{kept:?}");
+        // The chosen one, last in order, stays out of the menu; the others keep their order.
+        let last = *all.last().unwrap();
+        let (kept, hidden) = fit_tabs(&all, last, width, 160.0, 4.0);
+        assert!(kept.contains(&last) && !hidden.contains(&last), "{kept:?} {hidden:?}");
+        let order: Vec<ListFilter> = all.iter().copied().filter(|f| hidden.contains(f)).collect();
+        assert_eq!(hidden, order);
+        // No room at all: the chosen one and the menu.
+        let (kept, hidden) = fit_tabs(&all, ListFilter::All, width, 10.0, 4.0);
+        assert_eq!((kept, hidden.len()), (vec![ListFilter::All], all.len() - 1));
     }
 }
