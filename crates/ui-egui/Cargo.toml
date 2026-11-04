@@ -23,7 +23,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 # version egui's text layout uses).
 unicode-bidi = "0.3"
 # The version egui's own text (epaint) uses, so the font reader is built once.
-skrifa = "0.44"
+skrifa = "0.46"
 # The system's interface language.
 sys-locale = "0.3"
 # PDF attachment thumbnails: a pure-Rust rasterizer (no unsafe code).
@@ -34,4 +34,4 @@ web-time = "1.1"
 [dev-dependencies]
 # The a11y guard's test: the consumer the system adapters run, fed with our updates. The version
 # egui already brings in, so nothing is built twice.
-accesskit_consumer = "=0.39.1"
+accesskit_consumer = "=0.39.2"

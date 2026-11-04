@@ -40,7 +40,7 @@ quick-xml = "0.42"
 outlook-pst-rw = "1.2.14"
 # Outlook message files (.msg) are compound files (MS-CFB), read with cfb (MIT), as WordCraft
 # reads .doc files.
-cfb = "0.15"
+cfb = "0.16"
 # The room left on a drive, before and while a data file is imported (MIT / Apache-2.0).
 fs4 = "1.1"
 # NTLM sign-in for on-premises Exchange (EWS): MD4, MD5 and HMAC (RustCrypto, MIT / Apache-2.0).
@@ -67,5 +67,5 @@ mailcraft-store = { workspace = true, features = ["cache-metrics", "test-drive"]
 # crate of the app's asks for zlib-rs), so the benches take apart what the app does as fast.
 flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 # The S/MIME round trip reads the test certificates (PEM).
-der = { version = "0.7", features = ["pem"] }
+der = { version = "0.8", features = ["pem"] }
 proptest = "1"
