@@ -159,7 +159,8 @@ fn a_stop_is_never_lowered() {
 fn an_import_counts_where_its_time_went() {
     let (dir, pst) = data_file("stats", 600);
     let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
-    // No timed checkpoint: on a slow machine one would write the batch in two, holding less.
+    // No timed checkpoint. A slow machine can still write in more than one batch (a second's flush,
+    // a pause between items), and each then holds less than the whole.
     let o = ImportOptions { checkpoint_every: Some(std::time::Duration::from_secs(3600)), ..one_lane() };
     let done = import_with(&pst, &store, "t1", &o, &mut |_| {}).unwrap();
     let s = done.stats;
@@ -169,7 +170,11 @@ fn an_import_counts_where_its_time_went() {
     assert!(s.total_ms > 0, "{s:?}");
     assert!(s.raw_bytes > 600 * 1400, "every source counted: {s:?}");
     assert!(s.kept_bytes > 0 && s.kept_bytes < s.raw_bytes / 2, "compressed: {s:?}");
-    assert_eq!(s.peak_budget_bytes, s.raw_bytes, "{s:?}");
+    if s.batches == 1 {
+        assert_eq!(s.peak_budget_bytes, s.raw_bytes, "one batch held them all: {s:?}");
+    } else {
+        assert!(s.peak_budget_bytes > 0 && s.peak_budget_bytes <= s.raw_bytes, "{s:?}");
+    }
     // The file read through the cache: every byte read at most once by each of the two handles
     // (the planner's and the lane's), far fewer reads than pages.
     let len = std::fs::metadata(&pst).unwrap().len();
