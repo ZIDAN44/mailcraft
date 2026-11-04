@@ -7,9 +7,12 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use rustls::pki_types::ServerName;
-use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::{NetError, Result};
+
+pub(crate) mod trust;
+pub(crate) use trust::system_roots;
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 pub const IO_TIMEOUT: Duration = Duration::from_secs(60);
@@ -69,16 +72,14 @@ impl Timeouts for TcpStream {
     }
 }
 
+/// What every TLS connection trusts: the bundled Mozilla roots and the system's, less what the
+/// system distrusts ([`trust`]).
 fn tls_config() -> Result<Arc<ClientConfig>> {
     static CONFIG: OnceLock<std::result::Result<Arc<ClientConfig>, String>> = OnceLock::new();
     CONFIG
         .get_or_init(|| {
-            let mut roots = RootCertStore::empty();
-            roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-            ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-                .with_safe_default_protocol_versions()
-                .map(|b| Arc::new(b.with_root_certificates(roots).with_no_client_auth()))
-                .map_err(|e| e.to_string())
+            let roots = trust::root_store(system_roots(), trust::distrusted());
+            trust::client_config(roots, Arc::clone(trust::distrusted()))
         })
         .clone()
         .map_err(NetError::Tls)

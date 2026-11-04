@@ -54,6 +54,8 @@ thiserror = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 # The system's DNS resolvers (account autoconfiguration).
 ipconfig = "0.3"
+# The certificates Windows distrusts (`Disallowed`), refused even when among the roots.
+schannel = "0.1"
 
 [dev-dependencies]
 # The import bench counts how the data file's cache is used (`pst_bench.rs`); the import's
