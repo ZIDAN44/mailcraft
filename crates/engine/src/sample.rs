@@ -598,6 +598,8 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
             importance: 0,
             read_receipt: false,
             seven_bit: false,
+            keep_bcc: false,
+            source: String::new(),
         };
         let mut raw = mime::build(&d, &EmailAddress::new(m.from.0, m.from.1), date, &id)
             .map_err(|e| StoreError::Io { path: "sample".into(), source: std::io::Error::other(e) })?;

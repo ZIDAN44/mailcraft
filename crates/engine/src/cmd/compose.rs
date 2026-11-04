@@ -23,7 +23,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
-            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own)"#)
+            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
             .when(has_compose),
         CommandSpec::new("compose.resizePicture", "Picture size", "Message › Picture", resize_picture)
             .params(r#"{"cid": string, "width"?: number (CSS pixels; 0 or none: its own width)}"#)
@@ -35,6 +35,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"plain"?: bool}"#)
         .when(has_compose),
+        CommandSpec::new("draft.edit", "Edit draft", "Drafts", |s, v| {
+            let key = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required (account:validity:uid:folder)".into()))?;
+            s.edit_draft(&key)
+        })
+        .params(r#"{"key": string (a message in Drafts)}"#),
         CommandSpec::new("compose.removeAttachment", "Remove attachment", "Message › Insert", remove_attachment).params(r#"{"index": number}"#).when(has_compose),
         CommandSpec::new("compose.send", "Send", "Message", |s, v| {
             s.send_compose(p::bool(v, "allowEmptySubject").unwrap_or(false), p::bool(v, "checked").unwrap_or(false))
@@ -200,19 +205,27 @@ pub(super) fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
     if !p::bool(v, "insert").unwrap_or(true) {
         return Ok(json!({"cid": cid}));
     }
-    let n = c.body.chars().count();
-    let mut at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
-    // On a line of its own: a line break before it and after it, where there's text there.
-    if p::bool(v, "line").unwrap_or(false) {
-        if at > 0 && c.body.chars().nth(at - 1) != Some('\n') {
-            insert_text_at(c, at, "\n");
-            at += 1;
+    let place = |c: &mut crate::session::Compose| {
+        let n = c.body.chars().count();
+        let mut at = p::u64(v, "at").and_then(|a| usize::try_from(a).ok()).unwrap_or(n).min(n);
+        // On a line of its own: a line break before it and after it, where there's text there.
+        if p::bool(v, "line").unwrap_or(false) {
+            if at > 0 && c.body.chars().nth(at - 1) != Some('\n') {
+                insert_text_at(c, at, "\n");
+                at += 1;
+            }
+            if c.body.chars().nth(at).is_some_and(|ch| ch != '\n') {
+                insert_text_at(c, at, "\n");
+            }
         }
-        if c.body.chars().nth(at).is_some_and(|ch| ch != '\n') {
-            insert_text_at(c, at, "\n");
-        }
-    }
-    insert_picture_at(c, at, &cid, picture_width(v));
+        insert_picture_at(c, at, &cid, picture_width(v));
+        at
+    };
+    // Into a block of text of the original under a reply, where its cursor is.
+    let at = match p::u64(v, "quoteCell").and_then(|n| usize::try_from(n).ok()) {
+        Some(n) => c.in_quote_cell(n, place).ok_or_else(|| CmdError::Params(format!("the quote has no block of text {n}")))?,
+        None => place(c),
+    };
     Ok(json!({"cid": cid, "end": at + 1}))
 }
 

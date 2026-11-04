@@ -1,4 +1,5 @@
-//! An HTML body: converted to text, to formatted lines and to columns, and searched for its
+//! An HTML body: converted to text, to formatted lines and to columns (and those to text again),
+//! quoted under a reply as it came, and searched for its
 //! pictures and links (and the trackers among them, links cleaned, text it hides); plus the plain-text markup
 //! MailCraft writes itself.
 #![no_main]
@@ -21,7 +22,13 @@ fuzz_target!(|input: &[u8]| {
     let _ = mime::hidden_text(&page);
     let _ = mime::clean_link(&page);
     let _ = mime::layout::inline_css(&page);
-    let _ = mime::layout::html_layout(&page);
+    let layout = mime::layout::html_layout(&page);
+    // Quoted under a reply: its columns made text to edit, and its HTML as it goes out, with
+    // pictures given `cid:`s by their addresses (the input's own words standing in for them).
+    let _ = mime::layout::flatten(&layout);
+    let words: Vec<String> = page.split_whitespace().take(8).map(str::to_string).collect();
+    let given: Vec<(String, String)> = words.iter().map(|w| (w.clone(), format!("{w}@x"))).collect();
+    let _ = mime::quote_html(&page, &given, &words);
     // Pasting it into a draft, and the round trip back out.
     let (text, styles) = mime::pasted_html(&page);
     let _ = rich::to_text(&text, &styles);

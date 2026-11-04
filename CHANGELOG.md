@@ -33,6 +33,7 @@ on GitHub.
 - Sign and encrypt with OpenPGP as PGP/MIME, to yourself too so Sent Items stays readable. With both a certificate and a key, the message uses the one every recipient can receive, or the one you pick (#36).
 - The message you're writing says whether every recipient can receive it encrypted, and names those who can't (#6).
 - **Encrypt when every recipient can receive it** in **File › Info › Security** turns encryption on by itself while that's so. It's off unless you turn it on (#6).
+- Open a draft from Drafts to carry on writing it (**Edit**, or a double-click), as it was saved: its recipients and Bcc, formatting, signature, pictures, files and the original under a reply. Sending it marks the message it answers.
 
 ### Changed
 - Opened or saved pictures and plain text files no longer carry Windows' "from the internet" mark, so Photos doesn't ask whether to trust them. Office files, PDFs, web pages, archives and programs keep the mark.
@@ -64,10 +65,14 @@ on GitHub.
 - A title centred in such a column stays centred and keeps its size, as Outlook shows it (#41).
 - A reminder dismissed or snoozed in MailCraft is dismissed or snoozed on the server too, so Outlook doesn't show it again (Exchange, Microsoft 365, and CalDAV calendars) (#40).
 - A reminder dismissed in another calendar program that says so in the event (RFC 9074) isn't shown again in MailCraft (#40).
+- Reply, Reply all and Forward keep the original as it came, as Outlook does: mail laid out in columns shows under your text as the reading pane shows it, you change its words where they stand (typing, the ribbon and the shortcuts work in it), and it goes out with its own formatting and pictures.
 - The message list's filters stay on one line in a narrow pane. Those that don't fit go into a **⋯** menu beside **By Date**.
 - On the File page, a row's buttons and pickers never cover its text, and the page fits a narrow window instead of being cut off.
 - The **Export to Outlook data file** card says calendars go inside the `.pst` file too.
 - The View tab folds its buttons to icons in a narrow window, as Home does, instead of scrolling sideways.
+- A message taken back out of the Outbox to change keeps its formatting, its pictures in place and, for a reply, the original under it as it was.
+- Saving a draft again replaces its copy in Drafts on the server instead of adding another, and a server without a Drafts folder gets one.
+- Sent from Drafts, a draft no longer leaves the list saying there's one more on the server.
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.

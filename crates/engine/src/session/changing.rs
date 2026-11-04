@@ -77,6 +77,9 @@ impl Session {
             return;
         }
         let mut unread_delta: HashMap<String, i64> = HashMap::new();
+        // Mail gone from a folder is gone from its server's count too (it said there was more on
+        // the server, a draft sent and gone, until the next sync).
+        let mut gone: HashMap<String, u32> = HashMap::new();
         self.mail_changed();
         for ((a, f), st) in self.cache.iter_mut() {
             if a != account {
@@ -105,7 +108,9 @@ impl Session {
                 Op::Move { .. } | Op::Expunge { .. } => {
                     let unread = st.messages.iter().filter(|m| mine.contains(&m.key.uid) && !m.flags.seen).count();
                     *unread_delta.entry(f.clone()).or_default() -= i64::try_from(unread).unwrap_or(0);
+                    let before = st.messages.len();
                     st.messages.retain(|m| !mine.contains(&m.key.uid));
+                    *gone.entry(f.clone()).or_default() += u32::try_from(before - st.messages.len()).unwrap_or(u32::MAX);
                 }
                 Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
             }
@@ -114,6 +119,11 @@ impl Session {
             for (f, d) in unread_delta {
                 if let Some(folder) = a.folders.iter_mut().find(|x| x.path == f) {
                     folder.unread = u32::try_from((i64::from(folder.unread) + d).max(0)).unwrap_or(0);
+                }
+            }
+            for (f, n) in gone {
+                if let Some(folder) = a.folders.iter_mut().find(|x| x.path == f) {
+                    folder.total = folder.total.saturating_sub(n);
                 }
             }
         }

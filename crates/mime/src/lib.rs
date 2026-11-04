@@ -18,12 +18,12 @@ pub mod layout;
 pub mod markup;
 pub mod office;
 pub mod rich;
+pub use rich::reply::{ReplyMode, quoted_body, reply, reply_doc, reply_head_doc};
 
 use mail_builder::MessageBuilder;
 use mail_builder::headers::content_type::ContentType;
 use mail_builder::mime::MimePart;
 use mail_parser::{Address, HeaderValue, Message, MessageParser, MimeHeaders};
-use mailcraft_model::dates::{Clock, full_time};
 use mailcraft_model::thread::norm_id;
 use mailcraft_model::{EmailAddress, Flags, MessageKey, Summary};
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,7 @@ mod trackers;
 pub use attachments::{
     AttachmentInfo, AttachmentKind, HtmlRefs, MAX_WANTED, PendingFile, TEXT_FIRST, attachment_data, attachment_data_moved, attachment_out,
     attachment_text, attachments_data, attachments_moved, craft_app_for, draft_carries_files, index_doc, is_text_first, kind_of, part_name,
-    quoted_pictures, text_first, text_preview_kind,
+    quoted_pictures, quoted_pictures_given, text_first, text_preview_kind,
 };
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};
@@ -421,6 +421,19 @@ pub fn summary_from_full(raw: &[u8], key: MessageKey, flags: Flags, size: u32, f
     s
 }
 
+/// The header a draft's copy names the message it answers or forwards in ([`Draft::source`]).
+pub const SOURCE_HEADER: &str = "X-MailCraft-Source";
+
+/// What a saved message asks of its sending: its importance (high 1, low -1), whether it asks
+/// for a read receipt, and the message it answers or forwards ([`SOURCE_HEADER`]). For a draft
+/// opened to carry on writing it.
+pub fn sending_options(raw: &[u8]) -> (i8, bool, String) {
+    let Some(m) = MessageParser::default().parse(raw) else { return (0, false, String::new()) };
+    let receipt = m.header_raw("Disposition-Notification-To").is_some_and(|v| !v.trim().is_empty());
+    let source = m.header_raw(SOURCE_HEADER).map(|v| v.trim().to_string()).unwrap_or_default();
+    (importance(&m), receipt, source)
+}
+
 /// The HTML body as written, for a message that has one: its own, or the one Outlook wrapped in
 /// a `winmail.dat` (issue #18).
 pub fn html_body(raw: &[u8]) -> Option<String> {
@@ -475,6 +488,14 @@ pub struct Draft {
     /// Ask for a read receipt (RFC 8098 `Disposition-Notification-To`, to the sender).
     #[serde(default)]
     pub read_receipt: bool,
+    /// Write Bcc into it: a draft's copy, which keeps who it goes to (a message sent never
+    /// carries it; it goes in the envelope).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub keep_bcc: bool,
+    /// In a draft's copy too: the message it answers or forwards (`reply KEY`, `forward KEY`),
+    /// which gets its flag once it's sent ([`SOURCE_HEADER`]).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source: String,
     /// Every part 7-bit (an attached message in base64 when it has 8-bit text), as a signed
     /// message must be to arrive byte for byte (RFC 8551 §3.1.2).
     #[serde(skip)]
@@ -520,8 +541,8 @@ pub fn new_message_id(from_email: &str, time: i64, seed: u64) -> String {
     format!("{:x}.{:016x}@{}", time.max(0), seed, domain)
 }
 
-/// Serialise a draft to RFC 5322 bytes. Bcc is never written into the message (it travels only
-/// in the SMTP envelope).
+/// Serialise a draft to RFC 5322 bytes. Bcc is written into a draft's copy only
+/// ([`Draft::keep_bcc`]); a message sent carries it in the SMTP envelope alone.
 /// The message with its `Date:` set to `date` (a message held back to be sent later is dated
 /// when it goes, as Outlook dates delayed mail). Messages without a header block come back as
 /// they were.
@@ -556,6 +577,14 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
     }
     if !d.cc.is_empty() {
         b = b.cc(b_list(&d.cc));
+    }
+    if d.keep_bcc && !d.bcc.is_empty() {
+        b = b.bcc(b_list(&d.bcc));
+    }
+    // One line, as ids are (a key holds a folder's name, which could hold anything).
+    let source: String = d.source.chars().filter(|c| !c.is_control()).take(900).collect();
+    if d.keep_bcc && !source.trim().is_empty() {
+        b = b.header(SOURCE_HEADER, mail_builder::headers::text::Text::new(source));
     }
     if !d.reply_to.is_empty() {
         b = b.reply_to(b_list(&d.reply_to));
@@ -683,106 +712,6 @@ fn seven_bit(data: &[u8]) -> bool {
 /// FNV-1a, for boundaries.
 fn fnv(s: &str) -> u64 {
     s.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ReplyMode {
-    Reply,
-    ReplyAll,
-    Forward,
-}
-
-fn prefixed(prefix: &str, subject: &str) -> String {
-    let base = mailcraft_model::thread::base_subject(subject);
-    let already = subject.trim().to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase());
-    if already { subject.trim().to_string() } else { format!("{prefix} {base}") }
-}
-
-/// The original under a reply or forward, the way Outlook lays it out: a rule, then who sent it
-/// to whom and when (labels in bold), then the original with its own formatting.
-fn quoted_original(p: &Parsed, clock: &Clock) -> (String, rich::Styles) {
-    let mut lines: Vec<(&str, String)> = vec![("From:", p.from.to_string()), ("Sent:", full_time(p.date, clock))];
-    if !p.to.is_empty() {
-        lines.push(("To:", mailcraft_model::addr::format_list(&p.to)));
-    }
-    if !p.cc.is_empty() {
-        lines.push(("Cc:", mailcraft_model::addr::format_list(&p.cc)));
-    }
-    lines.push(("Subject:", p.subject.clone()));
-    // The rule: an empty paragraph drawn as a line.
-    let mut text = String::new();
-    let mut styles = rich::Styles::plain("");
-    if let Some(first) = styles.paras.first_mut() {
-        first.rule = true;
-    }
-    let bold = rich::Style { bold: true, ..Default::default() };
-    for (label, value) in lines {
-        let line = format!("\n{label} {value}");
-        let mut st = rich::Styles::plain(&line);
-        st.restyle(&line, 1..1 + label.chars().count(), |_| bold.clone());
-        rich::append(&mut text, &mut styles, &line, &st);
-    }
-    let (orig, ost) = if p.had_html && !p.rich.is_empty() { rich::from_rich(&p.rich) } else { (p.text.clone(), rich::Styles::plain(&p.text)) };
-    rich::append(&mut text, &mut styles, "\n\n", &rich::Styles::plain("\n\n"));
-    rich::append(&mut text, &mut styles, &orig, &ost);
-    (text, styles)
-}
-
-/// A reply or forward of `p`, as plain text. `me` are the user's own addresses, left out of
-/// Reply All.
-pub fn reply(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signature: &str) -> Draft {
-    let (mut d, styles) = reply_doc(p, mode, me, clock, signature);
-    d.body = rich::to_text(&d.body, &styles);
-    d
-}
-
-/// A reply or forward of `p` to edit: the draft (its body the editable text) and the text's
-/// styles.
-pub fn reply_doc(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, signature: &str) -> (Draft, rich::Styles) {
-    let mine = |a: &EmailAddress| me.iter().any(|m| m.eq_ignore_ascii_case(a.email.trim()));
-    let sig = if signature.trim().is_empty() { String::new() } else { format!("\n\n-- \n{}", signature.trim_end()) };
-    // The cursor's line, the signature, a blank line, then the original under its rule.
-    let mut body = sig;
-    let mut styles = rich::Styles::plain(&body);
-    rich::append(&mut body, &mut styles, "\n\n", &rich::Styles::plain("\n\n"));
-    let (orig, ost) = quoted_original(p, clock);
-    rich::append(&mut body, &mut styles, &orig, &ost);
-    let mut d = Draft::default();
-    match mode {
-        ReplyMode::Forward => {
-            d.subject = prefixed("Fwd:", &p.subject);
-        }
-        ReplyMode::Reply | ReplyMode::ReplyAll => {
-            d.subject = prefixed("Re:", &p.subject);
-            let primary = if p.reply_to.is_empty() { vec![p.from.clone()] } else { p.reply_to.clone() };
-            // Replying to your own sent message goes back to its recipients.
-            d.to = if primary.iter().all(&mine) && !p.to.is_empty() { p.to.clone() } else { primary };
-            if mode == ReplyMode::ReplyAll {
-                let mut cc: Vec<EmailAddress> = Vec::new();
-                for a in p.to.iter().chain(&p.cc) {
-                    let dup = d.to.iter().chain(&cc).any(|x| x.email.eq_ignore_ascii_case(&a.email));
-                    if !mine(a) && !dup {
-                        cc.push(a.clone());
-                    }
-                }
-                d.cc = cc;
-            }
-            if !p.message_id.is_empty() {
-                d.in_reply_to = p.message_id.clone();
-                d.references = p.references.clone();
-                d.references.push(p.message_id.clone());
-                // RFC 5322 §3.6.4 allows trimming; keep the first and the last 20.
-                if d.references.len() > 21 {
-                    let tail = d.references.split_off(d.references.len() - 20);
-                    d.references.truncate(1);
-                    d.references.extend(tail);
-                }
-            }
-        }
-    }
-    d.body = body;
-    (d, styles)
 }
 
 #[cfg(test)]

@@ -377,6 +377,13 @@ const QUOTED_PICTURE_MAX: usize = 25 << 20;
 /// kept by its address, as Outlook keeps it (never loaded here); tracking pictures left out.
 /// Also the indexes of the attachments the quote shows.
 pub fn quoted_pictures(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>, Vec<usize>) {
+    let (out, used, _) = quoted_pictures_given(p, raw);
+    (out, used)
+}
+
+/// [`quoted_pictures`], with each picture's address in the message and the `cid:` it was given
+/// (for [`quote_html`]).
+pub fn quoted_pictures_given(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>, Vec<usize>, Vec<(String, String)>) {
     let mut out: Vec<InlinePicture> = Vec::new();
     let mut used: Vec<usize> = Vec::new();
     let found: Vec<(String, Option<usize>)> = p
@@ -384,6 +391,8 @@ pub fn quoted_pictures(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>, Vec<u
         .iter()
         .flatten()
         .filter_map(|s| s.image.clone())
+        // And those behind its boxes (a banner behind a title), which a quote sent as it came shows.
+        .chain(crate::layout::background_pictures(&p.layout))
         .map(|src| {
             let at = picture_attachment(p, &src);
             (src, at)
@@ -424,16 +433,19 @@ pub fn quoted_pictures(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>, Vec<u
             }
         }
     }
-    for span in p.rich.iter_mut().flatten() {
-        let Some(src) = span.image.clone() else { continue };
+    // In the text and in its layout (which a reply quotes when there is one).
+    let mut quote = |span: &mut Span| {
+        let Some(src) = span.image.clone() else { return };
         if let Some((_, cid)) = given.iter().find(|(s, _)| *s == src) {
             span.image = Some(format!("cid:{cid}"));
         } else if trackers.contains(&src) {
             span.image = None;
             span.text.clear();
         }
-    }
-    (out, used)
+    };
+    p.rich.iter_mut().flatten().for_each(&mut quote);
+    crate::layout::each_span(&mut p.layout, &mut quote);
+    (out, used, given)
 }
 
 /// A picture written into HTML as `data:image/…;base64,…`: its type and bytes.

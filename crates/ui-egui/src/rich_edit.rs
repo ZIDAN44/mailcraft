@@ -92,6 +92,9 @@ pub(crate) struct Editor {
     /// Give the keyboard back to the text (after a ribbon button took the click), with this
     /// selection.
     pub(crate) refocus: Option<Range<usize>>,
+    /// The text box this tall at least, when not the room there is (a block of the quoted
+    /// original, as tall as its text).
+    pub(crate) min_height: Option<f32>,
 }
 
 #[derive(Clone)]
@@ -117,6 +120,7 @@ impl Editor {
             resizing: None,
             placed: Vec::new(),
             refocus: None,
+            min_height: None,
         }
     }
 
@@ -422,7 +426,8 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let tokens = *t;
     let own = if plain { HashMap::new() } else { pictures::own_sizes(ui.ctx(), ed, c) };
     let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap, &own);
-    let height = ui.available_height().max(220.0);
+    // As tall as the pane, or, above the original of a reply shown as it came, as its text.
+    let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });
     // A right-click inside the selection keeps it (egui's text box moves the cursor on any
     // press); one outside it moves the cursor there, as Outlook does.
     let kept = ed.sel.clone();
@@ -432,7 +437,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let behind = ui.painter().add(egui::Shape::Noop);
     // No hint over a first line that's a list item or indented (its bullet is drawn there).
     let p0 = c.styles.para(0);
-    let hint = match (p0.list == List::None && p0.indent == 0, c.id == SIGNATURE_ID) {
+    let hint = match (p0.list == List::None && p0.indent == 0 && ed.min_height.is_none(), c.id == SIGNATURE_ID) {
         (false, _) => "",
         (true, true) => tl!("Write your signature, or paste it…"),
         (true, false) => tl!("Write your message…"),
@@ -444,6 +449,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         .lock_focus(true)
         .desired_width(f32::INFINITY)
         .min_size(vec2(ui.available_width(), height))
+        .desired_rows(if ed.min_height.is_some() { 1 } else { 4 })
         .layouter(&mut layouter)
         .show(ui);
     let mut cursor = out.cursor_range.map(|r| {

@@ -1607,3 +1607,4 @@ month	May	Mayıs
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	bu hesabın şifreyi çözecek OpenPGP anahtarı yok (Dosya › Bilgi › Güvenlik)
 	it can't be decrypted with your OpenPGP key	OpenPGP anahtarınızla şifresi çözülemiyor
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP anahtarlarınızı tarayıcı değil, MailCraft masaüstü uygulaması kullanır
+	Not sent yet: this is a draft.	Henüz gönderilmedi: bu bir taslak.

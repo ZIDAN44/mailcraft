@@ -1606,3 +1606,4 @@ month	May	5月
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	此帳戶沒有可用於解密的 OpenPGP 金鑰（檔案 › 資訊 › 安全性）
 	it can't be decrypted with your OpenPGP key	無法用你的 OpenPGP 金鑰解密
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	你的 OpenPGP 金鑰由 MailCraft 桌面應用程式使用，而不在瀏覽器中使用
+	Not sent yet: this is a draft.	尚未傳送：這是草稿。

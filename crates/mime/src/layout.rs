@@ -20,8 +20,13 @@ use serde::{Deserialize, Serialize};
 use crate::RichText;
 
 mod blocks;
+mod flat;
+mod write;
 pub(crate) use blocks::background_pictures;
 use blocks::*;
+pub(crate) use flat::each_span;
+pub use flat::{cell_text, flatten, text_blocks};
+pub use write::to_html;
 
 /// Tables nested deeper than this are flattened into text.
 const MAX_DEPTH: usize = 12;

@@ -479,7 +479,7 @@ impl MailApp {
                     let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
                     let r = self
                         .session
-                        .run("compose.insertPicture", &json!({"path": p.to_string_lossy(), "at": self.picture_at(), "width": width, "line": line}));
+                        .run("compose.insertPicture", &self.picture_place(json!({"path": p.to_string_lossy(), "width": width, "line": line})));
                     self.place_picture(r);
                 }
             }
@@ -490,10 +490,9 @@ impl MailApp {
                 if !text && let Some(png) = self.services.clipboard_picture() {
                     let size = rich_edit::own_size(&png);
                     let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
-                    let r = self.session.run(
-                        "compose.insertPicture",
-                        &json!({"name": "pasted.png", "data": png, "at": self.picture_at(), "width": width, "line": line}),
-                    );
+                    let r = self
+                        .session
+                        .run("compose.insertPicture", &self.picture_place(json!({"name": "pasted.png", "data": png, "width": width, "line": line})));
                     self.place_picture(r);
                 }
             }
@@ -546,6 +545,26 @@ impl MailApp {
     pub(crate) fn picture_at(&self) -> usize {
         let n = self.session.compose.as_ref().map_or(0, |c| c.body.chars().count());
         self.ui.editor.as_ref().filter(|e| self.session.compose.as_ref().is_some_and(|c| c.id == e.id)).map_or(n, |e| e.sel.start.min(n))
+    }
+
+    /// Where a picture goes, put into `params`: the text's cursor, or that of the block of the
+    /// quoted original being changed (`quoteCell`).
+    pub(crate) fn picture_place(&self, mut params: serde_json::Value) -> serde_json::Value {
+        match self.quote_cell() {
+            Some((n, at)) => {
+                params["at"] = json!(at);
+                params["quoteCell"] = json!(n);
+            }
+            None => params["at"] = json!(self.picture_at()),
+        }
+        params
+    }
+
+    /// The block of the quoted original with the cursor, and where in it the cursor is.
+    fn quote_cell(&self) -> Option<(usize, usize)> {
+        let c = self.session.compose.as_ref().filter(|c| c.quote.is_some())?;
+        let (id, n) = self.ui.quote_focus.filter(|(id, _)| *id == c.id)?;
+        Some((n, self.ui.quote_editors.get(&(id, n)).map_or(0, |e| e.sel.start)))
     }
 
     /// A picture into the signature being edited, at its cursor: pasted, or chosen from files.
@@ -632,7 +651,12 @@ impl MailApp {
         match r {
             // In place: the cursor goes after it.
             Ok(v) => {
-                if let Some(e) = self.ui.editor.as_mut() {
+                let cell = self.quote_cell().and_then(|(n, _)| self.session.compose.as_ref().map(|c| (c.id, n)));
+                let ed = match cell {
+                    Some(k) => self.ui.quote_editors.get_mut(&k),
+                    None => self.ui.editor.as_mut(),
+                };
+                if let Some(e) = ed {
                     let end = v.get("end").and_then(serde_json::Value::as_u64).and_then(|e| usize::try_from(e).ok()).unwrap_or(e.sel.start + 1);
                     e.sel = end..end;
                 }

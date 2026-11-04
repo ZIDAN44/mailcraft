@@ -155,7 +155,7 @@ pub(super) fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Messag
     let allowed = s.pictures_allowed();
     let mut shown: Vec<String> = Vec::new();
     let width = ui.available_width();
-    let mut body = Body { s, key, p, allowed, shown: &mut shown, acts };
+    let mut body = Body { s, key, p, allowed, shown: &mut shown, acts, cells: None };
     if long_text::many_lines(p) {
         // Thousands of lines: laid out by what's in view.
         long_text::rich(&mut body, st, ui, ui.scope_id().with(("long-text", key.to_id())), width, theme::surface_rgb(&t));
@@ -187,6 +187,14 @@ pub(super) struct Body<'a> {
     /// Pictures drawn in place.
     pub(super) shown: &'a mut Vec<String>,
     pub(super) acts: &'a mut Vec<Action>,
+    /// Blocks of text drawn as text boxes, to change (the original under a reply).
+    pub(super) cells: Option<&'a mut dyn CellEdit>,
+}
+
+/// Draws a block of text as a text box to change it (`false`: drawn as text after all).
+pub(super) trait CellEdit {
+    /// `page`: the colour it's on (its cell's), for its colours to read.
+    fn edit(&mut self, ui: &mut Ui, lines: &[Vec<mime::Span>], page: [u8; 3], acts: &mut Vec<Action>) -> bool;
 }
 
 /// Narrower than this, a table's columns go one under the other.
@@ -341,7 +349,13 @@ impl Body<'_> {
         };
         for b in blocks {
             match b {
-                Block::Text(lines) => self.lines(st, ui, lines, width, page, main_align(align)),
+                Block::Text(lines) => {
+                    // A text box where it's changed: not in a pass that only measures.
+                    let edited = !ui.is_sizing_pass() && self.cells.as_deref_mut().is_some_and(|c| c.edit(ui, lines, page, self.acts));
+                    if !edited {
+                        self.lines(st, ui, lines, width, page, main_align(align));
+                    }
+                }
                 Block::Table(table) if depth < 16 => {
                     let tw = match table.width {
                         Some(Width::Px(px)) => (px as f32).min(width),

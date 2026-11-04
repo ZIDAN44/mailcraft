@@ -383,12 +383,21 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
         .and_then(|c| s.account(&c.account))
         .map(|a| a.config.signatures.iter().map(|g| g.name.clone()).collect())
         .unwrap_or_default();
-    let Some(c) = s.compose.as_mut() else { return };
+    // Out of the session while its form is drawn, so the original under a reply can be drawn
+    // from the session as the reading pane draws a message; put back after.
+    let Some(mut taken) = s.compose.take() else { return };
     // The editor's state belongs to one message.
-    if st.editor.as_ref().is_none_or(|e| e.id != c.id) {
-        st.editor = Some(rich_edit::Editor::new(c.id));
+    if st.editor.as_ref().is_none_or(|e| e.id != taken.id) {
+        st.editor = Some(rich_edit::Editor::new(taken.id));
     }
-    let Some(mut ed) = st.editor.take() else { return };
+    let Some(mut ed) = st.editor.take() else {
+        s.compose = Some(taken);
+        return;
+    };
+    let c = &mut taken;
+    let mut quote_eds = std::mem::take(&mut st.quote_editors);
+    // The block of the quoted original with the cursor, while there is one: the ribbon works on it.
+    let quote_cell = st.quote_focus.filter(|(id, _)| *id == c.id && c.quote.is_some()).map(|(_, n)| n);
     // Why it couldn't go: over the message, in its own window when it has one.
     if let Some(msg) = st.compose_alert.clone() {
         let modal = egui::Modal::new(egui::Id::unique(("compose-alert", c.id))).frame(crate::dialogs::dialog_frame(&t)).show(ui.ctx(), |ui| {
@@ -467,7 +476,11 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             // The Message ribbon.
             egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                rich_edit::ribbon(ui, &t, &mut ed, c, &signatures, &clock, acts);
+                let on_quote = quote_cell
+                    .and_then(|n| super::quote::with_cell(c, &mut quote_eds, n, |c, ed| rich_edit::ribbon(ui, &t, ed, c, &signatures, &clock, acts)));
+                if on_quote.is_none() {
+                    rich_edit::ribbon(ui, &t, &mut ed, c, &signatures, &clock, acts);
+                }
             });
             ui.add_space(4.0);
             // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);
@@ -734,11 +747,20 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                 egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| {
                     // Replies start above the quoted text.
                     rich_edit::body(ui, &t, &mut ed, c, focus_body.then_some(0), acts);
+                    if ui.memory(|m| m.has_focus(rich_edit::body_id(c))) {
+                        st.quote_focus = None;
+                    }
+                    // The original, as it came, under the text: changed where it stands.
+                    super::quote::show(s, st, ui, c, &mut quote_eds, acts);
                 });
             });
         });
     });
     st.editor = Some(ed);
+    // Those of messages no longer being written go.
+    quote_eds.retain(|(id, _), _| *id == taken.id || s.composes.iter().any(|c| c.id == *id));
+    st.quote_editors = quote_eds;
+    s.compose = Some(taken);
 }
 
 /// Files dragged from the desktop onto the message are attached (read from where they are, as

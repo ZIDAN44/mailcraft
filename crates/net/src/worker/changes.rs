@@ -96,6 +96,7 @@ impl Worker {
             }
             Job::SaveDraft { raw, folder, replaces, .. } => {
                 let (raw_kept, replaces_kept) = (raw.clone(), replaces.clone());
+                let mut filed = folder.clone();
                 let r = (|| -> Result<()> {
                     if self.conn.is_none() {
                         self.connect()?;
@@ -129,16 +130,27 @@ impl Worker {
                         }
                         return Ok(());
                     }
+                    // A server without Drafts gets one, as it gets Sent Items: once its folders are
+                    // known (those listed here before, when this connection hasn't listed them).
+                    if self.folders.is_empty()
+                        && let Ok(listed) = self.store.load_folders(&self.acc.id)
+                    {
+                        self.folders = listed;
+                    }
+                    let missing = !self.folders.is_empty() && !self.folders.iter().any(|f| f.path == folder);
+                    if missing && FolderRole::from_name(&folder, None) == FolderRole::Drafts {
+                        filed = self.role_folder(FolderRole::Drafts, "Drafts")?.unwrap_or_else(|| folder.clone());
+                    }
                     let trash = self.folders.iter().find(|f| f.role == FolderRole::Trash).map(|f| f.path.clone());
                     let c = self.client()?;
-                    c.append(&folder, "\\Draft \\Seen", &raw)?;
+                    c.append(&filed, "\\Draft \\Seen", &raw)?;
                     if let Some(old) = replaces {
                         expunge_keys(c, &[old], trash.as_deref())?;
                     }
                     Ok(())
                 })();
                 match r {
-                    Ok(()) => self.sync_one(&folder),
+                    Ok(()) => self.sync_one(&filed),
                     Err(e) => {
                         // Not lost: kept on this computer and saved when the account connects.
                         match keep_draft(&self.store, &self.acc.id, &folder, replaces_kept, raw_kept) {

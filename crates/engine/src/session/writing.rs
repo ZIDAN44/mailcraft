@@ -4,9 +4,12 @@ use mailcraft_model::lookalike;
 
 use super::*;
 
+mod quote;
 mod reactions;
+mod reopen;
 mod sending;
 mod signatures;
+pub use quote::Quote;
 pub use reactions::Reactions;
 pub use sending::SendBlock;
 pub use signatures::signature_parts;
@@ -60,6 +63,10 @@ pub struct Compose {
     pub error: Option<String>,
     /// The copy saved in Drafts, replaced on the next save.
     pub draft: Option<MessageKey>,
+    /// The Message-ID it was last saved with: how the copy a server filed is found, to be
+    /// replaced on the next save (the server gives it its place).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub draft_id: String,
     /// The Bcc row is shown.
     pub show_cc: bool,
     /// Send as plain text only (lists written out, the rest of the formatting dropped).
@@ -100,12 +107,22 @@ pub struct Compose {
     pub scheme: Option<Scheme>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub encrypt_auto: bool,
+    /// The original of a reply or forward written in HTML, kept as it came ([`Quote`]): after the
+    /// text, outside it, until it's made text to edit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quote: Option<Arc<Quote>>,
 }
 
 impl Compose {
     /// The text, HTML and pictures to send: formatted when the text uses formatting or has
-    /// pictures (and the message isn't set to plain text), else plain text alone.
+    /// pictures (and the message isn't set to plain text), else plain text alone; the original
+    /// of a reply kept as it came after it ([`Quote`]).
     pub fn bodies(&self) -> (String, Option<String>, Vec<mime::InlinePicture>) {
+        self.with_quote(self.own_bodies())
+    }
+
+    /// [`Compose::bodies`] of the text alone.
+    fn own_bodies(&self) -> (String, Option<String>, Vec<mime::InlinePicture>) {
         let mut styles = self.styles.clone();
         styles.fit(&self.body);
         let used = mime::rich::pictures(&self.body, &styles);
@@ -129,9 +146,9 @@ impl Compose {
     /// stands there as it was put in; the text keeps the signature's text. Its pictures go with
     /// it, under this message's own `cid:`s.
     pub fn bodies_with(&self, code: &str) -> (String, Option<String>, Vec<mime::InlinePicture>) {
-        let (text, html, pictures) = self.bodies();
+        let (text, html, pictures) = self.own_bodies();
         let at = self.signature_at().filter(|_| !self.plain && !code.trim().is_empty());
-        let Some(b) = at else { return (text, html, pictures) };
+        let Some(b) = at else { return self.with_quote((text, html, pictures)) };
         let mut styles = self.styles.clone();
         styles.fit(&self.body);
         let start = self.body.get(..b).unwrap_or("").chars().count();
@@ -142,7 +159,8 @@ impl Compose {
         let tag = Some(self.signature_tag.clone()).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("{:012x}", self.id));
         let (code_html, code_pictures) = mime::signature_code_parts(code, &tag);
         let mut out = mime::rich::to_html(&before, &before_styles);
-        out.push_str(&format!("<div>{code_html}</div>"));
+        // Marked, so a saved draft opened again has the code back as it was.
+        out.push_str(&format!("<div class=\"{}\">{code_html}</div>", mime::SIGNATURE_CLASS));
         if !after.trim().is_empty() {
             out.push_str(&mime::rich::to_html(&after, &after_styles));
         }
@@ -154,7 +172,7 @@ impl Compose {
                 pictures.push(p);
             }
         }
-        (text, Some(out), pictures)
+        self.with_quote((text, Some(out), pictures))
     }
 }
 
@@ -254,9 +272,18 @@ impl Session {
         let block = Self::signature_text(signature.as_ref());
         let sig = block.strip_prefix("-- \n").unwrap_or_default();
         let raw = self.readable_raw(&r.key);
+        let original = parsed.clone();
         // The pictures in the quoted message go with it (they showed as "[picture]", issue #10).
-        let (inline, quoted) = raw.as_deref().map(|raw| mime::quoted_pictures(&mut parsed, raw)).unwrap_or_default();
-        let (d, styles) = mime::reply_doc(&parsed, mode, &self.me(&account), &self.clock, sig);
+        let (inline, quoted, given) = raw.as_deref().map(|raw| mime::quoted_pictures_given(&mut parsed, raw)).unwrap_or_default();
+        // Written in HTML, the original goes as it came, its columns and all (the editor's text
+        // has no tables), after who sent it to whom and when, which stay the text's.
+        let html = raw.as_deref().filter(|_| parsed.had_html).and_then(mime::html_body).unwrap_or_default();
+        let quote = Quote::of(r.key.clone(), original, &parsed, &given, &html).map(Arc::new);
+        let (d, styles) = if quote.is_some() {
+            mime::reply_head_doc(&parsed, mode, &self.me(&account), &self.clock, sig)
+        } else {
+            mime::reply_doc(&parsed, mode, &self.me(&account), &self.clock, sig)
+        };
         let id = self.fresh_id();
         let mut attachments = Vec::new();
         if mode == ReplyMode::Forward
@@ -290,6 +317,7 @@ impl Session {
             encrypt: encrypted,
             scheme,
             window: self.prefs.reply_window,
+            quote,
             ..Default::default()
         });
         self.style_signature(signature.as_ref());
@@ -312,6 +340,7 @@ impl Session {
             c.set_text(String::new());
             c.signature = String::new();
             c.inline.clear();
+            c.quote = None;
             c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw, ..Default::default() }];
         }
         self.put_signature(sig.as_ref(), None)?;
@@ -336,17 +365,25 @@ impl Session {
             importance: c.importance,
             read_receipt: c.read_receipt,
             seven_bit: false,
+            keep_bcc: false,
+            source: String::new(),
         })
     }
 
     pub(super) fn compose_bytes(&mut self, c: &Compose, d: &mime::Draft) -> Result<(Vec<u8>, String), CmdError> {
+        let (raw, email, _) = self.compose_bytes_with_id(c, d)?;
+        Ok((raw, email))
+    }
+
+    /// [`Session::compose_bytes`], with the Message-ID it was given.
+    fn compose_bytes_with_id(&mut self, c: &Compose, d: &mime::Draft) -> Result<(Vec<u8>, String, String), CmdError> {
         let acc = self.account(&c.account).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
         let from = mailcraft_model::EmailAddress::new(acc.config.name.clone(), acc.config.email.clone());
         let email = acc.config.email.clone();
         let now = self.clock.now;
         let mid = mime::new_message_id(&email, now, self.random());
         let raw = mime::build(d, &from, now, &mid).map_err(CmdError::Failed)?;
-        Ok((raw, email))
+        Ok((raw, email, mid))
     }
 
     /// What to look at before `c` goes ([`SendCheck`]).
@@ -499,8 +536,8 @@ impl Session {
                 self.save_pending_marks();
             }
         }
-        if let Some(draft) = &c.draft {
-            self.apply_op(&draft.account.clone(), Op::Expunge { keys: vec![draft.clone()] });
+        if let Some(draft) = self.saved_copy(c) {
+            self.apply_op(&draft.account.clone(), Op::Expunge { keys: vec![draft] });
         }
         if self.compose.as_ref().is_some_and(|x| x.id == c.id) {
             self.compose = None;
@@ -512,21 +549,24 @@ impl Session {
     /// Save the message being written to Drafts.
     pub fn save_draft(&mut self) -> CmdResult {
         let c = self.compose.clone().ok_or_else(|| CmdError::Disabled("nothing to save".into()))?;
-        let (raw, folder) = self.draft_bytes(&c)?;
+        let (raw, folder, mid) = self.draft_bytes(&c)?;
         if self.account(&c.account).is_none_or(AccountState::is_local) {
             // The new copy first: the earlier one goes only once this one is kept.
             let key = self.file_locally(&c.account, &folder, &raw, false)?;
-            if let Some(old) = &c.draft {
-                self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
+            if let Some(old) = self.saved_copy(&c) {
+                self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old] });
             }
             if let Some(cm) = self.compose.as_mut() {
                 cm.draft = Some(key);
+                cm.draft_id = mid;
             }
         } else {
             self.jobs.push(self.draft_job(&c, raw, folder, false));
             if let Some(cm) = self.compose.as_mut() {
-                // The server assigns the new copy's UID; the old one is replaced by the worker.
+                // The server gives the new copy its place; the old one is replaced by the
+                // worker, and the new one found by its Message-ID when it's saved again.
                 cm.draft = None;
+                cm.draft_id = mid;
             }
         }
         self.notice("Draft saved", false);
@@ -539,14 +579,14 @@ impl Session {
         let written: Vec<Compose> = self.all_composes().filter(|c| self.written(c) && !c.sending).cloned().collect();
         let mut kept = 0;
         for c in written {
-            let Ok((raw, folder)) = self.draft_bytes(&c) else { continue };
+            let Ok((raw, folder, _)) = self.draft_bytes(&c) else { continue };
             if self.account(&c.account).is_none_or(AccountState::is_local) {
                 if let Err(e) = self.file_locally(&c.account, &folder, &raw, false) {
                     self.notice(e.to_string(), true);
                     continue;
                 }
-                if let Some(old) = &c.draft {
-                    self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old.clone()] });
+                if let Some(old) = self.saved_copy(&c) {
+                    self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old] });
                 }
             } else {
                 let job = self.draft_job(&c, raw, folder, true);
@@ -562,21 +602,21 @@ impl Session {
     /// message is to be encrypted.
     fn draft_job(&self, c: &Compose, raw: Vec<u8>, folder: String, keep: bool) -> Job {
         let config = self.account(&c.account).map(|a| a.config.clone());
+        let replaces = self.saved_copy(c);
         match config {
-            Some(account) if self.seals_with_pgp(c) => Job::Pgp {
-                account,
-                work: mailcraft_model::PgpWork::SealDraft { raw: mailcraft_model::Private(raw), folder, replaces: c.draft.clone(), keep },
-            },
-            Some(account) if c.encrypt && self.identity(&c.account).is_some() => {
-                Job::SealDraft { account, raw: mailcraft_model::Private(raw), folder, replaces: c.draft.clone(), keep }
+            Some(account) if self.seals_with_pgp(c) => {
+                Job::Pgp { account, work: mailcraft_model::PgpWork::SealDraft { raw: mailcraft_model::Private(raw), folder, replaces, keep } }
             }
-            _ if keep => Job::KeepDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() },
-            _ => Job::SaveDraft { account: c.account.clone(), raw, folder, replaces: c.draft.clone() },
+            Some(account) if c.encrypt && self.identity(&c.account).is_some() => {
+                Job::SealDraft { account, raw: mailcraft_model::Private(raw), folder, replaces, keep }
+            }
+            _ if keep => Job::KeepDraft { account: c.account.clone(), raw, folder, replaces },
+            _ => Job::SaveDraft { account: c.account.clone(), raw, folder, replaces },
         }
     }
 
-    /// A message as a draft's source, and the Drafts folder it goes in.
-    pub(super) fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String), CmdError> {
+    /// A message as a draft's source, the Drafts folder it goes in, and its Message-ID.
+    pub(super) fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String, String), CmdError> {
         // Drafts may hold unfinished addresses: keep only the valid ones.
         let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
         let (body, html, inline) = c.bodies_with(&c.signature_code);
@@ -595,14 +635,22 @@ impl Session {
             importance: c.importance,
             read_receipt: c.read_receipt,
             seven_bit: false,
+            keep_bcc: true,
+            source: match (&c.source, c.mode) {
+                (Some(k), Some(ReplyMode::Forward)) => format!("forward {}", k.to_id()),
+                (Some(k), Some(_)) => format!("reply {}", k.to_id()),
+                _ => String::new(),
+            },
         };
-        let folder = self
-            .account(&c.account)
-            .and_then(|a| a.folder(FolderRole::Drafts))
-            .map(|f| f.path.clone())
-            .ok_or_else(|| CmdError::Failed("this account has no Drafts folder".into()))?;
-        let (raw, _) = self.compose_bytes(c, &d)?;
-        Ok((raw, folder))
+        // A server account without one gets Drafts made where it's filed, as Outlook makes it.
+        let account = self.account(&c.account);
+        let folder = match account.and_then(|a| a.folder(FolderRole::Drafts)) {
+            Some(f) => f.path.clone(),
+            None if account.is_some_and(|a| !a.is_local()) => "Drafts".to_string(),
+            None => return Err(CmdError::Failed("this account has no Drafts folder".into())),
+        };
+        let (raw, _, mid) = self.compose_bytes_with_id(c, &d)?;
+        Ok((raw, folder, mid))
     }
 
     /// File a message in a local account's folder; returns its key. A folder that can't be read,

@@ -58,7 +58,9 @@ pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles), pict
     c.styles.fit(&c.body);
     mime::rich::splice(&mut c.body, &mut c.styles, start..start + n, &block, &block_styles);
     let shown = mime::rich::pictures(&c.body, &c.styles);
-    c.inline.retain(|p| !p.cid.starts_with("signature") || shown.contains(&p.cid));
+    let quoted: Vec<String> = c.quote.as_ref().map(|q| q.picture_cids()).unwrap_or_default();
+    let quoted = |cid: &String| quoted.contains(cid);
+    c.inline.retain(|p| !p.cid.starts_with("signature") || shown.contains(&p.cid) || quoted(&p.cid));
 }
 
 /// The line drawn over the original of a reply or forward: the character its line starts at.
@@ -188,7 +190,8 @@ impl Session {
         // The pictures of the one taken out go (those of the one put in come back with it).
         let shown = mime::rich::pictures(&c.body, &c.styles);
         let tag = format!(".{}@mailcraft", c.signature_tag);
-        c.inline.retain(|p| !(p.cid.starts_with("signature") && p.cid.ends_with(&tag)) || shown.contains(&p.cid));
+        let quoted: Vec<String> = c.quote.as_ref().map(|q| q.picture_cids()).unwrap_or_default();
+        c.inline.retain(|p| !(p.cid.starts_with("signature") && p.cid.ends_with(&tag)) || shown.contains(&p.cid) || quoted.contains(&p.cid));
         self.style_signature(sig);
         Ok(start..start + text.chars().count())
     }

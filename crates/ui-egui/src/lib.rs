@@ -335,6 +335,10 @@ pub struct UiState {
     /// The body's cursor (characters), where pictures go.
     /// The message editor's state (selection, undo, what's typed next).
     pub(crate) editor: Option<rich_edit::Editor>,
+    /// The editors of the blocks of text of the quoted originals being changed, and the one with
+    /// the cursor (its message, its place).
+    pub(crate) quote_editors: reading::QuoteEditors,
+    pub(crate) quote_focus: Option<(u64, usize)>,
     /// The recipient box showing suggestions (`to`, `cc`, `bcc`), the highlighted one, and the
     /// text for which Escape hid them.
     pub(crate) suggest_field: Option<&'static str>,
@@ -498,6 +502,8 @@ impl MailApp {
                 editors: HashMap::new(),
                 dialog_for: None,
                 editor: None,
+                quote_editors: Default::default(),
+                quote_focus: None,
                 suggest_field: None,
                 suggest_index: 0,
                 suggest_dismissed: None,
@@ -707,9 +713,8 @@ impl MailApp {
             } else if purpose == "picture" {
                 let size = rich_edit::own_size(&data);
                 let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
-                let r = self
-                    .session
-                    .run("compose.insertPicture", &json!({"name": name, "data": data, "at": self.picture_at(), "width": width, "line": line}));
+                let r =
+                    self.session.run("compose.insertPicture", &self.picture_place(json!({"name": name, "data": data, "width": width, "line": line})));
                 self.place_picture(r);
             } else {
                 self.run("compose.attach", json!({"name": name, "data": data}));

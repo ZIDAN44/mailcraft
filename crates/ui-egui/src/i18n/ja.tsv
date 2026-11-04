@@ -1603,3 +1603,4 @@ month	May	5月
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	このアカウントには復号に使う OpenPGP 鍵がありません (ファイル › 情報 › セキュリティ)
 	it can't be decrypted with your OpenPGP key	あなたの OpenPGP 鍵では復号できません
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP 鍵はブラウザーではなく、MailCraft のデスクトップ版で使われます
+	Not sent yet: this is a draft.	まだ送信されていません。これは下書きです。

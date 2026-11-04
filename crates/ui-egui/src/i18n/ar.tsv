@@ -1602,3 +1602,4 @@ month	May	مايو
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	ليس لهذا الحساب مفتاح OpenPGP لفك تشفيرها (ملف › معلومات › الأمان)
 	it can't be decrypted with your OpenPGP key	لا يمكن فك تشفيرها بمفتاح OpenPGP الخاص بك
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	يستخدم تطبيق MailCraft لسطح المكتب مفاتيح OpenPGP الخاصة بك، لا المتصفح
+	Not sent yet: this is a draft.	لم تُرسل بعد: هذه مسودة.

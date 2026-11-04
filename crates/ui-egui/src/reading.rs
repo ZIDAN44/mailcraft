@@ -19,6 +19,7 @@ mod compose;
 mod long_text;
 mod people;
 mod pictures;
+mod quote;
 mod reactions;
 mod security;
 pub(crate) mod text_selection;
@@ -38,6 +39,9 @@ pub(crate) use long_text::LongText;
 pub(crate) use long_text::{CHUNK, chunks};
 use people::*;
 pub(crate) use pictures::{Got, Pictures, Want};
+pub(crate) use quote::QuoteEditors;
+#[cfg(test)]
+pub(crate) use quote::cell_id;
 pub(crate) use text_selection::TextSelection;
 pub(crate) use videos::Videos;
 
@@ -341,6 +345,22 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                             }
                             if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
                                 acts.push(Action::Run("outbox.edit", json!({"key": r.key.to_id()})));
+                            }
+                            if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
+                                acts.push(Action::Run("mail.delete", json!({})));
+                            }
+                        });
+                    } else if s.view_role() == Some(mailcraft_engine::model::FolderRole::Drafts) || summary.as_ref().is_some_and(|m| m.flags.draft) {
+                        // A draft: carried on with, as it was saved.
+                        egui::Frame::new().fill(t.accent_soft).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.label(RichText::new(tl!("Not sent yet: this is a draft.")).color(t.text));
+                        });
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
+                                acts.push(Action::Run("draft.edit", json!({"key": r.key.to_id()})));
                             }
                             if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
                                 acts.push(Action::Run("mail.delete", json!({})));

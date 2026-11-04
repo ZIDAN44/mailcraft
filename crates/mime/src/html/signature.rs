@@ -17,6 +17,12 @@ const DROPPED: [&str; 9] = ["script", "iframe", "object", "embed", "form", "head
 /// written (`data:`, or on the web).
 pub fn signature_code(html: &str) -> String {
     let html: String = html.chars().take(SIGNATURE_CODE_MAX).collect();
+    harmless_code(&html, &DROPPED)
+}
+
+/// What's in `html`'s `<body>` (all of it when it has none), without the elements `dropped` names
+/// and all they hold, comments, `on…` handlers and `javascript:` links.
+pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
     let lower = html.to_ascii_lowercase();
     // Inside <body>, when there is one.
     let inner = lower
@@ -26,7 +32,7 @@ pub fn signature_code(html: &str) -> String {
             let end = lower.get(start..).and_then(|r| r.rfind("</body")).map_or(html.len(), |e| start + e);
             html.get(start..end).unwrap_or("")
         })
-        .unwrap_or(&html);
+        .unwrap_or(html);
     let mut out = String::with_capacity(inner.len());
     let lower = inner.to_ascii_lowercase();
     let mut at = 0;
@@ -49,7 +55,7 @@ pub fn signature_code(html: &str) -> String {
         }
         let name: String =
             tag.trim_start_matches(['<', '/']).chars().take_while(|c| c.is_ascii_alphanumeric()).collect::<String>().to_ascii_lowercase();
-        if DROPPED.contains(&name.as_str()) {
+        if dropped.contains(&name.as_str()) {
             at = end;
             // The element's content too, up to its end.
             if !tag.starts_with("</") && !tag.ends_with("/>") && !matches!(name.as_str(), "meta" | "link" | "embed") {

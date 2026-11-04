@@ -1602,3 +1602,4 @@ month	May	מאי
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	לחשבון הזה אין מפתח OpenPGP לפענוח (קובץ › מידע › אבטחה)
 	it can't be decrypted with your OpenPGP key	אי אפשר לפענח אותה במפתח OpenPGP שלך
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	מפתחות OpenPGP שלך משמשים באפליקציה של MailCraft לשולחן העבודה, לא בדפדפן
+	Not sent yet: this is a draft.	עדיין לא נשלח: זוהי טיוטה.

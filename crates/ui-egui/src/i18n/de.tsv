@@ -1607,3 +1607,4 @@ month	May	Mai
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	dieses Konto hat keinen OpenPGP-Schlüssel zum Entschlüsseln (Datei › Informationen › Sicherheit)
 	it can't be decrypted with your OpenPGP key	sie lässt sich mit Ihrem OpenPGP-Schlüssel nicht entschlüsseln
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	Ihre OpenPGP-Schlüssel werden von der MailCraft-Desktop-App verwendet, nicht im Browser
+	Not sent yet: this is a draft.	Noch nicht gesendet: Dies ist ein Entwurf.

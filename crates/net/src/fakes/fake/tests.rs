@@ -817,3 +817,43 @@ fn keywords_a_folder_cant_keep_are_refused() {
     apply_remote(&mut c, &Op::SetKeyword { keys: vec![key], keyword: "r=c3=bcckfrage".into(), on: true }).unwrap();
     assert!(st.lock().unwrap().boxes[0].msgs[0].flags.iter().any(|f| f == "r=c3=bcckfrage"));
 }
+
+/// Found testing drafts on a real server: one with no Drafts folder refused every draft ("this
+/// account has no Drafts folder"). It gets one made, as it gets Sent Items, and the draft goes in
+/// it; the folder is listed as Drafts.
+#[test]
+fn a_draft_on_a_server_without_drafts_makes_the_folder() {
+    let st = State::new();
+    let imap_port = serve_tcp(&st);
+    let store = store("drafts-made");
+    let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+    let account = AccountConfig {
+        id: "a1".into(),
+        email: "me@studio.example".into(),
+        username: "me@studio.example".into(),
+        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
+        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+        ..Default::default()
+    };
+    pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+    let end = Instant::now() + Duration::from_secs(20);
+    while store.load_folders("a1").map_or(true, |f| f.is_empty()) {
+        assert!(Instant::now() < end, "never listed its folders");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(st.lock().unwrap().mailbox("Drafts").is_none());
+    let draft = b"From: me@studio.example\r\nSubject: Plans\r\n\r\nto finish\r\n".to_vec();
+    pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "Drafts".into(), replaces: None });
+    let end = Instant::now() + Duration::from_secs(20);
+    while st.lock().unwrap().mailbox("Drafts").is_none_or(|m| m.msgs.is_empty()) {
+        assert!(Instant::now() < end, "the draft never reached the server");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let end = Instant::now() + Duration::from_secs(20);
+    while !store.load_folders("a1").is_ok_and(|f| f.iter().any(|f| f.path == "Drafts" && f.role == FolderRole::Drafts)) {
+        assert!(Instant::now() < end, "Drafts never listed as Drafts");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    pool.submit(Job::Remove { account: "a1".into() });
+    let _ = std::fs::remove_dir_all(store.root());
+}

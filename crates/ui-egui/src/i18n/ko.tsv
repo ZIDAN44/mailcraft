@@ -1606,3 +1606,4 @@ month	May	5월
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	이 계정에는 해독할 OpenPGP 키가 없습니다 (파일 › 정보 › 보안)
 	it can't be decrypted with your OpenPGP key	내 OpenPGP 키로 해독할 수 없습니다
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP 키는 브라우저가 아니라 MailCraft 데스크톱 앱에서 사용됩니다
+	Not sent yet: this is a draft.	아직 보내지 않음: 임시 보관 메시지입니다.

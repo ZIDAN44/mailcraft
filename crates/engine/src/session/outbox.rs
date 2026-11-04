@@ -126,30 +126,19 @@ impl Session {
         let store = self.store.clone().ok_or_else(|| CmdError::Failed("no mail cache".into()))?;
         let raw = store.outbox_raw(&account, item.id).ok_or_else(|| CmdError::Failed("the message is gone".into()))?;
         let p = mime::parse(&raw).ok_or_else(|| CmdError::Failed("the message can't be read".into()))?;
-        let mut attachments = Vec::new();
-        for a in &p.attachments {
-            if let Some(out) = mime::attachment_out(&raw, a.index) {
-                attachments.push(OutAttachment { name: a.name.clone(), ..out });
-            }
-        }
+        // As it went in: formatted, its pictures in place, a reply's original as it was.
+        let mut c = self.compose_from_saved(&account, key, &raw)?;
         // Bcc isn't written into a message: it's the envelope recipients not in To or Cc.
         let shown: Vec<String> = p.to.iter().chain(&p.cc).map(|a| a.email.to_ascii_lowercase()).collect();
         let bcc: Vec<String> = item.recipients.iter().filter(|r| !shown.contains(&r.to_ascii_lowercase())).cloned().collect();
-        let id = self.fresh_id();
-        self.open_compose(Compose {
-            id,
-            account: account.clone(),
-            to: addr::format_field(&p.to),
-            cc: addr::format_field(&p.cc),
-            bcc: if bcc.is_empty() { String::new() } else { format!("{}; ", bcc.join("; ")) },
-            show_cc: !bcc.is_empty(),
-            subject: p.subject.clone(),
-            body: p.text.clone(),
-            in_reply_to: p.in_reply_to.clone(),
-            references: p.references.clone(),
-            attachments,
-            ..Default::default()
-        });
+        c.bcc = if bcc.is_empty() { String::new() } else { format!("{}; ", bcc.join("; ")) };
+        c.show_cc = !bcc.is_empty();
+        // What it answers comes with what the Outbox owed it, below.
+        (c.source, c.mode) = (None, None);
+        // Not a copy in Drafts to replace.
+        c.draft_id.clear();
+        let id = c.id;
+        self.open_compose(c);
         // Pulled back for editing: the owed flag moves onto the compose, for its delivery.
         if let Some((src, flag)) = self.pending_marks.remove(&item.id) {
             self.save_pending_marks();

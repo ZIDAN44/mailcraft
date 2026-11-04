@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod quote;
 mod sending;
 
 #[test]

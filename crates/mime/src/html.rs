@@ -3,7 +3,9 @@
 use super::*;
 use std::collections::{HashMap, VecDeque};
 
+mod quote;
 mod signature;
+pub use quote::*;
 pub use signature::*;
 
 /// Most lines kept of a rich rendering (the rest is shown as text).

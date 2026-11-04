@@ -47,7 +47,7 @@ pub use security::{
     CardSearch, KeySource, KnownCert, KnownKey, Lock, PGP_DOC, PgpSettings, Reach, RevocationCheck, SMIME_DOC, Scheme, Seal, Security, SignedBy,
     SmimeSettings,
 };
-pub use writing::{Compose, Reactions, SendBlock, SendCheck, signature_parts};
+pub use writing::{Compose, Quote, Reactions, SendBlock, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
 pub(crate) use mailboxes::arrange_list;

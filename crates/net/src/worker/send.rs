@@ -5,11 +5,6 @@ use super::*;
 /// Said when a sent message's copy has nowhere to go.
 const NO_SENT: &str = "sent, but no copy was saved: the server has no Sent Items folder, and one couldn't be made";
 
-/// Whether a folder's name says Sent Items.
-fn sent_name(path: &str, delimiter: Option<char>) -> bool {
-    FolderRole::from_name(path, delimiter) == FolderRole::Sent
-}
-
 impl Worker {
     /// The account's second connection: sends mail and reads or changes the automatic replies,
     /// whatever the main connection is doing. It connects when there's something to do, and lets
@@ -116,6 +111,16 @@ impl Worker {
         if self.acc.is_api() || self.files_itself() {
             return Ok(None);
         }
+        self.role_folder(FolderRole::Sent, "Sent")
+    }
+
+    /// The account's folder for `role` (Sent Items, Drafts) on an IMAP server that lists none:
+    /// one there by its name without the role (another client's), else one made, `name` or
+    /// `INBOX.name` on a server that keeps every folder in the Inbox. Connects to make it.
+    pub(super) fn role_folder(&mut self, role: FolderRole, name: &str) -> Result<Option<String>> {
+        if let Some(f) = self.folders.iter().find(|f| f.role == role) {
+            return Ok(Some(f.path.clone()));
+        }
         if self.conn.is_none() {
             self.connect()?;
         }
@@ -123,8 +128,8 @@ impl Worker {
             return Ok(None);
         }
         // A folder there by the name, without the role (another client's, unflagged): that one.
-        if let Some(f) = self.folders.iter_mut().find(|f| f.role == FolderRole::Other && sent_name(&f.path, f.delimiter)) {
-            f.role = FolderRole::Sent;
+        if let Some(f) = self.folders.iter_mut().find(|f| f.role == FolderRole::Other && FolderRole::from_name(&f.path, f.delimiter) == role) {
+            f.role = role;
             let path = f.path.clone();
             self.publish_folders();
             return Ok(Some(path));
@@ -141,25 +146,18 @@ impl Worker {
             .filter(|p| !others.is_empty() && others.iter().all(|f| f.path.to_ascii_uppercase().starts_with(p.as_str())));
         let mut names = Vec::new();
         if let Some(p) = &in_inbox {
-            names.push(format!("{p}Sent"));
+            names.push(format!("{p}{name}"));
         }
-        names.push("Sent".to_string());
+        names.push(name.to_string());
         if let (None, Some(d)) = (&in_inbox, delimiter) {
-            names.push(format!("INBOX{d}Sent"));
+            names.push(format!("INBOX{d}{name}"));
         }
         for name in names {
             match self.client()?.create(&name) {
                 Ok(()) => {
-                    log::info!("{}: no Sent folder on the server; made {name}", self.acc.id);
+                    log::info!("{}: no {role:?} folder on the server; made {name}", self.acc.id);
                     self.folders.retain(|f| f.path != name);
-                    self.folders.push(Folder {
-                        account: self.id(),
-                        path: name.clone(),
-                        delimiter,
-                        role: FolderRole::Sent,
-                        selectable: true,
-                        ..Default::default()
-                    });
+                    self.folders.push(Folder { account: self.id(), path: name.clone(), delimiter, role, selectable: true, ..Default::default() });
                     sort_folders(&mut self.folders);
                     self.publish_folders();
                     return Ok(Some(name));
