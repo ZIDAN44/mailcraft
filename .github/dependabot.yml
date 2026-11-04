@@ -15,6 +15,51 @@ updates:
       cargo-dependencies:
         patterns:
           - "*"
+    # Held back on purpose (patch releases still come):
+    # - S/MIME's RustCrypto crates move as one family, and rsa 0.10 and cms 0.3, which the next
+    #   one needs, are still release candidates (pgp and x509-ocsp use this one too). Drop these
+    #   once both are stable.
+    # - zbus: AccessKit, notify-rust and the keychain's Secret Service store use zbus 5; a 6 for
+    #   the theme watcher alone would build D-Bus twice.
+    ignore:
+      - dependency-name: "aes"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "aes-gcm"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "aes-kw"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "cbc"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "const-oid"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "der"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "des"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "getrandom"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "p12-keystore"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "p256"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "p384"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "pkcs8"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "rand_core"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "sha1"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "sha2"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "signature"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "spki"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "x509-cert"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "zbus"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "Build"
 
