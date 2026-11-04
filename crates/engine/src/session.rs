@@ -112,27 +112,32 @@ pub enum UpdateCheck {
 }
 
 /// The newest release `releases` has for a build of `version` made from commit `build_sha`:
-/// `Some` when it's newer. A newer version is; the same version at a later test build is when
-/// this build is one of that version's earlier test builds (by its commit). A build made from
-/// no release (a developer's), ahead or the same, is up to date.
+/// `Some` when it's newer. A newer version is. Of one version, its release (`v0.19.0`) comes after
+/// its test builds (`v0.19.0-test.15`), and a later test build after an earlier one: newer when
+/// this build is one of those (known by its commit). With `stable_only` (a build of a release),
+/// test builds aren't offered at all. A build made from no release (a developer's), ahead or the
+/// same, is up to date.
 pub fn newer_release<'a>(
     version: &str,
     build_sha: Option<&str>,
     releases: &'a [mailcraft_model::job::Release],
+    stable_only: bool,
 ) -> Option<&'a mailcraft_model::job::Release> {
     let parse = |v: &str| -> Option<(u32, u32, u32)> {
         let mut p = v.split('.').map(|n| n.parse::<u32>().ok());
         Some((p.next()??, p.next()??, p.next()??))
     };
+    // A version's release after its test builds, the later test build after the earlier.
+    let rank = |r: &mailcraft_model::job::Release| parse(&r.version).map(|v| (v, !r.pre, r.build));
     let current = parse(version)?;
-    let newest = releases.iter().filter_map(|r| parse(&r.version).map(|v| (v, r))).max_by_key(|(v, r)| (*v, r.build))?;
-    match newest.0.cmp(&current) {
+    let newest = releases.iter().filter(|r| !(stable_only && r.pre)).filter_map(|r| rank(r).map(|k| (k, r))).max_by_key(|(k, _)| *k)?;
+    match newest.0.0.cmp(&current) {
         std::cmp::Ordering::Greater => Some(newest.1),
         std::cmp::Ordering::Less => None,
         std::cmp::Ordering::Equal => {
             let sha = build_sha.map(str::trim).filter(|s| s.len() >= 7)?;
             let mine = releases.iter().find(|r| !r.commit.is_empty() && (r.commit.starts_with(sha) || sha.starts_with(&r.commit)))?;
-            (mine.version == newest.1.version && mine.build < newest.1.build).then_some(newest.1)
+            rank(mine).is_some_and(|k| k < newest.0).then_some(newest.1)
         }
     }
 }
@@ -556,6 +561,9 @@ pub struct Session {
     /// The commit this build was made from (release builds: `MAILCRAFT_BUILD_SHA`), for
     /// telling its test build from a later one of the same version.
     pub build_sha: Option<String>,
+    /// This is a build of a release, which is offered releases only, never test builds
+    /// (`MAILCRAFT_UPDATE_CHANNEL=stable`).
+    pub updates_stable_only: bool,
     /// File › About's update check.
     pub update: UpdateCheck,
 }
@@ -654,6 +662,7 @@ impl Session {
             next_id: u64::try_from(clock.now.max(0)).unwrap_or(0).saturating_mul(1000),
             seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15,
             build_sha: None,
+            updates_stable_only: false,
             update: UpdateCheck::NotAsked,
         };
         if let Some(store) = s.store.clone() {

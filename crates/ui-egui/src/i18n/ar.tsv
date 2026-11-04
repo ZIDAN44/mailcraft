@@ -1179,6 +1179,8 @@ month	May	مايو
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	تم تنزيل التحديث والتحقق منه. يُثبَّت الآن أثناء إغلاق MailCraft، وهذا يستغرق لحظة؛ افتح MailCraft مجددًا عند انتهائه.
 	Update and close	تحديث وإغلاق
 	Windows asks for an administrator's permission.	سيطلب Windows إذن المسؤول.
+	The system asks for your password to install it.	سيطلب النظام كلمة مرورك لتثبيته.
+	Your software installer opens to install it.	يُفتح مثبّت البرامج لديك لتثبيته.
 	An update is still downloading	لا يزال التحديث قيد التنزيل
 	MailCraft {version} is downloading ({done} of {total}).	جارٍ تنزيل MailCraft {version} ({done} من {total}).
 	Add another…	إضافة شهادة أخرى…

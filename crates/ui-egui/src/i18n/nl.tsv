@@ -1179,6 +1179,8 @@ month	May	mei
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	De update is gedownload en gecontroleerd. Hij wordt nu geïnstalleerd, terwijl MailCraft sluit, wat even duurt; open MailCraft daarna opnieuw.
 	Update and close	Bijwerken en sluiten
 	Windows asks for an administrator's permission.	Windows vraagt toestemming van een beheerder.
+	The system asks for your password to install it.	Het systeem vraagt je wachtwoord om het te installeren.
+	Your software installer opens to install it.	Je software-installatieprogramma opent om het te installeren.
 	An update is still downloading	Er wordt nog een update gedownload
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} wordt gedownload ({done} van {total}).
 	Add another…	Nog een toevoegen…

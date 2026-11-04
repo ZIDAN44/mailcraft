@@ -1184,6 +1184,8 @@ month	May	mai
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	La mise à jour est téléchargée et vérifiée. Elle s'installe maintenant, à la fermeture de MailCraft, ce qui prend un instant ; rouvrez MailCraft une fois terminé.
 	Update and close	Mettre à jour et fermer
 	Windows asks for an administrator's permission.	Windows demande l'autorisation d'un administrateur.
+	The system asks for your password to install it.	Le système demande votre mot de passe pour l'installer.
+	Your software installer opens to install it.	Votre installateur de logiciels s'ouvre pour l'installer.
 	An update is still downloading	Une mise à jour est encore en cours de téléchargement
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} est en cours de téléchargement ({done} sur {total}).
 	Add another…	En ajouter un autre…

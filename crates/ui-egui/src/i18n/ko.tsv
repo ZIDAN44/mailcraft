@@ -1183,6 +1183,8 @@ month	May	5월
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	업데이트를 다운로드하고 확인했습니다. MailCraft가 닫히는 지금 설치되며 잠시 걸립니다. 끝나면 MailCraft를 다시 여세요.
 	Update and close	업데이트하고 닫기
 	Windows asks for an administrator's permission.	Windows에서 관리자 권한을 요청합니다.
+	The system asks for your password to install it.	설치하려면 시스템에서 암호를 요청합니다.
+	Your software installer opens to install it.	설치하려면 소프트웨어 설치 프로그램이 열립니다.
 	An update is still downloading	업데이트를 아직 다운로드하고 있습니다
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version}을(를) 다운로드하고 있습니다({done} / {total}).
 	Add another…	다른 인증서 추가…

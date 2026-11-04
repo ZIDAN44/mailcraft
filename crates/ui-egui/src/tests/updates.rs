@@ -54,7 +54,7 @@ fn updating(a: &mut MailApp) -> Rc<RefCell<Asked>> {
 }
 
 fn ready(admin: bool) -> UpdateState {
-    UpdateState::Ready { version: "0.25.0-test.22".into(), admin }
+    UpdateState::Ready { version: "0.25.0-test.22".into(), asks: if admin { crate::InstallAsks::Administrator } else { crate::InstallAsks::Nothing } }
 }
 
 /// The window asked to close, as its close button does.
@@ -112,7 +112,7 @@ fn a_ready_update_is_said_once() {
     frame(&ctx, &mut a, vec![]);
     assert!(!a.update_bar_wanted(), "Later puts it away");
     // A newer one ready: said again.
-    asked.borrow_mut().state = UpdateState::Ready { version: "0.25.0-test.23".into(), admin: false };
+    asked.borrow_mut().state = UpdateState::Ready { version: "0.25.0-test.23".into(), asks: crate::InstallAsks::Nothing };
     frame(&ctx, &mut a, vec![]);
     assert!(a.update_bar_wanted());
     assert_eq!(asked.borrow().notified.len(), 1, "in front: the bar says it");

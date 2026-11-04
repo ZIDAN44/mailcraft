@@ -1,9 +1,9 @@
-//! Test builds keep themselves up to date.
+//! MailCraft keeps itself up to date: test builds and release builds alike.
 //!
-//! Only a build made by the unsigned test-build workflow has this (it sets
-//! `MAILCRAFT_UPDATE_CHANNEL=test` when compiling); signed releases are left to how they were
-//! installed, and a developer's build never changes itself. `MAILCRAFT_NO_AUTO_UPDATE=1` turns
-//! it off for a run.
+//! A build made by MailCraft's own release workflow has this: `MAILCRAFT_UPDATE_CHANNEL=test`
+//! (a test build, `v0.33.0-test.31`) follows test builds and releases, whichever is newer, and
+//! `MAILCRAFT_UPDATE_CHANNEL=stable` (a release, `v0.33.0`) follows releases only. A developer's
+//! build never changes itself. `MAILCRAFT_NO_AUTO_UPDATE=1` turns it off for a run.
 //!
 //! The steps, the way browsers and code editors update themselves (fetch quietly, say when it's
 //! ready, install on restart or as the app closes):
@@ -12,17 +12,18 @@
 //!    about hourly while MailCraft stays open, with jitter; asking GitHub with the last `ETag`
 //!    so an unchanged list costs nothing against its anonymous quota. A check that fails is
 //!    tried again sooner: 5 minutes, doubling up to the hour.
-//! 2. **Pick** the newest test build newer than this one ([`newer_release`]: never an older or
-//!    the same one), and its installer of the kind this copy was installed from ([`Kind`]).
+//! 2. **Pick** the newest release newer than this build ([`newer_release`]: never an older or
+//!    the same one; a version's release comes after its test builds), and its file of the kind
+//!    this copy was installed from ([`Kind`]).
 //! 3. **Download** it into `<data>/updates`, resumably (`mailcraft_net::updates::download`): the
 //!    bytes go to a partial file as they come, a download cut off carries on from there with a
 //!    range request (in this run, or the next one when MailCraft was closed first), and the file
 //!    is kept only if its SHA-256 matches GitHub's record of it (or the release's
 //!    `SHA256SUMS.txt`) and its size the release's.
 //! 4. **Say so**: the window shows a bar with Restart now, and the system a notification when
-//!    MailCraft isn't in front (`crates/ui-egui/src/app/updates.rs`). Closing asks first what
-//!    becomes of it (installed as MailCraft closes, or kept for the next time), and says when a
-//!    download is still going (it carries on next time).
+//!    MailCraft isn't in front (`crates/ui-egui/src/app/updates.rs`), and what the system will
+//!    ask on the way. Closing asks first what becomes of it (installed as MailCraft closes, or
+//!    kept for the next time), and says when a download is still going (it carries on).
 //! 5. **Install** as MailCraft closes, or at once with Restart now: a small detached helper waits
 //!    for this process to end, puts the new version in place the way this copy was installed,
 //!    and (when restarting) opens it (`self_update/install.rs`).
@@ -30,10 +31,11 @@
 //! A marker remembers the version just installed for a day, so a release whose binary reports
 //! something else can't make it install itself over and over.
 //!
-//! To try it against the newest test build, run a test build with
-//! `MAILCRAFT_UPDATE_PRETEND_VERSION=0.20.0` (it counts as that version, for this run only, and
-//! the sample mailbox's run updates too) and `MAILCRAFT_UPDATE_FIRST_CHECK=5` (seconds before
-//! the first check).
+//! To try it, run a test or release build with `MAILCRAFT_UPDATE_PRETEND_VERSION=0.20.0` (it
+//! counts as that version, for this run only, and the sample mailbox's run updates too) and
+//! `MAILCRAFT_UPDATE_FIRST_CHECK=5` (seconds before the first check). A debug build also takes
+//! `MAILCRAFT_UPDATE_FEED=http://127.0.0.1:<port>/`, releases made up and served on this computer
+//! (`mailcraft_net::updates::Feed`).
 //!
 //! | Installed from | Installed by the helper |
 //! |---|---|
@@ -41,9 +43,12 @@
 //! | Windows portable `.zip` | unzipped over the app's folder; `MailCraftData` stays |
 //! | macOS `.dmg` | `MailCraft.app` copied out of it in place of this one, where this user may write (`/Applications` for an administrator's account, `~/Applications`) |
 //! | Linux `.AppImage` | the new file renamed over this one, where this user may write |
+//! | Linux `.deb`, `.rpm` | the system's package tool installs the new package, after asking for a password (`pkexec`); without `pkexec`, the package opens in the software installer |
+//! | Linux and FreeBSD `.tar.gz` | unpacked over the folder it was unpacked into, where this user may write |
+//! | Flatpak | the new bundle opens in the software installer, as MailCraft closes (Flatpak installs it; from inside its sandbox MailCraft can't) |
 //!
-//! Anything else (a `.deb`, `.rpm`, Flatpak, FreeBSD, an app macOS runs from a read-only
-//! translocated copy) keeps File › About's Download link.
+//! Anything else (a package in a folder this user can't write, an app macOS runs from a
+//! read-only translocated copy) keeps File › About's Download link.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -53,8 +58,11 @@ use std::time::Duration;
 use mailcraft_engine::model::job::Release;
 use mailcraft_engine::newer_release;
 use mailcraft_net::updates::{self, Listing, Progress};
-use mailcraft_ui_egui::UpdateState;
+use mailcraft_ui_egui::{InstallAsks, UpdateState};
 
+mod detect;
+#[cfg(test)]
+mod end_to_end;
 mod install;
 #[cfg(test)]
 mod tests;
@@ -78,7 +86,13 @@ const DOWNLOADS: &str = "updates";
 
 /// Whether this build updates itself.
 pub fn enabled() -> bool {
-    CHANNEL == Some("test") && std::env::var_os("MAILCRAFT_NO_AUTO_UPDATE").is_none_or(|v| v.is_empty() || v == "0")
+    matches!(CHANNEL, Some("test" | "stable")) && std::env::var_os("MAILCRAFT_NO_AUTO_UPDATE").is_none_or(|v| v.is_empty() || v == "0")
+}
+
+/// Whether this is a build of a release (`MAILCRAFT_UPDATE_CHANNEL=stable`): it's offered
+/// releases only, never test builds.
+pub fn stable() -> bool {
+    CHANNEL == Some("stable")
 }
 
 /// Whether this run tries the updater out (`MAILCRAFT_UPDATE_PRETEND_VERSION`): the sample
@@ -98,6 +112,20 @@ pub enum Kind {
     MacApp(PathBuf),
     /// The AppImage file.
     AppImage(PathBuf),
+    /// A system package (`.deb`, `.rpm`) the package tool installed: its exe (`/usr/bin/mailcraft`).
+    Package(Package, PathBuf),
+    /// The `.tar.gz` (Linux, FreeBSD), unpacked into a folder this user may write: that folder
+    /// (`bin/mailcraft` in it).
+    Tarball(PathBuf),
+    /// The Flatpak bundle, installed by Flatpak: MailCraft runs in its sandbox.
+    Flatpak,
+}
+
+/// A system package's kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Package {
+    Deb,
+    Rpm,
 }
 
 impl Kind {
@@ -114,8 +142,34 @@ impl Kind {
             Kind::Msi(_) => format!("-windows-{arch}.msi"),
             Kind::Portable(_) => format!("-windows-{arch}-portable.zip"),
             Kind::MacApp(_) => "-macos-universal.dmg".into(),
-            Kind::AppImage(_) => format!("-linux-{}.AppImage", if cfg!(target_arch = "aarch64") { "aarch64" } else { "x86_64" }),
+            Kind::AppImage(_) => format!("-linux-{}.AppImage", unix_arch()),
+            Kind::Package(Package::Deb, _) => format!("-linux-{}.deb", unix_arch()),
+            Kind::Package(Package::Rpm, _) => format!("-linux-{}.rpm", unix_arch()),
+            Kind::Tarball(_) => format!("-{}-{}.tar.gz", if cfg!(target_os = "freebsd") { "freebsd" } else { "linux" }, unix_arch()),
+            Kind::Flatpak => format!("-linux-{}.flatpak", unix_arch()),
         }
+    }
+
+    /// What the system asks as this kind installs.
+    pub fn asks(&self) -> InstallAsks {
+        match self {
+            // The MSI installs for everyone.
+            Kind::Msi(_) => InstallAsks::Administrator,
+            Kind::Package(..) => InstallAsks::Password,
+            Kind::Flatpak => InstallAsks::Installer,
+            Kind::Portable(_) | Kind::MacApp(_) | Kind::AppImage(_) | Kind::Tarball(_) => InstallAsks::Nothing,
+        }
+    }
+}
+
+/// The machine as the Linux and FreeBSD packages name it.
+fn unix_arch() -> &'static str {
+    if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else if cfg!(target_arch = "riscv64") {
+        "riscv64"
+    } else {
+        "x86_64"
     }
 }
 
@@ -162,15 +216,15 @@ fn detect_at(exe: &Path, env: &dyn Fn(&str) -> Option<PathBuf>) -> Option<Kind> 
         let parent = bundle.parent()?;
         return writable(parent).then(|| Kind::MacApp(bundle.to_path_buf()));
     }
-    if cfg!(target_os = "linux") {
-        // Replaced by a rename beside it: its folder must be ours to write (an AppImage kept in
-        // /opt by root keeps File › About's Download link).
-        let image = env("APPIMAGE").filter(|p| p.is_file())?;
-        if !image.parent().is_some_and(writable) {
-            log::info!("updates: {} is in a folder this user can't write, so it isn't replaced", image.display());
-            return None;
-        }
-        return Some(Kind::AppImage(image));
+    if cfg!(any(target_os = "linux", target_os = "freebsd")) {
+        let probe = detect::Probe {
+            env,
+            file: &|p: &Path| p.is_file(),
+            writable: &|p: &Path| writable(p),
+            package: &detect::installed_package,
+            freebsd: cfg!(target_os = "freebsd"),
+        };
+        return detect::unix_kind(exe, &probe);
     }
     None
 }
@@ -221,6 +275,11 @@ pub type Waker = Arc<dyn Fn() + Send + Sync>;
 pub struct Updater {
     kind: Kind,
     data: PathBuf,
+    /// Where releases are listed (GitHub's, or a debug build's local copy).
+    feed: updates::Feed,
+    /// The version this build counts as, and whether it follows releases only.
+    version: String,
+    stable: bool,
     shared: Arc<Shared>,
 }
 
@@ -235,14 +294,26 @@ impl Updater {
             log::info!("updates: this copy wasn't installed in a way MailCraft can update by itself");
             return None;
         };
-        let u = Updater { kind, data, shared: Arc::default() };
-        let worker = u.clone();
-        let spawned = std::thread::Builder::new().name("updates".into()).spawn(move || worker.run(build_sha.as_deref()));
+        let first = std::env::var("MAILCRAFT_UPDATE_FIRST_CHECK").ok().and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
+        Updater::new(kind, data, updates::Feed::current(), current_version(), stable()).launch(build_sha, first)
+    }
+
+    /// An updater for a copy installed as `kind`, counting as `version` (following releases only
+    /// when `stable`), its downloads in `data`, its releases from `feed`; not started.
+    fn new(kind: Kind, data: PathBuf, feed: updates::Feed, version: String, stable: bool) -> Updater {
+        Updater { kind, data, feed, version, stable, shared: Arc::default() }
+    }
+
+    /// Start its thread: the first check after `first` (by default a minute, or ten seconds when
+    /// a download was left part way).
+    fn launch(self, build_sha: Option<String>, first: Option<Duration>) -> Option<Updater> {
+        let worker = self.clone();
+        let spawned = std::thread::Builder::new().name("updates".into()).spawn(move || worker.run(build_sha.as_deref(), first));
         if let Err(e) = spawned {
             log::warn!("updates: {e}");
             return None;
         }
-        Some(u)
+        Some(self)
     }
 
     fn status(&self) -> Status {
@@ -276,7 +347,7 @@ impl Updater {
                 UpdateState::Downloading { version: version(&tag), done, total }
             }
             // The MSI installs for everyone: Windows asks for an administrator.
-            Status::Ready { tag, .. } => UpdateState::Ready { version: version(&tag), admin: matches!(self.kind, Kind::Msi(_)) },
+            Status::Ready { tag, .. } => UpdateState::Ready { version: version(&tag), asks: self.kind.asks() },
         }
     }
 
@@ -311,9 +382,8 @@ impl Updater {
         }
     }
 
-    fn run(&self, build_sha: Option<&str>) {
+    fn run(&self, build_sha: Option<&str>, first: Option<Duration>) {
         let dir = self.data.join(DOWNLOADS);
-        let first = std::env::var("MAILCRAFT_UPDATE_FIRST_CHECK").ok().and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
         let first = first.unwrap_or(if has_part(&dir) { FIRST_RESUME } else { FIRST_CHECK });
         if !self.sleep(first) {
             return;
@@ -359,14 +429,14 @@ impl Updater {
 
     /// One look at the releases, and the download of a newer one.
     fn check(&self, build_sha: Option<&str>, etag: &mut Option<String>) -> Result<(), String> {
-        let releases = match updates::releases_since(Some(&self.kind.suffix()), etag.as_deref()).map_err(|e| e.to_string())? {
+        let releases = match updates::releases_since(&self.feed, Some(&self.kind.suffix()), etag.as_deref()).map_err(|e| e.to_string())? {
             Listing::Unchanged => return Ok(()),
             Listing::Changed(list, tag) => {
                 *etag = tag;
                 list
             }
         };
-        let Some(release) = newer_release(&current_version(), build_sha, &releases) else { return Ok(()) };
+        let Some(release) = newer_release(&self.version, build_sha, &releases, self.stable) else { return Ok(()) };
         if release.download.is_empty() {
             return Err(format!("{} has no {} to update with", release.tag, self.kind.suffix().trim_start_matches('-')));
         }
@@ -391,7 +461,7 @@ impl Updater {
         if !matches!(ready, Status::Ready { .. }) {
             self.set_status(Status::Downloading { tag: release.tag.clone() });
         }
-        let fetched = updates::download_installer(release, &expected, &dir, &self.shared.progress, &self.shared.stop);
+        let fetched = updates::download_installer(&self.feed, release, &expected, &dir, &self.shared.progress, &self.shared.stop);
         match fetched {
             Ok(Some(file)) => {
                 // Under the status's lock, so that closing (which reads it) either finds the older
@@ -426,6 +496,11 @@ impl Updater {
     /// Install what's waiting once this process has ended; `restart` opens the new version then.
     /// Nothing waiting, or started already: nothing to do.
     pub fn install(&self, restart: bool) -> Result<bool, String> {
+        self.install_after(restart, std::process::id())
+    }
+
+    /// [`Updater::install`] once process `pid` has ended (this one's, but for tests).
+    fn install_after(&self, restart: bool, pid: u32) -> Result<bool, String> {
         let Status::Ready { tag, file } = self.status() else { return Ok(false) };
         if self.shared.started.swap(true, Ordering::SeqCst) {
             return Ok(false);
@@ -434,7 +509,7 @@ impl Updater {
             log::warn!("updates: couldn't note the update: {e}");
         }
         let log = self.data.join(DOWNLOADS).join("install.log");
-        let result = install::helper(&self.kind, &file, std::process::id(), restart, &log);
+        let result = install::helper(&self.kind, &file, pid, restart, &log);
         if result.is_err() {
             self.shared.started.store(false, Ordering::SeqCst);
         }

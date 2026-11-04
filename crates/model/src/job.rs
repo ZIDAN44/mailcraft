@@ -54,6 +54,10 @@ pub struct Release {
     /// `0.19.0`, and its test build (15; 0 for none).
     pub version: String,
     pub build: u32,
+    /// A test build (or another pre-release: its tag has a `-` part, `v0.19.0-test.15`), not
+    /// the version's release (`v0.19.0`), which comes after all of them.
+    #[serde(default)]
+    pub pre: bool,
     /// The commit it was built from (empty when not said).
     pub commit: String,
     /// Its page (release notes and every file).

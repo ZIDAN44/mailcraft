@@ -1184,6 +1184,8 @@ month	May	Mayıs
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Güncelleme indirildi ve denetlendi. MailCraft kapanırken şimdi yüklenir, bu biraz sürer; bittiğinde MailCraft'ı yeniden açın.
 	Update and close	Güncelle ve kapat
 	Windows asks for an administrator's permission.	Windows bir yöneticinin iznini ister.
+	The system asks for your password to install it.	Sistem, yüklemek için parolanızı ister.
+	Your software installer opens to install it.	Yüklemek için yazılım yükleyiciniz açılır.
 	An update is still downloading	Bir güncelleme hâlâ indiriliyor
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} indiriliyor ({done} / {total}).
 	Add another…	Başka bir tane ekle…

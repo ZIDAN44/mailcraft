@@ -1184,6 +1184,8 @@ month	May	Mai
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Das Update ist heruntergeladen und geprüft. Es wird jetzt beim Schließen von MailCraft installiert, was einen Moment dauert; öffnen Sie MailCraft danach wieder.
 	Update and close	Aktualisieren und schließen
 	Windows asks for an administrator's permission.	Windows fragt nach der Erlaubnis eines Administrators.
+	The system asks for your password to install it.	Das System fragt nach Ihrem Passwort, um es zu installieren.
+	Your software installer opens to install it.	Ihre Softwareverwaltung öffnet sich, um es zu installieren.
 	An update is still downloading	Ein Update wird noch heruntergeladen
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} wird heruntergeladen ({done} von {total}).
 	Add another…	Weiteres hinzufügen…

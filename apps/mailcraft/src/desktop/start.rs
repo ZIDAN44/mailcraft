@@ -18,6 +18,8 @@ pub(crate) fn session(store: Option<Store>, (clock, portable, build_sha): Made) 
     session.set_card_modules(mailcraft_net::card_modules());
     session.portable = portable;
     session.build_sha = build_sha;
+    // A build of a release checks for releases only (File › About too).
+    session.updates_stable_only = crate::self_update::stable();
     session
 }
 

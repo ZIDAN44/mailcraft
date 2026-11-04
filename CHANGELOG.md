@@ -15,6 +15,8 @@ on GitHub.
 ### Added
 - Open a draft from Drafts to carry on writing it (**Edit**, or a double-click), as it was saved: its recipients and Bcc, formatting, signature, pictures, files and the original under a reply. Sending it marks the message it answers.
 - Releases for FreeBSD on 64-bit ARM (aarch64).
+- MailCraft updates itself however it was installed on Linux and FreeBSD: a `.deb` or `.rpm` through the system's package tool (after your password), a `.tar.gz` in place, and a Flatpak through your software installer, as the `.msi`, portable `.zip`, `.dmg` and `.AppImage` already did.
+- MailCraft's releases (`v0.33.0`), not only its test builds, can be published, and they update themselves to the next release. A test build updates to the next test build or release, whichever is newer.
 
 ### Changed
 - **File › Info › Mailbox settings** gives the data file's location, its Outlook copy and the clean-up each a row of their own.

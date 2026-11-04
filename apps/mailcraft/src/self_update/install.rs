@@ -21,7 +21,48 @@ pub(super) fn helper(kind: &Kind, file: &Path, pid: u32, restart: bool, log: &Pa
             let _ = std::fs::remove_file(file);
             if restart { unix_helper(pid, "", Some(&sh_quote(path)), log) } else { Ok(()) }
         }
+        Kind::Package(kind, exe) => unix_helper(pid, &package_step(*kind, file, restart.then_some(exe.as_path())), None, log),
+        Kind::Tarball(root) => {
+            let exe = root.join("bin").join("mailcraft");
+            unix_helper(pid, &tarball_step(file, root), restart.then(|| sh_quote(&exe)).as_deref(), log)
+        }
+        // Flatpak takes down the sandbox, helpers and all, once MailCraft has ended: so the
+        // bundle goes to the software installer now (through the desktop's portal), which
+        // installs it over this copy as MailCraft closes. It can't restart MailCraft.
+        Kind::Flatpak => {
+            let opened = std::process::Command::new("xdg-open").arg(file).status().map_err(|e| format!("couldn't open the update ({e})"))?;
+            if opened.success() { Ok(()) } else { Err(format!("the software installer didn't take the update ({opened})")) }
+        }
     }
+}
+
+/// The shell step installing a `.deb` or `.rpm` with the system's package tool (`apt-get`;
+/// `dnf`, `zypper` or `rpm`), after the system asks for a password (`pkexec`): the way
+/// craft-libs' updater installs the Craft apps' packages. Without `pkexec` the package opens in
+/// the software installer instead. `restart`: MailCraft is opened again once it's installed.
+pub(super) fn package_step(kind: super::Package, file: &Path, restart: Option<&Path>) -> String {
+    let f = sh_quote(file);
+    let tool = match kind {
+        super::Package::Deb => "set -- apt-get -o DPkg::Lock::Timeout=60 install -y --allow-downgrades".to_string(),
+        super::Package::Rpm => "if command -v dnf >/dev/null 2>&1; then set -- dnf install -y; elif command -v zypper >/dev/null 2>&1; then set -- zypper --non-interactive install --allow-unsigned-rpm; else set -- rpm -U --replacepkgs --nosignature; fi".to_string(),
+    };
+    let again = restart.map(|exe| format!("; [ $ok -eq 0 ] && exec {}", sh_quote(exe))).unwrap_or_default();
+    format!(
+        "{tool}; if command -v pkexec >/dev/null 2>&1; then pkexec \"$@\" {f}; ok=$?; else xdg-open {f}; ok=1; fi; \
+         [ $ok -eq 0 ] && rm -f {f}{again}"
+    )
+}
+
+/// The shell step unpacking the `.tar.gz` over the folder it was unpacked into (`root`): into a
+/// folder beside it first, so a damaged file changes nothing; then its one top folder's contents
+/// copied over, as the portable zip is on Windows.
+pub(super) fn tarball_step(file: &Path, root: &Path) -> String {
+    let (f, r) = (sh_quote(file), sh_quote(root));
+    let t = sh_quote(root.join(".mailcraft-update"));
+    format!(
+        "rm -rf {t} && mkdir -p {t} && tar -xzf {f} -C {t} && top=$(find {t} -mindepth 1 -maxdepth 1 -type d | head -n 1) && \
+         [ -x \"$top/bin/mailcraft\" ] && cp -R \"$top\"/. {r}/ && rm -f {f}; rm -rf {t}"
+    )
 }
 
 /// The PowerShell step installing an MSI (Windows asks for an administrator: it's per machine).

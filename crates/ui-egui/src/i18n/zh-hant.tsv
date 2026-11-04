@@ -1183,6 +1183,8 @@ month	May	5月
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	更新已下載並通過驗證。它現在會在 MailCraft 關閉時安裝，需要片刻；完成後請再次開啟 MailCraft。
 	Update and close	更新並關閉
 	Windows asks for an administrator's permission.	Windows 會要求系統管理員許可。
+	The system asks for your password to install it.	系統會要求輸入密碼以安裝它。
+	Your software installer opens to install it.	將開啟軟體安裝程式來安裝它。
 	An update is still downloading	更新仍在下載
 	MailCraft {version} is downloading ({done} of {total}).	正在下載 MailCraft {version}（{done}/{total}）。
 	Add another…	新增另一個…

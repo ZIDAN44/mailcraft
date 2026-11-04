@@ -1,15 +1,16 @@
-# Unsigned test builds for every platform the Craft release covers, published as a pre-release
-# of this repository so people can try MailCraft. Run by hand only (Actions › Release (unsigned
-# test build) › Run workflow); nothing starts it on a push.
+# MailCraft's own releases, unsigned, for every platform the Craft release covers. Run by hand
+# only (Actions › Release (unsigned test build) › Run workflow); nothing starts it on a push.
+# `kind` picks what it publishes: a test build (the default), a pre-release
+# `v<version>-test.<run>` that test builds update to; or a release, `v<version>`, which release
+# builds update to (test builds too, once it's newer than they are).
 #
 # The same platforms as release.yml (storytold/craft-common-actions): macOS universal, Windows
 # x64/x86/arm64, Linux x86_64/aarch64 (AppImage, deb, rpm, tar.gz), Flatpak x86_64/aarch64, Linux
 # riscv64, FreeBSD and the web. Differences: free GitHub-hosted runners only (macos-15, not
 # macos-15-xlarge), no `release` environment and no signing secrets, so Windows installers are
 # unsigned and the macOS app is ad-hoc signed and not notarized (the packaging scripts fall back
-# to that by themselves); and the result is a published pre-release `v<version>-test.<run>`,
-# never the `v<version>` tag a signed release uses. Each job has the shared release's time limit,
-# so a hung build stops instead of running for GitHub's six hours.
+# to that by themselves). Each job has the shared release's time limit, so a hung build stops
+# instead of running for GitHub's six hours.
 name: Release (unsigned test build)
 
 on:
@@ -19,6 +20,11 @@ on:
         description: "Version override, e.g. 0.8.1 (empty: Cargo.toml)"
         type: string
         default: ""
+      kind:
+        description: "What to publish: a test build (a pre-release, v<version>-test.<run>) or the version's release (v<version>)"
+        type: choice
+        options: [test, release]
+        default: test
 
 permissions:
   contents: read
@@ -35,9 +41,9 @@ env:
   CRAFT_FONTS_REF: b076417b5880bd4154bd22f00695b1d28c6bea83
   # Unsigned on purpose: the packaging scripts note it rather than warn.
   UNSIGNED_BUILD: "1"
-  # These builds update themselves to the next test build (apps/mailcraft/src/self_update.rs);
-  # release.yml doesn't set it, so signed releases never do.
-  MAILCRAFT_UPDATE_CHANNEL: test
+  # These builds update themselves (apps/mailcraft/src/self_update.rs): a test build to the next
+  # test build or release, a release to the next release only.
+  MAILCRAFT_UPDATE_CHANNEL: ${{ inputs.kind == 'release' && 'stable' || 'test' }}
   # Browser sign-in (OAuth) for Microsoft (Outlook.com, Hotmail, Microsoft 365) and Google is
   # built in when the repository has these secrets (an app registration's client id; empty
   # otherwise, and the build offers passwords only). See docs/oauth.md.
@@ -64,7 +70,16 @@ jobs:
           app-title: MailCraft (unsigned test build)
       - id: tag
         name: Tag
-        run: echo "tag=v${{ steps.v.outputs.version }}-test.${{ github.run_number }}" >>"$GITHUB_OUTPUT"
+        env:
+          KIND: ${{ inputs.kind }}
+          VERSION: ${{ steps.v.outputs.version }}
+          RUN: ${{ github.run_number }}
+        run: |
+          if [ "$KIND" = release ]; then
+            echo "tag=v$VERSION" >>"$GITHUB_OUTPUT"
+          else
+            echo "tag=v$VERSION-test.$RUN" >>"$GITHUB_OUTPUT"
+          fi
 
   macos:
     name: macOS universal
@@ -368,7 +383,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Publish the test pre-release
+    name: Publish the test build or release
     if: "!cancelled() && !contains(needs.*.result, 'failure')"
     needs: [version, macos, windows, linux, linux-riscv64, flatpak, freebsd, web]
     runs-on: ubuntu-latest
@@ -391,9 +406,20 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.version.outputs.tag }}
           VERSION: ${{ needs.version.outputs.version }}
+          KIND: ${{ inputs.kind }}
+          RUN: ${{ github.run_number }}
         run: |
+          if [ "$KIND" = release ]; then
+            what="**MailCraft $VERSION** (\`${GITHUB_SHA::9}\`), unsigned."
+            title="MailCraft $VERSION"
+            pre=()
+          else
+            what="**Unsigned test build** of MailCraft $VERSION (\`${GITHUB_SHA::9}\`), for trying it out."
+            title="MailCraft $VERSION (unsigned test build $RUN)"
+            pre=(--prerelease)
+          fi
           cat >../notes.md <<EOF
-          **Unsigned test build** of MailCraft $VERSION (\`${GITHUB_SHA::9}\`), for trying it out.
+          $what
 
           These builds aren't code-signed:
           - **Windows:** SmartScreen may say "Windows protected your PC": choose *More info › Run anyway*.
@@ -411,10 +437,10 @@ jobs:
 
           Check a download against \`SHA256SUMS.txt\`.
 
-          Installed from the \`.msi\`, the portable \`.zip\`, the \`.dmg\` or the \`.AppImage\`, a test build updates itself: it downloads the next one in the background (a download cut off carries on next time), checks it against its SHA-256, says when it's ready, and installs it at once with *Restart now* or as MailCraft closes (you're asked). \`MAILCRAFT_NO_AUTO_UPDATE=1\` turns that off.
+          MailCraft updates itself, however it was installed: it downloads the next version in the background (a download cut off carries on next time), checks it against its SHA-256, says when it's ready, and installs it at once with *Restart now* or as MailCraft closes (you're asked). A test build updates to the next test build or release, a release to the next release. The \`.deb\` and \`.rpm\` install after your password; the Flatpak opens in your software installer. \`MAILCRAFT_NO_AUTO_UPDATE=1\` turns it off.
           EOF
-          gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
-            --title "MailCraft $VERSION (unsigned test build ${{ github.run_number }})" \
+          gh release create "$TAG" "${pre[@]}" --target "$GITHUB_SHA" \
+            --title "$title" \
             --notes-file ../notes.md -- *
           {
             echo "Published **$TAG**:"

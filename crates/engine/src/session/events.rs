@@ -250,7 +250,7 @@ impl Session {
             Event::Releases { releases, error } => {
                 self.update = match error {
                     Some(e) => UpdateCheck::Failed(e),
-                    None => match newer_release(env!("CARGO_PKG_VERSION"), self.build_sha.as_deref(), &releases) {
+                    None => match newer_release(env!("CARGO_PKG_VERSION"), self.build_sha.as_deref(), &releases, self.updates_stable_only) {
                         Some(r) => UpdateCheck::Available(r.clone()),
                         None => UpdateCheck::UpToDate(releases.first().map(|r| r.tag.clone()).unwrap_or_default()),
                     },

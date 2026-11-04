@@ -50,5 +50,6 @@ fuzz_target!(|data: &[u8]| {
         let _ = updates::sum_for(text, "mailcraft-0.25.0-windows-x64.msi");
         let _ = updates::tag_version(text);
         let _ = updates::rate_limited(Some(text), 1_800_000_000);
+        let _ = updates::Feed::local(text);
     }
 });

@@ -107,13 +107,13 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         // Closing never installs an update, or drops a download, without a word.
         Dialog::UpdateOnClose(state) => match state {
-            UpdateState::Ready { version, admin } => {
+            UpdateState::Ready { version, asks } => {
                 ui.set_width(440.0);
                 title(ui, t, &tf!("Install MailCraft {version} as it closes?", version = version));
                 let mut about = tl!("The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.").to_string();
-                if *admin {
+                if let Some(asked) = asks.say() {
                     about.push(' ');
-                    about.push_str(tl!("Windows asks for an administrator's permission."));
+                    about.push_str(asked);
                 }
                 ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
                 ui.add_space(10.0);

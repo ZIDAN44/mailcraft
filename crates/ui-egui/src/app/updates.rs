@@ -70,14 +70,14 @@ impl MailApp {
             ui.spacing_mut().item_spacing.x = 10.0;
             let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
             icons::paint(ui.painter(), r, Icon::Sync, t.accent);
-            if let UpdateState::Ready { version, admin } = &self.ui.update
+            if let UpdateState::Ready { version, asks } = &self.ui.update
                 && self.ui.update_later.as_deref() != Some(version.as_str())
             {
                 let mut text =
                     tf!("MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.", version = version);
-                if *admin {
+                if let Some(asked) = asks.say() {
                     text.push(' ');
-                    text.push_str(tl!("Windows asks for an administrator's permission."));
+                    text.push_str(asked);
                 }
                 ui.label(RichText::new(text).color(t.text));
                 if widgets::accent_button(ui, Icon::Sync, "Restart now", &t, true).clicked() {

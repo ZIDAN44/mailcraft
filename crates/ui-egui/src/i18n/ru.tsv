@@ -1183,6 +1183,8 @@ month	May	Май
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Обновление загружено и проверено. Оно устанавливается сейчас, при закрытии MailCraft, это займёт немного времени; затем откройте MailCraft снова.
 	Update and close	Обновить и закрыть
 	Windows asks for an administrator's permission.	Windows запросит разрешение администратора.
+	The system asks for your password to install it.	Система запросит ваш пароль для установки.
+	Your software installer opens to install it.	Для установки откроется ваш установщик программ.
 	An update is still downloading	Обновление ещё загружается
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} загружается ({done} из {total}).
 	Add another…	Добавить ещё…

@@ -2,8 +2,9 @@
 //! test builds' updater (`apps/mailcraft/src/self_update.rs`), fetching an installer (resumably,
 //! [`download`]) and proving it is the one the release lists.
 //!
-//! MailCraft's releases are pre-releases (`v0.19.0-test.15`), which GitHub's "latest release"
-//! leaves out, so the recent ones are listed and the engine picks (`Session::check_updates`).
+//! MailCraft's releases are test builds (`v0.19.0-test.15`, pre-releases, which GitHub's "latest
+//! release" leaves out) and releases (`v0.19.0`), so the recent ones are listed and the engine
+//! picks (`newer_release`, by the build's channel).
 //! The answer is untrusted: its size is capped, and only addresses on the project's own releases
 //! pages are kept (anything else falls back to the release's page, or nothing). A download is
 //! accepted only if its SHA-256 matches the release's record of it: GitHub's per-file `digest`,
@@ -21,8 +22,59 @@ pub use download::{Progress, content_range, download_installer, file_name, part_
 /// Where MailCraft is published.
 pub const REPO: &str = "ZIDAN44/mailcraft";
 
-/// The largest answer read (ten releases with their files lists).
-const MAX_ANSWER: usize = 2 << 20;
+/// Where releases are listed and their files come from: MailCraft's GitHub releases, or a copy of
+/// them served on this computer, for trying the updater out (debug builds only, see
+/// `apps/mailcraft/src/self_update.rs`). Every address a listing gives is kept only when it's
+/// under [`Feed::files`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Feed {
+    /// The list of releases, newest first, as GitHub's API gives it.
+    pub list: String,
+    /// The start of every release page and file address taken from it.
+    pub files: String,
+}
+
+impl Feed {
+    /// MailCraft's own releases on GitHub (thirty: enough to reach the last release past a run
+    /// of test builds).
+    pub fn github() -> Feed {
+        Feed { list: format!("https://api.github.com/repos/{REPO}/releases?per_page=30"), files: format!("https://github.com/{REPO}/releases/") }
+    }
+
+    /// A copy served at `base` on this computer (`http://127.0.0.1:8123/`): its list at
+    /// `<base>releases`, its files under `<base>`. `None` for any other address.
+    pub fn local(base: &str) -> Option<Feed> {
+        let base = base.trim();
+        let rest = base.strip_prefix("http://").or_else(|| base.strip_prefix("https://"))?;
+        let host =
+            if rest.starts_with('[') { rest.split(']').next().map(|h| format!("{h}]")) } else { rest.split(['/', ':']).next().map(str::to_string) };
+        if !matches!(host.as_deref(), Some("127.0.0.1" | "localhost" | "[::1]")) || base.contains(['\r', '\n', ' ']) {
+            return None;
+        }
+        let base = if base.ends_with('/') { base.to_string() } else { format!("{base}/") };
+        Some(Feed { list: format!("{base}releases"), files: base })
+    }
+
+    /// The feed to use: GitHub's; in a debug build, `MAILCRAFT_UPDATE_FEED` may name a local copy
+    /// instead (`http://127.0.0.1:8123/`), for trying the updater and File › About out against
+    /// releases made up for it. A release build never reads it.
+    pub fn current() -> Feed {
+        if cfg!(debug_assertions)
+            && let Some(local) = std::env::var("MAILCRAFT_UPDATE_FEED").ok().and_then(|v| Feed::local(&v))
+        {
+            return local;
+        }
+        Feed::github()
+    }
+
+    /// `url` when it's on this feed's pages, else `None`.
+    pub fn ours(&self, url: &str) -> Option<String> {
+        (url.starts_with(&self.files) && url.len() < 1024 && !url.contains(['\r', '\n', ' '])).then(|| url.to_string())
+    }
+}
+
+/// The largest answer read (thirty releases with their files lists).
+const MAX_ANSWER: usize = 8 << 20;
 
 /// The largest installer accepted.
 const MAX_INSTALLER: usize = 400 << 20;
@@ -30,8 +82,8 @@ const MAX_INSTALLER: usize = 400 << 20;
 const MAX_SUMS: usize = 256 << 10;
 
 /// The most recent releases (drafts left out), newest first as GitHub gives them.
-pub fn releases() -> Result<Vec<Release>> {
-    match releases_since(asset_suffix(), None)? {
+pub fn releases(feed: &Feed) -> Result<Vec<Release>> {
+    match releases_since(feed, asset_suffix(), None)? {
         Listing::Changed(list, _) => Ok(list),
         Listing::Unchanged => Ok(Vec::new()),
     }
@@ -48,8 +100,8 @@ pub enum Listing {
 
 /// The recent releases with `suffix` picking each one's installer, unless they're unchanged
 /// since `etag` (from an earlier answer).
-pub fn releases_since(suffix: Option<&str>, etag: Option<&str>) -> Result<Listing> {
-    let mut req = Request::get(&format!("https://api.github.com/repos/{REPO}/releases?per_page=10"), MAX_ANSWER)
+pub fn releases_since(feed: &Feed, suffix: Option<&str>, etag: Option<&str>) -> Result<Listing> {
+    let mut req = Request::get(&feed.list, MAX_ANSWER)
         .header("Accept", "application/vnd.github+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
         .header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION")));
@@ -70,7 +122,7 @@ pub fn releases_since(suffix: Option<&str>, etag: Option<&str>) -> Result<Listin
         return Err(NetError::Protocol(format!("GitHub answered HTTP {}", resp.status)));
     }
     let etag = resp.header("ETag").filter(|t| t.len() < 200).map(str::to_string);
-    Ok(Listing::Changed(parse(&String::from_utf8_lossy(&resp.body), suffix)?, etag))
+    Ok(Listing::Changed(parse_from(feed, &String::from_utf8_lossy(&resp.body), suffix)?, etag))
 }
 
 /// The SHA-256 a `SHA256SUMS.txt` (as `sha256sum` writes it) gives `file`, in lowercase hex. A
@@ -156,12 +208,6 @@ fn asset_suffix() -> Option<&'static str> {
     }
 }
 
-/// An address on the project's releases pages, else `None`.
-fn ours(url: &str) -> Option<String> {
-    let base = format!("https://github.com/{REPO}/releases/");
-    (url.starts_with(&base) && url.len() < 1024 && !url.contains(['\r', '\n', ' '])).then(|| url.to_string())
-}
-
 /// A tag as a version and test build: `v0.19.0-test.15` → ("0.19.0", 15); `v1.2.3` → ("1.2.3", 0).
 pub fn tag_version(tag: &str) -> Option<(String, u32)> {
     let t = tag.trim().strip_prefix('v').unwrap_or(tag.trim());
@@ -176,17 +222,25 @@ pub fn tag_version(tag: &str) -> Option<(String, u32)> {
 
 /// The releases in GitHub's answer; `suffix` picks each one's installer for this system.
 pub fn parse(body: &str, suffix: Option<&str>) -> Result<Vec<Release>> {
+    parse_from(&Feed::github(), body, suffix)
+}
+
+/// [`parse`] for a listing from `feed`: only addresses on its pages are kept.
+pub fn parse_from(feed: &Feed, body: &str, suffix: Option<&str>) -> Result<Vec<Release>> {
+    let ours = |url: &str| feed.ours(url);
     let v: Value = serde_json::from_str(body).map_err(|e| NetError::Protocol(format!("GitHub's answer can't be read: {e}")))?;
     let list = v.as_array().ok_or_else(|| NetError::Protocol("GitHub's answer isn't a list of releases".into()))?;
     let text = |r: &Value, k: &str| r.get(k).and_then(Value::as_str).unwrap_or("").to_string();
     let mut out = Vec::new();
-    for r in list.iter().take(20) {
+    for r in list.iter().take(30) {
         if r.get("draft").and_then(Value::as_bool).unwrap_or(false) {
             continue;
         }
         let tag = text(r, "tag_name");
         let Some((version, build)) = tag_version(&tag) else { continue };
-        let page = ours(&text(r, "html_url")).unwrap_or_else(|| format!("https://github.com/{REPO}/releases"));
+        // A test build (or another pre-release) by its tag: `v0.19.0-test.15`, not `v0.19.0`.
+        let pre = tag.trim().trim_start_matches('v').contains('-');
+        let page = ours(&text(r, "html_url")).unwrap_or_else(|| feed.files.trim_end_matches('/').to_string());
         let assets: &[Value] = r.get("assets").and_then(Value::as_array).map_or(&[], |a| a.as_slice());
         let assets = assets.get(..assets.len().min(100)).unwrap_or_default();
         let installer = suffix.and_then(|s| assets.iter().find(|a| text(a, "name").ends_with(s)));
@@ -204,6 +258,7 @@ pub fn parse(body: &str, suffix: Option<&str>) -> Result<Vec<Release>> {
             tag: tag.chars().take(64).collect(),
             version,
             build,
+            pre,
             commit: if commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit()) { commit } else { String::new() },
             page,
             download,
@@ -301,6 +356,34 @@ mod tests {
         // Nothing to check against: refused before anything is fetched.
         let bare = Release { download: msi.download.clone(), ..Default::default() };
         assert!(expected_sum(&bare).is_err());
+    }
+
+    /// A release (`v0.33.0`) and a test build (`v0.33.0-test.31`) are told apart; a feed served
+    /// on this computer takes only its own addresses, and only one on this computer is a feed.
+    #[test]
+    fn releases_and_test_builds_and_a_local_feed() {
+        let body = r#"[
+          {"tag_name": "v0.33.0", "draft": false, "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.33.0", "assets": []},
+          {"tag_name": "v0.33.0-test.31", "draft": false, "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.33.0-test.31", "assets": []}
+        ]"#;
+        let r = parse(body, None).unwrap();
+        assert_eq!(r.iter().map(|r| (r.version.as_str(), r.build, r.pre)).collect::<Vec<_>>(), [("0.33.0", 0, false), ("0.33.0", 31, true)]);
+        let local = Feed::local("http://127.0.0.1:8123").unwrap();
+        assert_eq!(local, Feed { list: "http://127.0.0.1:8123/releases".into(), files: "http://127.0.0.1:8123/".into() });
+        assert!(Feed::local("http://localhost:9/").is_some() && Feed::local("http://[::1]:9/").is_some());
+        for elsewhere in ["https://example.com/", "http://127.0.0.1.example.com/", "http://10.0.0.1/", "file:///tmp/", "http://127.0.0.1/a b"] {
+            assert_eq!(Feed::local(elsewhere), None, "{elsewhere}");
+        }
+        let served = r#"[{"tag_name": "v0.34.0", "draft": false, "html_url": "http://127.0.0.1:8123/tag/v0.34.0",
+          "assets": [{"name": "mailcraft-0.34.0-linux-x86_64.tar.gz", "browser_download_url": "http://127.0.0.1:8123/download/v0.34.0/mailcraft-0.34.0-linux-x86_64.tar.gz"},
+                     {"name": "mailcraft-0.34.0-linux-x86_64.deb", "browser_download_url": "https://evil.example/m.deb"}]}]"#;
+        let r = parse_from(&local, served, Some("-linux-x86_64.tar.gz")).unwrap();
+        assert!(r[0].download.starts_with("http://127.0.0.1:8123/download/") && r[0].page.ends_with("/tag/v0.34.0"));
+        assert_eq!(parse_from(&local, served, Some("-linux-x86_64.deb")).unwrap()[0].download, "", "another site's file");
+        assert_eq!(parse(served, Some("-linux-x86_64.tar.gz")).unwrap()[0].download, "", "GitHub's feed doesn't take a local file");
+        if !cfg!(debug_assertions) {
+            assert_eq!(Feed::current(), Feed::github(), "a release build reads no feed of its own");
+        }
     }
 
     #[test]

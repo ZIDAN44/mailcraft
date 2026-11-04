@@ -195,7 +195,13 @@ fn the_install_kind_follows_where_mailcraft_is() {
 #[test]
 fn the_window_sees_where_the_update_is() {
     let dir = scratch("state");
-    let u = Updater { kind: Kind::Msi(PathBuf::from(r"C:\Program Files\MailCraft\mailcraft.exe")), data: dir.clone(), shared: Arc::default() };
+    let u = Updater::new(
+        Kind::Msi(PathBuf::from(r"C:\Program Files\MailCraft\mailcraft.exe")),
+        dir.clone(),
+        mailcraft_net::updates::Feed::github(),
+        "0.24.0".into(),
+        false,
+    );
     assert_eq!(u.state(), UpdateState::None);
     assert!(!u.restart_after_close(), "nothing to restart into");
     // Each change wakes the window, which an idle or minimized one needs to see it.
@@ -210,10 +216,14 @@ fn the_window_sees_where_the_update_is() {
     u.shared.progress.total.store(40, Ordering::Relaxed);
     assert_eq!(u.state(), UpdateState::Downloading { version: "0.25.0-test.22".into(), done: 10, total: 40 });
     u.set_status(Status::Ready { tag: "v0.25.0-test.22".into(), file: dir.join("x.msi") });
-    assert_eq!(u.state(), UpdateState::Ready { version: "0.25.0-test.22".into(), admin: true }, "the MSI asks for an administrator");
-    let portable = Updater { kind: Kind::Portable(PathBuf::from("m.exe")), data: dir.clone(), shared: Arc::default() };
+    assert_eq!(
+        u.state(),
+        UpdateState::Ready { version: "0.25.0-test.22".into(), asks: InstallAsks::Administrator },
+        "the MSI asks for an administrator"
+    );
+    let portable = Updater::new(Kind::Portable(PathBuf::from("m.exe")), dir.clone(), mailcraft_net::updates::Feed::github(), "0.24.0".into(), false);
     portable.set_status(Status::Ready { tag: "v0.25.0-test.22".into(), file: dir.join("x.zip") });
-    assert_eq!(portable.state(), UpdateState::Ready { version: "0.25.0-test.22".into(), admin: false });
+    assert_eq!(portable.state(), UpdateState::Ready { version: "0.25.0-test.22".into(), asks: InstallAsks::Nothing });
     // Closing without updating: nothing is started.
     u.keep_for_later();
     u.closing();

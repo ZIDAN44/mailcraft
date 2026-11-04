@@ -1179,6 +1179,8 @@ month	May	מאי
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	העדכון הורד ונבדק. הוא מותקן עכשיו, בזמן ש-MailCraft נסגר, וזה לוקח רגע; פתח את MailCraft שוב כשזה יסתיים.
 	Update and close	לעדכן ולסגור
 	Windows asks for an administrator's permission.	Windows יבקש אישור של מנהל מערכת.
+	The system asks for your password to install it.	המערכת תבקש את הסיסמה שלך כדי להתקין אותו.
+	Your software installer opens to install it.	מתקין התוכנות שלך ייפתח כדי להתקין אותו.
 	An update is still downloading	עדכון עדיין בהורדה
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} מורד ({done} מתוך {total}).
 	Add another…	הוספת אישור נוסף…

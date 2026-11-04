@@ -34,9 +34,35 @@ pub enum UpdateState {
     None,
     /// Being downloaded: the version (`0.25.0`), the bytes so far and the size (0 if unknown).
     Downloading { version: String, done: u64, total: u64 },
-    /// Downloaded and checked: installed as MailCraft closes. `admin`: Windows asks for an
-    /// administrator (the MSI installs for everyone).
-    Ready { version: String, admin: bool },
+    /// Downloaded and checked: installed as MailCraft closes; `asks` says what the system asks
+    /// on the way.
+    Ready { version: String, asks: InstallAsks },
+}
+
+/// What the system asks as an update installs, for the window to say so first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum InstallAsks {
+    /// Nothing: it replaces this copy by itself.
+    #[default]
+    Nothing,
+    /// Windows asks for an administrator (the MSI installs for everyone).
+    Administrator,
+    /// The system asks for a password (a `.deb` or `.rpm` installs for everyone).
+    Password,
+    /// The system's software installer opens with it (a Flatpak installs through it).
+    Installer,
+}
+
+impl InstallAsks {
+    /// What to say of it, if anything.
+    pub fn say(self) -> Option<&'static str> {
+        match self {
+            InstallAsks::Nothing => None,
+            InstallAsks::Administrator => Some(tl!("Windows asks for an administrator's permission.")),
+            InstallAsks::Password => Some(tl!("The system asks for your password to install it.")),
+            InstallAsks::Installer => Some(tl!("Your software installer opens to install it.")),
+        }
+    }
 }
 
 impl UpdateState {

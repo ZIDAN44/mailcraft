@@ -570,6 +570,7 @@ fn update_checks_tell_newer_releases_and_test_builds() {
         tag: tag.into(),
         version: version.into(),
         build,
+        pre: tag.contains('-'),
         commit: commit.into(),
         page: format!("https://github.com/ZIDAN44/mailcraft/releases/tag/{tag}"),
         download: String::new(),
@@ -578,7 +579,7 @@ fn update_checks_tell_newer_releases_and_test_builds() {
     let sha15 = "8bdba5ceb26a8b910102731c634d6998b8ab25d1";
     let sha14 = "23c7fb53b86cce9856b1b9fc76bf32f9ef397b83";
     let list = vec![r("v0.19.0-test.15", "0.19.0", 15, sha15), r("v0.19.0-test.14", "0.19.0", 14, sha14), r("v0.18.0-test.13", "0.18.0", 13, "")];
-    let newer = |version: &str, sha: Option<&str>| crate::newer_release(version, sha, &list).map(|r| r.tag.clone());
+    let newer = |version: &str, sha: Option<&str>| crate::newer_release(version, sha, &list, false).map(|r| r.tag.clone());
     assert_eq!(newer("0.18.0", None).as_deref(), Some("v0.19.0-test.15"), "a newer version");
     assert_eq!(newer("0.19.0", Some(sha14)).as_deref(), Some("v0.19.0-test.15"), "a later test build of this version");
     assert_eq!(newer("0.19.0", Some(&sha14[..9])).as_deref(), Some("v0.19.0-test.15"), "a short commit");
@@ -586,7 +587,21 @@ fn update_checks_tell_newer_releases_and_test_builds() {
     assert_eq!(newer("0.19.0", None), None, "a developer's build of the newest version");
     assert_eq!(newer("0.20.0", Some("0123456789abcdef")), None, "a developer's build ahead");
     assert_eq!(newer("1.0", None), None);
-    assert_eq!(crate::newer_release("0.19.0", None, &[]), None);
+    assert_eq!(crate::newer_release("0.19.0", None, &[], false), None);
+
+    // A version's release comes after its test builds: a test build of it is offered the release;
+    // the release isn't offered a later test build; a build of a release is offered releases only.
+    let sha_rel = "77777777b86cce9856b1b9fc76bf32f9ef397b83";
+    let with_release = [vec![r("v0.20.0-test.17", "0.20.0", 17, ""), r("v0.19.0", "0.19.0", 0, sha_rel)], list.clone()].concat();
+    let newer = |version: &str, sha: Option<&str>, stable: bool| crate::newer_release(version, sha, &with_release, stable).map(|r| r.tag.clone());
+    assert_eq!(newer("0.19.0", Some(sha15), false).as_deref(), Some("v0.20.0-test.17"), "a test build follows test builds");
+    assert_eq!(newer("0.19.0", Some(sha15), true).as_deref(), Some("v0.19.0"), "and a release build releases only");
+    assert_eq!(newer("0.19.0", Some(sha_rel), true), None, "the newest release");
+    assert_eq!(newer("0.18.0", None, true).as_deref(), Some("v0.19.0"), "never a test build");
+    let release_last = [vec![r("v0.19.0", "0.19.0", 0, sha_rel)], list.clone()].concat();
+    let newer = |sha: &str| crate::newer_release("0.19.0", Some(sha), &release_last, false).map(|r| r.tag.clone());
+    assert_eq!(newer(sha15).as_deref(), Some("v0.19.0"), "the release of the version a test build is of");
+    assert_eq!(newer(sha_rel), None, "a release isn't offered its own test builds");
 
     // The command asks the network side; the answer decides what File › About shows.
     let mut s = sample_session("updates");

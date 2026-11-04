@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use mailcraft_model::job::Release;
 
-use super::{MAX_INSTALLER, ours};
+use super::{Feed, MAX_INSTALLER};
 use crate::http::{Request, get_into};
 use crate::{NetError, Result};
 
@@ -41,8 +41,15 @@ impl Progress {
 /// Fetch `release`'s installer into `dir`, checked against `expected` (lowercase hex SHA-256):
 /// the finished file, or `None` when `stop` was set (what came stays, to carry on from). A file
 /// already there and right is taken as it is.
-pub fn download_installer(release: &Release, expected: &str, dir: &Path, progress: &Progress, stop: &AtomicBool) -> Result<Option<PathBuf>> {
-    if ours(&release.download).is_none() {
+pub fn download_installer(
+    feed: &Feed,
+    release: &Release,
+    expected: &str,
+    dir: &Path,
+    progress: &Progress,
+    stop: &AtomicBool,
+) -> Result<Option<PathBuf>> {
+    if feed.ours(&release.download).is_none() {
         return Err(NetError::No("the release has no installer on MailCraft's releases page".into()));
     }
     let name = file_name(&release.download).ok_or_else(|| NetError::Protocol("the installer has no usable file name".into()))?;
@@ -396,7 +403,7 @@ mod tests {
         h.join().unwrap();
         // Not on MailCraft's own releases page: refused before anything is fetched.
         let elsewhere = Release { download: "https://evil.example/mailcraft.msi".into(), size: 10, ..Default::default() };
-        assert!(download_installer(&elsewhere, &expected, &dir, &progress, &stop).is_err());
+        assert!(download_installer(&Feed::github(), &elsewhere, &expected, &dir, &progress, &stop).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

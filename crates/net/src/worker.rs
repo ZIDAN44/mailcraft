@@ -217,7 +217,7 @@ impl Pool {
             Job::CheckUpdates => {
                 let sink = self.sink.clone();
                 let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
-                    let (releases, error) = match crate::updates::releases() {
+                    let (releases, error) = match crate::updates::releases(&crate::updates::Feed::current()) {
                         Ok(r) => (r, None),
                         Err(e) => (Vec::new(), Some(e.to_string())),
                     };
