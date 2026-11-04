@@ -99,20 +99,8 @@ pub(super) fn mailbox(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, a: 
         if let Some(line) = s.compaction.last.get(&id).filter(|_| data_file && !running).and_then(report_line) {
             lines.push(line);
         }
-        if let Some(f) = &file {
-            lines.push(f.display().to_string());
-        }
+        // How much, and compacting it: a row of its own, as where it is and a copy of it are.
         setting_row(ui, t, first, name(t, tl!("On this computer")), Some(note(t, &lines.join("\n"))), |ui| {
-            if let Some(file) = &file {
-                if ui.button(tl!("Save as an Outlook data file…")).clicked() {
-                    acts.push(Action::ExportDataFile(id.clone()));
-                }
-                if ui.button(tl!("Open folder")).clicked() {
-                    // The folder the data file is in (or the account's own folder).
-                    let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), Path::to_path_buf) };
-                    acts.push(Action::OpenFolder(dir));
-                }
-            }
             if data_file {
                 // Not while it's imported or compacted, nor when it has nothing to give back.
                 let importing = s.import_state(&id).is_some_and(|st| st.live);
@@ -127,6 +115,31 @@ pub(super) fn mailbox(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, a: 
                 }
             }
         });
+        if let Some(file) = &file {
+            // Where, as Outlook shows a data file's place, with its folder a click away.
+            setting_row(ui, t, false, name(t, tl!("Location")), Some(note(t, &file.display().to_string())), |ui| {
+                if ui.button(tl!("Open folder")).clicked() {
+                    // The folder the data file is in (or the account's own folder).
+                    let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), Path::to_path_buf) };
+                    acts.push(Action::OpenFolder(dir));
+                }
+            });
+            setting_row(
+                ui,
+                t,
+                false,
+                name(t, tl!("Outlook data file")),
+                Some(note(
+                    t,
+                    tl!("Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open."),
+                )),
+                |ui| {
+                    if ui.button(tl!("Save as an Outlook data file…")).clicked() {
+                        acts.push(Action::ExportDataFile(id.clone()));
+                    }
+                },
+            );
+        }
         setting_row(ui, t, false, name(t, tl!("Clean up")), None, |ui| {
             for (role, label) in [
                 (mailcraft_engine::model::FolderRole::Junk, "Empty Junk Email…"),
