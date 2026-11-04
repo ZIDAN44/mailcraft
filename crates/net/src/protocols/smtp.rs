@@ -5,9 +5,10 @@ use std::time::Duration;
 
 use lettre::address::{Address, Envelope};
 use lettre::transport::smtp::authentication::Credentials;
-use lettre::transport::smtp::client::{Tls, TlsParameters};
+use lettre::transport::smtp::client::{Certificate, Tls, TlsParameters};
 use lettre::{SmtpTransport, Transport};
 use mailcraft_model::{Security, ServerConfig};
+use rustls::pki_types::CertificateDer;
 
 use crate::{NetError, Result};
 
@@ -27,15 +28,7 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
         return Err(NetError::Smtp("no recipients".into()));
     }
     let envelope = Envelope::new(Some(from), to).map_err(|e| NetError::Smtp(e.to_string()))?;
-    let tls = |host: &str| {
-        let mut p = TlsParameters::builder(host.to_string());
-        for der in crate::trust_roots() {
-            if let Ok(c) = lettre::transport::smtp::client::Certificate::from_der(der) {
-                p = p.add_root_certificate(c);
-            }
-        }
-        p.build_rustls().map_err(|e| NetError::Tls(e.to_string()))
-    };
+    let tls = |host: &str| tls_parameters(host, crate::stream::system_roots());
     let mut b = SmtpTransport::builder_dangerous(server.host.as_str()).port(server.port).timeout(Some(Duration::from_secs(60)));
     b = match server.security {
         Security::Tls => b.tls(Tls::Wrapper(tls(&server.host)?)),
@@ -63,6 +56,19 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
         }
     })?;
     Ok(())
+}
+
+/// TLS for `host`: lettre's bundled Mozilla roots and `roots` (the system's, which IMAP and
+/// HTTPS trust too). lettre fails the whole build on a root it can't read, so `roots` holds
+/// only usable ones ([`crate::stream::system_roots`]).
+fn tls_parameters(host: &str, roots: &[CertificateDer<'static>]) -> Result<TlsParameters> {
+    let mut p = TlsParameters::builder(host.to_string());
+    for der in roots {
+        if let Ok(c) = Certificate::from_der(der.to_vec()) {
+            p = p.add_root_certificate(c);
+        }
+    }
+    p.build_rustls().map_err(|e| NetError::Tls(e.to_string()))
 }
 
 /// What a 5xx reply means, by its code (RFC 4954 §6, RFC 3463), never by words in its text
@@ -221,5 +227,17 @@ pub(crate) mod tests {
         let server = ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None };
         assert!(matches!(send(&server, "", "", "not an address", &["a@b.c".into()], b""), Err(NetError::Smtp(_))));
         assert!(matches!(send(&server, "", "", "a@b.c", &[], b""), Err(NetError::Smtp(_))));
+    }
+
+    /// The system's roots reach SMTP's TLS, and one the store holds but rustls can't read
+    /// doesn't stop sending: given to lettre as it is, it failed every message to every server.
+    #[test]
+    fn an_unreadable_root_in_the_store_does_not_stop_sending() {
+        use crate::stream::test_certs::{internal_ca, unreadable};
+        let store = vec![unreadable(), internal_ca()];
+        assert!(tls_parameters("mail.corp.test", &crate::stream::usable_roots(store.clone())).is_ok());
+        assert!(tls_parameters("mail.corp.test", &[]).is_ok());
+        // Why the store is sorted first: lettre refuses the lot.
+        assert!(tls_parameters("mail.corp.test", &store).is_err());
     }
 }
