@@ -6,6 +6,9 @@ impl MailApp {
     pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
         // A message's text had the keyboard last frame (it says so again while it keeps it).
         let text_keys = std::mem::take(&mut self.ui.text_selection.keys);
+        if self.ui.backstage.is_none() {
+            self.ui.backstage_typing = false;
+        }
         if let Some(d) = &self.ui.dialog {
             // Not the part of a compaction that has a data file to itself: it can't be put away.
             let stays = matches!(d, Dialog::Compacting { account, .. } if self.session.compaction.exclusive(account));
@@ -15,7 +18,9 @@ impl MailApp {
             return;
         }
         if self.ui.backstage.is_some() {
-            if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            // Esc in one of its fields leaves the field; from outside one, the page (as
+            // GridCraft's File page).
+            if ctx.input(|i| i.key_pressed(Key::Escape)) && !std::mem::take(&mut self.ui.backstage_typing) {
                 self.ui.backstage = None;
             }
             return;

@@ -157,3 +157,44 @@ fn every_update_keeps_its_focus_among_its_nodes() {
     assert!(tree.state().has_node(tree.state().focus_id_in_tree()));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Esc in a File page field leaves the field, and only the next Esc leaves the File page (as
+/// GridCraft's): it used to close the whole page while typing, the edit with it.
+#[test]
+fn esc_leaves_a_file_page_field_before_the_page() {
+    let (mut a, dir) = app("esc-backstage");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    let mut field = None;
+    for _ in 0..4 {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 2400.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
+        field = nodes.iter().find(|(_, n)| n.role() == Role::TextInput && !n.is_disabled()).and_then(|(_, n)| n.bounds());
+    }
+    let r = field.expect("the Options page has a text field");
+    let at = egui::pos2(((r.x0 + r.x1) / 2.0) as f32, ((r.y0 + r.y1) / 2.0) as f32);
+    let tall = |events: Vec<Event>| RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 2400.0))),
+        events,
+        ..Default::default()
+    };
+    let press = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    for events in [vec![Event::PointerMoved(at)], vec![press(true)], vec![press(false)], vec![]] {
+        let mut out = ctx.run_ui(tall(events), |ui| a.ui(ui));
+        out.textures_delta.clear();
+    }
+    assert!(ctx.text_edit_focused(), "the field has the keyboard");
+    let mut out = ctx.run_ui(tall(vec![key(Key::Escape, Modifiers::NONE)]), |ui| a.ui(ui));
+    out.textures_delta.clear();
+    assert!(!ctx.text_edit_focused(), "Esc left the field");
+    assert!(a.ui.backstage.is_some(), "and the File page is still open");
+    for events in [vec![], vec![key(Key::Escape, Modifiers::NONE)]] {
+        let mut out = ctx.run_ui(tall(events), |ui| a.ui(ui));
+        out.textures_delta.clear();
+    }
+    assert!(a.ui.backstage.is_none(), "the next Esc leaves the File page");
+    let _ = std::fs::remove_dir_all(dir);
+}

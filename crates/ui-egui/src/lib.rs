@@ -319,6 +319,9 @@ pub struct UiState {
     pub toast: Option<(String, bool, f64)>,
     seen_notices: usize,
     scroll_to_focus: bool,
+    /// A text field on the File page had the keyboard at the end of the last frame: Esc leaves it
+    /// rather than the page (egui takes the focus away on Esc before the shortcuts see it).
+    backstage_typing: bool,
     /// How many message rows the list shows at once: a page, for Page Up and Page Down.
     list_page: u64,
     /// A message source's window to bring to the front (asked for again while open).
@@ -495,6 +498,7 @@ impl MailApp {
                 toast: None,
                 seen_notices: seen,
                 scroll_to_focus: false,
+                backstage_typing: false,
                 list_page: 10,
                 raise_source: None,
                 source_headers: Default::default(),

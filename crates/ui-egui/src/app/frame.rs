@@ -228,6 +228,7 @@ impl MailApp {
 
         if self.ui.backstage.is_some() {
             backstage::show(&self.session, &mut self.ui, ui, &mut acts);
+            self.ui.backstage_typing = ctx.text_edit_focused();
         } else if self.session.accounts.is_empty() {
             egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
                 widgets::welcome(ui, &t, self.session.jmap_only, &mut acts);
