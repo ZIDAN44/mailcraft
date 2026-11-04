@@ -3,9 +3,13 @@
 Every non-code asset in this repository has a row here (path, author, source, licence).
 `cargo xtask assets` (part of `cargo xtask ci`) fails otherwise.
 
-MailCraft ships no third-party assets: the interface icons are drawn in code
+None of this repository's assets are third-party: the interface icons are drawn in code
 (`crates/ui-egui/src/look/icons.rs`), the sample picture is generated in code, and the UI uses an
-installed system font when one is found. Builds made with `CRAFT_FONTS_DIR` (the releases) embed
+installed system font when one is found. The app does carry egui's built-in fonts, which come in
+with the `epaint_default_fonts` crate (egui's fallbacks for text, symbols and emoji, under their
+own licences, in the crate beside each font): Ubuntu Light (Ubuntu Font Licence 1.0), Hack (MIT
+and the Bitstream Vera licence), Noto Emoji (SIL Open Font License 1.1), and John Slegers'
+emoji-icon-font with egui's subset of it, egui-icons (MIT). Builds made with `CRAFT_FONTS_DIR` (the releases) embed
 the fonts listed in [storytold/craft-fonts](https://github.com/storytold/craft-fonts)' `ATTRIBUTION.md`
 (SIL Open Font License 1.1); none are in this repository, and each one's licence is shown on the
 About page. The app icon files in `assets/app-icon/`
