@@ -85,14 +85,13 @@ pub(super) fn sh_quote(p: impl AsRef<std::ffi::OsStr>) -> String {
     format!("'{}'", p.as_ref().to_string_lossy().replace('\'', "'\\''"))
 }
 
+/// How long the helper waits for MailCraft to end before it gives the update up, in seconds.
+const WAIT_SECS: u32 = 120;
+
 /// A hidden PowerShell that waits for `pid`, runs `step`, and (when restarting) starts `exe`,
 /// writing a transcript to `log`.
 fn windows_helper(pid: u32, step: &str, exe: &Path, restart: bool, log: &Path) -> Result<(), String> {
-    let start = if restart { format!("; Start-Process -FilePath {}", ps_quote(&exe.display().to_string())) } else { String::new() };
-    let script = format!(
-        "Start-Transcript -LiteralPath {} -Force | Out-Null; Wait-Process -Id {pid} -Timeout 120 -ErrorAction SilentlyContinue; {step}{start}; Stop-Transcript | Out-Null",
-        ps_quote(&log.display().to_string())
-    );
+    let script = windows_script(pid, step, exe, restart, log, WAIT_SECS);
     let mut cmd = std::process::Command::new("powershell.exe");
     cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &script]);
     #[cfg(windows)]
@@ -105,11 +104,38 @@ fn windows_helper(pid: u32, step: &str, exe: &Path, restart: bool, log: &Path) -
     spawn(cmd)
 }
 
+/// The helper's PowerShell script: wait up to `wait` seconds for `pid`, then run `step` and (when
+/// restarting) start `exe`, with a transcript in `log`. Nothing is installed while `pid` still
+/// runs: files copied over a running MailCraft would leave some new and some old (as
+/// craft-libs' updater, which stages everything before it replaces anything).
+pub(super) fn windows_script(pid: u32, step: &str, exe: &Path, restart: bool, log: &Path, wait: u32) -> String {
+    let start = if restart { format!("; Start-Process -FilePath {}", ps_quote(&exe.display().to_string())) } else { String::new() };
+    format!(
+        "Start-Transcript -LiteralPath {} -Force | Out-Null; Wait-Process -Id {pid} -Timeout {wait} -ErrorAction SilentlyContinue; \
+         if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ Write-Output 'MailCraft is still running: the update waits for next time' }} \
+         else {{ {step}{start} }}; Stop-Transcript | Out-Null",
+        ps_quote(&log.display().to_string())
+    )
+}
+
 /// `sh` waiting for `pid` to end, then running `step` and `then` (each may be empty), its output
 /// going to `log`.
 fn unix_helper(pid: u32, step: &str, then: Option<&str>, log: &Path) -> Result<(), String> {
-    let mut script =
-        format!("exec >{} 2>&1; i=0; while kill -0 {pid} 2>/dev/null && [ $i -lt 1200 ]; do sleep 0.1; i=$((i+1)); done; ", sh_quote(log));
+    let script = unix_script(pid, step, then, log, WAIT_SECS);
+    let mut cmd = std::process::Command::new("/bin/sh");
+    cmd.args(["-c", &script]);
+    spawn(cmd)
+}
+
+/// The helper's shell script: wait up to `wait` seconds for `pid`, then run `step` and `then`;
+/// neither while `pid` still runs (as [`windows_script`]).
+pub(super) fn unix_script(pid: u32, step: &str, then: Option<&str>, log: &Path, wait: u32) -> String {
+    let ticks = u64::from(wait) * 10;
+    let mut script = format!(
+        "exec >{} 2>&1; i=0; while kill -0 {pid} 2>/dev/null && [ $i -lt {ticks} ]; do sleep 0.1; i=$((i+1)); done; \
+         if kill -0 {pid} 2>/dev/null; then echo 'MailCraft is still running: the update waits for next time'; exit 0; fi; ",
+        sh_quote(log)
+    );
     if !step.is_empty() {
         script.push_str(step);
         script.push_str("; ");
@@ -118,9 +144,7 @@ fn unix_helper(pid: u32, step: &str, then: Option<&str>, log: &Path) -> Result<(
         script.push_str("exec ");
         script.push_str(t);
     }
-    let mut cmd = std::process::Command::new("/bin/sh");
-    cmd.args(["-c", &script]);
-    spawn(cmd)
+    script
 }
 
 fn spawn(mut cmd: std::process::Command) -> Result<(), String> {

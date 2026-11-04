@@ -75,6 +75,43 @@ fn helper_scripts_quote_their_paths() {
     assert!(mac.contains("[ $ok -eq 0 ] &&") && mac.contains("|| mv '/Applications/MailCraft.app'.old '/Applications/MailCraft.app'"), "{mac}");
 }
 
+/// The helper installs nothing while MailCraft still runs (it waited and MailCraft didn't end):
+/// copied over a running copy, some files would be new and some old. Once MailCraft has ended,
+/// the step runs. The helper's own shell runs the script, with the wait cut to a second.
+#[test]
+fn nothing_is_installed_while_mailcraft_still_runs() {
+    let dir = scratch("still-running");
+    let done = dir.join("installed");
+    let log = dir.join("install.log");
+    let ended = {
+        let mut child = if cfg!(windows) {
+            std::process::Command::new("cmd").args(["/C", "exit"]).spawn().unwrap()
+        } else {
+            std::process::Command::new("true").spawn().unwrap()
+        };
+        let pid = child.id();
+        child.wait().unwrap();
+        pid
+    };
+    for (pid, installs) in [(std::process::id(), false), (ended, true)] {
+        let _ = std::fs::remove_file(&done);
+        let status = if cfg!(windows) {
+            let step = format!("Set-Content -LiteralPath {} -Value yes", ps_quote(&done.display().to_string()));
+            let script = windows_script(pid, &step, Path::new(r"C:\nowhere\mailcraft.exe"), false, &log, 1);
+            std::process::Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", &script]).status().unwrap()
+        } else {
+            let step = format!("echo yes > {}", sh_quote(&done));
+            std::process::Command::new("sh").arg("-c").arg(unix_script(pid, &step, None, &log, 1)).status().unwrap()
+        };
+        assert!(status.success());
+        assert_eq!(done.exists(), installs, "pid {pid}: {}", std::fs::read_to_string(&log).unwrap_or_default());
+        if !installs {
+            assert!(std::fs::read_to_string(&log).unwrap_or_default().contains("still running"));
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The Mac step run by a shell, `hdiutil` and `ditto` stood in for: a disk image refused twice
 /// (the system still busy with it) is attached the third time and the app replaced; one refused
 /// every time leaves the app as it was.

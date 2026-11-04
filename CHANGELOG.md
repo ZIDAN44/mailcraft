@@ -77,6 +77,7 @@ on GitHub.
 - A message taken back out of the Outbox to change keeps its formatting, its pictures in place and, for a reply, the original under it as it was.
 - Saving a draft again replaces its copy in Drafts on the server instead of adding another, and a server without a Drafts folder gets one.
 - Sent from Drafts, a draft no longer leaves the list saying there's one more on the server.
+- Test builds install an update only once MailCraft has ended, and never one whose checksum file lists it twice with different sums.
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.
