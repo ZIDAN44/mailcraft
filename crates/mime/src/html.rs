@@ -602,12 +602,24 @@ pub fn html_images(html: &str) -> Vec<String> {
 }
 
 /// HTML → readable text. Never panics; returns an empty string when conversion fails.
+/// An HTML body's words for a preview: as [`html_to_text`] reads it, without its marks for bold
+/// and the like.
+pub(crate) fn html_to_words(html: &str) -> String {
+    let result = std::panic::catch_unwind(|| html2text::config::plain_no_decorate().no_table_borders().string_from_read(html.as_bytes(), 400));
+    match result {
+        Ok(Ok(s)) => tidy_text(&s),
+        _ => String::new(),
+    }
+}
+
 pub fn html_to_text(html: &str) -> String {
     let html = match html.char_indices().nth(HTML_MAX) {
         Some((i, _)) => html.get(..i).unwrap_or(html),
         None => html,
     };
-    let result = std::panic::catch_unwind(|| html2text::from_read(html.as_bytes(), 400));
+    // Without table borders: mail lays itself out with tables, which came out boxed in `─` and
+    // `│` rules (issue #41).
+    let result = std::panic::catch_unwind(|| html2text::config::plain().no_table_borders().string_from_read(html.as_bytes(), 400));
     match result {
         Ok(Ok(s)) => tidy_text(&s),
         _ => String::new(),

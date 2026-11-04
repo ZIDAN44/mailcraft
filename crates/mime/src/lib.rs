@@ -66,6 +66,8 @@ pub fn decode_in(charset: &str, bytes: &[u8]) -> Option<String> {
 
 /// Longest preview kept in a summary, in characters.
 pub const PREVIEW_CHARS: usize = 200;
+/// The most of an HTML body read for its preview, in characters.
+const PREVIEW_HTML: usize = 64 * 1024;
 /// HTML larger than this is cut before conversion (the rest is rarely more than markup).
 pub(crate) const HTML_MAX: usize = 4 << 20;
 
@@ -130,7 +132,13 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         .content_type()
         .is_some_and(|c| c.ctype().eq_ignore_ascii_case("multipart") && c.subtype().is_some_and(|s| s.eq_ignore_ascii_case("mixed")));
     let has_attachments = has_real_attachments(m) || (m.attachment_count() == 0 && content_type_multipart_mixed && m.text_body_count() == 0);
-    let text = m.body_text(0).map(|t| t.into_owned()).unwrap_or_default();
+    // Mail in HTML only: its text as the reading pane's plain text makes it (mail-parser's own
+    // runs one table cell into the next: "BANNERFirst block", issue #41), from its start.
+    let html_only = m.text_bodies().next().is_some_and(|p| p.is_text_html());
+    let text = match m.body_html(0).filter(|_| html_only) {
+        Some(h) => html::html_to_words(h.get(..h.char_indices().nth(PREVIEW_HTML).map_or(h.len(), |(i, _)| i)).unwrap_or(&h)),
+        None => m.body_text(0).map(|t| t.into_owned()).unwrap_or_default(),
+    };
     let mut s = Summary {
         key,
         message_id: m.message_id().map(norm_id).unwrap_or_default(),
