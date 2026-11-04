@@ -58,8 +58,15 @@ todo = "warn"
 too_many_arguments = "allow"
 type_complexity = "allow"
 
+# Line tables only for MailCraft's own crates (a panic still says file:line) and no debug
+# information for the others: links, the target folder and Windows' PDBs shrink a lot (as the
+# other Craft apps build; the shared CI gate already sets it).
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
 
 # mail-parser 0.11 has a `debug_assert!` that hostile mail reaches (a message in a message ended
 # by the outer boundary; crates/mime/src/tests.rs): off, debug builds read it as release ones do.
