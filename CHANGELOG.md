@@ -67,6 +67,7 @@ on GitHub.
 - The message list's filters stay on one line in a narrow pane. Those that don't fit go into a **⋯** menu beside **By Date**.
 - On the File page, a row's buttons and pickers never cover its text, and the page fits a narrow window instead of being cut off.
 - The **Export to Outlook data file** card says calendars go inside the `.pst` file too.
+- The View tab folds its buttons to icons in a narrow window, as Home does, instead of scrolling sideways.
 
 ### Security
 - MailCraft never writes into an opened `.pst` file. Changes go into its own copy beside it, which belongs to one data folder.

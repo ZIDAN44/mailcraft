@@ -80,6 +80,18 @@ pub enum Icon {
     Done,
     /// A smiling face (reactions).
     Smile,
+    /// Two speech bubbles, one behind the other (messages grouped by conversation).
+    Conversation,
+    /// A box with lines of text in it (a line of each message shown in the list).
+    Preview,
+    /// Rows packed close (a compact list).
+    Compact,
+    /// An arrow up beside an arrow down (the order a list is sorted in).
+    Sort,
+    /// Angle brackets around a slash (a message's source).
+    Source,
+    /// Two rows of squares (the classic ribbon's big buttons).
+    Ribbon,
 }
 
 struct Pen<'a> {
@@ -390,6 +402,37 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.dot(5.8, 6.4, 0.9);
             pen.dot(10.2, 6.4, 0.9);
             pen.line(&[(4.9, 9.4), (6.2, 10.9), (8.0, 11.5), (9.8, 10.9), (11.1, 9.4)]);
+        }
+        Icon::Conversation => {
+            pen.closed(&[(1.5, 2.0), (10.5, 2.0), (10.5, 8.5), (5.0, 8.5), (2.5, 11.0), (2.5, 8.5), (1.5, 8.5)]);
+            pen.line(&[(12.5, 5.0), (14.5, 5.0), (14.5, 11.5), (13.5, 11.5), (13.5, 14.0), (11.0, 11.5), (6.5, 11.5), (6.5, 10.5)]);
+        }
+        Icon::Preview => {
+            pen.rect(1.5, 2.5, 14.5, 13.5);
+            pen.line(&[(4.0, 6.0), (12.0, 6.0)]);
+            pen.line(&[(4.0, 8.5), (10.0, 8.5)]);
+            pen.line(&[(4.0, 11.0), (11.0, 11.0)]);
+        }
+        Icon::Compact => {
+            for y in [3.0, 6.3, 9.7, 13.0] {
+                pen.line(&[(2.0, y), (14.0, y)]);
+            }
+        }
+        Icon::Sort => {
+            pen.line(&[(5.0, 13.5), (5.0, 2.5)]);
+            pen.line(&[(2.5, 5.0), (5.0, 2.5), (7.5, 5.0)]);
+            pen.line(&[(11.0, 2.5), (11.0, 13.5)]);
+            pen.line(&[(8.5, 11.0), (11.0, 13.5), (13.5, 11.0)]);
+        }
+        Icon::Source => {
+            pen.line(&[(5.0, 4.0), (1.5, 8.0), (5.0, 12.0)]);
+            pen.line(&[(11.0, 4.0), (14.5, 8.0), (11.0, 12.0)]);
+            pen.line(&[(9.3, 3.0), (6.7, 13.0)]);
+        }
+        Icon::Ribbon => {
+            for (x, y) in [(1.5, 2.5), (6.0, 2.5), (10.5, 2.5), (1.5, 9.0), (6.0, 9.0), (10.5, 9.0)] {
+                pen.rect(x, y, x + 4.0, y + 4.5);
+            }
         }
         Icon::Steps => {
             pen.line(&[(3.0, 4.0), (7.0, 8.0), (3.0, 12.0)]);

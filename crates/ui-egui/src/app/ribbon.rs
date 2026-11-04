@@ -428,74 +428,70 @@ impl MailApp {
                         widgets::group(ui, &t, "Close", true);
                     }
                     RibbonTab::View => {
-                        ui.label(RichText::new(tl!("Reading pane")).color(t.dim));
-                        for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
-                            if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
-                                acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
+                        // Buttons as Home's are, so the row folds as Home's does in a narrow
+                        // window (labels go from the end) instead of scrolling: the reading pane's
+                        // place and the theme in a menu each, the rest turned on or off.
+                        let r = widgets::tool_button(ui, Icon::Layout, "Reading pane", &t, true);
+                        egui::Popup::menu(&r).show(|ui| {
+                            for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
+                                if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
+                                    acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
+                                    ui.close();
+                                }
+                            }
+                        });
+                        widgets::group(ui, &t, "Reading pane", false);
+                        for (on, icon, label, tip, id) in [
+                            (s.prefs.focused_inbox, Icon::Inbox, "Focused Inbox", "Put newsletters and automatic mail in Other", "view.focused"),
+                            (s.prefs.conversations, Icon::Conversation, "Conversations", "Group messages by conversation", "view.conversations"),
+                            (s.prefs.show_preview, Icon::Preview, "Message preview", "", "view.preview"),
+                            (s.prefs.compact, Icon::Compact, "Compact", "", "view.compact"),
+                            (!s.prefs.folder_pane_minimized, Icon::Folder, "Folder pane", "", "view.folderPane"),
+                            (s.prefs.show_favorites, Icon::Star, "Favorites", "Show Favorites at the top of the folder pane", "view.favorites"),
+                        ] {
+                            let r = widgets::tool_toggle(ui, icon, label, &t, on);
+                            let r = if tip.is_empty() { r } else { r.on_hover_text(tl!(tip)) };
+                            if r.clicked() {
+                                acts.push(Action::Run(id, json!({})));
                             }
                         }
-                        widgets::group(ui, &t, "Reading pane", false);
-                        if ui
-                            .selectable_label(s.prefs.focused_inbox, tl!("Focused Inbox"))
-                            .on_hover_text(tl!("Put newsletters and automatic mail in Other"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("view.focused", json!({})));
-                        }
-                        if ui
-                            .selectable_label(s.prefs.conversations, tl!("Conversations"))
-                            .on_hover_text(tl!("Group messages by conversation"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("view.conversations", json!({})));
-                        }
-                        if ui.selectable_label(s.prefs.show_preview, tl!("Message preview")).clicked() {
-                            acts.push(Action::Run("view.preview", json!({})));
-                        }
-                        if ui.selectable_label(s.prefs.compact, tl!("Compact")).clicked() {
-                            acts.push(Action::Run("view.compact", json!({})));
-                        }
-                        if ui.selectable_label(!s.prefs.folder_pane_minimized, tl!("Folder pane")).clicked() {
-                            acts.push(Action::Run("view.folderPane", json!({})));
-                        }
-                        if ui
-                            .selectable_label(s.prefs.show_favorites, tl!("Favorites"))
-                            .on_hover_text(tl!("Show Favorites at the top of the folder pane"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("view.favorites", json!({})));
-                        }
                         widgets::group(ui, &t, "Layout", false);
-                        let r = ui.button(tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label())));
+                        let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
+                        let r = widgets::tool_button(ui, Icon::ListBullet, &arrange, &t, true);
                         egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
-                        if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
+                        if widgets::tool_toggle(ui, Icon::Sort, "Reverse sort", &t, s.prefs.reverse_sort).clicked() {
                             acts.push(Action::Run("view.reverseSort", json!({})));
                         }
                         widgets::group(ui, &t, "Arrangement", false);
                         // The message's source, headers and all, in a window of its own (issue #27).
                         let one = s.reading.is_some() || s.focus.is_some() || !s.selection.is_empty();
-                        if widgets::tool_button(ui, Icon::File, "Message source", &t, one)
+                        if widgets::tool_button(ui, Icon::Source, "Message source", &t, one)
                             .on_hover_text(tl!("View the message as it came, headers and all"))
                             .clicked()
                             && one
                         {
                             acts.push(Action::Run("message.source", json!({})));
                         }
-                        if ui.selectable_label(!s.prefs.show_html, tl!("Plain text")).on_hover_text(tl!("Show mail without its formatting")).clicked()
+                        if widgets::tool_toggle(ui, Icon::ClearFormat, "Plain text", &t, !s.prefs.show_html)
+                            .on_hover_text(tl!("Show mail without its formatting"))
+                            .clicked()
                         {
                             acts.push(Action::Run("view.html", json!({})));
                         }
                         widgets::group(ui, &t, "Message", false);
-                        ui.label(RichText::new(tl!("Theme")).color(t.dim));
-                        for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
-                            if ui.selectable_label(ust.dark == v, tl!(label)).clicked() {
-                                acts.push(Action::SetDark(v));
+                        let theme_icon = if ust.dark == Some(true) { Icon::Moon } else { Icon::Sun };
+                        let r = widgets::tool_button(ui, theme_icon, "Theme", &t, true);
+                        egui::Popup::menu(&r).show(|ui| {
+                            for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
+                                if ui.selectable_label(ust.dark == v, tl!(label)).clicked() {
+                                    acts.push(Action::SetDark(v));
+                                    ui.close();
+                                }
                             }
-                        }
+                        });
                         // Big icons over their labels, in named groups (Outlook's classic
                         // ribbon), or one row of small ones.
-                        if ui
-                            .selectable_label(s.prefs.classic_ribbon, tl!("Classic ribbon"))
+                        if widgets::tool_toggle(ui, Icon::Ribbon, "Classic ribbon", &t, s.prefs.classic_ribbon)
                             .on_hover_text(tl!("Big buttons with their names under them, in named groups"))
                             .clicked()
                         {
