@@ -3662,6 +3662,7 @@ dependencies = [
  "ring",
  "rustls",
  "rustls-native-certs",
+ "schannel",
  "serde",
  "serde_json",
  "sspi",
