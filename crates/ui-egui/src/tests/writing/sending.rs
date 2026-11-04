@@ -112,3 +112,28 @@ fn send_from_an_account_that_can_shows_nothing_more() {
     assert!(!nodes.iter().any(|(_, name, ..)| name.contains("Add an account")));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The window's GPU device goes (a driver reset after sleep): nothing can be drawn, so nobody can
+/// answer "keep what you're writing?". Both messages being written are kept in Drafts, and the
+/// window closes without asking (as PhotoCraft's).
+#[test]
+fn a_lost_gpu_keeps_whats_written_and_closes() {
+    let (mut a, dir) = app("gpu-lost");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    for subject in ["First thoughts", "Second thoughts"] {
+        a.run("mail.new", json!({}));
+        a.run("compose.update", json!({"subject": subject, "body": "Not sent yet."}));
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert_eq!(a.session.all_composes().count(), 2);
+    a.graphics_lost(&ctx);
+    a.graphics_lost(&ctx);
+    assert!(a.ui.graphics_lost && a.ui.closing_anyway && a.ui.close_now && a.ui.dialog.is_none());
+    a.run("folder.open", json!({"account": "sample", "folder": "Drafts"}));
+    for subject in ["First thoughts", "Second thoughts"] {
+        assert_eq!(a.session.list.iter().filter(|m| m.subject == subject).count(), 1, "{subject} in Drafts once");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}

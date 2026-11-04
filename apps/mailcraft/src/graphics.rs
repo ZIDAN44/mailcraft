@@ -121,6 +121,42 @@ pub fn log_errors(device: &wgpu::Device) {
     device.on_uncaptured_error(std::sync::Arc::new(|e: wgpu::Error| log::error!("graphics: {e}")));
 }
 
+/// The window's GPU device, watched for its loss: a driver reset (after the computer slept, a
+/// driver update) takes it away, and egui-wgpu can't draw another frame with it: one with
+/// anything to draw panics making its buffers, and the window froze with MailCraft's unsaved
+/// messages in it (as PhotoCraft found).
+pub struct LostWatch {
+    lost: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    device: wgpu::Device,
+}
+
+impl LostWatch {
+    /// Watch `device`: wgpu says when it's lost.
+    pub fn new(device: &wgpu::Device) -> LostWatch {
+        let lost = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let told = std::sync::Arc::clone(&lost);
+        device.set_device_lost_callback(move |reason, message| {
+            log::error!("graphics: the GPU device was lost ({reason:?}): {message}");
+            told.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        LostWatch { lost, device: device.clone() }
+    }
+
+    /// Whether the device is lost. It's asked first, without waiting, so a loss while MailCraft
+    /// sat idle is seen before a frame is drawn with it; wgpu panics when asked about a device
+    /// it found lost, which counts as lost too.
+    pub fn lost(&self) -> bool {
+        use std::sync::atomic::Ordering;
+        if !self.lost.load(Ordering::SeqCst)
+            && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.device.poll(wgpu::PollType::Poll))).is_err()
+        {
+            log::error!("graphics: the GPU device stopped answering");
+            self.lost.store(true, Ordering::SeqCst);
+        }
+        self.lost.load(Ordering::SeqCst)
+    }
+}
+
 /// Whether this is a 32-bit build (the Windows x86 release).
 fn thirty_two_bit() -> bool {
     cfg!(target_pointer_width = "32")
@@ -169,6 +205,42 @@ fn windows_setup(options: &mut eframe::NativeOptions, backends: Option<wgpu::Bac
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A future run to its end on this thread (wgpu's adapter and device requests).
+    fn wait<F: std::future::Future>(f: F) -> F::Output {
+        let mut f = std::pin::pin!(f);
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        loop {
+            if let std::task::Poll::Ready(v) = f.as_mut().poll(&mut cx) {
+                return v;
+            }
+            std::thread::yield_now();
+        }
+    }
+
+    /// A real device, destroyed as a driver reset takes it: the watch sees it lost, and asking
+    /// again is safe. Skipped on a machine with no adapter at all.
+    #[test]
+    fn a_lost_device_is_seen() {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+        let Ok(adapter) = wait(instance.request_adapter(&wgpu::RequestAdapterOptions::default())) else {
+            eprintln!("no graphics adapter here: skipped");
+            return;
+        };
+        let Ok((device, _queue)) = wait(adapter.request_device(&wgpu::DeviceDescriptor::default())) else {
+            eprintln!("the adapter gave no device: skipped");
+            return;
+        };
+        let watch = LostWatch::new(&device);
+        assert!(!watch.lost(), "a working device isn't lost");
+        device.destroy();
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !watch.lost() {
+            assert!(std::time::Instant::now() < end, "the loss was never seen");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(watch.lost());
+    }
 
     fn found(list: &[(&str, DeviceType)]) -> Vec<Candidate> {
         list.iter().map(|(n, d)| Candidate { name: (*n).to_string(), device: *d, draws: true }).collect()

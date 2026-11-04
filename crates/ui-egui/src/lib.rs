@@ -242,6 +242,9 @@ pub struct UiState {
     /// Closing was confirmed though it loses online-only accounts' unsent mail (issue #4); and
     /// the window is to close on the next frame.
     pub closing_anyway: bool,
+    /// The window's GPU device is gone: nothing is drawn any more, and MailCraft closes
+    /// ([`MailApp::graphics_lost`]).
+    pub graphics_lost: bool,
     pub close_now: bool,
     /// When the close was last decided (the input's time): [`MailApp::logic`] decides it, and
     /// `ui` in the same pass doesn't again.
@@ -459,6 +462,7 @@ impl MailApp {
             ui: UiState {
                 tokens: Tokens::light(),
                 closing_anyway: false,
+                graphics_lost: false,
                 close_now: false,
                 close_checked: None,
                 update: UpdateState::None,

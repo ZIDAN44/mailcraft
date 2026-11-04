@@ -36,6 +36,34 @@ impl MailApp {
         true
     }
 
+    /// The window's GPU device is gone (a driver reset, after the computer slept): no frame can be
+    /// drawn any more, so nobody could answer a question. Every message being written is kept as a
+    /// draft, and MailCraft closes without asking (as PhotoCraft does); it opens them again from
+    /// Drafts. Once only, however often it's said.
+    pub fn graphics_lost(&mut self, ctx: &egui::Context) {
+        if self.ui.graphics_lost {
+            return;
+        }
+        self.ui.graphics_lost = true;
+        log::error!("graphics: the window can't be drawn any more; keeping what's being written as drafts and closing");
+        let written: Vec<u64> = self.session.all_composes().filter(|c| self.session.written(c) && !c.sending).map(|c| c.id).collect();
+        let before = self.session.compose.as_ref().map(|c| c.id);
+        for id in written {
+            if self.use_compose(id)
+                && let Err(e) = self.session.run("compose.saveDraft", &serde_json::json!({}))
+            {
+                log::error!("graphics: a message being written couldn't be kept as a draft: {e}");
+            }
+        }
+        if let Some(id) = before {
+            self.use_compose(id);
+        }
+        self.ui.dialog = None;
+        self.ui.closing_anyway = true;
+        self.ui.close_now = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+
     /// Closing with messages being written, online-only accounts' unsent mail or changes held in
     /// memory, a data file being imported or to be compacted, or an update waiting: ask first.
     fn decide_close(&mut self, ctx: &egui::Context) {
