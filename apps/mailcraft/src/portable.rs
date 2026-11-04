@@ -69,10 +69,31 @@ fn bundle_parent(exe_dir: &Path) -> Option<&Path> {
 /// Make `dir` and prove a file can be written in it (a folder can exist yet be read-only).
 fn writable(dir: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
-    let probe = dir.join(".write-test");
-    std::fs::write(&probe, b"")?;
-    let _ = std::fs::remove_file(&probe);
-    Ok(())
+    probe(dir, ".write-test")
+}
+
+/// Names a probe tries before the folder counts as unwritable.
+const PROBE_TRIES: u32 = 64;
+
+/// Prove a file can be made in `dir`: one is made and removed again. It's made new
+/// (`create_new`), so whatever is already at its name (a file, a link someone left there
+/// pointing elsewhere) is never opened, written through or removed: the next name is tried
+/// instead (as PhotoCraft's portable check). Only the probe made here is removed.
+pub(crate) fn probe(dir: &Path, stem: &str) -> std::io::Result<()> {
+    let pid = std::process::id();
+    for n in 0..PROBE_TRIES {
+        let path = dir.join(format!("{stem}-{pid}-{n}"));
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => {
+                drop(file);
+                let _ = std::fs::remove_file(&path);
+                return Ok(());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "every name for a test file is taken"))
 }
 
 #[cfg(test)]
@@ -122,5 +143,39 @@ mod tests {
         assert_eq!(p.dir, None);
         assert!(p.unwritable.is_some_and(|w| w.contains("portable mode is off") && w.contains("can't be written")));
         let _ = std::fs::remove_dir_all(&exe);
+    }
+
+    /// What's already at a probe's name is never written through or removed: files there (and,
+    /// on Unix, links to a file elsewhere) stay as they were, the next free name is used, and
+    /// with every name taken the folder counts as unwritable, still touching nothing.
+    #[test]
+    fn the_write_probe_never_goes_through_what_is_at_its_name() {
+        let root = temp("probe-taken");
+        let data = root.join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        let other = root.join("elsewhere.txt");
+        std::fs::write(&other, b"keep me").unwrap();
+        let pid = std::process::id();
+        let name = |n: u32| data.join(format!(".write-test-{pid}-{n}"));
+        let take = |n: u32| {
+            #[cfg(unix)]
+            if n.is_multiple_of(2) {
+                std::os::unix::fs::symlink(&other, name(n)).unwrap();
+                return;
+            }
+            std::fs::write(name(n), b"someone's").unwrap();
+        };
+        for n in 0..PROBE_TRIES - 1 {
+            take(n);
+        }
+        writable(&data).unwrap();
+        assert_eq!(std::fs::read(&other).unwrap(), b"keep me");
+        assert!(std::fs::symlink_metadata(name(0)).is_ok() && std::fs::symlink_metadata(name(1)).is_ok(), "what was there stays");
+        assert!(!name(PROBE_TRIES - 1).exists(), "the probe made is removed");
+        take(PROBE_TRIES - 1);
+        assert!(writable(&data).is_err());
+        assert_eq!(std::fs::read(&other).unwrap(), b"keep me");
+        assert_eq!(std::fs::read(name(1)).unwrap(), b"someone's");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -175,12 +175,10 @@ fn detect_at(exe: &Path, env: &dyn Fn(&str) -> Option<PathBuf>) -> Option<Kind> 
     None
 }
 
-/// Whether a file can be made in `dir` (made and removed again to find out).
+/// Whether a file can be made in `dir` (made and removed again to find out, never through
+/// anything already at its name).
 fn writable(dir: &Path) -> bool {
-    let probe = dir.join(format!(".mailcraft-update-probe-{}", std::process::id()));
-    let ok = std::fs::write(&probe, b"").is_ok();
-    let _ = std::fs::remove_file(&probe);
-    ok
+    crate::portable::probe(dir, ".mailcraft-update-probe").is_ok()
 }
 
 /// Where the updater is.
