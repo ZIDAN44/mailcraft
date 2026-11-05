@@ -43,16 +43,17 @@ ignore = [
     # here) lists gtk for Linux and the BSDs, where MailCraft uses its own `xdnd.rs` instead, so
     # no build of MailCraft compiles glib (`cargo tree -i glib --target <any>` prints nothing).
     { id = "RUSTSEC-2024-0429", reason = "glib only in the lockfile, through drag's Linux deps; never built" },
-    # S/MIME (mailcraft-smime): timing side channels in RSA (Marvin) and in the big-integer code
-    # under P-256/P-384. Both need an attacker who can time the private key at work, many times
-    # over; MailCraft uses it only on this computer, when the user signs or opens their own mail,
-    # never as a service and never answering automatically, and every decryption failure is one
-    # error. Fixed only in release candidates (rsa 0.10, crypto-bigint 0.7) so far.
-    { id = "RUSTSEC-2023-0071", reason = "rsa: local signing and decrypting only, no oracle (mailcraft-smime)" },
-    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint under p256/p384: local use only (mailcraft-smime)" },
-    # mailcraft-print reads the installed fonts it embeds in PDFs with ttf-parser. Moving to its
-    # successor, skrifa, is a rewrite of that code, so the notice stands until it is done.
-    { id = "RUSTSEC-2026-0192", reason = "ttf-parser in mailcraft-print; no maintained drop-in" },
+    # Timing side channels in RSA (Marvin) and in the big-integer code under P-256/P-384, in the
+    # crypto S/MIME and OpenPGP use (cms, pgp, p256/p384, cx448) and Kerberos uses (sspi, picky).
+    # Both need an attacker who can time the private key at work, many times over; MailCraft uses
+    # it only on this computer, when the user signs or opens their own mail or signs in, never as a
+    # service and never answering automatically, and every decryption failure is one error.
+    # Fixed upstream only in the next RustCrypto family: rsa 0.10 (RustCrypto/RSA#626, closed
+    # 2026-11-01, in its release candidates) and crypto-bigint 0.7.6 (p256 0.14). pgp 0.21, cms 0.2
+    # and x509-ocsp 0.2 still need the stable family, so this waits for rsa 0.10.0 and cms 0.3.0;
+    # rPGP ignores the crypto-bigint notice for the same reason.
+    { id = "RUSTSEC-2023-0071", reason = "rsa: local signing, decrypting and Kerberos sign-in only, no oracle" },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 under p256/p384, pgp and cx448: local use only" },
 ]
 
 # Licences (see CLAUDE.md, clean room): only the permissive ones below pass. Copyleft licences
