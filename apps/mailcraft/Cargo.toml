@@ -35,17 +35,19 @@ notify-rust = { version = "4", default-features = false, features = ["z"] }
 # Decodes the window icon (assets/app-icon).
 image = { version = "0.25", default-features = false, features = ["png"] }
 # Passwords live in the system keychain, never in MailCraft's files.
-keyring = { version = "3.6", default-features = false }
+# keyring 4's `v1` API picks the system's own store: Credential Manager (`{user}.{service}`,
+# as keyring 3 named them), the Keychain, or the Secret Service (found by service and user, so
+# what keyring 3 saved still reads).
+keyring = "4.2"
 
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.
 winresource = "0.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3.6", default-features = false, features = ["windows-native"] }
 # Notifications under MailCraft's name: its app id's name and icon, per user (`toast.rs`).
 # The version ipconfig (the network crate's DNS settings) uses, so it's built once.
-windows-registry = "0.6"
+windows-registry = "0.100"
 # One MailCraft per data folder (`single_instance.rs`): Unix sockets on Windows, which std lacks.
 # The version zbus brings, so it's built once.
 uds_windows = "1.2"
@@ -54,7 +56,6 @@ uds_windows = "1.2"
 winsafe = { version = "0.0.29", default-features = false, features = ["advapi"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3.6", default-features = false, features = ["apple-native"] }
 # Finder hands documents to an app through an `odoc` Apple event; winit 0.30 never sees it
 # (see `src/apple_events.rs`). Hooking it takes Objective-C, so `unsafe`, which we forbid, and
 # this small crate hides that behind a safe queue. WordCraft, PdfCraft, GridCraft and DeckCraft
@@ -69,10 +70,9 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std"
 muda = { version = "0.21.2", default-features = false }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
-keyring = { version = "3.6", default-features = false, features = ["async-secret-service", "async-io", "crypto-rust"] }
 # Dragging attachments out under X11 (XDND), in safe Rust; and the window's id for it. The
 # version winit and arboard use, so it's built once.
-x11rb = "0.13"
+x11rb = "0.14"
 raw-window-handle = "0.6"
 # Opening the window through XWayland (`display.rs`); the version eframe uses, so it's built once.
 winit = { version = "0.30", default-features = false, features = ["x11"] }
@@ -82,7 +82,7 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dev-dependencies]
 # The drag test plays the user on a virtual X server (Xvfb).
-x11rb = { version = "0.13", features = ["xtest"] }
+x11rb = { version = "0.14", features = ["xtest"] }
 
 # Dragging attachments out of the window to other apps (Linux and the BSDs: `xdnd.rs`).
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]

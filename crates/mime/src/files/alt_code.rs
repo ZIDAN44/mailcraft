@@ -23,8 +23,9 @@ const OEM_GLYPHS: [u16; 31] = [
 
 /// One byte in a code page that mail's character sets name (`windows-1252`, `cp850`…).
 fn page_byte(page: &str, b: u8) -> Option<char> {
-    let decode = mail_parser::decoders::charsets::map::charset_decoder(page.as_bytes())?;
-    decode(&[b]).chars().next()
+    // A code page of one byte a character: UTF-8 (`windows-65001`) has none for a byte alone.
+    let charset = mail_parser::Charset::from_label(page.as_bytes()).filter(|c| *c != mail_parser::Charset::Utf8)?;
+    charset.decode(&[b]).chars().next()
 }
 
 /// The character an Alt+numpad code names, as Windows types it (digits as typed):

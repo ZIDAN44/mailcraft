@@ -7,20 +7,23 @@ use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
 mod index_text;
+mod parts;
 mod reactions;
 mod text_first;
 pub use index_text::index_doc;
 #[doc(hidden)]
 pub use index_text::{IndexStats, index_doc_stats};
+use parts::sent_bytes;
+pub(crate) use parts::{contents, files_of, header_raw};
 pub(crate) use reactions::reaction_of;
 pub use reactions::{REACTIONS, is_reaction_text, reaction};
 pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, part_name, text_first};
 
-/// A part's size: its bytes, or, with none yet (a message's text that came first, issue #24), the
-/// size its `Content-Disposition` gives (RFC 2183's `size`).
-fn shown_size(p: &mail_parser::MessagePart<'_>) -> usize {
-    if !p.is_empty() {
-        return p.len();
+/// A part's size: its bytes (`data`), or, with none yet (a message's text that came first, issue
+/// #24), the size its `Content-Disposition` gives (RFC 2183's `size`).
+fn shown_size(p: mail_parser::MessagePart<'_>, data: &[u8]) -> usize {
+    if !data.is_empty() {
+        return data.len();
     }
     p.content_disposition().and_then(|d| d.attribute("size")).and_then(|s| s.trim().parse::<usize>().ok()).unwrap_or(0)
 }
@@ -30,21 +33,22 @@ pub(super) struct Attached<'a> {
     pub(super) info: AttachmentInfo,
     pub(super) data: Cow<'a, [u8]>,
     /// The MIME part it is (none for a file in a `winmail.dat`), for [`sent_bytes`].
-    pub(super) part: Option<&'a mail_parser::MessagePart<'a>>,
+    pub(super) part: Option<mail_parser::MessagePart<'a>>,
 }
 
 /// A message's attachments in order, a `winmail.dat` given as the files in it (it stays one
 /// when it can't be read, or holds nothing), and the body the first such file carries.
-pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) {
+pub(super) fn attached<'a>(m: &'a Message<'_>) -> (Vec<Attached<'a>>, TnefBody) {
     let mut out = Vec::new();
     let mut body = TnefBody::None;
-    for p in m.attachments() {
+    for p in files_of(m.root()) {
         let mime = p
             .content_type()
             .map(|c| format!("{}/{}", c.ctype(), c.subtype().unwrap_or("octet-stream")).to_ascii_lowercase())
             .unwrap_or_else(|| "application/octet-stream".into());
+        let data = contents(p);
         if is_tnef(&mime, p.attachment_name())
-            && let Some(t) = read_tnef(p.contents()).filter(|t| !t.attachments.is_empty() || !t.body.is_empty())
+            && let Some(t) = read_tnef(&data).filter(|t| !t.attachments.is_empty() || !t.body.is_empty())
         {
             let shown = tnef_inline(&t);
             for (f, inline) in t.attachments.into_iter().zip(shown) {
@@ -59,17 +63,17 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
             continue;
         }
         let index = out.len();
-        let name = attachment_name(p.attachment_name(), &mime, p.contents(), index);
+        let name = attachment_name(p.attachment_name(), &mime, &data, index);
         let info = AttachmentInfo {
             index,
             name,
             mime,
-            size: shown_size(p),
+            size: shown_size(p, &data),
             inline: p.is_inline_part(),
             content_id: p.content_id().map(|c| c.trim().trim_matches(['<', '>']).to_string()),
             content_location: p.content_location().map(|c| c.trim().trim_matches(['<', '>', '"']).to_string()).filter(|c| !c.is_empty()),
         };
-        out.push(Attached { info, data: Cow::Borrowed(p.contents()), part: Some(p) });
+        out.push(Attached { info, data, part: Some(p) });
     }
     (out, body)
 }
@@ -78,11 +82,11 @@ pub(super) fn attached<'a>(m: &'a Message<'a>) -> (Vec<Attached<'a>>, TnefBody) 
 /// with search's count ([`index_doc`]), and with a data file's import ([`draft_carries_files`]),
 /// by sharing [`carries_file`].
 pub(super) fn has_real_attachments(m: &Message<'_>) -> bool {
-    let html = || m.html_bodies().filter(|p| p.is_text_html()).filter_map(|p| p.text_contents()).collect::<Vec<_>>().join("\n");
+    let html = || m.html_body().filter(|p| matches!(p.kind(), PartKind::Html)).filter_map(|p| p.text()).collect::<Vec<_>>().join("\n");
     let refs = HtmlRefs::new(&html);
-    m.attachments().any(|p| {
+    files_of(m.root()).any(|p| {
         let shown = || may_be_shown(p).is_some_and(|(cid, location)| refs.shows(cid, location));
-        carries_file(&mime_of(p).unwrap_or_default(), p.attachment_name(), p.contents(), &shown)
+        carries_file(&mime_of(p).unwrap_or_default(), p.attachment_name(), &contents(p), &shown)
     })
 }
 
@@ -209,18 +213,18 @@ impl<'a> HtmlRefs<'a> {
 }
 
 /// A part's type as `type/subtype`, lower case.
-pub(crate) fn mime_of(p: &mail_parser::MessagePart<'_>) -> Option<String> {
+pub(crate) fn mime_of(p: mail_parser::MessagePart<'_>) -> Option<String> {
     p.content_type().map(|c| format!("{}/{}", c.ctype(), c.subtype().unwrap_or_default()).to_ascii_lowercase())
 }
 
 /// S/MIME's signature and encrypted content are the message itself, not files in it.
-pub(crate) fn is_smime(p: &mail_parser::MessagePart<'_>) -> bool {
+pub(crate) fn is_smime(p: mail_parser::MessagePart<'_>) -> bool {
     smime::is_smime_part(&mime_of(p).unwrap_or_default(), p.attachment_name().unwrap_or_default())
 }
 
 /// The `Content-ID` and `Content-Location` of a part the HTML may show in its place: one inline
 /// or without a disposition, that has either.
-pub(crate) fn may_be_shown<'p>(p: &'p mail_parser::MessagePart<'_>) -> Option<(Option<&'p str>, Option<&'p str>)> {
+pub(crate) fn may_be_shown<'p>(p: mail_parser::MessagePart<'p>) -> Option<(Option<&'p str>, Option<&'p str>)> {
     let inline = p.content_disposition().is_none_or(|d| d.ctype().eq_ignore_ascii_case("inline"));
     let (cid, location) = (p.content_id(), p.content_location());
     (inline && (cid.is_some() || location.is_some())).then_some((cid, location))
@@ -459,7 +463,7 @@ fn data_url(src: &str) -> Option<(String, Vec<u8>)> {
         return None;
     }
     let clean: Vec<u8> = b64.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
-    let data = mail_parser::decoders::base64::base64_decode(&clean).filter(|d| !d.is_empty())?;
+    let data = encodify::base64::LENIENT.decode(&clean).ok().filter(|d| !d.is_empty())?;
     Some((if mime == "image/jpg" { "image/jpeg".into() } else { mime }, data))
 }
 
@@ -468,8 +472,8 @@ pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     attachments_data(raw, &[index], usize::MAX, usize::MAX).pop().map(|(_, d)| d)
 }
 
-/// [`attachment_data`] for a big file: a decoded file's bytes are moved out of the parse rather
-/// than copied, so the message and the file are held once each, not the file twice.
+/// [`attachment_data`] for a big file: a file's bytes are decoded once and handed over, not
+/// copied again, so the message and the file are held once each, not the file twice.
 pub fn attachment_data_moved(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     let mut out = None;
     attachments_moved(raw, &[index], &mut |_, data| out = Some(data));
@@ -486,33 +490,14 @@ pub fn attachments_moved(raw: &[u8], wanted: &[usize], each: &mut dyn FnMut(usiz
     if wanted.is_empty() {
         return;
     }
-    let Some(mut m) = MessageParser::default().parse(raw) else { return };
-    // A decoded file's place among the parts, to move it out once nothing borrows the parse;
-    // any other (a text file, an attached message) is copied out as `attachment_data` does.
-    let mut binary: Vec<(usize, usize)> = Vec::new();
-    {
-        let (found, _) = attached(&m);
-        for a in found {
-            // Each once.
-            let Ok(w) = wanted.binary_search(&a.info.index) else { continue };
-            wanted.remove(w);
-            let at = a
-                .part
-                .filter(|p| matches!(p.body, mail_parser::PartType::Binary(_) | mail_parser::PartType::InlineBinary(_)))
-                .and_then(|p| m.parts.iter().position(|q| std::ptr::eq(q, p)));
-            match at {
-                Some(at) => binary.push((a.info.index, at)),
-                None => each(a.info.index, a.part.and_then(|p| sent_bytes(&m, p)).unwrap_or_else(|| a.data.into_owned())),
-            }
-        }
-    }
-    for (index, at) in binary {
-        let Some(part) = m.parts.get_mut(at) else { continue };
-        if let mail_parser::PartType::Binary(data) | mail_parser::PartType::InlineBinary(data) =
-            std::mem::replace(&mut part.body, mail_parser::PartType::Text(Cow::Borrowed("")))
-        {
-            each(index, data.into_owned());
-        }
+    let Some(m) = MessageParser::default().parse(raw) else { return };
+    // mail-parser decodes a part when it's read, into bytes of its own: those are moved out (a
+    // part sent as it is, unencoded, is copied out of the source, as `attachment_data` does).
+    for a in attached(&m).0 {
+        // Each once.
+        let Ok(w) = wanted.binary_search(&a.info.index) else { continue };
+        wanted.remove(w);
+        each(a.info.index, a.part.and_then(sent_bytes).unwrap_or_else(|| a.data.into_owned()));
     }
 }
 
@@ -531,7 +516,7 @@ pub fn attachment_text(raw: &[u8], index: usize) -> Option<String> {
 pub fn attachment_out(raw: &[u8], index: usize) -> Option<crate::OutAttachment> {
     let m = MessageParser::default().parse(raw)?;
     let a = attached(&m).0.into_iter().find(|a| a.info.index == index)?;
-    let sent = a.part.and_then(|p| sent_bytes(&m, p));
+    let sent = a.part.and_then(sent_bytes);
     let charset =
         a.part.filter(|_| sent.is_some() && a.info.mime.starts_with("text/")).and_then(|p| charset_token(p.content_type()?.attribute("charset")?));
     let mime = match charset {
@@ -548,26 +533,6 @@ fn charset_token(c: &str) -> Option<&str> {
     let c = c.trim().trim_matches('"');
     let ok = |b: u8| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`{|}~".contains(&b);
     (!c.is_empty() && c.len() <= 64 && c.bytes().all(ok)).then_some(c)
-}
-
-/// A text file's bytes as they were sent. The parser hands every `text/*` part out as text, read
-/// in its charset or, with none, as UTF-8 with any other byte replaced, so a file in Latin-1 or
-/// Windows-1252 was saved changed. They're taken again
-/// from the message's source, undoing only the transfer encoding, with the parser's own decoders
-/// (a part it could not decode is its source as it is). `None` for other parts, whose bytes are
-/// already these, and when the source has no such range.
-fn sent_bytes(m: &Message<'_>, p: &mail_parser::MessagePart<'_>) -> Option<Vec<u8>> {
-    if !matches!(p.body, mail_parser::PartType::Text(_) | mail_parser::PartType::Html(_)) {
-        return None;
-    }
-    let body = m.raw_message.get(p.offset_body as usize..p.offset_end as usize)?;
-    let mut s = mail_parser::parsers::MessageStream::new(body);
-    let (end, bytes) = match p.encoding {
-        mail_parser::Encoding::Base64 => s.decode_base64_mime(b""),
-        mail_parser::Encoding::QuotedPrintable => s.decode_quoted_printable_mime(b""),
-        mail_parser::Encoding::None => return Some(body.to_vec()),
-    };
-    (end != usize::MAX).then(|| bytes.into_owned())
 }
 
 /// Most attachments [`attachments_data`] looks for at once.
@@ -598,7 +563,7 @@ pub fn attachments_data(raw: &[u8], wanted: &[usize], max_each: usize, max_total
         .0
         .into_iter()
         .filter(|a| sorted.binary_search(&a.info.index).is_ok())
-        .map(|a| (a.info.index, a.part.and_then(|p| sent_bytes(&m, p)).map_or(a.data, Cow::Owned)))
+        .map(|a| (a.info.index, a.part.and_then(sent_bytes).map_or(a.data, Cow::Owned)))
         .collect();
     let mut out = Vec::new();
     let mut total = 0usize;

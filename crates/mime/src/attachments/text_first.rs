@@ -82,7 +82,7 @@ pub fn part_name(disposition: &[(String, String)], type_params: &[(String, Strin
     };
     let raw = format!("Content-Type: application/octet-stream{}\r\nContent-Disposition: attachment{}\r\n\r\n", line(type_params), line(disposition));
     let m = MessageParser::default().parse(raw.as_bytes())?;
-    let p = m.parts.first()?;
+    let p = m.root_part();
     let name = p.content_disposition().and_then(|d| d.attribute("filename")).or_else(|| p.content_type().and_then(|t| t.attribute("name")))?;
     Some(name.trim().to_string()).filter(|n| !n.is_empty())
 }

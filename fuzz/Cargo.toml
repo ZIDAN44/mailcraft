@@ -48,13 +48,11 @@ mailcraft-pgp.path = "../crates/pgp" # OpenPGP
 rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
 mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to, the search index
 
-# `cargo fuzz ... -O` builds with this profile. MailCraft's own code keeps its debug assertions and
-# overflow checks; mail-parser runs without debug assertions, as the main workspace sets it.
+# `cargo fuzz ... -O` builds with this profile, debug assertions and overflow checks on.
 [profile.release]
 debug = 1
 debug-assertions = true
 overflow-checks = true
-package.mail-parser.debug-assertions = false
 
 # The .pst reader and writer with MailCraft's fixes, the same revision of the fork as the main
 # workspace's.

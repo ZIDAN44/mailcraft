@@ -8,7 +8,7 @@ exclude = ["fuzz"]
 version = "0.33.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.95"
+rust-version = "1.98"
 repository = "https://github.com/ZIDAN44/mailcraft"
 
 [workspace.dependencies]
@@ -42,8 +42,8 @@ chrono-tz = { version = "0.10", default-features = false }
 
 # mail (all MIT and/or Apache-2.0)
 # `full_encoding`: mail in Shift_JIS, GBK, Big5 and EUC-KR (without it those came out as U+FFFD).
-mail-parser = { version = "0.11", features = ["full_encoding"] }
-mail-builder = { version = "1", default-features = false }
+mail-parser = { version = "1.0.1", features = ["full_encoding"] }
+mail-builder = { version = "2", default-features = false }
 html2text = { version = "0.17", features = ["css"] }
 imap-proto = "0.17"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls", "ring", "webpki-roots"] }
@@ -72,11 +72,6 @@ debug = "line-tables-only"
 [profile.dev.package."*"]
 opt-level = 2
 debug = false
-
-# mail-parser 0.11 has a `debug_assert!` that hostile mail reaches (a message in a message ended
-# by the outer boundary; crates/mime/src/tests.rs): off, debug builds read it as release ones do.
-[profile.dev.package.mail-parser]
-debug-assertions = false
 
 [profile.release]
 opt-level = 3

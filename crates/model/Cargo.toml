@@ -16,7 +16,7 @@ unicode-segmentation = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
 # Thunderbird-style keywords for long category names (organize/keywords.rs).
-sha2 = { version = "0.10", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 
 [dev-dependencies]
 # Property tests of the round trips (tests/properties.rs).

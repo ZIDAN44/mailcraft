@@ -12,6 +12,8 @@ workspace = true
 [dependencies]
 mailcraft-model = { workspace = true }
 mail-parser = { workspace = true }
+# Base64 and quoted-printable outside a parsed message (mail-parser 1.0 decodes with it too).
+encodify = "1.0"
 mail-builder = { workspace = true }
 html2text = { workspace = true }
 # HTML layout (tables and columns): its tokenizer (html2text uses the same version).

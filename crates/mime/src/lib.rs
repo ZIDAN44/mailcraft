@@ -23,7 +23,7 @@ pub use rich::reply::{ReplyMode, quoted_body, reply, reply_doc, reply_head_doc};
 use mail_builder::MessageBuilder;
 use mail_builder::headers::content_type::ContentType;
 use mail_builder::mime::MimePart;
-use mail_parser::{Address, HeaderValue, Message, MessageParser, MimeHeaders};
+use mail_parser::{AddressList, Charset, Message, MessageParser, PartKind, TextList};
 use mailcraft_model::thread::norm_id;
 use mailcraft_model::{EmailAddress, Flags, MessageKey, Summary};
 use serde::{Deserialize, Serialize};
@@ -45,7 +45,7 @@ pub use attachments::{
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};
 pub use attachments::{REACTIONS, is_reaction_text, reaction};
-use attachments::{attached, has_real_attachments, reaction_of};
+use attachments::{attached, files_of, has_real_attachments, header_raw, reaction_of};
 use files::attachment_name;
 pub use files::{alt_code_char, alt_code_pages, harmless_to_open, mime_from_name, runs_code, sanitize_filename};
 pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
@@ -61,7 +61,7 @@ pub use trackers::{Trackers, clean_link, trackers, tracks_click};
 /// `bytes` read in the character set `charset` names (`iso-8859-1`, `shift_jis`), when it's one
 /// known: for showing a source's text that isn't UTF-8 (View message source, issue #27).
 pub fn decode_in(charset: &str, bytes: &[u8]) -> Option<String> {
-    mail_parser::decoders::charsets::map::charset_decoder(charset.trim().as_bytes()).map(|d| d(bytes))
+    Charset::from_label(charset.trim().as_bytes()).map(|c| c.decode(bytes).into_owned())
 }
 
 /// Longest preview kept in a summary, in characters.
@@ -71,18 +71,18 @@ const PREVIEW_HTML: usize = 64 * 1024;
 /// HTML larger than this is cut before conversion (the rest is rarely more than markup).
 pub(crate) const HTML_MAX: usize = 4 << 20;
 
-fn addrs(a: Option<&Address<'_>>) -> Vec<EmailAddress> {
-    a.map(|a| a.iter().filter_map(|x| x.address().map(|e| EmailAddress::new(x.name().unwrap_or_default().trim(), e.trim()))).collect())
+fn addrs(a: Option<AddressList<'_>>) -> Vec<EmailAddress> {
+    a.map(|a| a.mailboxes().filter_map(|x| x.address().map(|e| EmailAddress::new(x.name().unwrap_or_default().trim(), e.trim()))).collect())
         .unwrap_or_default()
 }
 
-fn ids(v: &HeaderValue<'_>) -> Vec<String> {
-    let raw: Vec<String> = match v {
-        HeaderValue::Text(t) => vec![t.to_string()],
-        HeaderValue::TextList(l) => l.iter().map(ToString::to_string).collect(),
-        _ => Vec::new(),
-    };
-    raw.into_iter().map(|s| norm_id(&s)).filter(|s| !s.is_empty()).collect()
+fn ids(v: Option<TextList<'_>>) -> Vec<String> {
+    v.iter().flat_map(|l| l.iter()).map(norm_id).filter(|s| !s.is_empty()).collect()
+}
+
+/// Whether a part is HTML (not text standing in for it).
+fn is_html(p: &mail_parser::MessagePart<'_>) -> bool {
+    matches!(p.kind(), PartKind::Html)
 }
 
 /// Collapse whitespace and skip quoted lines and signatures, for the one-line preview.
@@ -131,10 +131,11 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         .root_part()
         .content_type()
         .is_some_and(|c| c.ctype().eq_ignore_ascii_case("multipart") && c.subtype().is_some_and(|s| s.eq_ignore_ascii_case("mixed")));
-    let has_attachments = has_real_attachments(m) || (m.attachment_count() == 0 && content_type_multipart_mixed && m.text_body_count() == 0);
+    let has_attachments =
+        has_real_attachments(m) || (files_of(m.root()).next().is_none() && content_type_multipart_mixed && m.text_body().len() == 0);
     // Mail in HTML only: its text as the reading pane's plain text makes it (mail-parser's own
     // runs one table cell into the next: "BANNERFirst block", issue #41), from its start.
-    let html_only = m.text_bodies().next().is_some_and(|p| p.is_text_html());
+    let html_only = m.text_body().next().is_some_and(|p| is_html(&p));
     let text = match m.body_html(0).filter(|_| html_only) {
         Some(h) => html::html_to_words(h.get(..h.char_indices().nth(PREVIEW_HTML).map_or(h.len(), |(i, _)| i)).unwrap_or(&h)),
         None => m.body_text(0).map(|t| t.into_owned()).unwrap_or_default(),
@@ -182,13 +183,13 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
 /// The conversation index a message's `Thread-Index` header holds (base64 of 22 + 5·k bytes,
 /// k ≤ [`mailcraft_model::thread::MAX_INDEX_BLOCKS`]); a longer header isn't decoded.
 fn thread_index(m: &Message<'_>) -> Option<Vec<u8>> {
-    let raw = m.header_raw("Thread-Index")?;
+    let raw = header_raw(m.root(), "Thread-Index")?;
     let longest = (22 + 5 * mailcraft_model::thread::MAX_INDEX_BLOCKS).div_ceil(3) * 4;
     let clean: String = raw.chars().filter(|c| !c.is_ascii_whitespace()).take(longest + 1).collect();
     if clean.is_empty() || clean.len() > longest {
         return None;
     }
-    mail_parser::decoders::base64::base64_decode(clean.as_bytes())
+    encodify::base64::LENIENT.decode(clean.as_bytes()).ok()
 }
 
 /// Base64 text as bytes, its spaces and line breaks passed over (`None` when it isn't base64):
@@ -198,13 +199,13 @@ pub fn decode_base64(text: &str) -> Option<Vec<u8>> {
     if clean.is_empty() {
         return Some(Vec::new());
     }
-    mail_parser::decoders::base64::base64_decode(&clean)
+    encodify::base64::LENIENT.decode(&clean).ok()
 }
 
 /// How important the sender marked a message: 1 high, -1 low, 0 normal. `Importance` (RFC 2156),
 /// else the de-facto `X-Priority` (1–2 high, 4–5 low), else `Priority` (urgent, non-urgent).
 pub(crate) fn importance(m: &Message<'_>) -> i8 {
-    let h = |name: &str| m.header_raw(name).map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
+    let h = |name: &str| header_raw(m.root(), name).map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
     match h("Importance").as_str() {
         "high" => return 1,
         "low" => return -1,
@@ -227,9 +228,9 @@ pub(crate) fn importance(m: &Message<'_>) -> i8 {
 /// Mail sent in bulk: lists, newsletters, notifications (RFC 2369 `List-*`, RFC 2919 `List-Id`,
 /// RFC 3834 `Auto-Submitted`, the de-facto `Precedence: bulk|list|junk`, and no-reply senders).
 fn is_bulk(m: &Message<'_>) -> bool {
-    let has = |name: &str| m.header_raw(name).is_some_and(|v| !v.trim().is_empty());
-    let precedence = m.header_raw("Precedence").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
-    let auto = m.header_raw("Auto-Submitted").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
+    let has = |name: &str| header_raw(m.root(), name).is_some_and(|v| !v.trim().is_empty());
+    let precedence = header_raw(m.root(), "Precedence").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
+    let auto = header_raw(m.root(), "Auto-Submitted").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
     let from = m.from().and_then(|a| a.first()).and_then(|a| a.address()).unwrap_or_default().to_ascii_lowercase();
     has("List-Id")
         || has("List-Unsubscribe")
@@ -338,7 +339,7 @@ pub type RichText = Vec<Vec<Span>>;
 pub fn parse(raw: &[u8]) -> Option<Parsed> {
     let m = MessageParser::default().parse(raw)?;
     // mail-parser lists text parts among the HTML bodies too (converted); only real HTML counts.
-    let real_html = m.html_bodies().any(|p| p.is_text_html());
+    let real_html = m.html_body().any(|p| is_html(&p));
     // A `winmail.dat` gives its files, and its rich body when the message has no HTML (issue #18).
     let (attached, tnef_body) = attached(&m);
     let tnef_html = match &tnef_body {
@@ -365,11 +366,11 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         }
         None => (Vec::new(), Vec::new(), Vec::new()),
     };
-    let (text, had_html) = match (m.text_body_count() > 0, m.body_text(0), m.body_html(0)) {
+    let (text, had_html) = match (m.text_body().len() > 0, m.body_text(0), m.body_html(0)) {
         _ if let Some(h) = tnef_html => (html_to_text(h), true),
         // Prefer the HTML version when the text part is an auto-generated stub.
         (_, Some(t), Some(h)) if t.trim().is_empty() => (html_to_text(&h), true),
-        (true, Some(t), _) if !m.text_part(0).is_some_and(|p| p.is_text_html()) => (tidy_text(&t), real_html),
+        (true, Some(t), _) if !m.text_body().next().is_some_and(|p| is_html(&p)) => (tidy_text(&t), real_html),
         (_, _, Some(h)) => (html_to_text(&h), true),
         (_, Some(t), None) => (tidy_text(&t), false),
         _ => (String::new(), false),
@@ -380,12 +381,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         _ => text,
     };
     let attachments = attached.into_iter().map(|a| a.info).collect();
-    let unsubscribe = match m.list_unsubscribe() {
-        HeaderValue::Address(a) => a.first().and_then(|x| x.address()).map(str::to_string),
-        HeaderValue::Text(t) => Some(t.trim_matches(['<', '>']).to_string()),
-        HeaderValue::TextList(l) => l.first().map(|t| t.trim_matches(['<', '>']).to_string()),
-        _ => None,
-    };
+    let unsubscribe = m.list_unsubscribe().and_then(|a| a.first()).and_then(|x| x.address()).map(|t| t.trim_matches(['<', '>']).to_string());
     Some(Parsed {
         subject: m.subject().unwrap_or_default().trim().to_string(),
         from: addrs(m.from()).into_iter().next().unwrap_or_default(),
@@ -437,8 +433,8 @@ pub const SOURCE_HEADER: &str = "X-MailCraft-Source";
 /// opened to carry on writing it.
 pub fn sending_options(raw: &[u8]) -> (i8, bool, String) {
     let Some(m) = MessageParser::default().parse(raw) else { return (0, false, String::new()) };
-    let receipt = m.header_raw("Disposition-Notification-To").is_some_and(|v| !v.trim().is_empty());
-    let source = m.header_raw(SOURCE_HEADER).map(|v| v.trim().to_string()).unwrap_or_default();
+    let receipt = header_raw(m.root(), "Disposition-Notification-To").is_some_and(|v| !v.trim().is_empty());
+    let source = header_raw(m.root(), SOURCE_HEADER).map(|v| v.trim().to_string()).unwrap_or_default();
     (importance(&m), receipt, source)
 }
 
@@ -446,7 +442,7 @@ pub fn sending_options(raw: &[u8]) -> (i8, bool, String) {
 /// a `winmail.dat` (issue #18).
 pub fn html_body(raw: &[u8]) -> Option<String> {
     let m = MessageParser::default().parse(raw)?;
-    if !m.html_bodies().any(|p| p.is_text_html()) {
+    if !m.html_body().any(|p| is_html(&p)) {
         return match attached(&m).1 {
             TnefBody::Html(h) => Some(h),
             _ => None,

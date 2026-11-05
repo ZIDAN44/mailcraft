@@ -32,7 +32,7 @@ security-framework = "3.7.0"
 # The two the Keychain's EC decrypting needs below security-framework (the versions it uses).
 security-framework-sys = "2.17"
 core-foundation = "0.10"
-sha1 = "0.10"
+sha1 = "0.11"
 
 # The Windows certificate store and CNG: rustls-cng's safe wrappers (MIT OR Apache-2.0), as
 # PdfCraft signs with them, and windows-sys (the version rustls-cng uses) for what they don't
@@ -40,7 +40,7 @@ sha1 = "0.10"
 [target.'cfg(windows)'.dependencies]
 rustls-cng = { version = "=0.7.1", default-features = false }
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Cryptography"] }
-sha2 = "0.10"
+sha2 = "0.11"
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["getrandom"] }

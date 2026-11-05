@@ -73,7 +73,8 @@ impl Negotiation {
 
     fn with(username: Username, kdc: &str, password: &str, host: &str) -> Result<(Negotiation, Vec<u8>)> {
         let computer = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_else(|_| "mailcraft".into());
-        let mut kerberos = Kerberos::new_client_from_config(KerberosConfig::new(&format!("tcp://{kdc}"), computer)).map_err(sspi_error)?;
+        let mut kerberos =
+            Kerberos::new_client_from_config(KerberosConfig::new_with_kdc_url(&format!("tcp://{kdc}"), computer)).map_err(sspi_error)?;
         let identity = AuthIdentity { username, password: password.to_string().into() };
         let creds = kerberos
             .acquire_credentials_handle()

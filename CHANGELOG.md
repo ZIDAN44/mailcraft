@@ -38,6 +38,9 @@ on GitHub.
 - Sent from Drafts, a draft no longer leaves the list saying there's one more on the server.
 - When the graphics driver resets (after sleep, say), MailCraft keeps every message being written in Drafts and closes, instead of freezing or crashing.
 - Esc in a field on the File page leaves the field; the next Esc leaves the File page.
+- A text file attached inline and named only by its file name, as Apple Mail sends one, is listed with the message's files, where it can be opened and saved, instead of being run into the message's text.
+- A file whose base64 has a stray character in it opens as the file instead of as its encoded text, and a message whose own text has one shows that text instead of turning into a file.
+- A file's name written in several pieces (RFC 2231) in a character set other than UTF-8 reads right instead of with `�`, and a message whose text has its boundary in the middle of a line is no longer cut short there.
 - On Windows, MailCraft started from Task Scheduler or a remote shell opens in the window already running, not a second one.
 - A file a program hands over unquoted, its path split at the spaces, still opens.
 - The windows of messages being written, opened or shown as source carry MailCraft's icon on Wayland.
