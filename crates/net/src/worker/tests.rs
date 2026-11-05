@@ -322,8 +322,9 @@ fn a_pass_stopped_partway_leaves_a_consistent_index() {
     };
     let ended = index_with(&s, &stop, 1, &stopping);
     let Event::Indexed { work, finished: true, .. } = ended else { panic!("{ended:?}") };
-    // What was read and not yet added when it stopped is let go.
-    assert!((1..=10).contains(&work.done) && work.total == 40, "{work:?}");
+    // What was read and not yet added when it stopped is let go: none of it when the reader got
+    // to its tenth before the pass added the first (a busy machine).
+    assert!((0..=10).contains(&work.done) && work.total == 40, "{work:?}");
     assert_eq!(found(&s, "common").len() as u64, work.done, "what it added is there");
     let ended = index_with(&s, &AtomicBool::new(false), 4, &mailcraft_mime::index_doc);
     assert!(matches!(ended, Event::Indexed { work: w, finished: true, .. } if w.total == 40 - work.done), "{ended:?}");

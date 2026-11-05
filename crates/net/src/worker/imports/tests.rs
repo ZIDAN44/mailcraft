@@ -153,6 +153,11 @@ fn a_cancel_keeps_finished_and_partial_folders() {
     assert!(projects.total < 1000, "{projects:?}");
     assert_eq!(store.load_folder("c1", "Projects").unwrap().messages.len(), projects.total as usize);
     assert_eq!(folders.iter().find(|f| f.path == "INBOX").map(|f| f.total), Some(20));
+    // Its thread says it ended, then ends: wait for that, as the other tests do.
+    let end = Instant::now() + Duration::from_secs(10);
+    while p.importing("c1") && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(10));
+    }
     assert!(!p.importing("c1"));
     let _ = std::fs::remove_dir_all(&dir);
 }
