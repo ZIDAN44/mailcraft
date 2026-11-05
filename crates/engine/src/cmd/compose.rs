@@ -385,12 +385,19 @@ pub(super) fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// browsers and mail programs add: SmartScreen checks a program before it runs, and Office opens
 /// the file in Protected View. Not on a picture that is one, or plain text: there it guards
 /// nothing, and Windows' Photos asks "Is this file from a trusted source?" before every picture
-/// that has it. Best effort; nothing elsewhere.
+/// that has it (when MailCraft hands it over). Writing a file keeps the streams it had, so on such
+/// a file a mark an earlier copy at its name left (an older MailCraft marked pictures too) is
+/// removed. Best effort; nothing elsewhere.
 pub(super) fn mark_from_internet(path: &std::path::Path, data: &[u8]) {
+    if !cfg!(windows) {
+        return;
+    }
     let name = path.file_name().unwrap_or_default().to_string_lossy();
-    if cfg!(windows) && !mailcraft_mime::harmless_to_open(&name, data) {
-        let mut stream = path.as_os_str().to_owned();
-        stream.push(":Zone.Identifier");
+    let mut stream = path.as_os_str().to_owned();
+    stream.push(":Zone.Identifier");
+    if mailcraft_mime::harmless_to_open(&name, data) {
+        let _ = std::fs::remove_file(stream);
+    } else {
         let _ = std::fs::write(
             stream,
             "[ZoneTransfer]

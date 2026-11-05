@@ -66,7 +66,16 @@ fn open_marks_read_and_shows_text_and_attachments() {
     assert!(matches!(refused, Err(CmdError::Disabled(_))), "{refused:?}");
     assert!(!exe.exists(), "not written");
     let png = s.store.as_ref().unwrap().root().join("to-open.png");
+    // Opened again where an earlier copy was marked (an older MailCraft marked pictures, and
+    // writing a file keeps its streams): the old mark goes, or Photos asks before showing it.
+    if cfg!(windows) {
+        std::fs::write(&png, b"old").unwrap();
+        std::fs::write(format!("{}:Zone.Identifier", png.display()), "[ZoneTransfer]\r\nZoneId=3\r\n").unwrap();
+    }
     s.run("attachment.save", &json!({"index": 0, "path": png.to_string_lossy(), "open": true})).unwrap();
+    if cfg!(windows) {
+        assert!(std::fs::read_to_string(format!("{}:Zone.Identifier", png.display())).is_err(), "the earlier copy's mark is gone");
+    }
     // Saved on purpose, any name is the user's call.
     s.run("attachment.save", &json!({"index": 0, "path": exe.to_string_lossy()})).unwrap();
     assert!(exe.exists());
