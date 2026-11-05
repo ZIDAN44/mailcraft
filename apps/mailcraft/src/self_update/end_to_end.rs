@@ -203,7 +203,7 @@ fn a_package_installs_with_the_system_tool_after_the_password() {
         let _ = std::fs::remove_file(&said);
         std::fs::write(&deb, b"a package").unwrap();
         let step = package_step(super::Package::Deb, &deb, None);
-        assert!(std::process::Command::new("sh").arg("-c").arg(&step).env("PATH", path).status().unwrap().code().is_some());
+        assert!(std::process::Command::new("/bin/sh").arg("-c").arg(&step).env("PATH", path).status().unwrap().code().is_some());
         std::fs::read_to_string(&said).unwrap_or_default()
     };
     let with = format!("{}:/usr/bin:/bin", bin.display());
@@ -214,7 +214,8 @@ fn a_package_installs_with_the_system_tool_after_the_password() {
     );
     assert!(!deb.exists(), "installed: the download goes");
     std::fs::remove_file(bin.join("pkexec")).unwrap();
-    let out = run(&with);
+    // Only the stand-ins: a real `pkexec` in /usr/bin must not be found.
+    let out = run(&bin.display().to_string());
     assert!(out.starts_with("xdg-open ") && deb.exists(), "{out}");
     let _ = std::fs::remove_dir_all(&dir);
 }
