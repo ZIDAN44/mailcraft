@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# As the other Craft apps. CodeRabbit already reviews against CLAUDE.md and skips lock files and
+# pictures on its own; `@coderabbitai review` on a pull request asks for a review by hand.
+reviews:
+  auto_review:
+    # Dependabot bumps are checked by CI; skip CodeRabbit reviews on them.
+    ignore_usernames:
+      - "dependabot[bot]"
+  # Nothing to review in prose, fuzzing seeds or saved test cases.
+  path_filters:
+    - "!**/*.md"
+    - "!fuzz/seeds/**"
+    - "!fuzz/dicts/**"
+    - "!**/proptest-regressions/**"
