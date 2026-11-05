@@ -10,8 +10,9 @@ description = "MailCraft print and export: a message laid out on pages as a PDF 
 workspace = true
 
 [dependencies]
-# Glyph ids and widths of the system font that gets embedded.
-ttf-parser = { version = "0.25", default-features = false, features = ["std", "opentype-layout", "apple-layout", "variable-fonts", "glyph-names"] }
+# Reads the font it embeds (glyphs, widths, metrics): the maintained successor to ttf-parser, and
+# the version the UI uses, so it's built once.
+skrifa = "0.49"
 # Compressed page and font streams.
 # The version flate2 (the PDF reader's) uses, so it's built once.
 miniz_oxide = "0.9"

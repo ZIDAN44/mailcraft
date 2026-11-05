@@ -36,28 +36,51 @@ const MAX_PAGES: usize = 500;
 
 /// A font as the layout and the writer see it.
 enum Face<'a> {
-    Embedded { data: &'a [u8], face: Box<ttf_parser::Face<'a>>, used: BTreeMap<u16, char> },
+    Embedded { data: &'a [u8], font: Box<Font<'a>>, used: BTreeMap<u16, char> },
     Helvetica { bold: bool },
+}
+
+/// What the layout and the writer read from a font file to embed (skrifa, in font units).
+struct Font<'a> {
+    charmap: skrifa::charmap::Charmap<'a>,
+    advances: skrifa::metrics::GlyphMetrics<'a>,
+    metrics: skrifa::metrics::Metrics,
+}
+
+impl Font<'_> {
+    /// The glyph drawing `c` (0, the missing glyph, when the font has none: TrueType ids fit 16 bits).
+    fn glyph(&self, c: char) -> u16 {
+        self.charmap.map(c).and_then(|g| u16::try_from(g.to_u32()).ok()).unwrap_or(0)
+    }
+
+    /// How far a glyph moves the pen, in font units.
+    fn advance(&self, gid: u16) -> f32 {
+        self.advances.advance_width(skrifa::GlyphId::new(u32::from(gid))).unwrap_or(0.0)
+    }
+
+    fn units_per_em(&self) -> f32 {
+        f32::from(self.metrics.units_per_em.max(1))
+    }
 }
 
 impl<'a> Face<'a> {
     fn parse(data: &'a [u8]) -> Option<Face<'a>> {
-        let face = ttf_parser::Face::parse(data, 0).ok()?;
+        use skrifa::MetadataProvider as _;
+        use skrifa::raw::TableProvider as _;
+        let face = skrifa::FontRef::from_index(data, 0).ok()?;
         // CFF outlines can't go in a FontFile2 stream.
-        if !face.tables().glyf.is_some() {
+        if face.glyf().is_err() {
             return None;
         }
-        Some(Face::Embedded { data, face: Box::new(face), used: BTreeMap::new() })
+        let (size, at) = (skrifa::instance::Size::unscaled(), skrifa::instance::LocationRef::default());
+        let font = Font { charmap: face.charmap(), advances: face.glyph_metrics(size, at), metrics: face.metrics(size, at) };
+        Some(Face::Embedded { data, font: Box::new(font), used: BTreeMap::new() })
     }
 
     /// Width of a character in thousandths of the font size.
     fn width(&self, c: char) -> f32 {
         match self {
-            Face::Embedded { face, .. } => {
-                let upem = f32::from(face.units_per_em().max(1));
-                let gid = face.glyph_index(c).unwrap_or(ttf_parser::GlyphId(0));
-                f32::from(face.glyph_hor_advance(gid).unwrap_or(0)) * 1000.0 / upem
-            }
+            Face::Embedded { font, .. } => font.advance(font.glyph(c)) * 1000.0 / font.units_per_em(),
             Face::Helvetica { bold } => helvetica_width(c, *bold),
         }
     }
@@ -69,11 +92,11 @@ impl<'a> Face<'a> {
     /// The bytes of a PDF string drawing `s` with this font.
     fn encode(&mut self, s: &str) -> String {
         match self {
-            Face::Embedded { face, used, .. } => {
+            Face::Embedded { font, used, .. } => {
                 let mut hex = String::with_capacity(s.len() * 4 + 2);
                 hex.push('<');
                 for c in s.chars() {
-                    let gid = face.glyph_index(c).map_or(0, |g| g.0);
+                    let gid = font.glyph(c);
                     used.entry(gid).or_insert(c);
                     let _ = write!(hex, "{gid:04X}");
                 }
@@ -318,31 +341,31 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
                 )
                 .into_bytes(),
             ),
-            Face::Embedded { data, face, used } => {
-                let upem = f32::from(face.units_per_em().max(1));
-                let scale = |v: i16| (f32::from(v) * 1000.0 / upem).round() as i32;
+            Face::Embedded { data, font, used } => {
+                let upem = font.units_per_em();
+                let scale = |v: f32| (v * 1000.0 / upem).round() as i32;
                 let file = compress(data);
                 let mut stream = format!("<< /Length {} /Length1 {} /Filter /FlateDecode >>\nstream\n", file.len(), data.len()).into_bytes();
                 stream.extend_from_slice(&file);
                 stream.extend_from_slice(b"\nendstream");
                 let file_ref = add(&mut objects, stream);
-                let bbox = face.global_bounding_box();
+                let m = &font.metrics;
+                let bbox = m.bounds.unwrap_or(skrifa::metrics::BoundingBox { x_min: 0.0, y_min: 0.0, x_max: 0.0, y_max: 0.0 });
                 let descriptor = format!(
                     "<< /Type /FontDescriptor /FontName /MailCraftFont{i} /Flags 32 /FontBBox [{} {} {} {}] /ItalicAngle 0 /Ascent {} /Descent {} /CapHeight {} /StemV {} /FontFile2 {file_ref} 0 R >>",
                     scale(bbox.x_min),
                     scale(bbox.y_min),
                     scale(bbox.x_max),
                     scale(bbox.y_max),
-                    scale(face.ascender()),
-                    scale(face.descender()),
-                    scale(face.capital_height().unwrap_or(face.ascender())),
+                    scale(m.ascent),
+                    scale(m.descent),
+                    scale(m.cap_height.unwrap_or(m.ascent)),
                     if i == 1 { 140 } else { 80 }
                 );
                 let desc_ref = add(&mut objects, descriptor.into_bytes());
                 let mut w = String::from("[");
                 for gid in used.keys() {
-                    let adv = face.glyph_hor_advance(ttf_parser::GlyphId(*gid)).unwrap_or(0);
-                    let _ = write!(w, " {gid} [{}]", (f32::from(adv) * 1000.0 / upem).round() as i32);
+                    let _ = write!(w, " {gid} [{}]", scale(font.advance(*gid)));
                 }
                 w.push_str(" ]");
                 let cid = format!(
