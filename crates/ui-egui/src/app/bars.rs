@@ -1,83 +1,123 @@
-//! The top bar (search, sync, settings), the status bar, and notices.
+//! The top bar (the ribbon's tabs, search, sync, settings), the status bar, and notices.
 
 use crate::*;
 
+/// A row of the top bar: its tabs, its buttons, the search box.
+pub(crate) const BAR_ROW_H: f32 = 30.0;
+/// The room the controls at the bar's end take: four of them (Undo's kept while there's nothing
+/// to undo, so the box doesn't move when there is) and a margin.
+const BAR_END: f32 = 4.0 * 34.0 + 8.0;
+/// The narrowest the search box is beside the tabs (its edge and margins included); narrower,
+/// it has a row of its own.
+const MIN_SEARCH_BOX: f32 = 216.0;
+const MAX_SEARCH_BOX: f32 = 656.0;
+
 impl MailApp {
+    /// The top bar: the ribbon's tabs, the search box, and at its end Send / Receive, Undo, dark
+    /// mode and settings (issue #22). One row, where the app's name (the window's title already
+    /// says it) and the bar's controls had a row of their own above the tabs. A window too narrow
+    /// for the box beside the tabs has it on a row of its own under them.
     pub(crate) fn top_bar(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
+        let full = ui.max_rect();
+        let row = vec2(full.width(), BAR_ROW_H);
+        let mut boxed = 0.0;
+        ui.allocate_ui_with_layout(row, bidi::row_from_start(Align::Center), |ui| {
+            self.ribbon_tabs(ui, acts);
+            ui.spacing_mut().item_spacing.x = 4.0;
+            // The room between the tabs and the controls at the end.
+            let used = ui.min_rect().width();
+            let free = full.width() - used - BAR_END;
+            let fits = free - 24.0 >= MIN_SEARCH_BOX;
+            if self.ui.bar_two_rows == fits {
+                self.ui.bar_two_rows = !fits;
+                ui.ctx().request_repaint();
+            }
+            if fits {
+                // The box, its edge and margins included: centred in the window when there's
+                // room for that, else just after the tabs.
+                boxed = (free - 24.0).min(MAX_SEARCH_BOX);
+                let centred = (full.width() - boxed) / 2.0 - used;
+                ui.add_space(centred.min(free - boxed - 12.0).max(12.0));
+                self.top_search(ui, boxed - 16.0, acts);
+            }
+            self.bar_end(ui, acts);
+        });
+        if boxed == 0.0 {
+            ui.allocate_ui_with_layout(row, Layout::top_down(Align::Center), |ui| {
+                let boxed = (full.width() - 16.0).clamp(80.0, MAX_SEARCH_BOX);
+                self.top_search(ui, boxed - 16.0, acts);
+            });
+        }
+    }
+
+    /// The search box on the top bar, `search_w` wide inside its edge.
+    fn top_search(&mut self, ui: &mut Ui, search_w: f32, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
-        // From the right in a right-to-left interface: the name first, the settings last.
-        ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
-            // The mark: white on the coloured bar, the accent colour on a plain one.
-            let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
-            let (tile, mark) = if t.on_bar == Color32::WHITE { (Color32::WHITE, t.bar) } else { (t.accent, t.on_accent) };
-            ui.painter().rect_filled(r, 5.0, tile);
-            icons::paint(ui.painter(), icons::centered(r, 15.0), Icon::Unread, mark);
-            ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(t.on_bar));
-            ui.add_space(6.0);
-            // Quick access, as Outlook's title bar: Send / Receive all folders, and Undo the last
-            // move, delete, flag or category (Ctrl+Z).
-            let can_sync = self.session.registry().get("mail.sync").is_some_and(|c| (c.enabled)(&self.session).is_none());
+        // On a plain bar the box needs its own edge to stand out.
+        let edge = if t.bar == t.chrome { egui::Stroke::new(1.0, t.border) } else { egui::Stroke::NONE };
+        let frame = egui::Frame::new()
+            .fill(if t.dark { t.surface } else { Color32::WHITE })
+            .stroke(edge)
+            .corner_radius(6)
+            .inner_margin(Margin::symmetric(8, 3));
+        frame.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                icons::paint(ui.painter(), r, Icon::Search, t.dim);
+                // In the Calendar, People, Tasks and Notes it searches those (as Outlook's box
+                // searches where you are).
+                let module = self.session.module;
+                if matches!(module, Module::Calendar | Module::People | Module::Tasks | Module::Notes) {
+                    let focus = std::mem::take(&mut self.ui.focus_search);
+                    let (query, hint) = match module {
+                        Module::People => (&mut self.ui.people_query, tl!("Search people")),
+                        Module::Calendar => (&mut self.ui.cal_search.query, tl!("Search calendar (location:, organizer:, after:…)")),
+                        Module::Tasks => (&mut self.ui.tasks_query, tl!("Search tasks")),
+                        _ => (&mut self.ui.notes_query, tl!("Search notes")),
+                    };
+                    let resp = ui.add(
+                        egui::TextEdit::singleline(query)
+                            .hint_text(hint)
+                            .frame(egui::Frame::NONE)
+                            .align(egui::Align2::LEFT_CENTER)
+                            .desired_width(search_w - 60.0)
+                            .text_color(t.text),
+                    );
+                    if focus {
+                        resp.request_focus();
+                    }
+                    if !query.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
+                        query.clear();
+                    }
+                    return;
+                }
+                self.search_box(ui, search_w, acts);
+            });
+        });
+    }
+
+    /// The top bar's end: dark mode, settings, Send / Receive all folders, and Undo.
+    fn bar_end(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
+        let t = self.ui.tokens;
+        let can_sync = self.session.registry().get("mail.sync").is_some_and(|c| (c.enabled)(&self.session).is_none());
+        let can_undo = !self.session.undo.is_empty();
+        ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
+            let dark = t.dark;
+            let (icon, tip) = if dark { (Icon::Sun, tl!("Switch to light mode")) } else { (Icon::Moon, tl!("Switch to dark mode")) };
+            if widgets::bar_icon_button(ui, icon, tip, &t).clicked() {
+                acts.push(Action::SetDark(Some(!dark)));
+            }
+            if widgets::bar_icon_button(ui, Icon::Gear, "Accounts and settings", &t).clicked() {
+                acts.push(Action::Backstage(backstage::Page::Info));
+            }
+            // Quick access, as Outlook's title bar: Send / Receive all folders, and Undo the
+            // last move, delete, flag or category (Ctrl+Z).
             if can_sync && widgets::bar_icon_button(ui, Icon::Sync, tl!("Send / Receive all folders (F9)"), &t).clicked() {
                 acts.push(Action::Run("mail.sync", json!({})));
             }
-            if !self.session.undo.is_empty() && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)"), &t).clicked() {
+            if can_undo && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)"), &t).clicked() {
                 acts.push(Action::Run("edit.undo", json!({})));
             }
-            ui.add_space(10.0);
-            let avail = ui.available_width();
-            let search_w = (avail * 0.5).clamp(300.0, 720.0);
-            ui.add_space(((avail - search_w) / 2.0 - 160.0).max(0.0));
-            // On a plain bar the box needs its own edge to stand out.
-            let edge = if t.bar == t.chrome { egui::Stroke::new(1.0, t.border) } else { egui::Stroke::NONE };
-            let frame = egui::Frame::new()
-                .fill(if t.dark { t.surface } else { Color32::WHITE })
-                .stroke(edge)
-                .corner_radius(6)
-                .inner_margin(Margin::symmetric(8, 3));
-            frame.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-                    icons::paint(ui.painter(), r, Icon::Search, t.dim);
-                    // In the Calendar, People, Tasks and Notes it searches those (as Outlook's box
-                    // searches where you are).
-                    let module = self.session.module;
-                    if matches!(module, Module::Calendar | Module::People | Module::Tasks | Module::Notes) {
-                        let focus = std::mem::take(&mut self.ui.focus_search);
-                        let (query, hint) = match module {
-                            Module::People => (&mut self.ui.people_query, tl!("Search people")),
-                            Module::Calendar => (&mut self.ui.cal_search.query, tl!("Search calendar (location:, organizer:, after:…)")),
-                            Module::Tasks => (&mut self.ui.tasks_query, tl!("Search tasks")),
-                            _ => (&mut self.ui.notes_query, tl!("Search notes")),
-                        };
-                        let resp = ui.add(
-                            egui::TextEdit::singleline(query)
-                                .hint_text(hint)
-                                .frame(egui::Frame::NONE)
-                                .align(egui::Align2::LEFT_CENTER)
-                                .desired_width(search_w - 60.0)
-                                .text_color(t.text),
-                        );
-                        if focus {
-                            resp.request_focus();
-                        }
-                        if !query.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
-                            query.clear();
-                        }
-                        return;
-                    }
-                    self.search_box(ui, search_w, acts);
-                });
-            });
-            ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
-                let dark = t.dark;
-                let (icon, tip) = if dark { (Icon::Sun, tl!("Switch to light mode")) } else { (Icon::Moon, tl!("Switch to dark mode")) };
-                if widgets::bar_icon_button(ui, icon, tip, &t).clicked() {
-                    acts.push(Action::SetDark(Some(!dark)));
-                }
-                if widgets::bar_icon_button(ui, Icon::Gear, "Accounts and settings", &t).clicked() {
-                    acts.push(Action::Backstage(backstage::Page::Info));
-                }
-            });
         });
     }
 

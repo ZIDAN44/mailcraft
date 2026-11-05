@@ -4,6 +4,9 @@ use crate::*;
 
 use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_vertical};
 
+/// The top bar's height: the ribbon's tabs and the search box, one row (issue #22).
+pub(crate) const TOP_BAR_H: f32 = 40.0;
+
 impl MailApp {
     /// Every frame, the window minimized or hidden too: eframe runs only `logic` then, and closes
     /// the window unless `logic` cancels, so the close is decided here, not in `ui` alone (craft-libs'
@@ -199,10 +202,16 @@ impl MailApp {
             self.flush_jobs();
             return;
         }
-        egui::Panel::top("topbar").exact_size(46.0).frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(12, 6))).show(ui, |ui| {
-            self.top_bar(ui, &mut acts);
-        });
+        // The File page has the window to itself, under the window's own title bar (as Outlook's).
         if self.ui.backstage.is_none() {
+            let height = if self.ui.bar_two_rows { TOP_BAR_H + super::bars::BAR_ROW_H + 6.0 } else { TOP_BAR_H };
+            let bar = egui::Panel::top("topbar").exact_size(height).frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(8, 5))).show(
+                ui,
+                |ui| {
+                    self.top_bar(ui, &mut acts);
+                },
+            );
+            self.ui.top_bar_rect = Some(bar.response.rect);
             egui::Panel::top("ribbon")
                 .frame(
                     egui::Frame::new()
@@ -246,6 +255,9 @@ impl MailApp {
                     .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
                     .show(ui, |ui| self.update_bar(ui, &mut acts));
             }
+        } else {
+            self.ui.top_bar_rect = None;
+            self.ui.ribbon_rect = None;
         }
         egui::Panel::bottom("status")
             .exact_size(26.0)

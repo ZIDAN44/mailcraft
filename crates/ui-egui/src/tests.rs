@@ -535,3 +535,67 @@ fn the_classic_ribbon_draws_every_tab() {
     assert!((a.ui.ribbon_rect.unwrap().height() - simplified).abs() < 1.0);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
+/// two, with the ribbon's buttons right under it, as tall on every tab and in every module, in a
+/// wide window, the narrowest and a narrow one; the File page has the window to itself.
+#[test]
+fn the_tabs_and_search_share_one_bar() {
+    let (mut a, dir) = app("one-bar");
+    let ctx = egui::Context::default();
+    let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+    };
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let bar = a.ui.top_bar_rect.expect("the top bar is drawn");
+    let ribbon = a.ui.ribbon_rect.expect("the ribbon is drawn");
+    assert_eq!(bar.top(), 0.0);
+    assert!((bar.height() - crate::app::frame::TOP_BAR_H).abs() < 0.5, "{bar:?}");
+    assert!(ribbon.top() >= bar.bottom() && ribbon.top() - bar.bottom() < 8.0, "{bar:?} {ribbon:?}");
+    // The bar and the ribbon together: 40 points less than the bar, the tabs and the buttons were.
+    assert!(ribbon.bottom() < 82.0, "{ribbon:?}");
+    let height = ribbon.height();
+    for dark in [Some(false), Some(true)] {
+        a.ui.dark = dark;
+        for plain in [false, true] {
+            a.session.prefs.plain_top_bar = plain;
+            for w in [2560.0, 1280.0, 760.0, 520.0] {
+                for module in ["mail", "calendar", "people", "tasks", "notes"] {
+                    a.run("view.module", json!({"name": module}));
+                    for tab in [crate::RibbonTab::Home, crate::RibbonTab::SendReceive, crate::RibbonTab::View] {
+                        a.ui.tab = tab;
+                        for _ in 0..2 {
+                            sized(&ctx, &mut a, w);
+                        }
+                        let r = a.ui.ribbon_rect.unwrap();
+                        assert!((r.height() - height).abs() < 1.0, "{module} {tab:?} at {w}: {} vs {height}", r.height());
+                        // Nothing pushed past the window's edge: the narrow one has the box on a
+                        // row of its own.
+                        assert!((a.ui.top_bar_rect.unwrap().width() - w).abs() < 1.0, "{module} {tab:?} at {w}: {:?}", a.ui.top_bar_rect);
+                        assert_eq!(a.ui.bar_two_rows, w < 700.0, "{module} {tab:?} at {w}");
+                    }
+                }
+            }
+        }
+    }
+    a.session.prefs.plain_top_bar = false;
+    a.run("view.module", json!({"name": "mail"}));
+    // Searching: the Search tab joins the others on the bar (and stays while the search does),
+    // the ribbon as tall.
+    a.run("search.run", json!({"query": "storyboard"}));
+    a.ui.tab = crate::RibbonTab::Search;
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert_eq!(a.ui.tab, crate::RibbonTab::Search);
+    assert!((a.ui.ribbon_rect.unwrap().height() - height).abs() < 1.0);
+    a.run("search.clear", json!({}));
+    a.act(crate::Action::Backstage(crate::backstage::Page::Info));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.top_bar_rect.is_none() && a.ui.ribbon_rect.is_none(), "the File page has no bar");
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -22,6 +22,7 @@ on GitHub.
 - **File › Info › Mailbox settings** gives the data file's location, its Outlook copy and the clean-up each a row of their own.
 - The **Open Outlook data file** dialog shows the file on a card with its size and contents, and a bar of the room its copy takes.
 - **File › Options › Language** lists English first, then the other languages by their own names, accents set aside.
+- The ribbon's tabs share the top bar with the search box, so the window gives one row less to its chrome; the app's name, which the title bar already shows, has gone from it. Send / Receive, Undo, dark mode and settings sit at the bar's end. In a narrow window the search box has a row of its own (#22).
 
 ### Fixed
 - A server whose certificate comes from your organisation's own CA, as an on-premises Exchange often does, connects once that CA is in the system's certificate store (Windows, the macOS Keychain, the Linux bundle), for receiving and sending, instead of failing with "UnknownIssuer". Certificates Windows lists as untrusted stay refused, whether the server or a CA above it, and the password never reaches such a server (#37).

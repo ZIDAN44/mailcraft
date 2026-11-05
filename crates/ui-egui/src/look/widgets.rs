@@ -291,13 +291,16 @@ pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Re
 }
 
 /// An icon button on the coloured title bar.
+/// The top bar's hover: a lighter wash on the coloured bar, the pane's hover on a plain one.
+pub fn bar_wash(t: &Tokens) -> Color32 {
+    if t.on_bar == Color32::WHITE { Color32::from_white_alpha(40) } else { t.hover }
+}
+
 pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
-        // A lighter wash on the coloured bar; the pane's hover on a plain one.
-        let wash = if t.on_bar == Color32::WHITE { Color32::from_white_alpha(40) } else { t.hover };
-        ui.painter().rect_filled(rect, 6.0, wash);
+        ui.painter().rect_filled(rect, 6.0, bar_wash(t));
     }
     icons::paint(ui.painter(), icons::centered(rect, 17.0), icon, t.on_bar);
     resp.on_hover_text(tl!(tip))

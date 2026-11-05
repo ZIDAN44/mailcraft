@@ -318,6 +318,12 @@ pub struct UiState {
     /// Where the ribbon was last drawn (a click on the Search tab's buttons takes the focus
     /// from the box, and mustn't close the tab).
     ribbon_rect: Option<egui::Rect>,
+    /// Where the top bar was last drawn, its tabs and search box (the pointer on its way from
+    /// the box to the Search tab mustn't close the tab either).
+    top_bar_rect: Option<egui::Rect>,
+    /// The window was too narrow for the search box beside the tabs: it has a row of its own
+    /// (measured as the bar is drawn, for the next frame).
+    bar_two_rows: bool,
     /// The ribbon's buttons from this one on go without their labels: it didn't fit the window
     /// ([`widgets::RibbonFit`]).
     ribbon_icons_from: usize,
@@ -505,6 +511,8 @@ impl MailApp {
                 attachments_active: false,
                 attachment_hovered: false,
                 ribbon_rect: None,
+                top_bar_rect: None,
+                bar_two_rows: false,
                 ribbon_icons_from: usize::MAX,
                 dialog: None,
                 pictures: reading::Pictures::default(),

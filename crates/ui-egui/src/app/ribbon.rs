@@ -3,48 +3,47 @@
 use crate::*;
 
 impl MailApp {
-    pub(crate) fn ribbon(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
+    /// The ribbon's tabs: File, Home, Send / Receive, View, and Search while searching. They sit
+    /// on the top bar beside the search box (issue #22), one row where there were two, the
+    /// bar's and the tabs'.
+    pub(crate) fn ribbon_tabs(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         let s = &self.session;
-        // The Search tab goes when the search does (and the box isn't being typed in).
-        let on_ribbon = self.ui.ribbon_rect.zip(ui.ctx().pointer_latest_pos()).is_some_and(|(r, p)| r.contains(p));
-        if self.ui.tab == RibbonTab::Search && s.search.is_none() && !self.ui.search_focused && !on_ribbon {
+        // The Search tab goes when the search does (and the box isn't being typed in, nor the
+        // pointer on its way from the box to the tab's buttons).
+        let pointer = ui.ctx().pointer_latest_pos();
+        let under = |r: Option<egui::Rect>| r.zip(pointer).is_some_and(|(r, p)| r.contains(p));
+        let near = under(self.ui.ribbon_rect) || under(self.ui.top_bar_rect);
+        if self.ui.tab == RibbonTab::Search && s.search.is_none() && !self.ui.search_focused && !near {
             self.ui.tab = RibbonTab::Home;
         }
         let searching = self.ui.tab == RibbonTab::Search || s.search.is_some();
-        ui.horizontal(|ui| {
-            if ui.add(egui::Button::new(RichText::new(tl!("File")).color(t.dim).font(theme::regular(13.5))).frame_when_inactive(false)).clicked() {
-                acts.push(Action::Backstage(backstage::Page::Info));
+        ui.spacing_mut().item_spacing.x = 0.0;
+        if tab_button(ui, &t, tl!("File"), None).clicked() {
+            acts.push(Action::Backstage(backstage::Page::Info));
+        }
+        let tabs = [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View"), (RibbonTab::Search, "Search")];
+        for (tab, label) in tabs.into_iter().filter(|(tab, _)| *tab != RibbonTab::Search || searching) {
+            let on = self.ui.tab == tab;
+            let r = tab_button(ui, &t, tl!(label), Some(on));
+            if on {
+                // The underline glides from the tab left to the one chosen.
+                let rect = r.rect;
+                let ctx = ui.ctx().clone();
+                let left = motion::glide(&ctx, egui::Id::unique("ribbon-tab-left"), rect.left() + 8.0, motion::NORMAL);
+                let right = motion::glide(&ctx, egui::Id::unique("ribbon-tab-right"), rect.right() - 8.0, motion::NORMAL);
+                let y = rect.bottom() - 2.0;
+                ui.painter().line_segment([egui::pos2(left, y), egui::pos2(right, y)], egui::Stroke::new(2.0, tab_colors(&t).0));
             }
-            let tabs =
-                [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View"), (RibbonTab::Search, "Search")];
-            for (tab, label) in tabs.into_iter().filter(|(tab, _)| *tab != RibbonTab::Search || searching) {
-                let on = self.ui.tab == tab;
-                let r = ui.add(
-                    egui::Button::new(RichText::new(tl!(label)).color(if on { t.accent } else { t.dim }).font(if on {
-                        theme::bold(13.5)
-                    } else {
-                        theme::regular(13.5)
-                    }))
-                    .frame_when_inactive(false),
-                );
-                if on {
-                    // The underline glides from the tab left to the one chosen.
-                    let rect = r.rect;
-                    let ctx = ui.ctx().clone();
-                    let left = motion::glide(&ctx, egui::Id::unique("ribbon-tab-left"), rect.left() + 6.0, motion::NORMAL);
-                    let right = motion::glide(&ctx, egui::Id::unique("ribbon-tab-right"), rect.right() - 6.0, motion::NORMAL);
-                    ui.painter().line_segment(
-                        [egui::pos2(left, rect.bottom() + 1.0), egui::pos2(right, rect.bottom() + 1.0)],
-                        egui::Stroke::new(2.0, t.accent),
-                    );
-                }
-                if r.clicked() {
-                    self.ui.tab = tab;
-                }
+            if r.clicked() {
+                self.ui.tab = tab;
             }
-        });
-        ui.add_space(3.0);
+        }
+    }
+
+    pub(crate) fn ribbon(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
+        let t = self.ui.tokens;
+        let s = &self.session;
         // The buttons sit on a card with an edge, as Outlook's (issue #8): its place is kept here
         // and drawn under them once they're laid out (`card_under_ribbon`).
         let slot = ui.painter().add(egui::Shape::Noop);
@@ -505,7 +504,35 @@ impl MailApp {
     }
 }
 
-/// The ribbon's height (its tabs and its row of buttons), the same whichever tab is shown.
+/// A tab's colours on the top bar, the one shown and the others: white on the coloured bar
+/// (the one shown told by its weight and underline), the accent and grey on a plain one.
+pub(crate) fn tab_colors(t: &Tokens) -> (egui::Color32, egui::Color32) {
+    if t.bar == t.chrome { (t.accent, t.dim) } else { (t.on_bar, t.on_bar) }
+}
+
+/// A ribbon tab on the top bar (`on`: whether it's the one shown; `None` for File, which opens
+/// a page instead): its name, bold when shown, on a wash under the pointer that reads on the
+/// coloured bar as on a plain one.
+fn tab_button(ui: &mut Ui, t: &Tokens, label: &str, on: Option<bool>) -> egui::Response {
+    let shown = on == Some(true);
+    let (on_color, off_color) = tab_colors(t);
+    let color = if shown { on_color } else { off_color };
+    let font = if shown { theme::bold(13.5) } else { theme::regular(13.5) };
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, color);
+    let height = ui.available_height().clamp(22.0, 30.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 18.0, height), Sense::click());
+    widgets::named(ui, &resp, label, true, on);
+    if resp.hovered() {
+        ui.painter().rect_filled(rect.shrink2(vec2(1.0, 1.0)), 5.0, widgets::bar_wash(t));
+    }
+    if resp.has_focus() {
+        ui.painter().rect_stroke(rect.shrink(1.0), 5.0, egui::Stroke::new(1.5, on_color), egui::StrokeKind::Inside);
+    }
+    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, color);
+    resp
+}
+
+/// The ribbon's height (its row of buttons), the same whichever tab is shown.
 /// Where the ribbon's card is drawn: its shape's place and its top (see `card_under_ribbon`).
 const RIBBON_CARD: &str = "ribbon-card";
 
@@ -523,9 +550,9 @@ pub(crate) fn card_under_ribbon(ui: &Ui, t: &Tokens, room: egui::Rect) {
     ui.painter().set(slot, egui::epaint::RectShape::new(rect, 8.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside));
 }
 
-pub(crate) const RIBBON_H: f32 = 65.0;
+pub(crate) const RIBBON_H: f32 = 30.0;
 /// The classic ribbon's: its tabs, then big buttons with the groups' names under them.
-pub(crate) const RIBBON_H_CLASSIC: f32 = RIBBON_H - 30.0 + widgets::CLASSIC_BUTTON_H + widgets::CLASSIC_CAPTION_H;
+pub(crate) const RIBBON_H_CLASSIC: f32 = widgets::CLASSIC_BUTTON_H + widgets::CLASSIC_CAPTION_H;
 
 /// The modules (Mail, Calendar, People, Tasks, Notes), as Outlook orders them.
 const MODULES: [(Module, Icon, &str, &str); 5] = [
