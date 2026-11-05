@@ -50,6 +50,7 @@ on GitHub.
 - Test builds install an update only once MailCraft has ended, and never one whose checksum file lists it twice with different sums.
 - On a Mac, files MailCraft saves in a folder on a network share no longer fail to save.
 - A picture opened again from a message no longer makes Photos ask "Is this file from a trusted source?": the "from the internet" mark an earlier version left on its copy is removed.
+- Searching for a phrase whose words repeat ("the the") finds it after a word joined by a dot ("you.the the the"), where the text was checked.
 
 ### Security
 - An Outlook data file's link to a device (`NUL`, `COM1`) or to a hidden file stream is kept as text, never read.

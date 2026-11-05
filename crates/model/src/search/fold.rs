@@ -250,7 +250,20 @@ pub fn folded_has_phrase(folded: &str, phrase: &[String]) -> bool {
 /// Whether a folded text (words split by single spaces) has a word starting with `prefix`. Most
 /// texts looked through don't hold it at all: a quick look for it anywhere comes first.
 pub(super) fn has_prefix(text: &str, prefix: &str) -> bool {
-    !prefix.is_empty() && text.contains(prefix) && text.match_indices(prefix).any(|(i, _)| starts_word(text, i))
+    if prefix.is_empty() {
+        return false;
+    }
+    // Every place it's found, overlapping ones too: in "you.the the the" the first "the the"
+    // starts inside "you.the", and the one starting a word begins within it.
+    let mut from = 0;
+    while let Some(at) = text.get(from..).and_then(|rest| rest.find(prefix)) {
+        let i = from + at;
+        if starts_word(text, i) {
+            return true;
+        }
+        from = i + text.get(i..).and_then(|rest| rest.chars().next()).map_or(1, char::len_utf8);
+    }
+    false
 }
 
 /// Whether a folded text has these folded words one after another (`phrase`, joined by spaces),

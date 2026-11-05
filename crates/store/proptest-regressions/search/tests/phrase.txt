@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2ee1cc98adae62f95037d9d8ac8eb2db4bdbf04ae2b602162add9fb238996f62 # shrinks to docs = [([(10, 0), (8, 0), (0, 0), (10, 0), (0, 0), (8, 0), (8, 0), (0, 0), (0, 0)], [[(0, 0), (0, 0), (0, 0)], [(10, 0)]]), ([(0, 0), (10, 0), (8, 0), (0, 0), (0, 0), (0, 0), (10, 0), (10, 0), (0, 0), (16, 0), (3, 0), (3, 0)], [])], from = 27, len = 2, cut = 0, made = [0], pick_made = false

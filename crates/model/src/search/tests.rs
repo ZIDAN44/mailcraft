@@ -630,3 +630,15 @@ fn a_text_folded_once_says_what_it_says() {
         assert_eq!(folded_has_phrase(&folded, &words), text.phrase(TextField::Body, &words, phrase) == Tri::Yes, "{phrase}");
     }
 }
+
+/// A phrase found where an earlier match of it overlaps the one that starts a word: "the the" in
+/// "you.the the the" (the first match starts inside "you.the"), and a word that overlaps itself.
+#[test]
+fn a_phrase_is_found_past_an_overlapping_match() {
+    let words = |p: &str| -> Vec<String> { tokens(p).map(|w| w.into_owned()).collect() };
+    assert_eq!("thank you.the the the".phrase(TextField::Body, &words("the the"), "the the"), Tri::Yes);
+    assert_eq!("you.the the".phrase(TextField::Body, &words("the the"), "the the"), Tri::No);
+    assert_eq!("baa aa".word(TextField::Body, "aa"), Tri::Yes);
+    assert_eq!("b.aaa".phrase(TextField::Body, &words("aa"), "aa"), Tri::No);
+    assert_eq!("東京.東京 東京".phrase(TextField::Body, &words("東京 東京"), "東京 東京"), Tri::Yes);
+}
