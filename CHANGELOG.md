@@ -12,6 +12,9 @@ on GitHub.
 
 *Accounts removed mid-import stay apart from new ones.*
 
+### Fixed
+- Removing an account while its `.pst` import was still writing could leave a new account added with the same id writing into the removed account's kept data file. The two now never share a file.
+
 ## 0.33.0 - 2026-11-05
 
 *Replies as they came, and fixes shared with the other Craft apps.*

@@ -172,6 +172,25 @@ impl Packs {
         open.dbs.remove(account).is_some()
     }
 
+    /// [`Packs::close`], with the account's name forgotten while no open of its file can begin
+    /// (an open takes the same lock to look the name up): one begun before ends first and is
+    /// closed, and one begun after finds no name and makes a file of its own. Closed and then
+    /// forgotten in a second step, an open begun between the two put the old file back among the
+    /// open ones with no name, and every later write for the id went into it: a new account
+    /// given the id wrote in the removed one's file. Returns whether it was open, and its name.
+    pub(super) fn close_and_forget(&self, account: &str) -> (bool, Option<String>) {
+        let mut open = self.settled(account);
+        open.caches.remove(account);
+        let was_open = open.dbs.remove(account).is_some();
+        #[cfg(test)]
+        if let Some(hook) = Packs::lock(&self.let_go_hook).as_ref() {
+            hook();
+        }
+        let name = Packs::lock(&self.names).remove(account);
+        drop(open);
+        (was_open, name)
+    }
+
     /// Let go of `account`'s data file `db` after a write the disk failed, so the next use opens
     /// it again (checked as after a crash, back at its last durable commit), and count it
     /// ([`Packs::reopened`]). Only that file: one let go of already (another thread's write failed

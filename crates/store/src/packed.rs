@@ -155,6 +155,9 @@ pub(crate) struct Packs {
     /// A test's compaction in place: run just before it (an error stops it there).
     #[cfg(test)]
     pub(super) compact_hook: Mutex<Option<Box<dyn Fn() -> io::Result<()> + Send>>>,
+    /// A test's account let go of: run once its file is closed, before its name is forgotten.
+    #[cfg(test)]
+    pub(super) let_go_hook: Mutex<Option<Box<dyn Fn() + Send>>>,
 }
 
 impl std::fmt::Debug for Packs {
@@ -192,6 +195,8 @@ impl Packs {
             id: std::sync::OnceLock::new(),
             #[cfg(test)]
             compact_hook: Mutex::default(),
+            #[cfg(test)]
+            let_go_hook: Mutex::default(),
         })
     }
 
@@ -453,10 +458,9 @@ impl Packs {
     /// `.pst`: closed and no longer anyone's, so it can be opened again (File › Open & Export) and
     /// the same address added again gets a file of its own beside it. Returns the file.
     pub(crate) fn let_go(&self, account: &str) -> Option<PathBuf> {
-        self.close(account);
+        let (_, name) = self.close_and_forget(account);
         Packs::lock(&self.fresh).remove(account);
         self.seals.forget(account);
-        let name = Packs::lock(&self.names).remove(account);
         if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
             let _ = write_atomic(&self.root.join(NAMES), &json);
         }
@@ -467,10 +471,9 @@ impl Packs {
         match self.place(p) {
             // The account goes: its data file with it.
             Place::Account(a) => {
-                let had = self.close(&a);
+                let (had, name) = self.close_and_forget(&a);
                 Packs::lock(&self.fresh).remove(&a);
                 self.seals.forget(&a);
-                let name = Packs::lock(&self.names).remove(&a);
                 if let Ok(json) = serde_json::to_vec_pretty(&*Packs::lock(&self.names)) {
                     let _ = write_atomic(&self.root.join(NAMES), &json);
                 }
