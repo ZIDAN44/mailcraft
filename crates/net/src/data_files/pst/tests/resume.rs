@@ -480,7 +480,9 @@ fn a_full_drive_pauses_and_room_again_goes_on() {
     import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
     let store = store_at(&dir, "part");
     let left = LOW_SPACE + (32 << 20);
-    let o = ImportOptions { space: Some(Arc::new(Filling::new(4, left))), ..often(None) };
+    // Full from the second ask (the first checkpoint) on: a later ask can come after the last
+    // message on a slow machine, whose checkpoints bunch up, and then nothing ever fills.
+    let o = ImportOptions { space: Some(Arc::new(Filling::new(1, left))), ..often(None) };
     let part = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
     assert_eq!(part.blocked, Some(Blocked::DiskFull { free: left }));
     assert_eq!((part.stopped, part.skipped), (Some(StopHow::Pause), 0));
