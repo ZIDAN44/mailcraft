@@ -8,7 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.33.0
+## 0.34.0
+
+*Accounts removed mid-import stay apart from new ones.*
+
+## 0.33.0 - 2026-11-05
 
 *Replies as they came, and fixes shared with the other Craft apps.*
 
