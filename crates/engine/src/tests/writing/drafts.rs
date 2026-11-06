@@ -181,7 +181,8 @@ fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
     let keys: Vec<_> = s.list.iter().map(|m| m.key.clone()).take(3).collect();
     s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
     s.run("mail.forward", &json!({})).unwrap();
-    s.run("compose.update", &json!({"to": "zoe@studio.example"})).unwrap();
+    let body = format!("Please review.{}", s.compose.as_ref().unwrap().body);
+    s.run("compose.update", &json!({"to": "zoe@studio.example", "body": body})).unwrap();
     let subject = s.compose.as_ref().map(|c| c.subject.clone()).unwrap();
     assert!(!s.compose.as_ref().unwrap().window, "a forward is written in the reading pane");
     // The message it forwards, opened again: it stays.
@@ -194,6 +195,7 @@ fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
     let key = draft_key(&mut s, &subject);
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
     assert!(s.compose.as_ref().is_some_and(|c| c.to.contains("zoe@studio.example")), "carried on from Drafts");
+    assert!(s.compose.as_ref().is_some_and(|c| c.body.starts_with("Please review.")), "the body kept in Drafts");
     s.compose = None;
 
     // Nothing written: no draft.
