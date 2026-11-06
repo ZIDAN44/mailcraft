@@ -219,6 +219,23 @@ impl Session {
         self.compose = Some(c);
     }
 
+    /// Another message is shown in the reading pane: the message being written there (inline)
+    /// makes way for it, as Outlook's does. Kept in Drafts when something was written in it,
+    /// gone when nothing was. One being sent or in a window of its own stays; one that can't be
+    /// kept in Drafts is set aside in a window instead, never lost.
+    pub(crate) fn make_way_for_reading(&mut self) {
+        let Some(written) = self.compose.as_ref().filter(|c| !c.window && !c.sending).map(|c| self.written(c)) else { return };
+        if written && let Err(e) = self.save_draft() {
+            if let Some(mut c) = self.compose.take() {
+                c.window = true;
+                self.composes.push(c);
+            }
+            self.notice(e.to_string(), true);
+            return;
+        }
+        self.compose = None;
+    }
+
     /// Act on message `id` (one set aside comes back; the current one is set aside in turn).
     /// False when there's no such message.
     pub fn activate_compose(&mut self, id: u64) -> bool {

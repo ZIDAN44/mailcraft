@@ -25,6 +25,7 @@ on GitHub.
 - The ribbon's tabs share the top bar with the search box, so the window gives one row less to its chrome; the app's name, which the title bar already shows, has gone from it. Send / Receive, Undo, dark mode and settings sit at the bar's end. In a narrow window the search box has a row of its own (#22).
 
 ### Fixed
+- A reply or forward being written in the reading pane makes way for the message you select next, kept in Drafts, as Outlook does; the pane went on showing it while the other message was only selected in the list. One with nothing written in it just closes, and one in a window of its own stays open.
 - A server whose certificate comes from your organisation's own CA, as an on-premises Exchange often does, connects once that CA is in the system's certificate store (Windows, the macOS Keychain, the Linux bundle), for receiving and sending, instead of failing with "UnknownIssuer". Certificates Windows lists as untrusted stay refused, whether the server or a CA above it, and the password never reaches such a server (#37).
 - Blocks of a newsletter stacked one on another touch, as in Outlook: each table keeps its own spacing and each block its padding, and a pale tint on a pale page still shows (#41).
 - A block whose background is a gradient shows the colour Outlook shows for it (#41).
