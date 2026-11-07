@@ -11,7 +11,7 @@ pub(super) fn still_locked(sec: &Security) -> bool {
 }
 
 fn when(s: &Session, at: i64) -> String {
-    crate::i18n::date(&dates::day_label(at.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400)))
+    crate::i18n::date(&dates::day_text(at.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400), &s.clock))
 }
 
 /// Why a certificate (or, `pgp`, an OpenPGP key) isn't trusted for a message, each reason in words.

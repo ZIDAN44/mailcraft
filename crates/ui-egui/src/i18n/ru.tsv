@@ -111,6 +111,12 @@
 	Jun	июн
 	Junk Email	Нежелательная почта
 	Language	Язык
+	Dates	Даты
+	In the message list, the reading pane and the header of a reply	В списке сообщений, в области чтения и в заголовке ответа
+	Time	Время
+	24-hour	24-часовой
+	12-hour	12-часовой
+	Whole date and time in the list	Полные дата и время в списке
 	Last month	В прошлом месяце
 	Last week	На прошлой неделе
 	Later	Позже
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	Письма без темы легко пропустить.
 	Mon	пн
 	Monday	понедельник
+	{time} AM	{time} AM
+	{time} PM	{time} PM
+	{hour} AM	{hour} AM
+	{hour} PM	{hour} PM
 	Move	Переместить
 	Move 1 message	Переместить 1 письмо
 	Move folder…	Переместить папку…

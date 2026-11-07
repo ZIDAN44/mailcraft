@@ -316,7 +316,8 @@ pub fn fmt(template: &str, args: &[(&str, &str)]) -> String {
     out
 }
 
-/// A date or time from `dates` with its English day and month names translated.
+/// A date or time from `dates` with its English day and month names translated, and a 12-hour
+/// time written as the language writes it.
 pub fn date(s: &str) -> String {
     const NAMES: [&str; 26] = [
         "Mon",
@@ -349,7 +350,25 @@ pub fn date(s: &str) -> String {
     if current() == Lang::EN {
         return s.to_string();
     }
-    s.split(' ').map(|w| if NAMES.contains(&w) { tr(current(), w) } else { w }).collect::<Vec<_>>().join(" ")
+    let mut out: Vec<String> = Vec::new();
+    for w in s.split(' ') {
+        // A 12-hour time (`1:53 PM`) or hour (`1 PM`, the calendar's): as the language writes it,
+        // its AM or PM before the time where that's the way (午後1:53, 午後1時).
+        if matches!(w, "AM" | "PM")
+            && let Some(time) = out.last().filter(|t| !t.is_empty() && t.chars().all(|c| c.is_ascii_digit() || c == ':'))
+        {
+            let written = if time.contains(':') {
+                tr(current(), &format!("{{time}} {w}")).replace("{time}", time)
+            } else {
+                tr(current(), &format!("{{hour}} {w}")).replace("{hour}", time)
+            };
+            out.pop();
+            out.push(written);
+            continue;
+        }
+        out.push(if NAMES.contains(&w) { tr(current(), w) } else { w }.to_string());
+    }
+    out.join(" ")
 }
 
 #[cfg(test)]

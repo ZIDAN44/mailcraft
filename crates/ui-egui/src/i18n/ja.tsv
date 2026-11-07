@@ -111,6 +111,12 @@
 	Jun	6月
 	Junk Email	迷惑メール
 	Language	言語
+	Dates	日付
+	In the message list, the reading pane and the header of a reply	メッセージ一覧、閲覧ウィンドウ、返信のヘッダー
+	Time	時刻
+	24-hour	24 時間制
+	12-hour	12 時間制
+	Whole date and time in the list	一覧に日付と時刻をすべて表示
 	Last month	先月
 	Last week	先週
 	Later	後で
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	件名のないメッセージは見落とされがちです。
 	Mon	月
 	Monday	月曜日
+	{time} AM	午前{time}
+	{time} PM	午後{time}
+	{hour} AM	午前{hour}時
+	{hour} PM	午後{hour}時
 	Move	移動
 	Move 1 message	1 件のメッセージを移動
 	Move folder…	フォルダーを移動…

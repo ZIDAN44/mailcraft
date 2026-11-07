@@ -40,6 +40,31 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, false, tl!("Plain top bar"), Some(tl!("The top bar in the panes' colours instead of the accent colour")), &mut |ui| {
             switch(ui, s.prefs.plain_top_bar, tl!("Plain top bar"), "view.plainTopBar", acts);
         });
+        // Issue #46: dates as the user writes them (each choice shown as today's date), and the
+        // clock, as Windows' region settings offer them to Outlook.
+        let style = s.prefs.date_style;
+        setting(ui, false, tl!("Dates"), Some(tl!("In the message list, the reading pane and the header of a reply")), &mut |ui| {
+            let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(mailcraft_engine::model::dates::today(&s.clock));
+            egui::ComboBox::from_id_salt("date-order").width(160.0).selected_text(style.order.day(y, m, d)).show_ui(ui, |ui| {
+                for o in mailcraft_engine::model::dates::DateOrder::ALL {
+                    if ui.selectable_label(style.order == o, o.day(y, m, d)).clicked() {
+                        acts.push(Action::Run("view.dateFormat", json!({"order": o.code()})));
+                    }
+                }
+            });
+        });
+        setting(ui, false, tl!("Time"), None, &mut |ui| {
+            let options = [tl!("24-hour"), tl!("12-hour")];
+            if let Some(i) = widgets::segmented(ui, &t, "clock", &options, usize::from(style.hours12)) {
+                acts.push(Action::Run("view.dateFormat", json!({"hours12": i == 1})));
+            }
+        });
+        setting(ui, false, tl!("Whole date and time in the list"), None, &mut |ui| {
+            let mut v = style.full_in_list;
+            if widgets::switch(ui, &t, &mut v, tl!("Whole date and time in the list")).changed() {
+                acts.push(Action::Run("view.dateFormat", json!({"fullInList": v})));
+            }
+        });
         setting(ui, false, tl!("Language"), None, &mut |ui| {
             let language = st.language.as_str();
             let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());

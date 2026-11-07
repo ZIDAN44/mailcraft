@@ -428,8 +428,7 @@ impl MailApp {
         self.toasts(&ctx);
         // Calendar reminders: the window, and the desktop told of each as it comes.
         for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
-            let start = mailcraft_engine::model::dates::civil(r.start, &self.session.clock);
-            let when = if r.all_day { String::new() } else { format!("{:02}:{:02}", start.hour, start.minute) };
+            let when = if r.all_day { String::new() } else { crate::calendar::hm(r.start, &self.session) };
             self.services.notify(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
         }
         reminders::show(&ctx, &mut self.ui.reminders, &self.session, &t, &mut acts);

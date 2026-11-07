@@ -199,6 +199,10 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         "Oct",
         "Nov",
         "Dec",
+        "{time} AM",
+        "{time} PM",
+        "{hour} AM",
+        "{hour} PM",
         "All Inboxes",
         "Outbox",
         "Picture",
@@ -462,6 +466,11 @@ fn tags_templates_and_dates() {
     assert_eq!(fmt("{missing} ok", &[]), "{missing} ok");
     set_current(Lang::from_code("de").unwrap_or(Lang::EN));
     assert_ne!(date("Wed 21:51"), "Wed 21:51");
+    set_current(Lang::from_code("ja").unwrap_or(Lang::EN));
+    assert_eq!(date("Wed 1:53 PM"), "水 午後1:53", "a 12-hour time as Japanese writes it");
+    assert_eq!(date("1 AM"), "午前1時", "an hour alone (the calendar's), as Japanese writes it");
+    set_current(Lang::from_code("de").unwrap_or(Lang::EN));
+    assert_eq!(date("Wed 1:53 PM"), "Mi 1:53 PM");
     assert_eq!(t("Delete"), "Löschen");
     assert_eq!((t("Archive"), tc("folder", "Archive")), ("Archivieren", "Archiv"), "the command, then the folder");
     assert_eq!(tc("folder", "Projects"), "Projects");

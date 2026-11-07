@@ -111,6 +111,12 @@
 	Jun	jun
 	Junk Email	Ongewenste e-mail
 	Language	Taal
+	Dates	Datums
+	In the message list, the reading pane and the header of a reply	In de berichtenlijst, het leesvenster en de kop van een antwoord
+	Time	Tijd
+	24-hour	24-uurs
+	12-hour	12-uurs
+	Whole date and time in the list	Volledige datum en tijd in de lijst
 	Last month	Vorige maand
 	Last week	Vorige week
 	Later	Later
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	Berichten zonder onderwerp worden makkelijk over het hoofd gezien.
 	Mon	ma
 	Monday	maandag
+	{time} AM	{time} a.m.
+	{time} PM	{time} p.m.
+	{hour} AM	{hour} a.m.
+	{hour} PM	{hour} p.m.
 	Move	Verplaatsen
 	Move 1 message	1 bericht verplaatsen
 	Move folder…	Map verplaatsen…

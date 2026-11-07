@@ -287,7 +287,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                 let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
                                 icons::paint(ui.painter(), ir, Icon::Done, t.dim);
                                 let text = match summary.as_ref().and_then(|m| s.follow_up_done(m)) {
-                                    Some(d) => tf!("Completed on {date}.", date = crate::i18n::date(&dates::day_label(d))),
+                                    Some(d) => tf!("Completed on {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
                                     None => tl!("Completed.").to_string(),
                                 };
                                 ui.label(RichText::new(text).color(t.dim).small());
@@ -299,10 +299,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                 icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
                                 let text = match due {
                                     Some(d) if d < today => {
-                                        tf!("Follow up. Overdue: it was due {date}.", date = crate::i18n::date(&dates::day_label(d)))
+                                        tf!("Follow up. Overdue: it was due {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock)))
                                     }
                                     Some(d) if d == today => tl!("Follow up. Due today.").to_string(),
-                                    Some(d) => tf!("Follow up. Due {date}.", date = crate::i18n::date(&dates::day_label(d))),
+                                    Some(d) => tf!("Follow up. Due {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
                                     None => tl!("Follow up.").to_string(),
                                 };
                                 let overdue = due.is_some_and(|d| d < today);

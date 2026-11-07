@@ -111,6 +111,12 @@
 	Jun	يونيو
 	Junk Email	البريد العشوائي
 	Language	اللغة
+	Dates	التواريخ
+	In the message list, the reading pane and the header of a reply	في قائمة الرسائل وجزء القراءة ورأس الرد
+	Time	الوقت
+	24-hour	24 ساعة
+	12-hour	12 ساعة
+	Whole date and time in the list	التاريخ والوقت كاملان في القائمة
 	Last month	الشهر الماضي
 	Last week	الأسبوع الماضي
 	Later	لاحقًا
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	الرسائل بلا موضوع يسهل تجاهلها.
 	Mon	الاثنين
 	Monday	الاثنين
+	{time} AM	{time} ص
+	{time} PM	{time} م
+	{hour} AM	{hour} ص
+	{hour} PM	{hour} م
 	Move	نقل
 	Move 1 message	نقل رسالة واحدة
 	Move folder…	نقل المجلد…

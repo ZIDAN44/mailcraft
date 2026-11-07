@@ -92,10 +92,9 @@ fn when(r: &DueReminder, s: &Session) -> String {
         0 => tl!("Today").to_string(),
         1 => tl!("Tomorrow").to_string(),
         -1 => tl!("Yesterday").to_string(),
-        _ => crate::i18n::date(&dates::day_label(day)),
+        _ => crate::i18n::date(&dates::day_text(day, &s.clock)),
     };
-    let c = dates::civil(r.start, &s.clock);
-    if r.all_day { date } else { format!("{date} {:02}:{:02}", c.hour, c.minute) }
+    if r.all_day { date } else { format!("{date} {}", crate::calendar::hm(r.start, s)) }
 }
 
 /// How far off it is: `Now`, `In 15 minutes`, `Overdue`.

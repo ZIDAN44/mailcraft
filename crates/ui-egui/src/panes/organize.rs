@@ -86,7 +86,7 @@ pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>)
 /// (each with its date), Mark complete, Clear flag.
 pub fn follow_up_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
     for f in dates::FollowUp::ALL {
-        let label = crate::i18n::date(&dates::day_label(f.due(&s.clock)));
+        let label = crate::i18n::date(&dates::day_text(f.due(&s.clock), &s.clock));
         let clicked = ui
             .horizontal(|ui| {
                 let r = ui.selectable_label(false, tl!(f.label()));

@@ -111,6 +111,12 @@
 	Jun	יוני
 	Junk Email	דואר זבל
 	Language	שפה
+	Dates	תאריכים
+	In the message list, the reading pane and the header of a reply	ברשימת ההודעות, בחלונית הקריאה ובכותרת של תשובה
+	Time	שעה
+	24-hour	24 שעות
+	12-hour	12 שעות
+	Whole date and time in the list	תאריך ושעה מלאים ברשימה
 	Last month	החודש שעבר
 	Last week	השבוע שעבר
 	Later	מאוחר יותר
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	קל לפספס הודעות בלי נושא.
 	Mon	ב׳
 	Monday	יום שני
+	{time} AM	{time} לפנה״צ
+	{time} PM	{time} אחה״צ
+	{hour} AM	{hour} לפנה״צ
+	{hour} PM	{hour} אחה״צ
 	Move	העבר
 	Move 1 message	העבר הודעה אחת
 	Move folder…	העבר תיקייה…

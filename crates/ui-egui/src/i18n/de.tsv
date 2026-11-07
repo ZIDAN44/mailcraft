@@ -111,6 +111,12 @@
 	Jun	Jun
 	Junk Email	Junk-E-Mail
 	Language	Sprache
+	Dates	Datum
+	In the message list, the reading pane and the header of a reply	In der Nachrichtenliste, im Lesebereich und im Kopf einer Antwort
+	Time	Uhrzeit
+	24-hour	24 Stunden
+	12-hour	12 Stunden
+	Whole date and time in the list	Vollständiges Datum mit Uhrzeit in der Liste
 	Last month	Letzter Monat
 	Last week	Letzte Woche
 	Later	Später
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	Nachrichten ohne Betreff werden leicht übersehen.
 	Mon	Mo
 	Monday	Montag
+	{time} AM	{time} AM
+	{time} PM	{time} PM
+	{hour} AM	{hour} AM
+	{hour} PM	{hour} PM
 	Move	Verschieben
 	Move 1 message	1 Nachricht verschieben
 	Move folder…	Ordner verschieben…

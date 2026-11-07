@@ -654,3 +654,25 @@ fn closing_counts_whats_lost_and_a_missing_password_is_asked_for() {
     assert!(s.ask_password.is_empty(), "once while MailCraft runs");
     done(s);
 }
+
+/// Issue #46: dates and times as the user writes them, day first and on a 12-hour clock, with the
+/// whole date and time on every message in the list; kept as the clock ticks on, and a date
+/// order that isn't one refused.
+#[test]
+fn dates_are_written_as_chosen() {
+    let mut s = sample_session("dates-as-chosen");
+    let first = s.list[0].when();
+    let before = mailcraft_model::dates::list_time(first, &s.clock);
+    let out = s.run("view.dateFormat", &json!({"order": "dmy", "hours12": true, "fullInList": true})).unwrap();
+    assert_eq!(out, json!({"order": "dmy", "hours12": true, "fullInList": true}));
+    s.set_clock(NOW + 60, 0);
+    let now = mailcraft_model::dates::list_time(first, &s.clock);
+    assert_ne!(now, before);
+    assert!(now.contains('/') && (now.ends_with(" AM") || now.ends_with(" PM")), "{now}");
+    // One at a time: the others stay.
+    s.run("view.dateFormat", &json!({"hours12": false})).unwrap();
+    assert_eq!(s.prefs.date_style.order, mailcraft_model::dates::DateOrder::DayMonthYear);
+    assert!(s.prefs.date_style.full_in_list && !s.clock.style.hours12);
+    assert!(matches!(s.run("view.dateFormat", &json!({"order": "ydm"})), Err(CmdError::Params(_))));
+    done(s);
+}

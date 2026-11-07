@@ -178,6 +178,12 @@ fn the_date_goes_in_and_words_are_counted() {
     let iso = mailcraft_engine::model::dates::day_string(NOW.div_euclid(86_400));
     assert_eq!(choices[1], iso);
     assert!(choices[0].contains(&mailcraft_engine::model::dates::civil(NOW, &a.session.clock).year.to_string()));
+    // As File › Options writes dates and times (issue #46).
+    let mut clock = a.session.clock;
+    clock.style.order = mailcraft_engine::model::dates::DateOrder::DayMonthYear;
+    clock.style.hours12 = true;
+    let styled = crate::rich_edit::date_choices(&clock);
+    assert!(styled[1].matches('/').count() == 2 && (styled[3].ends_with(" AM") || styled[3].ends_with(" PM")), "{styled:?}");
     a.run("mail.new", json!({}));
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.as_mut().unwrap();

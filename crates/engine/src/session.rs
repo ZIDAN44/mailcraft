@@ -627,7 +627,7 @@ impl Session {
     }
 
     pub fn set_clock(&mut self, now: i64, offset: i32) {
-        self.clock = Clock::new(now, offset).in_zone(self.clock.zone);
+        self.clock = Clock::new(now, offset).in_zone(self.clock.zone).styled(self.prefs.date_style);
     }
 
     /// The local time zone, by the name the system gives (`Europe/Berlin`): times then show

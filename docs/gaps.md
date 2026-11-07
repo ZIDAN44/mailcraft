@@ -99,6 +99,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   a forward names it only in the draft's own `X-MailCraft-Source` header, which they don't. The
   summaries would keep it for drafts, read as Drafts is synced.
 
+### 9. Typing a time on a 12-hour clock
+
+- **Impact:** With File › Options set to a 12-hour clock, the boxes you type a time into (an
+  event's start and end, Delay delivery) still take it as `HH:MM` on a 24-hour clock; every time
+  MailCraft shows is on the 12-hour clock.
+- **Workaround:** Type the time on a 24-hour clock (`13:30` for 1:30 PM).
+- **Cause:** The boxes read and write `HH:MM` only; reading `1:30 PM` (and each language's way of
+  writing it) isn't done yet.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

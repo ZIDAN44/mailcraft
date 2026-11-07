@@ -111,6 +111,12 @@
 	Jun	6월
 	Junk Email	정크 메일
 	Language	언어
+	Dates	날짜
+	In the message list, the reading pane and the header of a reply	메시지 목록, 읽기 창, 회신 머리글
+	Time	시간
+	24-hour	24시간제
+	12-hour	12시간제
+	Whole date and time in the list	목록에 날짜와 시간 모두 표시
 	Last month	지난달
 	Last week	지난주
 	Later	나중에
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	제목이 없는 메시지는 놓치기 쉽습니다.
 	Mon	월
 	Monday	월요일
+	{time} AM	오전 {time}
+	{time} PM	오후 {time}
+	{hour} AM	오전 {hour}시
+	{hour} PM	오후 {hour}시
 	Move	이동
 	Move 1 message	메시지 1개 이동
 	Move folder…	폴더 이동…

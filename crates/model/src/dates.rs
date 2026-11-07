@@ -19,16 +19,91 @@ pub struct Clock {
     /// own date (summer or winter), not today's.
     #[serde(skip)]
     pub zone: Option<Zone>,
+    /// How dates and times are written (issue #46).
+    #[serde(skip)]
+    pub style: DateStyle,
+}
+
+/// How dates are written (issue #46): the order of a date's day, month and year, the clock, and
+/// whether the message list gives every message its whole date and time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DateStyle {
+    #[serde(deserialize_with = "order_or_iso")]
+    pub order: DateOrder,
+    /// `1:53 PM` instead of `13:53`.
+    pub hours12: bool,
+    /// `28/10/2026 1:53 PM` on every message in the list, instead of the time today, the day
+    /// this week and the date before that.
+    pub full_in_list: bool,
+}
+
+/// An order saved by a later MailCraft and unknown here: MailCraft's own, rather than every
+/// setting lost with it.
+fn order_or_iso<'de, D: serde::Deserializer<'de>>(d: D) -> Result<DateOrder, D::Error> {
+    Ok(serde_json::Value::deserialize(d).ok().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default())
+}
+
+/// The order of a date's parts, and what joins them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DateOrder {
+    /// `2026-10-28`: MailCraft's own, read the same everywhere.
+    #[default]
+    Iso,
+    /// `28/10/2026`, as most of the world writes it.
+    DayMonthYear,
+    /// `10/28/2026`, as the United States writes it.
+    MonthDayYear,
+    /// `28.10.2026`, as much of Europe writes it.
+    DayMonthYearDots,
+}
+
+impl DateOrder {
+    pub const ALL: [DateOrder; 4] = [DateOrder::Iso, DateOrder::DayMonthYear, DateOrder::MonthDayYear, DateOrder::DayMonthYearDots];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            DateOrder::Iso => "iso",
+            DateOrder::DayMonthYear => "dmy",
+            DateOrder::MonthDayYear => "mdy",
+            DateOrder::DayMonthYearDots => "dmy.",
+        }
+    }
+
+    pub fn from_code(s: &str) -> Option<DateOrder> {
+        DateOrder::ALL.into_iter().find(|o| o.code() == s)
+    }
+
+    /// A day written in this order.
+    pub fn day(self, y: i64, m: u32, d: u32) -> String {
+        match self {
+            DateOrder::Iso => format!("{y:04}-{m:02}-{d:02}"),
+            DateOrder::DayMonthYear => format!("{d:02}/{m:02}/{y:04}"),
+            DateOrder::MonthDayYear => format!("{m:02}/{d:02}/{y:04}"),
+            DateOrder::DayMonthYearDots => format!("{d:02}.{m:02}.{y:04}"),
+        }
+    }
+
+    /// Whether the day comes before the month (`3 Oct` rather than `Oct 3`).
+    pub fn day_first(self) -> bool {
+        matches!(self, DateOrder::DayMonthYear | DateOrder::DayMonthYearDots)
+    }
 }
 
 impl Clock {
     pub fn new(now: i64, offset: i32) -> Clock {
-        Clock { now, offset: offset.clamp(-14 * 3600, 14 * 3600), zone: None }
+        Clock { now, offset: offset.clamp(-14 * 3600, 14 * 3600), zone: None, style: DateStyle::default() }
     }
 
     /// The same clock in a time zone.
     pub fn in_zone(self, zone: Option<Zone>) -> Clock {
         Clock { zone, ..self }
+    }
+
+    /// The same clock, writing dates and times so.
+    pub fn styled(self, style: DateStyle) -> Clock {
+        Clock { style, ..self }
     }
 
     /// The local zone: the one known, else today's offset all year.
@@ -190,27 +265,65 @@ impl DateGroup {
     }
 }
 
-/// The compact time in the message list: `14:05` today, `Mon 14:05` this week, `Oct 3` this
-/// year, `2025-10-03` before that.
+/// The compact time in the message list: `14:05` today, `Mon 14:05` this week, `Oct 3` (`3 Oct`
+/// with the day first) this year, the date before that (`2025-10-03`, or as [`DateStyle`] says);
+/// or the whole date and time each time, when it says so (issue #46).
 pub fn list_time(t: i64, clock: &Clock) -> String {
     let c = civil(t, clock);
+    let style = clock.style;
+    if style.full_in_list {
+        return format!("{} {}", date_of(&c, style), time_of(&c, style));
+    }
     let now = civil(clock.now, clock);
     let days = clock.local_day(clock.now) - clock.local_day(t);
     if days == 0 {
-        format!("{:02}:{:02}", c.hour, c.minute)
+        time_of(&c, style)
     } else if (1..7).contains(&days) {
-        format!("{} {:02}:{:02}", weekday_name(&c), c.hour, c.minute)
+        format!("{} {}", weekday_name(&c), time_of(&c, style))
     } else if c.year == now.year {
-        format!("{} {}", month_name(&c), c.day)
+        if style.order.day_first() { format!("{} {}", c.day, month_name(&c)) } else { format!("{} {}", month_name(&c), c.day) }
     } else {
-        format!("{:04}-{:02}-{:02}", c.year, c.month, c.day)
+        date_of(&c, style)
     }
 }
 
-/// The full date in the reading pane: `Wed 2026-10-14 14:05`.
+/// The full date in the reading pane: `Wed 2026-10-14 14:05` (as [`DateStyle`] says).
 pub fn full_time(t: i64, clock: &Clock) -> String {
     let c = civil(t, clock);
-    format!("{} {:04}-{:02}-{:02} {:02}:{:02}", weekday_name(&c), c.year, c.month, c.day, c.hour, c.minute)
+    format!("{} {} {}", weekday_name(&c), date_of(&c, clock.style), time_of(&c, clock.style))
+}
+
+/// The time of day alone: `14:05`, or `2:05 PM` on a 12-hour clock.
+pub fn hm(t: i64, clock: &Clock) -> String {
+    time_of(&civil(t, clock), clock.style)
+}
+
+/// An hour as the calendar's day and week label it: `13:00`, or `1 PM` on a 12-hour clock.
+pub fn hour_label(hour: u32, style: DateStyle) -> String {
+    let hour = hour % 24;
+    if style.hours12 { format!("{} {}", twelve(hour), if hour < 12 { "AM" } else { "PM" }) } else { format!("{hour:02}:00") }
+}
+
+/// An hour of the day (0 to 23) on a 12-hour clock: 12, 1, … 11.
+fn twelve(hour: u32) -> u32 {
+    match hour % 12 {
+        0 => 12,
+        h => h,
+    }
+}
+
+/// A day written as [`DateStyle`] says.
+fn date_of(c: &Civil, style: DateStyle) -> String {
+    style.order.day(c.year, c.month, c.day)
+}
+
+/// A time of day written as [`DateStyle`] says.
+fn time_of(c: &Civil, style: DateStyle) -> String {
+    if style.hours12 {
+        format!("{}:{:02} {}", twelve(c.hour), c.minute, if c.hour < 12 { "AM" } else { "PM" })
+    } else {
+        format!("{:02}:{:02}", c.hour, c.minute)
+    }
 }
 
 /// When a flagged message is due, as Outlook's Follow Up menu offers.
@@ -274,6 +387,14 @@ pub fn day_string(day: i64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+/// A local day as the reading pane shows it, written as the clock's [`DateStyle`] says:
+/// `Fri 2026-10-16`, `Fri 16/10/2026`…
+pub fn day_text(day: i64, clock: &Clock) -> String {
+    let (y, m, d) = civil_from_days(day);
+    let weekday = WEEKDAYS.get((day.rem_euclid(7) + 3).rem_euclid(7) as usize).copied().unwrap_or("");
+    format!("{weekday} {}", clock.style.order.day(y, m, d))
+}
+
 /// A local day as the reading pane shows it: `Fri 2026-10-16`.
 pub fn day_label(day: i64) -> String {
     let (y, m, d) = civil_from_days(day);
@@ -331,6 +452,41 @@ mod tests {
         assert_eq!(DateGroup::of(NOW - 12 * day, &clock), DateGroup::TwoWeeksAgo);
         assert_eq!(DateGroup::of(NOW - 30 * day, &clock), DateGroup::LastMonth);
         assert_eq!(DateGroup::of(NOW - 400 * day, &clock), DateGroup::Older);
+    }
+
+    /// Issue #46: dates written day first, month first or with dots, on a 12-hour clock, and the
+    /// whole date and time on every message in the list, as Evolution can show them.
+    #[test]
+    fn dates_and_times_as_chosen() {
+        let style = |order, hours12, full_in_list| Clock::new(NOW, 0).styled(DateStyle { order, hours12, full_in_list });
+        let day = 86_400;
+        let dmy = style(DateOrder::DayMonthYear, true, false);
+        assert_eq!(list_time(NOW - 3600, &dmy), "11:00 AM");
+        assert_eq!(list_time(NOW - 2 * day, &dmy), "Mon 12:00 PM");
+        assert_eq!(list_time(NOW - 30 * day, &dmy), "14 Sep");
+        assert_eq!(list_time(NOW - 400 * day, &dmy), "09/09/2025");
+        assert_eq!(full_time(NOW - 12 * 3600, &dmy), "Wed 14/10/2026 12:00 AM");
+        assert_eq!(hm(NOW + 3600 + 300, &dmy), "1:05 PM");
+        let mdy = style(DateOrder::MonthDayYear, false, false);
+        assert_eq!(list_time(NOW - 30 * day, &mdy), "Sep 14");
+        assert_eq!(full_time(NOW, &mdy), "Wed 10/14/2026 12:00");
+        assert_eq!(full_time(NOW, &style(DateOrder::DayMonthYearDots, false, false)), "Wed 14.10.2026 12:00");
+        // The whole date and time on every message, today's too.
+        let full = style(DateOrder::DayMonthYear, true, true);
+        assert_eq!(list_time(NOW - 3600, &full), "14/10/2026 11:00 AM");
+        assert_eq!(list_time(NOW - 400 * day, &full), "09/09/2025 12:00 PM");
+        // MailCraft's own, as before.
+        assert_eq!(full_time(NOW, &Clock::new(NOW, 0)), "Wed 2026-10-14 12:00");
+        for o in DateOrder::ALL {
+            assert_eq!(DateOrder::from_code(o.code()), Some(o));
+        }
+        assert_eq!(DateOrder::from_code("ymd"), None);
+        // The calendar's hours.
+        assert_eq!(hour_label(13, DateStyle::default()), "13:00");
+        assert_eq!((hour_label(0, dmy.style), hour_label(12, dmy.style), hour_label(13, dmy.style)), ("12 AM".into(), "12 PM".into(), "1 PM".into()));
+        // An order a later MailCraft saved: MailCraft's own, the rest of the style kept.
+        let later: DateStyle = serde_json::from_str(r#"{"order": "ymdDots", "hours12": true}"#).unwrap();
+        assert_eq!(later, DateStyle { order: DateOrder::Iso, hours12: true, full_in_list: false });
     }
 
     #[test]

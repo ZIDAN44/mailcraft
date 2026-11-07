@@ -111,6 +111,12 @@
 	Jun	giu
 	Junk Email	Posta indesiderata
 	Language	Lingua
+	Dates	Date
+	In the message list, the reading pane and the header of a reply	Nell’elenco dei messaggi, nel riquadro di lettura e nell’intestazione di una risposta
+	Time	Ora
+	24-hour	24 ore
+	12-hour	12 ore
+	Whole date and time in the list	Data e ora complete nell’elenco
 	Last month	Il mese scorso
 	Last week	La settimana scorsa
 	Later	Più tardi
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	I messaggi senza oggetto passano facilmente inosservati.
 	Mon	lun
 	Monday	lunedì
+	{time} AM	{time} AM
+	{time} PM	{time} PM
+	{hour} AM	{hour} AM
+	{hour} PM	{hour} PM
 	Move	Sposta
 	Move 1 message	Sposta 1 messaggio
 	Move folder…	Sposta cartella…

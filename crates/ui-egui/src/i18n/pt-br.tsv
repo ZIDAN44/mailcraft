@@ -111,6 +111,12 @@
 	Jun	jun
 	Junk Email	Lixo eletrônico
 	Language	Idioma
+	Dates	Datas
+	In the message list, the reading pane and the header of a reply	Na lista de mensagens, no painel de leitura e no cabeçalho de uma resposta
+	Time	Hora
+	24-hour	24 horas
+	12-hour	12 horas
+	Whole date and time in the list	Data e hora completas na lista
 	Last month	Mês passado
 	Last week	Semana passada
 	Later	Mais tarde
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	Mensagens sem assunto passam despercebidas com facilidade.
 	Mon	seg
 	Monday	segunda-feira
+	{time} AM	{time} AM
+	{time} PM	{time} PM
+	{hour} AM	{hour} AM
+	{hour} PM	{hour} PM
 	Move	Mover
 	Move 1 message	Mover 1 mensagem
 	Move folder…	Mover pasta…

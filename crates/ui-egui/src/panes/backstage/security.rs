@@ -42,7 +42,7 @@ fn other_sources(ui: &mut Ui, t: &Tokens, id: &str, acts: &mut Vec<Action>) {
 
 /// The day a certificate runs out, as the interface writes dates.
 fn until(s: &Session, not_after: i64) -> String {
-    crate::i18n::date(&mailcraft_engine::model::dates::day_label(not_after.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400)))
+    crate::i18n::date(&mailcraft_engine::model::dates::day_text(not_after.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400), &s.clock))
 }
 
 /// The older certificates kept to read mail encrypted to them (after a renewal), each with

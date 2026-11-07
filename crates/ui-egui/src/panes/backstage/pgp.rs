@@ -6,8 +6,9 @@ use super::*;
 
 /// How long a key is valid, in words.
 fn validity(s: &Session, k: &mailcraft_engine::pgp::KeyInfo) -> String {
-    let day =
-        |at: i64| crate::i18n::date(&mailcraft_engine::model::dates::day_label(at.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400)));
+    let day = |at: i64| {
+        crate::i18n::date(&mailcraft_engine::model::dates::day_text(at.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400), &s.clock))
+    };
     match (k.revoked, k.expires) {
         (Some(at), _) => tf!("Withdrawn on {date}", date = day(at)),
         (None, Some(at)) if at <= s.clock.now => tf!("It ran out on {date}", date = day(at)),

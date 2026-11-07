@@ -44,10 +44,10 @@ fn today(s: &Session) -> i64 {
     dates::today(&s.clock)
 }
 
-/// `HH:MM`, local.
+/// The time of day, local: `14:05`, or `2:05 PM` on a 12-hour clock (issue #46), its AM or PM
+/// in the interface's language.
 pub fn hm(t: i64, s: &Session) -> String {
-    let c = dates::civil(t, &s.clock);
-    format!("{:02}:{:02}", c.hour, c.minute)
+    crate::i18n::date(&dates::hm(t, &s.clock))
 }
 
 /// The local day a time falls on.
@@ -524,7 +524,9 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
                 ui.painter().line_segment([pos2(x0, y), pos2(x0 + pane, y)], egui::Stroke::new(1.0, t.border));
             }
             if h > 0 {
-                ui.painter().text(pos2(grid.min.x + gutter - 6.0, y), Align2::RIGHT_CENTER, format!("{h:02}:00"), theme::regular(11.0), t.faint);
+                // As the clock is set (issue #46): `13:00`, or `1 PM`.
+                let label = crate::i18n::date(&mailcraft_engine::model::dates::hour_label(h, s.clock.style));
+                ui.painter().text(pos2(grid.min.x + gutter - 6.0, y), Align2::RIGHT_CENTER, label, theme::regular(11.0), t.faint);
             }
         }
         for j in 0..k {

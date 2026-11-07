@@ -111,6 +111,12 @@
 	Jun	Haz
 	Junk Email	Gereksiz E-posta
 	Language	Dil
+	Dates	Tarihler
+	In the message list, the reading pane and the header of a reply	İleti listesinde, okuma bölmesinde ve yanıt başlığında
+	Time	Saat
+	24-hour	24 saat
+	12-hour	12 saat
+	Whole date and time in the list	Listede tam tarih ve saat
 	Last month	Geçen ay
 	Last week	Geçen hafta
 	Later	Daha sonra
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	Konusu olmayan iletiler kolayca gözden kaçabilir.
 	Mon	Pzt
 	Monday	Pazartesi
+	{time} AM	{time} ÖÖ
+	{time} PM	{time} ÖS
+	{hour} AM	{hour} ÖÖ
+	{hour} PM	{hour} ÖS
 	Move	Taşı
 	Move 1 message	1 iletiyi taşı
 	Move folder…	Klasörü taşı…

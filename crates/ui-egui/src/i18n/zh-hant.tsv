@@ -111,6 +111,12 @@
 	Jun	6月
 	Junk Email	垃圾郵件
 	Language	語言
+	Dates	日期
+	In the message list, the reading pane and the header of a reply	在郵件清單、讀取窗格和回覆的標頭中
+	Time	時間
+	24-hour	24 小時制
+	12-hour	12 小時制
+	Whole date and time in the list	在清單中顯示完整日期和時間
 	Last month	上個月
 	Last week	上週
 	Later	稍後
@@ -138,6 +144,10 @@
 	Messages without a subject are easy to overlook.	沒有主旨的郵件很容易被忽略。
 	Mon	週一
 	Monday	星期一
+	{time} AM	上午{time}
+	{time} PM	下午{time}
+	{hour} AM	上午{hour}時
+	{hour} PM	下午{hour}時
 	Move	移動
 	Move 1 message	移動 1 封郵件
 	Move folder…	移動資料夾…

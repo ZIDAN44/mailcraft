@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 - Drafts shows how many drafts it holds, in brackets (`Drafts [2]`), and a message whose reply was begun and left in Drafts is marked with a red **[Draft]** before its sender in the list, as in Outlook (#52). A forward left in Drafts doesn't mark its message yet.
+- **File › Options › General** chooses how dates are written (2026-10-28, 28/10/2026, 10/28/2026 or 28.10.2026), a 24-hour or 12-hour clock (`1:53 PM`), and whether the message list gives every message its whole date and time instead of the time today and the day this week (#46).
 
 ### Fixed
 - Removing an account while its `.pst` import was still writing could leave a new account added with the same id writing into the removed account's kept data file. The two now never share a file.

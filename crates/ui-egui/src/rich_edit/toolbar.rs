@@ -229,13 +229,13 @@ pub(crate) fn signature_bar(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Co
 }
 
 /// The ways today's date and the time can go in: written out, as numbers, with the time, the
-/// time alone.
+/// time alone; the numbers and the clock as File › Options sets them (issue #46).
 pub(crate) fn date_choices(clock: &Clock) -> Vec<String> {
-    let now = mailcraft_engine::model::dates::civil(clock.now, clock);
-    let day = mailcraft_engine::model::dates::today(clock);
-    let iso = format!("{:04}-{:02}-{:02}", now.year, now.month, now.day);
-    let time = format!("{:02}:{:02}", now.hour, now.minute);
-    vec![crate::calendar::long_date(day), iso.clone(), format!("{iso} {time}"), time]
+    use mailcraft_engine::model::dates;
+    let now = dates::civil(clock.now, clock);
+    let date = clock.style.order.day(now.year, now.month, now.day);
+    let time = crate::i18n::date(&dates::hm(clock.now, clock));
+    vec![crate::calendar::long_date(dates::today(clock)), date.clone(), format!("{date} {time}"), time]
 }
 
 /// What Word count shows: words, characters with and without spaces, paragraphs and lines.
