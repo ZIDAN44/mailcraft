@@ -329,6 +329,12 @@ pub struct Session {
     /// Flag and category changes sent for a server account's mail, their echo still to come
     /// (`mailboxes/echo.rs`).
     pub(crate) echoes: mailboxes::Echoes,
+    /// Each folder's counts (unread, total) as the pool last reported them: a report with the
+    /// same is no news, and what was counted here since (mail read, moved) stands.
+    pub(crate) reported_counts: HashMap<(String, String), (u32, u32)>,
+    /// Folders synced since their count was last reported: the next report is news, whatever it
+    /// says (a mark undone on another device, refused by the server).
+    pub(crate) counts_stale: HashSet<(String, String)>,
     /// Folders not read from disk while their read marks were still being written (the read
     /// would have waited for them in the window's frame): read once they're written. True for one
     /// that changed on disk meanwhile (its list in memory kept until then, as on screen).
@@ -477,6 +483,8 @@ impl Session {
             cache: HashMap::new(),
             cache_order: Vec::new(),
             echoes: mailboxes::Echoes::default(),
+            reported_counts: HashMap::new(),
+            counts_stale: HashSet::new(),
             marks_deferred: BTreeMap::new(),
             pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,

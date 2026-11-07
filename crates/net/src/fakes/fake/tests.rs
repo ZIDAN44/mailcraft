@@ -512,6 +512,7 @@ y"
     let _ = std::fs::remove_dir_all(store.root());
 }
 
+mod counts;
 mod hostile;
 mod idle;
 mod searching;

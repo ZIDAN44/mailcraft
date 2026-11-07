@@ -52,8 +52,12 @@ impl Worker {
             Job::FetchBody { key } => self.fetch(key),
             // Already persisted by the pool; just push the queue.
             Job::Apply { op, .. } if self.acc.pop.is_none() => {
+                self.clear_left_behind(&op);
+                if let Op::RenameFolder { from, to } = &op {
+                    self.renamed(from, to);
+                }
                 if op.is_folder_op() {
-                    self.folders = self.store.load_folders(&self.acc.id).unwrap_or_default();
+                    self.reload_folders();
                 }
                 if self.conn.is_some() {
                     self.replay();
@@ -80,8 +84,11 @@ impl Worker {
                 };
                 match applied {
                     Ok(changed) => {
+                        if let Op::RenameFolder { from, to } = &op {
+                            self.renamed(from, to);
+                        }
                         if op.is_folder_op() {
-                            self.folders = self.store.load_folders(&self.acc.id).unwrap_or_default();
+                            self.reload_folders();
                             self.publish_folders();
                         }
                         for folder in changed {
@@ -289,9 +296,14 @@ impl Worker {
                         break;
                     }
                     // The next queued edit may name this folder (or its new name): refresh the
-                    // folder ids now rather than after the pass.
+                    // folder ids now rather than after the pass. With another change to the
+                    // folders still to make, the server's list isn't said (nor written) until
+                    // it's made too: the folder list on disk has it already (found in review: a
+                    // folder made after another was renamed was shown gone between the two).
                     if op.is_folder_op() && relist {
-                        relist = !self.relist();
+                        let more = self.store.load_ops(&self.acc.id).unwrap_or_default().iter().any(Op::is_folder_op);
+                        let listed = self.relist_with(false, !more);
+                        relist = more || !listed;
                     }
                 }
                 Err(e) if e.is_fatal() => {

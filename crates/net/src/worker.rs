@@ -629,6 +629,8 @@ struct Worker {
     filing: Arc<changes::Filing>,
     /// The drafts kept on this computer, as this worker files them (`changes/drafts.rs`).
     kept: changes::KeptDrafts,
+    /// The folders whose counts a sync changed and that aren't said yet ([`Worker::say_counts`]).
+    counts_unsaid: Vec<String>,
     /// How many times its account had been removed as it started ([`Store::while_kept`]).
     removals: u64,
     /// Messages whose text the main connection gave first, shared with the second one: of those
@@ -698,6 +700,7 @@ impl Worker {
             order: changes::Order::default(),
             filing: Arc::default(),
             kept: changes::KeptDrafts::default(),
+            counts_unsaid: Vec::new(),
             removals,
             whole_only: Arc::default(),
             busy: Arc::default(),

@@ -6,7 +6,7 @@ mod echo;
 mod nav;
 mod patch;
 mod rows;
-pub(crate) use echo::Echoes;
+pub(crate) use echo::{Echo, Echoes};
 pub(crate) use nav::{ListNav, NO_ROW, folder_hash, key_hash, key_hash_in};
 pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
 

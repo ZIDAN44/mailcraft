@@ -5,6 +5,7 @@ use mailcraft_store::search;
 
 use super::*;
 
+mod counts;
 mod drafts;
 mod filed_once;
 mod index_bench;

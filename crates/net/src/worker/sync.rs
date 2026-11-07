@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// How often a full sync says the counts of the folders it has synced, at most.
+const COUNTS_EVERY: Duration = Duration::from_secs(1);
+
 impl Worker {
     /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
     pub(super) fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
@@ -164,6 +167,11 @@ impl Worker {
     /// [`Worker::relist`]; `quiet`, the second connection's: the list is its own (not published
     /// or saved), and a failure only logged (the account's status is the main one's to say).
     pub(super) fn relist_as(&mut self, quiet: bool) -> bool {
+        self.relist_with(quiet, true)
+    }
+
+    /// [`Worker::relist_as`]; the main connection's list not said (nor written) unless `say`.
+    pub(super) fn relist_with(&mut self, quiet: bool, say: bool) -> bool {
         let id = self.id();
         let listed = match self.conn.as_mut() {
             Some(Conn::Imap(c)) => c.list(&id),
@@ -200,7 +208,9 @@ impl Worker {
                     }
                 }
                 self.folders = list;
-                self.publish_folders();
+                if say {
+                    self.publish_folders();
+                }
                 true
             }
             Err(e) if quiet => {
@@ -220,23 +230,31 @@ impl Worker {
             return;
         }
         let paths: Vec<String> = self.folders.iter().filter(|f| f.selectable).map(|f| f.path.clone()).collect();
+        // Counts are said as folders are synced, once a second at most: each time writes them
+        // into the account's folder list, and says all of it.
+        let mut said = Instant::now();
         for path in paths {
-            self.drain(rx);
-            // Body fetches and local edits are served between folders, ahead of the rest.
-            let (urgent, rest): (VecDeque<Job>, VecDeque<Job>) = std::mem::take(&mut self.queue).into_iter().partition(between_folders);
-            self.queue = rest;
-            let opened = !urgent.is_empty();
-            for j in urgent {
-                self.handle(j);
+            if !self.counts_unsaid.is_empty() && said.elapsed() >= COUNTS_EVERY {
+                self.say_counts();
+                said = Instant::now();
             }
-            // A message whose text went first: the whole of it, unless one was just opened.
-            if !opened && let Some(key) = self.rest.pop_front() {
-                self.fetch_whole(key);
-            }
+            self.serve_between_folders(rx);
             if self.closed || self.conn.is_none() {
-                return;
+                break;
             }
-            self.sync_one(&path);
+            if self.sync_counted(&path) {
+                self.counts_unsaid.push(path);
+            }
+        }
+        // What came during the last folder doesn't wait for the calendars and contacts either: a
+        // folder renamed here meanwhile has its counts said under its new name now (found in
+        // review: the old name's, said first, were lost, and it showed empty until then).
+        if !self.closed && self.conn.is_some() {
+            self.serve_between_folders(rx);
+        }
+        self.say_counts();
+        if self.closed {
+            return;
         }
         // Report Online after mail; CalDAV/EWS calendars and contacts can take far longer and
         // shouldn't hold the status bar on the last folder name.
@@ -256,6 +274,21 @@ impl Worker {
         }
     }
 
+    /// Between two folders of a full sync: body fetches and local edits served, ahead of the rest,
+    /// and a message whose text went first brought whole, unless one was just opened.
+    fn serve_between_folders(&mut self, rx: &Receiver<Job>) {
+        self.drain(rx);
+        let (urgent, rest): (VecDeque<Job>, VecDeque<Job>) = std::mem::take(&mut self.queue).into_iter().partition(between_folders);
+        self.queue = rest;
+        let opened = !urgent.is_empty();
+        for j in urgent {
+            self.handle(j);
+        }
+        if !opened && let Some(key) = self.rest.pop_front() {
+            self.fetch_whole(key);
+        }
+    }
+
     /// Forget the numbers of JMAP messages no longer cached (nor waiting in a change).
     pub(super) fn prune_jmap_numbers(&mut self) {
         if !matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_))) {
@@ -272,8 +305,114 @@ impl Worker {
         self.save_jstate();
     }
 
-    /// The account's folders written and said; not once it was removed (found in review: its
-    /// files came back).
+    /// The account's folder list read again from disk (a folder made, renamed or deleted here),
+    /// the counts a full sync hasn't said yet written into it first: they'd be lost (found in
+    /// review). Its counts are taken as they are there, with the window's of mail read here: the
+    /// pool said that list as it made the change on disk (a POP account's worker says it next),
+    /// and this worker's lists say them from now on, so the next isn't news, and write nothing
+    /// over them (found in review: said and written with this worker's counts from before, mail
+    /// read here came back unread, in the window and at the next start).
+    pub(super) fn reload_folders(&mut self) {
+        self.say_counts();
+        self.folders = self.store.load_folders(&self.acc.id).unwrap_or_default();
+    }
+
+    /// A folder renamed here (`from` to `to`, with the folders in it): this worker's list and the
+    /// counts it hasn't said yet follow it, so they're said under the new name (found in review:
+    /// said under the old one, which the list on disk had no more, they were lost, and the
+    /// renamed folder showed empty).
+    pub(super) fn renamed(&mut self, from: &str, to: &str) {
+        let delimiter = self.folders.iter().find_map(|f| f.delimiter);
+        for f in &mut self.folders {
+            if let Some(new) = mailcraft_model::rebase_path(&f.path, from, to, f.delimiter.or(delimiter)) {
+                f.path = new;
+            }
+        }
+        for p in &mut self.counts_unsaid {
+            if let Some(new) = mailcraft_model::rebase_path(p, from, to, delimiter) {
+                *p = new;
+            }
+        }
+    }
+
+    /// A folder renamed or deleted here (`op`, with the folders in it) as this worker read it:
+    /// the read, ending after the folder's cache went with it to its new name (or went), wrote it
+    /// again under the name it had, which the account's list has no more. That copy goes (found
+    /// in review: left for good beside the renamed folder). Called before this worker's list
+    /// follows the change; one the list on disk has again (made anew since) stays.
+    pub(super) fn clear_left_behind(&self, op: &Op) {
+        let (Op::RenameFolder { from: gone, .. } | Op::DeleteFolder { path: gone }) = op else { return };
+        let Ok(listed) = self.store.load_folders(&self.acc.id) else { return };
+        let delimiter = self.folders.iter().find_map(|f| f.delimiter);
+        let within = self.folders.iter().filter(|f| mailcraft_model::is_within(&f.path, gone, f.delimiter.or(delimiter))).map(|f| f.path.as_str());
+        let mut paths: Vec<&str> = std::iter::once(gone.as_str()).chain(within).collect();
+        paths.sort_unstable();
+        paths.dedup();
+        for path in paths.into_iter().filter(|p| !listed.iter().any(|f| f.path == *p)) {
+            let cleared = self.store.while_kept(&self.acc.id, self.removals, || self.store.clear_folder(&self.acc.id, path));
+            if let Some(Err(e)) = cleared {
+                log::warn!("{}: the cache {path} had is still there: {e}", self.acc.id);
+            }
+        }
+    }
+
+    /// The folders of `list` this worker has counted take its counts (the server's, as last
+    /// synced): the window's own on disk (mail read here) aren't the pool's to report.
+    fn counted_here(&self, list: &mut [Folder]) {
+        for f in list {
+            if let Some(mine) = self.folders.iter().find(|m| m.path == f.path) {
+                (f.unread, f.total) = (mine.unread, mine.total);
+            }
+        }
+    }
+
+    /// The counts synced and not said yet ([`Worker::counts_unsaid`]) written into the account's
+    /// folder list as it is on disk, and that list said. The rest of it stays as it is there: a
+    /// folder made, renamed or deleted here meanwhile, in the list on disk already, isn't undone
+    /// by this worker's list from before it (found in review: the old name came back, and a view
+    /// of the renamed folder fell back to the Inbox). It's said with this worker's counts, as a
+    /// list it publishes is: the session takes a count the pool reports unchanged as no news, and
+    /// the window's own count on disk isn't the pool's to report. A list on disk that's gone or
+    /// was set aside (damaged) is written whole from this worker's. The counts of a folder the
+    /// list on disk hasn't (renamed here, the worker yet to hear of it) stay unsaid, to follow it
+    /// to its new name ([`Worker::renamed`]), or go with it from this worker's list. Nothing once
+    /// the account was removed.
+    pub(super) fn say_counts(&mut self) {
+        let paths = std::mem::take(&mut self.counts_unsaid);
+        let counts: Vec<(String, u32, u32)> =
+            paths.iter().filter_map(|p| self.folders.iter().find(|f| f.path == *p)).map(|f| (f.path.clone(), f.unread, f.total)).collect();
+        if counts.is_empty() {
+            return;
+        }
+        let id = self.id();
+        let listed = self.store.while_kept(&id, self.removals, || -> Result<Vec<Folder>> {
+            self.store.update_folder_counts(&id, &counts)?;
+            Ok(self.store.load_folders(&id)?)
+        });
+        match listed {
+            None => {}
+            Some(Ok(folders)) if folders.is_empty() => self.publish_folders(),
+            Some(Ok(mut folders)) => {
+                let (said, unsaid): (Vec<_>, Vec<_>) = counts.into_iter().partition(|(p, ..)| folders.iter().any(|f| f.path == *p));
+                for (path, ..) in unsaid {
+                    if !self.counts_unsaid.contains(&path) {
+                        self.counts_unsaid.push(path);
+                    }
+                }
+                if !said.is_empty() {
+                    self.counted_here(&mut folders);
+                    self.sink.emit(Event::Folders { account: id, folders });
+                }
+            }
+            Some(Err(e)) => {
+                log::warn!("{id}: the folders' counts weren't written into their list: {e}");
+                self.publish_folders();
+            }
+        }
+    }
+
+    /// The account's folders written and said as this worker has them (listed from the server);
+    /// not once it was removed (found in review: its files came back).
     pub(super) fn publish_folders(&self) {
         if self.removed() {
             return;
@@ -368,6 +507,15 @@ impl Worker {
     }
 
     pub(super) fn sync_one(&mut self, path: &str) {
+        if self.sync_counted(path) {
+            self.counts_unsaid.push(path.to_string());
+            self.say_counts();
+        }
+    }
+
+    /// [`Self::sync_one`], its count left for the caller to say: whether it's to be said (it
+    /// changed, or the folder's mail did).
+    fn sync_counted(&mut self, path: &str) -> bool {
         self.working(true);
         self.status(SyncStatus::Syncing { folder: path.to_string() });
         // A folder asked to keep more keeps them (the API servers keep only the newest window).
@@ -414,26 +562,33 @@ impl Worker {
                     r.changed += 1;
                 }
                 let first = self.folders.iter().find(|f| f.path == path).is_some_and(|f| f.total == 0 && r.total > 0);
+                let mut counts_changed = false;
                 if let Some(f) = self.folders.iter_mut().find(|f| f.path == path) {
-                    let counts_changed = f.unread != r.unread || f.total != r.total;
+                    counts_changed = f.unread != r.unread || f.total != r.total;
                     f.unread = r.unread;
                     f.total = r.total;
-                    if counts_changed {
-                        self.publish_folders();
-                    }
                 }
-                if r.touched() || first {
+                // Changed, then counted: a folder whose mail changed has its count said after it,
+                // the same as before or not (the window counted mail read here that another
+                // device has marked unread again since).
+                let touched = r.touched() || first;
+                if touched {
                     self.sink.emit(Event::FolderChanged { account: id, folder: path.to_string() });
                 }
                 if self.last_full.is_some() {
                     self.status(SyncStatus::Online { at: now() });
                 }
+                counts_changed || touched
             }
             // Its account removed meanwhile: nothing to say of it.
             Err(e) if self.removed() => {
                 log::info!("{}: a folder of an account removed wasn't synced: {e}", self.acc.id);
+                false
             }
-            Err(e) => self.failed(e),
+            Err(e) => {
+                self.failed(e);
+                false
+            }
         }
     }
 

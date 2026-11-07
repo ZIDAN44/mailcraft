@@ -347,3 +347,106 @@ fn a_notice_or_a_long_wait_lets_go_of_echoes() {
     assert!(!s.summary(&keys[1]).unwrap().flags.seen, "as disk has it");
     assert_eq!(s.echoes.waiting(&id), 0);
 }
+
+/// Found testing #51 on GreenMail: the pool lists the folders again now and then (Drafts made, a
+/// draft's folder synced) with each folder's count from its last sync, from before the mail read
+/// here since reached the server, and the Inbox said 3 unread with all of it read. A count
+/// reported unchanged is no news, and the one counted here stands; one that changed is news, as
+/// is any once the folder was synced.
+#[test]
+fn a_folder_count_reported_again_unchanged_keeps_the_one_counted_here() {
+    let (mut s, id) = server_inbox(3);
+    let inbox = |unread: u32| Folder {
+        account: id.clone(),
+        path: "INBOX".into(),
+        role: FolderRole::Inbox,
+        selectable: true,
+        unread,
+        total: 3,
+        ..Default::default()
+    };
+    let count = |s: &Session| s.folder(&id, "INBOX").map(|f| f.unread);
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(3)] });
+    assert_eq!(count(&s), Some(3));
+    let first = s.list[0].key.clone();
+    s.run("list.select", &json!({"key": first.to_id()})).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    assert_eq!(count(&s), Some(2), "counted here");
+    // Listed again, the Inbox as it was last synced: no news.
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(3)] });
+    assert_eq!(count(&s), Some(2), "the count here stands");
+    // The mark refused by the server, in the order the pool says so: its echo (made in the cache),
+    // the refusal, then the folder synced as the server has it, with no count reported (it's the
+    // pool's last, unchanged). The count is the server's (found in review: the folder pane said 2
+    // while the list showed 3 unread, until the next full sync).
+    let read = Op::SetFlag { keys: vec![first.clone()], flag: mailcraft_model::Flag::Seen, on: true };
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    // A change on disk of something else meanwhile doesn't lose the count to go back to.
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.apply(Event::OpFailed { account: id.clone(), op: read, error: "NO read-only".into() });
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert_eq!(count(&s), Some(3), "as the server has it");
+    // Reported again unchanged after that: no news, and the count stands.
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(3)] });
+    assert_eq!(count(&s), Some(3));
+
+    // Read here again, then marked unread on a phone before the read got to the server: the
+    // folder synced (its mail changed), then its count said, unchanged for the pool (found in
+    // review: the pane stayed at 2 until the next full sync).
+    s.run("list.select", &json!({"key": first.to_id()})).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    assert_eq!(count(&s), Some(2));
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(3)] });
+    assert_eq!(count(&s), Some(3), "as the phone left it");
+    // Synced since: the server's count, whatever it is.
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(2)] });
+    assert_eq!(count(&s), Some(2));
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox(4)] });
+    assert_eq!(count(&s), Some(4), "new mail on the server");
+}
+
+/// Found in review: a move or delete made here had no echo, so the pool saying the folder changed
+/// as it made it on disk was taken for a sync, and the next count reported (a draft saved, its
+/// folder synced and the folders listed again) brought back the count from before: three read,
+/// one deleted, a draft saved, and the Inbox said 3 unread of 3 again. Its echo is no sync now.
+#[test]
+fn mail_read_and_deleted_keeps_its_count_as_the_folders_are_listed_again() {
+    let (mut s, id) = server_inbox(3);
+    let folder = |path: &str, role: FolderRole, unread: u32, total: u32| Folder {
+        account: id.clone(),
+        path: path.into(),
+        role,
+        selectable: true,
+        unread,
+        total,
+        ..Default::default()
+    };
+    let listed = |unread: u32, total: u32| {
+        vec![folder("INBOX", FolderRole::Inbox, unread, total), folder("Drafts", FolderRole::Drafts, 0, 0), folder("Trash", FolderRole::Trash, 0, 0)]
+    };
+    s.apply(Event::Folders { account: id.clone(), folders: listed(3, 3) });
+    let count = |s: &Session| s.folder(&id, "INBOX").map(|f| (f.unread, f.total));
+    for k in s.row_keys() {
+        s.open_message(&k);
+    }
+    let first = s.list[0].key.clone();
+    s.run("list.select", &json!({"key": first.to_id()})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    let made = made_on_disk(&mut s);
+    assert_eq!(made.len(), 4, "{made:?}");
+    for _ in &made {
+        inbox_changed(&mut s, &id);
+    }
+    assert_eq!(count(&s), Some((0, 2)), "counted here");
+    assert_eq!(s.echoes.waiting(&id), 0);
+    // A draft saved: Drafts synced, and the folders listed again with the Inbox as last synced.
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "Drafts".into() });
+    s.apply(Event::Folders { account: id.clone(), folders: listed(3, 3) });
+    assert_eq!(count(&s), Some((0, 2)), "the count here stands");
+    // The Inbox synced: the server's count.
+    inbox_changed(&mut s, &id);
+    s.apply(Event::Folders { account: id.clone(), folders: listed(0, 2) });
+    assert_eq!(count(&s), Some((0, 2)));
+}
