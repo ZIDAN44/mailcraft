@@ -3,6 +3,40 @@
 use super::invite::AnsweredInvites;
 use super::*;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReadingPane {
+    #[default]
+    Right,
+    Bottom,
+    Off,
+}
+
+/// How notes are listed (Outlook's Arrange by for notes).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NotesOrder {
+    /// The last changed first.
+    #[default]
+    Modified,
+    /// A to Z by their first line.
+    Title,
+    /// By colour, then A to Z.
+    Color,
+}
+
+/// When a message shown in the reading pane is marked read (with `Prefs::mark_read_on_open`),
+/// as Outlook's Reading Pane options have it. Opened in its own window, it always is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReadInPane {
+    /// When it's shown (after `Prefs::read_after_secs`).
+    #[default]
+    Shown,
+    /// When another message is chosen (or the folder left).
+    Left,
+}
+
 /// Settings the user changes from the View tab (saved by the app).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

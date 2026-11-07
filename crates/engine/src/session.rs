@@ -42,7 +42,7 @@ pub use mailbox_settings::{Compacting, Compaction, IDLE_AFTER_S};
 #[cfg(test)]
 pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
-pub use searching::{IndexPass, SearchProgress, SearchStats, SearchWork};
+pub use searching::{IndexPass, SearchProgress, SearchScope, SearchStats, SearchWork, ServerSearch};
 pub use security::{
     CardSearch, KeySource, KnownCert, KnownKey, Lock, PGP_DOC, PgpSettings, Reach, RevocationCheck, SMIME_DOC, Scheme, Seal, Security, SignedBy,
     SmimeSettings,
@@ -51,11 +51,11 @@ pub use writing::{Compose, Quote, Reactions, SendBlock, SendCheck, signature_par
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
 pub(crate) use mailboxes::arrange_list;
-pub use mailboxes::{ARRANGE_HEADINGS, Arrange, Row};
+pub use mailboxes::{ARRANGE_HEADINGS, Arrange, ListFilter, Row};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders};
-pub use prefs::{ACCENTS, Prefs, SenderAddresses, accent_code, accent_rgb};
+pub use prefs::{ACCENTS, NotesOrder, Prefs, ReadInPane, ReadingPane, SenderAddresses, accent_code, accent_rgb};
 pub mod pim;
 
 /// One account and what the session knows about it.
@@ -162,146 +162,6 @@ pub enum View {
 
 /// The pseudo-folder of Outbox message keys (NUL never appears in a server's folder names).
 pub const OUTBOX: &str = "\u{0}outbox";
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ListFilter {
-    #[default]
-    All,
-    Unread,
-    Flagged,
-    Attachments,
-    /// Carrying a category.
-    Categorized,
-    /// Marked high importance by the sender.
-    Important,
-    /// Sent to the account's address, or copied to it.
-    ToMe,
-}
-
-impl ListFilter {
-    /// The filters shown as tabs above the list.
-    pub const ALL: [ListFilter; 4] = [ListFilter::All, ListFilter::Unread, ListFilter::Flagged, ListFilter::Attachments];
-    /// Every filter (the Home tab's Filter menu).
-    pub const EVERY: [ListFilter; 7] = [
-        ListFilter::All,
-        ListFilter::Unread,
-        ListFilter::Flagged,
-        ListFilter::Attachments,
-        ListFilter::Categorized,
-        ListFilter::Important,
-        ListFilter::ToMe,
-    ];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            ListFilter::All => "All",
-            ListFilter::Unread => "Unread",
-            ListFilter::Flagged => "Flagged",
-            ListFilter::Attachments => "Has files",
-            ListFilter::Categorized => "Categorized",
-            ListFilter::Important => "Important",
-            ListFilter::ToMe => "To or Cc me",
-        }
-    }
-
-    pub fn code(self) -> &'static str {
-        match self {
-            ListFilter::All => "all",
-            ListFilter::Unread => "unread",
-            ListFilter::Flagged => "flagged",
-            ListFilter::Attachments => "attachments",
-            ListFilter::Categorized => "categorized",
-            ListFilter::Important => "important",
-            ListFilter::ToMe => "toMe",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SearchScope {
-    /// Every folder of every account (Outlook's All Mailboxes).
-    All,
-    /// Every folder of the account on view (Outlook's Current Mailbox, its default); every
-    /// account's from a unified view.
-    #[default]
-    Mailbox,
-    /// The folder on view and the folders inside it.
-    Subfolders,
-    /// The folder (or unified view) on screen.
-    Current,
-}
-
-impl SearchScope {
-    pub const ALL: [SearchScope; 4] = [SearchScope::Current, SearchScope::Subfolders, SearchScope::Mailbox, SearchScope::All];
-
-    /// Its name in commands (`search.run`'s `scope`).
-    pub fn code(self) -> &'static str {
-        match self {
-            SearchScope::All => "all",
-            SearchScope::Mailbox => "mailbox",
-            SearchScope::Subfolders => "subfolders",
-            SearchScope::Current => "current",
-        }
-    }
-
-    pub fn from_code(code: &str) -> Option<SearchScope> {
-        SearchScope::ALL.into_iter().find(|s| s.code().eq_ignore_ascii_case(code))
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ReadingPane {
-    #[default]
-    Right,
-    Bottom,
-    Off,
-}
-
-/// How notes are listed (Outlook's Arrange by for notes).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum NotesOrder {
-    /// The last changed first.
-    #[default]
-    Modified,
-    /// A to Z by their first line.
-    Title,
-    /// By colour, then A to Z.
-    Color,
-}
-
-/// When a message shown in the reading pane is marked read (with `Prefs::mark_read_on_open`),
-/// as Outlook's Reading Pane options have it. Opened in its own window, it always is.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ReadInPane {
-    /// When it's shown (after `Prefs::read_after_secs`).
-    #[default]
-    Shown,
-    /// When another message is chosen (or the folder left).
-    Left,
-}
-
-/// A search asked of the servers ([`Session::search_server`]).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ServerSearch {
-    /// Which search it is (the jobs' `search`), so a newer one stops it.
-    pub id: u64,
-    pub query: String,
-    /// The query as the servers were asked it: categories by their keywords
-    /// ([`Session::server_query`]); their answers name it.
-    pub sent: String,
-    /// Accounts still searching.
-    pub pending: usize,
-    /// What the servers found (in their folders' lists now), shown whether or not the words are
-    /// in what's downloaded here.
-    pub found: HashSet<MessageKey>,
-    /// Why an account couldn't search.
-    pub errors: Vec<String>,
-}
 
 /// A mailbox in the folder pane: an account, or a shared mailbox one opens ([`Session::pane_sections`]).
 #[derive(Clone, Debug, PartialEq, Eq)]

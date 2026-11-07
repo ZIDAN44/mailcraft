@@ -10,6 +10,61 @@ pub(crate) use echo::Echoes;
 pub(crate) use nav::{ListNav, NO_ROW, folder_hash, key_hash, key_hash_in};
 pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ListFilter {
+    #[default]
+    All,
+    Unread,
+    Flagged,
+    Attachments,
+    /// Carrying a category.
+    Categorized,
+    /// Marked high importance by the sender.
+    Important,
+    /// Sent to the account's address, or copied to it.
+    ToMe,
+}
+
+impl ListFilter {
+    /// The filters shown as tabs above the list.
+    pub const ALL: [ListFilter; 4] = [ListFilter::All, ListFilter::Unread, ListFilter::Flagged, ListFilter::Attachments];
+    /// Every filter (the Home tab's Filter menu).
+    pub const EVERY: [ListFilter; 7] = [
+        ListFilter::All,
+        ListFilter::Unread,
+        ListFilter::Flagged,
+        ListFilter::Attachments,
+        ListFilter::Categorized,
+        ListFilter::Important,
+        ListFilter::ToMe,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ListFilter::All => "All",
+            ListFilter::Unread => "Unread",
+            ListFilter::Flagged => "Flagged",
+            ListFilter::Attachments => "Has files",
+            ListFilter::Categorized => "Categorized",
+            ListFilter::Important => "Important",
+            ListFilter::ToMe => "To or Cc me",
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            ListFilter::All => "all",
+            ListFilter::Unread => "unread",
+            ListFilter::Flagged => "flagged",
+            ListFilter::Attachments => "attachments",
+            ListFilter::Categorized => "categorized",
+            ListFilter::Important => "important",
+            ListFilter::ToMe => "toMe",
+        }
+    }
+}
+
 impl Session {
     pub fn account(&self, id: &str) -> Option<&AccountState> {
         self.accounts.iter().find(|a| a.config.id == id)
