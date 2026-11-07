@@ -96,6 +96,12 @@ pub fn start() {
                     }
                     let mut session = Session::open(Some(store.clone()), Clock::new(now, offset));
                     session.jmap_only = true;
+                    // The browser's randomness for its Message-IDs (Rust's own has none here); none
+                    // given, the clock's alone, as before (never a panic).
+                    let mut bits = [0u8; 8];
+                    if rand_core::RngCore::try_fill_bytes(&mut rand_core::OsRng, &mut bits).is_ok() {
+                        session.mix_random(u64::from_le_bytes(bits));
+                    }
                     let backend = WebBackend::new(store.clone(), cc.egui_ctx.clone());
                     let services = WebServices { picked: Rc::default(), ctx: cc.egui_ctx.clone(), font: Rc::default() };
                     let mut app = MailApp::new(session, Box::new(backend), Box::new(services));

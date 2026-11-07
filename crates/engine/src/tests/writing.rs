@@ -684,3 +684,14 @@ Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/p
     assert!(mailcraft_mime::attachment_text(&sent, 0).is_some_and(|t| t.starts_with("Caf\u{e9} au lait")));
     done(s);
 }
+
+/// Found testing #52 on GreenMail: two messages sent by runs started in the same second had the
+/// same Message-ID (made from the clock in seconds alone), and a mail service that has seen one
+/// drops the other as a copy. Sessions started together make different ones. Each opens on a
+/// thread of its own: a new thread's hash keys are drawn from the system, as a new run's are (the
+/// same thread's later ones only count up, which two runs in the same second wouldn't).
+#[test]
+fn sessions_started_together_make_different_message_ids() {
+    let open = || std::thread::spawn(|| Session::open(Some(Store::memory()), mailcraft_model::dates::Clock::new(NOW, 0)).random()).join().unwrap();
+    assert_ne!(open(), open());
+}

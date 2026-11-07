@@ -533,7 +533,7 @@ impl Session {
             registry: Arc::new(crate::cmd::registry()),
             // Compose ids also name Outbox entries, which outlive a session: start from the clock.
             next_id: u64::try_from(clock.now.max(0)).unwrap_or(0).saturating_mul(1000),
-            seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15,
+            seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15 ^ process_random(),
             build_sha: None,
             updates_stable_only: false,
             update: UpdateCheck::NotAsked,
@@ -651,6 +651,15 @@ impl Session {
         format!("{:016x}@mailcraft", self.random())
     }
 
+    /// Add `bits` from the system's randomness to what Message-IDs are made from (a front end
+    /// whose platform gives Rust none, as the browser).
+    pub fn mix_random(&mut self, bits: u64) {
+        self.seed ^= bits;
+        if self.seed == 0 {
+            self.seed = 0x9E37_79B9_7F4A_7C15;
+        }
+    }
+
     pub(crate) fn random(&mut self) -> u64 {
         // xorshift64*: unique Message-IDs, not cryptography.
         let mut x = self.seed.max(1);
@@ -660,6 +669,17 @@ impl Session {
         self.seed = x;
         x.wrapping_mul(0x2545_F491_4F6C_DD1D)
     }
+}
+
+/// Bits this run of MailCraft draws at random (the system's, which hash maps are keyed with): the
+/// clock alone, in seconds, gave two sessions started in the same second the same Message-IDs,
+/// and a mail service that has seen one drops the other message as a copy. Where the system
+/// gives Rust none (the browser), the front end adds its own ([`Session::mix_random`]).
+fn process_random() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u64(0x5DEE_CE66_D1CE_4E5B);
+    h.finish()
 }
 
 /// Most web pictures loaded for one message.
