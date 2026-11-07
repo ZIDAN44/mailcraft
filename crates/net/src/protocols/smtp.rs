@@ -1,6 +1,7 @@
 //! Message submission (RFC 6409) through `lettre`: implicit TLS on 465 (preferred, RFC 8314),
 //! STARTTLS on 587, or plain only for local test servers.
 
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs, UdpSocket};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -58,12 +59,31 @@ struct Trust<'a> {
 fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: &[u8], recipients: &[String], trust: &Trust<'_>) -> Result<()> {
     let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
     let host = server.host.as_str();
-    let hello = ClientId::default();
     let wrapper = match server.security {
         Security::Tls => Some(tls_parameters(host, trust.roots)?),
         Security::StartTls | Security::None => None,
     };
-    let mut conn = SmtpConnection::connect((host, server.port), Some(TIMEOUT), &hello, wrapper.as_ref(), None).map_err(failed)?;
+    // Each of the server's addresses in turn, as lettre would try them, greeted with this
+    // computer's own address on the way to it.
+    let addrs: Vec<SocketAddr> = (host, server.port).to_socket_addrs().map_err(NetError::Io)?.take(MAX_ADDRESSES).collect();
+    let mut tried = None;
+    let mut connected = None;
+    for addr in addrs {
+        let hello = hello_for(addr);
+        match SmtpConnection::connect(addr, Some(TIMEOUT), &hello, wrapper.as_ref(), None) {
+            Ok(c) => {
+                connected = Some((c, hello));
+                break;
+            }
+            Err(e) => tried = Some(e),
+        }
+    }
+    let Some((mut conn, hello)) = connected else {
+        return Err(match tried {
+            Some(e) => failed(e),
+            None => NetError::Io(std::io::Error::other(format!("{host}: no address"))),
+        });
+    };
     if server.security == Security::StartTls {
         conn.starttls(&tls_parameters(host, trust.roots)?, &hello).map_err(failed)?;
     }
@@ -87,6 +107,28 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
 
 /// How long the server may take to answer.
 const TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The most of a server's addresses tried.
+const MAX_ADDRESSES: usize = 8;
+
+/// What MailCraft calls itself in its EHLO to `server` (RFC 5321 §4.1.4): the address literal
+/// of this computer's address on the way there, as Thunderbird sends, since a desktop has no name
+/// the world knows. lettre's own, without a host name, is `[127.0.0.1]`, and some providers'
+/// spam filters drop mail greeted so after taking it (#50). The address is the one the system
+/// would send from: a socket "connected" without sending anything says it.
+fn hello_for(server: SocketAddr) -> ClientId {
+    let any: SocketAddr = if server.is_ipv4() { (Ipv4Addr::UNSPECIFIED, 0).into() } else { (Ipv6Addr::UNSPECIFIED, 0).into() };
+    let local = UdpSocket::bind(any).and_then(|s| {
+        s.connect(server)?;
+        s.local_addr()
+    });
+    match local.map(|a| a.ip()) {
+        Ok(IpAddr::V4(ip)) if !ip.is_unspecified() => ClientId::Ipv4(ip),
+        Ok(IpAddr::V6(ip)) if !ip.is_unspecified() => ip.to_ipv4_mapped().map_or(ClientId::Ipv6(ip), ClientId::Ipv4),
+        // No way to the server: the connection fails anyway.
+        _ => ClientId::default(),
+    }
+}
 
 /// What a failure from lettre means for the message: refused for good, to try again later, or
 /// no answer at all.
@@ -140,7 +182,7 @@ fn refusal(code: u16, msg: &str, recipients: &[String]) -> NetError {
 #[cfg(test)]
 pub(crate) mod tests {
     use std::io::{BufRead, BufReader, Write};
-    use std::net::TcpListener;
+    use std::net::{TcpListener, UdpSocket};
 
     use super::*;
 
@@ -186,6 +228,44 @@ pub(crate) mod tests {
             log
         });
         (port, h)
+    }
+
+    /// Issue #50: the EHLO names this computer's address on the way to the server, as an address
+    /// literal: the loopback address only for a server on this computer, and this computer's own
+    /// network address for one reached through it (lettre's default was `[127.0.0.1]` for all).
+    #[test]
+    fn ehlo_names_this_computers_address_on_the_way() {
+        let raw = b"From: z@x.example\r\nTo: a@y.example\r\nSubject: hi\r\n\r\nbody\r\n";
+        let to = ["a@y.example".to_string()];
+        let (port, h) = serve_once();
+        let server = ServerConfig { host: "127.0.0.1".into(), port, security: Security::None };
+        send(&server, "", "", "z@x.example", &to, raw).unwrap();
+        let log = h.join().unwrap();
+        assert!(log.starts_with("EHLO [127.0.0.1]\r\n"), "{log}");
+        // IPv6 loopback, where the system has it.
+        if let Ok(l) = TcpListener::bind("[::1]:0") {
+            let (port, h) = serve_once_on(l);
+            let server = ServerConfig { host: "::1".into(), port, security: Security::None };
+            send(&server, "", "", "z@x.example", &to, raw).unwrap();
+            let log = h.join().unwrap();
+            assert!(log.starts_with("EHLO [IPv6:::1]\r\n"), "{log}");
+        }
+        // This computer's network address (the one it would reach a documentation address from;
+        // nothing is sent there), where it has one: a server reached through it hears that.
+        let own = UdpSocket::bind("0.0.0.0:0").and_then(|s| {
+            s.connect("192.0.2.1:9")?;
+            s.local_addr()
+        });
+        let Some(own) = own.ok().map(|a| a.ip()).filter(|ip| !ip.is_loopback() && !ip.is_unspecified()) else {
+            eprintln!("no network address: the rest skipped");
+            return;
+        };
+        let (port, h) = serve_once_on(TcpListener::bind((own, 0)).unwrap());
+        let server = ServerConfig { host: own.to_string(), port, security: Security::None };
+        send(&server, "", "", "z@x.example", &to, raw).unwrap();
+        let log = h.join().unwrap();
+        assert!(log.starts_with(&format!("EHLO [{own}]\r\n")), "{log}");
+        assert!(!log.contains("127.0.0.1"), "{log}");
     }
 
     #[test]
