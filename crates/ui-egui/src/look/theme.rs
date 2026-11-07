@@ -271,6 +271,15 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     });
 }
 
+/// Quiet text on the ribbon that's still read as text (WCAG's 4.5:1 on the panes and the ribbon):
+/// the label of a command that can't be used now (no message selected), told apart from one that
+/// can, and the classic ribbon's group captions. The faint grey they had was 3.2:1 on the light
+/// ribbon, and a tester read it as faint and shaky (issue #45). A disabled command's icon stays
+/// faint, as an icon needs less.
+pub fn quiet_text(t: &Tokens) -> Color32 {
+    if t.dark { Color32::from_rgb(0x8F, 0x96, 0x9F) } else { Color32::from_rgb(0x6B, 0x72, 0x7C) }
+}
+
 /// Use an installed system UI font when the app found one (never bundled: see AGENTS.md).
 /// WCAG relative luminance of an sRGB colour.
 fn luminance(c: [u8; 3]) -> f32 {
@@ -480,6 +489,16 @@ mod tests {
                 assert!(c(t.text, under) >= 7.0, "{which}: text {}", c(t.text, under));
                 assert!(c(t.dim, under) >= 4.5, "{which}: dim text {}", c(t.dim, under));
                 assert!(c(t.faint, under) >= 3.0, "{which}: faint text {}", c(t.faint, under));
+            }
+            // Issue #45: the label the ribbon's buttons give a command that can't be used now
+            // reads on the ribbon and the panes, and is still told apart from one that can; the
+            // classic ribbon's group captions read too.
+            let (on, off) = (crate::widgets::command_label(&t, true), crate::widgets::command_label(&t, false));
+            for under in [t.surface, t.chrome] {
+                assert!(c(off, under) >= 4.5, "{which}: a disabled label {}", c(off, under));
+                assert!(c(on, under) >= 2.0 * c(off, under), "{which}: as strong as an enabled one");
+                let caption = crate::widgets::group_caption(&t);
+                assert!(c(caption, under) >= 4.5, "{which}: a group's caption {}", c(caption, under));
             }
         }
     }

@@ -25,6 +25,7 @@ on GitHub.
 - Messages sent from two MailCraft windows or computers started in the same second no longer share a Message-ID, which could make a mail service drop one of them as a copy of the other.
 - A folder's unread count no longer jumps back up after a draft is saved: the folder list the server account refreshed then brought back the counts from before the mail you had just read reached the server.
 - A draft or a sent copy filed in a Drafts or Sent folder deleted on the server (by another program) makes the folder again and goes in it, and one renamed there is found again under its new name. It was refused, and a draft kept on this computer was refused again at every connection.
+- The ribbon's labels of commands you can't use yet (Delete, Archive… with no message selected), and the classic ribbon's group captions, read clearly: their grey was too faint to read comfortably on the ribbon (3.2:1), and is now as dark as text must be (4.5:1), still lighter than the commands you can use (#45).
 
 ## 0.33.0 - 2026-11-05
 

@@ -73,13 +73,7 @@ pub const CLASSIC_CAPTION_H: f32 = 22.0;
 /// still a comfortable target). `fill`: the filled New button.
 fn big_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool, fill: bool) -> Response {
     let font = if fill { theme::bold(12.5) } else { theme::regular(12.5) };
-    let text = if fill {
-        t.on_accent
-    } else if enabled {
-        t.text
-    } else {
-        t.faint
-    };
+    let text = if fill { t.on_accent } else { command_label(t, enabled) };
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, text);
     let size = vec2((galley.size().x + 16.0).max(54.0), CLASSIC_BUTTON_H);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
@@ -179,7 +173,7 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
     reached(ui, rect);
-    let color = if enabled { t.text } else { t.faint };
+    let color = command_label(t, enabled);
     hover_fill(ui, &resp, rect, t, enabled);
     let m = crate::bidi::Mirror::new(rect);
     let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0)));
@@ -468,7 +462,7 @@ pub fn group(ui: &mut Ui, t: &Tokens, name: &str, last: bool) {
         let to = cursor_x(ui);
         let y = ui.max_rect().top() + CLASSIC_BUTTON_H + CLASSIC_CAPTION_H / 2.0 + 4.0;
         let mid = if from > 0.0 && from != to { (from + to) / 2.0 } else { to };
-        ui.painter().text(egui::pos2(mid, y), egui::Align2::CENTER_CENTER, tl!(name), theme::regular(11.5), t.faint);
+        ui.painter().text(egui::pos2(mid, y), egui::Align2::CENTER_CENTER, tl!(name), theme::regular(11.5), group_caption(t));
     }
     if !last {
         group_sep(ui, t);
@@ -578,4 +572,15 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>)
             });
         });
     });
+}
+
+/// The colour of a ribbon command's label: the text's, or, when it can't be used now, a quiet
+/// grey that still reads (issue #45).
+pub(crate) fn command_label(t: &Tokens, enabled: bool) -> Color32 {
+    if enabled { t.text } else { theme::quiet_text(t) }
+}
+
+/// The colour of a classic ribbon group's caption (Respond, Tags…): quiet, and read (issue #45).
+pub(crate) fn group_caption(t: &Tokens) -> Color32 {
+    theme::quiet_text(t)
 }
