@@ -125,6 +125,10 @@ impl Session {
                 }
             }
             _ => {
+                // Several selected: the pane says how many, so a message written in it goes too.
+                if self.selection.len() > 1 {
+                    self.make_way_for_reading();
+                }
                 if self.reading.is_some() {
                     self.leave_reading(None);
                     self.reading = None;

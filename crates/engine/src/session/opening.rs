@@ -92,6 +92,9 @@ impl Session {
     pub(super) fn show_message(&mut self, key: &MessageKey, mark: bool) {
         self.shown = self.shown.wrapping_add(1);
         let prev = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| k != key);
+        if self.reading.as_ref().is_none_or(|r| &r.key != key) {
+            self.make_way_for_reading();
+        }
         self.leave_reading(Some(key));
         self.selection = vec![key.clone()];
         self.focus = Some(key.clone());

@@ -171,3 +171,60 @@ fn a_draft_saved_twice_to_a_server_replaces_its_copy() {
     assert_eq!(s.more_on_server(), None, "nothing more on the server");
     done(s);
 }
+
+/// Another message read while one is being written in the reading pane: the one being written
+/// makes way for it, kept in Drafts, as Outlook's does (the pane went on showing it, the other
+/// message only selected in the list). Nothing written, it just goes; in a window, it stays.
+#[test]
+fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
+    let mut s = sample_session("draft-make-way");
+    let keys: Vec<_> = s.list.iter().map(|m| m.key.clone()).take(3).collect();
+    s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
+    s.run("mail.forward", &json!({})).unwrap();
+    let body = format!("Please review.{}", s.compose.as_ref().unwrap().body);
+    s.run("compose.update", &json!({"to": "zoe@studio.example", "body": body})).unwrap();
+    let subject = s.compose.as_ref().map(|c| c.subject.clone()).unwrap();
+    assert!(!s.compose.as_ref().unwrap().window, "a forward is written in the reading pane");
+    // The message it forwards, opened again: it stays.
+    s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
+    assert!(s.compose.is_some(), "the same message: still being written");
+    s.run("list.open", &json!({"key": keys[1].to_id()})).unwrap();
+    assert!(s.compose.is_none() && s.composes.is_empty(), "made way for the message read");
+    assert_eq!(s.reading.as_ref().map(|r| &r.key), Some(&keys[1]));
+    assert!(s.notices.last().is_some_and(|n| n.text == "Draft saved"));
+    let key = draft_key(&mut s, &subject);
+    s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
+    assert!(s.compose.as_ref().is_some_and(|c| c.to.contains("zoe@studio.example")), "carried on from Drafts");
+    assert!(s.compose.as_ref().is_some_and(|c| c.body.starts_with("Please review.")), "the body kept in Drafts");
+    s.compose = None;
+
+    // Nothing written: no draft.
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("view.newMailWindow", &json!({"on": false})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("list.open", &json!({"key": keys[2].to_id()})).unwrap();
+    assert!(s.compose.is_none());
+    assert_eq!(draft_key_count(&mut s), 1, "only the forward");
+
+    // Several selected: the pane says how many, so it makes way too.
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    s.run("list.selectRange", &json!({"key": keys[2].to_id()})).unwrap();
+    assert!(s.compose.is_none() && s.selection.len() == 3);
+    assert_eq!(draft_key_count(&mut s), 2, "the forward and the reply");
+
+    // In a window of its own: it stays as other messages are read.
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("view.newMailWindow", &json!({"on": true})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"subject": "Plans"})).unwrap();
+    s.run("list.open", &json!({"key": keys[1].to_id()})).unwrap();
+    assert!(s.compose.as_ref().is_some_and(|c| c.window && c.subject == "Plans"));
+}
+
+/// How many drafts are in Drafts.
+fn draft_key_count(s: &mut Session) -> usize {
+    s.run("folder.open", &json!({"account": "sample", "folder": "Drafts"})).unwrap();
+    s.list.len()
+}
