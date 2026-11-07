@@ -305,3 +305,126 @@ fn stacked_blocks_keep_their_own_room() {
     let Block::Table(t) = &b[0] else { panic!() };
     assert_eq!(t.background, Some([0x12, 0x34, 0x56]));
 }
+
+/// Issue #47: a cell with a picture behind it given as an attribute, the picture in the message
+/// (`<td background="cid:…">`, a newsletter's banner): the cell carries it, listed with the
+/// message's pictures, and it's at least as tall as it asks.
+#[test]
+fn a_cells_background_attribute_is_its_picture() {
+    let blocks = html_layout(
+        r#"<table width="600"><tr><td background="cid:banner@shop.example" height="200" valign="bottom"><h1>Autumn</h1></td></tr></table>"#,
+    );
+    let Some(Block::Table(t)) = blocks.first() else { panic!("{blocks:?}") };
+    let cell = &t.rows[0][0];
+    assert_eq!(cell.background_image.as_deref(), Some("cid:banner@shop.example"));
+    assert_eq!((cell.height, cell.valign), (Some(200), VAlign::Bottom));
+    assert_eq!(background_pictures(&blocks), ["cid:banner@shop.example"]);
+}
+
+/// Issue #47: the page's own colour (`body { background }`, `<body bgcolor>`) is the page's,
+/// not a highlight behind each run of its text: a newsletter's light grey came out behind every
+/// word of its white columns. A box's own colour stays.
+#[test]
+fn a_pages_background_is_no_highlight() {
+    let html = r##"<html><head><style>body{background:#eef1f4;margin:0} h1{color:#1f2a44}</style></head><body bgcolor="#eef1f4"><table width="600" bgcolor="#ffffff"><tr><td><h1>Autumn sale</h1><p>Warm light, <span style="background:#ffff00">this week</span>.</p></td><td>b</td></tr></table></body></html>"##;
+    let spans: Vec<crate::Span> = crate::html_to_rich(&inline_css(html)).into_iter().flatten().collect();
+    assert!(spans.iter().all(|s| s.background != Some([0xee, 0xf1, 0xf4])), "no page grey behind the text: {spans:?}");
+    assert!(spans.iter().any(|s| s.text.contains("this week") && s.background == Some([255, 255, 0])), "a highlight stays: {spans:?}");
+    let blocks = html_layout(&inline_css(html));
+    let flat = format!("{blocks:?}");
+    assert!(!flat.contains("[238, 241, 244]"), "no grey behind the text in the layout: {flat}");
+}
+
+/// Found in review: past the depth to which the tree is written as it is, every tag was dropped,
+/// and the paragraphs of a newsletter nested in two dozen tables ran together, in a message with
+/// a style sheet or Outlook's copy of a table around it, as did those past the depth the tree
+/// is read to. Every tag is written; in Outlook's copy, tables deeper than a layout lays out are
+/// written as blocks; too deep to read, the message is read as it came.
+#[test]
+fn blocks_nested_deep_stay_apart() {
+    let message = |html: &str| {
+        let raw = format!("From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n{html}");
+        crate::parse(raw.as_bytes()).unwrap_or_default()
+    };
+    let shown = |p: &crate::Parsed| p.rich.iter().map(|l| l.iter().map(|s| s.text.as_str()).collect::<String>()).collect::<Vec<_>>().join("|");
+    let body = "<p>First paragraph.</p><p>Second paragraph.</p><h2>Heading</h2><p>Last words</p>";
+    for n in [24, 28, 32, 80] {
+        let nest = format!("{}{body}{}", r#"<table role="presentation"><tbody><tr><td>"#.repeat(n), "</td></tr></tbody></table>".repeat(n));
+        for html in [
+            format!("<!--[if mso]><table width=600><tr><td><![endif]-->{nest}<!--[if mso]></td></tr></table><![endif]-->"),
+            format!("<style>p{{margin:0}}</style>{nest}"),
+            format!("<style>p{{margin:0}}</style>{}{body}", "<blockquote><ul><li>".repeat(n)),
+        ] {
+            let p = message(&html);
+            let words = ["First paragraph.", "Second paragraph.", "Heading", "Last words"];
+            let apart =
+                |lines: Vec<&str>| words.iter().all(|w| lines.iter().any(|l| l.ends_with(w) && words.iter().filter(|o| l.contains(*o)).count() == 1));
+            assert!(apart(shown(&p).split('|').collect()), "{n}: {:?}", shown(&p));
+            assert!(apart(p.text.lines().collect()), "{n}: {:?}", p.text);
+        }
+    }
+    // Deeper than it's written as it is, and than it's read: tables each in the last, in
+    // Outlook's copy, and boxes in a styled message.
+    for html in [
+        format!("<!--[if mso]>{}<![endif]-->Tail<p>More</p>After", "<table>".repeat(100)),
+        format!("<!--[if mso]>{}<![endif]-->Tail<p>More</p>After", "<table>".repeat(150_000)),
+        format!("<style>p{{margin:0}}</style>{}Tail<p>More</p>After", "<div>".repeat(300)),
+    ] {
+        let p = message(&html);
+        assert_eq!(shown(&p).split('|').filter(|l| !l.is_empty()).collect::<Vec<_>>(), ["Tail", "More", "After"], "{}", &html[..40]);
+        assert_eq!(p.text.lines().filter(|l| !l.is_empty()).collect::<Vec<_>>(), ["Tail", "More", "After"], "{}", &html[..40]);
+    }
+    // Paragraphs too deep to read keep the empty line between them (found in review: one line
+    // break ran them together), as they do at any depth.
+    let paragraphs = "<p>One para</p><p>Two para</p>";
+    for html in [
+        format!("<style>p{{color:red}}</style>{}{paragraphs}{}", "<div>".repeat(300), "</div>".repeat(300)),
+        format!("<!--[if mso]><table><tr><td><![endif]-->{}{paragraphs}", "<div>".repeat(300)),
+        format!(
+            "<!--[if mso]><table><tr><td><![endif]-->{}{paragraphs}{}<!--[if mso]></td></tr></table><![endif]-->",
+            "<table><tr><td>".repeat(120),
+            "</td></tr></table>".repeat(120)
+        ),
+        format!("<!--[if mso]><table><tr><td><![endif]-->{paragraphs}"),
+    ] {
+        let p = message(&html);
+        assert_eq!(shown(&p), "One para||Two para", "{}", &html[..40]);
+        assert_eq!(p.text, "One para\n\nTwo para", "{}", &html[..40]);
+    }
+}
+
+/// Found in review: Outlook's copy of every newsletter was written out again from the tree to be
+/// shown, which made a newsletter of 4 MB slower to read. It's shown as it came unless the tree
+/// reads otherwise: `<plaintext>`, or a mark in text. One nesting more tables than a layout lays
+/// out isn't read: the message is read as it came, without it.
+#[test]
+fn outlooks_copy_is_written_again_only_when_the_tree_reads_otherwise() {
+    let ready_copy = |html: &str| {
+        let copy = crate::html::outlook_copy(html);
+        assert!(copy.tables, "{html}");
+        let r = ready(html, &copy);
+        assert!(r.copy, "{html}");
+        (r, copy.html.into_owned())
+    };
+    let column = "<!--[if mso]><table><tr><td><![endif]--><div>c</div><!--[if mso]></td></tr></table><![endif]-->";
+    let (r, copy) = ready_copy(&column.repeat(50));
+    assert_eq!(r.styled, copy);
+    assert!(!r.text.contains("<table"));
+    // A table of values in tables nested no deeper than a layout lays out: as it came. One
+    // deeper: the message as it came, without Outlook's copy.
+    let nested =
+        |n: usize| format!("<!--[if mso]><table><tr><td><![endif]-->{}<table><tr><td>A</td><td>B</td></tr></table>", "<table><tr><td>".repeat(n));
+    let (r, copy) = ready_copy(&nested(MAX_DEPTH - 2));
+    assert_eq!(r.styled, copy);
+    for html in [nested(MAX_DEPTH - 1), format!("<!--[if mso]>{}Deep<![endif]-->Tail", "<table><tr><td>".repeat(40))] {
+        assert!(!ready(&html, &crate::html::outlook_copy(&html)).copy, "{html}");
+    }
+    for html in [
+        "<textarea><!--[if mso]><table><tr><td>A<![endif]--></textarea>".to_string(),
+        "<!--[if mso]><table><tr><td>A</td></tr></table><![endif]--><plaintext>B".to_string(),
+    ] {
+        let (r, copy) = ready_copy(&html);
+        assert_ne!(r.styled, copy, "{html}");
+        assert!(!r.styled.contains(crate::html::OUTLOOK_MARK) && !r.styled.contains("plaintext"), "{}", r.styled);
+    }
+}

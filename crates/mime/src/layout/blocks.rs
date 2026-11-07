@@ -29,6 +29,16 @@ pub(super) fn colored<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R)
 }
 
 pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
+    // Boxes side by side (`inline-block`, floated) straight in a cell or the body, with no box
+    // around them: columns as they are in any box (issue #47: a newsletter's three
+    // `inline-block` notes under its products stacked one under another).
+    let boxes = kids.iter().filter(|k| matches!(k, Kid::El(n) if !n.hidden())).count();
+    if boxes >= 2 && depth < MAX_DEPTH {
+        let around = Node { tag: "div".into(), attrs: Vec::new(), kids: kids.iter().map(copy).collect() };
+        if around.columns().is_some() {
+            return blocks(&[Kid::El(around)], ctx, depth);
+        }
+    }
     let mut out = Vec::new();
     let mut pending = String::new();
     let flush = |pending: &mut String, out: &mut Vec<Block>, ctx: &Ctx| {
@@ -56,8 +66,10 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     n.rows()
                         .into_iter()
                         .map(|(tr, row)| {
-                            // A row's colour (`<tr bgcolor>`, a striped row's class) is its cells'.
+                            // A row's colour (`<tr bgcolor>`, a striped row's class) is its cells', as
+                            // is where their content sits and how tall it is at least.
                             let row_bg = tr.background();
+                            let (row_valign, row_height) = (tr.valign(), tr.min_height());
                             row.into_iter()
                                 .map(|c| {
                                     ctx.cells += 1;
@@ -72,6 +84,8 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         background_image: c.background_image(),
                                         overlays: Vec::new(),
                                         padding: c.padding(),
+                                        valign: c.valign().or(row_valign).unwrap_or(VAlign::Middle),
+                                        height: c.min_height().max(row_height),
                                     }
                                 })
                                 .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
@@ -132,9 +146,11 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             Kid::El(n) if depth < MAX_DEPTH && !matches!(n.tag.as_str(), "img" | "td" | "th" | "tr") && n.background_image().is_some() => {
                 flush(&mut pending, &mut out, ctx);
                 ctx.cells += 1;
-                // Its content is the box itself without the picture, so columns in it stay columns.
+                // Its content is the box itself without the picture, so columns in it stay columns;
+                // else what it holds, so a box in it (its own colour, a VML banner's text) stays a box.
+                let content = if n.columns().is_some() { vec![Kid::El(n.without_background())] } else { n.kids.iter().map(copy).collect() };
                 let cell = Cell {
-                    blocks: colored(ctx, n, |ctx| blocks(&[Kid::El(n.without_background())], ctx, depth + 1)),
+                    blocks: colored(ctx, n, |ctx| blocks(&content, ctx, depth + 1)),
                     background: n.background(),
                     background_image: n.background_image(),
                     align: n.align(),
@@ -166,6 +182,8 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         background_image: c.background_image(),
                                         overlays: Vec::new(),
                                         padding: c.padding(),
+                                        valign: c.valign().unwrap_or_default(),
+                                        height: c.min_height(),
                                     }
                                 })
                                 .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
@@ -253,7 +271,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     out.extend(inner);
                 }
             }
-            k => write(k, &mut pending),
+            k => write_shown(k, &mut pending),
         }
     }
     flush(&mut pending, &mut out, ctx);

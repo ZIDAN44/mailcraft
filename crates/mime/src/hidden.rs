@@ -22,6 +22,12 @@ const NOT_TEXT: &[&str] = &["head", "script", "style", "title", "template"];
 
 /// The text `html` hides, and how many words it is: `None` below [`HIDDEN_WORDS_MIN`] words.
 pub fn hidden_text(html: &str) -> Option<(String, usize)> {
+    hidden_text_where(html, true)
+}
+
+/// [`hidden_text`], what's hidden from Outlook alone (`mso-hide: all`) counted or not: not in a
+/// message that gives Outlook a copy of its own, where it's the copy every other program shows.
+pub(crate) fn hidden_text_where(html: &str, mso_hide_hides: bool) -> Option<(String, usize)> {
     let html = match html.char_indices().nth(crate::HTML_MAX) {
         Some((i, _)) => html.get(..i).unwrap_or(html),
         None => html,
@@ -74,7 +80,7 @@ pub fn hidden_text(html: &str) -> Option<(String, usize)> {
             continue;
         }
         let not_text = NOT_TEXT.contains(&name.as_str());
-        let hides = hides(tag);
+        let hides = hides(tag, mso_hide_hides);
         if open.len() < DEPTH_MAX {
             open.push((name, hides, not_text));
         }
@@ -100,8 +106,8 @@ fn tag_name(tag: &str) -> String {
     tag.trim_start().split(|c: char| c.is_whitespace() || c == '/' || c == '>').next().unwrap_or("").to_ascii_lowercase()
 }
 
-/// Whether an opening tag's element hides what it holds.
-fn hides(tag: &str) -> bool {
+/// Whether an opening tag's element hides what it holds (`mso_hide`: hidden from Outlook counts).
+fn hides(tag: &str, mso_hide: bool) -> bool {
     // `hidden` as an attribute of its own: looked for with the quoted values left out.
     let mut names = String::with_capacity(tag.len());
     let mut quote = None;
@@ -126,7 +132,7 @@ fn hides(tag: &str) -> bool {
     let overflow_hidden = value("overflow").is_some_and(|v| v == "hidden");
     value("display").is_some_and(|v| v == "none")
         || value("visibility").is_some_and(|v| v == "hidden")
-        || value("mso-hide").is_some_and(|v| v == "all")
+        || (mso_hide && crate::html::mso_hidden(&style))
         || value("opacity").and_then(|v| number(&v)).is_some_and(|n| n < 0.05)
         || value("font-size").and_then(|v| number(&v)).is_some_and(|n| n < 2.0)
         || (overflow_hidden

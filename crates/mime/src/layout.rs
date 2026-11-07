@@ -18,12 +18,16 @@ mod blocks;
 mod flat;
 mod node;
 mod parse;
+mod ready;
 mod write;
 pub(crate) use blocks::background_pictures;
 use blocks::*;
 pub(crate) use flat::each_span;
 pub use flat::{cell_text, flatten, text_blocks};
-use parse::{parse, void};
+pub(crate) use parse::void;
+use parse::{parse, parse_as};
+pub(crate) use ready::ready;
+use ready::{How, write_as};
 pub use write::to_html;
 
 /// Tables nested deeper than this are flattened into text.
@@ -52,6 +56,16 @@ pub enum Block {
 pub enum Width {
     Px(u32),
     Percent(u8),
+}
+
+/// Where a cell's content sits down its row (`valign`, `vertical-align`): a table cell's in its
+/// middle unless it says otherwise, as HTML has it; a box laid out with CSS at its top.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VAlign {
+    #[default]
+    Top,
+    Middle,
+    Bottom,
 }
 
 /// Where content sits across its space.
@@ -101,7 +115,21 @@ pub struct Cell {
     /// (`padding`, as mail sets each block's): else its table's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub padding: Option<[u16; 4]>,
+    /// Where its content sits down the row (the row as tall as its tallest cell).
+    #[serde(default, skip_serializing_if = "is_top")]
+    pub valign: VAlign,
+    /// How tall it is at least, in pixels (`height`, its own or its row's): a cell taller than
+    /// that grows, as in a browser.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u16>,
 }
+
+fn is_top(v: &VAlign) -> bool {
+    *v == VAlign::Top
+}
+
+/// The tallest a cell is asked to be at least, in pixels.
+pub const MAX_CELL_HEIGHT: u16 = 2_000;
 
 /// The most room kept inside or between boxes, in pixels.
 pub const MAX_ROOM: u16 = 200;
@@ -274,8 +302,8 @@ pub fn inline_css(html: &str) -> String {
         let mut text = String::new();
         style_text(&root, &mut text, 0);
         let sheet = crate::css::Sheet::parse(&text);
-        let mut chain = Vec::new();
-        apply_css(&mut root, &sheet, &mut chain, 0);
+        apply_css(&mut root, &sheet, &mut Vec::new(), 0);
+        make_headings(&mut root, 0);
         let mut out = String::with_capacity(capped.len() + capped.len() / 4);
         write(&Kid::El(root), &mut out);
         out
@@ -349,8 +377,20 @@ fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<Ancestor>,
         apply_css(kid, sheet, chain, depth + 1);
         chain.pop();
     }
-    // Text sized as a title becomes a heading of that level: a block's content goes inside one;
-    // a lone inline element (`<td><font size="5">Title</font></td>`) goes inside one itself.
+}
+
+/// Text sized as a title made a heading of that level (once the styles are written in): a
+/// block's content goes inside one; a lone inline element (`<td><font size="5">Title</font></td>`)
+/// goes inside one itself.
+fn make_headings(n: &mut Node, depth: usize) {
+    if depth > MAX_DEPTH * 4 || matches!(n.tag.as_str(), "head" | "style" | "script" | "title" | "template") {
+        return;
+    }
+    for k in &mut n.kids {
+        if let Kid::El(kid) = k {
+            make_headings(kid, depth + 1);
+        }
+    }
     let only_child = n
         .kids
         .iter()
@@ -381,51 +421,12 @@ fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<Ancestor>,
 
 /// Markup for a part of the tree (to hand to the text converter).
 fn write(k: &Kid, out: &mut String) {
-    match k {
-        Kid::Text(t) => {
-            for c in t.chars() {
-                match c {
-                    '&' => out.push_str("&amp;"),
-                    '<' => out.push_str("&lt;"),
-                    '>' => out.push_str("&gt;"),
-                    c => out.push(c),
-                }
-            }
-        }
-        Kid::El(n) => {
-            if n.tag.starts_with('#') {
-                for k in &n.kids {
-                    write(k, out);
-                }
-                return;
-            }
-            out.push('<');
-            out.push_str(&n.tag);
-            for (k, v) in &n.attrs {
-                if !k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':') {
-                    continue;
-                }
-                out.push(' ');
-                out.push_str(k);
-                out.push_str("=\"");
-                out.push_str(&v.replace('&', "&amp;").replace('"', "&quot;"));
-                out.push('"');
-            }
-            out.push('>');
-            if !void(&n.tag) {
-                for k in &n.kids {
-                    match k {
-                        // A style sheet or script goes back as it was (escaping would break it).
-                        Kid::Text(t) if raw_text(&n.tag) => out.push_str(&t.replace("</", "")),
-                        k => write(k, out),
-                    }
-                }
-                out.push_str("</");
-                out.push_str(&n.tag);
-                out.push('>');
-            }
-        }
-    }
+    write_as(k, out, How { leave_hidden: false, blocks: false, styles: true, in_values: false }, false);
+}
+
+/// [`write`], without what's hidden from Outlook (a layout's text, as it's shown).
+fn write_shown(k: &Kid, out: &mut String) {
+    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false }, false);
 }
 
 /// A shallow copy of a part of the tree (its children too).
@@ -466,6 +467,11 @@ impl Node {
 
 /// The layout of an HTML message: empty when it has no columns (the text flows instead).
 pub fn html_layout(html: &str) -> Vec<Block> {
+    html_layout_within(html, crate::HTML_MAX)
+}
+
+/// [`html_layout`], up to `max` characters of `html` (as [`crate::html::html_to_rich_within`]).
+pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
     let lower = html.to_ascii_lowercase();
     if !(lower.contains("<table")
         || lower.contains("flex")
@@ -478,10 +484,7 @@ pub fn html_layout(html: &str) -> Vec<Block> {
     {
         return Vec::new();
     }
-    let html = match html.char_indices().nth(crate::HTML_MAX) {
-        Some((i, _)) => html.get(..i).unwrap_or(html),
-        None => html,
-    };
+    let html = crate::capped(html, max);
     let built = std::panic::catch_unwind(|| {
         let root = parse(html);
         let mut css = String::new();

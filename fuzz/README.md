@@ -54,7 +54,7 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
 | `mime_parse` | A message source: parse, summary, search text, HTML, attachments |
 | `msg` | An Outlook message file (`.msg`): properties, recipients, files, attached messages, named properties |
 | `index_text` | A message source read for the search index |
-| `html` | An HTML body: text, layout, CSS, links, pictures, trackers |
+| `html` | An HTML body: text, layout, CSS, links, pictures, trackers, read as Outlook reads it (conditional comments, VML) |
 | `ical` | iCalendar, written and read back; WebDAV `multistatus` replies |
 | `vcard` | vCard, written and read back |
 | `http` | HTTP answers, whole and streamed; `Content-Range`; release data and `SHA256SUMS.txt` |

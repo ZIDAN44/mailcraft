@@ -48,6 +48,7 @@ pub use attachments::{REACTIONS, is_reaction_text, reaction};
 use attachments::{attached, files_of, has_real_attachments, header_raw, reaction_of};
 use files::attachment_name;
 pub use files::{alt_code_char, alt_code_pages, harmless_to_open, mime_from_name, runs_code, sanitize_filename};
+use hidden::hidden_text_where;
 pub use hidden::{HIDDEN_WORDS_MIN, hidden_text};
 use html::*;
 pub use html::*;
@@ -70,6 +71,19 @@ pub const PREVIEW_CHARS: usize = 200;
 const PREVIEW_HTML: usize = 64 * 1024;
 /// HTML larger than this is cut before conversion (the rest is rarely more than markup).
 pub(crate) const HTML_MAX: usize = 4 << 20;
+/// What MailCraft writes from a message's HTML, cut at [`HTML_MAX`] first, is read up to this:
+/// it's longer than what it's written from (`&` written `&amp;`, values quoted, elements closed,
+/// VML made HTML), and cut at [`HTML_MAX`] again, a message under it lost its end (found in
+/// review: a newsletter's "Unsubscribe" link). Its work stays a few times that of the message.
+pub(crate) const WRITTEN_MAX: usize = HTML_MAX * 8;
+
+/// `html` up to `max` characters.
+pub(crate) fn capped(html: &str, max: usize) -> &str {
+    match html.char_indices().nth(max) {
+        Some((i, _)) => html.get(..i).unwrap_or(html),
+        None => html,
+    }
+}
 
 fn addrs(a: Option<AddressList<'_>>) -> Vec<EmailAddress> {
     a.map(|a| a.mailboxes().filter_map(|x| x.address().map(|e| EmailAddress::new(x.name().unwrap_or_default().trim(), e.trim()))).collect())
@@ -347,31 +361,55 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         _ => None,
     };
     let html = m.body_html(0).filter(|_| real_html).or(tnef_html.map(std::borrow::Cow::Borrowed));
-    let tracking = html.as_ref().map(|h| trackers(h)).unwrap_or_default();
+    // Read once as desktop Outlook reads it (issue #47): the copy a newsletter gives Outlook, in
+    // tables, rather than the columns of floats it gives the others, and its VML made HTML. Cut
+    // at the cap first: what's written from it is read up to a multiple of it ([`WRITTEN_MAX`]).
+    let copy = html.as_ref().map(|h| outlook_copy(capped(h, HTML_MAX)));
+    // Its trackers as it's read: a pixel in Outlook's copy, drawn in VML, counts.
+    let tracking = copy.as_ref().map(|c| trackers(&c.html)).unwrap_or_default();
     let mut hidden = None;
-    let (rich, images, layout) = match &html {
-        Some(h) => {
-            // Style sheet rules as inline styles, so cells keep their colours and titles their size.
-            let h = layout::inline_css(h);
-            hidden = hidden_text(&h);
-            let layout = layout::html_layout(&h);
+    // Made ready: style sheet rules as inline styles, so cells keep their colours and titles
+    // their size; what's hidden from Outlook hidden; and the HTML its text is read from. As it
+    // came, without Outlook's copy, when that's too big to read.
+    let ready = html.as_ref().zip(copy.as_ref()).map(|(h, c)| layout::ready(capped(h, HTML_MAX), c));
+    let (rich, images, layout) = match (&html, &copy, &ready) {
+        (Some(raw), Some(c), Some(r)) => {
+            // Text kept from the reader, read before what's hidden from Outlook is: in a message
+            // that gives Outlook a copy of its own, that's the copy everyone else is shown. The
+            // copy for the others, which Outlook's replaces here, is read as it came.
+            let own = c.own && r.copy;
+            hidden = hidden_text_where(&r.styled, !own);
+            if c.theirs && r.copy {
+                let theirs = hidden_text_where(&layout::inline_css(raw), !own);
+                if theirs.as_ref().map(|(_, n)| *n) > hidden.as_ref().map(|(_, n)| *n) {
+                    hidden = theirs;
+                }
+            }
+            let h = r.shown.as_str();
+            let layout = layout::html_layout_within(h, WRITTEN_MAX);
             // Pictures behind boxes are shown, or held back, like the others.
-            let mut images = html_images(&h);
+            let mut images = html_images(h);
             for src in layout::background_pictures(&layout) {
                 if !images.contains(&src) && images.len() < 200 {
                     images.push(src);
                 }
             }
-            (html_to_rich(&h), images, layout)
+            (html::html_to_rich_within(h, WRITTEN_MAX, r.hidden), images, layout)
         }
-        None => (Vec::new(), Vec::new(), Vec::new()),
+        _ => (Vec::new(), Vec::new(), Vec::new()),
+    };
+    // The HTML body's text as it's shown (Outlook's copy, without what's hidden from Outlook);
+    // other HTML as it came.
+    let as_text = |h: &str| match &ready {
+        Some(r) if html.as_deref() == Some(h) => html::html_to_text_within(&r.text, WRITTEN_MAX, r.hidden),
+        _ => html_to_text(h),
     };
     let (text, had_html) = match (m.text_body().len() > 0, m.body_text(0), m.body_html(0)) {
-        _ if let Some(h) = tnef_html => (html_to_text(h), true),
+        _ if let Some(h) = tnef_html => (as_text(h), true),
         // Prefer the HTML version when the text part is an auto-generated stub.
-        (_, Some(t), Some(h)) if t.trim().is_empty() => (html_to_text(&h), true),
+        (_, Some(t), Some(h)) if t.trim().is_empty() => (as_text(&h), true),
         (true, Some(t), _) if !m.text_body().next().is_some_and(|p| is_html(&p)) => (tidy_text(&t), real_html),
-        (_, _, Some(h)) => (html_to_text(&h), true),
+        (_, _, Some(h)) => (as_text(&h), true),
         (_, Some(t), None) => (tidy_text(&t), false),
         _ => (String::new(), false),
     };

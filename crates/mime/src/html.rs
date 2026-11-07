@@ -3,8 +3,13 @@
 use super::*;
 use std::collections::{HashMap, VecDeque};
 
+mod outlook;
+mod page;
 mod quote;
 mod signature;
+pub use outlook::as_outlook_reads;
+pub(crate) use outlook::{HIDDEN_RULE, OUTLOOK_MARK, OUTLOOK_TABLE, OutlookCopy, marked_hidden, mso_hidden, outlook_copy};
+use page::no_page_background;
 pub use quote::*;
 pub use signature::*;
 
@@ -305,14 +310,19 @@ pub fn local_pictures(html: &str, mut read: impl FnMut(&str) -> Option<(String, 
 /// laid out as text, and pictures by reference. No scripts, styles or remote loads: what comes
 /// out is plain data. Never panics; empty when conversion fails.
 pub fn html_to_rich(html: &str) -> RichText {
-    let html = match html.char_indices().nth(HTML_MAX) {
-        Some((i, _)) => html.get(..i).unwrap_or(html),
-        None => html,
-    };
+    html_to_rich_within(html, HTML_MAX, false)
+}
+
+/// [`html_to_rich`], up to `max` characters of `html` (more for what MailCraft wrote from a
+/// message cut at the cap, [`crate::WRITTEN_MAX`]), what's marked hidden from Outlook left out
+/// when `hidden` ([`marked_hidden`]).
+pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichText {
+    let html = crate::capped(html, max);
     // Wide enough that paragraphs stay one line each (the UI wraps them to the pane).
-    let marked = close_css_rules(&mark_pictures(&mark_headings(html)));
+    let marked = close_css_rules(&mark_pictures(&mark_headings(&no_page_background(html))));
     // The message's own CSS is read for colours and hidden parts (`display: none`), nothing else.
-    let result = std::panic::catch_unwind(|| html2text::config::rich().use_doc_css().lines_from_read(marked.as_bytes(), 2000));
+    let result =
+        std::panic::catch_unwind(|| with_hidden(|| html2text::config::rich().use_doc_css(), hidden).lines_from_read(marked.as_bytes(), 2000));
     let Ok(Ok(lines)) = result else { return Vec::new() };
     let mut out: RichText = Vec::new();
     let mut blank = 0;
@@ -613,16 +623,30 @@ pub(crate) fn html_to_words(html: &str) -> String {
 }
 
 pub fn html_to_text(html: &str) -> String {
-    let html = match html.char_indices().nth(HTML_MAX) {
-        Some((i, _)) => html.get(..i).unwrap_or(html),
-        None => html,
-    };
+    html_to_text_within(html, HTML_MAX, false)
+}
+
+/// [`html_to_text`], up to `max` characters of `html`, what's marked hidden from Outlook left
+/// out when `hidden` (as [`html_to_rich_within`]).
+pub(crate) fn html_to_text_within(html: &str, max: usize, hidden: bool) -> String {
+    let html = crate::capped(html, max);
     // Without table borders: mail lays itself out with tables, which came out boxed in `─` and
     // `│` rules (issue #41).
-    let result = std::panic::catch_unwind(|| html2text::config::plain().no_table_borders().string_from_read(html.as_bytes(), 400));
+    let result =
+        std::panic::catch_unwind(|| with_hidden(|| html2text::config::plain().no_table_borders(), hidden).string_from_read(html.as_bytes(), 400));
     match result {
         Ok(Ok(s)) => tidy_text(&s),
         _ => String::new(),
+    }
+}
+
+/// The text converter `config` makes, leaving out what's marked hidden from Outlook when
+/// `hidden` ([`marked_hidden`]).
+fn with_hidden<D: html2text::render::TextDecorator>(config: impl Fn() -> html2text::config::Config<D>, hidden: bool) -> html2text::config::Config<D> {
+    match hidden {
+        // The rule is MailCraft's own and is read; were it not, nothing would be left out.
+        true => config().add_css(HIDDEN_RULE).unwrap_or_else(|_| config()),
+        false => config(),
     }
 }
 

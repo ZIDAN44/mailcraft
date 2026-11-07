@@ -1,4 +1,5 @@
-//! An HTML body: converted to text, to formatted lines and to columns (and those to text again),
+//! An HTML body: read as Outlook reads it (its conditional comments and VML), converted to text,
+//! to formatted lines and to columns (and those to text again),
 //! quoted under a reply as it came, and searched for its
 //! pictures and links (and the trackers among them, links cleaned, text it hides); plus the plain-text markup
 //! MailCraft writes itself.
@@ -22,6 +23,11 @@ fuzz_target!(|input: &[u8]| {
     let _ = mime::hidden_text(&page);
     let _ = mime::clean_link(&page);
     let _ = mime::layout::inline_css(&page);
+    // Read as Outlook reads it (its conditional comments and VML), as a message's body is.
+    let outlook = mime::as_outlook_reads(&page);
+    let _ = mime::layout::html_layout(&mime::layout::inline_css(&outlook));
+    // As a message's HTML body is made ready to read: shown, its text, the text it hides.
+    let _ = mime::parse(&[b"Content-Type: text/html; charset=utf-8\r\n\r\n".as_slice(), input].concat());
     let layout = mime::layout::html_layout(&page);
     // Quoted under a reply: its columns made text to edit, and its HTML as it goes out, with
     // pictures given `cid:`s by their addresses (the input's own words standing in for them).

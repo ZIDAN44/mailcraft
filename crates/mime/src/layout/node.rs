@@ -75,7 +75,7 @@ impl Node {
     pub(super) fn hidden(&self) -> bool {
         self.attr("hidden").is_some()
             || self.style("display").is_some_and(|d| d == "none")
-            || self.style("mso-hide").is_some_and(|d| d == "all")
+            || self.attr("style").is_some_and(crate::html::mso_hidden)
             || matches!(self.tag.as_str(), "head" | "script" | "style" | "title" | "template" | "noscript")
     }
 
@@ -131,6 +131,29 @@ impl Node {
             "right" | "end" => Align::Right,
             _ => Align::Left,
         }
+    }
+
+    /// Where its content sits down its row (`valign`, `vertical-align`), when it says.
+    pub(super) fn valign(&self) -> Option<VAlign> {
+        let v = self.attr("valign").map(str::to_ascii_lowercase).or_else(|| self.style("vertical-align"))?;
+        match v.trim() {
+            "top" | "baseline" | "text-top" => Some(VAlign::Top),
+            "middle" | "center" => Some(VAlign::Middle),
+            "bottom" | "text-bottom" => Some(VAlign::Bottom),
+            _ => None,
+        }
+    }
+
+    /// How tall it asks to be at least (`height`, as a number of pixels or in its style); not a
+    /// percentage, which says nothing without its row's own.
+    pub(super) fn min_height(&self) -> Option<u16> {
+        let v = self.style("height").or_else(|| self.attr("height").map(str::to_string))?;
+        let v = v.trim();
+        if v.ends_with('%') {
+            return None;
+        }
+        let px = v.parse::<f32>().ok().or_else(|| length_px(v))?;
+        (px.is_finite() && px >= 1.0).then(|| (px.round() as u16).min(MAX_CELL_HEIGHT))
     }
 
     /// The room its style sets inside it (`padding` and `padding-top`…), top, right, bottom,

@@ -108,6 +108,23 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The boxes read and write `HH:MM` only; reading `1:30 PM` (and each language's way of
   writing it) isn't done yet.
 
+### 10. Newsletters: what the layout doesn't draw yet
+
+- **Impact:** A button, a link with padding and round corners or Outlook's own copy of one in
+  VML, shows as its words on its colour: without its round corners, and not at the size its VML
+  gives it.
+  Columns that set no width share their row equally, where a browser sizes them by what they
+  hold.
+  A newsletter whose copy for Outlook has more than 200,000 elements, nests them more than 256
+  deep, or nests more than a dozen tables one in another, shows the copy it gives other programs,
+  as before MailCraft read Outlook's.
+- **Workaround:** Most newsletters have a link at the top to see them in a browser.
+- **Cause:** The layout keeps text as formatted lines and boxes as table cells, and draws no round
+  corners; a link with its own room and size, and a column's width taken from its content, need a
+  measure of the content the layout doesn't take yet. Outlook's copy is read into a tree of
+  MailCraft's own, which stops at those sizes to stay quick; a copy cut there would run its
+  paragraphs together, and tables nested deeper are slow to lay out as tables.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.
