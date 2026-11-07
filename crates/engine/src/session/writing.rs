@@ -117,9 +117,68 @@ pub struct Compose {
     /// are the same draft (one Message-ID) and not kept twice (#53).
     #[serde(skip)]
     pub on_its_way: Option<(Vec<u8>, String, Option<MessageKey>)>,
+    /// How many saves of it are on the way to a server: `on_its_way` is the last, and stays until
+    /// each is said done ([`Session::draft_saved`]).
+    #[serde(skip)]
+    pub saves: u32,
+    /// A reply, forward or draft opened again as MailCraft made it ([`Compose::mark_made`]):
+    /// unchanged since, nothing was written in it ([`Session::written`]), so closing it asks
+    /// nothing and keeps no draft, as Outlook's.
+    #[serde(skip)]
+    pub made: Option<(u64, Option<Arc<Quote>>)>,
+    /// The message as it was saved to a server, that save still on its way: what it was made as
+    /// once the server has it ([`Session::draft_saved`]).
+    #[serde(skip)]
+    pub saved_as: Option<(u64, Option<Arc<Quote>>)>,
 }
 
 impl Compose {
+    /// What the message is now, as far as writing in it goes: everything the user can change in
+    /// it (who it's from and to, its subject, text and how it looks, its pictures and files byte
+    /// for byte, its options), the original under it compared apart, by the copy kept. Its rows
+    /// shown and where it's written aren't the message. Encryption that follows the recipients
+    /// on its own counts only once chosen.
+    fn fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (&self.account, &self.to, &self.cc, &self.bcc, &self.reply_to, &self.subject, &self.body).hash(&mut h);
+        (&self.signature, &self.signature_name, &self.signature_code).hash(&mut h);
+        (self.importance, self.read_receipt, self.plain, self.send_after, self.sign).hash(&mut h);
+        (!self.encrypt_auto).then_some(self.encrypt).hash(&mut h);
+        // As the editor keeps them each frame (fitted to the text), and the scheme, by their form.
+        let mut styles = self.styles.clone();
+        styles.fit(&self.body);
+        serde_json::to_vec(&(&styles, &self.scheme)).unwrap_or_default().hash(&mut h);
+        for p in &self.inline {
+            (&p.cid, &p.name, &p.mime, &p.data).hash(&mut h);
+        }
+        for a in &self.attachments {
+            (&a.name, &a.mime, &a.data, &a.content_id).hash(&mut h);
+        }
+        h.finish()
+    }
+
+    /// Note the message as it was made: a reply or forward as MailCraft wrote it, a draft as it
+    /// was opened or last saved ([`Compose::made`]).
+    pub(crate) fn mark_made(&mut self) {
+        self.made = Some(self.as_now());
+    }
+
+    /// What [`Compose::made`] notes of it.
+    fn as_now(&self) -> (u64, Option<Arc<Quote>>) {
+        (self.fingerprint(), self.quote.clone())
+    }
+
+    /// Whether nothing was changed since [`Compose::mark_made`].
+    pub(crate) fn unchanged(&self) -> bool {
+        let Some((at, quote)) = &self.made else { return false };
+        let same_quote = match (quote, &self.quote) {
+            (Some(was), Some(now)) => Arc::ptr_eq(was, now),
+            (was, now) => was.is_none() && now.is_none(),
+        };
+        same_quote && *at == self.fingerprint()
+    }
+
     /// The text, HTML and pictures to send: formatted when the text uses formatting or has
     /// pictures (and the message isn't set to plain text), else plain text alone; the original
     /// of a reply kept as it came after it ([`Quote`]).
@@ -327,7 +386,15 @@ impl Session {
             ..Default::default()
         });
         self.style_signature(signature.as_ref());
+        self.made_now(id);
         Ok(serde_json::json!({ "compose": id }))
+    }
+
+    /// Note message `id` as it was just made ([`Compose::mark_made`]).
+    pub(crate) fn made_now(&mut self, id: u64) {
+        if let Some(c) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| c.id == id) {
+            c.mark_made();
+        }
     }
 
     /// Forward the open message as an attachment, as Outlook's More › Forward as Attachment: the
@@ -350,6 +417,9 @@ impl Session {
             c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw, ..Default::default() }];
         }
         self.put_signature(sig.as_ref(), None)?;
+        if let Some(id) = out.get("compose").and_then(|v| v.as_u64()) {
+            self.made_now(id);
+        }
         Ok(out)
     }
 

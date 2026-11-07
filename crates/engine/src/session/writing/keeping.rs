@@ -46,27 +46,61 @@ impl Session {
 
     /// A draft's save is done ([`Event::DraftSaved`]): the message held for it goes, or, when
     /// neither the server nor this computer could keep the draft, comes back in a window of its
-    /// own to go on with, saying why (#53).
+    /// own to go on with, saying why (#53). With another save of it still on the way, it waits
+    /// for that one's end: the message is still that draft (its Message-ID), and the last save
+    /// says how it went (found in review: the first said done, the next save, or the draft kept
+    /// on close, was made a new draft, and Drafts had two).
     pub(crate) fn draft_saved(&mut self, account: &str, message_id: &str, error: Option<String>) {
         let id = mailcraft_model::thread::norm_id(message_id);
         let same = |c: &Compose| c.account == account && mailcraft_model::thread::norm_id(&c.draft_id) == id;
         // No Message-ID read from it: the account's oldest, as its drafts are saved in turn.
         let at = if id.is_empty() { self.saving.iter().position(|c| c.account == account) } else { self.saving.iter().position(same) };
-        let held = at.map(|i| self.saving.remove(i));
-        // The message still open whose save this was: on its way no more.
-        let open = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| same(c)).map(|c| c.on_its_way.take().is_some());
+        // Held until its last save on the way is said done.
+        let held_last = at.and_then(|i| self.saving.get_mut(i)).is_some_and(|c| {
+            c.saves = c.saves.saturating_sub(1);
+            c.saves == 0
+        });
+        let held = at.filter(|_| held_last).map(|i| self.saving.remove(i));
+        // The message still open whose save this was: on its way no more, once it was the last.
+        let mut was_on_its_way = false;
+        for c in self.compose.iter_mut().chain(self.composes.iter_mut()).filter(|c| same(c)) {
+            was_on_its_way |= c.saves > 0 || c.on_its_way.is_some();
+            c.saves = c.saves.saturating_sub(1);
+            let last = c.saves == 0;
+            if last {
+                c.on_its_way = None;
+            }
+            match &error {
+                // Saved as it was then: edited back to that, it's what Drafts has (asked nothing).
+                None if last => {
+                    if let Some(saved) = c.saved_as.take() {
+                        c.made = Some(saved);
+                    }
+                }
+                // An earlier version saved: Drafts has that one until the last gets there.
+                None => {}
+                // Not saved after all: the message open is something written again, asked about
+                // (as the last save would have it, if that one gets there).
+                Some(_) if last => (c.made, c.saved_as) = (None, None),
+                Some(_) => c.made = None,
+            }
+        }
+        if at.is_some() && held.is_none() {
+            return;
+        }
         let Some(e) = error else {
             // Said once it's there, not before (#53): closed with its changes kept, or saved with
             // Save and still open.
             if held.is_some() {
                 self.notice("Saved in Drafts", false);
-            } else if open == Some(true) {
+            } else if was_on_its_way {
                 self.notice("Draft saved", false);
             }
             return;
         };
         match held {
             Some(mut c) => {
+                c.made = None;
                 c.window = true;
                 self.composes.push(c);
                 self.notice(format!("The draft couldn't be kept: {e}. The message is open again, so nothing is lost."), true);
@@ -98,9 +132,16 @@ impl Session {
                 cm.draft = None;
                 cm.draft_id = mid;
                 cm.on_its_way = Some((raw, folder, replaces));
+                cm.saves = cm.saves.saturating_add(1);
+                // As saved, once the server has it: edited back to that, it's what Drafts has.
+                cm.saved_as = Some(cm.as_now());
             }
             // Said saved once the server has it ([`Session::draft_saved`]).
             return Ok(serde_json::json!({ "saved": c.id }));
+        }
+        // As saved: edited back to that, it's what Drafts has (asked nothing).
+        if let Some(cm) = self.compose.as_mut() {
+            cm.mark_made();
         }
         self.notice("Draft saved", false);
         Ok(serde_json::json!({ "saved": c.id }))

@@ -715,3 +715,30 @@ fn a_signature_keeps_a_picture_pasted_into_it() {
     assert_eq!((c.body.matches('\u{FFFC}').count(), c.inline.len()), (1, 1), "the next message has it");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A reply drawn in the editor and left as MailCraft made it closes asking nothing: the frames
+/// that draw it (and fit its styles to its text) change nothing in it.
+#[test]
+fn a_reply_drawn_and_left_untouched_closes_without_asking() {
+    let (mut a, dir) = app("reply-untouched");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    let k = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.run("mail.reply", json!({}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert!(a.session.compose.is_some() && !a.session.compose_written(), "as made");
+    let close = RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
+            .collect(),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(close, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    assert!(a.ui.dialog.is_none(), "nothing asked: {:?}", a.ui.dialog);
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -26,6 +26,7 @@ impl Session {
         c.window = self.prefs.new_mail_window;
         let id = c.id;
         self.open_compose(c);
+        self.made_now(id);
         Ok(serde_json::json!({ "compose": id }))
     }
 

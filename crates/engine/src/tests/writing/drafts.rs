@@ -206,10 +206,21 @@ fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
     assert!(s.compose.is_none());
     assert_eq!(draft_key_count(&mut s), 1, "only the forward");
 
+    // A reply left as it was made (its recipients and subject filled in, nothing written): it
+    // goes without a draft, as Outlook's (#52).
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    s.run("list.open", &json!({"key": keys[1].to_id()})).unwrap();
+    assert!(s.compose.is_none());
+    assert_eq!(draft_key_count(&mut s), 1, "still only the forward");
+
     // Several selected: the pane says how many, so it makes way too.
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
+    let body = format!("Yes.{}", s.compose.as_ref().unwrap().body);
+    s.run("compose.update", &json!({"body": body})).unwrap();
     s.run("list.selectRange", &json!({"key": keys[2].to_id()})).unwrap();
     assert!(s.compose.is_none() && s.selection.len() == 3);
     assert_eq!(draft_key_count(&mut s), 2, "the forward and the reply");
@@ -221,6 +232,54 @@ fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
     s.run("compose.update", &json!({"subject": "Plans"})).unwrap();
     s.run("list.open", &json!({"key": keys[1].to_id()})).unwrap();
     assert!(s.compose.as_ref().is_some_and(|c| c.window && c.subject == "Plans"));
+}
+
+/// Found in review: two saves of one message on the way to the server, and the first said done:
+/// the next save, or the draft kept as MailCraft closed, was made a new draft (another Message-ID,
+/// replacing nothing), and Drafts ended with two. It's the same draft until the last save is said
+/// done; a message closed meanwhile is held until then too.
+#[test]
+fn a_draft_saved_twice_on_the_way_stays_one_draft() {
+    let store = temp("draft-twice");
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let drafts =
+        mailcraft_model::Folder { account: id.clone(), path: "Drafts".into(), role: FolderRole::Drafts, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![drafts] });
+    s.take_jobs();
+    let saved = |s: &mut Session| {
+        let raw = s.take_jobs().into_iter().find_map(|j| match j {
+            Job::SaveDraft { raw, .. } | Job::KeepDraft { raw, .. } => Some(raw),
+            _ => None,
+        });
+        mailcraft_model::thread::written_message_id(&raw.expect("a draft saved"))
+    };
+    s.run("mail.new", &json!({"account": id})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@example.org", "subject": "Plans", "body": "One"})).unwrap();
+    s.save_draft().unwrap();
+    let first = saved(&mut s);
+    s.run("compose.update", &json!({"body": "One two"})).unwrap();
+    s.save_draft().unwrap();
+    assert_eq!(saved(&mut s), first);
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: first.clone(), error: None });
+    s.run("compose.update", &json!({"body": "One two three"})).unwrap();
+    s.save_draft().unwrap();
+    assert_eq!(saved(&mut s), first, "the next save, the same draft");
+    // Kept as MailCraft closes: the same draft too.
+    assert_eq!(s.keep_drafts(), 1);
+    assert_eq!(saved(&mut s), first, "kept as MailCraft closes, the same draft");
+    // Closed with two saves on the way: held until the last is said done.
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: first.clone(), error: None });
+    s.run("compose.update", &json!({"body": "One two three four"})).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    assert_eq!(saved(&mut s), first);
+    assert_eq!(s.saving.len(), 1, "held");
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: first.clone(), error: None });
+    assert_eq!(s.saving.len(), 1, "held for the last save");
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: first, error: Some("disk full".into()) });
+    assert!(s.saving.is_empty());
+    assert!(s.composes.iter().any(|c| c.window && c.body.starts_with("One two three four")), "open again to go on with");
+    done(s);
 }
 
 /// Issue #53: a server account's message closed with Close › keep in Drafts, or made way for in
@@ -357,4 +416,65 @@ fn a_message_is_held_until_its_draft_is_kept() {
 fn draft_key_count(s: &mut Session) -> usize {
     s.run("folder.open", &json!({"account": "sample", "folder": "Drafts"})).unwrap();
     s.list.len()
+}
+
+/// A reply counts as written once anything the user can change in it changed, not only its
+/// words and recipients: its text's look, who it's from, its options, a picture or a file swapped
+/// for another of the same name and size (found in review: those closed asking nothing, and were
+/// lost). Saved, then edited back to how it was saved, it's what Drafts has: nothing asked.
+#[test]
+fn every_change_to_a_reply_is_something_written() {
+    let mut s = sample_session("reply-changes");
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let key = s.list[0].key.clone();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    s.run("compose.attach", &json!({"name": "plan.txt", "data": b"AAAA".to_vec()})).unwrap();
+    s.compose.as_mut().unwrap().mark_made();
+    assert!(!s.compose_written(), "as made");
+    let changes: Vec<(&str, fn(&mut crate::Compose))> = vec![
+        ("bold", |c| c.styles.restyle(&c.body, 0..1, |st| mailcraft_mime::rich::Style { bold: true, ..st.clone() })),
+        ("from", |c| c.account = "other".into()),
+        ("delay", |c| c.send_after = Some(NOW + 3600)),
+        ("encrypt", |c| (c.encrypt, c.encrypt_auto) = (true, false)),
+        ("plain", |c| c.plain = true),
+        ("file", |c| c.attachments[0].data = b"BBBB".to_vec()),
+    ];
+    for (what, change) in changes {
+        let mut c = s.compose.clone().unwrap();
+        change(&mut c);
+        assert!(!c.unchanged(), "{what} counts as written");
+    }
+    // Encryption that follows the recipients on its own isn't the user's change.
+    let mut c = s.compose.clone().unwrap();
+    c.encrypt_auto = true;
+    c.mark_made();
+    c.encrypt = !c.encrypt;
+    assert!(c.unchanged());
+
+    // Saved, edited, edited back: as Drafts has it.
+    s.run("compose.update", &json!({"subject": "Middle"})).unwrap();
+    s.save_draft().unwrap();
+    s.run("compose.update", &json!({"subject": "Later"})).unwrap();
+    assert!(s.compose_written());
+    s.run("compose.update", &json!({"subject": "Middle"})).unwrap();
+    assert!(!s.compose_written(), "as saved");
+
+    // A server's save counts once the server has it; one that failed is still to be saved.
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.run("mail.new", &json!({"account": id})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@example.org", "subject": "Middle"})).unwrap();
+    s.save_draft().unwrap();
+    let mid = s.compose.as_ref().unwrap().draft_id.clone();
+    s.run("compose.update", &json!({"subject": "Later"})).unwrap();
+    s.run("compose.update", &json!({"subject": "Middle"})).unwrap();
+    assert!(s.compose_written(), "not on the server yet");
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: mid.clone(), error: None });
+    assert!(!s.compose_written(), "as the server has it");
+    s.run("compose.update", &json!({"subject": "Last"})).unwrap();
+    s.save_draft().unwrap();
+    let mid = s.compose.as_ref().unwrap().draft_id.clone();
+    s.apply(Event::DraftSaved { account: id, message_id: mid, error: Some("disk full".into()) });
+    assert!(s.compose_written(), "not saved after all");
+    done(s);
 }

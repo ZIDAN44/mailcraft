@@ -379,8 +379,12 @@ impl Session {
         self.compose.as_ref().is_some_and(|c| self.written(c))
     }
 
-    /// Whether anything was written in `c` (beyond its signature).
+    /// Whether anything was written in `c` (beyond its signature, or what MailCraft put in it).
     pub fn written(&self, c: &Compose) -> bool {
+        // A reply, forward or draft as it was made: nothing written in it (#52).
+        if c.unchanged() {
+            return false;
+        }
         // Only a signature: the one put in, or (a message from before) the account's.
         let put = c.signature.trim();
         let signature = self.default_signature(&c.account, c.mode.is_some()).map(|s| signature_parts(&s).0).unwrap_or_default();
