@@ -414,6 +414,13 @@ pub enum Event {
         account: String,
         id: u64,
     },
+    /// A [`Job::SaveDraft`] done: the draft (its `Message-ID`, as written) is in Drafts on the
+    /// server, or kept on this computer for it (`error: None`), or neither could keep it.
+    DraftSaved {
+        account: String,
+        message_id: String,
+        error: Option<String>,
+    },
     SendFailed {
         account: String,
         id: u64,

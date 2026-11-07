@@ -265,6 +265,9 @@ impl Session {
         };
         self.accounts.retain(|a| a.config.id != id);
         self.cache.retain(|(a, _), _| a != id);
+        // Its messages held for their drafts go with it: kept as MailCraft closes, they'd be
+        // written into a removed account's folder, and sent up by a later one of the same id.
+        self.saving.retain(|c| c.account != id);
         self.forget_echoes(id);
         self.search_folders_changed(id);
         self.importing.running.remove(id);

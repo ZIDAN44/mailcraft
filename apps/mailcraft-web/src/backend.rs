@@ -474,7 +474,12 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         // The browser has no closing to keep a draft through: it's filed as any other.
         Job::SaveDraft { raw, folder, replaces, .. } | Job::KeepDraft { raw, folder, replaces, .. } => {
-            let Some(c) = client(sh, id) else { return notice(sh, id, "the draft wasn't saved on the server: the account is offline".into()) };
+            // Which draft it was, for the session holding the message until it's saved (#53).
+            let message_id = mailcraft_engine::model::thread::written_message_id(&raw);
+            let Some(c) = client(sh, id) else {
+                let error = Some("the draft wasn't saved on the server: the account is offline".to_string());
+                return emit(sh, Event::DraftSaved { account: id.to_string(), message_id, error });
+            };
             let st = state(sh, id);
             let r = async {
                 mailcraft_jmap::append(&c, &st, &folder, &raw, &["$draft", "$seen"]).await?;
@@ -485,8 +490,14 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
             }
             .await;
             match r {
-                Ok(()) => sync_one(sh, id, &folder).await,
-                Err(e) => failed(sh, id, e),
+                Ok(()) => {
+                    emit(sh, Event::DraftSaved { account: id.to_string(), message_id, error: None });
+                    sync_one(sh, id, &folder).await
+                }
+                Err(e) => {
+                    emit(sh, Event::DraftSaved { account: id.to_string(), message_id, error: Some(e.to_string()) });
+                    failed(sh, id, e)
+                }
             }
         }
         Job::GetVacation { .. } | Job::SetVacation { .. } => {

@@ -75,6 +75,26 @@ fn summary(account: &str, folder: &str, validity: u32, f: &Fetched) -> Summary {
 
 /// Bring one folder's cache up to date.
 pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, folder: &str, opts: &SyncOptions) -> Result<SyncReport> {
+    sync_folder_as(c, store, account, folder, opts, store.removals(account))
+}
+
+/// A change to `account`'s cache, unless the account was removed since [`Store::removals`] said
+/// `seen` ([`Store::while_kept`]): an error then, which ends the sync.
+pub(crate) fn if_kept<T>(store: &Store, account: &str, seen: u64, write: impl FnOnce() -> mailcraft_store::Result<T>) -> Result<T> {
+    Ok(store.while_kept(account, seen, write).ok_or_else(|| NetError::Closed("the account was removed".into()))??)
+}
+
+/// [`sync_folder`] for a worker that started when its account had been removed `seen` times: a
+/// removal since, while the sync talks to the server, has it write nothing of the account again
+/// (found in review: the account's folder came back with the Inbox in it).
+pub fn sync_folder_as<S: Read + Write>(
+    c: &mut Client<S>,
+    store: &Store,
+    account: &str,
+    folder: &str,
+    opts: &SyncOptions,
+    seen: u64,
+) -> Result<SyncReport> {
     let mut st = store.load_folder(account, folder)?;
     let cached_max = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
     let cached_min = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
@@ -90,7 +110,7 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
 
     if st.validity != info.validity && (st.validity != 0 || !st.messages.is_empty()) {
         log::info!("{account}/{folder}: UIDVALIDITY {} → {}, dropping the cache", st.validity, info.validity);
-        store.clear_folder(account, folder)?;
+        if_kept(store, account, seen, || store.clear_folder(account, folder))?;
         st = FolderState::default();
         report.reset = true;
     }
@@ -114,9 +134,10 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
         }
         let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
             std::mem::take(&mut st.messages).into_iter().partition(|m| !vanished.iter().any(|r| r.contains(&m.key.uid)));
-        for m in &gone {
-            store.remove_body(&m.key);
-        }
+        if_kept(store, account, seen, || {
+            gone.iter().for_each(|m| store.remove_body(&m.key));
+            Ok(())
+        })?;
         report.removed = gone.len();
         st.messages = kept;
         new_mail(c, &mut st, account, folder, cached_max, &mut report)?;
@@ -151,9 +172,10 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
             let alive = c.uid_search(&format!("UID {range}"))?;
             let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
                 std::mem::take(&mut st.messages).into_iter().partition(|m| alive.binary_search(&m.key.uid).is_ok());
-            for m in &gone {
-                store.remove_body(&m.key);
-            }
+            if_kept(store, account, seen, || {
+                gone.iter().for_each(|m| store.remove_body(&m.key));
+                Ok(())
+            })?;
             report.removed = gone.len();
             st.messages = kept;
         }
@@ -175,10 +197,10 @@ pub fn sync_folder<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &
     let max_uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
     st.uid_next = if info.uid_next > 0 { info.uid_next } else { max_uid.saturating_add(1) };
     st.highest_modseq = info.highest_modseq;
-    store.save_folder(account, folder, &st)?;
+    if_kept(store, account, seen, || store.save_folder(account, folder, &st))?;
 
     // 5: prefetch the newest sources (in small batches, saving as we go).
-    report.fetched = prefetch(c, store, account, folder, &mut st, opts)?;
+    report.fetched = prefetch(c, store, account, folder, &mut st, opts, seen)?;
 
     report.total = info.exists;
     report.unread = if info.exists == 0 { 0 } else { u32::try_from(c.uid_search("UNSEEN")?.len()).unwrap_or(u32::MAX) };
@@ -456,7 +478,8 @@ fn fetch_headers<S: Read + Write>(
     Ok(())
 }
 
-/// How many sources came in.
+/// How many sources came in. Nothing written once the account was removed (`seen`, as
+/// [`sync_folder_as`]).
 fn prefetch<S: Read + Write>(
     c: &mut Client<S>,
     store: &Store,
@@ -464,6 +487,7 @@ fn prefetch<S: Read + Write>(
     folder: &str,
     st: &mut FolderState,
     opts: &SyncOptions,
+    seen: u64,
 ) -> Result<usize> {
     let wanted: Vec<(u32, u32)> = st
         .messages
@@ -496,11 +520,11 @@ fn prefetch<S: Read + Write>(
         for f in c.uid_fetch(&uid_set(&chunk), "UID BODY.PEEK[]", "")? {
             let Some(raw) = &f.body else { continue };
             let Some(m) = st.find_mut(f.uid) else { continue };
-            store.write_body(&m.key, raw)?;
+            if_kept(store, account, seen, || store.write_body(&m.key, raw))?;
             fill_from_source(m, raw);
             fetched += 1;
         }
-        store.save_folder(account, folder, st)?;
+        if_kept(store, account, seen, || store.save_folder(account, folder, st))?;
     }
     Ok(fetched)
 }

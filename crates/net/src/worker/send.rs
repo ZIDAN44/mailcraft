@@ -114,6 +114,35 @@ impl Worker {
         self.role_folder(FolderRole::Sent, "Sent")
     }
 
+    /// File `raw` in `folder`, as listed the account's folder of `role` (Sent Items, Drafts). One
+    /// the server says isn't there and may be made (`NO [TRYCREATE]`, RFC 3501 §6.3.11) was
+    /// deleted or renamed there since it was listed (by another client, or a test server started
+    /// afresh): the folders are listed again, and the role's folder, wherever it is now, takes it.
+    /// Only when there is none is the folder made again. Where it went, and whether it was made
+    /// (the folders are then to be listed again).
+    pub(super) fn file_in(&mut self, folder: &str, role: FolderRole, flags: &str, raw: &[u8]) -> Result<(String, bool)> {
+        match self.client()?.append(folder, flags, raw) {
+            Ok(_) => return Ok((folder.to_string(), false)),
+            Err(NetError::NoFolder(m)) => log::info!("{}: {folder} isn't on the server ({m}); its folders are listed again", self.acc.id),
+            Err(e) => return Err(e),
+        }
+        // Only a folder that was the role's moves with it: one listed with the role, or, not
+        // listed, named as the role's (not one chosen by its name, as a Sent folder can be).
+        let was_role = self.folders.iter().find(|f| f.path == folder).map_or_else(|| FolderRole::from_name(folder, None) == role, |f| f.role == role);
+        // Quietly on the second connection: the account's status is the main one's.
+        self.relist_as(self.main.is_some());
+        let moved = self.folders.iter().find(|f| was_role && f.role == role && f.selectable && f.path != folder).map(|f| f.path.clone());
+        let (to, made) = match moved {
+            Some(to) => (to, false),
+            None => {
+                self.client()?.create(folder)?;
+                (folder.to_string(), true)
+            }
+        };
+        self.client()?.append(&to, flags, raw)?;
+        Ok((to, made))
+    }
+
     /// The account's folder for `role` (Sent Items, Drafts) on an IMAP server that lists none:
     /// one there by its name without the role (another client's), else one made, `name` or
     /// `INBOX.name` on a server that keeps every folder in the Inbox. Connects to make it.
@@ -183,17 +212,22 @@ impl Worker {
         let folder = if self.acc.is_api() || self.files_itself() {
             sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()))
         } else {
+            let mut made = false;
             let r = (|| -> Result<Option<String>> {
                 let Some(folder) = self.sent_folder(sent_folder)? else { return Ok(None) };
                 if self.conn.is_none() {
                     self.connect()?;
                 }
-                self.client()?.append(&folder, "\\Seen", raw)?;
+                let (folder, made_now) = self.file_in(&folder, FolderRole::Sent, "\\Seen", raw)?;
+                made = made_now;
                 Ok(Some(folder))
             })();
             match r {
                 Ok(Some(f)) => {
                     log::info!("{}: sent copy saved in {f}", self.acc.id);
+                    if made {
+                        self.relist();
+                    }
                     Some(f)
                 }
                 Ok(None) => {
@@ -379,6 +413,7 @@ impl Worker {
         if self.files_itself() {
             return;
         }
+        let mut made = false;
         let r = (|| -> Result<Option<String>> {
             if self.conn.is_none() {
                 self.connect()?;
@@ -390,12 +425,16 @@ impl Worker {
                 return crate::pop::file_locally(&self.store, &self.acc.id, &folder, raw, flags, now()).map(|_| Some(folder));
             }
             let Some(folder) = self.sent_folder(sent_folder.clone())? else { return Ok(None) };
-            self.client()?.append(&folder, "\\Seen", raw)?;
+            let (folder, made_now) = self.file_in(&folder, FolderRole::Sent, "\\Seen", raw)?;
+            made = made_now;
             Ok(Some(folder))
         })();
         match r {
             Ok(Some(folder)) => {
                 log::info!("{}: message {id}'s sent copy saved in {folder}", self.acc.id);
+                if made {
+                    self.relist();
+                }
                 self.sync_one(&folder);
             }
             Ok(None) => self.notice(NO_SENT.to_string()),

@@ -230,6 +230,15 @@ pub fn serve() -> Server {
     Server { base, data }
 }
 
+/// The account `account` in `store` has had its calendars and contacts looked for today, and
+/// none found: its syncs don't look for them again, out on the network (DNS, then HTTPS at its
+/// mail domain). On a busy machine that took seconds, and whatever was queued for the account
+/// after its first sync waited for it.
+pub(crate) fn looked_for_today(store: &mailcraft_store::Store, account: &str) {
+    let pim = mailcraft_model::pim::Pim { dav_checked: Some(crate::worker::now()), ..Default::default() };
+    store.save_account_doc(account, mailcraft_model::pim::PIM_DOC, &pim).unwrap();
+}
+
 #[cfg(test)]
 mod scheduling;
 

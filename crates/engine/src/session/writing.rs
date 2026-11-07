@@ -18,6 +18,9 @@ pub use signatures::signature_parts;
 /// and Cc asks first.
 const EXPOSED_FROM: usize = 8;
 
+/// Messages held at most while their drafts are on the way to the server ([`Session::saving`]).
+const MAX_SAVING: usize = 64;
+
 /// Something to look at before a message goes (`compose.send` holds it and says what).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -111,6 +114,11 @@ pub struct Compose {
     /// text, outside it, until it's made text to edit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote: Option<Arc<Quote>>,
+    /// The draft last sent to a server to save, while it may still be on the way: its source,
+    /// folder and the copy it replaces. Kept as it was if MailCraft closes meanwhile, so the two
+    /// are the same draft (one Message-ID) and not kept twice (#53).
+    #[serde(skip)]
+    pub on_its_way: Option<(Vec<u8>, String, Option<MessageKey>)>,
 }
 
 impl Compose {
@@ -225,7 +233,11 @@ impl Session {
     /// kept in Drafts is set aside in a window instead, never lost.
     pub(crate) fn make_way_for_reading(&mut self) {
         let Some(written) = self.compose.as_ref().filter(|c| !c.window && !c.sending).map(|c| self.written(c)) else { return };
-        if written && let Err(e) = self.save_draft() {
+        if !written {
+            self.compose = None;
+            return;
+        }
+        if let Err(e) = self.save_draft() {
             if let Some(mut c) = self.compose.take() {
                 c.window = true;
                 self.composes.push(c);
@@ -233,7 +245,54 @@ impl Session {
             self.notice(e.to_string(), true);
             return;
         }
-        self.compose = None;
+        self.let_go_saved();
+    }
+
+    /// The message being written goes, its draft just saved. A server account's save has only
+    /// begun: the message is held, out of sight, until the server or this computer keeps the
+    /// draft, so it can come back if neither can (#53).
+    pub(crate) fn let_go_saved(&mut self) {
+        let Some(c) = self.compose.take() else { return };
+        if self.account(&c.account).is_some_and(|a| !a.is_local()) {
+            if self.saving.len() >= MAX_SAVING {
+                // A front end that never answers: the oldest is kept on this computer instead.
+                let gone = self.saving.remove(0);
+                log::warn!("{}: a draft's save went unanswered; it's kept on this computer", gone.account);
+                self.keep_held_one(&gone);
+            }
+            self.saving.push(c);
+        }
+    }
+
+    /// A draft's save is done ([`Event::DraftSaved`]): the message held for it goes, or, when
+    /// neither the server nor this computer could keep the draft, comes back in a window of its
+    /// own to go on with, saying why (#53).
+    pub(crate) fn draft_saved(&mut self, account: &str, message_id: &str, error: Option<String>) {
+        let id = mailcraft_model::thread::norm_id(message_id);
+        let same = |c: &Compose| c.account == account && mailcraft_model::thread::norm_id(&c.draft_id) == id;
+        // No Message-ID read from it: the account's oldest, as its drafts are saved in turn.
+        let at = if id.is_empty() { self.saving.iter().position(|c| c.account == account) } else { self.saving.iter().position(same) };
+        let held = at.map(|i| self.saving.remove(i));
+        // The message still open whose save this was: on its way no more.
+        let open = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| same(c)).map(|c| c.on_its_way.take().is_some());
+        let Some(e) = error else {
+            // Said once it's there, not before (#53): closed with its changes kept, or saved with
+            // Save and still open.
+            if held.is_some() {
+                self.notice("Saved in Drafts", false);
+            } else if open == Some(true) {
+                self.notice("Draft saved", false);
+            }
+            return;
+        };
+        match held {
+            Some(mut c) => {
+                c.window = true;
+                self.composes.push(c);
+                self.notice(format!("The draft couldn't be kept: {e}. The message is open again, so nothing is lost."), true);
+            }
+            None => self.notice(format!("The draft couldn't be kept: {e}"), true),
+        }
     }
 
     /// Act on message `id` (one set aside comes back; the current one is set aside in turn).
@@ -394,12 +453,17 @@ impl Session {
 
     /// [`Session::compose_bytes`], with the Message-ID it was given.
     fn compose_bytes_with_id(&mut self, c: &Compose, d: &mime::Draft) -> Result<(Vec<u8>, String, String), CmdError> {
+        let email = self.account(&c.account).map(|a| a.config.email.clone()).unwrap_or_default();
+        let mid = mime::new_message_id(&email, self.clock.now, self.random());
+        self.compose_bytes_as(c, d, mid)
+    }
+
+    /// [`Session::compose_bytes_with_id`], written with Message-ID `mid`.
+    fn compose_bytes_as(&mut self, c: &Compose, d: &mime::Draft, mid: String) -> Result<(Vec<u8>, String, String), CmdError> {
         let acc = self.account(&c.account).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
         let from = mailcraft_model::EmailAddress::new(acc.config.name.clone(), acc.config.email.clone());
         let email = acc.config.email.clone();
-        let now = self.clock.now;
-        let mid = mime::new_message_id(&email, now, self.random());
-        let raw = mime::build(d, &from, now, &mid).map_err(CmdError::Failed)?;
+        let raw = mime::build(d, &from, self.clock.now, &mid).map_err(CmdError::Failed)?;
         Ok((raw, email, mid))
     }
 
@@ -578,13 +642,17 @@ impl Session {
                 cm.draft_id = mid;
             }
         } else {
-            self.jobs.push(self.draft_job(&c, raw, folder, false));
+            let replaces = self.saved_copy(&c);
+            self.jobs.push(self.draft_job(&c, raw.clone(), folder.clone(), replaces.clone(), false));
             if let Some(cm) = self.compose.as_mut() {
                 // The server gives the new copy its place; the old one is replaced by the
                 // worker, and the new one found by its Message-ID when it's saved again.
                 cm.draft = None;
                 cm.draft_id = mid;
+                cm.on_its_way = Some((raw, folder, replaces));
             }
+            // Said saved once the server has it ([`Session::draft_saved`]).
+            return Ok(serde_json::json!({ "saved": c.id }));
         }
         self.notice("Draft saved", false);
         Ok(serde_json::json!({ "saved": c.id }))
@@ -592,34 +660,60 @@ impl Session {
 
     /// Every message being written with something in it, kept as a draft as MailCraft closes:
     /// on this computer at once, and in Drafts on the server at the next connection. How many.
+    /// Those whose drafts are still on the way to the server too ([`Session::keep_held`]).
     pub fn keep_drafts(&mut self) -> usize {
         let written: Vec<Compose> = self.all_composes().filter(|c| self.written(c) && !c.sending).cloned().collect();
-        let mut kept = 0;
-        for c in written {
-            let Ok((raw, folder, _)) = self.draft_bytes(&c) else { continue };
-            if self.account(&c.account).is_none_or(AccountState::is_local) {
-                if let Err(e) = self.file_locally(&c.account, &folder, &raw, false) {
-                    self.notice(e.to_string(), true);
-                    continue;
-                }
-                if let Some(old) = self.saved_copy(&c) {
-                    self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old] });
-                }
-            } else {
-                let job = self.draft_job(&c, raw, folder, true);
+        let kept = written.iter().filter(|c| self.keep_draft(c)).count();
+        kept + self.keep_held()
+    }
+
+    /// The messages held while their drafts are on the way to the server ([`Session::saving`]),
+    /// kept as drafts as MailCraft closes, however it closes (they were chosen to be kept): the
+    /// save may never finish. How many.
+    pub fn keep_held(&mut self) -> usize {
+        let held = std::mem::take(&mut self.saving);
+        held.iter().filter(|c| self.keep_held_one(c)).count()
+    }
+
+    /// Keep a message held for its save as the very draft that went (its source, folder and the
+    /// copy it replaces), so it and the save on the way are one draft, not two (#53).
+    fn keep_held_one(&mut self, c: &Compose) -> bool {
+        match c.on_its_way.clone() {
+            Some((raw, folder, replaces)) => {
+                let job = self.draft_job(c, raw, folder, replaces, true);
                 self.jobs.push(job);
+                true
             }
-            kept += 1;
+            None => self.keep_draft(c),
         }
-        kept
+    }
+
+    /// Keep `c` as a draft: on this computer at once, and in Drafts on the server at the next
+    /// connection. Whether it was.
+    fn keep_draft(&mut self, c: &Compose) -> bool {
+        let Ok((raw, folder, _)) = self.draft_bytes(c) else { return false };
+        if self.account(&c.account).is_none_or(AccountState::is_local) {
+            if let Err(e) = self.file_locally(&c.account, &folder, &raw, false) {
+                self.notice(e.to_string(), true);
+                return false;
+            }
+            if let Some(old) = self.saved_copy(c) {
+                self.apply_op(&c.account.clone(), Op::Expunge { keys: vec![old] });
+            }
+        } else {
+            // Its save on its way replaces a copy: so does this, kept in its place.
+            let replaces = c.on_its_way.as_ref().and_then(|(_, _, r)| r.clone()).or_else(|| self.saved_copy(c));
+            let job = self.draft_job(c, raw, folder, replaces, true);
+            self.jobs.push(job);
+        }
+        true
     }
 
     /// The job filing `c`'s draft `raw` in `folder` on the server (`keep`: kept on this computer
     /// first, as MailCraft closes): encrypted to the account's own certificate first when the
     /// message is to be encrypted.
-    fn draft_job(&self, c: &Compose, raw: Vec<u8>, folder: String, keep: bool) -> Job {
+    fn draft_job(&self, c: &Compose, raw: Vec<u8>, folder: String, replaces: Option<MessageKey>, keep: bool) -> Job {
         let config = self.account(&c.account).map(|a| a.config.clone());
-        let replaces = self.saved_copy(c);
         match config {
             Some(account) if self.seals_with_pgp(c) => {
                 Job::Pgp { account, work: mailcraft_model::PgpWork::SealDraft { raw: mailcraft_model::Private(raw), folder, replaces, keep } }
@@ -666,7 +760,12 @@ impl Session {
             None if account.is_some_and(|a| !a.is_local()) => "Drafts".to_string(),
             None => return Err(CmdError::Failed("this account has no Drafts folder".into())),
         };
-        let (raw, _, mid) = self.compose_bytes_with_id(c, &d)?;
+        // While its save is on its way, kept as the same draft (its Message-ID), so the server ends
+        // up with one copy of it, the newer (#53).
+        let (raw, _, mid) = match c.on_its_way.as_ref().map(|_| c.draft_id.clone()).filter(|id| !id.is_empty()) {
+            Some(id) => self.compose_bytes_as(c, &d, id)?,
+            None => self.compose_bytes_with_id(c, &d)?,
+        };
         Ok((raw, folder, mid))
     }
 

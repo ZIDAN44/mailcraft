@@ -481,6 +481,8 @@ written offline
 "
     .to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "INBOX".into(), replaces: None });
+    // Kept on this computer is kept: the message held for it can go (#53); then it's said where.
+    until(&pool, "draft saved", |e| matches!(e, Event::DraftSaved { account, error: None, .. } if account == "a1"));
     until(&pool, "draft kept", |e| matches!(e, Event::Notice { message, .. } if message.contains("kept on this computer")));
     pool.submit(Job::Send {
         account: "a1".into(),
@@ -842,8 +844,14 @@ fn a_draft_on_a_server_without_drafts_makes_the_folder() {
         std::thread::sleep(Duration::from_millis(50));
     }
     assert!(st.lock().unwrap().mailbox("Drafts").is_none());
-    let draft = b"From: me@studio.example\r\nSubject: Plans\r\n\r\nto finish\r\n".to_vec();
+    let draft = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <plans@studio.example>\r\n\r\nto finish\r\n".to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "Drafts".into(), replaces: None });
+    // Said saved, by the Message-ID it was written with (#53).
+    until(
+        &pool,
+        "draft saved",
+        |e| matches!(e, Event::DraftSaved { account, message_id, error: None } if account == "a1" && message_id == "plans@studio.example"),
+    );
     let end = Instant::now() + Duration::from_secs(20);
     while st.lock().unwrap().mailbox("Drafts").is_none_or(|m| m.msgs.is_empty()) {
         assert!(Instant::now() < end, "the draft never reached the server");

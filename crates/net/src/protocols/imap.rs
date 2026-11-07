@@ -113,6 +113,11 @@ fn info(o: &imap_proto::Outcome<'_>) -> String {
     o.information.as_deref().unwrap_or("").to_string()
 }
 
+/// A `NO`: one saying the folder isn't there and may be made (`[TRYCREATE]`) told apart.
+fn refused(o: &imap_proto::Outcome<'_>) -> NetError {
+    if matches!(o.code, Some(ResponseCode::TryCreate)) { NetError::NoFolder(info(o)) } else { NetError::No(info(o)) }
+}
+
 /// The destination UIDs of a `COPYUID` code among a command's responses (at most 100,000).
 fn copied_uids(rs: &[Response<'_>]) -> Vec<u32> {
     let mut out = Vec::new();

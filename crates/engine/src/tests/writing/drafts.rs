@@ -223,6 +223,136 @@ fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
     assert!(s.compose.as_ref().is_some_and(|c| c.window && c.subject == "Plans"));
 }
 
+/// Issue #53: a server account's message closed with Close › keep in Drafts, or made way for in
+/// the reading pane, while its draft is still on the way to the server, is held until the server
+/// or this computer has kept the draft; when neither could, it comes back in a window, saying
+/// why, instead of being lost. Held, it's still kept as a draft if MailCraft closes.
+#[test]
+fn a_message_is_held_until_its_draft_is_kept() {
+    let store = temp("draft-held");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.apply(Event::Folders {
+        account: id.clone(),
+        folders: vec![
+            mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() },
+            mailcraft_model::Folder { account: id.clone(), path: "Drafts".into(), role: FolderRole::Drafts, selectable: true, ..Default::default() },
+        ],
+    });
+    // Two messages to read.
+    let mut inbox = store.load_folder(&id, "INBOX").unwrap();
+    inbox.validity = 3;
+    let mut keys = Vec::new();
+    for uid in 1..=2u32 {
+        let key = mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 3, uid };
+        let raw = format!(
+            "From: Ann <ann@example.org>\r\nTo: zoe@example.org\r\nSubject: Plans {uid}\r\nMessage-ID: <p{uid}@example.org>\r\n\r\nShall we?\r\n"
+        );
+        store.write_body(&key, raw.as_bytes()).unwrap();
+        inbox.messages.push(mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
+        keys.push(key);
+    }
+    store.save_folder(&id, "INBOX", &inbox).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+    s.take_jobs();
+    let saved_id = |s: &mut Session| {
+        let raw = s.take_jobs().into_iter().find_map(|j| if let Job::SaveDraft { raw, .. } = j { Some(raw) } else { None });
+        mailcraft_model::thread::written_message_id(&raw.expect("a draft saved"))
+    };
+    let write = |s: &mut Session, body: &str| {
+        s.run("mail.new", &json!({"account": id})).unwrap();
+        s.run("compose.update", &json!({"to": "ann@example.org", "subject": body, "body": body})).unwrap();
+    };
+
+    // Saved with Save and still open: said saved once the server has it, not before.
+    write(&mut s, "Kept open");
+    s.save_draft().unwrap();
+    let open_id = saved_id(&mut s);
+    assert!(s.notices.last().is_none_or(|n| n.text != "Draft saved"), "not yet");
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: open_id, error: None });
+    assert!(s.notices.last().is_some_and(|n| n.text == "Draft saved"));
+    s.compose = None;
+
+    // Saved with Save, then MailCraft closed (or the graphics lost) before the server answered:
+    // kept as the same draft, its Message-ID and the copy it replaces, not a second one (found in
+    // review: built again with a new Message-ID and nothing to replace).
+    write(&mut s, "Open and on its way");
+    s.save_draft().unwrap();
+    let sent = s.take_jobs().into_iter().find_map(|j| if let Job::SaveDraft { raw, replaces, .. } = j { Some((raw, replaces)) } else { None });
+    let (sent, replaces) = sent.expect("a draft saved");
+    assert_eq!(s.keep_drafts(), 1);
+    let kept = s.take_jobs().into_iter().find_map(|j| if let Job::KeepDraft { raw, replaces, .. } = j { Some((raw, replaces)) } else { None });
+    let (kept, kept_replaces) = kept.expect("kept");
+    assert_eq!(mailcraft_model::thread::written_message_id(&kept), mailcraft_model::thread::written_message_id(&sent));
+    assert_eq!(kept_replaces, replaces);
+    s.compose = None;
+
+    // Closed, kept in Drafts: held until the server has it, then gone.
+    write(&mut s, "First");
+    s.run("compose.close", &json!({})).unwrap();
+    let first = saved_id(&mut s);
+    assert!(s.compose.is_none() && s.saving.len() == 1 && s.composes.is_empty(), "held, out of sight");
+    assert!(s.notices.last().is_none_or(|n| n.text != "Saved in Drafts"), "not yet");
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: format!("<{first}>"), error: None });
+    assert!(s.saving.is_empty() && s.composes.is_empty(), "kept: let go of");
+    assert!(s.notices.last().is_some_and(|n| n.text == "Saved in Drafts"));
+
+    // Closed, and neither the server nor this computer could keep it: back, with why.
+    write(&mut s, "Second");
+    s.run("compose.close", &json!({})).unwrap();
+    let second = saved_id(&mut s);
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: "someone-else@example.org".into(), error: Some("disk full".into()) });
+    assert_eq!(s.saving.len(), 1, "another draft's failure isn't this one's");
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: second, error: Some("disk full".into()) });
+    assert!(s.saving.is_empty());
+    assert!(s.composes.iter().any(|c| c.window && c.body.starts_with("Second")), "open again to go on with");
+    assert!(s.notices.last().is_some_and(|n| n.text.contains("disk full")));
+    s.composes.clear();
+
+    // Written in the reading pane, made way for by another message read: held the same way, and
+    // kept as a draft if MailCraft closes meanwhile.
+    s.run("view.newMailWindow", &json!({"on": false})).unwrap();
+    s.run("list.open", &json!({"key": keys[0].to_id()})).unwrap();
+    write(&mut s, "Third");
+    assert!(!s.compose.as_ref().unwrap().window, "in the reading pane");
+    s.run("list.open", &json!({"key": keys[1].to_id()})).unwrap();
+    let on_its_way = s.take_jobs().into_iter().find_map(|j| if let Job::SaveDraft { raw, replaces, .. } = j { Some((raw, replaces)) } else { None });
+    let on_its_way = on_its_way.expect("a draft saved");
+    let third = mailcraft_model::thread::written_message_id(&on_its_way.0);
+    assert!(s.compose.is_none() && s.saving.len() == 1);
+    assert_eq!(s.keep_drafts(), 1);
+    assert!(s.saving.is_empty(), "kept: let go of");
+    // Kept as the very draft on its way (its Message-ID and the copy it replaces), so if the save
+    // gets there too it's one draft, not two (found in review: built again with a new Message-ID).
+    let kept = s.take_jobs().into_iter().find_map(|j| if let Job::KeepDraft { raw, replaces, .. } = j { Some((raw, replaces)) } else { None });
+    assert_eq!(kept.as_ref(), Some(&on_its_way), "kept as MailCraft closes");
+    // The save on its way failing after that: the draft is on this computer already.
+    s.apply(Event::DraftSaved { account: id.clone(), message_id: third, error: Some("no connection".into()) });
+    assert!(s.composes.is_empty());
+
+    // A front end that never answers: past 64 held, the oldest is kept on this computer.
+    for n in 0..=64 {
+        write(&mut s, &format!("Many {n}"));
+        s.run("compose.close", &json!({})).unwrap();
+    }
+    assert_eq!(s.saving.len(), 64);
+    let kept: Vec<String> = s
+        .take_jobs()
+        .into_iter()
+        .filter_map(|j| if let Job::KeepDraft { raw, .. } = j { Some(String::from_utf8_lossy(&raw).into_owned()) } else { None })
+        .collect();
+    assert!(kept.len() == 1 && kept[0].contains("Subject: Many 0\r\n"), "{kept:?}");
+
+    // The account removed while messages are held: they go with it, not kept as MailCraft closes
+    // into a removed account's folder (found in review).
+    assert!(!s.saving.is_empty());
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    assert!(s.saving.is_empty());
+    assert_eq!(s.keep_held(), 0);
+    done(s);
+}
+
 /// How many drafts are in Drafts.
 fn draft_key_count(s: &mut Session) -> usize {
     s.run("folder.open", &json!({"account": "sample", "folder": "Drafts"})).unwrap();

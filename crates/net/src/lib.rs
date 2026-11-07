@@ -53,6 +53,10 @@ pub enum NetError {
     /// The server refused a command (`NO`).
     #[error("the server refused: {0}")]
     No(String),
+    /// The server refused because the folder isn't there, and may be made (`NO [TRYCREATE]`,
+    /// RFC 3501 §6.3.11).
+    #[error("the server refused: {0}")]
+    NoFolder(String),
     /// The server rejected a command as malformed (`BAD`).
     #[error("the server rejected the command: {0}")]
     Bad(String),

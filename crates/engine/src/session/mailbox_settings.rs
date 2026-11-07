@@ -136,6 +136,7 @@ fn event_account(e: &Event) -> Option<&str> {
         | Event::FolderChanged { account, .. }
         | Event::Sent { account, .. }
         | Event::SendFailed { account, .. }
+        | Event::DraftSaved { account, .. }
         | Event::Queued { account, .. }
         | Event::OpFailed { account, .. }
         | Event::DavSynced { account, .. }

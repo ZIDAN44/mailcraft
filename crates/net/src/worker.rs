@@ -20,7 +20,7 @@ use mailcraft_store::{OutboxItem, Store};
 use crate::imap::{Client, uid_set};
 use crate::jmap;
 use crate::stream::Stream;
-use crate::sync::{SyncOptions, fetch_body, sync_folder};
+use crate::sync::{SyncOptions, fetch_body, sync_folder_as};
 use crate::{NetError, Result, smtp};
 
 /// Sends events and wakes the UI.
@@ -57,6 +57,8 @@ struct Handle {
     /// The main connection's way to the second one, emptied when the account stops: otherwise
     /// each would keep the other's queue open, and neither thread would end.
     quick_link: QuickLink,
+    /// What the pool did as it stopped the worker: that it did, and the drafts it kept then.
+    stop: Arc<changes::Stopped>,
 }
 
 /// The second connection's queue, as the main one holds it ([`Handle::quick_link`]).
@@ -128,32 +130,16 @@ pub struct Pool {
     /// Data files being compacted, and the jobs waiting for one to give its file back
     /// (`compact.rs`).
     compacts: compact::Compacts,
+    /// The order drafts were handed out to be saved and kept as MailCraft closed, this run
+    /// (`changes.rs`), shared with every worker.
+    order: changes::Order,
+    /// The drafts being filed on the server, shared with every worker (`changes/filing.rs`).
+    filing: Arc<changes::Filing>,
 }
 
-/// Drafts that couldn't be saved to the server (offline, or it failed), kept with the account
-/// until it connects again.
-const PENDING_DRAFTS: &str = "drafts-pending.json";
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct PendingDraft {
-    folder: String,
-    #[serde(default)]
-    replaces: Option<mailcraft_model::MessageKey>,
-    raw: Vec<u8>,
-}
-
-/// Keep a draft on this computer for the next connection. A list that can't be read stops it:
-/// saved as just this one, the drafts waiting in it would be lost.
-fn keep_draft(store: &Store, account: &str, folder: &str, replaces: Option<mailcraft_model::MessageKey>, raw: Vec<u8>) -> Result<()> {
-    let mut list: Vec<PendingDraft> = store.load_account_doc(account, PENDING_DRAFTS)?;
-    // A newer version of the same draft replaces the one kept.
-    if let Some(r) = &replaces {
-        list.retain(|d| d.replaces.as_ref() != Some(r));
-    }
-    list.push(PendingDraft { folder: folder.to_string(), replaces, raw });
-    store.save_account_doc(account, PENDING_DRAFTS, &list).map_err(NetError::from)
-}
-
+use changes::{DraftOrder, keep_draft};
+#[cfg(test)]
+use changes::{Order, PENDING_DRAFTS, PendingDraft};
 pub use mailcraft_model::MICROSOFT_NO_PASSWORDS;
 
 /// What a mailbox Microsoft won't open over IMAP needs: IMAP switched on (Outlook.com's own
@@ -192,6 +178,8 @@ impl Pool {
             imports: imports::Imports::default(),
             edits: edits::Edits::default(),
             compacts: compact::Compacts::default(),
+            order: changes::Order::default(),
+            filing: Arc::default(),
         }
     }
 
@@ -340,6 +328,7 @@ impl Pool {
                 }
             }
             Job::Remove { account } => {
+                self.forget_saves(&account);
                 self.stop(&account);
                 self.indexer.stop(&account);
                 // An import into it is thrown away, its data file with it.
@@ -383,17 +372,25 @@ impl Pool {
             // Closing with a message written: on disk before the app goes (the worker may be busy
             // or about to stop); filed on the server at the next connection, as offline drafts.
             Job::KeepDraft { account, raw, folder, replaces } => {
-                if let Err(e) = keep_draft(&self.store, &account, &folder, replaces, raw) {
+                if let Err(e) = keep_draft(&self.store, &account, &folder, replaces, raw, true, &self.order) {
                     log::warn!("{account}: the draft couldn't be kept: {e}");
                 }
             }
             Job::SaveDraft { account, raw, folder, replaces } if !self.workers.contains_key(&account) => {
-                match keep_draft(&self.store, &account, &folder, replaces, raw) {
-                    Ok(()) => self.sink.emit(Event::Notice {
+                let message_id = mailcraft_model::thread::written_message_id(&raw);
+                // Handed out now, as one handed to a worker is: newer than a save of the draft a
+                // stopped worker is still filing, which, filed, leaves it kept (found in review:
+                // taken for older, it was taken off this computer, and never got to the server).
+                DraftOrder::handed(&self.order, &raw);
+                let error = keep_draft(&self.store, &account, &folder, replaces, raw, false, &self.order).err().map(|e| e.to_string());
+                let kept = error.is_none();
+                self.sink.emit(Event::DraftSaved { account: account.clone(), message_id, error });
+                // Said after the save's end, so it's the last word on it.
+                if kept {
+                    self.sink.emit(Event::Notice {
                         account,
                         message: "the draft is kept on this computer; it goes to Drafts when you're back online".into(),
-                    }),
-                    Err(e) => self.sink.emit(Event::Notice { account, message: format!("the draft couldn't be kept: {e}") }),
+                    });
                 }
             }
             Job::GetVacation { account } | Job::SetVacation { account, .. } if !self.workers.contains_key(&account) => {
@@ -411,6 +408,7 @@ impl Pool {
             other => {
                 let id = other.account().to_string();
                 let quick = self.configs.get(&id).is_some_and(|c| quick_job(&other, c));
+                self.save_on_its_way(&other);
                 match self.workers.get(&id) {
                     Some(h) => {
                         // A message opened while the main connection syncs a folder, or the
@@ -509,10 +507,14 @@ impl Pool {
         let quick = quick_thread.is_some().then_some(qtx);
         let quick_link: QuickLink = Arc::new(Mutex::new(quick.clone()));
         w.quick = quick_link.clone();
+        let stop: Arc<changes::Stopped> = Arc::default();
+        w.stop = stop.clone();
+        w.order = self.order.clone();
+        w.filing = self.filing.clone();
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
-                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread, busy, quick_link });
+                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread, busy, quick_link, stop });
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
         }
@@ -521,6 +523,8 @@ impl Pool {
 
     fn stop(&mut self, account: &str) {
         if let Some(mut h) = self.workers.remove(account) {
+            // Its drafts still to save kept here first, before a new worker reads what's kept.
+            self.keep_saves_on_their_way(account, &h.stop);
             drop(h.tx);
             drop(h.quick.take());
             if let Ok(mut q) = h.quick_link.lock() {
@@ -616,6 +620,17 @@ struct Worker {
     /// Messages it couldn't get, shared with it: those it gives back are downloaded on the main
     /// connection (one opened again meanwhile is handed to it again, not downloaded twice).
     given_back: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
+    /// What the pool did as it stopped this worker: it says nothing more of the account, and
+    /// leaves the drafts the pool kept then (`changes/drafts.rs`).
+    stop: Arc<changes::Stopped>,
+    /// The order drafts were handed out to be saved and kept as MailCraft closed (the pool's).
+    order: changes::Order,
+    /// The drafts being filed on the server now, by this worker or another (the pool's).
+    filing: Arc<changes::Filing>,
+    /// The drafts kept on this computer, as this worker files them (`changes/drafts.rs`).
+    kept: changes::KeptDrafts,
+    /// How many times its account had been removed as it started ([`Store::while_kept`]).
+    removals: u64,
     /// Messages whose text the main connection gave first, shared with the second one: of those
     /// it brings only the whole (others it's handed were opened while the main one was busy).
     whole_only: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
@@ -663,6 +678,7 @@ impl Worker {
         // when it's opened, and is held in memory only.
         let opts = if acc.keeps_online() { SyncOptions { prefetch: 0, ..opts } } else { opts };
         let windows = store.load_account_doc(&acc.id, WINDOWS).unwrap_or_default();
+        let removals = store.removals(&acc.id);
         Worker {
             acc,
             auth,
@@ -678,6 +694,11 @@ impl Worker {
             rest: VecDeque::new(),
             quick: Arc::default(),
             given_back: Arc::default(),
+            stop: Arc::default(),
+            order: changes::Order::default(),
+            filing: Arc::default(),
+            kept: changes::KeptDrafts::default(),
+            removals,
             whole_only: Arc::default(),
             busy: Arc::default(),
             backoff: Duration::from_secs(5),
@@ -701,8 +722,8 @@ impl Worker {
     }
 
     fn status(&self, status: SyncStatus) {
-        // The second connection's comings and goings aren't the account's.
-        if self.main.is_none() {
+        // The second connection's comings and goings aren't the account's, nor a stopped one's.
+        if self.main.is_none() && !self.stopped() {
             match &status {
                 SyncStatus::Error { error } => log::warn!("{}: {error}", self.acc.id),
                 SyncStatus::NeedsPassword { error } => log::warn!("{}: needs signing in again: {error}", self.acc.id),
@@ -739,6 +760,10 @@ impl Worker {
                 break;
             }
             self.fresh_token();
+            // Connected by the last job itself: the drafts kept here go first.
+            if self.file_next_kept() {
+                continue;
+            }
             if let Some(job) = self.queue.pop_front() {
                 self.handle(job);
                 continue;
@@ -758,6 +783,8 @@ impl Worker {
                 }
                 let wait = self.next_attempt.saturating_duration_since(Instant::now());
                 if !wait.is_zero() {
+                    #[cfg(test)]
+                    connect::waits::began(&self.store, &self.acc.id);
                     self.working(false);
                     match rx.recv_timeout(wait) {
                         Ok(j) => push_job(&mut self.queue, j),
@@ -775,6 +802,7 @@ impl Worker {
             }
             self.wait_for_mail(&rx);
         }
+        self.keep_unsaved_drafts(&rx);
         if let Some(Conn::Imap(c)) = self.conn.as_mut() {
             c.logout();
         }

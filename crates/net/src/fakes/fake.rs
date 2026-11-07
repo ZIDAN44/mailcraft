@@ -58,6 +58,8 @@ pub struct State {
     /// Commands containing this text take this long (a big folder on a slow server): the
     /// connection that sent it waits, others don't.
     pub stall_on: Option<(String, std::time::Duration)>,
+    /// Commands that have begun to take that long: on their way, not answered yet.
+    pub stalled: usize,
 }
 
 impl State {
@@ -81,6 +83,7 @@ impl State {
             create_under: None,
             permanent_flags: None,
             stall_on: None,
+            stalled: 0,
         }))
     }
 
@@ -261,6 +264,9 @@ impl Fake {
         }
         let stall = self.st.lock().ok().and_then(|s| s.stall_on.clone()).filter(|(text, _)| line.contains(text.as_str()));
         if let Some((_, how_long)) = stall {
+            if let Ok(mut s) = self.st.lock() {
+                s.stalled += 1;
+            }
             std::thread::sleep(how_long);
         }
         let st = self.st.clone();
@@ -653,6 +659,7 @@ fn search_matches(m: &Msg, seq: u32, keys: &[String], max: u32, exists: u32) -> 
             "SUBJECT" => (header("subject").contains(&arg), 2),
             "FROM" => (header("from").contains(&arg), 2),
             "TO" => (header("to").contains(&arg), 2),
+            "HEADER" => (header(&arg).contains(&keys.get(i + 2).map(|v| v.to_lowercase()).unwrap_or_default()), 3),
             "KEYWORD" => (m.flags.iter().any(|f| f.eq_ignore_ascii_case(&arg)), 2),
             set if set.starts_with(|c: char| c.is_ascii_digit() || c == '*') => (in_set(seq, set, exists), 1),
             _ => (false, 1),

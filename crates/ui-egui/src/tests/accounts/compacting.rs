@@ -3,8 +3,6 @@
 //! told how long MailCraft was left alone and an idle compaction stopped by the user coming back,
 //! and compacting as MailCraft closes; every state drawn in light, dark and right to left.
 
-use std::sync::{Arc, Mutex};
-
 use mailcraft_engine::Compacting;
 use mailcraft_engine::model::Job;
 use mailcraft_engine::model::job::{CompactMode, CompactPhase, CompactReport, DataFileHealth, Work};
@@ -12,27 +10,6 @@ use mailcraft_engine::model::job::{CompactMode, CompactPhase, CompactReport, Dat
 use super::*;
 use crate::Action;
 use crate::backstage::{Backstage, Page};
-
-/// A backend that keeps the jobs it's given (the tests look at them).
-#[derive(Clone, Default)]
-struct Jobs(Arc<Mutex<Vec<Job>>>);
-
-impl Jobs {
-    fn take(&self) -> Vec<Job> {
-        self.0.lock().map(|mut j| std::mem::take(&mut *j)).unwrap_or_default()
-    }
-}
-
-impl crate::Backend for Jobs {
-    fn submit(&mut self, job: Job) {
-        if let Ok(mut j) = self.0.lock() {
-            j.push(job);
-        }
-    }
-    fn poll(&mut self) -> Vec<MailEvent> {
-        Vec::new()
-    }
-}
 
 /// A window tall enough for the whole File page.
 const TALL: egui::Vec2 = egui::vec2(1280.0, 2400.0);

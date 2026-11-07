@@ -299,6 +299,10 @@ pub struct Session {
     /// open): starting another sets the current one aside here rather than losing it.
     /// [`Session::activate_compose`] brings one back to act on.
     pub composes: Vec<Compose>,
+    /// Messages closed or made way for with their drafts still on the way to a server (#53):
+    /// held here, out of sight, until the server or this computer has kept the draft
+    /// ([`Event::DraftSaved`]), and given back to be written if neither could.
+    pub saving: Vec<Compose>,
     pub prefs: Prefs,
     pub clock: Clock,
     pub notices: Vec<Notice>,
@@ -458,6 +462,7 @@ impl Session {
             sources: Vec::new(),
             compose: None,
             composes: Vec::new(),
+            saving: Vec::new(),
             prefs: Prefs::default(),
             clock,
             notices: Vec::new(),

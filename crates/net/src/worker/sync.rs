@@ -14,7 +14,8 @@ impl Worker {
         if !idle || inbox.is_none() {
             let next_soon = self.soon.iter().map(|(at, _)| *at).min();
             let wait = next_soon.map_or(POLL_EVERY, |at| at.saturating_duration_since(Instant::now()).min(POLL_EVERY));
-            match rx.recv_timeout(wait) {
+            let Some(got) = self.recv_unless_set_aside(rx, wait) else { return };
+            match got {
                 Ok(j) => push_job(&mut self.queue, j),
                 Err(RecvTimeoutError::Disconnected) => self.closed = true,
                 Err(RecvTimeoutError::Timeout) if next_soon.is_some_and(|at| at <= Instant::now()) => {
@@ -52,6 +53,7 @@ impl Worker {
             }
             let queue = &mut self.queue;
             let closed = &mut self.closed;
+            let (aside, filing) = (&self.kept.aside, &self.filing);
             c.idle(IDLE_FOR, || {
                 loop {
                     match rx.try_recv() {
@@ -63,13 +65,35 @@ impl Worker {
                         }
                     }
                 }
-                !queue.is_empty() || *closed
+                !queue.is_empty() || *closed || aside.ended(filing)
             })
         })();
         match result {
             Ok(true) => self.sync_one(&inbox),
             Ok(false) => {}
             Err(e) => self.failed(e),
+        }
+    }
+
+    /// A job, waiting for one up to `wait` ([`Receiver::recv_timeout`]); `None` sooner, once
+    /// another worker's filing of a draft kept on this computer and set aside ends, for it to be
+    /// filed ([`Self::queue_kept_drafts`]).
+    fn recv_unless_set_aside(&self, rx: &Receiver<Job>, wait: Duration) -> Option<std::result::Result<Job, RecvTimeoutError>> {
+        if self.kept.aside.is_empty() {
+            return Some(rx.recv_timeout(wait));
+        }
+        let end = Instant::now().checked_add(wait);
+        loop {
+            let left = end.map_or(wait, |end| end.saturating_duration_since(Instant::now()));
+            let step = left.min(changes::LOOK_ASIDE_EVERY);
+            match rx.recv_timeout(step) {
+                Err(RecvTimeoutError::Timeout) if step < left => {
+                    if self.kept.aside.ended(&self.filing) {
+                        return None;
+                    }
+                }
+                got => return Some(got),
+            }
         }
     }
 
@@ -107,7 +131,7 @@ impl Worker {
         let mut changed = false;
         while Instant::now() < end && !changed {
             self.drain(rx);
-            if self.closed || !self.queue.is_empty() {
+            if self.closed || !self.queue.is_empty() || self.kept.aside.ended(&self.filing) {
                 return true;
             }
             match es.next(Duration::from_millis(500)) {
@@ -134,6 +158,12 @@ impl Worker {
     /// The folder list, then every folder (Inbox first), staying responsive to opened messages.
     /// Refresh the folder list from the server; `false` when that failed.
     pub(super) fn relist(&mut self) -> bool {
+        self.relist_as(false)
+    }
+
+    /// [`Worker::relist`]; `quiet`, the second connection's: the list is its own (not published
+    /// or saved), and a failure only logged (the account's status is the main one's to say).
+    pub(super) fn relist_as(&mut self, quiet: bool) -> bool {
         let id = self.id();
         let listed = match self.conn.as_mut() {
             Some(Conn::Imap(c)) => c.list(&id),
@@ -157,6 +187,12 @@ impl Worker {
                     }
                 }
                 sort_folders(&mut list);
+                // The second connection keeps its list to itself: the main one says what the
+                // account has (its counts kept up), and clears what's gone.
+                if quiet {
+                    self.folders = list;
+                    return true;
+                }
                 // Folders gone from the server lose their cache.
                 for old in &self.folders {
                     if !list.iter().any(|f| f.path == old.path) {
@@ -166,6 +202,10 @@ impl Worker {
                 self.folders = list;
                 self.publish_folders();
                 true
+            }
+            Err(e) if quiet => {
+                log::info!("{}: the folders weren't listed again: {e}", self.acc.id);
+                false
             }
             Err(e) => {
                 self.failed(e);
@@ -232,7 +272,12 @@ impl Worker {
         self.save_jstate();
     }
 
+    /// The account's folders written and said; not once it was removed (found in review: its
+    /// files came back).
     pub(super) fn publish_folders(&self) {
+        if self.removed() {
+            return;
+        }
         let _ = self.store.save_folders(&self.acc.id, &self.folders);
         self.sink.emit(Event::Folders { account: self.id(), folders: self.folders.clone() });
     }
@@ -327,21 +372,23 @@ impl Worker {
         self.status(SyncStatus::Syncing { folder: path.to_string() });
         // A folder asked to keep more keeps them (the API servers keep only the newest window).
         let window = self.windows.get(path).copied().unwrap_or(0).max(self.opts.window);
-        let (store, opts, id) = (self.store.clone(), SyncOptions { window, ..self.opts }, self.id());
+        let (store, opts, id, seen) = (self.store.clone(), SyncOptions { window, ..self.opts }, self.id(), self.removals);
+        // Nothing of it written once its account is removed, the sync on its way (found in review:
+        // its folder came back with the Inbox in it, over IMAP, JMAP, Graph, Exchange and POP).
         let result = match self.conn.as_mut() {
-            Some(Conn::Imap(c)) => sync_folder(c, &store, &id, path, &opts),
+            Some(Conn::Imap(c)) => sync_folder_as(c, &store, &id, path, &opts, seen),
             Some(Conn::Jmap(c)) => {
-                let r = jmap::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
+                let r = jmap::sync_folder_as(c, &mut self.jstate, &store, &id, path, &opts, seen);
                 self.save_jstate();
                 r
             }
             Some(Conn::Graph(c)) => {
-                let r = crate::graph::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
+                let r = crate::graph::sync_folder_as(c, &mut self.jstate, &store, &id, path, &opts, seen);
                 self.save_jstate();
                 r
             }
             Some(Conn::Ews(c)) => {
-                let r = crate::ews::sync_folder(c, &mut self.jstate, &store, &id, path, &opts);
+                let r = crate::ews::sync_folder_as(c, &mut self.jstate, &store, &id, path, &opts, seen);
                 self.save_jstate();
                 r
             }
@@ -350,7 +397,7 @@ impl Worker {
                 let secret = self.secret();
                 (|| {
                     let mut c = crate::pop::open(&self.acc, &secret?)?;
-                    let r = crate::pop::fetch_new(&mut c, &store, &id, path, &crate::pop::Keep::of(&self.acc), now())?;
+                    let r = crate::pop::fetch_new_as(&mut c, &store, &id, path, &crate::pop::Keep::of(&self.acc), now(), seen)?;
                     let _ = c.quit();
                     Ok(r)
                 })()
@@ -381,6 +428,10 @@ impl Worker {
                 if self.last_full.is_some() {
                     self.status(SyncStatus::Online { at: now() });
                 }
+            }
+            // Its account removed meanwhile: nothing to say of it.
+            Err(e) if self.removed() => {
+                log::info!("{}: a folder of an account removed wasn't synced: {e}", self.acc.id);
             }
             Err(e) => self.failed(e),
         }

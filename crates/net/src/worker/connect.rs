@@ -124,6 +124,14 @@ impl Worker {
         if self.conn.is_some() {
             return Ok(());
         }
+        self.open()?;
+        // The drafts kept on this computer go to the server on every connection, ahead of
+        // anything queued ([`Self::queue_kept_drafts`]).
+        self.kept.due = self.main.is_none();
+        Ok(())
+    }
+
+    fn open(&mut self) -> Result<()> {
         self.status(SyncStatus::Connecting);
         let secret = self.secret()?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
@@ -226,13 +234,7 @@ impl Worker {
         self.replay();
         self.flush_outbox();
         // Drafts kept while offline go to the server first.
-        let kept: Vec<PendingDraft> = self.store.load_account_doc(&self.acc.id, PENDING_DRAFTS).unwrap_or_default();
-        if !kept.is_empty() {
-            let _ = self.store.save_account_doc(&self.acc.id, PENDING_DRAFTS, &Vec::<PendingDraft>::new());
-            for d in kept.into_iter().rev() {
-                self.queue.push_front(Job::SaveDraft { account: self.acc.id.clone(), raw: d.raw, folder: d.folder, replaces: d.replaces });
-            }
-        }
+        self.queue_kept_drafts();
         self.last_full = None;
     }
 
@@ -243,12 +245,36 @@ impl Worker {
         }
     }
 
-    /// Save the JMAP / Graph numbering after it changed.
+    /// Save the JMAP / Graph numbering after it changed; not once the account was removed.
     pub(super) fn save_jstate(&self) {
         if self.acc.is_api()
-            && let Err(e) = self.jstate.save(&self.store, &self.acc.id)
+            && let Some(Err(e)) = self.store.while_kept(&self.acc.id, self.removals, || self.jstate.save(&self.store, &self.acc.id))
         {
             log::warn!("{}: {e}", self.acc.id);
         }
+    }
+}
+
+/// The waits workers began before connecting again after a connection failed, for the tests to
+/// count rather than time: by the store's folder and the account.
+#[cfg(test)]
+pub(crate) mod waits {
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+
+    use mailcraft_store::Store;
+
+    static BEGUN: Mutex<Vec<(PathBuf, String)>> = Mutex::new(Vec::new());
+
+    /// `account`'s worker over `store` began a wait to connect again.
+    pub(crate) fn began(store: &Store, account: &str) {
+        if let Ok(mut b) = BEGUN.lock() {
+            b.push((store.root().to_path_buf(), account.to_string()));
+        }
+    }
+
+    /// The waits to connect again `account`'s workers over `store` have begun.
+    pub(crate) fn begun(store: &Store, account: &str) -> usize {
+        BEGUN.lock().map_or(0, |b| b.iter().filter(|(root, a)| root == store.root() && a == account).count())
     }
 }

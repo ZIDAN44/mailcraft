@@ -251,7 +251,7 @@ impl<S: Read + Write> Conn<S> {
                 Ok(Response::Done { tag: t, status, outcome }) if t.0 == tag => {
                     return Err(match status {
                         Status::Bad => NetError::Bad(info(&outcome)),
-                        _ => NetError::No(info(&outcome)),
+                        _ => refused(&outcome),
                     });
                 }
                 Ok(Response::Data { status: Status::Bye, outcome }) => return Err(NetError::Closed(info(&outcome))),
@@ -271,7 +271,7 @@ impl<S: Read + Write> Conn<S> {
                             Ok(collected)
                         }
                         Status::Bad => Err(NetError::Bad(info(&outcome))),
-                        _ => Err(NetError::No(info(&outcome))),
+                        _ => Err(refused(&outcome)),
                     };
                 }
                 Ok(Response::Data { status: Status::Bye, outcome }) => return Err(NetError::Closed(info(&outcome))),

@@ -2,10 +2,20 @@
 
 use super::*;
 
+mod drafts;
+mod filing;
+
+pub(super) use drafts::{DraftOrder, KeptDrafts, Order, Stopped, keep_draft};
+#[cfg(test)]
+pub(super) use drafts::{PENDING_DRAFTS, PendingDraft};
+pub(super) use filing::{Filed, Filing, LOOK_ASIDE_EVERY, SetAside};
+
 impl Worker {
     pub(super) fn handle(&mut self, job: Job) {
         match job {
             Job::SyncAll { .. } => {
+                // Send / Receive: the drafts kept here go too, those that failed tried again now.
+                self.kept.retry_now();
                 if self.conn.is_none() {
                     self.auth_failed = false;
                     self.token_retried = false;
@@ -90,79 +100,11 @@ impl Worker {
             Job::Send { id, raw, from, recipients, sent_folder, .. } => self.send(id, &raw, &from, &recipients, sent_folder),
             // The pool keeps these itself; one reaching a worker is kept the same way.
             Job::KeepDraft { raw, folder, replaces, .. } => {
-                if let Err(e) = keep_draft(&self.store, &self.acc.id, &folder, replaces, raw) {
+                if let Err(e) = keep_draft(&self.store, &self.acc.id, &folder, replaces, raw, true, &self.order) {
                     log::warn!("{}: the draft couldn't be kept: {e}", self.acc.id);
                 }
             }
-            Job::SaveDraft { raw, folder, replaces, .. } => {
-                let (raw_kept, replaces_kept) = (raw.clone(), replaces.clone());
-                let mut filed = folder.clone();
-                let r = (|| -> Result<()> {
-                    if self.conn.is_none() {
-                        self.connect()?;
-                    }
-                    if let Some(Conn::Pop) = self.conn.as_ref() {
-                        let flags = mailcraft_model::Flags { draft: true, seen: true, ..Default::default() };
-                        crate::pop::file_locally(&self.store, &self.acc.id, &folder, &raw, flags, now())?;
-                        if let Some(old) = replaces {
-                            self.store.apply_op(&self.acc.id, &Op::Expunge { keys: vec![old] })?;
-                        }
-                        return Ok(());
-                    }
-                    if let Some(Conn::Jmap(c)) = self.conn.as_mut() {
-                        jmap::append(c, &self.jstate, &folder, &raw, &["$draft", "$seen"])?;
-                        if let Some(old) = replaces {
-                            jmap::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
-                        }
-                        return Ok(());
-                    }
-                    if let Some(Conn::Graph(c)) = self.conn.as_mut() {
-                        crate::graph::append(c, &self.jstate, &folder, &raw)?;
-                        if let Some(old) = replaces {
-                            crate::graph::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
-                        }
-                        return Ok(());
-                    }
-                    if let Some(Conn::Ews(c)) = self.conn.as_mut() {
-                        crate::ews::append(c, &self.jstate, &folder, &raw)?;
-                        if let Some(old) = replaces {
-                            crate::ews::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
-                        }
-                        return Ok(());
-                    }
-                    // A server without Drafts gets one, as it gets Sent Items: once its folders are
-                    // known (those listed here before, when this connection hasn't listed them).
-                    if self.folders.is_empty()
-                        && let Ok(listed) = self.store.load_folders(&self.acc.id)
-                    {
-                        self.folders = listed;
-                    }
-                    let missing = !self.folders.is_empty() && !self.folders.iter().any(|f| f.path == folder);
-                    if missing && FolderRole::from_name(&folder, None) == FolderRole::Drafts {
-                        filed = self.role_folder(FolderRole::Drafts, "Drafts")?.unwrap_or_else(|| folder.clone());
-                    }
-                    let trash = self.folders.iter().find(|f| f.role == FolderRole::Trash).map(|f| f.path.clone());
-                    let c = self.client()?;
-                    c.append(&filed, "\\Draft \\Seen", &raw)?;
-                    if let Some(old) = replaces {
-                        expunge_keys(c, &[old], trash.as_deref())?;
-                    }
-                    Ok(())
-                })();
-                match r {
-                    Ok(()) => self.sync_one(&filed),
-                    Err(e) => {
-                        // Not lost: kept on this computer and saved when the account connects.
-                        match keep_draft(&self.store, &self.acc.id, &folder, replaces_kept, raw_kept) {
-                            Ok(()) => self.notice(
-                                "the draft couldn't be saved to the server; it's kept on this computer and saved there when the account connects",
-                            ),
-                            Err(k) => self.notice(format!("the draft couldn't be saved: {k}")),
-                        }
-                        self.failed(e);
-                    }
-                }
-            }
+            Job::SaveDraft { raw, folder, replaces, .. } => self.save_draft(raw, folder, replaces),
             Job::FileMessages { folder, paths, .. } => self.file_messages(folder, paths),
             Job::FlushOutbox { .. } => self.flush_outbox(),
             Job::SyncDav { .. } => self.sync_dav(),
@@ -288,9 +230,8 @@ impl Worker {
         self.sink.emit(Event::Vacation { account: self.id(), vacation, error });
     }
 
-    /// Replay offline changes on the server, oldest first.
     /// Re-apply queued ops that touch `path` to its freshly saved cache. True if the cache
-    /// changed as a result.
+    /// changed as a result. Not once the account was removed.
     pub(super) fn reapply_waiting(&mut self, path: &str) -> bool {
         let mut any = false;
         for op in self.store.load_ops(&self.acc.id).unwrap_or_default() {
@@ -299,13 +240,19 @@ impl Worker {
                 o if o.is_folder_op() => false,
                 o => o.keys().iter().any(|k| k.folder == path),
             };
-            if touches && self.store.apply_op(&self.acc.id, &op).is_ok_and(|c| !c.is_empty()) {
+            if touches
+                && self
+                    .store
+                    .while_kept(&self.acc.id, self.removals, || self.store.apply_op(&self.acc.id, &op))
+                    .is_some_and(|r| r.is_ok_and(|c| !c.is_empty()))
+            {
                 any = true;
             }
         }
         any
     }
 
+    /// Replay offline changes on the server, oldest first.
     pub(super) fn replay(&mut self) {
         let mut destinations: Vec<String> = Vec::new();
         let mut relist = false;

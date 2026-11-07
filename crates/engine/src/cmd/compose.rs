@@ -305,9 +305,15 @@ pub(super) fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
     } else {
         false
     };
-    s.compose = None;
     if saved {
-        s.notice("Saved in Drafts", false);
+        // Said saved once it is: on this computer at once; a server's save has only begun, and
+        // the message is held until it ends (#53), coming back with the reason if it fails.
+        if s.account(&c.account).is_none_or(|a| a.is_local()) {
+            s.notice("Saved in Drafts", false);
+        }
+        s.let_go_saved();
+    } else {
+        s.compose = None;
     }
     Ok(json!({"closed": c.id, "saved": saved}))
 }

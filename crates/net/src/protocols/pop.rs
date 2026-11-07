@@ -15,7 +15,7 @@ use mailcraft_model::{AccountConfig, Flags, Folder, FolderRole, MessageKey, Secu
 use mailcraft_store::{FolderState, Store};
 
 use crate::stream::{self, Stream};
-use crate::sync::SyncReport;
+use crate::sync::{SyncReport, if_kept};
 use crate::{NetError, Result};
 
 /// Longest line read.
@@ -298,6 +298,20 @@ pub fn folders(store: &Store, account: &str) -> Result<Vec<Folder>> {
 /// Download what's new into the Inbox, and remove from the server what the account says should go
 /// (`keep`): at once, so many days after downloading, or once deleted here for good.
 pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, inbox: &str, keep: &Keep, now: i64) -> Result<SyncReport> {
+    fetch_new_as(c, store, account, inbox, keep, now, store.removals(account))
+}
+
+/// [`fetch_new`] for a worker that started when its account had been removed `seen` times: a
+/// removal since has it write nothing of the account again, nor remove anything from the server.
+pub fn fetch_new_as<S: Read + Write>(
+    c: &mut Client<S>,
+    store: &Store,
+    account: &str,
+    inbox: &str,
+    keep: &Keep,
+    now: i64,
+    seen: u64,
+) -> Result<SyncReport> {
     let mut state = load_state(store, account, now)?;
     let listed = c.uidl()?;
     let mut fs = store.load_folder(account, inbox)?;
@@ -317,7 +331,7 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
         let mut next = fs.free_uid(account, inbox)?;
         let uid = FolderState::take_uid(&mut next, account, inbox)?;
         let key = MessageKey { account: account.to_string(), folder: inbox.to_string(), validity: fs.validity, uid };
-        store.write_body(&key, &raw)?;
+        if_kept(store, account, seen, || store.write_body(&key, &raw))?;
         let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
         state.insert(id.clone(), Kept { at: now, key: Some(key.to_id()), gone: false });
         fs.messages.push(mime::summary_from_full(&raw, key, Flags::default(), size, 0).into());
@@ -325,8 +339,10 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
         report.new += 1;
         // Saved as it goes: a dropped connection loses nothing already downloaded.
         sort_newest_first(&mut fs.messages);
-        store.save_folder(account, inbox, &fs)?;
-        store.save_account_doc(account, STATE_DOC, &state)?;
+        if_kept(store, account, seen, || {
+            store.save_folder(account, inbox, &fs)?;
+            store.save_account_doc(account, STATE_DOC, &state)
+        })?;
         if keep.remove_now {
             c.dele(*n)?;
         }
@@ -334,7 +350,7 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
     // Forget the ids the server no longer has (one removed now is still listed until QUIT, so it
     // goes from here next time).
     state.retain(|id, _| listed.iter().any(|(_, l)| l == id));
-    store.save_account_doc(account, STATE_DOC, &state)?;
+    if_kept(store, account, seen, || store.save_account_doc(account, STATE_DOC, &state))?;
     report.total = u32::try_from(fs.messages.len()).unwrap_or(u32::MAX);
     report.unread = fs.unread();
     Ok(report)

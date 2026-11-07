@@ -78,6 +78,18 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   badges, generated tests); MailCraft's letters would have to be watched from Outlook's window,
   clean room.
 
+### 7. Drafts: a draft twice after closing during its save
+
+- **Impact:** On a server without UIDPLUS, or one that keeps a draft at another size than
+  MailCraft sent, a draft saved just as MailCraft closes, or as the connection to the server is
+  lost, can be in Drafts twice after the next connection: the copy that save took there, and the
+  one kept on this computer.
+- **Workaround:** Delete the older copy in Drafts.
+- **Cause:** MailCraft replaces a copy of a draft only when it knows the copy as its own: one it
+  filed, remembered by its Message-ID and size, so that another program's copy under the same
+  Message-ID stays. It removes it only where it can remove exactly that message (UIDPLUS's
+  `UID EXPUNGE`): a plain `EXPUNGE` removes whatever else is marked deleted in the folder.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

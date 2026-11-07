@@ -263,6 +263,7 @@ impl Session {
                 };
                 self.pictures.insert(url, p);
             }
+            Event::DraftSaved { account, message_id, error } => self.draft_saved(&account, &message_id, error),
             Event::Notice { account, message } => {
                 // A change that failed among them: what the account says changed next is read.
                 self.forget_echoes(&account);

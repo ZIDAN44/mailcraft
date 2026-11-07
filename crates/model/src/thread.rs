@@ -62,6 +62,16 @@ pub fn norm_id(id: &str) -> String {
     id.trim_start_matches('<').trim_end_matches('>').to_string()
 }
 
+/// The `Message-ID` a message was written with, from its header (never its body), without its
+/// brackets: what says which draft a save was of. Empty when it has none.
+pub fn written_message_id(raw: &[u8]) -> String {
+    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(raw.len()).min(64 * 1024);
+    let head = String::from_utf8_lossy(raw.get(..end).unwrap_or_default()).replace("\r\n ", " ").replace("\r\n\t", " ");
+    head.split("\r\n")
+        .find_map(|line| line.split_once(':').filter(|(name, _)| name.trim().eq_ignore_ascii_case("message-id")).map(|(_, v)| norm_id(v)))
+        .unwrap_or_default()
+}
+
 /// The most 5-byte blocks a conversation index is read with (a reply adds one).
 pub const MAX_INDEX_BLOCKS: usize = 50;
 
@@ -357,6 +367,16 @@ fn threads_of(msgs: &[&Summary]) -> Vec<Thread> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A draft's Message-ID from its header: any case, folded, without brackets; never one its
+    /// body quotes, nor a header whose name only starts the same.
+    #[test]
+    fn a_messages_written_id_is_read_from_its_header() {
+        assert_eq!(written_message_id(b"Subject: x\r\nMessage-ID: <a1@studio.example>\r\n\r\nbody"), "a1@studio.example");
+        assert_eq!(written_message_id(b"message-id:\r\n <b2@studio.example>\r\nTo: z\r\n\r\n"), "b2@studio.example");
+        assert_eq!(written_message_id(b"Message-IDs: <no@x>\r\nSubject: x\r\n\r\nMessage-ID: <quoted@x>\r\n"), "");
+        assert_eq!(written_message_id(b""), "");
+    }
 
     fn m(id: &str, refs: &[&str], irt: &str, subject: &str, date: i64) -> Summary {
         Summary {

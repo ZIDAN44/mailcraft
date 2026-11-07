@@ -49,18 +49,12 @@ impl MailApp {
         }
         self.ui.graphics_lost = true;
         log::error!("graphics: the window can't be drawn any more; keeping what's being written as drafts and closing");
-        let written: Vec<u64> = self.session.all_composes().filter(|c| self.session.written(c) && !c.sending).map(|c| c.id).collect();
-        let before = self.session.compose.as_ref().map(|c| c.id);
-        for id in written {
-            if self.use_compose(id)
-                && let Err(e) = self.session.run("compose.saveDraft", &serde_json::json!({}))
-            {
-                log::error!("graphics: a message being written couldn't be kept as a draft: {e}");
-            }
-        }
-        if let Some(id) = before {
-            self.use_compose(id);
-        }
+        // Kept as MailCraft keeps them closing (on this computer at once, a server account's in
+        // Drafts at the next connection): a save to a server could still be on its way as the
+        // app ends, and be lost (found in review).
+        let kept = self.session.keep_drafts();
+        log::info!("graphics: {kept} message(s) being written kept as drafts");
+        self.flush_jobs();
         self.ui.dialog = None;
         self.ui.closing_anyway = true;
         self.ui.close_now = true;
@@ -116,6 +110,15 @@ impl MailApp {
             } else if self.ui.restart_wanted {
                 // Restart now, and nothing stopped the close: the new version opens once installed.
                 self.services.restart_to_update();
+            }
+            if !asked {
+                // Closing, however it was decided (nothing to ask, Don't save, Close anyway, the
+                // graphics lost): the messages held while their drafts were on the way to the
+                // server were chosen to be kept, and the save may never finish (#53). On this
+                // computer now, with the pool, as a minimized window draws no frame to send them.
+                if self.session.keep_held() > 0 {
+                    self.flush_jobs();
+                }
             }
         }
     }

@@ -17,6 +17,27 @@ use crate::{Dialog, MailApp, NullBackend, NullServices};
 
 const NOW: i64 = 1_791_979_200;
 
+/// A backend that keeps the jobs it's given (the tests look at them).
+#[derive(Clone, Default)]
+struct Jobs(std::sync::Arc<std::sync::Mutex<Vec<mailcraft_engine::model::Job>>>);
+
+impl Jobs {
+    fn take(&self) -> Vec<mailcraft_engine::model::Job> {
+        self.0.lock().map(|mut j| std::mem::take(&mut *j)).unwrap_or_default()
+    }
+}
+
+impl crate::Backend for Jobs {
+    fn submit(&mut self, job: mailcraft_engine::model::Job) {
+        if let Ok(mut j) = self.0.lock() {
+            j.push(job);
+        }
+    }
+    fn poll(&mut self) -> Vec<MailEvent> {
+        Vec::new()
+    }
+}
+
 fn app(name: &str) -> (MailApp, std::path::PathBuf) {
     let dir = std::env::temp_dir().join(format!("mailcraft-ui-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

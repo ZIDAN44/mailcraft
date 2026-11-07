@@ -34,7 +34,7 @@ impl From<NetError> for mailcraft_jmap::Error {
             NetError::Io(e) => E::Io(e.to_string()),
             NetError::Tls(m) => E::Tls(m),
             NetError::Protocol(m) => E::Protocol(m),
-            NetError::No(m) | NetError::Refused(m) => E::No(m),
+            NetError::No(m) | NetError::NoFolder(m) | NetError::Refused(m) => E::No(m),
             NetError::Bad(m) => E::Bad(m),
             NetError::Auth(m) => E::Auth(m),
             NetError::Closed(m) => E::Closed(m),
@@ -98,7 +98,13 @@ pub fn list_folders(c: &Client, st: &mut State, account: &str) -> Result<Vec<Fol
 
 /// Bring one folder's cache up to date.
 pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions) -> Result<SyncReport> {
-    Ok(block_on(mailcraft_jmap::sync_folder(&c.0, st, store, account, folder, opts))?)
+    sync_folder_as(c, st, store, account, folder, opts, store.removals(account))
+}
+
+/// [`sync_folder`] for a worker that started when its account had been removed `seen` times: a
+/// removal since, while the sync talks to the server, has it write nothing of the account again.
+pub fn sync_folder_as(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions, seen: u64) -> Result<SyncReport> {
+    Ok(block_on(mailcraft_jmap::sync_folder_as(&c.0, st, store, account, folder, opts, seen))?)
 }
 
 /// What the server finds in a folder for a search (issue #4), brought into its list.

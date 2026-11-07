@@ -5,7 +5,10 @@ use mailcraft_store::search;
 
 use super::*;
 
+mod drafts;
+mod filed_once;
 mod index_bench;
+mod removed;
 
 /// Sent Items asked for after each of several messages is read once.
 #[test]
@@ -151,9 +154,9 @@ fn pool_without_password_asks_for_one() {
 #[test]
 fn a_draft_kept_offline_doesnt_write_over_a_list_that_cant_be_read() {
     let store = Store::failing();
-    keep_draft(&store, "a1", "Drafts", None, b"Subject: first\r\n\r\nOne\r\n".to_vec()).unwrap();
+    keep_draft(&store, "a1", "Drafts", None, b"Subject: first\r\n\r\nOne\r\n".to_vec(), false, &Order::default()).unwrap();
     store.fail(Some(PENDING_DRAFTS), None);
-    assert!(keep_draft(&store, "a1", "Drafts", None, b"Subject: second\r\n\r\nTwo\r\n".to_vec()).is_err());
+    assert!(keep_draft(&store, "a1", "Drafts", None, b"Subject: second\r\n\r\nTwo\r\n".to_vec(), false, &Order::default()).is_err());
     store.fail(None, None);
     let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap();
     assert_eq!(kept.iter().map(|d| d.raw.clone()).collect::<Vec<_>>(), [b"Subject: first\r\n\r\nOne\r\n".to_vec()]);

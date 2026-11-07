@@ -273,6 +273,70 @@ fn closing_with_messages_written_asks_and_keeps_them() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A message closed with its draft saved is held, out of sight, while a server's save is on its
+/// way (#53). MailCraft closing meanwhile keeps it on this computer, however it closes: with no
+/// message open and nothing to ask, and through Don't save, which lets go of the one still open
+/// only (found in review: the held ones were dropped with the pool's queue).
+#[test]
+fn closing_keeps_the_drafts_on_their_way_to_a_server() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-ui-held-drafts-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut s = Session::open(Some(Store::open(&dir).unwrap()), Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "ana@studio.test", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let jobs = Jobs::default();
+    let mut a = MailApp::new(s, Box::new(jobs.clone()), Box::new(NullServices(NOW)));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let write = |a: &mut MailApp, subject: &str| {
+        a.run("mail.new", json!({}));
+        a.run("compose.update", json!({"account": id, "to": "ben@studio.test", "subject": subject}));
+    };
+    let close = || RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
+            .collect(),
+        ..Default::default()
+    };
+    let kept = |jobs: &Jobs| -> Vec<String> {
+        jobs.take()
+            .into_iter()
+            .filter_map(|j| match j {
+                mailcraft_engine::model::Job::KeepDraft { raw, .. } => Some(String::from_utf8_lossy(&raw).into_owned()),
+                _ => None,
+            })
+            .collect()
+    };
+
+    write(&mut a, "On its way");
+    a.run("compose.close", json!({}));
+    assert!(a.session.compose.is_none() && a.session.saving.len() == 1, "held");
+    frame(&ctx, &mut a, vec![]);
+    jobs.take();
+    let mut out = ctx.run_ui(close(), |ui| a.ui(ui));
+    out.textures_delta.clear();
+    assert!(a.ui.dialog.is_none(), "nothing to ask");
+    assert!(a.session.saving.is_empty());
+    let raws = kept(&jobs);
+    assert!(raws.len() == 1 && raws[0].contains("Subject: On its way"), "kept on this computer: {raws:?}");
+
+    // Don't save: the message open goes, the one held is kept.
+    write(&mut a, "Held too");
+    a.run("compose.close", json!({}));
+    write(&mut a, "Not wanted");
+    frame(&ctx, &mut a, vec![]);
+    jobs.take();
+    let mut out = ctx.run_ui(close(), |ui| a.ui(ui));
+    out.textures_delta.clear();
+    assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))), "asked about the one open");
+    a.act(crate::Action::CloseAnyway);
+    frame(&ctx, &mut a, vec![]);
+    let mut out = ctx.run_ui(close(), |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let raws = kept(&jobs);
+    assert!(raws.len() == 1 && raws[0].contains("Subject: Held too"), "only the held one: {raws:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Closing while a message is still being sent asks first: it isn't in the Outbox yet, and was
 /// lost (found testing issue #19).
 #[test]
