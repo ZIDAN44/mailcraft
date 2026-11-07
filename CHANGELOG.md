@@ -12,6 +12,9 @@ on GitHub.
 
 *Accounts removed mid-import stay apart from new ones.*
 
+### Added
+- Drafts shows how many drafts it holds, in brackets (`Drafts [2]`), and a message whose reply was begun and left in Drafts is marked with a red **[Draft]** before its sender in the list, as in Outlook (#52). A forward left in Drafts doesn't mark its message yet.
+
 ### Fixed
 - Removing an account while its `.pst` import was still writing could leave a new account added with the same id writing into the removed account's kept data file. The two now never share a file.
 - Sending greets the server with this computer's own address (`EHLO [192.168.1.20]`, as Thunderbird does) instead of `[127.0.0.1]`, which some providers' spam filters took as a reason to drop the message after accepting it (#50).

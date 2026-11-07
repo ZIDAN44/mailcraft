@@ -412,6 +412,40 @@ fn a_message_is_held_until_its_draft_is_kept() {
     done(s);
 }
 
+/// Issue #52: a message whose reply was left in Drafts is known to have one (the list marks it
+/// `[Draft]`, as Outlook does), from MailCraft's start on and once the draft is saved; one opened
+/// and left empty isn't kept, so isn't marked; the draft deleted, the mark goes.
+#[test]
+fn a_message_answered_by_a_draft_is_known() {
+    let mut s = sample_session("drafts-answer");
+    let m = s.list[0].clone();
+    let answered = |s: &Session| s.answered_by_drafts().contains(&("sample".to_string(), mailcraft_model::thread::norm_id(&m.message_id)));
+    // A reply opened and closed with nothing written: no draft, no mark.
+    s.run("list.open", &json!({"key": m.key.to_id()})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    assert!(!answered(&s));
+    // Written, and kept in Drafts.
+    s.run("mail.reply", &json!({})).unwrap();
+    let body = format!("Soon.{}", s.compose.as_ref().unwrap().body);
+    s.run("compose.update", &json!({"body": body})).unwrap();
+    let subject = s.compose.as_ref().map(|c| c.subject.clone()).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    assert!(answered(&s), "a reply in Drafts");
+    // Known from the start, Drafts never opened.
+    let store = s.store.clone().unwrap();
+    drop(s);
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert!(answered(&s), "read from Drafts as MailCraft starts");
+    assert!(std::sync::Arc::ptr_eq(&s.answered_by_drafts(), &s.answered_by_drafts()), "asked again, Drafts the same: as found");
+    // The draft deleted: no more.
+    let key = draft_key(&mut s, &subject);
+    s.run("list.select", &json!({"key": key.to_id()})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    assert!(!answered(&s), "the draft deleted");
+    done(s);
+}
+
 /// How many drafts are in Drafts.
 fn draft_key_count(s: &mut Session) -> usize {
     s.run("folder.open", &json!({"account": "sample", "folder": "Drafts"})).unwrap();

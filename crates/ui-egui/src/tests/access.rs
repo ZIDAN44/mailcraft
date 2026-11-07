@@ -198,3 +198,33 @@ fn esc_leaves_a_file_page_field_before_the_page() {
     assert!(a.ui.backstage.is_none(), "the next Esc leaves the File page");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #52: a message whose reply was left in Drafts is read as "[Draft]" first, as the list
+/// draws it, and Drafts says how many items it holds (never as unread).
+#[test]
+fn a_reply_left_in_drafts_is_said() {
+    let (mut a, dir) = app("access-drafts");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let labels = |a: &mut MailApp| {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
+        tree.nodes.iter().filter_map(|(_, n)| n.label().map(str::to_string)).collect::<Vec<_>>()
+    };
+    let m = a.session.list[0].clone();
+    a.run("list.open", json!({"key": m.key.to_id()}));
+    a.run("mail.reply", json!({}));
+    let body = format!("Soon.{}", a.session.compose.as_ref().unwrap().body);
+    a.run("compose.update", json!({"body": body}));
+    a.run("compose.close", json!({}));
+    for _ in 0..2 {
+        labels(&mut a);
+    }
+    let seen = labels(&mut a);
+    let subject = if m.subject.is_empty() { "(no subject)".to_string() } else { m.subject.clone() };
+    assert!(seen.iter().any(|l| l.starts_with("[Draft], ") && l.contains(&subject)), "{seen:?}");
+    assert!(seen.iter().any(|l| l.starts_with("Drafts, Items: ")), "{seen:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}

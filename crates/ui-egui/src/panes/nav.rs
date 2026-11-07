@@ -69,6 +69,14 @@ fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
     resp.clicked()
 }
 
+/// What a folder row counts: its unread mail, bold in the accent colour, or (Drafts) the items
+/// it holds, in brackets so they don't read as unread, as Outlook shows Drafts (issue #52).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Count {
+    Unread(u32),
+    Items(u32),
+}
+
 /// One row (its label as shown, translated); returns its response.
 #[allow(clippy::too_many_arguments)]
 fn row(
@@ -76,16 +84,21 @@ fn row(
     t: &Tokens,
     icon: Icon,
     label: &str,
-    unread: u32,
+    count: Count,
     depth: usize,
     selected: bool,
     drop_ok: bool,
     draggable: bool,
 ) -> egui::Response {
     let h = 30.0;
+    let unread = if let Count::Unread(n) = count { n } else { 0 };
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
     // To a screen reader, a folder is one choice among the folders: its name, and its unread count.
-    let spoken = if unread > 0 { format!("{label}, {}", tf!("Unread: {n}", n = unread)) } else { label.to_string() };
+    let spoken = match count {
+        Count::Unread(n) if n > 0 => format!("{label}, {}", tf!("Unread: {n}", n = n)),
+        Count::Items(n) if n > 0 => format!("{label}, {}", tf!("Items: {n}", n = n)),
+        _ => label.to_string(),
+    };
     resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, ui.is_enabled(), selected, &spoken));
     let hovering_drop = drop_ok && (resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some());
     let ctx = ui.ctx().clone();
@@ -104,21 +117,21 @@ fn row(
     let ir = m.rect(egui::Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
     let font = if unread > 0 || selected { theme::bold(13.5) } else { theme::regular(13.5) };
-    let text_right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
+    let counted = matches!(count, Count::Unread(n) | Count::Items(n) if n > 0);
+    let text_right = rect.max.x - if counted { 40.0 } else { 8.0 };
     // One line, cut to "…" in a narrow pane (it wrapped, two or three lines in a row of one), the
     // whole name on hover.
     let galley = crate::widgets::one_line(ui, label, font, t.text, text_right - x - 24.0);
     let resp = if galley.elided { resp.on_hover_text(label) } else { resp };
     let gy = rect.center().y - galley.size().y / 2.0;
     ui.painter().galley(egui::pos2(m.start(x + 24.0, galley.size().x), gy), galley, t.text);
-    if unread > 0 {
-        ui.painter().text(
-            m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)),
-            m.align(egui::Align2::RIGHT_CENTER),
-            unread.to_string(),
-            theme::bold(12.5),
-            t.accent,
-        );
+    let shown = match count {
+        Count::Unread(n) if n > 0 => Some((n.to_string(), theme::bold(12.5), t.accent)),
+        Count::Items(n) if n > 0 => Some((format!("[{n}]"), theme::regular(12.5), t.dim)),
+        _ => None,
+    };
+    if let Some((text, font, color)) = shown {
+        ui.painter().text(m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)), m.align(egui::Align2::RIGHT_CENTER), text, font, color);
     }
     resp
 }
@@ -134,11 +147,11 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if favorites_open && s.accounts.len() > 1 {
             let unread: u32 = s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum();
             let sel = s.view == View::Unified { role: FolderRole::Inbox } && s.search.is_none();
-            if row(ui, t, Icon::Inbox, tl!("All Inboxes"), unread, 0, sel, false, false).clicked() {
+            if row(ui, t, Icon::Inbox, tl!("All Inboxes"), Count::Unread(unread), 0, sel, false, false).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "inbox"})));
             }
             let sel = s.view == View::Unified { role: FolderRole::Sent } && s.search.is_none();
-            if row(ui, t, Icon::Sent, tl!("All Sent"), 0, 0, sel, false, false).clicked() {
+            if row(ui, t, Icon::Sent, tl!("All Sent"), Count::Unread(0), 0, sel, false, false).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "sent"})));
             }
         }
@@ -150,7 +163,10 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if !s.outbox.is_empty() {
             let sel = s.view == View::Outbox && s.search.is_none();
             let n = u32::try_from(s.outbox.len()).unwrap_or(u32::MAX);
-            if row(ui, t, Icon::Outbox, tl!("Outbox"), n, 0, sel, false, false).on_hover_text(tl!("Messages waiting to be sent")).clicked() {
+            if row(ui, t, Icon::Outbox, tl!("Outbox"), Count::Unread(n), 0, sel, false, false)
+                .on_hover_text(tl!("Messages waiting to be sent"))
+                .clicked()
+            {
                 acts.push(Action::Run("folder.outbox", json!({})));
             }
         }
@@ -300,7 +316,7 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
         return;
     }
     if s.prefs.search_folders.is_empty() {
-        if row(ui, t, Icon::Plus, tl!("New Search Folder…"), 0, 0, false, false, false).clicked() {
+        if row(ui, t, Icon::Plus, tl!("New Search Folder…"), Count::Unread(0), 0, false, false, false).clicked() {
             acts.push(Action::Dialog(Dialog::SearchFolder(Box::new(crate::dialogs::SearchFolderForm::new()))));
         }
         return;
@@ -308,7 +324,7 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
     let showing = s.open_search_folder_name();
     for f in &s.prefs.search_folders {
         let selected = showing == Some(f.name.as_str());
-        let r = row(ui, t, Icon::Search, &f.name, 0, 0, selected, false, false).on_hover_text(&f.query);
+        let r = row(ui, t, Icon::Search, &f.name, Count::Unread(0), 0, selected, false, false).on_hover_text(&f.query);
         if r.clicked() {
             acts.push(Action::Run("searchFolder.open", json!({"name": f.name})));
         }
@@ -515,7 +531,9 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     // Unread counts matter for mail you receive, not for Sent or Drafts.
     let unread = if matches!(f.look(), FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Archive) { 0 } else { f.unread };
     let user_folder = !f.is_fixed();
-    let resp = row(ui, t, role_icon(f.look()), &name, unread, depth, selected, f.selectable, user_folder && !favorite);
+    // Drafts says how many it holds, as Outlook's (a saved draft is never unread).
+    let count = if f.look() == FolderRole::Drafts { Count::Items(f.total) } else { Count::Unread(unread) };
+    let resp = row(ui, t, role_icon(f.look()), &name, count, depth, selected, f.selectable, user_folder && !favorite);
     if let Some(collapsed) = collapse {
         let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
         let m = crate::bidi::Mirror::new(resp.rect);

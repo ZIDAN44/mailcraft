@@ -302,6 +302,9 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
             let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
             ui.scroll_to_rect(r, None);
         }
+        // The messages a reply was begun to and left in Drafts: marked [Draft], as Outlook marks
+        // them (issue #52); not in Sent or Drafts, whose rows are the replies themselves.
+        let drafted = if sent_view { Default::default() } else { s.answered_by_drafts() };
         let first = tops.partition_point(|&top| top + mh < viewport.min.y);
         for (i, row) in rows.iter().enumerate().skip(first) {
             let top = tops.get(i).copied().unwrap_or(0.0);
@@ -335,7 +338,8 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
-                    message_row(s, &t, ui, r, m, *count, *unread, sent_view, acts);
+                    let drafting = drafted.contains(&(m.key.account.clone(), mailcraft_engine::model::thread::norm_id(&m.message_id)));
+                    message_row(s, &t, ui, r, m, *count, *unread, sent_view, drafting, acts);
                 }
             }
         }
@@ -418,6 +422,7 @@ fn message_row(
     count: usize,
     unread_in_thread: usize,
     sent_view: bool,
+    drafting: bool,
     acts: &mut Vec<Action>,
 ) {
     let id = ui.make_persistent_id(("row", &m.key));
@@ -438,6 +443,9 @@ fn message_row(
         }
         let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
         let mut spoken = vec![who, subject.to_string(), crate::i18n::date(&dates::list_time(m.when(), &s.clock))];
+        if drafting {
+            spoken.insert(0, tl!("[Draft]").to_string());
+        }
         for (on, word) in [
             (marks.warning, "Check who sent it"),
             (marks.external, "External"),
@@ -507,6 +515,13 @@ fn message_row(
         let ir = mr.rect(Rect::from_min_size(egui::pos2(who_x, line1 + 1.0), vec2(15.0, 15.0)));
         icons::paint(&p, ir, Icon::Warning, t.danger);
         who_x += 19.0;
+    }
+    // A reply begun and left in Drafts: [Draft] before the name, in red, as Outlook writes it.
+    if drafting {
+        let dg = p.layout_no_wrap(tl!("[Draft]").to_string(), if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.danger);
+        let dw = dg.size().x;
+        p.galley(egui::pos2(mr.start(who_x, dw), line1), dg, t.danger);
+        who_x += dw + 6.0;
     }
     let who = if sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
     let who = if count > 1 && !marks.address { format!("{who}  ({count})") } else { who };

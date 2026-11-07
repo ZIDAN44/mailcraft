@@ -209,7 +209,7 @@ impl Session {
         let mut i = 0;
         while total > self.cache_limit && i < self.cache_order.len() {
             let k = self.cache_order.get(i).cloned().unwrap_or_default();
-            if k == *keep || shown.contains(&k) || self.search_state.pinned.contains(&k) {
+            if k == *keep || shown.contains(&k) || self.search_state.pinned.contains(&k) || self.is_drafts(&k) {
                 i += 1;
                 continue;
             }

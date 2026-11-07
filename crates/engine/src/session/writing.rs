@@ -4,12 +4,14 @@ use mailcraft_model::lookalike;
 
 use super::*;
 
+mod drafts;
 mod keeping;
 mod quote;
 mod reactions;
 mod reopen;
 mod sending;
 mod signatures;
+pub(crate) use drafts::Answered;
 pub use quote::Quote;
 pub use reactions::Reactions;
 pub use sending::SendBlock;

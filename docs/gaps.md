@@ -90,6 +90,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   Message-ID stays. It removes it only where it can remove exactly that message (UIDPLUS's
   `UID EXPUNGE`): a plain `EXPUNGE` removes whatever else is marked deleted in the folder.
 
+### 8. [Draft] on messages whose forward was left in Drafts
+
+- **Impact:** A message whose reply is left in Drafts is marked **[Draft]** in the list, as in
+  Outlook; one whose forward is left there isn't.
+- **Workaround:** Look in Drafts.
+- **Cause:** A reply names the message it answers (In-Reply-To), which the list's summaries keep;
+  a forward names it only in the draft's own `X-MailCraft-Source` header, which they don't. The
+  summaries would keep it for drafts, read as Drafts is synced.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

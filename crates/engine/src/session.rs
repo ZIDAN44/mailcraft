@@ -303,6 +303,8 @@ pub struct Session {
     /// held here, out of sight, until the server or this computer has kept the draft
     /// ([`Event::DraftSaved`]), and given back to be written if neither could.
     pub saving: Vec<Compose>,
+    /// The messages a draft answers, as last found ([`Session::answered_by_drafts`]).
+    pub(crate) answered: writing::Answered,
     pub prefs: Prefs,
     pub clock: Clock,
     pub notices: Vec<Notice>,
@@ -469,6 +471,7 @@ impl Session {
             compose: None,
             composes: Vec::new(),
             saving: Vec::new(),
+            answered: writing::Answered::default(),
             prefs: Prefs::default(),
             clock,
             notices: Vec::new(),
@@ -565,6 +568,7 @@ impl Session {
         s.load_accounts();
         for id in s.accounts.iter().map(|a| a.config.id.clone()).collect::<Vec<_>>() {
             s.mark_junk(&id);
+            s.read_drafts(&id);
         }
         s.refresh_outbox();
         s.load_pim();

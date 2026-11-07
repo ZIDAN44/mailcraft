@@ -93,6 +93,8 @@ impl Session {
                     self.refresh_list();
                 }
                 self.mark_junk(&account);
+                // Its drafts say which messages have a reply begun (#52).
+                self.read_drafts(&account);
                 self.search_folders_changed(&account);
                 self.want_index(&account, None);
             }
