@@ -10,9 +10,10 @@ on GitHub.
 
 ## 0.34.0
 
-*Accounts removed mid-import stay apart from new ones.*
+*One coloured title bar on Windows, dates written your way, and drafts never lost on their way to the server.*
 
 ### Added
+- On Windows, MailCraft's top bar is the window's title bar, in its colour, as Outlook's is: its mark, the tabs and the search box share the top of the window with the window's own buttons, the bar's free space moves the window (a double-click maximizes it, and it snaps to the screen's edges), and the window resizes from its edges. **File › Options › Use the system title bar** brings the system's back, from the next start (#22).
 - Drafts shows how many drafts it holds, in brackets (`Drafts [2]`), and a message whose reply was begun and left in Drafts is marked with a red **[Draft]** before its sender in the list, as in Outlook (#52). A forward left in Drafts doesn't mark its message yet.
 - **File › Options › General** chooses how dates are written (2026-10-28, 28/10/2026, 10/28/2026 or 28.10.2026), a 24-hour or 12-hour clock (`1:53 PM`), and whether the message list gives every message its whole date and time instead of the time today and the day this week (#46).
 

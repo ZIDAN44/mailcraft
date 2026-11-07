@@ -1243,6 +1243,11 @@ month	May	مايو
 	Only letters, digits, spaces and punctuation, up to 256 characters.	أحرف وأرقام ومسافات وعلامات ترقيم فقط، حتى 256 حرفًا.
 	Orange	برتقالي
 	Plain top bar	شريط علوي بسيط
+	Minimize	تصغير
+	Maximize	تكبير
+	Restore	استعادة
+	Use the system title bar	استخدام شريط عنوان النظام
+	Applies when MailCraft starts again	يُطبَّق عند تشغيل MailCraft مرة أخرى
 	Red	أحمر
 	Refresh: search the directory again and read the address books from the server	تحديث: البحث في الدليل مجددًا وإعادة قراءة دفاتر العناوين من الخادم
 	Rose	وردي

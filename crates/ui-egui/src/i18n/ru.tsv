@@ -1247,6 +1247,11 @@ month	May	Май
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Только буквы, цифры, пробелы и знаки препинания, не более 256 символов.
 	Orange	Оранжевый
 	Plain top bar	Простая верхняя панель
+	Minimize	Свернуть
+	Maximize	Развернуть
+	Restore	Восстановить
+	Use the system title bar	Использовать системную строку заголовка
+	Applies when MailCraft starts again	Применяется при следующем запуске MailCraft
 	Red	Красный
 	Refresh: search the directory again and read the address books from the server	Обновить: снова выполнить поиск в каталоге и заново загрузить адресные книги с сервера
 	Rose	Розовый

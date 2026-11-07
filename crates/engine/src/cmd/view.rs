@@ -53,6 +53,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"order": style.order.code(), "hours12": style.hours12, "fullInList": style.full_in_list}))
         })
         .params(r#"{"order"?: "iso"|"dmy"|"mdy"|"dmy." (2026-10-28, 28/10/2026, 10/28/2026, 28.10.2026), "hours12"?: bool, "fullInList"?: bool}"#),
+        CommandSpec::new("view.systemTitleBar", "Use the system title bar", "File › Options › General", |s, v| {
+            s.prefs.system_title_bar = p::bool(v, "on").unwrap_or(!s.prefs.system_title_bar);
+            Ok(json!({"on": s.prefs.system_title_bar, "atNextStart": true}))
+        })
+        .params(r#"{"on"?: bool} (Windows; when MailCraft starts again)"#),
         CommandSpec::new("view.arrange", "Arrange by", "View › Arrangement", |s, v| {
             let by = p::req_str(v, "by")?;
             s.prefs.arrange =

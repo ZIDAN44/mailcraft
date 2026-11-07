@@ -1248,6 +1248,11 @@ month	May	Mai
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Nur Buchstaben, Ziffern, Leerzeichen und Satzzeichen, höchstens 256 Zeichen.
 	Orange	Orange
 	Plain top bar	Schlichte obere Leiste
+	Minimize	Minimieren
+	Maximize	Maximieren
+	Restore	Wiederherstellen
+	Use the system title bar	Titelleiste des Systems verwenden
+	Applies when MailCraft starts again	Gilt ab dem nächsten Start von MailCraft
 	Red	Rot
 	Refresh: search the directory again and read the address books from the server	Aktualisieren: das Verzeichnis erneut durchsuchen und die Adressbücher neu vom Server lesen
 	Rose	Rosé

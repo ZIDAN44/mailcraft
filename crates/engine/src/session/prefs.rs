@@ -83,6 +83,9 @@ pub struct Prefs {
     /// The top bar in plain pane colours instead of the accent colour (issue #8, as Office's
     /// white theme).
     pub plain_top_bar: bool,
+    /// Windows: the system's title bar above MailCraft's top bar, instead of the top bar being the
+    /// title bar (issue #22). Read as MailCraft starts.
+    pub system_title_bar: bool,
     /// How dates and times are written: the order of a date's parts, the clock, and whether the
     /// list gives every message its whole date and time (issue #46).
     pub date_style: mailcraft_model::dates::DateStyle,
@@ -274,6 +277,7 @@ impl Default for Prefs {
             classic_ribbon: false,
             accent: String::new(),
             plain_top_bar: false,
+            system_title_bar: false,
             date_style: mailcraft_model::dates::DateStyle::default(),
             confirm_permanent_delete: true,
             favorites: None,

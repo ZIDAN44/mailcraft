@@ -300,3 +300,255 @@ fn windows_of_their_own_carry_the_app_id() {
     walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut found);
     assert!(found.is_empty(), "windows built without MailCraft's app id: {found:?}");
 }
+
+/// Services saying the window has no system title bar (Windows, issue #22).
+struct OwnTitleBar;
+
+impl crate::Services for OwnTitleBar {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Err("not available".into())
+    }
+    fn own_title_bar(&self) -> bool {
+        true
+    }
+}
+
+/// Issue #22: on Windows the top bar is the window's title bar, in MailCraft's colour as
+/// Outlook's is: the window's buttons at its end (named for a screen reader, clear of the bar's
+/// own controls), its free space dragging the window and a double-click maximizing it, the
+/// window's edges resizing it, and the File page keeping the bar. Without it, none of that.
+#[test]
+fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
+    let (a, dir) = app("own-title-bar");
+    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar));
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 800.0);
+    // Frames a 60th of a second apart, a pause where the steps want one.
+    let time = std::cell::Cell::new(0.0f64);
+    let run = |a: &mut MailApp, events: Vec<Event>| {
+        time.set(time.get() + 1.0 / 60.0);
+        let input =
+            RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, time: Some(time.get()), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        out
+    };
+    let named = |out: &egui::FullOutput| -> Vec<(String, egui::Rect)> {
+        let tree = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
+        tree.nodes
+            .iter()
+            .filter_map(|(_, n)| {
+                let b = n.bounds()?;
+                Some((n.label()?.to_string(), egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32))))
+            })
+            .collect()
+    };
+    let sent = |out: &egui::FullOutput| out.viewport_output.values().flat_map(|v| v.commands.clone()).collect::<Vec<_>>();
+    let click = |at: egui::Pos2| {
+        vec![
+            Event::PointerMoved(at),
+            Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+            Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE },
+        ]
+    };
+    for _ in 0..3 {
+        run(&mut a, vec![]);
+    }
+    let out = run(&mut a, vec![]);
+    let seen = named(&out);
+    let at = |label: &str| seen.iter().find(|(l, _)| l == label).map(|(_, r)| *r).unwrap_or_else(|| panic!("{label}: {seen:?}"));
+    let (min, max, close) = (at("Minimize"), at("Maximize"), at("Close"));
+    assert!((close.right() - size.x).abs() < 1.0 && close.top() <= 0.5, "flush with the window's corner: {close:?}");
+    assert!(min.right() <= max.left() + 0.5 && max.right() <= close.left() + 0.5);
+    let settings = at("Accounts and settings");
+    assert!(settings.right() <= min.left(), "the bar's controls keep clear of the window's buttons: {settings:?} {min:?}");
+    // Each button does what the system's does.
+    for (r, what) in [(close, "close"), (max, "maximize"), (min, "minimize")] {
+        let out = run(&mut a, click(r.center()));
+        let cmds = sent(&out);
+        let done = match what {
+            "close" => cmds.iter().any(|c| matches!(c, egui::ViewportCommand::Close)),
+            "maximize" => cmds.iter().any(|c| matches!(c, egui::ViewportCommand::Maximized(true))),
+            _ => cmds.iter().any(|c| matches!(c, egui::ViewportCommand::Minimized(true))),
+        };
+        assert!(done, "{what}: {cmds:?}");
+        run(&mut a, vec![]);
+    }
+    // The bar's free space, between the search box and the controls: a double-click maximizes,
+    // a press and a move drags the window.
+    // Between the search box and the bar's own controls at its end (Undo's room, kept while
+    // there's nothing to undo).
+    let free = egui::pos2(at("Send / Receive all folders (F9)").left() - 20.0, 20.0);
+    assert!(at("Advanced search").right() < free.x, "past the search box");
+    time.set(time.get() + 1.0);
+    run(&mut a, click(free));
+    let out = run(&mut a, click(free));
+    assert!(sent(&out).iter().any(|c| matches!(c, egui::ViewportCommand::Maximized(true))), "{:?}", sent(&out));
+    run(&mut a, vec![]);
+    let press = vec![
+        Event::PointerMoved(free),
+        Event::PointerButton { pos: free, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ];
+    run(&mut a, press);
+    let out = run(&mut a, vec![Event::PointerMoved(free + egui::vec2(40.0, 30.0))]);
+    assert!(sent(&out).iter().any(|c| matches!(c, egui::ViewportCommand::StartDrag)), "{:?}", sent(&out));
+    run(&mut a, vec![Event::PointerButton { pos: free, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
+    // The window's left edge resizes it, from the press (a zone that only drags).
+    let edge = egui::pos2(2.0, 400.0);
+    let down = Event::PointerButton { pos: edge, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE };
+    let out = run(&mut a, vec![Event::PointerMoved(edge), down]);
+    assert!(sent(&out).iter().any(|c| matches!(c, egui::ViewportCommand::BeginResize(egui::ResizeDirection::West))), "{:?}", sent(&out));
+    run(&mut a, vec![Event::PointerButton { pos: edge, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
+    // A dialog holding the window (the question as MailCraft closes, Add account): the bar under
+    // it takes no click, so its drag and buttons are laid again above it (found in review).
+    a.ui.dialog = Some(Dialog::SaveOnClose(1));
+    for _ in 0..3 {
+        run(&mut a, vec![]);
+    }
+    time.set(time.get() + 1.0);
+    let out = run(&mut a, click(close.center()));
+    assert!(sent(&out).iter().any(|c| matches!(c, egui::ViewportCommand::Close)), "closed over the dialog: {:?}", sent(&out));
+    run(&mut a, vec![]);
+    let press = vec![
+        Event::PointerMoved(free),
+        Event::PointerButton { pos: free, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ];
+    run(&mut a, press);
+    let out = run(&mut a, vec![Event::PointerMoved(free + egui::vec2(40.0, 30.0))]);
+    assert!(sent(&out).iter().any(|c| matches!(c, egui::ViewportCommand::StartDrag)), "dragged over the dialog: {:?}", sent(&out));
+    run(&mut a, vec![Event::PointerButton { pos: free, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
+    assert!(a.ui.dialog.is_some(), "the dialog stays");
+    // One Minimize, Maximize and Close to a screen reader: the dimmed ones under the dialog aren't
+    // named (found in review: two of each).
+    let out = run(&mut a, vec![]);
+    for name in ["Minimize", "Maximize", "Close"] {
+        assert_eq!(named(&out).iter().filter(|(l, _)| l == name).count(), 1, "{name}");
+    }
+    // Not in the Tab order, as a system title bar isn't: Tab goes round the dialog's buttons and
+    // never reaches the bar's, where Enter would have minimized or closed the window.
+    for _ in 0..8 {
+        let out = run(&mut a, vec![key(Key::Tab, Modifiers::NONE)]);
+        let tree = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
+        let focus = tree.nodes.iter().find(|(id, _)| *id == tree.focus).and_then(|(_, n)| n.label().map(str::to_string));
+        assert!(!matches!(focus.as_deref(), Some("Minimize" | "Maximize" | "Restore" | "Close")), "focus on {focus:?}");
+        assert!(sent(&out).iter().all(|c| !matches!(c, egui::ViewportCommand::Minimized(_) | egui::ViewportCommand::Close)));
+    }
+    // A double-click on a tab with the dialog open: the bar's free space drags and maximizes, its
+    // tabs don't (PhotoCraft's gap).
+    let home = at("Home").center();
+    time.set(time.get() + 1.0);
+    a.ui.dialog = Some(Dialog::SaveOnClose(1));
+    run(&mut a, vec![]);
+    run(&mut a, click(home));
+    let out = run(&mut a, click(home));
+    assert!(!sent(&out).iter().any(|c| matches!(c, egui::ViewportCommand::Maximized(_))), "{:?}", sent(&out));
+    a.ui.dialog = None;
+    // The File page keeps the window's buttons.
+    a.run("ui.file", json!({}));
+    run(&mut a, vec![]);
+    let out = run(&mut a, vec![]);
+    assert!(named(&out).iter().any(|(l, _)| l == "Close"), "the File page's title bar");
+    // With the system's title bar, MailCraft draws none of it.
+    let (b, dir2) = app("system-title-bar");
+    let mut b = b;
+    for _ in 0..3 {
+        run(&mut b, vec![]);
+    }
+    let out = run(&mut b, vec![]);
+    assert!(!named(&out).iter().any(|(l, _)| l == "Minimize"));
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(dir2);
+}
+
+/// The title bar laid over a dialog stays off a dialog that reaches into the bar (a short window,
+/// a tall dialog): the dialog keeps its clicks there (PhotoCraft's
+/// `modal_drag_overlay_does_not_cover_a_dialog_moved_into_the_gap`). And in a right-to-left
+/// language the File page's mark stays clear of the window's buttons (found in review: it was
+/// drawn over Close).
+#[test]
+fn the_title_bar_keeps_off_a_dialog_in_it_and_its_buttons_off_the_mark() {
+    let (a, dir) = app("own-title-bar-short");
+    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar));
+    let ctx = egui::Context::default();
+    let time = std::cell::Cell::new(0.0f64);
+    let run = |a: &mut MailApp, size: egui::Vec2, events: Vec<Event>| {
+        time.set(time.get() + 1.0 / 60.0);
+        let input =
+            RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, time: Some(time.get()), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        out
+    };
+    let short = egui::vec2(1280.0, 150.0);
+    a.ui.dialog = Some(Dialog::SaveOnClose(1));
+    for _ in 0..4 {
+        run(&mut a, short, vec![]);
+    }
+    let modal = ctx.memory(|m| m.top_modal_layer()).and_then(|l| ctx.memory(|m| m.area_rect(l.id)));
+    assert!(modal.is_some_and(|r| r.top() < 40.0), "the dialog reaches into the bar: {modal:?}");
+    assert!(!crate::app::caption::laid_over_a_dialog(&ctx));
+    let close = egui::pos2(short.x - 23.0, 20.0);
+    let press = |down| Event::PointerButton { pos: close, button: egui::PointerButton::Primary, pressed: down, modifiers: Modifiers::NONE };
+    let out = run(&mut a, short, vec![Event::PointerMoved(close), press(true), press(false)]);
+    let cmds: Vec<_> = out.viewport_output.values().flat_map(|v| v.commands.clone()).collect();
+    assert!(!cmds.contains(&egui::ViewportCommand::Close), "{cmds:?}");
+    // Where the dialog itself is in the bar, clear of the bar's controls (the search box, which
+    // takes no drag anyway): a press and a move there don't drag the window, and a double-click
+    // doesn't maximize it; the dialog has them.
+    let (bar, _, controls) = crate::app::caption::noted_bar(&ctx).unwrap_or((egui::Rect::NOTHING, egui::Rect::NOTHING, Vec::new()));
+    let both = modal.unwrap_or(egui::Rect::NOTHING).intersect(bar);
+    let in_both = (0..40)
+        .flat_map(|x| (0..8).map(move |y| (x, y)))
+        .map(|(x, y)| egui::pos2(both.left() + 10.0 + x as f32 * 8.0, both.bottom() - 1.0 - y as f32 * 4.0))
+        .find(|p| both.contains(*p) && !controls.iter().any(|c| c.contains(*p)))
+        .unwrap_or_else(|| panic!("no free place on the dialog in the bar: {both:?}, {controls:?}"));
+    let at =
+        |p: egui::Pos2, down: bool| Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed: down, modifiers: Modifiers::NONE };
+    let mut cmds = Vec::new();
+    for events in [
+        vec![Event::PointerMoved(in_both), at(in_both, true)],
+        vec![Event::PointerMoved(in_both + egui::vec2(40.0, 10.0))],
+        vec![at(in_both + egui::vec2(40.0, 10.0), false)],
+        vec![Event::PointerMoved(in_both), at(in_both, true), at(in_both, false)],
+        vec![at(in_both, true), at(in_both, false)],
+    ] {
+        let out = run(&mut a, short, events);
+        cmds.extend(out.viewport_output.values().flat_map(|v| v.commands.clone()));
+    }
+    assert!(!cmds.iter().any(|c| matches!(c, egui::ViewportCommand::StartDrag | egui::ViewportCommand::Maximized(_))), "{cmds:?}");
+    a.ui.dialog = None;
+
+    // Right to left, the File page: its mark (a 20-point tile) at the bar's start, clear of the
+    // window's buttons at its end.
+    a.ui.language = "he".into();
+    a.run("ui.file", json!({}));
+    let size = egui::vec2(1280.0, 800.0);
+    let mut tiles = Vec::new();
+    for _ in 0..4 {
+        let out = run(&mut a, size, vec![]);
+        tiles = out
+            .shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Rect(r) if (r.rect.width() - 20.0).abs() < 0.5 && (r.rect.height() - 20.0).abs() < 0.5 && r.rect.top() < 40.0 => {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .collect();
+    }
+    assert!(!tiles.is_empty(), "the mark drawn");
+    assert!(tiles.iter().all(|r| r.right() <= size.x - crate::app::caption::CAPTIONS_W), "clear of the buttons: {tiles:?}");
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    let _ = std::fs::remove_dir_all(dir);
+}

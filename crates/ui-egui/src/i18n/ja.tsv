@@ -1244,6 +1244,11 @@ month	May	5月
 	Only letters, digits, spaces and punctuation, up to 256 characters.	英字、数字、スペース、句読点のみ、256 文字まで。
 	Orange	オレンジ
 	Plain top bar	シンプルな上部バー
+	Minimize	最小化
+	Maximize	最大化
+	Restore	元に戻す
+	Use the system title bar	システムのタイトル バーを使う
+	Applies when MailCraft starts again	MailCraft を次に起動したときに適用されます
 	Red	赤
 	Refresh: search the directory again and read the address books from the server	更新: ディレクトリをもう一度検索し、アドレス帳をサーバーから読み直します
 	Rose	ローズ

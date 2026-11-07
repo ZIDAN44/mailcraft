@@ -5,6 +5,7 @@ mod alt_code;
 mod bars;
 mod bodies;
 pub(crate) mod boot;
+pub(crate) mod caption;
 pub(crate) mod compacting;
 mod dropped;
 pub(crate) mod frame;

@@ -1244,6 +1244,11 @@ month	May	5月
 	Only letters, digits, spaces and punctuation, up to 256 characters.	只能包含字母、数字、空格和标点，最多 256 个字符。
 	Orange	橙色
 	Plain top bar	简洁顶部栏
+	Minimize	最小化
+	Maximize	最大化
+	Restore	还原
+	Use the system title bar	使用系统标题栏
+	Applies when MailCraft starts again	下次启动 MailCraft 时生效
 	Red	红色
 	Refresh: search the directory again and read the address books from the server	刷新：重新搜索目录，并从服务器重新读取通讯簿
 	Rose	玫红

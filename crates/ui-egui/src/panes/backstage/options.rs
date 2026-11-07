@@ -40,6 +40,12 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, false, tl!("Plain top bar"), Some(tl!("The top bar in the panes' colours instead of the accent colour")), &mut |ui| {
             switch(ui, s.prefs.plain_top_bar, tl!("Plain top bar"), "view.plainTopBar", acts);
         });
+        // Windows: the top bar is the window's title bar (issue #22), or the system's is kept.
+        if cfg!(windows) {
+            setting(ui, false, tl!("Use the system title bar"), Some(tl!("Applies when MailCraft starts again")), &mut |ui| {
+                switch(ui, s.prefs.system_title_bar, tl!("Use the system title bar"), "view.systemTitleBar", acts);
+            });
+        }
         // Issue #46: dates as the user writes them (each choice shown as today's date), and the
         // clock, as Windows' region settings offer them to Outlook.
         let style = s.prefs.date_style;

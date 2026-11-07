@@ -17,12 +17,47 @@ impl MailApp {
     /// mode and settings (issue #22). One row, where the app's name (the window's title already
     /// says it) and the bar's controls had a row of their own above the tabs. A window too narrow
     /// for the box beside the tabs has it on a row of its own under them.
+    ///
+    /// On Windows it is also the window's title bar ([`Services::own_title_bar`]): its free space
+    /// drags the window, MailCraft's mark is at its start and the window's buttons at its end.
     pub(crate) fn top_bar(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
-        let full = ui.max_rect();
+        let own = self.services.own_title_bar();
+        let inner = ui.max_rect();
+        if own {
+            // The panel's whole rect, its margins too: the buttons sit flush with the window's
+            // corner, and the bar's free space drags the window (laid first, so the controls on
+            // it keep their clicks).
+            let t = self.ui.tokens;
+            let bar = inner.expand2(vec2(f32::from(super::frame::TOP_BAR_MARGIN.0), f32::from(super::frame::TOP_BAR_MARGIN.1)));
+            super::caption::drag_area(ui, bar, &[]);
+            let top = egui::Rect::from_min_size(bar.min, vec2(bar.width(), super::frame::TOP_BAR_H));
+            let live = !super::caption::laid_over_a_dialog(ui.ctx());
+            super::caption::caption_buttons(ui, &t, top, live);
+        }
+        // The bar's contents keep clear of the window's buttons.
+        let room = if own { super::caption::CAPTIONS_W - f32::from(super::frame::TOP_BAR_MARGIN.0) } else { 0.0 };
+        let full = egui::Rect::from_min_max(inner.min, egui::pos2(inner.max.x - room, inner.max.y));
+        let controls = ui.scope_builder(egui::UiBuilder::new().max_rect(full), |ui| self.top_bar_rows(ui, full, own, acts)).inner;
+        if own {
+            let bar = inner.expand2(vec2(f32::from(super::frame::TOP_BAR_MARGIN.0), f32::from(super::frame::TOP_BAR_MARGIN.1)));
+            let top = egui::Rect::from_min_size(bar.min, vec2(bar.width(), super::frame::TOP_BAR_H));
+            super::caption::note_bar(ui.ctx(), bar, top, controls);
+        }
+    }
+
+    /// The top bar's tabs, search box and controls, in `full`; where they are (what isn't the
+    /// bar's free space).
+    fn top_bar_rows(&mut self, ui: &mut Ui, full: egui::Rect, own: bool, acts: &mut Vec<Action>) -> Vec<egui::Rect> {
         let row = vec2(full.width(), BAR_ROW_H);
         let mut boxed = 0.0;
+        let mut controls = Vec::new();
         ui.allocate_ui_with_layout(row, bidi::row_from_start(Align::Center), |ui| {
+            if own {
+                let t = self.ui.tokens;
+                super::caption::mark(ui, &t);
+            }
             self.ribbon_tabs(ui, acts);
+            controls.push(ui.min_rect());
             ui.spacing_mut().item_spacing.x = 4.0;
             // The room between the tabs and the controls at the end.
             let used = ui.min_rect().width();
@@ -38,20 +73,21 @@ impl MailApp {
                 boxed = (free - 24.0).min(MAX_SEARCH_BOX);
                 let centred = (full.width() - boxed) / 2.0 - used;
                 ui.add_space(centred.min(free - boxed - 12.0).max(12.0));
-                self.top_search(ui, boxed - 16.0, acts);
+                controls.push(self.top_search(ui, boxed - 16.0, acts));
             }
-            self.bar_end(ui, acts);
+            controls.push(self.bar_end(ui, acts));
         });
         if boxed == 0.0 {
             ui.allocate_ui_with_layout(row, Layout::top_down(Align::Center), |ui| {
                 let boxed = (full.width() - 16.0).clamp(80.0, MAX_SEARCH_BOX);
-                self.top_search(ui, boxed - 16.0, acts);
+                controls.push(self.top_search(ui, boxed - 16.0, acts));
             });
         }
+        controls
     }
 
-    /// The search box on the top bar, `search_w` wide inside its edge.
-    fn top_search(&mut self, ui: &mut Ui, search_w: f32, acts: &mut Vec<Action>) {
+    /// The search box on the top bar, `search_w` wide inside its edge; where it is.
+    fn top_search(&mut self, ui: &mut Ui, search_w: f32, acts: &mut Vec<Action>) -> egui::Rect {
         let t = self.ui.tokens;
         // On a plain bar the box needs its own edge to stand out.
         let edge = if t.bar == t.chrome { egui::Stroke::new(1.0, t.border) } else { egui::Stroke::NONE };
@@ -60,44 +96,47 @@ impl MailApp {
             .stroke(edge)
             .corner_radius(6)
             .inner_margin(Margin::symmetric(8, 3));
-        frame.show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-                icons::paint(ui.painter(), r, Icon::Search, t.dim);
-                // In the Calendar, People, Tasks and Notes it searches those (as Outlook's box
-                // searches where you are).
-                let module = self.session.module;
-                if matches!(module, Module::Calendar | Module::People | Module::Tasks | Module::Notes) {
-                    let focus = std::mem::take(&mut self.ui.focus_search);
-                    let (query, hint) = match module {
-                        Module::People => (&mut self.ui.people_query, tl!("Search people")),
-                        Module::Calendar => (&mut self.ui.cal_search.query, tl!("Search calendar (location:, organizer:, after:…)")),
-                        Module::Tasks => (&mut self.ui.tasks_query, tl!("Search tasks")),
-                        _ => (&mut self.ui.notes_query, tl!("Search notes")),
-                    };
-                    let resp = ui.add(
-                        egui::TextEdit::singleline(query)
-                            .hint_text(hint)
-                            .frame(egui::Frame::NONE)
-                            .align(egui::Align2::LEFT_CENTER)
-                            .desired_width(search_w - 60.0)
-                            .text_color(t.text),
-                    );
-                    if focus {
-                        resp.request_focus();
+        frame
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                    icons::paint(ui.painter(), r, Icon::Search, t.dim);
+                    // In the Calendar, People, Tasks and Notes it searches those (as Outlook's box
+                    // searches where you are).
+                    let module = self.session.module;
+                    if matches!(module, Module::Calendar | Module::People | Module::Tasks | Module::Notes) {
+                        let focus = std::mem::take(&mut self.ui.focus_search);
+                        let (query, hint) = match module {
+                            Module::People => (&mut self.ui.people_query, tl!("Search people")),
+                            Module::Calendar => (&mut self.ui.cal_search.query, tl!("Search calendar (location:, organizer:, after:…)")),
+                            Module::Tasks => (&mut self.ui.tasks_query, tl!("Search tasks")),
+                            _ => (&mut self.ui.notes_query, tl!("Search notes")),
+                        };
+                        let resp = ui.add(
+                            egui::TextEdit::singleline(query)
+                                .hint_text(hint)
+                                .frame(egui::Frame::NONE)
+                                .align(egui::Align2::LEFT_CENTER)
+                                .desired_width(search_w - 60.0)
+                                .text_color(t.text),
+                        );
+                        if focus {
+                            resp.request_focus();
+                        }
+                        if !query.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
+                            query.clear();
+                        }
+                        return;
                     }
-                    if !query.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
-                        query.clear();
-                    }
-                    return;
-                }
-                self.search_box(ui, search_w, acts);
-            });
-        });
+                    self.search_box(ui, search_w, acts);
+                });
+            })
+            .response
+            .rect
     }
 
     /// The top bar's end: dark mode, settings, Send / Receive all folders, and Undo.
-    fn bar_end(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
+    fn bar_end(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) -> egui::Rect {
         let t = self.ui.tokens;
         let can_sync = self.session.registry().get("mail.sync").is_some_and(|c| (c.enabled)(&self.session).is_none());
         let can_undo = !self.session.undo.is_empty();
@@ -118,7 +157,9 @@ impl MailApp {
             if can_undo && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)"), &t).clicked() {
                 acts.push(Action::Run("edit.undo", json!({})));
             }
-        });
+        })
+        .response
+        .rect
     }
 
     pub(crate) fn status_bar(&mut self, ui: &mut Ui) {

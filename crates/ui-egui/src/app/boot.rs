@@ -23,13 +23,35 @@ pub struct BootCard {
     dark: Option<bool>,
     /// The problems were seen, and Continue pressed.
     seen: bool,
+    /// The window has no system title bar (Windows, issue #22): the card draws MailCraft's.
+    own_title_bar: bool,
+    /// The colour chosen for MailCraft (File › Options) and whether its top bar is plain, so the
+    /// bar is the one MailCraft draws once it's in the window.
+    accent: Option<[u8; 3]>,
+    plain_bar: bool,
 }
 
 impl BootCard {
     /// A card in the `language` setting (`auto`: the system's), light or dark as `dark` says
     /// (`None`: as the system is).
     pub fn new(language: &str, dark: Option<bool>) -> BootCard {
-        BootCard { since: None, language: language.to_string(), dark, seen: false }
+        BootCard { since: None, language: language.to_string(), dark, seen: false, own_title_bar: false, accent: None, plain_bar: false }
+    }
+
+    /// The card in a window with no system title bar: it draws MailCraft's (its mark, the
+    /// window's buttons, the bar to drag it by, and the edges to resize it by), as MailCraft does
+    /// once it's in the window, since checking a data file can take minutes.
+    pub fn titled(mut self, own_title_bar: bool) -> BootCard {
+        self.own_title_bar = own_title_bar;
+        self
+    }
+
+    /// The card in the colour chosen for MailCraft (`accent`, as File › Options saves it) and its
+    /// top bar plain or coloured, as the settings say.
+    pub fn in_colours(mut self, accent: &str, plain_bar: bool) -> BootCard {
+        self.accent = mailcraft_engine::accent_rgb(accent);
+        self.plain_bar = plain_bar;
+        self
     }
 
     /// The language to draw in: the setting's, unless its script has no font before MailCraft
@@ -75,10 +97,13 @@ impl BootCard {
         if ui.ctx().global_style().right_to_left != lang.rtl() {
             ui.ctx().all_styles_mut(|s| s.right_to_left = lang.rtl());
         }
-        let t = Tokens::for_dark(self.dark.unwrap_or_else(|| ui.visuals().dark_mode));
+        let t = Tokens::themed(self.dark.unwrap_or_else(|| ui.visuals().dark_mode), self.accent, self.plain_bar);
         theme::apply(ui.ctx(), &t);
-        let rect = ui.max_rect();
+        let mut rect = ui.max_rect();
         ui.painter().rect_filled(rect, 0.0, t.bg);
+        if self.own_title_bar {
+            rect.min.y = Self::title_bar(ui, &t, rect).max.y;
+        }
         let width = (rect.width() - 32.0).clamp(120.0, 460.0);
         let card =
             egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8.0).inner_margin(egui::Margin::same(20));
@@ -96,6 +121,20 @@ impl BootCard {
             });
         });
         false
+    }
+
+    /// The window's title bar across the top of `window`, as MailCraft's: where it ends.
+    fn title_bar(ui: &mut Ui, t: &Tokens, window: egui::Rect) -> egui::Rect {
+        use super::caption;
+        let bar = egui::Rect::from_min_size(window.min, vec2(window.width(), super::frame::TOP_BAR_H));
+        ui.painter().rect_filled(bar, 0.0, t.bar);
+        caption::drag_area(ui, bar, &[]);
+        caption::caption_buttons(ui, t, bar, true);
+        let margin = f32::from(super::frame::TOP_BAR_MARGIN.0);
+        let free = egui::Rect::from_min_max(bar.min + vec2(margin, 0.0), egui::pos2(bar.max.x - caption::CAPTIONS_W, bar.max.y));
+        ui.scope_builder(egui::UiBuilder::new().max_rect(free).layout(crate::bidi::row_from_start(Align::Center)), |ui| caption::mark(ui, t));
+        caption::resize_zones(ui);
+        bar
     }
 
     /// The data files opening, or one being checked.

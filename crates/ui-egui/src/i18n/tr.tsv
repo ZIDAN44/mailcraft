@@ -1248,6 +1248,11 @@ month	May	Mayıs
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Yalnızca harfler, rakamlar, boşluklar ve noktalama işaretleri; en fazla 256 karakter.
 	Orange	Turuncu
 	Plain top bar	Düz üst çubuk
+	Minimize	Simge durumuna küçült
+	Maximize	Ekranı kapla
+	Restore	Önceki boyuta getir
+	Use the system title bar	Sistemin başlık çubuğunu kullan
+	Applies when MailCraft starts again	MailCraft yeniden başladığında uygulanır
 	Red	Kırmızı
 	Refresh: search the directory again and read the address books from the server	Yenile: dizinde yeniden ara ve adres defterlerini sunucudan oku
 	Rose	Gül

@@ -104,6 +104,9 @@ pub(crate) struct Booting {
     /// What later launches handed over meanwhile, opened once MailCraft is in the window.
     pub(crate) handed: Vec<String>,
     pub(crate) native_wayland: bool,
+    /// Keeps the window borderless while it draws its own title bar (Windows, issue #22), on the
+    /// start-up screen too.
+    pub(crate) frame_guard: Option<super::window_frame::FrameGuard>,
 }
 
 impl Booting {
@@ -157,6 +160,9 @@ impl eframe::App for Window {
             // Started again meanwhile: this window comes forward, and opens what was handed over
             // once MailCraft is in it.
             Window::Booting(b) => {
+                if let Some(keep) = &b.frame_guard {
+                    keep();
+                }
                 if let Some(handed) = b.instance.as_ref().and_then(single_instance::Server::take) {
                     single_instance::show(ctx, b.native_wayland);
                     b.handed.extend(handed);

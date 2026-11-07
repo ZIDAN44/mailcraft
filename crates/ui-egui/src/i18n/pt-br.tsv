@@ -1248,6 +1248,11 @@ month	May	maio
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Apenas letras, dígitos, espaços e pontuação, até 256 caracteres.
 	Orange	Laranja
 	Plain top bar	Barra superior simples
+	Minimize	Minimizar
+	Maximize	Maximizar
+	Restore	Restaurar
+	Use the system title bar	Usar a barra de título do sistema
+	Applies when MailCraft starts again	Vale a partir da próxima vez que o MailCraft abrir
 	Red	Vermelho
 	Refresh: search the directory again and read the address books from the server	Atualizar: pesquisar o diretório de novo e ler os catálogos de endereços do servidor outra vez
 	Rose	Rosa

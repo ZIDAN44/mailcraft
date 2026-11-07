@@ -8,6 +8,7 @@ pub(crate) mod boot;
 mod lanes;
 pub(crate) mod start;
 pub(crate) mod state_writer;
+pub(crate) mod window_frame;
 
 pub(crate) struct PoolBackend(pub(crate) Pool);
 
@@ -47,6 +48,9 @@ pub(crate) struct Desktop {
     pub(crate) last_dir: Option<PathBuf>,
     /// The threads slow work runs on (decoding pictures).
     pub(crate) lanes: lanes::Lanes,
+    /// The window draws its own title bar (Windows, issue #22), and what keeps it borderless.
+    pub(crate) own_title_bar: bool,
+    pub(crate) frame_guard: Option<window_frame::FrameGuard>,
 }
 
 impl Desktop {
@@ -70,6 +74,16 @@ impl Desktop {
 }
 
 impl Services for Desktop {
+    fn own_title_bar(&self) -> bool {
+        self.own_title_bar
+    }
+
+    fn keep_frame(&mut self) {
+        if let Some(keep) = &self.frame_guard {
+            keep();
+        }
+    }
+
     fn clock(&self) -> (i64, i32) {
         let now = chrono::Local::now();
         (now.timestamp(), now.offset().local_minus_utc())

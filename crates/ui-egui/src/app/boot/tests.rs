@@ -177,3 +177,27 @@ pub(crate) fn tour(ctx: &egui::Context) {
     whole.finish();
     frame(ctx, &mut BootCard::new("auto", None), &whole, false, 0.0);
 }
+
+/// In a window with no system title bar (Windows), the card draws MailCraft's while a data file is
+/// checked, which can take minutes: the window's buttons work, and its bar drags it (found in
+/// review: the start-up window had no way to be moved, minimized or closed).
+#[test]
+fn the_card_draws_the_title_bar_the_window_lacks() {
+    let ctx = egui::Context::default();
+    let progress = OpenProgress::default();
+    let mut card = BootCard::new("auto", None).titled(true);
+    let close = Pos2::new(1280.0 - 23.0, 20.0);
+    let button = |pressed| egui::Event::PointerButton { pos: close, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+    let mut sent = Vec::new();
+    for (time, events) in [(1.0, vec![]), (1.4, vec![]), (1.5, vec![egui::Event::PointerMoved(close)]), (1.6, vec![button(true), button(false)])] {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 800.0))), time: Some(time), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            card.ui(ui, &progress, false);
+        });
+        out.textures_delta.clear();
+        sent.extend(out.viewport_output.into_values().flat_map(|v| v.commands));
+    }
+    assert!(sent.contains(&egui::ViewportCommand::Close), "{sent:?}");
+    assert!(text(&ctx, &mut card, &progress, false, 1.7).contains("Opening your mail"), "the card drawn under it");
+}

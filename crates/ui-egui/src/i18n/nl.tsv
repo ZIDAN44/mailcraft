@@ -1243,6 +1243,11 @@ month	May	mei
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Alleen letters, cijfers, spaties en leestekens, hooguit 256 tekens.
 	Orange	Oranje
 	Plain top bar	Eenvoudige bovenbalk
+	Minimize	Minimaliseren
+	Maximize	Maximaliseren
+	Restore	Herstellen
+	Use the system title bar	Titelbalk van het systeem gebruiken
+	Applies when MailCraft starts again	Geldt vanaf de volgende keer dat MailCraft start
 	Red	Rood
 	Refresh: search the directory again and read the address books from the server	Vernieuwen: opnieuw in de adreslijst zoeken en de adresboeken opnieuw van de server lezen
 	Rose	Roze

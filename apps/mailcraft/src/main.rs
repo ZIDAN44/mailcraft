@@ -417,6 +417,12 @@ fn main() -> eframe::Result {
         saved_ui.as_ref().and_then(|v| v.get("dark")?.as_bool())
     };
     let card = BootCard::new(saved_ui.as_ref().and_then(|v| v.get("language")?.as_str()).unwrap_or(mailcraft_ui_egui::i18n::AUTO), dark);
+    // In the colour and bar MailCraft will have once it's in the window.
+    let prefs = saved_ui.as_ref().and_then(|v| v.get("prefs"));
+    let card = card.in_colours(
+        prefs.and_then(|p| p.get("accent")?.as_str()).unwrap_or_default(),
+        prefs.and_then(|p| p.get("plainTopBar")?.as_bool()).unwrap_or(false),
+    );
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(if sample { "MailCraft – Sample mailbox" } else { "MailCraft" })
@@ -431,6 +437,10 @@ fn main() -> eframe::Result {
         Some(p) => eframe::NativeOptions { viewport: p.apply(options.viewport), ..options },
         None => options,
     };
+    // Windows: MailCraft's top bar is the window's title bar, in its colour, as Outlook's (issue
+    // #22), unless File › Options asked for the system's. Read here, before the window opens.
+    let own_title_bar = cfg!(windows) && !saved_ui.as_ref().and_then(|v| v.get("prefs")?.get("systemTitleBar")?.as_bool()).unwrap_or(false);
+    options.viewport = options.viewport.with_decorations(!own_title_bar);
     graphics::configure(&mut options);
     // Cut, Copy and Paste keys are MailCraft's, in every window: Ctrl+V attaches files copied
     // in a file manager that puts no text with them (Explorer, PCManFM; issue #10). Not in a
@@ -559,6 +569,8 @@ fn run(
     // The guard stays here, outside the closure, so the handlers live as long as the loop.
     #[cfg(target_os = "macos")]
     let (_finder_guard, finder) = apple_events::listen();
+    // The window drawing its own title bar (the system's was left off it, `main`).
+    let own_title_bar = options.viewport.decorations == Some(false);
     eframe::run_native(
         "MailCraft",
         options,
@@ -597,6 +609,9 @@ fn run(
                     log::warn!("the app menu wasn't put in place, so Quit won't ask first: {e}");
                 }
             }
+            // Borderless, its title bar MailCraft's own: kept so from the first frame (issue #22).
+            let frame_guard = desktop::window_frame::service(cc, own_title_bar);
+            let booting_guard = frame_guard.clone();
             let booting_updater = updater.clone();
             // MailCraft, once its data files are open.
             let start: desktop::boot::Start = Box::new(move |ctx, opened, instance| {
@@ -630,6 +645,8 @@ fn run(
                         #[cfg(windows)]
                         portable: app_portable,
                         updater: updater.clone(),
+                        own_title_bar,
+                        frame_guard,
                         ..Default::default()
                     }),
                 );
@@ -671,7 +688,7 @@ fn run(
                 }
             });
             Ok(Box::new(desktop::boot::Window::Booting(Box::new(desktop::boot::Booting {
-                card,
+                card: card.titled(own_title_bar),
                 progress,
                 opened,
                 came: None,
@@ -680,6 +697,7 @@ fn run(
                 updater: booting_updater,
                 handed: Vec::new(),
                 native_wayland,
+                frame_guard: booting_guard,
             }))))
         }),
     )

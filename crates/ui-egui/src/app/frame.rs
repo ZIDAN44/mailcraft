@@ -6,6 +6,8 @@ use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_ver
 
 /// The top bar's height: the ribbon's tabs and the search box, one row (issue #22).
 pub(crate) const TOP_BAR_H: f32 = 40.0;
+/// The top bar's margins, across and down.
+pub(crate) const TOP_BAR_MARGIN: (i8, i8) = (8, 5);
 
 impl MailApp {
     /// Every frame, the window minimized or hidden too: eframe runs only `logic` then, and closes
@@ -134,6 +136,13 @@ impl MailApp {
     /// The whole window.
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
+        // The window draws its own title bar (Windows): kept borderless each frame (winit puts the
+        // system's frame back when the window is maximized or restored).
+        let own_title_bar = self.services.own_title_bar();
+        if own_title_bar {
+            self.services.keep_frame();
+            super::caption::clear_scroll_bars(&ctx);
+        }
         let mut main = self.ui.places.get("main").copied();
         after_open(ui, main);
         WindowPlace::note(&mut main, ui);
@@ -208,12 +217,12 @@ impl MailApp {
         // The File page has the window to itself, under the window's own title bar (as Outlook's).
         if self.ui.backstage.is_none() {
             let height = if self.ui.bar_two_rows { TOP_BAR_H + super::bars::BAR_ROW_H + 6.0 } else { TOP_BAR_H };
-            let bar = egui::Panel::top("topbar").exact_size(height).frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(8, 5))).show(
-                ui,
-                |ui| {
+            let bar = egui::Panel::top("topbar")
+                .exact_size(height)
+                .frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(TOP_BAR_MARGIN.0, TOP_BAR_MARGIN.1)))
+                .show(ui, |ui| {
                     self.top_bar(ui, &mut acts);
-                },
-            );
+                });
             self.ui.top_bar_rect = Some(bar.response.rect);
             egui::Panel::top("ribbon")
                 .frame(
@@ -261,6 +270,27 @@ impl MailApp {
         } else {
             self.ui.top_bar_rect = None;
             self.ui.ribbon_rect = None;
+            // The File page keeps the window's title bar when it's MailCraft's: its mark, the
+            // window's buttons, and the space between to drag it by.
+            if own_title_bar {
+                egui::Panel::top("file-title-bar")
+                    .exact_size(TOP_BAR_H)
+                    .frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(TOP_BAR_MARGIN.0, TOP_BAR_MARGIN.1)))
+                    .show(ui, |ui| {
+                        let inner = ui.max_rect();
+                        let bar = inner.expand2(vec2(f32::from(TOP_BAR_MARGIN.0), f32::from(TOP_BAR_MARGIN.1)));
+                        super::caption::drag_area(ui, bar, &[]);
+                        let live = !super::caption::laid_over_a_dialog(ui.ctx());
+                        super::caption::caption_buttons(ui, &t, bar, live);
+                        super::caption::note_bar(ui.ctx(), bar, bar, Vec::new());
+                        // The mark at the bar's start, clear of the buttons (right to left too).
+                        let room = super::caption::CAPTIONS_W - f32::from(TOP_BAR_MARGIN.0);
+                        let free = egui::Rect::from_min_max(inner.min, egui::pos2(inner.max.x - room, inner.max.y));
+                        ui.scope_builder(egui::UiBuilder::new().max_rect(free).layout(bidi::row_from_start(Align::Center)), |ui| {
+                            super::caption::mark(ui, &t)
+                        });
+                    });
+            }
         }
         egui::Panel::bottom("status")
             .exact_size(26.0)
@@ -424,6 +454,12 @@ impl MailApp {
                     self.ui.dialog = Some(d);
                 }
             }
+        }
+        // The window's resize edges, over everything, when it has no system frame to resize by;
+        // its title bar over a dialog holding the window.
+        if own_title_bar {
+            super::caption::over_a_modal(&ctx, &t);
+            super::caption::resize_zones(ui);
         }
         self.toasts(&ctx);
         // Calendar reminders: the window, and the desktop told of each as it comes.
