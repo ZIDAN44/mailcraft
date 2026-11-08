@@ -87,3 +87,22 @@ fn connect_checks_the_session() {
     let downgrade = json!({"capabilities": {"urn:ietf:params:jmap:mail": {}}, "primaryAccounts": {"urn:ietf:params:jmap:mail": "A"}, "apiUrl": "http://h/api", "downloadUrl": "/d", "uploadUrl": "/u"});
     assert!(matches!(block_on(Client::connect(Canned(vec![ok(&downgrade)].into()), "h", "me", "x", true)), Err(Error::Tls(_))));
 }
+
+/// Gap 8: a draft of a forward names the message it forwards in its own header, which JMAP
+/// lists with it; a list entry built without it (as Graph and EWS list drafts) takes it from
+/// the draft's source once that's downloaded.
+#[test]
+fn a_forwards_draft_keeps_its_message() {
+    let key = MessageKey { account: "a".into(), folder: "Drafts".into(), validity: 1, uid: 3 };
+    let named = "a:7:42:Entwürfe";
+    let field = " =?utf-8?Q?forward_a:7:42:Entw=C3=BCrfe?=";
+    let e = json!({
+        "id": "m3", "size": 120, "keywords": {"$draft": true},
+        "headers": [{"name": "Subject", "value": " Fwd: Hi"}, {"name": "X-MailCraft-Source", "value": field}],
+    });
+    assert_eq!(email_summary(&e, key.clone()).forward_of, named, "listed by JMAP");
+    let raw = format!("Subject: Fwd: Hi\r\nX-MailCraft-Source:{field}\r\n\r\nSee below.\r\n");
+    let mut listed = Summary { key, subject: "Fwd: Hi".into(), ..Default::default() };
+    fill_from_source(&mut listed, raw.as_bytes());
+    assert_eq!(listed.forward_of, named, "from its source");
+}

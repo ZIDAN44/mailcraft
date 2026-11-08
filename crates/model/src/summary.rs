@@ -274,6 +274,11 @@ pub struct Summary {
     /// mail; [`REACTION_TO_READ`] while only its header is here.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reaction: String,
+    /// A draft of a forward: the message it forwards ([`MessageKey::to_id`]), as the draft's
+    /// copy names it (`X-MailCraft-Source`), for the list to mark `[Draft]` as it marks one a
+    /// reply was begun to; empty for other mail.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub forward_of: String,
 }
 
 /// [`Summary::reaction`] of a message whose header says it's a reaction, its emoji (in its
@@ -363,6 +368,7 @@ impl Summary {
             string_room(&self.message_id),
             string_room(&self.in_reply_to),
             list_room(&self.references, string_room),
+            string_room(&self.forward_of),
             string_room(&self.subject),
             self.from.heap_bytes(),
             list_room(&self.to, EmailAddress::heap_bytes),

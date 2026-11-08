@@ -25,7 +25,7 @@ pub(super) struct Parts {
     pub(super) keys: usize,
     /// Sender, To and Cc.
     pub(super) addresses: usize,
-    /// Message-ID, In-Reply-To and References.
+    /// Message-ID, In-Reply-To and References, and the message a draft forwards.
     pub(super) ids: usize,
     pub(super) subject: usize,
     pub(super) preview: usize,
@@ -58,7 +58,7 @@ impl Parts {
             p.inline += boxed();
             p.keys += m.key.heap_bytes();
             p.addresses += m.from.heap_bytes() + addresses(&m.to) + addresses(&m.cc);
-            p.ids += string_room(&m.message_id) + string_room(&m.in_reply_to) + list_room(&m.references, string_room);
+            p.ids += string_room(&m.message_id) + string_room(&m.in_reply_to) + list_room(&m.references, string_room) + string_room(&m.forward_of);
             p.subject += string_room(&m.subject);
             p.preview += string_room(&m.preview);
             p.keywords += m.flags.heap_bytes();

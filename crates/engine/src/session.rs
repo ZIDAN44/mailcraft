@@ -47,7 +47,7 @@ pub use security::{
     CardSearch, KeySource, KnownCert, KnownKey, Lock, PGP_DOC, PgpSettings, Reach, RevocationCheck, SMIME_DOC, Scheme, Seal, Security, SignedBy,
     SmimeSettings,
 };
-pub use writing::{Compose, Quote, Reactions, SendBlock, SendCheck, signature_parts};
+pub use writing::{Compose, Drafted, Quote, Reactions, SendBlock, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
 pub(crate) use mailboxes::arrange_list;
@@ -303,8 +303,8 @@ pub struct Session {
     /// held here, out of sight, until the server or this computer has kept the draft
     /// ([`Event::DraftSaved`]), and given back to be written if neither could.
     pub saving: Vec<Compose>,
-    /// The messages a draft answers, as last found ([`Session::answered_by_drafts`]).
-    pub(crate) answered: writing::Answered,
+    /// The messages a draft answers or forwards, as last found ([`Session::drafted`]).
+    pub(crate) drafted: writing::DraftedMemo,
     pub prefs: Prefs,
     pub clock: Clock,
     pub notices: Vec<Notice>,
@@ -471,7 +471,7 @@ impl Session {
             compose: None,
             composes: Vec::new(),
             saving: Vec::new(),
-            answered: writing::Answered::default(),
+            drafted: writing::DraftedMemo::default(),
             prefs: Prefs::default(),
             clock,
             notices: Vec::new(),

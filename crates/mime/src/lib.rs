@@ -186,6 +186,7 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
             }
             r => r,
         },
+        forward_of: forward_of(m),
         ..Default::default()
     };
     if let Some(index) = thread_index(m) {
@@ -477,8 +478,27 @@ pub const COPY_HEADER: &str = "X-MailCraft-Copy";
 pub fn sending_options(raw: &[u8]) -> (i8, bool, String) {
     let Some(m) = MessageParser::default().parse(raw) else { return (0, false, String::new()) };
     let receipt = header_raw(m.root(), "Disposition-Notification-To").is_some_and(|v| !v.trim().is_empty());
-    let source = header_raw(m.root(), SOURCE_HEADER).map(|v| v.trim().to_string()).unwrap_or_default();
-    (importance(&m), receipt, source)
+    (importance(&m), receipt, named_source(&m))
+}
+
+/// What a message's [`SOURCE_HEADER`] says (`reply KEY`, `forward KEY`): unfolded, its encoded
+/// words read (a folder's name in it may be in any script). Nothing for a field longer than
+/// [`build`] writes, with room for its encoding: a message from anywhere can carry one.
+fn named_source(m: &Message<'_>) -> String {
+    let Some(field) = m.root().headers().get(SOURCE_HEADER) else { return String::new() };
+    let raw = field.raw_value();
+    if raw.len() > 8 << 10 {
+        return String::new();
+    }
+    let parsed = mail_parser::HeaderForm::Text.parse(raw);
+    parsed.value().as_text().map(|v| v.trim().to_string()).unwrap_or_default()
+}
+
+/// The message a draft of a forward forwards, as its [`SOURCE_HEADER`] names it (a key's id,
+/// [`MessageKey::to_id`]); empty for any other message.
+fn forward_of(m: &Message<'_>) -> String {
+    let source = named_source(m);
+    source.strip_prefix("forward ").and_then(|k| MessageKey::from_id(k.trim())).map(|k| k.to_id()).unwrap_or_default()
 }
 
 /// The HTML body as written, for a message that has one: its own, or the one Outlook wrapped in

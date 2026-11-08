@@ -464,7 +464,7 @@ fn a_message_is_held_until_its_draft_is_kept() {
 fn a_message_answered_by_a_draft_is_known() {
     let mut s = sample_session("drafts-answer");
     let m = s.list[0].clone();
-    let answered = |s: &Session| s.answered_by_drafts().contains(&("sample".to_string(), mailcraft_model::thread::norm_id(&m.message_id)));
+    let answered = |s: &Session| s.drafted().answers("sample", &m.message_id);
     // A reply opened and closed with nothing written: no draft, no mark.
     s.run("list.open", &json!({"key": m.key.to_id()})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
@@ -482,12 +482,102 @@ fn a_message_answered_by_a_draft_is_known() {
     drop(s);
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(answered(&s), "read from Drafts as MailCraft starts");
-    assert!(std::sync::Arc::ptr_eq(&s.answered_by_drafts(), &s.answered_by_drafts()), "asked again, Drafts the same: as found");
+    assert!(std::sync::Arc::ptr_eq(&s.drafted(), &s.drafted()), "asked again, Drafts the same: as found");
     // The draft deleted: no more.
     let key = draft_key(&mut s, &subject);
     s.run("list.select", &json!({"key": key.to_id()})).unwrap();
     s.run("mail.delete", &json!({})).unwrap();
     assert!(!answered(&s), "the draft deleted");
+    done(s);
+}
+
+/// Gap 8: a message whose forward was left in Drafts is marked `[Draft]` as one whose reply
+/// was, though a forward has no In-Reply-To: its draft's copy names it, and Drafts' list keeps
+/// that. Known from MailCraft's start on; a forward on its way to a server marks it too; a
+/// forward naming a message that isn't there marks nothing; the draft sent or deleted, the mark
+/// goes.
+#[test]
+fn a_message_forwarded_by_a_draft_is_known() {
+    let mut s = sample_session("drafts-forward");
+    let inbox = |s: &mut Session| {
+        s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+        s.list.clone()
+    };
+    let marked = |s: &mut Session| {
+        let drafted = s.drafted();
+        inbox(s).iter().filter(|m| drafted.marks(m)).map(|m| m.key.clone()).collect::<Vec<_>>()
+    };
+    let before = marked(&mut s);
+    let list = inbox(&mut s);
+    // Of subjects of their own, so each one's draft is known by its subject.
+    let mut subjects = std::collections::HashSet::new();
+    let fresh: Vec<_> =
+        list.iter().filter(|m| !before.contains(&m.key) && !m.message_id.is_empty() && subjects.insert(m.base_subject())).take(4).cloned().collect();
+    let [sent, deleted, replied] = [&fresh[0], &fresh[1], &fresh[2]];
+    let others = |s: &mut Session| marked(s).into_iter().filter(|k| !before.contains(k)).collect::<Vec<_>>();
+    // Two forwards and a reply, kept in Drafts as they're closed.
+    let begin = |s: &mut Session, m: &mailcraft_model::Summary, how: &str| {
+        s.run("list.open", &json!({"key": m.key.to_id()})).unwrap();
+        s.run(how, &json!({})).unwrap();
+        s.run("compose.update", &json!({"to": "ann@x.example"})).unwrap();
+        let subject = s.compose.as_ref().map(|c| c.subject.clone()).unwrap();
+        s.run("compose.close", &json!({})).unwrap();
+        subject
+    };
+    let sent_subject = begin(&mut s, sent, "mail.forward");
+    let deleted_subject = begin(&mut s, deleted, "mail.forward");
+    begin(&mut s, replied, "mail.reply");
+    let mut want = vec![sent.key.clone(), deleted.key.clone(), replied.key.clone()];
+    want.sort();
+    let mut got = others(&mut s);
+    got.sort();
+    assert_eq!(got, want, "both forwards and the reply, nothing else");
+    let draft = draft_key(&mut s, &sent_subject);
+    let kept = s.list.iter().find(|m| m.key == draft).map(|m| m.forward_of.clone());
+    assert_eq!(kept, Some(sent.key.to_id()), "Drafts' list keeps what it forwards");
+
+    // Known from the start, Drafts never opened.
+    let store = s.store.clone().unwrap();
+    drop(s);
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    let mut got = others(&mut s);
+    got.sort();
+    assert_eq!(got, want, "read from Drafts as MailCraft starts");
+
+    // A forward naming a message that isn't there (gone, or never in this list): nothing more.
+    let raw = "From: me@x.example\r\nTo: ann@x.example\r\nSubject: Fwd: gone\r\nMessage-ID: <gone@x.example>\r\n\
+        X-MailCraft-Source: forward sample:1:999999:INBOX\r\n\r\nSee below.\r\n";
+    s.file_locally("sample", "Drafts", raw.as_bytes(), false).unwrap();
+    let mut got = others(&mut s);
+    got.sort();
+    assert_eq!(got, want, "nothing else marked");
+    let gone = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: 1, uid: 999_999 };
+    assert!(s.drafted().forwards(&gone), "known, its message not listed");
+
+    // A forward on its way to a server (held, out of sight) marks its message too.
+    let held = fresh[3].key.clone();
+    let c =
+        crate::Compose { account: "sample".into(), source: Some(held.clone()), mode: Some(mailcraft_mime::ReplyMode::Forward), ..Default::default() };
+    s.saving.push(c);
+    assert!(others(&mut s).contains(&held), "a forward held for its save");
+    s.saving.clear();
+    assert!(!others(&mut s).contains(&held), "kept: let go of");
+
+    // The forward sent: its draft leaves Drafts, and the mark goes.
+    let draft = draft_key(&mut s, &sent_subject);
+    s.run("list.open", &json!({"key": draft.to_id()})).unwrap();
+    s.run("draft.edit", &json!({"key": draft.to_id()})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    let mut got = others(&mut s);
+    got.sort();
+    let mut left = vec![deleted.key.clone(), replied.key.clone()];
+    left.sort();
+    assert_eq!(got, left, "the forward sent");
+    // The other forward's draft deleted: only the reply's mark is left.
+    let draft = draft_key(&mut s, &deleted_subject);
+    s.run("list.select", &json!({"key": draft.to_id()})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    assert_eq!(others(&mut s), vec![replied.key.clone()], "the forward deleted; the reply still marks");
     done(s);
 }
 

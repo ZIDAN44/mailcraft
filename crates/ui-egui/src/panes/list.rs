@@ -302,9 +302,10 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
             let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
             ui.scroll_to_rect(r, None);
         }
-        // The messages a reply was begun to and left in Drafts: marked [Draft], as Outlook marks
-        // them (issue #52); not in Sent or Drafts, whose rows are the replies themselves.
-        let drafted = if sent_view { Default::default() } else { s.answered_by_drafts() };
+        // The messages a reply or forward was begun to and left in Drafts: marked [Draft], as
+        // Outlook marks them (issue #52); not in Sent or Drafts, whose rows are the replies and
+        // forwards themselves.
+        let drafted = if sent_view { Default::default() } else { s.drafted() };
         let first = tops.partition_point(|&top| top + mh < viewport.min.y);
         for (i, row) in rows.iter().enumerate().skip(first) {
             let top = tops.get(i).copied().unwrap_or(0.0);
@@ -338,7 +339,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
-                    let drafting = drafted.contains(&(m.key.account.clone(), mailcraft_engine::model::thread::norm_id(&m.message_id)));
+                    let drafting = drafted.marks(m);
                     message_row(s, &t, ui, r, m, *count, *unread, sent_view, drafting, acts);
                 }
             }
