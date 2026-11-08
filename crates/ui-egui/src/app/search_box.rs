@@ -152,6 +152,9 @@ impl MailApp {
             .desired_width((width - ui.min_rect().width() - 2.0 * button - ui.spacing().item_spacing.x).max(80.0))
             .text_color(t.text);
         let resp = ui.add(te);
+        if let Some(letters) = crate::keytips::table::letters(crate::keytips::table::Top::Search).filter(|_| self.ui.keytips.prefix() == Some("")) {
+            crate::keytips::badge(ui.ctx(), resp.rect, letters, true, &t);
+        }
         // Into the search box: the Search tab, as Outlook switches to it, and the recent searches.
         if resp.gained_focus() {
             self.ui.tab = RibbonTab::Search;

@@ -19,13 +19,22 @@ impl MailApp {
         }
         let searching = self.ui.tab == RibbonTab::Search || s.search.is_some();
         ui.spacing_mut().item_spacing.x = 0.0;
-        if tab_button(ui, &t, tl!("File"), None).clicked() {
+        // Alt pressed: each tab's key tip under it (`keytips`).
+        let tips = self.ui.keytips.prefix() == Some("");
+        let file = tab_button(ui, &t, tl!("File"), None);
+        if let Some(letters) = crate::keytips::table::letters(crate::keytips::table::Top::File).filter(|_| tips) {
+            crate::keytips::badge(ui.ctx(), file.rect, letters, true, &t);
+        }
+        if file.clicked() {
             acts.push(Action::Backstage(backstage::Page::Info));
         }
         let tabs = [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View"), (RibbonTab::Search, "Search")];
         for (tab, label) in tabs.into_iter().filter(|(tab, _)| *tab != RibbonTab::Search || searching) {
             let on = self.ui.tab == tab;
             let r = tab_button(ui, &t, tl!(label), Some(on));
+            if let Some(letters) = crate::keytips::table::tab_letters(tab).filter(|_| tips) {
+                crate::keytips::badge(ui.ctx(), r.rect, letters, true, &t);
+            }
             if on {
                 // The underline glides from the tab left to the one chosen.
                 let rect = r.rect;
@@ -357,11 +366,11 @@ impl MailApp {
                         // Working offline: no connections; mail you send waits in the Outbox.
                         if ust.has_files {
                             let off = s.prefs.work_offline;
-                            if ui
+                            let mut r = ui
                                 .selectable_label(off, tl!("Work offline"))
-                                .on_hover_text(tl!("Close every connection: changes, mail you send and drafts wait on this computer"))
-                                .clicked()
-                            {
+                                .on_hover_text(tl!("Close every connection: changes, mail you send and drafts wait on this computer"));
+                            crate::keytips::apply(ui, "Work offline", &mut r, true, &t);
+                            if r.clicked() {
                                 acts.push(Action::Run("mail.workOffline", json!({"on": !off})));
                             }
                             widgets::group(ui, &t, "Preferences", true);
@@ -456,7 +465,8 @@ impl MailApp {
                         }
                         widgets::group(ui, &t, "Layout", false);
                         let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
-                        let r = widgets::tool_button(ui, Icon::ListBullet, &arrange, &t, true);
+                        let mut r = widgets::tool_button(ui, Icon::ListBullet, &arrange, &t, true);
+                        crate::keytips::apply(ui, "Arrange by", &mut r, true, &t);
                         egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
                         if widgets::tool_toggle(ui, Icon::Sort, "Reverse sort", &t, s.prefs.reverse_sort).clicked() {
                             acts.push(Action::Run("view.reverseSort", json!({})));

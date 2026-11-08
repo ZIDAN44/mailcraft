@@ -47,6 +47,8 @@ pub fn alt_codes(ctx: &egui::Context, raw: &mut egui::RawInput, pages: (u16, u16
                 // name nothing, so collecting stops.
                 if let Some(d) = digit(*key).filter(|_| *pressed && !*repeat && code.len() < 8 && code != INTERRUPTED) {
                     code.push(d);
+                    // Letting go of Alt types the character; it doesn't show the key tips.
+                    ctx.data_mut(|d| d.insert_temp(crate::keytips::alt_code_typed(), true));
                 }
             }
             // Its digits' text, where a platform sends it with Alt held.

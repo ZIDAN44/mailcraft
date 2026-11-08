@@ -25,6 +25,7 @@ mod a11y;
 mod app;
 mod dialogs;
 pub mod i18n;
+mod keytips;
 mod look;
 mod panes;
 mod reading;
@@ -286,6 +287,8 @@ pub struct UiState {
     pub tab: RibbonTab,
     pub search_text: String,
     focus_search: bool,
+    /// The ribbon's key tips (Alt): the letters typed so far.
+    keytips: keytips::KeyTips,
     /// The search box has the keyboard focus (the Search tab stays while it does).
     search_focused: bool,
     /// Put the search box's cursor at the end when it next takes the focus.
@@ -497,6 +500,7 @@ impl MailApp {
                 tab: RibbonTab::Home,
                 search_text: String::new(),
                 focus_search: false,
+                keytips: keytips::KeyTips::default(),
                 search_focused: false,
                 search_cursor_end: false,
                 search_due: None,

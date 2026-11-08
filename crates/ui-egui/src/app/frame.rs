@@ -192,9 +192,13 @@ impl MailApp {
             self.ui.tokens = want;
             theme::apply(&ctx, &self.ui.tokens);
         }
+        let file = self.keytips(&ctx);
         self.shortcuts(&ctx);
 
         let mut acts: Vec<Action> = Vec::new();
+        if file {
+            acts.push(Action::Backstage(backstage::Page::Info));
+        }
         self.files_from_desktop(&ctx, &mut acts);
         let t = self.ui.tokens;
         if let Some(key) = self.ui.page_message.clone() {
@@ -251,7 +255,9 @@ impl MailApp {
                     // right from the right), File first.
                     let rtl = i18n::current().rtl();
                     let room = ui.max_rect();
-                    ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| self.ribbon(ui, &mut acts));
+                    ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| {
+                        crate::keytips::on_ribbon(ui, |ui| self.ribbon(ui, &mut acts))
+                    });
                     super::ribbon::card_under_ribbon(ui, &t, room);
                     let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
                     self.ui.ribbon_rect = Some(ui.min_rect());

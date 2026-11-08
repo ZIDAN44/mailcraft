@@ -153,6 +153,13 @@ fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, 
 }
 
 pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
+    let mut resp = tool_button_drawn(ui, icon, label, t, enabled);
+    // Its key tip, by its label in English (Alt, then its tab's letters and its own).
+    crate::keytips::apply(ui, label, &mut resp, enabled, t);
+    resp
+}
+
+fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
     if classic(ui) {
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
@@ -185,6 +192,13 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bo
 
 /// A ribbon button that stays lit while it's on (a search term in the box, say).
 pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -> Response {
+    let mut resp = tool_toggle_drawn(ui, icon, label, t, on);
+    // Its key tip, by its label in English (Alt, then its tab's letters and its own).
+    crate::keytips::apply(ui, label, &mut resp, true, t);
+    resp
+}
+
+fn tool_toggle_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -> Response {
     let label = tl!(label);
     if classic(ui) {
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
@@ -238,6 +252,13 @@ pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
 
 /// The filled "New mail" button.
 pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
+    let mut resp = accent_button_drawn(ui, icon, label, t, enabled);
+    // Its key tip, by its label in English (Alt, then its tab's letters and its own).
+    crate::keytips::apply(ui, label, &mut resp, enabled, t);
+    resp
+}
+
+fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
     if classic(ui) {
         let resp = big_button(ui, icon, label, t, enabled, false, true);

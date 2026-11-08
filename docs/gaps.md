@@ -68,17 +68,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The browser keeps no secret keys yet (its S/MIME certificates' way, a file locked
   with its password, would need an unlock dialog of its own). The rest is left for later.
 
-### 6. Key tips on the ribbon
-
-- **Impact:** Pressing Alt (or F10) shows no letters on the ribbon's tabs and buttons, so its
-  commands can't be reached by Alt letter sequences as in Outlook.
-- **Workaround:** The keyboard shortcuts (Ctrl+N, Ctrl+R, Ctrl+Shift+V…), and Tab through the
-  ribbon.
-- **Cause:** Not built yet. GridCraft has the machinery (a table of key tips, its state and
-  badges, generated tests); MailCraft's letters would have to be watched from Outlook's window,
-  clean room.
-
-### 7. Drafts: a draft twice after closing during its save
+### 6. Drafts: a draft twice after closing during its save
 
 - **Impact:** On a server without UIDPLUS, or one that keeps a draft at another size than
   MailCraft sent, a draft saved just as MailCraft closes, or as the connection to the server is
@@ -90,7 +80,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   Message-ID stays. It removes it only where it can remove exactly that message (UIDPLUS's
   `UID EXPUNGE`): a plain `EXPUNGE` removes whatever else is marked deleted in the folder.
 
-### 8. [Draft] on messages whose forward was left in Drafts
+### 7. [Draft] on messages whose forward was left in Drafts
 
 - **Impact:** A message whose reply is left in Drafts is marked **[Draft]** in the list, as in
   Outlook; one whose forward is left there isn't.
@@ -99,7 +89,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   a forward names it only in the draft's own `X-MailCraft-Source` header, which they don't. The
   summaries would keep it for drafts, read as Drafts is synced.
 
-### 9. Typing a time on a 12-hour clock
+### 8. Typing a time on a 12-hour clock
 
 - **Impact:** With File › Options set to a 12-hour clock, the boxes you type a time into (an
   event's start and end, Delay delivery) still take it as `HH:MM` on a 24-hour clock; every time
@@ -108,7 +98,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The boxes read and write `HH:MM` only; reading `1:30 PM` (and each language's way of
   writing it) isn't done yet.
 
-### 10. Newsletters: what the layout doesn't draw yet
+### 9. Newsletters: what the layout doesn't draw yet
 
 - **Impact:** A button, a link with padding and round corners or Outlook's own copy of one in
   VML, shows as its words on its colour: without its round corners, and not at the size its VML
