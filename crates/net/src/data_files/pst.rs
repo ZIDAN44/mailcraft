@@ -1,22 +1,21 @@
 //! Importing an Outlook data file (`.pst`) into an account kept on this computer.
 //!
-//! The file is read with Microsoft's MIT-licensed reader (MS-PST), from MailCraft's fork of
-//! `outlook-pst-rw`, which the export writes with too (library `outlook_pst`): the folder tree
-//! under the top of the mailbox becomes folders, and each mail item is written out again as a
-//! standard message (RFC 5322 / MIME) from its properties (MS-OXCMSG / MS-OXPROPS), keeping the
-//! original headers when the item has them. Contacts, contact groups and calendar items go to the
-//! account's address book and calendar (see `pst_pim`), notes and journal entries to its notes,
-//! and tasks, with or without a due day, to its tasks.
+//! The file is read with MailCraft's own `.pst` crate (`mailcraft-pst`; MS-PST), which the export
+//! writes with too: the folder tree under the top of the mailbox becomes folders, and each mail
+//! item is written out again as a standard message (RFC 5322 / MIME) from its properties (MS-OXCMSG
+//! / MS-OXPROPS), keeping the original headers when the item has them. Contacts, contact groups and
+//! calendar items go to the account's address book and calendar (see `pst_pim`), notes and journal
+//! entries to its notes, and tasks, with or without a due day, to its tasks.
 //!
-//! A data file is hostile input like any other: the reader runs behind `catch_unwind`, items that
-//! can't be read are skipped and counted, and sizes are capped.
+//! A data file is hostile input like any other: items that can't be read are skipped and counted,
+//! and sizes are capped.
 //!
 //! An import runs on several threads at once: a planner reads the folders and hands out their
 //! items (`plan`), lanes read the items and make their messages, each through a handle on the
 //! file of its own (`lanes`), within a budget of bytes held at once (`budget`), and the writer,
 //! the thread that called, keeps them in the order the planner gave (`order`).
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::path::Path;
@@ -29,15 +28,8 @@ use mailcraft_mime::{self as mime, Draft, InlinePicture, OutAttachment};
 use mailcraft_model::job::{PlannedFolder, SkipReason, StopHow};
 use mailcraft_model::pim::{LOCAL, NOTE_YELLOW, Note, PIM_DOC, Pim, StoredCard, StoredEvent, StoredNote, StoredTask};
 use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7};
+use mailcraft_pst::{Attachment, AttachmentData, Message, PropertyValue, PstFile, PstFolder, PstStore, Row, Table};
 use mailcraft_store::{FolderState, Store};
-use outlook_pst::ltp::prop_context::PropertyValue;
-use outlook_pst::ltp::table_context::{TableContext, TableRowData};
-use outlook_pst::messaging::attachment::{AnsiAttachment, Attachment, AttachmentData, UnicodeAttachment};
-use outlook_pst::messaging::folder::Folder as PstFolder;
-use outlook_pst::messaging::message::{AnsiMessage, Message, UnicodeMessage};
-use outlook_pst::messaging::store::{AnsiStore, Store as PstStore, UnicodeStore};
-use outlook_pst::ndb::node_id::NodeId;
-use outlook_pst::{AnsiPstFile, UnicodePstFile};
 
 mod budget;
 mod chunked;
@@ -65,7 +57,6 @@ pub use fuzzing::{rebuilt, repeating, repeating_task, text_from_bytes};
 use item::{File, Item, attachment, item, message_class, message_code_page, unread_attachment};
 #[cfg(test)]
 pub(crate) use lanes::tests::Fault;
-use open::Recycle;
 use out::Out;
 #[doc(hidden)]
 pub use props::Val;
@@ -249,14 +240,9 @@ pub struct ImportStats {
     pub kept_bytes: u64,
     /// Items read at once.
     pub lanes: u64,
-    /// Bytes read from the data file, in so many reads; and how many times the handle that reads
-    /// items was opened again to let go of its caches.
+    /// Bytes read from the data file, in so many reads.
     pub read_bytes: u64,
     pub reads: u64,
-    pub reopens: u64,
-    /// What the handle that reads folders and their tables (never reopened) was thought to hold
-    /// in its caches at the end.
-    pub walk_cache_bytes: u64,
     /// Sent items that came in with the id the replies to them answer, and those given one a
     /// message before them had, which kept the id made up for them (`pst/out/sent_ids.rs`): this
     /// run's.
@@ -301,8 +287,6 @@ struct Tally {
     kept: AtomicU64,
     read_bytes: AtomicU64,
     reads: AtomicU64,
-    reopens: AtomicU64,
-    walk_cache: AtomicU64,
 }
 
 impl Tally {
@@ -346,15 +330,12 @@ impl Tally {
         self.peak.fetch_max(wide(held), Ordering::Relaxed);
     }
 
-    /// What was read of the data file through `source`, with the item handle reopened `reopens`
-    /// times and the folder handle's caches thought to hold `walk_cache` bytes.
-    fn reading(&self, source: &Shared, reopens: u64, walk_cache: u64) {
+    /// What was read of the data file through `source`.
+    fn reading(&self, source: &Shared) {
         if let Ok(s) = source.try_borrow() {
             self.read_bytes.fetch_add(s.bytes_read, Ordering::Relaxed);
             self.reads.fetch_add(s.reads, Ordering::Relaxed);
         }
-        self.reopens.fetch_add(reopens, Ordering::Relaxed);
-        self.walk_cache.fetch_max(walk_cache, Ordering::Relaxed);
     }
 
     fn snapshot(&self, total: Duration, lanes: u64) -> ImportStats {
@@ -377,8 +358,6 @@ impl Tally {
             lanes,
             read_bytes: self.read_bytes.load(Ordering::Relaxed),
             reads: self.reads.load(Ordering::Relaxed),
-            reopens: self.reopens.load(Ordering::Relaxed),
-            walk_cache_bytes: self.walk_cache.load(Ordering::Relaxed),
             ids_given: 0,
             ids_taken_back: 0,
             batches: self.batches[0].load(Ordering::Relaxed),
@@ -415,15 +394,9 @@ pub struct ImportOptions {
     /// stops itself, as if paused, when there's less than [`LOW_SPACE`] where it writes.
     #[doc(hidden)]
     pub space: Option<Arc<dyn Space>>,
-    /// The reader's chunk of the file, in KiB (0: its own), the items read between reopenings
-    /// of the handle that reads them (0: only once its caches hold too much), and how much its
-    /// caches may hold before that, in bytes (0: its own limit): for tests and measuring.
+    /// The reader's chunk of the file, in KiB (0: its own): for tests and measuring.
     #[doc(hidden)]
     pub chunk_kb: usize,
-    #[doc(hidden)]
-    pub recycle: usize,
-    #[doc(hidden)]
-    pub handle_cache_bytes: u64,
     /// The data file's cache while the import writes to it, and the most a batch of sources
     /// holds, in bytes (0: their own): for measuring.
     #[doc(hidden)]
@@ -675,16 +648,16 @@ impl Drop for Bulk<'_> {
     }
 }
 
-/// The planner: opens the file (as the Unicode kind, else the older ANSI), plans it (unless it
-/// was planned when it was looked at), and hands out its work.
+/// The planner: opens the file, plans it (unless it was planned when it was looked at), and
+/// hands out its work.
 fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
     let began = Instant::now();
-    let (store, source, pages) = opened(ctx)?;
+    let (store, source) = opened(ctx)?;
     let fresh;
     let planned = match ctx.opts.planned.as_deref() {
         Some(p) => &p.plan,
         None => {
-            let planning = plan::plan(&*store, ctx);
+            let planning = plan::plan(&store, ctx);
             ctx.tally.since(Phase::Plan, began);
             fresh = planning?;
             &fresh
@@ -701,32 +674,18 @@ fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
         ctx.changed.store(true, Ordering::Relaxed);
         return Ok(());
     }
-    plan::stream(&*store, planned, &mut feed, ctx);
-    ctx.tally.reading(&source, 0, pages.estimate());
+    plan::stream(&store, planned, &mut feed, ctx);
+    ctx.tally.reading(&source);
     Ok(())
 }
 
-/// The file opened to be planned and read: the Unicode kind, else the older ANSI (read from the
-/// start through a handle of its own). Read only, and kept from writers while it's read. Locked
-/// by Outlook, this is what fails: said so by the import, rather than tried as the older format.
-fn opened(ctx: &lanes::Ctx<'_>) -> io::Result<(Rc<dyn PstStore>, Shared, chunked::Pages)> {
+/// The file opened to be planned and read. Read only, and kept from writers while it's read.
+/// Locked by Outlook, this is what fails, and the import says so.
+fn opened(ctx: &lanes::Ctx<'_>) -> io::Result<(Rc<PstStore>, Shared)> {
     let source = open::source(ctx.path, ctx.opts)?;
-    let (walk, pages) = open::handle(&source);
-    if let Ok(pst) = UnicodePstFile::read_from(walk) {
-        ctx.format.store(1, Ordering::Release);
-        pst.set_max_value_size(MAX_VALUE);
-        let store: Rc<dyn PstStore> = UnicodeStore::read(Rc::new(pst))?;
-        return Ok((store, source, pages));
-    }
-    ctx.tally.reading(&source, 0, 0);
-    drop(source);
-    let source = open::source(ctx.path, ctx.opts)?;
-    let (walk, pages) = open::handle(&source);
-    let pst = AnsiPstFile::read_from(walk)?;
-    ctx.format.store(2, Ordering::Release);
+    let pst = PstFile::read_from(open::handle(&source))?;
     pst.set_max_value_size(MAX_VALUE);
-    let store: Rc<dyn PstStore> = AnsiStore::read(Rc::new(pst))?;
-    Ok((store, source, pages))
+    Ok((PstStore::read(Rc::new(pst))?, source))
 }
 
 /// A data file planned when it was looked at, before it's imported ([`inspect`]): handed to its
@@ -760,14 +719,12 @@ impl std::fmt::Debug for Planned {
 pub fn inspect(path: &Path) -> Result<Planned, String> {
     let opts = ImportOptions::default();
     let ctx = lanes::Ctx::looking(path, &opts);
-    let planned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| opened(&ctx).and_then(|(store, _, _)| plan::plan(&*store, &ctx))));
-    let plan = match planned {
-        Ok(Ok(plan)) => plan,
-        Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => {
+    let plan = match opened(&ctx).and_then(|(store, _)| plan::plan(&store, &ctx)) {
+        Ok(plan) => plan,
+        Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => {
             return Err(LOCKED.into());
         }
-        Ok(Err(e)) => return Err(format!("not an Outlook data file, or it is damaged ({e})")),
-        Err(_) => return Err("the data file is damaged".into()),
+        Err(e) => return Err(format!("not an Outlook data file, or it is damaged ({e})")),
     };
     let rows = |kind: plan::Kind| plan.folders.iter().filter(|f| f.kind == kind).fold(0u64, |n, f| n.saturating_add(f.rows));
     let (messages, pim_items) = (rows(plan::Kind::Mail), rows(plan::Kind::Pim));

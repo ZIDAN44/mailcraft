@@ -4,6 +4,7 @@
 use super::*;
 use mailcraft_model::pim::{Note, Pim, StoredCard, StoredNote, StoredTask, Task, TaskPriority, TaskStatus};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
+use mailcraft_pst::write;
 
 fn typed(value: &str, kind: &str) -> Typed {
     Typed { value: value.into(), kind: kind.into() }
@@ -158,7 +159,7 @@ fn by<T: Clone, K: Ord>(items: &[T], uid: impl Fn(&mut T), key: impl Fn(&T) -> K
 
 #[test]
 fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    use mailcraft_pst::PropertyValue as V;
     let dir = scratch("round-trip");
     let store = Store::open(dir.join("cache")).unwrap();
     let pim = account();
@@ -171,15 +172,15 @@ fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
 
     // Outlook's folders, recorded as the file's own.
     for (special, class) in [(Special::Contacts, "IPF.Contact"), (Special::Notes, "IPF.StickyNote"), (Special::Tasks, "IPF.Task")] {
-        let names = UnicodePstFile::special_folder(&file, special).unwrap().unwrap();
+        let names = write::special_folder(&file, special).unwrap().unwrap();
         assert_eq!(names, [special.default_name()]);
-        let store = UnicodeStore::read(Rc::new(outlook_pst::UnicodePstFile::open(&file).unwrap())).unwrap();
-        let any: Rc<dyn PstStore> = store.clone();
-        let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+        let store = PstStore::read(Rc::new(PstFile::open(&file).unwrap())).unwrap();
+        let any: Rc<PstStore> = store.clone();
+        let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
         let table = top.hierarchy_table().unwrap().clone();
         let folder = table
             .rows_matrix()
-            .filter_map(|row| any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).ok()?).ok())
+            .filter_map(|row| any.open_folder(row.id()).ok())
             .find(|f| f.properties().display_name().is_ok_and(|n| n == names[0]))
             .unwrap();
         assert_eq!(folder.properties().get(0x3613).and_then(crate::pst::text_of).as_deref(), Some(class));
@@ -243,7 +244,7 @@ fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
 fn a_file_added_to_keeps_its_own_contacts() {
     let dir = scratch("added-to");
     let file = dir.join("Outlook.pst");
-    let first = UnicodePstMessage {
+    let first = NewMessage {
         subject: "Hello",
         sender_name: "Zoe",
         sender_email: "zoe@example.com",
@@ -255,14 +256,14 @@ fn a_file_added_to_keeps_its_own_contacts() {
         message_class: "IPM.Note",
         properties: &[],
     };
-    drop(UnicodePstFile::create(&file, &first).unwrap());
-    drop(UnicodePstFile::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap());
+    write::create_with(&file, &["Inbox"], &first, &[]).unwrap();
+    write::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap();
     let given = [
-        UnicodePstProperty::tagged(0x3001, outlook_pst::UnicodePstValue::Unicode("Zoe Park")),
-        UnicodePstProperty::tagged(0x3A06, outlook_pst::UnicodePstValue::Unicode("Zoe")),
+        NewProperty::tagged(0x3001, mailcraft_pst::write::NewValue::Unicode("Zoe Park")),
+        NewProperty::tagged(0x3A06, mailcraft_pst::write::NewValue::Unicode("Zoe")),
     ];
-    let zoe = UnicodePstMessage { subject: "Zoe Park", message_class: "IPM.Contact", message_id: "", body: "", properties: &given, ..first };
-    drop(UnicodePstFile::append_in_folder(&file, &["Kontakte"], &zoe).unwrap());
+    let zoe = NewMessage { subject: "Zoe Park", message_class: "IPM.Contact", message_id: "", body: "", properties: &given, ..first };
+    write::append_message(&file, &["Kontakte"], &zoe, &[]).unwrap();
 
     let store = Store::open(dir.join("cache")).unwrap();
     let mut pim = account();
@@ -285,8 +286,8 @@ fn a_file_added_to_keeps_its_own_contacts() {
         let done = export(&store, "a1", "Mine", &file, NONE, &mut |_| {}).unwrap();
         // Added to again: the card and note it has as they are now are there already.
         assert_eq!((done.messages, done.contacts, done.notes, done.pim_already), (1 - round, 1 - round, 1 - round, 2 * round), "{done:?}");
-        assert_eq!(UnicodePstFile::special_folder(&file, Special::Contacts).unwrap(), Some(vec!["Kontakte".to_string()]));
-        assert_eq!(UnicodePstFile::special_folder(&file, Special::Notes).unwrap(), Some(vec!["Notes (2)".to_string()]));
+        assert_eq!(write::special_folder(&file, Special::Contacts).unwrap(), Some(vec!["Kontakte".to_string()]));
+        assert_eq!(write::special_folder(&file, Special::Notes).unwrap(), Some(vec!["Notes (2)".to_string()]));
         let back = Store::open(dir.join(format!("back{round}"))).unwrap();
         let imported = crate::pst::import(&file, &back, "b1", &mut |_| {}).unwrap();
         assert_eq!((imported.messages, imported.contacts, imported.notes), (2, 2, 1), "{imported:?}");
@@ -309,7 +310,7 @@ fn a_file_added_to_keeps_its_own_contacts() {
 fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
     let dir = scratch("same-names");
     let file = dir.join("Outlook.pst");
-    let first = UnicodePstMessage {
+    let first = NewMessage {
         subject: "Hello",
         sender_name: "Zoe",
         sender_email: "zoe@example.com",
@@ -321,12 +322,12 @@ fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
         message_class: "IPM.Note",
         properties: &[],
     };
-    drop(UnicodePstFile::create(&file, &first).unwrap());
-    drop(UnicodePstFile::append_in_folder(&file, &["Notes"], &UnicodePstMessage { message_id: "<field@example.com>", ..first }).unwrap());
-    drop(UnicodePstFile::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap());
-    let name = [UnicodePstProperty::tagged(0x3001, outlook_pst::UnicodePstValue::Unicode("Sam Lee"))];
-    let sam = UnicodePstMessage { subject: "Sam Lee", message_class: "IPM.Contact", message_id: "", body: "", properties: &name, ..first };
-    drop(UnicodePstFile::append_in_folder(&file, &["Kontakte"], &sam).unwrap());
+    write::create_with(&file, &["Inbox"], &first, &[]).unwrap();
+    write::append_message(&file, &["Notes"], &NewMessage { message_id: "<field@example.com>", ..first }, &[]).unwrap();
+    write::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap();
+    let name = [NewProperty::tagged(0x3001, mailcraft_pst::write::NewValue::Unicode("Sam Lee"))];
+    let sam = NewMessage { subject: "Sam Lee", message_class: "IPM.Contact", message_id: "", body: "", properties: &name, ..first };
+    write::append_message(&file, &["Kontakte"], &sam, &[]).unwrap();
 
     let store = Store::open(dir.join("cache")).unwrap();
     let day = |d: u32| mailcraft_model::dates::days_from_civil(2026, 11, d) * 86_400;
@@ -351,7 +352,7 @@ fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
     store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
     let done = export(&store, "a1", "Mine", &file, NONE, &mut |_| {}).unwrap();
     assert_eq!((done.contacts, done.notes, done.tasks, done.pim_already), (1, 1, 1, 0), "{done:?}");
-    assert_eq!(UnicodePstFile::special_folder(&file, Special::Notes).unwrap(), Some(vec!["Notes (2)".to_string()]));
+    assert_eq!(write::special_folder(&file, Special::Notes).unwrap(), Some(vec!["Notes (2)".to_string()]));
 
     // The card's phone changed, the task done, a second task of the same title: those go in,
     // the card and the task in place of their earlier copies, the file's own card kept.

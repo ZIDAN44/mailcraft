@@ -6,7 +6,7 @@
 //! MC_PST=D:\big.pst MC_CACHE=D:\cache cargo test -p mailcraft-net --release --lib pst_bench::import -- --ignored --nocapture
 //! ```
 //!
-//! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB`, `MC_RECYCLE`, `MC_HANDLE_CACHE_KB`,
+//! The import's own knobs come from `MC_LANES`, `MC_BUDGET_MB`, `MC_CHUNK_KB`,
 //! `MC_BULK_CACHE_MB` (the data file's cache meanwhile) and `MC_BATCH_KB` (unset: the app's), and
 //! it ends with one `stats:` line of numbers (`pst::ImportStats`), where its time went, a `cache:`
 //! line (how the data file's cache was used, `mailcraft_store::CacheUse`) and on Windows an `io:`
@@ -45,9 +45,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use mailcraft_model::job::StopHow;
+use mailcraft_pst::write::{self, BatchMessage, NewAttachment, NewMessage, NewRecipient, RecipientType};
 
 use eta::{judge, judge_folders};
-use outlook_pst::{UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
 fn env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.trim().is_empty())
@@ -145,17 +145,13 @@ fn make() {
                 let unix = 1_700_000_000 + k as i64 * 60;
                 owned.push((subject, body, html, format!("<m{k}@bench.example>"), file, (unix + 11_644_473_600) * 10_000_000));
             }
-            let recipients = [UnicodePstRecipient {
-                name: "Zoe Park",
-                email: "zoe@studio.example",
-                recipient_type: UnicodePstRecipientType::To,
-                ..Default::default()
-            }];
-            let files: Vec<Vec<UnicodePstAttachment<'_>>> = owned
+            let recipients =
+                [NewRecipient { name: "Zoe Park", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
+            let files: Vec<Vec<NewAttachment<'_>>> = owned
                 .iter()
                 .map(|o| {
                     o.4.iter()
-                        .map(|(name, data)| UnicodePstAttachment {
+                        .map(|(name, data)| NewAttachment {
                             filename: name,
                             mime_type: "application/octet-stream",
                             content_id: None,
@@ -165,11 +161,11 @@ fn make() {
                         .collect()
                 })
                 .collect();
-            let batch: Vec<UnicodePstBatchMessage<'_>> = owned
+            let batch: Vec<BatchMessage<'_>> = owned
                 .iter()
                 .zip(&files)
-                .map(|(o, f)| UnicodePstBatchMessage {
-                    message: UnicodePstMessage {
+                .map(|(o, f)| BatchMessage {
+                    message: NewMessage {
                         subject: &o.0,
                         sender_name: "Ana Lima",
                         sender_email: "ana@soundlab.example",
@@ -186,11 +182,11 @@ fn make() {
                 .collect();
             let (first, rest) = if created { (None, batch.as_slice()) } else { (batch.first(), batch.get(1..).unwrap_or(&[])) };
             if let Some(first) = first {
-                UnicodePstFile::create_in_folder_with_attachments(&path, folder, &first.message, first.attachments).unwrap();
+                write::create_with(&path, folder, &first.message, first.attachments).unwrap();
                 created = true;
             }
             if !rest.is_empty() {
-                UnicodePstFile::append_many_in_folder_with_attachments(&path, folder, rest).unwrap();
+                write::append(&path, folder, rest).unwrap();
             }
             done += n;
             written += n;
@@ -230,8 +226,6 @@ fn import() {
         lanes: knob("MC_LANES"),
         budget_bytes: knob("MC_BUDGET_MB").saturating_mul(1024 * 1024),
         chunk_kb: knob("MC_CHUNK_KB"),
-        recycle: knob("MC_RECYCLE"),
-        handle_cache_bytes: u64::try_from(knob("MC_HANDLE_CACHE_KB")).unwrap_or(0).saturating_mul(1024),
         cache_bytes: knob("MC_BULK_CACHE_MB").saturating_mul(1024 * 1024),
         batch_bytes: knob("MC_BATCH_KB").saturating_mul(1024),
         // `MC_NO_INDEX`: without the search index, to see what indexing as it goes costs.
@@ -398,6 +392,10 @@ fn import() {
             parts[2].0
         );
         println!("kept: {}", serde_json::to_string(&kept).unwrap());
+        // The contacts, calendar, tasks, notes and journal that came in.
+        let pim: mailcraft_model::pim::Pim = store.load_account_doc("d1", mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+        let json = serde_json::to_vec(&pim).unwrap();
+        println!("pim: {} bytes, digest {:016x}", json.len(), Fnv::of(&json));
         // What a pass would still have to do for search, now the import is in.
         let reads = store.reads();
         let w = mailcraft_store::search::Writer::open(&store, "d1").unwrap();
@@ -521,12 +519,11 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
     let n = mailcraft_store::PAGE_MESSAGES * 2 + 808;
     let owned: Vec<(String, String, i64)> =
         (0..n).map(|k| (format!("Report #{k}"), format!("<p{k}@bench.example>"), 1_700_000_000 + k as i64 * 60)).collect();
-    let recipients =
-        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
-    let batch: Vec<UnicodePstBatchMessage<'_>> = owned
+    let recipients = [NewRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
+    let batch: Vec<BatchMessage<'_>> = owned
         .iter()
-        .map(|o| UnicodePstBatchMessage {
-            message: UnicodePstMessage {
+        .map(|o| BatchMessage {
+            message: NewMessage {
                 subject: &o.0,
                 sender_name: "Ana",
                 sender_email: "ana@soundlab.example",
@@ -541,9 +538,9 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
             attachments: &[],
         })
         .collect();
-    UnicodePstFile::create_in_folder_with_attachments(&pst, &["Inbox"], &batch[0].message, batch[0].attachments).unwrap();
+    write::create_with(&pst, &["Inbox"], &batch[0].message, batch[0].attachments).unwrap();
     for part in batch[1..].chunks(4000) {
-        UnicodePstFile::append_many_in_folder_with_attachments(&pst, &["Inbox"], part).unwrap();
+        write::append(&pst, &["Inbox"], part).unwrap();
     }
     let store = mailcraft_store::Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
     let done = crate::pst::import(&pst, &store, "d1", &mut |_| {}).unwrap();
@@ -569,13 +566,5 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
     let key = st.messages[5].key.clone();
     store.save_folder("d1", "INBOX", &st).unwrap();
     assert!(store.load_folder("d1", "INBOX").unwrap().find(key.uid).unwrap().flags.seen);
-    // Its items read through a handle opened again every 3: the same list, every message once.
-    let opts = crate::pst::ImportOptions { recycle: 3, lanes: 1, ..Default::default() };
-    let again = crate::pst::import_with(&pst, &store, "d2", &opts, &mut |_| {}).unwrap();
-    assert_eq!((again.messages, again.stats.reopens as usize), (n, n.div_ceil(3) - 1));
-    let listed = |account: &str| -> Vec<(String, u32)> {
-        store.load_folder(account, "INBOX").unwrap().messages.iter().map(|m| (m.subject.clone(), m.key.uid)).collect()
-    };
-    assert_eq!(listed("d2"), listed("d1"));
     let _ = std::fs::remove_dir_all(&dir);
 }

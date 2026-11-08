@@ -3,7 +3,7 @@
 
 use super::*;
 use mailcraft_mime::smime::{self, Protection};
-use outlook_pst::messaging::attachment::{Attachment as _, AttachmentData, UnicodeAttachment};
+use mailcraft_pst::{Attachment, AttachmentData};
 
 /// The S/MIME fixtures were made on 2026-10-24; their certificates run for two years.
 const NOW: i64 = 1_792_900_000;
@@ -69,19 +69,19 @@ fn imported(back: &Store, subject: &str) -> Vec<u8> {
 }
 
 /// The message with `subject` in the file's Inbox, as the writer's reader reads it.
-fn in_file(path: &Path, subject: &str) -> Rc<UnicodeMessage> {
-    let store = UnicodeStore::read(Rc::new(outlook_pst::UnicodePstFile::open(path).unwrap())).unwrap();
-    let any: Rc<dyn PstStore> = store.clone();
-    let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+fn in_file(path: &Path, subject: &str) -> Rc<Message> {
+    let store = PstStore::read(Rc::new(PstFile::open(path).unwrap())).unwrap();
+    let any: Rc<PstStore> = store.clone();
+    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     let table = top.hierarchy_table().unwrap().clone();
     let inbox = table
         .rows_matrix()
-        .filter_map(|row| any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).ok()?).ok())
+        .filter_map(|row| any.open_folder(row.id()).ok())
         .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
         .unwrap();
     for row in inbox.contents_table().unwrap().rows_matrix() {
-        let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-        let m = UnicodeMessage::read(store.clone(), &entry, None).unwrap();
+        let entry = row.id();
+        let m = Message::read(store.clone(), entry).unwrap();
         if m.properties().get(0x0037).and_then(crate::pst::text_of).as_deref() == Some(subject) {
             return m;
         }
@@ -89,12 +89,12 @@ fn in_file(path: &Path, subject: &str) -> Rc<UnicodeMessage> {
     panic!("no {subject} in the file")
 }
 
-fn attachments_of(m: &Rc<UnicodeMessage>) -> Vec<Rc<UnicodeAttachment>> {
+fn attachments_of(m: &Rc<Message>) -> Vec<Rc<Attachment>> {
     let Some(table) = m.attachment_table() else { return Vec::new() };
-    table.rows_matrix().map(|row| UnicodeAttachment::read(m.clone(), NodeId::from(u32::from(row.id())), None).unwrap()).collect()
+    table.rows_matrix().map(|row| Attachment::read(m.clone(), row.id()).unwrap()).collect()
 }
 
-fn text(value: Option<&outlook_pst::ltp::prop_context::PropertyValue>) -> Option<String> {
+fn text(value: Option<&mailcraft_pst::PropertyValue>) -> Option<String> {
     value.and_then(crate::pst::text_of)
 }
 
@@ -103,7 +103,7 @@ fn text(value: Option<&outlook_pst::ltp::prop_context::PropertyValue>) -> Option
 /// messages it was, down to the file.
 #[test]
 fn attached_messages_go_in_as_messages() {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    use mailcraft_pst::PropertyValue as V;
     let dir = scratch("attached");
     let deep = build(&draft("Level 3", "The bottom.", vec![file("deep.txt", "text/plain", b"found it")]), "l3@studio.example");
     let two = build(&draft("Level 2", "Two.", vec![file("Level 3.eml", "message/rfc822", &deep)]), "l2@studio.example");
@@ -288,7 +288,7 @@ fn a_big_file_doesnt_need_the_cache_once_collected() {
     store.remove_body(&key);
     let path = dir.join("Mail.pst");
     let mut created = false;
-    write(&path, Format::Unicode, &["Inbox"], &[m], &mut created).unwrap();
+    write(&path, &["Inbox"], &[m], &mut created).unwrap();
     spill.clear();
     assert!(!dir.join("Mail.pst.part-files").exists());
     let got = attachments_of(&in_file(&path, "Footage"));

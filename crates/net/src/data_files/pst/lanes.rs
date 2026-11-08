@@ -12,7 +12,6 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Mutex, PoisonError};
 
 use super::budget::{Budget, held};
-use super::chunked::Pages;
 use super::order::{Done, Step};
 use super::out::sent_ids::{self, Given, SentIds};
 use super::rebuild::{message, summary_of};
@@ -100,8 +99,6 @@ pub(super) struct Ctx<'a> {
     /// Lanes still reading, and whether the last went with work left to read.
     pub(super) live: AtomicUsize,
     pub(super) orphaned: AtomicBool,
-    /// Which kind of file it is, once the planner has opened it: 1 Unicode, 2 the older ANSI.
-    pub(super) format: std::sync::atomic::AtomicU8,
     /// Links' files read, which stop once a drive is too slow to answer.
     pub(super) links: item::LinkReads,
     /// Items the lanes have taken, for a test's faults.
@@ -127,7 +124,6 @@ impl<'a> Ctx<'a> {
             panics: AtomicUsize::new(0),
             live: AtomicUsize::new(0),
             orphaned: AtomicBool::new(false),
-            format: std::sync::atomic::AtomicU8::new(0),
             links: item::LinkReads::default(),
             #[cfg(test)]
             items_taken: std::sync::atomic::AtomicU64::new(0),
@@ -152,7 +148,6 @@ impl<'a> Ctx<'a> {
             panics: AtomicUsize::new(0),
             live: AtomicUsize::new(0),
             orphaned: AtomicBool::new(false),
-            format: std::sync::atomic::AtomicU8::new(0),
             links: item::LinkReads::default(),
             #[cfg(test)]
             items_taken: std::sync::atomic::AtomicU64::new(0),
@@ -210,15 +205,10 @@ fn next_job(jobs: &Jobs) -> Option<Job> {
     jobs.lock().unwrap_or_else(PoisonError::into_inner).recv().ok()
 }
 
-/// A lane: reads jobs until there are none, through a handle of the file's kind.
+/// A lane: reads jobs until there are none.
 pub(super) fn run(ctx: &Ctx<'_>, jobs: &Jobs, results: &Sender<Done>) {
     let Some(first) = next_job(jobs) else { return };
-    // The planner says what kind of file it is before it hands out any job.
-    if ctx.format.load(Ordering::Acquire) == 2 {
-        lane_ansi(ctx, first, jobs, results);
-    } else {
-        lane_unicode(ctx, first, jobs, results);
-    }
+    lane_of_file(ctx, first, jobs, results);
 }
 
 /// `n` lanes are gone. The last (every one could fail to open the file, or not start): nothing
@@ -425,120 +415,104 @@ pub(super) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tall
     }))
 }
 
-macro_rules! lane {
-    ($name:ident, $file:ty, $store:ty, $message:ty, $attachment:ty) => {
-        fn $name(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>) {
-            // Read only, through a cache of its own.
-            let source = match open::source(ctx.path, ctx.opts) {
-                Ok(s) => s,
-                Err(e) => {
-                    log::info!("a reader could not open the data file: {e}");
-                    // This lane's job goes back as unread; the other lanes read the rest.
-                    Answer::new(&first, results).send(Outcome::Unreadable, 0);
-                    return;
-                }
-            };
-            #[cfg(test)]
-            if let Some(tests::Fault::SlowReads(ms)) = ctx.opts.fault
-                && let Ok(mut s) = source.try_borrow_mut()
-            {
-                s.slow = Some((Duration::from_millis(ms), tests::slow_reads_of(ctx.path)));
-            }
-            let recycle = Recycle::of(ctx.opts);
-            let store_of = |pst: $file| {
-                pst.set_max_value_size(MAX_VALUE);
-                <$store>::read(Rc::new(pst))
-            };
-            let named: OnceCell<crate::pst_pim::Named> = OnceCell::new();
-            let held: RefCell<Option<(Rc<$store>, Pages, usize)>> = RefCell::new(None);
-            let reopens = Cell::new(0u64);
-            let read = |node: u32| -> io::Result<Item> {
-                let store = {
-                    let mut held = held.try_borrow_mut().map_err(io::Error::other)?;
-                    if held.as_ref().is_none_or(|(_, pages, n)| recycle.due(*n, pages)) {
-                        // The old handle, and its caches, go before the new one is made.
-                        if held.take().is_some() {
-                            reopens.set(reopens.get().saturating_add(1));
-                        }
-                        let (reader, pages) = open::handle(&source);
-                        *held = Some((store_of(<$file>::read_from(reader)?)?, pages, 0));
-                    }
-                    let Some((store, _, n)) = held.as_mut() else { return Err(io::Error::other("no handle to read with")) };
-                    *n = n.saturating_add(1);
-                    store.clone()
-                };
-                let named = named.get_or_init(|| {
-                    let any: Rc<dyn PstStore> = store.clone();
-                    crate::pst_pim::Named::of(&*any)
-                });
-                let entry = store.properties().make_entry_id(NodeId::from(node))?;
-                let m = <$message>::read(store, &entry, None)?;
-                Ok(item_with_files(&Held { m, named }, &|path, cap| ctx.links.read(path, cap)))
-            };
-            let reset = || {
-                if let Ok(mut h) = held.try_borrow_mut() {
-                    *h = None;
-                }
-            };
-            work(ctx, first, jobs, results, &read, &reset);
-            ctx.tally.reading(&source, reopens.get(), 0);
-        }
-
-        impl Holder for Held<'_, $message> {
-            fn attachments(&self, top: bool, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
-                let cp = message_code_page(&*self.m);
-                // Which hidden files are left out depends on what the item is.
-                let class = message_class(&*self.m, cp);
-                let Some(table) = self.m.attachment_table() else { return };
-                for row in table.rows_matrix() {
-                    let read = || {
-                        let node = NodeId::from(u32::from(row.id()));
-                        // The row itself is read only for an attachment the reader fails on.
-                        match <$attachment>::read(self.m.clone(), node, None) {
-                            Ok(a) => match attachment(&*a, cp, &class, top) {
-                                Some(got) => Part::Got(got),
-                                None => match a.embedded_message() {
-                                    Some(m) => Part::Message(Held { m, named: self.named }),
-                                    None => Part::Got(item::Got::Left(SkipReason::AttachedMessageUnreadable)),
-                                },
-                            },
-                            Err(e) => Part::Got(unread_attachment(&e, &**table, row, cp, &class, top)),
-                        }
-                    };
-                    if !each(&read) {
-                        return;
-                    }
-                }
-            }
-
-            fn item(&self, files: Vec<File>) -> Item {
-                item(&*self.m, files, self.named)
-            }
-
-            fn key(&self) -> Option<Vec<u8>> {
-                search_key(&*self.m)
-            }
+fn lane_of_file(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>) {
+    // Read only, through a cache of its own.
+    let source = match open::source(ctx.path, ctx.opts) {
+        Ok(s) => s,
+        Err(e) => {
+            log::info!("a reader could not open the data file: {e}");
+            // This lane's job goes back as unread; the other lanes read the rest.
+            Answer::new(&first, results).send(Outcome::Unreadable, 0);
+            return;
         }
     };
+    #[cfg(test)]
+    if let Some(tests::Fault::SlowReads(ms)) = ctx.opts.fault
+        && let Ok(mut s) = source.try_borrow_mut()
+    {
+        s.slow = Some((Duration::from_millis(ms), tests::slow_reads_of(ctx.path)));
+    }
+    let store_of = |pst: PstFile| {
+        pst.set_max_value_size(MAX_VALUE);
+        PstStore::read(Rc::new(pst))
+    };
+    let named: OnceCell<crate::pst_pim::Named> = OnceCell::new();
+    let held: RefCell<Option<Rc<PstStore>>> = RefCell::new(None);
+    let read = |node: u32| -> io::Result<Item> {
+        let store = {
+            let mut held = held.try_borrow_mut().map_err(io::Error::other)?;
+            if held.is_none() {
+                *held = Some(store_of(PstFile::read_from(open::handle(&source))?)?);
+            }
+            let Some(store) = held.as_ref() else { return Err(io::Error::other("no handle to read with")) };
+            store.clone()
+        };
+        let named = named.get_or_init(|| {
+            let any: Rc<PstStore> = store.clone();
+            crate::pst_pim::Named::of(&any)
+        });
+        let m = Message::read(store, node)?;
+        Ok(item_with_files(&Held { m, named }, &|path, cap| ctx.links.read(path, cap)))
+    };
+    let reset = || {
+        if let Ok(mut h) = held.try_borrow_mut() {
+            *h = None;
+        }
+    };
+    work(ctx, first, jobs, results, &read, &reset);
+    ctx.tally.reading(&source);
 }
 
-/// A message of the file's own type (`M`), as the import reads it.
-struct Held<'a, M> {
-    m: Rc<M>,
+/// A message, as the import reads it.
+struct Held<'a> {
+    m: Rc<Message>,
     named: &'a crate::pst_pim::Named,
 }
 
 /// A message's search key (`PidTagSearchKey`), which a copy of it keeps: an attached message
 /// with the key of one holding it holds itself.
-fn search_key(m: &dyn Message) -> Option<Vec<u8>> {
+fn search_key(m: &Message) -> Option<Vec<u8>> {
     match m.properties().get(0x300B) {
         Some(PropertyValue::Binary(b)) if !b.buffer().is_empty() => Some(b.buffer().to_vec()),
         _ => None,
     }
 }
 
-lane!(lane_unicode, UnicodePstFile, UnicodeStore, UnicodeMessage, UnicodeAttachment);
-lane!(lane_ansi, AnsiPstFile, AnsiStore, AnsiMessage, AnsiAttachment);
+impl Holder for Held<'_> {
+    fn attachments(&self, top: bool, each: &mut dyn FnMut(&dyn Fn() -> Part<Self>) -> bool) {
+        let cp = message_code_page(&self.m);
+        // Which hidden files are left out depends on what the item is.
+        let class = message_class(&self.m, cp);
+        let Some(table) = self.m.attachment_table() else { return };
+        for row in table.rows_matrix() {
+            let read = || {
+                let node = row.id();
+                // The row itself is read only for an attachment the reader fails on.
+                match Attachment::read(self.m.clone(), node) {
+                    Ok(a) => match attachment(&a, cp, &class, top) {
+                        Some(got) => Part::Got(got),
+                        None => match a.embedded_message() {
+                            Some(m) => Part::Message(Held { m, named: self.named }),
+                            None => Part::Got(item::Got::Left(SkipReason::AttachedMessageUnreadable)),
+                        },
+                    },
+                    Err(e) => Part::Got(unread_attachment(&e, table, row, cp, &class, top)),
+                }
+            };
+            if !each(&read) {
+                return;
+            }
+        }
+    }
+
+    fn item(&self, files: Vec<File>) -> Item {
+        item(&self.m, files, self.named)
+    }
+
+    fn key(&self) -> Option<Vec<u8>> {
+        search_key(&self.m)
+    }
+}
 
 #[cfg(test)]
 pub(super) mod tests {

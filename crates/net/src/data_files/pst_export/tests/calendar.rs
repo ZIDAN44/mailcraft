@@ -6,6 +6,7 @@ use mailcraft_model::dates::days_from_civil;
 use mailcraft_model::ical::{self, Attendee, CalEvent, Privacy, ShowAs};
 use mailcraft_model::pim::{Pim, StoredEvent};
 use mailcraft_model::zone::Zone;
+use mailcraft_pst::write;
 
 fn scratch(label: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-cal-{label}-{}", std::process::id()));
@@ -161,7 +162,7 @@ fn occurrences(events: &[CalEvent]) -> Vec<(String, i64, i64, String)> {
 
 #[test]
 fn the_calendar_round_trips_inside_a_data_file() {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    use mailcraft_pst::PropertyValue as V;
     let dir = scratch("round-trip");
     let store = Store::open(dir.join("cache")).unwrap();
     let events = calendar();
@@ -173,7 +174,7 @@ fn the_calendar_round_trips_inside_a_data_file() {
     // called off deleted), and the hourly series' four occurrences, each one of its own.
     assert_eq!((done.events, done.occurrences), (10, 4), "{done:?}");
     assert!(!dir.join("Calendar Calendar.ics").exists());
-    assert_eq!(UnicodePstFile::special_folder(&file, Special::Calendar).unwrap(), Some(vec!["Calendar".to_string()]));
+    assert_eq!(write::special_folder(&file, Special::Calendar).unwrap(), Some(vec!["Calendar".to_string()]));
 
     // As Outlook keeps them.
     let appt = |lid| named_id(&file, 0x0006_2002, lid).unwrap();
@@ -244,7 +245,7 @@ fn the_calendar_round_trips_inside_a_data_file() {
 /// account being a guest, that it was received and isn't answered yet.
 #[test]
 fn meeting_mail_carries_its_meeting() {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    use mailcraft_pst::PropertyValue as V;
     let dir = scratch("meeting-mail");
     let store = Store::open(dir.join("cache")).unwrap();
     let mut invite = CalEvent {

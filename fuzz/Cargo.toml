@@ -43,7 +43,7 @@ mailcraft-mime.path = "../crates/mime" # MIME, HTML and markup
 mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
 mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
 mailcraft-smime.path = "../crates/smime" # S/MIME
-outlook-pst-rw = "1.2.14" # the .pst reader and writer, from MailCraft's fork below
+mailcraft-pst.path = "../crates/pst" # the .pst reader and writer
 mailcraft-pgp.path = "../crates/pgp" # OpenPGP
 rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
 mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to, the search index

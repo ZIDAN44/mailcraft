@@ -3,7 +3,7 @@
 //! own special folders.
 
 use super::*;
-use outlook_pst::UnicodePstSpecialFolder as Special;
+use mailcraft_pst::write::SpecialFolder as Special;
 
 /// The roles that have a special folder in a data file. MailCraft has no Outbox folder.
 pub(super) const SPECIAL: [(FolderRole, Special); 4] = [
@@ -44,18 +44,17 @@ pub(super) struct Targets(Vec<(Special, Vec<String>)>);
 
 impl Targets {
     /// The file at `path`'s (none when there's no file yet). The file is one being added to, so
-    /// anything wrong in it, a panic in the writer's reader too, costs only its record: that
-    /// folder gets the name a new file gives it.
-    pub(super) fn of(path: Option<&Path>, format: Format) -> Targets {
+    /// anything wrong in it costs only its record: that folder gets the name a new file gives it.
+    pub(super) fn of(path: Option<&Path>) -> Targets {
         Targets::found(|s| match path {
-            Some(p) => format.special_folder(p, s),
+            Some(p) => write::special_folder(p, s),
             None => Ok(None),
         })
     }
 
     /// The ones `lookup` finds.
-    fn found(lookup: impl Fn(Special) -> io::Result<Option<Vec<String>>> + std::panic::RefUnwindSafe) -> Targets {
-        let found = |s: Special| std::panic::catch_unwind(|| lookup(s)).ok()?.ok().flatten();
+    fn found(lookup: impl Fn(Special) -> io::Result<Option<Vec<String>>>) -> Targets {
+        let found = |s: Special| lookup(s).ok().flatten();
         Targets(SPECIAL.iter().map(|(_, s)| (*s, found(*s).unwrap_or_else(|| vec![s.default_name().to_string()]))).collect())
     }
 
@@ -176,7 +175,7 @@ mod tests {
             folder("Trashy", FolderRole::Other),
             folder("Projects", FolderRole::Other),
         ];
-        let targets = Targets::of(None, Format::Unicode);
+        let targets = Targets::of(None);
         let at = |i: usize| place(&folders[i], &folders, &targets);
         assert_eq!(at(0), ["Sent Items"]);
         assert_eq!(at(1), ["Sent Items", "2024"]);
@@ -232,14 +231,14 @@ mod tests {
         assert_eq!(written("Wysłane"), b"wys?ane");
     }
 
-    /// A lookup in a damaged file that fails, or panics in the writer's reader, costs only its
-    /// record: that folder gets the name a new file gives it, and the export goes on.
+    /// A lookup in a damaged file that fails costs only its record: that folder gets the name a
+    /// new file gives it, and the export goes on.
     #[test]
     fn a_damaged_record_gives_the_default_name() {
         let targets = Targets::found(|s| match s {
             Special::SentItems => Ok(Some(vec!["Gesendet".into()])),
             Special::DeletedItems => Err(io::Error::other("damaged")),
-            _ => panic!("damaged"),
+            _ => Err(io::Error::other("damaged")),
         });
         assert_eq!(targets.get(Special::SentItems), ["Gesendet"]);
         assert_eq!(targets.get(Special::DeletedItems), ["Deleted Items"]);

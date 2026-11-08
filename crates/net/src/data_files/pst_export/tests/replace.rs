@@ -6,7 +6,7 @@ use super::*;
 use mailcraft_model::ical::CalEvent;
 use mailcraft_model::pim::{Note, Pim, StoredCard, StoredEvent, StoredNote, StoredTask, Task};
 use mailcraft_model::vcard::Card;
-use outlook_pst::AnsiPstFile;
+use mailcraft_pst::write;
 
 fn scratch(label: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-replace-{label}-{}", std::process::id()));
@@ -44,20 +44,20 @@ fn account() -> Pim {
 
 /// Each folder's items, by subject with their node IDs, sorted.
 fn items(path: &Path) -> BTreeMap<String, Vec<(String, u32)>> {
-    let any = Format::of(path).store(path).unwrap();
-    let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+    let any = store_of(path).unwrap();
+    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     let mut out = BTreeMap::new();
     for row in top.hierarchy_table().unwrap().rows_matrix() {
-        let folder = any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap()).unwrap();
+        let folder = any.open_folder(row.id()).unwrap();
         let name = folder.properties().display_name().unwrap();
         if !["Calendar", "Contacts", "Notes", "Tasks"].contains(&name.as_str()) {
             continue;
         }
         let mut list = Vec::new();
         for row in folder.contents_table().unwrap().rows_matrix() {
-            let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-            let m = any.open_message(&entry, None).unwrap();
-            list.push((m.properties().get(0x0037).and_then(crate::pst::text_of).unwrap_or_default(), u32::from(row.id())));
+            let entry = row.id();
+            let m = Message::read(any.clone(), entry).unwrap();
+            list.push((m.properties().get(0x0037).and_then(crate::pst::text_of).unwrap_or_default(), row.id()));
         }
         list.sort();
         out.insert(name, list);
@@ -79,7 +79,7 @@ fn exported_again_in_place(label: &str, ansi: bool) {
     let dir = scratch(label);
     let file = dir.join("Out.pst");
     if ansi {
-        drop(AnsiPstFile::create_empty(&file).unwrap());
+        write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
     }
     let store = Store::open(dir.join("cache")).unwrap();
     let mut pim = account();
@@ -96,7 +96,7 @@ fn exported_again_in_place(label: &str, ansi: bool) {
     store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
     let done = export(&store, "a1", "Mine", &file, NONE, &mut |_| {}).unwrap();
     assert_eq!((done.events, done.contacts, done.notes, done.tasks, done.pim_already, done.pim_replaced), (1, 1, 1, 1, 4, 4), "{done:?}");
-    assert_eq!(Format::of(&file), if ansi { Format::Ansi } else { Format::Unicode });
+    assert_eq!(format_of(&file), if ansi { Format::Ansi } else { Format::Unicode });
 
     // One copy of each, the changed ones as they are now; the unchanged ones untouched.
     let after = items(&file);

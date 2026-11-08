@@ -3,6 +3,7 @@
 //! again once it has changed.
 
 use mailcraft_model::{Flag, Op};
+use mailcraft_pst::write;
 
 use super::*;
 
@@ -13,9 +14,8 @@ fn as_it_is(pst: &str) -> (Vec<u8>, std::time::SystemTime) {
 
 /// A message added to the file's Inbox, as Outlook would add one.
 fn add_to_file(pst: &str, subject: &str, id: &str) {
-    let recipients =
-        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
-    let message = UnicodePstMessage {
+    let recipients = [NewRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
+    let message = NewMessage {
         subject,
         sender_name: "Ana",
         sender_email: "ana@soundlab.example",
@@ -27,7 +27,7 @@ fn add_to_file(pst: &str, subject: &str, id: &str) {
         message_class: "IPM.Note",
         properties: &[],
     };
-    Writer::append_many_in_folder_with_attachments(Path::new(pst), &["Inbox"], &[UnicodePstBatchMessage { message, attachments: &[] }]).unwrap();
+    write::append(Path::new(pst), &["Inbox"], &[BatchMessage { message, attachments: &[] }]).unwrap();
 }
 
 fn ids(store: &Store, account: &str, folder: &str) -> Vec<String> {

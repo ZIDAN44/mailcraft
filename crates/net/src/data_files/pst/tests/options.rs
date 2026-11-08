@@ -2,8 +2,8 @@
 //! data file.
 
 use mailcraft_model::job::StopHow;
+use mailcraft_pst::write::{self, BatchMessage, NewMessage, NewRecipient, RecipientType};
 use mailcraft_store::Store;
-use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 use std::path::PathBuf;
 
 use super::super::{ImportOptions, Stop, import, import_with};
@@ -21,13 +21,12 @@ fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
     let pst = dir.join("in.pst");
     let owned: Vec<(String, String)> = (0..n).map(|k| (format!("Report #{k}"), format!("<r{k}@run.example>"))).collect();
     let body = "Here is the week's plan, as agreed. ".repeat(40);
-    let recipients =
-        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
-    let batch: Vec<UnicodePstBatchMessage<'_>> = owned
+    let recipients = [NewRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
+    let batch: Vec<BatchMessage<'_>> = owned
         .iter()
         .enumerate()
-        .map(|(k, o)| UnicodePstBatchMessage {
-            message: UnicodePstMessage {
+        .map(|(k, o)| BatchMessage {
+            message: NewMessage {
                 subject: &o.0,
                 sender_name: "Ana",
                 sender_email: "ana@soundlab.example",
@@ -42,8 +41,8 @@ fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
             attachments: &[],
         })
         .collect();
-    Writer::create_in_folder_with_attachments(&pst, &["Inbox"], &batch[0].message, batch[0].attachments).unwrap();
-    Writer::append_many_in_folder_with_attachments(&pst, &["Inbox"], &batch[1..]).unwrap();
+    write::create_with(&pst, &["Inbox"], &batch[0].message, batch[0].attachments).unwrap();
+    write::append(&pst, &["Inbox"], &batch[1..]).unwrap();
     (dir, pst)
 }
 
@@ -180,8 +179,6 @@ fn an_import_counts_where_its_time_went() {
     let len = std::fs::metadata(&pst).unwrap().len();
     assert!(s.read_bytes > 0 && s.read_bytes <= 2 * len, "{s:?}");
     assert!(s.reads > 0 && s.reads < len / 512, "{s:?}");
-    // The folder handle's pages are counted too, and are a few: it reads no items.
-    assert!(s.walk_cache_bytes > 0 && s.walk_cache_bytes < 64 * 1024, "{s:?}");
     // A store that doesn't compress keeps them as they are.
     let plain = Store::memory();
     let s = import(&pst, &plain, "t2", &mut |_| {}).unwrap().stats;
@@ -189,66 +186,7 @@ fn an_import_counts_where_its_time_went() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// What every folder holds, by subject and date: the same whichever way the file was read.
-fn contents(store: &Store, account: &str) -> Vec<(String, Vec<(String, i64)>)> {
-    store
-        .load_folders(account)
-        .unwrap()
-        .iter()
-        .map(|f| {
-            let mut list: Vec<(String, i64)> =
-                store.load_folder(account, &f.path).unwrap().messages.iter().map(|m| (m.subject.clone(), m.date)).collect();
-            list.sort();
-            (f.path.clone(), list)
-        })
-        .collect()
-}
-
-/// The handle that reads items opened again every 3 items (and every one) loses nothing and
-/// brings nothing in twice; and what was read of the file stays read, so a new handle doesn't
-/// read it again: every byte of this small file is read once, however often it's reopened.
-#[test]
-fn reopening_the_reader_loses_nothing_and_rereads_nothing() {
-    let (dir, pst) = data_file("recycle", 250);
-    let store = Store::memory();
-    let plain = import_with(&pst, &store, "r0", &one_lane(), &mut |_| {}).unwrap();
-    assert_eq!((plain.messages, plain.stats.reopens), (250, 0), "a small file needs no reopening");
-    // Each of the two handles (the planner's and the lane's) reads it at most once.
-    let len = 2 * std::fs::metadata(&pst).unwrap().len();
-    assert!(plain.stats.read_bytes > 0 && plain.stats.read_bytes <= len, "{:?}", plain.stats);
-    for (account, every) in [("r3", 3), ("r1", 1)] {
-        let opts = ImportOptions { recycle: every, ..one_lane() };
-        let done = import_with(&pst, &store, account, &opts, &mut |_| {}).unwrap();
-        assert_eq!((done.messages, done.skipped), (250, 0));
-        assert_eq!(done.stats.reopens as usize, 250usize.div_ceil(every) - 1, "{:?}", done.stats);
-        assert_eq!(contents(&store, account), contents(&store, "r0"));
-        assert!(done.stats.read_bytes <= len, "read again after reopening: {:?}", done.stats);
-    }
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-/// What sets the reopening off in the app is the pages a handle has read, not a count of items:
-/// let hold only a few KiB, the handle that reads items is opened again as it reads, and the
-/// import is the same as with no reopening, every byte of the file still read at most once.
-#[test]
-fn the_reader_is_reopened_once_its_pages_hold_too_much() {
-    let (dir, pst) = data_file("page-limit", 250);
-    let store = Store::memory();
-    let plain = import_with(&pst, &store, "p0", &one_lane(), &mut |_| {}).unwrap();
-    assert_eq!(plain.stats.reopens, 0);
-    let len = 2 * std::fs::metadata(&pst).unwrap().len();
-    let opts = ImportOptions { handle_cache_bytes: 8 * 1024, ..one_lane() };
-    let done = import_with(&pst, &store, "p1", &opts, &mut |_| {}).unwrap();
-    assert_eq!((done.messages, done.skipped), (250, 0));
-    assert!(done.stats.reopens > 0, "the pages read were counted: {:?}", done.stats);
-    assert!(done.stats.reopens < 250, "and not every item set it off: {:?}", done.stats);
-    assert_eq!(contents(&store, "p1"), contents(&store, "p0"));
-    assert!(done.stats.read_bytes <= len, "{:?}", done.stats);
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-/// A data file that can't be written to imports: nothing asks to write it. (outlook-pst's own
-/// `open` already went on without write access; this keeps the read-only opening honest.)
+/// A data file that can't be written to imports: nothing asks to write it.
 #[test]
 fn a_read_only_data_file_imports() {
     let (dir, pst) = data_file("read-only", 5);

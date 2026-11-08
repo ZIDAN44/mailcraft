@@ -7,10 +7,8 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use mailcraft_model::{Folder, FolderRole};
+use mailcraft_pst::write::{self, BatchMessage, NewAttachment, NewMessage, NewRecipient, RecipientType};
 use mailcraft_store::Store;
-use outlook_pst::{
-    UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType,
-};
 
 use super::super::lanes::MAX_PANICS;
 use super::super::lanes::tests::Fault;
@@ -25,17 +23,16 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let pst = dir.join("in.pst");
-    let recipients =
-        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
+    let recipients = [NewRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
     let body = "Here is the week's plan, as agreed. ".repeat(20);
     let blobs: Vec<Vec<u8>> = (0..per_folder).map(|k| file_bytes(k, big)).collect();
     for (f, folder) in [&["Inbox"][..], &["Projects"], &["Projects", "2024"]].into_iter().enumerate() {
         let owned: Vec<(String, String)> = (0..per_folder)
             .map(|k| (format!("Report {f}-{k}"), if k % 7 == 3 { String::new() } else { format!("<r{f}-{k}@run.example>") }))
             .collect();
-        let files: Vec<Vec<UnicodePstAttachment<'_>>> = (0..per_folder)
+        let files: Vec<Vec<NewAttachment<'_>>> = (0..per_folder)
             .map(|k| match k % 3 {
-                0 => vec![UnicodePstAttachment {
+                0 => vec![NewAttachment {
                     filename: "plan.bin",
                     mime_type: "application/octet-stream",
                     content_id: None,
@@ -43,7 +40,7 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
                     ..Default::default()
                 }],
                 1 if k % 2 == 1 => {
-                    vec![UnicodePstAttachment {
+                    vec![NewAttachment {
                         filename: "chart.png",
                         mime_type: "image/png",
                         content_id: Some("<c@run.example>"),
@@ -54,11 +51,11 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
                 _ => Vec::new(),
             })
             .collect();
-        let batch: Vec<UnicodePstBatchMessage<'_>> = owned
+        let batch: Vec<BatchMessage<'_>> = owned
             .iter()
             .enumerate()
-            .map(|(k, o)| UnicodePstBatchMessage {
-                message: UnicodePstMessage {
+            .map(|(k, o)| BatchMessage {
+                message: NewMessage {
                     subject: &o.0,
                     sender_name: "Ana",
                     sender_email: "ana@soundlab.example",
@@ -74,10 +71,10 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
             })
             .collect();
         if f == 0 {
-            Writer::create_in_folder_with_attachments(&pst, folder, &batch[0].message, batch[0].attachments).unwrap();
-            Writer::append_many_in_folder_with_attachments(&pst, folder, &batch[1..]).unwrap();
+            write::create_with(&pst, folder, &batch[0].message, batch[0].attachments).unwrap();
+            write::append(&pst, folder, &batch[1..]).unwrap();
         } else {
-            Writer::append_many_in_folder_with_attachments(&pst, folder, &batch).unwrap();
+            write::append(&pst, folder, &batch).unwrap();
         }
     }
     (dir, pst)
@@ -236,7 +233,7 @@ fn a_planner_panic_keeps_the_folders_read() {
 /// (and those under it) are left out and counted, and the ones planned before and after it come
 /// in, rather than the import failing as a damaged file.
 #[test]
-fn a_panic_while_planning_keeps_the_other_folders() {
+fn a_folder_that_fails_as_it_is_planned_leaves_the_others() {
     let (dir, pst) = data_file("plan", 30, false);
     let store = Store::memory();
     let (path, s) = (pst.clone(), store.clone());

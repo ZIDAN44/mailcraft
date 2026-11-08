@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 
 use mailcraft_model::search::IndexDoc;
+use mailcraft_pst::write;
 use mailcraft_store::search;
 
 use super::*;
@@ -412,12 +413,12 @@ fn no_pass_runs_during_an_import() {
 /// its end has nothing to add, and reads nothing.
 #[test]
 fn an_imported_file_leaves_nothing_to_index() {
-    use outlook_pst::{UnicodePstFile, UnicodePstMessage};
+    use mailcraft_pst::write::NewMessage;
     let t = std::env::temp_dir().join(format!("mailcraft-worker-import-index-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&t);
     std::fs::create_dir_all(&t).unwrap();
     let file = t.join("in.pst");
-    let message = UnicodePstMessage {
+    let message = NewMessage {
         subject: "Plan",
         sender_name: "Ana",
         sender_email: "ana@studio.example",
@@ -429,7 +430,7 @@ fn an_imported_file_leaves_nothing_to_index() {
         message_class: "IPM.Note",
         properties: &[],
     };
-    drop(UnicodePstFile::create_with_attachments(&file, &message, &[]).unwrap());
+    write::create_with(&file, &["Inbox"], &message, &[]).unwrap();
     let store = Store::memory();
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::ImportPst { account: "p1".into(), path: file.to_string_lossy().into_owned(), resume: false });

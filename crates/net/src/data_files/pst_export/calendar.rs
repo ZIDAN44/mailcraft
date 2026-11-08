@@ -17,11 +17,11 @@ use std::collections::{BTreeMap, HashSet};
 
 use mailcraft_model::ical::{self, CalEvent, Privacy, ShowAs};
 use mailcraft_model::zone::Zone;
+use mailcraft_pst::GuidValue;
 
 use super::item::{PSETID_COMMON, filetime};
 use super::pim::{Attached, File, Item, Key, Person, Value, crlf, keywords, lid, tag};
 use super::*;
-use outlook_pst::ltp::prop_context::GuidValue;
 
 mod recur;
 mod zone;
@@ -207,14 +207,14 @@ fn people(e: &CalEvent) -> Vec<Person> {
     let organizer = e.organizer.iter().filter(|o| !o.email.trim().is_empty()).map(|o| Person {
         name: o.name.clone(),
         email: o.email.clone(),
-        kind: UnicodePstRecipientType::To,
+        kind: RecipientType::To,
         flags: Some(RECIP_SENDABLE | RECIP_ORGANIZER),
         track: Some(0),
     });
     let guests = e.attendees.iter().filter(|a| !a.email.trim().is_empty()).map(|a| Person {
         name: a.name.clone(),
         email: a.email.clone(),
-        kind: UnicodePstRecipientType::To,
+        kind: RecipientType::To,
         flags: Some(RECIP_SENDABLE),
         track: track(&a.partstat),
     });

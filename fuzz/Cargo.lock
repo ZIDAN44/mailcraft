@@ -1918,9 +1918,9 @@ dependencies = [
  "mailcraft-model",
  "mailcraft-net",
  "mailcraft-pgp",
+ "mailcraft-pst",
  "mailcraft-smime",
  "mailcraft-store",
- "outlook-pst-rw",
  "rand_core 0.6.4",
 ]
 
@@ -1999,11 +1999,11 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-pgp",
+ "mailcraft-pst",
  "mailcraft-smime",
  "mailcraft-store",
  "md-5 0.11.0",
  "md4",
- "outlook-pst-rw",
  "quick-xml",
  "rand_core 0.6.4",
  "ring",
@@ -2025,6 +2025,13 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "mailcraft-pst"
+version = "0.34.0"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -2323,16 +2330,6 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
-name = "outlook-pst-rw"
-version = "1.2.14"
-source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=60cefd986b159d5f934d8291e4317dc96e0cd35b#60cefd986b159d5f934d8291e4317dc96e0cd35b"
-dependencies = [
- "byteorder",
- "thiserror",
- "tracing",
-]
 
 [[package]]
 name = "p12-keystore"
@@ -4545,3 +4542,8 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[patch.unused]]
+name = "outlook-pst-rw"
+version = "1.2.14"
+source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=60cefd986b159d5f934d8291e4317dc96e0cd35b#60cefd986b159d5f934d8291e4317dc96e0cd35b"

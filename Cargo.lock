@@ -4069,11 +4069,11 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-pgp",
+ "mailcraft-pst",
  "mailcraft-smime",
  "mailcraft-store",
  "md-5 0.11.0",
  "md4",
- "outlook-pst-rw",
  "proptest",
  "quick-xml 0.42.0",
  "rand_core 0.6.4",
@@ -5051,16 +5051,6 @@ checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "outlook-pst-rw"
-version = "1.2.14"
-source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=60cefd986b159d5f934d8291e4317dc96e0cd35b#60cefd986b159d5f934d8291e4317dc96e0cd35b"
-dependencies = [
- "byteorder",
- "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]
@@ -9292,3 +9282,8 @@ dependencies = [
  "syn 3.0.9",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "outlook-pst-rw"
+version = "1.2.14"
+source = "git+https://github.com/ZIDAN44/outlook-pst-rs.git?rev=60cefd986b159d5f934d8291e4317dc96e0cd35b#60cefd986b159d5f934d8291e4317dc96e0cd35b"

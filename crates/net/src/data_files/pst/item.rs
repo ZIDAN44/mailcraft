@@ -106,12 +106,12 @@ impl Files {
     }
 }
 
-pub(super) fn item(m: &dyn Message, files: Vec<File>, named: &crate::pst_pim::Named) -> Item {
+pub(super) fn item(m: &Message, files: Vec<File>, named: &crate::pst_pim::Named) -> Item {
     let props = m.properties();
     // 8-bit strings are in the message's code page.
     let cp = message_code_page(m);
     let p = |id: u16| props.get(id).map(|v| val(v, cp));
-    let table = m.recipient_table().map(|t| rows(&**t)).unwrap_or_default();
+    let table = m.recipient_table().map(|t| rows(t)).unwrap_or_default();
     let recipients: Vec<_> = table.iter().map(|row| move |id: u16| row.get(&id).map(|v| val(v, cp))).collect();
     let mut it = item_of(&p, &recipients, files, named);
     if mime::unsupported_code_page(cp) {
@@ -122,12 +122,12 @@ pub(super) fn item(m: &dyn Message, files: Vec<File>, named: &crate::pst_pim::Na
 }
 
 /// The code page a message's 8-bit strings are in (PidTagMessageCodepage; 0 when not said).
-pub(super) fn message_code_page(m: &dyn Message) -> u32 {
+pub(super) fn message_code_page(m: &Message) -> u32 {
     code_page(m.properties().get(0x3FFD))
 }
 
 /// A message's class (PidTagMessageClass; empty when not said), its 8-bit text in `code_page`.
-pub(super) fn message_class(m: &dyn Message, code_page: u32) -> String {
+pub(super) fn message_class(m: &Message, code_page: u32) -> String {
     m.properties().get(0x001A).map(|v| val(v, code_page)).and_then(Val::into_text).unwrap_or_default()
 }
 
@@ -382,7 +382,7 @@ pub(super) fn message_ids(s: &str) -> Vec<String> {
 /// message's class, and `top` whether the message is the item (not one attached to it). `None`
 /// when it holds a message, which the caller reads with the file's own message type, so that the
 /// message's attachments can be read in turn (see `embedded`).
-pub(super) fn attachment(a: &dyn Attachment, code_page: u32, class: &str, top: bool) -> Option<Got> {
+pub(super) fn attachment(a: &Attachment, code_page: u32, class: &str, top: bool) -> Option<Got> {
     let props = a.properties();
     let p = |id: u16| props.get(id).map(|v| val(v, code_page));
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
@@ -426,13 +426,9 @@ pub(super) fn photo<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, data: &
 }
 
 /// An attachment the reader couldn't read (`e`), from its row in the item's attachment table,
-/// read only then: a backstop for what the reader fails on. Outlook keeps a zero-byte file with
-/// no value at all, which a reader may take for an error (MailCraft's fork reads it as a file
-/// with no bytes, so it doesn't come here): that file comes in, empty. It is told from the error,
-/// not from the row's size (`0x0E20`), which counts the attachment's other properties too. A row
-/// may have no more than the file's short name (`0x3704`), and no type, which then comes from the
-/// name. An attached message the reader fails on is counted as one.
-pub(super) fn unread_attachment(e: &io::Error, table: &dyn TableContext, row: &TableRowData, code_page: u32, class: &str, top: bool) -> Got {
+/// read only then: a backstop for what the reader fails on. An attached message the reader fails
+/// on is counted as one.
+pub(super) fn unread_attachment(e: &io::Error, table: &Table, row: &Row, code_page: u32, class: &str, top: bool) -> Got {
     let values = row_values(table, row);
     from_row(e, &|id| values.get(&id).map(|v| val(v, code_page)), class, top)
 }
@@ -440,7 +436,6 @@ pub(super) fn unread_attachment(e: &io::Error, table: &dyn TableContext, row: &T
 /// [`unread_attachment`] from the row's values (`p`), in a message of class `class` (the item
 /// itself when `top`).
 pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, top: bool) -> Got {
-    let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     // PidTagAttachMethod: 1 by value, 5 an attached message; a row may not say.
     let method = match p(0x3705) {
         Some(Val::Int(m)) => Some(m),
@@ -450,29 +445,12 @@ pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>, cl
         Got::Nothing
     } else if link(p) {
         link_of(p, class)
-    } else if kept_empty(e, method) {
-        let name = name_of(&s);
-        let mime = Some(s(0x370E)).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&name).to_string());
-        Got::File(File::Data { name, mime, cid: s(0x3712), data: Vec::new() })
     } else if method == Some(5) {
         log::info!("an attached message could not be read: {e}");
         Got::Left(SkipReason::AttachedMessageUnreadable)
     } else {
         log::info!("an attachment could not be read: {e}");
         Got::Left(SkipReason::AttachmentUnreadable)
-    }
-}
-
-/// Whether the reader's error is a by-value attachment's data having no value (`PtypNull`). The
-/// error a reader gives for any attachment's data (an attached message's too) counts only when
-/// the row says by value (`method` 1); the one only a file's data gives, also when it doesn't say.
-fn kept_empty(e: &io::Error, method: Option<i64>) -> bool {
-    use outlook_pst::ltp::prop_type::PropertyType;
-    use outlook_pst::messaging::MessagingError;
-    match e.get_ref().and_then(|e| e.downcast_ref::<MessagingError>()) {
-        Some(MessagingError::InvalidMessageObjectData(PropertyType::Null)) => method == Some(1),
-        Some(MessagingError::InvalidAttachmentFileBinaryData(PropertyType::Null)) => matches!(method, None | Some(1)),
-        _ => false,
     }
 }
 
@@ -681,20 +659,16 @@ fn name_of(s: &dyn Fn(u16) -> String) -> String {
 }
 
 /// A table's rows as property maps.
-fn rows(table: &dyn TableContext) -> Vec<HashMap<u16, PropertyValue>> {
+fn rows(table: &Table) -> Vec<HashMap<u16, PropertyValue>> {
     table.rows_matrix().map(|row| row_values(table, row)).collect()
 }
 
 /// One row's values by property id (none when the row can't be read).
-fn row_values(table: &dyn TableContext, row: &TableRowData) -> HashMap<u16, PropertyValue> {
-    let context = table.context();
+fn row_values(table: &Table, row: &Row) -> HashMap<u16, PropertyValue> {
     let mut map = HashMap::new();
-    let Ok(values) = row.columns(context) else { return map };
-    for (column, value) in context.columns().iter().zip(values) {
-        if let Some(v) = value
-            && let Ok(pv) = table.read_column(&v, column.prop_type())
-        {
-            map.insert(column.prop_id(), pv);
+    for (i, column) in table.columns().iter().enumerate() {
+        if let Some(value) = table.value(row, i) {
+            map.insert(column.prop_id(), value);
         }
     }
     map

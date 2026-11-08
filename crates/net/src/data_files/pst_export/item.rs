@@ -4,9 +4,10 @@
 
 use super::files::{File, Spill};
 use super::*;
-use outlook_pst::ltp::prop_context::GuidValue;
-use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
-use outlook_pst::{UnicodePstName, UnicodePstProperty, UnicodePstValue};
+use mailcraft_pst::{
+    GuidValue, PS_PUBLIC_STRINGS,
+    write::{Name, NewProperty, NewValue},
+};
 
 /// PSETID_Common and PSETID_Task (MS-OXPROPS 1.3.2).
 pub(super) const PSETID_COMMON: GuidValue = GuidValue::new(0x0006_2008, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
@@ -38,7 +39,7 @@ const MAX_HEADERS: usize = 256 * 1024;
 pub(super) struct Owned {
     pub(super) subject: String,
     pub(super) from: (String, String),
-    pub(super) recipients: Vec<(String, String, UnicodePstRecipientType)>,
+    pub(super) recipients: Vec<(String, String, RecipientType)>,
     pub(super) body: String,
     pub(super) html: Option<String>,
     pub(super) message_id: String,
@@ -164,7 +165,7 @@ pub(super) fn owned_in(
 ) -> Option<Owned> {
     let p = mime::parse(raw)?;
     let mut recipients = Vec::new();
-    for (list, kind) in [(&p.to, UnicodePstRecipientType::To), (&p.cc, UnicodePstRecipientType::Cc), (&p.bcc, UnicodePstRecipientType::Bcc)] {
+    for (list, kind) in [(&p.to, RecipientType::To), (&p.cc, RecipientType::Cc), (&p.bcc, RecipientType::Bcc)] {
         recipients.extend(list.iter().filter(|a| !a.email.is_empty()).map(|a| (a.name.clone(), a.email.clone(), kind)));
     }
     let headers = header_block(raw);
@@ -250,9 +251,9 @@ pub(super) fn header_value(head: &str, name: &str) -> Option<String> {
 /// categories (`categories`, the names in `m.state`), how important and private it is, its
 /// header block, what it answers, when it was sent and that its addresses are SMTP ones; and
 /// whether it is pinned, which only MailCraft reads.
-pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<UnicodePstProperty<'a>> {
-    let int = |id, n| UnicodePstProperty::tagged(id, UnicodePstValue::Integer32(n));
-    let text = |id, s: &'a str| UnicodePstProperty::tagged(id, UnicodePstValue::Unicode(s));
+pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<NewProperty<'a>> {
+    let int = |id, n| NewProperty::tagged(id, NewValue::Integer32(n));
+    let text = |id, s: &'a str| NewProperty::tagged(id, NewValue::Unicode(s));
     let st = &m.state;
     let flags = if st.read { READ } else { 0 } | if st.draft { UNSENT } else { 0 };
     let mut out = vec![int(0x0E07, flags), int(0x0017, m.importance)];
@@ -261,7 +262,7 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<Uni
     }
     if m.date > 0 {
         // PidTagClientSubmitTime: its Date:, beside when it was received (the writer's delivery time).
-        out.push(UnicodePstProperty::tagged(0x0039, UnicodePstValue::Time(m.date)));
+        out.push(NewProperty::tagged(0x0039, NewValue::Time(m.date)));
     }
     for (id, value) in [(0x007D, &m.headers), (0x1042, &m.in_reply_to), (0x1039, &m.references)] {
         if !value.is_empty() {
@@ -272,12 +273,12 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<Uni
         // The sender's and the sent-representing address types and addresses.
         out.extend([text(0x0C1E, "SMTP"), text(0x0064, "SMTP"), text(0x0065, &m.from.1), text(0x5D01, &m.from.1), text(0x5D02, &m.from.1)]);
     }
-    let task = |lid, value| UnicodePstProperty::named(PSETID_TASK, UnicodePstName::Id(lid), value);
+    let task = |lid, value| NewProperty::named(PSETID_TASK, Name::Id(lid), value);
     if st.flagged || st.complete {
         out.extend([
             int(0x1090, if st.flagged { FLAGGED } else { COMPLETE }),
             int(0x0E2B, TO_DO_MARKED),
-            UnicodePstProperty::named(PSETID_COMMON, UnicodePstName::Id(0x8530), UnicodePstValue::Unicode("Follow up")),
+            NewProperty::named(PSETID_COMMON, Name::Id(0x8530), NewValue::Unicode("Follow up")),
         ]);
         if st.flagged {
             out.push(int(0x1095, RED_FLAG));
@@ -286,18 +287,18 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<Uni
             // PidLidTaskComplete say so, with when (PidTagFlagCompleteTime,
             // PidLidTaskDateCompleted) when MailCraft knows the day; the red flag's icon goes.
             out.extend([
-                task(0x8101, UnicodePstValue::Integer32(TASK_COMPLETE)),
-                task(0x8102, UnicodePstValue::Floating64(1.0)),
-                task(0x811C, UnicodePstValue::Boolean(true)),
+                task(0x8101, NewValue::Integer32(TASK_COMPLETE)),
+                task(0x8102, NewValue::Floating64(1.0)),
+                task(0x811C, NewValue::Boolean(true)),
             ]);
             if let Some(done) = st.done {
-                out.extend([UnicodePstProperty::tagged(0x1091, UnicodePstValue::Time(done)), task(0x810F, UnicodePstValue::Time(done))]);
+                out.extend([NewProperty::tagged(0x1091, NewValue::Time(done)), task(0x810F, NewValue::Time(done))]);
             }
         }
         if let Some(due) = st.due {
             // PidLidTaskStartDate and PidLidTaskDueDate: MailCraft keeps the day it's due only.
             for lid in [0x8104, 0x8105] {
-                out.push(task(lid, UnicodePstValue::Time(due)));
+                out.push(task(lid, NewValue::Time(due)));
             }
         }
     }
@@ -307,12 +308,12 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<Uni
         out.extend([int(0x1081, VERB_FORWARD), int(0x1080, ICON_FORWARDED)]);
     }
     if !categories.is_empty() {
-        out.push(UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String("Keywords"), UnicodePstValue::MultipleUnicode(categories)));
+        out.push(NewProperty::named(PS_PUBLIC_STRINGS, Name::String("Keywords"), NewValue::MultipleUnicode(categories)));
     }
     if st.pinned {
         // MS-OXPROPS has no pin: a PtypBoolean of MailCraft's, named in PS_PUBLIC_STRINGS as the
         // PIM items' mark is, which Outlook keeps and ignores.
-        out.push(UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String(crate::pst_pim::PINNED), UnicodePstValue::Boolean(true)));
+        out.push(NewProperty::named(PS_PUBLIC_STRINGS, Name::String(crate::pst_pim::PINNED), NewValue::Boolean(true)));
     }
     out
 }
@@ -341,7 +342,7 @@ mod tests {
     /// A message without a `Date:` gets no submit time, not 1970-01-01.
     #[test]
     fn no_date_no_submit_time() {
-        let submit = |m: &Owned| properties(m, &[]).iter().any(|p| matches!(p.key, outlook_pst::UnicodePstPropertyKey::Tag(0x0039)));
+        let submit = |m: &Owned| properties(m, &[]).iter().any(|p| matches!(p.key, mailcraft_pst::write::PropertyKey::Tag(0x0039)));
         let m = owned(b"Subject: x\r\nFrom: a@b\r\n\r\nbody", 0, State::default(), &Default::default(), None).unwrap();
         assert_eq!(m.date, 0);
         assert!(!submit(&m));
@@ -371,7 +372,7 @@ mod tests {
     /// known; no red flag. A flagged one is flagged, whatever keyword it has left.
     #[test]
     fn a_completed_follow_up_s_properties() {
-        use outlook_pst::UnicodePstPropertyKey as Key;
+        use mailcraft_pst::write::PropertyKey as Key;
         let mut s = mailcraft_model::Summary { message_id: "m1@example.com".into(), ..Default::default() };
         s.flags.keywords = vec![mailcraft_model::FOLLOW_UP_COMPLETE.into()];
         let days = FollowUpDays {
@@ -386,27 +387,24 @@ mod tests {
         let props = properties(&m, &[]);
         let tag = |id: u16| props.iter().find(|p| matches!(p.key, Key::Tag(t) if t == id)).map(|p| &p.value);
         let task = |lid: u32| {
-            props
-                .iter()
-                .find(|p| matches!(&p.key, Key::Named(set, UnicodePstName::Id(l)) if set.data1() == PSETID_TASK.data1() && *l == lid))
-                .map(|p| &p.value)
+            props.iter().find(|p| matches!(&p.key, Key::Named(set, Name::Id(l)) if set.data1() == PSETID_TASK.data1() && *l == lid)).map(|p| &p.value)
         };
-        assert!(matches!(tag(0x1090), Some(UnicodePstValue::Integer32(COMPLETE))));
-        assert!(matches!(tag(0x0E2B), Some(UnicodePstValue::Integer32(TO_DO_MARKED))));
-        assert!(matches!(tag(0x1091), Some(UnicodePstValue::Time(t)) if *t == midnight(2)));
+        assert!(matches!(tag(0x1090), Some(NewValue::Integer32(COMPLETE))));
+        assert!(matches!(tag(0x0E2B), Some(NewValue::Integer32(TO_DO_MARKED))));
+        assert!(matches!(tag(0x1091), Some(NewValue::Time(t)) if *t == midnight(2)));
         assert!(tag(0x1095).is_none(), "no red flag");
-        assert!(matches!(task(0x8101), Some(UnicodePstValue::Integer32(TASK_COMPLETE))));
-        assert!(matches!(task(0x8102), Some(UnicodePstValue::Floating64(p)) if (*p - 1.0).abs() < f64::EPSILON));
-        assert!(matches!(task(0x811C), Some(UnicodePstValue::Boolean(true))));
-        assert!(matches!(task(0x810F), Some(UnicodePstValue::Time(t)) if *t == midnight(2)));
-        assert!(matches!(task(0x8105), Some(UnicodePstValue::Time(t)) if *t == midnight(3)));
+        assert!(matches!(task(0x8101), Some(NewValue::Integer32(TASK_COMPLETE))));
+        assert!(matches!(task(0x8102), Some(NewValue::Floating64(p)) if (*p - 1.0).abs() < f64::EPSILON));
+        assert!(matches!(task(0x811C), Some(NewValue::Boolean(true))));
+        assert!(matches!(task(0x810F), Some(NewValue::Time(t)) if *t == midnight(2)));
+        assert!(matches!(task(0x8105), Some(NewValue::Time(t)) if *t == midnight(3)));
 
         // Its day not known: complete all the same, without when.
         let st = state(&s, FolderRole::Inbox, &FollowUpDays::default());
         assert!(st.complete && st.done.is_none());
         let m = owned(b"Subject: x\r\n\r\nbody", 0, st, &Default::default(), None).unwrap();
         let props = properties(&m, &[]);
-        assert!(props.iter().any(|p| matches!((p.key, p.value), (Key::Tag(0x1090), UnicodePstValue::Integer32(COMPLETE)))));
+        assert!(props.iter().any(|p| matches!((p.key, p.value), (Key::Tag(0x1090), NewValue::Integer32(COMPLETE)))));
         assert!(!props.iter().any(|p| matches!(p.key, Key::Tag(0x1091))));
 
         // Flagged again elsewhere, the keyword left behind: flagged, not complete.
@@ -415,7 +413,7 @@ mod tests {
         assert!(st.flagged && !st.complete && st.done.is_none());
         let m = owned(b"Subject: x\r\n\r\nbody", 0, st, &Default::default(), None).unwrap();
         let props = properties(&m, &[]);
-        assert!(props.iter().any(|p| matches!((p.key, p.value), (Key::Tag(0x1090), UnicodePstValue::Integer32(FLAGGED)))));
+        assert!(props.iter().any(|p| matches!((p.key, p.value), (Key::Tag(0x1090), NewValue::Integer32(FLAGGED)))));
         assert!(props.iter().any(|p| matches!(p.key, Key::Tag(0x1095))) && !props.iter().any(|p| matches!(p.key, Key::Tag(0x1091))));
     }
 
@@ -423,12 +421,12 @@ mod tests {
     /// one that isn't, nothing of it.
     #[test]
     fn a_pinned_message_s_properties() {
-        use outlook_pst::UnicodePstPropertyKey as Key;
-        let pin = |props: &[UnicodePstProperty<'_>]| {
+        use mailcraft_pst::write::PropertyKey as Key;
+        let pin = |props: &[NewProperty<'_>]| {
             props
                 .iter()
-                .filter(|p| matches!(&p.key, Key::Named(set, UnicodePstName::String(n)) if set.data1() == PS_PUBLIC_STRINGS.data1() && *n == crate::pst_pim::PINNED))
-                .map(|p| matches!(p.value, UnicodePstValue::Boolean(true)))
+                .filter(|p| matches!(&p.key, Key::Named(set, Name::String(n)) if set.data1() == PS_PUBLIC_STRINGS.data1() && *n == crate::pst_pim::PINNED))
+                .map(|p| matches!(p.value, NewValue::Boolean(true)))
                 .collect::<Vec<_>>()
         };
         let mut s = mailcraft_model::Summary::default();

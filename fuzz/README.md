@@ -38,10 +38,9 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
 ## What counts as a crash
 
 - Every panic counts, even one that `catch_unwind` would catch.
-- `pst` is the one exception. `pst::import` runs the `.pst` reader (from the fork
-  [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs), `craft/rw-1.2.14`) behind
-  `catch_unwind`, so only a panic in MailCraft's own code counts.
-- `pst_append` has no exception. A damaged file must give an error, and adding mail must leave the
+- `pst` treats every checksum as correct, so damage reaches the code behind the checks.
+- `pst_append` does so on half its inputs, and there only a panic counts: such a file can hold
+  anything. On the other half a damaged file must give an error, and adding mail must leave the
   earlier messages unchanged.
 - Some `pst` and `pst_append` seeds are written by tests run with `MC_PST_SEED` or
   `MC_PST_ANSI_SEED` set. The tests are `pst/tests/pim_written.rs` and `pst_export/tests/ansi.rs`,

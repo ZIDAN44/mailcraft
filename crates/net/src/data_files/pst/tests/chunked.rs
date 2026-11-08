@@ -5,7 +5,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use super::super::chunked::{ChunkReader, PAGE, Shared, Source};
-use super::super::open::{Recycle, open_read};
+use super::super::open::open_read;
 
 /// A file of `len` bytes that don't repeat in any short run.
 fn file_of(name: &str, len: usize) -> (PathBuf, PathBuf) {
@@ -38,7 +38,7 @@ fn the_reader_reads_what_the_file_holds() {
     let (dir, path) = file_of("same", len);
     for chunk_kb in [0, 4] {
         let shared = source(&path, chunk_kb);
-        let (mut ours, _) = ChunkReader::new(&shared);
+        let mut ours = ChunkReader::new(&shared);
         let mut plain = std::fs::File::open(&path).unwrap();
         let mut x = 0x9e37_79b9_7f4a_7c15u64 ^ chunk_kb as u64;
         let mut next = || {
@@ -104,7 +104,7 @@ fn the_reader_reads_what_the_file_holds() {
 fn the_end_and_before_the_start() {
     let (dir, path) = file_of("ends", 10_000);
     let shared = source(&path, 0);
-    let (mut r, _) = ChunkReader::new(&shared);
+    let mut r = ChunkReader::new(&shared);
     let mut buf = [0; 64];
     assert_eq!(r.seek(SeekFrom::End(-10)).unwrap(), 9990);
     assert_eq!(r.read(&mut buf).unwrap(), 10);
@@ -128,7 +128,7 @@ fn the_end_and_before_the_start() {
 fn ranges_are_read_once_and_ahead_only_in_order() {
     let (dir, path) = file_of("ahead", 8 * 1024 * 1024);
     let shared = source(&path, 0);
-    let (mut r, pages) = ChunkReader::new(&shared);
+    let mut r = ChunkReader::new(&shared);
     let mut page = [0; PAGE];
     for round in 0..50 {
         for k in 0..40u64 {
@@ -140,10 +140,6 @@ fn ranges_are_read_once_and_ahead_only_in_order() {
         r.read_exact(&mut page).unwrap();
         assert_eq!(shared.borrow().bytes_read, 41 * 512, "round {round}: scattered pages read exactly, once");
     }
-    assert_eq!(pages.estimate(), 41 * 1024, "the handle's pages, each counted once");
-    // Due to be reopened once that's as much as it may hold, not before.
-    assert!(Recycle { every: 0, limit: 41 * 1024 }.due(0, &pages));
-    assert!(!Recycle { every: 0, limit: 42 * 1024 }.due(1000, &pages));
 
     // 2 MiB in blocks of 8 KiB from one place on: read ahead.
     let before = (shared.borrow().reads, shared.borrow().bytes_read);
@@ -157,7 +153,7 @@ fn ranges_are_read_once_and_ahead_only_in_order() {
     assert!(shared.borrow().bytes_read - before.1 <= 2 * 1024 * 1024 + 256 * 1024);
 
     // Another handle on the same file: what's cached is read from the cache.
-    let (mut again, _) = ChunkReader::new(&shared);
+    let mut again = ChunkReader::new(&shared);
     let read = shared.borrow().bytes_read;
     again.seek(SeekFrom::Start(0x4400)).unwrap();
     again.read_exact(&mut page).unwrap();
@@ -171,7 +167,7 @@ fn ranges_are_read_once_and_ahead_only_in_order() {
 fn blocks_near_the_last_read_their_chunk() {
     let (dir, path) = file_of("near", 16 * 1024 * 1024);
     let shared = source(&path, 0);
-    let (mut r, _) = ChunkReader::new(&shared);
+    let mut r = ChunkReader::new(&shared);
     let mut plain = std::fs::File::open(&path).unwrap();
     let mut block = [0; 8192];
     let mut want = [0; 8192];

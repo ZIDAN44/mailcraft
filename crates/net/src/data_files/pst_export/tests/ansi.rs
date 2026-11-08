@@ -2,8 +2,10 @@
 //! in beside what it had, their strings 8-bit, and the import reads them all back.
 
 use super::*;
-use outlook_pst::messaging::store::AnsiStore;
-use outlook_pst::{AnsiPstFile, UnicodePstBatchMessage};
+use mailcraft_pst::{
+    PstFile, PstStore,
+    write::{self, BatchMessage},
+};
 
 fn mail(store: &Store, folder: &str, uid: u32, subject: &str) -> mailcraft_model::Summary {
     let d = mime::Draft { subject: subject.into(), body: format!("{subject}, the body."), ..Default::default() };
@@ -16,20 +18,20 @@ fn mail(store: &Store, folder: &str, uid: u32, subject: &str) -> mailcraft_model
 /// A message's subject as the file keeps it, by its 8-bit bytes and the code page the message
 /// says.
 fn subjects(path: &Path) -> Vec<(Vec<u8>, i32)> {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
-    let any: Rc<dyn PstStore> = AnsiStore::read(Rc::new(AnsiPstFile::open(path).unwrap())).unwrap();
-    let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+    use mailcraft_pst::PropertyValue as V;
+    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(path).unwrap())).unwrap();
+    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     let inbox = top
         .hierarchy_table()
         .unwrap()
         .rows_matrix()
-        .filter_map(|row| any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).ok()?).ok())
+        .filter_map(|row| any.open_folder(row.id()).ok())
         .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
         .unwrap();
     let mut out = Vec::new();
     for row in inbox.contents_table().unwrap().rows_matrix() {
-        let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-        let m = any.open_message(&entry, None).unwrap();
+        let entry = row.id();
+        let m = Message::read(any.clone(), entry).unwrap();
         let page = match m.properties().get(0x3FFD) {
             Some(V::Integer32(page)) => *page,
             _ => 0,
@@ -50,8 +52,8 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Old.pst");
     // The file's own mail, one message of which the account has too.
-    drop(AnsiPstFile::create_empty(&file).unwrap());
-    let theirs = |subject, message_id| UnicodePstMessage {
+    write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
+    let theirs = |subject, message_id| NewMessage {
         subject,
         sender_name: "Ana",
         sender_email: "ana@example.com",
@@ -64,10 +66,10 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
         properties: &[],
     };
     let batch = [
-        UnicodePstBatchMessage { message: theirs("Theirs", "<theirs@example.com>"), attachments: &[] },
-        UnicodePstBatchMessage { message: theirs("Both", "<m1@example.com>"), attachments: &[] },
+        BatchMessage { message: theirs("Theirs", "<theirs@example.com>"), attachments: &[] },
+        BatchMessage { message: theirs("Both", "<m1@example.com>"), attachments: &[] },
     ];
-    drop(AnsiPstFile::append_many_in_folder_with_attachments(&file, &["Inbox"], &batch).unwrap());
+    write::append(&file, &["Inbox"], &batch).unwrap();
 
     let store = Store::open(dir.join("cache")).unwrap();
     let inbox = FolderState {
@@ -91,12 +93,12 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
     assert_eq!((done.messages, done.already), (3, 1));
     assert_eq!((done.contacts, done.notes, done.tasks), (4, 2, 4));
     // Still Outlook 97–2002's format, its strings 8-bit: Windows-1252 where they fit, else UTF-8.
-    assert_eq!(Format::of(&file), Format::Ansi);
+    assert_eq!(format_of(&file), Format::Ansi);
     let mut want =
         vec![(b"Both".to_vec(), 1252), (b"Theirs".to_vec(), 1252), (b"Gr\xFC\xDFe".to_vec(), 1252), ("Ελληνικά".as_bytes().to_vec(), 65001)];
     want.sort();
     assert_eq!(subjects(&file), want);
-    assert_eq!(Format::Ansi.special_folder(&file, Special::SentItems).unwrap(), Some(vec!["Sent Items".to_string()]));
+    assert_eq!(write::special_folder(&file, Special::SentItems).unwrap(), Some(vec!["Sent Items".to_string()]));
     // The `pst_append` fuzz target's ANSI seed (fuzz/README.md) is this file.
     if let Some(to) = std::env::var_os("MC_PST_ANSI_SEED") {
         std::fs::copy(&file, to).unwrap();
@@ -122,15 +124,15 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
 
 /// The top folders of an ANSI file: each one's name as written and how many messages it holds.
 fn top(path: &Path) -> Vec<(Vec<u8>, usize)> {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
-    let any: Rc<dyn PstStore> = AnsiStore::read(Rc::new(AnsiPstFile::open(path).unwrap())).unwrap();
-    let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+    use mailcraft_pst::PropertyValue as V;
+    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(path).unwrap())).unwrap();
+    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     let mut out: Vec<(Vec<u8>, usize)> = top
         .hierarchy_table()
         .unwrap()
         .rows_matrix()
         .map(|row| {
-            let f = any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap()).unwrap();
+            let f = any.open_folder(row.id()).unwrap();
             let name = match f.properties().get(0x3001) {
                 Some(V::String8(name)) => name.buffer().to_vec(),
                 other => panic!("not an 8-bit name: {other:?}"),
@@ -150,7 +152,7 @@ fn folders_windows_1252_cant_name_stay_one_each() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Old.pst");
-    drop(AnsiPstFile::create_empty(&file).unwrap());
+    write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
     let store = Store::open(dir.join("cache")).unwrap();
     let names = ["Письма", "Отчёты", "Receipts – 2024"];
     let folder = |path: &str| mailcraft_model::Folder {

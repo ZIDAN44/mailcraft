@@ -6,12 +6,11 @@
 
 use mailcraft_model::dates::days_from_civil;
 use mailcraft_model::pim::{PIM_DOC, Pim};
-use mailcraft_store::Store;
-use outlook_pst::ltp::prop_context::GuidValue;
-use outlook_pst::{
-    UnicodePstAttachment, UnicodePstAttachmentContent, UnicodePstEmbeddedMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstName,
-    UnicodePstProperty, UnicodePstValue,
+use mailcraft_pst::{
+    GuidValue,
+    write::{self, AttachmentContent, EmbeddedMessage, Name, NewAttachment, NewMessage, NewProperty, NewValue},
 };
+use mailcraft_store::Store;
 
 use super::super::import;
 
@@ -25,8 +24,8 @@ fn filetime(t: i64) -> i64 {
     (t + 11_644_473_600) * 10_000_000
 }
 
-fn message<'a>(subject: &'a str, class: &'a str, body: &'a str, properties: &'a [UnicodePstProperty<'a>]) -> UnicodePstMessage<'a> {
-    UnicodePstMessage {
+fn message<'a>(subject: &'a str, class: &'a str, body: &'a str, properties: &'a [NewProperty<'a>]) -> NewMessage<'a> {
+    NewMessage {
         subject,
         sender_name: "Riley Moreno",
         sender_email: "riley@studio.example",
@@ -40,12 +39,12 @@ fn message<'a>(subject: &'a str, class: &'a str, body: &'a str, properties: &'a 
     }
 }
 
-fn file<'a>(filename: &'a str, mime_type: &'a str, data: &'a [u8]) -> UnicodePstAttachment<'a> {
-    UnicodePstAttachment { filename, mime_type, data, ..Default::default() }
+fn file<'a>(filename: &'a str, mime_type: &'a str, data: &'a [u8]) -> NewAttachment<'a> {
+    NewAttachment { filename, mime_type, data, ..Default::default() }
 }
 
-fn named<'a>(set: GuidValue, lid: u32, value: UnicodePstValue<'a>) -> UnicodePstProperty<'a> {
-    UnicodePstProperty::named(set, UnicodePstName::Id(lid), value)
+fn named<'a>(set: GuidValue, lid: u32, value: NewValue<'a>) -> NewProperty<'a> {
+    NewProperty::named(set, Name::Id(lid), value)
 }
 
 /// A weekly appointment with a file, one changed occurrence that has an item of its own (with its
@@ -59,61 +58,49 @@ fn a_written_file_s_calendar_and_contacts_come_in() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("Calendar.pst");
     let at = |d: u32, h: i64| days_from_civil(2026, 10, d) * 86_400 + h * 3600;
-    drop(Writer::create(&path, &message("Hello", "IPM.Note", "Hi.", &[])).unwrap());
+    write::create_with(&path, &["Inbox"], &message("Hello", "IPM.Note", "Hi.", &[]), &[]).unwrap();
 
     // The series: 07:00Z each Monday and Wednesday, its pattern the one `pst_pim` reads.
     let (pattern, start) = crate::pst_pim::tests::series(0x3009);
     let series = [
-        named(PSETID_APPOINTMENT, 0x820D, UnicodePstValue::Time(filetime(start))),
-        named(PSETID_APPOINTMENT, 0x820E, UnicodePstValue::Time(filetime(start + 3600))),
-        named(PSETID_APPOINTMENT, 0x8208, UnicodePstValue::Unicode("Room 1")),
-        named(PSETID_APPOINTMENT, 0x8216, UnicodePstValue::Binary(&pattern)),
+        named(PSETID_APPOINTMENT, 0x820D, NewValue::Time(filetime(start))),
+        named(PSETID_APPOINTMENT, 0x820E, NewValue::Time(filetime(start + 3600))),
+        named(PSETID_APPOINTMENT, 0x8208, NewValue::Unicode("Room 1")),
+        named(PSETID_APPOINTMENT, 0x8216, NewValue::Binary(&pattern)),
     ];
     // The occurrence of the 19th, an hour later than the pattern says (summer time ended), with
     // its own text and file.
     let own = [
-        named(PSETID_APPOINTMENT, 0x820D, UnicodePstValue::Time(filetime(at(19, 8)))),
-        named(PSETID_APPOINTMENT, 0x820E, UnicodePstValue::Time(filetime(at(19, 9)))),
-        named(PSETID_APPOINTMENT, 0x8228, UnicodePstValue::Time(filetime(at(19, 8)))),
+        named(PSETID_APPOINTMENT, 0x820D, NewValue::Time(filetime(at(19, 8)))),
+        named(PSETID_APPOINTMENT, 0x820E, NewValue::Time(filetime(at(19, 9)))),
+        named(PSETID_APPOINTMENT, 0x8228, NewValue::Time(filetime(at(19, 8)))),
     ];
     // PidTagAttachmentHidden and PidTagAttachmentFlags' afException, as Outlook marks one.
-    let exception =
-        [UnicodePstProperty::tagged(0x7FFE, UnicodePstValue::Boolean(true)), UnicodePstProperty::tagged(0x7FFD, UnicodePstValue::Integer32(2))];
-    let changed = UnicodePstAttachment {
+    let exception = [NewProperty::tagged(0x7FFE, NewValue::Boolean(true)), NewProperty::tagged(0x7FFD, NewValue::Integer32(2))];
+    let changed = NewAttachment {
         filename: "Review",
-        content: UnicodePstAttachmentContent::Message(Box::new(UnicodePstEmbeddedMessage {
+        content: AttachmentContent::Message(Box::new(EmbeddedMessage {
             message: message("Review", "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}", "Bring the proofs.", &own),
             attachments: vec![file("proofs.pdf", "application/pdf", b"%PDF-1.4 proofs")],
         })),
         properties: &exception,
         ..Default::default()
     };
-    drop(Writer::create_folder(&path, &["Calendar"], "IPF.Appointment").unwrap());
+    write::create_folder(&path, &["Calendar"], "IPF.Appointment").unwrap();
     let attachments = [file("agenda.pdf", "application/pdf", b"%PDF-1.4 agenda"), changed];
-    drop(
-        Writer::append_in_folder_with_attachments(&path, &["Calendar"], &message("Review", "IPM.Appointment", "Weekly.", &series), &attachments)
-            .unwrap(),
-    );
+    write::append_message(&path, &["Calendar"], &message("Review", "IPM.Appointment", "Weekly.", &series), &attachments).unwrap();
 
     // The contact: PidTagAttachmentContactPhoto and PidTagAttachmentHidden on its picture.
     let card = [
-        UnicodePstProperty::tagged(0x3A06, UnicodePstValue::Unicode("Ana")),
-        UnicodePstProperty::tagged(0x3A11, UnicodePstValue::Unicode("Ruiz")),
-        named(PSETID_ADDRESS, 0x8083, UnicodePstValue::Unicode("ana@posteo.example")),
+        NewProperty::tagged(0x3A06, NewValue::Unicode("Ana")),
+        NewProperty::tagged(0x3A11, NewValue::Unicode("Ruiz")),
+        named(PSETID_ADDRESS, 0x8083, NewValue::Unicode("ana@posteo.example")),
     ];
-    let picture =
-        [UnicodePstProperty::tagged(0x7FFF, UnicodePstValue::Boolean(true)), UnicodePstProperty::tagged(0x7FFE, UnicodePstValue::Boolean(true))];
-    let photo = UnicodePstAttachment { properties: &picture, ..file("ContactPicture.jpg", "image/jpeg", &[0xFF, 0xD8, 0xFF, 0xE0]) };
-    drop(Writer::create_folder(&path, &["Contacts"], "IPF.Contact").unwrap());
-    drop(
-        Writer::append_in_folder_with_attachments(
-            &path,
-            &["Contacts"],
-            &message("Ana Ruiz", "IPM.Contact", "", &card),
-            &[photo, file("cv.pdf", "application/pdf", b"cv")],
-        )
-        .unwrap(),
-    );
+    let picture = [NewProperty::tagged(0x7FFF, NewValue::Boolean(true)), NewProperty::tagged(0x7FFE, NewValue::Boolean(true))];
+    let photo = NewAttachment { properties: &picture, ..file("ContactPicture.jpg", "image/jpeg", &[0xFF, 0xD8, 0xFF, 0xE0]) };
+    write::create_folder(&path, &["Contacts"], "IPF.Contact").unwrap();
+    write::append_message(&path, &["Contacts"], &message("Ana Ruiz", "IPM.Contact", "", &card), &[photo, file("cv.pdf", "application/pdf", b"cv")])
+        .unwrap();
 
     let store = Store::open(dir.join("cache")).unwrap();
     let done = import(&path, &store, "a1", &mut |_| {}).unwrap();
@@ -156,42 +143,31 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("Feeds.pst");
-    drop(Writer::create(&path, &message("Hello", "IPM.Note", "Hi.", &[])).unwrap());
-    drop(Writer::create_folder(&path, &["RSS Feeds"], "IPF.Note.OutlookHomepage").unwrap());
-    drop(Writer::create_folder(&path, &["RSS Feeds", "Studio news"], "IPF.Note").unwrap());
+    write::create_with(&path, &["Inbox"], &message("Hello", "IPM.Note", "Hi.", &[]), &[]).unwrap();
+    write::create_folder(&path, &["RSS Feeds"], "IPF.Note.OutlookHomepage").unwrap();
+    write::create_folder(&path, &["RSS Feeds", "Studio news"], "IPF.Note").unwrap();
     for title in ["New lenses in stock", "Workshop on Friday"] {
-        drop(
-            Writer::append_in_folder_with_attachments(
-                &path,
-                &["RSS Feeds", "Studio news"],
-                &message(title, "IPM.Post.Rss", "From the feed.", &[]),
-                &[],
-            )
-            .unwrap(),
-        );
+        write::append_message(&path, &["RSS Feeds", "Studio news"], &message(title, "IPM.Post.Rss", "From the feed.", &[]), &[]).unwrap();
     }
-    drop(Writer::create_folder(&path, &["Kept"], "IPF.Note").unwrap());
-    let card = [
-        UnicodePstProperty::tagged(0x3A06, UnicodePstValue::Unicode("Ana")),
-        named(PSETID_ADDRESS, 0x8083, UnicodePstValue::Unicode("ana@posteo.example")),
-    ];
+    write::create_folder(&path, &["Kept"], "IPF.Note").unwrap();
+    let card = [NewProperty::tagged(0x3A06, NewValue::Unicode("Ana")), named(PSETID_ADDRESS, 0x8083, NewValue::Unicode("ana@posteo.example"))];
     // What the invitation shares: a calendar, by whom, at an internet address.
     let shared = [
-        named(PSETID_SHARING, 0x8A05, UnicodePstValue::Unicode("Studio bookings")),
-        named(PSETID_SHARING, 0x8A1D, UnicodePstValue::Unicode("IPF.Appointment")),
-        named(PSETID_SHARING, 0x8A07, UnicodePstValue::Unicode("Ana")),
-        named(PSETID_SHARING, 0x8A08, UnicodePstValue::Unicode("ana@posteo.example")),
-        named(PSETID_SHARING, 0x8A04, UnicodePstValue::Unicode("webcal://calendar.example/studio.ics")),
+        named(PSETID_SHARING, 0x8A05, NewValue::Unicode("Studio bookings")),
+        named(PSETID_SHARING, 0x8A1D, NewValue::Unicode("IPF.Appointment")),
+        named(PSETID_SHARING, 0x8A07, NewValue::Unicode("Ana")),
+        named(PSETID_SHARING, 0x8A08, NewValue::Unicode("ana@posteo.example")),
+        named(PSETID_SHARING, 0x8A04, NewValue::Unicode("webcal://calendar.example/studio.ics")),
     ];
     for (subject, class, props) in
         [("Recall: Plans", "IPM.Outlook.Recall", &[][..]), ("Sharing invitation", "IPM.Sharing", &shared[..]), ("Ana", "IPM.Contact", &card[..])]
     {
-        drop(Writer::append_in_folder_with_attachments(&path, &["Kept"], &message(subject, class, "Text.", props), &[]).unwrap());
+        write::append_message(&path, &["Kept"], &message(subject, class, "Text.", props), &[]).unwrap();
     }
     // A note with a file.
-    drop(Writer::create_folder(&path, &["Notes"], "IPF.StickyNote").unwrap());
+    write::create_folder(&path, &["Notes"], "IPF.StickyNote").unwrap();
     let swatch = file("swatch.pdf", "application/pdf", b"%PDF-1.7 swatch");
-    drop(Writer::append_in_folder_with_attachments(&path, &["Notes"], &message("Paper", "IPM.StickyNote", "Paper", &[]), &[swatch]).unwrap());
+    write::append_message(&path, &["Notes"], &message("Paper", "IPM.StickyNote", "Paper", &[]), &[swatch]).unwrap();
     // The fuzz target's seed (`fuzz/seeds/pst/import-rest`) is this file: kept where asked.
     if let Some(to) = std::env::var_os("MC_PST_SEED") {
         std::fs::copy(&path, to).unwrap();
@@ -238,31 +214,31 @@ fn a_written_file_s_flagged_mail_comes_in_with_its_due_day() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("Flags.pst");
-    drop(Writer::create(&path, &message("Hello", "IPM.Note", "Hi.", &[])).unwrap());
+    write::create_with(&path, &["Inbox"], &message("Hello", "IPM.Note", "Hi.", &[]), &[]).unwrap();
     let day = days_from_civil(2026, 11, 20);
-    let midnight = UnicodePstValue::Time(filetime(day * 86_400));
-    let flag = |status| UnicodePstProperty::tagged(0x1090, UnicodePstValue::Integer32(status));
+    let midnight = NewValue::Time(filetime(day * 86_400));
+    let flag = |status| NewProperty::tagged(0x1090, NewValue::Integer32(status));
     let due = |v| named(PSETID_TASK, 0x8105, v);
     let start = |v| named(PSETID_TASK, 0x8104, v);
     let done_on = |v| named(PSETID_TASK, 0x810F, v);
-    let done_at = |day: i64| UnicodePstProperty::tagged(0x1091, UnicodePstValue::Time(filetime(day * 86_400 + 15 * 3600)));
-    let cases: [(&str, Vec<UnicodePstProperty<'_>>); 8] = [
-        ("due@studio.example", vec![flag(2), due(midnight), start(UnicodePstValue::Time(filetime((day - 3) * 86_400)))]),
+    let done_at = |day: i64| NewProperty::tagged(0x1091, NewValue::Time(filetime(day * 86_400 + 15 * 3600)));
+    let cases: [(&str, Vec<NewProperty<'_>>); 8] = [
+        ("due@studio.example", vec![flag(2), due(midnight), start(NewValue::Time(filetime((day - 3) * 86_400)))]),
         // Its start alone, a few hours off its midnight (written in another time zone).
-        ("start@studio.example", vec![flag(2), start(UnicodePstValue::Time(filetime((day + 1) * 86_400 - 5 * 3600)))]),
+        ("start@studio.example", vec![flag(2), start(NewValue::Time(filetime((day + 1) * 86_400 - 5 * 3600)))]),
         // Marked complete: done two days before (PidLidTaskDateCompleted, over the moment).
-        ("done@studio.example", vec![flag(1), due(midnight), done_on(UnicodePstValue::Time(filetime((day - 2) * 86_400))), done_at(day - 5)]),
+        ("done@studio.example", vec![flag(1), due(midnight), done_on(NewValue::Time(filetime((day - 2) * 86_400))), done_at(day - 5)]),
         // Its moment alone, in the afternoon: that day.
         ("finished@studio.example", vec![flag(1), done_at(day - 1)]),
-        ("none@studio.example", vec![flag(2), due(UnicodePstValue::Time(filetime(days_from_civil(4501, 1, 1) * 86_400)))]),
-        ("far@studio.example", vec![flag(2), due(UnicodePstValue::Time(i64::MAX)), start(UnicodePstValue::Time(i64::MIN))]),
-        ("number@studio.example", vec![flag(2), due(UnicodePstValue::Integer32(7))]),
+        ("none@studio.example", vec![flag(2), due(NewValue::Time(filetime(days_from_civil(4501, 1, 1) * 86_400)))]),
+        ("far@studio.example", vec![flag(2), due(NewValue::Time(i64::MAX)), start(NewValue::Time(i64::MIN))]),
+        ("number@studio.example", vec![flag(2), due(NewValue::Integer32(7))]),
         ("unflagged@studio.example", vec![due(midnight)]),
     ];
-    drop(Writer::create_folder(&path, &["Kept"], "IPF.Note").unwrap());
+    write::create_folder(&path, &["Kept"], "IPF.Note").unwrap();
     for (id, props) in &cases {
-        let m = UnicodePstMessage { message_id: id, ..message("Flagged", "IPM.Note", "Text.", props) };
-        drop(Writer::append_in_folder_with_attachments(&path, &["Kept"], &m, &[]).unwrap());
+        let m = NewMessage { message_id: id, ..message("Flagged", "IPM.Note", "Text.", props) };
+        write::append_message(&path, &["Kept"], &m, &[]).unwrap();
     }
 
     let store = Store::open(dir.join("cache")).unwrap();

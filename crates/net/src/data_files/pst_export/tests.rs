@@ -1,8 +1,10 @@
 use super::*;
 use mailcraft_model::{EmailAddress, Flags};
+use mailcraft_pst::{
+    Message, PstFile, PstStore,
+    write::{self, SpecialFolder as Special},
+};
 use mailcraft_store::FolderState;
-use outlook_pst::UnicodePstSpecialFolder as Special;
-use outlook_pst::messaging::message::{Message as _, UnicodeMessage};
 use std::collections::BTreeMap;
 
 const NONE: &FollowUpDays = &FollowUpDays { due: BTreeMap::new(), done: BTreeMap::new() };
@@ -10,33 +12,33 @@ const NONE: &FollowUpDays = &FollowUpDays { due: BTreeMap::new(), done: BTreeMap
 /// A data file's named property: its ID, by its property set's data1 (PSETID_Task's is
 /// 0x00062003) and LID, as the writer's own reader reads the file's map.
 fn named_id(path: &Path, set: u32, lid: u32) -> Option<u16> {
-    use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId};
-    let store = outlook_pst::messaging::store::UnicodeStore::read(Rc::new(outlook_pst::UnicodePstFile::open(path).ok()?)).ok()?;
-    let map = outlook_pst::messaging::store::Store::named_property_map(store.as_ref()).ok()?;
-    let guids = map.properties().stream_guid().ok()?;
-    map.properties().stream_entry().ok()?.into_iter().find_map(|e| match (e.guid(), e.id()) {
+    use mailcraft_pst::{NamedPropertyGuid, NamedPropertyId};
+    let store = mailcraft_pst::PstStore::read(Rc::new(PstFile::open(path).ok()?)).ok()?;
+    let map = mailcraft_pst::PstStore::named_property_map(store.as_ref()).ok()?;
+    let guids = map.stream_guid();
+    map.stream_entry().into_iter().find_map(|e| match (e.guid(), e.id()) {
         (NamedPropertyGuid::GuidIndex(i), NamedPropertyId::Number(n)) if n == lid && guids.get(usize::from(i))?.data1() == set => Some(e.prop_id()),
         _ => None,
     })
 }
 
 /// The properties `ids` of the message with `subject` in the folder at `names` of a data file.
-fn props_of(path: &Path, names: &[&str], subject: &str, ids: &[u16]) -> Vec<Option<outlook_pst::ltp::prop_context::PropertyValue>> {
-    let pst = outlook_pst::UnicodePstFile::open(path).unwrap();
-    let store = UnicodeStore::read(Rc::new(pst)).unwrap();
-    let any: Rc<dyn PstStore> = store.clone();
-    let mut folder = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+fn props_of(path: &Path, names: &[&str], subject: &str, ids: &[u16]) -> Vec<Option<mailcraft_pst::PropertyValue>> {
+    let pst = PstFile::open(path).unwrap();
+    let store = PstStore::read(Rc::new(pst)).unwrap();
+    let any: Rc<PstStore> = store.clone();
+    let mut folder = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     for name in names {
         let table = folder.hierarchy_table().unwrap().clone();
         folder = table
             .rows_matrix()
-            .filter_map(|row| any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).ok()?).ok())
+            .filter_map(|row| any.open_folder(row.id()).ok())
             .find(|f| f.properties().display_name().is_ok_and(|n| n == *name))
             .unwrap();
     }
     for row in folder.contents_table().unwrap().rows_matrix() {
-        let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-        let m = UnicodeMessage::read(store.clone(), &entry, None).unwrap();
+        let entry = row.id();
+        let m = Message::read(store.clone(), entry).unwrap();
         if m.properties().get(0x0037).and_then(crate::pst::text_of).as_deref() == Some(subject) {
             return ids.iter().map(|id| m.properties().get(*id).cloned()).collect();
         }
@@ -46,7 +48,7 @@ fn props_of(path: &Path, names: &[&str], subject: &str, ids: &[u16]) -> Vec<Opti
 
 #[test]
 fn an_account_round_trips_through_a_data_file() {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    use mailcraft_pst::PropertyValue as V;
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -172,7 +174,7 @@ fn an_account_round_trips_through_a_data_file() {
     );
     // The calendar is inside it too: nothing beside it.
     assert!(!dir.join("Out Calendar.ics").exists() && !dir.join("Out Contacts.vcf").exists());
-    assert_eq!(UnicodePstFile::special_folder(&file, Special::Calendar).unwrap(), Some(vec!["Calendar".to_string()]));
+    assert_eq!(write::special_folder(&file, Special::Calendar).unwrap(), Some(vec!["Calendar".to_string()]));
     assert!(ticks > 0);
 
     // The file records its special folders, as Outlook names them.
@@ -182,9 +184,9 @@ fn an_account_round_trips_through_a_data_file() {
         (Special::Drafts, "Drafts"),
         (Special::JunkEmail, "Junk Email"),
     ] {
-        assert_eq!(UnicodePstFile::special_folder(&file, special).unwrap(), Some(vec![name.to_string()]), "{special:?}");
+        assert_eq!(write::special_folder(&file, special).unwrap(), Some(vec![name.to_string()]), "{special:?}");
     }
-    assert_eq!(UnicodePstFile::special_folder(&file, Special::Outbox).unwrap(), None);
+    assert_eq!(write::special_folder(&file, Special::Outbox).unwrap(), None);
     // The follow-up's day, and what the import doesn't read back: its text and icon, and that
     // the addresses are SMTP ones.
     let task_due = named_id(&file, 0x0006_2003, 0x8105).unwrap();
@@ -296,7 +298,7 @@ fn an_export_uses_the_special_folders_a_file_has() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Theirs.pst");
-    let theirs = UnicodePstMessage {
+    let theirs = NewMessage {
         subject: "Theirs",
         sender_name: "Ana",
         sender_email: "ana@example.com",
@@ -308,8 +310,8 @@ fn an_export_uses_the_special_folders_a_file_has() {
         message_class: "IPM.Note",
         properties: &[],
     };
-    drop(UnicodePstFile::create_in_folder(&file, &["Gesendete Elemente"], &theirs).unwrap());
-    drop(UnicodePstFile::set_special_folder(&file, Special::SentItems, &["Gesendete Elemente"]).unwrap());
+    write::create_with(&file, &["Gesendete Elemente"], &theirs, &[]).unwrap();
+    write::set_special_folder(&file, Special::SentItems, &["Gesendete Elemente"]).unwrap();
 
     let store = Store::open(dir.join("cache")).unwrap();
     let d = mime::Draft { subject: "Ours".into(), body: "Sent.".into(), ..Default::default() };
@@ -322,7 +324,7 @@ fn an_export_uses_the_special_folders_a_file_has() {
     store.save_folders("a1", &[sent]).unwrap();
 
     assert_eq!(export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap().messages, 1);
-    assert_eq!(UnicodePstFile::special_folder(&file, Special::SentItems).unwrap(), Some(vec!["Gesendete Elemente".to_string()]));
+    assert_eq!(write::special_folder(&file, Special::SentItems).unwrap(), Some(vec!["Gesendete Elemente".to_string()]));
     let back = Store::open(dir.join("back")).unwrap();
     assert_eq!(crate::pst::import(&file, &back, "b1", &mut |_| {}).unwrap().messages, 2);
     let folders = back.load_folders("b1").unwrap();
@@ -385,16 +387,15 @@ fn permute_encode(path: &Path) {
     std::fs::write(path, f).unwrap();
 }
 
-/// A data file Outlook made, as Outlook encodes them, is added to (the writer from MailCraft's
-/// fork): what it had stays, a message it already has isn't written twice, it stays encoded,
-/// and the import reads it all back.
+/// A data file Outlook made, as Outlook encodes them, is added to: what it had stays, a message
+/// it already has isn't written twice, it stays encoded, and the import reads it all back.
 #[test]
 fn an_export_adds_to_an_encoded_data_file() {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-encoded-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Outlook.pst");
-    let theirs = |subject, message_id| UnicodePstMessage {
+    let theirs = |subject, message_id| NewMessage {
         subject,
         sender_name: "Ana",
         sender_email: "ana@example.com",
@@ -406,8 +407,8 @@ fn an_export_adds_to_an_encoded_data_file() {
         message_class: "IPM.Note",
         properties: &[],
     };
-    drop(UnicodePstFile::create_in_folder(&file, &["Inbox"], &theirs("Theirs", "<theirs@example.com>")).unwrap());
-    drop(UnicodePstFile::append_in_folder(&file, &["Inbox"], &theirs("Both", "<m1@example.com>")).unwrap());
+    write::create_with(&file, &["Inbox"], &theirs("Theirs", "<theirs@example.com>"), &[]).unwrap();
+    write::append_message(&file, &["Inbox"], &theirs("Both", "<m1@example.com>"), &[]).unwrap();
     permute_encode(&file);
 
     let store = Store::open(dir.join("cache")).unwrap();
@@ -439,12 +440,12 @@ fn an_export_adds_to_an_encoded_data_file() {
 /// added to: a flagged message in a category goes in flagged, without its named properties.
 #[test]
 fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    use mailcraft_pst::PropertyValue as V;
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-name-map-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Theirs.pst");
-    let theirs = UnicodePstMessage {
+    let theirs = NewMessage {
         subject: "Theirs",
         sender_name: "Ana",
         sender_email: "ana@example.com",
@@ -456,7 +457,7 @@ fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
         message_class: "IPM.Note",
         properties: &[],
     };
-    drop(UnicodePstFile::create_in_folder(&file, &["Inbox"], &theirs).unwrap());
+    write::create_with(&file, &["Inbox"], &theirs, &[]).unwrap();
     // The map's PidTagNameidBucketCount record (its ID 0x0001, PtypInteger32) set to 0, in the
     // one block that has it, its CRC made right.
     let mut f = std::fs::read(&file).unwrap();
@@ -523,7 +524,7 @@ fn a_damaged_ansi_data_file_says_it_cant_be_read() {
 #[test]
 fn a_completed_follow_up_round_trips() {
     use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC};
-    use outlook_pst::ltp::prop_context::PropertyValue as V;
+    use mailcraft_pst::PropertyValue as V;
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-complete-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

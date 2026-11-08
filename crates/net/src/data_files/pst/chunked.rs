@@ -1,11 +1,10 @@
 //! A data file read through a cache of the ranges read from it.
 //!
-//! outlook-pst reads one B-tree page or block at a time, and the root page of a B-tree again
-//! before each: on a plain `File` that was millions of tiny reads, one after another. Here each
-//! range read stays in a cache (the root pages, once read, are never read again while they're in
-//! it), a read that follows on from the one before reads ahead (the blocks of a big attachment
-//! often lie in order), and any other reads exactly what was asked, so scattered pages don't
-//! read a chunk each for a few hundred bytes they use.
+//! The reader reads one B-tree page or block at a time: on a plain `File` that would be millions of
+//! tiny reads, one after another. Here each range read stays in a cache (the root pages, once read,
+//! are never read again while they're in it), a read that follows on from the one before reads
+//! ahead (the blocks of a big attachment often lie in order), and any other reads exactly what was
+//! asked, so scattered pages don't read a chunk each for a few hundred bytes they use.
 //!
 //! But a block read near the last block read reads the chunk around it: an attachment's blocks
 //! that aren't in order mostly lie close together, in no order. Read one by one, the 41 GB file's
@@ -13,16 +12,15 @@
 //! their own, while every other item waited behind them for the writer; read by the chunk, half
 //! the reads in all, for 9% more bytes.
 //!
-//! The cache is the file's, not a handle's ([`Source`], shared through an `Rc`): the handles
-//! outlook-pst reads through are reopened to let go of their own caches (`open.rs`), and each
-//! new one starts with what the old ones read. A `BufReader` wouldn't do: it forgets its buffer
-//! at every seek, and outlook-pst seeks before every read.
+//! The cache is the file's, not a handle's ([`Source`], shared through an `Rc`), so the lanes share
+//! what each has read. A `BufReader` wouldn't do: it forgets its buffer at every seek, and the
+//! reader seeks before every read.
 //!
 //! An import asked to stop is told so by its next read, whichever thread reads: an item of
 //! hundreds of megabytes on a slow drive is let go of part-way, not read to its end first.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::rc::Rc;
@@ -34,12 +32,8 @@ pub(super) const CHUNK: usize = 64 * 1024;
 const READ_AHEAD: usize = 4;
 /// The cache holds at most this many chunks' worth of ranges (4 MiB at the default chunk).
 const SLOTS: usize = 64;
-/// outlook-pst's B-tree pages: each one it reads (at an offset not read before) it keeps until
-/// its handle is dropped, at about this much memory a page.
+/// The size of a B-tree page: a read of any other size is a block.
 pub(super) const PAGE: usize = 512;
-pub(super) const PAGE_COST: u64 = 1024;
-/// Pages counted per handle: past this many, it's due to be reopened anyway.
-const MAX_COUNTED: usize = 1 << 16;
 /// A block read this near where the last one read ended reads the chunk around it.
 const NEAR: u64 = 4 * 1024 * 1024;
 
@@ -233,41 +227,18 @@ pub(super) fn stopping() -> io::Error {
     io::Error::other("the import is stopping")
 }
 
-/// One handle's view of a [`Source`]: its own position, and the pages it has read, which
-/// outlook-pst keeps for as long as the handle lives.
+/// One handle's view of a [`Source`]: its own position.
 pub(super) struct ChunkReader {
     source: Shared,
     pos: u64,
-    pages: Pages,
     stop: Stop,
 }
 
-/// The offsets of the pages a handle has read.
-#[derive(Clone, Default)]
-pub(super) struct Pages(Rc<RefCell<HashSet<u64>>>);
-
-impl Pages {
-    /// About how much memory the handle's own caches hold.
-    pub(super) fn estimate(&self) -> u64 {
-        // Borrowed elsewhere (it never is): counted as full, so the handle is let go of.
-        let Ok(seen) = self.0.try_borrow() else { return u64::MAX };
-        u64::try_from(seen.len()).unwrap_or(u64::MAX).saturating_mul(PAGE_COST)
-    }
-
-    fn read(&self, pos: u64) {
-        let Ok(mut seen) = self.0.try_borrow_mut() else { return };
-        if seen.len() < MAX_COUNTED {
-            seen.insert(pos);
-        }
-    }
-}
-
 impl ChunkReader {
-    /// A new handle on `source`, at its start, and the pages it will read.
-    pub(super) fn new(source: &Shared) -> (Self, Pages) {
-        let pages = Pages::default();
+    /// A new handle on `source`, at its start.
+    pub(super) fn new(source: &Shared) -> Self {
         let stop = source.try_borrow().map(|s| s.stop.clone()).unwrap_or_default();
-        (ChunkReader { source: source.clone(), pos: 0, pages: pages.clone(), stop }, pages)
+        ChunkReader { source: source.clone(), pos: 0, stop }
     }
 }
 
@@ -275,9 +246,6 @@ impl Read for ChunkReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.stop.raised() {
             return Err(stopping());
-        }
-        if buf.len() == PAGE {
-            self.pages.read(self.pos);
         }
         let n = self.source.try_borrow_mut().map_err(io::Error::other)?.read_at(self.pos, buf)?;
         self.pos = self.pos.saturating_add(u64::try_from(n).unwrap_or(u64::MAX));

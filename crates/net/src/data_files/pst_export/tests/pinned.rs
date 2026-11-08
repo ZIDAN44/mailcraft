@@ -3,10 +3,7 @@
 //! import pins it again; a message without it comes in unpinned.
 
 use super::*;
-use outlook_pst::AnsiPstFile;
-use outlook_pst::ltp::prop_context::PropertyValue as V;
-use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId};
-use outlook_pst::messaging::store::AnsiStore;
+use mailcraft_pst::{NamedPropertyGuid, NamedPropertyId, PropertyValue as V, PstFile, PstStore, write};
 
 /// The account's Inbox: "Pinned" pinned (and in a category), "Loose" not.
 fn account(dir: &Path) -> Store {
@@ -35,7 +32,7 @@ fn account(dir: &Path) -> Store {
 
 /// The pin of each message in the file's Inbox, by subject: its property's value, None without
 /// one.
-fn pins(any: Rc<dyn PstStore>) -> Vec<(String, Option<V>)> {
+fn pins(any: Rc<PstStore>) -> Vec<(String, Option<V>)> {
     let map = any.named_property_map().unwrap();
     let strings = match map.properties().get(0x0004) {
         Some(V::Binary(b)) => b.buffer().to_vec(),
@@ -47,24 +44,24 @@ fn pins(any: Rc<dyn PstStore>) -> Vec<(String, Option<V>)> {
         let units: Vec<u16> = strings.get(at + 4..at + 4 + len)?.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
         String::from_utf16(&units).ok()
     };
-    let id = map.properties().stream_entry().unwrap().into_iter().find_map(|e| match (e.guid(), e.id()) {
+    let id = map.stream_entry().into_iter().find_map(|e| match (e.guid(), e.id()) {
         (NamedPropertyGuid::PublicStrings, NamedPropertyId::StringOffset(at)) if name_at(at as usize).as_deref() == Some(crate::pst_pim::PINNED) => {
             Some(e.prop_id())
         }
         _ => None,
     });
-    let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     let inbox = top
         .hierarchy_table()
         .unwrap()
         .rows_matrix()
-        .filter_map(|row| any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).ok()?).ok())
+        .filter_map(|row| any.open_folder(row.id()).ok())
         .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
         .unwrap();
     let mut out = Vec::new();
     for row in inbox.contents_table().unwrap().rows_matrix() {
-        let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-        let m = any.open_message(&entry, None).unwrap();
+        let entry = row.id();
+        let m = Message::read(any.clone(), entry).unwrap();
         let subject = m.properties().get(0x0037).and_then(crate::pst::text_of).unwrap();
         out.push((subject, id.and_then(|id| m.properties().get(id).cloned())));
     }
@@ -98,7 +95,7 @@ fn pinning_goes_into_a_unicode_data_file_and_back() {
     let store = account(&dir);
     let file = dir.join("Out.pst");
     assert_eq!(export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap().messages, 2);
-    let any: Rc<dyn PstStore> = UnicodeStore::read(Rc::new(UnicodePstFile::open(&file).unwrap())).unwrap();
+    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(&file).unwrap())).unwrap();
     let got = pins(any);
     assert!(matches!(got.as_slice(), [(loose, None), (pinned, Some(V::Boolean(true)))] if loose == "Loose" && pinned == "Pinned"), "{got:?}");
     assert_eq!(
@@ -115,10 +112,10 @@ fn pinning_goes_into_an_ansi_data_file_and_back() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = account(&dir);
     let file = dir.join("Old.pst");
-    drop(AnsiPstFile::create_empty(&file).unwrap());
+    write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
     assert_eq!(export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap().messages, 2);
-    assert_eq!(Format::of(&file), Format::Ansi);
-    let any: Rc<dyn PstStore> = AnsiStore::read(Rc::new(AnsiPstFile::open(&file).unwrap())).unwrap();
+    assert_eq!(format_of(&file), Format::Ansi);
+    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(&file).unwrap())).unwrap();
     let got = pins(any);
     assert!(matches!(got.as_slice(), [(loose, None), (pinned, Some(V::Boolean(true)))] if loose == "Loose" && pinned == "Pinned"), "{got:?}");
     assert_eq!(
@@ -132,13 +129,13 @@ fn pinning_goes_into_an_ansi_data_file_and_back() {
 /// whose pin says false.
 #[test]
 fn a_message_without_the_pin_comes_in_unpinned() {
-    use outlook_pst::messaging::named_prop::PS_PUBLIC_STRINGS;
-    use outlook_pst::{UnicodePstName, UnicodePstValue};
+    use mailcraft_pst::PS_PUBLIC_STRINGS;
+    use mailcraft_pst::write::{Name, NewValue};
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-unpinned-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Theirs.pst");
-    let message = |subject, message_id, properties| UnicodePstMessage {
+    let message = |subject, message_id, properties| NewMessage {
         subject,
         sender_name: "Ana",
         sender_email: "ana@example.com",
@@ -150,13 +147,13 @@ fn a_message_without_the_pin_comes_in_unpinned() {
         message_class: "IPM.Note",
         properties,
     };
-    let unpinned = [UnicodePstProperty::named(PS_PUBLIC_STRINGS, UnicodePstName::String(crate::pst_pim::PINNED), UnicodePstValue::Boolean(false))];
+    let unpinned = [NewProperty::named(PS_PUBLIC_STRINGS, Name::String(crate::pst_pim::PINNED), NewValue::Boolean(false))];
     let batch = [
-        UnicodePstBatchMessage { message: message("Plain", "<plain@example.com>", &[]), attachments: &[] },
-        UnicodePstBatchMessage { message: message("Unpinned", "<unpinned@example.com>", &unpinned), attachments: &[] },
+        BatchMessage { message: message("Plain", "<plain@example.com>", &[]), attachments: &[] },
+        BatchMessage { message: message("Unpinned", "<unpinned@example.com>", &unpinned), attachments: &[] },
     ];
-    drop(UnicodePstFile::create_empty(&file).unwrap());
-    drop(UnicodePstFile::append_many_in_folder_with_attachments(&file, &["Inbox"], &batch).unwrap());
+    write::create_empty(&file, mailcraft_pst::Format::Unicode).unwrap();
+    write::append(&file, &["Inbox"], &batch).unwrap();
     assert_eq!(imported(&file, &dir, "b1"), [("Plain".into(), false, vec![]), ("Unpinned".into(), false, vec![])]);
     let _ = std::fs::remove_dir_all(&dir);
 }

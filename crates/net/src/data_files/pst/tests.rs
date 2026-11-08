@@ -2,6 +2,7 @@ use super::item::{File, item_of};
 use super::props::{decode, one_off_address, val};
 use super::rebuild::to_raw;
 use super::*;
+use mailcraft_pst::write;
 
 /// A one-off entry id holding `name`, `kind` and `address`, in UTF-16 or 8-bit.
 fn one_off(name: &str, kind: &str, address: &str, unicode: bool) -> Vec<u8> {
@@ -701,16 +702,16 @@ fn junk_is_refused_and_nothing_is_written() {
 
 #[test]
 fn imports_a_data_file() {
-    use outlook_pst::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+    use mailcraft_pst::write::{NewAttachment, NewMessage, NewRecipient, RecipientType};
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("Archive 2024.pst");
     let recipients = [
-        UnicodePstRecipient { name: "Ana Ruiz", email: "ana@example.com", recipient_type: UnicodePstRecipientType::To, ..Default::default() },
-        UnicodePstRecipient { name: "Ben", email: "ben@example.com", recipient_type: UnicodePstRecipientType::Cc, ..Default::default() },
+        NewRecipient { name: "Ana Ruiz", email: "ana@example.com", recipient_type: RecipientType::To, ..Default::default() },
+        NewRecipient { name: "Ben", email: "ben@example.com", recipient_type: RecipientType::Cc, ..Default::default() },
     ];
-    let message = UnicodePstMessage {
+    let message = NewMessage {
         subject: "Quarterly plan — café",
         sender_name: "Riley Moreno",
         sender_email: "riley@example.com",
@@ -724,18 +725,18 @@ fn imports_a_data_file() {
         properties: &[],
     };
     let files = [
-        UnicodePstAttachment {
+        NewAttachment {
             filename: "chart.png",
             mime_type: "image/png",
             content_id: Some("<chart@example.com>"),
             data: b"\x89PNG\r\n\x1a\nfake",
             ..Default::default()
         },
-        UnicodePstAttachment { filename: "notes.txt", mime_type: "text/plain", content_id: None, data: b"remember the milk", ..Default::default() },
+        NewAttachment { filename: "notes.txt", mime_type: "text/plain", content_id: None, data: b"remember the milk", ..Default::default() },
     ];
-    drop(Writer::create_with_attachments(&file, &message, &files).unwrap());
-    let nested = UnicodePstMessage { subject: "Old thread", message_id: "<old@example.com>", html_body: None, ..message };
-    drop(Writer::append_in_folder(&file, &["Projects", "2024"], &nested).unwrap());
+    write::create_with(&file, &["Inbox"], &message, &files).unwrap();
+    let nested = NewMessage { subject: "Old thread", message_id: "<old@example.com>", html_body: None, ..message };
+    write::append_message(&file, &["Projects", "2024"], &nested, &[]).unwrap();
 
     let store = Store::open(dir.join("cache")).unwrap();
     let mut ticks = 0;

@@ -8,9 +8,8 @@
 //!
 //! The import runs as the app's does, with its planner (which reads the folders and hands out
 //! their items) and one lane, so a run is the same each time; the lanes' coordination has unit
-//! tests of its own. Each thread fences the reader with `catch_unwind` and calls a file that
-//! panics it damaged, so a panic inside the .pst reader (an overflow on a damaged block count, say)
-//! is the expected answer here, not a crash. A panic in MailCraft's own code still aborts the run.
+//! tests of its own. Every panic counts, in the .pst reader too, and checksums are taken for
+//! right so damage reaches the code behind them.
 #![no_main]
 
 use std::path::PathBuf;
@@ -84,22 +83,8 @@ fn good_file() -> Vec<u8> {
 
 static GOOD: OnceLock<Vec<u8>> = OnceLock::new();
 
-/// Where third-party code is built from: the registry, and the reader fork's git checkout.
-const THIRD_PARTY: [&str; 3] = [".cargo/registry", ".cargo/git/checkouts/outlook-pst-rs-", ".cargo\\git\\checkouts\\outlook-pst-rs-"];
-
-/// Abort on a panic in MailCraft's code; let one in a dependency (the forked reader too)
-/// reach `import`'s fence. (One that escapes the fence is still caught by libfuzzer-sys, which
-/// aborts.)
-fn only_our_panics_abort() {
-    std::panic::set_hook(Box::new(|info| {
-        if info.location().is_none_or(|l| !THIRD_PARTY.iter().any(|p| l.file().contains(p))) {
-            eprintln!("{info}");
-            std::process::abort();
-        }
-    }));
-}
-
-fuzz_target!(init: only_our_panics_abort(), |data: &[u8]| {
+fuzz_target!(|data: &[u8]| {
+    mailcraft_pst::take_checksums_as_right(true);
     let file = if data.starts_with(b"!BDN") {
         data.to_vec()
     } else {

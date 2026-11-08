@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 
 use mailcraft_model::Summary;
 use mailcraft_model::job::{ImportPhase, StopHow};
-use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
+use mailcraft_pst::write::{self, BatchMessage, NewMessage, NewRecipient, RecipientType};
 
 use super::*;
 use crate::pst::Fault;
@@ -61,18 +61,17 @@ fn setup(name: &str, inbox: usize, projects: usize, account: &str, ms: u64) -> (
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let pst = dir.join("in.pst");
-    let recipients =
-        [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
+    let recipients = [NewRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
     for (f, (folder, n)) in [("Inbox", inbox), ("Projects", projects)].into_iter().enumerate() {
         if n == 0 {
             continue;
         }
         let owned: Vec<(String, String)> = (0..n).map(|k| (format!("Report {f}-{k}"), format!("<r{f}-{k}@run.example>"))).collect();
-        let batch: Vec<UnicodePstBatchMessage<'_>> = owned
+        let batch: Vec<BatchMessage<'_>> = owned
             .iter()
             .enumerate()
-            .map(|(k, o)| UnicodePstBatchMessage {
-                message: UnicodePstMessage {
+            .map(|(k, o)| BatchMessage {
+                message: NewMessage {
                     subject: &o.0,
                     sender_name: "Ana",
                     sender_email: "ana@soundlab.example",
@@ -88,10 +87,10 @@ fn setup(name: &str, inbox: usize, projects: usize, account: &str, ms: u64) -> (
             })
             .collect();
         if f == 0 {
-            Writer::create_in_folder_with_attachments(&pst, &[folder], &batch[0].message, batch[0].attachments).unwrap();
-            Writer::append_many_in_folder_with_attachments(&pst, &[folder], &batch[1..]).unwrap();
+            write::create_with(&pst, &[folder], &batch[0].message, batch[0].attachments).unwrap();
+            write::append(&pst, &[folder], &batch[1..]).unwrap();
         } else {
-            Writer::append_many_in_folder_with_attachments(&pst, &[folder], &batch).unwrap();
+            write::append(&pst, &[folder], &batch).unwrap();
         }
     }
     slow(account, ms);

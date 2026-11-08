@@ -12,9 +12,7 @@ use mailcraft_model::EmailAddress;
 use mailcraft_model::dates::civil_from_days;
 use mailcraft_model::ical::{self, Attendee, CalEvent, Privacy, ShowAs};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
-use outlook_pst::ltp::prop_context::{GuidValue, PropertyValue};
-use outlook_pst::messaging::named_prop::{NamedPropertyGuid, NamedPropertyId, PS_MAPI, PS_PUBLIC_STRINGS};
-use outlook_pst::messaging::store::Store as PstStore;
+use mailcraft_pst::{GuidValue, NamedPropertyGuid, NamedPropertyId, PS_MAPI, PS_PUBLIC_STRINGS, PstStore};
 
 use crate::pst::Val;
 
@@ -83,16 +81,12 @@ pub(crate) struct Named {
 }
 
 impl Named {
-    pub(crate) fn of(store: &dyn PstStore) -> Named {
+    pub(crate) fn of(store: &PstStore) -> Named {
         let mut named = Named::default();
         let Ok(map) = store.named_property_map() else { return named };
-        let props = map.properties();
-        let guids = props.stream_guid().unwrap_or_default();
-        let strings = match props.get(0x0004) {
-            Some(PropertyValue::Binary(b)) => b.buffer(),
-            _ => &[],
-        };
-        for e in props.stream_entry().unwrap_or_default().into_iter().take(MAX_NAMES) {
+        let guids = map.stream_guid();
+        let strings = map.stream_string();
+        for e in map.stream_entry().into_iter().take(MAX_NAMES) {
             let set = match e.guid() {
                 NamedPropertyGuid::None => continue,
                 NamedPropertyGuid::Mapi => key(&PS_MAPI),

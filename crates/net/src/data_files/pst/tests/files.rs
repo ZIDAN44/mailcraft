@@ -5,79 +5,42 @@ use super::super::item::{File, Files, Got, from_row, linked, local_path, read_li
 use super::super::rebuild::{message, summary_of};
 use super::*;
 
-/// The reader's error for an attachment whose data has no value (`PtypNull`), as a reader that
-/// doesn't know Outlook's zero-byte files gives it: for any attachment's data, a file's or an
-/// attached message's.
-fn no_value() -> io::Error {
-    use outlook_pst::ltp::prop_type::PropertyType;
-    io::Error::from(outlook_pst::messaging::MessagingError::InvalidMessageObjectData(PropertyType::Null))
+/// The error for an attachment the reader fails on.
+fn unreadable() -> io::Error {
+    io::Error::other("damaged")
 }
 
-/// The reader's error only a file's data having no value gives.
-fn no_file_value() -> io::Error {
-    use outlook_pst::ltp::prop_type::PropertyType;
-    io::Error::from(outlook_pst::messaging::MessagingError::InvalidAttachmentFileBinaryData(PropertyType::Null))
-}
-
-/// An attachment the reader couldn't read comes from its row: a zero-byte file comes in empty,
-/// named from its short name with its type from the name when the row has only that (the row's
-/// size counts its properties, so it isn't 0); a link is counted; an attached message is counted
-/// as one; anything else is counted as unreadable; a hidden one comes in, except a contact's
-/// (its picture) and a recurring series' changed occurrence. A row that doesn't say how it's
-/// attached is a file only by the error a file alone gives.
+/// An attachment the reader couldn't read comes from its row: a link is counted; an attached
+/// message is counted as one; anything else is counted as unreadable; a hidden one is as any
+/// other, except a contact's (its picture) and a recurring series' changed occurrence.
 #[test]
 fn an_unreadable_attachment_comes_from_its_row() {
     let get = |row: &HashMap<u16, Val<'static>>, e: &io::Error| from_row(e, &|id| row.get(&id).cloned(), "IPM.Note", true);
     let short = HashMap::from([(0x0E20, Val::Int(165)), (0x3704, Val::Text("NOTES~1.TXT".into())), (0x3705, Val::Int(1)), (0x370B, Val::Int(-1))]);
-    let Got::File(File::Data { name, mime, cid, data }) = get(&short, &no_value()) else { panic!("the empty file is kept") };
-    assert_eq!((name.as_str(), mime.as_str(), cid.as_str(), data.len()), ("NOTES~1.TXT", "text/plain", "", 0));
-
-    let mut full = short.clone();
-    full.extend([
-        (0x3707, Val::Text("Meeting notes.docx".into())),
-        (0x370E, Val::Text("application/octet-stream".into())),
-        (0x3712, Val::Text("notes@studio.example".into())),
-    ]);
-    let Got::File(File::Data { name, mime, cid, data }) = get(&full, &no_value()) else { panic!("the empty file is kept") };
-    assert_eq!(
-        (name.as_str(), mime.as_str(), cid.as_str(), data.len()),
-        ("Meeting notes.docx", "application/octet-stream", "notes@studio.example", 0)
-    );
-    assert!(matches!(get(&short, &no_file_value()), Got::File(File::Data { ref name, .. }) if name == "NOTES~1.TXT"));
-    let empty = HashMap::new();
-    assert!(matches!(get(&empty, &no_file_value()), Got::File(File::Data { ref name, .. }) if name == "attachment"), "a row with nothing in it");
-    // Without the method, the error any attachment's data gives may be an attached message's.
-    assert!(matches!(get(&empty, &no_value()), Got::Left(SkipReason::AttachmentUnreadable)));
-
-    // Another error: it couldn't be read; an attached message is counted as one.
-    let other = io::Error::from(outlook_pst::messaging::MessagingError::AttachmentMethodNotFound);
-    assert!(matches!(get(&short, &other), Got::Left(SkipReason::AttachmentUnreadable)));
-    assert!(matches!(get(&short, &io::Error::other("damaged")), Got::Left(SkipReason::AttachmentUnreadable)));
+    assert!(matches!(get(&short, &unreadable()), Got::Left(SkipReason::AttachmentUnreadable)));
     let mut embedded = short.clone();
     embedded.insert(0x3705, Val::Int(5));
-    for e in [no_value(), no_file_value(), other] {
-        assert!(matches!(get(&embedded, &e), Got::Left(SkipReason::AttachedMessageUnreadable)), "{e}");
-    }
+    assert!(matches!(get(&embedded, &unreadable()), Got::Left(SkipReason::AttachedMessageUnreadable)));
     let mut storage = short.clone();
     storage.insert(0x3705, Val::Int(6));
-    assert!(matches!(get(&storage, &no_value()), Got::Left(SkipReason::AttachmentUnreadable)));
-    let other = io::Error::from(outlook_pst::messaging::MessagingError::AttachmentMethodNotFound);
+    assert!(matches!(get(&storage, &unreadable()), Got::Left(SkipReason::AttachmentUnreadable)));
+    let other = unreadable();
     let mut hidden = short.clone();
     hidden.insert(0x7FFE, Val::Bool(true));
-    assert!(matches!(get(&hidden, &no_value()), Got::File(File::Data { ref name, .. }) if name == "NOTES~1.TXT"), "a message's hidden file");
+    assert!(matches!(get(&hidden, &unreadable()), Got::Left(SkipReason::AttachmentUnreadable)), "a message's hidden file");
     for class in ["IPM.Contact", "ipm.contact.Custom"] {
-        assert!(matches!(from_row(&no_value(), &|id| hidden.get(&id).cloned(), class, true), Got::Nothing), "{class}");
+        assert!(matches!(from_row(&unreadable(), &|id| hidden.get(&id).cloned(), class, true), Got::Nothing), "{class}");
     }
     let mut shown = hidden.clone();
     shown.insert(0x3712, Val::Text("me@studio.example".into()));
-    assert!(matches!(from_row(&no_value(), &|id| shown.get(&id).cloned(), "IPM.Contact", true), Got::File(_)), "one with a Content-ID");
+    assert!(matches!(from_row(&unreadable(), &|id| shown.get(&id).cloned(), "IPM.Contact", true), Got::Left(_)), "one with a Content-ID");
     // A recurring series' changed occurrence: a hidden attached message, marked afException or
     // in a meeting or an appointment, is left out; a message's hidden attached message isn't, nor
     // the item's own when it is an appointment (it is that occurrence, read as a message, and the
     // appointment goes to the calendar). An appointment attached to a message keeps them hidden.
     let mut occurrence = hidden.clone();
     occurrence.insert(0x3705, Val::Int(5));
-    let in_class = |row: &HashMap<u16, Val<'static>>, class: &str, top: bool| from_row(&no_value(), &|id| row.get(&id).cloned(), class, top);
+    let in_class = |row: &HashMap<u16, Val<'static>>, class: &str, top: bool| from_row(&unreadable(), &|id| row.get(&id).cloned(), class, top);
     let read = |got: Got| matches!(got, Got::Left(SkipReason::AttachedMessageUnreadable));
     for top in [true, false] {
         assert!(matches!(in_class(&occurrence, "IPM.Schedule.Meeting.Request", top), Got::Nothing));
@@ -91,7 +54,7 @@ fn an_unreadable_attachment_comes_from_its_row() {
     }
     let mut flagged = hidden.clone();
     flagged.insert(0x7FFD, Val::Int(0x1));
-    assert!(matches!(in_class(&flagged, "IPM.Schedule.Meeting.Request", true), Got::File(_)), "a meeting's hidden file");
+    assert!(matches!(in_class(&flagged, "IPM.Schedule.Meeting.Request", true), Got::Left(_)), "a meeting's hidden file");
     for method in [2, 3, 4, 7] {
         let mut link = short.clone();
         link.insert(0x3705, Val::Int(method));

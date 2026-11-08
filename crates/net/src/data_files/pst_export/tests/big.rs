@@ -66,26 +66,26 @@ fn export_big_files_alone() {
 
 /// How many of the big files are in the data file at `path`, each checked byte for byte.
 fn files_in(path: &Path) -> usize {
-    let pst = outlook_pst::UnicodePstFile::open(path).unwrap();
-    let store = UnicodeStore::read(Rc::new(pst)).unwrap();
-    let any: Rc<dyn PstStore> = store.clone();
-    let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap();
+    let pst = PstFile::open(path).unwrap();
+    let store = PstStore::read(Rc::new(pst)).unwrap();
+    let any: Rc<PstStore> = store.clone();
+    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     let table = top.hierarchy_table().unwrap().clone();
     let inbox = table
         .rows_matrix()
-        .filter_map(|row| any.open_folder(&any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).ok()?).ok())
+        .filter_map(|row| any.open_folder(row.id()).ok())
         .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
         .unwrap();
     let mut seen = 0;
     for row in inbox.contents_table().unwrap().rows_matrix() {
-        use outlook_pst::messaging::attachment::{Attachment as _, AttachmentData, UnicodeAttachment};
-        let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-        let m = UnicodeMessage::read(store.clone(), &entry, None).unwrap();
+        use mailcraft_pst::{Attachment, AttachmentData};
+        let entry = row.id();
+        let m = Message::read(store.clone(), entry).unwrap();
         let subject = m.properties().get(0x0037).and_then(crate::pst::text_of).unwrap_or_default();
         let n: usize = subject.trim_start_matches("Footage ").parse().unwrap();
-        let rows: Vec<_> = m.attachment_table().unwrap().rows_matrix().map(|r| u32::from(r.id())).collect();
+        let rows: Vec<_> = m.attachment_table().unwrap().rows_matrix().map(|r| r.id()).collect();
         assert_eq!(rows.len(), 1);
-        let a = UnicodeAttachment::read(m.clone(), NodeId::from(rows[0]), None).unwrap();
+        let a = Attachment::read(m.clone(), rows[0]).unwrap();
         let Some(AttachmentData::Binary(b)) = a.data() else { panic!("{subject}: no file") };
         let data = b.buffer();
         assert_eq!(data.len(), BIG);

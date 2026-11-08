@@ -1,28 +1,26 @@
 //! Exporting an account's mail to an Outlook data file (`.pst`).
 //!
-//! The file is written with the MIT-licensed `outlook-pst-rw` crate (MS-PST, Unicode format),
-//! from MailCraft's fork: each folder kept on this computer becomes a folder of the same name,
-//! and the account's Sent, Trash, Drafts and Junk folders go to the file's own Sent Items,
-//! Deleted Items, Drafts and Junk Email ([`place`]). Each message whose body is here goes in with
-//! its addresses (Bcc too), text and HTML bodies, attachments and header block, and with what the
-//! store keeps of it: read or not, a draft, flagged (and when it's due), answered or forwarded,
-//! its categories, importance and sensitivity ([`item`]); a meeting's request, cancellation or
-//! answer as Outlook's meeting mail, with the meeting's own properties ([`meeting`]); signed and
-//! encrypted mail and reports as Outlook keeps them ([`kinds`]); an attached message as the
-//! message it is, and files of any size, a big one kept in a file of its own until its batch is
-//! written ([`files`]).
-//! Messages only known by their headers (never opened, on an account that keeps headers only)
-//! are counted as skipped. The account's calendar, contacts, contact groups, notes and tasks go
-//! in as Outlook's own items, in the file's Calendar, Contacts, Notes and Tasks folders
-//! ([`pim`], [`calendar`]): nothing stays beside the file.
+//! The file is written with MailCraft's own `.pst` crate (`mailcraft-pst`; MS-PST, Unicode format):
+//! each folder kept on this computer becomes a folder of the same name, and
+//! the account's Sent, Trash, Drafts and Junk folders go to the file's own Sent Items, Deleted
+//! Items, Drafts and Junk Email ([`place`]). Each message whose body is here goes in with its
+//! addresses (Bcc too), text and HTML bodies, attachments and header block, and with what the store
+//! keeps of it: read or not, a draft, flagged (and when it's due), answered or forwarded, its
+//! categories, importance and sensitivity ([`item`]); a meeting's request, cancellation or answer
+//! as Outlook's meeting mail, with the meeting's own properties ([`meeting`]); signed and encrypted
+//! mail and reports as Outlook keeps them ([`kinds`]); an attached message as the message it is,
+//! and files of any size, a big one kept in a file of its own until its batch is written
+//! ([`files`]). Messages only known by their headers (never opened, on an account that keeps
+//! headers only) are counted as skipped. The account's calendar, contacts, contact groups, notes
+//! and tasks go in as Outlook's own items, in the file's Calendar, Contacts, Notes and Tasks
+//! folders ([`pim`], [`calendar`]): nothing stays beside the file.
 //!
 //! A data file that's already there is added to, as Outlook's export does (issue #18): its mail
 //! stays, the account's goes into folders of the same names, and messages already in it (by
 //! `Message-ID`) aren't written twice. That is a file in the Unicode format Outlook 2003 and later
 //! make or in Outlook 97–2002's ANSI one ([`format`]: its strings 8-bit, in Windows-1252 or, for a
-//! message whose text it can't hold, UTF-8), encoded as Outlook encodes them or not (the writer
-//! is MailCraft's fork, which adds to all of those). The file is written as a copy that replaces
-//! it at the end, so a failed export leaves it as it was.
+//! message whose text it can't hold, UTF-8), encoded as Outlook encodes them or not. The file is
+//! written as a copy that replaces it at the end, so a failed export leaves it as it was.
 
 use std::collections::HashSet;
 use std::io;
@@ -32,13 +30,11 @@ use std::rc::Rc;
 use mailcraft_mime as mime;
 use mailcraft_model::organize::FollowUpDays;
 use mailcraft_model::{Folder, FolderRole, MessageKey, utf7};
-use mailcraft_store::Store;
-use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
-use outlook_pst::ndb::node_id::NodeId;
-use outlook_pst::{
-    UnicodePstAttachment, UnicodePstBatchMessage, UnicodePstFile, UnicodePstMessage, UnicodePstProperty, UnicodePstPropertyKey, UnicodePstRecipient,
-    UnicodePstRecipientType,
+use mailcraft_pst::{
+    Format, NodeId,
+    write::{self, BatchMessage, NewAttachment, NewMessage, NewProperty, NewRecipient, PropertyKey, RecipientType},
 };
+use mailcraft_store::Store;
 
 mod calendar;
 mod contact;
@@ -55,7 +51,7 @@ mod task;
 mod tests;
 mod writing;
 
-use format::Format;
+use format::{format_of, store_of};
 use item::Owned;
 use writing::{append, write};
 
@@ -103,18 +99,16 @@ fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
     if !head.starts_with(b"!BDN") || head.get(8..10) != Some(b"SM") {
         return Err("it isn't an Outlook data file: choose another name to make a new one".into());
     }
-    let format = Format::of_head(&head);
-    let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> io::Result<HashSet<String>> {
-        let any = format.store(path)?;
+    let read = || -> io::Result<HashSet<String>> {
+        let any = store_of(path)?;
         let mut ids = HashSet::new();
-        let top = any.open_folder(&any.properties().ipm_sub_tree_entry_id()?)?;
+        let top = any.open_folder(any.ipm_subtree()?)?;
         let mut stack = vec![(top, 0usize)];
         while let Some((folder, depth)) = stack.pop() {
             if let Some(contents) = folder.contents_table() {
                 for row in contents.rows_matrix() {
-                    let Ok(entry) = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))) else { continue };
-                    let Ok(m) = any.open_message(&entry, Some(&[0x1035])) else { continue };
-                    if let Some(id) = m.properties().get(0x1035).and_then(crate::pst::text_of) {
+                    let Ok(props) = any.message_properties(row.id(), &[0x1035]) else { continue };
+                    if let Some(id) = props.get(0x1035).and_then(crate::pst::text_of) {
                         ids.insert(mailcraft_model::thread::norm_id(&id));
                     }
                 }
@@ -123,20 +117,20 @@ fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
                 && let Some(table) = folder.hierarchy_table()
             {
                 for row in table.rows_matrix() {
-                    if let Ok(sub) = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).and_then(|e| any.open_folder(&e)) {
+                    if let Ok(sub) = any.open_folder(row.id()) {
                         stack.push((sub, depth + 1));
                     }
                 }
             }
         }
         Ok(ids)
-    }));
-    match read {
-        Ok(Ok(ids)) => Ok(ids),
-        Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => {
+    };
+    match read() {
+        Ok(ids) => Ok(ids),
+        Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => {
             Err("Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again".into())
         }
-        Ok(Err(_)) | Err(_) => Err("this data file can't be read, so mail can't be added to it: choose another name to make a new one".into()),
+        Err(_) => Err("this data file can't be read, so mail can't be added to it: choose another name to make a new one".into()),
     }
 }
 
@@ -165,9 +159,9 @@ pub fn export(
     }
     let mut created = existing;
     // A file added to keeps its format; a new one is Unicode.
-    let format = if existing { Format::of(&temp) } else { Format::Unicode };
+    let format = if existing { format_of(&temp) } else { Format::Unicode };
     // The special folders a file added to records, else the names a new one gets.
-    let targets = place::Targets::of(existing.then_some(temp.as_path()), format);
+    let targets = place::Targets::of(existing.then_some(temp.as_path()));
     let pim: mailcraft_model::pim::Pim = store.load_account_doc(account, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0);
     let owner = owner(store, account, &pim);
@@ -177,7 +171,7 @@ pub fn export(
     // Where each folder goes; in an ANSI file, folders whose names it would write alike apart.
     let placed: Vec<Vec<String>> = folders.iter().map(|f| place::place(f, &folders, &targets)).collect();
     let placed = if format == Format::Ansi { place::apart(&placed, &targets) } else { placed };
-    let written = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(), String> {
+    let mut write_all = || -> Result<(), String> {
         for (f, folder) in folders.iter().zip(&placed).filter(|(f, _)| f.selectable) {
             let Ok(st) = store.load_folder(account, &f.path) else { continue };
             let folder = folder.clone();
@@ -198,7 +192,7 @@ pub fn export(
                 }
                 if batch.len() >= BATCH || bytes >= BATCH_BYTES || spill.bytes() >= SPILL_BYTES {
                     let n = batch.len();
-                    write(&temp, format, &folder, &std::mem::take(&mut batch), &mut created)?;
+                    write(&temp, &folder, &std::mem::take(&mut batch), &mut created)?;
                     spill.clear();
                     bytes = 0;
                     done.messages += n;
@@ -206,21 +200,23 @@ pub fn export(
                 }
             }
             if !batch.is_empty() {
-                write(&temp, format, &folder, &batch, &mut created)?;
+                write(&temp, &folder, &batch, &mut created)?;
                 spill.clear();
                 done.messages += batch.len();
                 progress(done.messages);
             }
         }
-        record_special(&temp, format, &folders, &targets, created);
-        inside = pim::write(&temp, format, &pim, &taken, existing, &mut created, now, &owner, account)?;
+        record_special(&temp, &folders, &targets, created);
+        inside = pim::write(&temp, &pim, &taken, existing, &mut created, now, &owner, account)?;
         Ok(())
-    }));
+    };
+    // Stored mail is parsed and calendars built in there: whatever fails, the export ends and says so.
+    let written = std::panic::catch_unwind(std::panic::AssertUnwindSafe(&mut write_all));
     let result = match written {
         Ok(Ok(())) if !created => Err("there is no mail on this computer to export".to_string()),
         // A file added to keeps its own name.
         Ok(Ok(())) if existing => Ok(()),
-        Ok(Ok(())) => UnicodePstFile::set_store_display_name(&temp, name).map(drop).map_err(|e| e.to_string()),
+        Ok(Ok(())) => write::set_store_display_name(&temp, name).map_err(|e| e.to_string()),
         Ok(Err(e)) => Err(e),
         Err(_) => Err("the data file could not be written".into()),
     };
@@ -268,7 +264,7 @@ fn owner(store: &Store, account: &str, pim: &mailcraft_model::pim::Pim) -> calen
 /// the file records one already (a file added to keeps its own); made when they have no mail.
 /// The mail is in by then: a file that can't take the record keeps it as written, and the log
 /// says why.
-fn record_special(path: &Path, format: Format, folders: &[Folder], targets: &place::Targets, created: bool) {
+fn record_special(path: &Path, folders: &[Folder], targets: &place::Targets, created: bool) {
     if !created {
         return;
     }
@@ -276,7 +272,7 @@ fn record_special(path: &Path, format: Format, folders: &[Folder], targets: &pla
         if !folders.iter().any(|f| f.selectable && f.role == role) {
             continue;
         }
-        match format.special_folder(path, special) {
+        match write::special_folder(path, special) {
             Ok(Some(_)) => continue,
             Ok(None) => {}
             Err(e) => {
@@ -286,7 +282,7 @@ fn record_special(path: &Path, format: Format, folders: &[Folder], targets: &pla
         }
         let names = targets.get(special);
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
-        if let Err(e) = format.set_special_folder(path, special, &names) {
+        if let Err(e) = write::set_special_folder(path, special, &names) {
             log::info!("the data file's {special:?} can't be recorded: {e}");
         }
     }

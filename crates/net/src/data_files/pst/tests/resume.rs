@@ -8,9 +8,9 @@ use std::time::Duration;
 
 use mailcraft_model::job::{Blocked, SkipReason, StopHow};
 use mailcraft_model::pim::{PIM_DOC, Pim};
+use mailcraft_pst::write::{self, BatchMessage, NewMessage, NewRecipient, RecipientType};
 use mailcraft_store::Store;
 use mailcraft_store::search::{self, Writer as IndexWriter};
-use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstRecipient, UnicodePstRecipientType};
 
 use super::super::item::Item;
 use super::super::lanes::tests::Fault;
@@ -378,8 +378,8 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
     let before = (checkpoint(&store), store.load_folders("a1").unwrap());
     let (done, _) = go_on(&dir.join("gone.pst"), &store, None);
     assert_eq!(done.blocked, Some(Blocked::SourceMissing));
-    let to = [UnicodePstRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: UnicodePstRecipientType::To, ..Default::default() }];
-    let more = UnicodePstMessage {
+    let to = [NewRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
+    let more = NewMessage {
         subject: "One more",
         sender_name: "Ana",
         sender_email: "ana@soundlab.example",
@@ -391,7 +391,7 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
         message_class: "IPM.Note",
         properties: &[],
     };
-    Writer::append_many_in_folder_with_attachments(&changed, &["Inbox"], &[UnicodePstBatchMessage { message: more, attachments: &[] }]).unwrap();
+    write::append(&changed, &["Inbox"], &[BatchMessage { message: more, attachments: &[] }]).unwrap();
     let (done, _) = go_on(&changed, &store, None);
     assert_eq!((done.blocked, done.messages), (Some(Blocked::SourceChanged), 0));
     assert_eq!((checkpoint(&store), store.load_folders("a1").unwrap()), before, "nothing written");

@@ -1,4 +1,4 @@
-//! The `.pst` reader's fixes (its fork's PATCHES.md) on files the writer makes and these
+//! The `.pst` reader on hostile files: ones the writer makes and these
 //! tests then change byte by byte where the writer can't go: an attachment that holds a message,
 //! and a data tree that says less than it holds or points back at itself. Each file is read on a
 //! thread of its own with a time limit, as an attached message once hung the reader.
@@ -9,14 +9,11 @@ use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use outlook_pst::UnicodePstFile;
-use outlook_pst::messaging::attachment::{Attachment, AttachmentData, UnicodeAttachment};
-use outlook_pst::messaging::message::{Message, UnicodeMessage};
-use outlook_pst::messaging::store::{Store as PstStore, UnicodeStore};
-use outlook_pst::ndb::node_id::NodeId;
-use outlook_pst::{UnicodePstAttachment, UnicodePstFile as Writer, UnicodePstMessage};
-
 use mailcraft_model::job::SkipReason;
+use mailcraft_pst::{
+    Attachment, AttachmentData, Message, PstFile, PstStore,
+    write::{self, NewAttachment, NewMessage},
+};
 
 use super::super::props::text_of;
 
@@ -32,13 +29,13 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
-fn message(subject: &str) -> UnicodePstMessage<'_> {
+fn message(subject: &str) -> NewMessage<'_> {
     with_id(subject, "<outer@example.com>")
 }
 
 /// A message whose id (which the writer also makes its search key) is `message_id`.
-fn with_id<'a>(subject: &'a str, message_id: &'a str) -> UnicodePstMessage<'a> {
-    UnicodePstMessage {
+fn with_id<'a>(subject: &'a str, message_id: &'a str) -> NewMessage<'a> {
+    NewMessage {
         subject,
         sender_name: "Riley Moreno",
         sender_email: "riley@example.com",
@@ -52,8 +49,8 @@ fn with_id<'a>(subject: &'a str, message_id: &'a str) -> UnicodePstMessage<'a> {
     }
 }
 
-fn file<'a>(filename: &'a str, data: &'a [u8]) -> UnicodePstAttachment<'a> {
-    UnicodePstAttachment { filename, mime_type: "application/octet-stream", content_id: None, data, ..Default::default() }
+fn file<'a>(filename: &'a str, data: &'a [u8]) -> NewAttachment<'a> {
+    NewAttachment { filename, mime_type: "application/octet-stream", content_id: None, data, ..Default::default() }
 }
 
 fn u16_at(b: &[u8], at: usize) -> u16 {
@@ -158,7 +155,7 @@ fn with_an_attached_message(dir: &Path) -> PathBuf {
 fn attached_in(dir: &Path, subject: &str) -> PathBuf {
     let path = dir.join("attached.pst");
     let files = [file("letter.bin", b"twelve bytes"), file("empty.txt", b"")];
-    drop(Writer::create_with_attachments(&path, &message(subject), &files).unwrap());
+    write::create_with(&path, &["Inbox"], &message(subject), &files).unwrap();
     let mut f = std::fs::read(&path).unwrap();
     let all = blocks(&f);
     // The outer message's subnode block holds the attachment: its PC, its subnode block.
@@ -193,34 +190,34 @@ fn attached_in(dir: &Path, subject: &str) -> PathBuf {
 }
 
 /// The first message in the file's folders (the writer's Inbox).
-fn first_message(store: &Rc<UnicodeStore>) -> Rc<UnicodeMessage> {
-    let any: Rc<dyn PstStore> = store.clone();
-    let mut folders = vec![any.open_folder(&any.properties().ipm_sub_tree_entry_id().unwrap()).unwrap()];
+fn first_message(store: &Rc<PstStore>) -> Rc<Message> {
+    let any: Rc<PstStore> = store.clone();
+    let mut folders = vec![any.open_folder(any.ipm_subtree().unwrap()).unwrap()];
     while let Some(folder) = folders.pop() {
         if let Some(row) = folder.contents_table().and_then(|t| t.rows_matrix().next()) {
-            let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-            return UnicodeMessage::read(store.clone(), &entry, None).unwrap();
+            let entry = row.id();
+            return Message::read(store.clone(), entry).unwrap();
         }
         for row in folder.hierarchy_table().into_iter().flat_map(|t| t.rows_matrix()) {
-            let entry = any.properties().make_entry_id(NodeId::from(u32::from(row.id()))).unwrap();
-            folders.push(any.open_folder(&entry).unwrap());
+            let entry = row.id();
+            folders.push(any.open_folder(entry).unwrap());
         }
     }
     panic!("no message in the file");
 }
 
-fn subject(m: &dyn Message) -> String {
+fn subject(m: &Message) -> String {
     m.properties().get(0x0037).and_then(text_of).unwrap_or_default()
 }
 
 /// Each attachment of `m`, as "file <bytes>", "message <subject>" or the error reading it.
-fn attachments(m: &Rc<UnicodeMessage>) -> Vec<String> {
-    let rows: Vec<u32> = m.attachment_table().map(|t| t.rows_matrix().map(|r| u32::from(r.id())).collect()).unwrap_or_default();
+fn attachments(m: &Rc<Message>) -> Vec<String> {
+    let rows: Vec<u32> = m.attachment_table().map(|t| t.rows_matrix().map(|r| r.id()).collect()).unwrap_or_default();
     rows.into_iter()
-        .map(|id| match UnicodeAttachment::read(m.clone(), NodeId::from(id), None) {
+        .map(|id| match Attachment::read(m.clone(), id) {
             Ok(a) => match a.data() {
                 Some(AttachmentData::Binary(b)) => format!("file {}", b.buffer().len()),
-                Some(AttachmentData::Message(inner)) => format!("message {}", subject(&**inner)),
+                Some(AttachmentData::Message(inner)) => format!("message {}", subject(inner)),
                 None => "nothing".into(),
             },
             Err(e) => format!("error {e}"),
@@ -230,11 +227,11 @@ fn attachments(m: &Rc<UnicodeMessage>) -> Vec<String> {
 
 /// Read the file on a thread of its own: what `read` makes of it, or a failure when it hasn't
 /// finished in 20 s (the reader once hung on an attached message, waiting on its own lock).
-fn read_in_time<T: Send + 'static>(path: &Path, read: impl FnOnce(UnicodePstFile) -> T + Send + 'static) -> T {
+fn read_in_time<T: Send + 'static>(path: &Path, read: impl FnOnce(PstFile) -> T + Send + 'static) -> T {
     let bytes = std::fs::read(path).unwrap();
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
-        let pst = UnicodePstFile::read_from(Box::new(std::io::Cursor::new(bytes))).unwrap();
+        let pst = PstFile::read_from(Box::new(std::io::Cursor::new(bytes))).unwrap();
         let _ = tx.send(read(pst));
     });
     rx.recv_timeout(Duration::from_secs(20)).expect("the file was read in time")
@@ -248,11 +245,11 @@ fn an_attached_message_and_an_empty_file_read() {
     let dir = scratch("attached");
     let path = with_an_attached_message(&dir);
     let (outer, inner) = read_in_time(&path, |pst| {
-        let store = UnicodeStore::read(Rc::new(pst)).unwrap();
+        let store = PstStore::read(Rc::new(pst)).unwrap();
         let m = first_message(&store);
-        let a = UnicodeAttachment::read(m.clone(), NodeId::from(ATTACHMENT_NODE as u32), None).unwrap();
-        let attached = a.embedded_message().expect("the attachment's message, as UnicodeMessage");
-        (attachments(&m), (subject(&*attached), attachments(&attached)))
+        let a = Attachment::read(m.clone(), ATTACHMENT_NODE as u32).unwrap();
+        let attached = a.embedded_message().expect("the attachment's message, as Message");
+        (attachments(&m), (subject(&attached), attachments(&attached)))
     });
     assert_eq!(outer, ["message Outer", "file 0"]);
     // The copy has the same attachments: its own are read with the file's own types.
@@ -330,11 +327,11 @@ fn attach(f: &mut [u8], holder: u64, target: (u64, u64)) {
 fn with_nested_messages(dir: &Path) -> PathBuf {
     let path = dir.join("nested.pst");
     let outer = [file("a.bin", b"one"), file("empty.txt", b"")];
-    drop(Writer::create_with_attachments(&path, &with_id("Outer", "<outer@example.com>"), &outer).unwrap());
+    write::create_with(&path, &["Inbox"], &with_id("Outer", "<outer@example.com>"), &outer).unwrap();
     let middle = [file("b.bin", b"two"), file("middle.txt", b"in the middle")];
-    drop(Writer::append_with_attachments(&path, &with_id("Middle", "<middle@example.com>"), &middle).unwrap());
+    write::append_message(&path, &["Inbox"], &with_id("Middle", "<middle@example.com>"), &middle).unwrap();
     let deep = [file("deep.txt", b"at the bottom")];
-    drop(Writer::append_with_attachments(&path, &with_id("Deep", "<deep@example.com>"), &deep).unwrap());
+    write::append_message(&path, &["Inbox"], &with_id("Deep", "<deep@example.com>"), &deep).unwrap();
     let mut f = std::fs::read(&path).unwrap();
     let all = blocks(&f);
     let outer = message_blocks(&f, &all, "Outer");
@@ -403,7 +400,7 @@ fn the_import_keeps_attached_messages_with_their_own_files() {
 fn with_a_big_file(dir: &Path) -> (PathBuf, Vec<u8>) {
     let path = dir.join("big.pst");
     let data: Vec<u8> = (0..20_000u32).map(|i| (i % 251) as u8).collect();
-    drop(Writer::create_with_attachments(&path, &message("Big"), &[file("big.bin", &data)]).unwrap());
+    write::create_with(&path, &["Inbox"], &message("Big"), &[file("big.bin", &data)]).unwrap();
     (path, data)
 }
 
@@ -416,10 +413,10 @@ fn xblock(f: &[u8]) -> (usize, usize) {
     x
 }
 
-fn first_attachment(pst: UnicodePstFile) -> Result<Vec<u8>, String> {
-    let store = UnicodeStore::read(Rc::new(pst)).unwrap();
+fn first_attachment(pst: PstFile) -> Result<Vec<u8>, String> {
+    let store = PstStore::read(Rc::new(pst)).unwrap();
     let m = first_message(&store);
-    let a = UnicodeAttachment::read(m, NodeId::from(ATTACHMENT_NODE as u32), None).map_err(|e| e.to_string())?;
+    let a = Attachment::read(m, ATTACHMENT_NODE as u32).map_err(|e| e.to_string())?;
     match a.data() {
         Some(AttachmentData::Binary(b)) => Ok(b.buffer().to_vec()),
         _ => Err("not a file".into()),
@@ -461,7 +458,7 @@ fn a_data_tree_that_points_at_itself_is_an_error() {
     seal(&mut f, x);
     std::fs::write(&path, &f).unwrap();
     let read = read_in_time(&path, first_attachment);
-    assert!(read.as_ref().is_err_and(|e| e.contains("cLevel")), "{read:?}");
+    assert!(read.as_ref().is_err_and(|e| e.contains("a list where a block should be")), "{read:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -485,10 +482,7 @@ fn a_data_tree_that_names_one_block_over_and_over_reads_no_more_than_it_declares
     assert_eq!(read[8176..2 * 8176], data[..8176]);
     // The same through the file's own block reader, which read to the end.
     let id = blocks(&f).iter().find(|(_, b)| **b == x).map(|(id, _)| *id).unwrap();
-    let block = read_in_time(&path, move |pst| {
-        use outlook_pst::PstFile;
-        pst.read_block(outlook_pst::ndb::block_id::UnicodeBlockId::from(id)).map(|b| b.len()).map_err(|e| e.to_string())
-    });
+    let block = read_in_time(&path, move |pst| pst.read_block(id).map(|b| b.len()).map_err(|e| e.to_string()));
     assert_eq!(block, Ok(data.len()));
     // It says it holds one block's worth: one block is read.
     put32(&mut f, x.0 + 4, 8176);
@@ -527,9 +521,9 @@ fn with_a_big_value(dir: &Path, nid: u64, prop: u16) -> PathBuf {
     path
 }
 
-fn binary_len(value: Option<&outlook_pst::ltp::prop_context::PropertyValue>) -> Option<usize> {
+fn binary_len(value: Option<&mailcraft_pst::PropertyValue>) -> Option<usize> {
     match value {
-        Some(outlook_pst::ltp::prop_context::PropertyValue::Binary(b)) => Some(b.buffer().len()),
+        Some(mailcraft_pst::PropertyValue::Binary(b)) => Some(b.buffer().len()),
         _ => None,
     }
 }
@@ -543,11 +537,11 @@ fn a_store_or_name_map_value_is_held_to_the_file_limit() {
     // The store's record key (0x0FF9).
     let path = with_a_big_value(&dir, 0x21, 0x0FF9);
     let store = |limit: Option<u64>| {
-        move |pst: UnicodePstFile| {
+        move |pst: PstFile| {
             if let Some(limit) = limit {
                 pst.set_max_value_size(limit);
             }
-            UnicodeStore::read(Rc::new(pst)).map(|s| binary_len(s.properties().get(0x0FF9))).map_err(|e| e.to_string())
+            PstStore::read(Rc::new(pst)).map(|s| binary_len(s.properties().get(0x0FF9))).map_err(|e| e.to_string())
         }
     };
     assert_eq!(read_in_time(&path, store(None)), Ok(Some(20_000)));
@@ -557,11 +551,11 @@ fn a_store_or_name_map_value_is_held_to_the_file_limit() {
     std::fs::remove_file(&path).unwrap();
     let path = with_a_big_value(&dir, 0x61, 0x0002);
     let map = |limit: Option<u64>| {
-        move |pst: UnicodePstFile| {
+        move |pst: PstFile| {
             if let Some(limit) = limit {
                 pst.set_max_value_size(limit);
             }
-            let store = UnicodeStore::read(Rc::new(pst)).unwrap();
+            let store = PstStore::read(Rc::new(pst)).unwrap();
             store.named_property_map().map(|m| binary_len(m.properties().get(0x0002))).map_err(|e| e.to_string())
         }
     };
@@ -589,8 +583,8 @@ fn a_btree_page_that_points_at_itself_is_an_error() {
     let c = crc(&f[ib..ib + 496]);
     put32(&mut f, ib + 500, c);
     std::fs::write(&path, &f).unwrap();
-    let read = read_in_time(&path, |pst| UnicodeStore::read(Rc::new(pst)).map(|_| ()).map_err(|e| e.to_string()));
-    assert!(read.as_ref().is_err_and(|e| e.contains("cLevel")), "{read:?}");
+    let read = read_in_time(&path, |pst| PstStore::read(Rc::new(pst)).map(|_| ()).map_err(|e| e.to_string()));
+    assert!(read.as_ref().is_err_and(|e| e.contains("level by level")), "{read:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -615,7 +609,7 @@ fn an_attached_message_in_the_message_tree_reads_when_its_own_tree_is_damaged() 
     seal(&mut f, own);
     std::fs::write(&path, &f).unwrap();
     let read = read_in_time(&path, |pst| {
-        let store = UnicodeStore::read(Rc::new(pst)).unwrap();
+        let store = PstStore::read(Rc::new(pst)).unwrap();
         let m = first_message(&store);
         attachments(&m).into_iter().next()
     });
@@ -633,7 +627,7 @@ fn an_unreadable_attachment_and_a_link_are_counted() {
     let dir = scratch("unread-and-link");
     let path = dir.join("left-out.pst");
     let files = [file("letter.bin", b"twelve bytes"), file("share.txt", b"a path")];
-    drop(Writer::create_with_attachments(&path, &message("Outer"), &files).unwrap());
+    write::create_with(&path, &["Inbox"], &message("Outer"), &files).unwrap();
     let mut f = std::fs::read(&path).unwrap();
     let all = blocks(&f);
     // The first one's method (0x3705) becomes 0x3706, so the reader finds none; its row in the
@@ -667,14 +661,13 @@ fn an_unreadable_attachment_and_a_link_are_counted() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// Mark the attachment `nid` hidden (PidTagAttachmentHidden): its rendering position's record
-/// (0x370B) becomes a `PtypBoolean` 0x7FFE that is true; the reader keeps records by id, in any
-/// order.
+/// Mark the attachment `nid` hidden (PidTagAttachmentHidden): the record of its file's type
+/// (0x370E), the last of them, becomes a `PtypBoolean` 0x7FFE that is true, so they stay in order.
 fn hide(f: &mut [u8], nid: u64) {
     let all = blocks(f);
     let (_, at) = sub_node_entry(f, &all, nid);
     let attachment = all[&u64_at(f, at + 8)];
-    let position = record(f, attachment, 0x370B, 0x0003);
+    let position = record(f, attachment, 0x370E, 0x001F);
     f[position..position + 4].copy_from_slice(&[0xFE, 0x7F, 0x0B, 0x00]);
     put32(f, position + 4, 1);
     seal(f, attachment);
@@ -718,8 +711,8 @@ fn hidden_files_are_left_out_by_the_items_class() {
         std::fs::create_dir_all(&at).unwrap();
         let path = at.join("hidden.pst");
         let files = [file("letter.bin", b"twelve bytes"), file("empty.txt", b"")];
-        drop(Writer::create_with_attachments(&path, &with_id(subject, "<outer@example.com>"), &files).unwrap());
-        drop(Writer::append_with_attachments(&path, &with_id("Other", "<other@example.com>"), &[]).unwrap());
+        write::create_with(&path, &["Inbox"], &with_id(subject, "<outer@example.com>"), &files).unwrap();
+        write::append_message(&path, &["Inbox"], &with_id("Other", "<other@example.com>"), &[]).unwrap();
         let mut f = std::fs::read(&path).unwrap();
         let all = blocks(&f);
         // The first file becomes the other message, which isn't one holding the message.

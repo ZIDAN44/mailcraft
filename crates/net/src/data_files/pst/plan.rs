@@ -6,7 +6,7 @@
 //!
 //! The file's tables are hostile: a folder listed under itself (or under one below it) is read
 //! once, nesting stops at [`MAX_DEPTH`], and the folders, the items of each and the items in all
-//! are capped. A folder the reader fails on (a panic) is left out, and the plan goes on.
+//! are capped. A folder the reader fails on is left out, and the plan goes on.
 
 use std::collections::HashSet;
 use std::sync::mpsc::{RecvTimeoutError, Sender, SyncSender, TrySendError};
@@ -133,12 +133,12 @@ impl Plan {
 
 /// The plan of the file `store` reads (stopping early, with what was planned, when the import
 /// stops).
-pub(super) fn plan(store: &dyn PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
-    let top = store.properties().ipm_sub_tree_entry_id().and_then(|e| store.open_folder(&e))?;
+pub(super) fn plan(store: &PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
+    let top = store.ipm_subtree().and_then(|n| store.open_folder(n))?;
     let mut plan = Plan { record_key: record_key(store), ..Plan::default() };
     let mut guard = Guard::default();
     let special = Special { outbox: special_folder(store, 0x35E2), wastebasket: special_folder(store, 0x35E3) };
-    visit(store, &*top, (None, false), 0, &special, &mut guard, &mut plan, ctx);
+    visit(store, &top, (None, false), 0, &special, &mut guard, &mut plan, ctx);
     plan.sent = special_folder(store, 0x35E4);
     // A test's file has no Sent Items folder of its own: one is named.
     #[cfg(test)]
@@ -148,10 +148,9 @@ pub(super) fn plan(store: &dyn PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
     Ok(plan)
 }
 
-/// What a folder is and holds, read under `catch_unwind`: the reader may panic on a damaged
-/// table.
+/// What a folder is and holds.
 struct Looked {
-    sub: Rc<dyn PstFolder>,
+    sub: Rc<PstFolder>,
     rows: u64,
     bytes: u64,
     kind: Kind,
@@ -168,8 +167,8 @@ struct Special {
 /// when it's Deleted Items or under it.
 #[allow(clippy::too_many_arguments)]
 fn visit(
-    store: &dyn PstStore,
-    folder: &dyn PstFolder,
+    store: &PstStore,
+    folder: &PstFolder,
     (parent, trash): (Option<usize>, bool),
     depth: usize,
     special: &Special,
@@ -177,17 +176,7 @@ fn visit(
     plan: &mut Plan,
     ctx: &Ctx<'_>,
 ) {
-    let listed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        folder.hierarchy_table().map(|t| t.rows_matrix().take(MAX_FOLDERS).map(|row| u32::from(row.id())).collect::<Vec<_>>())
-    }));
-    let nodes = match listed {
-        Ok(nodes) => nodes.unwrap_or_default(),
-        Err(_) => {
-            log::info!("a folder's subfolders could not be read: the reader failed on them");
-            plan.lose(SkipReason::FolderUnreadable);
-            return;
-        }
-    };
+    let nodes = folder.hierarchy_table().map(|t| t.rows_matrix().take(MAX_FOLDERS).map(|row| row.id()).collect::<Vec<_>>()).unwrap_or_default();
     for node in nodes {
         if ctx.stopped() || plan.full {
             return;
@@ -208,16 +197,10 @@ fn visit(
                 return;
             }
         }
-        let looked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| look(store, node, plan.folders.len(), ctx)));
-        let Looked { sub, rows, bytes, kind, name } = match looked {
-            Ok(Ok(l)) => l,
-            Ok(Err(e)) => {
+        let Looked { sub, rows, bytes, kind, name } = match look(store, node, plan.folders.len(), ctx) {
+            Ok(l) => l,
+            Err(e) => {
                 log::info!("a folder could not be read: {e}");
-                plan.lose(SkipReason::FolderUnreadable);
-                continue;
-            }
-            Err(_) => {
-                log::info!("a folder could not be read: the reader failed on it");
                 plan.lose(SkipReason::FolderUnreadable);
                 continue;
             }
@@ -240,21 +223,21 @@ fn visit(
         // The folders under a mail folder go in it; those under any other, beside it (mail
         // comes in, and ones of its kind are read too).
         let under = if kind == Kind::Mail { Some(index) } else { parent };
-        visit(store, &*sub, (under, trash), depth + 1, special, guard, plan, ctx);
+        visit(store, &sub, (under, trash), depth + 1, special, guard, plan, ctx);
     }
 }
 
 /// The folder at `node` (the plan's `index`th) opened, with what it is and holds.
-fn look(store: &dyn PstStore, node: u32, index: usize, ctx: &Ctx<'_>) -> io::Result<Looked> {
+fn look(store: &PstStore, node: u32, index: usize, ctx: &Ctx<'_>) -> io::Result<Looked> {
     #[cfg(test)]
     if let Some(super::lanes::tests::Fault::PlanAt(n)) = ctx.opts.fault
         && index == n
     {
-        panic!("a test's plan fault");
+        return Err(io::Error::other("a test's plan fault"));
     }
     let _ = (index, ctx);
-    let sub = store.properties().make_entry_id(NodeId::from(node)).and_then(|e| store.open_folder(&e))?;
-    let (rows, bytes) = sub.contents_table().map_or((0, 0), |t| sizes(&**t).fold((0u64, 0u64), |(n, b), (_, s)| (n + 1, b.saturating_add(s))));
+    let sub = store.open_folder(node)?;
+    let (rows, bytes) = sub.contents_table().map_or((0, 0), |t| sizes(t).fold((0u64, 0u64), |(n, b), (_, s)| (n + 1, b.saturating_add(s))));
     let kind = classify(&sub.properties().get(0x3613).and_then(text_of).unwrap_or_default());
     let name = sub.properties().get(0x3001).and_then(text_of).unwrap_or_default();
     Ok(Looked { sub, rows, bytes, kind, name })
@@ -276,22 +259,14 @@ fn classify(class: &str) -> Kind {
 
 /// A contents table's items, the first [`MAX_ROWS`]: each one's node and the size the file gives
 /// it (0 when it gives none, or one that isn't a size).
-fn sizes<'a>(table: &'a dyn TableContext) -> impl Iterator<Item = (u32, u64)> + 'a {
-    let context = table.context();
-    let column = context.columns().iter().position(|c| c.prop_id() == MESSAGE_SIZE);
+fn sizes<'a>(table: &'a Table) -> impl Iterator<Item = (u32, u64)> + 'a {
+    let column = table.columns().iter().position(|c| c.prop_id() == MESSAGE_SIZE);
     table.rows_matrix().take(MAX_ROWS).map(move |row| {
-        let size = column
-            .and_then(|i| {
-                let values = row.columns(context).ok()?;
-                let value = values.into_iter().nth(i).flatten()?;
-                let prop = context.columns().get(i)?.prop_type();
-                match table.read_column(&value, prop).ok()? {
-                    PropertyValue::Integer32(n) => u64::try_from(n).ok(),
-                    _ => None,
-                }
-            })
-            .unwrap_or(0);
-        (u32::from(row.id()), size)
+        let size = column.and_then(|i| table.value(row, i)).and_then(|v| match v {
+            PropertyValue::Integer32(n) => u64::try_from(n).ok(),
+            _ => None,
+        });
+        (row.id(), size.unwrap_or(0))
     })
 }
 
@@ -339,9 +314,9 @@ impl Feed {
 
 /// Hand out the work of `plan`, read from `store`, until it's done or the import stops. The
 /// Sent Items folder is made in its place, so the folders come out as they would, but read
-/// after every other, with the replies read before it (`out/sent_ids.rs`): even when the
-/// reader failed on a folder before it (a panic), which is raised again once it's read.
-pub(super) fn stream(store: &dyn PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
+/// after every other, with the replies read before it (`out/sent_ids.rs`): even when a folder
+/// before it panicked, which is raised again once it's read.
+pub(super) fn stream(store: &PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
     let skip = ctx.resume.as_ref();
     let folders = plan.folders.iter().filter(|f| f.kind == Kind::Mail).count();
     let outline = plan
@@ -397,7 +372,7 @@ fn begins(index: usize, f: &PlanFolder, deferred: bool) -> Step {
 
 /// The Sent Items folder, read last: once the writer has applied everything before it, with
 /// the replies it read then.
-fn sent_folder(store: &dyn PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, ctx: &Ctx<'_>) {
+fn sent_folder(store: &PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, ctx: &Ctx<'_>) {
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
     if !feed.step(Step::Freeze { reply: tx }) {
         return;
@@ -415,7 +390,7 @@ fn sent_folder(store: &dyn PstStore, index: usize, f: &PlanFolder, feed: &mut Fe
 /// Hand out the plan's folder `f` (its `index`th): its start, a job per item, its end (`sent`:
 /// the Sent Items folder's, with the replies read before it). False once the import stops, or
 /// nothing more is handed out.
-fn folder(store: &dyn PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, ctx: &Ctx<'_>, sent: Option<&Arc<SentIds>>) -> bool {
+fn folder(store: &PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, ctx: &Ctx<'_>, sent: Option<&Arc<SentIds>>) -> bool {
     let stopped = || ctx.stopped();
     let skip = ctx.resume.as_ref();
     // Done already: a mail folder says only where it went.
@@ -432,12 +407,12 @@ fn folder(store: &dyn PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, c
     }
     let start = skip.map_or(0, |s| s.start(f.node));
     let began = Instant::now();
-    let opened = store.properties().make_entry_id(NodeId::from(f.node)).and_then(|e| store.open_folder(&e));
+    let opened = store.open_folder(f.node);
     ctx.tally.since(Phase::Plan, began);
     match opened {
         Ok(sub) => {
             if let Some(table) = sub.contents_table() {
-                for (row, (node, size)) in sizes(&**table).enumerate() {
+                for (row, (node, size)) in sizes(table).enumerate() {
                     if stopped() {
                         return false;
                     }
@@ -483,7 +458,7 @@ fn count(n: u64) -> usize {
 }
 
 /// The store's record key (`0x0FF9`), in hex: "" when it has none, or one too long to be one.
-fn record_key(store: &dyn PstStore) -> String {
+fn record_key(store: &PstStore) -> String {
     match store.properties().get(0x0FF9) {
         Some(PropertyValue::Binary(b)) if b.buffer().len() <= 64 => b.buffer().iter().map(|x| format!("{x:02x}")).collect(),
         _ => String::new(),
@@ -493,7 +468,7 @@ fn record_key(store: &dyn PstStore) -> String {
 /// The node of one of the store's special folders (`0x35E2`: the Outbox, `0x35E3`: Deleted
 /// Items, `0x35E4`: Sent Items),
 /// from its entry id (flags, the store's 16-byte key, then the node id).
-fn special_folder(store: &dyn PstStore, prop: u16) -> Option<u32> {
+fn special_folder(store: &PstStore, prop: u16) -> Option<u32> {
     let (_, v) = store.properties().iter().find(|(id, _)| **id == prop)?;
     let PropertyValue::Binary(b) = v else { return None };
     let id = b.buffer().get(20..24)?;

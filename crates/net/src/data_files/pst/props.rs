@@ -1,12 +1,11 @@
 //! A property's value as the rest of the import reads it.
 //!
-//! `outlook-pst`'s text values have no public constructors, so code that reads an item's
-//! properties takes a closure giving a [`Val`] for a property id: the reader hands it the file's
-//! values, and tests hand it their own.
+//! Code that reads an item's properties takes a closure giving a [`Val`] for a property id: the
+//! reader hands it the file's values, and tests hand it their own.
 
 use std::borrow::Cow;
 
-use outlook_pst::ltp::prop_context::PropertyValue;
+use mailcraft_pst::PropertyValue;
 
 use super::mime;
 

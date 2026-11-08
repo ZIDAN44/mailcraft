@@ -5,6 +5,7 @@
 use mailcraft_model::EmailAddress;
 use mailcraft_model::job::SkipReason;
 use mailcraft_model::pim::{PIM_DOC, Pim};
+use mailcraft_pst::write;
 use mailcraft_store::Store;
 
 use super::super::ImportOptions;
@@ -412,8 +413,8 @@ fn kept_files_read_back_from_the_exported_files() {
 /// from the file's own named properties; the mail beside them stays mail.
 #[test]
 fn a_data_files_tasks_come_in() {
-    use outlook_pst::ltp::prop_context::GuidValue;
-    use outlook_pst::{UnicodePstBatchMessage, UnicodePstFile as Writer, UnicodePstMessage, UnicodePstName, UnicodePstProperty, UnicodePstValue};
+    use mailcraft_pst::GuidValue;
+    use mailcraft_pst::write::{BatchMessage, Name, NewMessage, NewProperty, NewValue};
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-tasks-file-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -423,8 +424,8 @@ fn a_data_files_tasks_come_in() {
     fn filetime(t: i64) -> i64 {
         (t + 11_644_473_600) * 10_000_000
     }
-    fn message<'a>(subject: &'a str, id: &'a str, class: &'a str, properties: &'a [UnicodePstProperty<'a>]) -> UnicodePstMessage<'a> {
-        UnicodePstMessage {
+    fn message<'a>(subject: &'a str, id: &'a str, class: &'a str, properties: &'a [NewProperty<'a>]) -> NewMessage<'a> {
+        NewMessage {
             subject,
             sender_name: "Riley",
             sender_email: "riley@studio.example",
@@ -439,19 +440,19 @@ fn a_data_files_tasks_come_in() {
     }
     // Due (as Outlook stores the day: its local midnight, two hours east), in progress, high.
     let due = [
-        UnicodePstProperty::named(task_set, UnicodePstName::Id(0x8105), UnicodePstValue::Time(filetime(day - 7200))),
-        UnicodePstProperty::named(task_set, UnicodePstName::Id(0x8101), UnicodePstValue::Integer32(1)),
-        UnicodePstProperty::tagged(0x0017, UnicodePstValue::Integer32(2)),
+        NewProperty::named(task_set, Name::Id(0x8105), NewValue::Time(filetime(day - 7200))),
+        NewProperty::named(task_set, Name::Id(0x8101), NewValue::Integer32(1)),
+        NewProperty::tagged(0x0017, NewValue::Integer32(2)),
     ];
     // No day at all, waiting on someone else.
-    let waiting = [UnicodePstProperty::named(task_set, UnicodePstName::Id(0x8101), UnicodePstValue::Integer32(3))];
-    Writer::create_in_folder_with_attachments(&pst, &["Inbox"], &message("Hello", "<m1@studio.example>", "IPM.Note", &[]), &[]).unwrap();
-    drop(Writer::create_folder(&pst, &["Tasks"], "IPF.Task").unwrap());
+    let waiting = [NewProperty::named(task_set, Name::Id(0x8101), NewValue::Integer32(3))];
+    write::create_with(&pst, &["Inbox"], &message("Hello", "<m1@studio.example>", "IPM.Note", &[]), &[]).unwrap();
+    write::create_folder(&pst, &["Tasks"], "IPF.Task").unwrap();
     let tasks = [
-        UnicodePstBatchMessage { message: message("Book the stage", "<t1@studio.example>", "IPM.Task", &due), attachments: &[] },
-        UnicodePstBatchMessage { message: message("Renew the licences", "<t2@studio.example>", "IPM.Task", &waiting), attachments: &[] },
+        BatchMessage { message: message("Book the stage", "<t1@studio.example>", "IPM.Task", &due), attachments: &[] },
+        BatchMessage { message: message("Renew the licences", "<t2@studio.example>", "IPM.Task", &waiting), attachments: &[] },
     ];
-    Writer::append_many_in_folder_with_attachments(&pst, &["Tasks"], &tasks).unwrap();
+    write::append(&pst, &["Tasks"], &tasks).unwrap();
     let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
     let done = super::super::import(&pst, &store, "t1", &mut |_| {}).unwrap();
     assert_eq!((done.messages, done.tasks, done.events, done.skipped), (1, 2, 0, 0), "{done:?}");
@@ -474,13 +475,13 @@ fn a_data_files_tasks_come_in() {
 /// comes in.
 #[test]
 fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
-    use outlook_pst::{UnicodePstFile as Writer, UnicodePstMessage};
+    use mailcraft_pst::write::NewMessage;
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-trash-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let pst = dir.join("trash.pst");
-    fn message<'a>(subject: &'a str, id: &'a str, class: &'a str) -> UnicodePstMessage<'a> {
-        UnicodePstMessage {
+    fn message<'a>(subject: &'a str, id: &'a str, class: &'a str) -> NewMessage<'a> {
+        NewMessage {
             subject,
             sender_name: "Riley",
             sender_email: "riley@studio.example",
@@ -493,8 +494,8 @@ fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
             properties: &[],
         }
     }
-    Writer::create_in_folder_with_attachments(&pst, &["Inbox"], &message("Hello", "<m1@studio.example>", "IPM.Note"), &[]).unwrap();
-    drop(Writer::append_in_folder(&pst, &["Inbox"], &message("Ana Lima", "<c1@studio.example>", "IPM.Contact")).unwrap());
+    write::create_with(&pst, &["Inbox"], &message("Hello", "<m1@studio.example>", "IPM.Note"), &[]).unwrap();
+    write::append_message(&pst, &["Inbox"], &message("Ana Lima", "<c1@studio.example>", "IPM.Contact"), &[]).unwrap();
     let thrown = [
         ("Bea Costa", "<c2@studio.example>", "IPM.Contact"),
         ("Stage call", "<a1@studio.example>", "IPM.Appointment"),
@@ -503,7 +504,7 @@ fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
         ("Old news", "<m2@studio.example>", "IPM.Note"),
     ];
     for (subject, id, class) in thrown {
-        drop(Writer::append_in_folder(&pst, &["Deleted Items"], &message(subject, id, class)).unwrap());
+        write::append_message(&pst, &["Deleted Items"], &message(subject, id, class), &[]).unwrap();
     }
     let store = Store::open_packed(dir.join("root"), dir.join("files")).unwrap();
     let done = super::super::import(&pst, &store, "t1", &mut |_| {}).unwrap();

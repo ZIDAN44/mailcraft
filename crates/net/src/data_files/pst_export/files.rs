@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::PathBuf;
 
-use outlook_pst::{MAX_EMBEDDED_DEPTH, UnicodePstAttachmentSource};
+use mailcraft_pst::write::{AttachmentSource, MAX_EMBEDDED_DEPTH};
 
 use super::item::{Owned, State};
 use super::*;
@@ -203,7 +203,7 @@ pub(super) struct StoredFile<'a> {
     pub(super) size: u64,
 }
 
-impl UnicodePstAttachmentSource for StoredFile<'_> {
+impl AttachmentSource for StoredFile<'_> {
     fn size(&self) -> u64 {
         self.size
     }
