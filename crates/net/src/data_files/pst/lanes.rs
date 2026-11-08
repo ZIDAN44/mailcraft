@@ -570,6 +570,9 @@ pub(super) mod tests {
         /// Each read the lanes make from the data file takes this many milliseconds (a slow
         /// drive: an item takes many of them).
         SlowReads(u64),
+        /// Items at this row of their folder (from 0) or past it wait, before they're read, until
+        /// the import is asked to stop: their folder stays part-way for as long as a test looks.
+        HoldRow(u64),
     }
 
     /// What a test does to each item of a data file read (whether it's one of the Sent Items
@@ -620,6 +623,13 @@ pub(super) mod tests {
             Some(Fault::PanicAt(at)) if n == at => panic!("a test's reader fault"),
             Some(Fault::PanicRow(row)) if job.row == row => panic!("a test's reader fault"),
             Some(Fault::Slow(ms)) => std::thread::sleep(Duration::from_millis(ms)),
+            Some(Fault::HoldRow(row)) if job.row >= row => {
+                // A guard against hanging: a test that never stops it fails on its own.
+                let end = std::time::Instant::now() + Duration::from_secs(120);
+                while !ctx.opts.stop.raised() && std::time::Instant::now() < end {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
             _ => {}
         }
     }

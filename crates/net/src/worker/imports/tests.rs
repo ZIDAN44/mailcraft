@@ -25,6 +25,11 @@ fn slow(account: &str, ms: u64) {
     faults().lock().unwrap().insert(account.to_string(), Fault::Slow(ms));
 }
 
+/// `account`'s imports hold each folder's items from `row` on until they're asked to stop.
+fn hold(account: &str, row: u64) {
+    faults().lock().unwrap().insert(account.to_string(), Fault::HoldRow(row));
+}
+
 /// The fault a test asked for in `account`'s import.
 pub(super) fn fault_for(account: &str) -> Option<Fault> {
     faults().lock().ok()?.get(account).copied()
@@ -127,14 +132,56 @@ fn data_files(dir: &Path) -> Vec<PathBuf> {
     std::fs::read_dir(dir.join("files")).map(|d| d.flatten().map(|e| e.path()).collect()).unwrap_or_default()
 }
 
+/// Found testing under load: a folder said less than half a second after the account's folder
+/// list was sent (the Inbox, finished just after Deleted Items) was said changed and never
+/// listed, and stayed out of the folder pane while the rest of the file came in. One the list
+/// sent last didn't have sends the list again.
+#[test]
+fn a_folder_said_just_after_the_list_was_sent_is_listed() {
+    let store = Store::memory();
+    let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    let stop = Stop::default();
+    let mut told = Told {
+        sink: &pool.sink,
+        store: &store,
+        account: "a1",
+        stop: &stop,
+        began: Instant::now(),
+        last: Progress::default(),
+        folders_done: 0,
+        folders_said: None,
+        listed: HashSet::new(),
+        file: None,
+        own: false,
+    };
+    let folder = |path: &str| Folder { account: "a1".into(), path: path.into(), selectable: true, ..Default::default() };
+    store.upsert_folders("a1", &[folder("Deleted Items")]).unwrap();
+    told.folder(&folder("Deleted Items"));
+    store.upsert_folders("a1", &[folder("INBOX"), folder("Projects")]).unwrap();
+    told.folder(&folder("INBOX"));
+    told.folder(&folder("Projects"));
+    let lists: Vec<Vec<String>> = pool
+        .poll()
+        .into_iter()
+        .filter_map(|e| if let Event::Folders { folders, .. } = e { Some(folders.into_iter().map(|f| f.path).collect()) } else { None })
+        .collect();
+    let inbox_listed = lists.get(1).is_some_and(|l| l.iter().any(|p| p == "INBOX") && l.iter().any(|p| p == "Projects"));
+    assert!(inbox_listed, "{lists:?}");
+}
+
 /// Cancelled once its first folder is in, an import keeps that folder, and the folder it was
 /// part-way through too: listed, and counted as far as it got.
 #[test]
 fn a_cancel_keeps_finished_and_partial_folders() {
-    let (dir, pst, store, mut p) = setup("cancel", 20, 1000, "c1", 30);
-    p.submit(Job::ImportPst { account: "c1".into(), path: pst, resume: false });
+    let (dir, pst, store, mut p) = setup("cancel", 20, 1000, "c2", 0);
+    // Projects part-way until the cancel, however long the Inbox takes to be said: it goes into
+    // the folder list's next write, a second after Deleted Items', and on a busy machine Projects,
+    // slowed item by item, was finished by then.
+    hold("c2", 50);
+    p.submit(Job::ImportPst { account: "c2".into(), path: pst, resume: false });
     let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
-    assert!(seen.iter().any(|e| matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "INBOX" && f.total == 20))));
+    let listed = |e: &Event| matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "INBOX" && f.total == 20));
+    assert!(seen.iter().any(listed), "the Inbox listed as it's said: {seen:?}");
     assert!(
         seen.iter().all(|e| !matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "Projects"))),
         "a folder part-way isn't shown"
@@ -143,22 +190,28 @@ fn a_cancel_keeps_finished_and_partial_folders() {
         seen.iter().any(|e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Planning)),
         "said from the start"
     );
-    p.submit(Job::StopImport { account: "c1".into(), how: StopHow::Cancel });
+    // Cancelled once Projects is part-way: some of its messages in, written as the rest wait.
+    let end = Instant::now() + Duration::from_secs(60);
+    while store.cached_bodies("c2", "Projects", 1).is_empty() {
+        assert!(Instant::now() < end, "none of Projects came in");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    p.submit(Job::StopImport { account: "c2".into(), how: StopHow::Cancel });
     let seen = events_until(&p, Duration::from_secs(60), ended);
     let end = seen.last().unwrap();
     assert_eq!(stopped_as(end), Some(StopHow::Cancel), "{end:?}");
     assert!(matches!(end, Event::Imported { report: Some(r), error: None, .. } if r.stopped_in.as_deref() == Some("Projects")), "{end:?}");
-    let folders = store.load_folders("c1").unwrap();
+    let folders = store.load_folders("c2").unwrap();
     let projects = folders.iter().find(|f| f.path == "Projects").expect("the folder part-way is kept");
     assert!(projects.total < 1000, "{projects:?}");
-    assert_eq!(store.load_folder("c1", "Projects").unwrap().messages.len(), projects.total as usize);
+    assert_eq!(store.load_folder("c2", "Projects").unwrap().messages.len(), projects.total as usize);
     assert_eq!(folders.iter().find(|f| f.path == "INBOX").map(|f| f.total), Some(20));
     // Its thread says it ended, then ends: wait for that, as the other tests do.
     let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("c1") && Instant::now() < end {
+    while p.importing("c2") && Instant::now() < end {
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(!p.importing("c1"));
+    assert!(!p.importing("c2"));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -594,13 +647,13 @@ fn a_paused_import_goes_on_where_it_stopped() {
 /// every message written before the pause, and the window is told, then that it's kept.
 #[test]
 fn a_paused_import_kept_lists_its_folder_part_way_through() {
-    let (dir, pst, store, mut p) = setup("keep", 20, 2000, "k1", 30);
-    p.submit(Job::ImportPst { account: "k1".into(), path: pst, resume: false });
+    let (dir, pst, store, mut p) = setup("keep", 20, 2000, "k2", 30);
+    p.submit(Job::ImportPst { account: "k2".into(), path: pst, resume: false });
     // Paused once Projects has some of its messages in (the Inbox's 20 and 20 more), not as soon as
     // the Inbox is: a fast runner could pause before Projects had any.
     events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done >= 40));
-    p.submit(Job::StopImport { account: "k1".into(), how: StopHow::Pause });
-    p.submit(Job::KeepImport { account: "k1".into() });
+    p.submit(Job::StopImport { account: "k2".into(), how: StopHow::Pause });
+    p.submit(Job::KeepImport { account: "k2".into() });
     let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportKept { .. }));
     let paused = seen.iter().position(|e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
     let listed = seen.iter().position(|e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Projects"));
@@ -612,7 +665,7 @@ fn a_paused_import_kept_lists_its_folder_part_way_through() {
     });
     let projects = told.expect("the folder part-way through is listed");
     assert!(projects.total > 0 && projects.total < 2000, "{projects:?}");
-    assert_eq!(store.load_folder("k1", "Projects").unwrap().messages.len(), projects.total as usize);
+    assert_eq!(store.load_folder("k2", "Projects").unwrap().messages.len(), projects.total as usize);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -703,7 +756,7 @@ fn a_full_drive_stops_an_import_with_nothing_lost() {
 /// there is where the data files go (none when that can't be told).
 #[test]
 fn a_file_looked_at_says_the_room_for_its_copy() {
-    let (dir, pst, store, mut p) = setup("room", 30, 5, "r1", 0);
+    let (dir, pst, store, mut p) = setup("room", 30, 5, "r2", 0);
     let drive = give_drive(&pst, Filling::new(0, 5 << 30));
     p.submit(Job::InspectDataFile { path: pst.clone() });
     let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));

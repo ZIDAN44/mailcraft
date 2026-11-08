@@ -41,7 +41,19 @@ pub(super) fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &
         return Vec::new();
     }
     let file = store.data_file(account);
-    let mut told = Told { sink, store, account, stop, began, last: Progress::default(), folders_done: 0, folders_said: None, file, own: false };
+    let mut told = Told {
+        sink,
+        store,
+        account,
+        stop,
+        began,
+        last: Progress::default(),
+        folders_done: 0,
+        folders_said: None,
+        listed: HashSet::new(),
+        file,
+        own: false,
+    };
     told.say(ImportPhase::Planning);
     let dir = store.data_files_dir().unwrap_or_else(|| store.root().to_path_buf()).join(format!(".reread-{}", safe(account)));
     // One left by a read cut off (MailCraft closed, the computer turned off) goes first.

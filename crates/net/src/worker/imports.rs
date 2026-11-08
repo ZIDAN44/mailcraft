@@ -6,6 +6,7 @@
 //! it's imported is planned then, and its import goes by that plan.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::PoisonError;
 
@@ -24,7 +25,8 @@ use looking::*;
 /// reading at their next read and writes what it holds. One that takes longer (a read stuck on a
 /// drive that doesn't answer) is let go.
 pub(super) const IMPORT_STOP_WAIT: Duration = Duration::from_secs(10);
-/// The account's folder list is sent at most this often while an import finishes folders.
+/// The account's folder list is sent at most this often while an import finishes folders, but for
+/// a folder the list sent last didn't have.
 const FOLDERS_EVERY: Duration = Duration::from_millis(500);
 /// A data file that can't be removed at once (something letting go of it) is tried again this
 /// many times, a little later each time.
@@ -317,7 +319,8 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
     // a discard), else the one the import makes, noted once it's there.
     let file = store.data_file(account).filter(|f| f.exists());
     let own = file.is_none();
-    let mut told = Told { sink, store, account, stop, began, last: Progress::default(), folders_done: 0, folders_said: None, file, own };
+    let mut told =
+        Told { sink, store, account, stop, began, last: Progress::default(), folders_done: 0, folders_said: None, listed: HashSet::new(), file, own };
     told.say(ImportPhase::Planning);
     if path.to_ascii_lowercase().ends_with(".mailcraft") {
         return copy_in(&mut told, path);
@@ -623,6 +626,8 @@ struct Told<'a> {
     last: Progress,
     folders_done: usize,
     folders_said: Option<Instant>,
+    /// The folders in the list sent last.
+    listed: HashSet<String>,
     file: Option<PathBuf>,
     /// The import made `file` (the account had none).
     own: bool,
@@ -691,11 +696,17 @@ impl ImportSink for Told<'_> {
         if self.thrown_away() {
             return;
         }
-        // Folders finished together are in the list on disk by the time the first is said.
-        if self.folders_said.is_none_or(|t| t.elapsed() >= FOLDERS_EVERY) {
+        // Folders finished together are in the list on disk by the time the first is said. One
+        // said soon after a list it isn't in sends it again all the same (found testing under
+        // load: the Inbox, finished just after Deleted Items, was said changed and never listed,
+        // and stayed out of the folder pane while the rest of the file came in).
+        if !self.listed.contains(&done.path) || self.folders_said.is_none_or(|t| t.elapsed() >= FOLDERS_EVERY) {
             self.folders_said = Some(Instant::now());
             match self.store.load_folders(self.account) {
-                Ok(folders) => self.sink.emit(Event::Folders { account: self.account.to_string(), folders }),
+                Ok(folders) => {
+                    self.listed = folders.iter().map(|f| f.path.clone()).collect();
+                    self.sink.emit(Event::Folders { account: self.account.to_string(), folders });
+                }
                 Err(e) => log::warn!("{}: {e}", self.account),
             }
         }
