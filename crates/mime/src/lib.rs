@@ -466,6 +466,11 @@ pub fn summary_from_full(raw: &[u8], key: MessageKey, flags: Flags, size: u32, f
 /// The header a draft's copy names the message it answers or forwards in ([`Draft::source`]).
 pub const SOURCE_HEADER: &str = "X-MailCraft-Source";
 
+/// The header on each copy of a draft MailCraft files on an IMAP server: a random mark of that
+/// copy's own, which tells it from another program's copy of the draft. Never in a draft opened
+/// again to be written, nor in what's sent: both are built anew from what the draft says.
+pub const COPY_HEADER: &str = "X-MailCraft-Copy";
+
 /// What a saved message asks of its sending: its importance (high 1, low -1), whether it asks
 /// for a read receipt, and the message it answers or forwards ([`SOURCE_HEADER`]). For a draft
 /// opened to carry on writing it.

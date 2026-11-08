@@ -60,6 +60,9 @@ pub struct State {
     pub stall_on: Option<(String, std::time::Duration)>,
     /// Commands that have begun to take that long: on their way, not answered yet.
     pub stalled: usize,
+    /// A header line the server adds to every message it's given (`APPEND`), so it keeps each at
+    /// another size than sent, as a server that stamps what it stores does.
+    pub stamp_appends: Option<&'static str>,
 }
 
 impl State {
@@ -84,6 +87,7 @@ impl State {
             permanent_flags: None,
             stall_on: None,
             stalled: 0,
+            stamp_appends: None,
         }))
     }
 
@@ -135,6 +139,15 @@ impl State {
         b.msgs.push(Msg { uid, flags: flags.iter().map(|s| s.to_string()).collect(), raw: raw.into_bytes(), modseq });
         uid
     }
+}
+
+/// A draft's copy as MailCraft wrote it: without the mark it files each copy with, first in its
+/// header (after a line the server stamped it with, if any).
+pub fn as_written(raw: &[u8]) -> Vec<u8> {
+    let mark = format!("{}: ", mailcraft_mime::COPY_HEADER).into_bytes();
+    let Some(at) = raw.windows(mark.len()).position(|w| w == mark.as_slice()) else { return raw.to_vec() };
+    let end = raw[at..].windows(2).position(|w| w == b"\r\n").map_or(raw.len(), |e| at + e + 2);
+    [&raw[..at], &raw[end..]].concat()
 }
 
 pub struct Fake {
@@ -410,11 +423,15 @@ impl Fake {
             let flags = paren_arg(rest);
             st.modseq += 1;
             let modseq = st.modseq;
+            let raw = match st.stamp_appends {
+                Some(stamp) => [stamp.as_bytes(), b"\r\n", &literal.unwrap_or_default()].concat(),
+                None => literal.unwrap_or_default(),
+            };
             match st.mailbox(&name) {
                 Some(b) => {
                     let uid = b.uid_next;
                     b.uid_next += 1;
-                    b.msgs.push(Msg { uid, flags, raw: literal.unwrap_or_default(), modseq });
+                    b.msgs.push(Msg { uid, flags, raw, modseq });
                     let v = b.validity;
                     ok(self, &format!("[APPENDUID {v} {uid}] "));
                 }

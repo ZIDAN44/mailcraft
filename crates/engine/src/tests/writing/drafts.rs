@@ -172,6 +172,51 @@ fn a_draft_saved_twice_to_a_server_replaces_its_copy() {
     done(s);
 }
 
+/// The mark on MailCraft's own copy of a draft on an IMAP server (gap 7) stays in that copy: a
+/// draft opened from it, saved again and sent carries it neither in its next copy nor in what's
+/// sent, both built anew from what the draft says.
+#[test]
+fn the_mark_on_a_drafts_copy_goes_nowhere_else() {
+    let store = temp("draft-mark");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.apply(Event::Folders {
+        account: id.clone(),
+        folders: vec![
+            mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() },
+            mailcraft_model::Folder { account: id.clone(), path: "Drafts".into(), role: FolderRole::Drafts, selectable: true, ..Default::default() },
+        ],
+    });
+    s.take_jobs();
+    let mark = "0123456789abcdef0123456789abcdef";
+    let raw = format!(
+        "{}: {mark}\r\nFrom: zoe@example.org\r\nTo: ann@example.org\r\nSubject: Plans\r\nMessage-ID: <plans@example.org>\r\n\r\nFirst\r\n",
+        mailcraft_mime::COPY_HEADER
+    );
+    let key = mailcraft_model::MessageKey { account: id.clone(), folder: "Drafts".into(), validity: 7, uid: 1 };
+    let mut drafts = store.load_folder(&id, "Drafts").unwrap();
+    drafts.validity = 7;
+    let flags = mailcraft_model::Flags { draft: true, ..Default::default() };
+    drafts.messages.push(mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), flags, 0, NOW).into());
+    store.save_folder(&id, "Drafts", &drafts).unwrap();
+    store.write_body(&key, raw.as_bytes()).unwrap();
+    s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
+    s.run("compose.update", &json!({"body": "Second"})).unwrap();
+    s.run("compose.saveDraft", &json!({})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    let jobs = s.take_jobs();
+    let saved = jobs.iter().find_map(|j| if let Job::SaveDraft { raw, replaces, .. } = j { Some((raw, replaces)) } else { None });
+    let (saved, replaces) = saved.expect("saved again");
+    assert_eq!(replaces.as_ref(), Some(&key), "its copy, to replace");
+    let sent = jobs.iter().find_map(|j| if let Job::Send { raw, .. } = j { Some(raw) } else { None }).expect("sent");
+    for (what, raw) in [("the next copy", saved), ("what's sent", sent)] {
+        let raw = String::from_utf8_lossy(raw);
+        assert!(raw.contains("Second"), "{what}: {raw}");
+        assert!(!raw.contains(mailcraft_mime::COPY_HEADER) && !raw.contains(mark), "{what}: {raw}");
+    }
+    done(s);
+}
+
 /// Another message read while one is being written in the reading pane: the one being written
 /// makes way for it, kept in Drafts, as Outlook's does (the pane went on showing it, the other
 /// message only selected in the list). Nothing written, it just goes; in a window, it stays.

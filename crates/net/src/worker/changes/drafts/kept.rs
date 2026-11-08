@@ -178,7 +178,7 @@ impl Worker {
         if !self.still_kept(&d.raw) {
             return true;
         }
-        match self.file_draft(&d.folder, d.replaces.clone(), &d.raw, &message_id) {
+        match self.file_draft(&d.folder, d.replaces.clone(), &d.raw, &message_id, true) {
             Ok(_) if self.removed() => log::info!("{}: a draft of an account removed was saved", self.acc.id),
             Ok(filed) => self.draft_filed(&d.raw, d.replaces.as_ref(), &message_id, filed, being_filed),
             Err(e) if self.removed() => log::info!("{}: a draft of an account removed wasn't saved: {e}", self.acc.id),

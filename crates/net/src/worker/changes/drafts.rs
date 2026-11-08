@@ -1,13 +1,14 @@
 //! An account's worker: drafts saved to the server, and kept on this computer when they can't be
-//! (#53). The kept drafts' file, the order drafts were handed out in, the drafts the pool keeps
-//! as it stops a worker, and MailCraft's own copies of a draft on an IMAP server. The kept drafts
-//! filed at each connection: `drafts/kept.rs`.
+//! (#53). The kept drafts' file, the order drafts were handed out in, and the drafts the pool
+//! keeps as it stops a worker. The kept drafts filed at each connection: `drafts/kept.rs`;
+//! MailCraft's own copies of a draft on an IMAP server: `drafts/copies.rs`.
 
 use super::*;
 
 use mailcraft_model::MessageKey;
 use mailcraft_model::thread::written_message_id;
 
+mod copies;
 mod kept;
 
 pub(crate) use kept::KeptDrafts;
@@ -153,19 +154,6 @@ pub(crate) fn keep_draft(
         o.kept_newest(account, id, replaces);
     }
     Ok(())
-}
-
-/// The drafts MailCraft filed on an account's IMAP server, by Message-ID and size: a copy there
-/// found by its Message-ID is MailCraft's own, as it filed it, only if it's one of these
-/// ([`Worker::copies_of`]).
-const FILED_DRAFTS: &str = "drafts-filed.json";
-/// Drafts filed remembered, at most (the oldest forgotten).
-const MAX_FILED: usize = 256;
-
-#[derive(serde::Serialize, serde::Deserialize, PartialEq)]
-struct FiledDraft {
-    message_id: String,
-    size: u32,
 }
 
 /// What's said of drafts kept on this computer as an account's connection stopped: where they are.
@@ -329,7 +317,7 @@ impl Worker {
             if self.pool_said(hash) {
                 return Ok(Saving::LeftToPool);
             }
-            self.file_draft(&folder, replaces.clone(), &raw, &message_id).map(|filed| Saving::Filed(filed, being_filed))
+            self.file_draft(&folder, replaces.clone(), &raw, &message_id, false).map(|filed| Saving::Filed(filed, being_filed))
         });
         // This worker's to say done from here, unless the pool said it first, as it stopped this
         // worker; taken before the draft is kept, or kept no more, so the pool never keeps it after.
@@ -409,8 +397,17 @@ impl Worker {
     }
 
     /// File a draft in `folder` on the server, replacing the copy it replaces, and MailCraft's own
-    /// copies of it there already: the folder it went in, and whether that was made for it.
-    fn file_draft(&mut self, folder: &str, replaces: Option<MessageKey>, raw: &[u8], message_id: &str) -> Result<(String, bool)> {
+    /// copies of it there already where they may be (`again`: a draft kept on this computer, its
+    /// save maybe there too; or one that replaces no copy known): the folder it went in, and
+    /// whether that was made for it.
+    pub(super) fn file_draft(
+        &mut self,
+        folder: &str,
+        replaces: Option<MessageKey>,
+        raw: &[u8],
+        message_id: &str,
+        again: bool,
+    ) -> Result<(String, bool)> {
         if let Some(Conn::Pop) = self.conn.as_ref() {
             let flags = mailcraft_model::Flags { draft: true, seen: true, ..Default::default() };
             let (store, id) = (&self.store, &self.acc.id);
@@ -461,18 +458,23 @@ impl Worker {
         let trash = self.folders.iter().find(|f| f.role == FolderRole::Trash).map(|f| f.path.clone());
         // MailCraft's own copies of the same draft there already (its save got there before
         // MailCraft closed, and it was kept too): replaced by this one, as the copy it replaces.
-        let mut old: Vec<MessageKey> = self.copies_of(&filed, message_id);
-        // Remembered as MailCraft's own before it goes: the server may keep it without its
-        // answer getting here (the connection lost, MailCraft closed meanwhile), and the draft,
-        // kept here, is filed again (found in review: twice in Drafts). Remembered for a filing
-        // that failed, it matches no copy there.
-        self.filed_draft(message_id, raw.len());
-        let (filed, made) = self.file_in(&filed, FolderRole::Drafts, "\\Draft \\Seen", raw)?;
-        old.extend(replaces);
-        let c = self.client()?;
-        if !old.is_empty() {
-            expunge_keys(c, &old, trash.as_deref())?;
-        }
+        // Looked for only where they may be, not at every save of a draft whose copy is known
+        // (found in review: the copy replaced was taken for one, and went to Trash at each save).
+        let own = if again || replaces.is_none() { self.copies_of(&filed, message_id, replaces.as_ref()) } else { Vec::new() };
+        // Its copy marked as MailCraft's, and remembered so before it goes: the server may keep
+        // it without its answer getting here (the connection lost, MailCraft closed meanwhile),
+        // and the draft, kept here, is filed again (found in review: twice in Drafts). Remembered
+        // for a filing that failed, it matches no copy there.
+        let mark = copies::new_mark();
+        let copy = match mark.as_deref() {
+            Some(mark) => {
+                self.filed_draft(message_id, mark);
+                std::borrow::Cow::Owned(copies::marked(raw, mark))
+            }
+            None => std::borrow::Cow::Borrowed(raw),
+        };
+        let (filed, made) = self.file_in(&filed, FolderRole::Drafts, "\\Draft \\Seen", &copy)?;
+        self.remove_copies(&own, replaces, trash.as_deref())?;
         Ok((filed, made))
     }
 
@@ -579,77 +581,5 @@ impl Worker {
     /// Whether the pool has stopped this worker ([`Stopped`]).
     pub(crate) fn stopped(&self) -> bool {
         self.stop.done.load(Ordering::Relaxed)
-    }
-
-    /// A draft filed on the server, remembered as MailCraft's own ([`Self::copies_of`]); not for
-    /// an account removed since the worker started.
-    fn filed_draft(&self, message_id: &str, size: usize) {
-        let Ok(size) = u32::try_from(size) else { return };
-        if message_id.is_empty() {
-            return;
-        }
-        let kept = self.store.while_kept(&self.acc.id, self.removals, || {
-            let _one_at_a_time = pending_file();
-            let mut list: Vec<FiledDraft> = self.store.load_account_doc(&self.acc.id, FILED_DRAFTS).unwrap_or_default();
-            let filed = FiledDraft { message_id: message_id.to_string(), size };
-            if list.contains(&filed) {
-                return Ok(());
-            }
-            if list.len() >= MAX_FILED {
-                list.remove(0);
-            }
-            list.push(filed);
-            self.store.save_account_doc(&self.acc.id, FILED_DRAFTS, &list)
-        });
-        if let Some(Err(e)) = kept {
-            log::info!("{}: a draft filed wasn't remembered: {e}", self.acc.id);
-        }
-    }
-
-    /// MailCraft's own copies of a draft (its Message-ID) in `folder` on an IMAP server, as it
-    /// filed them: found by the header, then each one's Message-ID and size read to be sure (a
-    /// server's search may match the words of it, and another program may have saved the draft
-    /// again with the same Message-ID, which stays). None when the server can't remove exactly
-    /// those (without UIDPLUS a plain `EXPUNGE` removes whatever else is marked deleted there),
-    /// or can't be asked (the folder gone, another kind of server).
-    fn copies_of(&mut self, folder: &str, message_id: &str) -> Vec<MessageKey> {
-        if message_id.is_empty() || !matches!(self.conn, Some(Conn::Imap(_))) {
-            return Vec::new();
-        }
-        let sizes: Vec<u32> = self
-            .store
-            .load_account_doc::<Vec<FiledDraft>>(&self.acc.id, FILED_DRAFTS)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|d| d.message_id == message_id)
-            .map(|d| d.size)
-            .collect();
-        if sizes.is_empty() {
-            return Vec::new();
-        }
-        let account = self.id();
-        let found = (|| -> Result<Vec<MessageKey>> {
-            let c = self.client()?;
-            if !c.has("UIDPLUS") {
-                return Ok(Vec::new());
-            }
-            let info = c.select(folder, false)?;
-            let id = format!("<{message_id}>");
-            let args =
-                [crate::sync::SearchArg::Atom("HEADER".into()), crate::sync::SearchArg::Atom("Message-ID".into()), crate::sync::SearchArg::Str(id)];
-            let uids: Vec<u32> = c.uid_search_args(&args)?.into_iter().take(16).collect();
-            let fetched = c.uid_fetch(&crate::imap::uid_set(&uids), "RFC822.SIZE BODY.PEEK[HEADER]", "")?;
-            Ok(fetched
-                .into_iter()
-                .filter(|f| {
-                    uids.contains(&f.uid) && sizes.contains(&f.size) && f.header.as_deref().is_some_and(|h| written_message_id(h) == message_id)
-                })
-                .map(|f| MessageKey { account: account.clone(), folder: folder.to_string(), validity: info.validity, uid: f.uid })
-                .collect())
-        })();
-        found.unwrap_or_else(|e| {
-            log::info!("{account}: copies of a draft in {folder} weren't looked for: {e}");
-            Vec::new()
-        })
     }
 }

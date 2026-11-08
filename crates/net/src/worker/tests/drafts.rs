@@ -149,10 +149,12 @@ pub(super) fn with_drafts(name: &str) -> (Arc<Mutex<crate::fake::State>>, Store,
     (st, store, account)
 }
 
-/// The drafts in Drafts on the fake server, by their text.
+/// The drafts in Drafts on the fake server, by their text as written.
 pub(super) fn on_the_server(st: &Arc<Mutex<crate::fake::State>>) -> Vec<String> {
     let mut s = st.lock().unwrap();
-    s.mailbox("Drafts").map(|b| b.msgs.iter().map(|m| String::from_utf8_lossy(&m.raw).into_owned()).collect()).unwrap_or_default()
+    s.mailbox("Drafts")
+        .map(|b| b.msgs.iter().map(|m| String::from_utf8_lossy(&crate::fake::as_written(&m.raw)).into_owned()).collect())
+        .unwrap_or_default()
 }
 
 /// Wait for `done`, thirty seconds at most (a guard against hanging).

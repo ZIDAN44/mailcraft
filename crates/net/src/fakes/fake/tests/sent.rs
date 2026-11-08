@@ -251,52 +251,156 @@ fn save_draft(pool: &mut crate::worker::Pool, raw: &[u8], id: &str) {
     until(pool, "draft saved", |e| matches!(e, Event::DraftSaved { message_id, error: None, .. } if message_id == id));
 }
 
+/// The messages in `folder` on the fake server, as MailCraft wrote them ([`as_written`]).
+fn in_folder(st: &Arc<Mutex<State>>, folder: &str) -> Vec<Vec<u8>> {
+    st.lock().unwrap().mailbox(folder).map(|b| b.msgs.iter().map(|m| as_written(&m.raw)).collect()).unwrap_or_default()
+}
+
+/// A Trash folder (SPECIAL-USE `\Trash`), with nothing in it yet, on `st`.
+fn with_trash(st: &Arc<Mutex<State>>) {
+    st.lock().unwrap().boxes.push(Mailbox {
+        name: "Trash".into(),
+        attr: r"\Trash",
+        validity: 700,
+        uid_next: 1,
+        msgs: Vec::new(),
+        expunged: Vec::new(),
+    });
+}
+
+/// A draft saved again on a phone, which kept its Message-ID and built the rest anew.
+const PHONE: &[u8] =
+    b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish the plans, edited on the phone\r\n";
+
+/// A draft MailCraft saved, the phone's copy of it ([`PHONE`]) and another message a search for
+/// its Message-ID finds put in Drafts, and the draft saved again (kept on this computer as
+/// MailCraft closed, and its save got there too) on a server with `caps`: what's in Drafts and
+/// in Trash after, as written, and the draft.
+fn own_copy_saved_again(name: &str, caps: &'static str, stamp: Option<&'static str>) -> (Vec<Vec<u8>>, Vec<Vec<u8>>, Vec<u8>) {
+    let st = State::new();
+    st.lock().unwrap().caps = caps;
+    st.lock().unwrap().stamp_appends = stamp;
+    with_drafts(&st);
+    with_trash(&st);
+    let (mut pool, store, _log) = online(&st, name);
+    let own =
+        b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish the plans for the winter show\r\n".to_vec();
+    save_draft(&mut pool, &own, "own@studio.example");
+    put_in_drafts(&st, PHONE.to_vec());
+    put_in_drafts(
+        &st,
+        b"From: zoe@studio.example\r\nSubject: Notes\r\nMessage-ID: <other@studio.example> (was <own@studio.example>)\r\n\r\nx\r\n".to_vec(),
+    );
+    save_draft(&mut pool, &own, "own@studio.example");
+    let (drafts, trash) = (in_folder(&st, "Drafts"), in_folder(&st, "Trash"));
+    pool.submit(Job::Remove { account: "a1".into() });
+    let _ = std::fs::remove_dir_all(store.root());
+    (drafts, trash, own)
+}
+
 /// Found in review: the copies of a draft found by its Message-ID were removed, whatever they
 /// were: the draft saved again on a phone under the same Message-ID, or another message a
 /// server's search matched by the words of its Message-ID. Only MailCraft's own copy, as it
 /// filed it, is replaced; the others stay.
 #[test]
 fn only_mailcrafts_own_copy_of_a_draft_is_replaced() {
-    let st = State::new();
-    with_drafts(&st);
-    let (mut pool, store, _log) = online(&st, "draft-own-copy");
-    let own = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish the plans for the winter show, and the list of works for it\r\n".to_vec();
-    save_draft(&mut pool, &own, "own@studio.example");
-    // Edited on a phone, which kept its Message-ID.
-    let phone =
-        b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish the plans, edited on the phone\r\n".to_vec();
-    put_in_drafts(&st, phone.clone());
-    // Another message that a search for the Message-ID finds, as long as MailCraft's copy.
-    let head = "From: zoe@studio.example\r\nSubject: Notes\r\nMessage-ID: <other@studio.example> (was <own@studio.example>)\r\n\r\n";
-    let other = format!("{head}{}", "x".repeat(own.len() - head.len())).into_bytes();
-    assert_eq!(other.len(), own.len());
-    put_in_drafts(&st, other.clone());
-    // Kept on this computer as MailCraft closed too, and saved again at the next connection.
-    save_draft(&mut pool, &own, "own@studio.example");
-    let raws: Vec<Vec<u8>> = st.lock().unwrap().mailbox("Drafts").map(|b| b.msgs.iter().map(|m| m.raw.clone()).collect()).unwrap_or_default();
-    assert_eq!(raws.iter().filter(|r| **r == own).count(), 1, "MailCraft's copy once");
-    assert!(raws.contains(&phone), "the phone's copy stays");
-    assert!(raws.contains(&other), "the other message stays");
-    assert_eq!(raws.len(), 3);
-    pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
+    let (drafts, trash, own) = own_copy_saved_again("draft-own-copy", "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA", None);
+    assert_eq!(drafts.iter().filter(|r| **r == own).count(), 1, "MailCraft's copy once");
+    assert!(drafts.iter().any(|r| r == PHONE), "the phone's copy stays");
+    assert_eq!(drafts.len(), 3, "the other message stays");
+    assert!(trash.is_empty(), "removed for good, as UIDPLUS can");
 }
 
-/// Without UIDPLUS a plain `EXPUNGE` removes everything marked deleted in the folder, another
-/// program's too: no copy found by its Message-ID is removed there.
+/// Gap 7: a server that adds a header to what it's given keeps MailCraft's copy at another size
+/// than sent, and the copy was known by its size: the draft filed again was in Drafts twice.
+/// It's known by the mark on it, which the server keeps.
 #[test]
-fn no_copy_is_removed_without_uidplus() {
-    let st = State::new();
-    st.lock().unwrap().caps = "IMAP4rev1 MOVE CONDSTORE ENABLE QUOTA";
-    with_drafts(&st);
-    let (mut pool, store, _log) = online(&st, "draft-no-uidplus");
-    let own = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <plain@studio.example>\r\n\r\nto finish\r\n".to_vec();
-    save_draft(&mut pool, &own, "plain@studio.example");
-    save_draft(&mut pool, &own, "plain@studio.example");
-    assert_eq!(st.lock().unwrap().mailbox("Drafts").map(|b| b.msgs.len()), Some(2), "both kept");
-    assert!(!st.lock().unwrap().log.iter().any(|c| c.contains("EXPUNGE")), "{:?}", st.lock().unwrap().log);
-    pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
+fn a_copy_kept_at_another_size_is_replaced() {
+    let stamp = "X-Scanned: clean";
+    let (drafts, _, own) = own_copy_saved_again("draft-stamped", "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA", Some(stamp));
+    let stamped = [stamp.as_bytes(), b"\r\n", &own].concat();
+    assert_eq!(drafts.iter().filter(|r| **r == stamped).count(), 1, "MailCraft's copy once");
+    assert!(drafts.iter().any(|r| r == PHONE), "the phone's copy stays");
+    assert_eq!(drafts.len(), 3, "the other message stays");
+}
+
+/// The messages in `folder` on the fake server not marked deleted (those MailCraft shows), as
+/// written.
+fn shown_in(st: &Arc<Mutex<State>>, folder: &str) -> Vec<Vec<u8>> {
+    st.lock()
+        .unwrap()
+        .mailbox(folder)
+        .map(|b| b.msgs.iter().filter(|m| !m.flags.iter().any(|f| f == r"\Deleted")).map(|m| as_written(&m.raw)).collect())
+        .unwrap_or_default()
+}
+
+/// Another program's message in Drafts, marked deleted and not yet expunged.
+const DELETED_ELSEWHERE: &[u8] = b"From: zoe@studio.example\r\nSubject: Old\r\nMessage-ID: <gone@studio.example>\r\n\r\nx\r\n";
+
+/// Gap 7: without UIDPLUS, a plain `EXPUNGE` removes whatever else is marked deleted in the
+/// folder, so MailCraft's own copy was left, and the draft was in Drafts twice. It's marked
+/// deleted, which MailCraft doesn't show, for the folder's next expunge; another program's
+/// message marked deleted stays until then, and nothing goes to Trash (found in review: moved
+/// there, every save's older version went).
+#[test]
+fn without_uidplus_the_own_copy_is_marked_deleted() {
+    for caps in ["IMAP4rev1 MOVE CONDSTORE ENABLE QUOTA", "IMAP4rev1 CONDSTORE ENABLE QUOTA"] {
+        let st = State::new();
+        st.lock().unwrap().caps = caps;
+        with_drafts(&st);
+        with_trash(&st);
+        put_in_drafts(&st, DELETED_ELSEWHERE.to_vec());
+        if let Some(m) = st.lock().unwrap().mailbox("Drafts").and_then(|b| b.msgs.last_mut()) {
+            m.flags.push(r"\Deleted".into());
+        }
+        let (mut pool, store, _log) = online(&st, "draft-no-uidplus");
+        let own = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish\r\n".to_vec();
+        save_draft(&mut pool, &own, "own@studio.example");
+        put_in_drafts(&st, PHONE.to_vec());
+        save_draft(&mut pool, &own, "own@studio.example");
+        let shown = shown_in(&st, "Drafts");
+        assert_eq!(shown.iter().filter(|r| **r == own).count(), 1, "{caps}: MailCraft's copy shown once");
+        assert!(shown.iter().any(|r| r == PHONE), "{caps}: the phone's copy stays");
+        assert!(in_folder(&st, "Drafts").iter().any(|r| r == DELETED_ELSEWHERE), "{caps}: another's deleted message stays");
+        assert!(in_folder(&st, "Trash").is_empty(), "{caps}: nothing in Trash");
+        let log = st.lock().unwrap().log.clone();
+        assert!(!log.iter().any(|c| ["EXPUNGE", "UID EXPUNGE", "UID MOVE", "UID COPY"].iter().any(|v| c.starts_with(v))), "{caps}: {log:?}");
+        pool.submit(Job::Remove { account: "a1".into() });
+        let _ = std::fs::remove_dir_all(store.root());
+    }
+}
+
+/// Found in review: every copy carries MailCraft's mark, so at each save the copy it replaces was
+/// taken for an earlier own copy too: on a server with MOVE but no UIDPLUS it went to Trash (each
+/// version saved there), and with UIDPLUS it was looked for and removed twice. A save replaces
+/// its copy alone, and looks for no other.
+#[test]
+fn each_save_replaces_its_copy_alone() {
+    for caps in ["IMAP4rev1 MOVE CONDSTORE ENABLE QUOTA", "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA"] {
+        let st = State::new();
+        st.lock().unwrap().caps = caps;
+        with_drafts(&st);
+        with_trash(&st);
+        let (mut pool, store, _log) = online(&st, "draft-versions");
+        let mut replaces = None;
+        let mut last = Vec::new();
+        for n in 1..=3 {
+            last = format!("From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <v@studio.example>\r\n\r\nversion {n}\r\n").into_bytes();
+            pool.submit(Job::SaveDraft { account: "a1".into(), raw: last.clone(), folder: "Drafts".into(), replaces: replaces.take() });
+            until(&pool, "draft saved", |e| matches!(e, Event::DraftSaved { message_id, error: None, .. } if message_id == "v@studio.example"));
+            let uid = st.lock().unwrap().mailbox("Drafts").and_then(|b| b.msgs.last().map(|m| m.uid));
+            replaces = uid.map(|uid| MessageKey { account: "a1".into(), folder: "Drafts".into(), validity: 600, uid });
+        }
+        assert_eq!(shown_in(&st, "Drafts"), [last], "{caps}: the last version, once");
+        assert!(in_folder(&st, "Trash").is_empty(), "{caps}: nothing in Trash");
+        let log = st.lock().unwrap().log.clone();
+        let searches = log.iter().filter(|c| c.starts_with("UID SEARCH") && c.contains("Message-ID")).count();
+        assert_eq!(searches, 0, "{caps}: none looked for (the first save has none filed before it): {log:?}");
+        let expunges = log.iter().filter(|c| c.starts_with("UID EXPUNGE")).count();
+        assert_eq!(expunges, if caps.contains("UIDPLUS") { 2 } else { 0 }, "{caps}: each replaced copy once: {log:?}");
+        pool.submit(Job::Remove { account: "a1".into() });
+        let _ = std::fs::remove_dir_all(store.root());
+    }
 }
 
 /// Found in review: the drafts kept on this computer were taken only by a connection made for
@@ -327,9 +431,7 @@ fn a_draft_kept_on_close_goes_before_the_next_runs_save() {
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: next.clone(), folder: "Drafts".into(), replaces: None });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
-    let drafts = |st: &Arc<Mutex<State>>| -> Vec<Vec<u8>> {
-        st.lock().unwrap().mailbox("Drafts").map(|b| b.msgs.iter().map(|m| m.raw.clone()).collect()).unwrap_or_default()
-    };
+    let drafts = |st: &Arc<Mutex<State>>| in_folder(st, "Drafts");
     assert_eq!(drafts(&st), std::slice::from_ref(&next), "the newest only");
     // The account connected again later: nothing older left to go.
     pool.submit(Job::WorkOffline { on: true });

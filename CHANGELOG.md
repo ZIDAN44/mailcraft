@@ -32,6 +32,7 @@ on GitHub.
 - Renaming or deleting a folder while MailCraft is still getting the mail of the folders before it no longer says "the server refused: no such mailbox".
 - A folder renamed twice while offline keeps the mail already on this computer once the renames reach the server; it was downloaded again, and the name in between said "no such mailbox".
 - A table's footer row (`<tfoot>`, as an invoice's total often is) shows at the end of its table, as a browser shows it: it was left out of the message and its text, and came first in a table laid out in columns.
+- A draft saved just as MailCraft closed, or as the connection was lost, is in Drafts once after the next connection also on a server that adds a header to what it keeps. On a server without UIDPLUS, the copy a save replaces is marked deleted instead of the folder being expunged, so mail another program marked deleted in Drafts no longer goes with it.
 
 ## 0.33.0 - 2026-11-05
 

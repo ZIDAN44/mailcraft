@@ -68,17 +68,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The browser keeps no secret keys yet (its S/MIME certificates' way, a file locked
   with its password, would need an unlock dialog of its own). The rest is left for later.
 
-### 6. Drafts: a draft twice after closing during its save
+### 6. Drafts: an older copy marked deleted on a server without UIDPLUS
 
-- **Impact:** On a server without UIDPLUS, or one that keeps a draft at another size than
-  MailCraft sent, a draft saved just as MailCraft closes, or as the connection to the server is
-  lost, can be in Drafts twice after the next connection: the copy that save took there, and the
-  one kept on this computer.
-- **Workaround:** Delete the older copy in Drafts.
-- **Cause:** MailCraft replaces a copy of a draft only when it knows the copy as its own: one it
-  filed, remembered by its Message-ID and size, so that another program's copy under the same
-  Message-ID stays. It removes it only where it can remove exactly that message (UIDPLUS's
-  `UID EXPUNGE`): a plain `EXPUNGE` removes whatever else is marked deleted in the folder.
+- **Impact:** On an IMAP server without UIDPLUS, the copy of a draft that a newer save replaces
+  is marked deleted rather than removed. MailCraft doesn't show it, but another program may show
+  it, crossed out, until the Drafts folder is expunged.
+- **Workaround:** Purge or compact Drafts in a program that does, or leave it to the server.
+- **Cause:** Without UIDPLUS's `UID EXPUNGE`, the only way to remove one message is a plain
+  `EXPUNGE`, which removes whatever else is marked deleted in the folder, other programs' mail
+  too; moving each copy to Deleted Items instead would fill it with every version saved.
 
 ### 7. [Draft] on messages whose forward was left in Drafts
 
