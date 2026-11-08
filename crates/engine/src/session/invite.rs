@@ -563,12 +563,9 @@ impl Session {
             to,
             subject: subject.to_string(),
             body: body.to_string(),
-            attachments: vec![mime::OutAttachment {
-                name: "invite.ics".into(),
-                mime: format!("text/calendar; method={method}"),
-                data: ics.into_bytes(),
-                ..Default::default()
-            }],
+            // Inline beside the text, as iMIP says (RFC 6047 §2.4): Exchange shows a calendar
+            // attached as a file only as a file, with no meeting and no buttons to answer.
+            calendar: Some(mime::OutCalendar { method: method.to_string(), data: ics }),
             ..Default::default()
         };
         let now = self.clock.now;

@@ -36,9 +36,19 @@ fn sent(s: &mut Session) -> Vec<(String, String)> {
         .filter_map(|j| match j {
             Job::Send { raw, .. } => {
                 let text = String::from_utf8_lossy(&raw).to_string();
-                let method = text.split("method=").nth(1).map(|m| m.chars().take_while(char::is_ascii_alphabetic).collect()).unwrap_or_default();
+                // `method=REQUEST` or `method="REQUEST"` (RFC 2045 §5.1: the same).
+                let method = text
+                    .split("method=")
+                    .nth(1)
+                    .map(|m| m.trim_start_matches('"').chars().take_while(char::is_ascii_alphabetic).collect())
+                    .unwrap_or_default();
                 let ics = mailcraft_mime::parse(&raw)
-                    .and_then(|p| p.attachments.first().and_then(|a| mailcraft_mime::attachment_data(&raw, a.index)))
+                    .and_then(|p| {
+                        p.attachments
+                            .iter()
+                            .find(|a| a.mime.starts_with("text/calendar"))
+                            .and_then(|a| mailcraft_mime::attachment_data(&raw, a.index))
+                    })
                     .map(|d| String::from_utf8_lossy(&d).to_string())
                     .unwrap_or_default();
                 Some((method, ics))

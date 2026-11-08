@@ -148,6 +148,10 @@ fn invitations_are_answered_and_sent() {
     assert_eq!(method, "REPLY");
     assert!(raw.contains("PARTSTAT=ACCEPTED") && raw.contains("mailto:riley@studio.example"), "{raw}");
     assert!(raw.to_ascii_lowercase().contains("text/calendar"), "sent as a calendar part");
+    // As iMIP says (RFC 6047 §2.4), so Exchange takes it as an answer: inline beside the text,
+    // with its method and character set, not a file.
+    assert!(raw.contains("Content-Type: multipart/alternative") && raw.contains("text/calendar; charset=\"utf-8\"; method=\"REPLY\""), "{raw}");
+    assert!(!raw.contains("invite.ics") && !raw.contains("Content-Disposition: attachment"), "{raw}");
     assert!(raw.contains("To: \"Ana Lima\" <ana@soundlab.example>") || raw.contains("ana@soundlab.example"));
 
     // Declining takes it out of the calendar.

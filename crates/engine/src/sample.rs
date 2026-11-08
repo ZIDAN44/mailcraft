@@ -595,6 +595,7 @@ pub fn seed_if_empty_at(store: &Store, now: i64, offset: i64) -> Result<bool, St
             } else {
                 Vec::new()
             },
+            calendar: None,
             importance: 0,
             read_receipt: false,
             seven_bit: false,
