@@ -10,7 +10,7 @@ on:
     inputs:
       seconds:
         description: Seconds per target
-        default: "240"
+        default: "150"
 
 concurrency:
   group: fuzz
@@ -21,7 +21,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  FUZZ_SECONDS: ${{ github.event.inputs.seconds || '240' }}
+  # A run that hits the job's timeout-minutes is cancelled and reports nothing, not even a crash.
+  # Eight minutes to compile, then FUZZ_SECONDS plus two for every target, must fit inside it.
+  FUZZ_SECONDS: ${{ github.event.inputs.seconds || '150' }}
   # cargo-fuzz builds for the target it was itself built for, and install-action's cargo-fuzz is a
   # musl build: the address sanitizer can't link musl's static libc, so name the runner's own.
   FUZZ_TARGET: x86_64-unknown-linux-gnu
@@ -36,7 +38,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+      - uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2.90.2
         with:
           tool: cargo-fuzz
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
