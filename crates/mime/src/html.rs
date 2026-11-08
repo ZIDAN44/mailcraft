@@ -3,6 +3,7 @@
 use super::*;
 use std::collections::{HashMap, VecDeque};
 
+mod deep;
 mod footers;
 mod outlook;
 mod page;
@@ -319,7 +320,8 @@ pub fn html_to_rich(html: &str) -> RichText {
 /// message cut at the cap, [`crate::WRITTEN_MAX`]), what's marked hidden from Outlook left out
 /// when `hidden` ([`marked_hidden`]).
 pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichText {
-    let html = crate::capped(html, max);
+    let html = flat_if_too_deep(crate::capped(html, max));
+    let html = html.as_ref();
     // Wide enough that paragraphs stay one line each (the UI wraps them to the pane).
     let marked = close_css_rules(&mark_pictures(&mark_headings(&no_page_background(&footers_last(html)))));
     // The message's own CSS is read for colours and hidden parts (`display: none`), nothing else.
@@ -617,7 +619,8 @@ pub fn html_images(html: &str) -> Vec<String> {
 /// An HTML body's words for a preview: as [`html_to_text`] reads it, without its marks for bold
 /// and the like.
 pub(crate) fn html_to_words(html: &str) -> String {
-    let html = footers_last(html);
+    let html = flat_if_too_deep(html);
+    let html = footers_last(&html);
     let result = std::panic::catch_unwind(|| html2text::config::plain_no_decorate().no_table_borders().string_from_read(html.as_bytes(), 400));
     match result {
         Ok(Ok(s)) => tidy_text(&s),
@@ -632,7 +635,8 @@ pub fn html_to_text(html: &str) -> String {
 /// [`html_to_text`], up to `max` characters of `html`, what's marked hidden from Outlook left
 /// out when `hidden` (as [`html_to_rich_within`]).
 pub(crate) fn html_to_text_within(html: &str, max: usize, hidden: bool) -> String {
-    let html = footers_last(crate::capped(html, max));
+    let html = flat_if_too_deep(crate::capped(html, max));
+    let html = footers_last(&html);
     // Without table borders: mail lays itself out with tables, which came out boxed in `─` and
     // `│` rules (issue #41).
     let result =
@@ -641,6 +645,17 @@ pub(crate) fn html_to_text_within(html: &str, max: usize, hidden: bool) -> Strin
         Ok(Ok(s)) => tidy_text(&s),
         _ => String::new(),
     }
+}
+
+/// `html`, or its words and links flat when it nests deeper than any mail does
+/// ([`deep::too_deep`]): the text converter's time grows with each table nested.
+fn flat_if_too_deep(html: &str) -> std::borrow::Cow<'_, str> {
+    if deep::too_deep(html) { std::borrow::Cow::Owned(deep::flattened(html)) } else { std::borrow::Cow::Borrowed(html) }
+}
+
+/// Whether `html` nests deeper than any mail does, and is read flat ([`deep::too_deep`]).
+pub(crate) fn too_deep(html: &str) -> bool {
+    deep::too_deep(html)
 }
 
 /// The text converter `config` makes, leaving out what's marked hidden from Outlook when

@@ -36,6 +36,7 @@ on GitHub.
 - A table's footer row (`<tfoot>`, as an invoice's total often is) shows at the end of its table, as a browser shows it: it was left out of the message and its text, and came first in a table laid out in columns.
 - A draft saved just as MailCraft closed, or as the connection was lost, is in Drafts once after the next connection also on a server that adds a header to what it keeps. On a server without UIDPLUS, the copy a save replaces is marked deleted instead of the folder being expunged, so mail another program marked deleted in Drafts no longer goes with it.
 - A forward's draft from a folder whose name has accented or non-Latin letters (`Entwürfe`) remembers the message it forwards when it's opened again.
+- A message nesting tables by the thousand, as broken or hostile mail can, opens at once instead of after minutes: past what any mail nests, it's read as its words and links.
 
 ## 0.33.0 - 2026-11-05
 

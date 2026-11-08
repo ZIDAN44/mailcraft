@@ -488,6 +488,11 @@ pub fn html_layout(html: &str) -> Vec<Block> {
 
 /// [`html_layout`], up to `max` characters of `html` (as [`crate::html::html_to_rich_within`]).
 pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
+    // Nested deeper than any mail is: no layout, its words read flat (the layout's time grows
+    // with each table nested, as the text converter's does).
+    if crate::html::too_deep(crate::capped(html, max)) {
+        return Vec::new();
+    }
     // A table's footer at its end, as in the message's text (`html::footers_last`).
     let html = &*crate::html::footers_last(html);
     let lower = html.to_ascii_lowercase();
