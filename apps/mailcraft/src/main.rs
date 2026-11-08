@@ -73,6 +73,13 @@ struct ClipboardKeys {
 }
 
 impl eframe::ViewportHooks for ClipboardKeys {
+    /// No one-pixel offset of the window's contents: see `desktop/window_frame.rs`.
+    #[cfg(windows)]
+    fn window_created(&self, _viewport: egui::ViewportId, window: &winit::window::Window) {
+        use winit::platform::windows::WindowExtWindows as _;
+        window.set_undecorated_shadow(false);
+    }
+
     fn raw_input(&self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         #[cfg(windows)]
         mailcraft_ui_egui::alt_codes(ctx, raw_input, self.pages);

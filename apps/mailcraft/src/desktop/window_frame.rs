@@ -27,6 +27,13 @@
 //! when the pointer reaches its edge (#4845). On each edge with an auto-hidden taskbar the guard
 //! instead stops the window one pixel short of the monitor, as other custom-frame apps do.
 //!
+//! winit gives an undecorated window its drop shadow by moving the client rect one pixel down
+//! (`WM_NCCALCSIZE`), past the window's bottom edge. DirectX then fits the 820 rows MailCraft draws
+//! into the 819 that are left, so every row but the first is resampled and all text is soft from
+//! top to bottom, with a black line along the top. So winit's shadow is turned off when the window
+//! is made (`window_created` in `main.rs`) and the desktop compositor is asked for one instead, by
+//! extending the frame a pixel into the client area, where MailCraft's own pixels cover it.
+//!
 //! The Windows calls go through safe `winsafe` wrappers; the workspace forbids `unsafe`, and
 //! winsafe can't wrap a raw handle without it, so the window is found by its handle instead.
 
@@ -70,6 +77,11 @@ mod platform {
             return None;
         };
         reapply(&hwnd);
+        // The window's shadow, which winit's own is turned off for (see above).
+        let shadow = winsafe::MARGINS { cyTopHeight: 1, ..Default::default() };
+        if let Err(e) = hwnd.DwmExtendFrameIntoClientArea(&shadow) {
+            log::warn!("window frame: the window has no shadow: {e}");
+        }
         Some(std::rc::Rc::new(move || reapply(&hwnd)))
     }
 
