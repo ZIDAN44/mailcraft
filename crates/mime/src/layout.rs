@@ -32,6 +32,9 @@ pub use write::to_html;
 
 /// Tables nested deeper than this are flattened into text.
 const MAX_DEPTH: usize = 12;
+/// Tables nested one in another in Outlook's copy of a message, at most: past that, the message
+/// is read as it came, without it (each table nested deeper makes its text slower to read).
+const MAX_COPY_TABLES: usize = 24;
 /// More cells than this in a message: no layout (it flows as text).
 const MAX_CELLS: usize = 1_500;
 /// Elements kept open at once while reading.

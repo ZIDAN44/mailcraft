@@ -8,8 +8,8 @@ use super::*;
 /// elements deep, and a megabyte took twenty seconds to read; ghost tables left open each in a
 /// comment of its own, every one in the last one's cell, six. Then, read as blocks past a few
 /// tables, they flattened the tables of messages that nest no deeper than a browser shows. A
-/// copy nested past what's read, or nesting more tables than a layout lays out, is read as the
-/// message came, without Outlook's copy.
+/// copy nested past what's read, or nesting more than two dozen tables, is read as the message
+/// came, without Outlook's copy.
 #[test]
 fn tables_left_open_are_read_in_time() {
     let sized = |unit: &str| unit.repeat(100_000 / unit.len());
@@ -28,7 +28,7 @@ fn tables_left_open_are_read_in_time() {
         assert!(shown.ends_with(last) && text.trim_end().ends_with(last), "{}: {:?}", &html[..60], &text[text.len().saturating_sub(40)..]);
         assert!(!shown.contains("Deep"), "{shown:?}");
     }
-    // Nested deeper than a layout lays out: as the message came, its tables read as tables
+    // Nested more than two dozen tables deep: as the message came, its tables read as tables
     // (found in review: written two dozen tables deep, a long copy took a second and a half to
     // show).
     let html = format!(
@@ -53,8 +53,8 @@ fn tables_left_open_are_read_in_time() {
 /// made blocks, a table of columns or of values around a deeper one lost its columns; and, told
 /// apart by what their cells held, a receipt with no headings whose items each had their name in
 /// a table of their own, labels each in a table, and values that are only signs. Only Outlook's
-/// own tables, and those that say they lay the message out, are blocks; a copy nesting more
-/// tables than a layout lays out isn't read.
+/// own tables, and those that say they lay the message out, are blocks; a copy nesting more than
+/// two dozen tables isn't read.
 #[test]
 fn tables_nested_as_newsletters_nest_them_stay_tables() {
     let wrapper = r#"<!--[if mso | IE]><table role="presentation" width="600"><tr><td><![endif]-->"#;
@@ -71,7 +71,7 @@ fn tables_nested_as_newsletters_nest_them_stay_tables() {
     }
     let ghost = r#"<!--[if mso]><table role="presentation" width="600"><tr><td><![endif]-->"#;
     let ghost_end = "<!--[if mso]></td></tr></table><![endif]-->";
-    for n in [11, 12, 30] {
+    for n in [11, 12, 22, 23, 30] {
         for table in [r#"<table role="presentation"><tr><td>"#, "<table><tr><td>"] {
             let p = message(&format!("{ghost}{}{data}{}{ghost_end}", table.repeat(n), "</td></tr></table>".repeat(n)));
             assert!(shown(&p).split('|').any(|l| l.contains("Mug") && l.contains('2')), "{n} {table}: {:?}", shown(&p));
@@ -85,7 +85,7 @@ fn tables_nested_as_newsletters_nest_them_stay_tables() {
         // any message with Outlook's tables, a table with one in a cell read a cell to a line).
         let text = message(values).text;
         assert!(text.lines().any(|l| l.contains(row[0]) && l.contains(row[1])), "{text:?}");
-        for n in [0, 11, 12, 13, 20] {
+        for n in [0, 11, 12, 13, 20, 22, 23, 30] {
             let p = message(&format!("{ghost}{}{values}{}{ghost_end}", "<table><tr><td>".repeat(n), "</td></tr></table>".repeat(n)));
             assert!(shown(&p).split('|').any(|l| l.contains(row[0]) && l.contains(row[1])), "{n}: {:?}", shown(&p));
             assert_eq!(p.text, text, "{n}");
@@ -111,9 +111,9 @@ fn tables_nested_as_newsletters_nest_them_stay_tables() {
         assert!(text.lines().any(|l| l.contains(row[0]) && l.contains(row[1])), "{text:?}");
         assert_eq!(message(&format!("{ghost}{values}{ghost_end}")).text, text, "{values}");
     }
-    // A table of columns, or of values, around one nested deeper than a layout lays out keeps
-    // its columns.
-    let deep = |inner: &str| format!("{}{inner}{}", "<table><tr><td>".repeat(13), "</td></tr></table>".repeat(13));
+    // A table of columns, or of values, around one nested deeper than Outlook's copy is read
+    // keeps its columns.
+    let deep = |inner: &str| format!("{}{inner}{}", "<table><tr><td>".repeat(25), "</td></tr></table>".repeat(25));
     let beside = format!(
         r#"<table role="presentation"><tr><td width="300">{}</td><td width="300"><table><tr><td><p>Right column words</p></td></tr></table></td></tr></table>"#,
         deep("<p>Left column words</p>")

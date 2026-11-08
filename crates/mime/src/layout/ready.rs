@@ -6,9 +6,9 @@
 //!
 //! Outlook's copy is read from the tree only when the tree reshapes it, and the tree is written
 //! out only when all of the message is in it: one that reaches a cap, or a copy of Outlook's
-//! nesting more tables than a layout lays out, is read as it came, as it was before Outlook's
-//! copy was read (found in review: written from a tree that left elements out, paragraphs ran
-//! together, and tables past those nested deep were read a cell to a line).
+//! nesting more than two dozen tables ([`MAX_COPY_TABLES`]), is read as it came, as it was
+//! before Outlook's copy was read (found in review: written from a tree that left elements out,
+//! paragraphs ran together, and tables past those nested deep were read a cell to a line).
 //! What's hidden from Outlook is marked where it is in the HTML as it came
 //! ([`crate::html::marked_hidden`]), so that a message isn't written out again just to leave it
 //! out (found in review: a megabyte table with it anywhere took twice as long to read).
@@ -70,12 +70,12 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
     }
     let done = std::panic::catch_unwind(|| {
         let tree = parse_as(html, copy)?;
-        // Outlook's copy nesting more tables than the layout lays out is read as the message came,
-        // without it: each table nested in another costs the text converter more, and none of them
+        // Outlook's copy nesting more than two dozen tables is read as the message came, without
+        // it: each table nested in another costs the text converter more, and none of them
         // is made blocks to spare it (found in review: a copy of tables left open, two dozen deep,
         // took a second and a half to read; then, its outermost tables made blocks, a table of
         // columns or of values around a deep one lost its columns).
-        if copy && tables_nested(&tree.root) > MAX_DEPTH {
+        if copy && tables_nested(&tree.root) > MAX_COPY_TABLES {
             return None;
         }
         let mut root = tree.root;

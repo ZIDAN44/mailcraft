@@ -81,14 +81,13 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 ### 7. Newsletters nested past what's read
 
 - **Impact:** A newsletter whose copy for Outlook has more than 200,000 elements, nests them more
-  than 256 deep, or nests more than a dozen tables one in another, shows the copy it gives other
-  programs (as a browser shows it), not Outlook's.
+  than 256 deep, or nests more than two dozen tables one in another (real newsletters nest about
+  four to eight), shows the copy it gives other programs (as a browser shows it), not Outlook's.
 - **Workaround:** None needed for most: that copy is the one browsers show. Most newsletters also
   have a link at the top to see them in a browser.
 - **Cause:** Outlook's copy is read into a tree of MailCraft's own, which stops at those sizes so
   that hostile or huge mail stays quick: a copy cut there would run its paragraphs together, and
-  each table nested deeper makes its text slower to read (a megabyte 16 tables deep took 1.2 s,
-  against 0.25 s read as it came).
+  past two dozen tables, each one nested deeper makes its text slower to read.
 
 ## Not planned
 

@@ -338,8 +338,8 @@ fn a_pages_background_is_no_highlight() {
 /// Found in review: past the depth to which the tree is written as it is, every tag was dropped,
 /// and the paragraphs of a newsletter nested in two dozen tables ran together, in a message with
 /// a style sheet or Outlook's copy of a table around it, as did those past the depth the tree
-/// is read to. Every tag is written; in Outlook's copy, tables deeper than a layout lays out are
-/// written as blocks; too deep to read, the message is read as it came.
+/// is read to. Every tag is written; in Outlook's copy, its own tables are written as blocks in
+/// the text; too deep to read, the message is read as it came.
 #[test]
 fn blocks_nested_deep_stay_apart() {
     let message = |html: &str| {
@@ -395,8 +395,8 @@ fn blocks_nested_deep_stay_apart() {
 
 /// Found in review: Outlook's copy of every newsletter was written out again from the tree to be
 /// shown, which made a newsletter of 4 MB slower to read. It's shown as it came unless the tree
-/// reads otherwise: `<plaintext>`, or a mark in text. One nesting more tables than a layout lays
-/// out isn't read: the message is read as it came, without it.
+/// reads otherwise: `<plaintext>`, or a mark in text. One nesting more than two dozen tables
+/// isn't read: the message is read as it came, without it.
 #[test]
 fn outlooks_copy_is_written_again_only_when_the_tree_reads_otherwise() {
     let ready_copy = |html: &str| {
@@ -410,13 +410,13 @@ fn outlooks_copy_is_written_again_only_when_the_tree_reads_otherwise() {
     let (r, copy) = ready_copy(&column.repeat(50));
     assert_eq!(r.styled, copy);
     assert!(!r.text.contains("<table"));
-    // A table of values in tables nested no deeper than a layout lays out: as it came. One
-    // deeper: the message as it came, without Outlook's copy.
+    // A table of values in tables nested no more than two dozen deep: as it came. One deeper:
+    // the message as it came, without Outlook's copy.
     let nested =
         |n: usize| format!("<!--[if mso]><table><tr><td><![endif]-->{}<table><tr><td>A</td><td>B</td></tr></table>", "<table><tr><td>".repeat(n));
-    let (r, copy) = ready_copy(&nested(MAX_DEPTH - 2));
+    let (r, copy) = ready_copy(&nested(MAX_COPY_TABLES - 2));
     assert_eq!(r.styled, copy);
-    for html in [nested(MAX_DEPTH - 1), format!("<!--[if mso]>{}Deep<![endif]-->Tail", "<table><tr><td>".repeat(40))] {
+    for html in [nested(MAX_COPY_TABLES - 1), format!("<!--[if mso]>{}Deep<![endif]-->Tail", "<table><tr><td>".repeat(40))] {
         assert!(!ready(&html, &crate::html::outlook_copy(&html)).copy, "{html}");
     }
     for html in [
