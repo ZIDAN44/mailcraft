@@ -363,9 +363,13 @@ impl Body<'_> {
                     }
                 }
                 Block::Table(table) if depth < 16 => {
+                    // What its columns hold (measured once): their widths, and its own when it
+                    // sets none and is as wide as what it holds (a `<table>`, a button).
+                    let measures = table::measured(ui, self.key, table);
                     let tw = match table.width {
                         Some(Width::Px(px)) => (px as f32).min(width),
                         Some(Width::Percent(pc)) => width * f32::from(pc) / 100.0,
+                        None if table.fit => measures.whole.map_or(width, |f| f.max.min(width)),
                         None => width,
                     }
                     .max(1.0);
@@ -389,20 +393,18 @@ impl Body<'_> {
                             // none for a box of CSS), and inside them (`cellpadding`).
                             let spacing = f32::from(table.spacing.unwrap_or(0));
                             let room = Room { spacing, padding: f32::from(table.padding.unwrap_or(0)) };
-                            let framed = egui::Frame::new().fill(fill).inner_margin(room_margin([spacing; 4])).show(ui, |ui| {
-                                // Its place in the drawing: above the fill, under the content.
+                            let framed = egui::Frame::new().inner_margin(room_margin([spacing; 4])).show(ui, |ui| {
+                                // Its place in the drawing (its colour and picture): under the content.
                                 let slot = ui.painter().add(egui::Shape::Noop);
                                 ui.spacing_mut().item_spacing = vec2(spacing, spacing);
                                 let columns = column_widths(&table.rows);
                                 let inner = (tw - 2.0 * spacing).max(1.0);
                                 for row in &table.rows {
-                                    self.row(st, ui, row, &columns, inner, page, room, depth);
+                                    self.row(st, ui, row, &columns, &measures.columns, inner, page, room, depth);
                                 }
                                 slot
                             });
-                            if let Some(tex) = &behind {
-                                ui.painter().set(framed.inner, cover(tex, framed.response.rect));
-                            }
+                            ui.painter().set(framed.inner, table::backdrop(framed.response.rect, table.radius, fill, behind.as_ref()));
                         });
                     });
                 }
@@ -621,8 +623,9 @@ pub(super) fn picture_texture(
     }
 }
 
-/// A picture covering `rect`, cropped to keep its shape (CSS's `background-size: cover`).
-pub(super) fn cover(tex: &egui::TextureHandle, rect: egui::Rect) -> egui::Shape {
+/// A picture covering `rect`, cropped to keep its shape (CSS's `background-size: cover`), its
+/// corners `round` as its box's.
+pub(super) fn cover(tex: &egui::TextureHandle, rect: egui::Rect, round: egui::CornerRadius) -> egui::Shape {
     let sz = tex.size_vec2();
     if sz.x < 1.0 || sz.y < 1.0 || rect.width() < 1.0 || rect.height() < 1.0 {
         return egui::Shape::Noop;
@@ -630,5 +633,5 @@ pub(super) fn cover(tex: &egui::TextureHandle, rect: egui::Rect) -> egui::Shape 
     let scale = (rect.width() / sz.x).max(rect.height() / sz.y);
     let part = vec2((rect.width() / (sz.x * scale)).min(1.0), (rect.height() / (sz.y * scale)).min(1.0));
     let uv = egui::Rect::from_center_size(egui::pos2(0.5, 0.5), part);
-    egui::Shape::image(tex.id(), rect, uv, Color32::WHITE)
+    egui::Shape::Rect(egui::epaint::RectShape::filled(rect, round, Color32::WHITE).with_texture(tex.id(), uv))
 }

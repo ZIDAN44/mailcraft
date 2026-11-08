@@ -428,3 +428,5 @@ fn outlooks_copy_is_written_again_only_when_the_tree_reads_otherwise() {
         assert!(!r.styled.contains(crate::html::OUTLOOK_MARK) && !r.styled.contains("plaintext"), "{}", r.styled);
     }
 }
+
+mod buttons;

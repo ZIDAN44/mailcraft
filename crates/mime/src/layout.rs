@@ -40,6 +40,9 @@ const MAX_OPEN: usize = 256;
 const MAX_NODES: usize = 200_000;
 /// Boxes placed over one container, at most.
 const MAX_OVERLAYS: usize = 16;
+/// Links drawn as buttons in a message, at most (each a box of its own to lay out); past that,
+/// a button is its words on its colour, as before.
+const MAX_BUTTONS: usize = 500;
 /// How far a placed box may be moved, in pixels.
 const MAX_OFFSET: i32 = 4_000;
 
@@ -94,6 +97,15 @@ pub struct Table {
     /// Room inside each of its cells that sets none of its own (`cellpadding`, HTML's 1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub padding: Option<u16>,
+    /// As wide as what it holds, at most the room it's in, when it sets no width: CSS's
+    /// shrink-to-fit, as a browser sizes a `<table>` or a button (`inline-block`); a box laid out
+    /// with CSS (`<div>`) fills its room instead.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fit: bool,
+    /// The radius of its corners, in pixels (`border-radius`), drawn no more than half its shorter
+    /// side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius: Option<u16>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,6 +134,10 @@ pub struct Cell {
     /// that grows, as in a browser.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub height: Option<u16>,
+    /// The radius of its corners, in pixels (`border-radius`, or a VML button's `arcsize`), drawn
+    /// no more than half its shorter side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius: Option<u16>,
 }
 
 fn is_top(v: &VAlign) -> bool {
@@ -491,7 +507,7 @@ pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
         let root = parse(html);
         let mut css = String::new();
         collect_css(&root, &mut css, 0);
-        let mut ctx = Ctx { css, cells: 0, color: None };
+        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None };
         let body = find(&root, "body", 0).unwrap_or(&root);
         // A body of a set width is a column of that width, as a box would be.
         let out = if body.tag == "body" && matches!(body.width(), Some(Width::Px(_))) {

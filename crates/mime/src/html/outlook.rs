@@ -617,6 +617,9 @@ fn vml(html: &str, kept: &[std::ops::Range<usize>]) -> (String, bool) {
                 if let Some(c) = fill {
                     out.push_str(&format!(";background-color:{c}"));
                 }
+                if kind == "roundrect" {
+                    out.push_str(&rounded(text));
+                }
                 let style_end = out.len();
                 out.push_str("\">");
                 shapes.push((tag_name.to_string(), style_end));
@@ -657,6 +660,45 @@ fn vml(html: &str, kept: &[std::ops::Range<usize>]) -> (String, bool) {
         out.push_str(&format!("</{tag_name}>"));
     }
     (with_fills(out, fills), shown)
+}
+
+/// What a VML button (`v:roundrect`, its tag `tag`) says of its box, as CSS: its size (`width`
+/// and `height` in its style), its words in the middle of it, and its corners, `arcsize` a share
+/// of its shorter side (`10%`, `0.1`, or in 65536ths, `6554f`; VML's 0.2 when it says none), at
+/// most half of it. Only numbers MailCraft writes go into the style.
+fn rounded(tag: &str) -> String {
+    let style = attr(tag, "style").unwrap_or_default().to_ascii_lowercase();
+    let side = |prop: &str| {
+        let v = style.split(';').find_map(|d| d.split_once(':').filter(|(p, _)| p.trim() == prop).map(|(_, v)| v.trim().to_string()))?;
+        crate::layout::length_px(&v).filter(|px| *px >= 1.0).map(|px| px.min(4000.0).round())
+    };
+    let (w, h) = (side("width"), side("height"));
+    let mut out = String::from(";text-align:center");
+    if let Some(w) = w {
+        out.push_str(&format!(";width:{w}px"));
+    }
+    if let Some(h) = h {
+        out.push_str(&format!(";height:{h}px"));
+    }
+    let arc = match attr(tag, "arcsize").map(|a| a.trim().to_ascii_lowercase()) {
+        None => Some(0.2),
+        Some(a) => match (a.strip_suffix('%'), a.strip_suffix('f')) {
+            (Some(pc), _) => pc.trim().parse::<f32>().ok().map(|p| p / 100.0),
+            (_, Some(f)) => f.trim().parse::<f32>().ok().map(|f| f / 65536.0),
+            _ => a.parse::<f32>().ok(),
+        },
+    };
+    let shorter = match (w, h) {
+        (Some(w), Some(h)) => Some(w.min(h)),
+        (one, other) => one.or(other),
+    };
+    if let (Some(arc), Some(shorter)) = (arc.filter(|a| a.is_finite() && *a > 0.0), shorter) {
+        let r = (arc.min(0.5) * shorter).round();
+        if r >= 1.0 {
+            out.push_str(&format!(";border-radius:{r}px"));
+        }
+    }
+    out
 }
 
 /// `out` with each shape's fill put into its style, in one pass (`at` in order: shapes are

@@ -3,12 +3,16 @@
 
 use super::*;
 
+mod measure;
+pub(crate) use measure::{Fit, measured};
+
 impl Body<'_> {
     /// A table row: its cells side by side, or one under the other when there's no room.
     /// `columns`: the widths the table's columns ask for (a width set in one row is the whole
-    /// column's, as HTML sizes columns). Side by side, the row is as tall as its tallest cell (or
-    /// the height one asks for, issue #47): each cell's background fills it, and its content sits
-    /// at the top, in the middle or at the bottom, as its `valign` says. Heights are those the
+    /// column's, as HTML sizes columns), and `content` what they hold ([`measure`]). Side by
+    /// side, the row is as tall as its tallest cell (or the height one asks for, issue #47): each
+    /// cell's background fills it, and its content sits at the top, in the middle or at the
+    /// bottom, as its `valign` says. Heights are those the
     /// cells' content took the frame before (egui lays out once), so a row settles a frame on.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn row(
@@ -17,12 +21,13 @@ impl Body<'_> {
         ui: &mut Ui,
         row: &[mime::layout::Cell],
         columns: &[Option<mime::layout::Width>],
+        content: &[Option<Fit>],
         width: f32,
         page: [u8; 3],
         room: Room,
         depth: usize,
     ) {
-        let (widths, stack) = cell_widths(row, columns, width, room.spacing);
+        let (widths, stack) = cell_widths(row, columns, content, width, room.spacing);
         let heights_id = ui.next_auto_id().with("cell-heights");
         let known: Vec<f32> = ui.ctx().data(|d| d.get_temp(heights_id)).unwrap_or_default();
         // Each cell's padding: its own, else its table's.
@@ -42,7 +47,9 @@ impl Body<'_> {
             let mut content = 0.0;
             ui.allocate_ui_with_layout(vec2(w, 0.0), egui::Layout::top_down(Align::Min), |ui| {
                 ui.set_width(w);
-                let framed = egui::Frame::new().fill(fill).inner_margin(room_margin(pad)).show(ui, |ui| {
+                // Its colour (and picture) drawn under its content once its size is known, with its
+                // corners as round as it says.
+                let framed = egui::Frame::new().inner_margin(room_margin(pad)).show(ui, |ui| {
                     let slot = ui.painter().add(egui::Shape::Noop);
                     let inner = (w - pad[1] - pad[3]).max(1.0);
                     ui.set_width(inner);
@@ -54,9 +61,7 @@ impl Body<'_> {
                     slot
                 });
                 let rect = framed.response.rect;
-                if let Some(tex) = &behind {
-                    ui.painter().set(framed.inner, cover(tex, rect));
-                }
+                ui.painter().set(framed.inner, backdrop(rect, c.radius, fill, behind.as_ref()));
                 // Boxes placed over it; the cell grows to hold any that reach past its end.
                 let mut bottom = rect.bottom();
                 for o in &c.overlays {
@@ -97,12 +102,43 @@ impl Body<'_> {
     }
 }
 
+/// A box's colour and the picture behind it, filling `rect` with corners `radius` round, at most
+/// half its shorter side (as CSS draws a radius too big for its box).
+pub(super) fn backdrop(rect: egui::Rect, radius: Option<u16>, fill: Color32, behind: Option<&egui::TextureHandle>) -> egui::Shape {
+    let round = corner(radius, rect);
+    let mut shapes = Vec::new();
+    if fill != Color32::TRANSPARENT {
+        shapes.push(egui::Shape::Rect(egui::epaint::RectShape::filled(rect, round, fill)));
+    }
+    if let Some(tex) = behind {
+        shapes.push(cover(tex, rect, round));
+    }
+    egui::Shape::Vec(shapes)
+}
+
+/// A radius in pixels as egui draws it on `rect`: no more than half its shorter side.
+pub(crate) fn corner(radius: Option<u16>, rect: egui::Rect) -> egui::CornerRadius {
+    let most = (rect.width().min(rect.height()) / 2.0).max(0.0);
+    let r = radius.map_or(0.0, f32::from).min(most).min(f32::from(u8::MAX));
+    egui::CornerRadius::same(r.round() as u8)
+}
+
 /// Each cell's width in a row `width` wide, `spacing` between the cells, `columns` the widths the
-/// table's columns ask for; and whether the cells stack instead, one too narrow to read beside
-/// the others. What cells ask for (pixels, or a share of the row as a browser takes it), the
-/// rest shared out by those that ask for nothing; all of it shared in proportion when they ask
-/// for more than there is.
-pub(crate) fn cell_widths(row: &[mime::layout::Cell], columns: &[Option<mime::layout::Width>], width: f32, spacing: f32) -> (Vec<f32>, bool) {
+/// table's columns ask for and `content` what they hold ([`measure`]); and whether the cells
+/// stack instead, one too narrow to read beside the others. What cells ask for (pixels, or a
+/// share of the row as a browser takes it); the rest shared out by those that ask for nothing as
+/// CSS 2.1's automatic table layout shares it (§17.5.2.2), when what they hold is measured: each
+/// as wide as its content unwrapped if they all fit, the room left over in proportion to that,
+/// else each as wide as its widest word or picture and what's left in proportion to how much
+/// more each would take (a short column narrow, a long one wide); equally when it isn't. All of
+/// it in proportion when they ask for more than there is.
+pub(crate) fn cell_widths(
+    row: &[mime::layout::Cell],
+    columns: &[Option<mime::layout::Width>],
+    content: &[Option<Fit>],
+    width: f32,
+    spacing: f32,
+) -> (Vec<f32>, bool) {
     use mime::layout::Width;
     // The room between the cells side by side comes out of the row's width.
     let between = spacing * row.len().saturating_sub(1) as f32;
@@ -111,9 +147,10 @@ pub(crate) fn cell_widths(row: &[mime::layout::Cell], columns: &[Option<mime::la
         Width::Px(px) => px as f32,
         Width::Percent(pc) => width * f32::from(pc) / 100.0,
     };
-    // Widths: what cells (or their columns) ask for, the rest shared by the others.
+    // Widths: what cells (or their columns) ask for, the rest shared by the others; and what
+    // each holds, from its columns' measures (those it spans, and the room between them).
     let mut col = 0usize;
-    let asked: Vec<Option<f32>> = row
+    let (asked, fits): (Vec<Option<f32>>, Vec<Option<Fit>>) = row
         .iter()
         .map(|c| {
             let span = usize::from(c.span.max(1));
@@ -122,18 +159,46 @@ pub(crate) fn cell_widths(row: &[mime::layout::Cell], columns: &[Option<mime::la
                 (parts.len() == span && parts.iter().all(Option::is_some)).then(|| parts.iter().flatten().map(|w| px(*w)).sum::<f32>())
             };
             let w = c.width.map(px).or_else(from_columns);
-            col += span;
-            w
+            let gaps = spacing * span.saturating_sub(1) as f32;
+            let fit = content.get(col..col.saturating_add(span)).filter(|parts| parts.len() == span).and_then(|parts| {
+                parts.iter().try_fold(Fit { min: gaps, max: gaps }, |a, p| p.map(|p| Fit { min: a.min + p.min, max: a.max + p.max }))
+            });
+            col = col.saturating_add(span);
+            (w, fit)
         })
-        .collect();
+        .unzip();
     let fixed: f32 = asked.iter().flatten().sum();
     let free = asked.iter().filter(|a| a.is_none()).count();
-    let mut widths: Vec<f32> = if fixed > width || (free > 0 && width - fixed < MIN_COLUMN * free as f32) {
-        // Asked for more than there is: shared out in proportion.
-        let total: f32 = asked.iter().map(|a| a.unwrap_or(MIN_COLUMN)).sum::<f32>().max(1.0);
-        asked.iter().map(|a| a.unwrap_or(MIN_COLUMN) / total * width).collect()
+    let room = width - fixed;
+    // CSS's automatic layout, when every cell that asks for nothing is measured.
+    let auto = free > 0 && asked.iter().zip(&fits).all(|(a, f)| a.is_some() || f.is_some());
+    let unasked = || asked.iter().zip(&fits).filter(|(a, _)| a.is_none()).filter_map(|(_, f)| *f);
+    let least: f32 = if auto { unasked().map(|f| f.min).sum() } else { MIN_COLUMN * free as f32 };
+    let mut widths: Vec<f32> = if fixed > width || (free > 0 && room < least) {
+        // Asked for more than there is: shared out in proportion (by what those that ask for
+        // nothing can't do without, measured).
+        let base = |a: &Option<f32>, f: &Option<Fit>| a.unwrap_or_else(|| if auto { f.map_or(MIN_COLUMN, |f| f.min.max(1.0)) } else { MIN_COLUMN });
+        let total: f32 = asked.iter().zip(&fits).map(|(a, f)| base(a, f)).sum::<f32>().max(1.0);
+        asked.iter().zip(&fits).map(|(a, f)| base(a, f) / total * width).collect()
+    } else if auto {
+        let (most, least_sum) = unasked().fold((0.0f32, 0.0f32), |(m, l), f| (m + f.max, l + f.min));
+        let spread = most - least_sum;
+        asked
+            .iter()
+            .zip(&fits)
+            .map(|(a, f)| match (a, f) {
+                (Some(a), _) => *a,
+                // All of them unwrapped, and the room left over in proportion to that.
+                (None, Some(f)) if most <= room => f.max + if most > 0.0 { (room - most) * f.max / most } else { (room - most) / free as f32 },
+                // Each its widest word, and the rest in proportion to how much more it would take.
+                (None, Some(f)) => {
+                    f.min + if spread > 0.0 { (room - least_sum) * (f.max - f.min) / spread } else { (room - least_sum) / free as f32 }
+                }
+                (None, None) => 0.0,
+            })
+            .collect()
     } else {
-        let each = if free > 0 { (width - fixed) / free as f32 } else { 0.0 };
+        let each = if free > 0 { room / free as f32 } else { 0.0 };
         asked.iter().map(|a| a.unwrap_or(each)).collect()
     };
     // Room left over: shared by the cells that ask for a share of the row, in proportion, as a
@@ -154,9 +219,20 @@ pub(crate) fn cell_widths(row: &[mime::layout::Cell], columns: &[Option<mime::la
         *last += width - used;
     }
     // Stacked when a column is squeezed too narrow to read; one as narrow as it asks (a
-    // business card's photo, issue #11) stays beside the others.
-    let squeezed = |w: f32, asked: Option<f32>| w < MIN_COLUMN && asked.is_none_or(|a| w + 0.5 < a);
-    let stack = row.len() > 1 && widths.iter().zip(row).zip(&asked).any(|((w, c), a)| squeezed(*w, *a) && !c.blocks.is_empty());
+    // business card's photo, issue #11), or as its content (measured), stays beside the others:
+    // one measured is squeezed when it can't hold its widest word, or when the row has less room
+    // than an even share of it would need and it would take more.
+    let even = if free > 0 { room / free as f32 } else { f32::INFINITY };
+    let squeezed = |w: f32, asked: Option<f32>, fit: Option<Fit>| {
+        w < MIN_COLUMN
+            && match (asked, fit) {
+                (Some(a), _) => w + 0.5 < a,
+                (None, Some(f)) if auto => w + 0.5 < f.min || (even < MIN_COLUMN && w + 0.5 < f.max),
+                (None, _) => true,
+            }
+    };
+    let stack =
+        row.len() > 1 && widths.iter().zip(row).zip(asked.iter().zip(&fits)).any(|((w, c), (a, f))| squeezed(*w, *a, *f) && !c.blocks.is_empty());
     (widths, stack)
 }
 

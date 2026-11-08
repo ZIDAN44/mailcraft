@@ -183,6 +183,74 @@ impl Node {
         out
     }
 
+    /// The radius of its corners its style sets (`border-radius`: its first length, every corner
+    /// drawn alike), in pixels; `None` for none, or for a share of its size (`50%`).
+    pub(super) fn radius(&self) -> Option<u16> {
+        let v = self.style("border-radius")?;
+        let first = v.split(|c: char| c.is_whitespace() || c == '/').find(|p| !p.is_empty())?;
+        let px = length_px(first)?;
+        (px >= 0.5).then(|| (px.round() as u16).min(MAX_ROOM))
+    }
+
+    /// A link drawn as a button: a box of its own (`display: inline-block` or `block`) on a colour
+    /// of its own, with room around its words, round corners or a size (a newsletter's "Shop
+    /// now", or Outlook's VML one, made such a link as it's read).
+    pub(super) fn button(&self) -> bool {
+        self.tag == "a"
+            && self.attr("href").is_some()
+            && !self.hidden()
+            && self.style("display").is_some_and(|d| d == "inline-block" || d == "block")
+            && self.background().is_some()
+            && self.background_image().is_none()
+            && (self.padding().is_some() || self.radius().is_some() || self.width().is_some() || self.button_height().is_some())
+    }
+
+    /// How tall a button is at least: its `height`, or its one line's `line-height` in pixels or
+    /// points (a number alone is a share of its text's size, not a height).
+    pub(super) fn button_height(&self) -> Option<u16> {
+        let line = self.style("line-height").filter(|v| v.ends_with("px") || v.ends_with("pt")).and_then(|v| length_px(&v));
+        let line = line.filter(|px| *px >= 1.0).map(|px| (px.round() as u16).min(MAX_CELL_HEIGHT));
+        self.min_height().max(line)
+    }
+
+    /// The one button it holds, through wrappers that hold nothing else and have no colour of
+    /// their own (`<p>`, `<div>`, `<center>`, `<span>`, `<b>`…), and where the innermost of them
+    /// that says puts it across.
+    pub(super) fn only_button(&self, depth: usize) -> Option<(&Node, Align)> {
+        if self.button() {
+            return Some((self, Align::Left));
+        }
+        let wrapper = matches!(self.tag.as_str(), "div" | "p" | "center" | "span" | "font" | "b" | "strong" | "em" | "i");
+        if depth > 4 || !wrapper || self.hidden() || self.background().is_some() || self.background_image().is_some() {
+            return None;
+        }
+        let mut shown = self.kids.iter().filter(|k| match k {
+            Kid::Text(t) => !t.trim().is_empty(),
+            Kid::El(n) => !n.hidden(),
+        });
+        let (Some(Kid::El(only)), None) = (shown.next(), shown.next()) else { return None };
+        let (b, inner) = only.only_button(depth + 1)?;
+        let own = if self.tag == "center" { Align::Center } else { self.align() };
+        Some((b, if inner == Align::Left { own } else { inner }))
+    }
+
+    /// A button's link without its box (its colour, room, corners and size are its cell's), and
+    /// without a class or id a style sheet could give them back by: its words and their look.
+    pub(super) fn as_link(&self) -> Node {
+        let keep = |p: &str| matches!(p, "color" | "text-decoration" | "text-transform" | "letter-spacing") || p.starts_with("font");
+        let style: Vec<&str> = self
+            .attr("style")
+            .unwrap_or("")
+            .split(';')
+            .filter(|d| d.split_once(':').is_some_and(|(p, _)| keep(&p.trim().to_ascii_lowercase())))
+            .collect();
+        let mut attrs: Vec<(String, String)> = self.attrs.iter().filter(|(k, _)| k == "href" || k == "title").cloned().collect();
+        if !style.is_empty() {
+            attrs.push(("style".into(), style.join(";")));
+        }
+        Node { tag: "a".into(), attrs, kids: self.kids.iter().map(copy).collect() }
+    }
+
     /// A table's room between and around its cells (`cellspacing`; HTML's 2 when not said).
     pub(super) fn cell_spacing(&self) -> u16 {
         if self.style("border-collapse").is_some_and(|c| c == "collapse") {

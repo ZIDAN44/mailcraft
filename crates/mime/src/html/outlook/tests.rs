@@ -93,7 +93,7 @@ fn vml_is_read_as_html() {
     let button = r##"<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="https://shop.example/sale" style="height:44px;v-text-anchor:middle;width:200px" arcsize="50%" stroke="f" fillcolor="#d6336c"><w:anchorlock/><center style="color:#ffffff">Shop the sale</center></v:roundrect><![endif]--><a href="https://shop.example/sale" style="background:#d6336c;mso-hide:all">Shop the sale</a>"##;
     let read = as_outlook_reads(button);
     assert!(
-        read.starts_with(r##"<a href="https://shop.example/sale" style="display:inline-block;background-color:#d6336c"><w:anchorlock/><span style="color:#ffffff">Shop the sale</span></a>"##),
+        read.starts_with(r##"<a href="https://shop.example/sale" style="display:inline-block;background-color:#d6336c;text-align:center;width:200px;height:44px;border-radius:22px"><w:anchorlock/><span style="color:#ffffff">Shop the sale</span></a>"##),
         "{read}"
     );
     let banner = r##"<!--[if gte mso 9]><v:rect fill="true" stroke="false" style="width:600px"><v:fill type="frame" src="https://img.example/banner.jpg" color="#1f2a44"/><v:textbox inset="0,0,0,0"><![endif]--><h1>Autumn</h1><!--[if gte mso 9]></v:textbox></v:rect><![endif]-->"##;
@@ -110,7 +110,7 @@ fn vml_is_read_as_html() {
     assert_eq!(read, "<head></head><p>x</p>", "no stray 96");
     // Quotes and brackets in a value don't get out of it.
     let read = as_outlook_reads(r#"<v:roundrect href='https://x.example/"><script>' fillcolor="red;}<b>">Go</v:roundrect>"#);
-    assert_eq!(read, r#"<div style="display:block">Go</div>"#);
+    assert_eq!(read, r#"<div style="display:block;text-align:center">Go</div>"#);
     // Shapes left open are closed.
     assert_eq!(as_outlook_reads(r#"<v:rect><p>x</p>"#), r#"<div style="display:block"><p>x</p></div>"#);
 }
@@ -219,7 +219,7 @@ fn a_vml_buttons_words_come_once() {
 #[test]
 fn attributes_are_read_as_a_browser_reads_them() {
     let read = as_outlook_reads(r#"<v:roundrect title=" href=https://evil.example/" href="https://bank.example/">Go</v:roundrect>"#);
-    assert_eq!(read, r#"<a href="https://bank.example/" style="display:inline-block">Go</a>"#);
+    assert_eq!(read, r#"<a href="https://bank.example/" style="display:inline-block;text-align:center">Go</a>"#);
     let read = as_outlook_reads(r#"<v:rect><v:fill src="a;display:none;x:" /><p>x</p></v:rect>"#);
     assert_eq!(read, r#"<div style="display:block"><p>x</p></div>"#);
 }
@@ -262,7 +262,7 @@ fn addresses_with_parameters_are_kept() {
     let read = as_outlook_reads(
         r#"<v:roundrect href="https://x.example/&quot; onclick=&quot;x">Go</v:roundrect><v:rect><v:fill src="a&#59;display:none"/></v:rect>"#,
     );
-    assert_eq!(read, r#"<div style="display:block">Go</div><div style="display:block"></div>"#);
+    assert_eq!(read, r#"<div style="display:block;text-align:center">Go</div><div style="display:block"></div>"#);
 }
 
 /// Words enough to be warned of, were they hidden.

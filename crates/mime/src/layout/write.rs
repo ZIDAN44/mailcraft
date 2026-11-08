@@ -60,11 +60,12 @@ fn write(blocks: &[Block], text: &mut dyn FnMut(usize) -> String, n: &mut usize,
                     for c in row {
                         let span = if c.span > 1 { format!(" colspan=\"{}\"", c.span) } else { String::new() };
                         out.push_str(&format!(
-                            "<td valign=\"top\"{}{span}{}{}{} style=\"padding:6px\">",
+                            "<td valign=\"top\"{}{span}{}{}{} style=\"padding:6px{}\">",
                             width(c.width),
                             c.background.map(|c| format!(" bgcolor=\"{}\"", hex(c))).unwrap_or_default(),
                             align(c.align),
                             c.background_image.as_deref().map(|s| format!(" background=\"{}\"", esc(s))).unwrap_or_default(),
+                            c.radius.map(|r| format!(";border-radius:{r}px")).unwrap_or_default(),
                         ));
                         // Boxes placed over the cell's content: in a box of its own they're placed in.
                         if !c.overlays.is_empty() {

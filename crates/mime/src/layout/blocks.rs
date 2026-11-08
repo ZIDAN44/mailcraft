@@ -6,6 +6,8 @@ pub(super) struct Ctx {
     /// The message's `<style>` blocks, given to each piece of text (for colours and hidden parts).
     pub(super) css: String,
     pub(super) cells: usize,
+    /// Links drawn as buttons so far ([`MAX_BUTTONS`]).
+    pub(super) buttons: usize,
     /// The text colour the boxes around inherit to the text inside (a cell's `color`).
     pub(super) color: Option<String>,
 }
@@ -86,6 +88,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         padding: c.padding(),
                                         valign: c.valign().or(row_valign).unwrap_or(VAlign::Middle),
                                         height: c.min_height().max(row_height),
+                                        radius: c.radius(),
                                     }
                                 })
                                 .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
@@ -105,6 +108,9 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     background_image: n.background_image(),
                     spacing: Some(n.cell_spacing()),
                     padding: Some(n.cell_padding()),
+                    // A table that sets no width is as wide as what it holds, as in a browser.
+                    fit: n.width().is_none(),
+                    radius: n.radius(),
                 }));
             }
             // A box with others placed over it: its content, and theirs on top.
@@ -138,6 +144,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     span: 1,
                     overlays,
                     padding: n.padding(),
+                    radius: n.radius(),
                     ..Default::default()
                 };
                 out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), ..Default::default() }));
@@ -156,9 +163,20 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     align: n.align(),
                     span: 1,
                     padding: n.padding(),
+                    radius: n.radius(),
                     ..Default::default()
                 };
                 out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), ..Default::default() }));
+            }
+            // A link drawn as a button (in wrappers that hold nothing else): a box of its own, as
+            // wide as its words and room unless it sets a width, as tall as it says at least.
+            Kid::El(n) if depth < MAX_DEPTH && ctx.buttons < MAX_BUTTONS && n.only_button(0).is_some() => {
+                let Some((b, align)) = n.only_button(0) else { continue };
+                flush(&mut pending, &mut out, ctx);
+                let width = b.width();
+                let block = b.style("display").is_some_and(|d| d == "block");
+                let cell = button_cell(b, ctx, depth);
+                out.push(Block::Table(Table { rows: vec![vec![cell]], width, align, fit: width.is_none() && !block, ..Default::default() }));
             }
             // Boxes side by side with CSS: a table of one row per line of boxes.
             Kid::El(n) if depth < MAX_DEPTH && n.columns().is_some() => {
@@ -171,6 +189,10 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                             row.into_iter()
                                 .map(|c| {
                                     ctx.cells += 1;
+                                    // Buttons side by side: each its box, its words still a link.
+                                    if c.button() && ctx.buttons < MAX_BUTTONS && ctx.cells <= MAX_CELLS {
+                                        return Cell { width: c.width(), valign: c.valign().unwrap_or_default(), ..button_cell(c, ctx, depth) };
+                                    }
                                     // A box's own content (its children when it has them, else itself).
                                     let content = if c.kids.is_empty() { vec![] } else { colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth + 1)) };
                                     Cell {
@@ -184,6 +206,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         padding: c.padding(),
                                         valign: c.valign().unwrap_or_default(),
                                         height: c.min_height(),
+                                        radius: c.radius(),
                                     }
                                 })
                                 .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
@@ -199,8 +222,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                         align: n.table_align(),
                         background: n.background(),
                         background_image: n.background_image(),
-                        spacing: None,
-                        padding: None,
+                        ..Default::default()
                     }));
                 }
             }
@@ -219,7 +241,14 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 let inner = colored(ctx, n, |ctx| blocks(&n.kids, ctx, depth + 1));
                 if !inner.is_empty() {
                     out.push(Block::Table(Table {
-                        rows: vec![vec![Cell { blocks: inner, align: Align::Center, background: n.background(), span: 1, ..Default::default() }]],
+                        rows: vec![vec![Cell {
+                            blocks: inner,
+                            align: Align::Center,
+                            background: n.background(),
+                            span: 1,
+                            radius: n.radius(),
+                            ..Default::default()
+                        }]],
                         width: None,
                         align: Align::Center,
                         background: None,
@@ -243,6 +272,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                             background: n.background(),
                             span: 1,
                             padding: n.padding(),
+                            radius: n.radius(),
                             ..Default::default()
                         }]],
                         width: n.width(),
@@ -278,6 +308,30 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     out
 }
 
+/// A link drawn as a button: one cell of its colour, with its room, corners and height, its words
+/// (the link, without the box's own styles) in the middle of it.
+fn button_cell(b: &Node, ctx: &mut Ctx, depth: usize) -> Cell {
+    ctx.buttons += 1;
+    let link = b.as_link();
+    // Its words without the message's style sheets: their rules are in each element's style
+    // already ([`inline_css`]), and read again for each of a newsletter's buttons they made it
+    // a third slower to read.
+    let sheets = std::mem::take(&mut ctx.css);
+    let words = colored(ctx, b, |ctx| blocks(&[Kid::El(link)], ctx, depth + 1));
+    ctx.css = sheets;
+    Cell {
+        blocks: words,
+        background: b.background(),
+        align: b.align(),
+        span: 1,
+        padding: Some(b.padding().unwrap_or_default()),
+        valign: VAlign::Middle,
+        height: b.button_height(),
+        radius: b.radius(),
+        ..Default::default()
+    }
+}
+
 /// The width of a cell that holds a picture of a set width and nothing else (a business card's
 /// photo beside its details): the picture's and a little room, as a browser fits the column to
 /// it, rather than half the table.
@@ -296,8 +350,8 @@ fn picture_width(blocks: &[Block]) -> Option<Width> {
 }
 
 /// Whether any table puts content side by side, or a picture behind it, or boxes over it, or is
-/// a set number of pixels wide (a centred 600-pixel column): a layout worth keeping (otherwise the
-/// text flows, the width of the window).
+/// a set number of pixels wide (a centred 600-pixel column), or a box of colour has round corners
+/// (a button): a layout worth keeping (otherwise the text flows, the width of the window).
 pub(super) fn has_columns(b: &[Block]) -> bool {
     b.iter().any(|b| match b {
         Block::Text(_) => false,
@@ -305,7 +359,10 @@ pub(super) fn has_columns(b: &[Block]) -> bool {
             matches!(t.width, Some(Width::Px(_)))
                 || t.background_image.is_some()
                 || t.rows.iter().any(|r| r.iter().filter(|c| !c.blocks.is_empty()).count() > 1)
-                || t.rows.iter().flatten().any(|c| c.background_image.is_some() || !c.overlays.is_empty() || has_columns(&c.blocks))
+                || (t.radius.is_some() && t.background.is_some())
+                || t.rows.iter().flatten().any(|c| {
+                    c.background_image.is_some() || !c.overlays.is_empty() || (c.radius.is_some() && c.background.is_some()) || has_columns(&c.blocks)
+                })
         }
     })
 }
