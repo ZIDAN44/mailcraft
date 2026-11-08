@@ -472,6 +472,8 @@ pub fn html_layout(html: &str) -> Vec<Block> {
 
 /// [`html_layout`], up to `max` characters of `html` (as [`crate::html::html_to_rich_within`]).
 pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
+    // A table's footer at its end, as in the message's text (`html::footers_last`).
+    let html = &*crate::html::footers_last(html);
     let lower = html.to_ascii_lowercase();
     if !(lower.contains("<table")
         || lower.contains("flex")
