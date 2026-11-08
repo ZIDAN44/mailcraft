@@ -140,11 +140,8 @@ working.
 `crates/net/src/data_files/pst.rs` opens a `.pst` file (Outlook data file) as an account with no
 server.
 
-- It reads the file with the fork
-  [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs) and rebuilds each item as a
-  standard message.
-- It treats the file as hostile input. Reading runs behind `catch_unwind`, bad items are skipped
-  and counted, and sizes are capped.
+- It reads the file with MailCraft's own `pst` crate and rebuilds each item as a standard message.
+- It treats the file as hostile input. Bad items are skipped and counted, and sizes are capped.
 - It refuses `.ost` files.
 
 ## In the browser

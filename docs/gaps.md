@@ -19,10 +19,9 @@ fixed moves to the changelog.
   storytold/egui's `containers/menu.rs`. The editor shows mixed lines in the order egui lays them
   out.
 
-### 2. `.pst` files: what the libraries can't do
+### 2. `.pst` files: a moved data folder
 
-MailCraft imports and exports every item kind in `.pst` files (Outlook data files) through the
-fork ZIDAN44/outlook-pst-rs, branch `craft/rw-1.2.14`.
+MailCraft imports and exports every item kind in `.pst` files (Outlook data files).
 
 - **Impact:** If you move a data folder to a new path, the `.mailcraft` copies it keeps beside
   opened `.pst` files look free to any other data folder.

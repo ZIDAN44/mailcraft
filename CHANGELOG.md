@@ -20,6 +20,9 @@ on GitHub.
 - The boxes you type a time into (an event's start and end, a task's reminder, Delay delivery) show it on the 12-hour clock when File › Options sets one, and take `1:30 PM`, `1pm`, `12 AM` or each language's own way of writing it, as well as `13:30`.
 - A newsletter's buttons are drawn as buttons, with their round corners, and Outlook's at the size its copy gives them; columns that set no width are as wide as what they hold, as in a browser.
 
+### Changed
+- Outlook data files (`.pst`) are read and written by MailCraft's own code, written from Microsoft's published specification, in place of a third-party library. Files import as before, and those MailCraft makes or adds to open in Outlook.
+
 ### Fixed
 - Removing an account while its `.pst` import was still writing could leave a new account added with the same id writing into the removed account's kept data file. The two now never share a file.
 - Sending greets the server with this computer's own address (`EHLO [192.168.1.20]`, as Thunderbird does) instead of `[127.0.0.1]`, which some providers' spam filters took as a reason to drop the message after accepting it (#50).

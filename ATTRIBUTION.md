@@ -15,11 +15,10 @@ the fonts listed in [storytold/craft-fonts](https://github.com/storytold/craft-f
 About page. The app icon files in `assets/app-icon/`
 are rendered by `cargo xtask icons` from MailCraft's own drawing in `xtask/src/icons.rs`.
 
-Third-party code built from a fork rather than taken from crates.io as it is published:
-Dong Shin's [outlook-pst-rw](https://github.com/dongs0104/outlook-pst-rs) 1.2.14 (MIT, its
-`LICENSE`), a fork of Microsoft's [outlook-pst](https://github.com/microsoft/outlook-pst-rs) reader
-with a writer added, from [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs)'s
-`craft/rw-1.2.14` branch with the fixes listed in its `PATCHES.md`. It adds no asset files.
+`crates/pst` was written from Microsoft's published MS-PST specification. Microsoft's
+[outlook-pst](https://github.com/microsoft/outlook-pst-rs) reader and Dong Shin's
+[outlook-pst-rw](https://github.com/dongs0104/outlook-pst-rs) writer (both MIT) were read to check
+how real files behave, and its results were compared with theirs.
 
 | Path | Author | Source | Licence |
 |---|---|---|---|

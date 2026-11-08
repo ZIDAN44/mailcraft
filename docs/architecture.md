@@ -30,11 +30,12 @@ In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JM
 | L1 | `mailcraft-mime` | model | Parse and build MIME (`mail-parser`, `mail-builder`); turn HTML into text (`html2text`, `html5ever`) |
 | L1 | `mailcraft-store` | model | The local cache: one redb data file per account, or plain files plus JSON; atomic writes; the search index |
 | L1 | `mailcraft-print` | — | Messages as PDF pages, with an embedded TrueType font |
+| L1 | `mailcraft-pst` | — | Outlook data files (MS-PST): read them (wasm-safe), add to them and write new ones |
 | L1 | `mailcraft-smime` | — | S/MIME (RFC 8551) on RustCrypto, with keys behind a `PrivateKey` trait; wasm-safe |
 | L1 | `mailcraft-pgp` | — | OpenPGP (RFC 9580) on rPGP: keys and their self-signatures, signing, encrypting, decrypting, verifying; Autocrypt headers; inline PGP blocks; wasm-safe |
 | L2 | `mailcraft-keys` | smime | Keys on smart cards (PKCS #11), in the macOS Keychain and in the Windows certificate store; native only |
 | L2 | `mailcraft-jmap` | model, mime, store | JMAP, async over a two-method `Http` trait; wasm-safe |
-| L3 | `mailcraft-net` | model, mime, store, jmap | All network and `.pst` I/O; native only; TLS through `rustls` |
+| L3 | `mailcraft-net` | model, mime, store, pst, jmap | All network and `.pst` I/O; native only; TLS through `rustls` |
 | L4 | `mailcraft-engine` | model, mime, store | The sans-I/O `Session` and the command registry; wasm-safe |
 | L6 | `mailcraft-ui-egui` | engine | The egui interface; platform services behind traits; interface languages |
 
@@ -47,8 +48,10 @@ In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JM
   HTTP), CalDAV/CardDAV, ManageSieve, HTTP, DNS and OAuth.
 - `keys` is the one crate with `unsafe`. The crate denies it, and only `windows/cng.rs` and
   `macos/sec.rs` allow it.
-- `.pst` files (Outlook data files) go through one crate, `outlook-pst-rw`, from the fork
-  [ZIDAN44/outlook-pst-rs](https://github.com/ZIDAN44/outlook-pst-rs) (branch `craft/rw-1.2.14`).
+- `.pst` files (Outlook data files) go through MailCraft's own crate, `pst`, written from
+  Microsoft's published [MS-PST](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-pst/)
+  specification. It reads both formats (Unicode and the older ANSI), adds to files and makes new
+  ones, and holds only what MailCraft uses.
 - **Portable crates start no threads.** Slow window work, such as decoding pictures and video
   frames or parsing the open message, goes through `Services::background` to a *lane*: a named
   queue of background jobs. The desktop runs one thread per lane

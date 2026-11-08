@@ -76,7 +76,7 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 | Layer | Crate | Job |
 |---|---|---|
 | L0 | `model` | data model, jobs/events, threading, search, dates (pure, wasm) |
-| L1 | `mime`, `store`, `print`, `smime`, `pgp` | MIME parse/build; the cache (on disk, or in memory for the browser); PDF export; S/MIME; OpenPGP |
+| L1 | `mime`, `store`, `pst`, `print`, `smime`, `pgp` | MIME parse/build; the cache (on disk, or in memory for the browser); Outlook data files; PDF export; S/MIME; OpenPGP |
 | L2 | `jmap`, `keys` | the JMAP transport, async over any HTTP client (portable, wasm); keys on smart cards, in the macOS Keychain and the Windows certificate store (native only) |
 | L3 | `net` | IMAP client + sync, SMTP, JMAP push, Microsoft Graph, CalDAV/CardDAV, ManageSieve, `.pst` import, HTTP/DNS/OAuth, worker pool (native only) |
 | L4 | `engine` | sans-I/O `Session` + command registry |
@@ -133,8 +133,7 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
   issue (or a small PR there, safe for every app and no slower). `deny.yml`, `fuzz.yml` and
   `release-wip.yml` still run their own jobs: nothing is added to them, and each moves only as a
   task of its own, once a shared workflow runs it.
-- The shared release takes git dependencies from `github.com/storytold/` only; the `.pst` fork
-  pinned from ZIDAN44 stops a release there until it's moved or allowed (the owner's call).
+- The shared release takes git dependencies from `github.com/storytold/` only.
 
 ## Running and looking at the app
 - `cargo run -p mailcraft -- --sample` (local sample mailbox). Script it at start-up:

@@ -1,6 +1,6 @@
 # Dependency updates, as the other Craft apps get them: one grouped pull request per ecosystem,
 # weekly rather than their daily (each pull request runs the CI gate on three systems). The forks
-# pinned by revision (storytold's egui and winit, craft-libs, the .pst fork) aren't touched: they
+# pinned by revision (storytold's egui and winit, craft-libs) aren't touched: they
 # move with the suite, by hand. Actions pinned by commit are kept current here too (as
 # `npx actions-up` does); craft-common-actions stays on @main on purpose.
 version: 2
