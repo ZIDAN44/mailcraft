@@ -160,8 +160,8 @@ impl eframe::App for Window {
             // Started again meanwhile: this window comes forward, and opens what was handed over
             // once MailCraft is in it.
             Window::Booting(b) => {
-                if let Some(keep) = &b.frame_guard {
-                    keep();
+                if let Some(guard) = &b.frame_guard {
+                    guard.keep();
                 }
                 if let Some(handed) = b.instance.as_ref().and_then(single_instance::Server::take) {
                     single_instance::show(ctx, b.native_wayland);
@@ -192,6 +192,13 @@ impl eframe::App for Window {
             && let Some(app) = b.ui(ui)
         {
             *self = Window::Running(Box::new(app));
+        }
+        if let Window::Booting(b) = self
+            && mailcraft_ui_egui::take_zooming(ui.ctx())
+            && let Some(guard) = &b.frame_guard
+        {
+            guard.before_zoom();
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
         }
         if let Window::Running(app) = self {
             eframe::App::ui(app.as_mut(), ui, frame);

@@ -133,6 +133,16 @@ impl MailApp {
         self.ui.videos.end_frame(ctx, &mut *self.services);
     }
 
+    /// The window is told before this frame's maximize or restore by its title bar, if there is
+    /// one: the command runs after the frame.
+    fn tell_before_zooming(&mut self, ctx: &egui::Context) {
+        if super::caption::take_zooming(ctx) && self.services.own_title_bar() {
+            self.services.before_zoom();
+            // A frame after Windows' zoom animation, whatever else is going on then.
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        }
+    }
+
     /// The whole window.
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
@@ -216,6 +226,7 @@ impl MailApp {
             }
             self.send_body_work(&ctx);
             self.flush_jobs();
+            self.tell_before_zooming(&ctx);
             return;
         }
         // The File page has the window to itself, under the window's own title bar (as Outlook's).
@@ -499,6 +510,7 @@ impl MailApp {
         if std::mem::take(&mut self.ui.focus_main) {
             ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
         }
+        self.tell_before_zooming(&ctx);
         let busy = self.session.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting | SyncStatus::Syncing { .. }));
         ctx.request_repaint_after(std::time::Duration::from_secs(if busy || self.ui.toast.is_some() { 1 } else { 20 }));
     }

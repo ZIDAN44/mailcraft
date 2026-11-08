@@ -34,6 +34,24 @@ fn maximized(ctx: &egui::Context) -> bool {
     ctx.input(|i| i.viewport().maximized.unwrap_or(false))
 }
 
+/// The window's Maximize or Restore, noted for the frame's end ([`take_zooming`]) so the window
+/// is told first.
+fn toggle_maximized(ctx: &egui::Context) {
+    let max = maximized(ctx);
+    ctx.data_mut(|d| d.insert_temp(zooming_id(), true));
+    ctx.send_viewport_cmd(ViewportCommand::Maximized(!max));
+}
+
+fn zooming_id() -> Id {
+    Id::unique("title-bar-zooming")
+}
+
+/// Whether this frame's title bar asked to maximize or restore the window, the once: the command
+/// runs after the frame, so what must come before it ([`crate::Services::before_zoom`]) goes here.
+pub fn take_zooming(ctx: &egui::Context) -> bool {
+    ctx.data_mut(|d| d.remove_temp::<bool>(zooming_id())).unwrap_or(false)
+}
+
 /// The bar's free space, `rect`: a press drags the window (Windows snaps it at the screen's
 /// edges), a double-click maximizes or restores it. Laid down before the bar's own controls, so
 /// they keep their clicks; where it's laid over them (`except`, the bar's controls), a press
@@ -48,8 +66,7 @@ pub(crate) fn drag_area(ui: &mut Ui, rect: Rect, except: &[Rect]) {
         ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
     }
     if resp.double_clicked() {
-        let max = maximized(ui.ctx());
-        ui.ctx().send_viewport_cmd(ViewportCommand::Maximized(!max));
+        toggle_maximized(ui.ctx());
     }
 }
 
@@ -101,7 +118,7 @@ pub(crate) fn caption_buttons(ui: &mut Ui, t: &Tokens, bar: Rect, live: bool) {
     }
     match clicked {
         Some(Caption::Minimize) => ui.ctx().send_viewport_cmd(ViewportCommand::Minimized(true)),
-        Some(Caption::Maximize) => ui.ctx().send_viewport_cmd(ViewportCommand::Maximized(!max)),
+        Some(Caption::Maximize) => toggle_maximized(ui.ctx()),
         Some(Caption::Close) => ui.ctx().send_viewport_cmd(ViewportCommand::Close),
         None => {}
     }

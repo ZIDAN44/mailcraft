@@ -79,8 +79,14 @@ impl Services for Desktop {
     }
 
     fn keep_frame(&mut self) {
-        if let Some(keep) = &self.frame_guard {
-            keep();
+        if let Some(guard) = &self.frame_guard {
+            guard.keep();
+        }
+    }
+
+    fn before_zoom(&mut self) {
+        if let Some(guard) = &self.frame_guard {
+            guard.before_zoom();
         }
     }
 

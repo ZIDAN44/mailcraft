@@ -302,7 +302,13 @@ fn windows_of_their_own_carry_the_app_id() {
 }
 
 /// Services saying the window has no system title bar (Windows, issue #22).
-struct OwnTitleBar;
+struct OwnTitleBar(std::rc::Rc<std::cell::Cell<u32>>);
+
+impl OwnTitleBar {
+    fn new() -> OwnTitleBar {
+        OwnTitleBar(std::rc::Rc::default())
+    }
+}
 
 impl crate::Services for OwnTitleBar {
     fn clock(&self) -> (i64, i32) {
@@ -320,6 +326,73 @@ impl crate::Services for OwnTitleBar {
     fn own_title_bar(&self) -> bool {
         true
     }
+    fn before_zoom(&mut self) {
+        self.0.set(self.0.get() + 1);
+    }
+}
+
+/// MailCraft's own Maximize, Restore and double-click tell the window before winit does them, so
+/// Windows can animate them and size a maximize clear of the taskbar; Minimize doesn't, and the
+/// note is gone after the frame.
+#[test]
+fn the_window_is_told_before_its_own_title_bar_zooms_it() {
+    let (a, dir) = app("told-before-maximize");
+    let told = OwnTitleBar::new();
+    let count = std::rc::Rc::clone(&told.0);
+    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(told));
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 800.0);
+    let time = std::cell::Cell::new(0.0f64);
+    let run = |a: &mut MailApp, events: Vec<Event>, maximized: bool| {
+        time.set(time.get() + 1.0 / 60.0);
+        let mut input =
+            RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, time: Some(time.get()), ..Default::default() };
+        input.viewports.entry(egui::ViewportId::ROOT).or_default().maximized = Some(maximized);
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        out
+    };
+    let click = |at: egui::Pos2| {
+        vec![
+            Event::PointerMoved(at),
+            Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+            Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE },
+        ]
+    };
+    for _ in 0..3 {
+        run(&mut a, vec![], false);
+    }
+    let out = run(&mut a, vec![], false);
+    let tree = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
+    let at = |label: &str| {
+        tree.nodes
+            .iter()
+            .find_map(|(_, n)| {
+                let b = n.bounds()?;
+                (n.label()? == label).then(|| egui::pos2((b.x0 + b.x1) as f32 / 2.0, (b.y0 + b.y1) as f32 / 2.0))
+            })
+            .unwrap_or_else(|| panic!("{label}"))
+    };
+    let (max, min) = (at("Maximize"), at("Minimize"));
+    let free = egui::pos2(at("Send / Receive all folders (F9)").x - 20.0, 20.0);
+    run(&mut a, click(min), false);
+    run(&mut a, vec![], false);
+    assert_eq!(count.get(), 0, "Minimize says nothing");
+    run(&mut a, click(max), false);
+    assert_eq!(count.get(), 1, "the button says so, in the same frame as the command");
+    run(&mut a, vec![], false);
+    assert_eq!(count.get(), 1, "once");
+    time.set(time.get() + 1.0);
+    run(&mut a, click(free), false);
+    run(&mut a, click(free), false);
+    assert_eq!(count.get(), 2, "so does a double-click on the bar");
+    run(&mut a, vec![], true);
+    time.set(time.get() + 1.0);
+    run(&mut a, click(max), true);
+    run(&mut a, vec![], true);
+    assert_eq!(count.get(), 3, "so does Restore");
+    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// Issue #22: on Windows the top bar is the window's title bar, in MailCraft's colour as
@@ -329,7 +402,7 @@ impl crate::Services for OwnTitleBar {
 #[test]
 fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
     let (a, dir) = app("own-title-bar");
-    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar));
+    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar::new()));
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let size = egui::vec2(1280.0, 800.0);
@@ -478,7 +551,7 @@ fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
 #[test]
 fn the_title_bar_keeps_off_a_dialog_in_it_and_its_buttons_off_the_mark() {
     let (a, dir) = app("own-title-bar-short");
-    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar));
+    let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar::new()));
     let ctx = egui::Context::default();
     let time = std::cell::Cell::new(0.0f64);
     let run = |a: &mut MailApp, size: egui::Vec2, events: Vec<Event>| {

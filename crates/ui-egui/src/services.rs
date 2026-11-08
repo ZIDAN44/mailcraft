@@ -107,6 +107,8 @@ pub trait Services {
     }
     /// Once a frame while [`Services::own_title_bar`]: keep the window borderless.
     fn keep_frame(&mut self) {}
+    /// MailCraft's own title bar is about to maximize or restore the window, in this frame.
+    fn before_zoom(&mut self) {}
     /// The local time zone's IANA name (`Europe/Berlin`), when the system says.
     fn zone(&self) -> Option<String> {
         None
