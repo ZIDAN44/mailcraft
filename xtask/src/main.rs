@@ -53,7 +53,7 @@ const LAYERS: &[(&str, u8)] = &[
 
 /// Third-party crates built from a fork with fixes of ours, pinned by revision in
 /// `[patch.crates-io]`. Each fork's `PATCHES.md` lists its fixes, and its own tests prove them.
-const FORKED: &[&str] = &["outlook-pst-rw"];
+const FORKED: &[&str] = &[];
 
 /// Crates that never build for the web (sockets, threads, TLS).
 const NATIVE_ONLY: &[&str] = &["mailcraft-keys", "mailcraft-net"];
@@ -306,17 +306,17 @@ mod tests {
 
     #[test]
     fn forked_crates_are_pinned_alike() {
-        let ok = "# [patch.crates-io] below\n[patch.crates-io]\negui = { git = \"x\" }\noutlook-pst-rw = { git = \"https://f.git\", rev = \"1a\" }\n";
-        assert_eq!(pin(ok, "outlook-pst-rw").as_deref(), Some("https://f.git@1a"));
-        assert_eq!(pin(&ok.replace("1a", "2b"), "outlook-pst-rw").as_deref(), Some("https://f.git@2b"), "another revision");
-        assert_eq!(pin(&ok.replace(", rev = \"1a\"", ""), "outlook-pst-rw"), None, "a branch's head isn't a pin");
-        let elsewhere = "[dependencies]\noutlook-pst-rw = { git = \"https://f.git\", rev = \"1a\" }\n[patch.crates-io]\negui = \"1\"\n";
-        assert_eq!(pin(elsewhere, "outlook-pst-rw"), None, "only [patch.crates-io] counts");
+        let ok = "# [patch.crates-io] below\n[patch.crates-io]\negui = { git = \"x\" }\nforked-rw = { git = \"https://f.git\", rev = \"1a\" }\n";
+        assert_eq!(pin(ok, "forked-rw").as_deref(), Some("https://f.git@1a"));
+        assert_eq!(pin(&ok.replace("1a", "2b"), "forked-rw").as_deref(), Some("https://f.git@2b"), "another revision");
+        assert_eq!(pin(&ok.replace(", rev = \"1a\"", ""), "forked-rw"), None, "a branch's head isn't a pin");
+        let elsewhere = "[dependencies]\nforked-rw = { git = \"https://f.git\", rev = \"1a\" }\n[patch.crates-io]\negui = \"1\"\n";
+        assert_eq!(pin(elsewhere, "forked-rw"), None, "only [patch.crates-io] counts");
         // A crate whose name begins another's has its own pin.
-        let both = format!("{ok}outlook-pst = {{ git = \"https://f.git\", rev = \"3c\" }}\n");
-        assert_eq!(pin(&both, "outlook-pst-rw").as_deref(), Some("https://f.git@1a"));
-        assert_eq!(pin(&both, "outlook-pst").as_deref(), Some("https://f.git@3c"));
-        assert_eq!(pin(ok, "outlook-pst"), None, "another crate's pin isn't this one's");
+        let both = format!("{ok}forked = {{ git = \"https://f.git\", rev = \"3c\" }}\n");
+        assert_eq!(pin(&both, "forked-rw").as_deref(), Some("https://f.git@1a"));
+        assert_eq!(pin(&both, "forked").as_deref(), Some("https://f.git@3c"));
+        assert_eq!(pin(ok, "forked"), None, "another crate's pin isn't this one's");
         assert!(patched(&root()).is_ok(), "{:?}", patched(&root()));
     }
 
