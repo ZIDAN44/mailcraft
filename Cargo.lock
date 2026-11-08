@@ -4107,6 +4107,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-pst"
+version = "0.34.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "mailcraft-smime"
 version = "0.34.0"
 dependencies = [
