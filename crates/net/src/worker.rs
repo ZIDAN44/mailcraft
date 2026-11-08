@@ -631,6 +631,9 @@ struct Worker {
     kept: changes::KeptDrafts,
     /// The folders whose counts a sync changed and that aren't said yet ([`Worker::say_counts`]).
     counts_unsaid: Vec<String>,
+    /// Folders gone from the server whose cache was kept as changes to the folders waited to be
+    /// sent ([`Worker::relist_with`]): it goes once they're sent.
+    gone_meanwhile: Vec<String>,
     /// How many times its account had been removed as it started ([`Store::while_kept`]).
     removals: u64,
     /// Messages whose text the main connection gave first, shared with the second one: of those
@@ -701,6 +704,7 @@ impl Worker {
             filing: Arc::default(),
             kept: changes::KeptDrafts::default(),
             counts_unsaid: Vec::new(),
+            gone_meanwhile: Vec::new(),
             removals,
             whole_only: Arc::default(),
             busy: Arc::default(),

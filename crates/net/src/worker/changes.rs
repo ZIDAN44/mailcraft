@@ -342,8 +342,10 @@ impl Worker {
         }
         destinations.sort();
         destinations.dedup();
+        // Only the folders the server has: one renamed again after (found in review: the folder
+        // in between, gone, said "no such mailbox").
         for d in destinations {
-            if self.conn.is_some() {
+            if self.conn.is_some() && self.folders.iter().any(|f| f.path == d) {
                 self.sync_one(&d);
             }
         }

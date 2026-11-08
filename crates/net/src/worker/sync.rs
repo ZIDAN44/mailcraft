@@ -201,10 +201,23 @@ impl Worker {
                     self.folders = list;
                     return true;
                 }
-                // Folders gone from the server lose their cache.
-                for old in &self.folders {
-                    if !list.iter().any(|f| f.path == old.path) {
-                        let _ = self.store.clear_folder(&id, &old.path);
+                // Folders gone from the server lose their cache; not one the list on disk still
+                // has while changes to the folders are still to be sent, which may make it (found
+                // in review: a folder renamed twice offline, listed after the first rename, lost
+                // its cache, and its mail was downloaded again). That one's looked at again at the
+                // next listing, once they're sent (found in review: one deleted on the server
+                // meanwhile kept its cache for good).
+                let waiting = self.store.load_ops(&id).unwrap_or_default().iter().any(Op::is_folder_op);
+                let here = if waiting { self.store.load_folders(&id).unwrap_or_default() } else { Vec::new() };
+                let mut gone: Vec<String> = self.folders.iter().map(|f| f.path.clone()).chain(std::mem::take(&mut self.gone_meanwhile)).collect();
+                gone.retain(|p| !list.iter().any(|f| f.path == *p));
+                gone.sort_unstable();
+                gone.dedup();
+                for path in gone {
+                    if here.iter().any(|f| f.path == path) {
+                        self.gone_meanwhile.push(path);
+                    } else {
+                        let _ = self.store.clear_folder(&id, &path);
                     }
                 }
                 self.folders = list;
