@@ -28,6 +28,7 @@ on GitHub.
 - The ribbon's labels of commands you can't use yet (Delete, Archive… with no message selected), and the classic ribbon's group captions, read clearly: their grey was too faint to read comfortably on the ribbon (3.2:1), and is now as dark as text must be (4.5:1), still lighter than the commands you can use (#45).
 - Newsletters lay out much as desktop Outlook shows them (#47): MailCraft reads the copy a newsletter gives Outlook (`<!--[if mso]>`, with its buttons and banner pictures), so columns built for other programs come out as Outlook's table; boxes side by side in a cell sit in a row when they fit; a row's cells are as tall as its tallest, their colours filling it, with what's in them at the top, middle or bottom as they say, and a height they ask for kept as the least; cells that each take a share of a table fill it as a browser shares it out; and the page's own colour no longer shows as a grey highlight behind every word.
 - A folder of an Outlook data file being imported shows in the folder pane as soon as it's in, even when it's finished just after another: one finished within half a second of the last one shown (the Inbox, just after Deleted Items) waited for the next folder, or the import's end.
+- Renaming or deleting a folder while MailCraft is still getting the mail of the folders before it no longer says "the server refused: no such mailbox".
 
 ## 0.33.0 - 2026-11-05
 

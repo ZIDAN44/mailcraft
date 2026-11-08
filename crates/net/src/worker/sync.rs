@@ -242,6 +242,12 @@ impl Worker {
             if self.closed || self.conn.is_none() {
                 break;
             }
+            // A folder renamed or deleted here meanwhile, the change made on the server between
+            // two folders, is passed over (found in review: read by the name it had, it said "no
+            // such mailbox"; renamed, it's synced under its new name after the change).
+            if !self.folders.iter().any(|f| f.path == path) {
+                continue;
+            }
             if self.sync_counted(&path) {
                 self.counts_unsaid.push(path);
             }

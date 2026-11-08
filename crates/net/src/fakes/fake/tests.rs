@@ -515,6 +515,7 @@ y"
 }
 
 mod counts;
+mod folder_ops;
 mod hostile;
 mod idle;
 mod searching;
