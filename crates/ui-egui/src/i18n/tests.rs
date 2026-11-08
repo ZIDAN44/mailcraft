@@ -478,6 +478,38 @@ fn tags_templates_and_dates() {
     assert_eq!(date("Wed 21:51"), "Wed 21:51");
 }
 
+/// Gap 9: every minute of the day, shown in a time box on either clock in every language,
+/// reads back as itself, whichever language it's typed in; as do the hours the calendar shows.
+#[test]
+fn every_time_shown_in_a_box_reads_back() {
+    use mailcraft_engine::model::dates::{DateStyle, hour_label};
+    for lang in Lang::all() {
+        set_current(lang);
+        for hours12 in [false, true] {
+            let style = DateStyle { hours12, ..DateStyle::default() };
+            for minute in 0..24 * 60 {
+                let (hour, minute) = (minute / 60, minute % 60);
+                let shown = time_box(hour, minute, style);
+                assert_eq!(read_time(&shown), Some((hour, minute)), "{} {shown}", lang.code());
+                assert_eq!(read_time(&shown.to_uppercase()), Some((hour, minute)), "{} {shown}", lang.code());
+            }
+            for hour in 0..24 {
+                let shown = date(&hour_label(hour, style));
+                assert_eq!(read_time(&shown), Some((hour, 0)), "{} {shown}", lang.code());
+            }
+        }
+    }
+    set_current(Lang::EN);
+    // Typed as people do, in any language's words whichever is chosen.
+    for (typed, time) in [("1:30 p. m.", (13, 30)), ("午後1:30", (13, 30)), ("午前1時", (1, 0)), ("오후 1시", (13, 0)), ("1:30 ÖS", (13, 30))]
+    {
+        assert_eq!(read_time(typed), Some(time), "{typed}");
+    }
+    for typed in ["13 PM", "25:00", "garbage", "午後13:30"] {
+        assert_eq!(read_time(typed), None, "{typed}");
+    }
+}
+
 /// Values filled into a template where right-to-left and left-to-right text meet are isolated,
 /// so each keeps its own order: a server's error in an Arabic sentence was drawn scrambled
 /// ("bob@x.example>: … rejected< 5.1.1 550").

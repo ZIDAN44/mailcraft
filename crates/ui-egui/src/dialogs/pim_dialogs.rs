@@ -72,12 +72,14 @@ pub struct EventForm {
     pub summary: String,
     pub location: String,
     pub description: String,
-    /// Local `YYYY-MM-DD` and `HH:MM`.
+    /// Local `YYYY-MM-DD`, and times as typed (shown on the clock File › Options sets).
     pub date: String,
     pub start: String,
     pub end_date: String,
     pub end: String,
     pub all_day: bool,
+    /// Its times are shown on a 12-hour clock (File › Options).
+    pub hours12: bool,
     /// `""` (never), `daily`, `weekly`, `monthly`, `yearly`, or a rule kept as it was.
     pub repeat: String,
     /// Its reminder, in minutes before it starts (`None`: none).
@@ -115,9 +117,23 @@ fn local_date(t: i64, s: &Session) -> String {
     format!("{:04}-{:02}-{:02}", c.year, c.month, c.day)
 }
 
+/// A local time as its box shows it, on the clock File › Options sets (gap 9).
 fn local_time(t: i64, s: &Session) -> String {
     let c = dates::civil(t, &s.clock);
-    format!("{:02}:{:02}", c.hour, c.minute)
+    crate::i18n::time_box(c.hour, c.minute, s.clock.style)
+}
+
+/// A time as typed, as the commands take it (`HH:MM`); one that doesn't read is passed on as
+/// typed, for the command to refuse.
+pub(crate) fn time_param(typed: &str) -> String {
+    crate::i18n::read_time(typed).map_or_else(|| typed.trim().to_string(), |(h, m)| format!("{h:02}:{m:02}"))
+}
+
+/// A box to type a time in, `hour` o'clock shown in it while it's empty: wide enough for
+/// `12:30 PM` on a 12-hour clock.
+fn time_field(ui: &mut Ui, value: &mut String, hour: u32, hours12: bool) -> egui::Response {
+    let hint = crate::i18n::time_box(hour, 0, dates::DateStyle { hours12, ..dates::DateStyle::default() });
+    field(ui, value, &hint, if hours12 { 96.0 } else { 70.0 })
 }
 
 fn writable_calendars(s: &Session) -> Vec<(String, String, String)> {
@@ -153,6 +169,7 @@ impl EventForm {
             start: local_time(start, s),
             end_date: local_date(start + 3600, s),
             end: local_time(start + 3600, s),
+            hours12: s.clock.style.hours12,
             can_invite: true,
             all_categories: all_categories(s, &[]),
             // As Outlook sets a new appointment's reminder.
@@ -185,6 +202,7 @@ impl EventForm {
             end_date: local_date(end, s),
             end: local_time(end, s),
             all_day: e.all_day,
+            hours12: s.clock.style.hours12,
             reminder: mailcraft_engine::model::ical::reminder_minutes(e),
             privacy: mailcraft_engine::model::ical::privacy(e),
             show_as: mailcraft_engine::model::ical::show_as(e),
@@ -223,7 +241,7 @@ impl EventForm {
         let (start, end) = if self.all_day {
             (self.date.trim().to_string(), self.end_date.trim().to_string())
         } else {
-            (format!("{}T{}", self.date.trim(), self.start.trim()), format!("{}T{}", self.end_date.trim(), self.end.trim()))
+            (format!("{}T{}", self.date.trim(), time_param(&self.start)), format!("{}T{}", self.end_date.trim(), time_param(&self.end)))
         };
         let mut p = json!({
             "summary": self.summary.trim(),
@@ -413,13 +431,13 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {
             field(ui, &mut f.date, "YYYY-MM-DD", 120.0);
             if !f.all_day {
-                field(ui, &mut f.start, "09:00", 70.0);
+                time_field(ui, &mut f.start, 9, f.hours12);
             }
         });
         form_row(ui, t, true, None, "Ends", |ui| {
             field(ui, &mut f.end_date, "YYYY-MM-DD", 120.0);
             if !f.all_day {
-                field(ui, &mut f.end, "10:00", 70.0);
+                time_field(ui, &mut f.end, 10, f.hours12);
             }
             ui.add_space(6.0);
             ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {

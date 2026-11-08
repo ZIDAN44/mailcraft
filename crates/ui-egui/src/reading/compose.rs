@@ -36,13 +36,14 @@ pub(super) fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Comp
     let id = egui::Id::unique(("delay-custom", c.id));
     let (mut day, mut time) = ui.data(|d| d.get_temp::<(String, String)>(id)).unwrap_or_else(|| {
         let c0 = dates::civil(c.send_after.unwrap_or(clock.now + 3600), clock);
-        (format!("{:04}-{:02}-{:02}", c0.year, c0.month, c0.day), format!("{:02}:{:02}", c0.hour, c0.minute))
+        (format!("{:04}-{:02}-{:02}", c0.year, c0.month, c0.day), crate::i18n::time_box(c0.hour, c0.minute, clock.style))
     });
     ui.label(RichText::new(tl!("Don't send before")).color(t.dim).small());
     let mut chosen = None;
     ui.horizontal(|ui| {
         ui.add(egui::TextEdit::singleline(&mut day).desired_width(90.0).hint_text("YYYY-MM-DD"));
-        ui.add(egui::TextEdit::singleline(&mut time).desired_width(50.0).hint_text("HH:MM"));
+        let (hint, width) = (crate::i18n::time_box(8, 0, clock.style), if clock.style.hours12 { 76.0 } else { 50.0 });
+        ui.add(egui::TextEdit::singleline(&mut time).desired_width(width).hint_text(hint));
         let parsed = parse_local(&day, &time).map(|(d, m)| at(d, m));
         if ui.add_enabled(parsed.is_some_and(|w| w > clock.now), egui::Button::new(tl!("Set"))).clicked() {
             chosen = parsed;
@@ -62,7 +63,7 @@ pub(super) fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Comp
     }
 }
 
-/// A local `YYYY-MM-DD` and `HH:MM` as (day, minutes into it).
+/// A local `YYYY-MM-DD` and a time as typed, on either clock (gap 9), as (day, minutes into it).
 pub(crate) fn parse_local(day: &str, time: &str) -> Option<(i64, i64)> {
     if !mailcraft_engine::model::job::is_day(day.trim()) {
         return None;
@@ -70,9 +71,8 @@ pub(crate) fn parse_local(day: &str, time: &str) -> Option<(i64, i64)> {
     let d = day.trim();
     let num = |a: usize, z: usize| d.get(a..z).and_then(|x| x.parse::<u32>().ok());
     let days = dates::days_from_civil(i64::from(num(0, 4)?), num(5, 7)?, num(8, 10)?);
-    let (h, m) = time.trim().split_once(':')?;
-    let (h, m) = (h.trim().parse::<i64>().ok()?, m.trim().parse::<i64>().ok()?);
-    ((0..24).contains(&h) && (0..60).contains(&m)).then_some((days, h * 60 + m))
+    let (h, m) = crate::i18n::read_time(time)?;
+    Some((days, i64::from(h) * 60 + i64::from(m)))
 }
 
 /// Width of the labels and label buttons left of the message's fields.

@@ -4,7 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod typing;
 pub mod zone;
+
+pub use typing::{DayHalves, read_time};
 
 use zone::Zone;
 
@@ -319,11 +322,14 @@ fn date_of(c: &Civil, style: DateStyle) -> String {
 
 /// A time of day written as [`DateStyle`] says.
 fn time_of(c: &Civil, style: DateStyle) -> String {
-    if style.hours12 {
-        format!("{}:{:02} {}", twelve(c.hour), c.minute, if c.hour < 12 { "AM" } else { "PM" })
-    } else {
-        format!("{:02}:{:02}", c.hour, c.minute)
-    }
+    time_text(c.hour, c.minute, style)
+}
+
+/// An hour (0 to 23) and minute written as [`DateStyle`] says: `13:30`, or `1:30 PM` on a
+/// 12-hour clock. [`read_time`] reads it back.
+pub fn time_text(hour: u32, minute: u32, style: DateStyle) -> String {
+    let hour = hour % 24;
+    if style.hours12 { format!("{}:{:02} {}", twelve(hour), minute, if hour < 12 { "AM" } else { "PM" }) } else { format!("{hour:02}:{minute:02}") }
 }
 
 /// When a flagged message is due, as Outlook's Follow Up menu offers.

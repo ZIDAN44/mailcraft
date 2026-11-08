@@ -163,6 +163,10 @@ fn delay_delivery_and_replies_to_draw_while_writing() {
     assert_eq!(crate::reading::parse_local("2026-10-16", "08:30"), Some((20_742, 510)));
     assert_eq!(crate::reading::parse_local("2026-02-30", "08:30"), None);
     assert_eq!(crate::reading::parse_local("2026-10-16", "24:00"), None);
+    // Gap 9: Delay delivery's time, typed on a 12-hour clock too.
+    assert_eq!(crate::reading::parse_local("2026-10-16", "8:30 pm"), Some((20_742, 1230)));
+    assert_eq!(crate::reading::parse_local("2026-10-16", "12 AM"), Some((20_742, 0)));
+    assert_eq!(crate::reading::parse_local("2026-10-16", "13 PM"), None);
     let _ = std::fs::remove_dir_all(dir);
 }
 

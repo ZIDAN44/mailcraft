@@ -19,6 +19,8 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use mailcraft_engine::model::dates;
+
 /// The language setting that follows the system.
 pub const AUTO: &str = "auto";
 
@@ -369,6 +371,36 @@ pub fn date(s: &str) -> String {
         out.push(if NAMES.contains(&w) { tr(current(), w) } else { w }.to_string());
     }
     out.join(" ")
+}
+
+/// A time of day (hour 0 to 23) as a box to type a time in shows it (gap 9): `13:30`, or on a
+/// 12-hour clock as the language writes it (`1:30 PM`, `午後1:30`).
+pub fn time_box(hour: u32, minute: u32, style: dates::DateStyle) -> String {
+    date(&dates::time_text(hour, minute, style))
+}
+
+/// A time typed into a box, as (hour 0 to 23, minute): on either clock, with the words for
+/// before and after noon of any language there's a catalog for (gap 9).
+pub fn read_time(text: &str) -> Option<(u32, u32)> {
+    dates::read_time(text, day_halves())
+}
+
+/// `AM` and `PM`, and what every catalog writes around a 12-hour time and hour in their place
+/// (`午後{time}`, `午後{hour}時`), as [`date`] shows them.
+fn day_halves() -> &'static dates::DayHalves {
+    static HALVES: OnceLock<dates::DayHalves> = OnceLock::new();
+    HALVES.get_or_init(|| {
+        let mut halves = dates::DayHalves::default();
+        for lang in &LANGUAGES {
+            for slot in ["{time}", "{hour}"] {
+                let word = |half: &str| lang.catalog().get(&format!("{slot} {half}")).map(|w| w.replace(slot, ""));
+                if let (Some(am), Some(pm)) = (word("AM"), word("PM")) {
+                    halves.add(&am, &pm);
+                }
+            }
+        }
+        halves
+    })
 }
 
 #[cfg(test)]

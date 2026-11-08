@@ -92,6 +92,59 @@ fn calendar_and_people_forms_save_through_commands() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Gap 9: on a 12-hour clock, an event's and a task's time boxes show their times as MailCraft
+/// shows times elsewhere and take them as typed, on either clock; a time that isn't one keeps
+/// the form open with the reason.
+#[test]
+fn time_boxes_on_a_12_hour_clock() {
+    use mailcraft_engine::model::dates;
+    let (mut a, dir) = app("pim-12-hour");
+    a.run("view.dateFormat", json!({"hours12": true}));
+    let mut d = Dialog::new_event(&a.session, Some(NOW + 3 * 86_400 + 3600));
+    let Dialog::Event(f) = &mut d else { panic!("an event form") };
+    let clock = a.session.clock;
+    let at = move |t: i64| {
+        let c = dates::civil(t, &clock);
+        (c.hour, c.minute)
+    };
+    let (hour, _) = at(NOW + 3 * 86_400 + 3600);
+    assert_eq!(f.start, dates::time_text(hour, 0, clock.style), "shown on the 12-hour clock");
+    assert!(f.start.ends_with(" AM") || f.start.ends_with(" PM"), "{}", f.start);
+    f.summary = "Colour review".into();
+    f.start = "1:30 pm".into();
+    f.end = "2:45 P.M.".into();
+    let params = f.params();
+    assert_eq!((params["start"].as_str().map(|s| &s[10..]), params["end"].as_str().map(|s| &s[10..])), (Some("T13:30"), Some("T14:45")));
+    a.ui.dialog = Some(d);
+    a.act(crate::Action::Submit("event.create", params));
+    assert!(a.ui.dialog.is_none(), "saved and closed");
+    let made = a.session.agenda(NOW, NOW + 30 * 86_400).into_iter().find(|i| i.summary == "Colour review").unwrap();
+    assert_eq!((at(made.start), at(made.end)), ((13, 30), (14, 45)));
+    // Reopened, it shows them as it was saved them.
+    let Some(Dialog::Event(mut f)) = Dialog::open_event(&a.session, &made.uid, made.occurrence) else { panic!("no form") };
+    assert_eq!((f.start.as_str(), f.end.as_str()), ("1:30 PM", "2:45 PM"));
+    for bad in ["13 PM", "25:00", "half past one"] {
+        f.start = bad.into();
+        let params = f.params();
+        a.ui.dialog = Some(Dialog::Event(f.clone()));
+        a.act(crate::Action::Submit("event.update", params));
+        assert!(matches!(&a.ui.dialog, Some(Dialog::Event(f)) if f.error.is_some()), "{bad} refused");
+    }
+    // A task's reminder, typed on the 12-hour clock.
+    let mut d = Dialog::new_task(&a.session, Some(NOW + 86_400));
+    let Dialog::Task(f) = &mut d else { panic!("a task form") };
+    (f.title, f.remind, f.reminder_date, f.reminder_time) = ("Call the lab".into(), true, "2026-10-20".into(), "9 pm".into());
+    let params = f.params();
+    a.ui.dialog = Some(d);
+    a.act(crate::Action::Submit("task.create", params));
+    let uid = a.ui.task.clone().unwrap();
+    let reminder = a.session.find_task(&uid).unwrap().task.reminder.unwrap();
+    assert_eq!(at(reminder), (21, 0));
+    let Some(Dialog::Task(f)) = Dialog::open_task(&a.session, &uid) else { panic!("no form") };
+    assert_eq!(f.reminder_time, "9:00 PM");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn people_lay_out_as_a_list_cards_or_a_phone_list() {
     let (mut a, dir) = app("people-views");

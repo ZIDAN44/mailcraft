@@ -686,9 +686,9 @@ fn check_card(c: &Card) -> Result<(), CmdError> {
     Ok(())
 }
 
-/// A local date (`YYYY-MM-DD`, all day) or date and time (`YYYY-MM-DDTHH:MM`, or with a space),
-/// or Unix seconds, as (Unix seconds, all day). `offset` is the local UTC offset; all-day dates
-/// come back at UTC midnight (as events keep them).
+/// A local date (`YYYY-MM-DD`, all day) or date and time (`YYYY-MM-DDTHH:MM`, seconds after it
+/// or not, a space for the `T` or not), or Unix seconds, as (Unix seconds, all day). `offset` is
+/// the local UTC offset; all-day dates come back at UTC midnight (as events keep them).
 pub fn parse_local(s: &str, clock: &Clock) -> Option<(i64, bool)> {
     let s = s.trim();
     if let Ok(n) = s.parse::<i64>() {
@@ -709,6 +709,12 @@ pub fn parse_local(s: &str, clock: &Clock) -> Option<(i64, bool)> {
     let (h, mi) = (num(11, 13)?, num(14, 16)?);
     if h > 23 || mi > 59 || s.get(13..14) != Some(":") {
         return None;
+    }
+    // Seconds may follow; nothing else (`13:30 PM` is no time, not half past one).
+    match s.len() {
+        16 => {}
+        19 if s.get(16..17) == Some(":") && num(17, 19).is_some_and(|sec| sec < 60) => {}
+        _ => return None,
     }
     Some((clock.utc(day * 86_400 + h * 3600 + mi * 60), false))
 }

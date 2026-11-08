@@ -17,6 +17,7 @@ on GitHub.
 - Drafts shows how many drafts it holds, in brackets (`Drafts [2]`), and a message whose reply or forward was begun and left in Drafts is marked with a red **[Draft]** before its sender in the list, as in Outlook (#52).
 - **File › Options › General** chooses how dates are written (2026-10-28, 28/10/2026, 10/28/2026 or 28.10.2026), a 24-hour or 12-hour clock (`1:53 PM`), and whether the message list gives every message its whole date and time instead of the time today and the day this week (#46).
 - Key tips on the ribbon, as Outlook's: Alt (or F10) shows a letter on each tab and on the search box, a tab's letters show its buttons', and a button's press it (Alt, H, R, P replies; Alt, J, S opens Send / Receive; Alt, Q goes to the search box). Escape goes back a letter, and a character typed with an Alt code shows none.
+- The boxes you type a time into (an event's start and end, a task's reminder, Delay delivery) show it on the 12-hour clock when File › Options sets one, and take `1:30 PM`, `1pm`, `12 AM` or each language's own way of writing it, as well as `13:30`.
 
 ### Fixed
 - Removing an account while its `.pst` import was still writing could leave a new account added with the same id writing into the removed account's kept data file. The two now never share a file.

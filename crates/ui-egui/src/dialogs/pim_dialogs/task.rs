@@ -21,10 +21,13 @@ pub struct TaskForm {
     pub status: TaskStatus,
     pub percent: u8,
     pub priority: TaskPriority,
-    /// Its reminder: on, and when (local `YYYY-MM-DD` and `HH:MM`).
+    /// Its reminder: on, and when (local `YYYY-MM-DD`, and its time as typed, shown on the
+    /// clock File › Options sets).
     pub remind: bool,
     pub reminder_date: String,
     pub reminder_time: String,
+    /// Times are shown on a 12-hour clock (File › Options).
+    pub hours12: bool,
     /// `""` (never), `daily`, `weekly`, `monthly`, `yearly`, or a rule kept as it was.
     pub repeat: String,
     pub categories: Vec<String>,
@@ -84,6 +87,7 @@ impl TaskForm {
             account: accounts.iter().position(|a| a.0 == current).unwrap_or(0),
             accounts,
             due: day_text(due),
+            hours12: s.clock.style.hours12,
             all_categories: all_categories(s, &[]),
             ..Default::default()
         }
@@ -95,7 +99,7 @@ impl TaskForm {
         let t: &Task = &r.task;
         let (reminder_date, reminder_time) = match t.reminder {
             Some(at) => (local_date(at, s), local_time(at, s)),
-            None => (String::new(), "09:00".into()),
+            None => (String::new(), crate::i18n::time_box(9, 0, s.clock.style)),
         };
         Some(TaskForm {
             uid: Some(uid.to_string()),
@@ -109,6 +113,7 @@ impl TaskForm {
             remind: t.reminder.is_some(),
             reminder_date,
             reminder_time,
+            hours12: s.clock.style.hours12,
             repeat: repeat_of(t.rrule.as_deref()),
             categories: t.categories.clone(),
             all_categories: all_categories(s, &t.categories),
@@ -120,7 +125,7 @@ impl TaskForm {
     pub(crate) fn params(&self) -> Value {
         let reminder = if self.remind {
             let date = if self.reminder_date.trim().is_empty() { self.due.trim() } else { self.reminder_date.trim() };
-            json!(format!("{date}T{}", self.reminder_time.trim()))
+            json!(format!("{date}T{}", time_param(&self.reminder_time)))
         } else {
             json!("none")
         };
@@ -229,7 +234,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
                 f.reminder_date = f.due.trim().to_string();
             }
             field(ui, &mut f.reminder_date, "YYYY-MM-DD", 120.0);
-            field(ui, &mut f.reminder_time, "09:00", 70.0);
+            time_field(ui, &mut f.reminder_time, 9, f.hours12);
         }
     });
     let custom = !matches!(f.repeat.as_str(), "" | "daily" | "weekly" | "monthly" | "yearly");

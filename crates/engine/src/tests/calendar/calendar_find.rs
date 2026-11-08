@@ -227,3 +227,16 @@ fn the_search_survives_a_hostile_cache() {
     let _ = s.agenda(i64::MIN, i64::MAX);
     done(s);
 }
+
+/// A date and time is its digits, seconds or not; what follows them makes it no time (found
+/// closing gap 9: `13:30 PM`, typed in a form, was saved as half past one in the afternoon).
+#[test]
+fn a_time_with_words_after_it_is_no_time() {
+    let clock = mailcraft_model::dates::Clock::new(NOW, 0);
+    let at = |s: &str| crate::parse_local(s, &clock).map(|(t, _)| t);
+    assert_eq!(at("2026-10-16T13:30"), at("2026-10-16 13:30:00"));
+    assert!(at("2026-10-16T13:30").is_some() && at("2026-10-16T13:30:59").is_some());
+    for junk in ["2026-10-16T13:30 PM", "2026-10-16T13:30pm", "2026-10-16T13:30:60", "2026-10-16T13:30:5", "2026-10-16T13:30Z"] {
+        assert_eq!(at(junk), None, "{junk}");
+    }
+}
