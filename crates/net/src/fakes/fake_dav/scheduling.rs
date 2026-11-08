@@ -28,8 +28,15 @@ fn meeting(uid: &str, organizer: &str, answer: &str) -> CalEvent {
     }
 }
 
+/// The calendars on `server`, and no address book, looked for already (a sync doesn't look on
+/// the network); and the calendar's address.
 fn pim_at(server: &Server) -> (Pim, String) {
-    let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
+    let mut pim = Pim {
+        caldav_home: Some(format!("{}/dav/cal/", server.base)),
+        carddav_home: Some(String::new()),
+        dav_checked: Some(100),
+        ..Default::default()
+    };
     pim.ensure_defaults();
     (pim, format!("{}{CAL}", server.base))
 }

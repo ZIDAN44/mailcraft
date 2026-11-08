@@ -242,8 +242,9 @@ fn going_on_keeps_the_due_days_read_before_the_checkpoint() {
 }
 
 /// Paused while an item is read from a slow drive, the import stops at the read in hand, not at
-/// the end of the item (each read a second here: an item takes several): nothing half read is
-/// kept or counted, and gone on with, it's the import that never stopped.
+/// the end of the item (each read a second here: an item takes several, the first, the file
+/// opened with it, more): no read begins after the pause, nothing half read is kept or counted,
+/// and gone on with, it's the import that never stopped.
 #[test]
 fn a_pause_stops_part_way_through_an_item() {
     let (dir, pst) = data_file("resume-slow-read", 40, true);
@@ -252,18 +253,26 @@ fn a_pause_stops_part_way_through_an_item() {
     let store = store_at(&dir, "part");
     let stop = Stop::default();
     let o = ImportOptions { stop: stop.clone(), ..opts(1, Some(Fault::SlowReads(1000))) };
-    let raised = std::thread::scope(|s| {
+    let reads = || super::super::lanes::tests::slow_reads(&pst);
+    let at_pause = std::thread::scope(|s| {
         let asked = s.spawn(|| {
-            std::thread::sleep(Duration::from_millis(1500));
+            // Paused part-way through the first item, its second read in hand (a guard against
+            // hanging only: the reads are counted, not timed).
+            let end = std::time::Instant::now() + Duration::from_secs(60);
+            while reads() < 2 && std::time::Instant::now() < end {
+                std::thread::sleep(Duration::from_millis(10));
+            }
             stop.raise(StopHow::Pause);
-            std::time::Instant::now()
+            reads()
         });
         let part = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
-        let took = asked.join().unwrap().elapsed();
         assert_eq!((part.stopped, part.messages, part.skipped), (Some(StopHow::Pause), 0, 0));
-        took
+        asked.join().unwrap()
     });
-    assert!(raised < Duration::from_millis(2500), "stopped {raised:?} after the pause");
+    // The one lane's reads, one after another: none begun after the pause. One may be counted
+    // just after it, its look at the pause just before (the read in hand all the same).
+    assert!(at_pause >= 2, "paused before the item's second read");
+    assert!(reads() <= at_pause + 1, "{} reads, {at_pause} begun as it was paused", reads());
     let (done, _) = go_on(&pst, &store, None);
     assert_eq!((done.messages, done.skipped), (120, 0));
     assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));

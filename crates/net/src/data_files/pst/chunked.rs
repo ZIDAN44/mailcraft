@@ -64,9 +64,10 @@ pub(super) struct Source {
     pub(super) reads: u64,
     /// Raised: every read from here fails ([`stopping`]).
     stop: Stop,
-    /// Each read from the file takes this much longer (a slow drive, for a test).
+    /// Each read from the file takes this much longer (a slow drive, for a test), counted as it
+    /// begins.
     #[cfg(test)]
-    pub(super) slow: Option<std::time::Duration>,
+    pub(super) slow: Option<(std::time::Duration, std::sync::Arc<std::sync::atomic::AtomicU64>)>,
 }
 
 struct Slot {
@@ -178,8 +179,9 @@ impl Source {
     /// `buf` filled from the file at `pos`, as far as the file goes: how much was.
     fn fill(&mut self, pos: u64, buf: &mut [u8]) -> io::Result<usize> {
         #[cfg(test)]
-        if let Some(slow) = self.slow {
-            std::thread::sleep(slow);
+        if let Some((slow, begun)) = &self.slow {
+            begun.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            std::thread::sleep(*slow);
         }
         self.file.seek(SeekFrom::Start(pos))?;
         let mut got = 0;

@@ -582,6 +582,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("mailcraft-jmap-relist-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = Store::open(&dir).unwrap();
+        crate::fakes::fake_dav::looked_for_today(&store, "a1");
         let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
         let account =
             AccountConfig { id: "a1".into(), email: USER.into(), username: USER.into(), jmap: Some(server.base.clone()), ..Default::default() };
@@ -623,6 +624,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("mailcraft-jmap-e2e-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = Store::open(&dir).unwrap();
+        crate::fakes::fake_dav::looked_for_today(&store, "a1");
         let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
         let account = AccountConfig {
             id: "a1".into(),
@@ -782,6 +784,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("mailcraft-jmap-identity-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = Store::open(&dir).unwrap();
+        crate::fakes::fake_dav::looked_for_today(&store, "a1");
         let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
         let account = AccountConfig {
             id: "a1".into(),

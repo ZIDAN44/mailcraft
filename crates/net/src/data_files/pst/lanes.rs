@@ -442,7 +442,7 @@ macro_rules! lane {
             if let Some(tests::Fault::SlowReads(ms)) = ctx.opts.fault
                 && let Ok(mut s) = source.try_borrow_mut()
             {
-                s.slow = Some(Duration::from_millis(ms));
+                s.slow = Some((Duration::from_millis(ms), tests::slow_reads_of(ctx.path)));
             }
             let recycle = Recycle::of(ctx.opts);
             let store_of = |pst: $file| {
@@ -582,6 +582,26 @@ pub(super) mod tests {
         if let Ok(mut t) = TOUCH.lock() {
             t.push((path.to_path_buf(), touch));
         }
+    }
+
+    /// The reads the lanes have begun of a data file with [`Fault::SlowReads`], counted as each
+    /// begins, by its path.
+    static SLOW_READS: std::sync::Mutex<Vec<(std::path::PathBuf, Arc<AtomicU64>)>> = std::sync::Mutex::new(Vec::new());
+
+    /// The count of the slow reads begun of the data file at `path`.
+    pub(super) fn slow_reads_of(path: &Path) -> Arc<AtomicU64> {
+        let Ok(mut r) = SLOW_READS.lock() else { return Arc::default() };
+        if let Some((_, n)) = r.iter().find(|(p, _)| p == path) {
+            return n.clone();
+        }
+        let n = Arc::new(AtomicU64::new(0));
+        r.push((path.to_path_buf(), n.clone()));
+        n
+    }
+
+    /// The slow reads the lanes have begun of the data file at `path`, in every import of it.
+    pub(in super::super) fn slow_reads(path: &Path) -> u64 {
+        SLOW_READS.lock().ok().and_then(|r| r.iter().find(|(p, _)| p == path).map(|(_, n)| n.load(Ordering::Relaxed))).unwrap_or(0)
     }
 
     pub(super) fn touch(ctx: &Ctx<'_>, job: &Job, it: &mut Item) {

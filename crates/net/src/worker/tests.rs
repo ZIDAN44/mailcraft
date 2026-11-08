@@ -174,6 +174,7 @@ fn synced_mail_is_indexed_and_found() {
     }
     let port = crate::fake::serve_tcp(&st);
     let store = crate::fake::tests_store("indexed");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),
@@ -254,8 +255,10 @@ fn index_with(s: &Store, stop: &AtomicBool, readers: usize, extract: &(dyn Fn(&[
     last.unwrap()
 }
 
+/// The messages the index has `word` in; none when there's no index yet (a pass stopped before
+/// it added the first message writes none).
 fn found(s: &Store, word: &str) -> Vec<u32> {
-    let mut r = search::Reader::open(s, "a1").unwrap().unwrap();
+    let Some(mut r) = search::Reader::open(s, "a1").unwrap() else { return Vec::new() };
     r.word(s, search::Field::Body, word).unwrap().ones().filter_map(|d| r.key(d)).map(|k| k.uid).collect()
 }
 

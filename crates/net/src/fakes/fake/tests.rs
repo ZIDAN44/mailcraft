@@ -419,6 +419,7 @@ x"
         log: Vec::new(),
     });
     let store = store("mailbox");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.sieve_port = sieve_port;
     let account = AccountConfig {
@@ -461,6 +462,7 @@ fn working_offline_keeps_drafts_and_mail_until_back() {
     let st = State::new();
     let imap_port = serve_tcp(&st);
     let store = store("offline");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),
@@ -555,6 +557,8 @@ fn an_online_only_account_syncs_and_reads_with_nothing_on_disk() {
     store.save_accounts(&[a1.clone(), a2.clone()]).unwrap();
     // As the engine does when it opens.
     store.set_online_only("a1", true).unwrap();
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    crate::fakes::fake_dav::looked_for_today(&store, "a2");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.submit(Job::Start { account: a1, password: Some(Secret("pw".into())) });
     pool.submit(Job::Start { account: a2, password: Some(Secret("pw".into())) });
@@ -613,6 +617,7 @@ fn outbox_holds_mail_until_smtp_is_back() {
         l.local_addr().unwrap().port()
     };
     let store = store("outbox");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),
@@ -685,6 +690,7 @@ fn worker_pool_end_to_end_over_tcp() {
     let imap_port = serve_tcp(&st);
     let (smtp_port, smtp_log) = crate::smtp::tests::serve_once();
     let store = store("e2e");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),
@@ -752,6 +758,7 @@ fn the_outgoing_server_signs_in_with_its_own_user_name_and_password() {
     let imap_port = serve_tcp(&st);
     let (smtp_port, smtp_log) = crate::smtp::tests::serve_once();
     let store = store("smtp-own-sign-in");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),
@@ -829,6 +836,7 @@ fn a_draft_on_a_server_without_drafts_makes_the_folder() {
     let st = State::new();
     let imap_port = serve_tcp(&st);
     let store = store("drafts-made");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),

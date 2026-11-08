@@ -767,6 +767,7 @@ pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_m
     use mailcraft_model::job::Secret;
     use mailcraft_model::{Event, Job, SyncStatus};
     let store = store(name);
+    crate::fakes::fake_dav::looked_for_today(&store, &account.id);
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let until = |pool: &crate::worker::Pool, what: &str, f: &dyn Fn(&Event) -> bool| {
         let end = std::time::Instant::now() + std::time::Duration::from_secs(20);

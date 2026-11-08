@@ -232,8 +232,9 @@ pub fn serve() -> Server {
 
 /// The account `account` in `store` has had its calendars and contacts looked for today, and
 /// none found: its syncs don't look for them again, out on the network (DNS, then HTTPS at its
-/// mail domain). On a busy machine that took seconds, and whatever was queued for the account
-/// after its first sync waited for it.
+/// mail domain). Every test that syncs an account through the pool says so: tests never touch
+/// the network, and on a busy machine that look took seconds, with whatever was queued for the
+/// account after its first sync waiting for it.
 pub(crate) fn looked_for_today(store: &mailcraft_store::Store, account: &str) {
     let pim = mailcraft_model::pim::Pim { dav_checked: Some(crate::worker::now()), ..Default::default() };
     store.save_account_doc(account, mailcraft_model::pim::PIM_DOC, &pim).unwrap();
@@ -252,7 +253,9 @@ mod tests {
     use super::*;
     use crate::dav::{Dav, Kind, Where, sync};
 
-    /// Found from the address, as an account with nothing given by hand.
+    /// Found from the address, as an account with nothing given by hand. The tests' syncs never
+    /// look for anything there, out on the network: their calendars and contacts are given, or
+    /// were looked for already (`dav_checked`), the contacts none.
     const AT: Where<'static> = Where { email: USER, username: "", imap_host: "imap.example", caldav: None, carddav: None };
 
     fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
@@ -360,7 +363,7 @@ mod tests {
         let dav = Dav::new(USER, PASSWORD);
         let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
         let cal_id = format!("{}{CAL}", server.base);
-        let mut pim = Pim { caldav_home: Some(home), carddav_home: Some(String::new()), ..Default::default() };
+        let mut pim = Pim { caldav_home: Some(home), carddav_home: Some(String::new()), dav_checked: Some(100), ..Default::default() };
         pim.ensure_defaults();
         let long = "x".repeat(125);
         let old_href = format!("{cal_id}{}.ics", "y".repeat(120));
@@ -412,10 +415,11 @@ mod tests {
         assert!(dav.home_given(Kind::Calendars, "http://calendar.example/dav/").unwrap_err().to_string().contains("https"));
         assert!(dav.home_given(Kind::Calendars, "").is_err());
 
-        // In a sync: the given calendar's home is found, its events read; contacts still looked
-        // for from the address (none here). A given address that holds nothing is said once and
-        // remembered as none, not an error that stops the sync.
-        let at = Where { caldav: Some(&format!("{}{CAL}", server.base)), ..AT };
+        // In a sync: the given calendar's home is found, its events read; contacts are found at
+        // the address given for them too (from the account's address, they'd be looked for on
+        // the network). A given address that holds nothing is said once and remembered as none,
+        // not an error that stops the sync.
+        let at = Where { caldav: Some(&format!("{}{CAL}", server.base)), carddav: Some(&format!("{}{BOOK}", server.base)), ..AT };
         let mut pim = Pim::default();
         pim.ensure_defaults();
         server.data.lock().unwrap().put(&format!("{CAL}a.ics"), &ical::write(&[event("a", "Planning", 1_800_000_000)], None, 0));
@@ -423,7 +427,7 @@ mod tests {
         assert_eq!(out.caldav_home.as_deref(), Some(cal_home.as_str()));
         assert_eq!(out.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Planning"]);
         let wrong = format!("{}/nothing/", server.base);
-        let out = sync(&dav, &Where { caldav: Some(&wrong), ..AT }, &pim, 100, Zone::UTC).unwrap();
+        let out = sync(&dav, &Where { caldav: Some(&wrong), ..at }, &pim, 100, Zone::UTC).unwrap();
         assert!(out.caldav_home.is_none() && out.errors.iter().any(|e| e.contains("no calendars")), "{:?}", out.errors);
         assert!(matches!(sync(&Dav::new(USER, "nope"), &at, &pim, 100, Zone::UTC), Err(crate::NetError::Auth(_))));
     }
@@ -437,7 +441,7 @@ mod tests {
         let server = serve();
         let dav = Dav::new(USER, PASSWORD);
         let home = format!("{}/dav/cal/", server.base);
-        let mut pim = Pim { caldav_home: Some(home.clone()), carddav_home: Some(String::new()), ..Default::default() };
+        let mut pim = Pim { caldav_home: Some(home.clone()), carddav_home: Some(String::new()), dav_checked: Some(100), ..Default::default() };
         pim.ensure_defaults();
         let elsewhere = "http://127.0.0.2:9/cal/work/";
         pim.events.push(StoredEvent {
@@ -464,7 +468,12 @@ mod tests {
 
     /// A calendar on the server, read, as the engine keeps it.
     fn read(server: &Server, dav: &Dav) -> Pim {
-        let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
+        let mut pim = Pim {
+            caldav_home: Some(format!("{}/dav/cal/", server.base)),
+            carddav_home: Some(String::new()),
+            dav_checked: Some(100),
+            ..Default::default()
+        };
         pim.ensure_defaults();
         let first = sync(dav, &AT, &pim, 100, Zone::UTC).unwrap();
         pim.calendars = first.calendars.unwrap();
@@ -536,7 +545,12 @@ mod tests {
             // Another whose uid holds this one's: not taken for it.
             d.put(&format!("{CAL}longer.ics"), &ical::write(&[meeting("m1-and-more", 0, "Other", "NEEDS-ACTION")], None, 0));
         }
-        let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
+        let mut pim = Pim {
+            caldav_home: Some(format!("{}/dav/cal/", server.base)),
+            carddav_home: Some(String::new()),
+            dav_checked: Some(100),
+            ..Default::default()
+        };
         pim.ensure_defaults();
         let cal = format!("{}{CAL}", server.base);
         // Answered here: m1. Taken in from the mail only: m2 (older) and m3 (answered elsewhere).
@@ -581,7 +595,12 @@ mod tests {
             d.put(&format!("{CAL}p1.ics"), &ical::write(&[meeting("p1", "ACCEPTED")], None, 0));
             d.put(&format!("{CAL}p2.ics"), &ical::write(&[meeting("p2", "NEEDS-ACTION")], None, 0));
         }
-        let mut pim = Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), ..Default::default() };
+        let mut pim = Pim {
+            caldav_home: Some(format!("{}/dav/cal/", server.base)),
+            carddav_home: Some(String::new()),
+            dav_checked: Some(100),
+            ..Default::default()
+        };
         pim.ensure_defaults();
         let cal = format!("{}{CAL}", server.base);
         let new = |e: CalEvent| StoredEvent { calendar: cal.clone(), event: e, dirty: true, ..Default::default() };

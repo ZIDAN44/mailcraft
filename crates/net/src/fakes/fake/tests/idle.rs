@@ -35,6 +35,7 @@ fn mail_arriving_after_the_inbox_sync_shows_before_idle() {
     }
     let port = serve_tcp(&st);
     let store = store("late-mail");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),

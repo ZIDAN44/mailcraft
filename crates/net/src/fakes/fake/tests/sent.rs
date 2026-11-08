@@ -10,6 +10,7 @@ fn online(st: &Arc<Mutex<State>>, name: &str) -> (crate::worker::Pool, Store, st
     let smtp_port = listener.local_addr().unwrap().port();
     let (_, log) = crate::smtp::tests::serve_once_on(listener);
     let store = store(name);
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),

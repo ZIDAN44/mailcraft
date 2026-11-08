@@ -690,6 +690,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("mailcraft-pop-pool-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = Store::open(&dir).unwrap();
+        crate::fakes::fake_dav::looked_for_today(&store, "p1");
         let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
         let acc = AccountConfig {
             id: "p1".into(),

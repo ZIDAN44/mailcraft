@@ -48,6 +48,7 @@ fn files(name: &str) -> (std::path::PathBuf, Vec<String>) {
 fn message_files_go_into_a_server_folder() {
     let st = State::new();
     let store = crate::fake::store("filing-imap");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
     let account = AccountConfig {

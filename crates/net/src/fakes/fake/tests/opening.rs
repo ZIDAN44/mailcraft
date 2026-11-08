@@ -46,6 +46,7 @@ fn a_big_message_comes_as_its_text_first() {
     let raw = with_a_big_file();
     st.lock().unwrap().add_raw("INBOX", raw.clone());
     let store = store("imap-text-first");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.opts.prefetch = 0;
     pool.submit(Job::Start { account: account("a1", serve_tcp(&st)), password: Some(Secret("pw".into())) });
@@ -88,6 +89,7 @@ fn a_message_opened_during_a_sync_doesnt_wait_for_it() {
     st.lock().unwrap().add("INBOX", "Opened during the sync", &[]);
     st.lock().unwrap().add("Archive", "Old", &[]);
     let store = store("imap-busy-open");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.opts.prefetch = 0;
     pool.submit(Job::Start { account: account("a1", serve_tcp(&st)), password: Some(Secret("pw".into())) });
