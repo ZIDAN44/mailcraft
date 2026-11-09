@@ -278,6 +278,14 @@ impl Node {
             })
     }
 
+    /// Whether it's a box that draws something around what it holds: a colour other than the one
+    /// it's on, or a line. Not a table, and not a picture behind it (those have their own ways).
+    pub(super) fn draws_a_box(&self, on: Option<[u8; 3]>) -> bool {
+        matches!(self.tag.as_str(), "div" | "section" | "article" | "aside" | "header" | "footer" | "main")
+            && self.background_image().is_none()
+            && (self.background().is_some_and(|c| Some(c) != on) || self.lines().iter().any(Option::is_some))
+    }
+
     /// The line a box with nothing in it draws (`<p style="border-top: …">`, a one-cell table of
     /// that, or `<hr>` drawn so): a divider.
     pub(super) fn rule(&self) -> Option<Line> {

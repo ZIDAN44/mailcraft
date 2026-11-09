@@ -448,6 +448,38 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     }));
                 }
             }
+            // A box that draws something around what it holds (a card, a note, a round dot behind
+            // a white check mark, issue #47): one cell that carries it. Only a box of a set width
+            // kept its colour, and what was white on it couldn't be seen.
+            Kid::El(n) if depth < MAX_DEPTH && n.draws_a_box(ctx.around.colour) && (n.has_text(0) || n.has_picture(0)) => {
+                flush(&mut pending, &mut out, ctx);
+                ctx.cells += 1;
+                let room = n.padding().unwrap_or_default();
+                let wide = match n.width() {
+                    Some(Width::Px(w)) => Some(ctx.around.room.map_or(w, |r| r.min(w))),
+                    Some(Width::Percent(p)) => ctx.around.room.map(|r| r.saturating_mul(u32::from(p)) / 100),
+                    None => ctx.around.room,
+                };
+                let align = n.own_align().unwrap_or(ctx.around.align);
+                let around = Around {
+                    room: wide.map(|w| w.saturating_sub(u32::from(room[1]).saturating_add(u32::from(room[3])))),
+                    colour: n.background(),
+                    align,
+                };
+                let inner = colored(ctx, n, |ctx| ctx.within(around, |ctx| blocks(&n.kids, ctx, depth + 1)));
+                let cell = Cell {
+                    blocks: inner,
+                    align,
+                    background: n.background(),
+                    span: 1,
+                    padding: Some(room),
+                    radius: n.radius(),
+                    borders: n.lines(),
+                    ..Default::default()
+                };
+                let fit = n.width().is_none() && n.style("display").is_some_and(|d| d == "inline-block");
+                out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), fit, ..Default::default() }));
+            }
             // A wrapper around tables (`<div>`, `<center>`): its parts in turn.
             Kid::El(n) if depth < MAX_DEPTH && n.has_table(0) => {
                 flush(&mut pending, &mut out, ctx);

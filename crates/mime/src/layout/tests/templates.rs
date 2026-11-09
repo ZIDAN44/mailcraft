@@ -256,3 +256,31 @@ fn flowing_text_keeps_its_size() {
     assert!(table.contains('\u{F000A}') && table.contains(">Cell<"), "{table:?}");
     assert!(!p.text.chars().any(|c| ('\u{F0000}'..='\u{F0100}').contains(&c)), "the plain text has no marks");
 }
+
+/// Found on the shipping notice: a progress step's dot is a round box of colour around a white
+/// check mark, and only a box of a set width kept its colour, so the mark was white on white. A
+/// box that draws something keeps it, whatever its width; one that draws nothing is no box.
+#[test]
+fn a_box_of_colour_keeps_it() {
+    let b = html_layout(&page(
+        r#"<table width="18"><tr><td width="18"><div style="border-radius:18px;background:#1196AB"><img src="https://x.example/check.png" width="18" height="18" alt="Done"></div></td></tr></table>
+           <div style="background:#f0f2f2;padding:8px;border-left:2px solid #336699;border-radius:6px">A note</div>
+           <div style="font-family:Arial">Plain</div>"#,
+    ));
+    let Block::Table(page) = &b[0] else { panic!("{b:?}") };
+    let inside = &page.rows[0][0].blocks;
+    let Block::Table(step) = &inside[0] else { panic!("{inside:?}") };
+    let Block::Table(dot) = &step.rows[0][0].blocks[0] else { panic!("{step:?}") };
+    assert_eq!((dot.rows[0][0].background, dot.rows[0][0].radius), (Some([0x11, 0x96, 0xAB]), Some(18)), "{dot:?}");
+    let Block::Table(note) = &inside[1] else { panic!("{inside:?}") };
+    let cell = &note.rows[0][0];
+    assert_eq!((cell.background, cell.padding, cell.radius), (Some([0xf0, 0xf2, 0xf2]), Some([8; 4]), Some(6)));
+    assert_eq!(cell.borders[3], Some(Line { width: 2, color: [0x33, 0x66, 0x99] }));
+    assert!(matches!(&inside[2], Block::Text(_)), "{:?}", inside[2]);
+    // The colour it's on already draws nothing.
+    let b = html_layout(
+        r##"<table width="600" bgcolor="#ffffff"><tr><td bgcolor="#ffffff"><div style="background:#ffffff">Same</div></td></tr></table>"##,
+    );
+    let Block::Table(t) = &b[0] else { panic!("{b:?}") };
+    assert!(matches!(&t.rows[0][0].blocks[0], Block::Text(_)), "{b:?}");
+}
