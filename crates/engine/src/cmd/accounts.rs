@@ -235,6 +235,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         oauth_user: None,
         shared_mailboxes: Vec::new(),
         online_only: p::bool(v, "onlineOnly").unwrap_or(false),
+        check_every: None,
         dav: None,
         user_agent,
     };

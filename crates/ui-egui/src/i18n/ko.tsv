@@ -1633,3 +1633,7 @@ month	May	5월
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	저장된 메시지(.eml 또는 Outlook .msg)를 폴더에 추가하지 않고 일반 텍스트로 봅니다. 그림은 불러오지 않으며 그 안의 어떤 것도 실행되지 않습니다.
 	Nothing is kept: closing it leaves no trace in your mail.	아무것도 보관되지 않습니다. 닫으면 메일에 아무 흔적도 남지 않습니다.
 	and {n} more	외 {n}개
+	Checking for new mail	새 메일 확인
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	자동은 서버가 알려 줄 수 있으면 새 메일을 바로 받고, 그렇지 않으면 2분마다 확인합니다. 시간을 정하면 계정은 그때만 확인합니다. 보내는 메일은 바로 전송되며 보내기/받기는 즉시 확인합니다.
+	Automatically	자동
+	Every {n} minutes	{n}분마다

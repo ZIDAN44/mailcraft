@@ -154,6 +154,10 @@ pub struct AccountConfig {
     /// home, nor an account with no server ([`AccountConfig::keeps_online`]).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub online_only: bool,
+    /// How often it looks for new mail by itself, in minutes (issue #58). `None`: as soon as the
+    /// server says there's some, where a server can, and otherwise every two minutes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_every: Option<u32>,
     /// Calendars and contacts given by hand (issue #7), for a server MailCraft can't find from the
     /// address on its own, or one that wants a password of its own (an app password).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -286,6 +290,9 @@ impl AccountConfig {
         self.jmap.is_some() || self.graph.is_some() || self.ews.is_some()
     }
 }
+
+/// The longest an account can be asked to go between looking for new mail: a day.
+pub const MAX_CHECK_MINUTES: u32 = 24 * 60;
 
 /// What a folder is for (RFC 6154 special-use attributes, or the usual names when a server has
 /// none).

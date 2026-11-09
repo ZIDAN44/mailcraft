@@ -228,6 +228,22 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"account": id, "on": on}))
         })
         .params(r#"{"account": string, "on"?: bool (default: the other way; keep none of its mail on this computer, only in memory while MailCraft runs)}"#),
+        CommandSpec::new("account.checkEvery", "Check for new mail every", "File › Options › Mail", |s, v| {
+            let id = p::req_str(v, "account")?;
+            let minutes = p::u64(v, "minutes").ok_or_else(|| CmdError::Params("`minutes` is required (0: automatically)".into()))?;
+            let minutes = u32::try_from(minutes).ok().filter(|m| *m <= mailcraft_model::MAX_CHECK_MINUTES);
+            let Some(minutes) = minutes else {
+                return Err(CmdError::Params(format!("`minutes` can be at most {}", mailcraft_model::MAX_CHECK_MINUTES)));
+            };
+            let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+            if c.is_local() {
+                return Err(CmdError::Params("that account has no server to look at".into()));
+            }
+            c.check_every = (minutes > 0).then_some(minutes);
+            s.update_account(c, None)?;
+            Ok(json!({"account": id, "minutes": minutes}))
+        })
+        .params(r#"{"account": string, "minutes": number (0: as soon as the server says, or else every two minutes; up to a day)}"#),
         CommandSpec::new("note.arrange", "Arrange notes", "Notes › Arrange by", |s, v| {
             s.prefs.notes_order = match p::req_str(v, "by")? {
                 "modified" => crate::session::NotesOrder::Modified,

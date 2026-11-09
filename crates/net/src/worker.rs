@@ -644,6 +644,8 @@ struct Worker {
     backoff: Duration,
     next_attempt: Instant,
     last_full: Option<Instant>,
+    /// When the Inbox was last looked at, for an account that looks at set times (issue #58).
+    looked: Option<Instant>,
     /// The token for searching the organisation's directory (Exchange Online), while it lasts.
     directory_token: Option<crate::oauth::Tokens>,
     /// Not connecting again until asked (Send / Receive, a new start): the sign-in was refused,
@@ -711,6 +713,7 @@ impl Worker {
             backoff: Duration::from_secs(5),
             next_attempt: Instant::now(),
             last_full: None,
+            looked: None,
             directory_token: None,
             auth_failed: false,
             token_retried: false,
@@ -803,7 +806,10 @@ impl Worker {
                 self.connect_and_sync();
                 continue;
             }
-            if self.last_full.is_none_or(|t| t.elapsed() >= FULL_SYNC_EVERY) {
+            if self.last_full.is_none_or(|t| t.elapsed() >= self.full_sync_every()) {
+                if self.last_full.is_some() && self.check_every().is_some() && self.dropped_while_quiet(Instant::now()) {
+                    continue;
+                }
                 self.sync_all(&rx);
                 continue;
             }

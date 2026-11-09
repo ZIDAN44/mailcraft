@@ -275,6 +275,29 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         },
     );
 
+    // Issue #58: each account its own. Not in the browser, which waits on its server's own news.
+    let checked: Vec<&mailcraft_engine::model::AccountConfig> = s.accounts.iter().map(|a| &a.config).filter(|c| !c.is_local()).collect();
+    if !s.jmap_only && !checked.is_empty() {
+        let about = tl!(
+            "Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away."
+        );
+        group(ui, tl!("Checking for new mail"), Some(about), &mut |ui| {
+            for (i, c) in checked.iter().enumerate() {
+                setting(ui, i == 0, &c.email, None, &mut |ui| {
+                    let now = c.check_every.unwrap_or(0);
+                    let word = |m: u32| if m == 0 { tl!("Automatically").to_string() } else { tf!("Every {n} minutes", n = m) };
+                    egui::ComboBox::from_id_salt(("check-every", c.id.as_str())).width(170.0).selected_text(word(now)).show_ui(ui, |ui| {
+                        for m in [0u32, 5, 10, 15, 30, 60] {
+                            if ui.selectable_label(m == now, word(m)).clicked() && m != now {
+                                acts.push(Action::Run("account.checkEvery", json!({"account": c.id, "minutes": m})));
+                            }
+                        }
+                    });
+                });
+            }
+        });
+    }
+
     group(ui, tl!("Inbox and notifications"), None, &mut |ui| {
         setting(ui, true, tl!("Show a desktop notification when new mail arrives"), None, &mut |ui| {
             switch(ui, s.prefs.notify, tl!("Show a desktop notification when new mail arrives"), "view.notifications", acts);

@@ -1634,3 +1634,7 @@ month	May	maio
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	Veja uma mensagem salva (.eml ou .msg do Outlook) como texto simples, sem adicioná-la a uma pasta. As imagens não são carregadas e nada nela é executado.
 	Nothing is kept: closing it leaves no trace in your mail.	Nada é guardado: ao fechar, não fica nenhum rastro nos seus e-mails.
 	and {n} more	e mais {n}
+	Checking for new mail	Verificação de novos e-mails
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automaticamente recebe novos e-mails assim que o servidor avisa, quando pode, e caso contrário verifica a cada dois minutos. Com um tempo definido, a conta só verifica nesse momento. O que você envia sai na hora, e Enviar/Receber verifica imediatamente.
+	Automatically	Automaticamente
+	Every {n} minutes	A cada {n} minutos

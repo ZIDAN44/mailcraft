@@ -1630,3 +1630,7 @@ month	May	5月
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	保存したメッセージ (.eml または Outlook の .msg) を、フォルダーに追加せずプレーン テキストで表示します。画像は読み込まれず、中のものは何も実行されません。
 	Nothing is kept: closing it leaves no trace in your mail.	何も保存されません。閉じるとメールには何も残りません。
 	and {n} more	ほか {n} 件
+	Checking for new mail	新着メールの確認
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	自動では、サーバーが通知できる場合は新着メールをすぐに受け取り、できない場合は 2 分ごとに確認します。時間を設定すると、アカウントはそのときだけ確認します。送信するメールはすぐに送られ、送受信はすぐに確認します。
+	Automatically	自動
+	Every {n} minutes	{n} 分ごと

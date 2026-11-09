@@ -1629,3 +1629,7 @@ month	May	مايو
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	اعرض رسالة محفوظة (.eml أو .msg من Outlook) كنص عادي دون إضافتها إلى مجلد. لا تُحمَّل صورها ولا يعمل أي شيء بداخلها.
 	Nothing is kept: closing it leaves no trace in your mail.	لا يُحتفظ بشيء: عند إغلاقها لا يبقى أي أثر في بريدك.
 	and {n} more	و{n} أخرى
+	Checking for new mail	التحقق من البريد الجديد
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	تلقائيًا: يصل البريد الجديد فور إبلاغ الخادم عنه إن كان قادرًا على ذلك، وإلا يتم التحقق كل دقيقتين. عند تحديد وقت، لا يتحقق الحساب إلا حينها. ما ترسله يخرج فورًا، و«إرسال/تلقي» يتحقق في الحال.
+	Automatically	تلقائيًا
+	Every {n} minutes	كل {n} دقيقة

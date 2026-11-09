@@ -43,6 +43,9 @@ pub struct State {
     pub search_delay: std::time::Duration,
     /// A hostile server: after the next `NOOP`, this is sent over and over, forever.
     pub flood: Option<Vec<u8>>,
+    /// The connection the next command comes on is dropped without an answer, as a server drops
+    /// one that's been quiet.
+    pub hang_up: bool,
     /// How long each read of the connection waits (a server trickling its answer).
     pub trickle: std::time::Duration,
     /// Mail delivered to the Inbox (this subject) when a command containing this text first
@@ -81,6 +84,7 @@ impl State {
             refuse_passwords: None,
             search_delay: std::time::Duration::ZERO,
             flood: None,
+            hang_up: false,
             trickle: std::time::Duration::ZERO,
             deliver_on: None,
             create_under: None,
@@ -754,6 +758,9 @@ pub fn serve_tcp(st: &Arc<Mutex<State>>) -> u16 {
                     match sock.read(&mut buf) {
                         Ok(0) | Err(_) => return,
                         Ok(n) => {
+                            if std::mem::take(&mut st.lock().unwrap().hang_up) {
+                                return;
+                            }
                             let _ = fake.write(&buf[..n]);
                         }
                     }

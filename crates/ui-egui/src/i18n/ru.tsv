@@ -1633,3 +1633,7 @@ month	May	Май
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	Посмотреть сохранённое письмо (.eml или .msg из Outlook) как обычный текст, не добавляя его в папку. Картинки не загружаются, и ничего из письма не запускается.
 	Nothing is kept: closing it leaves no trace in your mail.	Ничего не сохраняется: после закрытия в вашей почте не останется следов.
 	and {n} more	и ещё {n}
+	Checking for new mail	Проверка новой почты
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Автоматически: новая почта приходит, как только сервер сообщит о ней, если он это умеет, иначе проверка идёт каждые две минуты. С заданным временем учётная запись проверяет почту только тогда. Отправленное уходит сразу, а «Отправить/получить» проверяет немедленно.
+	Automatically	Автоматически
+	Every {n} minutes	Каждые {n} мин.

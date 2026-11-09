@@ -1629,3 +1629,7 @@ month	May	mei
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	Bekijk een opgeslagen bericht (.eml of .msg van Outlook) als platte tekst, zonder het aan een map toe te voegen. De afbeeldingen worden niet geladen en niets erin wordt uitgevoerd.
 	Nothing is kept: closing it leaves no trace in your mail.	Er wordt niets bewaard: na het sluiten blijft er geen spoor achter in je e-mail.
 	and {n} more	en nog {n}
+	Checking for new mail	Controleren op nieuwe e-mail
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automatisch haalt nieuwe e-mail op zodra de server die meldt, als een server dat kan, en kijkt anders elke twee minuten. Met een vaste tijd kijkt een account alleen dan. Wat je verstuurt gaat meteen weg en Verzenden/ontvangen kijkt direct.
+	Automatically	Automatisch
+	Every {n} minutes	Elke {n} minuten

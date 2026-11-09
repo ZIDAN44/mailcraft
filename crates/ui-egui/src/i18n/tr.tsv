@@ -1634,3 +1634,7 @@ month	May	Mayıs
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	Kaydedilmiş bir iletiyi (.eml veya Outlook .msg) bir klasöre eklemeden düz metin olarak görün. Resimleri yüklenmez ve içindeki hiçbir şey çalışmaz.
 	Nothing is kept: closing it leaves no trace in your mail.	Hiçbir şey saklanmaz: kapattığınızda postanızda iz kalmaz.
 	and {n} more	ve {n} tane daha
+	Checking for new mail	Yeni posta denetimi
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Otomatik: sunucu bildirebiliyorsa yeni posta bildirildiği anda gelir, aksi halde iki dakikada bir bakılır. Belirli bir süre seçildiğinde hesap yalnızca o zaman bakar. Gönderdikleriniz hemen gider, Gönder/Al ise hemen bakar.
+	Automatically	Otomatik
+	Every {n} minutes	Her {n} dakikada

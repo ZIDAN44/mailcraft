@@ -657,3 +657,34 @@ fn quick_steps_mark_then_move_the_selection() {
     let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!(back.quick_steps, s.prefs.quick_steps);
 }
+
+/// Issue #58: each account has its own time, kept with it, and changing it starts the account
+/// again with it. What isn't one is refused, and an account with no server has nothing to look at.
+#[test]
+fn an_account_is_set_to_look_for_mail_every_so_often() {
+    let mut s = Session::open(Some(temp("check-every")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let other = s.run("account.add", &json!({"email": "sam@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    let every = |s: &Session, a: &str| s.account(a).and_then(|a| a.config.check_every);
+
+    s.run("account.checkEvery", &json!({"account": id, "minutes": 30})).unwrap();
+    assert_eq!((every(&s, &id), every(&s, &other)), (Some(30), None), "the other account is its own");
+    let jobs = s.take_jobs();
+    assert!(jobs.iter().any(|j| matches!(j, Job::Start { account, .. } if account.id == id && account.check_every == Some(30))), "{jobs:?}");
+    let saved: Vec<mailcraft_model::AccountConfig> = s.store.as_ref().unwrap().load_accounts().unwrap();
+    assert_eq!(saved.iter().find(|c| c.id == id).and_then(|c| c.check_every), Some(30), "kept for next time");
+
+    s.run("account.checkEvery", &json!({"account": id, "minutes": 0})).unwrap();
+    assert_eq!(every(&s, &id), None, "back to automatically");
+
+    for bad in [
+        json!({"account": id}),
+        json!({"account": id, "minutes": 1441}),
+        json!({"account": id, "minutes": -1}),
+        json!({"account": "nobody", "minutes": 5}),
+    ] {
+        assert!(matches!(s.run("account.checkEvery", &bad), Err(CmdError::Params(_))), "{bad}");
+    }
+    assert_eq!(every(&s, &id), None);
+}

@@ -259,3 +259,23 @@ fn many_accounts_waiting_dont_cover_the_counts() {
     assert!(waiting.iter().all(|(_, l, _)| *l > counts_end), "nothing over the counts: {texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #58: File › Options gives each account with a server a time of its own to look for mail.
+#[test]
+fn options_gives_each_account_its_time_to_look_for_mail() {
+    let (mut a, dir) = app("check-every");
+    let ctx = egui::Context::default();
+    a.act(crate::Action::Submit("account.add", json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org"})));
+    let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    let tall = egui::vec2(1280.0, 3000.0);
+    let has = |texts: &[(String, egui::Rect, egui::Rect)], what: &str| texts.iter().any(|(t, ..)| t.contains(what));
+    crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
+    let texts = crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
+    assert!(has(&texts, "Checking for new mail") && has(&texts, "zoe@example.org") && has(&texts, "Automatically"), "{texts:?}");
+    a.act(crate::Action::Run("account.checkEvery", json!({"account": id, "minutes": 30})));
+    crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
+    let texts = crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
+    assert!(has(&texts, "Every 30 minutes"), "{texts:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -1633,3 +1633,7 @@ month	May	5月
 	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	以純文字檢視已儲存的郵件（.eml 或 Outlook 的 .msg），不會將其新增至資料夾。不會載入其中的圖片，其中的任何內容也不會執行。
 	Nothing is kept: closing it leaves no trace in your mail.	不會保留任何內容：關閉後不會在郵件中留下痕跡。
 	and {n} more	另外 {n} 個
+	Checking for new mail	檢查新郵件
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	自動：伺服器能通知時，新郵件一到就收取，否則每兩分鐘檢查一次。設定時間後，帳戶只在那時檢查。寄出的郵件會立即送出，「傳送/接收」會馬上檢查。
+	Automatically	自動
+	Every {n} minutes	每 {n} 分鐘

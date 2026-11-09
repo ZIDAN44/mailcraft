@@ -476,6 +476,7 @@ impl Session {
             || a.config.smtp_username != config.smtp_username
             || a.config.shared_mailboxes != config.shared_mailboxes
             || a.config.online_only != config.online_only
+            || a.config.check_every != config.check_every
             || a.config.dav != config.dav
             || a.config.user_agent != config.user_agent
             || password.is_some();
