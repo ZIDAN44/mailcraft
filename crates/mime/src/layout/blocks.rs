@@ -10,6 +10,90 @@ pub(super) struct Ctx {
     pub(super) buttons: usize,
     /// The text colour the boxes around inherit to the text inside (a cell's `color`).
     pub(super) color: Option<String>,
+    /// What's known of the box around: for telling a box that only wraps what it holds.
+    pub(super) around: Around,
+    /// Boxes taken for wrappers on the way here ([`MAX_UNWRAPPED`]).
+    pub(super) unwrapped: usize,
+}
+
+/// What's known of the box a part is in.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Around {
+    /// How wide it is inside, in pixels, when that's known.
+    pub(super) room: Option<u32>,
+    /// The colour it's on, when that's the box's own.
+    pub(super) colour: Option<[u8; 3]>,
+    /// How what's in it lines up.
+    pub(super) align: Align,
+}
+
+impl Ctx {
+    /// `f` with `around` as the box around.
+    fn within<R>(&mut self, around: Around, f: impl FnOnce(&mut Ctx) -> R) -> R {
+        let saved = std::mem::replace(&mut self.around, around);
+        let r = f(self);
+        self.around = saved;
+        r
+    }
+
+    /// The box around a table's cell `c`: its share of the table's room, less its own.
+    fn around_cell(&self, n: &Node, c: &Node, alone: bool) -> Around {
+        let table = match n.width() {
+            Some(Width::Px(w)) => Some(self.around.room.map_or(w, |r| r.min(w))),
+            Some(Width::Percent(p)) => self.around.room.map(|r| r.saturating_mul(u32::from(p)) / 100),
+            None => None,
+        };
+        let cell = match c.width() {
+            Some(Width::Px(w)) => Some(table.map_or(w, |t| t.min(w))),
+            Some(Width::Percent(p)) => table.map(|t| t.saturating_mul(u32::from(p)) / 100),
+            None => table.filter(|_| alone),
+        };
+        let room = c.padding().unwrap_or([n.cell_padding(); 4]);
+        let less = u32::from(room[1]).saturating_add(u32::from(room[3])).saturating_add(u32::from(n.cell_spacing()).saturating_mul(2));
+        Around {
+            room: cell.map(|w| w.saturating_sub(less)),
+            colour: c.background().or(n.background()),
+            align: c.own_align().unwrap_or(self.around.align),
+        }
+    }
+
+    /// Whether a box of this colour, this wide, adds nothing to the box around: a colour it's
+    /// on already, the whole of its room.
+    fn adds_nothing(&self, colour: Option<[u8; 3]>, width: Option<Width>) -> bool {
+        let full = match width {
+            Some(Width::Percent(p)) => p >= 100,
+            Some(Width::Px(w)) => self.around.room.is_some_and(|r| w >= r),
+            None => false,
+        };
+        full && (colour.is_none() || colour == self.around.colour)
+    }
+
+    /// What a table holds, when all it does is wrap it (issue #47: a newsletter made with MJML
+    /// has a table in a box in a table for each part of it, none of them drawing anything, and
+    /// past the depth laid out its last parts were text tables): one row of one cell, as wide as
+    /// the room there is, with no room, colour, corners or height of its own.
+    fn wrapped<'a>(&self, n: &'a Node) -> Option<&'a Node> {
+        if self.unwrapped >= MAX_UNWRAPPED || n.background_image().is_some() || n.radius().is_some() || n.cell_spacing() != 0 {
+            return None;
+        }
+        let rows = n.rows();
+        let [(tr, cells)] = rows.as_slice() else { return None };
+        let [c] = cells.as_slice() else { return None };
+        let c: &'a Node = c;
+        let quiet = c.background_image().is_none()
+            && c.radius().is_none()
+            && c.min_height().is_none()
+            && tr.min_height().is_none()
+            && !c.has_overlays()
+            && n.table_line().is_none()
+            && c.cell_lines(tr, n).iter().all(Option::is_none);
+        let no_room = c.padding().map_or(n.cell_padding() == 0, |p| p == [0; 4]);
+        let colours = [n.background(), tr.background(), c.background()];
+        let same_colour = colours.iter().flatten().all(|b| Some(*b) == self.around.colour);
+        let in_line = c.own_align().is_none_or(|a| a == self.around.align);
+        let full = self.adds_nothing(None, n.width()) && (c.width().is_none() || self.adds_nothing(None, c.width()));
+        (quiet && no_room && same_colour && in_line && full).then_some(c)
+    }
 }
 
 /// `f` with the text colour `n` sets, if it sets one, as CSS inherits it.
@@ -62,6 +146,31 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     for k in kids {
         match k {
             Kid::El(n) if n.hidden() => {}
+            // A divider: a line as wide as the box says (one for each way of writing it that a
+            // template gives, the one for Outlook and the one for the others).
+            Kid::El(n) if n.rule().is_some() => {
+                let Some(line) = n.rule() else { continue };
+                flush(&mut pending, &mut out, ctx);
+                if !out.last().is_some_and(|b| rule_of(b) == Some(line)) {
+                    out.push(rule(line, n.width().or(Some(Width::Percent(100)))));
+                }
+            }
+            // Room with nothing in it, or a bar of colour.
+            Kid::El(n) if n.spacer().is_some() => {
+                flush(&mut pending, &mut out, ctx);
+                let cell =
+                    Cell { background: n.background(), span: 1, padding: Some([0; 4]), height: n.spacer(), radius: n.radius(), ..Default::default() };
+                out.push(Block::Table(Table { rows: vec![vec![cell]], width: n.width(), align: n.table_align(), ..Default::default() }));
+            }
+            // A table that only wraps what it holds: what it holds, at this depth.
+            Kid::El(n) if n.tag == "table" && ctx.wrapped(n).is_some() => {
+                let Some(c) = ctx.wrapped(n) else { continue };
+                flush(&mut pending, &mut out, ctx);
+                ctx.unwrapped += 1;
+                let inner = colored(ctx, n, |ctx| colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth)));
+                ctx.unwrapped -= 1;
+                out.extend(inner);
+            }
             Kid::El(n) if n.tag == "table" && depth < MAX_DEPTH => {
                 flush(&mut pending, &mut out, ctx);
                 let rows: Vec<Vec<Cell>> = colored(ctx, n, |ctx| {
@@ -72,16 +181,27 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                             // is where their content sits and how tall it is at least.
                             let row_bg = tr.background();
                             let (row_valign, row_height) = (tr.valign(), tr.min_height());
+                            let alone = row.len() == 1;
                             row.into_iter()
                                 .map(|c| {
                                     ctx.cells += 1;
-                                    let content =
-                                        if ctx.cells > MAX_CELLS { Vec::new() } else { colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth + 1)) };
+                                    let around = ctx.around_cell(n, c, alone);
+                                    let mut content = if ctx.cells > MAX_CELLS {
+                                        Vec::new()
+                                    } else {
+                                        colored(ctx, c, |ctx| ctx.within(around, |ctx| blocks(&c.kids, ctx, depth + 1)))
+                                    };
+                                    // A heading cell's words: bold unless it says otherwise.
+                                    if c.tag == "th" && c.style("font-weight").is_none_or(|w| w != "normal" && w != "400") {
+                                        each_span(&mut content, &mut |s| s.bold = true);
+                                    }
                                     Cell {
                                         width: c.width().or_else(|| picture_width(&content)),
                                         blocks: content,
                                         background: c.background().or(row_bg),
-                                        align: c.align(),
+                                        borders: c.cell_lines(tr, n),
+                                        // Its own, its row's, and a heading cell's middle.
+                                        align: c.own_align().or(tr.own_align()).unwrap_or(if c.tag == "th" { Align::Center } else { Align::Left }),
                                         span: c.attr("colspan").and_then(|s| s.trim().parse::<u16>().ok()).unwrap_or(1).clamp(1, 50),
                                         background_image: c.background_image(),
                                         overlays: Vec::new(),
@@ -111,6 +231,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     // A table that sets no width is as wide as what it holds, as in a browser.
                     fit: n.width().is_none(),
                     radius: n.radius(),
+                    border: n.table_line(),
                 }));
             }
             // A box with others placed over it: its content, and theirs on top.
@@ -128,7 +249,9 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                             let (x, y, from_right, from_bottom) = c.overlay_at();
                             // Its content: its children, or the element itself (a picture).
                             let content = colored(ctx, c, |ctx| {
-                                if c.kids.is_empty() { blocks(&[Kid::El(c.unplaced())], ctx, depth + 1) } else { blocks(&c.kids, ctx, depth + 1) }
+                                ctx.within(Around::default(), |ctx| {
+                                    if c.kids.is_empty() { blocks(&[Kid::El(c.unplaced())], ctx, depth + 1) } else { blocks(&c.kids, ctx, depth + 1) }
+                                })
                             });
                             Overlay { x, y, from_right, from_bottom, width: c.width(), background: c.background(), blocks: content }
                         })
@@ -137,7 +260,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 });
                 ctx.cells += 1;
                 let cell = Cell {
-                    blocks: colored(ctx, n, |ctx| blocks(&base, ctx, depth + 1)),
+                    blocks: colored(ctx, n, |ctx| ctx.within(Around::default(), |ctx| blocks(&base, ctx, depth + 1))),
                     background: n.background(),
                     background_image: n.background_image(),
                     align: n.align(),
@@ -157,7 +280,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 // else what it holds, so a box in it (its own colour, a VML banner's text) stays a box.
                 let content = if n.columns().is_some() { vec![Kid::El(n.without_background())] } else { n.kids.iter().map(copy).collect() };
                 let cell = Cell {
-                    blocks: colored(ctx, n, |ctx| blocks(&content, ctx, depth + 1)),
+                    blocks: colored(ctx, n, |ctx| ctx.within(Around::default(), |ctx| blocks(&content, ctx, depth + 1))),
                     background: n.background(),
                     background_image: n.background_image(),
                     align: n.align(),
@@ -194,10 +317,15 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         return Cell { width: c.width(), valign: c.valign().unwrap_or_default(), ..button_cell(c, ctx, depth) };
                                     }
                                     // A box's own content (its children when it has them, else itself).
-                                    let content = if c.kids.is_empty() { vec![] } else { colored(ctx, c, |ctx| blocks(&c.kids, ctx, depth + 1)) };
+                                    let content = if c.kids.is_empty() {
+                                        vec![]
+                                    } else {
+                                        colored(ctx, c, |ctx| ctx.within(Around::default(), |ctx| blocks(&c.kids, ctx, depth + 1)))
+                                    };
                                     Cell {
                                         blocks: if ctx.cells > MAX_CELLS { Vec::new() } else { content },
                                         width: c.width(),
+                                        borders: c.lines(),
                                         background: c.background(),
                                         align: c.align(),
                                         span: 1,
@@ -238,7 +366,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             {
                 flush(&mut pending, &mut out, ctx);
                 ctx.cells += 1;
-                let inner = colored(ctx, n, |ctx| blocks(&n.kids, ctx, depth + 1));
+                let inner = colored(ctx, n, |ctx| ctx.within(Around::default(), |ctx| blocks(&n.kids, ctx, depth + 1)));
                 if !inner.is_empty() {
                     out.push(Block::Table(Table {
                         rows: vec![vec![Cell {
@@ -257,12 +385,38 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     }));
                 }
             }
+            // A box of a set width no wider than the room, that draws nothing: what it holds.
+            Kid::El(n)
+                if n.fixed_width()
+                    && ctx.unwrapped < MAX_UNWRAPPED
+                    && n.lines().iter().all(Option::is_none)
+                    && ctx.adds_nothing(n.background(), n.width())
+                    && n.background_image().is_none()
+                    && n.radius().is_none()
+                    && n.padding().is_none_or(|p| p == [0; 4]) =>
+            {
+                flush(&mut pending, &mut out, ctx);
+                ctx.unwrapped += 1;
+                let inner = colored(ctx, n, |ctx| blocks(&n.kids, ctx, depth));
+                ctx.unwrapped -= 1;
+                out.extend(inner);
+            }
             // A column of a set width (`max-width: 600px; margin: 0 auto`): a one-cell table that
             // wide, so it isn't stretched across the window (issue #10).
             Kid::El(n) if depth < MAX_DEPTH && n.fixed_width() && (n.has_text(0) || n.has_picture(0)) => {
                 flush(&mut pending, &mut out, ctx);
                 ctx.cells += 1;
-                let inner = colored(ctx, n, |ctx| blocks(&n.kids, ctx, depth + 1));
+                let room = n.padding().unwrap_or_default();
+                let wide = match n.width() {
+                    Some(Width::Px(w)) => Some(ctx.around.room.map_or(w, |r| r.min(w))),
+                    _ => None,
+                };
+                let around = Around {
+                    room: wide.map(|w| w.saturating_sub(u32::from(room[1]).saturating_add(u32::from(room[3])))),
+                    colour: n.background(),
+                    align: n.own_align().unwrap_or(ctx.around.align),
+                };
+                let inner = colored(ctx, n, |ctx| ctx.within(around, |ctx| blocks(&n.kids, ctx, depth + 1)));
                 if !inner.is_empty() {
                     let align = if n.tag == "center" { Align::Center } else { n.table_align() };
                     out.push(Block::Table(Table {
@@ -273,6 +427,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                             span: 1,
                             padding: n.padding(),
                             radius: n.radius(),
+                            borders: n.lines(),
                             ..Default::default()
                         }]],
                         width: n.width(),
@@ -301,11 +456,33 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     out.extend(inner);
                 }
             }
+            // A table past what's laid out: read as blocks, one cell after another. A text table
+            // here, of box-drawing lines in a monospace font, is no part of a layout.
+            Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending),
             k => write_shown(k, &mut pending),
         }
     }
     flush(&mut pending, &mut out, ctx);
     out
+}
+
+/// A divider: a line along the top of a box that holds nothing.
+fn rule(line: Line, width: Option<Width>) -> Block {
+    let mut borders = [None; 4];
+    borders[0] = Some(line);
+    let cell = Cell { span: 1, padding: Some([0; 4]), height: Some(u16::from(line.width)), borders, ..Default::default() };
+    Block::Table(Table { rows: vec![vec![cell]], width, align: Align::Center, ..Default::default() })
+}
+
+/// The line of a block that's a divider.
+fn rule_of(b: &Block) -> Option<Line> {
+    let Block::Table(t) = b else { return None };
+    let [row] = t.rows.as_slice() else { return None };
+    let [c] = row.as_slice() else { return None };
+    if !c.blocks.is_empty() || c.background.is_some() {
+        return None;
+    }
+    c.borders.first().copied().flatten().filter(|l| c.height == Some(u16::from(l.width)))
 }
 
 /// A link drawn as a button: one cell of its colour, with its room, corners and height, its words

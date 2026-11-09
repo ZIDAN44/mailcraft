@@ -421,6 +421,10 @@ impl Body<'_> {
                                 slot
                             });
                             ui.painter().set(framed.inner, table::backdrop(framed.response.rect, table.radius, fill, behind.as_ref()));
+                            if let Some(l) = table.border {
+                                let stroke = egui::Stroke::new(f32::from(l.width), table::line_color(l, page, &st.tokens));
+                                ui.painter().rect_stroke(framed.response.rect, 0.0, stroke, egui::StrokeKind::Inside);
+                            }
                         });
                     });
                 }

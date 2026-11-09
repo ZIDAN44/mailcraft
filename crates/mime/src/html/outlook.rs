@@ -526,6 +526,15 @@ fn safe(v: &str, url: bool) -> Option<String> {
     (ok && !v.is_empty()).then(|| v.replace('&', "&amp;"))
 }
 
+/// Whether a VML picture is placed behind what's drawn after it (`position: absolute` and a
+/// `z-index` below nothing, or a size to see: a pixel there to see who opened the mail isn't).
+fn behind(tag: &str) -> bool {
+    let style: String = attr(tag, "style").unwrap_or_default().to_ascii_lowercase().chars().filter(|c| !c.is_whitespace()).collect();
+    let placed = style.split(';').any(|d| d == "position:absolute");
+    let (w, h) = picture_size(tag);
+    placed && (style.contains("z-index:-") || w.is_some_and(|w| w > 3) || h.is_some_and(|h| h > 3))
+}
+
 /// A picture's size in pixels from its `width` and `height`, or its style's (`width:1px`).
 fn picture_size(tag: &str) -> (Option<u32>, Option<u32>) {
     let style = attr(tag, "style").unwrap_or_default().to_ascii_lowercase();
@@ -644,7 +653,9 @@ fn vml(html: &str, kept: &[std::ops::Range<usize>]) -> (String, bool) {
                 out.push_str(text.get("<center".len()..).unwrap_or(">"));
             }
             // A picture, at its size (a pixel there to see who opened the mail is one too).
-            ("image" | "imagedata", false) => {
+            // Not one placed behind the content (a hero's background, which the box it's behind
+            // has too, as MJML writes one: it was drawn again above it).
+            ("image" | "imagedata", false) if !behind(text) => {
                 if let Some(src) = attr(text, "src").and_then(|s| safe(&s, true)) {
                     let (w, h) = picture_size(text);
                     let size = |n: &str, v: Option<u32>| v.map(|v| format!(" {n}=\"{v}\"")).unwrap_or_default();

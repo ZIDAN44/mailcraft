@@ -32,6 +32,8 @@ pub use write::to_html;
 
 /// Tables nested deeper than this are flattened into text.
 const MAX_DEPTH: usize = 12;
+/// Boxes on the way to a part taken for wrappers, at most: past it they count for depth.
+const MAX_UNWRAPPED: usize = 24;
 /// Tables nested one in another in Outlook's copy of a message, at most: past that, the message
 /// is read as it came, without it (each table nested deeper makes its text slower to read).
 const MAX_COPY_TABLES: usize = 24;
@@ -83,6 +85,21 @@ pub enum Align {
     Right,
 }
 
+/// A line around a box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Line {
+    /// In pixels.
+    pub width: u8,
+    pub color: [u8; 3],
+}
+
+fn no_lines(b: &[Option<Line>; 4]) -> bool {
+    b.iter().all(Option::is_none)
+}
+
+/// The widest line drawn around a box, in pixels.
+const MAX_LINE: u32 = 8;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Table {
     pub rows: Vec<Vec<Cell>>,
@@ -109,6 +126,9 @@ pub struct Table {
     /// side.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub radius: Option<u16>,
+    /// The line around it (`border`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border: Option<Line>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,6 +161,9 @@ pub struct Cell {
     /// no more than half its shorter side.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub radius: Option<u16>,
+    /// The lines along its sides: top, right, bottom, left.
+    #[serde(default, skip_serializing_if = "no_lines")]
+    pub borders: [Option<Line>; 4],
 }
 
 fn is_top(v: &VAlign) -> bool {
@@ -200,6 +223,12 @@ fn color(v: &str) -> Option<[u8; 3]> {
     match v {
         "white" => Some([255, 255, 255]),
         "black" => Some([0, 0, 0]),
+        "red" => Some([255, 0, 0]),
+        "green" => Some([0, 128, 0]),
+        "blue" => Some([0, 0, 255]),
+        "gray" | "grey" => Some([128, 128, 128]),
+        "silver" => Some([192, 192, 192]),
+        "lightgray" | "lightgrey" => Some([211, 211, 211]),
         _ => None,
     }
 }
@@ -440,12 +469,17 @@ fn make_headings(n: &mut Node, depth: usize) {
 
 /// Markup for a part of the tree (to hand to the text converter).
 fn write(k: &Kid, out: &mut String) {
-    write_as(k, out, How { leave_hidden: false, blocks: false, styles: true, in_values: false }, false);
+    write_as(k, out, How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false }, false);
 }
 
 /// [`write`], without what's hidden from Outlook (a layout's text, as it's shown).
 fn write_shown(k: &Kid, out: &mut String) {
-    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false }, false);
+    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false, flat: false }, false);
+}
+
+/// [`write_shown`], every table in it written as blocks.
+fn write_flat(k: &Kid, out: &mut String) {
+    write_as(k, out, How { leave_hidden: true, blocks: true, styles: true, in_values: false, flat: true }, false);
 }
 
 /// A shallow copy of a part of the tree (its children too).
@@ -515,7 +549,7 @@ pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
         let root = parse(html);
         let mut css = String::new();
         collect_css(&root, &mut css, 0);
-        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None };
+        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None, around: Around::default(), unwrapped: 0 };
         let body = find(&root, "body", 0).unwrap_or(&root);
         // A body of a set width is a column of that width, as a box would be.
         let out = if body.tag == "body" && matches!(body.width(), Some(Width::Px(_))) {

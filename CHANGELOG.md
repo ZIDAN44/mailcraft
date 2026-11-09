@@ -16,6 +16,7 @@ on GitHub.
 
 - Mail built from templates is no longer said to hide its text: a preview line's invisible padding isn't words, and `font-size: 0` on a column hides nothing when the text inside sets its own size (#47).
 - A heading written in boxes of its own no longer shows `##` before its text, and a price no longer shows `^{$}`: raised and lowered text (`<sup>`, `<sub>`) sits above and below its line (#47).
+- Newsletters and notifications built with MJML and similar templates are laid out however deeply their tables nest, with no more text tables of box-drawing lines in a monospace font; lines around cells and tables, dividers and spacers are drawn, and heading cells are bold and centred (#47).
 
 ## 0.34.0
 

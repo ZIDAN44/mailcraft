@@ -95,7 +95,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
         // into every element, they made a long newsletter's text longer than is read).
         let text = (outlooks || sheet_hides).then(|| {
             let mut out = String::with_capacity(html.len());
-            write_as(&root, &mut out, How { leave_hidden: true, blocks: outlooks, styles: false, in_values: false }, false);
+            write_as(&root, &mut out, How { leave_hidden: true, blocks: outlooks, styles: false, in_values: false, flat: false }, false);
             out
         });
         // Written from the tree when its styles are, or it reads otherwise than as it came; as it
@@ -108,7 +108,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
                 make_headings(n, 0);
             }
             let mut out = String::with_capacity(html.len() + html.len() / 4);
-            write_as(&root, &mut out, How { leave_hidden: false, blocks: false, styles: true, in_values: false }, false);
+            write_as(&root, &mut out, How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false }, false);
             out
         } else {
             html.to_string()
@@ -165,6 +165,8 @@ pub(super) struct How {
     /// stay a row to a line (found in review: an item's picture and name in a table of
     /// `role="presentation"`, the name went to a line of its own under each row).
     pub(super) in_values: bool,
+    /// Every table written as blocks (one past what a layout draws).
+    pub(super) flat: bool,
 }
 
 /// Parts of a table, written as blocks in a layout table read as blocks.
@@ -193,7 +195,7 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
                 // tags written after it showed as text; found in review).
                 "plaintext" => ("pre", layout, how),
                 // A layout table, read as blocks in the text.
-                "table" if how.blocks && !how.in_values && layout_table(n) => ("div", true, how),
+                "table" if how.flat || (how.blocks && !how.in_values && layout_table(n)) => ("div", true, how),
                 "table" => ("table", false, How { in_values: true, ..how }),
                 t if layout && table_part(t) => ("div", true, how),
                 t => (t, layout, how),

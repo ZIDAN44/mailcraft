@@ -62,6 +62,7 @@ impl Body<'_> {
                 });
                 let rect = framed.response.rect;
                 ui.painter().set(framed.inner, backdrop(rect, c.radius, fill, behind.as_ref()));
+                side_lines(ui, rect, &c.borders, page, &st.tokens);
                 // Boxes placed over it; the cell grows to hold any that reach past its end.
                 let mut bottom = rect.bottom();
                 for o in &c.overlays {
@@ -99,6 +100,26 @@ impl Body<'_> {
             ui.ctx().data_mut(|d| d.insert_temp(heights_id, took));
             ui.ctx().request_repaint();
         }
+    }
+}
+
+/// A line's colour on `page`: its own where it can be told from the page, else one that can.
+pub(super) fn line_color(line: mime::layout::Line, page: [u8; 3], t: &theme::Tokens) -> Color32 {
+    theme::box_color(Some(line.color), page, t).map_or(t.faint, |c| Color32::from_rgb(c[0], c[1], c[2]))
+}
+
+/// The lines along the sides of `rect`: top, right, bottom, left, inside it.
+fn side_lines(ui: &Ui, rect: egui::Rect, lines: &[Option<mime::layout::Line>; 4], page: [u8; 3], t: &theme::Tokens) {
+    for (i, line) in lines.iter().enumerate() {
+        let Some(l) = line else { continue };
+        let w = f32::from(l.width);
+        let side = match i {
+            0 => egui::Rect::from_min_max(rect.left_top(), egui::pos2(rect.right(), rect.top() + w)),
+            1 => egui::Rect::from_min_max(egui::pos2(rect.right() - w, rect.top()), rect.right_bottom()),
+            2 => egui::Rect::from_min_max(egui::pos2(rect.left(), rect.bottom() - w), rect.right_bottom()),
+            _ => egui::Rect::from_min_max(rect.left_top(), egui::pos2(rect.left() + w, rect.bottom())),
+        };
+        ui.painter().rect_filled(side, 0.0, line_color(*l, page, t));
     }
 }
 
