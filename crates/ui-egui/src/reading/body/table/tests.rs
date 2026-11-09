@@ -220,3 +220,85 @@ fn corners_are_no_rounder_than_half_the_shorter_side() {
     assert_eq!(corner(None, rect(40.0, 100.0)), egui::CornerRadius::ZERO);
     assert_eq!(corner(Some(9), rect(0.0, 0.0)), egui::CornerRadius::ZERO);
 }
+
+/// A row's cells for `widths`: a width each asks for (or none), one picture of 10 in each.
+fn asking(widths: &[Option<Width>]) -> Vec<Cell> {
+    widths.iter().map(|w| Cell { width: *w, ..pictures(&[10]) }).collect()
+}
+
+/// Found on a shipping notice (issue #47): a progress step of a bar, a dot of 18 pixels and a
+/// bar, 50% each, came to more than the column has. The dot keeps its 18 and the shares split
+/// the rest, side by side, as browsers do; it was squeezed, and the row stacked.
+#[test]
+fn shares_of_a_row_leave_the_others_what_they_ask_for() {
+    let row = asking(&[Some(Width::Percent(50)), Some(Width::Px(18)), Some(Width::Percent(50))]);
+    let (w, stack) = cell_widths(&row, &[], &[], 142.0, 0.0);
+    assert!(!stack && close(&w, &[62.0, 18.0, 62.0]), "{w:?} {stack}");
+    // Narrower than a column is read at: still a row, the bars holding nothing to read.
+    let row = asking(&[Some(Width::Percent(50)), Some(Width::Px(18)), Some(Width::Percent(50))]);
+    let (w, stack) = cell_widths(&row, &[], &[], 60.0, 0.0);
+    assert!(!stack && close(&w, &[21.0, 18.0, 21.0]), "{w:?} {stack}");
+}
+
+/// A logo beside a cell of 100% (the same notice's header): the logo keeps its width, measured,
+/// and the rest is the other cell's; unmeasured (its picture not here yet), a column's least.
+#[test]
+fn a_cell_of_the_whole_row_leaves_the_others_their_content() {
+    let row = vec![pictures(&[290]), Cell { width: Some(Width::Percent(100)), ..pictures(&[10]) }];
+    let fit = |min: f32| Some(Fit { min, max: min });
+    let (w, stack) = cell_widths(&row, &[], &[fit(290.0), fit(10.0)], 600.0, 0.0);
+    assert!(!stack && close(&w, &[290.0, 310.0]), "{w:?} {stack}");
+    let (w, stack) = cell_widths(&row, &[], &[], 600.0, 0.0);
+    assert!(!stack && w[0] < 200.0 && close(&[w[0] + w[1]], &[600.0]), "{w:?} {stack}");
+}
+
+/// A picture that sets no width is measured by its own size, once here; by its description
+/// while it can't be shown; and measures aren't kept while one's still coming.
+#[test]
+fn pictures_without_a_width_are_measured_when_known() {
+    let sp = mime::Span { image: Some("https://x.example/logo.png".into()), text: "Logo".into(), ..Default::default() };
+    let t = mime::layout::Table {
+        rows: vec![vec![Cell { blocks: vec![Block::Text(vec![vec![sp]])], span: 1, ..Default::default() }]],
+        fit: true,
+        ..Default::default()
+    };
+    let here = with_ui(|ui| super::measure::measured_with(ui, &key(), &t, true, &mut |_| PictureWidth::Is(290.0)));
+    assert_eq!(here.whole.map(|f| f.min), Some(290.0));
+    let coming = with_ui(|ui| super::measure::measured_with(ui, &key(), &t, false, &mut |_| PictureWidth::Coming));
+    assert_eq!(coming.whole, None);
+    let alt = with_ui(|ui| {
+        let first = super::measure::measured_with(ui, &key(), &t, false, &mut |_| PictureWidth::Coming);
+        assert_eq!(first.whole, None);
+        super::measure::measured_with(ui, &key(), &t, false, &mut |_| PictureWidth::Alt)
+    });
+    assert!(alt.whole.is_some_and(|f| f.min > 10.0), "{alt:?}");
+}
+
+/// A table that doesn't say where it sits goes where the cell's content goes (the notice's
+/// "Your Orders", right-aligned in its cell, sat at the left of it).
+#[test]
+fn a_table_sits_where_its_cell_puts_it() {
+    use mime::layout::Align as A;
+    assert_eq!(table_place(A::Left, A::Right), A::Right);
+    assert_eq!(table_place(A::Left, A::Center), A::Center);
+    assert_eq!(table_place(A::Center, A::Right), A::Center);
+}
+
+/// A picture held back keeps the size it says, so the message doesn't move when it's shown, and
+/// an icon's description doesn't wrap a letter to a line; one that doesn't say is its description,
+/// cut short.
+#[test]
+fn a_picture_held_back_keeps_its_size() {
+    use crate::reading::body::{held_back_box, held_back_words};
+    let size = |w: Option<Width>, h: Option<u32>| Some(mime::ImageSize { width: w, height: h, ..Default::default() });
+    assert_eq!(held_back_box(size(Some(Width::Px(18)), Some(18)), 500.0), Some(egui::vec2(18.0, 18.0)));
+    assert_eq!(held_back_box(size(Some(Width::Px(18)), None), 500.0), Some(egui::vec2(18.0, 18.0)), "an icon, square");
+    assert_eq!(held_back_box(size(Some(Width::Px(600)), Some(300)), 300.0), Some(egui::vec2(300.0, 150.0)), "its shape kept in less room");
+    assert_eq!(held_back_box(size(Some(Width::Px(300)), None), 500.0), None, "no height to keep");
+    assert_eq!(held_back_box(size(Some(Width::Percent(100)), Some(20)), 500.0), None);
+    assert_eq!(held_back_box(None, 500.0), None);
+    assert_eq!(held_back_words(""), "[picture]");
+    assert_eq!(held_back_words(" Logo "), "[Logo]");
+    let long = held_back_words(&"é".repeat(300));
+    assert!(long.ends_with("…]") && long.chars().count() == 51, "{long}");
+}

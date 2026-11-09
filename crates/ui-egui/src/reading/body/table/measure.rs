@@ -43,20 +43,41 @@ struct Kept {
     order: VecDeque<egui::Id>,
 }
 
-/// `t`'s measures, from those kept or measured now. `key` with the table's place in memory and
-/// its shape tells it apart from every other table drawn.
+/// How wide a picture that sets no width of its own shows.
+pub(crate) enum PictureWidth {
+    /// This wide (it's here).
+    Is(f32),
+    /// Its description in brackets (it can't be shown).
+    Alt,
+    /// Not known yet (it's coming).
+    Coming,
+}
+
+/// [`measured_with`], no picture's own size known.
+#[cfg(test)]
 pub(crate) fn measured(ui: &Ui, key: &MessageKey, t: &Table) -> Measured {
+    measured_with(ui, key, t, false, &mut |_| PictureWidth::Coming)
+}
+
+/// `t`'s measures, from those kept or measured now. `key` with the table's place in memory and
+/// its shape tells it apart from every other table drawn; `allowed` whether its web pictures may
+/// show; `picture` how wide one that sets no width is. Measured again while a picture's coming.
+pub(crate) fn measured_with(ui: &Ui, key: &MessageKey, t: &Table, allowed: bool, picture: &mut dyn FnMut(&mime::Span) -> PictureWidth) -> Measured {
     let shape: Vec<usize> = t.rows.iter().map(Vec::len).take(64).collect();
     let width = t.width.map(|w| match w {
         Width::Px(px) => (false, px),
         Width::Percent(pc) => (true, u32::from(pc)),
     });
-    let id = egui::Id::unique(("table-measures", key, std::ptr::from_ref(t).addr(), t.rows.len(), shape, width, t.spacing, t.padding));
+    let id = egui::Id::unique(("table-measures", key, std::ptr::from_ref(t).addr(), t.rows.len(), shape, width, t.spacing, t.padding, allowed));
     let store = egui::Id::unique("mailcraft-table-measures");
     if let Some(m) = ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Kept>(store).each.get(&id).cloned()) {
         return m;
     }
-    let m = Measure { ui, words: 0 }.table(t, 0);
+    let mut measure = Measure { ui, words: 0, picture, coming: false };
+    let m = measure.table(t, 0);
+    if measure.coming {
+        return m;
+    }
     ui.ctx().data_mut(|d| {
         let kept = d.get_temp_mut_or_default::<Kept>(store);
         while kept.order.len() >= KEPT {
@@ -74,6 +95,9 @@ struct Measure<'a> {
     ui: &'a Ui,
     /// Words measured so far.
     words: usize,
+    picture: &'a mut dyn FnMut(&mime::Span) -> PictureWidth,
+    /// A picture's still to come: these measures aren't kept.
+    coming: bool,
 }
 
 impl Measure<'_> {
@@ -93,8 +117,16 @@ impl Measure<'_> {
                 if sp.image.is_some() {
                     let w = match sp.image_size.and_then(|z| z.width) {
                         Some(Width::Px(px)) => px as f32,
-                        // A share of its room, or its own size, not known here.
-                        _ => return None,
+                        // A share of its room.
+                        Some(Width::Percent(_)) => return None,
+                        None => match (self.picture)(sp) {
+                            PictureWidth::Is(w) => w,
+                            PictureWidth::Alt => self.width(&held_back_words(&sp.text), span_font(sp))?,
+                            PictureWidth::Coming => {
+                                self.coming = true;
+                                return None;
+                            }
+                        },
                     };
                     fit.min = fit.min.max(w);
                     across += w;
