@@ -256,3 +256,40 @@ fn the_sample_mailbox_can_send_and_a_local_one_cant() {
     assert_eq!(s.send_block(&local), Some(SendBlock::NoServer));
     done(s);
 }
+
+/// Found closing MailCraft: a message sent, and another started before it had gone. It was set
+/// aside still sending, and news of it looked only at the one on screen, so it stayed "being
+/// sent" for good. Delivered, kept for later or refused, the news finds it.
+#[test]
+fn a_message_set_aside_as_it_goes_hears_what_became_of_it() {
+    let mut s = Session::open(Some(temp("set-aside-sending")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let send = |s: &mut Session, subject: &str| -> u64 {
+        s.run("mail.new", &json!({"account": id})).unwrap();
+        s.run("compose.update", &json!({"to": "ben@x.example", "subject": subject, "body": "hi"})).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        s.compose.as_ref().map(|c| c.id).unwrap()
+    };
+    let delivered = send(&mut s, "Delivered");
+    let later = send(&mut s, "Later");
+    let refused = send(&mut s, "Refused");
+    s.run("mail.new", &json!({"account": id})).unwrap();
+    s.run("compose.update", &json!({"subject": "Still writing"})).unwrap();
+    let writing = s.compose.as_ref().map(|c| c.id).unwrap();
+    let sending = |s: &Session| s.all_composes().filter(|c| c.sending).count();
+    assert_eq!(sending(&s), 3);
+
+    s.apply(Event::Sent { account: id.clone(), id: delivered });
+    s.apply(Event::Queued { account: id.clone(), id: later, error: "offline".into() });
+    assert_eq!(sending(&s), 1, "gone from those being sent");
+    assert!(s.all_composes().all(|c| c.id != delivered && c.id != later));
+
+    s.apply(Event::SendFailed { account: id.clone(), id: refused, error: "no such person".into() });
+    assert_eq!(sending(&s), 0);
+    let back = s.all_composes().find(|c| c.id == refused).expect("kept, to be put right");
+    assert_eq!(back.error.as_deref(), Some("no such person"));
+    assert_eq!(s.compose.as_ref().map(|c| c.id), Some(writing), "the one on screen is left alone");
+}

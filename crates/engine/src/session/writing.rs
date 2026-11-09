@@ -306,6 +306,11 @@ impl Session {
         self.compose.iter().chain(self.composes.iter())
     }
 
+    /// Message `id`, the one on screen or one set aside: news of a send may come for either.
+    pub(super) fn compose_by_id(&self, id: u64) -> Option<Compose> {
+        self.all_composes().find(|c| c.id == id).cloned()
+    }
+
     pub fn new_compose(&mut self, account: Option<&str>) -> Result<&mut Compose, CmdError> {
         let account = match account {
             Some(a) => self.account(a).map(|a| a.config.id.clone()),

@@ -21,6 +21,7 @@ on GitHub.
 - A box drawn around text or a picture keeps its colour, corners and lines, whatever its width: a progress step's round dot, or a note in a coloured card (#47).
 - Text in a message is drawn at the size its sender set, so fine print is small and a price or title large (#47).
 - On a POP account, a message you send shows in Sent Items at once, and a saved draft in Drafts, instead of after MailCraft starts again (#57).
+- A message you send just before starting another no longer stays "still being sent" for good, and closing MailCraft no longer warns about it.
 
 ### Added
 

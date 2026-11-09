@@ -217,7 +217,7 @@ impl Session {
                 }
             }
             Event::Sent { id, .. } => {
-                if let Some(c) = self.compose.clone().filter(|c| c.id == id) {
+                if let Some(c) = self.compose_by_id(id) {
                     self.finish_sent(&c, true);
                 } else {
                     self.notice("Message sent", false);
@@ -230,7 +230,7 @@ impl Session {
                 self.after_outbox_change();
             }
             Event::Queued { id, error, .. } => {
-                if let Some(c) = self.compose.clone().filter(|c| c.id == id) {
+                if let Some(c) = self.compose_by_id(id) {
                     // It's safe in the Outbox: as far as the user is concerned, the message is done
                     // (a Replied/Forwarded flag stays owed until delivery).
                     self.finish_sent(&c, false);
@@ -242,7 +242,7 @@ impl Session {
                 self.after_outbox_change();
             }
             Event::SendFailed { id, error, .. } => {
-                if let Some(c) = self.compose.as_mut().filter(|c| c.id == id) {
+                if let Some(c) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| c.id == id) {
                     c.sending = false;
                     c.error = Some(error.clone());
                 }
