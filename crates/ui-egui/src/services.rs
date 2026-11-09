@@ -204,6 +204,10 @@ pub trait Services {
     fn pick_data_file(&mut self) -> Option<PathBuf> {
         None
     }
+    /// A saved message to look at, `.eml` or `.msg` (`None` when cancelled).
+    fn pick_mail_file(&mut self) -> Option<PathBuf> {
+        None
+    }
     /// The folder MailCraft keeps its data in, and whether it can be moved from here (not when
     /// it was chosen at start, or in the browser).
     fn data_folder(&self) -> Option<(PathBuf, bool)> {

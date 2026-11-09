@@ -171,6 +171,11 @@ impl MailApp {
             }
             // What the file holds, and where its copy goes, are shown before it's imported. Looked
             // at afresh each time it's picked: the room freed, or the file changed, since.
+            Action::OpenMailFile => {
+                if let Some(path) = self.services.pick_mail_file() {
+                    self.open_handed(&path.to_string_lossy());
+                }
+            }
             Action::OpenDataFile => {
                 if let Some(path) = self.services.pick_data_file() {
                     let path = path.to_string_lossy().trim().to_string();

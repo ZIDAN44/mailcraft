@@ -1626,3 +1626,7 @@ month	May	5月
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	メール サーバーが送信者を確認でき、迷惑メールにないメッセージは、開いたときに画像を読み込みます。各画像のサーバーには IP アドレスと開いた時刻が伝わります。トラッキング画像はブロックされたままです
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	このメッセージは不審であるか送信者を確認できないため、画像は非表示のままです。
 	These senders' pictures always load, even when a message looks suspicious:	これらの送信者の画像は、メッセージが不審に見える場合でも常に読み込まれます:
+	Open a mail file	メール ファイルを開く
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	保存したメッセージ (.eml または Outlook の .msg) を、フォルダーに追加せずプレーン テキストで表示します。画像は読み込まれず、中のものは何も実行されません。
+	Nothing is kept: closing it leaves no trace in your mail.	何も保存されません。閉じるとメールには何も残りません。
+	and {n} more	ほか {n} 件

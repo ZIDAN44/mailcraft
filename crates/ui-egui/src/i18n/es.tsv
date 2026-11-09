@@ -1630,3 +1630,7 @@ month	May	mayo
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Las imágenes se cargan al abrir el mensaje, si tu servidor de correo confirmó quién lo envió y no está en Correo no deseado. El servidor de cada imagen puede ver tu dirección IP y cuándo lo abriste. Las imágenes de seguimiento siguen bloqueadas
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Este mensaje parece sospechoso o no se pudo confirmar su remitente, así que sus imágenes siguen ocultas.
 	These senders' pictures always load, even when a message looks suspicious:	Las imágenes de estos remitentes siempre se cargan, aunque un mensaje parezca sospechoso:
+	Open a mail file	Abrir un archivo de correo
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	Ver un mensaje guardado (.eml o .msg de Outlook) como texto sin formato, sin añadirlo a una carpeta. Sus imágenes no se cargan y nada de lo que contiene se ejecuta.
+	Nothing is kept: closing it leaves no trace in your mail.	No se guarda nada: al cerrarlo no queda rastro en tu correo.
+	and {n} more	y {n} más

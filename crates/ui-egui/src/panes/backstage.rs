@@ -500,6 +500,24 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
             });
         },
     );
+    // Not in the browser, which can't read a file by its path.
+    if !s.jmap_only {
+        card(
+            ui,
+            t,
+            tl!("Open a mail file"),
+            Some(tl!(
+                "See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs."
+            )),
+            |ui| {
+                setting_row(ui, t, true, note(t, tl!("Nothing is kept: closing it leaves no trace in your mail.")), None, |ui| {
+                    if ui.button(tl!("Open…")).clicked() {
+                        acts.push(Action::OpenMailFile);
+                    }
+                });
+            },
+        );
+    }
     // The account to export: picked in the list (one line, however many accounts there are),
     // else the one being looked at.
     let chosen = b

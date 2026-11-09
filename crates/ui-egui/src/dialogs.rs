@@ -474,10 +474,24 @@ impl Dialog {
         let get = |k: &str| v.get(k).and_then(serde_json::Value::as_str).unwrap_or("").to_string();
         let mut header = Vec::new();
         if get("kind") == "message" {
-            header.push((tl!("From").to_string(), get("from")));
-            header.push((tl!("To").to_string(), get("to")));
+            for (label, field) in [(tl!("From"), "from"), (tl!("To"), "to"), (tl!("Cc"), "cc")] {
+                let value = get(field);
+                if !value.is_empty() {
+                    header.push((label.to_string(), value));
+                }
+            }
             if let Some(d) = v.get("date").and_then(serde_json::Value::as_i64).filter(|d| *d > 0) {
                 header.push((tl!("Date").to_string(), crate::i18n::date(&mailcraft_engine::model::dates::full_time(d, clock))));
+            }
+            let files: Vec<&str> =
+                v.get("attachments").and_then(serde_json::Value::as_array).map_or_else(Vec::new, |l| l.iter().filter_map(|f| f.as_str()).collect());
+            if !files.is_empty() {
+                const SHOWN: usize = 20;
+                let mut named = files.iter().take(SHOWN).copied().collect::<Vec<_>>().join(", ");
+                if files.len() > SHOWN {
+                    named = format!("{named}, {}", tf!("and {n} more", n = files.len() - SHOWN));
+                }
+                header.push((tl!("Attachments").to_string(), named));
             }
         }
         let mut text = get("text");

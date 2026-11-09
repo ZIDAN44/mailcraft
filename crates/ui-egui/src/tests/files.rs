@@ -221,3 +221,70 @@ fn message_files_dropped_on_the_window_go_into_the_folder_open() {
     assert!(a.session.notices.last().is_some_and(|n| n.text.contains('2') && !n.error), "{:?}", a.session.notices.last());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #56: a mail file opened to be looked at, picked in MailCraft itself. What it's inspected
+/// for is there (who else it went to, what's attached, where a link really goes); nothing of it
+/// is filed, and a file that's no message says so.
+#[test]
+fn a_mail_file_is_opened_to_be_looked_at() {
+    struct Picks(std::path::PathBuf);
+    impl crate::Services for Picks {
+        fn clock(&self) -> (i64, i32) {
+            (NOW, 0)
+        }
+        fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+            Vec::new()
+        }
+        fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+            None
+        }
+        fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+            Ok(())
+        }
+        fn notify(&mut self, _: &str, _: &str) {}
+        fn pick_mail_file(&mut self) -> Option<std::path::PathBuf> {
+            Some(self.0.clone())
+        }
+    }
+    let (mut a, dir) = app("open-mail-file");
+    let kept = Kept::default();
+    a.backend = Box::new(kept.clone());
+    std::fs::create_dir_all(&dir).unwrap();
+    let eml = dir.join("inspect me.eml");
+    std::fs::write(
+        &eml,
+        "From: Billing <billing@paypa1.example>\r\nTo: Ana <ana@x.example>\r\nCc: Ben <ben@x.example>\r\nSubject: Invoice\r\nMIME-Version: 1.0\r\n\
+         Content-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>Dear <b>customer</b></p>\
+         <a href=\"https://evil.example/login\">https://bank.example/login</a><img src=\"https://t.example/o.gif\">\r\n\
+         --b\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=update.exe\r\n\r\nMZ\r\n--b--\r\n",
+    )
+    .unwrap();
+    a.services = Box::new(Picks(eml));
+    a.act(crate::Action::OpenMailFile);
+    let Some(crate::Dialog::Preview { title, header, text, .. }) = &a.ui.dialog else { panic!("{:?}", a.session.notices) };
+    assert_eq!(title, "Invoice");
+    let row = |k: &str| header.iter().find(|(h, _)| h == k).map(|(_, v)| v.as_str());
+    assert_eq!(row("Cc"), Some("Ben <ben@x.example>"));
+    assert_eq!(row("Attachments"), Some("update.exe"));
+    assert!(text.contains("Dear customer") && !text.contains("**"), "{text}");
+    assert!(text.contains("https://bank.example/login <https://evil.example/login>"), "{text}");
+    assert!(kept.0.lock().unwrap().is_empty(), "nothing fetched or filed: {:?}", kept.0.lock().unwrap());
+
+    // Bytes that are no message: said, in one line that names it once.
+    a.ui.dialog = None;
+    let junk = dir.join("junk.eml");
+    std::fs::write(&junk, [0xFFu8, 0xFE, 0x00, 0x01, 0x80].repeat(400)).unwrap();
+    a.services = Box::new(Picks(junk));
+    a.act(crate::Action::OpenMailFile);
+    assert!(a.ui.dialog.is_none());
+    let said = a.session.notices.last().unwrap();
+    assert!(said.error && said.text.matches("junk.eml").count() == 1, "{}", said.text);
+
+    // Past what's read: said by its name, not its path, and not as a program's error.
+    let huge = dir.join("huge.eml");
+    std::fs::File::create(&huge).unwrap().set_len(65 << 20).unwrap();
+    a.services = Box::new(Picks(huge));
+    a.act(crate::Action::OpenMailFile);
+    assert_eq!(a.session.notices.last().unwrap().text, "huge.eml is too big");
+    let _ = std::fs::remove_dir_all(dir);
+}

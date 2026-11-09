@@ -1625,3 +1625,7 @@ month	May	מאי
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	תמונות נטענות כשההודעה נפתחת, אם שרת הדואר אישר מי שלח אותה והיא לא בדואר הזבל. השרת של כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת אותה. תמונות מעקב נשארות חסומות
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	ההודעה נראית חשודה או שלא ניתן היה לאשר את השולח, ולכן התמונות נשארות מוסתרות.
 	These senders' pictures always load, even when a message looks suspicious:	תמונות משולחים אלה נטענות תמיד, גם כשההודעה נראית חשודה:
+	Open a mail file	פתיחת קובץ דואר
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	הצגת הודעה שמורה (.eml או .msg של Outlook) כטקסט פשוט, בלי להוסיף אותה לתיקייה. התמונות שלה לא נטענות ושום דבר בתוכה לא מופעל.
+	Nothing is kept: closing it leaves no trace in your mail.	שום דבר לא נשמר: אחרי הסגירה לא נשאר זכר בדואר שלך.
+	and {n} more	ועוד {n}

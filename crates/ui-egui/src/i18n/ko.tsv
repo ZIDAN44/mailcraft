@@ -1629,3 +1629,7 @@ month	May	5월
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	메일 서버가 보낸 사람을 확인했고 정크 메일에 있지 않으면 메시지를 열 때 그림을 불러옵니다. 각 그림의 서버는 IP 주소와 메시지를 연 시각을 볼 수 있습니다. 추적 그림은 계속 차단됩니다
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	이 메시지는 의심스럽거나 보낸 사람을 확인할 수 없어 그림을 숨겨 둡니다.
 	These senders' pictures always load, even when a message looks suspicious:	이 보낸 사람의 그림은 메시지가 의심스러워 보여도 항상 불러옵니다:
+	Open a mail file	메일 파일 열기
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	저장된 메시지(.eml 또는 Outlook .msg)를 폴더에 추가하지 않고 일반 텍스트로 봅니다. 그림은 불러오지 않으며 그 안의 어떤 것도 실행되지 않습니다.
+	Nothing is kept: closing it leaves no trace in your mail.	아무것도 보관되지 않습니다. 닫으면 메일에 아무 흔적도 남지 않습니다.
+	and {n} more	외 {n}개

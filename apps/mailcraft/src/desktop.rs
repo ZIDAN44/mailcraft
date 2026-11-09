@@ -326,6 +326,11 @@ impl Services for Desktop {
             .add_filter("MailCraft data files", &["mailcraft"])
             .pick_file()
     }
+    fn pick_mail_file(&mut self) -> Option<PathBuf> {
+        let file = self.dialog("Open mail file").add_filter("Mail files", &["eml", "msg"]).add_filter("All files", &["*"]).pick_file();
+        self.used(file.as_ref(), false);
+        file
+    }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
         let files =
             self.dialog("Insert pictures").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files().unwrap_or_default();

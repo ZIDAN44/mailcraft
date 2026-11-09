@@ -219,6 +219,8 @@ pub enum Action {
     DragOut(usize),
     /// Choose an Outlook data file and look at it before it's imported.
     OpenDataFile,
+    /// A saved message to look at (`.eml`, `.msg`), picked here as one handed over by the system.
+    OpenMailFile,
     /// Import the data file at `path` (`again`: though it's open as another account already;
     /// `changes`: what becomes of a file changed since MailCraft's copy of it was read, "read"
     /// or "keep"; `take_over`: its copy is an account in another MailCraft data folder, and
@@ -719,6 +721,10 @@ impl MailApp {
             }
             Err(CmdError::Disabled(_)) => {
                 self.session.notice(tl!("Add an account first: events and people are kept with an account.").to_string(), true)
+            }
+            // One that names the file says all there is to say, by its name and not its whole path.
+            Err(CmdError::Params(m) | CmdError::Failed(m)) if m.contains(what) || m.contains(&name) => {
+                self.session.notice(m.replace(what, &name), true);
             }
             Err(e) => self.session.notice(tf!("Couldn't open {file}: {error}", file = name, error = e.to_string()), true),
         }

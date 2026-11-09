@@ -1626,3 +1626,7 @@ month	May	5月
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	如果邮件服务器已确认发件人且邮件不在垃圾邮件中，打开邮件时会加载图片。每张图片所在的服务器都能看到你的 IP 地址和打开时间。跟踪图片仍被阻止
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	此邮件看起来可疑或无法确认发件人，因此其图片保持隐藏。
 	These senders' pictures always load, even when a message looks suspicious:	这些发件人的图片始终加载，即使邮件看起来可疑：
+	Open a mail file	打开邮件文件
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	以纯文本查看已保存的邮件（.eml 或 Outlook 的 .msg），不会将其添加到文件夹。不会加载其中的图片，其中的任何内容也不会运行。
+	Nothing is kept: closing it leaves no trace in your mail.	不会保留任何内容：关闭后不会在邮件中留下痕迹。
+	and {n} more	另外 {n} 个

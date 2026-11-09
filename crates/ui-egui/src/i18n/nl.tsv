@@ -1625,3 +1625,7 @@ month	May	mei
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Afbeeldingen worden geladen zodra een bericht opent, als uw e-mailserver de afzender heeft bevestigd en het niet in Ongewenste e-mail staat. De server van elke afbeelding kan uw IP-adres zien en wanneer u het opende. Volgafbeeldingen blijven geblokkeerd
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Dit bericht lijkt verdacht of de afzender kon niet worden bevestigd, dus de afbeeldingen blijven verborgen.
 	These senders' pictures always load, even when a message looks suspicious:	Afbeeldingen van deze afzenders worden altijd geladen, ook als een bericht verdacht lijkt:
+	Open a mail file	Een e-mailbestand openen
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	Bekijk een opgeslagen bericht (.eml of .msg van Outlook) als platte tekst, zonder het aan een map toe te voegen. De afbeeldingen worden niet geladen en niets erin wordt uitgevoerd.
+	Nothing is kept: closing it leaves no trace in your mail.	Er wordt niets bewaard: na het sluiten blijft er geen spoor achter in je e-mail.
+	and {n} more	en nog {n}

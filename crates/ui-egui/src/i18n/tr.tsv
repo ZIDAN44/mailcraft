@@ -1630,3 +1630,7 @@ month	May	Mayıs
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Posta sunucunuz göndereni doğruladıysa ve ileti Gereksiz klasöründe değilse resimler ileti açılırken yüklenir. Her resmin sunucusu IP adresinizi ve iletiyi ne zaman açtığınızı görebilir. İzleme resimleri engelli kalır
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Bu ileti şüpheli görünüyor veya göndereni doğrulanamadı, bu yüzden resimleri gizli kalıyor.
 	These senders' pictures always load, even when a message looks suspicious:	Bu gönderenlerin resimleri, ileti şüpheli görünse bile her zaman yüklenir:
+	Open a mail file	Bir posta dosyası aç
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	Kaydedilmiş bir iletiyi (.eml veya Outlook .msg) bir klasöre eklemeden düz metin olarak görün. Resimleri yüklenmez ve içindeki hiçbir şey çalışmaz.
+	Nothing is kept: closing it leaves no trace in your mail.	Hiçbir şey saklanmaz: kapattığınızda postanızda iz kalmaz.
+	and {n} more	ve {n} tane daha

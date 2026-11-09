@@ -1625,3 +1625,7 @@ month	May	مايو
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	تُحمَّل الصور عند فتح الرسالة إذا أكد خادم بريدك هوية المرسل ولم تكن في البريد العشوائي. يستطيع خادم كل صورة رؤية عنوان IP الخاص بك ووقت فتحها. تظل صور التتبع محظورة
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	تبدو هذه الرسالة مريبة أو تعذّر تأكيد مرسلها، لذا تظل صورها مخفية.
 	These senders' pictures always load, even when a message looks suspicious:	تُحمَّل صور هؤلاء المرسلين دائمًا، حتى عندما تبدو الرسالة مريبة:
+	Open a mail file	فتح ملف بريد
+	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	اعرض رسالة محفوظة (.eml أو .msg من Outlook) كنص عادي دون إضافتها إلى مجلد. لا تُحمَّل صورها ولا يعمل أي شيء بداخلها.
+	Nothing is kept: closing it leaves no trace in your mail.	لا يُحتفظ بشيء: عند إغلاقها لا يبقى أي أثر في بريدك.
+	and {n} more	و{n} أخرى

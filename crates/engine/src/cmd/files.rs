@@ -9,6 +9,8 @@ use super::*;
 const MAX_MESSAGE: u64 = 64 << 20;
 /// Largest calendar or contacts file read (`.ics`, `.vcf`).
 const MAX_PIM: u64 = 16 << 20;
+/// How an Outlook message file (a compound file) begins.
+const OUTLOOK_FILE: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
@@ -63,13 +65,16 @@ fn add_to_folder(s: &mut Session, v: &Value) -> CmdResult {
 
 /// What kind of file `path` holds: by its extension, else by its first line.
 fn kind(path: &str, bytes: &[u8]) -> &'static str {
+    // An Outlook message file says so itself, whatever it was renamed to.
+    if bytes.starts_with(&OUTLOOK_FILE) {
+        return "outlook";
+    }
     let ext = path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
     match ext.as_str() {
         "ics" | "ical" | "icalendar" | "ifb" => "calendar",
         "vcf" | "vcard" => "contacts",
         "eml" => "message",
         "msg" => "outlook",
-        _ if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) => "outlook",
         _ => sniff(bytes),
     }
 }
@@ -168,12 +173,51 @@ fn open_mail_file(s: &mut Session, v: &Value) -> CmdResult {
 
 /// What to show of a message file: as `attachment.preview` answers.
 pub(crate) fn message_preview(s: &mut Session, name: &str, bytes: &[u8]) -> CmdResult {
-    let m = mailcraft_mime::parse(bytes).ok_or_else(|| CmdError::Failed(format!("{name} can't be read as a message")))?;
-    let attachments: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+    let unreadable = || CmdError::Failed(format!("{name} can't be read as a message"));
+    let m = mailcraft_mime::parse(bytes).ok_or_else(unreadable)?;
+    // Nothing a message has: a file of something else, which parsing takes for a body.
+    if m.subject.is_empty() && m.from.email.is_empty() && m.to.is_empty() && m.cc.is_empty() && m.date == 0 {
+        return Err(unreadable());
+    }
+    // What's attached is what a message is inspected for; the pictures its text shows aren't.
+    let attachments: Vec<&str> = m.attachments.iter().filter(|a| !(a.inline && a.mime.starts_with("image/"))).map(|a| a.name.as_str()).collect();
     let warning = s.sender_warning(&m.from);
     Ok(json!({
         "kind": "message", "name": name, "subject": m.subject, "from": m.from.to_string(),
         "to": mailcraft_model::addr::format_list(&m.to), "cc": mailcraft_model::addr::format_list(&m.cc),
-        "date": m.date, "text": m.text, "attachments": attachments, "warning": warning,
+        "date": m.date, "text": shown_text(&m), "attachments": attachments, "warning": warning,
     }))
+}
+
+/// A message's words as plain text: formatted mail without the marks its plain form has (`**`),
+/// and beside a link's words, when they say something else, where it really goes.
+fn shown_text(m: &mailcraft_mime::Parsed) -> String {
+    if m.rich.is_empty() {
+        return m.text.clone();
+    }
+    let mut out = String::new();
+    for (i, line) in m.rich.iter().enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        let mut words = String::new();
+        for (n, span) in line.iter().enumerate() {
+            out.push_str(&span.text);
+            words.push_str(&span.text);
+            // A link in several spans (a word of it bold) says where it goes once, at its end.
+            if span.link.is_none() || line.get(n + 1).is_some_and(|next| next.link == span.link) {
+                if span.link.is_none() {
+                    words.clear();
+                }
+                continue;
+            }
+            if let Some(link) = span.link.as_deref().filter(|l| *l != words.trim()) {
+                out.push_str(" <");
+                out.push_str(link);
+                out.push('>');
+            }
+            words.clear();
+        }
+    }
+    out
 }

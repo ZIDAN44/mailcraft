@@ -26,6 +26,7 @@ on GitHub.
 ### Added
 
 - File › Options › Safety can show web pictures as a message opens, unless it looks suspicious: in Junk, from a blocked sender, or from a sender your mail server couldn't confirm. Off at first; a picture's server can see your IP address and when you opened the message.
+- File › Open & Export opens a saved `.eml` or Outlook `.msg` file to look at as plain text, without adding it to a folder (#56). Opening one shows who else it went to, what's attached and where a link really goes.
 
 ## 0.34.0
 

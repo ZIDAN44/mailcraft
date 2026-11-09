@@ -53,14 +53,18 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             if let Some(warning) = warning {
                 crate::reading::sender_warning(t, ui, warning);
             }
-            for (k, v) in header.iter() {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(k.as_str()).color(t.dim).small());
-                    ui.label(RichText::new(v.as_str()).small());
-                });
-            }
+            // A mail to hundreds of people scrolls: Close stays on the window.
+            let tall = ui.ctx().content_rect().height();
+            egui::ScrollArea::vertical().id_salt("preview-header").max_height((tall * 0.2).max(90.0)).auto_shrink([false, true]).show(ui, |ui| {
+                for (k, v) in header.iter() {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new(k.as_str()).color(t.dim).small());
+                        ui.label(RichText::new(v.as_str()).small());
+                    });
+                }
+            });
             ui.add_space(6.0);
-            let h = (ui.ctx().content_rect().height() * 0.6).max(200.0);
+            let h = (tall * 0.55).max(200.0);
             egui::ScrollArea::both().max_height(h).auto_shrink([false, true]).show(ui, |ui| {
                 let mut shown = text.as_str();
                 ui.add(
