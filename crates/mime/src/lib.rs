@@ -337,6 +337,24 @@ pub struct Span {
     /// A picture's size as the message sets it (issue #10).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_size: Option<ImageSize>,
+    /// Raised or lowered, smaller (`<sup>`, `<sub>`).
+    #[serde(default, skip_serializing_if = "Rise::is_normal")]
+    pub rise: Rise,
+}
+
+/// Text set above or below its line.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Rise {
+    #[default]
+    Normal,
+    Sup,
+    Sub,
+}
+
+impl Rise {
+    fn is_normal(&self) -> bool {
+        *self == Rise::Normal
+    }
 }
 
 fn is_none(v: &usize) -> bool {

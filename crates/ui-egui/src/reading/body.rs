@@ -204,6 +204,17 @@ pub(super) trait CellEdit {
 pub(super) const MIN_COLUMN: f32 = 140.0;
 
 pub(super) fn span_font(sp: &mime::Span) -> egui::FontId {
+    let font = span_font_at_full_size(sp);
+    match sp.rise {
+        mime::Rise::Normal => font,
+        _ => egui::FontId::new(font.size * SCRIPT_SIZE, font.family),
+    }
+}
+
+/// How much smaller raised and lowered text is drawn.
+const SCRIPT_SIZE: f32 = 0.72;
+
+fn span_font_at_full_size(sp: &mime::Span) -> egui::FontId {
     if sp.heading > 0 {
         theme::bold(match sp.heading {
             1 => 22.0,
@@ -244,6 +255,7 @@ impl Body<'_> {
                         italics: sp.italic,
                         strikethrough: if sp.strike { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
                         underline: if sp.link.is_some() { egui::Stroke::new(1.0, fg) } else { egui::Stroke::NONE },
+                        valign: if sp.rise == mime::Rise::Sup { Align::TOP } else { Align::BOTTOM },
                         ..Default::default()
                     };
                     job.append(&sp.text, 0.0, format);
@@ -307,6 +319,10 @@ impl Body<'_> {
             return;
         }
         let mut rt = RichText::new(&sp.text).font(span_font(sp));
+        // Raised: as tall as the line, so that it sits at the top of it beside the text.
+        if sp.rise == mime::Rise::Sup {
+            rt = rt.line_height(Some(ui.fonts_mut(|f| f.row_height(&span_font_at_full_size(sp))))).raised();
+        }
         if sp.italic {
             rt = rt.italics();
         }

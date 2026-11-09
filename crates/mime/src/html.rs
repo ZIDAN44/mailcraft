@@ -8,12 +8,15 @@ mod footers;
 mod outlook;
 mod page;
 mod quote;
+mod scripts;
 mod signature;
 pub(crate) use footers::footers_last;
 pub use outlook::as_outlook_reads;
 pub(crate) use outlook::{HIDDEN_RULE, OUTLOOK_MARK, OUTLOOK_TABLE, OutlookCopy, marked_hidden, mso_hidden, outlook_copy};
 use page::no_page_background;
 pub use quote::*;
+use scripts::scripts_split;
+pub(crate) use scripts::{mark_scripts, plain_scripts};
 pub use signature::*;
 
 /// Most lines kept of a rich rendering (the rest is shown as text).
@@ -323,7 +326,7 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
     let html = flat_if_too_deep(crate::capped(html, max));
     let html = html.as_ref();
     // Wide enough that paragraphs stay one line each (the UI wraps them to the pane).
-    let marked = close_css_rules(&mark_pictures(&mark_headings(&no_page_background(&footers_last(html)))));
+    let marked = close_css_rules(&mark_pictures(&mark_scripts(&mark_headings(&no_page_background(&footers_last(html))))));
     // The message's own CSS is read for colours and hidden parts (`display: none`), nothing else.
     let result =
         std::panic::catch_unwind(|| with_hidden(|| html2text::config::rich().use_doc_css(), hidden).lines_from_read(marked.as_bytes(), 2000));
@@ -359,13 +362,21 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
             let trimmed = last.text.trim_end().len();
             last.text.truncate(trimmed);
         }
-        // Headings come out as `## <mark>Title` (see `mark_headings`): drop both, keep the level.
+        // Headings come out as `## <mark>Title`, each line of them (see `mark_headings`): drop
+        // both, keep the level.
         let mut level = 0u8;
+        let mut hashes = 0usize;
         for sp in &mut spans {
-            if let Some(i) = sp.text.find(HEADING_MARK) {
-                let before = sp.text.get(..i).unwrap_or("");
-                level = u8::try_from(before.chars().filter(|c| *c == '#').count().clamp(1, 6)).unwrap_or(1);
-                sp.text = sp.text.get(i + HEADING_MARK.len_utf8()..).unwrap_or("").to_string();
+            if level > 0 {
+                break;
+            }
+            match sp.text.find(HEADING_MARK) {
+                Some(i) => {
+                    hashes += sp.text.get(..i).unwrap_or("").chars().filter(|c| *c == '#').count();
+                    level = u8::try_from(hashes.clamp(1, 6)).unwrap_or(1);
+                    sp.text = sp.text.get(i + HEADING_MARK.len_utf8()..).unwrap_or("").to_string();
+                }
+                None => hashes += sp.text.chars().filter(|c| *c == '#').count(),
             }
         }
         if level > 0 {
@@ -382,6 +393,7 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
         for sp in &mut spans {
             sp.text = sp.text.replace([HEADING_MARK, PICTURE_MARK], "");
         }
+        let mut spans = scripts_split(spans);
         // List bullets (`* item`, indented when nested) as real bullets.
         if let Some(first) = spans.first_mut() {
             let indent = first.text.len() - first.text.trim_start_matches(' ').len();
@@ -547,7 +559,10 @@ pub(super) fn close_css_rules(html: &str) -> String {
     out
 }
 
-/// `html` with a mark after every `<h1>`…`<h6>` start tag (and any mark already in it removed).
+/// `html` with a mark before each run of text in every `<h1>`…`<h6>`, or after its start tag
+/// when it has none (a picture), and any mark already in it removed. The text converter starts
+/// every line of a heading with its `##`: a heading in lines of its own (`<h2><div>`, as MJML
+/// writes one, or `<br>`) kept the `##` of all but the first (issue #47).
 pub(super) fn mark_headings(html: &str) -> String {
     let html = html.replace(HEADING_MARK, "");
     let lower = html.to_ascii_lowercase();
@@ -558,13 +573,36 @@ pub(super) fn mark_headings(html: &str) -> String {
         let start = from + i;
         let is_heading = lower.as_bytes().get(start + 2).is_some_and(|b| (b'1'..=b'6').contains(b))
             && lower.as_bytes().get(start + 3).is_some_and(|b| *b == b'>' || b.is_ascii_whitespace());
+        // Only a heading is looked through for its end: each of a million `<h` to the end of the
+        // message took as long as the message.
+        if !is_heading {
+            from = start + 2;
+            continue;
+        }
         let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
-        if is_heading {
+        from = end + 1;
+        let closing = format!("</{}", lower.get(start + 1..start + 3).unwrap_or("h1"));
+        let stop = lower.get(end + 1..).and_then(|r| r.find(&closing)).map_or(lower.len(), |e| end + 1 + e);
+        // Each run of text in it; `from` goes on past it, so that each part is looked through once.
+        let mut marked = false;
+        let mut at = end + 1;
+        while at < stop {
+            let run_end = lower.get(at..stop).and_then(|r| r.find('<')).map_or(stop, |l| at + l);
+            let run = html.get(at..run_end).unwrap_or("");
+            if let Some(word) = run.find(|c: char| !c.is_whitespace()) {
+                out.push_str(html.get(last..at + word).unwrap_or(""));
+                out.push(HEADING_MARK);
+                last = at + word;
+                marked = true;
+            }
+            at = lower.get(run_end..stop).and_then(|r| r.find('>')).map_or(stop, |g| run_end + g + 1);
+        }
+        if !marked {
             out.push_str(html.get(last..=end).unwrap_or(""));
             out.push(HEADING_MARK);
             last = end + 1;
         }
-        from = end + 1;
+        from = stop.max(from);
     }
     out.push_str(html.get(last..).unwrap_or(""));
     out
@@ -621,6 +659,7 @@ pub fn html_images(html: &str) -> Vec<String> {
 pub(crate) fn html_to_words(html: &str) -> String {
     let html = flat_if_too_deep(html);
     let html = footers_last(&html);
+    let html = plain_scripts(&html);
     let result = std::panic::catch_unwind(|| html2text::config::plain_no_decorate().no_table_borders().string_from_read(html.as_bytes(), 400));
     match result {
         Ok(Ok(s)) => tidy_text(&s),
@@ -637,6 +676,7 @@ pub fn html_to_text(html: &str) -> String {
 pub(crate) fn html_to_text_within(html: &str, max: usize, hidden: bool) -> String {
     let html = flat_if_too_deep(crate::capped(html, max));
     let html = footers_last(&html);
+    let html = plain_scripts(&html);
     // Without table borders: mail lays itself out with tables, which came out boxed in `─` and
     // `│` rules (issue #41).
     let result =

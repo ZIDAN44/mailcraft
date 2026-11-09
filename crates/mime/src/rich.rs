@@ -511,6 +511,9 @@ pub fn from_rich(lines: &RichText) -> (String, Styles) {
                 PICTURE.to_string()
             } else if sp.image.is_some() && sp.text.trim().is_empty() {
                 "[picture]".to_string()
+            } else if sp.rise == crate::Rise::Sup && sp.text.chars().all(|c| c.is_ascii_digit()) {
+                // Digits raised stay so in text that has no raised words (a price's cents).
+                sp.text.chars().filter_map(|c| c.to_digit(10)).filter_map(|d| "⁰¹²³⁴⁵⁶⁷⁸⁹".chars().nth(d as usize)).collect()
             } else {
                 sp.text.replace(['\n', PICTURE], " ")
             };
