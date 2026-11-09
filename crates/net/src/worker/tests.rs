@@ -10,6 +10,7 @@ mod counts;
 mod drafts;
 mod filed_once;
 mod index_bench;
+mod pop_filed;
 mod removed;
 
 /// Sent Items asked for after each of several messages is read once.

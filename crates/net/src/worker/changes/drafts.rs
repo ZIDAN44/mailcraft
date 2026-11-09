@@ -491,7 +491,7 @@ impl Worker {
         if made {
             self.relist();
         }
-        self.sync_one(&folder);
+        self.sync_filed(&folder);
     }
 
     /// A draft filed: kept on this computer no more, nor another version of it kept there that's

@@ -10,7 +10,7 @@ on GitHub.
 
 ## 0.35.0
 
-*Mail built from templates reads as it was designed.*
+*Mail built from templates reads as it was designed, a mail file opens from inside MailCraft, and each account checks for mail as often as you choose.*
 
 ### Fixed
 
@@ -20,6 +20,7 @@ on GitHub.
 - A row's shares no longer push out what's beside them: a progress step's dot stays between its bars and a logo beside a cell of 100% stays beside it. A picture held back keeps the size it says, so an icon's description no longer runs a letter to a line (#47).
 - A box drawn around text or a picture keeps its colour, corners and lines, whatever its width: a progress step's round dot, or a note in a coloured card (#47).
 - Text in a message is drawn at the size its sender set, so fine print is small and a price or title large (#47).
+- On a POP account, a message you send shows in Sent Items at once, and a saved draft in Drafts, instead of after MailCraft starts again (#57).
 
 ### Added
 

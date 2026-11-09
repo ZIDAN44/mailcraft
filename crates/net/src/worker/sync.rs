@@ -525,6 +525,16 @@ impl Worker {
         self.sink.emit(answer(Vec::new(), error, true));
     }
 
+    /// [`Self::sync_one`] for a folder a message was just filed in. A POP account's folders other
+    /// than its Inbox are only on this computer, so reading one finds nothing new: said here, or
+    /// the list on screen went without it until MailCraft started again (issue #57).
+    pub(super) fn sync_filed(&mut self, path: &str) {
+        if matches!(self.conn, Some(Conn::Pop)) {
+            self.sink.emit(Event::FolderChanged { account: self.id(), folder: path.to_string() });
+        }
+        self.sync_one(path);
+    }
+
     pub(super) fn sync_one(&mut self, path: &str) {
         if self.sync_counted(path) {
             self.counts_unsaid.push(path.to_string());

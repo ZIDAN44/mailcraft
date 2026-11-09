@@ -435,7 +435,7 @@ impl Worker {
                 if made {
                     self.relist();
                 }
-                self.sync_one(&folder);
+                self.sync_filed(&folder);
             }
             Ok(None) => self.notice(NO_SENT.to_string()),
             Err(e) => self.notice(format!("sent, but no copy was saved in Sent Items: {e}")),
