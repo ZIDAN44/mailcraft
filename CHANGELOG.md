@@ -19,6 +19,10 @@ on GitHub.
 - Newsletters and notifications built with MJML and similar templates are laid out however deeply their tables nest, with no more text tables of box-drawing lines in a monospace font; lines around cells and tables, dividers and spacers are drawn, and heading cells are bold and centred (#47).
 - A row's shares no longer push out what's beside them: a progress step's dot stays between its bars and a logo beside a cell of 100% stays beside it. A picture held back keeps the size it says, so an icon's description no longer runs a letter to a line (#47).
 
+### Added
+
+- File › Options › Safety can show web pictures as a message opens, unless it looks suspicious: in Junk, from a blocked sender, or from a sender your mail server couldn't confirm. Off at first; a picture's server can see your IP address and when you opened the message.
+
 ## 0.34.0
 
 *One coloured title bar on Windows, dates written your way, and drafts never lost on their way to the server.*

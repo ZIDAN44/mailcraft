@@ -11,6 +11,10 @@
 
 use serde::{Deserialize, Serialize};
 
+mod sender_check;
+pub use sender_check::SenderCheck;
+pub(crate) use sender_check::sender_check;
+
 /// Pictures and links that report back.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Trackers {

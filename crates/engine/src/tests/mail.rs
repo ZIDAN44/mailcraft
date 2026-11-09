@@ -394,6 +394,35 @@ fn web_pictures_load_only_when_asked() {
     assert!(s.pictures_allowed());
     s.run("message.blockPictures", &json!({})).unwrap();
     assert!(!s.pictures_allowed());
+    // Told to load them unless a message looks suspicious: the server's word on who sent it.
+    s.run("view.autoPictures", &json!({"on": true})).unwrap();
+    s.run("list.open", &json!({"key": key(1).to_id()})).unwrap();
+    assert!(!s.pictures_allowed(), "nothing says who sent it");
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FetchUrl { .. })));
+    let mail = |result: &str| {
+        format!(
+            "Authentication-Results: mx.studio.example; dmarc={result} header.from=shop.example\r\nFrom: Shop <news@shop.example>\r\nSubject: n\r\nContent-Type: text/html\r\n\r\n<p>Sale</p><img src=\"https://cdn.shop.example/1.png\">"
+        )
+    };
+    let store = s.store.clone().unwrap();
+    store.write_body(&key(1), mail("fail").as_bytes()).unwrap();
+    s.run("list.open", &json!({"key": key(2).to_id()})).unwrap();
+    s.run("list.open", &json!({"key": key(1).to_id()})).unwrap();
+    assert!(!s.pictures_allowed(), "failed");
+    store.write_body(&key(1), mail("pass").as_bytes()).unwrap();
+    s.apply(Event::Body { key: key(1), raw: mail("pass").into_bytes() });
+    assert!(s.pictures_allowed(), "confirmed");
+    assert!(s.pictures_load_alone());
+    s.prefs.blocked_senders.insert("news@shop.example".into());
+    assert!(!s.pictures_load_alone(), "a blocked sender");
+    s.prefs.blocked_senders.clear();
+    assert!(s.pictures_load_alone());
+    // In Junk: it asks, whoever sent it.
+    let junk = mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Junk, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![junk] });
+    assert!(!s.pictures_load_alone(), "in Junk");
+    s.run("view.autoPictures", &json!({"on": false})).unwrap();
+    assert!(!s.pictures_allowed(), "off again: it asks");
     let _ = std::fs::remove_dir_all(store.root());
 }
 

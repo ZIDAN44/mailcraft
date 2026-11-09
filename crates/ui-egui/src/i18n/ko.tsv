@@ -1625,3 +1625,7 @@ month	May	5월
 	it can't be decrypted with your OpenPGP key	내 OpenPGP 키로 해독할 수 없습니다
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP 키는 브라우저가 아니라 MailCraft 데스크톱 앱에서 사용됩니다
 	Not sent yet: this is a draft.	아직 보내지 않음: 임시 보관 메시지입니다.
+	Show web pictures unless a message looks suspicious	메시지가 의심스럽지 않으면 웹 그림 표시
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	메일 서버가 보낸 사람을 확인했고 정크 메일에 있지 않으면 메시지를 열 때 그림을 불러옵니다. 각 그림의 서버는 IP 주소와 메시지를 연 시각을 볼 수 있습니다. 추적 그림은 계속 차단됩니다
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	이 메시지는 의심스럽거나 보낸 사람을 확인할 수 없어 그림을 숨겨 둡니다.
+	These senders' pictures always load, even when a message looks suspicious:	이 보낸 사람의 그림은 메시지가 의심스러워 보여도 항상 불러옵니다:

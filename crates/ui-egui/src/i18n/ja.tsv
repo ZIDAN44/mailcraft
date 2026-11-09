@@ -1622,3 +1622,7 @@ month	May	5月
 	it can't be decrypted with your OpenPGP key	あなたの OpenPGP 鍵では復号できません
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP 鍵はブラウザーではなく、MailCraft のデスクトップ版で使われます
 	Not sent yet: this is a draft.	まだ送信されていません。これは下書きです。
+	Show web pictures unless a message looks suspicious	不審なメッセージ以外は Web の画像を表示する
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	メール サーバーが送信者を確認でき、迷惑メールにないメッセージは、開いたときに画像を読み込みます。各画像のサーバーには IP アドレスと開いた時刻が伝わります。トラッキング画像はブロックされたままです
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	このメッセージは不審であるか送信者を確認できないため、画像は非表示のままです。
+	These senders' pictures always load, even when a message looks suspicious:	これらの送信者の画像は、メッセージが不審に見える場合でも常に読み込まれます:

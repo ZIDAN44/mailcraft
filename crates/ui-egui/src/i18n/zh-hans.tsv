@@ -1622,3 +1622,7 @@ month	May	5月
 	it can't be decrypted with your OpenPGP key	无法用你的 OpenPGP 密钥解密
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	你的 OpenPGP 密钥由 MailCraft 桌面应用使用，而不在浏览器中使用
 	Not sent yet: this is a draft.	尚未发送：这是草稿。
+	Show web pictures unless a message looks suspicious	除非邮件看起来可疑，否则显示网络图片
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	如果邮件服务器已确认发件人且邮件不在垃圾邮件中，打开邮件时会加载图片。每张图片所在的服务器都能看到你的 IP 地址和打开时间。跟踪图片仍被阻止
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	此邮件看起来可疑或无法确认发件人，因此其图片保持隐藏。
+	These senders' pictures always load, even when a message looks suspicious:	这些发件人的图片始终加载，即使邮件看起来可疑：

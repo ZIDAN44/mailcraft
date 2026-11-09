@@ -1626,3 +1626,7 @@ month	May	mayo
 	it can't be decrypted with your OpenPGP key	no se puede descifrar con tu clave OpenPGP
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	tus claves OpenPGP las usa la aplicación de escritorio de MailCraft, no el navegador
 	Not sent yet: this is a draft.	Aún no enviado: es un borrador.
+	Show web pictures unless a message looks suspicious	Mostrar imágenes web salvo que un mensaje parezca sospechoso
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Las imágenes se cargan al abrir el mensaje, si tu servidor de correo confirmó quién lo envió y no está en Correo no deseado. El servidor de cada imagen puede ver tu dirección IP y cuándo lo abriste. Las imágenes de seguimiento siguen bloqueadas
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Este mensaje parece sospechoso o no se pudo confirmar su remitente, así que sus imágenes siguen ocultas.
+	These senders' pictures always load, even when a message looks suspicious:	Las imágenes de estos remitentes siempre se cargan, aunque un mensaje parezca sospechoso:

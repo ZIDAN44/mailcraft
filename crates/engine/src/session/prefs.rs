@@ -197,6 +197,10 @@ pub struct Prefs {
     /// Links from a message open where they really go: out of redirect wrappers, without the
     /// tags that say who clicked ([`mime::clean_link`]). On at first.
     pub clean_links: bool,
+    /// Web pictures load as a message opens, unless it looks suspicious
+    /// ([`Session::pictures_load_alone`]). Off at first: every message asks.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub auto_pictures: bool,
     /// Ask a signer's certificate's authority whether it was withdrawn (OCSP or its CRL), as
     /// signed mail is shown. Off at first: the authority learns whose mail is being read.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -311,6 +315,7 @@ impl Default for Prefs {
             recent_searches: Vec::new(),
             keep_photo_location: false,
             clean_links: true,
+            auto_pictures: false,
             check_revocation: false,
             sender_addresses: SenderAddresses::Strangers,
             external_tag: false,

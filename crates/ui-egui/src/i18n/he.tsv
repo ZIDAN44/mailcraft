@@ -1621,3 +1621,7 @@ month	May	מאי
 	it can't be decrypted with your OpenPGP key	אי אפשר לפענח אותה במפתח OpenPGP שלך
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	מפתחות OpenPGP שלך משמשים באפליקציה של MailCraft לשולחן העבודה, לא בדפדפן
 	Not sent yet: this is a draft.	עדיין לא נשלח: זוהי טיוטה.
+	Show web pictures unless a message looks suspicious	הצג תמונות מהאינטרנט אלא אם ההודעה נראית חשודה
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	תמונות נטענות כשההודעה נפתחת, אם שרת הדואר אישר מי שלח אותה והיא לא בדואר הזבל. השרת של כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת אותה. תמונות מעקב נשארות חסומות
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	ההודעה נראית חשודה או שלא ניתן היה לאשר את השולח, ולכן התמונות נשארות מוסתרות.
+	These senders' pictures always load, even when a message looks suspicious:	תמונות משולחים אלה נטענות תמיד, גם כשההודעה נראית חשודה:

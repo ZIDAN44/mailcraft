@@ -25,12 +25,24 @@ impl Session {
             .unwrap_or_default()
     }
 
-    /// Whether the open message's web pictures may load: the user asked, for this message or
-    /// for everything from its sender.
+    /// Whether the open message's web pictures may load: the user asked, for this message, for
+    /// everything from its sender, or for every message that doesn't look suspicious.
     pub fn pictures_allowed(&self) -> bool {
         let Some(r) = &self.reading else { return false };
         let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
-        self.pictures_for.contains(&r.key) || (!sender.is_empty() && (self.prefs.trusted_senders.contains(&sender) || self.sender_safe(&sender)))
+        self.pictures_for.contains(&r.key)
+            || (!sender.is_empty() && (self.prefs.trusted_senders.contains(&sender) || self.sender_safe(&sender)))
+            || (self.prefs.auto_pictures && self.pictures_load_alone())
+    }
+
+    /// Whether the open message doesn't look suspicious, for the setting that loads its pictures
+    /// by themselves: the mail server confirmed who sent it, it isn't in Junk, and its sender
+    /// isn't blocked. A message that can't be told is suspicious here, and still asks.
+    pub fn pictures_load_alone(&self) -> bool {
+        let Some(r) = &self.reading else { return false };
+        let Some(p) = r.parsed.as_ref() else { return false };
+        let junk = self.folder(&r.key.account, &r.key.folder).is_none_or(|f| f.role == FolderRole::Junk);
+        p.sender_check == mime::SenderCheck::Confirmed && !junk && !self.sender_blocked(&p.from.email.trim().to_ascii_lowercase())
     }
 
     /// Ask the network layer for the open message's pictures, when allowed.

@@ -61,7 +61,13 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
                 ui.horizontal_wrapped(|ui| {
                     let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), ir, Icon::Image, t.dim);
-                    ui.label(RichText::new(tl!("Pictures from the web are hidden to protect your privacy.")).color(t.dim));
+                    // Shown by themselves elsewhere: why not on this one.
+                    let why = if s.prefs.auto_pictures {
+                        tl!("This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.")
+                    } else {
+                        tl!("Pictures from the web are hidden to protect your privacy.")
+                    };
+                    ui.label(RichText::new(why).color(t.dim));
                     if ui.link(tl!("Show pictures")).clicked() {
                         acts.push(Action::Run("message.showPictures", json!({})));
                     }

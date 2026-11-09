@@ -425,6 +425,17 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(
             ui,
             false,
+            tl!("Show web pictures unless a message looks suspicious"),
+            Some(tl!(
+                "Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked"
+            )),
+            &mut |ui| {
+                switch(ui, s.prefs.auto_pictures, tl!("Show web pictures unless a message looks suspicious"), "view.autoPictures", acts);
+            },
+        );
+        setting(
+            ui,
+            false,
             tl!("Check whether certificates were withdrawn"),
             Some(tl!(
                 "As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading"
@@ -487,7 +498,12 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         );
     });
 
-    group(ui, tl!("Privacy"), Some(tl!("Pictures from the web load only when you ask. These senders' pictures always load:")), &mut |ui| {
+    let privacy = if s.prefs.auto_pictures {
+        tl!("These senders' pictures always load, even when a message looks suspicious:")
+    } else {
+        tl!("Pictures from the web load only when you ask. These senders' pictures always load:")
+    };
+    group(ui, tl!("Privacy"), Some(privacy), &mut |ui| {
         if s.prefs.trusted_senders.is_empty() {
             ui.add_space(4.0);
             ui.label(RichText::new(tl!("No senders yet.")).color(t.faint).small());

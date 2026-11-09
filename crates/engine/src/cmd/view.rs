@@ -273,6 +273,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "on": s.prefs.clean_links }))
         })
         .params(r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
+        CommandSpec::new("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", |s, v| {
+            s.prefs.auto_pictures = p::bool(v, "on").unwrap_or(!s.prefs.auto_pictures);
+            Ok(json!({ "on": s.prefs.auto_pictures }))
+        })
+        .params(r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#),
         CommandSpec::new("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", |s, v| {
             s.prefs.check_revocation = p::bool(v, "on").unwrap_or(!s.prefs.check_revocation);
             Ok(json!({ "on": s.prefs.check_revocation }))

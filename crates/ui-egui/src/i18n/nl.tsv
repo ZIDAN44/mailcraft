@@ -1621,3 +1621,7 @@ month	May	mei
 	it can't be decrypted with your OpenPGP key	het kan niet worden ontsleuteld met uw OpenPGP-sleutel
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	uw OpenPGP-sleutels worden gebruikt door de desktop-app van MailCraft, niet in de browser
 	Not sent yet: this is a draft.	Nog niet verzonden: dit is een concept.
+	Show web pictures unless a message looks suspicious	Webafbeeldingen tonen tenzij een bericht verdacht lijkt
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Afbeeldingen worden geladen zodra een bericht opent, als uw e-mailserver de afzender heeft bevestigd en het niet in Ongewenste e-mail staat. De server van elke afbeelding kan uw IP-adres zien en wanneer u het opende. Volgafbeeldingen blijven geblokkeerd
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Dit bericht lijkt verdacht of de afzender kon niet worden bevestigd, dus de afbeeldingen blijven verborgen.
+	These senders' pictures always load, even when a message looks suspicious:	Afbeeldingen van deze afzenders worden altijd geladen, ook als een bericht verdacht lijkt:
