@@ -88,14 +88,6 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   that hostile or huge mail stays quick: a copy cut there would run its paragraphs together, and
   past two dozen tables, each one nested deeper makes its text slower to read.
 
-### 8. Newsletters: every line of text at one size
-
-- **Impact:** Text in a message is drawn at the reading pane's size, with its headings larger. A
-  footer of fine print or a price in large figures is the size of the rest.
-- **Workaround:** Most newsletters have a link at the top to see them in a browser.
-- **Cause:** Formatted lines keep a span's weight, colour and heading level, not a size in
-  pixels; a size of its own would have to be carried through and measured with the text.
-
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

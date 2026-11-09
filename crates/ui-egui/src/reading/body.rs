@@ -221,19 +221,21 @@ pub(super) fn span_font(sp: &mime::Span) -> egui::FontId {
 const SCRIPT_SIZE: f32 = 0.72;
 
 fn span_font_at_full_size(sp: &mime::Span) -> egui::FontId {
+    // The size the message sets, one of its pixels a point here, as its layout is.
+    let size = |unset: f32| sp.size.map_or(unset, f32::from);
     if sp.heading > 0 {
-        theme::bold(match sp.heading {
+        theme::bold(size(match sp.heading {
             1 => 22.0,
             2 => 19.0,
             3 => 17.0,
             _ => 15.5,
-        })
+        }))
     } else if sp.code {
-        egui::FontId::monospace(13.5)
+        egui::FontId::monospace(size(13.5))
     } else if sp.bold {
-        theme::bold(14.5)
+        theme::bold(size(14.5))
     } else {
-        theme::regular(14.5)
+        theme::regular(size(14.5))
     }
 }
 

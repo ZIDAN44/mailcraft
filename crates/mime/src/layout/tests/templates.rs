@@ -195,3 +195,64 @@ fn a_picture_behind_a_box_is_not_drawn_again() {
     let read = crate::as_outlook_reads(r#"<!--[if mso]><v:image style="width:100px;height:40px" src="https://x.example/a.png"/><![endif]-->"#);
     assert!(read.contains("<img"), "{read}");
 }
+
+/// The size of the words `word` is in.
+fn size_of(blocks: &[Block], word: &str) -> Option<u16> {
+    let mut found = None;
+    let mut b = blocks.to_vec();
+    each_span(&mut b, &mut |s| {
+        if s.text.contains(word) {
+            found = s.size;
+        }
+    });
+    found
+}
+
+/// Text at the size its sender set, as CSS works it out: inherited, relative to what's around
+/// it, and a template's `font-size: 0` on a column passed over.
+#[test]
+fn text_keeps_the_size_its_sender_set() {
+    let b = html_layout(&page(
+        r#"<div style="font-size:12px">Twelve <b>inherited</b><div style="font-size:150%">Eighteen<span style="font-size:0.5em">Nine</span></div></div>
+           <table width="100%"><tr><td style="font-size:0px"><div style="font-size:15px">Fifteen</div></td><td><font size="1">Ten</font></td></tr></table>
+           <p>Unset</p><p style="font-size:11pt">Points</p><p style="font-size:1px">Tiny</p><p style="font-size:900px">Huge</p>"#,
+    ));
+    for (word, px) in [
+        ("Twelve", Some(12)),
+        ("inherited", Some(12)),
+        ("Eighteen", Some(18)),
+        ("Nine", Some(9)),
+        ("Fifteen", Some(15)),
+        ("Ten", Some(10)),
+        ("Unset", None),
+        ("Points", Some(15)),
+        ("Tiny", Some(9)),
+        ("Huge", Some(96)),
+    ] {
+        assert_eq!(size_of(&b, word), px, "{word}: {b:?}");
+    }
+    let shown = words(&b);
+    assert!(shown.contains("Twelve inherited"), "the space between them kept: {shown}");
+    // A space around the words of a size is no part of them: it doesn't start the line.
+    let b = html_layout(&page("<p style=\"font-size:12px\">\n   Leading</p>"));
+    assert!(words(&b).lines().any(|l| l == "Leading"), "{:?}", words(&b));
+    assert!(!shown.chars().any(|c| ('\u{F0000}'..='\u{F0100}').contains(&c)), "{shown:?}");
+}
+
+/// Flowing text too (no layout), a long paragraph all of it, what's in a table of values left as
+/// it was (a mark would count for a letter in its columns).
+#[test]
+fn flowing_text_keeps_its_size() {
+    let raw = format!(
+        "From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n<p style=\"font-size:10px\">Small {}</p><p>Plain</p>",
+        "word ".repeat(1000)
+    );
+    let p = crate::parse(raw.as_bytes()).unwrap();
+    assert!(p.layout.is_empty());
+    let sized: Vec<&crate::Span> = p.rich.iter().flatten().filter(|s| s.text.contains("word")).collect();
+    assert!(sized.len() > 1 && sized.iter().all(|s| s.size == Some(10)), "every line of it: {} {:?}", sized.len(), sized.first());
+    assert!(p.rich.iter().flatten().filter(|s| s.text.contains("Plain")).all(|s| s.size.is_none()), "{:?}", p.rich);
+    let table = sized_html(r#"<p style="font-size:10px">Words</p><table><tr><td style="font-size:10px">Cell</td></tr></table>"#).unwrap_or_default();
+    assert!(table.contains('\u{F000A}') && table.contains(">Cell<"), "{table:?}");
+    assert!(!p.text.chars().any(|c| ('\u{F0000}'..='\u{F0100}').contains(&c)), "the plain text has no marks");
+}

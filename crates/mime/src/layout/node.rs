@@ -496,6 +496,22 @@ impl Node {
     }
 
     /// Its size in pixels, when its style or `<font size>` sets one.
+    /// The size of the text in it, in pixels, given the size of what's around it (`0`: not
+    /// known). A size of nothing (`font-size: 0`, on a template's columns) is passed over.
+    pub(super) fn text_size(&self, around: u16) -> u16 {
+        let base = if around == 0 { 16.0 } else { f32::from(around) };
+        let number = |v: &str, unit: &str| v.strip_suffix(unit).and_then(|n| n.trim().parse::<f32>().ok());
+        let px = match self.style("font-size").as_deref().map(str::trim) {
+            Some("smaller") => Some(base * 0.83),
+            Some("larger") => Some(base * 1.2),
+            // What's relative is to what's around it (the rest are the same anywhere).
+            Some(v) if v.ends_with('%') => number(v, "%").map(|n| base * n / 100.0),
+            Some(v) if v.ends_with("em") && !v.ends_with("rem") => number(v, "em").map(|n| base * n),
+            _ => self.font_size(),
+        };
+        px.filter(|p| p.is_finite() && *p >= 1.0).map_or(around, |p| p.round().min(f32::from(u16::MAX)) as u16)
+    }
+
     pub(super) fn font_size(&self) -> Option<f32> {
         self.style("font-size")
             .as_deref()

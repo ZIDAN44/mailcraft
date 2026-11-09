@@ -16,7 +16,7 @@ pub(crate) use outlook::{HIDDEN_RULE, OUTLOOK_MARK, OUTLOOK_TABLE, OutlookCopy, 
 use page::no_page_background;
 pub use quote::*;
 use scripts::scripts_split;
-pub(crate) use scripts::{mark_scripts, plain_scripts};
+pub(crate) use scripts::{SIZE_END, mark_scripts, plain_scripts, size_mark};
 pub use signature::*;
 
 /// Most lines kept of a rich rendering (the rest is shown as text).
@@ -333,6 +333,7 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
     let Ok(Ok(lines)) = result else { return Vec::new() };
     let mut out: RichText = Vec::new();
     let mut blank = 0;
+    let mut size = 0u16;
     for line in lines.into_iter().take(RICH_MAX_LINES) {
         let mut spans: Vec<Span> = Vec::new();
         for ts in line.tagged_strings() {
@@ -393,7 +394,7 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
         for sp in &mut spans {
             sp.text = sp.text.replace([HEADING_MARK, PICTURE_MARK], "");
         }
-        let mut spans = scripts_split(spans);
+        let mut spans = scripts_split(spans, &mut size);
         // List bullets (`* item`, indented when nested) as real bullets.
         if let Some(first) = spans.first_mut() {
             let indent = first.text.len() - first.text.trim_start_matches(' ').len();

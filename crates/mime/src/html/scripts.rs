@@ -7,6 +7,23 @@ use super::*;
 const SUP_MARK: char = '\u{E002}';
 const SUB_MARK: char = '\u{E003}';
 const SCRIPT_END: char = '\u{E004}';
+/// Where text of a size starts (the first plus its size in pixels) and ends, in text written for
+/// the rich text: in a plane of private characters that mail doesn't use.
+const SIZE_MARKS: u32 = 0xF_0000;
+pub(crate) const SIZE_END: char = '\u{F_0100}';
+/// The sizes marked, in pixels.
+const SMALLEST: u16 = 9;
+const LARGEST: u16 = 96;
+
+/// The mark that starts text of `px` pixels, held to what can be read and drawn.
+pub(crate) fn size_mark(px: u16) -> char {
+    char::from_u32(SIZE_MARKS + u32::from(px.clamp(SMALLEST, LARGEST))).unwrap_or(SIZE_END)
+}
+
+/// The size a character marks.
+fn marked_size(c: char) -> Option<u16> {
+    u32::from(c).checked_sub(SIZE_MARKS).filter(|n| *n < 256).and_then(|n| u16::try_from(n).ok())
+}
 
 /// `html` with `<sup>` and `<sub>` made spans, a mark at each end of what's in them, and any mark
 /// already in it removed: the text converter writes `^{$}`, and digits alone in characters of
@@ -57,33 +74,41 @@ fn script_tag(lower: &str) -> Option<(bool, char)> {
     rest.as_bytes().get(3).is_some_and(|b| *b == b'>' || *b == b'/' || b.is_ascii_whitespace()).then_some((closing, mark))
 }
 
-/// The spans of a line split where what's raised or lowered starts and ends ([`mark_scripts`]),
-/// without the marks. What's left open ends with its line.
-pub(super) fn scripts_split(spans: Vec<Span>) -> Vec<Span> {
-    if !spans.iter().any(|s| s.text.contains([SUP_MARK, SUB_MARK, SCRIPT_END])) {
+/// The spans of a line split where what's raised or lowered, or of a size, starts and ends
+/// ([`mark_scripts`], [`size_mark`]), without the marks. What's raised and left open ends with
+/// its line; a size goes on to the next (`size`, 0 for none: a long paragraph is several lines).
+pub(super) fn scripts_split(spans: Vec<Span>, size: &mut u16) -> Vec<Span> {
+    let marks = |c: char| matches!(c, SUP_MARK | SUB_MARK | SCRIPT_END | SIZE_END) || marked_size(c).is_some();
+    if *size == 0 && !spans.iter().any(|s| s.text.contains(marks)) {
         return spans;
     }
     let mut out: Vec<Span> = Vec::with_capacity(spans.len() + 4);
-    let mut now = Rise::Normal;
+    let mut rise = Rise::Normal;
     for sp in spans {
         let mut part = String::new();
+        let stamped = |text: String, rise: Rise, size: u16| Span { text, rise, size: (size > 0).then_some(size), ..sp.clone() };
         for c in sp.text.chars() {
-            let next = match c {
-                SUP_MARK => Rise::Sup,
-                SUB_MARK => Rise::Sub,
-                SCRIPT_END => Rise::Normal,
-                c => {
-                    part.push(c);
-                    continue;
-                }
+            let (next_rise, next_size) = match c {
+                SUP_MARK => (Rise::Sup, *size),
+                SUB_MARK => (Rise::Sub, *size),
+                SCRIPT_END => (Rise::Normal, *size),
+                SIZE_END => (rise, 0),
+                c => match marked_size(c) {
+                    Some(px) => (rise, px),
+                    None => {
+                        part.push(c);
+                        continue;
+                    }
+                },
             };
             if !part.is_empty() {
-                out.push(Span { text: std::mem::take(&mut part), rise: now, ..sp.clone() });
+                out.push(stamped(std::mem::take(&mut part), rise, *size));
             }
-            now = next;
+            rise = next_rise;
+            *size = next_size;
         }
         if !part.is_empty() || sp.image.is_some() {
-            out.push(Span { text: part, rise: now, ..sp });
+            out.push(stamped(part, rise, *size));
         }
     }
     out

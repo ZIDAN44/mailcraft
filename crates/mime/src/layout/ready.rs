@@ -95,7 +95,12 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
         // into every element, they made a long newsletter's text longer than is read).
         let text = (outlooks || sheet_hides).then(|| {
             let mut out = String::with_capacity(html.len());
-            write_as(&root, &mut out, How { leave_hidden: true, blocks: outlooks, styles: false, in_values: false, flat: false }, false);
+            write_as(
+                &root,
+                &mut out,
+                How { leave_hidden: true, blocks: outlooks, styles: false, in_values: false, flat: false, sizing: false, size: 0 },
+                false,
+            );
             out
         });
         // Written from the tree when its styles are, or it reads otherwise than as it came; as it
@@ -108,7 +113,12 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
                 make_headings(n, 0);
             }
             let mut out = String::with_capacity(html.len() + html.len() / 4);
-            write_as(&root, &mut out, How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false }, false);
+            write_as(
+                &root,
+                &mut out,
+                How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0 },
+                false,
+            );
             out
         } else {
             html.to_string()
@@ -152,6 +162,28 @@ fn marked(styled: String, came: &str, text: Option<String>, copy: bool, hide: bo
     }
 }
 
+/// `html` for the rich text with the size of its text marked, when it sets any and all of it
+/// can be read; `None` to read it as it is.
+pub(crate) fn sized_html(html: &str) -> Option<String> {
+    let lower = html.to_ascii_lowercase();
+    if !(lower.contains("font-size") || lower.contains("<font")) || html.len() > crate::WRITTEN_MAX {
+        return None;
+    }
+    std::panic::catch_unwind(|| {
+        let tree = parse_as(html, false)?;
+        let mut out = String::with_capacity(html.len() + html.len() / 8);
+        write_as(
+            &Kid::El(tree.root),
+            &mut out,
+            How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size: 0 },
+            false,
+        );
+        Some(out)
+    })
+    .ok()
+    .flatten()
+}
+
 /// How the tree is written.
 #[derive(Clone, Copy)]
 pub(super) struct How {
@@ -167,6 +199,10 @@ pub(super) struct How {
     pub(super) in_values: bool,
     /// Every table written as blocks (one past what a layout draws).
     pub(super) flat: bool,
+    /// Text marked with its size for the rich text ([`crate::html::size_mark`]).
+    pub(super) sizing: bool,
+    /// The size of the text here, in pixels (`0`: not set).
+    pub(super) size: u16,
 }
 
 /// Parts of a table, written as blocks in a layout table read as blocks.
@@ -179,6 +215,16 @@ fn table_part(tag: &str) -> bool {
 /// ([`MAX_OPEN`]).
 pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
     match k {
+        // Its size around the words: a space outside it stays a space between words.
+        Kid::Text(t) if how.sizing && how.size > 0 && !t.trim().is_empty() => {
+            let words = t.trim();
+            let before = t.len() - t.trim_start().len();
+            escaped(t.get(..before).unwrap_or(""), out, false);
+            out.push(crate::html::size_mark(how.size));
+            escaped(words, out, false);
+            out.push(crate::html::SIZE_END);
+            escaped(t.get(before + words.len()..).unwrap_or(""), out, false);
+        }
         Kid::Text(t) => escaped(t, out, false),
         Kid::El(n) => {
             if n.tag.starts_with('#') {
@@ -190,13 +236,15 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
             if how.leave_hidden && n.attr("style").is_some_and(crate::html::mso_hidden) {
                 return;
             }
+            let how = if how.sizing { How { size: n.text_size(how.size), ..how } } else { how };
             let (tag, layout, how) = match n.tag.as_str() {
                 // Its text as it's written, in a box that ends (`<plaintext>` doesn't, and the
                 // tags written after it showed as text; found in review).
                 "plaintext" => ("pre", layout, how),
                 // A layout table, read as blocks in the text.
                 "table" if how.flat || (how.blocks && !how.in_values && layout_table(n)) => ("div", true, how),
-                "table" => ("table", false, How { in_values: true, ..how }),
+                // Written as a table, of columns of letters: marks would count for some.
+                "table" => ("table", false, How { in_values: true, sizing: false, ..how }),
                 t if layout && table_part(t) => ("div", true, how),
                 t => (t, layout, how),
             };

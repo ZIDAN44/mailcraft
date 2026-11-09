@@ -14,6 +14,8 @@ pub(super) struct Ctx {
     pub(super) around: Around,
     /// Boxes taken for wrappers on the way here ([`MAX_UNWRAPPED`]).
     pub(super) unwrapped: usize,
+    /// The size of text here, in pixels, as the boxes around set it (`0`: not set).
+    pub(super) size: u16,
 }
 
 /// What's known of the box a part is in.
@@ -96,8 +98,16 @@ impl Ctx {
     }
 }
 
-/// `f` with the text colour `n` sets, if it sets one, as CSS inherits it.
+/// `f` with the text colour and size `n` sets, if it sets them, as CSS inherits them.
 pub(super) fn colored<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R) -> R {
+    let size = n.text_size(ctx.size);
+    let saved_size = std::mem::replace(&mut ctx.size, size);
+    let r = colored_only(ctx, n, f);
+    ctx.size = saved_size;
+    r
+}
+
+fn colored_only<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R) -> R {
     // Only what a colour is written with: it goes back into markup.
     let own = n
         .style_as_written("color")
@@ -458,8 +468,8 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             }
             // A table past what's laid out: read as blocks, one cell after another. A text table
             // here, of box-drawing lines in a monospace font, is no part of a layout.
-            Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending),
-            k => write_shown(k, &mut pending),
+            Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending, ctx.size),
+            k => write_shown(k, &mut pending, ctx.size),
         }
     }
     flush(&mut pending, &mut out, ctx);

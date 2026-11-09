@@ -26,8 +26,8 @@ pub(crate) use flat::each_span;
 pub use flat::{cell_text, flatten, text_blocks};
 pub(crate) use parse::void;
 use parse::{parse, parse_as};
-pub(crate) use ready::ready;
 use ready::{How, write_as};
+pub(crate) use ready::{ready, sized_html};
 pub use write::to_html;
 
 /// Tables nested deeper than this are flattened into text.
@@ -469,17 +469,18 @@ fn make_headings(n: &mut Node, depth: usize) {
 
 /// Markup for a part of the tree (to hand to the text converter).
 fn write(k: &Kid, out: &mut String) {
-    write_as(k, out, How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false }, false);
+    write_as(k, out, How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0 }, false);
 }
 
-/// [`write`], without what's hidden from Outlook (a layout's text, as it's shown).
-fn write_shown(k: &Kid, out: &mut String) {
-    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false, flat: false }, false);
+/// [`write`], without what's hidden from Outlook (a layout's text, as it's shown), the size of
+/// its text marked (`size`: what's around it).
+fn write_shown(k: &Kid, out: &mut String, size: u16) {
+    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size }, false);
 }
 
 /// [`write_shown`], every table in it written as blocks.
-fn write_flat(k: &Kid, out: &mut String) {
-    write_as(k, out, How { leave_hidden: true, blocks: true, styles: true, in_values: false, flat: true }, false);
+fn write_flat(k: &Kid, out: &mut String, size: u16) {
+    write_as(k, out, How { leave_hidden: true, blocks: true, styles: true, in_values: false, flat: true, sizing: true, size }, false);
 }
 
 /// A shallow copy of a part of the tree (its children too).
@@ -549,7 +550,7 @@ pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
         let root = parse(html);
         let mut css = String::new();
         collect_css(&root, &mut css, 0);
-        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None, around: Around::default(), unwrapped: 0 };
+        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None, around: Around::default(), unwrapped: 0, size: 0 };
         let body = find(&root, "body", 0).unwrap_or(&root);
         // A body of a set width is a column of that width, as a box would be.
         let out = if body.tag == "body" && matches!(body.width(), Some(Width::Px(_))) {

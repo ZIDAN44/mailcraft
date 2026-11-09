@@ -347,6 +347,9 @@ pub struct Span {
     /// A picture's size as the message sets it (issue #10).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_size: Option<ImageSize>,
+    /// How big it is, in pixels, as the message sets it (`font-size`, `<font size>`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u16>,
     /// Raised or lowered, smaller (`<sup>`, `<sub>`).
     #[serde(default, skip_serializing_if = "Rise::is_normal")]
     pub rise: Rise,
@@ -423,7 +426,9 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
                     images.push(src);
                 }
             }
-            (html::html_to_rich_within(h, WRITTEN_MAX, r.hidden), images, layout)
+            // Flowing text at the size it sets; a layout has its own ([`layout::Block`]).
+            let sized = if layout.is_empty() { layout::sized_html(h) } else { None };
+            (html::html_to_rich_within(sized.as_deref().unwrap_or(h), WRITTEN_MAX, r.hidden), images, layout)
         }
         _ => (Vec::new(), Vec::new(), Vec::new()),
     };
