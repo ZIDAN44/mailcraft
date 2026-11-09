@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
+## 0.35.0
+
+*Mail built from templates reads as it was designed.*
+
+### Fixed
+
+- Mail built from templates is no longer said to hide its text: a preview line's invisible padding isn't words, and `font-size: 0` on a column hides nothing when the text inside sets its own size (#47).
+
 ## 0.34.0
 
 *One coloured title bar on Windows, dates written your way, and drafts never lost on their way to the server.*

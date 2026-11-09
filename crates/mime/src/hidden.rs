@@ -32,8 +32,8 @@ pub(crate) fn hidden_text_where(html: &str, mso_hide_hides: bool) -> Option<(Str
         Some((i, _)) => html.get(..i).unwrap_or(html),
         None => html,
     };
-    // Open elements: name, hides its content, isn't text at all.
-    let mut open: Vec<(String, bool, bool)> = Vec::new();
+    // Open elements: name, hides its content, isn't text at all, its text too small to see.
+    let mut open: Vec<(String, bool, bool, bool)> = Vec::new();
     let mut kept = String::new();
     let mut words = 0usize;
     let mut rest = html;
@@ -42,11 +42,13 @@ pub(crate) fn hidden_text_where(html: &str, mso_hide_hides: bool) -> Option<(Str
             Some(i) => (rest.get(..i).unwrap_or(""), rest.get(i..).unwrap_or("")),
             None => (rest, ""),
         };
-        let hiding = open.iter().any(|(_, h, _)| *h);
-        let skipped = open.iter().any(|(_, _, n)| *n);
+        let hiding = open.iter().any(|(_, h, ..)| *h) || open.last().is_some_and(|(.., tiny)| *tiny);
+        let skipped = open.iter().any(|(_, _, n, _)| *n);
         if hiding && !skipped {
             let text = decode(text);
-            let n = text.split_whitespace().count();
+            // Words: not the invisible characters a preview line is padded with (issue #47:
+            // a shipping notice said it hid 491 words).
+            let n = text.split_whitespace().filter(|w| w.chars().any(char::is_alphanumeric)).count();
             if n > 0 {
                 words += n;
                 if kept.len() < KEPT_MAX {
@@ -70,7 +72,7 @@ pub(crate) fn hidden_text_where(html: &str, mso_hide_hides: bool) -> Option<(Str
         rest = after.get(end + 1..).unwrap_or("");
         if let Some(name) = tag.strip_prefix('/') {
             let name = tag_name(name);
-            if let Some(at) = open.iter().rposition(|(n, _, _)| *n == name) {
+            if let Some(at) = open.iter().rposition(|(n, ..)| *n == name) {
                 open.truncate(at);
             }
             continue;
@@ -81,8 +83,12 @@ pub(crate) fn hidden_text_where(html: &str, mso_hide_hides: bool) -> Option<(Str
         }
         let not_text = NOT_TEXT.contains(&name.as_str());
         let hides = hides(tag, mso_hide_hides);
+        // A size is inherited until something sets its own: a template sets `font-size: 0` on
+        // its columns, to close the gaps between them, and a size on the text in them (issue #47:
+        // every word of a shipping notice was taken for hidden).
+        let tiny = tiny_text(tag).unwrap_or_else(|| open.last().is_some_and(|(.., t)| *t));
         if open.len() < DEPTH_MAX {
-            open.push((name, hides, not_text));
+            open.push((name, hides, not_text, tiny));
         }
     }
     (words >= HIDDEN_WORDS_MIN).then_some((kept, words))
@@ -134,22 +140,66 @@ fn hides(tag: &str, mso_hide: bool) -> bool {
         || value("visibility").is_some_and(|v| v == "hidden")
         || (mso_hide && crate::html::mso_hidden(&style))
         || value("opacity").and_then(|v| number(&v)).is_some_and(|n| n < 0.05)
-        || value("font-size").and_then(|v| number(&v)).is_some_and(|n| n < 2.0)
         || (overflow_hidden
             && ["max-height", "height", "max-width", "width"].iter().any(|p| value(p).and_then(|v| number(&v)).is_some_and(|n| n < 2.0)))
 }
 
-/// The entities hidden text is usually written with, as their characters.
+/// Whether an opening tag's own `font-size` makes its text too small to see; `None` when it sets
+/// none it can be told from.
+fn tiny_text(tag: &str) -> Option<bool> {
+    let style = crate::html::tag_attr(tag, "style")?.to_ascii_lowercase();
+    let v =
+        style.split(';').rev().find_map(|d| d.split_once(':').filter(|(p, _)| p.trim() == "font-size").map(|(_, v)| v.replace("!important", "")))?;
+    let v = v.trim();
+    if v.trim_end_matches(|c: char| c.is_ascii_alphabetic() || c == '%').parse::<f32>().is_ok_and(|n| n <= 0.0) {
+        return Some(true);
+    }
+    crate::layout::font_px(v).map(|px| px < 2.0)
+}
+
+/// Character references as their characters: those hidden text is usually written with, any by
+/// number; other names (`&shy;`, `&zwj;`, a preview line's padding) as nothing. What's no word
+/// comes out as a space, so that padding between words parts them.
 fn decode(s: &str) -> String {
-    s.replace("&nbsp;", " ")
-        .replace("&#160;", " ")
-        .replace("&zwnj;", "")
-        .replace("&#8204;", "")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&amp;", "&")
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(at) = rest.find('&') {
+        out.push_str(rest.get(..at).unwrap_or(""));
+        let after = rest.get(at + 1..).unwrap_or("");
+        let Some(len) = after.get(..after.len().min(12)).and_then(|a| a.find(';')) else {
+            out.push('&');
+            rest = after;
+            continue;
+        };
+        let name = after.get(..len).unwrap_or("");
+        match name {
+            "nbsp" | "ensp" | "emsp" | "thinsp" => out.push(' '),
+            "lt" => out.push('<'),
+            "gt" => out.push('>'),
+            "quot" => out.push('"'),
+            "apos" => out.push('\''),
+            "amp" => out.push('&'),
+            n if n.starts_with('#') => {
+                let code = match n.get(1..).and_then(|d| d.strip_prefix(['x', 'X']).map(|h| (h, 16)).or(Some((d, 10)))) {
+                    Some((d, radix)) => u32::from_str_radix(d, radix).ok(),
+                    None => None,
+                };
+                match code.and_then(char::from_u32) {
+                    Some(c) if c.is_alphanumeric() || c.is_ascii_punctuation() => out.push(c),
+                    _ => out.push(' '),
+                }
+            }
+            n if n.chars().all(|c| c.is_ascii_alphanumeric()) && !n.is_empty() => out.push(' '),
+            _ => {
+                out.push('&');
+                rest = after;
+                continue;
+            }
+        }
+        rest = after.get(len + 1..).unwrap_or("");
+    }
+    out.push_str(rest);
+    out
 }
 
 #[cfg(test)]
@@ -198,5 +248,23 @@ mod tests {
         }
         let deep = "<div style=\"display:none\">".repeat(2000) + LONG;
         assert!(hidden_text(&deep).is_some());
+    }
+
+    /// Found on the same notice: it said it hid 491 words. A preview line's padding of invisible
+    /// characters isn't words, and `font-size: 0` on a column, with a size set on the text inside
+    /// (as MJML writes every column), hides nothing.
+    #[test]
+    fn a_templates_columns_and_preview_padding_are_not_hidden_text() {
+        let pad = "&#847; &zwnj; &nbsp; &#8199; &shy; \u{34f} \u{200c} \u{ad} ".repeat(200);
+        let text = "word ".repeat(40);
+        let html = format!(
+            r#"<div style="display:none;font-size:1px;max-height:0;overflow:hidden">Your parcel is coming{pad}</div><table><tr><td style="font-size:0px"><div style="font-size:0;display:inline-block"><table><tr><td style="font-size:0"><div style="font-size:14px">{text}</div></td></tr></table></div></td></tr></table>"#
+        );
+        assert_eq!(hidden_text(&html), None);
+        // Text that really is that small still counts, however it's reached.
+        let html = format!(r#"<div style="font-size:0"><div><span>{text}</span></div></div>"#);
+        assert_eq!(hidden_text(&html).map(|(_, n)| n), Some(40));
+        let html = format!(r#"<div style="font-size:14px"><span style="font-size:0px">{text}</span></div>"#);
+        assert_eq!(hidden_text(&html).map(|(_, n)| n), Some(40));
     }
 }
