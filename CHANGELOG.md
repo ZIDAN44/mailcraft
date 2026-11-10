@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
+## Unreleased
+
+### Added
+- A native Android app with the shared MailCraft UI, private offline cache, production sync worker, and Keystore-backed credentials.
+
+### Fixed
+- The first-run welcome card now fits narrow windows without clipping its explanation.
+
 ## 0.34.0
 
 *One coloured title bar on Windows, dates written your way, and drafts never lost on their way to the server.*

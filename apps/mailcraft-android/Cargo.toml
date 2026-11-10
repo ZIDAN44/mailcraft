@@ -1,0 +1,55 @@
+[package]
+name = "mailcraft-android"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "MailCraft Android bootstrap"
+
+[lib]
+crate-type = ["cdylib"]
+
+# NativeActivity looks up this one exported entry point by name. Keep the sole required symbol
+# export local to this platform crate; the application code called from it remains safe Rust.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+too_many_arguments = "allow"
+type_complexity = "allow"
+
+[dependencies]
+mailcraft-engine = { workspace = true }
+mailcraft-net = { workspace = true }
+mailcraft-ui-egui = { workspace = true }
+chrono = { workspace = true, features = ["clock"] }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "android-native-activity"] }
+egui = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+serde_json = { workspace = true }
+winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
+android-native-keyring-store = "1"
+keyring-core = "1"
+
+[package.metadata.android]
+package = "ai.storyteller.mailcraft"
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 35
+
+[package.metadata.android.application]
+label = "MailCraft"
+
+[package.metadata.android.application.activity]
+config_changes = "orientation|keyboardHidden|screenSize|screenLayout"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
