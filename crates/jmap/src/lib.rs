@@ -459,7 +459,7 @@ impl<H: Http> Client<H> {
         if !self.quota {
             return Ok(None);
         }
-        let r = self.call(&[CORE, QUOTA], vec![("Quota/get", json!({"accountId": self.account, "ids": null}))]).await?;
+        let r = self.call(&[CORE, MAIL, QUOTA], vec![("Quota/get", json!({"accountId": self.account, "ids": null}))]).await?;
         let octets = list(r.first(), "list")
             .iter()
             .filter(|q| q.get("resourceType").and_then(Value::as_str) == Some("octets"))

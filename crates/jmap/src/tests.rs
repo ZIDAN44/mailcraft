@@ -106,3 +106,43 @@ fn a_forwards_draft_keeps_its_message() {
     fill_from_source(&mut listed, raw.as_bytes());
     assert_eq!(listed.forward_of, named, "from its source");
 }
+
+/// Recording HTTP fake: keeps sent requests alongside canned answers.
+struct Recorded {
+    sent: std::cell::RefCell<Vec<Request>>,
+    answers: std::cell::RefCell<Vec<Response>>,
+}
+
+impl Http for Recorded {
+    async fn send(&self, req: Request) -> Result<Response> {
+        self.sent.borrow_mut().push(req);
+        let mut q = self.answers.borrow_mut();
+        if q.is_empty() { Err(Error::Io("no more answers".into())) } else { Ok(q.remove(0)) }
+    }
+}
+
+#[test]
+fn quota_includes_the_mail_capability() {
+    let session = json!({
+        "capabilities": {
+            "urn:ietf:params:jmap:core": {"maxObjectsInGet": 50},
+            "urn:ietf:params:jmap:mail": {},
+            "urn:ietf:params:jmap:quota": {},
+        },
+        "primaryAccounts": {"urn:ietf:params:jmap:mail": "A1"},
+        "apiUrl": "/api/", "downloadUrl": "/d/{accountId}/{blobId}", "uploadUrl": "/u/{accountId}/",
+    });
+    let quota = json!({
+        "methodResponses": [[
+            "Quota/get",
+            {"accountId": "A1", "state": "q1", "list": [{"id": "mail-octets", "resourceType": "octets", "scope": "account", "used": 2048, "hardLimit": 10240}]},
+            "c0"
+        ]]
+    });
+    let ok = |v: &Value| Response { status: 200, body: v.to_string().into_bytes() };
+    let http = Recorded { sent: Vec::new().into(), answers: vec![ok(&session), ok(&quota)].into() };
+    let c = block_on(Client::connect(http, "jmap.example.com", "me", "pw", false)).unwrap();
+    assert_eq!(block_on(c.quota()).unwrap(), Some((2048, 10240)));
+    let sent: Value = serde_json::from_slice(&c.http.sent.borrow()[1].body).unwrap();
+    assert_eq!(sent["using"], json!([CORE, MAIL, QUOTA]));
+}
