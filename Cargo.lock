@@ -3960,6 +3960,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-android"
+version = "0.34.0"
+dependencies = [
+ "chrono",
+ "eframe",
+ "egui",
+ "mailcraft-engine",
+ "mailcraft-net",
+ "mailcraft-ui-egui",
+ "serde_json",
+ "winit",
+]
+
+[[package]]
 name = "mailcraft-cli"
 version = "0.34.0"
 dependencies = [

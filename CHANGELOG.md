@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
+## Unreleased
+
+### Added
+- A native Android app bootstrap that launches the shared MailCraft UI over an in-memory sample mailbox.
+
 ## 0.34.0
 
 *One coloured title bar on Windows, dates written your way, and drafts never lost on their way to the server.*

@@ -67,6 +67,7 @@ cd apps/mailcraft-web && trunk serve           # browser: http://127.0.0.1:8774/
 - [What's still missing](docs/gaps.md)
 - [How MailCraft is built](docs/architecture.md)
 - [How sync works](docs/sync.md)
+- [Android app bootstrap](apps/mailcraft-android/README.md)
 - [How test builds update themselves](docs/updates.md)
 - [Microsoft and Google sign-in](docs/oauth.md)
 - [Hosting the web build](packaging/web/README.md)
