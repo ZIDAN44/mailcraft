@@ -350,6 +350,26 @@ fn reads_through_handles_of_their_own_see_every_write() {
     let _ = std::fs::remove_dir_all(&t);
 }
 
+/// Where the system has no byte-range locks (FreeBSD), the database locks the whole data file
+/// while it's open, and a file open that way counts as in use: asked through the range alone,
+/// "unsupported" read as "not open", and a data file an account had open was copied as it was
+/// written (the FreeBSD CI's `an_account_starts_from_an_existing_data_file`). Linux and Windows
+/// hold the whole-file lock too, so the fallback is proved here as well.
+#[cfg(any(target_os = "linux", target_os = "freebsd", windows))]
+#[test]
+fn a_data_file_locked_whole_is_in_use() {
+    let t = temp("whole-lock");
+    std::fs::create_dir_all(&t).unwrap();
+    let path = t.join("a.mailcraft");
+    let db = redb::Database::builder().create_with_backend(super::super::handles::DataFile::open(&path).unwrap()).unwrap();
+    assert!(super::super::handles::whole_file_held(&path).unwrap(), "open to write");
+    assert!(super::super::handles::in_use(&path).unwrap());
+    drop(db);
+    assert!(!super::super::handles::whole_file_held(&path).unwrap(), "closed");
+    assert!(!super::super::handles::in_use(&path).unwrap());
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// An account removed while another thread still writes for it (an import not stopped yet, as
 /// the CI on a slow machine caught): a write that begins just as the account lets go of its file
 /// never puts the removed account's file back among the open ones under its id. It waits, then

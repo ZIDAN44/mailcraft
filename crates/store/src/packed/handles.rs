@@ -109,7 +109,23 @@ impl DataFile {
 /// reads through handles of their own nothing else stops the file being read while it's written.
 pub(super) fn in_use(path: &Path) -> io::Result<bool> {
     let probe = FileBackend::new(File::open(path)?).map_err(io::Error::other)?;
-    probe.query_lock_range(Bound::Included(LOCKS_FROM), Bound::Included(LOCKS_FROM.saturating_add(1))).map_err(io::Error::other)
+    match probe.query_lock_range(Bound::Included(LOCKS_FROM), Bound::Included(LOCKS_FROM.saturating_add(1))) {
+        Ok(held) => Ok(held),
+        // No byte-range locks on this system (FreeBSD): the database locks the whole file instead.
+        Err(BackendError::Unsupported) => whole_file_held(path),
+        Err(e) => Err(io::Error::other(e)),
+    }
+}
+
+/// Whether the whole file is locked to be written, as the database locks it where the system
+/// has no byte-range locks: a shared lock can't be had beside that one. Taken through a handle of
+/// its own and let go at once (closing the handle lets go of it).
+pub(super) fn whole_file_held(path: &Path) -> io::Result<bool> {
+    match File::open(path)?.try_lock_shared() {
+        Ok(()) => Ok(false),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(true),
+        Err(std::fs::TryLockError::Error(e)) => Err(e),
+    }
 }
 
 /// Fill `out` from `file` at `offset`; a short file is an error (as the database's own reads).

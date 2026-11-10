@@ -25,6 +25,7 @@ on GitHub.
 - New contacts and events have somewhere to go when the calendar server has only address books or calendars you can't change (a Nextcloud user who never opened its web page): they stay on this computer instead of being refused (#61).
 - Calendars and contacts sync with a server that takes Digest sign-in only, as Baïkal does unless set otherwise: every request was refused as if the password were wrong (#61).
 - A calendar or address book you may not read no longer keeps the others from syncing, nor asks for your password again: it's kept as it is, and named (#61).
+- On FreeBSD, a new account isn't started from a data file another account has open, as elsewhere: it was copied while it was being written.
 
 ### Added
 
