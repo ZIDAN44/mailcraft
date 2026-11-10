@@ -47,6 +47,22 @@ Two kinds of account need more:
   address the account's **primary alias** at account.live.com, then add the account with that
   address.
 
+## Google says MailCraft isn't verified
+
+When you **Sign in with Google**, Google may first warn that it hasn't verified MailCraft. This
+is expected. MailCraft asks for full access to Gmail, which IMAP and SMTP need, and
+Google shows this warning for every app with that access that hasn't been through its review.
+That review includes a security assessment by an outside lab, repeated every year, and MailCraft
+hasn't been through it.
+
+- **To go on:** choose **Advanced**, then **Go to MailCraft**, and approve access to your mail.
+- **Google Workspace, if your company blocks unverified apps:** an administrator can allow
+  MailCraft under **Security › Access and data control › API controls › Manage Third-Party App
+  Access**: **Configure new app**, find MailCraft by name or client ID, and set it to **Trusted**.
+- **Without Google sign-in:** create an [app password](https://support.google.com/accounts/answer/185833)
+  (it needs 2-Step Verification, and on Workspace your administrator must allow it), then add the
+  account with that password. MailCraft connects over IMAP and SMTP, and Google shows no warning.
+
 ## Fix an Outlook.com account that won't connect
 
 ### "Microsoft doesn't accept passwords from mail apps"
