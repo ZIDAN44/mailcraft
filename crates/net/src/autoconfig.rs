@@ -211,6 +211,7 @@ pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
         return Some(Found { config: c, source: "the ISP database".into() });
     }
     if let Some(mx) = (l.mx)(&domain).into_iter().next() {
+        let mx = mx.trim_end_matches('.').to_ascii_lowercase();
         let base = base_domain(&mx);
         if base != domain {
             if let Some(c) = try_url(l, &format!("https://autoconfig.thunderbird.net/v1.1/{base}")) {
@@ -220,6 +221,12 @@ pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
             if let Some(c) = try_url(l, &format!("https://autoconfig.{base}/mail/config-v1.1.xml?emaildomain={domain}")) {
                 return Some(Found { config: c, source: base });
             }
+        }
+        if mx != domain
+            && valid_host(&mx)
+            && let Some(c) = try_url(l, &format!("https://{mx}/.well-known/autoconfig/mail/config-v1.1.xml?emaildomain={domain}"))
+        {
+            return Some(Found { config: c, source: base });
         }
     }
     // Where Outlook looks: the host an `_autodiscover._tcp` record names, which providers point
@@ -420,6 +427,15 @@ mod tests {
             <incomingServer type="jmap"><hostname>mail.bad.example</hostname><port>80</port><socketType>plain</socketType></incomingServer>
         </emailProvider></clientConfig>"#;
         assert!(parse_config(plain, "zoe@bad.example").is_none());
+
+        // Self-hosted mail server on `mail.<domain>` answering `.well-known/autoconfig` on the MX host.
+        let mut mx_fetch = |url: &str| {
+            (url == "https://mail.firma.example/.well-known/autoconfig/mail/config-v1.1.xml?emaildomain=firma.example").then(|| xml.to_string())
+        };
+        let mut self_mx = |_: &str| vec!["mail.firma.example.".to_string()];
+        let mut srv_none = |_: &str| None;
+        let f = discover_with("zoe@firma.example", &mut Lookups { fetch: &mut mx_fetch, mx: &mut self_mx, srv: &mut srv_none }).unwrap();
+        assert_eq!(f.config.jmap.as_deref(), Some("https://mail.nextxch.com/.well-known/jmap"));
 
         // RFC 8620 §2.2 `_jmap._tcp` SRV discovery when no XML is published.
         let mut none = |_: &str| None;

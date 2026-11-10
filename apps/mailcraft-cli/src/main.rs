@@ -271,12 +271,16 @@ fn run() -> Result<(), String> {
                 match mailcraft_net::autoconfig::discover(&email) {
                     Some(f) => {
                         errln!("settings found: {}", f.source);
-                        p["imapHost"] = json!(f.config.imap.host);
-                        p["imapPort"] = json!(f.config.imap.port);
-                        p["imapSecurity"] = json!(f.config.imap.security.code());
-                        p["smtpHost"] = json!(f.config.smtp.host);
-                        p["smtpPort"] = json!(f.config.smtp.port);
-                        p["smtpSecurity"] = json!(f.config.smtp.security.code());
+                        if let Some(jmap) = f.config.jmap {
+                            p["jmap"] = json!(jmap);
+                        } else {
+                            p["imapHost"] = json!(f.config.imap.host);
+                            p["imapPort"] = json!(f.config.imap.port);
+                            p["imapSecurity"] = json!(f.config.imap.security.code());
+                            p["smtpHost"] = json!(f.config.smtp.host);
+                            p["smtpPort"] = json!(f.config.smtp.port);
+                            p["smtpSecurity"] = json!(f.config.smtp.security.code());
+                        }
                         if args.opt("--username").is_none() {
                             p["username"] = json!(f.config.username);
                         }

@@ -470,6 +470,7 @@ pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "account": a.config.id,
             "email": a.config.email,
             "name": a.config.name,
+            "jmap": a.config.jmap,
             "graph": a.config.graph,
             "pop": a.config.pop.as_ref().map(|p| format!("{}:{} ({})", p.host, p.port, p.security.code())),
             "ews": a.config.ews,
