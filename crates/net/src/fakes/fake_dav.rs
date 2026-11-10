@@ -12,6 +12,8 @@ use std::sync::{Arc, Mutex};
 pub const USER: &str = "me@studio.example";
 pub const PASSWORD: &str = "pw";
 pub const CAL: &str = "/dav/cal/work/";
+pub const TASKS: &str = "/dav/cal/tasks/";
+pub const NOTES: &str = "/dav/cal/notes/";
 pub const BOOK: &str = "/dav/card/main/";
 
 #[derive(Default)]
@@ -35,6 +37,9 @@ pub struct Data {
     /// Collections the user may not read (403 to reading them), as a calendar shared for free /
     /// busy only.
     pub unreadable: Vec<String>,
+    /// Publishes dedicated `VTODO` (`/dav/cal/tasks/`) and `VJOURNAL` (`/dav/cal/notes/`)
+    /// collections beside the main calendar, as Nextxch does.
+    pub with_tasks_and_notes: bool,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.
@@ -191,20 +196,31 @@ pub fn serve() -> Server {
                     respond(&mut s, "207 Multi-Status", &[], &multistatus(&[response("/dav/principals/me/", props)]));
                 }
                 ("PROPFIND", "/dav/cal/" | "/dav/card/") => {
-                    let (kind, child, name) =
-                        if path == "/dav/cal/" { ("<c:calendar/>", CAL, "Work") } else { ("<card:addressbook/>", BOOK, "Studio") };
-                    let col = format!(
-                        "<d:resourcetype><d:collection/>{kind}</d:resourcetype><d:displayname>{name}</d:displayname><cs:getctag>{}</cs:getctag><d:current-user-privilege-set><d:privilege><d:write/></d:privilege></d:current-user-privilege-set>",
-                        d.ctag
-                    );
-                    respond(
-                        &mut s,
-                        "207 Multi-Status",
-                        &[],
-                        &multistatus(&[response(&path, "<d:resourcetype><d:collection/></d:resourcetype>"), response(child, &col)]),
-                    );
+                    let mut rs = vec![response(&path, "<d:resourcetype><d:collection/></d:resourcetype>")];
+                    if path == "/dav/cal/" && d.with_tasks_and_notes {
+                        for (href, name, comps) in [
+                            (CAL, "Work", "<c:comp name=\"VEVENT\"/><c:comp name=\"VTODO\"/><c:comp name=\"VJOURNAL\"/>"),
+                            (TASKS, "Tasks", "<c:comp name=\"VTODO\"/>"),
+                            (NOTES, "Notes", "<c:comp name=\"VJOURNAL\"/>"),
+                        ] {
+                            let col = format!(
+                                "<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>{name}</d:displayname><cs:getctag>{}</cs:getctag><c:supported-calendar-component-set>{comps}</c:supported-calendar-component-set><d:current-user-privilege-set><d:privilege><d:write/></d:privilege></d:current-user-privilege-set>",
+                                d.ctag
+                            );
+                            rs.push(response(href, &col));
+                        }
+                    } else {
+                        let (kind, child, name) =
+                            if path == "/dav/cal/" { ("<c:calendar/>", CAL, "Work") } else { ("<card:addressbook/>", BOOK, "Studio") };
+                        let col = format!(
+                            "<d:resourcetype><d:collection/>{kind}</d:resourcetype><d:displayname>{name}</d:displayname><cs:getctag>{}</cs:getctag><d:current-user-privilege-set><d:privilege><d:write/></d:privilege></d:current-user-privilege-set>",
+                            d.ctag
+                        );
+                        rs.push(response(child, &col));
+                    }
+                    respond(&mut s, "207 Multi-Status", &[], &multistatus(&rs));
                 }
-                ("PROPFIND", p) if p == CAL || p == BOOK => {
+                ("PROPFIND", p) if p == CAL || p == TASKS || p == NOTES || p == BOOK => {
                     let mut rs = vec![response(p, "<d:resourcetype><d:collection/></d:resourcetype>")];
                     for (href, (etag, _)) in d.items.iter().filter(|(h, _)| h.starts_with(p)) {
                         rs.push(response(href, &format!("<d:getetag>{}</d:getetag><d:resourcetype/>", esc(etag))));
@@ -223,8 +239,8 @@ pub fn serve() -> Server {
                     }
                     respond(&mut s, "207 Multi-Status", &[], &multistatus(&rs));
                 }
-                ("REPORT", p) if p == CAL || p == BOOK => {
-                    let field = if p == CAL { "c:calendar-data" } else { "card:address-data" };
+                ("REPORT", p) if p == CAL || p == TASKS || p == NOTES || p == BOOK => {
+                    let field = if p == BOOK { "card:address-data" } else { "c:calendar-data" };
                     let mut rs = Vec::new();
                     for href in body.split("<d:href>").skip(1).filter_map(|x| x.split("</d:href>").next()) {
                         if let Some((etag, data)) = d.items.get(href) {
@@ -253,6 +269,10 @@ pub fn serve() -> Server {
                     };
                     if ok {
                         let etag = d.put(p, &body);
+                        if d.with_tasks_and_notes && p.starts_with(NOTES) {
+                            // Nextxch's unified notes bridge rewrites the stored VJOURNAL right after PUT.
+                            let _ = d.put(p, &body);
+                        }
                         respond(&mut s, "201 Created", &[("ETag", etag)], "");
                     } else {
                         respond(&mut s, "412 Precondition Failed", &[], "");
@@ -738,5 +758,82 @@ mod tests {
         let out = sync(&dav, &AT, &solo, 400, Zone::UTC).unwrap();
         assert_eq!((out.errors.len(), out.refused.as_slice()), (1, ["solo".to_string()].as_slice()), "{:?}", out.errors);
         assert!(server.data.lock().unwrap().items[&format!("{CAL}solo.ics")].1.contains("Dentist (moved)"));
+    }
+
+    #[test]
+    fn tasks_and_notes_sync_over_dedicated_caldav_collections() {
+        use mailcraft_model::pim::{Note, StoredNote, StoredTask, Task, TaskPriority, TaskStatus, Tombstone};
+
+        let server = serve();
+        {
+            let mut d = server.data.lock().unwrap();
+            d.with_tasks_and_notes = true;
+            d.put(
+                &format!("{TASKS}server-t.ics"),
+                &ical::write_calendar(
+                    &[],
+                    &[Task {
+                        uid: "server-t".into(),
+                        title: "Server task".into(),
+                        status: TaskStatus::InProgress,
+                        percent: 50,
+                        priority: TaskPriority::High,
+                        ..Default::default()
+                    }],
+                    100,
+                ),
+            );
+            d.put(
+                &format!("{NOTES}server-n.ics"),
+                &ical::write_journal_calendar(
+                    &Note { uid: "server-n".into(), text: "Server note\nFrom webmail".into(), color: 1, modified: 100, files: Vec::new() },
+                    100,
+                ),
+            );
+        }
+        let dav = Dav::new(USER, PASSWORD);
+        let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
+        let mut pim = Pim {
+            caldav_home: Some(home),
+            carddav_home: Some(String::new()),
+            dav_checked: Some(100),
+            tasks: vec![StoredTask {
+                task: Task { uid: "local-t".into(), title: "Local task".into(), due: Some(86_400 * 20), ..Default::default() },
+                dirty: true,
+                ..Default::default()
+            }],
+            notes: vec![StoredNote {
+                note: Note { uid: "local-n".into(), text: "Local note\nLine two".into(), color: 2, modified: 120, files: Vec::new() },
+                dirty: true,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let first = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
+        assert!(first.errors.is_empty(), "{:?}", first.errors);
+        assert_eq!(first.calendars.as_ref().map(Vec::len), Some(1), "task and note collections stay out of event calendars");
+        assert_eq!(first.pushed_tasks.len(), 1);
+        assert_eq!(first.pushed_notes.len(), 1);
+        let tasks = first.tasks.clone().expect("tasks synced");
+        let notes = first.notes.clone().expect("notes synced");
+        assert_eq!(tasks.len(), 2);
+        assert_eq!(notes.len(), 2);
+        assert!(notes.iter().any(|n| n.note.uid == "local-n" && n.note.color == 2 && n.note.text == "Local note\nLine two"));
+
+        // Edit the note and delete the server task: even with a bridge-bumped etag, both go cleanly.
+        pim.tasks = tasks;
+        pim.notes = notes;
+        let gone = pim.tasks.iter().find(|t| t.task.uid == "server-t").unwrap().clone();
+        pim.tasks.retain(|t| t.task.uid != "server-t");
+        pim.deleted.push(Tombstone { href: gone.href, etag: gone.etag, ..Default::default() });
+        let ln = pim.notes.iter_mut().find(|n| n.note.uid == "local-n").unwrap();
+        ln.etag = "\"stale\"".into();
+        ln.note.text = "Local note\nUpdated body".into();
+        ln.dirty = true;
+
+        let second = sync(&dav, &AT, &pim, 300, Zone::UTC).unwrap();
+        assert!(second.errors.is_empty(), "{:?}", second.errors);
+        assert_eq!(second.tasks.as_ref().map(Vec::len), Some(1));
+        assert_eq!(second.notes.as_ref().unwrap().iter().find(|n| n.note.uid == "local-n").unwrap().note.text, "Local note\nUpdated body");
     }
 }

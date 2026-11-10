@@ -578,9 +578,14 @@ impl Session {
             .ok_or_else(|| CmdError::Params(format!("no note `{uid}`")))
     }
 
-    /// Notes go to the server only where it keeps them (Exchange's Notes folder).
+    /// Notes go to the server when the account talks to EWS or CalDAV.
     fn notes_sync(&self, account: &str) -> bool {
-        self.account(account).is_some_and(|a| !a.is_local() && a.config.ews.is_some())
+        self.account(account).is_some_and(|a| a.config.has_server() && a.config.pop.is_none() && a.config.graph.is_none())
+    }
+
+    /// Tasks go to the server when the account can sync them over CalDAV.
+    pub(super) fn tasks_sync(&self, account: &str) -> bool {
+        self.account(account).is_some_and(|a| a.config.has_server() && a.config.pop.is_none() && a.config.graph.is_none() && a.config.ews.is_none())
     }
 
     /// A new note; returns its uid.

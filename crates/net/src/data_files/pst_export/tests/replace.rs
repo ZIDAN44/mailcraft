@@ -31,8 +31,10 @@ fn account() -> Pim {
         note: Note { uid: uid.into(), text: text.into(), color: 3, modified: 1_790_000_000, files: Vec::new() },
         ..Default::default()
     };
-    let task =
-        |uid: &str, title: &str| StoredTask { task: Task { uid: uid.into(), title: title.into(), modified: 1_790_000_000, ..Default::default() } };
+    let task = |uid: &str, title: &str| StoredTask {
+        task: Task { uid: uid.into(), title: title.into(), modified: 1_790_000_000, ..Default::default() },
+        ..Default::default()
+    };
     Pim {
         events: vec![event("e1@example.com", "Standup", 1_792_000_800), event("e2@example.com", "Review", 1_792_100_800)],
         cards: vec![card("c1", "Ana Lima"), card("c2", "Ben Ruiz")],

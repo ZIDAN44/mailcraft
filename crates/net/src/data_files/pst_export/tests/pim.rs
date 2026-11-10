@@ -144,7 +144,7 @@ pub(super) fn account() -> Pim {
     Pim {
         cards: [ana, ben, crew, pair].into_iter().map(|card| StoredCard { book: "local".into(), card, ..Default::default() }).collect(),
         notes: notes.into_iter().map(|note| StoredNote { note, ..Default::default() }).collect(),
-        tasks: tasks.into_iter().map(|task| StoredTask { task }).collect(),
+        tasks: tasks.into_iter().map(|task| StoredTask { task, ..Default::default() }).collect(),
         ..Default::default()
     }
 }
@@ -338,8 +338,10 @@ fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
         phones: vec![typed("+1 1", "cell")],
         ..Default::default()
     };
-    let water =
-        |uid: &str, d: u32| StoredTask { task: Task { uid: uid.into(), title: "Water plants".into(), due: Some(day(d)), ..Default::default() } };
+    let water = |uid: &str, d: u32| StoredTask {
+        task: Task { uid: uid.into(), title: "Water plants".into(), due: Some(day(d)), ..Default::default() },
+        ..Default::default()
+    };
     let mut pim = Pim {
         cards: vec![StoredCard { book: "local".into(), card, ..Default::default() }],
         notes: vec![StoredNote {

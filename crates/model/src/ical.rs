@@ -40,7 +40,7 @@ pub use recurrence::*;
 pub use scheduling::*;
 pub use showing::*;
 use tasks::*;
-pub use tasks::{TASK_STATUS, write_task};
+pub use tasks::{NOTE_COLOR, TASK_STATUS, parse_journals, write_journal_calendar, write_task};
 use zones::*;
 pub use zones::{ZoneChange, ZoneRule, wall_clock, zone_rule};
 

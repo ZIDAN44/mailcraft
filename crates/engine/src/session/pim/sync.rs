@@ -49,8 +49,32 @@ impl Session {
         if let Some(server) = &sync.notes {
             p.notes.retain(|n| n.dirty || n.href.is_empty());
             for x in server {
-                if !p.notes.iter().any(|n| !n.href.is_empty() && n.href == x.href) {
+                if let Some(existing) = p.notes.iter_mut().find(|n| !n.href.is_empty() && n.href == x.href) {
+                    existing.etag = x.etag.clone();
+                } else if let Some(local_same) = p.notes.iter_mut().find(|n| n.href.is_empty() && !n.dirty && n.note.uid == x.note.uid) {
+                    *local_same = x.clone();
+                } else {
                     p.notes.push(x.clone());
+                }
+            }
+        }
+        // Tasks stored on the server: their item there, and no longer to send.
+        for x in &sync.pushed_tasks {
+            for t in p.tasks.iter_mut().filter(|t| t.task.uid == x.task.uid) {
+                t.href = x.href.clone();
+                t.etag = x.etag.clone();
+                t.dirty &= t.task != x.task;
+            }
+        }
+        if let Some(server) = &sync.tasks {
+            p.tasks.retain(|t| t.dirty || t.href.is_empty());
+            for x in server {
+                if let Some(existing) = p.tasks.iter_mut().find(|t| !t.href.is_empty() && t.href == x.href) {
+                    existing.etag = x.etag.clone();
+                } else if let Some(local_same) = p.tasks.iter_mut().find(|t| t.href.is_empty() && !t.dirty && t.task.uid == x.task.uid) {
+                    *local_same = x.clone();
+                } else {
+                    p.tasks.push(x.clone());
                 }
             }
         }

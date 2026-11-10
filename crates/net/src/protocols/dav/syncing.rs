@@ -292,8 +292,9 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
 
     // 3. What the server has.
     if let Some(home) = &out.caldav_home {
+        let all_cals = dav.all_calendar_collections(home)?;
         let mut calendars = Vec::new();
-        for (n, c) in dav.collections(Kind::Calendars, home)?.into_iter().enumerate() {
+        for (n, c) in all_cals.iter().filter(|c| c.comps.is_empty() || c.comps.iter().any(|x| x == "VEVENT")).enumerate() {
             let ctag = c.props.get("getctag").or_else(|| c.props.get("sync-token")).cloned().unwrap_or_default();
             let known = pim.calendars.iter().find(|k| k.id == c.href);
             let info = CalendarInfo {
@@ -343,6 +344,18 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
             calendars.push(info);
         }
         out.calendars = Some(calendars);
+
+        let task_cols: Vec<&Item> =
+            all_cals.iter().filter(|c| !c.foreign && c.comps.iter().any(|x| x == "VTODO") && !c.comps.iter().any(|x| x == "VEVENT")).collect();
+        if !task_cols.is_empty() {
+            sync_tasks(dav, &task_cols, pim, &ours, now, local, &mut out)?;
+        }
+
+        let note_cols: Vec<&Item> =
+            all_cals.iter().filter(|c| !c.foreign && c.comps.iter().any(|x| x == "VJOURNAL") && !c.comps.iter().any(|x| x == "VEVENT")).collect();
+        if !note_cols.is_empty() {
+            sync_notes(dav, &note_cols, pim, &ours, now, &mut out)?;
+        }
     }
     if let Some(home) = &out.carddav_home {
         let mut books = Vec::new();
@@ -600,4 +613,149 @@ fn has_all_of(server: &CalEvent, mine: &CalEvent) -> bool {
         && server.recurrence_id == mine.recurrence_id
         && what(server) == what(mine)
         && mine.attendees.iter().all(|a| answer(server, &a.email) == Some(a.partstat.to_ascii_uppercase()))
+}
+
+/// Store a `VTODO` or `VJOURNAL` item, refreshing its `If-Match` etag once if the server bumped
+/// the item's etag behind a unified groupware bridge.
+fn store_component(
+    dav: &Dav,
+    target_col: &str,
+    url: &str,
+    data: &str,
+    etag: Option<&str>,
+    dirty: bool,
+) -> Result<std::result::Result<String, Refused>> {
+    let first = dav.store(url, "text/calendar; charset=utf-8", data, etag)?;
+    if first == Err(Refused::Changed) && dirty {
+        let col = parent_of(url).unwrap_or_else(|| target_col.to_string());
+        if let Ok(listed) = dav.etags(&col) {
+            if let Some((_, cur)) = listed.into_iter().find(|(h, _)| h == url) {
+                return dav.store(url, "text/calendar; charset=utf-8", data, Some(&cur));
+            }
+            if etag.is_some() {
+                return dav.store(url, "text/calendar; charset=utf-8", data, None);
+            }
+        }
+    }
+    Ok(first)
+}
+
+fn sync_tasks(
+    dav: &Dav,
+    task_cols: &[&Item],
+    pim: &Pim,
+    ours: &impl Fn(&str) -> bool,
+    now: i64,
+    local: mailcraft_model::zone::Zone,
+    out: &mut DavSync,
+) -> Result<()> {
+    if let Some(target) = task_cols.iter().copied().find(|c| c.writable != Some(false)).map(|c| c.href.as_str()) {
+        for t in pim.tasks.iter().filter(|t| t.dirty || t.href.is_empty()) {
+            let url =
+                if t.href.is_empty() { format!("{}/{}", target.trim_end_matches('/'), resource_name(&t.task.uid, "ics")) } else { t.href.clone() };
+            if !ours(&url) {
+                continue;
+            }
+            let etag = (!t.href.is_empty()).then_some(t.etag.as_str());
+            let data = ical::write_calendar(&[], std::slice::from_ref(&t.task), now);
+            match store_component(dav, target, &url, &data, etag, t.dirty) {
+                Ok(Ok(new)) => out.pushed_tasks.push(StoredTask { href: url, etag: new, task: t.task.clone(), dirty: false }),
+                Ok(Err(_)) if !t.dirty => {}
+                Ok(Err(r)) => out.errors.push(format!("{}: {r}", t.task.title)),
+                Err(e @ NetError::Auth(_)) => return Err(e),
+                Err(e) => out.errors.push(format!("{}: {e}", t.task.title)),
+            }
+        }
+    }
+    let have: HashMap<&str, &StoredTask> = pim.tasks.iter().filter(|t| !t.dirty && !t.href.is_empty()).map(|t| (t.href.as_str(), t)).collect();
+    let mut server_tasks = Vec::new();
+    let mut complete = true;
+    for c in task_cols {
+        let name = c.props.get("displayname").map_or("Tasks", String::as_str);
+        let read = (|| -> Result<(Vec<(String, String)>, Vec<(String, String, String)>)> {
+            let listed = dav.etags(&c.href)?;
+            let fetch: Vec<String> = listed
+                .iter()
+                .filter(|(h, tag)| !have.get(h.as_str()).is_some_and(|k| !tag.is_empty() && k.etag == *tag))
+                .map(|(h, _)| h.clone())
+                .collect();
+            let got = dav.multiget(Kind::Calendars, &c.href, &fetch)?;
+            Ok((listed, got))
+        })();
+        match unreadable(read, name, &mut out.errors)? {
+            Some((listed, got)) => {
+                for (href, tag) in &listed {
+                    if let Some(k) = have.get(href.as_str()).filter(|k| !tag.is_empty() && k.etag == *tag) {
+                        server_tasks.push(StoredTask { href: href.clone(), etag: tag.clone(), task: k.task.clone(), dirty: false });
+                    }
+                }
+                for (href, etag, data) in got {
+                    for task in ical::parse_in(&data, local).tasks {
+                        server_tasks.push(StoredTask { href: href.clone(), etag: etag.clone(), task, dirty: false });
+                    }
+                }
+            }
+            None => complete = false,
+        }
+    }
+    if complete {
+        out.tasks = Some(server_tasks);
+    }
+    Ok(())
+}
+
+fn sync_notes(dav: &Dav, note_cols: &[&Item], pim: &Pim, ours: &impl Fn(&str) -> bool, now: i64, out: &mut DavSync) -> Result<()> {
+    if let Some(target) = note_cols.iter().copied().find(|c| c.writable != Some(false)).map(|c| c.href.as_str()) {
+        for n in pim.notes.iter().filter(|n| n.dirty || n.href.is_empty()) {
+            let url =
+                if n.href.is_empty() { format!("{}/{}", target.trim_end_matches('/'), resource_name(&n.note.uid, "ics")) } else { n.href.clone() };
+            if !ours(&url) {
+                continue;
+            }
+            let etag = (!n.href.is_empty()).then_some(n.etag.as_str());
+            let data = ical::write_journal_calendar(&n.note, now);
+            match store_component(dav, target, &url, &data, etag, n.dirty) {
+                Ok(Ok(new)) => out.pushed_notes.push(StoredNote { href: url, etag: new, note: n.note.clone(), dirty: false }),
+                Ok(Err(_)) if !n.dirty => {}
+                Ok(Err(r)) => out.errors.push(format!("{}: {r}", n.note.title())),
+                Err(e @ NetError::Auth(_)) => return Err(e),
+                Err(e) => out.errors.push(format!("{}: {e}", n.note.title())),
+            }
+        }
+    }
+    let have: HashMap<&str, &StoredNote> = pim.notes.iter().filter(|n| !n.dirty && !n.href.is_empty()).map(|n| (n.href.as_str(), n)).collect();
+    let mut server_notes = Vec::new();
+    let mut complete = true;
+    for c in note_cols {
+        let name = c.props.get("displayname").map_or("Notes", String::as_str);
+        let read = (|| -> Result<(Vec<(String, String)>, Vec<(String, String, String)>)> {
+            let listed = dav.etags(&c.href)?;
+            let fetch: Vec<String> = listed
+                .iter()
+                .filter(|(h, tag)| !have.get(h.as_str()).is_some_and(|k| !tag.is_empty() && k.etag == *tag))
+                .map(|(h, _)| h.clone())
+                .collect();
+            let got = dav.multiget(Kind::Calendars, &c.href, &fetch)?;
+            Ok((listed, got))
+        })();
+        match unreadable(read, name, &mut out.errors)? {
+            Some((listed, got)) => {
+                for (href, tag) in &listed {
+                    if let Some(k) = have.get(href.as_str()).filter(|k| !tag.is_empty() && k.etag == *tag) {
+                        server_notes.push(StoredNote { href: href.clone(), etag: tag.clone(), note: k.note.clone(), dirty: false });
+                    }
+                }
+                for (href, etag, data) in got {
+                    for note in ical::parse_journals(&data) {
+                        server_notes.push(StoredNote { href: href.clone(), etag: etag.clone(), note, dirty: false });
+                    }
+                }
+            }
+            None => complete = false,
+        }
+    }
+    if complete {
+        out.notes = Some(server_notes);
+    }
+    Ok(())
 }

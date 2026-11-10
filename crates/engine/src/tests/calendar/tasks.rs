@@ -192,7 +192,7 @@ fn a_repeating_task_with_a_count_ends() {
 fn an_untitled_task_can_be_done_and_changed() {
     let mut s = sample_session("tasks-untitled");
     let task = mailcraft_model::pim::Task { uid: "imp-1".into(), due: Some(day(2026, 11, 5)), ..Default::default() };
-    s.pim.values_mut().next().unwrap().tasks.push(mailcraft_model::pim::StoredTask { task });
+    s.pim.values_mut().next().unwrap().tasks.push(mailcraft_model::pim::StoredTask { task, ..Default::default() });
     s.run("task.update", &json!({"uid": "imp-1", "percent": 50})).unwrap();
     assert_eq!(s.find_task("imp-1").unwrap().task.percent, 50);
     s.run("task.complete", &json!({"uid": "imp-1"})).unwrap();

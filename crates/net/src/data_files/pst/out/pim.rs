@@ -68,7 +68,7 @@ impl Out<'_> {
             }
             let files = self.event_files(files, &uid);
             task.extra.extend(files);
-            self.pim.tasks.push(StoredTask { task });
+            self.pim.tasks.push(StoredTask { task, ..Default::default() });
         } else if class.starts_with("ipm.contact") {
             let mut card = crate::pst_pim::card_of(&x, &it.body, uid.clone());
             card.extra.extend(self.card_files(files, it.photo.take(), &uid));
