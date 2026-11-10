@@ -52,6 +52,9 @@ pub struct Data {
     /// with `Identity/set` are listed (their addresses).
     pub no_identity: bool,
     pub made_identities: Vec<String>,
+    /// Emit an RFC 8620 §7.3 initial `event: state` snapshot as soon as `/events/` opens.
+    pub initial_state: bool,
+    pub event_connects: u32,
     next: u32,
 }
 
@@ -406,10 +409,21 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
             if path.starts_with("/events/") {
                 assert!(path.contains("types=%2A") || path.contains("types=*"), "{path}");
                 let (tx, rx) = std::sync::mpsc::channel::<String>();
+                d.event_connects += 1;
+                let snapshot = d.initial_state.then(|| {
+                    json!({"@type": "StateChange", "changed": {ACCOUNT: {"Email": format!("s{}", d.next), "Mailbox": "m1", "Calendar": "c1"}}})
+                        .to_string()
+                });
                 d.listeners.push(tx);
                 drop(d);
                 let _ =
                     s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n{CORS}Transfer-Encoding: chunked\r\n\r\n").as_bytes());
+                if let Some(m) = snapshot {
+                    let msg = format!("event: state\r\ndata: {m}\r\n\r\n");
+                    if s.write_all(format!("{:x}\r\n{msg}\r\n", msg.len()).as_bytes()).is_err() {
+                        return;
+                    }
+                }
                 loop {
                     let msg = match rx.recv_timeout(std::time::Duration::from_secs(1)) {
                         Ok(m) => format!("event: state\r\ndata: {m}\r\n\r\n"),
@@ -812,6 +826,39 @@ mod tests {
         assert_eq!(d.made_identities, [USER.to_string()], "made once, then used");
         assert_eq!(d.submissions.len(), 2);
         drop(d);
+        drop(pool);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn initial_state_snapshot_on_event_stream_does_not_reconnect_loop() {
+        let mut d = Data { initial_state: true, ..Default::default() };
+        let inbox = d.mailbox("Inbox", None, Some("inbox"));
+        d.deliver(&inbox, &mail("First", "m1"), &["$seen"], "2026-10-14T09:00:00Z");
+        let server = serve(d);
+        let data = server.data.clone();
+        let dir = std::env::temp_dir().join(format!("mailcraft-jmap-push-snapshot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(&dir).unwrap();
+        crate::fakes::fake_dav::looked_for_today(&store, "a1");
+        let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+        let account = AccountConfig {
+            id: "a1".into(),
+            name: "Me".into(),
+            email: USER.into(),
+            username: USER.into(),
+            jmap: Some(server.base.clone()),
+            ..Default::default()
+        };
+        pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+        until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        eventually("push stream opened", || data.lock().unwrap().event_connects >= 1);
+        std::thread::sleep(Duration::from_millis(600));
+        assert_eq!(data.lock().unwrap().event_connects, 1, "SSE push stream stays open without reconnecting");
+        data.lock().unwrap().deliver(&inbox, &mail("Pushed live", "m2"), &[], "2026-10-15T12:00:00Z");
+        until(&pool, "pushed inbox sync", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+        assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 2);
+        assert_eq!(data.lock().unwrap().event_connects, 1, "same SSE push stream reused across jobs and syncs");
         drop(pool);
         let _ = std::fs::remove_dir_all(dir);
     }

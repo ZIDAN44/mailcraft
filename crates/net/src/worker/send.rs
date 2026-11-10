@@ -64,6 +64,7 @@ impl Worker {
             c.logout();
         }
         self.conn = None;
+        self.drop_jmap_push();
     }
 
     /// Send on the second connection. Sent: a copy filed in Sent Items (IMAP), and the main

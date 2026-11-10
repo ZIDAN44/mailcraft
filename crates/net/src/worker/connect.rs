@@ -52,10 +52,17 @@ impl Worker {
 
     /// Drop the access token the server refused and fetch a new one with the refresh token.
     pub(super) fn renew_token(&mut self) -> Result<String> {
+        self.drop_jmap_push();
         self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).access = None;
         let t = self.secret()?;
         self.use_token(&t);
         Ok(t)
+    }
+
+    pub(super) fn drop_jmap_push(&mut self) {
+        self.jmap_events = None;
+        self.jmap_push_state.clear();
+        self.pushed = false;
     }
 
     fn use_token(&mut self, token: &str) {
@@ -80,12 +87,14 @@ impl Worker {
                 if self.acc.oauth.as_deref() == Some("microsoft") && m.to_ascii_lowercase().contains("authenticated but not connected") =>
             {
                 self.conn = None;
+                self.drop_jmap_push();
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: microsoft_imap_closed(&self.acc.email, self.acc.oauth_user.as_deref()) });
             }
             // Microsoft's servers refuse passwords from mail apps: asking for it again only loops.
             NetError::Auth(m) if mailcraft_model::microsoft_password_account(&self.acc) => {
                 self.conn = None;
+                self.drop_jmap_push();
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: format!("{MICROSOFT_NO_PASSWORDS} ({m})") });
             }
@@ -99,6 +108,7 @@ impl Worker {
                 match self.renew_token() {
                     Ok(_) => {
                         self.conn = None;
+                        self.drop_jmap_push();
                         self.next_attempt = Instant::now();
                         self.status(SyncStatus::Connecting);
                     }
@@ -107,11 +117,13 @@ impl Worker {
             }
             NetError::Auth(m) => {
                 self.conn = None;
+                self.drop_jmap_push();
                 self.auth_failed = true;
                 self.status(SyncStatus::NeedsPassword { error: m });
             }
             e if e.is_fatal() => {
                 self.conn = None;
+                self.drop_jmap_push();
                 self.next_attempt = Instant::now() + self.backoff;
                 self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
                 self.status(SyncStatus::Error { error: e.to_string() });
@@ -132,6 +144,7 @@ impl Worker {
     }
 
     fn open(&mut self) -> Result<()> {
+        self.drop_jmap_push();
         self.status(SyncStatus::Connecting);
         let secret = self.secret()?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
@@ -220,6 +233,7 @@ impl Worker {
             e => {
                 log::warn!("{}: {e}", self.acc.id);
                 self.conn = None;
+                self.drop_jmap_push();
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: e.to_string() });
             }

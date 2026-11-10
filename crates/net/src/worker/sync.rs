@@ -110,6 +110,7 @@ impl Worker {
     /// what was asked for. Jobs are done as they come, and don't put the time off: it counts from
     /// when the Inbox was last looked at, or an account in use would never get to it.
     fn wait_for_set_time(&mut self, rx: &Receiver<Job>, every: Duration) {
+        self.drop_jmap_push();
         let now = Instant::now();
         let due = self.looked.unwrap_or(now).checked_add(every).unwrap_or(now);
         let full = self.last_full.and_then(|t| t.checked_add(self.full_sync_every())).unwrap_or(now);
@@ -181,30 +182,44 @@ impl Worker {
     }
 
     /// JMAP push: hold the server's event stream open (as IMAP holds IDLE), checking for jobs
-    /// between short reads; a `state` event means something changed. `false` when the server
-    /// can't push (the caller polls instead).
+    /// between short reads; a `state` event whose `StateChange.changed` map advances means
+    /// something changed. `false` when the server can't push (the caller polls instead).
     pub(super) fn wait_for_push(&mut self, rx: &Receiver<Job>) -> bool {
-        let Some(Conn::Jmap(c)) = &self.conn else { return false };
-        let mut es = match c.events() {
-            Ok(Some(es)) => es,
-            Ok(None) => {
-                self.no_push = true;
-                return false;
+        let mut opened = false;
+        if self.jmap_events.is_none() {
+            let Some(Conn::Jmap(c)) = &self.conn else { return false };
+            let mut es = match c.events() {
+                Ok(Some(es)) => es,
+                Ok(None) => {
+                    self.no_push = true;
+                    return false;
+                }
+                Err(e @ NetError::Auth(_)) => {
+                    self.failed(e);
+                    return true;
+                }
+                Err(e) => {
+                    // Push not working (a proxy, an old server): poll from now on.
+                    log::info!("{}: no JMAP push: {e}", self.acc.id);
+                    self.no_push = true;
+                    return false;
+                }
+            };
+            self.jmap_push_state.clear();
+            // RFC 8620 §7.3 servers emit an initial `state` snapshot immediately on connect:
+            // record that baseline before the catch-up sync so it doesn't trigger a loop.
+            if let Ok(Some(e)) = es.next(Duration::from_millis(150))
+                && e.event == "state"
+            {
+                let _ = record_jmap_state(&mut self.jmap_push_state, &e.data);
             }
-            Err(e @ NetError::Auth(_)) => {
-                self.failed(e);
-                return true;
-            }
-            Err(e) => {
-                // Push not working (a proxy, an old server): poll from now on.
-                log::info!("{}: no JMAP push: {e}", self.acc.id);
-                self.no_push = true;
-                return false;
-            }
-        };
+            self.jmap_events = Some(es);
+            opened = true;
+        }
         // Mail that came between the last sync and this stream opening sends no event (unless
-        // the server replays it, RFC 8620 §7.3): check once now that nothing will be missed.
-        if !std::mem::take(&mut self.pushed)
+        // the server replays it, RFC 8620 §7.3): check once when a stream was newly opened.
+        if opened
+            && !std::mem::take(&mut self.pushed)
             && let Some(f) = self.inbox()
         {
             self.sync_one(&f);
@@ -212,20 +227,38 @@ impl Worker {
         self.working(false);
         let end = Instant::now() + IDLE_FOR;
         let mut changed = false;
-        while Instant::now() < end && !changed {
+        let mut dav_changed = false;
+        let mut ended = false;
+        while Instant::now() < end && !changed && !dav_changed {
             self.drain(rx);
             if self.closed || !self.queue.is_empty() || self.kept.aside.ended(&self.filing) {
                 return true;
             }
-            match es.next(Duration::from_millis(500)) {
-                Ok(Some(e)) => changed = e.event == "state",
-                Ok(None) => {}
+            let next = match self.jmap_events.as_mut() {
+                Some(es) => es.next(Duration::from_millis(500)),
+                None => break,
+            };
+            match next {
+                Ok(Some(e)) if e.event == "state" => {
+                    let (m, d) = record_jmap_state(&mut self.jmap_push_state, &e.data);
+                    changed = m;
+                    dav_changed = d;
+                }
+                Ok(Some(_) | None) => {}
                 Err(e) => {
                     // Dropped: reopened on the next wait.
                     log::info!("{}: JMAP push ended: {e}", self.acc.id);
+                    ended = true;
                     break;
                 }
             }
+        }
+        if ended {
+            self.drop_jmap_push();
+        }
+        if dav_changed {
+            let account = self.id();
+            push_job(&mut self.queue, Job::SyncDav { account });
         }
         if changed && let Some(f) = self.inbox() {
             self.sync_one(&f);
@@ -595,6 +628,7 @@ impl Worker {
                 failed = Some(e.to_string());
                 if matches!(e, NetError::Io(_) | NetError::Closed(_)) {
                     self.conn = None;
+                    self.drop_jmap_push();
                     break;
                 }
             }
@@ -716,5 +750,52 @@ impl Worker {
             Err(e) if e.is_fatal() => self.failed(e),
             Err(e) => log::info!("{}: quota: {e}", self.acc.id),
         }
+    }
+}
+
+/// Merge an RFC 8620 §7.3 `StateChange` JSON payload into `seen` and report `(mail_changed, dav_changed)`.
+fn record_jmap_state(seen: &mut serde_json::Map<String, serde_json::Value>, data: &str) -> (bool, bool) {
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(data) else { return (true, false) };
+    let Some(changed) = val.get("changed").and_then(serde_json::Value::as_object) else { return (true, false) };
+    let mut mail = false;
+    let mut dav = false;
+    for (acct, types) in changed {
+        let Some(types_obj) = types.as_object() else {
+            if seen.insert(acct.clone(), types.clone()).as_ref() != Some(types) {
+                mail = true;
+            }
+            continue;
+        };
+        if !matches!(seen.get(acct), Some(serde_json::Value::Object(_))) {
+            seen.insert(acct.clone(), serde_json::Value::Object(serde_json::Map::new()));
+        }
+        let Some(serde_json::Value::Object(acct_seen)) = seen.get_mut(acct) else { continue };
+        for (kind, token) in types_obj {
+            if acct_seen.insert(kind.clone(), token.clone()).as_ref() != Some(token) {
+                match kind.as_str() {
+                    "Email" | "Mailbox" | "Thread" | "EmailDelivery" => mail = true,
+                    "Calendar" | "CalendarEvent" | "AddressBook" | "ContactCard" | "Task" | "Todo" | "Note" | "Journal" => dav = true,
+                    _ => {}
+                }
+            }
+        }
+    }
+    (mail, dav)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn jmap_push_state_ignores_duplicate_snapshots_and_detects_real_changes() {
+        let mut seen = serde_json::Map::new();
+        let initial = r#"{"@type":"StateChange","changed":{"a1":{"Email":"e1","Mailbox":"m1","Calendar":"c1"}}}"#;
+        assert_eq!(record_jmap_state(&mut seen, initial), (true, true));
+        assert_eq!(record_jmap_state(&mut seen, initial), (false, false));
+        let cal_only = r#"{"@type":"StateChange","changed":{"a1":{"Calendar":"c2"}}}"#;
+        assert_eq!(record_jmap_state(&mut seen, cal_only), (false, true));
+        let mail_next = r#"{"@type":"StateChange","changed":{"a1":{"Email":"e2","Mailbox":"m1"}}}"#;
+        assert_eq!(record_jmap_state(&mut seen, mail_next), (true, false));
     }
 }

@@ -696,6 +696,10 @@ struct Worker {
     no_push: bool,
     /// The last push wait ended in an Inbox sync (so the next one needn't check first).
     pushed: bool,
+    /// Open JMAP EventSource push stream, kept across waits and jobs instead of reconnecting.
+    jmap_events: Option<crate::http::EventStream<Stream>>,
+    /// Latest per-account type states (`StateChange.changed`) seen on `jmap_events`.
+    jmap_push_state: serde_json::Map<String, serde_json::Value>,
     /// Folders to look at again soon: Graph and Exchange file a sent message's copy a moment
     /// after taking it, so Sent Items is read again then rather than at the next poll.
     soon: Vec<(Instant, String)>,
@@ -758,6 +762,8 @@ impl Worker {
             sieve_port: crate::sieve::PORT,
             no_push: false,
             pushed: false,
+            jmap_events: None,
+            jmap_push_state: serde_json::Map::new(),
             soon: Vec::new(),
             search: Arc::new(AtomicU64::new(0)),
             dav_digest: None,
