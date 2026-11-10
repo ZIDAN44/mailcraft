@@ -191,11 +191,59 @@ pub(super) fn email_summary(e: &Value, key: MessageKey) -> Summary {
         }
         header.extend_from_slice(format!("{name}:{value}\r\n").as_bytes());
     }
+    let has_raw_headers = !header.is_empty();
     header.extend_from_slice(b"\r\n");
     let size = e.get("size").and_then(Value::as_u64).and_then(|n| u32::try_from(n).ok()).unwrap_or(0);
     let received = e.get("receivedAt").and_then(Value::as_str).and_then(utc_date).unwrap_or(0);
     let mut s = mime::summary_from_header(&header, key, keywords(e.get("keywords")), size, received);
+    if !has_raw_headers {
+        fill_convenience_fields(&mut s, e, received);
+    }
     s.preview = e.get("preview").and_then(Value::as_str).map(mime::preview).unwrap_or_default();
     s.has_attachments = e.get("hasAttachment").and_then(Value::as_bool).unwrap_or(false);
     s
+}
+
+/// Fallback to RFC 8621 section 4.1.2 parsed convenience properties when a server omits `headers`.
+fn fill_convenience_fields(s: &mut Summary, e: &Value, received: i64) {
+    let addrs = |field: &str| -> Vec<mailcraft_model::EmailAddress> {
+        let parse_one = |v: &Value| {
+            let email = v.get("email").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+            let name = v.get("name").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+            (!email.is_empty() || !name.is_empty()).then_some(mailcraft_model::EmailAddress { name, email })
+        };
+        match e.get(field) {
+            Some(Value::Array(arr)) => arr.iter().take(100).filter_map(parse_one).collect(),
+            Some(v @ Value::Object(_)) => parse_one(v).into_iter().collect(),
+            _ => Vec::new(),
+        }
+    };
+    let ids = |field: &str| -> Vec<String> {
+        let clean = |raw: &str| raw.trim().trim_matches(['<', '>']).to_string();
+        match e.get(field) {
+            Some(Value::Array(arr)) => arr.iter().take(100).filter_map(Value::as_str).map(clean).filter(|x| !x.is_empty()).collect(),
+            Some(Value::String(one)) => [clean(one)].into_iter().filter(|x| !x.is_empty()).collect(),
+            _ => Vec::new(),
+        }
+    };
+    if let Some(sub) = e.get("subject").and_then(Value::as_str) {
+        s.subject = sub.chars().take(1000).collect();
+    }
+    if let Some(first) = addrs("from").into_iter().next() {
+        s.from = first;
+    }
+    s.to = addrs("to");
+    s.cc = addrs("cc");
+    if let Some(mid) = ids("messageId").into_iter().next() {
+        s.message_id = mid;
+    }
+    if let Some(irt) = ids("inReplyTo").into_iter().next() {
+        s.in_reply_to = irt;
+    }
+    s.references = ids("references");
+    if let Some(sent) = e.get("sentAt").and_then(Value::as_str).and_then(utc_date) {
+        s.date = sent;
+    } else if s.date == 0 {
+        s.date = received;
+    }
 }

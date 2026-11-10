@@ -346,7 +346,14 @@ impl<H: Http> Client<H> {
             let r = self
                 .mail(vec![(
                     "Email/get",
-                    json!({"accountId": self.account, "ids": chunk, "properties": ["id", "keywords", "size", "receivedAt", "preview", "hasAttachment", "headers"]}),
+                    json!({
+                        "accountId": self.account,
+                        "ids": chunk,
+                        "properties": [
+                            "id", "keywords", "size", "receivedAt", "sentAt", "preview", "hasAttachment",
+                            "headers", "subject", "from", "to", "cc", "messageId", "inReplyTo", "references"
+                        ]
+                    }),
                 )])
                 .await?;
             out.extend(list(r.first(), "list").iter().cloned());

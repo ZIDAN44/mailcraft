@@ -177,3 +177,26 @@ fn searches_jmap_principals_directory() {
     assert_eq!(sent["using"], json!([CORE, PRINCIPALS]));
     assert_eq!(sent["methodCalls"][0][1]["accountId"], "P1");
 }
+
+#[test]
+fn summary_falls_back_to_rfc8621_convenience_fields_when_headers_omitted() {
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: VALIDITY, uid: 7 };
+    let item = json!({
+        "id": "m7",
+        "size": 4096,
+        "receivedAt": "2026-11-10T15:11:00Z",
+        "sentAt": "2026-11-10T15:10:00Z",
+        "subject": "Quarterly Planning",
+        "from": [{"name": "HN Auto", "email": "contact@hn-auto.de"}],
+        "to": [{"name": "Team", "email": "team@nextxch.com"}],
+        "messageId": ["<msg-7@nextxch.com>"],
+        "preview": "Hello team",
+        "hasAttachment": true,
+    });
+    let s = super::state::email_summary(&item, key);
+    assert_eq!(s.subject, "Quarterly Planning");
+    assert_eq!((s.from.name.as_str(), s.from.email.as_str()), ("HN Auto", "contact@hn-auto.de"));
+    assert_eq!(s.to.len(), 1);
+    assert_eq!(s.message_id, "msg-7@nextxch.com");
+    assert!(s.has_attachments);
+}
