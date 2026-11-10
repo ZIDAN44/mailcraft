@@ -237,5 +237,11 @@ fn exchange_online_asks_for_permission_to_search_its_directory() {
     // A personal Microsoft account has no organisation directory to search.
     let personal = s.run("account.add", &json!({"email": "zoe@outlook.com", "graph": true})).unwrap()["account"].as_str().unwrap().to_string();
     assert!(!s.directory_accounts().contains(&personal));
+    // A JMAP groupware account searches its directory too (RFC 9670 Principals).
+    let jmap_acc = s.run("account.add", &json!({"email": "zoe@nextxch.com", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    assert!(s.directory_accounts().contains(&jmap_acc));
+    s.address_book("directory", "room");
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SearchDirectory { account, query } if *account == jmap_acc && query == "room")));
     done(s);
 }

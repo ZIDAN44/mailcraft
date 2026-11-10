@@ -146,3 +146,34 @@ fn quota_includes_the_mail_capability() {
     let sent: Value = serde_json::from_slice(&c.http.sent.borrow()[1].body).unwrap();
     assert_eq!(sent["using"], json!([CORE, MAIL, QUOTA]));
 }
+
+#[test]
+fn searches_jmap_principals_directory() {
+    let session = json!({
+        "capabilities": {
+            "urn:ietf:params:jmap:core": {"maxObjectsInGet": 50},
+            "urn:ietf:params:jmap:mail": {},
+            "urn:ietf:params:jmap:principals": {},
+        },
+        "primaryAccounts": {"urn:ietf:params:jmap:mail": "A1", "urn:ietf:params:jmap:principals": "P1"},
+        "apiUrl": "/api/", "downloadUrl": "/d/{accountId}/{blobId}", "uploadUrl": "/u/{accountId}/",
+    });
+    let dir = json!({
+        "methodResponses": [
+            ["Principal/query", {"accountId": "P1", "queryState": "s1", "canCalculateChanges": false, "position": 0, "ids": ["u1", "u2"]}, "c0"],
+            ["Principal/get", {"accountId": "P1", "state": "s1", "list": [
+                {"id": "u1", "name": "Alicia Keyes", "email": "alicia@nextxch.com"},
+                {"id": "u2", "name": "Conference Room A", "email": "room-a@nextxch.com"},
+                {"id": "u3", "name": "Broken", "email": "not-an-address"}
+            ], "notFound": []}, "c1"]
+        ]
+    });
+    let ok = |v: &Value| Response { status: 200, body: v.to_string().into_bytes() };
+    let http = Recorded { sent: Vec::new().into(), answers: vec![ok(&session), ok(&dir)].into() };
+    let c = block_on(Client::connect(http, "mail.nextxch.com", "me", "pw", false)).unwrap();
+    let found = block_on(c.search_directory("ali")).unwrap();
+    assert_eq!(found, vec![("Alicia Keyes".into(), "alicia@nextxch.com".into()), ("Conference Room A".into(), "room-a@nextxch.com".into())]);
+    let sent: Value = serde_json::from_slice(&c.http.sent.borrow()[1].body).unwrap();
+    assert_eq!(sent["using"], json!([CORE, PRINCIPALS]));
+    assert_eq!(sent["methodCalls"][0][1]["accountId"], "P1");
+}

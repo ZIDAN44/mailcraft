@@ -518,17 +518,17 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
         Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
-        // The browser's accounts are JMAP ones, with no organisation directory (issue #9).
-        Job::SearchDirectory { query, .. } => emit(
-            sh,
-            Event::Directory {
-                account: id.to_string(),
-                query,
-                people: Vec::new(),
-                error: Some("this account has no organisation directory".into()),
-                consent: false,
-            },
-        ),
+        // Organisation directory over RFC 9670 JMAP Principals when offered by the server.
+        Job::SearchDirectory { query, .. } => {
+            let (people, error) = match client(sh, id) {
+                Some(c) => match c.search_directory(&query).await {
+                    Ok(p) => (p, None),
+                    Err(e) => (Vec::new(), Some(e.to_string())),
+                },
+                None => (Vec::new(), Some("the account is offline".into())),
+            };
+            emit(sh, Event::Directory { account: id.to_string(), query, people, error, consent: false });
+        }
         Job::AllowDirectory { account } => {
             emit(sh, Event::DirectoryAllowed { account: account.id, error: Some("this account has no organisation directory".into()) })
         }

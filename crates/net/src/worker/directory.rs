@@ -9,6 +9,7 @@ impl Worker {
         let mut consent = false;
         let r = match &self.conn {
             Some(Conn::Ews(c)) => c.search_directory(&query),
+            Some(Conn::Jmap(c)) => c.search_directory(&query),
             Some(Conn::Graph(_)) => match self.directory_token() {
                 Ok(token) => {
                     let base = self.acc.graph.clone().unwrap_or_default();
