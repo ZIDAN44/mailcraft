@@ -6,8 +6,8 @@ egui interface. It packages a Rust `cdylib` as an Android `NativeActivity` throu
 
 The app stores the MailCraft cache in its private Android data directory and uses the production
 network worker for account setup and synchronization. Cached mail is available offline. Sign-in
-credentials are kept in memory for this bootstrap and need to be entered again after restarting
-the app; Android Keystore integration and Android document pickers remain to be added.
+credentials are stored in Android's encrypted SharedPreferences backed by the Android Keystore.
+Android document pickers and platform URL/file handling remain to be added.
 
 ## Build and run
 

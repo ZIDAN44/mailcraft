@@ -19,7 +19,7 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
 
     use mailcraft_engine::model::dates::Clock;
     use mailcraft_engine::store::Store;
-    use mailcraft_net::worker::{MemoryCredentials, Pool};
+    use mailcraft_net::worker::Pool;
     use mailcraft_ui_egui::MailApp;
 
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_secs().min(i64::MAX as u64) as i64);
@@ -28,7 +28,11 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
         eprintln!("MailCraft could not open its private offline cache; using a temporary cache for this run");
     }
     let session = mailcraft_engine::Session::open(store.clone(), Clock::new(now, 0));
-    let pool = store.map(|store| Pool::new(store, Arc::new(MemoryCredentials::default())));
+    match android_native_keyring_store::Store::new() {
+        Ok(store) => keyring_core::set_default_store(store),
+        Err(error) => eprintln!("MailCraft could not initialize Android Keystore credentials: {error}"),
+    }
+    let pool = store.map(|store| Pool::new(store, Arc::new(AndroidCredentials)));
 
     let options = eframe::NativeOptions { android_app: Some(app), ..Default::default() };
     let create_app = Box::new(move |cc: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, Box<dyn std::error::Error + Send + Sync>> {
@@ -64,6 +68,73 @@ impl Backend for PoolBackend {
         if let Some(pool) = &mut self.0 {
             pool.shutdown();
         }
+    }
+}
+
+#[cfg(target_os = "android")]
+struct AndroidCredentials;
+
+#[cfg(target_os = "android")]
+impl AndroidCredentials {
+    const SERVICE: &'static str = "ai.storyteller.mailcraft";
+
+    fn user(account: &mailcraft_engine::model::AccountConfig, kind: &str) -> String {
+        format!("{}|{kind}", account.id)
+    }
+
+    fn get(account: &mailcraft_engine::model::AccountConfig, kind: &str) -> Option<String> {
+        keyring_core::Entry::new(Self::SERVICE, &Self::user(account, kind)).ok()?.get_password().ok()
+    }
+
+    fn set(account: &mailcraft_engine::model::AccountConfig, kind: &str, secret: &str) -> Result<(), String> {
+        keyring_core::Entry::new(Self::SERVICE, &Self::user(account, kind))
+            .and_then(|entry| entry.set_password(secret))
+            .map_err(|error| error.to_string())
+    }
+
+    fn delete(account: &mailcraft_engine::model::AccountConfig, kind: &str) {
+        if let Ok(entry) = keyring_core::Entry::new(Self::SERVICE, &Self::user(account, kind)) {
+            let _ = entry.delete_credential();
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+impl mailcraft_net::worker::Credentials for AndroidCredentials {
+    fn get(&self, account: &mailcraft_engine::model::AccountConfig) -> Option<String> {
+        Self::get(account, "imap")
+    }
+
+    fn set(&self, account: &mailcraft_engine::model::AccountConfig, password: &str) -> Result<(), String> {
+        Self::set(account, "imap", password)
+    }
+
+    fn delete(&self, account: &mailcraft_engine::model::AccountConfig) {
+        Self::delete(account, "imap");
+    }
+
+    fn get_smtp(&self, account: &mailcraft_engine::model::AccountConfig) -> Option<String> {
+        Self::get(account, "smtp")
+    }
+
+    fn set_smtp(&self, account: &mailcraft_engine::model::AccountConfig, password: &str) -> Result<(), String> {
+        Self::set(account, "smtp", password)
+    }
+
+    fn delete_smtp(&self, account: &mailcraft_engine::model::AccountConfig) {
+        Self::delete(account, "smtp");
+    }
+
+    fn get_secret(&self, account: &mailcraft_engine::model::AccountConfig, what: &str) -> Option<String> {
+        Self::get(account, what)
+    }
+
+    fn set_secret(&self, account: &mailcraft_engine::model::AccountConfig, what: &str, secret: &str) -> Result<(), String> {
+        Self::set(account, what, secret)
+    }
+
+    fn delete_secret(&self, account: &mailcraft_engine::model::AccountConfig, what: &str) {
+        Self::delete(account, what);
     }
 }
 

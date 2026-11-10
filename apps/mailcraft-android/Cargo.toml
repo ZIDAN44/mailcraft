@@ -32,6 +32,8 @@ egui = { workspace = true }
 [target.'cfg(target_os = "android")'.dependencies]
 serde_json = { workspace = true }
 winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
+android-native-keyring-store = "1"
+keyring-core = "1"
 
 [package.metadata.android]
 package = "ai.storyteller.mailcraft"

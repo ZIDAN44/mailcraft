@@ -11,7 +11,7 @@ on GitHub.
 ## Unreleased
 
 ### Added
-- A native Android app bootstrap that launches the shared MailCraft UI over an in-memory sample mailbox.
+- A native Android app with the shared MailCraft UI, private offline cache, production sync worker, and Keystore-backed credentials.
 
 ## 0.34.0
 
