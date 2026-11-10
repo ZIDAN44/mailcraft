@@ -348,7 +348,9 @@ impl Dav {
                 url = format!("{}{}", next.origin(), next.path);
                 continue;
             }
-            if matches!(resp.status, 401 | 403) {
+            // Only 401 is the sign-in refused: a 403 is this request's (a collection the user may
+            // not read), and asking for the password again wouldn't change it.
+            if resp.status == 401 {
                 return Err(NetError::Auth("the calendar server refused the user name or password".into()));
             }
             return Ok((resp, url));

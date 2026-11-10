@@ -32,6 +32,9 @@ pub struct Data {
     pub digest: Option<String>,
     /// Requests refused for their sign-in.
     pub refused: usize,
+    /// Collections the user may not read (403 to reading them), as a calendar shared for free /
+    /// busy only.
+    pub unreadable: Vec<String>,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.
@@ -165,6 +168,10 @@ pub fn serve() -> Server {
             }
             if !authorized {
                 respond(&mut s, "401 Unauthorized", &[], "");
+                continue;
+            }
+            if matches!(method.as_str(), "PROPFIND" | "REPORT") && d.unreadable.iter().any(|p| path.starts_with(p.as_str())) {
+                respond(&mut s, "403 Forbidden", &[], "");
                 continue;
             }
             match (method.as_str(), path.as_str()) {
@@ -425,6 +432,27 @@ mod tests {
             let on_server = d.items.values().any(|(_, v)| ical::parse(v, 0).events.iter().any(|e| e.uid == format!("{long}-{uid}")));
             assert!(on_server, "{uid} is on the server");
         }
+    }
+
+    /// A calendar or address book the user may not read (403: a calendar shared for free / busy
+    /// only) is neither the whole sync's failure nor a password refused, as it was (found through
+    /// a proxy in front of Baïkal, issue #61): the rest syncs, and it's kept as it is, and said.
+    #[test]
+    fn a_collection_the_user_may_not_read_is_kept_and_the_rest_synced() {
+        let server = serve();
+        {
+            let mut d = server.data.lock().unwrap();
+            d.put(&format!("{CAL}a.ics"), &ical::write(&[event("a", "Review", 1_800_000_000)], None, 0));
+            d.unreadable.push(BOOK.into());
+        }
+        let home = |k: &str| Some(format!("{}/dav/{k}/", server.base));
+        let mut pim = Pim { caldav_home: home("cal"), carddav_home: home("card"), dav_checked: Some(100), ..Default::default() };
+        pim.ensure_defaults();
+        let out = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 100, Zone::UTC).unwrap();
+        assert_eq!(out.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Review"]);
+        let book = format!("{}{BOOK}", server.base);
+        assert_eq!((out.unchanged_books.clone(), out.synced_books.len()), (vec![book], 0));
+        assert!(out.errors.iter().any(|e| e.contains("couldn't be read") && e.contains("403")), "{:?}", out.errors);
     }
 
     /// Issue #7: an address given by hand, as a user copies it from the provider's help: the
