@@ -26,6 +26,9 @@ fn jmap_accounts_need_no_imap_servers() {
     let root = s.store.as_ref().unwrap().root().to_path_buf();
     let s2 = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(s2.account(&id).is_some_and(|a| a.config.jmap.is_some()));
+    // nextxch.com defaults to JMAP without specifying a session URL.
+    let nx_id = s.run("account.add", &json!({"email": "zoe@nextxch.com", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(s.account(&nx_id).unwrap().config.jmap.as_deref(), Some("https://mail.nextxch.com/.well-known/jmap"));
     let _ = std::fs::remove_dir_all(root);
 }
 

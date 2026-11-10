@@ -62,6 +62,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         None => f.guess_pop(),
                     }
                     f.username = if c.username.eq_ignore_ascii_case(&email) { String::new() } else { c.username.clone() };
+                    if let Some(u) = &c.jmap {
+                        (f.jmap, f.graph, f.ews, f.pop) = (true, false, false, false);
+                        f.jmap_url = u.clone();
+                        f.jmap_guessed = true;
+                    }
                     f.found_for = Some(email.clone());
                     f.found_source = Some(source.clone());
                 }
@@ -118,6 +123,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         if kind == 4 && !f.pop && f.pop_host.is_empty() {
                             f.guess_pop();
                         }
+                        if kind != 1 && f.jmap {
+                            f.jmap_guessed = false;
+                        }
                         (f.jmap, f.graph, f.ews, f.pop) = (kind == 1, kind == 2, kind == 3, kind == 4);
                     }
                     if f.graph {
@@ -148,10 +156,13 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     }
                     if f.jmap {
                         label(ui, "JMAP session address");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+                        edited |= ui
+                            .add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"))
+                            .changed();
                         ui.add_space(4.0);
                         label(ui, "User name");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+                        edited |= ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
+                        f.servers_edited |= edited;
                         return;
                     }
                     if f.pop {
@@ -475,6 +486,8 @@ pub struct AccountForm {
     /// Syncs over JMAP instead of IMAP and SMTP, through this session address.
     pub jmap: bool,
     pub jmap_url: String,
+    /// `jmap` came from guessing or discovering the address, not from choosing JMAP by hand.
+    pub jmap_guessed: bool,
     /// Exchange Online through Microsoft Graph (signs in with Microsoft in the browser).
     pub graph: bool,
     /// An organisation's own Exchange server through EWS, at this address or server name.
@@ -611,6 +624,15 @@ impl AccountForm {
         self.smtp_host = g.smtp.host;
         self.smtp_port = g.smtp.port.to_string();
         self.smtp_security = g.smtp.security;
+        if let Some(u) = g.jmap {
+            (self.jmap, self.graph, self.ews, self.pop) = (true, false, false, false);
+            self.jmap_url = u;
+            self.jmap_guessed = true;
+        } else if self.jmap_guessed {
+            self.jmap = false;
+            self.jmap_url.clear();
+            self.jmap_guessed = false;
+        }
         self.guess_pop();
     }
 

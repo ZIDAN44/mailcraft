@@ -103,6 +103,10 @@ fn the_account_form_adds_jmap_accounts() {
     a.act(crate::Action::Submit("account.add", p));
     let added = a.session.accounts.iter().find(|x| x.config.email == "zoe@fastmail.example").unwrap();
     assert!(added.config.jmap.is_some() && !added.is_local());
+
+    // Preset and discovered JMAP domains prefill JMAP without opening Server settings.
+    let Dialog::AddAccount(nx) = Dialog::add_account_with("zoe@nextxch.com", false) else { panic!() };
+    assert!(nx.jmap && nx.jmap_url == "https://mail.nextxch.com/.well-known/jmap");
     let _ = std::fs::remove_dir_all(dir);
 }
 

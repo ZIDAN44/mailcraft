@@ -249,6 +249,7 @@ impl AccountConfig {
             "yahoo.com" => ("imap.mail.yahoo.com".to_string(), "smtp.mail.yahoo.com".to_string()),
             "icloud.com" | "me.com" => ("imap.mail.me.com".to_string(), "smtp.mail.me.com".to_string()),
             "fastmail.com" => ("imap.fastmail.com".to_string(), "smtp.fastmail.com".to_string()),
+            "nextxch.com" => ("mail.nextxch.com".to_string(), "mail.nextxch.com".to_string()),
             "" => (String::new(), String::new()),
             d => (format!("mail.{d}"), format!("mail.{d}")),
         };
@@ -257,6 +258,7 @@ impl AccountConfig {
         } else {
             ServerConfig { host: smtp_host, port: 465, security: Security::Tls }
         };
+        let jmap = (domain == "nextxch.com").then(|| "https://mail.nextxch.com/.well-known/jmap".to_string());
         AccountConfig {
             id: String::new(),
             name: email.split('@').next().unwrap_or_default().to_string(),
@@ -264,6 +266,7 @@ impl AccountConfig {
             username: email.to_string(),
             imap: ServerConfig { host: imap_host, port: 993, security: Security::Tls },
             smtp,
+            jmap,
             ..AccountConfig::default()
         }
     }

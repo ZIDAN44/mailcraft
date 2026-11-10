@@ -59,6 +59,10 @@ fn blocks<'a>(xml: &'a str, tag: &str, attr: &str) -> Vec<&'a str> {
     out
 }
 
+fn valid_host(host: &str) -> bool {
+    !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
+}
+
 fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
     let host = text_of(block, "hostname")?;
     let port: u16 = text_of(block, "port")?.parse().ok()?;
@@ -71,13 +75,43 @@ fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
     let user = text_of(block, "username").unwrap_or_else(|| "%EMAILADDRESS%".into());
     let user = user.replace("%EMAILADDRESS%", email).replace("%EMAILLOCALPART%", local).replace("%EMAILDOMAIN%", domain);
     let host = host.replace("%EMAILDOMAIN%", domain);
-    let ok = !host.is_empty() && port != 0 && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'));
+    let ok = port != 0 && valid_host(&host);
     ok.then_some((ServerConfig { host: host.to_ascii_lowercase(), port, security }, user))
 }
 
-/// The best IMAP and SMTP servers of a Mozilla autoconfig file, and its POP server when it has
-/// one (in `pop`). Encrypted servers are preferred; one without encryption is only taken when
-/// nothing else is offered.
+fn jmap_url_for(host: &str, port: u16) -> String {
+    if port == 443 { format!("https://{host}/.well-known/jmap") } else { format!("https://{host}:{port}/.well-known/jmap") }
+}
+
+fn jmap_server(xml: &str, email: &str) -> Option<(String, String)> {
+    let (local, domain) = email.rsplit_once('@').unwrap_or((email, ""));
+    for b in blocks(xml, "incomingServer", "type=\"jmap\"") {
+        let user = text_of(b, "username")
+            .unwrap_or_else(|| "%EMAILADDRESS%".into())
+            .replace("%EMAILADDRESS%", email)
+            .replace("%EMAILLOCALPART%", local)
+            .replace("%EMAILDOMAIN%", domain);
+        if let Some(raw_url) = text_of(b, "url") {
+            let expanded = raw_url.replace("%EMAILDOMAIN%", domain);
+            if let Ok(u) = crate::http::Url::parse(&expanded)
+                && u.https
+                && valid_host(&u.host)
+            {
+                return Some((format!("{}{}", u.origin(), u.path), user));
+            }
+        }
+        if let Some((s, u)) = server(b, email)
+            && s.security == Security::Tls
+        {
+            return Some((jmap_url_for(&s.host, s.port), u));
+        }
+    }
+    None
+}
+
+/// The best IMAP, SMTP and JMAP servers of a Mozilla autoconfig file, and its POP server when it
+/// has one (in `pop`). Encrypted servers are preferred; one without encryption is only taken when
+/// nothing else is offered (and never for JMAP).
 pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
     let pick = |tag: &str, kind: &str| -> Option<(ServerConfig, String)> {
         let mut all: Vec<(ServerConfig, String)> =
@@ -89,14 +123,27 @@ pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
         });
         all.into_iter().next()
     };
-    let (imap, user) = pick("incomingServer", "imap")?;
-    let (smtp, _) = pick("outgoingServer", "smtp")?;
-    let mut c = AccountConfig::guess(email);
-    c.imap = imap;
-    c.smtp = smtp;
-    c.username = user;
-    c.pop = pick("incomingServer", "pop3").map(|(s, _)| s);
-    Some(c)
+    let jmap = jmap_server(xml, email);
+    match (pick("incomingServer", "imap"), pick("outgoingServer", "smtp"), jmap) {
+        (Some((imap, user)), Some((smtp, _)), jmap) => {
+            let mut c = AccountConfig::guess(email);
+            c.imap = imap;
+            c.smtp = smtp;
+            c.username = user;
+            c.pop = pick("incomingServer", "pop3").map(|(s, _)| s);
+            c.jmap = jmap.map(|(u, _)| u);
+            Some(c)
+        }
+        (_, _, Some((jmap_url, user))) => {
+            let mut c = AccountConfig::guess(email);
+            c.imap = ServerConfig::default();
+            c.smtp = ServerConfig::default();
+            c.username = user;
+            c.jmap = Some(jmap_url);
+            Some(c)
+        }
+        _ => None,
+    }
 }
 
 /// The registrable part of a host name (`aspmx.l.google.com` → `google.com`; two-letter country
@@ -158,22 +205,38 @@ pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
     // Where Outlook looks: the host an `_autodiscover._tcp` record names, which providers point
     // at their configuration server.
     if let Some((host, _)) = (l.srv)(&format!("_autodiscover._tcp.{domain}"))
-        && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
+        && valid_host(&host)
         && let Some(c) = try_url(l, &format!("https://{host}/mail/config-v1.1.xml?emaildomain={domain}"))
     {
         return Some(Found { config: c, source: base_domain(&host) });
     }
+    // RFC 8620 §2.2 (`_jmap._tcp`) alongside RFC 6186 (`_imaps._tcp`, `_submissions._tcp`).
+    let jmap =
+        (l.srv)(&format!("_jmap._tcp.{domain}")).filter(|(h, p)| *p != 0 && valid_host(h)).map(|(h, p)| jmap_url_for(&h.to_ascii_lowercase(), p));
     let imap = (l.srv)(&format!("_imaps._tcp.{domain}"))
         .map(|(h, p)| ServerConfig { host: h, port: p, security: Security::Tls })
         .or_else(|| (l.srv)(&format!("_imap._tcp.{domain}")).map(|(h, p)| ServerConfig { host: h, port: p, security: Security::StartTls }));
     let smtp = (l.srv)(&format!("_submissions._tcp.{domain}"))
         .map(|(h, p)| ServerConfig { host: h, port: p, security: Security::Tls })
         .or_else(|| (l.srv)(&format!("_submission._tcp.{domain}")).map(|(h, p)| ServerConfig { host: h, port: p, security: Security::StartTls }));
-    if let (Some(imap), Some(smtp)) = (imap, smtp) {
-        let mut c = AccountConfig::guess(email);
-        c.imap = imap;
-        c.smtp = smtp;
-        return Some(Found { config: c, source: "DNS (SRV records)".into() });
+    match (imap, smtp, jmap) {
+        (Some(imap), Some(smtp), jmap) => {
+            let mut c = AccountConfig::guess(email);
+            c.imap = imap;
+            c.smtp = smtp;
+            if let Some(u) = jmap {
+                c.jmap = Some(u);
+            }
+            return Some(Found { config: c, source: "DNS (SRV records)".into() });
+        }
+        (_, _, Some(jmap_url)) => {
+            let mut c = AccountConfig::guess(email);
+            c.imap = ServerConfig::default();
+            c.smtp = ServerConfig::default();
+            c.jmap = Some(jmap_url);
+            return Some(Found { config: c, source: "DNS (SRV records)".into() });
+        }
+        _ => {}
     }
     None
 }
@@ -309,5 +372,31 @@ mod tests {
         assert!(discover_with("nobody", &mut Lookups { fetch: &mut none, mx: &mut no_mx, srv: &mut srv_none }).is_none());
         assert_eq!(base_domain("aspmx.l.google.com"), "google.com");
         assert_eq!(base_domain("mx1.mail.example.co.uk."), "example.co.uk");
+    }
+
+    #[test]
+    fn discovers_jmap_from_autoconfig_and_rfc8620_srv() {
+        let xml = r#"<clientConfig version="1.1"><emailProvider id="nextxch.com">
+            <incomingServer type="jmap"><hostname>mail.nextxch.com</hostname><port>443</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></incomingServer>
+            <incomingServer type="imap"><hostname>mail.nextxch.com</hostname><port>993</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></incomingServer>
+            <outgoingServer type="smtp"><hostname>mail.nextxch.com</hostname><port>465</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></outgoingServer>
+        </emailProvider></clientConfig>"#;
+        let c = parse_config(xml, "zoe@firma.example").unwrap();
+        assert_eq!(c.jmap.as_deref(), Some("https://mail.nextxch.com/.well-known/jmap"));
+        assert_eq!(c.imap.host, "mail.nextxch.com");
+
+        // Plain JMAP without TLS is ignored.
+        let plain = r#"<clientConfig version="1.1"><emailProvider id="bad.example">
+            <incomingServer type="jmap"><hostname>mail.bad.example</hostname><port>80</port><socketType>plain</socketType></incomingServer>
+        </emailProvider></clientConfig>"#;
+        assert!(parse_config(plain, "zoe@bad.example").is_none());
+
+        // RFC 8620 §2.2 `_jmap._tcp` SRV discovery when no XML is published.
+        let mut none = |_: &str| None;
+        let mut no_mx = |_: &str| Vec::new();
+        let mut srv = |name: &str| (name == "_jmap._tcp.firma.example").then(|| ("mail.nextxch.com".to_string(), 443));
+        let f = discover_with("zoe@firma.example", &mut Lookups { fetch: &mut none, mx: &mut no_mx, srv: &mut srv }).unwrap();
+        assert_eq!(f.config.jmap.as_deref(), Some("https://mail.nextxch.com/.well-known/jmap"));
+        assert!(f.config.imap.host.is_empty());
     }
 }

@@ -35,7 +35,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             match s.discovered.get(&email) {
                 Some(Some((Some(c), source))) => {
-                    Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "pop": c.pop, "username": c.username}))
+                    Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "pop": c.pop, "jmap": c.jmap, "username": c.username}))
                 }
                 Some(Some((None, _))) => Ok(json!({"found": false})),
                 Some(None) => Ok(json!({"pending": true})),
@@ -172,7 +172,6 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     let email = p::req_str(v, "email")?;
     let guess = AccountConfig::guess(email);
     let local = p::bool(v, "local").unwrap_or(false);
-    let jmap = p::str(v, "jmap").map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
     // `graph`: true for Exchange Online through Microsoft Graph (or the API's address).
     let graph = match v.get("graph") {
         Some(Value::Bool(true)) => Some(mailcraft_model::GRAPH_URL.to_string()),
@@ -187,6 +186,12 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(u)) if !u.trim().is_empty() => Some(ews_url(u)),
         _ => None,
     };
+    let explicit_jmap = p::str(v, "jmap").map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+    let jmap = explicit_jmap.or_else(|| {
+        (v.get("jmap").is_none() && !local && graph.is_none() && ews.is_none() && !p::bool(v, "pop").unwrap_or(false) && v.get("imapHost").is_none())
+            .then(|| guess.jmap.clone())
+            .flatten()
+    });
     if s.jmap_only && jmap.is_none() {
         return Err(CmdError::Params("in the browser, MailCraft works with JMAP accounts only".into()));
     }
