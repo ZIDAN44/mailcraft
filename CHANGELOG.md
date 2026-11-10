@@ -10,7 +10,7 @@ on GitHub.
 
 ## 0.35.0
 
-*Mail built from templates reads as it was designed, a mail file opens from inside MailCraft, and each account checks for mail as often as you choose.*
+*Mail built from templates reads as it was designed, a mail file opens from inside MailCraft, calendars and contacts sync with no email account, and each account checks for mail as often as you choose.*
 
 ### Fixed
 
@@ -34,7 +34,7 @@ on GitHub.
 - File › Options sets how often each account looks for new mail: automatically, as before, or every 5, 10, 15, 30 or 60 minutes (#58).
 - Add account can add calendars and contacts only, with no email, from any CalDAV and CardDAV server (Nextcloud, Baïkal, SOGo, Radicale and others): give its address, your user name and an app password, and they sync both ways. A server that schedules meetings sends their invitations (#61).
 
-## 0.34.0
+## 0.34.0 - 2026-11-08
 
 *One coloured title bar on Windows, dates written your way, and drafts never lost on their way to the server.*
 
