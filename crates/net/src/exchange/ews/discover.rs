@@ -62,6 +62,24 @@ pub fn autodiscover_as(email: &str, user: &str, password: &str, base: Option<&st
                         redirect = Some(r);
                         break;
                     }
+                    // Hybrid servers that answer anonymous callers with public IMAP/SMTP XML
+                    // include EwsUrl only once the caller signs in.
+                    _ if *c.scheme.borrow() == Scheme::Unknown && !password.is_empty() => {
+                        *c.scheme.borrow_mut() = Scheme::Basic;
+                        match c.post(body.clone().into_bytes()) {
+                            Ok(resp2) if resp2.ok() => match autodiscover_answer(&String::from_utf8_lossy(&resp2.body)) {
+                                (Some(url), _) => return Ok(url),
+                                (None, Some(r)) => {
+                                    redirect = Some(r);
+                                    break;
+                                }
+                                _ => {}
+                            },
+                            Ok(resp2) => last = NetError::Protocol(format!("Autodiscover answered HTTP {}", resp2.status)),
+                            Err(NetError::Auth(m)) => return Err(NetError::Auth(m)),
+                            Err(e) => last = e,
+                        }
+                    }
                     _ => {}
                 },
                 Ok(resp) => last = NetError::Protocol(format!("Autodiscover answered HTTP {}", resp.status)),
