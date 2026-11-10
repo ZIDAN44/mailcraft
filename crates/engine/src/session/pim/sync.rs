@@ -64,8 +64,8 @@ impl Session {
         }
         if let Some(server) = &sync.calendars {
             // The calendar on this computer goes once the server has calendars, unless it holds
-            // events (they stay there).
-            let keep_local = server.is_empty() || p.events.iter().any(|e| e.calendar == LOCAL);
+            // events (they stay there), or none of the server's can be written to (issue #61).
+            let keep_local = server.iter().all(|c| c.read_only) || p.events.iter().any(|e| e.calendar == LOCAL);
             let mut list: Vec<mailcraft_model::pim::CalendarInfo> = server.clone();
             if keep_local && let Some(l) = p.calendars.iter().find(|c| c.id == LOCAL) {
                 list.push(l.clone());
@@ -102,7 +102,10 @@ impl Session {
             p.calendars = list;
         }
         if let Some(server) = &sync.books {
-            let keep_local = server.is_empty() || p.cards.iter().any(|c| c.book == LOCAL);
+            // As the calendar: a Nextcloud user who never opened its web page has only its
+            // read-only address books (the organisation's accounts, those recently contacted), and
+            // new contacts had nowhere to go (issue #61).
+            let keep_local = server.iter().all(|b| b.read_only) || p.cards.iter().any(|c| c.book == LOCAL);
             let mut list: Vec<mailcraft_model::pim::BookInfo> = server.clone();
             if keep_local && let Some(l) = p.books.iter().find(|b| b.id == LOCAL) {
                 list.push(l.clone());

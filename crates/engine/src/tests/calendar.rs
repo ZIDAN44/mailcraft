@@ -10,6 +10,7 @@ mod invites;
 mod meetings;
 mod notes;
 mod pim;
+mod read_only_books;
 mod reminders;
 mod scheduling;
 mod sogo;
