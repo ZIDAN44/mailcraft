@@ -13,6 +13,9 @@ on GitHub.
 ### Added
 - A native Android app with the shared MailCraft UI, private offline cache, production sync worker, and Keystore-backed credentials.
 
+### Fixed
+- The first-run welcome card now fits narrow windows without clipping its explanation.
+
 ## 0.34.0
 
 *One coloured title bar on Windows, dates written your way, and drafts never lost on their way to the server.*

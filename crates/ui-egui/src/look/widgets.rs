@@ -563,9 +563,12 @@ pub fn shorten(s: &str, max: usize) -> String {
 /// First run: no accounts yet.
 pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>) {
     ui.vertical_centered(|ui| {
+        let available_width = ui.available_width().max(0.0);
+        let margin = (available_width * 0.08).clamp(8.0, 32.0);
+        let content_width = (available_width - 2.0 * margin).clamp(0.0, 460.0);
         ui.add_space((ui.available_height() * 0.18).max(20.0));
-        egui::Frame::new().fill(t.surface).stroke(Stroke::new(1.0, t.border)).corner_radius(CornerRadius::same(12)).inner_margin(egui::Margin::same(32)).show(ui, |ui| {
-            ui.set_max_width(460.0);
+        egui::Frame::new().fill(t.surface).stroke(Stroke::new(1.0, t.border)).corner_radius(CornerRadius::same(12)).inner_margin(egui::Margin::same(margin as i8)).show(ui, |ui| {
+            ui.set_width(content_width);
             ui.vertical_centered(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
                 ui.painter().rect_filled(r, 14.0, t.accent);
