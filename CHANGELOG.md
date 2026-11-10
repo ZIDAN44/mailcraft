@@ -23,6 +23,7 @@ on GitHub.
 - On a POP account, a message you send shows in Sent Items at once, and a saved draft in Drafts, instead of after MailCraft starts again (#57).
 - A message you send just before starting another no longer stays "still being sent" for good, and closing MailCraft no longer warns about it.
 - New contacts and events have somewhere to go when the calendar server has only address books or calendars you can't change (a Nextcloud user who never opened its web page): they stay on this computer instead of being refused (#61).
+- Calendars and contacts sync with a server that takes Digest sign-in only, as Baïkal does unless set otherwise: every request was refused as if the password were wrong (#61).
 
 ### Added
 

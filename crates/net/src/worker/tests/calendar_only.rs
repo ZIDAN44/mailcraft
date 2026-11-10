@@ -142,3 +142,42 @@ fn mail_jobs_are_answered_without_a_mail_server() {
     until(&pool, "automatic replies' answer", |e| matches!(e, Event::Vacation { .. }));
     pool.submit(Job::Remove { account: "a1".into() });
 }
+
+/// Found on a real Baïkal (sabre/dav), whose sign-in is Digest unless set otherwise: every request
+/// was refused ("the calendar server refused the user name or password"), as only Basic was sent.
+/// Digest is answered, its nonce gone stale is answered again, and a wrong password still asks.
+#[test]
+fn a_server_taking_digest_only_is_signed_in_to() {
+    let server = serve();
+    server.data.lock().unwrap().digest = Some("n1".into());
+    {
+        let mut d = server.data.lock().unwrap();
+        let event = mailcraft_model::ical::CalEvent {
+            uid: "e1".into(),
+            summary: "Dentist".into(),
+            start: 1_800_000_000,
+            end: 1_800_003_600,
+            ..Default::default()
+        };
+        d.put(&format!("{CAL}e1.ics"), &mailcraft_model::ical::write(&[event], None, 0));
+    }
+    let mut pool = start("calendar-only-digest", &server.base, PASSWORD);
+    let first = until(&pool, "the first sync", synced);
+    let Event::DavSynced { sync, .. } = &first else { panic!("not a sync: {first:?}") };
+    assert_eq!(sync.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Dentist"]);
+    // Answered at once after the first refusal, not refused first every time.
+    let refused = |s: &crate::fakes::fake_dav::Server| s.data.lock().unwrap().refused;
+    let before = refused(&server);
+    pool.submit(Job::SyncDav { account: "a1".into() });
+    until(&pool, "a second sync", synced);
+    assert_eq!(refused(&server), before, "{:?}", server.data.lock().unwrap().log);
+    // The nonce goes stale: answered again with the new one, and the sync goes on.
+    server.data.lock().unwrap().digest = Some("n2".into());
+    pool.submit(Job::SyncDav { account: "a1".into() });
+    until(&pool, "a sync after the nonce went stale", synced);
+    assert_eq!(refused(&server), before + 1, "refused once, as stale");
+    pool.submit(Job::Remove { account: "a1".into() });
+    let mut wrong = start("calendar-only-digest-wrong", &server.base, "wrong");
+    until(&wrong, "the password asked for", |e| matches!(status(e), Some(SyncStatus::NeedsPassword { .. })));
+    wrong.submit(Job::Remove { account: "a1".into() });
+}

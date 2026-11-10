@@ -55,7 +55,7 @@ impl Worker {
                 self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
             ),
         };
-        let dav = crate::dav::Dav::new(&user, &password);
+        let dav = crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take());
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
         let at = crate::dav::Where {
             email: &self.acc.email,
@@ -65,7 +65,9 @@ impl Worker {
             carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),
             mails: !self.acc.is_calendar_only(),
         };
-        let sync = crate::dav::sync(&dav, &at, &pim, now(), system_zone())?;
+        let sync = crate::dav::sync(&dav, &at, &pim, now(), system_zone());
+        self.dav_digest = dav.digest();
+        let sync = sync?;
         self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) });
         Ok(())
     }

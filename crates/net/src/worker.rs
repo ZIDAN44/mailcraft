@@ -704,6 +704,8 @@ struct Worker {
     windows: HashMap<String, usize>,
     /// The server search still wanted (the pool's).
     search: Arc<AtomicU64>,
+    /// The calendar server's Digest challenge, answered from the next sync's first request.
+    dav_digest: Option<crate::dav::digest::Challenge>,
 }
 
 /// Where an account keeps its folders' own windows.
@@ -758,6 +760,7 @@ impl Worker {
             pushed: false,
             soon: Vec::new(),
             search: Arc::new(AtomicU64::new(0)),
+            dav_digest: None,
         }
     }
 

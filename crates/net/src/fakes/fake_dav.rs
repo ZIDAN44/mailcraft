@@ -27,6 +27,22 @@ pub struct Data {
     pub overwrites: bool,
     /// Says it schedules meetings itself (`calendar-auto-schedule`, RFC 6638).
     pub schedules: bool,
+    /// Takes Digest sign-in only (RFC 7616, MD5 with `qop=auth`), as Baïkal does by default: its
+    /// nonce, which the test may change to make the one answered stale.
+    pub digest: Option<String>,
+    /// Requests refused for their sign-in.
+    pub refused: usize,
+}
+
+/// Whether an `Authorization` value answers the fake's Digest challenge for this request.
+fn digest_ok(header: &str, method: &str, path: &str, nonce: &str) -> bool {
+    let Some((scheme, params)) = crate::dav::digest::challenges(header).into_iter().next() else { return false };
+    let get = |k: &str| params.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str()).unwrap_or_default();
+    let h = |s: &str| crate::dav::digest::hash(false, s);
+    let ha1 = h(&format!("{USER}:fake:{PASSWORD}"));
+    let ha2 = h(&format!("{method}:{path}"));
+    let want = h(&format!("{ha1}:{nonce}:{}:{}:auth:{ha2}", get("nc"), get("cnonce")));
+    scheme == "digest" && get("username") == USER && get("uri") == path && get("nonce") == nonce && get("response") == want
 }
 
 /// The uid an item's data names (its lines unfolded).
@@ -100,6 +116,7 @@ pub fn serve() -> Server {
                 continue;
             }
             let (mut len, mut authorized, mut if_match, mut if_none) = (0usize, false, None::<String>, false);
+            let mut given = String::new();
             loop {
                 let mut line = String::new();
                 if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
@@ -109,8 +126,9 @@ pub fn serve() -> Server {
                 if let Some(v) = lower.strip_prefix("content-length:") {
                     len = v.trim().parse().unwrap_or(0);
                 }
-                if line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == auth) {
-                    authorized = true;
+                if let Some((_, v)) = line.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("authorization")) {
+                    authorized = v.trim() == auth;
+                    given = v.trim().to_string();
                 }
                 if let Some(v) = line.strip_prefix("If-Match:") {
                     if_match = Some(v.trim().to_string());
@@ -126,6 +144,25 @@ pub fn serve() -> Server {
             let (method, path) = (parts.next().unwrap_or("").to_string(), parts.next().unwrap_or("/").to_string());
             let mut d = shared.lock().unwrap();
             d.log.push(format!("{method} {path}"));
+            if let Some(nonce) = d.digest.clone() {
+                authorized = digest_ok(&given, &method, &path, &nonce);
+                if !authorized {
+                    // The right password with a nonce no longer current: stale, as RFC 7616 says.
+                    let old = crate::dav::digest::challenges(&given)
+                        .into_iter()
+                        .next()
+                        .and_then(|(_, p)| p.into_iter().find(|(k, _)| k == "nonce"))
+                        .map(|(_, v)| v);
+                    let stale = old.is_some_and(|o| o != nonce && digest_ok(&given, &method, &path, &o));
+                    let challenge = format!(
+                        "Basic realm=\"fake\", Digest realm=\"fake\", qop=\"auth\", nonce=\"{nonce}\"{}",
+                        if stale { ", stale=true" } else { "" }
+                    );
+                    d.refused += 1;
+                    respond(&mut s, "401 Unauthorized", &[("WWW-Authenticate", challenge)], "");
+                    continue;
+                }
+            }
             if !authorized {
                 respond(&mut s, "401 Unauthorized", &[], "");
                 continue;

@@ -255,14 +255,59 @@ impl Kind {
     }
 }
 
-/// A signed-in DAV session.
+/// A signed-in DAV session: Basic sign-in, or Digest once the server asks for it.
 pub struct Dav {
-    auth: String,
+    user: String,
+    password: String,
+    basic: String,
+    /// The server's Digest challenge once it gave one (Baïkal's default): every request after
+    /// answers it, rather than being refused first.
+    digest: std::sync::Mutex<Option<digest::Challenge>>,
 }
 
 impl Dav {
     pub fn new(user: &str, password: &str) -> Dav {
-        Dav { auth: format!("Basic {}", crate::imap::base64(format!("{user}:{password}").as_bytes())) }
+        let basic = format!("Basic {}", crate::imap::base64(format!("{user}:{password}").as_bytes()));
+        Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default() }
+    }
+
+    /// Answering the Digest challenge an earlier session was given, from its first request.
+    pub(crate) fn with_digest(self, challenge: Option<digest::Challenge>) -> Dav {
+        *self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = challenge;
+        self
+    }
+
+    /// The Digest challenge being answered, to keep for the next session.
+    pub(crate) fn digest(&self) -> Option<digest::Challenge> {
+        self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+
+    /// Send a request signed in: with Basic, or the server's Digest challenge. Refused with a
+    /// Digest challenge it can answer, it's sent again answering it (twice at most: once more
+    /// for a nonce gone stale, or another realm a redirect led to); refused again, it's the
+    /// password.
+    fn send(&self, req: &Request) -> Result<Response> {
+        let uri = Url::parse(&req.url).map(|u| u.path).unwrap_or_else(|_| "/".into());
+        let mut tries = 0;
+        loop {
+            let (auth, answered) = {
+                let mut held = self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                match held.as_mut() {
+                    Some(c) => (c.authorization(&self.user, &self.password, &req.method, &uri), Some(c.realm.clone())),
+                    None => (self.basic.clone(), None),
+                }
+            };
+            let resp = http::send(&req.clone().header("Authorization", &auth))?;
+            if resp.status != 401 || tries >= 2 {
+                return Ok(resp);
+            }
+            let Some(c) = digest::challenge(&resp.headers) else { return Ok(resp) };
+            if answered.as_ref().is_some_and(|realm| *realm == c.realm) && !c.stale {
+                return Ok(resp);
+            }
+            *self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(c);
+            tries += 1;
+        }
     }
 
     /// One request, following redirects (WebDAV methods keep their method and body).
@@ -285,14 +330,13 @@ impl Dav {
                     max: MAX_BODY,
                 }
             };
-            req = req.header("Authorization", &self.auth);
             if let Some(d) = depth {
                 req = req.header("Depth", d);
             }
             for (k, v) in extra {
                 req = req.header(k, v);
             }
-            let resp = http::send(&req)?;
+            let resp = self.send(&req)?;
             if matches!(resp.status, 301 | 302 | 303 | 307 | 308)
                 && let Some(loc) = resp.header("Location")
             {
@@ -498,8 +542,8 @@ impl Dav {
             body: data.as_bytes().to_vec(),
             max: 1 << 20,
         };
-        req = req.header("Authorization", &self.auth).header(cond.0, &cond.1);
-        let resp = http::send(&req)?;
+        req = req.header(cond.0, &cond.1);
+        let resp = self.send(&req)?;
         match resp.status {
             200..=299 => Ok(Ok(resp.header("ETag").unwrap_or_default().to_string())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
@@ -513,11 +557,11 @@ impl Dav {
 
     /// [`Dav::delete`], telling why the server didn't delete it (`Err` inside).
     pub fn remove(&self, url: &str, etag: &str) -> Result<std::result::Result<(), Refused>> {
-        let mut req = Request { method: "DELETE".into(), url: url.into(), max: 1 << 20, ..Default::default() }.header("Authorization", &self.auth);
+        let mut req = Request { method: "DELETE".into(), url: url.into(), max: 1 << 20, ..Default::default() };
         if !etag.is_empty() {
             req = req.header("If-Match", etag);
         }
-        let resp = http::send(&req)?;
+        let resp = self.send(&req)?;
         match resp.status {
             200..=299 | 404 | 410 => Ok(Ok(())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
@@ -669,6 +713,7 @@ fn path_of(url: &str) -> String {
     Url::parse(url).map(|u| u.path).unwrap_or_else(|_| url.to_string())
 }
 
+pub(crate) mod digest;
 mod syncing;
 pub use syncing::sync;
 #[cfg(test)]
