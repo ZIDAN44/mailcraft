@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
+        Dialog::AddAccount(f) if f.calendar_only => super::dav::add_calendar_only(ui, f, t, acts),
         Dialog::AddAccount(f) => {
             ui.set_width(440.0);
             title(ui, t, "Add an email account");
@@ -19,6 +20,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 );
             } else {
                 ui.label(RichText::new(tl!("Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small());
+                ui.add_space(6.0);
+                ui.checkbox(&mut f.calendar_only, tl!("Calendars and contacts only, with no email (CalDAV and CardDAV)"));
             }
             ui.add_space(10.0);
             egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
@@ -495,6 +498,9 @@ pub struct AccountForm {
     /// The address whose looked-up settings are filled in, and where they came from.
     pub found_for: Option<String>,
     pub found_source: Option<String>,
+    /// Calendars and contacts only, with no email (issue #61), at this CalDAV and CardDAV server.
+    pub calendar_only: bool,
+    pub dav_url: String,
 }
 
 /// The outgoing server's own sign-in, as Outlook's "Log on using" for SMTP: for servers whose

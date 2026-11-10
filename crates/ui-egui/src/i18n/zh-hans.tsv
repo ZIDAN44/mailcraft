@@ -1634,3 +1634,8 @@ month	May	5月
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	自动：服务器能通知时，新邮件一到就收取，否则每两分钟检查一次。设置时间后，帐户只在那时检查。发送的邮件会立即发出，“发送/接收”会马上检查。
 	Automatically	自动
 	Every {n} minutes	每 {n} 分钟
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	仅日历和联系人，无邮件 (CalDAV 和 CardDAV)
+	Calendar and contacts server	日历和联系人服务器
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	用于任何保存日历和联系人但不含邮件的 CalDAV 和 CardDAV 服务器，例如 Nextcloud、Baïkal、SOGo 或 Radicale。密码保存在这台电脑的钥匙串中，只会发送到该服务器。
+	Server: {url} (CalDAV and CardDAV)	服务器: {url} (CalDAV 和 CardDAV)
+	Not available: this account has no mail server.	不可用：此帐户没有邮件服务器。

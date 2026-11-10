@@ -192,6 +192,7 @@ pub(crate) fn tour() {
             jmap_form(),
             graph_form(),
             pop_form(),
+            calendar_form(),
             Dialog::Preview {
                 title: "notes.txt".into(),
                 header: vec![("From".into(), "Zoe".into())],
@@ -291,6 +292,17 @@ fn pop_form() -> Dialog {
         f.pop_security = mailcraft_engine::model::Security::Tls;
         f.pst = "C:/Mail/old.pst".into();
         f.password = "pw".into();
+    }
+    d
+}
+
+fn calendar_form() -> Dialog {
+    let mut d = Dialog::add_account();
+    if let Dialog::AddAccount(f) = &mut d {
+        f.calendar_only = true;
+        f.dav_url = " https://cloud.example.org/remote.php/dav ".into();
+        f.email = "zoe@example.org".into();
+        f.password = "app-pw".into();
     }
     d
 }

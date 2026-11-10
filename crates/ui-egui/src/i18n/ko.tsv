@@ -1637,3 +1637,8 @@ month	May	5월
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	자동은 서버가 알려 줄 수 있으면 새 메일을 바로 받고, 그렇지 않으면 2분마다 확인합니다. 시간을 정하면 계정은 그때만 확인합니다. 보내는 메일은 바로 전송되며 보내기/받기는 즉시 확인합니다.
 	Automatically	자동
 	Every {n} minutes	{n}분마다
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	일정과 연락처만, 메일 없음 (CalDAV 및 CardDAV)
+	Calendar and contacts server	일정 및 연락처 서버
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Nextcloud, Baïkal, SOGo, Radicale처럼 메일 없이 일정과 연락처를 보관하는 모든 CalDAV 및 CardDAV 서버용입니다. 암호는 이 컴퓨터의 키체인에 보관되며 그 서버로만 전송됩니다.
+	Server: {url} (CalDAV and CardDAV)	서버: {url} (CalDAV 및 CardDAV)
+	Not available: this account has no mail server.	사용할 수 없음: 이 계정에는 메일 서버가 없습니다.

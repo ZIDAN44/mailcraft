@@ -403,7 +403,7 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
         }
         SyncStatus::Connecting => (t.accent, tl!("Connecting…").to_string()),
         SyncStatus::Offline if a.is_data_file() => (t.faint, tl!("Outlook data file").to_string()),
-        SyncStatus::Offline if a.is_local() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
+        SyncStatus::Offline if a.is_local() && !a.config.is_calendar_only() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
         SyncStatus::Offline => (t.faint, tl!("Offline").to_string()),
         // An account that signs in in the browser has no password to ask for.
         SyncStatus::NeedsPassword { .. } if a.config.oauth.is_some() => (t.danger, tl!("Sign in again").to_string()),

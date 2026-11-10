@@ -1637,3 +1637,8 @@ month	May	Май
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Автоматически: новая почта приходит, как только сервер сообщит о ней, если он это умеет, иначе проверка идёт каждые две минуты. С заданным временем учётная запись проверяет почту только тогда. Отправленное уходит сразу, а «Отправить/получить» проверяет немедленно.
 	Automatically	Автоматически
 	Every {n} minutes	Каждые {n} мин.
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	Только календари и контакты, без почты (CalDAV и CardDAV)
+	Calendar and contacts server	Сервер календарей и контактов
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Для любого сервера CalDAV и CardDAV с вашими календарями и контактами, например Nextcloud, Baïkal, SOGo или Radicale, без почты. Пароль хранится в связке ключей этого компьютера и отправляется только на этот сервер.
+	Server: {url} (CalDAV and CardDAV)	Сервер: {url} (CalDAV и CardDAV)
+	Not available: this account has no mail server.	Недоступно: у этой учётной записи нет почтового сервера.

@@ -1638,3 +1638,8 @@ month	May	Mayıs
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Otomatik: sunucu bildirebiliyorsa yeni posta bildirildiği anda gelir, aksi halde iki dakikada bir bakılır. Belirli bir süre seçildiğinde hesap yalnızca o zaman bakar. Gönderdikleriniz hemen gider, Gönder/Al ise hemen bakar.
 	Automatically	Otomatik
 	Every {n} minutes	Her {n} dakikada
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	Yalnızca takvimler ve kişiler, e-posta olmadan (CalDAV ve CardDAV)
+	Calendar and contacts server	Takvim ve kişi sunucusu
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Nextcloud, Baïkal, SOGo veya Radicale gibi, takvimlerinizi ve kişilerinizi e-posta olmadan tutan her CalDAV ve CardDAV sunucusu için. Parolanız bu bilgisayarın anahtarlığında tutulur ve yalnızca o sunucuya gönderilir.
+	Server: {url} (CalDAV and CardDAV)	Sunucu: {url} (CalDAV ve CardDAV)
+	Not available: this account has no mail server.	Kullanılamıyor: bu hesabın posta sunucusu yok.

@@ -1633,3 +1633,8 @@ month	May	mei
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automatisch haalt nieuwe e-mail op zodra de server die meldt, als een server dat kan, en kijkt anders elke twee minuten. Met een vaste tijd kijkt een account alleen dan. Wat je verstuurt gaat meteen weg en Verzenden/ontvangen kijkt direct.
 	Automatically	Automatisch
 	Every {n} minutes	Elke {n} minuten
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	Alleen agenda's en contactpersonen, zonder e-mail (CalDAV en CardDAV)
+	Calendar and contacts server	Server voor agenda's en contactpersonen
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Voor elke CalDAV- en CardDAV-server die je agenda's en contactpersonen bewaart, zoals Nextcloud, Baïkal, SOGo of Radicale, zonder e-mail. Je wachtwoord wordt in de sleutelhanger van deze computer bewaard en alleen naar die server verzonden.
+	Server: {url} (CalDAV and CardDAV)	Server: {url} (CalDAV en CardDAV)
+	Not available: this account has no mail server.	Niet beschikbaar: dit account heeft geen mailserver.

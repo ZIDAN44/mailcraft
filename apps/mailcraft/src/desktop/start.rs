@@ -37,6 +37,7 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
                 if let mailcraft_ui_egui::Dialog::AddAccount(f) = &mut d {
                     f.graph = p.get("graph").and_then(|v| v.as_bool()).unwrap_or(false);
                     f.pop = p.get("pop").and_then(|v| v.as_bool()).unwrap_or(false);
+                    f.calendar_only = p.get("calendarOnly").and_then(|v| v.as_bool()).unwrap_or(false);
                 }
                 app.ui.dialog = Some(d);
             }

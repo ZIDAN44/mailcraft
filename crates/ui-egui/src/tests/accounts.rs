@@ -72,6 +72,25 @@ fn the_file_page_shows_accounts_replies_space_and_options() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Issue #61: calendars and contacts only, from a Nextcloud or Radicale address, with no email.
+#[test]
+fn the_account_form_adds_calendar_only_accounts() {
+    let (mut a, dir) = app("calendar-form");
+    let p = match calendar_form() {
+        Dialog::AddAccount(f) => f.calendar_params(),
+        _ => serde_json::Value::Null,
+    };
+    assert_eq!(
+        (p["dav"].clone(), p["email"].clone(), p["username"].clone()),
+        (json!("https://cloud.example.org/remote.php/dav"), json!("zoe@example.org"), json!(""))
+    );
+    a.act(crate::Action::Submit("account.add", p));
+    let added = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").unwrap();
+    assert!(added.config.is_calendar_only());
+    assert_eq!(added.config.username, "zoe@example.org", "signs in with the address when no user name is given");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn the_account_form_adds_jmap_accounts() {
     let (mut a, dir) = app("jmap-form");

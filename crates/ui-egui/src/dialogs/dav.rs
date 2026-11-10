@@ -88,3 +88,60 @@ pub(super) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
     }
     !cancel
 }
+
+/// Adding a calendar-only account (issue #61): a CalDAV and CardDAV server with no email. Its
+/// address names the account, as every account's does, and the meetings it organises.
+pub(super) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    ui.set_width(440.0);
+    title(ui, t, "Add an account");
+    let about = tl!(
+        "For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server."
+    );
+    ui.add(egui::Label::new(RichText::new(about).color(t.dim).small()).wrap());
+    ui.add_space(6.0);
+    ui.checkbox(&mut f.calendar_only, tl!("Calendars and contacts only, with no email (CalDAV and CardDAV)"));
+    ui.add_space(10.0);
+    let size = vec2(300.0, 26.0);
+    egui::Grid::new("calendar-account").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
+        ui.label(tl!("Calendar and contacts server"));
+        let server = egui::TextEdit::singleline(&mut f.dav_url).hint_text("https://cloud.example.com/remote.php/dav");
+        ui.add(server.min_size(size).desired_width(size.x));
+        ui.end_row();
+        ui.label(tl!("User name"));
+        ui.add(egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")).min_size(size).desired_width(size.x));
+        ui.end_row();
+        ui.label(tl!("Password"));
+        ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(size).desired_width(size.x));
+        ui.end_row();
+        ui.label(tl!("Email address"));
+        ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(size).desired_width(size.x));
+        ui.end_row();
+        ui.label(tl!("Your name"));
+        ui.add(egui::TextEdit::singleline(&mut f.name).min_size(size).desired_width(size.x));
+        ui.end_row();
+    });
+    if let Some(e) = &f.error {
+        ui.add_space(6.0);
+        ui.label(RichText::new(e.as_str()).color(t.danger));
+    }
+    let ready = !f.dav_url.trim().is_empty() && !f.email.trim().is_empty() && !f.password.is_empty();
+    let (ok, cancel) = buttons(ui, t, "Connect", ready);
+    if ok && ready {
+        f.error = None;
+        acts.push(Action::Submit("account.add", f.calendar_params()));
+    }
+    !cancel
+}
+
+impl super::AccountForm {
+    /// `account.add` for a calendar-only account (issue #61): an empty user name is the address.
+    pub(crate) fn calendar_params(&self) -> serde_json::Value {
+        json!({
+            "email": self.email.trim(),
+            "name": self.name.trim(),
+            "username": self.username.trim(),
+            "password": self.password,
+            "dav": self.dav_url.trim(),
+        })
+    }
+}

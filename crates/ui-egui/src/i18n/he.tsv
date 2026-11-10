@@ -1633,3 +1633,8 @@ month	May	מאי
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	אוטומטית: דואר חדש מגיע ברגע שהשרת מודיע עליו, אם הוא יכול, ואחרת הבדיקה נעשית כל שתי דקות. עם זמן קבוע, החשבון בודק רק אז. מה ששולחים יוצא מיד, ו"שליחה/קבלה" בודק מיד.
 	Automatically	אוטומטית
 	Every {n} minutes	כל {n} דקות
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	לוחות שנה ואנשי קשר בלבד, ללא דואר (CalDAV ו־CardDAV)
+	Calendar and contacts server	שרת לוחות שנה ואנשי קשר
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	לכל שרת CalDAV ו-CardDAV ששומר את לוחות השנה ואנשי הקשר שלך, כמו Nextcloud, Baïkal, SOGo או Radicale, ללא דואר. הסיסמה נשמרת במחזיק המפתחות של המחשב הזה ונשלחת רק לשרת הזה.
+	Server: {url} (CalDAV and CardDAV)	שרת: {url} (CalDAV ו־CardDAV)
+	Not available: this account has no mail server.	לא זמין: לחשבון הזה אין שרת דואר.

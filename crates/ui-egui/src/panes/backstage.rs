@@ -58,6 +58,8 @@ impl Backstage {
 fn kind(a: &AccountState) -> &'static str {
     if a.is_data_file() {
         "Outlook data file"
+    } else if a.config.is_calendar_only() {
+        "Calendars and contacts"
     } else if a.is_local() {
         "Sample mailbox"
     } else if a.config.graph.is_some() {
@@ -330,6 +332,9 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
     // Account settings: where it connects, and every change to it, each with its own button.
     let servers = if a.is_data_file() {
         tl!("Opened from an Outlook data file, kept on this computer only").to_string()
+    } else if let Some(d) = a.config.dav.as_ref().filter(|_| a.config.is_calendar_only()) {
+        let at = if d.caldav.is_empty() { &d.carddav } else { &d.caldav };
+        tf!("Server: {url} (CalDAV and CardDAV)", url = readable_url(at))
     } else if a.is_local() {
         tl!("Sample mailbox, kept on this computer only").to_string()
     } else if let Some(u) = &a.config.graph {
@@ -357,7 +362,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
     };
     card(ui, t, tl!("Account settings"), Some(tl!("Change this account's name, servers and sign-in, or its signature.")), |ui| {
         setting_row(ui, t, true, name(t, &a.config.email), Some(note(t, &servers)), |ui| {
-            if !a.is_local() && ui.button(tl!(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" })).clicked() {
+            if a.config.has_server() && ui.button(tl!(if a.config.oauth.is_some() { "Sign in again…" } else { "Password…" })).clicked() {
                 acts.push(Action::SignInAgain(id.clone()));
             }
             if !a.is_local() && a.config.graph.is_none() && ui.button(tl!("Server settings…")).clicked() {
@@ -385,7 +390,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
         }
         // Calendars and contacts: where they were found, or the addresses given by hand (the
         // desktop app's: the browser doesn't sync calendars).
-        if !cfg!(target_arch = "wasm32") && !a.is_local() && a.config.graph.is_none() && a.config.ews.is_none() {
+        if !cfg!(target_arch = "wasm32") && a.config.has_server() && a.config.graph.is_none() && a.config.ews.is_none() {
             let pim = s.pim.get(&id);
             let found = pim.and_then(|p| p.caldav_home.clone());
             let about = match found {
@@ -426,6 +431,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
     // Automatic replies: on or off, and a button to change them where the server has them.
     let (color, status) = match &a.vacation {
         _ if a.is_data_file() => (t.faint, tl!("Not available: a data file has no server.").to_string()),
+        _ if a.config.is_calendar_only() => (t.faint, tl!("Not available: this account has no mail server.").to_string()),
         _ if a.is_local() => (t.faint, tl!("Not available: the sample mailbox has no server.").to_string()),
         VacationState::Unknown | VacationState::Loading => (t.faint, tl!("Checking with the server…").to_string()),
         VacationState::Loaded(v) if v.enabled => (

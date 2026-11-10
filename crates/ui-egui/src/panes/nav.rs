@@ -194,7 +194,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             ui.painter().circle_filled(m.pos(rect.min + vec2(26.0, 15.0)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_data_file() {
                 a.config.email.clone()
-            } else if a.is_local() {
+            } else if a.is_local() && !a.config.is_calendar_only() {
                 tf!("{email} (sample)", email = a.config.email)
             } else {
                 a.config.email.clone()
@@ -214,7 +214,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 }
                 // A Microsoft account with a password (refused there) switches to Microsoft sign-in.
                 let switch = mailcraft_engine::model::microsoft_password_account(&config) && s.oauth_available.iter().any(|p| p == "microsoft");
-                if !a.is_local() && ui.button(if switch { tl!("Sign in with Microsoft…") } else { tl!("Sign in again…") }).clicked() {
+                if a.config.has_server() && ui.button(if switch { tl!("Sign in with Microsoft…") } else { tl!("Sign in again…") }).clicked() {
                     acts.push(Action::SignInAgain(config.id.clone()));
                     ui.close();
                 }
@@ -265,7 +265,17 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             if open {
                 // A data file being imported says how far it is; its folders come as each is done.
                 let importing = crate::app::importing::nav_line(s, t, ui, acts, &a.config.id);
-                if a.folders.is_empty() && !importing {
+                if a.config.is_calendar_only() {
+                    // No mail (issue #61): what it has is a click away, not folders on their way.
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
+                        let what =
+                            ui.add(egui::Label::new(RichText::new(tl!("Calendars and contacts")).color(t.faint).small()).sense(Sense::click()));
+                        if what.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                            acts.push(Action::Run("view.module", json!({"name": "calendar"})));
+                        }
+                    });
+                } else if a.folders.is_empty() && !importing {
                     ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
                 }
                 for f in a.folders.iter().filter(|f| f.mailbox.is_none()) {

@@ -1633,3 +1633,8 @@ month	May	مايو
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	تلقائيًا: يصل البريد الجديد فور إبلاغ الخادم عنه إن كان قادرًا على ذلك، وإلا يتم التحقق كل دقيقتين. عند تحديد وقت، لا يتحقق الحساب إلا حينها. ما ترسله يخرج فورًا، و«إرسال/تلقي» يتحقق في الحال.
 	Automatically	تلقائيًا
 	Every {n} minutes	كل {n} دقيقة
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	التقويمات وجهات الاتصال فقط، دون بريد إلكتروني (CalDAV وCardDAV)
+	Calendar and contacts server	خادم التقويمات وجهات الاتصال
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	لأي خادم CalDAV وCardDAV يحفظ تقويماتك وجهات اتصالك، مثل Nextcloud أو Baïkal أو SOGo أو Radicale، دون بريد إلكتروني. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى ذلك الخادم.
+	Server: {url} (CalDAV and CardDAV)	الخادم: {url} (CalDAV وCardDAV)
+	Not available: this account has no mail server.	غير متاح: هذا الحساب بلا خادم بريد.

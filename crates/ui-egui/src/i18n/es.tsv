@@ -1638,3 +1638,8 @@ month	May	mayo
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automáticamente recibe el correo nuevo en cuanto el servidor lo indica, si puede hacerlo, y si no, busca cada dos minutos. Con una hora fijada, la cuenta solo busca entonces. Lo que envías sale al momento, y Enviar y recibir busca enseguida.
 	Automatically	Automáticamente
 	Every {n} minutes	Cada {n} minutos
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	Solo calendarios y contactos, sin correo (CalDAV y CardDAV)
+	Calendar and contacts server	Servidor de calendarios y contactos
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Para cualquier servidor CalDAV y CardDAV que guarde tus calendarios y contactos, como Nextcloud, Baïkal, SOGo o Radicale, sin correo. Tu contraseña se guarda en el llavero de este equipo y solo se envía a ese servidor.
+	Server: {url} (CalDAV and CardDAV)	Servidor: {url} (CalDAV y CardDAV)
+	Not available: this account has no mail server.	No disponible: esta cuenta no tiene servidor de correo.
