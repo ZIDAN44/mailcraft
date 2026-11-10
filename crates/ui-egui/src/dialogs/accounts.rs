@@ -294,9 +294,23 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.add_space(6.0);
                 ui.label(RichText::new(e).color(t.danger));
             }
-            // Providers that sign in through the browser (OAuth), when this copy can.
-            let provider = if f.graph { Some("microsoft") } else { mailcraft_engine::model::oauth_provider_for(&f.imap_host) }
-                .filter(|p| s.oauth_available.iter().any(|a| a == p));
+            // Providers that sign in through the browser (OAuth), when this copy can or when the
+            // domain's autoconfig published an `<oAuth2>` endpoint.
+            let autoconfig_oauth = if !s.jmap_only && !f.graph && !f.ews {
+                s.discovered.get(&email).and_then(|d| d.as_ref()).and_then(|(c, _)| c.as_ref()).and_then(|c| c.oauth_config.as_ref())
+            } else {
+                None
+            };
+            let provider: Option<(&str, String)> = if f.graph {
+                Some("microsoft").filter(|p| s.oauth_available.iter().any(|a| a == p)).map(|p| (p, "Microsoft".into()))
+            } else if let Some(p) = mailcraft_engine::model::oauth_provider_for(&f.imap_host).filter(|p| s.oauth_available.iter().any(|a| a == p)) {
+                Some((p, if p == "google" { "Google".into() } else { "Microsoft".into() }))
+            } else {
+                autoconfig_oauth.map(|cfg| {
+                    let label = if cfg.issuer.trim().is_empty() { email.rsplit_once('@').map_or("OAuth", |(_, d)| d) } else { cfg.issuer.trim() };
+                    (mailcraft_engine::model::OAUTH_AUTOCONFIG, label.to_string())
+                })
+            };
             // Outlook.com, Hotmail and Live take no passwords from mail apps any more: without
             // Microsoft sign-in in this copy, say so rather than take a password that can't work.
             let consumer = !f.jmap && !f.ews && mailcraft_engine::model::microsoft_consumer(&f.email);
@@ -317,9 +331,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.add_space(6.0);
                 ui.label(RichText::new(tl!("Signing in with Microsoft isn't set up in this copy of MailCraft.")).color(t.warn).small());
             }
-            if let Some(p) = provider {
+            if let Some((p, name)) = provider {
                 ui.add_space(6.0);
-                let name = if p == "google" { "Google" } else { "Microsoft" };
                 ui.horizontal(|ui| {
                     if widgets::accent_button(
                         ui,

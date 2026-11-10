@@ -271,6 +271,11 @@ impl Dav {
         Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default() }
     }
 
+    /// Sign in with an OAuth 2.0 Bearer token instead of Basic or Digest credentials.
+    pub fn bearer(token: &str) -> Dav {
+        Dav { user: String::new(), password: String::new(), basic: format!("Bearer {token}"), digest: std::sync::Mutex::default() }
+    }
+
     /// Answering the Digest challenge an earlier session was given, from its first request.
     pub(crate) fn with_digest(self, challenge: Option<digest::Challenge>) -> Dav {
         *self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = challenge;
@@ -298,7 +303,7 @@ impl Dav {
                 }
             };
             let resp = http::send(&req.clone().header("Authorization", &auth))?;
-            if resp.status != 401 || tries >= 2 {
+            if resp.status != 401 || tries >= 2 || self.basic.starts_with("Bearer ") {
                 return Ok(resp);
             }
             let Some(c) = digest::challenge(&resp.headers) else { return Ok(resp) };

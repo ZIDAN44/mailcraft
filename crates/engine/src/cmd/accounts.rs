@@ -34,9 +34,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 return Err(CmdError::Params(format!("`{email}` is not an email address")));
             }
             match s.discovered.get(&email) {
-                Some(Some((Some(c), source))) => {
-                    Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "pop": c.pop, "jmap": c.jmap, "username": c.username}))
-                }
+                Some(Some((Some(c), source))) => Ok(json!({
+                    "found": true,
+                    "source": source,
+                    "imap": c.imap,
+                    "smtp": c.smtp,
+                    "pop": c.pop,
+                    "jmap": c.jmap,
+                    "oauthConfig": c.oauth_config,
+                    "username": c.username,
+                })),
                 Some(Some((None, _))) => Ok(json!({"found": false})),
                 Some(None) => Ok(json!({"pending": true})),
                 None => {
@@ -212,6 +219,20 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     let oauth = p::str(v, "oauth")
         .map(str::to_string)
         .or_else(|| (graph.is_some() && password.as_deref().is_none_or(str::is_empty)).then(|| "microsoft".to_string()));
+    let oauth_config = if oauth.as_deref() == Some(mailcraft_model::OAUTH_AUTOCONFIG) {
+        let given = v.get("oauthConfig").and_then(|x| serde_json::from_value::<mailcraft_model::OAuthConfig>(x.clone()).ok());
+        given
+            .or_else(|| {
+                s.discovered
+                    .get(&email.trim().to_ascii_lowercase())
+                    .and_then(|d| d.as_ref())
+                    .and_then(|(c, _)| c.as_ref())
+                    .and_then(|c| c.oauth_config.clone())
+            })
+            .filter(|c| valid_oauth_url(&c.auth_url) && valid_oauth_url(&c.token_url))
+    } else {
+        None
+    };
     let config = AccountConfig {
         id: String::new(),
         name: p::str(v, "name").map(str::to_string).unwrap_or(guess.name.clone()),
@@ -228,6 +249,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         signature_reply: None,
         color: 0,
         oauth,
+        oauth_config,
         jmap,
         graph,
         ews,
@@ -252,10 +274,14 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     if config.username.chars().any(char::is_control) {
         return Err(CmdError::Params("the user name has a line break or another invisible character in it".into()));
     }
-    if let Some(o) = &config.oauth
-        && !s.oauth_available.contains(o)
-    {
-        return Err(CmdError::Params(format!("signing in with {o} isn't set up in this copy of MailCraft")));
+    if let Some(o) = &config.oauth {
+        if o == mailcraft_model::OAUTH_AUTOCONFIG {
+            if s.jmap_only || config.oauth_config.is_none() {
+                return Err(CmdError::Params("browser sign-in needs https:// OAuth endpoints discovered on the desktop app".into()));
+            }
+        } else if !s.oauth_available.contains(o) {
+            return Err(CmdError::Params(format!("signing in with {o} isn't set up in this copy of MailCraft")));
+        }
     }
     // `deferSignIn`: add now, ask for the password when the account first connects.
     let defer = p::bool(v, "deferSignIn").unwrap_or(false);
@@ -293,6 +319,13 @@ fn add_calendar_only(s: &mut Session, v: &Value, server: &str) -> CmdResult {
     let name = p::str(v, "name").map(str::to_string).unwrap_or_else(|| AccountConfig::guess(email).name);
     let id = s.add_calendar_account(email, &name, username, server, password)?;
     Ok(json!({"account": id}))
+}
+
+/// An OAuth endpoint URL accepted from autoconfig or `account.add`: `https://` with no control
+/// characters or spaces.
+fn valid_oauth_url(url: &str) -> bool {
+    let u = url.trim();
+    u.starts_with("https://") && u.len() > "https://x".len() && u.len() <= 512 && !u.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
 /// An Exchange Web Services address from what the user typed: a server name gets `https://` and

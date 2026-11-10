@@ -30,9 +30,10 @@ impl Worker {
             }
             return;
         }
-        // OAuth tokens are for mail only: such an account's calendars need a sign-in of their own.
+        // Google and Microsoft OAuth tokens cover mail only; a server-discovered OAuth provider
+        // whose scope covers CalDAV / CardDAV signs in with its Bearer token.
         let own = self.acc.dav.as_ref().is_some_and(|d| d.username.is_some());
-        if (self.acc.oauth.is_some() || self.acc.ews.is_some()) && !own {
+        if ((self.acc.oauth.is_some() && !self.oauth_dav_capable()) || self.acc.ews.is_some()) && !own {
             return;
         }
         if let Err(e) = self.dav_pass() {
@@ -43,19 +44,32 @@ impl Worker {
         }
     }
 
+    fn oauth_dav_capable(&self) -> bool {
+        self.acc.oauth.as_deref() == Some(mailcraft_model::OAUTH_AUTOCONFIG)
+            && self.acc.oauth_config.as_ref().is_some_and(|c| {
+                let s = c.scope.to_ascii_lowercase();
+                s.contains("caldav") || s.contains("carddav") || s.contains("dav")
+            })
+    }
+
     /// One sync with the CalDAV and CardDAV server: the addresses given by hand (issue #7), or
     /// those found from the account's address; signed in with their own user name, or the mail's.
     fn dav_pass(&mut self) -> Result<()> {
         let given = self.acc.dav.clone().unwrap_or_default();
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-        let (user, password) = match &given.username {
-            Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
-            None => (
-                if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() },
-                self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
-            ),
+        let dav = if given.username.is_none() && self.oauth_dav_capable() {
+            let token = self.secret()?;
+            crate::dav::Dav::bearer(&token)
+        } else {
+            let (user, password) = match &given.username {
+                Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
+                None => (
+                    if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() },
+                    self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
+                ),
+            };
+            crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take())
         };
-        let dav = crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take());
         let host = dav_host(&self.acc);
         let at = crate::dav::Where {
             email: &self.acc.email,

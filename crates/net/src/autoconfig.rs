@@ -109,6 +109,23 @@ fn jmap_server(xml: &str, email: &str) -> Option<(String, String)> {
     None
 }
 
+fn oauth_block(xml: &str) -> Option<mailcraft_model::OAuthConfig> {
+    let start = xml.find("<oAuth2")?;
+    let body_start = xml.get(start..)?.find('>')? + start + 1;
+    let end = xml.get(body_start..)?.find("</oAuth2>")? + body_start;
+    let b = xml.get(body_start..end)?;
+    let auth_url = text_of(b, "authURL")?;
+    let token_url = text_of(b, "tokenURL")?;
+    let valid_https = |u: &str| crate::http::Url::parse(u).is_ok_and(|p| p.https && valid_host(&p.host));
+    if !valid_https(&auth_url) || !valid_https(&token_url) {
+        return None;
+    }
+    let issuer = text_of(b, "issuer").unwrap_or_default();
+    let scope = text_of(b, "scope").unwrap_or_else(|| "mail caldav carddav offline_access".into());
+    let client_id = text_of(b, "clientId").unwrap_or_default();
+    Some(mailcraft_model::OAuthConfig { issuer, auth_url, token_url, scope, client_id })
+}
+
 /// The best IMAP, SMTP and JMAP servers of a Mozilla autoconfig file, and its POP server when it
 /// has one (in `pop`). Encrypted servers are preferred; one without encryption is only taken when
 /// nothing else is offered (and never for JMAP).
@@ -124,6 +141,7 @@ pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
         all.into_iter().next()
     };
     let jmap = jmap_server(xml, email);
+    let oauth_config = oauth_block(xml);
     match (pick("incomingServer", "imap"), pick("outgoingServer", "smtp"), jmap) {
         (Some((imap, user)), Some((smtp, _)), jmap) => {
             let mut c = AccountConfig::guess(email);
@@ -132,6 +150,7 @@ pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
             c.username = user;
             c.pop = pick("incomingServer", "pop3").map(|(s, _)| s);
             c.jmap = jmap.map(|(u, _)| u);
+            c.oauth_config = oauth_config;
             Some(c)
         }
         (_, _, Some((jmap_url, user))) => {
@@ -140,6 +159,7 @@ pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
             c.smtp = ServerConfig::default();
             c.username = user;
             c.jmap = Some(jmap_url);
+            c.oauth_config = oauth_config;
             Some(c)
         }
         _ => None,
@@ -380,10 +400,20 @@ mod tests {
             <incomingServer type="jmap"><hostname>mail.nextxch.com</hostname><port>443</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></incomingServer>
             <incomingServer type="imap"><hostname>mail.nextxch.com</hostname><port>993</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></incomingServer>
             <outgoingServer type="smtp"><hostname>mail.nextxch.com</hostname><port>465</port><socketType>SSL</socketType><username>%EMAILADDRESS%</username></outgoingServer>
-        </emailProvider></clientConfig>"#;
+        </emailProvider><oAuth2>
+            <issuer>nextxch.com</issuer>
+            <scope>mail caldav carddav offline_access</scope>
+            <authURL>https://mail.nextxch.com/oauth/authorize</authURL>
+            <tokenURL>https://mail.nextxch.com/oauth/token</tokenURL>
+        </oAuth2></clientConfig>"#;
         let c = parse_config(xml, "zoe@firma.example").unwrap();
         assert_eq!(c.jmap.as_deref(), Some("https://mail.nextxch.com/.well-known/jmap"));
         assert_eq!(c.imap.host, "mail.nextxch.com");
+        let oa = c.oauth_config.unwrap();
+        assert_eq!(
+            (oa.issuer.as_str(), oa.auth_url.as_str(), oa.scope.as_str()),
+            ("nextxch.com", "https://mail.nextxch.com/oauth/authorize", "mail caldav carddav offline_access")
+        );
 
         // Plain JMAP without TLS is ignored.
         let plain = r#"<clientConfig version="1.1"><emailProvider id="bad.example">
