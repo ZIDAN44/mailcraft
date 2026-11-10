@@ -279,9 +279,22 @@ impl AccountConfig {
         !self.is_local() && self.pop.is_none()
     }
 
-    /// Kept on this computer only, with no server (the sample mailbox).
+    /// Its mail kept on this computer only, with no mail server (the sample mailbox, a data file,
+    /// a calendar-only account).
     pub fn is_local(&self) -> bool {
         self.imap.host.trim().is_empty() && self.jmap.is_none() && self.graph.is_none() && self.ews.is_none() && self.pop.is_none()
+    }
+
+    /// Calendars and contacts only (issue #61): no mail server, a CalDAV and CardDAV server it
+    /// signs in to with its own user name and password. Its mail side is a local account's
+    /// (nothing to sync or send), so only what concerns calendars and contacts has a server.
+    pub fn is_calendar_only(&self) -> bool {
+        self.is_local() && self.dav.as_ref().is_some_and(|d| !d.caldav.trim().is_empty() || !d.carddav.trim().is_empty())
+    }
+
+    /// Whether it has a server to connect to: its mail's, or a calendar-only account's.
+    pub fn has_server(&self) -> bool {
+        !self.is_local() || self.is_calendar_only()
     }
 
     /// Whether the account works through a web API (JMAP, Graph or EWS) rather than IMAP and

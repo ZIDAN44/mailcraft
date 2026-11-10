@@ -236,7 +236,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 return Err(CmdError::Params(format!("`minutes` can be at most {}", mailcraft_model::MAX_CHECK_MINUTES)));
             };
             let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
-            if c.is_local() {
+            if !c.has_server() {
                 return Err(CmdError::Params("that account has no server to look at".into()));
             }
             c.check_every = (minutes > 0).then_some(minutes);

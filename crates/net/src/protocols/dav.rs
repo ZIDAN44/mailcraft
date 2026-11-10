@@ -213,6 +213,9 @@ pub struct Where<'a> {
     pub imap_host: &'a str,
     pub caldav: Option<&'a str>,
     pub carddav: Option<&'a str>,
+    /// MailCraft mails the account's meeting messages. Not for an account with calendars and
+    /// contacts only (issue #61): a server that schedules sends them.
+    pub mails: bool,
 }
 
 impl Where<'_> {

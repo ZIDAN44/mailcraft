@@ -410,7 +410,7 @@ impl Session {
     pub(crate) fn after_pim_change(&mut self, account: &str, remote: bool) {
         self.save_pim(account);
         let job = Job::SyncDav { account: account.to_string() };
-        if remote && self.account(account).is_some_and(|a| !a.is_local()) && !self.jobs.contains(&job) {
+        if remote && self.account(account).is_some_and(|a| a.config.has_server()) && !self.jobs.contains(&job) {
             self.jobs.push(job);
         }
     }

@@ -54,10 +54,12 @@ impl Session {
         }
         let mut local = Vec::new();
         for a in &self.accounts {
+            // A calendar-only account's mail is local, and its calendars have a server.
+            if a.config.has_server() {
+                self.jobs.push(Job::Start { account: a.config.clone(), password: None });
+            }
             if a.is_local() {
                 local.push(a.config.id.clone());
-            } else {
-                self.jobs.push(Job::Start { account: a.config.clone(), password: None });
             }
         }
         // Imports interrupted, stopped or being removed when MailCraft last closed.
@@ -122,13 +124,42 @@ impl Session {
         self.move_to_sending_account();
         if config.oauth.is_some() {
             self.jobs.push(Job::SignIn { account: config });
-        } else if !local {
+        } else if config.has_server() {
             self.jobs.push(Job::Start { account: config, password: password.map(Secret) });
         }
         if self.accounts.len() == 1 || self.view == View::Empty {
             self.view = View::Folder { account: id.clone(), folder: "INBOX".into() };
             self.refresh_list();
         }
+        Ok(id)
+    }
+
+    /// A calendar-only account (issue #61): no mail server, its calendars and contacts on the
+    /// CalDAV and CardDAV server at `server` (its own address, the user's home, or one calendar,
+    /// as [`Session::set_dav`] takes them), signed in to as `username` with the account's password.
+    pub fn add_calendar_account(
+        &mut self,
+        email: &str,
+        name: &str,
+        username: &str,
+        server: &str,
+        password: Option<String>,
+    ) -> Result<String, CmdError> {
+        let server = dav_address(server)?;
+        if server.is_empty() {
+            return Err(CmdError::Params("the calendar server's address is required".into()));
+        }
+        let dav = mailcraft_model::DavSettings { caldav: server.clone(), carddav: server, username: None };
+        let config = AccountConfig {
+            name: name.to_string(),
+            email: email.to_string(),
+            username: username.to_string(),
+            dav: Some(dav),
+            ..AccountConfig::default()
+        };
+        let id = self.add_account(config, password)?;
+        // What it brings is calendars and contacts: those are shown.
+        self.module = crate::Module::Calendar;
         Ok(id)
     }
 
@@ -490,10 +521,18 @@ impl Session {
             store.set_online_only(&id, config.keeps_online()).map_err(|e| CmdError::Failed(e.to_string()))?;
         }
         let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
+        // A calendar-only account signing in as someone else: the other user's calendars and
+        // contacts move out of the way (those changed here kept on this computer), as when the
+        // server changes.
+        let other_user = config.is_calendar_only() && a.config.username != config.username;
         a.config = config.clone();
-        let local = a.is_local();
+        let server = config.has_server();
         self.save_accounts();
-        if reconnect && !local {
+        if other_user {
+            self.pim_mut(&id).leave_server();
+            self.save_pim(&id);
+        }
+        if reconnect && server {
             self.jobs.push(Job::Start { account: config, password: password.map(Secret) });
         }
         Ok(serde_json::json!({ "updated": id }))
@@ -506,11 +545,15 @@ impl Session {
     /// at once.
     pub fn set_dav(&mut self, account: &str, caldav: &str, carddav: &str, username: Option<&str>, password: Option<&str>) -> CmdResult {
         let mut config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
-        if config.is_local() || config.graph.is_some() || config.ews.is_some() {
+        if (config.is_local() && !config.is_calendar_only()) || config.graph.is_some() || config.ews.is_some() {
             return Err(CmdError::Params("this account's calendars and contacts come with it: there's no address to give".into()));
         }
         let caldav = dav_address(caldav)?;
         let carddav = dav_address(carddav)?;
+        // Without one, a calendar-only account would be left with nothing but mail kept here.
+        if config.is_calendar_only() && caldav.is_empty() && carddav.is_empty() {
+            return Err(CmdError::Params("a calendar-only account needs its server's address".into()));
+        }
         let username = username.map(str::trim).filter(|u| !u.is_empty()).map(|u| u.chars().take(320).collect::<String>());
         let password = password.filter(|p| !p.is_empty());
         // A password kept is the user name's it was kept for: another user name needs its own.
@@ -580,14 +623,14 @@ impl Session {
         self.jobs.retain(|j| !matches!(j, Job::WorkOffline { .. }));
         self.jobs.insert(0, Job::WorkOffline { on });
         if on {
-            for a in self.accounts.iter_mut().filter(|a| !a.is_local()) {
+            for a in self.accounts.iter_mut().filter(|a| a.config.has_server()) {
                 a.status = SyncStatus::Offline;
             }
         }
     }
 
     pub fn sync_all(&mut self) -> usize {
-        let ids: Vec<String> = self.accounts.iter().filter(|a| !a.is_local()).map(|a| a.config.id.clone()).collect();
+        let ids: Vec<String> = self.accounts.iter().filter(|a| a.config.has_server()).map(|a| a.config.id.clone()).collect();
         for id in &ids {
             self.jobs.push(Job::SyncAll { account: id.clone() });
         }

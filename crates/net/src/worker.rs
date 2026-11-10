@@ -237,8 +237,8 @@ impl Pool {
             Job::ReadMessageFile { path } => self.read_message_file(path),
             // Into an account on this computer: with the other changes to its mail. An account
             // with a server that isn't connected can't take them now.
-            Job::FileMessages { account, folder, paths } if !self.workers.contains_key(&account) => {
-                if self.configs.contains_key(&account) {
+            Job::FileMessages { account, folder, paths } if self.mail_offline(&account) => {
+                if self.configs.get(&account).is_some_and(|c| !c.is_local()) {
                     let failed = paths.iter().map(|p| (imports::filing::file_name(p), "the account is offline".to_string())).collect();
                     self.sink.emit(Event::MessagesFiled { account, folder, added: 0, failed });
                 } else {
@@ -343,12 +343,19 @@ impl Pool {
                     self.creds.delete_secret(&c, DIRECTORY_SECRET);
                 }
             }
-            Job::FetchBody { key } if !self.workers.contains_key(&key.account) => {
+            Job::FetchBody { key } if self.mail_offline(&key.account) => {
                 // Offline or not started: the cache may still have it.
                 match self.store.read_body(&key) {
                     Some(raw) => self.sink.emit(Event::Body { key, raw }),
                     None => self.sink.emit(Event::BodyFailed { key, error: "not downloaded yet, and the account is offline".into() }),
                 }
+            }
+            Job::Send { account, id, .. } if self.no_mail_server(&account) => {
+                self.sink.emit(Event::SendFailed {
+                    account,
+                    id,
+                    error: "this account has calendars and contacts only: it has no mail server".into(),
+                });
             }
             Job::Send { account, id, raw, from, recipients, sent_folder } if !self.workers.contains_key(&account) => {
                 // Not connected: straight into the Outbox.
@@ -360,10 +367,10 @@ impl Pool {
             }
             // Offline: changes wait in the cache for the next sync.
             Job::SyncDav { account } if !self.workers.contains_key(&account) => {}
-            Job::SearchServer { account, query, .. } if !self.workers.contains_key(&account) => {
+            Job::SearchServer { account, query, .. } if self.mail_offline(&account) => {
                 self.sink.emit(Event::ServerSearched { account, query, keys: Vec::new(), error: Some("the account is offline".into()), done: true });
             }
-            Job::SearchDirectory { account, query } if !self.workers.contains_key(&account) => {
+            Job::SearchDirectory { account, query } if self.mail_offline(&account) => {
                 self.sink.emit(Event::Directory { account, query, people: Vec::new(), error: Some("the account is offline".into()), consent: false });
             }
             // Working offline: nothing connects, by choice.
@@ -376,7 +383,7 @@ impl Pool {
                     log::warn!("{account}: the draft couldn't be kept: {e}");
                 }
             }
-            Job::SaveDraft { account, raw, folder, replaces } if !self.workers.contains_key(&account) => {
+            Job::SaveDraft { account, raw, folder, replaces } if self.mail_offline(&account) => {
                 let message_id = mailcraft_model::thread::written_message_id(&raw);
                 // Handed out now, as one handed to a worker is: newer than a save of the draft a
                 // stopped worker is still filing, which, filed, leaves it kept (found in review:
@@ -393,7 +400,7 @@ impl Pool {
                     });
                 }
             }
-            Job::GetVacation { account } | Job::SetVacation { account, .. } if !self.workers.contains_key(&account) => {
+            Job::GetVacation { account } | Job::SetVacation { account, .. } if self.mail_offline(&account) => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
             }
             // Persisted on the pool's thread for changes, not the account's: it may be minutes
@@ -437,6 +444,18 @@ impl Pool {
                 }
             }
         }
+    }
+
+    /// A calendar-only account (issue #61): its thread syncs calendars and contacts, and has no
+    /// mail server for anything else.
+    fn no_mail_server(&self, account: &str) -> bool {
+        self.configs.get(account).is_some_and(AccountConfig::is_calendar_only)
+    }
+
+    /// Whether what's for an account's mail is done here, as for an account that isn't connected:
+    /// no thread runs for it, or the one that does has no mail server.
+    fn mail_offline(&self, account: &str) -> bool {
+        !self.workers.contains_key(account) || self.no_mail_server(account)
     }
 
     /// Whether this side writes an account's edits to the cache and ops.json: always when no
@@ -493,6 +512,21 @@ impl Pool {
         w.creds = Some(self.creds.clone());
         w.sieve_port = self.sieve_port;
         w.search = self.search.clone();
+        // No mail server (issue #61): its calendars and contacts are all its thread does.
+        if account.is_calendar_only() {
+            let busy = w.busy.clone();
+            let stop: Arc<changes::Stopped> = Arc::default();
+            w.stop = stop.clone();
+            match std::thread::Builder::new().name(format!("mail-{}", account.id)).spawn(move || w.run_calendars(rx)) {
+                Ok(thread) => {
+                    let h = Handle { tx, thread: Some(thread), quick: None, quick_thread: None, busy, quick_link: Arc::default(), stop };
+                    self.workers.insert(account.id.clone(), h);
+                }
+                Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
+            }
+            self.configs.insert(account.id.clone(), account);
+            return;
+        }
         // The second connection: quiet (the account's status is the main one's), connecting
         // only when there's something to do.
         let (qtx, qrx) = mpsc::channel();

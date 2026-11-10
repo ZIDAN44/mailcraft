@@ -10,7 +10,9 @@
 //! itself (a colleague's on the same server) is the server's to take on, as it does whatever it's
 //! told; one to a meeting MailCraft put there from the invitation's mail is mailed.
 //!
-//! Microsoft Graph sends the invitations of a meeting stored there itself: MailCraft doesn't.
+//! Microsoft Graph sends the invitations of a meeting stored there itself: MailCraft doesn't. Nor
+//! does an account with calendars and contacts only (issue #61), which has no mail to send them
+//! with: on a server that schedules, the server sends them and the answers.
 
 use mailcraft_model::pim::{MAX_NOTICES, Notice, is_server_calendar};
 
@@ -42,8 +44,12 @@ impl Session {
 
     /// How meeting messages about a copy in this calendar go.
     fn calendar_route(&self, account: &str, calendar: &str) -> Route {
-        let schedules = self.pim.get(account).is_some_and(|p| p.auto_schedule);
-        if schedules && is_server_calendar(calendar) { Route::Wait } else { Route::Now }
+        let schedules = self.pim.get(account).is_some_and(|p| p.auto_schedule) && is_server_calendar(calendar);
+        match schedules {
+            true if self.account(account).is_some_and(|a| a.config.is_calendar_only()) => Route::Server,
+            true => Route::Wait,
+            false => Route::Now,
+        }
     }
 
     /// Tell the guests of the user's meeting of it (`REQUEST`) or that it's off (`CANCEL`), as
@@ -90,8 +96,12 @@ impl Session {
         let href = if deleted { copy.iter().find(|e| !e.href.is_empty()).map(|e| e.href.clone()).unwrap_or_default() } else { String::new() };
         // Never stored there: nothing to wait for, and nobody but MailCraft tells the organizer.
         let nothing_stored = deleted && href.is_empty();
-        if self.calendar_route(account, calendar) != Route::Wait || nothing_stored {
-            return self.send_reply(account, event, stat);
+        match self.calendar_route(account, calendar) {
+            // The server answers for an account with no mail (it has the answer in the copy).
+            Route::Server => return Ok(()),
+            Route::Now => return self.send_reply(account, event, stat),
+            Route::Wait if nothing_stored => return self.send_reply(account, event, stat),
+            Route::Wait => {}
         }
         let by_mail =
             copy.iter().any(|e| ical::is_guest_copy(&e.event)) || self.pim.get(account).is_some_and(|p| p.guest_copies.contains(&event.uid));

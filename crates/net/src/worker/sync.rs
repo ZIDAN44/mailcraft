@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod calendars;
+
 /// How often a full sync says the counts of the folders it has synced, at most.
 const COUNTS_EVERY: Duration = Duration::from_secs(1);
 /// A minute of an account's own time between looks for new mail (short in tests, to see some pass).
@@ -700,61 +702,6 @@ impl Worker {
         }
     }
 
-    /// Sync calendars and address books with the account's CalDAV / CardDAV server (password
-    /// accounts: OAuth tokens are for mail only).
-    pub(super) fn sync_dav(&mut self) {
-        // Exchange Online: its calendars and contacts through Graph.
-        if let Some(Conn::Graph(c)) = &self.conn {
-            let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-            match crate::graph_pim::sync(c, &pim, now()) {
-                Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
-                Err(e) => log::info!("{}: calendars and contacts: {e}", self.acc.id),
-            }
-            return;
-        }
-        // On-premises Exchange: its calendar and contacts through EWS.
-        if let Some(Conn::Ews(c)) = &self.conn {
-            let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-            match crate::ews_pim::sync(c, &pim, now()) {
-                Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
-                Err(e) => log::info!("{}: calendars and contacts: {e}", self.acc.id),
-            }
-            return;
-        }
-        // Calendars and contacts given by hand (issue #7), with their own sign-in or the mail's.
-        let given = self.acc.dav.clone().unwrap_or_default();
-        // OAuth tokens are for mail only: such an account's calendars need a sign-in of their own.
-        if (self.acc.oauth.is_some() || self.acc.ews.is_some()) && given.username.is_none() {
-            return;
-        }
-        let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-        let (user, password) = match &given.username {
-            Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
-            None => (
-                if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() },
-                self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
-            ),
-        };
-        let dav = crate::dav::Dav::new(&user, &password);
-        let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
-        let at = crate::dav::Where {
-            email: &self.acc.email,
-            username: &self.acc.username,
-            imap_host: host,
-            caldav: Some(given.caldav.as_str()).filter(|c| !c.trim().is_empty()),
-            carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),
-        };
-        match crate::dav::sync(&dav, &at, &pim, now(), system_zone()) {
-            Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
-            Err(e) => {
-                log::info!("{}: calendars and contacts: {e}", self.acc.id);
-                if matches!(e, NetError::Auth(_)) {
-                    self.notice(format!("calendars and contacts: {e}"));
-                }
-            }
-        }
-    }
-
     /// Report the space used on the server (when it publishes a quota).
     pub(super) fn report_quota(&mut self) {
         let q = match self.conn.as_mut() {
@@ -770,9 +717,4 @@ impl Worker {
             Err(e) => log::info!("{}: quota: {e}", self.acc.id),
         }
     }
-}
-
-/// The system's time zone, for calendar times written without one (`UTC` when it can't say).
-fn system_zone() -> mailcraft_model::zone::Zone {
-    iana_time_zone::get_timezone().ok().and_then(|z| mailcraft_model::zone::Zone::named(&z)).unwrap_or_default()
 }

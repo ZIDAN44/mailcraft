@@ -18,7 +18,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
         CommandSpec::new("account.exportPst", "Export to Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             let account = match p::str(v, "account") {
@@ -166,6 +166,9 @@ pub(super) fn server(v: &Value, prefix: &str, guess: &ServerConfig) -> Result<Se
 }
 
 pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
+    if let Some(server) = p::str(v, "dav") {
+        return add_calendar_only(s, v, server);
+    }
     let email = p::req_str(v, "email")?;
     let guess = AccountConfig::guess(email);
     let local = p::bool(v, "local").unwrap_or(false);
@@ -268,6 +271,25 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"account": id}))
 }
 
+/// `account.add` with `dav`: calendars and contacts only (issue #61), with no mail server.
+fn add_calendar_only(s: &mut Session, v: &Value, server: &str) -> CmdResult {
+    if s.jmap_only {
+        return Err(CmdError::Params("in the browser, MailCraft works with JMAP accounts only".into()));
+    }
+    let email = p::req_str(v, "email")?.trim();
+    let username = p::str(v, "username").map(str::trim).filter(|u| !u.is_empty()).unwrap_or(email);
+    if username.chars().any(char::is_control) {
+        return Err(CmdError::Params("the user name has a line break or another invisible character in it".into()));
+    }
+    let password = p::str(v, "password").filter(|p| !p.is_empty()).map(str::to_string);
+    if password.is_none() && !p::bool(v, "deferSignIn").unwrap_or(false) {
+        return Err(CmdError::Params("`password` is required".into()));
+    }
+    let name = p::str(v, "name").map(str::to_string).unwrap_or_else(|| AccountConfig::guess(email).name);
+    let id = s.add_calendar_account(email, &name, username, server, password)?;
+    Ok(json!({"account": id}))
+}
+
 /// An Exchange Web Services address from what the user typed: a server name gets `https://` and
 /// `/EWS/Exchange.asmx`.
 pub(super) fn ews_url(typed: &str) -> String {
@@ -306,7 +328,7 @@ pub(super) fn set_password(s: &mut Session, v: &Value) -> CmdResult {
 pub(super) fn update_account(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_str(v, "account")?;
     let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
-    if c.is_local() {
+    if c.is_local() && !c.is_calendar_only() {
         return Err(CmdError::Params("the sample mailbox has no server settings".into()));
     }
     if let Some(n) = p::str(v, "name") {
@@ -345,7 +367,7 @@ pub(super) fn update_account(s: &mut Session, v: &Value) -> CmdResult {
         if let Some(d) = p::bool(v, "popDeleteWithTrash") {
             c.pop_delete_with_trash = d;
         }
-    } else if !c.is_api() {
+    } else if !c.is_api() && !c.is_calendar_only() {
         c.imap = server(v, "imap", &c.imap)?;
         c.smtp = server(v, "smtp", &c.smtp)?;
         if c.imap.host.is_empty() || c.imap.port == 0 || c.smtp.host.is_empty() || c.smtp.port == 0 {

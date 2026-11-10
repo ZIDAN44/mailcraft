@@ -59,7 +59,7 @@ impl Session {
         let Some(a) = self.account(account) else { return false };
         let c = &a.config;
         let asked = c.graph.is_some() || c.ews.is_some() || c.oauth.is_none() || c.dav.as_ref().is_some_and(|d| d.username.is_some());
-        !a.is_local() && asked && self.pim.get(account).is_none_or(|p| p.dav_checked.is_none())
+        c.has_server() && asked && self.pim.get(account).is_none_or(|p| p.dav_checked.is_none())
     }
 
     /// An arrived invitation into the calendar; held while the account's calendars are still to

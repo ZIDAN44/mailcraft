@@ -3,6 +3,7 @@
 use super::*;
 
 mod beside;
+mod calendar_only;
 mod compacting;
 mod data_files;
 mod importing;

@@ -9,7 +9,7 @@ use mailcraft_model::zone::Zone;
 use super::*;
 use crate::dav::{Dav, Where, sync};
 
-const AT: Where<'static> = Where { email: USER, username: "", imap_host: "imap.example", caldav: None, carddav: None };
+const AT: Where<'static> = Where { email: USER, username: "", imap_host: "imap.example", caldav: None, carddav: None, mails: true };
 
 fn person(email: &str, partstat: &str) -> Attendee {
     Attendee { email: email.into(), partstat: partstat.into(), ..Default::default() }
@@ -309,4 +309,28 @@ fn a_guests_answer_crossing_another_guests_is_stored() {
     assert!(data.contains("PARTSTAT=DECLINED:mailto:me@studio.example"), "{data}");
     assert!(data.contains("PARTSTAT=TENTATIVE:mailto:guest@elsewhere.example"), "{data}");
     assert!(!data.contains("SCHEDULE-AGENT") && !data.contains(ical::GUEST_COPY), "{data}");
+}
+
+/// An account with calendars and contacts only (issue #61) has no mail to send invitations with:
+/// a server that schedules is left to send them (nothing tells it not to), and an answer given
+/// in a meeting it put in the calendar is the server's to send too.
+#[test]
+fn an_account_with_no_mail_leaves_its_meetings_to_the_server() {
+    let server = serve();
+    server.data.lock().unwrap().schedules = true;
+    let (mut pim, cal) = pim_at(&server);
+    let new = |e: CalEvent| StoredEvent { calendar: cal.clone(), event: e, dirty: true, ..Default::default() };
+    let mut mine = meeting("mine", USER, "ACCEPTED");
+    // Read once from a server it was told to leave it on: told nothing now.
+    mine.client_scheduled = true;
+    pim.events.push(new(mine));
+    pim.events.push(new(meeting("theirs", "boss@studio.example", "ACCEPTED")));
+    let at = Where { mails: false, ..AT };
+    let out = sync(&Dav::new(USER, PASSWORD), &at, &pim, 100, Zone::UTC).unwrap();
+    assert!(out.errors.is_empty(), "{:?}", out.errors);
+    let d = server.data.lock().unwrap();
+    for uid in ["mine", "theirs"] {
+        let (_, data) = stored(&d, uid);
+        assert!(!data.contains("SCHEDULE-AGENT=CLIENT") && !data.contains(ical::GUEST_COPY), "{data}");
+    }
 }

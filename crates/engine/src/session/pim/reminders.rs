@@ -112,7 +112,7 @@ impl Session {
             return;
         };
         let Some(config) = self.account(account).map(|a| a.config.clone()) else { return };
-        if config.is_local() {
+        if !config.has_server() {
             return;
         }
         let exchange = config.graph.is_some() || config.ews.is_some();

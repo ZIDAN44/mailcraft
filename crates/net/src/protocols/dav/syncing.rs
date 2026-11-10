@@ -379,7 +379,7 @@ impl Role {
     /// `none_found`: no copy of a new meeting was found on the server (one it put there itself).
     fn of(at: &Where, pim: &Pim, parts: &[&StoredEvent], schedules: bool, none_found: bool) -> Role {
         let Some(master) = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first()) else { return Role::Plain };
-        if !schedules {
+        if !schedules || !at.mails {
             return Role::Plain;
         }
         let Some(organizer) = master.event.organizer.as_ref() else { return Role::AsItIs };

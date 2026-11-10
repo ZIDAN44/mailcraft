@@ -6,6 +6,7 @@ use mailcraft_store::search;
 
 use super::*;
 
+mod calendar_only;
 mod check_every;
 mod counts;
 mod drafts;

@@ -112,7 +112,7 @@ fn pick_account(s: &Session, args: &Args) -> Result<String, String> {
         None => s
             .accounts
             .iter()
-            .find(|a| !a.is_local())
+            .find(|a| a.config.has_server())
             .or(s.accounts.first())
             .map(|a| a.config.id.clone())
             .ok_or_else(|| "no accounts yet: use `add`".into()),
@@ -155,7 +155,7 @@ fn drive(s: &mut Session, pool: &mut Pool, timeout: Duration, mut done: impl FnM
 
 fn start(s: &mut Session, store: &Store, account: &str) -> Result<Pool, String> {
     let config = s.account(account).map(|a| a.config.clone()).ok_or("no such account")?;
-    if config.is_local() {
+    if !config.has_server() {
         return Err("the sample account has no server".into());
     }
     let pw = password(&config.email)?;
