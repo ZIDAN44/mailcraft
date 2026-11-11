@@ -1627,7 +1627,7 @@ month	May	5月
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	このメッセージは不審であるか送信者を確認できないため、画像は非表示のままです。
 	These senders' pictures always load, even when a message looks suspicious:	これらの送信者の画像は、メッセージが不審に見える場合でも常に読み込まれます:
 	Open a mail file	メール ファイルを開く
-	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	保存したメッセージ (.eml または Outlook の .msg) を、フォルダーに追加せずプレーン テキストで表示します。画像は読み込まれず、中のものは何も実行されません。
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	保存したメッセージ (.eml または Outlook の .msg) を、フォルダーに追加せず専用のウィンドウで表示します。Web 上の画像は読み込まれず、中のものは何も実行されません。
 	Nothing is kept: closing it leaves no trace in your mail.	何も保存されません。閉じるとメールには何も残りません。
 	and {n} more	ほか {n} 件
 	Checking for new mail	新着メールの確認
@@ -1640,3 +1640,4 @@ month	May	5月
 	Server: {url} (CalDAV and CardDAV)	サーバー: {url} (CalDAV と CardDAV)
 	Not available: this account has no mail server.	利用できません: このアカウントにはメール サーバーがありません。
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	メールは以前の MailCraft の Flatpak から引き継がれました。そちらはまだインストールされています。削除するには次を実行してください: flatpak uninstall --delete-data {id}
+	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	{file} から開きました。どのフォルダーにも入っておらず、Web 上の画像は読み込まれません。閉じると何も残りません。

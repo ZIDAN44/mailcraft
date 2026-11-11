@@ -153,9 +153,12 @@ impl MailApp {
     pub(crate) fn message_windows(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         if self.ui.page_message.is_none() {
-            for w in self.session.windows.clone() {
-                if self.services.open_message_window(&w.key.to_id()) {
-                    self.session.close_window(&w.key);
+            // An opened file isn't handed to a page of its own, which couldn't find it again.
+            let handed: Vec<MessageKey> =
+                self.session.windows.iter().map(|w| w.key.clone()).filter(|k| self.session.opened_file_name(k).is_none()).collect();
+            for key in handed {
+                if self.services.open_message_window(&key.to_id()) {
+                    self.session.close_window(&key);
                 }
             }
         }
@@ -188,6 +191,10 @@ impl MailApp {
                 egui::Panel::top(egui::Id::unique(("message-window-bar", key.to_id())))
                     .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 6)).stroke(egui::Stroke::new(1.0, t.border)))
                     .show(ui, |ui| window_toolbar(ui, session, st, &key, &mut mine));
+                // An opened file is in no cache: its pictures come out of what was read of it.
+                if let Some(raw) = session.opened_file_source(&key) {
+                    st.pictures.keep_source(&key, raw);
+                }
                 egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                     reading::window(session, st, ui, w.clone(), &mut mine);
                 });
@@ -369,6 +376,10 @@ pub(crate) fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so
 /// they close this one; so do Delete and Archive.
 pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &MessageKey, acts: &mut Vec<Action>) {
+    if s.opened_file_name(key).is_some() {
+        opened_file_toolbar(ui, s, st, key, acts);
+        return;
+    }
     let t = &st.tokens;
     let close = || Action::Run("message.closeWindow", json!({"key": key.to_id()}));
     let flagged = s.summary(key).is_some_and(|m| m.flags.flagged);
@@ -430,6 +441,46 @@ pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &Messa
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if widgets::tool_button(ui, Icon::Close, "Close", t, true).clicked() {
                     acts.push(close());
+                }
+            });
+        }
+    });
+}
+
+/// The toolbar of an opened message file's window (issue #56): what looks at it or keeps a copy
+/// of it. It's in no folder and no account, so nothing answers, files or marks it.
+fn opened_file_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &MessageKey, acts: &mut Vec<Action>) {
+    let t = &st.tokens;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        if widgets::tool_button(ui, Icon::Print, "Print", t, true).on_hover_text(tl!("Open as a PDF to print")).clicked() {
+            acts.push(Action::Print);
+        }
+        let save = widgets::tool_button(ui, Icon::File, "Save", t, true);
+        egui::Popup::menu(&save).show(|ui| {
+            if ui.button(tl!("Save as PDF…")).clicked() {
+                acts.push(Action::ExportPdf);
+                ui.close();
+            }
+            if ui.button(tl!("Save as email (.eml)…")).clicked() {
+                acts.push(Action::SaveMessage);
+                ui.close();
+            }
+        });
+        let more = widgets::more_pill(ui, "More actions", t);
+        egui::Popup::menu(&more).show(|ui| {
+            if ui.button(tl!("View message source")).clicked() {
+                acts.push(Action::Run("message.source", json!({"key": key.to_id()})));
+                ui.close();
+            }
+            if let Some(p) = s.windows.iter().find(|w| &w.key == key).and_then(|w| w.parsed.as_ref()) {
+                reading::plain_text_check(s, st, ui, key, p, acts);
+            }
+        });
+        if ui.ctx().embed_viewports() {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if widgets::tool_button(ui, Icon::Close, "Close", t, true).clicked() {
+                    acts.push(Action::Run("message.closeWindow", json!({"key": key.to_id()})));
                 }
             });
         }

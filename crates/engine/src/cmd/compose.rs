@@ -338,12 +338,7 @@ impl Session {
     /// The open message's source (`.eml`).
     pub fn message_source(&self) -> Result<Vec<u8>, CmdError> {
         let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-        if r.key.folder == crate::session::OUTBOX {
-            self.outbox_entry(&r.key).and_then(|(a, i)| self.store.as_ref().and_then(|st| st.outbox_raw(&a, i.id)))
-        } else {
-            self.store.as_ref().and_then(|st| st.read_body(&r.key))
-        }
-        .ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))
+        self.body_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))
     }
 
     /// The open message as a PDF: subject, header, text and the names of its attachments.

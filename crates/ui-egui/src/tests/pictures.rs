@@ -210,7 +210,7 @@ fn pdf(pages: usize) -> Vec<u8> {
     out
 }
 
-fn png(w: u32, h: u32) -> Vec<u8> {
+pub(super) fn png(w: u32, h: u32) -> Vec<u8> {
     let mut out = Vec::new();
     image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(w, h, image::Rgba([40, 90, 200, 255])))
         .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)

@@ -1626,7 +1626,7 @@ month	May	مايو
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	تبدو هذه الرسالة مريبة أو تعذّر تأكيد مرسلها، لذا تظل صورها مخفية.
 	These senders' pictures always load, even when a message looks suspicious:	تُحمَّل صور هؤلاء المرسلين دائمًا، حتى عندما تبدو الرسالة مريبة:
 	Open a mail file	فتح ملف بريد
-	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	اعرض رسالة محفوظة (.eml أو .msg من Outlook) كنص عادي دون إضافتها إلى مجلد. لا تُحمَّل صورها ولا يعمل أي شيء بداخلها.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	اعرض رسالة محفوظة (.eml أو .msg من Outlook) في نافذة خاصة بها دون إضافتها إلى مجلد. لا تُحمَّل صورها من الويب ولا يعمل أي شيء بداخلها.
 	Nothing is kept: closing it leaves no trace in your mail.	لا يُحتفظ بشيء: عند إغلاقها لا يبقى أي أثر في بريدك.
 	and {n} more	و{n} أخرى
 	Checking for new mail	التحقق من البريد الجديد
@@ -1639,3 +1639,4 @@ month	May	مايو
 	Server: {url} (CalDAV and CardDAV)	الخادم: {url} (CalDAV وCardDAV)
 	Not available: this account has no mail server.	غير متاح: هذا الحساب بلا خادم بريد.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	انتقل بريدك من إصدار Flatpak السابق من MailCraft، وهو لا يزال مثبتًا. لإزالته، شغّل: flatpak uninstall --delete-data {id}
+	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	فُتحت من {file}. ليست في أي مجلد، ولا تُحمَّل صورها من الويب، وعند إغلاقها لا يبقى أي أثر.

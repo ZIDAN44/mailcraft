@@ -170,11 +170,7 @@ fn shown_text(line: &str) -> String {
 impl Session {
     /// The source of a message, if it's here: cached on disk, or waiting in the Outbox.
     pub(super) fn cached_source(&self, key: &MessageKey) -> Option<Vec<u8>> {
-        if key.folder == OUTBOX {
-            self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
-        } else {
-            self.store.as_ref().and_then(|s| s.read_body(key))
-        }
+        self.body_raw(key)
     }
 
     /// Whether a message is somewhere it can be named from: the list, the reading pane, a window.

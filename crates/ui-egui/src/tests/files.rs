@@ -222,9 +222,43 @@ fn message_files_dropped_on_the_window_go_into_the_folder_open() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// Issue #56: a mail file opened to be looked at, picked in MailCraft itself. What it's inspected
-/// for is there (who else it went to, what's attached, where a link really goes); nothing of it
-/// is filed, and a file that's no message says so.
+/// Issue #56: the pictures a mail file opened to be looked at carries in itself are shown, as a
+/// message's from a folder are: it's in no cache, so they come out of what was read of the file.
+#[test]
+fn a_mail_files_own_pictures_are_shown() {
+    use mailcraft_engine::mime::{self, Draft, InlinePicture};
+    let (mut a, dir) = app("open-mail-file-pictures");
+    std::fs::create_dir_all(&dir).unwrap();
+    let d = Draft {
+        subject: "Stamped".into(),
+        body: "Stamp".into(),
+        html: Some("<p>Stamp <img src=\"cid:stamp@x\" alt=\"stamp\"></p>".into()),
+        inline: vec![InlinePicture { cid: "stamp@x".into(), name: "stamp.png".into(), mime: "image/png".into(), data: super::pictures::png(40, 20) }],
+        ..Default::default()
+    };
+    let raw = mime::build(&d, &mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example"), NOW, "<stamped@x>").unwrap();
+    let eml = dir.join("stamped.eml");
+    std::fs::write(&eml, raw).unwrap();
+    a.open_handed(&eml.to_string_lossy());
+    let w = a.session.windows.first().cloned().unwrap_or_else(|| panic!("{:?}", a.session.notices));
+    let index = w.parsed.as_ref().and_then(|p| mime::picture_attachment(p, "cid:stamp@x")).expect("the picture is the message's");
+    let ctx = egui::Context::default();
+    let mut got = false;
+    for _ in 0..40 {
+        super::rtl::drawn_text(&ctx, &mut a, egui::vec2(1600.0, 1000.0));
+        if matches!(a.ui.pictures.get(&w.key, index, crate::reading::Want::Body), crate::reading::Got::Ready(_)) {
+            got = true;
+            break;
+        }
+    }
+    assert!(got, "the file's own picture is shown");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Issue #56: a mail file opened to be looked at, picked in MailCraft itself, shows in a message
+/// window as one double-clicked in a folder does. What it's inspected for is there (who else it
+/// went to, what's attached, where a link really goes); nothing of it is filed or fetched, its
+/// toolbar answers or files nothing, and a file that's no message says so.
 #[test]
 fn a_mail_file_is_opened_to_be_looked_at() {
     struct Picks(std::path::PathBuf);
@@ -260,18 +294,51 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     )
     .unwrap();
     a.services = Box::new(Picks(eml));
+    // Even from a sender whose pictures always load.
+    a.session.prefs.trusted_senders.insert("billing@paypa1.example".into());
     a.act(crate::Action::OpenMailFile);
-    let Some(crate::Dialog::Preview { title, header, text, .. }) = &a.ui.dialog else { panic!("{:?}", a.session.notices) };
-    assert_eq!(title, "Invoice");
-    let row = |k: &str| header.iter().find(|(h, _)| h == k).map(|(_, v)| v.as_str());
-    assert_eq!(row("Cc"), Some("Ben <ben@x.example>"));
-    assert_eq!(row("Attachments"), Some("update.exe"));
-    assert!(text.contains("Dear customer") && !text.contains("**"), "{text}");
-    assert!(text.contains("https://bank.example/login <https://evil.example/login>"), "{text}");
-    assert!(kept.0.lock().unwrap().is_empty(), "nothing fetched or filed: {:?}", kept.0.lock().unwrap());
+    assert!(a.ui.dialog.is_none(), "a window, not a dialog");
+    let key = a.session.windows.first().map(|w| w.key.clone()).unwrap_or_else(|| panic!("{:?}", a.session.notices));
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1600.0, 1000.0);
+    for _ in 0..3 {
+        super::rtl::drawn_text(&ctx, &mut a, size);
+    }
+    // What the window draws: from its title on.
+    let drawn: Vec<String> =
+        super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(t, ..)| t).skip_while(|t| t != "Invoice – Message").collect();
+    let has = |want: &str| drawn.iter().any(|t| t.contains(want));
+    for want in ["Invoice – Message", "Print", "Ben", "update.exe", "customer", " <https://evil.example/login>", "Opened from inspect me.eml"] {
+        assert!(has(want), "{want:?} not drawn: {drawn:?}");
+    }
+    for gone in ["Reply", "Archive", "Move to", "Show pictures", "1970"] {
+        assert!(!has(gone), "{gone:?} drawn: {drawn:?}");
+    }
+    // (The window's own search index may be built meanwhile.)
+    let asked = kept.0.lock().unwrap().clone();
+    assert!(asked.iter().all(|j| matches!(j, mailcraft_engine::model::Job::Index { .. })), "nothing fetched or filed: {asked:?}");
+    // In a narrow window everything wraps within it: the line saying where it was opened from
+    // didn't, and widened the whole message past the window's edge.
+    let narrow = egui::vec2(640.0, 1000.0);
+    for _ in 0..3 {
+        super::rtl::drawn_text(&ctx, &mut a, narrow);
+    }
+    let past: Vec<(String, egui::Rect)> = super::rtl::drawn_text(&ctx, &mut a, narrow)
+        .into_iter()
+        .skip_while(|(t, ..)| t != "Invoice – Message")
+        .filter(|(_, r, _)| r.max.x > narrow.x + 1.0)
+        .map(|(t, r, _)| (t, r))
+        .collect();
+    assert!(past.is_empty(), "drawn past the window: {past:?}");
+    // Its buttons act on it: saved as a PDF, it's this message.
+    let pdf = dir.join("invoice.pdf");
+    a.act(crate::Action::InWindow(key.clone(), Box::new(crate::Action::Run("message.exportPdf", json!({"path": pdf.to_string_lossy()})))));
+    assert!(std::fs::read(&pdf).is_ok_and(|b| b.starts_with(b"%PDF")), "{:?}", a.session.notices);
+    // Closed: gone, file and all.
+    a.act(crate::Action::Run("message.closeWindow", json!({"key": key.to_id()})));
+    assert!(a.session.windows.is_empty() && a.session.opened_file_name(&key).is_none());
 
     // Bytes that are no message: said, in one line that names it once.
-    a.ui.dialog = None;
     let junk = dir.join("junk.eml");
     std::fs::write(&junk, [0xFFu8, 0xFE, 0x00, 0x01, 0x80].repeat(400)).unwrap();
     a.services = Box::new(Picks(junk));

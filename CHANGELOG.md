@@ -18,6 +18,7 @@ on GitHub.
 - MailCraft's id is `io.github.zidan44.MailCraft` (it was `ai.storyteller.mailcraft`). Updating tidies what the old one left: its notification name and settings on Windows, its preferences and saved window state on macOS, a default mail app chosen on Linux, and its files in an unpacked `.tar.gz`.
 - The Flatpak is a new app under the new id. It brings your accounts and settings across from the old one, then says how to remove that (`flatpak uninstall --delete-data ai.storyteller.mailcraft`).
 - Releases are published as **MailCraft vX.Y.Z**; test builds are still published for trying out what's next.
+- A mail file you open (File › Open & Export, or Open with) shows in the same window as a message double-clicked in a folder, which you can move and resize. It still loads nothing from the web, isn't added to a folder and leaves no trace once closed, and a link whose words name another address says where it really goes (#56).
 
 ### Fixed
 

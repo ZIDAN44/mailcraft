@@ -394,7 +394,7 @@ impl Session {
 
     /// A message as it reads: what [`Session::unwrap`] shows, without checking anything again.
     pub fn readable_raw(&self, key: &MessageKey) -> Option<Vec<u8>> {
-        let mut cur = self.store.as_ref()?.read_body(key)?;
+        let mut cur = self.body_raw(key)?;
         for _ in 0..4 {
             cur = match mime::smime::protection(&cur) {
                 mime::smime::Protection::None => match self.readable_pgp(key, &cur) {
@@ -640,7 +640,7 @@ impl Session {
     /// taken off and checked anew.
     fn show_again(&mut self, key: &MessageKey) {
         let shown = self.reading.as_ref().is_some_and(|r| r.key == *key) || self.windows.iter().any(|w| w.key == *key);
-        if shown && let Some(raw) = self.store.as_ref().and_then(|s| s.read_body(key)) {
+        if shown && let Some(raw) = self.body_raw(key) {
             for w in self.windows.iter_mut().filter(|w| w.key == *key) {
                 w.parsed = None;
             }

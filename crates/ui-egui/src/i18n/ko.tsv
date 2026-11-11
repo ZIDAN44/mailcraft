@@ -1630,7 +1630,7 @@ month	May	5월
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	이 메시지는 의심스럽거나 보낸 사람을 확인할 수 없어 그림을 숨겨 둡니다.
 	These senders' pictures always load, even when a message looks suspicious:	이 보낸 사람의 그림은 메시지가 의심스러워 보여도 항상 불러옵니다:
 	Open a mail file	메일 파일 열기
-	See a saved message (.eml or Outlook's .msg) as plain text, without adding it to a folder. Its pictures aren't loaded and nothing in it runs.	저장된 메시지(.eml 또는 Outlook .msg)를 폴더에 추가하지 않고 일반 텍스트로 봅니다. 그림은 불러오지 않으며 그 안의 어떤 것도 실행되지 않습니다.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	저장된 메시지(.eml 또는 Outlook .msg)를 폴더에 추가하지 않고 별도 창에서 봅니다. 웹의 그림은 불러오지 않으며 그 안의 어떤 것도 실행되지 않습니다.
 	Nothing is kept: closing it leaves no trace in your mail.	아무것도 보관되지 않습니다. 닫으면 메일에 아무 흔적도 남지 않습니다.
 	and {n} more	외 {n}개
 	Checking for new mail	새 메일 확인
@@ -1643,3 +1643,4 @@ month	May	5월
 	Server: {url} (CalDAV and CardDAV)	서버: {url} (CalDAV 및 CardDAV)
 	Not available: this account has no mail server.	사용할 수 없음: 이 계정에는 메일 서버가 없습니다.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	메일을 이전 MailCraft Flatpak에서 가져왔습니다. 이전 Flatpak은 아직 설치되어 있습니다. 제거하려면 다음을 실행하세요: flatpak uninstall --delete-data {id}
+	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	{file}에서 열었습니다. 어떤 폴더에도 없고, 웹의 그림은 불러오지 않으며, 닫으면 아무 흔적도 남지 않습니다.

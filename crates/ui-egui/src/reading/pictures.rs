@@ -181,6 +181,9 @@ pub(crate) struct Pictures {
     /// The open message's source, read already to show it ([`Pictures::give_source`]): its
     /// work's first read takes it rather than reading the cache again. Kept a frame.
     given: Option<(MessageKey, Arc<[u8]>)>,
+    /// The sources of messages in no cache (files opened to be looked at, issue #56), for this
+    /// frame's work: every read of theirs takes it ([`Pictures::keep_source`]).
+    kept: Vec<(MessageKey, Arc<[u8]>)>,
     #[cfg(test)]
     pub(crate) panic_at: Option<usize>,
 }
@@ -200,6 +203,7 @@ impl Default for Pictures {
             touched: HashSet::new(),
             pages: HashMap::new(),
             given: None,
+            kept: Vec::new(),
             #[cfg(test)]
             panic_at: None,
         }
@@ -285,6 +289,14 @@ impl Pictures {
         self.given = Some((key.clone(), raw));
     }
 
+    /// The source of a message in no cache (a file opened to be looked at), shown this frame:
+    /// its pictures are taken out of it, as often as asked.
+    pub(crate) fn keep_source(&mut self, key: &MessageKey, raw: Arc<[u8]>) {
+        if !self.kept.iter().any(|(k, _)| k == key) {
+            self.kept.push((key.clone(), raw));
+        }
+    }
+
     /// Frames ended so far (what's shown least recently goes first elsewhere too).
     pub(crate) fn frame(&self) -> u64 {
         self.frame
@@ -366,6 +378,7 @@ impl Pictures {
         self.frame_bytes = 0;
         self.touched.clear();
         self.given = None;
+        self.kept.clear();
     }
 
     /// The pictures asked for this frame go to their message's batch (a new one for a message
@@ -410,11 +423,14 @@ impl Pictures {
                     .collect(),
                 _ => Vec::new(),
             };
-            let given = self.given.take_if(|(k, _)| *k == key).map(|(_, raw)| raw);
+            let kept = self.kept.iter().find(|(k, _)| *k == key).map(|(_, raw)| raw.clone());
+            let lasting = kept.is_some();
+            let given = kept.or_else(|| self.given.take_if(|(k, _)| *k == key).map(|(_, raw)| raw));
             let batch = Arc::new(Batch {
                 key,
                 store: store.clone(),
                 given: Mutex::new(given),
+                lasting,
                 queue: Mutex::new(VecDeque::from([(index, want)])),
                 also,
                 tried: Mutex::new(HashMap::new()),

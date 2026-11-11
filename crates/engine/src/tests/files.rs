@@ -192,8 +192,92 @@ fn message_files_go_into_the_folder_open_and_a_msg_is_shown_when_read() {
         (shown["kind"].as_str(), shown["subject"].as_str(), shown["name"].as_str()),
         (Some("message"), Some("Quarterly figures"), Some("Quarterly figures.msg"))
     );
+    // In a message window of its own, as one opened from a folder is (issue #56).
+    let key = shown["key"].as_str().and_then(mailcraft_model::MessageKey::from_id).unwrap();
+    assert_eq!(s.opened_file_name(&key), Some("Quarterly figures.msg"));
+    assert!(s.windows.iter().any(|w| w.key == key && w.parsed.as_ref().is_some_and(|p| p.text.contains("Hello."))));
     s.apply(Event::MessageFileRead { path: at.display().to_string(), raw: Err("the file is damaged".into()) });
     assert!(s.opened_file.take().unwrap().is_err());
+}
+
+/// Issue #56: a message file opens in a message window of its own, as one double-clicked in a
+/// folder does, in no account and no folder. Who else it went to, what's attached and where its
+/// links really go are shown; nothing in it reaches the web, even from a sender whose pictures
+/// always load; and once its window closes, nothing of it is kept.
+#[test]
+fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
+    let mut s = sample_session("open-window");
+    let scratch = TempFolder::new("window");
+    let source = concat!(
+        "From: Billing <billing@paypa1.example>\r\n",
+        "To: Ana <ana@x.example>\r\n",
+        "Cc: Ben <ben@x.example>\r\n",
+        "Subject: Invoice\r\n",
+        "MIME-Version: 1.0\r\n",
+        "Content-Type: multipart/mixed; boundary=b\r\n\r\n",
+        "--b\r\nContent-Type: text/html\r\n\r\n",
+        "<p>Dear <b>customer</b>, <a href=\"https://evil.example/login\">https://bank.example/<b>login</b></a>",
+        " or <a href=\"https://bank.example/help/\">bank.example/help</a></p><img src=\"https://t.example/o.gif\" width=300 alt=\"logo\">\r\n",
+        "--b\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=update.exe\r\n\r\nMZ\r\n--b--\r\n",
+    );
+    let path = scratch.put("inspect me.eml", source.as_bytes());
+    let messages = s.list.len();
+    let reading = s.reading.as_ref().map(|r| r.key.clone());
+    s.prefs.trusted_senders.insert("billing@paypa1.example".into());
+    s.take_jobs();
+
+    let shown = open_path(&mut s, &path).unwrap();
+    let key = shown["key"].as_str().and_then(mailcraft_model::MessageKey::from_id).unwrap();
+    assert_eq!(s.opened_file_name(&key), Some("inspect me.eml"));
+    let w = s.windows.iter().find(|w| w.key == key).cloned().unwrap();
+    let p = w.parsed.clone().unwrap();
+    assert_eq!((p.subject.as_str(), p.cc.len()), ("Invoice", 1));
+    assert!(p.attachments.iter().any(|a| a.name == "update.exe"));
+    // A link whose words name another place says where it goes, once, after its last word; one
+    // whose words name it doesn't.
+    let all: String = p.layout.iter().flat_map(texts).chain(p.rich.iter().flatten().map(|sp| sp.text.clone())).collect();
+    assert!(all.contains("https://bank.example/login <https://evil.example/login>"), "{all}");
+    assert!(!all.contains("<https://bank.example/help/>"), "{all}");
+    assert!(p.text.contains("https://evil.example/login"), "shown as plain text, it says so too: {}", p.text);
+    assert_eq!(s.list.len(), messages, "nothing added to a folder");
+    assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), reading, "the reading pane is as it was");
+
+    // As the open message (what its window's buttons act on): its source, its files, its PDF.
+    s.reading = Some(w);
+    assert!(s.remote_pictures().is_empty() && !s.pictures_allowed(), "who it says it's from may be anyone");
+    assert!(s.run("message.showPictures", &json!({})).is_err());
+    assert_eq!(s.attachment_bytes(p.attachments.iter().find(|a| a.name == "update.exe").unwrap().index).unwrap(), b"MZ");
+    assert!(s.message_source().unwrap().starts_with(b"From: Billing"));
+    assert!(s.message_pdf().is_ok());
+    s.reading = None;
+    let shown_source = s.run("message.source", &json!({"key": key.to_id()})).unwrap();
+    assert!(shown_source["text"].as_str().unwrap().contains("Subject: Invoice"), "{shown_source}");
+    let asked = s.take_jobs();
+    assert!(!asked.iter().any(|j| matches!(j, Job::FetchUrl { .. } | Job::FetchBody { .. })), "nothing asked of a server: {asked:?}");
+    // It's in no list: the list's commands don't reach it.
+    assert!(s.run("list.open", &json!({"key": key.to_id()})).is_err());
+
+    // Closed: nothing of it is kept, and it can't be opened again by its key.
+    s.run("message.closeWindow", &json!({"key": key.to_id()})).unwrap();
+    assert!(s.opened_files.is_empty() && s.windows.is_empty());
+    assert!(s.run("message.popOut", &json!({"key": key.to_id()})).is_err());
+
+    // Past the windows open at once, the oldest goes, and its file with it.
+    use crate::session::MAX_WINDOWS;
+    for n in 0..=MAX_WINDOWS {
+        open_path(&mut s, &scratch.put(&format!("{n}.eml"), source.as_bytes())).unwrap();
+    }
+    assert_eq!((s.windows.len(), s.opened_files.len()), (MAX_WINDOWS, MAX_WINDOWS));
+    assert!(s.windows.iter().all(|w| s.opened_file_name(&w.key).is_some()));
+    done(s);
+}
+
+/// The words of laid-out blocks, table cells included.
+fn texts(b: &mailcraft_mime::layout::Block) -> Vec<String> {
+    match b {
+        mailcraft_mime::layout::Block::Text(lines) => lines.iter().flatten().map(|sp| sp.text.clone()).collect(),
+        mailcraft_mime::layout::Block::Table(t) => t.rows.iter().flatten().flat_map(|c| c.blocks.iter().flat_map(texts)).collect(),
+    }
 }
 
 fn mailcraft_engine_is_message_file(path: &str) -> bool {

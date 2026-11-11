@@ -718,6 +718,8 @@ impl MailApp {
                     }
                     // An Outlook message file: shown once it's read (`pump`).
                     Some("reading") => {}
+                    // A message file: in a message window of its own, as one double-clicked is.
+                    Some("message") if v.get("key").is_some() => {}
                     _ => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
                 }
             }

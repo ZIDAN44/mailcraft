@@ -84,6 +84,8 @@ pub(super) struct Batch {
     pub(super) store: Store,
     /// The message's source, read already to show it: the first read takes it.
     pub(super) given: Mutex<Option<Arc<[u8]>>>,
+    /// What it was given is all there is of it (a file opened, in no cache): every read takes it.
+    pub(super) lasting: bool,
     pub(super) queue: Mutex<VecDeque<(usize, Want)>>,
     /// Taken out with the first ones asked: the message's other pictures and PDFs, so a
     /// picture opened big or a PDF's pages later need no other read.
@@ -229,7 +231,7 @@ impl Batch {
         wanted.truncate(mime::MAX_WANTED);
         // (The source is let go once its files are out.)
         let parts = {
-            let given = lock(&self.given).take();
+            let given = if self.lasting { lock(&self.given).clone() } else { lock(&self.given).take() };
             let read;
             let raw: &[u8] = match &given {
                 Some(raw) => raw,

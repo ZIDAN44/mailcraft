@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod files;
+pub(crate) use files::OpenedFile;
 mod selecting;
 mod source;
 pub use selecting::Toward;
@@ -20,7 +22,7 @@ impl Session {
     pub(crate) fn message_file_read(&mut self, path: &str, raw: Result<Vec<u8>, String>) {
         let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
         self.opened_file = Some(match raw {
-            Ok(raw) => crate::cmd::message_preview(self, &name, &raw),
+            Ok(raw) => self.open_message_file(&name, &raw),
             Err(e) => Err(CmdError::Failed(format!("{name} can't be read as a message: {e}"))),
         });
     }
@@ -105,12 +107,7 @@ impl Session {
             // Read and parsed on another thread: the pane waits for it.
             self.defer_read(key);
         } else {
-            let cached = if key.folder == OUTBOX {
-                self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
-            } else {
-                self.store.as_ref().and_then(|s| s.read_body(key))
-            };
-            match cached {
+            match self.body_raw(key) {
                 Some(raw) => self.show_body(key, &raw),
                 None => self.jobs.push(Job::FetchBody { key: key.clone() }),
             }
@@ -132,15 +129,15 @@ impl Session {
     /// Open a message in its own window (it stays open while the list changes). Already open:
     /// nothing changes. At most [`MAX_WINDOWS`]; the oldest closes first.
     pub fn pop_out(&mut self, key: &MessageKey) -> CmdResult {
+        // An opened file's window, gone: there's nothing to open again.
+        if key.account == OPENED_FILE && !self.windows.iter().any(|w| &w.key == key) {
+            return Err(CmdError::Params(format!("`{}` is not open", key.to_id())));
+        }
         if !self.windows.iter().any(|w| &w.key == key) {
             if self.windows.len() >= MAX_WINDOWS {
                 self.windows.remove(0);
             }
-            let cached = if key.folder == OUTBOX {
-                self.outbox_entry(key).and_then(|(a, i)| self.store.as_ref().and_then(|s| s.outbox_raw(&a, i.id)))
-            } else {
-                self.store.as_ref().and_then(|s| s.read_body(key))
-            };
+            let cached = self.body_raw(key);
             let mut w = Reading { key: key.clone(), parsed: None, error: None, thread: Vec::new(), warning: None, security: None, text_first: false };
             match cached {
                 Some(raw) => {
@@ -154,6 +151,7 @@ impl Session {
                 None => self.jobs.push(Job::FetchBody { key: key.clone() }),
             }
             self.windows.push(w);
+            self.forget_closed_files();
             // Opened on its own (a double-click): read, whatever the reading pane does.
             self.mark_seen(key);
         }
@@ -162,6 +160,7 @@ impl Session {
 
     pub fn close_window(&mut self, key: &MessageKey) {
         self.windows.retain(|w| &w.key != key);
+        self.forget_closed_files();
     }
 
     /// A message as it's read: one without a `Date` gets the time the server took it in, as the
@@ -178,6 +177,9 @@ impl Session {
             && let Some(m) = self.summary(key)
         {
             p.date = m.date;
+        }
+        if key.account == OPENED_FILE {
+            files::show_link_targets(&mut p);
         }
         Arc::new(p)
     }

@@ -163,6 +163,10 @@ pub enum View {
 /// The pseudo-folder of Outbox message keys (NUL never appears in a server's folder names).
 pub const OUTBOX: &str = "\u{0}outbox";
 
+/// The pseudo-account (and folder) of a message file opened to be looked at (issue #56): no
+/// account's, so nothing done to it reaches a mailbox.
+pub const OPENED_FILE: &str = "\u{0}file";
+
 /// A mailbox in the folder pane: an account, or a shared mailbox one opens ([`Session::pane_sections`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PaneSection {
@@ -314,6 +318,9 @@ pub struct Session {
     /// A message file the network layer read (an Outlook `.msg`) to show, as `file.open` answers
     /// one it reads itself; taken as shown.
     pub opened_file: Option<CmdResult>,
+    /// The message files open in windows of their own: kept only while their windows are, never
+    /// written.
+    pub(crate) opened_files: Vec<opening::OpenedFile>,
     /// What the last changes can be put back to, newest last (Undo, Ctrl+Z).
     pub undo: Vec<Undo>,
     /// Bumped whenever `list` changes.
@@ -477,6 +484,7 @@ impl Session {
             notices: Vec::new(),
             filed: Vec::new(),
             opened_file: None,
+            opened_files: Vec::new(),
             undo: Vec::new(),
             revision: 0,
             pim_revision: 0,

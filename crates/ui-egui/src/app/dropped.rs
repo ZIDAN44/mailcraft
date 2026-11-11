@@ -173,7 +173,10 @@ impl MailApp {
         match self.session.opened_file.take() {
             Some(Ok(v)) => {
                 self.ui.backstage = None;
-                self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock));
+                // In a message window of its own already, as one double-clicked is.
+                if v.get("key").is_none() {
+                    self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock));
+                }
             }
             Some(Err(e)) => self.session.notice(e.to_string(), true),
             None => {}

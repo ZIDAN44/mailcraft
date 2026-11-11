@@ -79,7 +79,13 @@ pub fn window(s: &mut Session, st: &mut UiState, ui: &mut Ui, w: mailcraft_engin
     let mut mine = Vec::new();
     message(s, st, ui, &mut mine, true);
     s.reading = saved;
-    if !mine.is_empty() {
+    if mine.is_empty() {
+        return;
+    }
+    // An opened file is in no list to open it from: it stands in as the open message instead.
+    if s.opened_file_name(&key).is_some() {
+        acts.extend(mine.into_iter().map(|a| Action::InWindow(key.clone(), Box::new(a))));
+    } else {
         acts.push(Action::Open(key));
         acts.extend(mine);
     }
@@ -219,8 +225,14 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                         // The date to the right, with room kept for it (the address ran under it in a
                         // narrow pane); under the sender when the pane is too narrow for both.
                         let when = summary.as_ref().map_or(p.date, |m| if p.date > 0 { p.date } else { m.date });
-                        let date = egui::WidgetText::from(RichText::new(crate::i18n::date(&dates::full_time(when, &s.clock))).color(t.dim).small())
-                            .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Small);
+                        // None at all (a message file without one): no date, rather than 1970's.
+                        let when = if when > 0 { crate::i18n::date(&dates::full_time(when, &s.clock)) } else { String::new() };
+                        let date = egui::WidgetText::from(RichText::new(when).color(t.dim).small()).into_galley(
+                            ui,
+                            Some(egui::TextWrapMode::Extend),
+                            f32::INFINITY,
+                            egui::TextStyle::Small,
+                        );
                         let rest = ui.available_width() - date.size().x - 16.0;
                         let beside = rest >= 200.0;
                         let room = if beside { rest } else { ui.available_width() };
@@ -322,6 +334,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     }
                     if let Some(sec) = &r.security {
                         security::security_bar(s, &t, ui, sec);
+                    }
+                    if let Some(name) = s.opened_file_name(&r.key) {
+                        opened_file_bar(&t, ui, name);
                     }
                     if let Some((_, item)) = s.outbox_entry(&r.key) {
                         egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
@@ -533,6 +548,31 @@ pub(crate) fn external_tag(ui: &mut Ui, t: &Tokens) -> egui::Response {
         })
         .response
         .on_hover_text(tl!("This sender is outside your organisation."))
+}
+
+/// A message file opened to be looked at (issue #56): where it's from, and what it's spared.
+fn opened_file_bar(t: &Tokens, ui: &mut Ui, name: &str) {
+    egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                icons::paint(ui.painter(), ir, Icon::File, t.dim);
+                // Wrapped in a narrow window (on one line it widened the whole message past it).
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new(tf!(
+                            "Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.",
+                            file = name
+                        ))
+                        .color(t.dim),
+                    );
+                });
+            });
+        },
+    );
+    ui.add_space(8.0);
 }
 
 /// Who the message says it's from doesn't add up: said plainly, above everything it asks for.

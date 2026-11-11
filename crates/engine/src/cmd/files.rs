@@ -166,7 +166,7 @@ fn open_mail_file(s: &mut Session, v: &Value) -> CmdResult {
                 Some(b) => b,
                 None => read_capped(path, MAX_MESSAGE)?,
             };
-            message_preview(s, &name, &bytes)
+            s.open_message_file(&name, &bytes)
         }
     }
 }
