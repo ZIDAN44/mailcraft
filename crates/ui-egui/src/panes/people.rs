@@ -230,13 +230,10 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
         }
         let icon = egui::Rect::from_center_size(mirror.pos(r.left_center() + vec2(14.0, 0.0)), vec2(14.0, 14.0));
         icons::paint(ui.painter(), icon, if shared { Icon::People } else { Icon::Person }, if on { t.accent } else { t.dim });
-        ui.painter().with_clip_rect(r.shrink2(vec2(4.0, 0.0))).text(
-            mirror.pos(r.left_center() + vec2(28.0, 0.0)),
-            mirror.align(egui::Align2::LEFT_CENTER),
-            label,
-            theme::regular(13.0),
-            t.text,
-        );
+        // Limit Latin names too: right-aligned unbounded text would hide its start in RTL.
+        let text = widgets::one_line(ui, label, theme::regular(13.0), t.text, (r.width() - 36.0).max(1.0));
+        let at = egui::pos2(mirror.start(r.left() + 28.0, text.size().x), r.center().y - text.size().y / 2.0);
+        ui.painter().with_clip_rect(r.shrink2(vec2(4.0, 0.0))).galley(at, text, t.text);
         match tip {
             Some(tip) => resp.on_hover_text(tip).clicked(),
             None => resp.clicked(),
@@ -312,21 +309,13 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     }
                     let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
                     widgets::avatar(ui, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, &initials, theme::avatar_color(&name, t.dark));
-                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        mirror.pos(r.left_center() + vec2(42.0, -7.0)),
-                        mirror.align(egui::Align2::LEFT_CENTER),
-                        &name,
-                        theme::regular(13.5),
-                        t.text,
-                    );
+                    let name_text = widgets::one_line(ui, &name, theme::regular(13.5), t.text, (r.width() - 48.0).max(1.0));
+                    let name_pos = egui::pos2(mirror.start(r.left() + 42.0, name_text.size().x), r.center().y - 7.0 - name_text.size().y / 2.0);
+                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).galley(name_pos, name_text, t.text);
                     let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
-                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        mirror.pos(r.left_center() + vec2(42.0, 8.0)),
-                        mirror.align(egui::Align2::LEFT_CENTER),
-                        sub,
-                        theme::regular(11.5),
-                        t.dim,
-                    );
+                    let sub_text = widgets::one_line(ui, &sub, theme::regular(11.5), t.dim, (r.width() - 48.0).max(1.0));
+                    let sub_pos = egui::pos2(mirror.start(r.left() + 42.0, sub_text.size().x), r.center().y + 8.0 - sub_text.size().y / 2.0);
+                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).galley(sub_pos, sub_text, t.dim);
                     if resp.clicked() {
                         st.person = Some(p.card.uid.clone());
                     }
