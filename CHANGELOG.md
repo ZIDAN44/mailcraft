@@ -30,6 +30,7 @@ on GitHub.
 - On a server without UIDPLUS, moving or deleting a message no longer removes for good the messages another program had marked as deleted.
 - New mail is noticed at once after a message is deleted for good, and after a folder that's gone from the server was opened.
 - Sending waits up to ten minutes for a server that checks a message before it answers, instead of sending it a second time after one.
+- In the Outbox, the selected message stays selected when one above it is sent: Delete could take the next one, which was then never sent.
 
 ## 0.36.0 - 2026-11-11
 

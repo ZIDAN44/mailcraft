@@ -293,3 +293,34 @@ fn a_message_set_aside_as_it_goes_hears_what_became_of_it() {
     assert_eq!(back.error.as_deref(), Some("no such person"));
     assert_eq!(s.compose.as_ref().map(|c| c.id), Some(writing), "the one on screen is left alone");
 }
+
+/// A message selected in the Outbox stays the one selected when the message above it is sent:
+/// keys there count rows, so the selection slid to the next message, and Delete took that one.
+#[test]
+fn an_outbox_selection_follows_its_message() {
+    let (mut s, id) = data_file_session("outbox-follows");
+    let store = s.store.clone().unwrap();
+    for (n, subject) in [(7u64, "First"), (8, "Second"), (9, "Third")] {
+        let raw = format!("From: x@example.org\r\nTo: ann@example.org\r\nSubject: {subject}\r\n\r\nhi\r\n");
+        let item = mailcraft_store::OutboxItem {
+            id: n,
+            recipients: vec!["ann@example.org".into()],
+            queued: NOW + n as i64,
+            not_before: NOW + 600,
+            ..Default::default()
+        };
+        store.outbox_add(&id, &item, raw.as_bytes()).unwrap();
+    }
+    s.run("folder.outbox", &json!({})).unwrap();
+    let second = s.list.iter().find(|m| m.subject == "Second").map(|m| m.key.clone()).unwrap();
+    s.open_message(&second);
+    // The first one goes.
+    store.outbox_remove(&id, 7);
+    s.apply(Event::Sent { account: id.clone(), id: 7 });
+    let chosen: Vec<u64> = s.selection.iter().filter_map(|k| s.outbox_entry(k)).map(|(_, i)| i.id).collect();
+    assert_eq!(chosen, [8]);
+    assert_eq!(s.reading.as_ref().and_then(|r| s.outbox_entry(&r.key)).map(|(_, i)| i.id), Some(8));
+    s.run("mail.delete", &json!({})).unwrap();
+    assert_eq!(store.outbox(&id).iter().map(|i| i.id).collect::<Vec<_>>(), [9]);
+    done(s);
+}
