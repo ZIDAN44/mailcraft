@@ -248,3 +248,45 @@ fn calendar_results_and_the_source_bar_are_mirrored() {
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
+
+/// In the People module, the A-Z index belongs at the interface end, and the
+/// contact table starts at the reading edge (first column rightmost in Hebrew).
+#[test]
+fn people_navigation_and_table_follow_interface_direction() {
+    for (lang, rtl, full_name, company) in [
+        ("en", false, "Full name", "Company"),
+        ("he", true, "שם מלא", "חברה"),
+    ] {
+        let (mut a, dir) = app(&format!("rtl-people-views-{lang}"));
+        a.ui.language = lang.into();
+        a.run("view.module", json!({"name": "people"}));
+        let ctx = egui::Context::default();
+        let size = egui::vec2(1280.0, 800.0);
+        for view in [crate::people::PeopleView::People, crate::people::PeopleView::Phone] {
+            a.ui.people_view = view;
+            for _ in 0..3 {
+                drawn_text(&ctx, &mut a, size);
+            }
+            let texts = drawn_text(&ctx, &mut a, size);
+            let x = |label: &str| {
+                texts
+                    .iter()
+                    .find(|(s, ..)| s == label)
+                    .map(|(_, rect, _)| rect.center().x)
+                    .unwrap_or_else(|| panic!("{lang} {view:?}: missing {label:?}"))
+            };
+            match view {
+                crate::people::PeopleView::People => {
+                    assert_eq!(x("Zoe Park") > x("z"), rtl, "{lang}: list must precede A-Z index on reading side");
+                }
+                crate::people::PeopleView::Phone => {
+                    assert_eq!(x(full_name) > x(company), rtl, "{lang}: first table column must be at reading side");
+                    assert_eq!(x("Zoe Park") > x("Studio Lantern"), rtl, "{lang}: table cells must follow header order");
+                }
+                crate::people::PeopleView::Cards => unreachable!(),
+            }
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}
