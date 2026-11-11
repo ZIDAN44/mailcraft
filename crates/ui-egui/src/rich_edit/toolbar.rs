@@ -4,7 +4,8 @@ use super::*;
 
 /// A ribbon button: an icon or a letter, lit when its format is on.
 pub(super) fn fmt_button(ui: &mut Ui, t: &Tokens, face: Face<'_>, on: bool, tip: &str) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(28.0, ROW_H), Sense::click());
+    let rect = rect.shrink2(vec2(0.0, (ROW_H - 28.0) / 2.0));
     crate::widgets::named(ui, &resp, tl!(tip), true, Some(on));
     if on || resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, if on { t.accent_soft } else { t.hover });
@@ -17,6 +18,25 @@ pub(super) fn fmt_button(ui: &mut Ui, t: &Tokens, face: Face<'_>, on: bool, tip:
         }
     }
     resp.on_hover_text(tl!(tip))
+}
+
+/// The line between two groups of buttons, as tall as a button (egui's own takes the height
+/// the row has left).
+fn sep(ui: &mut Ui, t: &Tokens) {
+    let (r, _) = ui.allocate_exact_size(vec2(9.0, ROW_H), Sense::hover());
+    ui.painter().vline(r.center().x, r.shrink2(vec2(0.0, 5.0)).y_range(), Stroke::new(1.0, t.border));
+}
+
+/// How tall the editor's ribbon's rows are.
+const ROW_H: f32 = 30.0;
+
+/// The editor's ribbon: its buttons in rows, as many as the width takes, each row against the
+/// one above. Its rows start at their top: centred in them (egui's `horizontal_wrapped`), a
+/// group that had wrapped made every row after it as tall as itself, and a narrow message's
+/// ribbon was mostly gaps.
+fn wrapped_row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let layout = crate::bidi::row_from_start(egui::Align::Min).with_main_wrap(true);
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), ROW_H), layout, add).inner
 }
 
 pub(super) enum Face<'a> {
@@ -34,7 +54,8 @@ pub(super) fn color_button(
     none: &str,
     tip: &str,
 ) -> Option<Option<[u8; 3]>> {
-    let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(34.0, ROW_H), Sense::click());
+    let rect = rect.shrink2(vec2(0.0, (ROW_H - 28.0) / 2.0));
     crate::widgets::named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
@@ -77,10 +98,10 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         ed.typing.clone().unwrap_or_else(|| if sel.is_empty() { typing_style(&c.body, &c.styles, sel.start) } else { c.styles.style(sel.start) });
     let para = c.styles.para(rich::lines_of(&c.body, sel.start..sel.start).0);
     let mut ops: Vec<Op> = Vec::new();
-    ui.horizontal_wrapped(|ui| {
+    wrapped_row(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         format_buttons(ui, t, c, &cur, para, &mut ops);
-        ui.separator();
+        sep(ui, t);
         if crate::widgets::tool_button(ui, Icon::AddressBook, "Address Book", t, !c.sending).on_hover_text(tl!("Ctrl+Shift+B")).clicked() {
             acts.push(Action::Dialog(Dialog::select_names(c, "to")));
         }
@@ -144,12 +165,15 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
 /// clear formatting: the formatting the Message ribbon and the signature editor share.
 fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich::Para, ops: &mut Vec<Op>) {
     ui.add_enabled_ui(!c.plain, |ui| {
-        egui::ComboBox::from_id_salt(("font-size", c.id)).width(48.0).selected_text(cur.size().to_string()).show_ui(ui, |ui| {
-            for z in rich::SIZES {
-                if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
-                    ops.push(Op::Size(z));
+        // In the middle of the row's height, as the buttons' faces are.
+        ui.allocate_ui_with_layout(vec2(0.0, ROW_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            egui::ComboBox::from_id_salt(("font-size", c.id)).width(48.0).selected_text(cur.size().to_string()).show_ui(ui, |ui| {
+                for z in rich::SIZES {
+                    if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
+                        ops.push(Op::Size(z));
+                    }
                 }
-            }
+            });
         });
         ui.add_space(4.0);
         let letter = |bold: bool, italic: bool, under: bool, strike: bool| {
@@ -179,7 +203,7 @@ fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich:
         if let Some(col) = color_button(ui, t, "A", cur.color, &COLORS, "Automatic", "Font color") {
             ops.push(Op::Color(col));
         }
-        ui.separator();
+        sep(ui, t);
         for (ic, on, tip, op) in [
             (Icon::ListBullet, para.list == List::Bullet, "Bullets (Ctrl+Shift+L)", Op::Bullets),
             (Icon::ListNumber, para.list == List::Number, "Numbering", Op::Numbers),
@@ -208,10 +232,10 @@ pub(crate) fn signature_bar(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Co
         ed.typing.clone().unwrap_or_else(|| if sel.is_empty() { typing_style(&c.body, &c.styles, sel.start) } else { c.styles.style(sel.start) });
     let para = c.styles.para(rich::lines_of(&c.body, sel.start..sel.start).0);
     let mut ops: Vec<Op> = Vec::new();
-    ui.horizontal_wrapped(|ui| {
+    wrapped_row(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         format_buttons(ui, t, c, &cur, para, &mut ops);
-        ui.separator();
+        sep(ui, t);
         if crate::widgets::tool_button(ui, Icon::Link, "Link", t, true).on_hover_text(tl!("Ctrl+K")).clicked() {
             ed.link = Some(LinkForm::open(c, sel.clone()));
         }

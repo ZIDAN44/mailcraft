@@ -37,6 +37,9 @@ on GitHub.
 - Mail you put in the Inbox of an account on a server (dragged there, a delete undone, **Not junk**) isn't taken for mail arriving: a rule could file it straight back, and it was announced as new.
 - `larger:2 MB`, with a space before the unit, searches by that size.
 - Mail from the first days of this month is under **Earlier this month**, not **Last month**.
+- In a small window the message read or written keeps a width it can be read in: the folders and the list give way. At the smallest size it was a strip one word wide.
+- A reply written in a narrow reading pane: the ribbon's rows are one under the other (wrapped, they were far apart), and **Save draft** isn't drawn under **Discard**.
+- In a narrow message list the sender's name keeps its room: the folder's name and **External** before the time give way.
 
 ## 0.36.0 - 2026-11-11
 

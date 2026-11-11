@@ -8,6 +8,10 @@ use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_ver
 pub(crate) const TOP_BAR_H: f32 = 40.0;
 /// The top bar's margins, across and down.
 pub(crate) const TOP_BAR_MARGIN: (i8, i8) = (8, 5);
+/// The narrowest the message list goes beside the reading pane, and the width the reading pane
+/// keeps while the folders and the list have any to give.
+const LIST_LEAST: f32 = 280.0;
+const READING_LEAST: f32 = 300.0;
 
 impl MailApp {
     /// Every frame, the window minimized or hidden too: eframe runs only `logic` then, and closes
@@ -340,10 +344,14 @@ impl MailApp {
             let mut expanded = !self.session.prefs.folder_pane_minimized;
             let strip =
                 start("nav-min").resizable(false).exact_size(52.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(4, 8)));
+            // In a small window the folders and the list give way, so what's read or written
+            // keeps a width it can be read in (it was a strip a word wide).
+            let mail_beside = module == Module::Mail && self.session.prefs.reading_pane == ReadingPane::Right;
+            let most_nav = if mail_beside { (ui.available_width() - LIST_LEAST - READING_LEAST).clamp(170.0, 380.0) } else { 380.0 };
             let full = start("nav")
                 .resizable(true)
                 .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
-                .size_range(170.0..=380.0)
+                .size_range(170.0..=most_nav)
                 .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)));
             egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
                 if !wide {
@@ -404,7 +412,8 @@ impl MailApp {
                 }
                 (Module::Mail, pane) => match pane {
                     ReadingPane::Right => {
-                        start("list").resizable(true).default_size(390.0).size_range(280.0..=720.0).frame(list_frame).show(ui, |ui| {
+                        let most = (ui.available_width() - READING_LEAST).clamp(LIST_LEAST, 720.0);
+                        start("list").resizable(true).default_size(390.0).size_range(LIST_LEAST..=most).frame(list_frame).show(ui, |ui| {
                             list::show(&self.session, &mut self.ui, ui, &mut acts);
                         });
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
