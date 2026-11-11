@@ -386,6 +386,12 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     // Out of the session while its form is drawn, so the original under a reply can be drawn
     // from the session as the reading pane draws a message; put back after.
     let Some(mut taken) = s.compose.take() else { return };
+    // The pictures from the web the reader was shown, for the ones this message quotes.
+    let loaded = s
+        .pictures
+        .iter()
+        .filter_map(|(url, p)| if let mailcraft_engine::Picture::Ready(data) = p { Some((url.clone(), data.clone())) } else { None });
+    rich_edit::web_loaded(ui.ctx(), std::sync::Arc::new(loaded.collect()));
     // The editor's state belongs to one message.
     if st.editor.as_ref().is_none_or(|e| e.id != taken.id) {
         st.editor = Some(rich_edit::Editor::new(taken.id));

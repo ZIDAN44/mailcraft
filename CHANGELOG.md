@@ -62,6 +62,7 @@ on GitHub.
 - **Print** and **Save as PDF** keep a message's formatting: headings, bold, italic, sizes, colours, highlights, underlined links and struck-through text. It printed the plain text (#72). Tables print as rows of text, and pictures as their descriptions.
 - In a PDF, the lines a table is drawn with in text are printed with `-`, `|` and `+`: they were empty boxes.
 - A logo or a title a message centres (`<center>`, `align`, `text-align`) is centred when the rest of the message flows. Only mail laid out in tables kept what it centred (#74).
+- A message forwarded or answered shows the pictures from the web it quotes, when you were shown them reading it: they were empty boxes (#74). Nothing is fetched for it.
 
 ## 0.36.0 - 2026-11-11
 
