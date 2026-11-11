@@ -338,6 +338,7 @@ impl Session {
                         }
                     }
                 }
+                self.organizing_follows_folder(account, from, to, delimiter);
             }
             Op::DeleteFolder { path } => {
                 self.cache.retain(|(acc, f), _| acc != account || !mailcraft_model::is_within(f, path, delimiter));

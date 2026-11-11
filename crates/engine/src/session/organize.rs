@@ -99,6 +99,13 @@ impl Session {
                 });
             }
             let keys: Vec<MessageKey> = mine.iter().map(|m| m.key.clone()).collect();
+            // One already snoozed stays where it is and comes back at the new time, to where it
+            // was (said snoozed, it still came back at the old time).
+            for m in sel.iter().filter(|m| m.key.account == a && m.key.folder == folder) {
+                if let Some(s) = self.snoozes.iter_mut().find(|s| s.account == a && s.message_id == m.message_id) {
+                    s.until = until;
+                }
+            }
             if !keys.is_empty() {
                 self.apply_op(&a, Op::Move { keys, to: folder });
             }
@@ -189,6 +196,54 @@ impl Session {
             }
         }
         if changed {
+            self.save_snoozes();
+        }
+    }
+
+    /// Rules, Quick Steps and snoozes name a folder by its path: renamed or moved (deleted, it
+    /// moves into Deleted Items), they follow it, as Favorites do. A rule went on naming the old
+    /// path, so its mail stayed in the Inbox, and a snoozed message never came back.
+    pub(super) fn organizing_follows_folder(&mut self, account: &str, from: &str, to: &str, delimiter: Option<char>) {
+        // A path another account has too may be what a rule for every account means: left.
+        let elsewhere = |s: &Self, path: &str| s.accounts.iter().any(|a| a.config.id != account && a.folders.iter().any(|f| f.path == path));
+        let moved = |s: &Self, action: &RuleAction, all: bool| match action {
+            RuleAction::MoveTo(f) if !(all && elsewhere(s, f)) => mailcraft_model::rebase_path(f, from, to, delimiter).map(RuleAction::MoveTo),
+            _ => None,
+        };
+        let mut rules = self.rules.clone();
+        let mut changed = false;
+        for r in rules.iter_mut().filter(|r| r.account.as_deref().is_none_or(|a| a == account)) {
+            for a in r.actions.iter_mut() {
+                if let Some(new) = moved(self, a, r.account.is_none()) {
+                    *a = new;
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            self.rules = rules;
+            if let Some(store) = &self.store
+                && let Err(e) = store.save_doc(RULES_DOC, &self.rules)
+            {
+                log::warn!("the rules couldn't be saved: {e}");
+            }
+        }
+        let mut steps = self.prefs.quick_steps.clone();
+        for a in steps.iter_mut().flat_map(|q| q.actions.iter_mut()) {
+            if let Some(new) = moved(self, a, true) {
+                *a = new;
+            }
+        }
+        self.prefs.quick_steps = steps;
+        let before = self.snoozes.clone();
+        for s in self.snoozes.iter_mut().filter(|s| s.account == account) {
+            for path in [&mut s.folder, &mut s.back_to] {
+                if let Some(new) = mailcraft_model::rebase_path(path, from, to, delimiter) {
+                    *path = new;
+                }
+            }
+        }
+        if self.snoozes != before {
             self.save_snoozes();
         }
     }

@@ -175,6 +175,13 @@ fn snoozed_mail_comes_back_unread() {
     s.run("folder.open", &json!({"account": "sample", "folder": snoozed.path})).unwrap();
     assert_eq!(s.list.len(), 1);
     assert_eq!(s.snoozes.len(), 1);
+    // Snoozed again from the Snoozed folder: the same snooze, to a later time (it kept the
+    // first), and back to the Inbox when it's due.
+    s.run("list.select", &json!({"key": s.list[0].key.to_id()})).unwrap();
+    s.run("mail.snooze", &json!({"until": NOW + 7200})).unwrap();
+    assert_eq!(s.snoozes.iter().map(|z| (z.until, z.back_to.as_str())).collect::<Vec<_>>(), [(NOW + 7200, "INBOX")]);
+    s.run("list.select", &json!({"key": s.list[0].key.to_id()})).unwrap();
+    s.run("mail.snooze", &json!({"until": NOW + 3600})).unwrap();
     // Saved, so a restart still brings it back.
     let root = s.store.as_ref().unwrap().root().to_path_buf();
     let mut s = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW + 60, 0));
@@ -687,4 +694,32 @@ fn an_account_is_set_to_look_for_mail_every_so_often() {
         assert!(matches!(s.run("account.checkEvery", &bad), Err(CmdError::Params(_))), "{bad}");
     }
     assert_eq!(every(&s, &id), None);
+}
+
+/// A rule, a Quick Step and a snooze follow a folder that's renamed: they named its old path,
+/// so the rule's mail stayed in the Inbox ("1 message matched") and the snoozed message never
+/// came back.
+#[test]
+fn rules_and_snoozes_follow_a_renamed_folder() {
+    let mut s = sample_session("rules-follow-rename");
+    s.run("folder.create", &json!({"account": "sample", "name": "Clients"})).unwrap();
+    s.run(
+        "rules.add",
+        &json!({"rule": {"name": "Zoe", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "moveTo", "value": "Clients"}]}}),
+    )
+    .unwrap();
+    s.run("list.select", &key_of(&s, "Character turnarounds")).unwrap();
+    s.run("mail.snooze", &json!({"until": NOW + 3600})).unwrap();
+    let snoozed = s.snoozes[0].folder.clone();
+    s.run("folder.rename", &json!({"account": "sample", "folder": "Clients", "name": "Customers"})).unwrap();
+    s.run("folder.rename", &json!({"account": "sample", "folder": snoozed, "name": "Later"})).unwrap();
+    assert_eq!(s.rules[0].actions, [mailcraft_model::organize::RuleAction::MoveTo("Customers".into())]);
+    assert_eq!(s.snoozes[0].folder, "Later");
+    // Kept: MailCraft opened again has them so.
+    let root = s.store.as_ref().unwrap().root().to_path_buf();
+    let mut s = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW + 3601, 0));
+    assert_eq!(s.rules[0].actions, [mailcraft_model::organize::RuleAction::MoveTo("Customers".into())]);
+    s.tick();
+    assert!(s.folder_state("sample", "INBOX").messages.iter().any(|m| m.subject == "Character turnarounds"), "back from the renamed folder");
+    let _ = std::fs::remove_dir_all(root);
 }
