@@ -5,9 +5,8 @@ as an open-source, local-first app for Windows, macOS, Linux and the browser.
 
 ## Where it stands
 
-- **Scope:** [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177) sets
-  what v1 must do. The fuller request is
-  [storytold/artcraft-services#80](https://github.com/storytold/artcraft-services/issues/80).
+- **Scope:** v1 is the everyday Outlook mail workflow. What it still lacks is in
+  [known gaps](docs/gaps.md), most-hit first.
 
 ## Headline numbers
 

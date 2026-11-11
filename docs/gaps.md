@@ -3,8 +3,7 @@
 This page lists what MailCraft still lacks against the everyday Outlook mail workflow, most-hit
 first. Each item says who it affects, what to do meanwhile and why it happens.
 
-The scope is [storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177). See
-[what comes next](../ROADMAP.md) and [what each version added](../CHANGELOG.md); a gap that gets
+See [what comes next](../ROADMAP.md) and [what each version added](../CHANGELOG.md); a gap that gets
 fixed moves to the changelog.
 
 ## Open

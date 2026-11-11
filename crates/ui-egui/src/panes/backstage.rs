@@ -638,7 +638,7 @@ fn about(s: &Session, t: &Tokens, update: &UpdateState, ui: &mut Ui, acts: &mut 
         ui.add_space(10.0);
         ui.vertical(|ui| {
             ui.label(RichText::new(tf!("MailCraft {version}", version = env!("CARGO_PKG_VERSION"))).font(theme::bold(18.0)).color(t.text));
-            ui.label(RichText::new(tl!("An ArtCraft app · MIT OR Apache-2.0")).color(t.dim));
+            ui.label(RichText::new(tl!("Free and open source · MIT OR Apache-2.0")).color(t.dim));
         });
     });
     ui.add_space(10.0);

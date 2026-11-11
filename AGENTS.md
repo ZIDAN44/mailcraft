@@ -1,12 +1,11 @@
 # MailCraft — instructions for agents
 
 MailCraft is a clean-room, open-source, Rust-native, local-first email client: the everyday
-Microsoft Outlook mail workflow over IMAP and SMTP (v1 scope:
-[storytold/artcraft#2177](https://github.com/storytold/artcraft/issues/2177)). It runs natively on
-Windows, macOS and Linux; the engine and UI crates also build for wasm. Siblings with the same
-conventions: `../wordcraft` (Word), `../gridcraft` (Excel), `../deckcraft` (PowerPoint),
-`../pdfcraft` (Acrobat), `../photocraft`. CI and packaging are shared through
-[`storytold/craft-common-actions`](https://github.com/storytold/craft-common-actions).
+Microsoft Outlook mail workflow over IMAP and SMTP, by Zinadin Zidan and the MailCraft
+contributors. It runs natively on Windows, macOS and Linux; the engine and UI crates also build
+for wasm. Siblings with the same conventions: `../wordcraft` (Word), `../gridcraft` (Excel),
+`../deckcraft` (PowerPoint), `../pdfcraft` (Acrobat), `../photocraft`. CI and packaging checks
+are shared through [`storytold/craft-common-actions`](https://github.com/storytold/craft-common-actions).
 
 ## Start every session here
 1. Read `ROADMAP.md` and `docs/gaps.md` (the open gaps, most-hit first), then `docs/architecture.md`

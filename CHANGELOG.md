@@ -12,6 +12,10 @@ on GitHub.
 
 *MailCraft as a project of its own: its own publisher, app id and releases.*
 
+### Changed
+
+- MailCraft is a project of its own: File › About, the installers and the Linux packages name Zinadin Zidan as its publisher, and their help links go to MailCraft's GitHub issues.
+
 ## 0.35.0 - 2026-11-10
 
 *Mail built from templates reads as it was designed, a mail file opens from inside MailCraft, calendars and contacts sync with no email account, and each account checks for mail as often as you choose.*

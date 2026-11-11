@@ -13,7 +13,7 @@ release: 1
 section: mail
 priority: optional
 maintainer: ${MAILCRAFT_MAINTAINER}
-vendor: Learning Machines LLC
+vendor: Zinadin Zidan
 homepage: https://github.com/ZIDAN44/mailcraft
 license: MIT OR Apache-2.0
 description: |-

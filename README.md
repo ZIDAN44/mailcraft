@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>Local-first email: an open-source, clean-room alternative to Microsoft Outlook, written in Rust.</b><br>
-  <i>By the ArtCraft team. Tracked in <a href="https://github.com/storytold/artcraft/issues/2177">storytold/artcraft#2177</a>.</i>
+  <i>By Zinadin Zidan and the MailCraft contributors.</i>
 </p>
 
 <p align="center">

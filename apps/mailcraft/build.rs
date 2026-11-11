@@ -24,7 +24,7 @@ fn main() {
         .set_manifest(windows_manifest::WINDOWS_MANIFEST)
         .set("ProductName", "MailCraft")
         .set("FileDescription", "MailCraft email")
-        .set("CompanyName", "Learning Machines LLC")
+        .set("CompanyName", "Zinadin Zidan")
         .set("LegalCopyright", "Copyright (c) the MailCraft authors. MIT OR Apache-2.0.")
         .set("OriginalFilename", "mailcraft.exe")
         .set("InternalName", "mailcraft");

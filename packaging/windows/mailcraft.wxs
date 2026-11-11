@@ -13,13 +13,13 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
       Name="MailCraft"
-      Manufacturer="Learning Machines LLC"
+      Manufacturer="Zinadin Zidan"
       Version="$(var.Version)"
       UpgradeCode="F1EC42C6-A525-406B-878C-789DC52E1958"
       Scope="perMachine"
       Compressed="yes"
       Language="1033">
-    <SummaryInformation Description="MailCraft email" Manufacturer="Learning Machines LLC" />
+    <SummaryInformation Description="MailCraft email" Manufacturer="Zinadin Zidan" />
     <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
          (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
     <MajorUpgrade AllowSameVersionUpgrades="yes"
@@ -43,7 +43,7 @@
     <Property Id="ARPPRODUCTICON" Value="MailcraftIcon.ico" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/ZIDAN44/mailcraft" />
     <Property Id="ARPURLUPDATEINFO" Value="https://github.com/ZIDAN44/mailcraft/releases" />
-    <Property Id="ARPHELPLINK" Value="https://discord.gg/artcraft" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/ZIDAN44/mailcraft/issues" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="MailCraft" />
