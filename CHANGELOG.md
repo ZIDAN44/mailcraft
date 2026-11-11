@@ -22,6 +22,7 @@ on GitHub.
 ### Fixed
 
 - The Flatpak can add an account on a desktop with a Documents folder: it couldn't write the data files it keeps in Documents › MailCraft Files.
+- MailCraft's window shows and works while the system asks whether MailCraft may read its passwords (macOS does after an update), instead of staying blank until that's answered.
 
 ## 0.35.0 - 2026-11-10
 

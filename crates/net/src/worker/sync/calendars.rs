@@ -78,6 +78,9 @@ impl Worker {
     /// Send / Receive or a new password; a server that can't be reached is tried again later.
     pub(in crate::worker) fn run_calendars(mut self, rx: Receiver<Job>) {
         self.status(SyncStatus::Connecting);
+        if !self.settle_password() {
+            return;
+        }
         let mut due = Some(Instant::now());
         while !self.closed {
             let got = match due {

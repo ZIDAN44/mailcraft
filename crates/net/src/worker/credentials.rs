@@ -67,3 +67,41 @@ impl Credentials for MemoryCredentials {
         }
     }
 }
+
+impl super::Worker {
+    /// Before the account's thread first connects, on that thread: the password just given kept
+    /// in the keychain, or the one kept there read. The keychain may ask the user first (macOS
+    /// does after an update, for a build signed ad hoc), so it isn't done on the window's
+    /// thread, which would stop drawing till it's answered. `false` when the keychain has no
+    /// password: the account asks for one, and the pool forgets this thread.
+    pub(super) fn settle_password(&mut self) -> bool {
+        let Some(given) = self.keychain.take() else { return true };
+        let Some(creds) = self.creds.clone() else { return true };
+        let password = match given {
+            Some(p) => {
+                if let Err(e) = creds.set(&self.acc, &p) {
+                    self.sink.emit(mailcraft_model::job::Event::Notice {
+                        account: self.acc.id.clone(),
+                        message: format!("the password could not be saved in the keychain: {e}"),
+                    });
+                }
+                p
+            }
+            None => match creds.get(&self.acc) {
+                Some(p) => p,
+                None => {
+                    self.no_password.store(true, std::sync::atomic::Ordering::Relaxed);
+                    self.status(mailcraft_model::job::SyncStatus::NeedsPassword { error: String::new() });
+                    return false;
+                }
+            },
+        };
+        if let Ok(mut a) = self.auth.lock() {
+            a.secret = password;
+        }
+        if let Some(start) = self.quick_start.take() {
+            start();
+        }
+        true
+    }
+}

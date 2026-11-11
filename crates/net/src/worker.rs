@@ -51,7 +51,9 @@ struct Handle {
     /// The account's second connection, for work the user sees happen (sending, automatic
     /// replies): it never waits behind a sync. `None` where it can't be used (POP, JMAP sends).
     quick: Option<Sender<Job>>,
-    quick_thread: Option<JoinHandle<()>>,
+    /// Set by the account's thread when the keychain had no password: the pool forgets the
+    /// thread, as if it had never started ([`Pool::poll`]).
+    no_password: Arc<AtomicBool>,
     /// The main connection is at work: a message opened meanwhile goes to the second one.
     busy: Arc<AtomicBool>,
     /// The main connection's way to the second one, emptied when the account stops: otherwise
@@ -191,6 +193,7 @@ impl Pool {
     }
 
     pub fn submit(&mut self, job: Job) {
+        self.forget_unstarted();
         self.release_compacted();
         let Some(job) = self.held_for_compaction(job) else { return };
         if let Job::SearchServer { search, .. } = &job {
@@ -473,6 +476,7 @@ impl Pool {
     pub fn poll(&mut self) -> Vec<Event> {
         self.release_compacted();
         let mut events: Vec<Event> = self.rx.try_iter().collect();
+        self.forget_unstarted();
         events.extend(self.indexer.latest());
         events
     }
@@ -494,22 +498,28 @@ impl Pool {
         }
     }
 
+    /// The accounts whose keychain had no password ([`Handle::no_password`]): their threads
+    /// have ended, and each is as an account never started (offline here, its jobs answered by
+    /// the pool) till it's given one.
+    fn forget_unstarted(&mut self) {
+        let unstarted: Vec<String> = self.workers.iter().filter(|(_, h)| h.no_password.load(Ordering::Relaxed)).map(|(id, _)| id.clone()).collect();
+        for id in unstarted {
+            self.stop(&id);
+            self.configs.remove(&id);
+        }
+    }
+
     fn start(&mut self, account: AccountConfig, password: Option<Secret>) {
         self.stop(&account.id);
-        if let Some(p) = &password
-            && let Err(e) = self.creds.set(&account, &p.0)
-        {
-            self.sink.emit(Event::Notice { account: account.id.clone(), message: format!("the password could not be saved in the keychain: {e}") });
-        }
-        let pw = password.map(|p| p.0).or_else(|| self.creds.get(&account));
-        let Some(pw) = pw else {
-            self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
-            return;
-        };
         let (tx, rx) = mpsc::channel();
-        let auth = Auth::shared(pw);
+        // The password is kept in the keychain, or read from it, by the account's own thread
+        // (`credentials.rs`): the keychain may ask the user first (macOS, after an update), and
+        // the window keeps drawing meanwhile.
+        let auth = Auth::shared(String::new());
         let mut w = Worker::new(account.clone(), auth.clone(), self.store.clone(), self.sink.clone(), self.opts);
         w.creds = Some(self.creds.clone());
+        w.keychain = Some(password.map(|p| p.0));
+        let no_password = w.no_password.clone();
         w.sieve_port = self.sieve_port;
         w.search = self.search.clone();
         // No mail server (issue #61): its calendars and contacts are all its thread does.
@@ -519,7 +529,7 @@ impl Pool {
             w.stop = stop.clone();
             match std::thread::Builder::new().name(format!("mail-{}", account.id)).spawn(move || w.run_calendars(rx)) {
                 Ok(thread) => {
-                    let h = Handle { tx, thread: Some(thread), quick: None, quick_thread: None, busy, quick_link: Arc::default(), stop };
+                    let h = Handle { tx, thread: Some(thread), quick: None, no_password, busy, quick_link: Arc::default(), stop };
                     self.workers.insert(account.id.clone(), h);
                 }
                 Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
@@ -537,8 +547,15 @@ impl Pool {
         q.given_back = w.given_back.clone();
         q.whole_only = w.whole_only.clone();
         let busy = w.busy.clone();
-        let quick_thread = std::thread::Builder::new().name(format!("mail-{}-quick", account.id)).spawn(move || q.run_quick(qrx)).ok();
-        let quick = quick_thread.is_some().then_some(qtx);
+        // Started by the main connection once the password is known; what's for it waits in its
+        // queue till then.
+        let quick_name = format!("mail-{}-quick", account.id);
+        w.quick_start = Some(Box::new(move || {
+            if let Err(e) = std::thread::Builder::new().name(quick_name).spawn(move || q.run_quick(qrx)) {
+                log::warn!("the account's second connection didn't start: {e}");
+            }
+        }));
+        let quick = Some(qtx);
         let quick_link: QuickLink = Arc::new(Mutex::new(quick.clone()));
         w.quick = quick_link.clone();
         let stop: Arc<changes::Stopped> = Arc::default();
@@ -548,7 +565,7 @@ impl Pool {
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
-                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, quick_thread, busy, quick_link, stop });
+                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, no_password, busy, quick_link, stop });
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
         }
@@ -566,7 +583,8 @@ impl Pool {
             }
             // The thread notices the closed channel within half a second (IDLE slices); don't
             // block the UI waiting for a slow network call to finish.
-            for t in [h.thread.take(), h.quick_thread.take()].into_iter().flatten() {
+            // The second connection's thread ends as its queue closes (it was started by this one).
+            if let Some(t) = h.thread.take() {
                 std::thread::spawn(move || {
                     let _ = t.join();
                 });
@@ -706,6 +724,13 @@ struct Worker {
     search: Arc<AtomicU64>,
     /// The calendar server's Digest challenge, answered from the next sync's first request.
     dav_digest: Option<crate::dav::digest::Challenge>,
+    /// Done on this thread before it first connects ([`Worker::settle_password`]): the password
+    /// just given, to keep in the keychain, or `None` to read the one kept there.
+    keychain: Option<Option<String>>,
+    /// The second connection, started once the password is known.
+    quick_start: Option<Box<dyn FnOnce() + Send>>,
+    /// Set when the keychain had no password ([`Handle::no_password`]).
+    no_password: Arc<AtomicBool>,
 }
 
 /// Where an account keeps its folders' own windows.
@@ -761,6 +786,9 @@ impl Worker {
             soon: Vec::new(),
             search: Arc::new(AtomicU64::new(0)),
             dav_digest: None,
+            keychain: None,
+            quick_start: None,
+            no_password: Arc::default(),
         }
     }
 
@@ -800,6 +828,9 @@ impl Worker {
 
     fn run(mut self, rx: Receiver<Job>) {
         self.status(SyncStatus::Connecting);
+        if !self.settle_password() {
+            return;
+        }
         while !self.closed {
             self.working(true);
             self.drain(&rx);

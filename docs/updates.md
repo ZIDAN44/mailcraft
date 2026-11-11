@@ -47,6 +47,9 @@ test build.
 - **Windows:** The MSI installs for all users, so approve each update as an administrator.
 - **macOS:** Move MailCraft to **Applications** before it can update itself. On a standard
   account, use `~/Applications` instead. A copy run from the disk image or Downloads doesn't update.
+  After each update, macOS asks once whether MailCraft may read its passwords from the keychain
+  (**Always Allow** lasts until the next update): MailCraft isn't signed with an Apple developer
+  certificate, and the keychain ties its passwords to each build. The window works meanwhile.
 - **Linux:** Keep the `.AppImage` or the unpacked `.tar.gz` in a folder you can write to, and it
   updates without root. In other folders (for example `/opt`), MailCraft shows a Download link
   instead. The `.deb` and `.rpm` update through the system's package tool, which asks for your

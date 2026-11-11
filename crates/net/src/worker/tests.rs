@@ -135,6 +135,8 @@ fn a_mailcraft_data_file_is_imported() {
     let _ = std::fs::remove_dir_all(&t);
 }
 
+/// The keychain is read by the account's thread, not the caller's (the window's): with no
+/// password there, the account asks for one and is as one never started.
 #[test]
 fn pool_without_password_asks_for_one() {
     let dir = std::env::temp_dir().join(format!("mailcraft-pool-{}", std::process::id()));
@@ -142,7 +144,9 @@ fn pool_without_password_asks_for_one() {
     let mut p = Pool::new(store, Arc::new(MemoryCredentials::default()));
     let a = AccountConfig { id: "a1".into(), ..Default::default() };
     p.submit(Job::Start { account: a, password: None });
-    assert!(matches!(p.poll().as_slice(), [Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }]));
+    let seen = until(&p, |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
+    assert!(seen.iter().all(|e| matches!(e, Event::Status { .. })), "{seen:?}");
+    assert!(p.poll().is_empty());
     p.submit(Job::SyncAll { account: "a1".into() });
     assert!(matches!(p.poll().as_slice(), [Event::Notice { .. }]));
     let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
@@ -151,6 +155,63 @@ fn pool_without_password_asks_for_one() {
     p.store.write_body(&key, b"Subject: cached\r\n\r\nx").unwrap();
     p.submit(Job::FetchBody { key });
     assert!(matches!(p.poll().as_slice(), [Event::Body { .. }]));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A keychain that notes which thread asks it, and has no password till one is kept.
+#[derive(Default)]
+struct Asked(std::sync::Mutex<Vec<String>>, MemoryCredentials);
+
+impl Asked {
+    fn note(&self, what: &str) {
+        let thread = std::thread::current().name().unwrap_or("?").to_string();
+        if let Ok(mut l) = self.0.lock() {
+            l.push(format!("{what} on {thread}"));
+        }
+    }
+}
+
+impl Credentials for Asked {
+    fn get(&self, account: &AccountConfig) -> Option<String> {
+        self.note("get");
+        self.1.get(account)
+    }
+    fn set(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String> {
+        self.note("set");
+        self.1.set(account, password)
+    }
+    fn delete(&self, account: &AccountConfig) {
+        self.1.delete(account);
+    }
+    fn get_smtp(&self, _: &AccountConfig) -> Option<String> {
+        None
+    }
+    fn set_smtp(&self, _: &AccountConfig, _: &str) -> std::result::Result<(), String> {
+        Ok(())
+    }
+    fn delete_smtp(&self, _: &AccountConfig) {}
+}
+
+/// The keychain is asked on the account's own thread, never the caller's: on macOS it may ask
+/// the user first (after an update), and the caller is the window, which would stop drawing
+/// till that's answered. Read at a start, kept when a password is given.
+#[test]
+fn the_keychain_is_asked_on_the_accounts_thread() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-pool-keychain-{}", std::process::id()));
+    let store = Store::open(&dir).unwrap();
+    let asked = Arc::new(Asked::default());
+    let mut p = Pool::new(store, asked.clone());
+    let a = AccountConfig { id: "a1".into(), ..Default::default() };
+    p.submit(Job::Start { account: a.clone(), password: None });
+    until(&p, |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
+    p.submit(Job::Start { account: a, password: Some(Secret("pw".into())) });
+    let end = Instant::now() + Duration::from_secs(10);
+    while asked.0.lock().unwrap().len() < 2 && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(*asked.0.lock().unwrap(), ["get on mail-a1", "set on mail-a1"]);
+    assert_eq!(asked.1.get(&AccountConfig { id: "a1".into(), ..Default::default() }).as_deref(), Some("pw"));
+    p.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(dir);
 }
 
