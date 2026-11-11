@@ -18,13 +18,16 @@ impl Client {
     pub(super) fn send_on_conn(&self, req: &Request) -> Result<Response> {
         let mut slot = self.conn.borrow_mut();
         if slot.as_ref().is_none_or(|c| !c.usable()) {
+            log::debug!("EWS: opening a new HTTP connection; clearing connection authentication state");
             *slot = Some(Conn::open(&self.url)?);
             *self.signed_in.borrow_mut() = false;
         }
         let Some(conn) = slot.as_mut() else { return Err(NetError::Closed("no connection".into())) };
         let r = conn.send(req);
         if r.is_err() {
+            log::debug!("EWS: HTTP connection failed; discarding it");
             *slot = None;
+            *self.signed_in.borrow_mut() = false;
         }
         r
     }
@@ -45,6 +48,7 @@ impl Client {
         } else if let Some(mailbox) = self.anchor.borrow().as_ref() {
             base = base.header("X-AnchorMailbox", mailbox);
         }
+        let mut ntlm_reauthenticated = false;
         for attempt in 0..4 {
             let scheme = *self.scheme.borrow();
             let was_signed_in = *self.signed_in.borrow();
@@ -113,11 +117,21 @@ impl Client {
             } else {
                 return Err(NetError::Auth("the server offers no sign-in MailCraft knows".into()));
             };
-            // A server that asks again on a connection already signed in (its sign-in held per
-            // request, not per connection): signed in again, once.
-            if scheme == next && was_signed_in && matches!(scheme, Scheme::Kerberos) && attempt < 3 {
-                *self.signed_in.borrow_mut() = false;
-                continue;
+            // An authenticated connection may have been replaced just before the request,
+            // or the server/proxy may require a fresh authentication handshake. Retry
+            // NTLM at most once; never retry a rejected NTLM Type 3 response.
+            if scheme == next && was_signed_in && attempt < 3 {
+                if matches!(scheme, Scheme::Kerberos) {
+                    log::debug!("EWS: retrying Kerberos authentication after HTTP 401");
+                    *self.signed_in.borrow_mut() = false;
+                    continue;
+                }
+                if matches!(scheme, Scheme::Ntlm(_)) && !ntlm_reauthenticated {
+                    log::warn!("EWS: previously authenticated NTLM request received HTTP 401; retrying handshake once");
+                    ntlm_reauthenticated = true;
+                    *self.signed_in.borrow_mut() = false;
+                    continue;
+                }
             }
             if scheme == next || attempt >= 3 {
                 return Err(NetError::Auth("the server refused the user name or password".into()));
