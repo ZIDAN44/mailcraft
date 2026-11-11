@@ -17,6 +17,9 @@ on GitHub.
 - A message whose text comes in several parts shows all of it: text under an attachment (a note, a mailing list's footer) was left out.
 - Text its sender wrapped softly (`format=flowed`) reads in whole paragraphs, not cut at each wrapped line.
 - A subject or sender's name written in Latin-1 or another old character set, unencoded, reads as written, not as `caf�`.
+- A reply or forward keeps the `[tag]` its subject starts with (`Re: [Ticket#123] Printer`), which a help desk matches answers on.
+- Two notifications with the same `[tagged]` subject are no longer shown as one conversation.
+- A reply to a message that names only the message it answers keeps the whole conversation together in other mail programs.
 
 ## 0.36.0 - 2026-11-11
 
