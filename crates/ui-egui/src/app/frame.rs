@@ -22,6 +22,12 @@ impl MailApp {
         // input time, so a minimized window's close is always decided).
         self.ui.close_checked = Some(ctx.input(|i| i.time));
         self.decide_close(ctx);
+        // What the mail servers sent is taken in and new mail announced here too: a minimized
+        // window draws no frame, and mail that came meanwhile was neither shown in the title
+        // nor announced until the window was opened again (issue #68).
+        self.pump();
+        self.announce(ctx);
+        self.flush_jobs();
     }
 
     /// Where the platform has a quit of its own (macOS: `terminate:`, `quit` returning true), a
@@ -176,12 +182,17 @@ impl MailApp {
         if !cfg!(target_os = "macos") && ctx.options(|o| !o.quit_shortcuts.is_empty()) {
             ctx.options_mut(|o| o.quit_shortcuts.clear());
         }
-        self.pump();
+        // Done in `logic` already when the app runs it, as the close is.
+        let in_logic = self.ui.close_checked == Some(ctx.input(|i| i.time));
+        if !in_logic {
+            self.pump();
+        }
         self.show_finished_import();
         self.step_search(&ctx);
         self.follow_compaction(&ctx);
         self.take_body();
         self.settle_composes(&ctx);
+        // Again after `logic`'s: the title follows what this frame opened.
         self.announce(&ctx);
         self.follow_update(&ctx);
         // Decided in `logic` already when the app runs it (the desktop app; not the tests or the browser).

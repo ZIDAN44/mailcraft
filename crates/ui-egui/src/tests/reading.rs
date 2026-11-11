@@ -160,6 +160,11 @@ fn new_mail_is_announced_and_counted_in_the_title() {
     let got = shown.lock().unwrap().clone();
     assert_eq!(got[0], ("Zoe Park".to_string(), "Lunch?".to_string()));
     assert_eq!(got[1], ("3 new messages".to_string(), "From Ann and Bo".to_string()));
+    // Minimized, the window draws no frame and only `logic` runs: mail that comes then is
+    // announced then, not when the window is opened again (issue #68).
+    a.session.new_mail = vec![m(94, "Cy", "While away")];
+    a.logic(&ctx);
+    assert_eq!(shown.lock().unwrap().last(), Some(&("Cy".to_string(), "While away".to_string())));
     let _ = std::fs::remove_dir_all(dir);
 }
 

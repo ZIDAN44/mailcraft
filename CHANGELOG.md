@@ -54,6 +54,7 @@ on GitHub.
 - People: in a short window the A–Z index shows the letters that have names, all within reach. Its end was under the window's edge.
 - A message opened by a command, or from its conversation in the reading pane, is brought into view in the list.
 - In Arabic and Hebrew a notice appears in the left corner, clear of what opens from the status bar.
+- Mail that arrives while MailCraft is minimized is announced, and counted in the window's title, when it arrives: it waited until the window was opened again (#68).
 
 ## 0.36.0 - 2026-11-11
 
