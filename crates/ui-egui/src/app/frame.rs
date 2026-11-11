@@ -257,6 +257,10 @@ impl MailApp {
             Some(theme) => theme == egui::Theme::Dark,
             None => self.services.system_dark().unwrap_or(false),
         });
+        // The title bars the system draws follow (issue #74). As the system is, the system knows
+        // best; except on Linux, where winit knows no system theme and would say dark.
+        let said = if cfg!(all(unix, not(target_os = "macos"))) { Some(dark) } else { self.ui.dark };
+        super::windows::title_bars_in(&ctx, said);
         // The theme: light or dark, with the accent colour and top bar chosen (issue #8).
         let want = Tokens::themed(dark, mailcraft_engine::accent_rgb(&self.session.prefs.accent), self.session.prefs.plain_top_bar);
         if want != self.ui.tokens || ctx.global_style().visuals.panel_fill != self.ui.tokens.surface {
