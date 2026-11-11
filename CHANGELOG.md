@@ -46,6 +46,9 @@ on GitHub.
 - Tasks and People: a title, a status or an address too long for its column ends in "…". It was cut mid-letter.
 - **File › Info** in a narrow window: the page stays inside the window. In French and Russian the names at its side are whole.
 - In a narrow message list the sender's name keeps its room: the folder's name and **External** before the time give way.
+- An HTML message with text parts after it (a mailing list's footer) or before it shows them too: only the HTML was shown.
+- A message with two **From** or two **Subject** lines shows the first of each, as other mail programs do, and is never marked as from a checked sender.
+- A date written the old way, `04:07 EST`, is read in that time zone: it was taken for UTC, hours off.
 
 ## 0.36.0 - 2026-11-11
 

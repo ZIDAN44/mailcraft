@@ -25,6 +25,37 @@ pub(crate) fn plain_body(m: &Message<'_>) -> Option<String> {
     out
 }
 
+/// The HTML a message shows: its HTML body, and with it the text parts that come before or
+/// after (a mailing list's footer under an HTML message, a note over one), each as a paragraph
+/// of its own. They were left out: the first part alone was shown.
+pub(crate) fn html_whole<'m>(m: &'m Message<'m>) -> Option<Cow<'m, str>> {
+    if m.html_body().len() < 2 {
+        return m.body_html(0);
+    }
+    let mut out = String::new();
+    for p in m.html_body() {
+        let Some(t) = p.text() else { continue };
+        if matches!(p.kind(), PartKind::Html) {
+            out.push_str(&t);
+        } else if !t.trim().is_empty() {
+            let t = if is_flowed(&p) { unflow(&t, has(&p, "delsp", "yes")) } else { t.into_owned() };
+            out.push_str("<p>");
+            for c in t.trim_end().chars() {
+                match c {
+                    '<' => out.push_str("&lt;"),
+                    '>' => out.push_str("&gt;"),
+                    '&' => out.push_str("&amp;"),
+                    '\n' => out.push_str("<br>"),
+                    '\r' => {}
+                    c => out.push(c),
+                }
+            }
+            out.push_str("</p>");
+        }
+    }
+    Some(Cow::Owned(out))
+}
+
 fn has(p: &MessagePart<'_>, attribute: &str, value: &str) -> bool {
     p.content_type().and_then(|c| c.attribute(attribute)).is_some_and(|v| v.trim().eq_ignore_ascii_case(value))
 }
@@ -152,6 +183,20 @@ mod tests {
         let p = crate::parse(raw).unwrap_or_default();
         assert_eq!(p.text, "first\n\nsecond half");
         assert_eq!(p.attachments.len(), 1);
+    }
+
+    #[test]
+    fn text_after_an_html_body_is_shown_with_it() {
+        let raw = b"Subject: s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=Z\r\n\r\n--Z\r\nContent-Type: text/html\r\n\r\n<p>The <b>message</b></p>\r\n--Z\r\nContent-Type: text/plain\r\n\r\n-- \r\nlist <footer> & more\r\n--Z--\r\n";
+        let html = crate::html_body(raw).unwrap_or_default();
+        assert!(html.contains("<b>message</b>") && html.contains("list &lt;footer&gt; &amp; more"), "{html}");
+        let p = crate::parse(raw).unwrap_or_default();
+        let shown: String = p.rich.iter().map(|r| format!("{r:?}")).collect();
+        assert!(shown.contains("message") && shown.contains("list <footer> & more"), "{shown}");
+        assert!(p.text.contains("message") && p.text.contains("list <footer> & more"), "{}", p.text);
+        // One HTML body is as it came.
+        let one = b"Subject: s\r\nContent-Type: text/html\r\n\r\n<p>only</p>\r\n";
+        assert_eq!(crate::html_body(one).unwrap_or_default().trim(), "<p>only</p>");
     }
 
     #[test]

@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
+pub(crate) mod fields;
 mod index_text;
 mod parts;
 mod reactions;
