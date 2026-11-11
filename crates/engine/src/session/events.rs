@@ -242,6 +242,12 @@ impl Session {
                 self.after_outbox_change();
             }
             Event::SendFailed { id, error, .. } => {
+                // Closed while it was being sent: open again, to be sent or kept.
+                if let Some(at) = self.sent_away.iter().position(|c| c.id == id) {
+                    let mut c = self.sent_away.remove(at);
+                    c.window = true;
+                    self.open_compose(c);
+                }
                 if let Some(c) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| c.id == id) {
                     c.sending = false;
                     c.error = Some(error.clone());

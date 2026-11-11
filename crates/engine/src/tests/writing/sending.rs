@@ -324,3 +324,34 @@ fn an_outbox_selection_follows_its_message() {
     assert_eq!(store.outbox(&id).iter().map(|i| i.id).collect::<Vec<_>>(), [9]);
     done(s);
 }
+
+/// A message closed (or discarded) while it's being sent isn't lost when the server then
+/// refuses it: it was in neither Drafts nor the Outbox, with only "Not sent" said. It opens
+/// again with the reason; one that does go is done with.
+#[test]
+fn a_message_closed_as_it_goes_comes_back_if_refused() {
+    let mut s = Session::open(Some(temp("closed-sending")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    for (close, params) in [("compose.close", json!({"save": true})), ("compose.discard", json!({}))] {
+        s.run("mail.new", &json!({"account": id})).unwrap();
+        s.run("compose.update", &json!({"to": "ben@x.example", "subject": "Refused", "body": "hi"})).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        let sent = s.compose.as_ref().map(|c| c.id).unwrap();
+        s.run(close, &params).unwrap();
+        assert!(s.all_composes().next().is_none(), "off the screen");
+        s.apply(Event::SendFailed { account: id.clone(), id: sent, error: "no such person".into() });
+        let back = s.compose.take().expect("open again");
+        assert_eq!((back.id, back.sending, back.error.as_deref(), back.subject.as_str()), (sent, false, Some("no such person"), "Refused"));
+    }
+    // Sent after all: nothing is kept of it.
+    s.run("mail.new", &json!({"account": id})).unwrap();
+    s.run("compose.update", &json!({"to": "ben@x.example", "subject": "Fine", "body": "hi"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    let sent = s.compose.as_ref().map(|c| c.id).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    s.apply(Event::Sent { account: id.clone(), id: sent });
+    assert!(s.sent_away.is_empty() && s.all_composes().next().is_none());
+}

@@ -313,13 +313,13 @@ pub(super) fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
         }
         s.let_go_saved();
     } else {
-        s.compose = None;
+        s.let_go_compose();
     }
     Ok(json!({"closed": c.id, "saved": saved}))
 }
 
 pub(super) fn discard(s: &mut Session, _: &Value) -> CmdResult {
-    let c = s.compose.take();
+    let c = s.let_go_compose();
     Ok(json!({"discarded": c.map(|c| c.id)}))
 }
 

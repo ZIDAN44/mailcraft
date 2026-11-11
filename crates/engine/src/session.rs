@@ -303,6 +303,9 @@ pub struct Session {
     /// open): starting another sets the current one aside here rather than losing it.
     /// [`Session::activate_compose`] brings one back to act on.
     pub composes: Vec<Compose>,
+    /// Messages closed while they were being sent, kept until word of the send comes: one that
+    /// isn't sent after all opens again, where it was lost (in neither Drafts nor the Outbox).
+    pub(crate) sent_away: Vec<Compose>,
     /// Messages closed or made way for with their drafts still on the way to a server (#53):
     /// held here, out of sight, until the server or this computer has kept the draft
     /// ([`Event::DraftSaved`]), and given back to be written if neither could.
@@ -477,6 +480,7 @@ impl Session {
             sources: Vec::new(),
             compose: None,
             composes: Vec::new(),
+            sent_away: Vec::new(),
             saving: Vec::new(),
             drafted: writing::DraftedMemo::default(),
             prefs: Prefs::default(),
