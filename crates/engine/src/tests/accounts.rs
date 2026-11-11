@@ -26,6 +26,9 @@ fn jmap_accounts_need_no_imap_servers() {
     let root = s.store.as_ref().unwrap().root().to_path_buf();
     let s2 = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(s2.account(&id).is_some_and(|a| a.config.jmap.is_some()));
+    // nextxch.com defaults to JMAP without specifying a session URL.
+    let nx_id = s.run("account.add", &json!({"email": "zoe@nextxch.com", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(s.account(&nx_id).unwrap().config.jmap.as_deref(), Some("https://mail.nextxch.com/.well-known/jmap"));
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -54,6 +57,20 @@ fn oauth_accounts_sign_in_through_the_browser() {
     // Saved with the account (no secret in it).
     let saved = std::fs::read_to_string(store.root().join("accounts.json")).unwrap();
     assert!(saved.contains("\"oauth\":\"google\""));
+
+    // Dynamic OAuth discovered via autoconfig works without hard-coded registrations.
+    let mut disc = mailcraft_model::AccountConfig::guess("zoe@nextxch.com");
+    disc.oauth_config = Some(mailcraft_model::OAuthConfig {
+        issuer: "nextxch.com".into(),
+        auth_url: "https://mail.nextxch.com/oauth/authorize".into(),
+        token_url: "https://mail.nextxch.com/oauth/token".into(),
+        scope: "mail caldav carddav offline_access".into(),
+        client_id: String::new(),
+    });
+    s.apply(Event::Discovered { email: "zoe@nextxch.com".into(), config: Some(Box::new(disc)), source: "nextxch.com".into() });
+    let nx = s.run("account.add", &json!({"email": "zoe@nextxch.com", "oauth": "autoconfig"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(s.account(&nx).unwrap().config.oauth.as_deref(), Some("autoconfig"));
+    assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { account }] if account.oauth_config.is_some()));
     let _ = std::fs::remove_dir_all(store.root());
 }
 

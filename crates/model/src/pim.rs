@@ -376,6 +376,12 @@ pub struct DavSync {
     pub notes: Option<Vec<StoredNote>>,
     #[serde(default)]
     pub pushed_notes: Vec<StoredNote>,
+    /// The server's tasks, read in full (`None`: it keeps none, so tasks stay on this
+    /// computer), and the tasks stored there this time.
+    #[serde(default)]
+    pub tasks: Option<Vec<StoredTask>>,
+    #[serde(default)]
+    pub pushed_tasks: Vec<StoredTask>,
     /// Deletions done (by href).
     pub deleted: Vec<String>,
     /// What couldn't be stored or deleted (tried again next time).
@@ -385,6 +391,12 @@ pub struct DavSync {
     /// again in this sync.
     #[serde(default)]
     pub refused: Vec<String>,
+    /// Notes and tasks (by uid) whose change the server refused (`412` or `403`): local `dirty`
+    /// is cleared when `notes` / `tasks` are applied so the server's copy takes their place.
+    #[serde(default)]
+    pub refused_notes: Vec<String>,
+    #[serde(default)]
+    pub refused_tasks: Vec<String>,
     /// Whether the calendar server schedules (`calendar-auto-schedule`); `None`: not asked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_schedule: Option<bool>,
@@ -441,6 +453,32 @@ impl Pim {
             c.href.clear();
             c.etag.clear();
             c.dirty = false;
+            kept_any = true;
+            true
+        });
+        self.notes.retain_mut(|n| {
+            if n.href.is_empty() {
+                return true;
+            }
+            if !n.dirty {
+                return false;
+            }
+            n.href.clear();
+            n.etag.clear();
+            n.dirty = false;
+            kept_any = true;
+            true
+        });
+        self.tasks.retain_mut(|t| {
+            if t.href.is_empty() {
+                return true;
+            }
+            if !t.dirty {
+                return false;
+            }
+            t.href.clear();
+            t.etag.clear();
+            t.dirty = false;
             kept_any = true;
             true
         });

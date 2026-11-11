@@ -13,6 +13,8 @@ const MAX_EXTRA: usize = 200;
 const MAX_CATEGORIES: usize = 20;
 /// Outlook's statuses iCalendar has no word for.
 pub const TASK_STATUS: &str = "X-MAILCRAFT-TASK-STATUS";
+/// Outlook's sticky-note colour (`0..=4`) carried on CalDAV `VJOURNAL` resources.
+pub const NOTE_COLOR: &str = "X-NEXTXCH-NOTE-COLOR";
 
 /// A task being read, with what's settled once it's whole.
 #[derive(Default)]
@@ -239,5 +241,156 @@ pub fn write_task(t: &Task, now: i64, out: &mut String) {
     lines.push("END:VTODO".into());
     for l in lines {
         fold(&l, out);
+    }
+}
+
+/// Read sticky notes (`VJOURNAL`, RFC 5545 §3.6.3) from a calendar file.
+pub fn parse_journals(text: &str) -> Vec<crate::pim::Note> {
+    let parsed = super::lines(text);
+    let zones = FileZones::read(&parsed, crate::zone::Zone::UTC);
+    let mut out = Vec::new();
+    let mut cur: Option<(String, String, String, Option<u8>, i64, i64, Vec<String>)> = None;
+    let mut outer = 0usize;
+    let mut depth = 0usize;
+    for l in &parsed {
+        let what = || l.value.trim().to_ascii_uppercase();
+        match l.name.as_str() {
+            "BEGIN" => {
+                if cur.is_none() {
+                    match what().as_str() {
+                        "VJOURNAL" if outer == 0 => {
+                            cur = Some((String::new(), String::new(), String::new(), None, 0, 0, Vec::new()));
+                            depth = 0;
+                        }
+                        "VCALENDAR" => {}
+                        _ => outer = outer.saturating_add(1),
+                    }
+                } else {
+                    depth = depth.saturating_add(1);
+                }
+                continue;
+            }
+            "END" => {
+                if cur.is_none() {
+                    if what() != "VCALENDAR" {
+                        outer = outer.saturating_sub(1);
+                    }
+                } else if depth > 0 {
+                    depth -= 1;
+                } else if what() == "VJOURNAL"
+                    && let Some((uid, summary, description, color, modified, dtstamp, files)) = cur.take()
+                    && out.len() < MAX_TASKS
+                {
+                    let text = if summary.is_empty() {
+                        description
+                    } else if description.is_empty() || description == summary {
+                        summary
+                    } else if description.starts_with(&format!("{summary}\n")) {
+                        description
+                    } else {
+                        format!("{summary}\n{description}")
+                    };
+                    out.push(crate::pim::Note {
+                        uid,
+                        text,
+                        color: color.unwrap_or(crate::pim::NOTE_YELLOW),
+                        modified: if modified > 0 { modified } else { dtstamp },
+                        files,
+                    });
+                }
+                continue;
+            }
+            _ => {}
+        }
+        let Some((uid, summary, description, color, modified, dtstamp, files)) = cur.as_mut() else { continue };
+        if depth > 0 {
+            continue;
+        }
+        match l.name.as_str() {
+            "UID" => *uid = l.value.trim().to_string(),
+            "SUMMARY" => *summary = unescape(&l.value),
+            "DESCRIPTION" => *description = unescape(&l.value),
+            "LAST-MODIFIED" => *modified = zones.time(l, "").map_or(0, |(t, _, _)| t),
+            "DTSTAMP" => *dtstamp = zones.time(l, "").map_or(0, |(t, _, _)| t),
+            NOTE_COLOR => {
+                *color = l.value.trim().parse::<u8>().ok().filter(|&c| c < crate::pim::NOTE_COLORS).or(*color);
+            }
+            "ATTACH" if crate::pim::kept_file(&l.raw).is_some() && files.len() < MAX_EXTRA => {
+                files.push(l.raw.clone());
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// A calendar file holding one sticky note (`VJOURNAL`, RFC 5545 §3.6.3).
+pub fn write_journal_calendar(n: &crate::pim::Note, now: i64) -> String {
+    let clean = |s: &str| s.replace(['\r', '\n'], "");
+    let norm = n.text.replace("\r\n", "\n");
+    let trimmed = norm.trim_start_matches('\n');
+    let (summary, desc) = match trimmed.split_once('\n') {
+        Some((first, rest)) => (first.trim_end(), rest),
+        None => (trimmed.trim_end(), ""),
+    };
+    let mut lines: Vec<String> = vec![
+        "BEGIN:VCALENDAR".into(),
+        "VERSION:2.0".into(),
+        "PRODID:-//MailCraft//MailCraft//EN".into(),
+        "CALSCALE:GREGORIAN".into(),
+        "BEGIN:VJOURNAL".into(),
+        format!("UID:{}", clean(&n.uid)),
+        format!("DTSTAMP:{}", stamp(now)),
+    ];
+    if n.modified > 0 {
+        lines.push(format!("LAST-MODIFIED:{}", stamp(n.modified)));
+    }
+    if !summary.is_empty() {
+        lines.push(format!("SUMMARY:{}", escape(summary)));
+    }
+    if !desc.is_empty() {
+        lines.push(format!("DESCRIPTION:{}", escape(desc)));
+    }
+    lines.push(format!("{NOTE_COLOR}:{}", n.color.min(crate::pim::NOTE_COLORS - 1)));
+    for f in &n.files {
+        let s = clean(f);
+        if !s.is_empty() {
+            lines.push(s);
+        }
+    }
+    lines.push("END:VJOURNAL".into());
+    lines.push("END:VCALENDAR".into());
+    let mut out = String::new();
+    for l in lines {
+        fold(&l, &mut out);
+    }
+    out
+}
+
+#[cfg(test)]
+mod journal_tests {
+    use super::*;
+
+    #[test]
+    fn journals_round_trip_title_body_colour_and_files() {
+        let note = crate::pim::Note {
+            uid: "note-1@mailcraft".into(),
+            text: "Festival poster\nApprove the proof by Thursday.\n\nAsk about 170 gsm paper.".into(),
+            color: 2,
+            modified: 1_790_000_123,
+            files: vec!["ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"spec.pdf\":JVBERi0xLjc=".into()],
+        };
+        let ics = write_journal_calendar(&note, 1_790_000_200);
+        assert!(ics.contains("BEGIN:VJOURNAL") && ics.contains("X-NEXTXCH-NOTE-COLOR:2"));
+        let parsed = parse_journals(&ics);
+        assert_eq!(parsed, vec![note]);
+
+        // A single-line note or a server VJOURNAL where DESCRIPTION repeats SUMMARY isn't doubled.
+        let single = crate::pim::Note { uid: "n2".into(), text: "Short reminder".into(), color: 0, modified: 100, files: Vec::new() };
+        assert_eq!(parse_journals(&write_journal_calendar(&single, 100)), vec![single]);
+        let echoed = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VJOURNAL\r\nUID:n3\r\nSUMMARY:Head\r\nDESCRIPTION:Head\\nBody\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n";
+        let got = parse_journals(echoed);
+        assert_eq!(got.len(), 1);
+        assert_eq!((got[0].uid.as_str(), got[0].text.as_str(), got[0].color), ("n3", "Head\nBody", crate::pim::NOTE_YELLOW));
     }
 }

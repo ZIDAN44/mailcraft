@@ -116,6 +116,8 @@ pub struct Pool {
     pub opts: SyncOptions,
     /// Where ManageSieve listens on IMAP hosts (automatic replies); tests change it.
     pub sieve_port: u16,
+    /// Polling interval when push/IDLE is unavailable (`POLL_EVERY`; tests lower it).
+    pub poll_every: Duration,
     /// Picture downloads, on their own thread so they never wait behind a sync.
     fetcher: Option<Sender<String>>,
     /// Working offline: no account connects until it's turned off.
@@ -173,6 +175,7 @@ impl Pool {
             configs: HashMap::new(),
             opts: SyncOptions::default(),
             sieve_port: crate::sieve::PORT,
+            poll_every: POLL_EVERY,
             fetcher: None,
             offline: false,
             search: Arc::new(AtomicU64::new(0)),
@@ -521,6 +524,7 @@ impl Pool {
         w.keychain = Some(password.map(|p| p.0));
         let no_password = w.no_password.clone();
         w.sieve_port = self.sieve_port;
+        w.poll_every = self.poll_every;
         w.search = self.search.clone();
         // No mail server (issue #61): its calendars and contacts are all its thread does.
         if account.is_calendar_only() {
@@ -710,10 +714,20 @@ struct Worker {
     creds: Option<Arc<dyn Credentials>>,
     /// The ManageSieve port (4190; tests use their own).
     sieve_port: u16,
-    /// The JMAP server can't push: poll instead.
+    /// How long to wait between polls when IDLE/push is unavailable.
+    poll_every: Duration,
+    /// The JMAP server offers no `eventSourceUrl`: poll instead.
     no_push: bool,
+    /// Cool-off until retrying JMAP push after a transient stream failure or immediate close.
+    jmap_push_retry_at: Option<Instant>,
     /// The last push wait ended in an Inbox sync (so the next one needn't check first).
     pushed: bool,
+    /// Open JMAP EventSource push stream, kept across waits and jobs instead of reconnecting.
+    jmap_events: Option<crate::http::EventStream<Stream>>,
+    /// When the current `jmap_events` stream opened, so one that closes at once turns push off.
+    jmap_push_opened: Option<Instant>,
+    /// Latest per-account type states (`StateChange.changed`) seen on `jmap_events`.
+    jmap_push_state: serde_json::Map<String, serde_json::Value>,
     /// Folders to look at again soon: Graph and Exchange file a sent message's copy a moment
     /// after taking it, so Sent Items is read again then rather than at the next poll.
     soon: Vec<(Instant, String)>,
@@ -781,8 +795,13 @@ impl Worker {
             closed: false,
             creds: None,
             sieve_port: crate::sieve::PORT,
+            poll_every: POLL_EVERY,
             no_push: false,
+            jmap_push_retry_at: None,
             pushed: false,
+            jmap_events: None,
+            jmap_push_opened: None,
+            jmap_push_state: serde_json::Map::new(),
             soon: Vec::new(),
             search: Arc::new(AtomicU64::new(0)),
             dav_digest: None,

@@ -89,6 +89,11 @@ impl Client {
     pub fn set_vacation(&self, v: &mailcraft_model::job::Vacation) -> Result<()> {
         Ok(block_on(self.0.set_vacation(v))?)
     }
+
+    /// Search the organisation's directory over RFC 9670 JMAP Principals.
+    pub fn search_directory(&self, query: &str) -> Result<Vec<(String, String)>> {
+        Ok(block_on(self.0.search_directory(query))?)
+    }
 }
 
 /// Refresh the folder list (and the mailbox ids behind it).

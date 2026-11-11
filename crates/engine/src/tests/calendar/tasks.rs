@@ -192,7 +192,7 @@ fn a_repeating_task_with_a_count_ends() {
 fn an_untitled_task_can_be_done_and_changed() {
     let mut s = sample_session("tasks-untitled");
     let task = mailcraft_model::pim::Task { uid: "imp-1".into(), due: Some(day(2026, 11, 5)), ..Default::default() };
-    s.pim.values_mut().next().unwrap().tasks.push(mailcraft_model::pim::StoredTask { task });
+    s.pim.values_mut().next().unwrap().tasks.push(mailcraft_model::pim::StoredTask { task, ..Default::default() });
     s.run("task.update", &json!({"uid": "imp-1", "percent": 50})).unwrap();
     assert_eq!(s.find_task("imp-1").unwrap().task.percent, 50);
     s.run("task.complete", &json!({"uid": "imp-1"})).unwrap();
@@ -230,5 +230,62 @@ BEGIN:VTODO\r\nUID:backwards-1\r\nSUMMARY:Backwards\r\nDTSTART;VALUE=DATE:202611
     let backwards = s.find_task("backwards-1").unwrap().task;
     assert_eq!((backwards.start, backwards.due), (Some(day(2026, 11, 5)), Some(day(2026, 11, 5))));
     let _ = std::fs::remove_dir_all(&dir);
+    done(s);
+}
+
+/// Dirty local tasks and notes whose server copy moved on keep the etag they were read with so
+/// the next sync's `If-Match` still guards against overwriting the newer server copy.
+#[test]
+fn dirty_tasks_and_notes_keep_their_etag_when_server_moves_on() {
+    use mailcraft_model::pim::{DavSync, Note, StoredNote, StoredTask, Task};
+
+    let mut s = sample_session("tasks-etag-guard");
+    let acc = s.accounts[0].config.id.clone();
+    {
+        let p = s.pim.get_mut(&acc).unwrap();
+        p.tasks.push(StoredTask {
+            href: "https://dav.example/tasks/t1.ics".into(),
+            etag: "\"v1\"".into(),
+            task: Task { uid: "t1".into(), title: "Mine".into(), ..Default::default() },
+            dirty: true,
+        });
+        p.notes.push(StoredNote {
+            href: "https://dav.example/notes/n1.ics".into(),
+            etag: "\"v1\"".into(),
+            note: Note { uid: "n1".into(), text: "Mine".into(), ..Default::default() },
+            dirty: true,
+        });
+    }
+    let sync = DavSync {
+        tasks: Some(vec![StoredTask {
+            href: "https://dav.example/tasks/t1.ics".into(),
+            etag: "\"v2\"".into(),
+            task: Task { uid: "t1".into(), title: "Theirs".into(), ..Default::default() },
+            dirty: false,
+        }]),
+        notes: Some(vec![StoredNote {
+            href: "https://dav.example/notes/n1.ics".into(),
+            etag: "\"v2\"".into(),
+            note: Note { uid: "n1".into(), text: "Theirs".into(), ..Default::default() },
+            dirty: false,
+        }]),
+        ..Default::default()
+    };
+    s.apply_dav(&acc, &sync);
+    let p = &s.pim[&acc];
+    let t = p.tasks.iter().find(|t| t.task.uid == "t1").unwrap();
+    let n = p.notes.iter().find(|n| n.note.uid == "n1").unwrap();
+    assert_eq!((t.etag.as_str(), t.task.title.as_str(), t.dirty), ("\"v1\"", "Mine", true));
+    assert_eq!((n.etag.as_str(), n.note.text.as_str(), n.dirty), ("\"v1\"", "Mine", true));
+
+    // Once a push is refused (412/403), `refused_tasks` / `refused_notes` clear `dirty` so the
+    // server's copy takes over instead of retrying forever.
+    let refused_sync = DavSync { refused_tasks: vec!["t1".into()], refused_notes: vec!["n1".into()], ..sync };
+    s.apply_dav(&acc, &refused_sync);
+    let p2 = &s.pim[&acc];
+    let t2 = p2.tasks.iter().find(|t| t.task.uid == "t1").unwrap();
+    let n2 = p2.notes.iter().find(|n| n.note.uid == "n1").unwrap();
+    assert_eq!((t2.etag.as_str(), t2.task.title.as_str(), t2.dirty), ("\"v2\"", "Theirs", false));
+    assert_eq!((n2.etag.as_str(), n2.note.text.as_str(), n2.dirty), ("\"v2\"", "Theirs", false));
     done(s);
 }

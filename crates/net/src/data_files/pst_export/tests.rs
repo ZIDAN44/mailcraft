@@ -157,6 +157,7 @@ fn an_account_round_trips_through_a_data_file() {
     // A task with no due day goes in all the same.
     pim.tasks.push(mailcraft_model::pim::StoredTask {
         task: mailcraft_model::pim::Task { uid: "t1".into(), title: "Pack the lenses".into(), percent: 40, ..Default::default() },
+        ..Default::default()
     });
     store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
     let file = dir.join("Out.pst");

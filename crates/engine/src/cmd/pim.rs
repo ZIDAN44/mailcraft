@@ -2,6 +2,7 @@
 
 use super::*;
 
+/// Registers calendar, contact, task, and note commands.
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         // Accounts
@@ -233,7 +234,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 "errors": s.directory_errors(q),
             }))
         })
-        .when(|s| s.directory_accounts().is_empty().then_some("the organisation directory is searched through an Exchange account"))
+        .when(|s| s.directory_accounts().is_empty().then_some("the organisation directory is searched through an Exchange or JMAP account"))
         .params(r#"{"query": string}"#),
         CommandSpec::new("contact.allowDirectory", "Allow searching the directory", "Message › Names › Address Book", |s, v| {
             s.allow_directory(p::str(v, "account"))
@@ -241,8 +242,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account"?: string (default: each Exchange Online account waiting for permission)}"#),
         CommandSpec::new("contact.refreshDirectory", "Refresh address books", "Message › Names › Address Book", |s, _| s.refresh_directory())
             .when(|s| {
-                (!s.accounts.iter().any(|a| a.config.ews.is_some() || a.config.graph.is_some()))
-                    .then_some("address books are refreshed from an Exchange account")
+                (!s.accounts.iter().any(|a| a.config.ews.is_some() || a.config.graph.is_some() || a.config.jmap.is_some()))
+                    .then_some("address books are refreshed from an Exchange or JMAP account")
             }),
         CommandSpec::new("contact.defaultBook", "Address book to open with", "Message › Names › Address Book", |s, v| {
             let source = p::req_str(v, "source")?.trim().to_string();

@@ -109,10 +109,14 @@ pub struct AccountConfig {
     /// The colour index the UI uses for this account's marker.
     #[serde(default)]
     pub color: u8,
-    /// Signs in with OAuth through this provider (`google`, `microsoft`) instead of a password;
-    /// the keychain then holds the refresh token.
+    /// Signs in with OAuth through this provider (`google`, `microsoft`, or `autoconfig`) instead
+    /// of a password; the keychain then holds the refresh token.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth: Option<String>,
+    /// OAuth 2.0 endpoints discovered from the server's `config-v1.1.xml` (`<oAuth2>`), used when
+    /// `oauth` is [`OAUTH_AUTOCONFIG`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_config: Option<OAuthConfig>,
     /// Syncs and sends over JMAP (RFC 8620/8621) through this session URL instead of IMAP and
     /// SMTP.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -194,6 +198,24 @@ pub struct DavSettings {
     pub username: Option<String>,
 }
 
+/// The `oauth` provider id for endpoints discovered from a server's autoconfig `<oAuth2>` block.
+pub const OAUTH_AUTOCONFIG: &str = "autoconfig";
+
+/// OAuth 2.0 endpoints published by a mail server (`<oAuth2>` in `config-v1.1.xml`), used with
+/// native loopback redirect and PKCE (RFC 8252 + RFC 7636).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OAuthConfig {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub issuer: String,
+    pub auth_url: String,
+    pub token_url: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub scope: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub client_id: String,
+}
+
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
 pub const EWS_AUTODISCOVER: &str = "autodiscover";
 
@@ -249,6 +271,7 @@ impl AccountConfig {
             "yahoo.com" => ("imap.mail.yahoo.com".to_string(), "smtp.mail.yahoo.com".to_string()),
             "icloud.com" | "me.com" => ("imap.mail.me.com".to_string(), "smtp.mail.me.com".to_string()),
             "fastmail.com" => ("imap.fastmail.com".to_string(), "smtp.fastmail.com".to_string()),
+            "nextxch.com" => ("mail.nextxch.com".to_string(), "mail.nextxch.com".to_string()),
             "" => (String::new(), String::new()),
             d => (format!("mail.{d}"), format!("mail.{d}")),
         };
@@ -257,6 +280,7 @@ impl AccountConfig {
         } else {
             ServerConfig { host: smtp_host, port: 465, security: Security::Tls }
         };
+        let jmap = (domain == "nextxch.com").then(|| "https://mail.nextxch.com/.well-known/jmap".to_string());
         AccountConfig {
             id: String::new(),
             name: email.split('@').next().unwrap_or_default().to_string(),
@@ -264,6 +288,7 @@ impl AccountConfig {
             username: email.to_string(),
             imap: ServerConfig { host: imap_host, port: 993, security: Security::Tls },
             smtp,
+            jmap,
             ..AccountConfig::default()
         }
     }

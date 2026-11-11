@@ -31,7 +31,7 @@ of your mail on your computer, so it works offline.
 ## Features
 
 - **Familiar:** three panes, a ribbon and the usual Outlook shortcuts. Drag messages onto folders.
-- **Accounts:** IMAP or POP with SMTP, JMAP, and Exchange Online (Graph) or on-premises (EWS). Sign in with Gmail or Microsoft 365, see *All Inboxes*, and open or export `.pst` files.
+- **Accounts:** IMAP or POP with SMTP, JMAP, and Exchange Online (Graph) or on-premises (EWS). Sign in with Gmail or Microsoft 365, nextxch.com, see *All Inboxes*, and open or export `.pst` files.
 - **Works offline:** every folder is kept on disk and synced in the background. Changes you make offline go to the server when you reconnect.
 - **Reading and writing:** conversations, formatted HTML, picture thumbnails, rich-text replies, signatures, drafts, an Outbox, **Print** and **Save as PDF**.
 - **Organising:** archive, flag, pin, snooze, categories, Focused and Other, rules, and Undo.

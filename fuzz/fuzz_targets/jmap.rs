@@ -42,6 +42,7 @@ fuzz_target!(|data: &[u8]| {
     jmap::block_on(async {
         let Ok(c) = Client::connect(server, "https://jmap.example/", "me", "pw", false).await else { return };
         let _ = c.events_url();
+        let _ = c.search_directory("ali").await;
         let store = Store::memory();
         let mut st = State::default();
         let _ = jmap::list_folders(&c, &mut st, "a").await;

@@ -1,5 +1,5 @@
-//! Tasks (Outlook's Tasks): each account's, kept with its calendar and contacts (`pim.json`) on
-//! this computer only (owner's decision: no CalDAV or Microsoft To Do sync). A task with a due
+//! Tasks (Outlook's Tasks): each account's, kept with its calendar and contacts (`pim.json`), and
+//! synced over CalDAV (`VTODO`) when the server publishes a task collection. A task with a due
 //! day shows in the calendar that day, drawn from the task ([`Session::task_items`]): it isn't
 //! copied into the events. Marking a repeating task done keeps a done copy and moves the task to
 //! its next due day, as Outlook does.
@@ -195,21 +195,28 @@ impl Session {
             t.modified = now;
         }
         let uid = t.uid.clone();
+        let remote = self.tasks_sync(&account);
         let p = self.pim_mut(&account);
+        let (mut href, mut etag) = (String::new(), String::new());
         if replaces {
+            if let Some(old) = p.tasks.iter().find(|x| x.task.uid == uid) {
+                href = old.href.clone();
+                etag = old.etag.clone();
+            }
             p.tasks.retain(|x| x.task.uid != uid);
         }
         if p.tasks.len() >= MAX_TASKS {
             return Err(CmdError::Params(format!("an account keeps at most {MAX_TASKS} tasks")));
         }
-        p.tasks.push(StoredTask { task: t });
-        self.after_pim_change(&account, false);
+        p.tasks.push(StoredTask { href, etag, task: t, dirty: remote });
+        self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"uid": uid, "account": account}))
     }
 
     /// Change a task.
     pub fn update_task(&mut self, uid: &str, change: impl FnOnce(&mut Task)) -> CmdResult {
         let account = self.task_account(uid)?;
+        let remote = self.tasks_sync(&account);
         let now = self.clock.now;
         let p = self.pim_mut(&account);
         let Some(stored) = p.tasks.iter_mut().find(|t| t.task.uid == uid) else { return Err(CmdError::Params(format!("no task `{uid}`"))) };
@@ -224,7 +231,8 @@ impl Session {
         }
         t.modified = now;
         stored.task = t;
-        self.after_pim_change(&account, false);
+        stored.dirty |= remote;
+        self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"uid": uid}))
     }
 
@@ -262,8 +270,14 @@ impl Session {
 
     pub fn delete_task(&mut self, uid: &str) -> CmdResult {
         let account = self.task_account(uid)?;
-        self.pim_mut(&account).tasks.retain(|t| t.task.uid != uid);
-        self.after_pim_change(&account, false);
+        let p = self.pim_mut(&account);
+        let mut remote = false;
+        for t in p.tasks.iter().filter(|t| t.task.uid == uid && !t.href.is_empty()) {
+            remote = true;
+            p.deleted.push(mailcraft_model::pim::Tombstone { href: t.href.clone(), etag: t.etag.clone(), ..Default::default() });
+        }
+        p.tasks.retain(|t| t.task.uid != uid);
+        self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"deleted": uid}))
     }
 

@@ -82,9 +82,28 @@ fn test_provider(id: &str) -> Option<Provider> {
 pub use mailcraft_model::oauth_provider_for as provider_for_host;
 
 /// The provider an account signs in with: Graph accounts ask Microsoft for Graph's mail
-/// permissions instead of IMAP's and SMTP's (a token is for one service).
+/// permissions instead of IMAP's and SMTP's (a token is for one service); `autoconfig` accounts
+/// use the OAuth 2.0 endpoints discovered from the mail server's `config-v1.1.xml`.
 pub fn provider_for_account(account: &mailcraft_model::AccountConfig) -> Option<Provider> {
-    let mut p = provider(account.oauth.as_deref()?)?;
+    let id = account.oauth.as_deref()?;
+    if id == mailcraft_model::OAUTH_AUTOCONFIG {
+        let cfg = account.oauth_config.as_ref()?;
+        let auth_parsed = crate::http::Url::parse(&cfg.auth_url).ok().filter(|u| u.https)?;
+        let _token_parsed = crate::http::Url::parse(&cfg.token_url).ok().filter(|u| u.https)?;
+        let name = if cfg.issuer.trim().is_empty() { auth_parsed.host } else { cfg.issuer.trim().to_string() };
+        let client_id = if cfg.client_id.trim().is_empty() { "mailcraft".into() } else { cfg.client_id.trim().to_string() };
+        let scope = if cfg.scope.trim().is_empty() { "mail caldav carddav offline_access".into() } else { cfg.scope.trim().to_string() };
+        return Some(Provider {
+            id: mailcraft_model::OAUTH_AUTOCONFIG.into(),
+            name,
+            auth_url: cfg.auth_url.clone(),
+            token_url: cfg.token_url.clone(),
+            scope,
+            client_id,
+            client_secret: None,
+        });
+    }
+    let mut p = provider(id)?;
     if account.graph.is_some() && p.id == "microsoft" {
         p.scope = GRAPH_SCOPE.into();
     }
@@ -374,6 +393,32 @@ pub(crate) mod tests {
         assert_eq!(provider_for_host("outlook.office365.com"), Some("microsoft"));
         assert_eq!(provider_for_host("mail.example.org"), None);
         assert!(provider("nope").is_none());
+        let dyn_acc = mailcraft_model::AccountConfig {
+            email: "zoe@nextxch.com".into(),
+            oauth: Some(mailcraft_model::OAUTH_AUTOCONFIG.into()),
+            oauth_config: Some(mailcraft_model::OAuthConfig {
+                issuer: "nextxch.com".into(),
+                auth_url: "https://mail.nextxch.com/oauth/authorize".into(),
+                token_url: "https://mail.nextxch.com/oauth/token".into(),
+                scope: "mail caldav carddav offline_access".into(),
+                client_id: String::new(),
+            }),
+            ..Default::default()
+        };
+        let dyn_p = provider_for_account(&dyn_acc).unwrap();
+        assert_eq!((dyn_p.name.as_str(), dyn_p.client_id.as_str()), ("nextxch.com", "mailcraft"));
+        for (auth_url, token_url) in [
+            ("http://mail.nextxch.com/oauth/authorize", "https://mail.nextxch.com/oauth/token"),
+            ("https://mail.nextxch.com/oauth/authorize", "http://mail.nextxch.com/oauth/token"),
+            ("not a url", "https://mail.nextxch.com/oauth/token"),
+        ] {
+            let mut bad = dyn_acc.clone();
+            if let Some(cfg) = bad.oauth_config.as_mut() {
+                cfg.auth_url = auth_url.into();
+                cfg.token_url = token_url.into();
+            }
+            assert!(provider_for_account(&bad).is_none(), "{auth_url} / {token_url}");
+        }
         // Who signed in, from an ID token's claims.
         let token = |claims: &str| format!("e30.{}.sig", b64url(claims.as_bytes()));
         assert_eq!(

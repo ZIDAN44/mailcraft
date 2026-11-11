@@ -32,9 +32,11 @@ use serde_json::{Map, Value, json};
 
 pub use url::{Url, base64, pct};
 
+mod directory;
 mod search;
 mod state;
 mod sync;
+pub use directory::DIRECTORY_MAX;
 use search::*;
 pub use search::*;
 use state::*;
@@ -46,6 +48,7 @@ const MAIL: &str = "urn:ietf:params:jmap:mail";
 const SUBMISSION: &str = "urn:ietf:params:jmap:submission";
 const QUOTA: &str = "urn:ietf:params:jmap:quota";
 const VACATION: &str = "urn:ietf:params:jmap:vacationresponse";
+const PRINCIPALS: &str = "urn:ietf:params:jmap:principals";
 
 /// Largest JSON response accepted.
 const MAX_JSON: usize = 32 << 20;
@@ -143,6 +146,8 @@ pub struct Client<H> {
     /// The push template (RFC 8620 §7.3), when the server offers one.
     events: Option<String>,
     account: String,
+    /// Primary account id for `urn:ietf:params:jmap:principals` (RFC 9670), when offered.
+    principals: Option<String>,
     submission: bool,
     quota: bool,
     vacation: bool,
@@ -218,6 +223,10 @@ impl<H: Http> Client<H> {
             upload: template_url(&base, str_at(&v, "uploadUrl")?)?,
             events: v.get("eventSourceUrl").and_then(Value::as_str).and_then(|t| template_url(&base, t).ok()),
             account: account.to_string(),
+            principals: caps
+                .get(PRINCIPALS)
+                .is_some()
+                .then(|| v.get("primaryAccounts").and_then(|p| p.get(PRINCIPALS)).and_then(Value::as_str).unwrap_or(account).to_string()),
             submission: caps.get(SUBMISSION).is_some(),
             quota: caps.get(QUOTA).is_some(),
             vacation: caps.get(VACATION).is_some(),
@@ -337,7 +346,14 @@ impl<H: Http> Client<H> {
             let r = self
                 .mail(vec![(
                     "Email/get",
-                    json!({"accountId": self.account, "ids": chunk, "properties": ["id", "keywords", "size", "receivedAt", "preview", "hasAttachment", "headers"]}),
+                    json!({
+                        "accountId": self.account,
+                        "ids": chunk,
+                        "properties": [
+                            "id", "keywords", "size", "receivedAt", "sentAt", "preview", "hasAttachment",
+                            "headers", "subject", "from", "to", "cc", "messageId", "inReplyTo", "references"
+                        ]
+                    }),
                 )])
                 .await?;
             out.extend(list(r.first(), "list").iter().cloned());
@@ -459,7 +475,7 @@ impl<H: Http> Client<H> {
         if !self.quota {
             return Ok(None);
         }
-        let r = self.call(&[CORE, QUOTA], vec![("Quota/get", json!({"accountId": self.account, "ids": null}))]).await?;
+        let r = self.call(&[CORE, MAIL, QUOTA], vec![("Quota/get", json!({"accountId": self.account, "ids": null}))]).await?;
         let octets = list(r.first(), "list")
             .iter()
             .filter(|q| q.get("resourceType").and_then(Value::as_str) == Some("octets"))

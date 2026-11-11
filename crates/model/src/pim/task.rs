@@ -1,7 +1,6 @@
 //! Tasks, as Outlook's Tasks keeps them (MS-OXOTASK): a title and notes, the days it starts and
-//! is due, how far along it is, and when it was done. A simple list kept on this computer: no
-//! server keeps them (owner's decision: no CalDAV or Microsoft To Do sync), and they go in and
-//! out of calendar files as `VTODO`s (RFC 5545 §3.6.2).
+//! is due, how far along it is, and when it was done. Synced with CalDAV servers that publish a
+//! `VTODO` task list, and read and written in calendar files as `VTODO`s (RFC 5545 §3.6.2).
 
 use serde::{Deserialize, Serialize};
 
@@ -170,10 +169,17 @@ impl Task {
     }
 }
 
-/// A task with what's needed to keep it: tasks live on this computer only, so far.
+/// A task with where it lives: `href` is its item on the server (a CalDAV `VTODO` resource),
+/// empty for a task kept on this computer only.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredTask {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub href: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub etag: String,
     pub task: Task,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub dirty: bool,
 }
 
 /// The day (UTC midnight) a time stored for a date falls on: the nearest midnight, as Outlook

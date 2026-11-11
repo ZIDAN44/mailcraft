@@ -106,3 +106,97 @@ fn a_forwards_draft_keeps_its_message() {
     fill_from_source(&mut listed, raw.as_bytes());
     assert_eq!(listed.forward_of, named, "from its source");
 }
+
+/// Recording HTTP fake: keeps sent requests alongside canned answers.
+struct Recorded {
+    sent: std::cell::RefCell<Vec<Request>>,
+    answers: std::cell::RefCell<Vec<Response>>,
+}
+
+impl Http for Recorded {
+    async fn send(&self, req: Request) -> Result<Response> {
+        self.sent.borrow_mut().push(req);
+        let mut q = self.answers.borrow_mut();
+        if q.is_empty() { Err(Error::Io("no more answers".into())) } else { Ok(q.remove(0)) }
+    }
+}
+
+#[test]
+fn quota_includes_the_mail_capability() {
+    let session = json!({
+        "capabilities": {
+            "urn:ietf:params:jmap:core": {"maxObjectsInGet": 50},
+            "urn:ietf:params:jmap:mail": {},
+            "urn:ietf:params:jmap:quota": {},
+        },
+        "primaryAccounts": {"urn:ietf:params:jmap:mail": "A1"},
+        "apiUrl": "/api/", "downloadUrl": "/d/{accountId}/{blobId}", "uploadUrl": "/u/{accountId}/",
+    });
+    let quota = json!({
+        "methodResponses": [[
+            "Quota/get",
+            {"accountId": "A1", "state": "q1", "list": [{"id": "mail-octets", "resourceType": "octets", "scope": "account", "used": 2048, "hardLimit": 10240}]},
+            "c0"
+        ]]
+    });
+    let ok = |v: &Value| Response { status: 200, body: v.to_string().into_bytes() };
+    let http = Recorded { sent: Vec::new().into(), answers: vec![ok(&session), ok(&quota)].into() };
+    let c = block_on(Client::connect(http, "jmap.example.com", "me", "pw", false)).unwrap();
+    assert_eq!(block_on(c.quota()).unwrap(), Some((2048, 10240)));
+    let sent: Value = serde_json::from_slice(&c.http.sent.borrow()[1].body).unwrap();
+    assert_eq!(sent["using"], json!([CORE, MAIL, QUOTA]));
+}
+
+#[test]
+fn searches_jmap_principals_directory() {
+    let session = json!({
+        "capabilities": {
+            "urn:ietf:params:jmap:core": {"maxObjectsInGet": 50},
+            "urn:ietf:params:jmap:mail": {},
+            "urn:ietf:params:jmap:principals": {},
+        },
+        "primaryAccounts": {"urn:ietf:params:jmap:mail": "A1", "urn:ietf:params:jmap:principals": "P1"},
+        "apiUrl": "/api/", "downloadUrl": "/d/{accountId}/{blobId}", "uploadUrl": "/u/{accountId}/",
+    });
+    let dir = json!({
+        "methodResponses": [
+            ["Principal/query", {"accountId": "P1", "queryState": "s1", "canCalculateChanges": false, "position": 0, "ids": ["u1", "u2"]}, "c0"],
+            ["Principal/get", {"accountId": "P1", "state": "s1", "list": [
+                {"id": "u1", "name": "Alicia Keyes", "email": "alicia@nextxch.com"},
+                {"id": "u2", "name": "Conference Room A", "email": "room-a@nextxch.com"},
+                {"id": "u3", "name": "Broken", "email": "not-an-address"}
+            ], "notFound": []}, "c1"]
+        ]
+    });
+    let ok = |v: &Value| Response { status: 200, body: v.to_string().into_bytes() };
+    let http = Recorded { sent: Vec::new().into(), answers: vec![ok(&session), ok(&dir)].into() };
+    let c = block_on(Client::connect(http, "mail.nextxch.com", "me", "pw", false)).unwrap();
+    let found = block_on(c.search_directory("ali")).unwrap();
+    assert_eq!(found, vec![("Alicia Keyes".into(), "alicia@nextxch.com".into()), ("Conference Room A".into(), "room-a@nextxch.com".into())]);
+    let sent: Value = serde_json::from_slice(&c.http.sent.borrow()[1].body).unwrap();
+    assert_eq!(sent["using"], json!([CORE, PRINCIPALS]));
+    assert_eq!(sent["methodCalls"][0][1]["accountId"], "P1");
+}
+
+#[test]
+fn summary_falls_back_to_rfc8621_convenience_fields_when_headers_omitted() {
+    let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: VALIDITY, uid: 7 };
+    let item = json!({
+        "id": "m7",
+        "size": 4096,
+        "receivedAt": "2026-11-10T15:11:00Z",
+        "sentAt": "2026-11-10T15:10:00Z",
+        "subject": "Quarterly Planning",
+        "from": [{"name": "HN Auto", "email": "contact@hn-auto.de"}],
+        "to": [{"name": "Team", "email": "team@nextxch.com"}],
+        "messageId": ["<msg-7@nextxch.com>"],
+        "preview": "Hello team",
+        "hasAttachment": true,
+    });
+    let s = super::state::email_summary(&item, key);
+    assert_eq!(s.subject, "Quarterly Planning");
+    assert_eq!((s.from.name.as_str(), s.from.email.as_str()), ("HN Auto", "contact@hn-auto.de"));
+    assert_eq!(s.to.len(), 1);
+    assert_eq!(s.message_id, "msg-7@nextxch.com");
+    assert!(s.has_attachments);
+}

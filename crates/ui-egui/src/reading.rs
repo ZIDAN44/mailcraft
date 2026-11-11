@@ -38,6 +38,7 @@ pub(crate) use long_text::LongText;
 #[cfg(test)]
 pub(crate) use long_text::{CHUNK, chunks};
 use people::*;
+pub(crate) use people::{cards_by_email, known_contact};
 pub(crate) use pictures::{Got, Pictures, Want};
 pub(crate) use quote::QuoteEditors;
 #[cfg(test)]
@@ -220,7 +221,8 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     // Sender card.
                     ui.horizontal_top(|ui| {
                         let (ar, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
-                        widgets::avatar(ui, ar.center(), 21.0, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark));
+                        let sender_card = people::known_contact(s, &p.from.email);
+                        widgets::card_avatar(ui, ar.center(), 21.0, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark), sender_card);
                         ui.add_space(4.0);
                         // The date to the right, with room kept for it (the address ran under it in a
                         // narrow pane); under the sender when the pane is too narrow for both.

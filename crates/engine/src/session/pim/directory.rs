@@ -41,14 +41,16 @@ fn key(query: &str) -> String {
 }
 
 impl Session {
-    /// The accounts with an organisation directory: Exchange, on premises (EWS) or online
-    /// (Graph, issue #9). A personal Microsoft account (Outlook.com, Hotmail) has none.
+    /// The accounts with an organisation directory: Exchange (EWS or Graph, issue #9) or JMAP
+    /// (RFC 9670 Principals). A personal Microsoft account (Outlook.com, Hotmail) has none.
     pub fn directory_accounts(&self) -> Vec<String> {
         self.accounts
             .iter()
             .filter(|a| {
                 let c = &a.config;
-                c.ews.is_some() || (c.graph.is_some() && !mailcraft_model::microsoft_consumer(c.oauth_user.as_deref().unwrap_or(&c.email)))
+                c.ews.is_some()
+                    || c.jmap.is_some()
+                    || (c.graph.is_some() && !mailcraft_model::microsoft_consumer(c.oauth_user.as_deref().unwrap_or(&c.email)))
             })
             .map(|a| a.config.id.clone())
             .collect()
@@ -201,17 +203,21 @@ impl Session {
         }
     }
 
-    /// Refresh (issue #9): forget what the directories answered, and read every Exchange
+    /// Refresh (issue #9): forget what the directories answered, and read every directory
     /// account's address books again.
     pub fn refresh_directory(&mut self) -> CmdResult {
         self.directory.answers.clear();
         self.directory.rev = self.directory.rev.wrapping_add(1);
-        let exchange: Vec<String> =
-            self.accounts.iter().filter(|a| a.config.ews.is_some() || a.config.graph.is_some()).map(|a| a.config.id.clone()).collect();
-        for account in &exchange {
+        let refreshed: Vec<String> = self
+            .accounts
+            .iter()
+            .filter(|a| a.config.ews.is_some() || a.config.graph.is_some() || a.config.jmap.is_some())
+            .map(|a| a.config.id.clone())
+            .collect();
+        for account in &refreshed {
             self.jobs.push(Job::SyncDav { account: account.clone() });
         }
-        Ok(serde_json::json!({"refreshed": exchange}))
+        Ok(serde_json::json!({"refreshed": refreshed}))
     }
 }
 

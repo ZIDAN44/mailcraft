@@ -45,6 +45,7 @@ fuzz_target!(|data: &[u8]| {
     let _ = http::exchange_into(&mut Server { data: body, step }, &req, &url, |_| Ok(Some(&mut got)));
     assert!(got.len() <= 4096, "a body past the cap was written");
     if let Ok(text) = std::str::from_utf8(body) {
+        let _ = mailcraft_net::autoconfig::parse_config(text, "zoe@example.org");
         let _ = updates::content_range(text);
         let _ = updates::parse(text, Some("-windows-x64.msi"));
         let _ = updates::sum_for(text, "mailcraft-0.25.0-windows-x64.msi");

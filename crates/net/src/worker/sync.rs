@@ -3,6 +3,7 @@
 use super::*;
 
 mod calendars;
+mod push;
 
 /// How often a full sync says the counts of the folders it has synced, at most.
 const COUNTS_EVERY: Duration = Duration::from_secs(1);
@@ -24,13 +25,15 @@ impl Worker {
             return;
         }
         let inbox = self.inbox();
-        if matches!(self.conn, Some(Conn::Jmap(_))) && !self.no_push && inbox.is_some() && self.wait_for_push(rx) {
+        let push_ready = !self.no_push && self.jmap_push_retry_at.is_none_or(|t| Instant::now() >= t);
+        if matches!(self.conn, Some(Conn::Jmap(_))) && push_ready && inbox.is_some() && self.wait_for_push(rx) {
             return;
         }
         let idle = matches!(&self.conn, Some(Conn::Imap(c)) if c.has("IDLE"));
         if !idle || inbox.is_none() {
             let next_soon = self.soon.iter().map(|(at, _)| *at).min();
-            let wait = next_soon.map_or(POLL_EVERY, |at| at.saturating_duration_since(Instant::now()).min(POLL_EVERY));
+            let poll = self.poll_every;
+            let wait = next_soon.map_or(poll, |at| at.saturating_duration_since(Instant::now()).min(poll));
             let Some(got) = self.recv_unless_set_aside(rx, wait) else { return };
             match got {
                 Ok(j) => push_job(&mut self.queue, j),
@@ -110,6 +113,7 @@ impl Worker {
     /// what was asked for. Jobs are done as they come, and don't put the time off: it counts from
     /// when the Inbox was last looked at, or an account in use would never get to it.
     fn wait_for_set_time(&mut self, rx: &Receiver<Job>, every: Duration) {
+        self.drop_jmap_push();
         let now = Instant::now();
         let due = self.looked.unwrap_or(now).checked_add(every).unwrap_or(now);
         let full = self.last_full.and_then(|t| t.checked_add(self.full_sync_every())).unwrap_or(now);
@@ -178,60 +182,6 @@ impl Worker {
                 got => return Some(got),
             }
         }
-    }
-
-    /// JMAP push: hold the server's event stream open (as IMAP holds IDLE), checking for jobs
-    /// between short reads; a `state` event means something changed. `false` when the server
-    /// can't push (the caller polls instead).
-    pub(super) fn wait_for_push(&mut self, rx: &Receiver<Job>) -> bool {
-        let Some(Conn::Jmap(c)) = &self.conn else { return false };
-        let mut es = match c.events() {
-            Ok(Some(es)) => es,
-            Ok(None) => {
-                self.no_push = true;
-                return false;
-            }
-            Err(e @ NetError::Auth(_)) => {
-                self.failed(e);
-                return true;
-            }
-            Err(e) => {
-                // Push not working (a proxy, an old server): poll from now on.
-                log::info!("{}: no JMAP push: {e}", self.acc.id);
-                self.no_push = true;
-                return false;
-            }
-        };
-        // Mail that came between the last sync and this stream opening sends no event (unless
-        // the server replays it, RFC 8620 §7.3): check once now that nothing will be missed.
-        if !std::mem::take(&mut self.pushed)
-            && let Some(f) = self.inbox()
-        {
-            self.sync_one(&f);
-        }
-        self.working(false);
-        let end = Instant::now() + IDLE_FOR;
-        let mut changed = false;
-        while Instant::now() < end && !changed {
-            self.drain(rx);
-            if self.closed || !self.queue.is_empty() || self.kept.aside.ended(&self.filing) {
-                return true;
-            }
-            match es.next(Duration::from_millis(500)) {
-                Ok(Some(e)) => changed = e.event == "state",
-                Ok(None) => {}
-                Err(e) => {
-                    // Dropped: reopened on the next wait.
-                    log::info!("{}: JMAP push ended: {e}", self.acc.id);
-                    break;
-                }
-            }
-        }
-        if changed && let Some(f) = self.inbox() {
-            self.sync_one(&f);
-            self.pushed = true;
-        }
-        true
     }
 
     pub(super) fn inbox(&self) -> Option<String> {
@@ -595,6 +545,7 @@ impl Worker {
                 failed = Some(e.to_string());
                 if matches!(e, NetError::Io(_) | NetError::Closed(_)) {
                     self.conn = None;
+                    self.drop_jmap_push();
                     break;
                 }
             }

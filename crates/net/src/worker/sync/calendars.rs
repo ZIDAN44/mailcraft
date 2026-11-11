@@ -30,9 +30,10 @@ impl Worker {
             }
             return;
         }
-        // OAuth tokens are for mail only: such an account's calendars need a sign-in of their own.
+        // Google and Microsoft OAuth tokens cover mail only; a server-discovered OAuth provider
+        // whose scope covers CalDAV / CardDAV signs in with its Bearer token.
         let own = self.acc.dav.as_ref().is_some_and(|d| d.username.is_some());
-        if (self.acc.oauth.is_some() || self.acc.ews.is_some()) && !own {
+        if ((self.acc.oauth.is_some() && !self.oauth_dav_capable()) || self.acc.ews.is_some()) && !own {
             return;
         }
         if let Err(e) = self.dav_pass() {
@@ -43,24 +44,38 @@ impl Worker {
         }
     }
 
+    /// Whether the account's autoconfig OAuth scopes cover CalDAV or CardDAV bearer authentication.
+    fn oauth_dav_capable(&self) -> bool {
+        self.acc.oauth.as_deref() == Some(mailcraft_model::OAUTH_AUTOCONFIG)
+            && self.acc.oauth_config.as_ref().is_some_and(|c| {
+                let s = c.scope.to_ascii_lowercase();
+                s.contains("caldav") || s.contains("carddav") || s.contains("dav")
+            })
+    }
+
     /// One sync with the CalDAV and CardDAV server: the addresses given by hand (issue #7), or
     /// those found from the account's address; signed in with their own user name, or the mail's.
     fn dav_pass(&mut self) -> Result<()> {
         let given = self.acc.dav.clone().unwrap_or_default();
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-        let (user, password) = match &given.username {
-            Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
-            None => (
-                if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() },
-                self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
-            ),
+        let dav = if given.username.is_none() && self.oauth_dav_capable() {
+            let token = self.secret()?;
+            crate::dav::Dav::bearer(&token)
+        } else {
+            let (user, password) = match &given.username {
+                Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
+                None => (
+                    if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() },
+                    self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
+                ),
+            };
+            crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take())
         };
-        let dav = crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take());
-        let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
+        let host = dav_host(&self.acc);
         let at = crate::dav::Where {
             email: &self.acc.email,
             username: &self.acc.username,
-            imap_host: host,
+            imap_host: &host,
             caldav: Some(given.caldav.as_str()).filter(|c| !c.trim().is_empty()),
             carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),
             mails: !self.acc.is_calendar_only(),
@@ -131,7 +146,33 @@ impl Worker {
     }
 }
 
+/// The mail server host CalDAV and CardDAV discovery starts from: a JMAP session's host when
+/// the account uses JMAP, else its POP or IMAP server.
+pub(crate) fn dav_host(acc: &AccountConfig) -> String {
+    if let Some(j) = acc.jmap.as_deref()
+        && let Ok(u) = crate::http::Url::parse(&jmap::session_url(j))
+    {
+        return u.host;
+    }
+    acc.pop.as_ref().map_or_else(|| acc.imap.host.clone(), |p| p.host.clone())
+}
+
 /// The system's time zone, for calendar times written without one (`UTC` when it can't say).
 fn system_zone() -> mailcraft_model::zone::Zone {
     iana_time_zone::get_timezone().ok().and_then(|z| mailcraft_model::zone::Zone::named(&z)).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dav_discovery_host_uses_jmap_session_host() {
+        let mut acc =
+            AccountConfig { email: "zoe@nextxch.com".into(), jmap: Some("https://mail.nextxch.com/.well-known/jmap".into()), ..Default::default() };
+        assert_eq!(dav_host(&acc), "mail.nextxch.com");
+        acc.jmap = None;
+        acc.imap.host = "imap.example.org".into();
+        assert_eq!(dav_host(&acc), "imap.example.org");
+    }
 }

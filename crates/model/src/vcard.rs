@@ -138,6 +138,61 @@ impl Card {
             || self.emails.iter().any(|e| e.value.to_lowercase().contains(&q))
             || self.phones.iter().any(|p| p.value.replace(' ', "").contains(&q.replace(' ', "")))
     }
+
+    /// Inline base64 payload of the card's first embedded `PHOTO` property (`ENCODING=b` /
+    /// `BASE64` in vCard 2.1 and 3.0, or a `data:image/…;base64,…` URI in vCard 4.0); `None` when
+    /// the card has no picture or links to a remote URI.
+    pub fn photo_base64(&self) -> Option<&str> {
+        self.extra.iter().find_map(|l| photo_base64_in(l))
+    }
+}
+
+/// Extracts the inline base64 payload from a single unfolded `PHOTO` vCard property line.
+fn photo_base64_in(line: &str) -> Option<&str> {
+    let mut quoted = false;
+    let colon = line
+        .char_indices()
+        .find(|(_, c)| {
+            if *c == '"' {
+                quoted = !quoted;
+            }
+            *c == ':' && !quoted
+        })?
+        .0;
+    let head = line.get(..colon)?;
+    let value = line.get(colon + 1..)?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let mut parts = head.split(';');
+    let prop = parts.next()?.rsplit('.').next()?.trim();
+    if !prop.eq_ignore_ascii_case("PHOTO") {
+        return None;
+    }
+    if value.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("data:")) {
+        let rest = value.get(5..)?;
+        let (meta, b64) = rest.split_once(',')?;
+        let meta = meta.strip_suffix('\\').unwrap_or(meta).trim();
+        let is_b64 = meta.get(meta.len().checked_sub(7)?..).is_some_and(|s| s.eq_ignore_ascii_case(";base64"));
+        return is_b64.then_some(b64.trim()).filter(|b| !b.is_empty());
+    }
+    let mut encoded = false;
+    for raw_p in parts {
+        let p = raw_p.trim();
+        if let Some((k, v)) = p.split_once('=') {
+            let k = k.trim();
+            let v = v.trim().trim_matches('"');
+            if k.eq_ignore_ascii_case("VALUE") && v.eq_ignore_ascii_case("URI") {
+                return None;
+            }
+            if k.eq_ignore_ascii_case("ENCODING") && (v.eq_ignore_ascii_case("b") || v.eq_ignore_ascii_case("base64")) {
+                encoded = true;
+            }
+        } else if p.eq_ignore_ascii_case("BASE64") || p.eq_ignore_ascii_case("B") {
+            encoded = true;
+        }
+    }
+    encoded.then_some(value)
 }
 
 /// A component of a structured value (`N`, `ORG`): split on unescaped `;`, unescaped.
@@ -466,6 +521,12 @@ BEGIN:VCARD\r\nVERSION:4.0\r\nUID:urn:uuid:ann\r\nEMAIL:ann@x.example\r\nEND:VCA
         assert_eq!(birthday_for_exchange("1990-04-01").as_deref(), Some("1990-04-01"));
         assert_eq!(birthday_for_exchange("soon"), None);
         assert!(z.extra.iter().any(|x| x.contains("AAAABBBB")), "the rest is kept");
+        assert_eq!(z.photo_base64(), Some("AAAABBBB"));
+        assert_eq!(cards[1].photo_base64(), None);
+        let v4 = parse("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:P\r\nPHOTO:data:image/png;base64,iVBORw==\r\nEND:VCARD\r\n");
+        assert_eq!(v4[0].photo_base64(), Some("iVBORw=="));
+        let uri = parse("BEGIN:VCARD\r\nVERSION:3.0\r\nFN:U\r\nPHOTO;VALUE=URI:https://x.example/p.jpg\r\nEND:VCARD\r\n");
+        assert_eq!(uri[0].photo_base64(), None);
         assert_eq!(cards[1].display(), "ann@x.example");
         let back = parse(&write(z));
         assert_eq!(back.len(), 1);

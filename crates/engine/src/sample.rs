@@ -744,6 +744,7 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
             modified: now - 3600,
             ..Default::default()
         },
+        ..Default::default()
     };
     p.tasks = vec![
         task("task-grade", "Send the grading notes to the client", Some(day), TaskStatus::InProgress, 50, TaskPriority::High),

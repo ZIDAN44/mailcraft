@@ -2,6 +2,7 @@
 
 use super::*;
 
+/// Registers account and mailbox configuration commands.
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("folder.empty", "Empty folder", "Folder › Empty", |s, v| {
@@ -18,7 +19,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft"|"autoconfig", "oauthConfig"?: {"issuer"?: string, "authUrl": string, "tokenUrl": string, "scope"?: string, "clientId"?: string}, "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
         CommandSpec::new("account.exportPst", "Export to Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             let account = match p::str(v, "account") {
@@ -34,9 +35,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 return Err(CmdError::Params(format!("`{email}` is not an email address")));
             }
             match s.discovered.get(&email) {
-                Some(Some((Some(c), source))) => {
-                    Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "pop": c.pop, "username": c.username}))
-                }
+                Some(Some((Some(c), source))) => Ok(json!({
+                    "found": true,
+                    "source": source,
+                    "imap": c.imap,
+                    "smtp": c.smtp,
+                    "pop": c.pop,
+                    "jmap": c.jmap,
+                    "oauthConfig": c.oauth_config,
+                    "username": c.username,
+                })),
                 Some(Some((None, _))) => Ok(json!({"found": false})),
                 Some(None) => Ok(json!({"pending": true})),
                 None => {
@@ -165,6 +173,7 @@ pub(super) fn server(v: &Value, prefix: &str, guess: &ServerConfig) -> Result<Se
     Ok(ServerConfig { host, port, security })
 }
 
+/// Validates parameters and adds a mail or calendar-only account to `s`.
 pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(server) = p::str(v, "dav") {
         return add_calendar_only(s, v, server);
@@ -172,7 +181,6 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     let email = p::req_str(v, "email")?;
     let guess = AccountConfig::guess(email);
     let local = p::bool(v, "local").unwrap_or(false);
-    let jmap = p::str(v, "jmap").map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
     // `graph`: true for Exchange Online through Microsoft Graph (or the API's address).
     let graph = match v.get("graph") {
         Some(Value::Bool(true)) => Some(mailcraft_model::GRAPH_URL.to_string()),
@@ -187,6 +195,12 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(u)) if !u.trim().is_empty() => Some(ews_url(u)),
         _ => None,
     };
+    let explicit_jmap = p::str(v, "jmap").map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+    let jmap = explicit_jmap.or_else(|| {
+        (v.get("jmap").is_none() && !local && graph.is_none() && ews.is_none() && !p::bool(v, "pop").unwrap_or(false) && v.get("imapHost").is_none())
+            .then(|| guess.jmap.clone())
+            .flatten()
+    });
     if s.jmap_only && jmap.is_none() {
         return Err(CmdError::Params("in the browser, MailCraft works with JMAP accounts only".into()));
     }
@@ -207,6 +221,20 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     let oauth = p::str(v, "oauth")
         .map(str::to_string)
         .or_else(|| (graph.is_some() && password.as_deref().is_none_or(str::is_empty)).then(|| "microsoft".to_string()));
+    let oauth_config = if oauth.as_deref() == Some(mailcraft_model::OAUTH_AUTOCONFIG) {
+        let given = v.get("oauthConfig").and_then(|x| serde_json::from_value::<mailcraft_model::OAuthConfig>(x.clone()).ok());
+        given
+            .or_else(|| {
+                s.discovered
+                    .get(&email.trim().to_ascii_lowercase())
+                    .and_then(|d| d.as_ref())
+                    .and_then(|(c, _)| c.as_ref())
+                    .and_then(|c| c.oauth_config.clone())
+            })
+            .filter(|c| valid_oauth_url(&c.auth_url) && valid_oauth_url(&c.token_url))
+    } else {
+        None
+    };
     let config = AccountConfig {
         id: String::new(),
         name: p::str(v, "name").map(str::to_string).unwrap_or(guess.name.clone()),
@@ -223,6 +251,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         signature_reply: None,
         color: 0,
         oauth,
+        oauth_config,
         jmap,
         graph,
         ews,
@@ -247,10 +276,17 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     if config.username.chars().any(char::is_control) {
         return Err(CmdError::Params("the user name has a line break or another invisible character in it".into()));
     }
-    if let Some(o) = &config.oauth
-        && !s.oauth_available.contains(o)
-    {
-        return Err(CmdError::Params(format!("signing in with {o} isn't set up in this copy of MailCraft")));
+    if let Some(o) = &config.oauth {
+        if o == mailcraft_model::OAUTH_AUTOCONFIG {
+            if s.jmap_only {
+                return Err(CmdError::Params("signing in through the server's own OAuth isn't available in the browser".into()));
+            }
+            if config.oauth_config.is_none() {
+                return Err(CmdError::Params("this server published no usable https:// OAuth endpoints; sign in with a password".into()));
+            }
+        } else if !s.oauth_available.contains(o) {
+            return Err(CmdError::Params(format!("signing in with {o} isn't set up in this copy of MailCraft")));
+        }
     }
     // `deferSignIn`: add now, ask for the password when the account first connects.
     let defer = p::bool(v, "deferSignIn").unwrap_or(false);
@@ -288,6 +324,13 @@ fn add_calendar_only(s: &mut Session, v: &Value, server: &str) -> CmdResult {
     let name = p::str(v, "name").map(str::to_string).unwrap_or_else(|| AccountConfig::guess(email).name);
     let id = s.add_calendar_account(email, &name, username, server, password)?;
     Ok(json!({"account": id}))
+}
+
+/// An OAuth endpoint URL accepted from autoconfig or `account.add`: `https://` with no control
+/// characters or spaces.
+fn valid_oauth_url(url: &str) -> bool {
+    let u = url.trim();
+    u.starts_with("https://") && u.len() > "https://x".len() && u.len() <= 512 && !u.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
 /// An Exchange Web Services address from what the user typed: a server name gets `https://` and
@@ -424,6 +467,7 @@ pub(super) fn set_dav(s: &mut Session, v: &Value) -> CmdResult {
     s.set_dav(id, &caldav, &carddav, username.as_deref(), p::str(v, "password"))
 }
 
+/// Serialises configured accounts and their transport endpoints as JSON.
 pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!(s
         .accounts
@@ -432,6 +476,7 @@ pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "account": a.config.id,
             "email": a.config.email,
             "name": a.config.name,
+            "jmap": a.config.jmap,
             "graph": a.config.graph,
             "pop": a.config.pop.as_ref().map(|p| format!("{}:{} ({})", p.host, p.port, p.security.code())),
             "ews": a.config.ews,

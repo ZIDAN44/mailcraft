@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 
 use mailcraft_model::ical::{self, CalEvent};
-use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent};
+use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent, StoredNote, StoredTask};
 use mailcraft_model::vcard;
 use quick_xml::Reader;
 use quick_xml::events::Event as X;
@@ -271,6 +271,11 @@ impl Dav {
         Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default() }
     }
 
+    /// Sign in with an OAuth 2.0 Bearer token instead of Basic or Digest credentials.
+    pub fn bearer(token: &str) -> Dav {
+        Dav { user: String::new(), password: String::new(), basic: format!("Bearer {token}"), digest: std::sync::Mutex::default() }
+    }
+
     /// Answering the Digest challenge an earlier session was given, from its first request.
     pub(crate) fn with_digest(self, challenge: Option<digest::Challenge>) -> Dav {
         *self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = challenge;
@@ -298,7 +303,7 @@ impl Dav {
                 }
             };
             let resp = http::send(&req.clone().header("Authorization", &auth))?;
-            if resp.status != 401 || tries >= 2 {
+            if resp.status != 401 || tries >= 2 || self.basic.starts_with("Bearer ") {
                 return Ok(resp);
             }
             let Some(c) = digest::challenge(&resp.headers) else { return Ok(resp) };
@@ -457,19 +462,36 @@ impl Dav {
         home.map(|h| absolute(&at, &h)).transpose()
     }
 
+    /// Every `<c:calendar/>` collection in a CalDAV home (events, tasks and notes alike), with
+    /// someone else's collections marked `foreign`.
+    pub fn all_calendar_collections(&self, home: &str) -> Result<Vec<Item>> {
+        let props = "<d:resourcetype/><d:displayname/><cs:getctag/><d:sync-token/><a:calendar-color/><c:supported-calendar-component-set/><d:current-user-privilege-set/><d:owner/><d:current-user-principal/>";
+        let (mut items, at) = self.propfind(home, "1", props)?;
+        mark_foreign(&mut items, &at, home);
+        let mut out = Vec::new();
+        for mut i in items.into_iter().filter(|i| i.kinds.iter().any(|k| k == "calendar")) {
+            i.href = absolute(&at, &i.href)?;
+            out.push(i);
+        }
+        Ok(out)
+    }
+
     /// The collections in a home (calendars that hold events, or address books). One whose
     /// `owner` is known and is neither the home's owner nor the signed-in user is marked
     /// someone else's (SOGo lists the calendars subscribed to in the user's home, issue #30).
     pub fn collections(&self, kind: Kind, home: &str) -> Result<Vec<Item>> {
+        if kind == Kind::Calendars {
+            return Ok(self
+                .all_calendar_collections(home)?
+                .into_iter()
+                .filter(|i| i.comps.is_empty() || i.comps.iter().any(|c| c == "VEVENT"))
+                .collect());
+        }
         let props = "<d:resourcetype/><d:displayname/><cs:getctag/><d:sync-token/><a:calendar-color/><c:supported-calendar-component-set/><d:current-user-privilege-set/><d:owner/><d:current-user-principal/>";
         let (mut items, at) = self.propfind(home, "1", props)?;
-        let want = if kind == Kind::Calendars { "calendar" } else { "addressbook" };
         mark_foreign(&mut items, &at, home);
         let mut out = Vec::new();
-        for mut i in items.into_iter().filter(|i| i.kinds.iter().any(|k| k == want)) {
-            if kind == Kind::Calendars && !i.comps.is_empty() && !i.comps.iter().any(|c| c == "VEVENT") {
-                continue;
-            }
+        for mut i in items.into_iter().filter(|i| i.kinds.iter().any(|k| k == "addressbook")) {
             i.href = absolute(&at, &i.href)?;
             out.push(i);
         }

@@ -262,6 +262,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
     ui.separator();
 }
 
+/// Renders the address-book sidebar and contact list for the People module.
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     if widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {
@@ -309,7 +310,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
                     }
                     let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
-                    widgets::avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark));
+                    widgets::card_avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark), Some(p.card));
                     ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
                         r.left_center() + vec2(42.0, -7.0),
                         egui::Align2::LEFT_CENTER,
@@ -384,7 +385,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(72.0, 72.0), Sense::hover());
                 let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
-                widgets::avatar(ui, r.center(), 34.0, &initials, theme::avatar_color(&name, t.dark));
+                widgets::card_avatar(ui, r.center(), 34.0, &initials, theme::avatar_color(&name, t.dark), Some(c));
                 ui.add_space(10.0);
                 ui.vertical(|ui| {
                     ui.label(RichText::new(&name).font(theme::bold(22.0)).color(t.text));
@@ -510,7 +511,7 @@ fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         let band = egui::Rect::from_min_size(r.min, vec2(74.0, card_h));
                         let color = theme::avatar_color(&name, t.dark);
                         ui.painter().rect_filled(band.shrink(1.0), egui::CornerRadius { nw: 7, sw: 7, ne: 0, se: 0 }, color.gamma_multiply(0.18));
-                        widgets::avatar(ui, band.center(), 24.0, &initials(&name), color);
+                        widgets::card_avatar(ui, band.center(), 24.0, &initials(&name), color, Some(c));
                         let x = band.right() + 12.0;
                         let w = r.right() - x - 10.0;
                         let mut y = r.top() + 12.0;
