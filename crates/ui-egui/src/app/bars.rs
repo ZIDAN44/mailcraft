@@ -98,7 +98,8 @@ impl MailApp {
             .inner_margin(Margin::symmetric(8, 3));
         frame
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                // Keep the search icon and field on the language's reading edge.
+                ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), r, Icon::Search, t.dim);
                     // In the Calendar, People, Tasks and Notes it searches those (as Outlook's box
@@ -116,7 +117,7 @@ impl MailApp {
                             egui::TextEdit::singleline(query)
                                 .hint_text(hint)
                                 .frame(egui::Frame::NONE)
-                                .align(egui::Align2::LEFT_CENTER)
+                                .align(if i18n::current().rtl() { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER })
                                 .desired_width(search_w - 60.0)
                                 .text_color(t.text),
                         );
