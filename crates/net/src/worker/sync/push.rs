@@ -3,8 +3,11 @@
 use super::*;
 
 /// A push stream that closes this soon after opening (a proxy buffering or closing SSE responses)
-/// turns push off so the worker polls instead of reopening in a tight loop.
+/// backs off to polling for [`PUSH_RETRY_AFTER`] instead of reopening in a tight loop.
 const SHORT_PUSH: Duration = Duration::from_secs(5);
+
+/// How long to poll before trying JMAP push again after a transient stream failure.
+const PUSH_RETRY_AFTER: Duration = Duration::from_secs(5 * 60);
 
 impl Worker {
     /// JMAP push: hold the server's event stream open (as IMAP holds IDLE), checking for jobs
@@ -13,6 +16,7 @@ impl Worker {
     pub(super) fn wait_for_push(&mut self, rx: &Receiver<Job>) -> bool {
         let mut opened = false;
         if self.jmap_events.is_none() {
+            self.jmap_push_retry_at = None;
             let Some(Conn::Jmap(c)) = &self.conn else { return false };
             let mut es = match c.events() {
                 Ok(Some(es)) => es,
@@ -25,9 +29,9 @@ impl Worker {
                     return true;
                 }
                 Err(e) => {
-                    // Push not working (a proxy, an old server): poll from now on.
-                    log::info!("{}: no JMAP push: {e}", self.acc.id);
-                    self.no_push = true;
+                    // Transient error or proxy blocking SSE: poll for a while, then try push again.
+                    log::info!("{}: JMAP push unavailable ({e}); polling before retry", self.acc.id);
+                    self.jmap_push_retry_at = Some(Instant::now() + PUSH_RETRY_AFTER);
                     return false;
                 }
             };
@@ -40,8 +44,8 @@ impl Worker {
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    log::info!("{}: JMAP push closed right after opening ({e}); polling instead", self.acc.id);
-                    self.no_push = true;
+                    log::info!("{}: JMAP push closed right after opening ({e}); polling before retry", self.acc.id);
+                    self.jmap_push_retry_at = Some(Instant::now() + PUSH_RETRY_AFTER);
                     return false;
                 }
             }
@@ -92,8 +96,8 @@ impl Worker {
             let short = self.jmap_push_opened.is_some_and(|t| t.elapsed() < SHORT_PUSH);
             self.drop_jmap_push();
             if short {
-                log::info!("{}: JMAP push closed right after opening; polling instead", self.acc.id);
-                self.no_push = true;
+                log::info!("{}: JMAP push closed right after opening; polling before retry", self.acc.id);
+                self.jmap_push_retry_at = Some(Instant::now() + PUSH_RETRY_AFTER);
             }
         }
         if dav_changed {
@@ -104,7 +108,7 @@ impl Worker {
             self.sync_one(&f);
             self.pushed = true;
         }
-        !self.no_push
+        !self.no_push && self.jmap_push_retry_at.is_none()
     }
 }
 

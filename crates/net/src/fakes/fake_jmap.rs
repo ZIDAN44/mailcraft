@@ -880,7 +880,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir2);
         let store2 = Store::open(&dir2).unwrap();
         crate::fakes::fake_dav::looked_for_today(&store2, "a1");
-        let mut pool2 = crate::worker::Pool::new(store2, Arc::new(crate::worker::MemoryCredentials::default()));
+        let mut pool2 = crate::worker::Pool::new(store2.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+        pool2.poll_every = Duration::from_millis(150);
         let account2 = AccountConfig {
             id: "a1".into(),
             name: "Me".into(),
@@ -892,7 +893,9 @@ mod tests {
         pool2.submit(Job::Start { account: account2, password: Some(Secret(PASSWORD.into())) });
         until(&pool2, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
         eventually("push stream attempted", || data2.lock().unwrap().event_connects >= 1);
-        std::thread::sleep(Duration::from_millis(600));
+        data2.lock().unwrap().deliver(&inbox2, &mail("Polled after close", "m2"), &[], "2026-10-15T12:00:00Z");
+        until(&pool2, "polled inbox sync", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+        assert_eq!(store2.load_folder("a1", "INBOX").unwrap().messages.len(), 2);
         assert_eq!(data2.lock().unwrap().event_connects, 1, "short-lived SSE stream falls back to polling");
         drop(pool2);
         let _ = std::fs::remove_dir_all(dir2);

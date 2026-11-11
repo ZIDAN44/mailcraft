@@ -278,8 +278,11 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     }
     if let Some(o) = &config.oauth {
         if o == mailcraft_model::OAUTH_AUTOCONFIG {
-            if s.jmap_only || config.oauth_config.is_none() {
-                return Err(CmdError::Params("browser sign-in needs https:// OAuth endpoints discovered on the desktop app".into()));
+            if s.jmap_only {
+                return Err(CmdError::Params("signing in through the server's own OAuth isn't available in the browser".into()));
+            }
+            if config.oauth_config.is_none() {
+                return Err(CmdError::Params("this server published no usable https:// OAuth endpoints; sign in with a password".into()));
             }
         } else if !s.oauth_available.contains(o) {
             return Err(CmdError::Params(format!("signing in with {o} isn't set up in this copy of MailCraft")));

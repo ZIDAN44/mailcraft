@@ -40,13 +40,18 @@ impl Session {
         for x in &sync.pushed_notes {
             for n in p.notes.iter_mut().filter(|n| n.note.uid == x.note.uid) {
                 n.href = x.href.clone();
-                n.etag = x.etag.clone();
+                if !x.etag.is_empty() {
+                    n.etag = x.etag.clone();
+                }
                 n.dirty &= n.note != x.note;
             }
         }
         // The server's notes, by their item there; those changed here (and those never sent)
         // stay.
         if let Some(server) = &sync.notes {
+            for n in p.notes.iter_mut().filter(|n| sync.refused_notes.contains(&n.note.uid)) {
+                n.dirty = false;
+            }
             p.notes.retain(|n| n.dirty || n.href.is_empty());
             for x in server {
                 if p.notes.iter().any(|n| !n.href.is_empty() && n.href == x.href) {
@@ -62,11 +67,16 @@ impl Session {
         for x in &sync.pushed_tasks {
             for t in p.tasks.iter_mut().filter(|t| t.task.uid == x.task.uid) {
                 t.href = x.href.clone();
-                t.etag = x.etag.clone();
+                if !x.etag.is_empty() {
+                    t.etag = x.etag.clone();
+                }
                 t.dirty &= t.task != x.task;
             }
         }
         if let Some(server) = &sync.tasks {
+            for t in p.tasks.iter_mut().filter(|t| sync.refused_tasks.contains(&t.task.uid)) {
+                t.dirty = false;
+            }
             p.tasks.retain(|t| t.dirty || t.href.is_empty());
             for x in server {
                 if p.tasks.iter().any(|t| !t.href.is_empty() && t.href == x.href) {

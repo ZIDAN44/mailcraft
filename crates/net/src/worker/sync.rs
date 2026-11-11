@@ -25,13 +25,15 @@ impl Worker {
             return;
         }
         let inbox = self.inbox();
-        if matches!(self.conn, Some(Conn::Jmap(_))) && !self.no_push && inbox.is_some() && self.wait_for_push(rx) {
+        let push_ready = !self.no_push && self.jmap_push_retry_at.is_none_or(|t| Instant::now() >= t);
+        if matches!(self.conn, Some(Conn::Jmap(_))) && push_ready && inbox.is_some() && self.wait_for_push(rx) {
             return;
         }
         let idle = matches!(&self.conn, Some(Conn::Imap(c)) if c.has("IDLE"));
         if !idle || inbox.is_none() {
             let next_soon = self.soon.iter().map(|(at, _)| *at).min();
-            let wait = next_soon.map_or(POLL_EVERY, |at| at.saturating_duration_since(Instant::now()).min(POLL_EVERY));
+            let poll = self.poll_every;
+            let wait = next_soon.map_or(poll, |at| at.saturating_duration_since(Instant::now()).min(poll));
             let Some(got) = self.recv_unless_set_aside(rx, wait) else { return };
             match got {
                 Ok(j) => push_job(&mut self.queue, j),

@@ -83,6 +83,14 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                 out.deleted.push(t.href.clone());
                 refetch.push(t.href.clone());
             }
+            Ok(Err(Refused::Changed)) => {
+                out.errors.push(format!(
+                    "{} changed on the server since it was deleted here; the server's copy is kept",
+                    t.href.rsplit('/').next().unwrap_or_default()
+                ));
+                out.deleted.push(t.href.clone());
+                refetch.push(t.href.clone());
+            }
             Ok(Err(r)) => out.errors.push(r.to_string()),
             Err(e @ NetError::Auth(_)) => return Err(e),
             Err(e) => out.errors.push(e.to_string()),
@@ -615,8 +623,8 @@ fn has_all_of(server: &CalEvent, mine: &CalEvent) -> bool {
         && mine.attendees.iter().all(|a| answer(server, &a.email) == Some(a.partstat.to_ascii_uppercase()))
 }
 
-/// Store a `VTODO` or `VJOURNAL` item guarded by `etag`, then read back the collection's
-/// current etag for `url` in case a unified groupware bridge rewrote the stored item on PUT.
+/// Store a `VTODO` or `VJOURNAL` item guarded by `etag`, then resolve a non-empty server etag
+/// for `url` (reading the collection or item back when `PUT` omitted `ETag` or a bridge rewrote it).
 fn store_component(dav: &Dav, target_col: &str, url: &str, data: &str, etag: Option<&str>) -> Result<std::result::Result<String, Refused>> {
     let stored = match dav.store(url, "text/calendar; charset=utf-8", data, etag)? {
         Ok(tag) => tag,
@@ -624,11 +632,22 @@ fn store_component(dav: &Dav, target_col: &str, url: &str, data: &str, etag: Opt
     };
     let col = parent_of(url).unwrap_or_else(|| target_col.to_string());
     let current = match dav.etags(&col) {
-        Ok(listed) => listed.into_iter().find(|(h, _)| h == url).map(|(_, cur)| cur),
+        Ok(listed) => listed.into_iter().find(|(h, _)| h == url).map(|(_, cur)| cur).filter(|c| !c.is_empty()),
         Err(e @ NetError::Auth(_)) => return Err(e),
         Err(_) => None,
     };
-    Ok(Ok(current.filter(|c| !c.is_empty()).unwrap_or(stored)))
+    if let Some(tag) = current.or_else(|| (!stored.is_empty()).then_some(stored)) {
+        return Ok(Ok(tag));
+    }
+    let fetched = match dav.multiget(Kind::Calendars, &col, &[url.to_string()]) {
+        Ok(got) => got.into_iter().find(|(h, _, _)| h == url).map(|(_, cur, _)| cur).filter(|c| !c.is_empty()),
+        Err(e @ NetError::Auth(_)) => return Err(e),
+        Err(_) => None,
+    };
+    match fetched {
+        Some(tag) => Ok(Ok(tag)),
+        None => Err(NetError::Protocol("the calendar server returned no ETag for the stored item".into())),
+    }
 }
 
 /// Sync `VTODO` task collections both ways: push dirty or new tasks guarded by their etag, then
@@ -642,6 +661,7 @@ fn sync_tasks(
     local: mailcraft_model::zone::Zone,
     out: &mut DavSync,
 ) -> Result<()> {
+    let mut refused_tasks = Vec::new();
     if let Some(target) = task_cols.iter().copied().find(|c| c.writable != Some(false)).map(|c| c.href.as_str()) {
         for t in pim.tasks.iter().filter(|t| t.dirty || t.href.is_empty()) {
             let url =
@@ -649,11 +669,33 @@ fn sync_tasks(
             if !ours(&url) {
                 continue;
             }
+            if !t.href.is_empty() && t.etag.is_empty() {
+                let col = parent_of(&url).unwrap_or_else(|| target.to_string());
+                match dav.multiget(Kind::Calendars, &col, std::slice::from_ref(&url)) {
+                    Ok(got) => {
+                        if let Some((_, tag, raw)) = got.into_iter().find(|(h, tag, _)| h == &url && !tag.is_empty())
+                            && ical::parse_in(&raw, local).tasks.contains(&t.task)
+                        {
+                            out.pushed_tasks.push(StoredTask { href: url, etag: tag, task: t.task.clone(), dirty: false });
+                        } else {
+                            out.errors.push(format!("{}: changed on the server; the server's copy is kept", t.task.title));
+                            refused_tasks.push(t.task.uid.clone());
+                        }
+                    }
+                    Err(e @ NetError::Auth(_)) => return Err(e),
+                    Err(e) => out.errors.push(format!("{}: {e}", t.task.title)),
+                }
+                continue;
+            }
             let etag = (!t.href.is_empty()).then_some(t.etag.as_str());
             let data = ical::write_calendar(&[], std::slice::from_ref(&t.task), now);
             match store_component(dav, target, &url, &data, etag) {
                 Ok(Ok(new)) => out.pushed_tasks.push(StoredTask { href: url, etag: new, task: t.task.clone(), dirty: false }),
                 Ok(Err(_)) if !t.dirty => {}
+                Ok(Err(r @ (Refused::Changed | Refused::Forbidden))) if !t.href.is_empty() => {
+                    out.errors.push(format!("{}: {r}; the server's copy is kept", t.task.title));
+                    refused_tasks.push(t.task.uid.clone());
+                }
                 Ok(Err(r)) => out.errors.push(format!("{}: {r}", t.task.title)),
                 Err(e @ NetError::Auth(_)) => return Err(e),
                 Err(e) => out.errors.push(format!("{}: {e}", t.task.title)),
@@ -693,6 +735,7 @@ fn sync_tasks(
     }
     if complete {
         out.tasks = Some(server_tasks);
+        out.refused_tasks = refused_tasks;
     }
     Ok(())
 }
@@ -700,6 +743,7 @@ fn sync_tasks(
 /// Sync `VJOURNAL` note collections both ways: push dirty or new notes guarded by their etag, then
 /// read changed and unchanged server notes.
 fn sync_notes(dav: &Dav, note_cols: &[&Item], pim: &Pim, ours: &impl Fn(&str) -> bool, now: i64, out: &mut DavSync) -> Result<()> {
+    let mut refused_notes = Vec::new();
     if let Some(target) = note_cols.iter().copied().find(|c| c.writable != Some(false)).map(|c| c.href.as_str()) {
         for n in pim.notes.iter().filter(|n| n.dirty || n.href.is_empty()) {
             let url =
@@ -707,11 +751,33 @@ fn sync_notes(dav: &Dav, note_cols: &[&Item], pim: &Pim, ours: &impl Fn(&str) ->
             if !ours(&url) {
                 continue;
             }
+            if !n.href.is_empty() && n.etag.is_empty() {
+                let col = parent_of(&url).unwrap_or_else(|| target.to_string());
+                match dav.multiget(Kind::Calendars, &col, std::slice::from_ref(&url)) {
+                    Ok(got) => {
+                        if let Some((_, tag, raw)) = got.into_iter().find(|(h, tag, _)| h == &url && !tag.is_empty())
+                            && ical::parse_journals(&raw).contains(&n.note)
+                        {
+                            out.pushed_notes.push(StoredNote { href: url, etag: tag, note: n.note.clone(), dirty: false });
+                        } else {
+                            out.errors.push(format!("{}: changed on the server; the server's copy is kept", n.note.title()));
+                            refused_notes.push(n.note.uid.clone());
+                        }
+                    }
+                    Err(e @ NetError::Auth(_)) => return Err(e),
+                    Err(e) => out.errors.push(format!("{}: {e}", n.note.title())),
+                }
+                continue;
+            }
             let etag = (!n.href.is_empty()).then_some(n.etag.as_str());
             let data = ical::write_journal_calendar(&n.note, now);
             match store_component(dav, target, &url, &data, etag) {
                 Ok(Ok(new)) => out.pushed_notes.push(StoredNote { href: url, etag: new, note: n.note.clone(), dirty: false }),
                 Ok(Err(_)) if !n.dirty => {}
+                Ok(Err(r @ (Refused::Changed | Refused::Forbidden))) if !n.href.is_empty() => {
+                    out.errors.push(format!("{}: {r}; the server's copy is kept", n.note.title()));
+                    refused_notes.push(n.note.uid.clone());
+                }
                 Ok(Err(r)) => out.errors.push(format!("{}: {r}", n.note.title())),
                 Err(e @ NetError::Auth(_)) => return Err(e),
                 Err(e) => out.errors.push(format!("{}: {e}", n.note.title())),
@@ -751,6 +817,7 @@ fn sync_notes(dav: &Dav, note_cols: &[&Item], pim: &Pim, ours: &impl Fn(&str) ->
     }
     if complete {
         out.notes = Some(server_notes);
+        out.refused_notes = refused_notes;
     }
     Ok(())
 }

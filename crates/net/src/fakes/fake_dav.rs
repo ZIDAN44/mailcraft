@@ -852,10 +852,12 @@ mod tests {
         ln.dirty = true;
         let third = sync(&dav, &AT, &pim, 400, Zone::UTC).unwrap();
         assert_eq!(third.errors.len(), 1, "{:?}", third.errors);
+        assert_eq!(third.refused_notes, ["local-n"]);
         assert!(third.pushed_notes.is_empty());
         assert!(server.data.lock().unwrap().items[&format!("{NOTES}local-n.ics")].1.contains("Server conflict wins"));
 
-        // A dirty item deleted on the server is refused rather than recreated.
+        // A dirty item deleted on the server is refused rather than recreated, and once merged the
+        // next sync settles cleanly with no further retries.
         pim.notes = third.notes.unwrap();
         server.data.lock().unwrap().items.remove(&format!("{TASKS}local-t.ics"));
         let lt = pim.tasks.iter_mut().find(|t| t.task.uid == "local-t").unwrap();
@@ -863,7 +865,12 @@ mod tests {
         lt.dirty = true;
         let fourth = sync(&dav, &AT, &pim, 500, Zone::UTC).unwrap();
         assert_eq!(fourth.errors.len(), 1, "{:?}", fourth.errors);
+        assert_eq!(fourth.refused_tasks, ["local-t"]);
         assert!(fourth.pushed_tasks.is_empty());
         assert!(!server.data.lock().unwrap().items.contains_key(&format!("{TASKS}local-t.ics")));
+        pim.tasks = fourth.tasks.unwrap();
+        pim.notes = fourth.notes.unwrap();
+        let fifth = sync(&dav, &AT, &pim, 600, Zone::UTC).unwrap();
+        assert!(fifth.errors.is_empty() && fifth.refused_tasks.is_empty() && fifth.refused_notes.is_empty(), "{:?}", fifth.errors);
     }
 }

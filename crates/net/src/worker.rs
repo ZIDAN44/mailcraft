@@ -114,6 +114,8 @@ pub struct Pool {
     pub opts: SyncOptions,
     /// Where ManageSieve listens on IMAP hosts (automatic replies); tests change it.
     pub sieve_port: u16,
+    /// Polling interval when push/IDLE is unavailable (`POLL_EVERY`; tests lower it).
+    pub poll_every: Duration,
     /// Picture downloads, on their own thread so they never wait behind a sync.
     fetcher: Option<Sender<String>>,
     /// Working offline: no account connects until it's turned off.
@@ -171,6 +173,7 @@ impl Pool {
             configs: HashMap::new(),
             opts: SyncOptions::default(),
             sieve_port: crate::sieve::PORT,
+            poll_every: POLL_EVERY,
             fetcher: None,
             offline: false,
             search: Arc::new(AtomicU64::new(0)),
@@ -511,6 +514,7 @@ impl Pool {
         let mut w = Worker::new(account.clone(), auth.clone(), self.store.clone(), self.sink.clone(), self.opts);
         w.creds = Some(self.creds.clone());
         w.sieve_port = self.sieve_port;
+        w.poll_every = self.poll_every;
         w.search = self.search.clone();
         // No mail server (issue #61): its calendars and contacts are all its thread does.
         if account.is_calendar_only() {
@@ -692,8 +696,12 @@ struct Worker {
     creds: Option<Arc<dyn Credentials>>,
     /// The ManageSieve port (4190; tests use their own).
     sieve_port: u16,
-    /// The JMAP server can't push: poll instead.
+    /// How long to wait between polls when IDLE/push is unavailable.
+    poll_every: Duration,
+    /// The JMAP server offers no `eventSourceUrl`: poll instead.
     no_push: bool,
+    /// Cool-off until retrying JMAP push after a transient stream failure or immediate close.
+    jmap_push_retry_at: Option<Instant>,
     /// The last push wait ended in an Inbox sync (so the next one needn't check first).
     pushed: bool,
     /// Open JMAP EventSource push stream, kept across waits and jobs instead of reconnecting.
@@ -762,7 +770,9 @@ impl Worker {
             closed: false,
             creds: None,
             sieve_port: crate::sieve::PORT,
+            poll_every: POLL_EVERY,
             no_push: false,
+            jmap_push_retry_at: None,
             pushed: false,
             jmap_events: None,
             jmap_push_opened: None,

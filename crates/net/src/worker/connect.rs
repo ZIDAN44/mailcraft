@@ -184,6 +184,8 @@ impl Worker {
         }
         if let Some(url) = &self.acc.jmap {
             self.conn = Some(Conn::Jmap(jmap::Client::connect(url, &user, &secret, self.acc.oauth.is_some())?));
+            self.no_push = false;
+            self.jmap_push_retry_at = None;
             self.backoff = Duration::from_secs(5);
             return Ok(());
         }

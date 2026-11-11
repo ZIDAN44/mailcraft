@@ -391,6 +391,12 @@ pub struct DavSync {
     /// again in this sync.
     #[serde(default)]
     pub refused: Vec<String>,
+    /// Notes and tasks (by uid) whose change the server refused (`412` or `403`): local `dirty`
+    /// is cleared when `notes` / `tasks` are applied so the server's copy takes their place.
+    #[serde(default)]
+    pub refused_notes: Vec<String>,
+    #[serde(default)]
+    pub refused_tasks: Vec<String>,
     /// Whether the calendar server schedules (`calendar-auto-schedule`); `None`: not asked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_schedule: Option<bool>,

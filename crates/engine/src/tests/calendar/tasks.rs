@@ -277,5 +277,15 @@ fn dirty_tasks_and_notes_keep_their_etag_when_server_moves_on() {
     let n = p.notes.iter().find(|n| n.note.uid == "n1").unwrap();
     assert_eq!((t.etag.as_str(), t.task.title.as_str(), t.dirty), ("\"v1\"", "Mine", true));
     assert_eq!((n.etag.as_str(), n.note.text.as_str(), n.dirty), ("\"v1\"", "Mine", true));
+
+    // Once a push is refused (412/403), `refused_tasks` / `refused_notes` clear `dirty` so the
+    // server's copy takes over instead of retrying forever.
+    let refused_sync = DavSync { refused_tasks: vec!["t1".into()], refused_notes: vec!["n1".into()], ..sync };
+    s.apply_dav(&acc, &refused_sync);
+    let p2 = &s.pim[&acc];
+    let t2 = p2.tasks.iter().find(|t| t.task.uid == "t1").unwrap();
+    let n2 = p2.notes.iter().find(|n| n.note.uid == "n1").unwrap();
+    assert_eq!((t2.etag.as_str(), t2.task.title.as_str(), t2.dirty), ("\"v2\"", "Theirs", false));
+    assert_eq!((n2.etag.as_str(), n2.note.text.as_str(), n2.dirty), ("\"v2\"", "Theirs", false));
     done(s);
 }
