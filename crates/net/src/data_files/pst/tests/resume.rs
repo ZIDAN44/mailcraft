@@ -373,6 +373,10 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
 
     let changed = dir.join("changed.pst");
     std::fs::copy(&pst, &changed).unwrap();
+    // Copied a while ago: a file is known by its size and the second it last changed, and the
+    // message added below leaves its size alone and could land in the copy's own second.
+    let earlier = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    std::fs::File::options().write(true).open(&changed).unwrap().set_modified(earlier).unwrap();
     let store = store_at(&dir, "part");
     stopped_at(&changed, &store, 400, StopHow::Pause, None);
     let before = (checkpoint(&store), store.load_folders("a1").unwrap());
