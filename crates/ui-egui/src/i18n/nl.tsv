@@ -267,6 +267,7 @@
 	Show a desktop notification when new mail arrives	Een bureaubladmelding tonen wanneer er nieuwe mail binnenkomt
 	Keep MailCraft running when its window is closed	MailCraft actief houden wanneer het venster wordt gesloten
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Het blijft in het systeemvak, controleert op e-mail en meldt die. ‘Afsluiten’ op de pagina Bestand, of in het menu van het pictogram, sluit het.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Het venster wordt geminimaliseerd en MailCraft blijft op e-mail controleren en die melden. ‘Afsluiten’ op de pagina Bestand sluit het.
 	Open MailCraft	MailCraft openen
 	Show as plain text	Als platte tekst weergeven
 	Show formatted	Met opmaak weergeven

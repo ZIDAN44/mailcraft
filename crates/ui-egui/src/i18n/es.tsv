@@ -267,6 +267,7 @@
 	Show a desktop notification when new mail arrives	Mostrar una notificación de escritorio cuando llegue correo nuevo
 	Keep MailCraft running when its window is closed	Mantener MailCraft en ejecución al cerrar su ventana
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Se queda en el área de notificación, comprueba el correo y lo anuncia. «Salir» en la página Archivo, o en el menú de su icono, lo cierra.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Su ventana se minimiza, y MailCraft sigue comprobando el correo y anunciándolo. «Salir» en la página Archivo lo cierra.
 	Open MailCraft	Abrir MailCraft
 	Show as plain text	Mostrar como texto sin formato
 	Show formatted	Mostrar con formato

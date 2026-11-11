@@ -267,6 +267,7 @@
 	Show a desktop notification when new mail arrives	Mostra una notifica sul desktop quando arriva nuova posta
 	Keep MailCraft running when its window is closed	Mantieni MailCraft in esecuzione quando la finestra viene chiusa
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Resta nell’area di notifica, controlla la posta e la annuncia. «Esci» nella pagina File, o nel menu della sua icona, lo chiude.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	La finestra viene ridotta a icona e MailCraft continua a controllare la posta e ad annunciarla. «Esci» nella pagina File lo chiude.
 	Open MailCraft	Apri MailCraft
 	Show as plain text	Mostra come testo normale
 	Show formatted	Mostra formattato

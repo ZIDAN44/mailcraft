@@ -97,6 +97,16 @@ pub struct Work {
 }
 
 /// Platform services the UI needs.
+/// What becomes of the window when it's closed and MailCraft is kept running.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeptOnClose {
+    /// Hidden: MailCraft's icon in the system's notification area brings it back.
+    Hidden,
+    /// Minimized: where a hidden window couldn't be brought back (Wayland, no notification
+    /// area), the taskbar does.
+    Minimized,
+}
+
 pub trait Services {
     /// Unix seconds and the local UTC offset in seconds.
     fn clock(&self) -> (i64, i32);
@@ -246,13 +256,14 @@ pub trait Services {
     fn has_background(&self) -> bool {
         false
     }
-    /// Whether this app can stay in the system's notification area with its window closed
-    /// (the option is offered), and whether its icon is there now (closing then hides the window).
-    fn tray_offered(&self) -> bool {
-        false
+    /// Whether this app can keep running with its window closed, and what becomes of the window
+    /// then: what the option says of itself (none: it isn't offered), and what a close does now
+    /// (none: it closes).
+    fn keeps_running(&self) -> Option<KeptOnClose> {
+        None
     }
-    fn tray_shown(&self) -> bool {
-        false
+    fn kept_on_close(&self) -> Option<KeptOnClose> {
+        None
     }
     /// Whether files can be dragged out of the window to other apps (see
     /// [`MailApp::take_drag_out`]).

@@ -267,6 +267,7 @@
 	Show a desktop notification when new mail arrives	اعرض إشعارًا على سطح المكتب عند وصول بريد جديد
 	Keep MailCraft running when its window is closed	إبقاء MailCraft قيد التشغيل عند إغلاق نافذته
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	يبقى في منطقة الإعلامات، ويتحقق من البريد ويعلن عنه. يغلقه «خروج» في صفحة «ملف» أو في قائمة أيقونته.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	تُصغَّر نافذته، ويواصل MailCraft التحقق من البريد والإعلان عنه. يغلقه «خروج» في صفحة «ملف».
 	Open MailCraft	فتح MailCraft
 	Show as plain text	عرض كنص عادي
 	Show formatted	عرض منسّق

@@ -92,18 +92,6 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   that hostile or huge mail stays quick: a copy cut there would run its paragraphs together, and
   past two dozen tables, each one nested deeper makes its text slower to read.
 
-### 8. Running with the window closed, on Linux and macOS
-
-- **Impact:** **Keep MailCraft running when its window is closed** (File › Options › General) is
-  offered on Windows only. On Linux and macOS, closing the window ends MailCraft, and mail isn't
-  checked or announced until it's opened again.
-- **Workaround:** Minimize the window rather than close it: a minimized MailCraft goes on
-  checking for mail and announcing it.
-- **Cause:** The option puts MailCraft's icon in the system's notification area, to open it from
-  again. On Linux that takes GTK's event loop beside the window's own, or a StatusNotifierItem
-  that GNOME shows only with an extension; on a Mac, an app whose window is closed stays in the
-  Dock, which MailCraft's quit there doesn't do yet. Neither is built or tested.
-
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

@@ -43,6 +43,8 @@ impl MailApp {
     pub fn exit(&mut self, ctx: &egui::Context) {
         self.ui.quit_wanted = true;
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        // The close is seen in the next pass: asked for, as a hidden window draws none by itself.
+        ctx.request_repaint();
     }
 
     /// What the notification area's icon says: its tooltip (the window's title, with the unread
@@ -103,14 +105,22 @@ impl MailApp {
             self.ui.close_now = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else if ctx.input(|i| i.viewport().close_requested()) {
-            // Kept running in the notification area (issue #67): the window is hidden, nothing
-            // ends and nothing is asked. Exit, an update's restart and a close already being
+            // Kept running (issue #67): the window is hidden, or minimized where it couldn't be
+            // brought back from hiding; nothing ends and nothing is asked. Exit, an update's restart and a close already being
             // answered go on to close it.
             let ending = self.ui.quit_wanted || self.ui.closing_anyway || self.ui.restart_wanted || self.ui.graphics_lost;
-            if self.session.prefs.close_to_tray && !ending && self.services.tray_shown() {
+            if self.session.prefs.close_to_tray
+                && !ending
+                && let Some(kept) = self.services.kept_on_close()
+            {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                self.ui.in_tray = true;
+                match kept {
+                    KeptOnClose::Hidden => {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                        self.ui.in_tray = true;
+                    }
+                    KeptOnClose::Minimized => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                }
                 return;
             }
             // Messages being written: kept as drafts if wanted, as Outlook asks; never lost.
@@ -217,6 +227,7 @@ impl MailApp {
         if !cfg!(target_os = "macos") && ctx.options(|o| !o.quit_shortcuts.is_empty()) {
             ctx.options_mut(|o| o.quit_shortcuts.clear());
         }
+        self.ui.keeps_running = self.services.keeps_running();
         // Done in `logic` already when the app runs it, as the close is.
         let in_logic = self.ui.close_checked == Some(ctx.input(|i| i.time));
         if !in_logic {

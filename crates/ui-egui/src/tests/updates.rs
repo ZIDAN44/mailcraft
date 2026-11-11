@@ -14,8 +14,8 @@ struct Asked {
     notified: Vec<String>,
     later: bool,
     restart: bool,
-    /// MailCraft's icon is in the notification area.
-    tray: bool,
+    /// What a close does when MailCraft is kept running.
+    tray: Option<crate::KeptOnClose>,
 }
 
 struct Updating(Rc<RefCell<Asked>>);
@@ -44,10 +44,10 @@ impl crate::Services for Updating {
     fn keep_update_for_later(&mut self) {
         self.0.borrow_mut().later = true;
     }
-    fn tray_offered(&self) -> bool {
-        true
+    fn keeps_running(&self) -> Option<crate::KeptOnClose> {
+        Some(crate::KeptOnClose::Hidden)
     }
-    fn tray_shown(&self) -> bool {
+    fn kept_on_close(&self) -> Option<crate::KeptOnClose> {
         self.0.borrow().tray
     }
     fn notify(&mut self, title: &str, _body: &str) {
@@ -277,7 +277,7 @@ fn the_old_flatpak_is_named_once_its_mail_came_over() {
 fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
     let (mut a, dir) = app("keep-running");
     let asked = updating(&mut a);
-    asked.borrow_mut().tray = true;
+    asked.borrow_mut().tray = Some(crate::KeptOnClose::Hidden);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     // The window asked to close: what it's told to do then.
@@ -315,10 +315,16 @@ fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
     a.ui.dialog = None;
     frame(&ctx, &mut a, vec![]);
     assert!(hides(&closed(&mut a)), "cancelled: closing hides again");
-    // No icon there (it couldn't be made): closing closes, rather than leave a window nobody can find.
+    // Where a hidden window couldn't be brought back (Wayland, no notification area), it's
+    // minimized: the taskbar is the way back.
     a.show_window(&ctx);
     a.run("compose.discard", json!({}));
-    asked.borrow_mut().tray = false;
-    assert!(!hides(&closed(&mut a)));
+    asked.borrow_mut().tray = Some(crate::KeptOnClose::Minimized);
+    let commands = closed(&mut a);
+    assert!(commands.contains(&egui::ViewportCommand::CancelClose) && commands.contains(&egui::ViewportCommand::Minimized(true)), "{commands:?}");
+    assert!(!hides(&commands) && !a.ui.in_tray);
+    // Where the app can't keep running at all, a close is a close.
+    asked.borrow_mut().tray = None;
+    assert!(!closed(&mut a).contains(&egui::ViewportCommand::CancelClose));
     let _ = std::fs::remove_dir_all(dir);
 }

@@ -14,7 +14,7 @@ on GitHub.
 
 ### Added
 
-- **Keep MailCraft running when its window is closed** (File › Options › General, Windows, off unless you turn it on): closing the window hides it, and MailCraft goes on checking for mail and announcing it. Its icon in the notification area opens it again, and so does starting MailCraft; **Exit**, there or on the File page, ends it (#67).
+- **Keep MailCraft running when its window is closed** (File › Options › General, off unless you turn it on): closing the window puts it away, and MailCraft goes on checking for mail and announcing it. On Windows, and on Linux desktops with a notification area, the window is hidden and MailCraft's icon there opens it again; under Wayland, without a notification area, and on a Mac, the window is minimized instead. Starting MailCraft again brings it back too. **Exit** (the icon's, or the File page's) and a Mac's **Quit** end it (#67).
 
 ### Fixed
 

@@ -708,7 +708,7 @@ fn run(
                     native_wayland,
                     updater,
                     looked: std::time::Instant::now(),
-                    tray: desktop::tray::Tray::new(),
+                    tray: desktop::tray::Tray::new(native_wayland),
                 }
             });
             Ok(Box::new(desktop::boot::Window::Booting(Box::new(desktop::boot::Booting {

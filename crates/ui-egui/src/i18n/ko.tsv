@@ -267,6 +267,7 @@
 	Show a desktop notification when new mail arrives	새 메일이 오면 데스크톱 알림 표시
 	Keep MailCraft running when its window is closed	창을 닫아도 MailCraft 계속 실행
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	알림 영역에 남아 메일을 확인하고 새 메일을 알립니다. ‘파일’ 페이지나 아이콘 메뉴의 ‘끝내기’로 닫습니다.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	창이 최소화되고 MailCraft는 계속 메일을 확인하고 새 메일을 알립니다. ‘파일’ 페이지의 ‘끝내기’로 닫습니다.
 	Open MailCraft	MailCraft 열기
 	Show as plain text	일반 텍스트로 표시
 	Show formatted	서식 있게 표시

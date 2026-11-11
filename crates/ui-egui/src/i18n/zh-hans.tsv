@@ -267,6 +267,7 @@
 	Show a desktop notification when new mail arrives	收到新邮件时显示桌面通知
 	Keep MailCraft running when its window is closed	关闭窗口后让 MailCraft 继续运行
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	它会留在通知区域，检查邮件并在有新邮件时通知。在“文件”页或其图标菜单中选择“退出”可将其关闭。
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	窗口会最小化，MailCraft 会继续检查邮件并在有新邮件时通知。在“文件”页选择“退出”可将其关闭。
 	Open MailCraft	打开 MailCraft
 	Show as plain text	以纯文本显示
 	Show formatted	显示格式
