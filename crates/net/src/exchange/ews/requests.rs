@@ -127,7 +127,7 @@ impl Client {
                     continue;
                 }
                 if matches!(scheme, Scheme::Ntlm(_)) && !ntlm_reauthenticated {
-                    log::warn!("EWS: previously authenticated NTLM request received HTTP 401; retrying handshake once");
+                    log::debug!("EWS: previously authenticated NTLM request received HTTP 401; retrying handshake once");
                     ntlm_reauthenticated = true;
                     *self.signed_in.borrow_mut() = false;
                     continue;

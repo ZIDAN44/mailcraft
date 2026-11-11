@@ -607,3 +607,29 @@ fn serve_ews_for_the_app() {
         std::thread::park();
     }
 }
+
+/// A proxy can expire NTLM authentication while the TCP connection stays open.
+/// The next EWS request must complete a new handshake and succeed.
+#[test]
+fn ntlm_reauthenticates_after_a_401_on_an_existing_connection() {
+    let mut d = Data { expire_ntlm_once: true, ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    assert_eq!(server.data.lock().unwrap().handshakes, 1, "initial sign-in");
+    assert_eq!(c.mailboxes().unwrap().len(), 1, "request succeeds after NTLM reauthentication");
+    assert_eq!(server.data.lock().unwrap().ntlm_reauthentications, 1, "one successful reauthentication on the existing connection");
+    assert_eq!(c.mailboxes().unwrap().len(), 1);
+    assert_eq!(server.data.lock().unwrap().ntlm_reauthentications, 1, "no repeated authentication expiry");
+}
+
+/// A rejected NTLM Type 3 response must fail instead of retrying forever.
+#[test]
+fn ntlm_rejects_bad_credentials_without_reauthentication_loop() {
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let result = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), "incorrect-password", "riley@contoso.example");
+    assert!(matches!(result, Err(crate::NetError::Auth(_))), "bad credentials must be rejected");
+    assert_eq!(server.data.lock().unwrap().handshakes, 0, "no successful NTLM handshake");
+}

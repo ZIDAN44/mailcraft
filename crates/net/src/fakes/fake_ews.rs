@@ -65,6 +65,10 @@ pub struct Data {
     pub calls: Vec<String>,
     /// NTLM handshakes done (one per connection).
     pub handshakes: usize,
+    /// Expire NTLM authentication once after the first authenticated request on a connection.
+    pub expire_ntlm_once: bool,
+    /// Successful NTLM reauthentication on an existing TCP connection.
+    pub ntlm_reauthentications: usize,
     /// The EWS address, for Autodiscover's answer.
     pub url: String,
     /// People whose calendars this account may change (delegates with editor rights).
@@ -126,6 +130,8 @@ impl Default for Data {
             basic: false,
             calls: Vec::new(),
             handshakes: 0,
+            expire_ntlm_once: false,
+            ntlm_reauthentications: 0,
             url: String::new(),
             editors: Vec::new(),
             item_rights_only: false,
@@ -793,6 +799,8 @@ fn serve_at(data: Data, at: &str) -> Server {
 fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
     let mut reader = BufReader::new(s.try_clone().unwrap());
     let mut signed_in = false;
+    let mut expired_on_connection = false;
+    let mut authenticated_requests = 0usize;
     let mut challenge: Option<crate::ntlm::Challenge> = None;
     loop {
         let mut first = String::new();
@@ -834,10 +842,21 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
             respond(&mut s, 403, &[], b"Forbidden");
             continue;
         }
-        let (basic, open) = {
-            let d = shared.lock().unwrap();
-            (d.basic, d.open)
+        let (basic, open, expire_ntlm) = {
+            let mut d = shared.lock().unwrap();
+            // Consume the expiry globally, not once per TCP connection. Otherwise
+            // a subsequent connection can trigger an unrelated second expiry.
+            let expire = d.expire_ntlm_once && signed_in && authenticated_requests > 0;
+            if expire {
+                d.expire_ntlm_once = false;
+            }
+            (d.basic, d.open, expire)
         };
+        if expire_ntlm {
+            expired_on_connection = true;
+            signed_in = false;
+            challenge = None;
+        }
         if basic && !open {
             let expected = format!("Basic {}", crate::imap::base64(format!("{DOMAIN}\\{USER}:{PASSWORD}").as_bytes()));
             if auth != expected {
@@ -859,13 +878,21 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
                         continue;
                     }
                     signed_in = true;
-                    shared.lock().unwrap().handshakes += 1;
+                    let mut d = shared.lock().unwrap();
+                    d.handshakes += 1;
+                    if expired_on_connection {
+                        d.ntlm_reauthentications += 1;
+                        expired_on_connection = false;
+                    }
                 }
                 _ => {
                     respond(&mut s, 401, &[("WWW-Authenticate", "Negotiate".into()), ("WWW-Authenticate", "NTLM".into())], b"");
                     continue;
                 }
             }
+        }
+        if signed_in && !basic && !open {
+            authenticated_requests += 1;
         }
         let doc = parse(&String::from_utf8_lossy(&body));
         // Autodiscover: this server's own address.
