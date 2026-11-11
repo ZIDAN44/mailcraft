@@ -117,6 +117,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         DateGroup::LastWeek,
         DateGroup::TwoWeeksAgo,
         DateGroup::ThreeWeeksAgo,
+        DateGroup::ThisMonth,
         DateGroup::LastMonth,
         DateGroup::Older,
         DateGroup::Future,
