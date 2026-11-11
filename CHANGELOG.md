@@ -8,7 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.35.0
+## 0.36.0
+
+*MailCraft as a project of its own: its own publisher, app id and releases.*
+
+## 0.35.0 - 2026-11-10
 
 *Mail built from templates reads as it was designed, a mail file opens from inside MailCraft, calendars and contacts sync with no email account, and each account checks for mail as often as you choose.*
 
