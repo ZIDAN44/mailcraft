@@ -314,8 +314,15 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
         icons::paint(ui.painter(), r, Icon::Task, if done { t.faint } else { t.dim });
     }
     let ink = if done { t.faint } else { t.text };
-    let mut job = egui::text::LayoutJob::simple(text.to_string(), font, ink, (rect.width() - lead - if lock { 22.0 } else { 8.0 }).max(4.0));
-    job.wrap.max_rows = ((rect.height() - 4.0) / row).floor().max(1.0) as usize;
+    let room = (rect.width() - lead - if lock { 22.0 } else { 8.0 }).max(4.0);
+    // Too narrow for a word of its title (events side by side in a narrow day): the start of
+    // the title on one line. Wrapped, it was a letter a line down the box.
+    let title = text.lines().next().unwrap_or_default();
+    let widest = title.split_whitespace().map(|w| ui.painter().layout_no_wrap(w.to_string(), font.clone(), ink).size().x).fold(0.0, f32::max);
+    let narrow = widest > room;
+    let mut job = egui::text::LayoutJob::simple(if narrow { title.to_string() } else { text.to_string() }, font, ink, room);
+    job.wrap.max_rows = if narrow { 1 } else { ((rect.height() - 4.0) / row).floor().max(1.0) as usize };
+    job.wrap.break_anywhere = narrow;
     job.wrap.overflow_character = Some('…');
     let galley = ui.fonts_mut(|f| f.layout_job(job));
     ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0 + lead, 2.0), galley, ink);

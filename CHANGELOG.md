@@ -50,6 +50,10 @@ on GitHub.
 - A message with two **From** or two **Subject** lines shows the first of each, as other mail programs do, and is never marked as from a checked sender.
 - A date written the old way, `04:07 EST`, is read in that time zone: it was taken for UTC, hours off.
 - A message the server took but never answered about (it stopped responding, or the connection dropped) is no longer sent again by itself, which is how mail arrived twice: it comes back saying it may have gone.
+- Calendar: events side by side in a narrow day show the start of their title on one line. It was a letter a line.
+- People: in a short window the A–Z index shows the letters that have names, all within reach. Its end was under the window's edge.
+- A message opened by a command, or from its conversation in the reading pane, is brought into view in the list.
+- In Arabic and Hebrew a notice appears in the left corner, clear of what opens from the status bar.
 
 ## 0.36.0 - 2026-11-11
 

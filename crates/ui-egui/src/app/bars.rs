@@ -325,8 +325,12 @@ impl MailApp {
         } else {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64((at + ttl - motion::GENTLE as f64 - now).max(0.0)));
         }
+        // In the corner where the window's lines end: the left one in a right-to-left
+        // interface, where the right one is the status bar's start and what opens from it (the
+        // import's details were under the notice).
+        let (corner, aside) = if i18n::current().rtl() { (egui::Align2::LEFT_BOTTOM, 16.0) } else { (egui::Align2::RIGHT_BOTTOM, -16.0) };
         egui::Area::new(egui::Id::unique("toast"))
-            .anchor(egui::Align2::RIGHT_BOTTOM, vec2(-16.0, -36.0 + 14.0 * (1.0 - enter)))
+            .anchor(corner, vec2(aside, -36.0 + 14.0 * (1.0 - enter)))
             .order(egui::Order::Foreground)
             .fade_in(false)
             .show(ctx, |ui| {

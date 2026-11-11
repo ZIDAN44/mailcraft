@@ -183,10 +183,14 @@ fn the_other_pages_fit_a_small_window() {
         frame(&ctx, &mut a, vec![]);
         for (page, cmd) in [("calendar", "view.calendar"), ("tasks", "view.tasks"), ("people", "view.people")] {
             a.run(cmd, json!({}));
-            let (_, found) = settled(&ctx, &mut a);
-            // A day's events side by side are a few letters wide each: their words break.
-            let found: Vec<_> = found.into_iter().filter(|f| page != "calendar" || !f.starts_with("cut")).collect();
+            let (drawn, found) = settled(&ctx, &mut a);
             assert!(found.is_empty(), "{lang} {page}: {found:?}");
+            // The A–Z index beside the people: all of it above the status bar, within reach.
+            if page == "people" {
+                let index: Vec<_> = drawn.iter().filter(|p| p.text.chars().count() == 1 && p.text.chars().all(|c| c.is_ascii_lowercase())).collect();
+                assert!(!index.is_empty(), "{lang}: the index is drawn");
+                assert!(index.iter().all(|p| p.ink.max.y <= p.clip.max.y && p.ink.max.y < SMALL.y - 26.0), "{lang}: the index fits its height");
+            }
         }
         a.run("view.calendar", json!({}));
         let (drawn, _) = settled(&ctx, &mut a);
@@ -198,6 +202,34 @@ fn the_other_pages_fit_a_small_window() {
         assert!(found.is_empty(), "{lang} File: {found:?}");
         let _ = std::fs::remove_dir_all(dir);
     }
+}
+
+/// A message opened by a command is brought into view in the list (it stayed out of sight,
+/// below the rows shown); and a notice is in the corner where lines end, the left one in Arabic.
+#[test]
+fn an_opened_message_and_a_notice_are_where_they_are_looked_for() {
+    let _dressed = Dressed::new(SMALL, "ar");
+    let (mut a, dir) = app("layout-opened");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let last = a.session.list.last().cloned().unwrap();
+    let start: String = last.subject.chars().take(8).collect();
+    let in_list = |drawn: &[Piece]| drawn.iter().any(|p| p.clip.width() < 295.0 && p.text.contains(&start) && p.ink.max.y <= p.clip.max.y);
+    let (drawn, _) = settled(&ctx, &mut a);
+    assert!(!in_list(&drawn), "the last message starts out of sight: {start:?}");
+    a.run("list.open", json!({"key": last.key.to_id()}));
+    // The list glides there over some frames.
+    for _ in 0..12 {
+        settled(&ctx, &mut a);
+    }
+    let (drawn, _) = settled(&ctx, &mut a);
+    let seen: Vec<_> = drawn.iter().filter(|p| p.text.contains(&start)).map(|p| (p.ink, p.clip)).collect();
+    assert!(in_list(&drawn), "opened, it's in view in the list: {seen:?}");
+    a.session.notice("Archive.pst: 100 messages imported", false);
+    let (drawn, _) = settled(&ctx, &mut a);
+    let notice = drawn.iter().find(|p| p.text.starts_with("Archive.pst")).map(|p| p.ink);
+    assert!(notice.is_some_and(|r| r.max.x < SMALL.x / 2.0), "{notice:?}");
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A message in a window of its own: its toolbar fits the window, its last buttons without

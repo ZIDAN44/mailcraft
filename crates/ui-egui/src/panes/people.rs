@@ -328,9 +328,15 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         });
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            for c in 'A'..='Z' {
+            // All of it in the height there is: in a short window the letters that have names
+            // only, closer together (it ran out under the window's edge, the last letters out
+            // of reach).
+            let room = ui.available_height();
+            let shown: Vec<char> = ('A'..='Z').filter(|c| room >= 26.0 * 11.0 || letters.contains(c)).collect();
+            let step = (room / shown.len().max(1) as f32).clamp(8.0, 16.0);
+            for c in shown {
                 let has = letters.contains(&c);
-                let (r, resp) = ui.allocate_exact_size(vec2(INDEX_W, 16.0), if has { Sense::click() } else { Sense::hover() });
+                let (r, resp) = ui.allocate_exact_size(vec2(INDEX_W, step), if has { Sense::click() } else { Sense::hover() });
                 if resp.hovered() && has {
                     ui.painter().rect_filled(r, 3.0, t.hover_row);
                 }
@@ -338,7 +344,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     r.center(),
                     egui::Align2::CENTER_CENTER,
                     c.to_lowercase().to_string(),
-                    theme::regular(11.0),
+                    theme::regular((step * 0.7).clamp(7.5, 11.0)),
                     if has { t.accent } else { t.faint },
                 );
                 if resp.clicked() {

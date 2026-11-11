@@ -669,6 +669,9 @@ impl MailApp {
                 self.ui.dialog_for = self.session.compose.as_ref().filter(|c| c.window).map(|c| c.id);
                 self.ui.dialog = Some(Dialog::SendCheck(found));
             }
+            // A message opened by a command (a script's, a conversation's row in the reading
+            // pane) is brought into view in the list: it could be opened out of sight.
+            Ok(_) if id == "list.open" => self.ui.scroll_to_focus = true,
             Ok(_) => {}
             // Not from an account that can't send: said over the message, as why it didn't go.
             Err(CmdError::Disabled(_))
