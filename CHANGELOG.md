@@ -23,6 +23,12 @@ on GitHub.
 - A message can't mark itself as checked: only the result your own mail server put at the top counts, where one written by the sender lower down was believed (and its pictures could load by themselves).
 - A draft keeps a recipient whose name has a comma (`"Park, Zoe"`) whole when it's saved.
 - Addresses pasted with only a space or a line end between them each get the message: the first was taken for the second's name.
+- A folder a server names `R&D-Team` without encoding it shows its whole name, and one it lists with letters outside ASCII is opened by that name, not another.
+- A folder with more than about 130,000 messages syncs: the account signed in again and again instead.
+- A change to another message, told by the server while new mail is fetched, no longer adds an empty message to the list.
+- An answer from an IMAP server that MailCraft's reader can't take (`INTERNALDATE NIL`) no longer stops the account until MailCraft starts again.
+- On a server without UIDPLUS, moving or deleting a message no longer removes for good the messages another program had marked as deleted.
+- New mail is noticed at once after a message is deleted for good, and after a folder that's gone from the server was opened.
 
 ## 0.36.0 - 2026-11-11
 
