@@ -12,6 +12,10 @@ on GitHub.
 
 *Fixes found by testing against real mail servers and awkward real-world mail.*
 
+### Added
+
+- **Keep MailCraft running when its window is closed** (File › Options › General, Windows, off unless you turn it on): closing the window hides it, and MailCraft goes on checking for mail and announcing it. Its icon in the notification area opens it again, and so does starting MailCraft; **Exit**, there or on the File page, ends it (#67).
+
 ### Fixed
 
 - A message whose text comes in several parts shows all of it: text under an attachment (a note, a mailing list's footer) was left out.

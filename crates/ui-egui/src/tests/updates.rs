@@ -14,6 +14,8 @@ struct Asked {
     notified: Vec<String>,
     later: bool,
     restart: bool,
+    /// MailCraft's icon is in the notification area.
+    tray: bool,
 }
 
 struct Updating(Rc<RefCell<Asked>>);
@@ -41,6 +43,12 @@ impl crate::Services for Updating {
     }
     fn keep_update_for_later(&mut self) {
         self.0.borrow_mut().later = true;
+    }
+    fn tray_offered(&self) -> bool {
+        true
+    }
+    fn tray_shown(&self) -> bool {
+        self.0.borrow().tray
     }
     fn notify(&mut self, title: &str, _body: &str) {
         self.0.borrow_mut().notified.push(title.to_string());
@@ -260,4 +268,57 @@ fn the_old_flatpak_is_named_once_its_mail_came_over() {
     assert!(!texts.iter().any(|(t, _)| t.contains("flatpak uninstall")));
     let b = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(NullServices(NOW)));
     assert_eq!(b.ui.old_flatpak, None);
+}
+
+/// Issue #67: with "Keep MailCraft running when its window is closed" on, and its icon in the
+/// notification area, closing the window hides it and ends nothing; Exit closes it, and asks
+/// what a close asks. Off, or with no icon to come back from, a close is a close.
+#[test]
+fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
+    let (mut a, dir) = app("keep-running");
+    let asked = updating(&mut a);
+    asked.borrow_mut().tray = true;
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    // The window asked to close: what it's told to do then.
+    let closed = |a: &mut MailApp| {
+        let input = RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+            viewports: std::iter::once((
+                egui::ViewportId::ROOT,
+                egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() },
+            ))
+            .collect(),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        out.viewport_output.remove(&egui::ViewportId::ROOT).map(|v| v.commands).unwrap_or_default()
+    };
+    let hides = |commands: &[egui::ViewportCommand]| {
+        commands.contains(&egui::ViewportCommand::CancelClose) && commands.contains(&egui::ViewportCommand::Visible(false))
+    };
+    assert!(!hides(&closed(&mut a)) && !a.ui.in_tray, "off: the window closes");
+    a.run("view.closeToTray", json!({"on": true}));
+    assert!(hides(&closed(&mut a)) && a.ui.in_tray, "on: hidden, still running");
+    a.show_window(&ctx);
+    assert!(!a.ui.in_tray);
+    // A message being written doesn't stop the window hiding: nothing is lost by it.
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Later", "body": "Not sent yet."}));
+    assert!(hides(&closed(&mut a)) && a.ui.dialog.is_none());
+    // Exit asks about it, as a close does, with the window back; cancelled, the window hides again.
+    a.exit(&ctx);
+    let commands = closed(&mut a);
+    assert!(!hides(&commands) && matches!(&a.ui.dialog, Some(Dialog::SaveOnClose(1))), "{commands:?}");
+    assert!(commands.contains(&egui::ViewportCommand::Visible(true)) && !a.ui.in_tray, "the question is shown: {commands:?}");
+    a.ui.dialog = None;
+    frame(&ctx, &mut a, vec![]);
+    assert!(hides(&closed(&mut a)), "cancelled: closing hides again");
+    // No icon there (it couldn't be made): closing closes, rather than leave a window nobody can find.
+    a.show_window(&ctx);
+    a.run("compose.discard", json!({}));
+    asked.borrow_mut().tray = false;
+    assert!(!hides(&closed(&mut a)));
+    let _ = std::fs::remove_dir_all(dir);
 }

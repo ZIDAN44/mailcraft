@@ -265,6 +265,9 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	サーバー: {imap} (IMAP {imap_port})、{smtp} (SMTP {smtp_port})
 	Settings found: {source}	設定が見つかりました: {source}
 	Show a desktop notification when new mail arrives	新しいメールが届いたらデスクトップ通知を表示する
+	Keep MailCraft running when its window is closed	ウィンドウを閉じても MailCraft を実行したままにする
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	通知領域に残り、メールを確認して新着を知らせます。「ファイル」ページ、またはアイコンのメニューの「終了」で閉じます。
+	Open MailCraft	MailCraft を開く
 	Show as plain text	プレーン テキストで表示
 	Show formatted	書式付きで表示
 	Show in Favorites	お気に入りに表示

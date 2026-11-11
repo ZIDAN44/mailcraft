@@ -265,6 +265,9 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	伺服器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
 	Settings found: {source}	已找到設定: {source}
 	Show a desktop notification when new mail arrives	收到新郵件時顯示桌面通知
+	Keep MailCraft running when its window is closed	關閉視窗後讓 MailCraft 繼續執行
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	它會留在通知區域，檢查郵件並在有新郵件時通知。在「檔案」頁面或其圖示的選單中選擇「結束」即可關閉。
+	Open MailCraft	開啟 MailCraft
 	Show as plain text	以純文字顯示
 	Show formatted	以格式顯示
 	Show in Favorites	在我的最愛中顯示

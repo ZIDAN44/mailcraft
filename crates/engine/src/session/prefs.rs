@@ -93,6 +93,9 @@ pub struct Prefs {
     pub confirm_permanent_delete: bool,
     /// Desktop notifications for new mail in an Inbox.
     pub notify: bool,
+    /// Closing the window leaves MailCraft running in the notification area, where the app
+    /// has one (issue #67): mail is still checked and announced.
+    pub close_to_tray: bool,
     /// The categories offered, in order.
     pub categories: Vec<mailcraft_model::organize::Category>,
     /// Split the Inbox into Focused and Other.
@@ -286,6 +289,7 @@ impl Default for Prefs {
             confirm_permanent_delete: true,
             favorites: None,
             notify: true,
+            close_to_tray: false,
             categories: mailcraft_model::organize::default_categories(),
             focused_inbox: false,
             focus_overrides: std::collections::BTreeMap::new(),

@@ -127,6 +127,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"on": s.prefs.notify}))
         })
         .params(r#"{"on"?: bool}"#),
+        CommandSpec::new("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", |s, v| {
+            s.prefs.close_to_tray = p::bool(v, "on").unwrap_or(!s.prefs.close_to_tray);
+            Ok(json!({"on": s.prefs.close_to_tray}))
+        })
+        .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.newMailWindow", "New messages in their own window", "File › Options › Mail", |s, v| {
             s.prefs.new_mail_window = p::bool(v, "on").unwrap_or(!s.prefs.new_mail_window);
             Ok(json!({"on": s.prefs.new_mail_window}))

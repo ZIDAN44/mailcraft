@@ -246,6 +246,14 @@ pub trait Services {
     fn has_background(&self) -> bool {
         false
     }
+    /// Whether this app can stay in the system's notification area with its window closed
+    /// (the option is offered), and whether its icon is there now (closing then hides the window).
+    fn tray_offered(&self) -> bool {
+        false
+    }
+    fn tray_shown(&self) -> bool {
+        false
+    }
     /// Whether files can be dragged out of the window to other apps (see
     /// [`MailApp::take_drag_out`]).
     fn can_drag_out(&self) -> bool {

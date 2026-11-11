@@ -265,6 +265,9 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	שרתים: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	נמצאו הגדרות: {source}
 	Show a desktop notification when new mail arrives	הצג התראה בשולחן העבודה כשמגיע דואר חדש
+	Keep MailCraft running when its window is closed	להשאיר את MailCraft פועל כשהחלון שלו נסגר
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	הוא נשאר באזור ההודעות, בודק דואר ומודיע עליו. ”יציאה“ בדף ”קובץ“, או בתפריט של הסמל שלו, סוגרת אותו.
+	Open MailCraft	פתיחת MailCraft
 	Show as plain text	הצג כטקסט רגיל
 	Show formatted	הצג מעוצב
 	Show in Favorites	הצג במועדפים

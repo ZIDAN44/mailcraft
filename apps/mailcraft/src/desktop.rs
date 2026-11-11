@@ -8,6 +8,7 @@ pub(crate) mod boot;
 mod lanes;
 pub(crate) mod start;
 pub(crate) mod state_writer;
+pub(crate) mod tray;
 pub(crate) mod window_frame;
 
 pub(crate) struct PoolBackend(pub(crate) Pool);
@@ -263,6 +264,12 @@ impl Services for Desktop {
             ]
         };
         candidates.iter().find_map(|p| std::fs::read(p).ok())
+    }
+    fn tray_offered(&self) -> bool {
+        tray::offered()
+    }
+    fn tray_shown(&self) -> bool {
+        tray::shown()
     }
     fn can_drag_out(&self) -> bool {
         // Elsewhere, under X11 only: a Wayland window isn't an X window.

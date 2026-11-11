@@ -285,6 +285,14 @@ pub struct UiState {
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
+    /// Whether MailCraft can stay in the notification area with its window closed (the desktop
+    /// app, where the system has one).
+    pub has_tray: bool,
+    /// The window was closed to the notification area and is hidden.
+    pub(crate) in_tray: bool,
+    /// Exit was chosen (the File page's, the tray icon's): the window's close ends MailCraft
+    /// rather than hiding it.
+    pub(crate) quit_wanted: bool,
     /// Where the data is kept and whether it can be moved; where it moves at the next start.
     pub data_folder: Option<(PathBuf, bool)>,
     pub pending_move: Option<PathBuf>,
@@ -463,6 +471,7 @@ impl MailApp {
     pub fn new(session: Session, backend: Box<dyn Backend>, mut services: Box<dyn Services>) -> MailApp {
         let seen = session.notices.len();
         let has_files = !services.downloads();
+        let has_tray = services.tray_offered();
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
         let old_flatpak = services.carried_over_from();
         let mut session = session;
@@ -502,6 +511,9 @@ impl MailApp {
                 compact: Default::default(),
                 reminders: reminders::State::default(),
                 has_files,
+                has_tray,
+                in_tray: false,
+                quit_wanted: false,
                 data_folder,
                 pending_move,
                 dark: None,

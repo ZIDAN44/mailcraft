@@ -30,6 +30,27 @@ impl MailApp {
         self.flush_jobs();
     }
 
+    /// The window back from the notification area (its icon clicked, MailCraft started again).
+    pub fn show_window(&mut self, ctx: &egui::Context) {
+        self.ui.in_tray = false;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
+    /// Exit, from the notification area's icon: MailCraft closes as it does without one, asking
+    /// what it asks.
+    pub fn exit(&mut self, ctx: &egui::Context) {
+        self.ui.quit_wanted = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+
+    /// What the notification area's icon says: its tooltip (the window's title, with the unread
+    /// count) and its menu's two lines, in the language shown.
+    pub fn tray_words(&self) -> (String, String, String) {
+        (self.ui.title_shown.clone(), tl!("Open MailCraft").to_string(), tl!("Exit").to_string())
+    }
+
     /// Where the platform has a quit of its own (macOS: `terminate:`, `quit` returning true), a
     /// close of the main window that nothing held open goes that way instead: call it last in
     /// `logic`. Leaving a Mac by closing the eframe window can crash in AppKit's Touch Bar code
@@ -82,6 +103,16 @@ impl MailApp {
             self.ui.close_now = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else if ctx.input(|i| i.viewport().close_requested()) {
+            // Kept running in the notification area (issue #67): the window is hidden, nothing
+            // ends and nothing is asked. Exit, an update's restart and a close already being
+            // answered go on to close it.
+            let ending = self.ui.quit_wanted || self.ui.closing_anyway || self.ui.restart_wanted || self.ui.graphics_lost;
+            if self.session.prefs.close_to_tray && !ending && self.services.tray_shown() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                self.ui.in_tray = true;
+                return;
+            }
             // Messages being written: kept as drafts if wanted, as Outlook asks; never lost.
             let written = self.session.all_composes().filter(|c| self.session.written(c) && !c.sending).count();
             let (unsent, changes) = self.session.lost_on_close();
@@ -114,6 +145,10 @@ impl MailApp {
             if asked {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.ui.close_asked = true;
+                // Exit from the notification area's icon: the question needs the window.
+                if self.ui.in_tray {
+                    self.show_window(ctx);
+                }
                 // Closed from the taskbar or the Dock while minimized: the window comes back to ask.
                 if ctx.input(|i| i.viewport().minimized == Some(true)) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));

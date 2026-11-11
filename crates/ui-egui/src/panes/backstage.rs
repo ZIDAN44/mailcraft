@@ -127,6 +127,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
             // Close MailCraft (the desktop app; a browser tab is closed by the browser).
             if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
+                // Exit ends MailCraft, where closing the window only hides it (issue #67).
+                st.quit_wanted = true;
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         },
