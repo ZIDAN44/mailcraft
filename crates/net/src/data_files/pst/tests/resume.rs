@@ -373,10 +373,6 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
 
     let changed = dir.join("changed.pst");
     std::fs::copy(&pst, &changed).unwrap();
-    // Copied a while ago: a file is known by its size and the second it last changed, and the
-    // message added below leaves its size alone and could land in the copy's own second.
-    let earlier = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
-    std::fs::File::options().write(true).open(&changed).unwrap().set_modified(earlier).unwrap();
     let store = store_at(&dir, "part");
     stopped_at(&changed, &store, 400, StopHow::Pause, None);
     let before = (checkpoint(&store), store.load_folders("a1").unwrap());
@@ -395,7 +391,13 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
         message_class: "IPM.Note",
         properties: &[],
     };
+    // A message more, in a file as big as it was and dated as it was (written in the second it
+    // was last written in, or by a program that puts the date back): what it holds says so.
+    let dated = std::fs::metadata(&changed).unwrap().modified().unwrap();
+    let as_it_was = resume::facts(&changed);
     write::append(&changed, &["Inbox"], &[BatchMessage { message: more, attachments: &[] }]).unwrap();
+    std::fs::File::options().write(true).open(&changed).unwrap().set_modified(dated).unwrap();
+    assert_eq!(resume::facts(&changed), as_it_was, "the file's size and date don't tell");
     let (done, _) = go_on(&changed, &store, None);
     assert_eq!((done.blocked, done.messages), (Some(Blocked::SourceChanged), 0));
     assert_eq!((checkpoint(&store), store.load_folders("a1").unwrap()), before, "nothing written");

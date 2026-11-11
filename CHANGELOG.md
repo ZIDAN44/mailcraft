@@ -65,6 +65,7 @@ on GitHub.
 - A logo or a title a message centres (`<center>`, `align`, `text-align`) is centred when the rest of the message flows. Only mail laid out in tables kept what it centred (#74).
 - A message forwarded or answered shows the pictures from the web it quotes, when you were shown them reading it: they were empty boxes (#74). Nothing is fetched for it.
 - The window's title bar, where the system draws it, is light or dark as MailCraft is set to be (File › Options › Theme): on Linux it followed the system alone (#74).
+- An Outlook data file import that was paused or cut off isn't continued on a file that has changed since, even when the change left the file's size and date as they were: MailCraft goes by what the file holds.
 
 ## 0.36.0 - 2026-11-11
 
