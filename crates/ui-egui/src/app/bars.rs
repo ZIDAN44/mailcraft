@@ -121,6 +121,8 @@ impl MailApp {
                                 .desired_width(search_w - 60.0)
                                 .text_color(t.text),
                         );
+                        #[cfg(test)]
+                        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft-top-search-input-rect"), resp.rect));
                         if focus {
                             resp.request_focus();
                         }
