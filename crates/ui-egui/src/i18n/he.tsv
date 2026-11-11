@@ -251,7 +251,7 @@
 	Send	שלח
 	Send (Ctrl+Enter)	שלח (Ctrl+Enter)
 	Send / Receive	שלח / קבל
-	Send / Receive all folders (F9)	שלח / קבל את כל התיקיות (F9)
+	Send / Receive all folders (F9)	שלח וקבל בכל התיקיות (F9)
 	Send anyway	שלח בכל זאת
 	Send now	שלח עכשיו
 	Send without a subject?	לשלוח בלי נושא?
@@ -616,8 +616,8 @@ month	May	מאי
 	With attachments	עם קבצים מצורפים
 	Without attachments	ללא קבצים מצורפים
 	(nobody)	(אף אחד)
-	Send / Receive all folders	שלח/קבל את כל התיקיות
-	Send all	שלח הכל
+	Send / Receive all folders	שלח וקבל בכל התיקיות
+	Send all	שלח הכול
 	Send what's waiting in the Outbox	שלח את מה שממתין בתיבת הדואר היוצא
 	Work offline	עבוד במצב לא מקוון
 	Working offline	עובד במצב לא מקוון
@@ -654,11 +654,11 @@ month	May	מאי
 	Look in	חפש ב
 	Account	חשבון
 	Account settings…	הגדרות חשבון…
-	Delete all…	מחק הכל…
-	Delete all	מחק הכל
+	Delete all…	מחק הכול…
+	Delete all	מחק הכול
 	Delete everything in “{folder}”?	למחוק את כל מה שב„{folder}”?
 	Every message in it will be moved to Deleted Items.	כל ההודעות שבה יועברו לפריטים שנמחקו.
-	Find related	חפש קשורים
+	Find related	חפש הודעות קשורות
 	Messages in this conversation	הודעות בשיחה זו
 	Messages from sender	הודעות מהשולח
 	Forward as attachment	העבר כקובץ מצורף
@@ -721,7 +721,7 @@ month	May	מאי
 	Cut	גזור
 	Copy	העתק
 	Paste	הדבק
-	Select all	בחר הכל
+	Select all	בחר הכול
 	Link…	קישור…
 	Open link	פתח קישור
 	Clear formatting	נקה עיצוב
@@ -1194,7 +1194,7 @@ month	May	מאי
 	Your software installer opens to install it.	מתקין התוכנות שלך ייפתח כדי להתקין אותו.
 	An update is still downloading	עדכון עדיין בהורדה
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} מורד ({done} מתוך {total}).
-	Add another…	הוספת אישור נוסף…
+	Add another…	הוסף עוד…
 	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	אישור מחודש מקבל את החתימה וההצפנה; הישן נשמר לקריאת דואר קודם
 	Older certificate, valid until {date}: kept to read mail encrypted to it	אישור קודם, בתוקף עד {date}: נשמר לקריאת דואר שהוצפן עבורו
 	Use for sending	שימוש לשליחה
