@@ -1926,7 +1926,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "log",
  "mailcraft-mime",
@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-keys"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "core-foundation",
  "cryptoki",
@@ -1956,7 +1956,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mime"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "encodify",
  "flate2",
@@ -1971,7 +1971,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-model"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -1983,7 +1983,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-net"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "cfb",
  "craft-docpath",
@@ -2019,7 +2019,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-pgp"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "pgp",
  "rand_core 0.6.4",
@@ -2029,14 +2029,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-pst"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "log",
 ]
 
 [[package]]
 name = "mailcraft-smime"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
@@ -2065,7 +2065,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-store"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "craft-atomic",
  "dirs",

@@ -8,7 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.36.0
+## 0.37.0
+
+*Fixes found by testing against real mail servers and awkward real-world mail.*
+
+
+## 0.36.0 - 2026-11-11
 
 *MailCraft as a project of its own: its own publisher, app id and releases.*
 
