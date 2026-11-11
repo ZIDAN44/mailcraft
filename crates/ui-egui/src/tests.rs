@@ -632,3 +632,40 @@ fn the_tabs_and_search_share_one_bar() {
     assert!(a.ui.top_bar_rect.is_none() && a.ui.ribbon_rect.is_none(), "the File page has no bar");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn contact_photo_renders_and_caches_texture() {
+    let (mut a, dir) = app("contact-photo");
+    let ctx = egui::Context::default();
+    let mut png = Vec::new();
+    image::RgbaImage::from_pixel(4, 4, image::Rgba([20, 120, 220, 255]))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut b64 = String::new();
+    for chunk in png.chunks(3) {
+        let n = (u32::from(chunk[0]) << 16) | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8) | u32::from(*chunk.get(2).unwrap_or(&0));
+        b64.push(B64[((n >> 18) & 63) as usize] as char);
+        b64.push(B64[((n >> 12) & 63) as usize] as char);
+        b64.push(if chunk.len() > 1 { B64[((n >> 6) & 63) as usize] as char } else { '=' });
+        b64.push(if chunk.len() > 2 { B64[(n & 63) as usize] as char } else { '=' });
+    }
+    let pim = a.session.pim.values_mut().next().expect("sample pim");
+    let uid = pim.cards[0].card.uid.clone();
+    pim.cards[0].card.extra.push(format!("PHOTO;ENCODING=b;TYPE=PNG:{b64}"));
+    assert_eq!(pim.cards[0].card.photo_base64(), Some(b64.as_str()));
+    assert_eq!(mailcraft_engine::mime::decode_base64(&b64).as_deref(), Some(png.as_slice()));
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "people"}));
+    a.ui.person = Some(uid);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let non_font = |d: &egui::TexturesDelta| d.set.iter().filter(|(id, _)| **id != egui::TextureId::Managed(0)).count();
+    let mut first = ctx.run_ui(input.clone(), |ui| a.ui(ui));
+    assert_eq!(non_font(&first.textures_delta), 1, "first delta: {:?}", first.textures_delta.set.iter().map(|(id, _)| id).collect::<Vec<_>>());
+    first.textures_delta.clear();
+    ctx.run_ui(input.clone(), |ui| a.ui(ui)).textures_delta.clear();
+    let mut steady = ctx.run_ui(input, |ui| a.ui(ui));
+    assert!(steady.textures_delta.set.is_empty(), "steady delta: {:?}", steady.textures_delta.set.iter().map(|(id, _)| id).collect::<Vec<_>>());
+    steady.textures_delta.clear();
+    let _ = std::fs::remove_dir_all(dir);
+}

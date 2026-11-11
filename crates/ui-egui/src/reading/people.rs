@@ -6,11 +6,12 @@ use super::*;
 pub(super) const MAX_PEOPLE_SHOWN: usize = 50;
 
 /// The contact someone is saved as, if they are (by address).
-pub(super) fn known_contact<'a>(s: &'a Session, email: &str) -> Option<&'a mailcraft_engine::model::vcard::Card> {
-    if email.trim().is_empty() {
+pub(crate) fn known_contact<'a>(s: &'a Session, email: &str) -> Option<&'a mailcraft_engine::model::vcard::Card> {
+    let email = email.trim();
+    if email.is_empty() {
         return None;
     }
-    s.people(email).into_iter().find(|x| x.card.emails.iter().any(|e| e.value.eq_ignore_ascii_case(email))).map(|x| x.card)
+    s.pim.values().flat_map(|p| &p.cards).map(|c| &c.card).find(|c| c.emails.iter().any(|e| e.value.eq_ignore_ascii_case(email)))
 }
 
 /// Someone's name above a message, as a link: lit and underlined under the pointer.
@@ -63,7 +64,7 @@ pub(super) fn contact_card(ui: &mut Ui, t: &Tokens, a: &EmailAddress, known: Opt
     ui.set_min_width(260.0);
     ui.horizontal(|ui| {
         let (ar, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
-        widgets::avatar(ui, ar.center(), 19.0, &a.initials(), theme::avatar_color(&a.email, t.dark));
+        widgets::card_avatar(ui, ar.center(), 19.0, &a.initials(), theme::avatar_color(&a.email, t.dark), known);
         ui.add_space(4.0);
         ui.vertical(|ui| {
             let name = known.map(|c| c.display()).filter(|n| !n.is_empty()).unwrap_or_else(|| a.display().to_string());

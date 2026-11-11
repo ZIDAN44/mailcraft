@@ -530,10 +530,95 @@ pub fn start_group(ui: &Ui) {
     });
 }
 
+/// Max decoded contact photos kept in memory per window.
+const MAX_CONTACT_PHOTOS: usize = 256;
+
+#[derive(Clone, Default)]
+struct ContactPhotos(std::sync::Arc<std::sync::Mutex<std::collections::HashMap<u64, Option<egui::TextureHandle>>>>);
+
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in bytes {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
+}
+
+fn contact_photo_texture(ctx: &egui::Context, b64: &str) -> Option<egui::TextureHandle> {
+    let key = fnv1a(b64.as_bytes());
+    let cache_id = egui::Id::unique("contact-photo-cache");
+    let holder = ctx.data_mut(|d| d.get_temp_mut_or_default::<ContactPhotos>(cache_id).clone());
+    if let Ok(map) = holder.0.lock()
+        && let Some(found) = map.get(&key)
+    {
+        return found.clone();
+    }
+    let loaded =
+        mailcraft_engine::mime::decode_base64(b64).and_then(|bytes| crate::reading::decode(ctx, &format!("contact-photo-{key:016x}"), &bytes, 256));
+    if let Ok(mut map) = holder.0.lock() {
+        if map.len() >= MAX_CONTACT_PHOTOS {
+            map.clear();
+        }
+        map.insert(key, loaded.clone());
+    }
+    loaded
+}
+
+fn paint_round_photo(painter: &egui::Painter, center: egui::Pos2, radius: f32, tex: &egui::TextureHandle) {
+    let [tw, th] = tex.size();
+    let (tw, th) = (tw.max(1) as f32, th.max(1) as f32);
+    let (hu, hv) = if tw > th { (0.5 * (th / tw), 0.5) } else { (0.5, 0.5 * (tw / th)) };
+    let segs: u32 = 36;
+    let r_in = (radius - 0.5).max(0.0);
+    let r_out = radius + 0.5;
+    let mut mesh = egui::epaint::Mesh::with_texture(tex.id());
+    mesh.vertices.push(egui::epaint::Vertex { pos: center, uv: egui::pos2(0.5, 0.5), color: Color32::WHITE });
+    for i in 0..segs {
+        let a = std::f32::consts::TAU * (i as f32) / (segs as f32);
+        let (dx, dy) = (a.cos(), a.sin());
+        let uv = egui::pos2(0.5 + dx * hu, 0.5 + dy * hv);
+        mesh.vertices.push(egui::epaint::Vertex { pos: center + vec2(dx * r_in, dy * r_in), uv, color: Color32::WHITE });
+    }
+    for i in 0..segs {
+        let a = std::f32::consts::TAU * (i as f32) / (segs as f32);
+        let (dx, dy) = (a.cos(), a.sin());
+        let uv = egui::pos2(0.5 + dx * hu, 0.5 + dy * hv);
+        mesh.vertices.push(egui::epaint::Vertex { pos: center + vec2(dx * r_out, dy * r_out), uv, color: Color32::TRANSPARENT });
+    }
+    for i in 0..segs {
+        let n = (i + 1) % segs;
+        mesh.add_triangle(0, 1 + i, 1 + n);
+        let (i_in, n_in) = (1 + i, 1 + n);
+        let (i_out, n_out) = (1 + segs + i, 1 + segs + n);
+        mesh.add_triangle(i_in, i_out, n_out);
+        mesh.add_triangle(i_in, n_out, n_in);
+    }
+    painter.add(egui::Shape::mesh(mesh));
+}
+
 /// A round avatar with initials.
 pub fn avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: Color32) {
     ui.painter().circle_filled(center, radius, color);
     ui.painter().text(center, egui::Align2::CENTER_CENTER, initials, theme::bold(radius * 0.8), Color32::WHITE);
+}
+
+/// A round avatar showing an inline base64 photo when valid, falling back to `initials`.
+pub fn photo_avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: Color32, photo_b64: Option<&str>) {
+    if let Some(b64) = photo_b64.filter(|s| !s.is_empty())
+        && let Some(tex) = contact_photo_texture(ui.ctx(), b64)
+    {
+        paint_round_photo(ui.painter(), center, radius, &tex);
+        return;
+    }
+    avatar(ui, center, radius, initials, color);
+}
+
+/// A round avatar showing a [`Card`]'s embedded `PHOTO` when present, else `initials`.
+///
+/// [`Card`]: mailcraft_engine::model::vcard::Card
+pub fn card_avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: Color32, card: Option<&mailcraft_engine::model::vcard::Card>) {
+    photo_avatar(ui, center, radius, initials, color, card.and_then(|c| c.photo_base64()));
 }
 
 pub fn human_size(bytes: usize) -> String {

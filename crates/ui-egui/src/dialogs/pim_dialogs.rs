@@ -622,6 +622,7 @@ pub struct ContactForm {
     pub org: String,
     pub title: String,
     pub note: String,
+    pub photo: Option<String>,
     pub error: Option<String>,
 }
 
@@ -641,6 +642,7 @@ impl ContactForm {
             title: c.title.clone(),
             note: c.note.clone(),
             birthday: c.birthday.clone(),
+            photo: c.photo_base64().map(str::to_string),
             ..Default::default()
         };
         for (i, e) in c.emails.iter().enumerate() {
@@ -708,10 +710,20 @@ impl ContactForm {
 
 pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(560.0);
-    // The person's initials once a name is typed, as the people list shows them.
+    // The person's photo when editing one that carries a picture, else initials or the person icon.
     let initials: String = f.name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
-    let badge = if initials.is_empty() { Ok(Icon::Person) } else { Err(initials) };
-    form_header(ui, t, badge, if f.uid.is_some() { "Edit contact" } else { "New contact" });
+    if f.photo.is_some() {
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
+            widgets::photo_avatar(ui, r.center(), 20.0, &initials, theme::avatar_color(&f.name, t.dark), f.photo.as_deref());
+            ui.add_space(6.0);
+            ui.label(RichText::new(tl!(if f.uid.is_some() { "Edit contact" } else { "New contact" })).font(theme::bold(19.0)).color(t.text));
+        });
+        ui.add_space(12.0);
+    } else {
+        let badge = if initials.is_empty() { Ok(Icon::Person) } else { Err(initials) };
+        form_header(ui, t, badge, if f.uid.is_some() { "Edit contact" } else { "New contact" });
+    }
     let tall = ui.ctx().content_rect().height() * 0.62;
     egui::ScrollArea::vertical().max_height(tall.max(260.0)).auto_shrink([false, true]).show(ui, |ui| {
         // Room on the right for the scroll bar, so it doesn't run over the fields.

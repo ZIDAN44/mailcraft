@@ -480,7 +480,8 @@ fn message_row(
     let who_addr = if sent_view { m.to.first().cloned().unwrap_or_default() } else { m.from.clone() };
     if !compact {
         let c = mr.pos(egui::pos2(x + 17.0, r.min.y + 26.0));
-        widgets::avatar(ui, c, 17.0, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
+        let card = crate::reading::known_contact(s, &who_addr.email);
+        widgets::card_avatar(ui, c, 17.0, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark), card);
         x += 44.0;
     }
     let right = r.max.x - 14.0;
