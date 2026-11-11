@@ -26,6 +26,8 @@ on GitHub.
 - Calendars and contacts sync with a server that takes Digest sign-in only, as Baïkal does unless set otherwise: every request was refused as if the password were wrong (#61).
 - A calendar or address book you may not read no longer keeps the others from syncing, nor asks for your password again: it's kept as it is, and named (#61).
 - On FreeBSD, a new account isn't started from a data file another account has open, as elsewhere: it was copied while it was being written.
+- On a JMAP account, the live event stream stays open instead of reconnecting in a loop after the server's initial state greeting; storage quota asks for the mail capability (`urn:ietf:params:jmap:mail`), folders catch up when `Email/changes` reaches the server's history limit (`cannotCalculateChanges`), and CalDAV and CardDAV discovery uses the JMAP session's host.
+- Adding an on-premises Exchange (EWS) account tries Autodiscover again with your user name and password when a hybrid server answers an anonymous request with IMAP and SMTP settings only and leaves out `EwsUrl`.
 
 ### Added
 
@@ -33,6 +35,10 @@ on GitHub.
 - File › Open & Export opens a saved `.eml` or Outlook `.msg` file to look at as plain text, without adding it to a folder (#56). Opening one shows who else it went to, what's attached and where a link really goes.
 - File › Options sets how often each account looks for new mail: automatically, as before, or every 5, 10, 15, 30 or 60 minutes (#58).
 - Add account can add calendars and contacts only, with no email, from any CalDAV and CardDAV server (Nextcloud, Baïkal, SOGo, Radicale and others): give its address, your user name and an app password, and they sync both ways. A server that schedules meetings sends their invitations (#61).
+- Add account finds JMAP servers automatically from an email address (Mozilla autoconfig `<incomingServer type="jmap">`, `_jmap._tcp` SRV records, and `/.well-known/jmap` on the mail domain or its MX host, with a preset for `nextxch.com`), and signs in through the browser with OAuth 2.0 + PKCE when the server's autoconfig offers `<oAuth2>`, sharing the token with CalDAV and CardDAV.
+- Tasks (`VTODO`) and notes (`VJOURNAL`) sync both ways over CalDAV alongside calendars and contacts, keeping status, priority, start and due dates, reminders, categories and deletions in step with the server.
+- Contact pictures embedded in vCards (`PHOTO` in vCard 2.1, 3.0 and 4.0) show in People (list, card and business cards), in the message list, at the top of a message and in the sender card.
+- Searching the organisation's directory works on JMAP accounts whose server offers RFC 9670 Principals (`urn:ietf:params:jmap:principals`).
 
 ## 0.34.0 - 2026-11-08
 
