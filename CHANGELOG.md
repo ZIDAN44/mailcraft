@@ -21,6 +21,8 @@ on GitHub.
 - Two notifications with the same `[tagged]` subject are no longer shown as one conversation.
 - A reply to a message that names only the message it answers keeps the whole conversation together in other mail programs.
 - A message can't mark itself as checked: only the result your own mail server put at the top counts, where one written by the sender lower down was believed (and its pictures could load by themselves).
+- A draft keeps a recipient whose name has a comma (`"Park, Zoe"`) whole when it's saved.
+- Addresses pasted with only a space or a line end between them each get the message: the first was taken for the second's name.
 
 ## 0.36.0 - 2026-11-11
 
