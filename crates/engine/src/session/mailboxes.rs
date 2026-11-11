@@ -298,6 +298,9 @@ impl Session {
             None => Vec::new(),
         };
         self.seen_uid.insert(k, max);
+        // What the user put here didn't arrive: no rules, nothing announced.
+        let arrived: Vec<Summary> =
+            arrived.into_iter().filter(|m| !self.moved_in.remove(&(account.to_string(), folder.to_string(), m.message_id.clone()))).collect();
         // Junk from safe senders goes back to the Inbox (and is seen arriving there).
         if role == Some(FolderRole::Junk) {
             self.rescue_arrived(&arrived);

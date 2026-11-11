@@ -696,6 +696,61 @@ fn an_account_is_set_to_look_for_mail_every_so_often() {
     assert_eq!(every(&s, &id), None);
 }
 
+/// Mail the user moves into a server account's Inbox isn't mail arriving, though the server
+/// gives it a new UID there: a rule filed it straight back where it was dragged from, and it
+/// was announced as new.
+#[test]
+fn mail_moved_into_the_inbox_is_not_new_mail() {
+    let store = temp("moved-in");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let folder = |path: &str, role| mailcraft_model::Folder { account: id.clone(), path: path.into(), role, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![folder("INBOX", FolderRole::Inbox), folder("Archive", FolderRole::Archive)] });
+    let mail = |folder: &str, uid: u32, subject: &str, mid: &str| -> mailcraft_model::SharedSummary {
+        mailcraft_model::Summary {
+            key: mailcraft_model::MessageKey { account: id.clone(), folder: folder.into(), validity: 1, uid },
+            subject: subject.into(),
+            message_id: mid.into(),
+            from: mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example"),
+            date: NOW - 60,
+            ..Default::default()
+        }
+        .into()
+    };
+    let save = |folder: &str, messages: Vec<mailcraft_model::SharedSummary>| {
+        let st = mailcraft_store::FolderState { validity: 1, uid_next: 100, messages, ..Default::default() };
+        store.save_folder(&id, folder, &st).unwrap();
+    };
+    save("INBOX", vec![mail("INBOX", 1, "Old", "old@x")]);
+    save("Archive", vec![mail("Archive", 7, "Filed", "filed@x")]);
+    for f in ["INBOX", "Archive"] {
+        s.apply(Event::FolderChanged { account: id.clone(), folder: f.into() });
+    }
+    s.run(
+        "rules.add",
+        &json!({"rule": {"name": "Zoe", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "moveToRole", "value": "archive"}]}}),
+    )
+    .unwrap();
+    // Dragged back to the Inbox; the server files it there under a new UID.
+    s.run("folder.open", &json!({"account": id, "folder": "Archive"})).unwrap();
+    s.run("list.select", &key_of(&s, "Filed")).unwrap();
+    s.run("mail.move", &json!({"folder": "INBOX"})).unwrap();
+    s.take_jobs();
+    save("Archive", vec![]);
+    save("INBOX", vec![mail("INBOX", 2, "Filed", "filed@x"), mail("INBOX", 1, "Old", "old@x")]);
+    for f in ["Archive", "INBOX"] {
+        s.apply(Event::FolderChanged { account: id.clone(), folder: f.into() });
+    }
+    let moves = |s: &mut Session| s.take_jobs().iter().filter(|j| matches!(j, Job::Apply { op: Op::Move { .. }, .. })).count();
+    assert_eq!(moves(&mut s), 0, "no rule files it back");
+    assert!(s.take_new_mail().is_empty());
+    // The same sender's next message does arrive: filed by the rule, and announced.
+    save("INBOX", vec![mail("INBOX", 3, "Fresh", "fresh@x"), mail("INBOX", 2, "Filed", "filed@x"), mail("INBOX", 1, "Old", "old@x")]);
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert_eq!(moves(&mut s), 1);
+    assert_eq!(s.take_new_mail().iter().map(|m| m.subject.clone()).collect::<Vec<_>>(), ["Fresh"]);
+}
+
 /// A rule, a Quick Step and a snooze follow a folder that's renamed: they named its old path,
 /// so the rule's mail stayed in the Inbox ("1 message matched") and the snoozed message never
 /// came back.

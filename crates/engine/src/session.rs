@@ -380,6 +380,10 @@ pub struct Session {
     pgp: security::PgpState,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
+    /// Mail the user put in a server account's Inbox or Junk (a move, an undo, a snooze over),
+    /// by (account, folder, Message-ID): the server gives it a new UID there, and it isn't
+    /// mail arriving.
+    pub(crate) moved_in: std::collections::HashSet<(String, String, String)>,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
     pub(crate) arrived_invites: Vec<MessageKey>,
     /// New mail to announce (desktop notifications), oldest first.
@@ -517,6 +521,7 @@ impl Session {
             cards: Default::default(),
             pgp: Default::default(),
             seen_uid: HashMap::new(),
+            moved_in: std::collections::HashSet::new(),
             arrived_invites: Vec::new(),
             new_mail: Vec::new(),
             rules: Vec::new(),
