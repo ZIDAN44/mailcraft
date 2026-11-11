@@ -253,7 +253,9 @@ fn calendar_results_and_the_source_bar_are_mirrored() {
 /// contact table starts at the reading edge (first column rightmost in Hebrew).
 #[test]
 fn people_navigation_and_table_follow_interface_direction() {
-    for (lang, rtl, full_name, company) in [("en", false, "Full name", "Company"), ("he", true, "שם מלא", "חברה")] {
+    for (lang, rtl, full_name, company) in
+        [("en", false, "Full name", "Company"), ("he", true, "שם מלא", "חברה"), ("ar", true, "الاسم الكامل", "الشركة")]
+    {
         let (mut a, dir) = app(&format!("rtl-people-views-{lang}"));
         a.ui.language = lang.into();
         a.run("view.module", json!({"name": "people"}));
