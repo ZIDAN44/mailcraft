@@ -779,6 +779,12 @@ month	May	mei
 	Sign in with Microsoft	Aanmelden met Microsoft
 	Sign in with Microsoft…	Aanmelden met Microsoft…
 	Mailbox won't open	Postvak gaat niet open
+	Trust this computer's mail server?	De mailserver op deze computer vertrouwen?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} staat op deze computer en toont een certificaat dat het zelf heeft gemaakt en waar geen instantie voor instaat. Dat doet een programma dat een maildienst met mailprogramma’s verbindt. Vertrouw het alleen als u dat programma zelf hebt ingesteld.
+	Certificate fingerprint (SHA-256)	Vingerafdruk van het certificaat (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft vraagt het opnieuw als de server een ander certificaat toont.
+	Trust this certificate	Dit certificaat vertrouwen
+	Certificate not trusted yet	Certificaat nog niet vertrouwd
 	The mailbox won't open	Het postvak gaat niet open
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph bereikt het postvak zonder IMAP en brengt ook de agenda en contactpersonen mee. Het account begint daarmee opnieuw: de e-mail wordt van de server opgehaald.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP aangezet, of in de browser een ander account gekozen? Opnieuw aanmelden

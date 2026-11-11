@@ -194,12 +194,48 @@ fn connect(host: &str, port: u16, public_only: bool) -> Result<TcpStream> {
 
 /// Wrap a TCP connection in TLS, verifying the certificate against `host`.
 pub fn tls(sock: TcpStream, host: &str) -> Result<Stream> {
+    handshake(sock, host, None)
+}
+
+/// Whether a connection is to this computer itself (a loopback address, whatever name led there).
+pub(crate) fn on_this_computer(ip: std::net::IpAddr) -> bool {
+    ip.to_canonical().is_loopback()
+}
+
+/// [`tls`], for an account's own server. One on this computer (the connection made is to a
+/// loopback address) may show a certificate no authority vouches for, as a bridge to a mail
+/// service does: it's accepted when it's one of `trusted` (the account's, by their fingerprints),
+/// and otherwise refused saying which it was ([`mailcraft_model::LOCAL_CERTIFICATE`]), so the
+/// user can be asked. Any other server is checked as every connection is.
+pub fn tls_trusting(sock: TcpStream, host: &str, trusted: &[String]) -> Result<Stream> {
+    handshake(sock, host, Some(trusted))
+}
+
+/// The handshake of [`tls`] (`trusted` is `None`: a web address, checked as ever, wherever it
+/// is) and of [`tls_trusting`].
+fn handshake(sock: TcpStream, host: &str, trusted: Option<&[String]>) -> Result<Stream> {
     let name = ServerName::try_from(host.to_string()).map_err(|e| NetError::Tls(format!("{host}: {e}")))?;
-    let conn = ClientConnection::new(tls_config()?, name).map_err(|e| NetError::Tls(e.to_string()))?;
+    let local = trusted
+        .filter(|_| sock.peer_addr().is_ok_and(|a| on_this_computer(a.ip())))
+        .map(|trusted| trust::system_verifier().map(|usual| trust::Local::new(usual, trusted)));
+    let (config, local) = match local {
+        Some(check) => {
+            let check = check.map_err(NetError::Tls)?;
+            (trust::client_config(Arc::clone(&check)).map_err(NetError::Tls)?, Some(check))
+        }
+        None => (tls_config()?, None),
+    };
+    let conn = ClientConnection::new(config, name).map_err(|e| NetError::Tls(e.to_string()))?;
     let mut s = StreamOwned::new(conn, sock);
     // Finish the handshake now so certificate problems surface as TLS errors, not later I/O.
     while s.conn.is_handshaking() {
-        s.conn.complete_io(&mut s.sock).map_err(|e| NetError::Tls(e.to_string()))?;
+        if let Err(e) = s.conn.complete_io(&mut s.sock) {
+            let said = match local.as_ref().and_then(|l| l.refused()) {
+                Some(fingerprint) => mailcraft_model::local_certificate_refusal(host, &fingerprint),
+                None => e.to_string(),
+            };
+            return Err(NetError::Tls(said));
+        }
     }
     Ok(Stream::Tls(Box::new(s)))
 }

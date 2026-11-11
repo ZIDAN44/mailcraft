@@ -215,9 +215,15 @@ fn caps_from(list: &[Capability<'_>]) -> HashSet<String> {
 impl Client<Stream> {
     /// Connect and read the greeting, upgrading with STARTTLS when configured.
     pub fn connect(cfg: &ServerConfig) -> Result<Client<Stream>> {
+        Self::connect_trusting(cfg, &[])
+    }
+
+    /// [`Self::connect`] for an account's server: `trusted` are the certificates the user chose
+    /// to trust for one on this computer ([`stream::tls_trusting`]).
+    pub fn connect_trusting(cfg: &ServerConfig, trusted: &[String]) -> Result<Client<Stream>> {
         let sock = stream::tcp(&cfg.host, cfg.port)?;
         match cfg.security {
-            mailcraft_model::Security::Tls => Client::from_stream(stream::tls(sock, &cfg.host)?),
+            mailcraft_model::Security::Tls => Client::from_stream(stream::tls_trusting(sock, &cfg.host, trusted)?),
             mailcraft_model::Security::None => Client::from_stream(Stream::Plain(sock)),
             mailcraft_model::Security::StartTls => {
                 let mut c = Client::from_stream(Stream::Plain(sock))?;
@@ -236,7 +242,7 @@ impl Client<Stream> {
                     return Err(NetError::Tls("connection already encrypted".into()));
                 };
                 let mut c = Client {
-                    conn: Conn::new(stream::tls(sock, &cfg.host)?),
+                    conn: Conn::new(stream::tls_trusting(sock, &cfg.host, trusted)?),
                     caps: HashSet::new(),
                     selected: None,
                     qresync: false,

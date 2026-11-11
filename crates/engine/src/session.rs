@@ -281,6 +281,11 @@ pub struct Session {
     /// start asks), once each while MailCraft runs; the window asks when nothing else is open.
     pub ask_password: Vec<String>,
     asked_password: HashSet<String>,
+    /// Certificates to ask about now (issue #77): a mail server on this computer showed one no
+    /// authority vouches for. The account, the server and the certificate's fingerprint; once
+    /// each while MailCraft runs, and the window asks when nothing else is open.
+    pub ask_certificate: Vec<(String, String, String)>,
+    asked_certificate: HashSet<(String, String)>,
     /// The messages on screen, newest first.
     pub list: Vec<SharedSummary>,
     /// Conversations over `list` (when [`Prefs::conversations`] is on).
@@ -472,6 +477,8 @@ impl Session {
             recent_in_memory: Vec::new(),
             showing_more: None,
             ask_password: Vec::new(),
+            ask_certificate: Vec::new(),
+            asked_certificate: HashSet::new(),
             asked_password: HashSet::new(),
             list: Vec::new(),
             threads: Vec::new(),

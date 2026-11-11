@@ -171,6 +171,7 @@ pub(crate) fn tour() {
                 email: "zoe@hotmail.com".into(),
                 error: format!("{}. Turn on IMAP on Outlook.com.", mailcraft_engine::model::MICROSOFT_IMAP_CLOSED),
             },
+            Dialog::TrustCertificate { account: "sample".into(), host: "127.0.0.1".into(), fingerprint: "0a1b2c3d".repeat(8) },
             Dialog::add_account_with("zoe@hotmail.com", true),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", true))),

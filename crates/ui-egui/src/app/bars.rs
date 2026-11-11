@@ -355,7 +355,9 @@ pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
     match &a.status {
         SyncStatus::NeedsPassword { .. } => true,
         SyncStatus::Error { error } => {
-            error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS)
+            error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)
+                || error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS)
+                || error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE)
         }
         _ => false,
     }
@@ -400,6 +402,9 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
         }
         SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED) => {
             (t.danger, tl!("Mailbox won't open").to_string())
+        }
+        SyncStatus::Error { error } if error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE) => {
+            (t.danger, tl!("Certificate not trusted yet").to_string())
         }
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
         SyncStatus::Syncing { folder } => {

@@ -778,6 +778,12 @@
 	Sign in with Microsoft	Se connecter avec Microsoft
 	Sign in with Microsoft…	Se connecter avec Microsoft…
 	Mailbox won't open	La boîte aux lettres ne s'ouvre pas
+	Trust this computer's mail server?	Faire confiance au serveur de messagerie de cet ordinateur ?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} se trouve sur cet ordinateur et présente un certificat qu’il a créé lui-même, dont aucune autorité ne se porte garante. C’est ce que fait un programme qui relie un service de messagerie aux applications de messagerie. Ne lui faites confiance que si vous avez installé ce programme.
+	Certificate fingerprint (SHA-256)	Empreinte du certificat (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft redemandera si le serveur présente un autre certificat.
+	Trust this certificate	Faire confiance à ce certificat
+	Certificate not trusted yet	Certificat pas encore approuvé
 	The mailbox won't open	La boîte aux lettres ne s'ouvre pas
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph accède à la boîte aux lettres sans IMAP et apporte aussi son calendrier et ses contacts. Le compte repart par ce biais : son courrier est téléchargé depuis le serveur.
 	Turned IMAP on, or picked another account in the browser? Sign in again	Vous avez activé IMAP ou choisi un autre compte dans le navigateur ? Reconnectez-vous

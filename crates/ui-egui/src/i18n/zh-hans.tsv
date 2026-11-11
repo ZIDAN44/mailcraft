@@ -780,6 +780,12 @@ month	May	5月
 	Sign in with Microsoft	使用 Microsoft 登录
 	Sign in with Microsoft…	使用 Microsoft 登录…
 	Mailbox won't open	邮箱无法打开
+	Trust this computer's mail server?	信任此电脑上的邮件服务器吗？
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} 位于此电脑上，出示的是它自己生成的证书，没有任何机构为其担保。把邮件服务连接到邮件应用的程序就是这样做的。只有当该程序是您自己设置的时，才信任它。
+	Certificate fingerprint (SHA-256)	证书指纹 (SHA-256)
+	MailCraft asks again if the server shows another certificate.	如果服务器出示其他证书，MailCraft 会再次询问。
+	Trust this certificate	信任此证书
+	Certificate not trusted yet	证书尚未受信任
 	The mailbox won't open	邮箱无法打开
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph 不经 IMAP 即可访问邮箱，还会同步日历和联系人。账户将通过它重新开始：邮件会从服务器下载。
 	Turned IMAP on, or picked another account in the browser? Sign in again	已开启 IMAP，或在浏览器中选了别的账户？重新登录

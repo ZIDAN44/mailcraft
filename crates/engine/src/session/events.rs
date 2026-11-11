@@ -25,6 +25,10 @@ impl Session {
                 {
                     self.showing_more = None;
                 }
+                // A server on this computer with a certificate of its own: asked about.
+                if let SyncStatus::Error { error } = &status {
+                    self.note_untrusted_certificate(&account, error);
+                }
                 // Refusals that need something done say so once, as they come.
                 if let SyncStatus::Error { error } = &status
                     && (error.starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_model::MICROSOFT_NO_PASSWORDS))
@@ -229,7 +233,8 @@ impl Session {
                 }
                 self.after_outbox_change();
             }
-            Event::Queued { id, error, .. } => {
+            Event::Queued { account, id, error } => {
+                self.note_untrusted_certificate(&account, &error);
                 if let Some(c) = self.compose_by_id(id) {
                     // It's safe in the Outbox: as far as the user is concerned, the message is done
                     // (a Replied/Forwarded flag stays owed until delivery).

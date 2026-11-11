@@ -132,9 +132,15 @@ fn proto(m: impl Into<String>) -> NetError {
 impl Client<Stream> {
     /// Connect as the server settings say (no sign-in yet).
     pub fn connect(cfg: &ServerConfig) -> Result<Client<Stream>> {
+        Self::connect_trusting(cfg, &[])
+    }
+
+    /// [`Self::connect`] for an account's server: `trusted` are the certificates the user chose
+    /// to trust for one on this computer ([`stream::tls_trusting`]).
+    pub fn connect_trusting(cfg: &ServerConfig, trusted: &[String]) -> Result<Client<Stream>> {
         let sock = stream::tcp(&cfg.host, cfg.port)?;
         match cfg.security {
-            Security::Tls => Client::greet(stream::tls(sock, &cfg.host)?),
+            Security::Tls => Client::greet(stream::tls_trusting(sock, &cfg.host, trusted)?),
             Security::None => Client::greet(Stream::Plain(sock)),
             Security::StartTls => {
                 let mut c = Client::greet(Stream::Plain(sock))?;
@@ -143,7 +149,7 @@ impl Client<Stream> {
                     return Err(NetError::Tls("unexpected data before TLS negotiation".into()));
                 }
                 let Stream::Plain(sock) = c.r.into_inner() else { return Err(NetError::Tls("connection already encrypted".into())) };
-                Ok(Client { r: BufReader::new(stream::tls(sock, &cfg.host)?) })
+                Ok(Client { r: BufReader::new(stream::tls_trusting(sock, &cfg.host, trusted)?) })
             }
         }
     }
@@ -270,7 +276,7 @@ fn auth(e: &NetError) -> NetError {
 pub fn open(acc: &AccountConfig, secret: &str) -> Result<Client<Stream>> {
     let cfg = acc.pop.as_ref().ok_or_else(|| proto("not a POP account"))?;
     let user = if acc.username.is_empty() { acc.email.as_str() } else { acc.username.as_str() };
-    let mut c = Client::connect(cfg)?;
+    let mut c = Client::connect_trusting(cfg, &acc.trusted_certificates)?;
     if acc.oauth.is_some() {
         c.login_xoauth2(user, secret)?;
     } else {

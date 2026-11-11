@@ -779,6 +779,12 @@ month	May	מאי
 	Sign in with Microsoft	כניסה עם Microsoft
 	Sign in with Microsoft…	כניסה עם Microsoft…
 	Mailbox won't open	תיבת הדואר לא נפתחת
+	Trust this computer's mail server?	לתת אמון בשרת הדואר שבמחשב זה?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} נמצא במחשב זה ומציג אישור שיצר בעצמו, ששום רשות אינה ערבה לו. כך פועלת תוכנה שמחברת שירות דואר ליישומי דואר. יש לתת בו אמון רק אם התקנת את התוכנה הזאת.
+	Certificate fingerprint (SHA-256)	טביעת האצבע של האישור (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft ישאל שוב אם השרת יציג אישור אחר.
+	Trust this certificate	לתת אמון באישור זה
+	Certificate not trusted yet	האישור עדיין אינו מהימן
 	The mailbox won't open	תיבת הדואר לא נפתחת
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph מגיע לתיבת הדואר בלי IMAP, ומביא גם את לוח השנה ואנשי הקשר. החשבון מתחיל מחדש דרכו: הדואר שלו יורד מהשרת.
 	Turned IMAP on, or picked another account in the browser? Sign in again	הפעלת IMAP, או בחרת חשבון אחר בדפדפן? היכנס שוב
