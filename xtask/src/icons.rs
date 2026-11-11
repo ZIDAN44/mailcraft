@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-pub const ID: &str = "ai.storyteller.mailcraft";
+pub const ID: &str = "io.github.zidan44.MailCraft";
 const HICOLOR: &[u32] = &[16, 24, 32, 48, 64, 128, 256, 512];
 const ICO: &[u32] = &[16, 24, 32, 48, 64, 128, 256];
 

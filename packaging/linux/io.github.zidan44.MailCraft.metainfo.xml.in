@@ -2,12 +2,12 @@
 <!-- AppStream metadata (software centres, Flathub). Template: package.sh and the Flatpak
      manifest substitute @VERSION@ and @DATE@ from Cargo.toml and the build date. -->
 <component type="desktop-application">
-  <id>ai.storyteller.mailcraft</id>
+  <id>io.github.zidan44.MailCraft</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
   <name>MailCraft</name>
   <summary>Local-first email over IMAP and SMTP</summary>
-  <developer id="ai.storyteller">
+  <developer id="io.github.zidan44">
     <name>Zinadin Zidan</name>
   </developer>
   <description>
@@ -27,8 +27,8 @@
       Every action is also a command that the command line and AI agents can drive.
     </p>
   </description>
-  <launchable type="desktop-id">ai.storyteller.mailcraft.desktop</launchable>
-  <icon type="stock">ai.storyteller.mailcraft</icon>
+  <launchable type="desktop-id">io.github.zidan44.MailCraft.desktop</launchable>
+  <icon type="stock">io.github.zidan44.MailCraft</icon>
   <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
   <url type="homepage">https://github.com/ZIDAN44/mailcraft</url>
   <url type="bugtracker">https://github.com/ZIDAN44/mailcraft/issues</url>
@@ -54,8 +54,10 @@
     <control>keyboard</control>
     <control>pointing</control>
   </supports>
-  <!-- What MailCraft opens, as in the desktop entry's MimeType=. -->
+  <!-- What MailCraft opens, as in the desktop entry's MimeType=; and its id until 0.36, which
+       software centres take as this one. -->
   <provides>
+    <id>ai.storyteller.mailcraft</id>
     <binary>mailcraft</binary>
     <mediatype>x-scheme-handler/mailto</mediatype>
     <mediatype>message/rfc822</mediatype>

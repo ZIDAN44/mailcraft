@@ -5,12 +5,14 @@ GenericName=Email
 Comment=Read, write and organise your email
 Exec=mailcraft %U
 TryExec=mailcraft
-Icon=ai.storyteller.mailcraft
+Icon=io.github.zidan44.MailCraft
 Terminal=false
 # winit doesn't finish the desktop's start-up notification, which left a busy cursor until it
 # timed out (as PhotoCraft's entry).
 StartupNotify=false
-StartupWMClass=ai.storyteller.mailcraft
+StartupWMClass=io.github.zidan44.MailCraft
+# MailCraft's desktop entry until 0.36: a dock's favourite of it moves to this one.
+X-Flatpak-RenamedFrom=ai.storyteller.mailcraft.desktop;
 Categories=Network;Email;Office;
 Keywords=email;mail;e-mail;imap;smtp;inbox;outlook;
 # Offered as the mail app (mailto: links) and for mail, calendar and contact files; the desktop's

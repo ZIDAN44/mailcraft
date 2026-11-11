@@ -9,9 +9,9 @@
 # and load X11, Wayland, xkbcommon and Vulkan at runtime; the freedesktop runtime has all
 # of them, and the GPU driver comes from its org.freedesktop.Platform.GL extension.
 #
-# ai.storyteller.mailcraft.yml (same directory) is the from-source manifest for Flathub. Keep
+# io.github.zidan44.MailCraft.yml (same directory) is the from-source manifest for Flathub. Keep
 # runtime-version and finish-args identical in both (packaging-lint checks this).
-id: ai.storyteller.mailcraft
+id: io.github.zidan44.MailCraft
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
@@ -36,17 +36,20 @@ finish-args:
   # drag and drop and clipboard carry no portal handle): the home folder is readable so they can
   # be attached (issue #10). Read-only: nothing is written outside the sandbox but Downloads.
   - --filesystem=home:ro
+  # MailCraft's Flatpak was ai.storyteller.mailcraft until 0.36: that sandbox's mail is read once,
+  # to be brought into this one (apps/mailcraft/src/self_update/renamed.rs).
+  - --filesystem=~/.var/app/ai.storyteller.mailcraft:ro
   # Deliberately not granted: writing outside Downloads, the host filesystem, and sound. The mail
-  # cache lives in the sandbox's own data folder (~/.var/app/ai.storyteller.mailcraft/data/mailcraft).
+  # cache lives in the sandbox's own data folder (~/.var/app/io.github.zidan44.MailCraft/data/mailcraft).
 modules:
   - name: mailcraft
     buildsystem: simple
     build-commands:
       - install -Dm755 bin/mailcraft /app/bin/mailcraft
       - install -Dm755 bin/mailcraft-cli /app/bin/mailcraft-cli
-      - install -Dm644 share/applications/ai.storyteller.mailcraft.desktop /app/share/applications/ai.storyteller.mailcraft.desktop
+      - install -Dm644 share/applications/io.github.zidan44.MailCraft.desktop /app/share/applications/io.github.zidan44.MailCraft.desktop
       # Already has the release's version and date substituted by package.sh.
-      - install -Dm644 share/metainfo/ai.storyteller.mailcraft.metainfo.xml /app/share/metainfo/ai.storyteller.mailcraft.metainfo.xml
+      - install -Dm644 share/metainfo/io.github.zidan44.MailCraft.metainfo.xml /app/share/metainfo/io.github.zidan44.MailCraft.metainfo.xml
       - mkdir -p /app/share/icons /app/share/doc && cp -R share/icons/hicolor /app/share/icons/ && cp -R share/doc/mailcraft /app/share/doc/
     sources:
       - type: dir

@@ -1639,3 +1639,4 @@ month	May	5月
 	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Nextcloud、Baïkal、SOGo、Radicale など、メールなしで予定表と連絡先を保存する CalDAV / CardDAV サーバー用です。パスワードはこのコンピューターのキーチェーンに保存され、そのサーバーにのみ送信されます。
 	Server: {url} (CalDAV and CardDAV)	サーバー: {url} (CalDAV と CardDAV)
 	Not available: this account has no mail server.	利用できません: このアカウントにはメール サーバーがありません。
+	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	メールは以前の MailCraft の Flatpak から引き継がれました。そちらはまだインストールされています。削除するには次を実行してください: flatpak uninstall --delete-data {id}

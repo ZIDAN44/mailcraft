@@ -12,7 +12,7 @@ set -euo pipefail
 # shellcheck source=../common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
 LINUX="$ROOT/packaging/linux"
-APP_ID=ai.storyteller.mailcraft
+APP_ID=io.github.zidan44.MailCraft
 
 # The release workflow cross-builds aarch64 in the x86_64 VM with CARGO_BUILD_TARGET: then the
 # archive is named after the target, not the machine building it.

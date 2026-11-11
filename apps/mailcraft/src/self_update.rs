@@ -64,6 +64,7 @@ mod detect;
 #[cfg(test)]
 mod end_to_end;
 mod install;
+pub mod renamed;
 #[cfg(test)]
 mod tests;
 

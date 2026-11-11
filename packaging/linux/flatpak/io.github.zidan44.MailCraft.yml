@@ -4,13 +4,13 @@
 #
 #   curl -fsSLO https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
 #   python3 flatpak-cargo-generator.py Cargo.lock -o packaging/linux/flatpak/cargo-sources.json
-#   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/ai.storyteller.mailcraft.yml
-#   flatpak run ai.storyteller.mailcraft
+#   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/io.github.zidan44.MailCraft.yml
+#   flatpak run io.github.zidan44.MailCraft
 #
 # For Flathub, replace the `dir` source with a `git` source pinned to a release tag and commit.
-# The release's .flatpak bundles are built from ai.storyteller.mailcraft.bundle.yml instead (it
+# The release's .flatpak bundles are built from io.github.zidan44.MailCraft.bundle.yml instead (it
 # repackages the Linux tarball); keep runtime-version and finish-args identical in both.
-id: ai.storyteller.mailcraft
+id: io.github.zidan44.MailCraft
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
@@ -37,8 +37,11 @@ finish-args:
   # drag and drop and clipboard carry no portal handle): the home folder is readable so they can
   # be attached (issue #10). Read-only: nothing is written outside the sandbox but Downloads.
   - --filesystem=home:ro
+  # MailCraft's Flatpak was ai.storyteller.mailcraft until 0.36: that sandbox's mail is read once,
+  # to be brought into this one (apps/mailcraft/src/self_update/renamed.rs).
+  - --filesystem=~/.var/app/ai.storyteller.mailcraft:ro
   # Deliberately not granted: writing outside Downloads, the host filesystem, and sound. The mail
-  # cache lives in the sandbox's own data folder (~/.var/app/ai.storyteller.mailcraft/data/mailcraft).
+  # cache lives in the sandbox's own data folder (~/.var/app/io.github.zidan44.MailCraft/data/mailcraft).
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
 modules:
@@ -52,13 +55,13 @@ modules:
       - cargo --offline build --release --locked -p mailcraft -p mailcraft-cli
       - install -Dm755 target/release/mailcraft /app/bin/mailcraft
       - install -Dm755 target/release/mailcraft-cli /app/bin/mailcraft-cli
-      - install -Dm644 packaging/linux/ai.storyteller.mailcraft.desktop /app/share/applications/ai.storyteller.mailcraft.desktop
+      - install -Dm644 packaging/linux/io.github.zidan44.MailCraft.desktop /app/share/applications/io.github.zidan44.MailCraft.desktop
       - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
       - >-
         version=$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml);
         install -d /app/share/metainfo;
         sed -e "s/@VERSION@/$version/" -e "s/@DATE@/$(date -u +%Y-%m-%d)/"
-        packaging/linux/ai.storyteller.mailcraft.metainfo.xml.in > /app/share/metainfo/ai.storyteller.mailcraft.metainfo.xml
+        packaging/linux/io.github.zidan44.MailCraft.metainfo.xml.in > /app/share/metainfo/io.github.zidan44.MailCraft.metainfo.xml
     sources:
       - type: dir
         path: ../../..

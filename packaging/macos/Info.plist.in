@@ -34,7 +34,7 @@
   <key>CFBundleExecutable</key>
   <string>MailCraft</string>
   <key>CFBundleIdentifier</key>
-  <string>ai.storyteller.mailcraft</string>
+  <string>io.github.zidan44.MailCraft</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundlePackageType</key>

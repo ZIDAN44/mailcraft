@@ -113,7 +113,7 @@ impl mailcraft_ui_egui::ClipboardRead for SystemClipboard {
 
 /// The window icon: the committed app icon (`cargo xtask icons`), or egui's default if it can't be decoded.
 fn app_icon() -> egui::IconData {
-    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/ai.storyteller.mailcraft.png");
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.zidan44.MailCraft.png");
     match image::load_from_memory_with_format(PNG, image::ImageFormat::Png) {
         Ok(img) => {
             let img = img.into_rgba8();
@@ -126,7 +126,7 @@ fn app_icon() -> egui::IconData {
 /// Hand a file to the system's drag and drop (Windows and macOS; elsewhere egui has no way to).
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 fn drag_out(frame: &eframe::Frame, path: PathBuf) {
-    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/ai.storyteller.mailcraft.png");
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.zidan44.MailCraft.png");
     let options = drag::Options { skip_animatation_on_cancel_or_failure: false, mode: drag::DragMode::Copy };
     // The drag crate is native code; a failure there must not take the app down.
     let started = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -333,6 +333,14 @@ fn main() -> eframe::Result {
         .or_else(|| portable.dir.clone())
         .or_else(mailcraft_engine::store::default_root);
     let root = data.map(|d| if sample { d.join("sample") } else { d });
+    // MailCraft's Flatpak under its id before 0.36 kept its mail in that id's sandbox: brought
+    // across before anything is made in this one's.
+    if !chosen
+        && portable.dir.is_none()
+        && let Some(r) = root.as_deref()
+    {
+        self_update::renamed::carry_over_flatpak(r);
+    }
     // One MailCraft per data folder: started again, it brings the running one forward and leaves,
     // before it moves, logs or opens anything there (`single_instance.rs`).
     let instance = match root.as_deref().map(|r| single_instance::claim(r, &handed)) {
@@ -364,6 +372,10 @@ fn main() -> eframe::Result {
         log::info!("{} started; log at {}", args::version_line(), path.display());
     }
     logfile::log_panics();
+    // What MailCraft's id before 0.36 left on this computer (`self_update/renamed.rs`).
+    if !sample && let Err(e) = std::thread::Builder::new().name("renamed".into()).spawn(self_update::renamed::tidy) {
+        log::warn!("renamed: not tidied: {e}");
+    }
     if let Some(dir) = &portable.dir {
         log::info!("portable: everything is kept in {}", dir.display());
     }

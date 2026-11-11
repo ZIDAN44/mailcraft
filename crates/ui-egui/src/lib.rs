@@ -55,7 +55,7 @@ pub use dialogs::Dialog;
 
 /// MailCraft's id: the Linux app id (its `.desktop` file and icon are named so), the macOS bundle
 /// id and the Windows notifications' app id.
-pub const APP_ID: &str = "ai.storyteller.mailcraft";
+pub const APP_ID: &str = "io.github.zidan44.MailCraft";
 
 /// A window of MailCraft's own beyond the main one (a message being written, one popped out, a
 /// message's source), carrying [`APP_ID`]: without it a Wayland dock shows no icon for it and a
@@ -269,6 +269,9 @@ pub struct UiState {
     /// The ready version whose bar was put away (Later), and the one the system was told of.
     pub(crate) update_later: Option<String>,
     pub(crate) update_told: Option<String>,
+    /// MailCraft's earlier Flatpak this start brought the mail over from, still installed: a bar
+    /// says how to remove it until it's dismissed.
+    pub(crate) old_flatpak: Option<&'static str>,
     /// What to do with the update as MailCraft closes was answered: closing asks no more.
     pub(crate) update_answered: bool,
     /// Restart now was chosen: the new version opens once installed, if the close goes ahead.
@@ -461,6 +464,7 @@ impl MailApp {
         let seen = session.notices.len();
         let has_files = !services.downloads();
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
+        let old_flatpak = services.carried_over_from();
         let mut session = session;
         session.set_zone(services.zone().as_deref());
         // The window's network side keeps each account's search index up, and the window steps
@@ -491,6 +495,7 @@ impl MailApp {
                 update: UpdateState::None,
                 update_later: None,
                 update_told: None,
+                old_flatpak,
                 update_answered: false,
                 restart_wanted: false,
                 close_asked: false,

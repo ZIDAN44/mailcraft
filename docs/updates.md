@@ -54,10 +54,26 @@ test build.
   Discover), which opens with the new bundle.
 - **FreeBSD:** The unpacked `.tar.gz` updates in place, in a folder you can write to.
 
+## MailCraft's new id (0.36)
+
+MailCraft's id was `ai.storyteller.mailcraft` until 0.36 and is `io.github.zidan44.MailCraft`
+now. An update installs the new id's files, and the `.msi`, `.deb` and `.rpm` remove their old
+ones. At each start MailCraft tidies whatever else the old id left:
+
+- **Windows:** its notification name in the registry.
+- **macOS:** its preferences, saved window state, caches and web storage in `~/Library`.
+- **Linux, FreeBSD:** a default mail app chosen in `mimeapps.list` now names the new desktop entry,
+  and an unpacked `.tar.gz` loses the old desktop entry, AppStream file and icons.
+- **Flatpak:** the new id is a new app. On its first start it copies the old one's app folder
+  (accounts and settings), then says to remove the old one with
+  `flatpak uninstall --delete-data ai.storyteller.mailcraft`, which MailCraft can't do from inside
+  its sandbox.
+
 ## Code
 
 - `apps/mailcraft/src/self_update.rs`, `self_update/detect.rs` and `self_update/install.rs`:
-  checking, scheduling, how this copy was installed, and the helper.
+  checking, scheduling, how this copy was installed, and the helper; `self_update/renamed.rs`:
+  tidying what the old id left.
 - `crates/engine/src/session.rs` (`newer_release`): which release is newer, by channel.
 - `crates/net/src/updates.rs` and `updates/download.rs`: reading the release list and downloading.
 - `crates/ui-egui/src/app/updates.rs` and `dialogs/closing.rs`: the bar and the close dialog.

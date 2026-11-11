@@ -21,7 +21,7 @@ pub fn installed() -> bool {
 }
 
 /// The icon shown on MailCraft's notifications.
-const ICON: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/ai.storyteller.mailcraft.png");
+const ICON: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/io.github.zidan44.MailCraft.png");
 
 /// Whether toasts can use [`APP_ID`]: registered once, when the first one is shown.
 pub fn registered() -> bool {

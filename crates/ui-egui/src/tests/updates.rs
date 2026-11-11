@@ -203,3 +203,61 @@ fn closing_says_what_becomes_of_the_update() {
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(dir2);
 }
+
+/// A start that brought the mail over from MailCraft's Flatpak under its id before 0.36.
+struct CarriedOver;
+
+impl crate::Services for CarriedOver {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Err("no".into())
+    }
+    fn carried_over_from(&self) -> Option<&'static str> {
+        Some("ai.storyteller.mailcraft")
+    }
+}
+
+/// The texts drawn in a frame (AccessKit on) and where each is: `(label, centre)`.
+fn drawn(ctx: &egui::Context, a: &mut MailApp, events: Vec<egui::Event>) -> Vec<(String, egui::Pos2)> {
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
+    tree.nodes
+        .iter()
+        .filter_map(|(_, n)| {
+            let b = n.bounds()?;
+            let label = n.label().or(n.value())?.to_string();
+            Some((label, egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)))
+        })
+        .collect()
+}
+
+/// A bar says the mail came over from the old Flatpak and how to remove that one, until it's
+/// dismissed; a start that brought nothing over has no bar.
+#[test]
+fn the_old_flatpak_is_named_once_its_mail_came_over() {
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let mut a = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(CarriedOver));
+    drawn(&ctx, &mut a, vec![]);
+    let texts = drawn(&ctx, &mut a, vec![]);
+    assert!(texts.iter().any(|(t, _)| t.contains("flatpak uninstall --delete-data ai.storyteller.mailcraft")), "the bar says how to remove it");
+    let at = texts.iter().find(|(t, _)| t == "Dismiss").map(|(_, p)| *p).expect("a Dismiss button");
+    let press = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    drawn(&ctx, &mut a, vec![egui::Event::PointerMoved(at), press(true)]);
+    drawn(&ctx, &mut a, vec![press(false)]);
+    let texts = drawn(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.old_flatpak, None);
+    assert!(!texts.iter().any(|(t, _)| t.contains("flatpak uninstall")));
+    let b = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(NullServices(NOW)));
+    assert_eq!(b.ui.old_flatpak, None);
+}

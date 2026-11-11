@@ -122,7 +122,7 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
 - `packaging/` holds the installer scripts (Linux AppImage/deb/rpm/Flatpak, macOS dmg, Windows
   MSI, FreeBSD); `release.yml` runs them, by hand, and publishes the release (`MailCraft vX.Y.Z`)
   or a test build. `release-artcraft.yml` is the ArtCraft suite's signed release, unused. Keep
-  app ids (`ai.storyteller.mailcraft`), binary names and the WiX `UpgradeCode` stable.
+  app ids (`io.github.zidan44.MailCraft`), binary names and the WiX `UpgradeCode` stable.
 - The version lives only in `[workspace.package]` (`cargo xtask version [set X.Y.Z]`).
 - After touching workflows, run `npx actions-up` to keep pinned actions current; the
   `craft-common-actions@main` references stay on `main` on purpose.

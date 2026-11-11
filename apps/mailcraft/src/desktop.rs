@@ -148,6 +148,9 @@ impl Services for Desktop {
     fn pending_data_move(&self) -> Option<PathBuf> {
         self.base.as_deref().and_then(location::pending_move)
     }
+    fn carried_over_from(&self) -> Option<&'static str> {
+        crate::self_update::renamed::carried_over().then_some(crate::self_update::renamed::OLD_ID)
+    }
     fn move_data_folder(&mut self, to: Option<&Path>) -> Result<Option<PathBuf>, String> {
         let base = self.base.as_deref().ok_or("the data folder was chosen when MailCraft started")?;
         match to {

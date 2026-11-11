@@ -221,6 +221,11 @@ pub trait Services {
     fn pending_data_move(&self) -> Option<PathBuf> {
         None
     }
+    /// The id of MailCraft's earlier Flatpak when this start brought its mail over (it stays
+    /// installed until it's removed).
+    fn carried_over_from(&self) -> Option<&'static str> {
+        None
+    }
     /// Ask for the data to move into `to` when MailCraft next starts (`None` forgets the move);
     /// the folder it will be in.
     fn move_data_folder(&mut self, _to: Option<&std::path::Path>) -> Result<Option<PathBuf>, String> {

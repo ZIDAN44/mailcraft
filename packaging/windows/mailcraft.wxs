@@ -68,7 +68,7 @@
           <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="MailCraft"
               Description="MailCraft email" WorkingDirectory="INSTALLFOLDER" Advertise="no">
             <!-- The app id MailCraft's notifications are shown under (apps/mailcraft/src/toast.rs). -->
-            <ShortcutProperty Key="System.AppUserModel.ID" Value="ai.storyteller.mailcraft" />
+            <ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.zidan44.MailCraft" />
           </Shortcut>
         </File>
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\mailcraft.exe" Value="[#MailcraftExe]" Type="string" />

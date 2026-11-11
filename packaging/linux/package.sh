@@ -17,7 +17,7 @@ set -euo pipefail
 # shellcheck source=../common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
 HERE="$ROOT/packaging/linux"
-APP_ID=ai.storyteller.mailcraft
+APP_ID=io.github.zidan44.MailCraft
 
 SKIP_BUILD=0
 FORMATS="appimage deb rpm tar"

@@ -1643,3 +1643,4 @@ month	May	Mayıs
 	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Nextcloud, Baïkal, SOGo veya Radicale gibi, takvimlerinizi ve kişilerinizi e-posta olmadan tutan her CalDAV ve CardDAV sunucusu için. Parolanız bu bilgisayarın anahtarlığında tutulur ve yalnızca o sunucuya gönderilir.
 	Server: {url} (CalDAV and CardDAV)	Sunucu: {url} (CalDAV ve CardDAV)
 	Not available: this account has no mail server.	Kullanılamıyor: bu hesabın posta sunucusu yok.
+	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Postanız MailCraft'ın önceki Flatpak'ından taşındı; o hâlâ yüklü. Kaldırmak için şunu çalıştırın: flatpak uninstall --delete-data {id}

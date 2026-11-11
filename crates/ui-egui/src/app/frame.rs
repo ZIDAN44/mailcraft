@@ -284,6 +284,12 @@ impl MailApp {
                     .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
                     .show(ui, |ui| self.update_bar(ui, &mut acts));
             }
+            // MailCraft's earlier Flatpak, whose mail came over at this start, still installed.
+            if self.ui.old_flatpak.is_some() {
+                egui::Panel::top("old-flatpak-bar")
+                    .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
+                    .show(ui, |ui| self.old_flatpak_bar(ui));
+            }
         } else {
             self.ui.top_bar_rect = None;
             self.ui.ribbon_rect = None;

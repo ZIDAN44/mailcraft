@@ -15,6 +15,8 @@ on GitHub.
 ### Changed
 
 - MailCraft is a project of its own: File › About, the installers and the Linux packages name Zinadin Zidan as its publisher, and their help links go to MailCraft's GitHub issues.
+- MailCraft's id is `io.github.zidan44.MailCraft` (it was `ai.storyteller.mailcraft`). Updating tidies what the old one left: its notification name on Windows, its preferences and saved window state on macOS, a default mail app chosen on Linux, and its files in an unpacked `.tar.gz`.
+- The Flatpak is a new app under the new id. It brings your accounts and settings across from the old one, then says how to remove that (`flatpak uninstall --delete-data ai.storyteller.mailcraft`).
 - Releases are published as **MailCraft vX.Y.Z**; test builds are still published for trying out what's next.
 
 ## 0.35.0 - 2026-11-10

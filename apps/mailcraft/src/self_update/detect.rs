@@ -86,10 +86,10 @@ mod tests {
     /// or that isn't MailCraft's own, isn't taken.
     #[test]
     fn the_install_kind_on_linux_and_freebsd() {
-        let meta = "/home/zoe/Apps/mailcraft-0.33.0-linux-x86_64/share/metainfo/ai.storyteller.mailcraft.metainfo.xml";
+        let meta = "/home/zoe/Apps/mailcraft-0.33.0-linux-x86_64/share/metainfo/io.github.zidan44.MailCraft.metainfo.xml";
         let tree = "/home/zoe/Apps/mailcraft-0.33.0-linux-x86_64/bin/mailcraft";
         // The Flatpak sandbox, whatever else is there.
-        assert_eq!(kind("/app/bin/mailcraft", &[("FLATPAK_ID", "ai.storyteller.mailcraft")], &[], false, None, false), Some(Kind::Flatpak));
+        assert_eq!(kind("/app/bin/mailcraft", &[("FLATPAK_ID", "io.github.zidan44.MailCraft")], &[], false, None, false), Some(Kind::Flatpak));
         assert_eq!(kind("/app/bin/mailcraft", &[], &["/.flatpak-info"], false, None, false), Some(Kind::Flatpak));
         // An AppImage, where it can be renamed over.
         let image = "/home/zoe/MailCraft.AppImage";
@@ -107,9 +107,13 @@ mod tests {
         assert_eq!(kind(tree, &[], &[], true, None, false), None, "not the tarball's tree");
         assert_eq!(kind("/home/zoe/mailcraft/target/release/mailcraft", &[], &[], true, None, false), None, "a developer's build");
         assert_eq!(
-            kind("/usr/local/bin/mailcraft", &[], &["/usr/local/share/metainfo/ai.storyteller.mailcraft.metainfo.xml"], true, None, true),
+            kind("/usr/local/bin/mailcraft", &[], &["/usr/local/share/metainfo/io.github.zidan44.MailCraft.metainfo.xml"], true, None, true),
             None
         );
-        assert_eq!(kind("/app/bin/mailcraft", &[("FLATPAK_ID", "ai.storyteller.mailcraft")], &[], false, None, true), None, "no Flatpak on FreeBSD");
+        assert_eq!(
+            kind("/app/bin/mailcraft", &[("FLATPAK_ID", "io.github.zidan44.MailCraft")], &[], false, None, true),
+            None,
+            "no Flatpak on FreeBSD"
+        );
     }
 }
