@@ -55,6 +55,8 @@ on GitHub.
 - A message opened by a command, or from its conversation in the reading pane, is brought into view in the list.
 - In Arabic and Hebrew a notice appears in the left corner, clear of what opens from the status bar.
 - Mail that arrives while MailCraft is minimized is announced, and counted in the window's title, when it arrives: it waited until the window was opened again (#68).
+- **Print** and **Save as PDF** keep a message's formatting: headings, bold, italic, sizes, colours, highlights, underlined links and struck-through text. It printed the plain text (#72). Tables print as rows of text, and pictures as their descriptions.
+- In a PDF, the lines a table is drawn with in text are printed with `-`, `|` and `+`: they were empty boxes.
 
 ## 0.36.0 - 2026-11-11
 
