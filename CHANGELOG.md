@@ -61,6 +61,7 @@ on GitHub.
 - Mail that arrives while MailCraft is minimized is announced, and counted in the window's title, when it arrives: it waited until the window was opened again (#68).
 - **Print** and **Save as PDF** keep a message's formatting: headings, bold, italic, sizes, colours, highlights, underlined links and struck-through text. It printed the plain text (#72). Tables print as rows of text, and pictures as their descriptions.
 - In a PDF, the lines a table is drawn with in text are printed with `-`, `|` and `+`: they were empty boxes.
+- A logo or a title a message centres (`<center>`, `align`, `text-align`) is centred when the rest of the message flows. Only mail laid out in tables kept what it centred (#74).
 
 ## 0.36.0 - 2026-11-11
 

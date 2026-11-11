@@ -365,18 +365,21 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 }
             }
             // Pictures, or text, centred in a block of their own (a report's charts, a title
-            // `text-align: center` in a newsletter's column, issue #41): a centred cell. Laid-out
-            // mail only: text that flows has no alignment of its own.
+            // `text-align: center` in a newsletter's column, issue #41; a logo and a title over
+            // a message that otherwise flows, issue #74): a centred cell.
             Kid::El(n)
                 if depth < MAX_DEPTH
-                    && matches!(n.tag.as_str(), "div" | "p" | "center")
+                    && (matches!(n.tag.as_str(), "div" | "p" | "center") || n.is_title())
                     && (n.tag == "center" || n.align() == Align::Center)
-                    && (n.has_picture(0) || (depth > 0 && n.has_text(0)))
+                    && (n.has_picture(0) || n.has_text(0))
                     && (!n.has_block_inside(0) || n.holds_a_title()) =>
             {
                 flush(&mut pending, &mut out, ctx);
                 ctx.cells += 1;
-                let inner = colored(ctx, n, |ctx| ctx.within(Around::default(), |ctx| blocks(&n.kids, ctx, depth + 1)));
+                // A title stays one: itself, without what centres it, in the cell.
+                let title = n.is_title().then(|| [Kid::El(n.unaligned())]);
+                let kids = title.as_ref().map_or(n.kids.as_slice(), |t| t.as_slice());
+                let inner = colored(ctx, n, |ctx| ctx.within(Around::default(), |ctx| blocks(kids, ctx, depth + 1)));
                 if !inner.is_empty() {
                     out.push(Block::Table(Table {
                         rows: vec![vec![Cell {
@@ -570,12 +573,14 @@ fn picture_width(blocks: &[Block]) -> Option<Width> {
 
 /// Whether any table puts content side by side, or a picture behind it, or boxes over it, or is
 /// a set number of pixels wide (a centred 600-pixel column), or a box of colour has round corners
-/// (a button): a layout worth keeping (otherwise the text flows, the width of the window).
+/// (a button), or centres what it holds (a logo, a title): a layout worth keeping (otherwise the
+/// text flows, the width of the window, from its start).
 pub(super) fn has_columns(b: &[Block]) -> bool {
     b.iter().any(|b| match b {
         Block::Text(_) => false,
         Block::Table(t) => {
             matches!(t.width, Some(Width::Px(_)))
+                || t.rows.iter().flatten().any(|c| c.align == Align::Center && !c.blocks.is_empty())
                 || t.background_image.is_some()
                 || t.rows.iter().any(|r| r.iter().filter(|c| !c.blocks.is_empty()).count() > 1)
                 || (t.radius.is_some() && t.background.is_some())

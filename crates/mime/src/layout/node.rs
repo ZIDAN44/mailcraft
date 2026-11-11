@@ -153,6 +153,31 @@ impl Node {
         self.own_align().unwrap_or_default()
     }
 
+    /// Whether it's a title (`<h1>` to `<h6>`).
+    pub(super) fn is_title(&self) -> bool {
+        matches!(self.tag.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+    }
+
+    /// The element without what lines it up (`align`, `text-align`): for inside the cell that
+    /// does it instead.
+    pub(super) fn unaligned(&self) -> Node {
+        let attrs = self
+            .attrs
+            .iter()
+            .filter(|(k, _)| k != "align")
+            .map(|(k, v)| {
+                if k == "style" {
+                    let kept: Vec<&str> =
+                        v.split(';').filter(|d| !d.split(':').next().is_some_and(|p| p.trim().eq_ignore_ascii_case("text-align"))).collect();
+                    (k.clone(), kept.join(";"))
+                } else {
+                    (k.clone(), v.clone())
+                }
+            })
+            .collect();
+        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect() }
+    }
+
     /// How what's in it lines up, when it says (`align`, `text-align`).
     pub(super) fn own_align(&self) -> Option<Align> {
         let v = self.attr("align").map(str::to_ascii_lowercase).or_else(|| self.style("text-align"))?;
