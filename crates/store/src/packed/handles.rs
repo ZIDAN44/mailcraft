@@ -34,7 +34,7 @@ use crate::OpenProgress;
 /// read from the window finds one free while they all read.
 #[cfg(windows)]
 const READ_HANDLES: usize = 10;
-/// Where the database's lock bytes start (redb's `LOCK_BASE`, `=4.4.0`): no data is there.
+/// Where the database's lock bytes start (redb's `LOCK_BASE`, `=4.5.0`): no data is there.
 const LOCKS_FROM: u64 = 1 << 62;
 
 /// The threads that have read so far, counted: each one's first handle.
