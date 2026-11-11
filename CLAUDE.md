@@ -67,6 +67,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - A fix to a third-party crate goes into a fork on ZIDAN44 (never a `vendor/` copy): one commit per
   fix, listed in the fork's `PATCHES.md`, pinned by `rev` in `[patch.crates-io]` of both
   `Cargo.toml` and `fuzz/Cargo.toml` (`cargo xtask ci` checks they match).
+- `fuzz/Cargo.lock` keeps the versions `Cargo.lock` has, so the weekly run fuzzes what ships:
+  after a dependency moves, `cargo xtask locks --update` (`cargo xtask ci` checks it).
 - **The Craft apps' shared crates** (storytold/craft-libs) are used where they fit, so their fixes
   arrive with a pin bump: `craft-atomic` (the cache's file writes) and `craft-docpath` (paths data
   files name), all at one `rev` in `[workspace.dependencies]`. A gap one has is fixed there (a PR
