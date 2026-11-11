@@ -1,6 +1,6 @@
 # How MailCraft updates itself
 
-Builds made by MailCraft's own release workflow (`release-wip.yml`) update themselves, from
+Builds made by MailCraft's release workflow (`release.yml`) update themselves, from
 MailCraft's releases on GitHub (ZIDAN44/mailcraft):
 
 - **A test build** (`v0.33.0-test.31`, a pre-release; built with `MAILCRAFT_UPDATE_CHANNEL=test`)
@@ -10,8 +10,8 @@ MailCraft's releases on GitHub (ZIDAN44/mailcraft):
 
 A version's release comes after its test builds: a test build of 0.33.0 updates to the release of
 0.33.0. Developer builds never change themselves. To skip updates for one run, start MailCraft with
-`MAILCRAFT_NO_AUTO_UPDATE=1`. The workflow's `kind` input publishes a test build (the default) or a
-release.
+`MAILCRAFT_NO_AUTO_UPDATE=1`. The workflow's `kind` input publishes a release (the default) or a
+test build.
 
 ## How an update installs
 

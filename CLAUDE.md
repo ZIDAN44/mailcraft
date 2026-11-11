@@ -120,9 +120,9 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
 
 ## Packaging and releases
 - `packaging/` holds the installer scripts (Linux AppImage/deb/rpm/Flatpak, macOS dmg, Windows
-  MSI, FreeBSD); `.github/workflows/` calls them through `storytold/craft-common-actions`
-  (`release.yml` on the `release` branch). Keep app ids (`ai.storyteller.mailcraft`), binary
-  names and the WiX `UpgradeCode` stable.
+  MSI, FreeBSD); `release.yml` runs them, by hand, and publishes the release (`MailCraft vX.Y.Z`)
+  or a test build. `release-artcraft.yml` is the ArtCraft suite's signed release, unused. Keep
+  app ids (`ai.storyteller.mailcraft`), binary names and the WiX `UpgradeCode` stable.
 - The version lives only in `[workspace.package]` (`cargo xtask version [set X.Y.Z]`).
 - After touching workflows, run `npx actions-up` to keep pinned actions current; the
   `craft-common-actions@main` references stay on `main` on purpose.
@@ -130,9 +130,8 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
   workflows at `@main`, with their inputs and secrets, and run no jobs of their own. A feature or
   fix doesn't add or change CI; what the shared workflows can't do goes to a craft-common-actions
   issue (or a small PR there, safe for every app and no slower). `deny.yml`, `fuzz.yml` and
-  `release-wip.yml` still run their own jobs: nothing is added to them, and each moves only as a
+  `release.yml` still run their own jobs: nothing is added to them, and each moves only as a
   task of its own, once a shared workflow runs it.
-- The shared release takes git dependencies from `github.com/storytold/` only.
 
 ## Running and looking at the app
 - `cargo run -p mailcraft -- --sample` (local sample mailbox). Script it at start-up:

@@ -18,9 +18,9 @@ program from taking over the sign-in.
 
 - MailCraft reads these variables when it starts. If they are set when you build it, the build
   keeps them.
-- `release-wip.yml` passes the repository secrets with these names to the build.
-- `release.yml` uses the shared `storytold/craft-common-actions` workflow, which needs a step
-  added to pass them through.
+- `release.yml` passes the repository secrets with these names to the build.
+- `release-artcraft.yml` (the ArtCraft suite's shared release, unused) would need a step added
+  to pass them through.
 - Without them, only passwords work, so an Outlook.com account can't be added.
 
 ## Register the app with Microsoft

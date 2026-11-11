@@ -15,6 +15,7 @@ on GitHub.
 ### Changed
 
 - MailCraft is a project of its own: File › About, the installers and the Linux packages name Zinadin Zidan as its publisher, and their help links go to MailCraft's GitHub issues.
+- Releases are published as **MailCraft vX.Y.Z**; test builds are still published for trying out what's next.
 
 ## 0.35.0 - 2026-11-10
 

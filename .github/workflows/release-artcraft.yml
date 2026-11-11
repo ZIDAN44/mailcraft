@@ -1,0 +1,66 @@
+# The ArtCraft suite's signed release (storytold/craft-common-actions), kept from when MailCraft
+# was to ship with the suite: it builds, signs and packages MailCraft for every platform and
+# drafts a GitHub Release, with the suite's signing secrets, which this repository doesn't have.
+# MailCraft's own releases are release.yml. Run by hand only, with an optional version override.
+# The scripts it calls live in packaging/; the version comes from Cargo.toml.
+# Browser sign-in (MAILCRAFT_MICROSOFT_CLIENT_ID, MAILCRAFT_GOOGLE_CLIENT_ID/_SECRET) isn't passed
+# here: the shared workflow takes only the secrets it declares, and passing others fails the run.
+# Whoever ships this build registers their own app and adds a pass-through there (docs/oauth.md);
+# release.yml, which builds in this repository, passes them already.
+name: Release (ArtCraft suite, signed)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override for a test run, e.g. 0.2.0-rc.1 (empty: Cargo.toml)"
+        type: string
+        default: ""
+
+# Read-only by default; the one job that drafts the release gets write access below.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # The shared workflow drafts the GitHub Release, which needs write access to contents (a
+    # sibling app that dropped the workflow-wide grant without this one had its release fail at
+    # startup). Its Flatpak job asks for packages: write too (to publish an OCI image to GHCR
+    # when packaging/linux/flatpak-oci.sh exists, which MailCraft's packaging doesn't have yet):
+    # a call that doesn't grant it fails before any job starts.
+    permissions:
+      contents: write
+      packages: write
+    # Intentionally tracked at @main (not SHA-pinned) so org-wide CI improvements, security fixes, and build optimizations propagate without PR churn across all craftapp repos.
+    uses: storytold/craft-common-actions/.github/workflows/release.yml@main
+    with:
+      app-name: mailcraft
+      app-title: MailCraft
+      version: ${{ inputs.version }}
+      # storytold/craft-fonts, pinned (bump deliberately; the same commit as release.yml
+      # and freebsd.yml): Arabic, Hebrew, Japanese, Chinese, Korean, Thai
+      # and other fallback fonts, built in through CRAFT_FONTS_DIR (crates/ui-egui/build.rs).
+      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      # The web job checks the same commit out too; build.rs picks the faces the browser gets.
+      web-craft-fonts: true
+      # The browser app (apps/mailcraft-web, JMAP over fetch): packaging/web/package.sh.
+      has-web: true
+    secrets:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+      AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+      AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}

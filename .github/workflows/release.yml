@@ -1,68 +1,448 @@
-# Builds, signs and packages MailCraft for every platform, then drafts a GitHub Release:
-# macOS universal (.dmg + CLI zip), Windows x64/x86/arm64 (.msi + portable zip), Linux
-# x86_64/aarch64 (AppImage, deb, rpm, tar.gz, Flatpak), Linux riscv64, FreeBSD and the web. Runs on a
-# push to the `release` branch, or by hand with an optional version override for a test run.
-# The scripts it calls live in packaging/; the version comes from Cargo.toml.
-# Browser sign-in (MAILCRAFT_MICROSOFT_CLIENT_ID, MAILCRAFT_GOOGLE_CLIENT_ID/_SECRET) isn't passed
-# here: the shared workflow takes only the secrets it declares, and passing others fails the run.
-# Whoever ships this build registers their own app and adds a pass-through there (docs/oauth.md);
-# release-wip.yml, which builds in this repository, passes them already.
+# MailCraft's releases, for every platform: macOS universal, Windows x64/x86/arm64, Linux
+# x86_64/aarch64 (AppImage, deb, rpm, tar.gz), Flatpak x86_64/aarch64, Linux riscv64, FreeBSD and
+# the web. Run by hand only (Actions › Release › Run workflow); nothing starts it on a push.
+# `kind` picks what it publishes: a release (the default), `v<version>` titled "MailCraft
+# v<version>", which release builds update to (test builds too, once it's newer than they are);
+# or a test build, a pre-release `v<version>-test.<run>` that only test builds update to.
+#
+# Free GitHub-hosted runners only, and no signing secrets: Windows installers are unsigned and
+# the macOS app is ad-hoc signed and not notarized (the packaging scripts fall back to that by
+# themselves). Each job has a time limit, so a hung build stops instead of running for GitHub's
+# six hours. release-artcraft.yml is the ArtCraft suite's signed release, which MailCraft doesn't
+# use.
 name: Release
 
 on:
-  push:
-    branches: [release]
   workflow_dispatch:
     inputs:
       version:
-        description: "Version override for a test run, e.g. 0.2.0-rc.1 (empty: Cargo.toml)"
+        description: "Version override, e.g. 0.8.1 (empty: Cargo.toml)"
         type: string
         default: ""
+      kind:
+        description: "What to publish: the version's release (v<version>) or a test build (a pre-release, v<version>-test.<run>)"
+        type: choice
+        options: [release, test]
+        default: release
 
-# Read-only by default; the one job that drafts the release gets write access below.
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+  # storytold/craft-fonts, pinned (keep the same commit in ci.yml, freebsd.yml and release-artcraft.yml).
+  CRAFT_FONTS_REF: b076417b5880bd4154bd22f00695b1d28c6bea83
+  # Unsigned on purpose: the packaging scripts note it rather than warn.
+  UNSIGNED_BUILD: "1"
+  # These builds update themselves (apps/mailcraft/src/self_update.rs): a test build to the next
+  # test build or release, a release to the next release only.
+  MAILCRAFT_UPDATE_CHANNEL: ${{ inputs.kind == 'release' && 'stable' || 'test' }}
+  # Browser sign-in (OAuth) for Microsoft (Outlook.com, Hotmail, Microsoft 365) and Google is
+  # built in when the repository has these secrets (an app registration's client id; empty
+  # otherwise, and the build offers passwords only). See docs/oauth.md.
+  MAILCRAFT_MICROSOFT_CLIENT_ID: ${{ secrets.MAILCRAFT_MICROSOFT_CLIENT_ID }}
+  MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+  MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
+
 jobs:
+  version:
+    name: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      date: ${{ steps.v.outputs.date }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: v
+        name: Resolve version
+        uses: storytold/craft-common-actions/actions/resolve-version@main
+        with:
+          input-version: ${{ inputs.version }}
+          app-title: MailCraft
+      - id: tag
+        name: Tag
+        env:
+          KIND: ${{ inputs.kind }}
+          VERSION: ${{ steps.v.outputs.version }}
+          RUN: ${{ github.run_number }}
+        run: |
+          if [ "$KIND" = release ]; then
+            echo "tag=v$VERSION" >>"$GITHUB_OUTPUT"
+          else
+            echo "tag=v$VERSION-test.$RUN" >>"$GITHUB_OUTPUT"
+          fi
+
+  macos:
+    name: macOS universal
+    needs: version
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD_DATE: ${{ needs.version.outputs.date }}
+      BUILD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ env.CRAFT_FONTS_REF }}
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: wip-macos-universal
+      - name: Apply version override
+        if: inputs.version != ''
+        run: cargo xtask version set "$VERSION"
+      - name: Build and package (ad-hoc signed, not notarized)
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: packaging/macos/package.sh --arch universal
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-macos
+          path: dist/release/*
+          if-no-files-found: error
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, target: x86_64-pc-windows-msvc }
+          - { arch: x86, target: i686-pc-windows-msvc }
+          - { arch: arm64, target: aarch64-pc-windows-msvc }
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD_DATE: ${{ needs.version.outputs.date }}
+      BUILD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ env.CRAFT_FONTS_REF }}
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: wip-windows-${{ matrix.arch }}
+      - name: Apply version override
+        if: inputs.version != ''
+        shell: bash
+        run: cargo xtask version set "$VERSION"
+      - name: Install WiX
+        uses: storytold/craft-common-actions/actions/install-wix@main
+        with:
+          wix-version: "5.0.2"
+      - name: Build and package (unsigned)
+        shell: pwsh
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-windows-${{ matrix.arch }}
+          path: dist/release/*
+          if-no-files-found: error
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: version
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-22.04, deb: amd64 }
+          - { arch: aarch64, runner: ubuntu-22.04-arm, deb: arm64 }
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD_DATE: ${{ needs.version.outputs.date }}
+      BUILD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ env.CRAFT_FONTS_REF }}
+      - uses: storytold/craft-common-actions/actions/install-linux-deps@main
+        with:
+          deb-arch: ${{ matrix.deb }}
+          nfpm-version: "2.47.0"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: wip-linux-${{ matrix.arch }}
+      - name: Apply version override
+        if: inputs.version != ''
+        run: cargo xtask version set "$VERSION"
+      - name: Build and package (AppImage, deb, rpm, tar.gz)
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: packaging/linux/package.sh
+      - name: Check the packages
+        run: |
+          dpkg-deb --info dist/release/*.deb
+          for appimage in dist/release/*.AppImage; do
+            chmod +x "$appimage"
+            APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" --version
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-linux-${{ matrix.arch }}
+          path: dist/release/*
+          if-no-files-found: error
+
+  flatpak:
+    name: Flatpak ${{ matrix.arch }}
+    needs: [version, linux]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04 }
+          - { arch: aarch64, runner: ubuntu-24.04-arm }
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-linux-${{ matrix.arch }}
+          path: dist/linux
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder librsvg2-common
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Build the Flatpak bundle
+        run: |
+          set -- dist/linux/*-linux-${{ matrix.arch }}.tar.gz
+          packaging/linux/flatpak-bundle.sh "$1"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-flatpak-${{ matrix.arch }}
+          path: dist/release/*.flatpak
+          if-no-files-found: error
+
+  linux-riscv64:
+    name: Linux riscv64
+    needs: version
+    # Not 22.04 like the other Linux jobs: Ubuntu never built jammy's ncurses security update for
+    # riscv64, so the cross dependencies don't install there.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      # Built on 24.04, the binaries need GLIBC_2.39; nfpm.yaml declares it (as the shared
+      # release in release-artcraft.yml sets it).
+      GLIBC_FLOOR: "2.39"
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD_DATE: ${{ needs.version.outputs.date }}
+      BUILD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ env.CRAFT_FONTS_REF }}
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          targets: riscv64gc-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: wip-linux-riscv64
+      - name: Apply version override
+        if: inputs.version != ''
+        run: cargo xtask version set "$VERSION"
+      - uses: storytold/craft-common-actions/actions/install-riscv64-cross@main
+      - name: Install nfpm (SHA256-verified)
+        uses: storytold/craft-common-actions/actions/install-nfpm@main
+        with:
+          nfpm-version: "2.47.0"
+          deb-arch: amd64
+      - name: Build and package (deb, rpm, tar.gz)
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+          CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER: riscv64-linux-gnu-gcc
+          PKG_CONFIG_SYSROOT_DIR: /
+          PKG_CONFIG_PATH: /usr/lib/riscv64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          PKG_CONFIG_ALLOW_CROSS: "1"
+          CROSS_ARCH: riscv64
+          CROSS_TARGET: riscv64gc-unknown-linux-gnu
+          CROSS_COMPILE: riscv64-linux-gnu-
+          EMULATOR: qemu-riscv64
+          QEMU_LD_PREFIX: /usr/riscv64-linux-gnu
+        run: packaging/linux/package.sh --formats "deb rpm tar"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-linux-riscv64
+          path: dist/release/*
+          if-no-files-found: error
+
+  freebsd:
+    name: FreeBSD x86_64
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD_DATE: ${{ needs.version.outputs.date }}
+      BUILD_SHA: ${{ github.sha }}
+      INPUT_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ env.CRAFT_FONTS_REF }}
+      - name: Build and package in a FreeBSD VM
+        uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc # v1.5.9
+        with:
+          release: "15.1"
+          usesh: true
+          cpu: 4
+          mem: 12288
+          envs: "VERSION BUILD_DATE BUILD_SHA INPUT_VERSION"
+          prepare: |
+            pkg install -y bash git curl pkgconf cmake python3 libxkbcommon wayland libX11 libXcursor libXrandr libXi libxcb mesa-libs vulkan-loader gtk3 fontconfig freetype2 alsa-lib
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+          run: |
+            set -e
+            . "$HOME/.cargo/env"
+            git config --global --add safe.directory "*"
+            export CARGO_TARGET_DIR=/var/tmp/craft-target CARGO_BUILD_JOBS=4
+            if [ -n "$INPUT_VERSION" ]; then cargo xtask version set "$VERSION"; fi
+            export CRAFT_FONTS_DIR="$PWD/craft-fonts" CRAFT_FONTS_REQUIRED=1
+            bash packaging/freebsd/package.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-freebsd-x86_64
+          path: dist/release/*
+          if-no-files-found: error
+
+  web:
+    name: Web (wasm)
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD_DATE: ${{ needs.version.outputs.date }}
+      BUILD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: ${{ env.CRAFT_FONTS_REF }}
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: wip-web
+      - uses: storytold/craft-common-actions/actions/install-trunk@main
+        with:
+          trunk-version: "0.21.14"
+      - name: Apply version override
+        if: inputs.version != ''
+        run: cargo xtask version set "$VERSION"
+      - name: Build and zip
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: packaging/web/package.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-web
+          path: dist/release/*
+          if-no-files-found: error
+
   release:
-    # The shared workflow drafts the GitHub Release, which needs write access to contents (a
-    # sibling app that dropped the workflow-wide grant without this one had its release fail at
-    # startup). Its Flatpak job asks for packages: write too (to publish an OCI image to GHCR
-    # when packaging/linux/flatpak-oci.sh exists, which MailCraft's packaging doesn't have yet):
-    # a call that doesn't grant it fails before any job starts.
+    name: Publish
+    if: "!cancelled() && !contains(needs.*.result, 'failure')"
+    needs: [version, macos, windows, linux, linux-riscv64, flatpak, freebsd, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
-      packages: write
-    # Intentionally tracked at @main (not SHA-pinned) so org-wide CI improvements, security fixes, and build optimizations propagate without PR churn across all craftapp repos.
-    uses: storytold/craft-common-actions/.github/workflows/release.yml@main
-    with:
-      app-name: mailcraft
-      app-title: MailCraft
-      version: ${{ inputs.version }}
-      # storytold/craft-fonts, pinned (bump deliberately; the same commit as release-wip.yml
-      # and freebsd.yml): Arabic, Hebrew, Japanese, Chinese, Korean, Thai
-      # and other fallback fonts, built in through CRAFT_FONTS_DIR (crates/ui-egui/build.rs).
-      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
-      # The web job checks the same commit out too; build.rs picks the faces the browser gets.
-      web-craft-fonts: true
-      # The browser app (apps/mailcraft-web, JMAP over fetch): packaging/web/package.sh.
-      has-web: true
-    secrets:
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-      AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
-      AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          path: artifacts
+          merge-multiple: true
+      - name: Checksums
+        working-directory: artifacts
+        run: sha256sum -- * | tee SHA256SUMS.txt
+      - name: Publish
+        working-directory: artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+          KIND: ${{ inputs.kind }}
+          RUN: ${{ github.run_number }}
+        run: |
+          if [ "$KIND" = release ]; then
+            what="**MailCraft $VERSION** (\`${GITHUB_SHA::9}\`)."
+            title="MailCraft v$VERSION"
+            pre=()
+          else
+            what="**Test build** of MailCraft $VERSION (\`${GITHUB_SHA::9}\`), for trying it out."
+            title="MailCraft v$VERSION (test build $RUN)"
+            pre=(--prerelease)
+          fi
+          cat >../notes.md <<EOF
+          $what
+
+          These builds aren't code-signed:
+          - **Windows:** SmartScreen may say "Windows protected your PC": choose *More info › Run anyway*.
+          - **macOS:** the app isn't notarized. Open it once and close the warning, then choose *Open Anyway* in System Settings › Privacy & Security (or run \`xattr -dr com.apple.quarantine /Applications/MailCraft.app\`).
+          - **Linux, FreeBSD, web:** nothing extra.
+
+          | Platform | Files |
+          |---|---|
+          | Windows x64 / x86 / ARM64 | \`.msi\` installer, or the \`-portable.zip\` |
+          | macOS (Apple silicon and Intel) | \`.dmg\` |
+          | Linux x86_64 / aarch64 | \`.AppImage\`, \`.deb\`, \`.rpm\`, \`.flatpak\`, \`.tar.gz\` |
+          | Linux riscv64 | \`.deb\`, \`.rpm\`, \`.tar.gz\` |
+          | FreeBSD x86_64 | \`.tar.gz\` |
+          | Web | \`mailcraft-web-*.zip\` (a static site; see HOSTING.md inside) |
+
+          Check a download against \`SHA256SUMS.txt\`.
+
+          MailCraft updates itself, however it was installed: it downloads the next version in the background (a download cut off carries on next time), checks it against its SHA-256, says when it's ready, and installs it at once with *Restart now* or as MailCraft closes (you're asked). A test build updates to the next test build or release, a release to the next release. The \`.deb\` and \`.rpm\` install after your password; the Flatpak opens in your software installer. \`MAILCRAFT_NO_AUTO_UPDATE=1\` turns it off.
+          EOF
+          gh release create "$TAG" "${pre[@]}" --target "$GITHUB_SHA" \
+            --title "$title" \
+            --notes-file ../notes.md -- *
+          {
+            echo "Published **$TAG**:"
+            echo
+            sed 's/^/    /' SHA256SUMS.txt
+          } >>"$GITHUB_STEP_SUMMARY"
