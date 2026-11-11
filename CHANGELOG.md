@@ -31,6 +31,7 @@ on GitHub.
 - New mail is noticed at once after a message is deleted for good, and after a folder that's gone from the server was opened.
 - Sending waits up to ten minutes for a server that checks a message before it answers, instead of sending it a second time after one.
 - In the Outbox, the selected message stays selected when one above it is sent: Delete could take the next one, which was then never sent.
+- After a delete or a move, the message opened is the next one down as the list shows it, with pinned messages and conversations too.
 
 ## 0.36.0 - 2026-11-11
 
