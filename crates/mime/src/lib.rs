@@ -132,6 +132,7 @@ pub fn preview(text: &str) -> String {
 /// Build a summary from a message's header (or its whole source). `fallback_date` is the
 /// server's INTERNALDATE, used when the `Date` header is missing or unparseable.
 pub fn summary_from_header(raw: &[u8], key: MessageKey, flags: Flags, size: u32, fallback_date: i64) -> Summary {
+    let raw = &*readable_headers(raw);
     let Some(m) = MessageParser::default().parse(raw) else {
         return Summary { key, flags, size, date: fallback_date, subject: String::new(), ..Default::default() };
     };
@@ -383,6 +384,7 @@ pub type RichText = Vec<Vec<Span>>;
 
 /// Parse a full message for display. `None` only for input that isn't a message at all.
 pub fn parse(raw: &[u8]) -> Option<Parsed> {
+    let raw = &*readable_headers(raw);
     let m = MessageParser::default().parse(raw)?;
     // mail-parser lists text parts among the HTML bodies too (converted); only real HTML counts.
     let real_html = m.html_body().any(|p| is_html(&p));
@@ -442,9 +444,10 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         _ if let Some(h) = tnef_html => (as_text(h), true),
         // Prefer the HTML version when the text part is an auto-generated stub.
         (_, Some(t), Some(h)) if t.trim().is_empty() => (as_text(&h), true),
-        (true, Some(t), _) if !m.text_body().next().is_some_and(|p| is_html(&p)) => (tidy_text(&t), real_html),
+        // Every text part (one after an attachment too), soft-wrapped lines whole again.
+        (true, Some(t), _) if !m.text_body().next().is_some_and(|p| is_html(&p)) => (tidy_text(&plain_body(&m).unwrap_or(t.into_owned())), real_html),
         (_, _, Some(h)) => (as_text(&h), true),
-        (_, Some(t), None) => (tidy_text(&t), false),
+        (_, Some(t), None) => (tidy_text(&plain_body(&m).unwrap_or(t.into_owned())), false),
         _ => (String::new(), false),
     };
     // Plain text Outlook wrapped, when the message has none of its own.

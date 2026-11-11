@@ -12,6 +12,11 @@ on GitHub.
 
 *Fixes found by testing against real mail servers and awkward real-world mail.*
 
+### Fixed
+
+- A message whose text comes in several parts shows all of it: text under an attachment (a note, a mailing list's footer) was left out.
+- Text its sender wrapped softly (`format=flowed`) reads in whole paragraphs, not cut at each wrapped line.
+- A subject or sender's name written in Latin-1 or another old character set, unencoded, reads as written, not as `caf�`.
 
 ## 0.36.0 - 2026-11-11
 
