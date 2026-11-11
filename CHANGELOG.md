@@ -49,6 +49,7 @@ on GitHub.
 - An HTML message with text parts after it (a mailing list's footer) or before it shows them too: only the HTML was shown.
 - A message with two **From** or two **Subject** lines shows the first of each, as other mail programs do, and is never marked as from a checked sender.
 - A date written the old way, `04:07 EST`, is read in that time zone: it was taken for UTC, hours off.
+- A message the server took but never answered about (it stopped responding, or the connection dropped) is no longer sent again by itself, which is how mail arrived twice: it comes back saying it may have gone.
 
 ## 0.36.0 - 2026-11-11
 

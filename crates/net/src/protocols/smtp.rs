@@ -8,7 +8,8 @@ use std::time::Duration;
 use lettre::address::{Address, Envelope};
 use lettre::transport::smtp::authentication::{Credentials, DEFAULT_MECHANISMS, Mechanism};
 use lettre::transport::smtp::client::{Certificate, SmtpConnection, TlsParameters};
-use lettre::transport::smtp::extension::ClientId;
+use lettre::transport::smtp::commands::{Data, Mail, Rcpt};
+use lettre::transport::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter};
 use mailcraft_model::{Security, ServerConfig};
 use rustls::pki_types::CertificateDer;
 
@@ -99,13 +100,47 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
         let mechanisms: &[Mechanism] = if sign_in.oauth { &[Mechanism::Xoauth2] } else { DEFAULT_MECHANISMS };
         conn.auth(mechanisms, &Credentials::new(sign_in.user.to_string(), sign_in.password.to_string())).map_err(failed)?;
     }
-    // The server may check the whole message before it answers (RFC 5321 §4.5.3.2.6: wait ten
-    // minutes, since giving up early sends it twice).
-    conn.set_timeout(Some(SENT_TIMEOUT)).map_err(NetError::Io)?;
-    let sent = conn.send(envelope, raw);
+    let sent = hand_over(&mut conn, envelope, raw, recipients);
     conn.abort();
-    sent.map_err(failed)?;
-    Ok(())
+    sent
+}
+
+/// MAIL, RCPT, DATA and the message, as lettre's `SmtpConnection::send` goes through them, one
+/// at a time so it's known how far it got. Up to DATA nothing is sent, and a failure can be
+/// tried again. Once the message itself has gone, only the server's answer says what became of
+/// it: with none (it stopped answering, the connection dropped), the message may be on its way,
+/// and trying again by itself is how it arrives twice.
+fn hand_over(conn: &mut SmtpConnection, envelope: &Envelope, raw: &[u8], recipients: &[String]) -> Result<()> {
+    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
+    let lacks = |what: &str| NetError::Io(std::io::Error::other(format!("the server does not support {what}")));
+    let mut options = Vec::new();
+    let ascii = |a: &Address| AsRef::<str>::as_ref(a).is_ascii();
+    if !envelope.from().is_none_or(ascii) || !envelope.to().iter().all(ascii) {
+        if !conn.server_info().supports_feature(Extension::SmtpUtfEight) {
+            return Err(lacks("addresses outside ASCII (SMTPUTF8)"));
+        }
+        options.push(MailParameter::SmtpUtfEight);
+    }
+    if !raw.is_ascii() {
+        if !conn.server_info().supports_feature(Extension::EightBitMime) {
+            return Err(lacks("text outside ASCII (8BITMIME)"));
+        }
+        options.push(MailParameter::Body(MailBodyParameter::EightBitMime));
+    }
+    conn.command(Mail::new(envelope.from().cloned(), options)).map_err(failed)?;
+    for to in envelope.to() {
+        conn.command(Rcpt::new(to.clone(), Vec::new())).map_err(failed)?;
+    }
+    conn.command(Data).map_err(failed)?;
+    // The server may check the whole message before it answers (RFC 5321 §4.5.3.2.6: wait ten
+    // minutes).
+    conn.set_timeout(Some(SENT_TIMEOUT)).map_err(NetError::Io)?;
+    match conn.message(raw) {
+        Ok(_) => Ok(()),
+        // An answer, whatever it says, is the server's word on the message.
+        Err(e) if e.status().is_some() => Err(failed(e)),
+        Err(e) => Err(NetError::Unconfirmed(e.to_string())),
+    }
 }
 
 /// How long the server may take to answer.
@@ -328,7 +363,12 @@ pub(crate) mod tests {
             let _ = out.write_all(b"220 scripted.test ready\r\n");
             for command in BufReader::new(sock).lines().map_while(std::result::Result::ok) {
                 let command = command.to_ascii_uppercase();
-                let _ = out.write_all(script(&command).as_bytes());
+                let answer = script(&command);
+                // "CLOSE": the connection drops there, nothing said.
+                if answer == "CLOSE" {
+                    break;
+                }
+                let _ = out.write_all(answer.as_bytes());
                 if command == "QUIT" {
                     break;
                 }
@@ -353,6 +393,36 @@ pub(crate) mod tests {
         let message = b"Subject: refused\r\n\r\nnot delivered\r\n";
         let e = send(&server, "z@x.example", "pw", "z@x.example", &["a@y.example".into()], message).unwrap_err();
         assert!(matches!(e, NetError::Smtp(_)), "{e:?}");
+    }
+
+    /// The server takes the whole message and the connection drops before it answers: the
+    /// message may have gone, so it isn't one to send again unasked (it was, and arrived twice).
+    /// Dropped before the message is handed over, nothing has gone, and it's tried again.
+    #[test]
+    fn no_answer_after_the_message_is_not_tried_again_unasked() {
+        let message = b"Subject: gone\r\n\r\ntext\r\n";
+        let to = ["a@y.example".to_string()];
+        let port = scripted(|command| match command.split(' ').next().unwrap_or_default() {
+            "EHLO" => "250-scripted.test\r\n250 AUTH PLAIN\r\n",
+            "AUTH" => "235 2.7.0 welcome\r\n",
+            "DATA" => "354 go on\r\n",
+            "SUBJECT:" | "" | "TEXT" => "",
+            "." => "CLOSE",
+            _ => "250 2.0.0 fine\r\n",
+        });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        let e = send(&server, "z@x.example", "pw", "z@x.example", &to, message).unwrap_err();
+        assert!(matches!(e, NetError::Unconfirmed(_)), "{e:?}");
+        assert!(!e.is_retryable(), "{e}");
+        let port = scripted(|command| match command.split(' ').next().unwrap_or_default() {
+            "EHLO" => "250-scripted.test\r\n250 AUTH PLAIN\r\n",
+            "AUTH" => "235 2.7.0 welcome\r\n",
+            "DATA" => "CLOSE",
+            _ => "250 2.0.0 fine\r\n",
+        });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        let e = send(&server, "z@x.example", "pw", "z@x.example", &to, message).unwrap_err();
+        assert!(matches!(e, NetError::Io(_)) && e.is_retryable(), "{e:?}");
     }
 
     #[test]
