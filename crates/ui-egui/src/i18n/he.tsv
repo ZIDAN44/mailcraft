@@ -11,8 +11,8 @@
 	Accounts	חשבונות
 	Accounts and settings	חשבונות והגדרות
 	Add a subject	הוסף נושא
-	Add account…	הוספת חשבון…
-	Add an account	הוספת חשבון
+	Add account…	הוסף חשבון…
+	Add an account	הוסף חשבון
 	Add an email account	הוספת חשבון דואר אלקטרוני
 	Added to new messages, replies and forwards.	מתווספת להודעות חדשות, לתשובות ולהעברות.
 	All	הכול
@@ -877,7 +877,7 @@ month	May	מאי
 	 and {n} more	 ועוד {n}
 	Add to contacts…	הוספה לאנשי הקשר…
 	Copy address	העתקת הכתובת
-	Edit contact…	עריכת איש הקשר…
+	Edit contact…	ערוך איש קשר…
 	Send email	שליחת דואר
 	Add	הוספה
 	Add a shared mailbox	הוספת תיבת דואר משותפת
@@ -889,7 +889,7 @@ month	May	מאי
 	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} יוסר מ-MailCraft. דבר אינו נמחק בשרת.
 	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} יוסר מ-MailCraft. קובץ הנתונים שלו, {file}, נשאר בתיקייה MailCraft Files: פתח אותו מקובץ › פתיחה וייצוא כדי לראות שוב את הדואר שלו.
 	{email} will be removed from MailCraft.	{email} יוסר מ-MailCraft.
-	Add shared mailbox…	הוספת תיבת דואר משותפת…
+	Add shared mailbox…	הוסף תיבת דואר משותפת…
 	Remove shared mailbox	הסרת תיבת הדואר המשותפת
 	Opened by the server for your access to it	נפתחה על ידי השרת כי יש לך גישה אליה
 	Shared mailbox {address}, opened by {email}	תיבת דואר משותפת {address}, נפתחת על ידי {email}
@@ -1366,7 +1366,7 @@ month	May	מאי
 	Access code:	קוד גישה:
 	Access code	קוד גישה
 	Remove online meeting	הסרת הפגישה המקוונת
-	Add online meeting	הוספת פגישה מקוונת
+	Add online meeting	הוסף פגישה מקוונת
 	Adds {room}: its link as the place, and how to join in the notes	מוסיף את {room}: הקישור שלו כמיקום, ובהערות איך מצטרפים
 	Add your meeting rooms under File › Options › Online meetings	הוסף את חדרי הפגישות שלך בקובץ › אפשרויות › פגישות מקוונות
 	Choose a room	בחירת חדר
@@ -1376,7 +1376,7 @@ month	May	מאי
 	access code {code}	קוד גישה {code}
 	Make default	קבע כברירת מחדל
 	Add online meeting adds this room unless another is chosen	„הוספת פגישה מקוונת” מוסיפה את החדר הזה אם לא נבחר אחר
-	Add room	הוספת חדר
+	Add room	הוסף חדר
 	Meeting hosts	שרתי פגישות
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	קישורים לשרתים האלה פותחים פגישה (קישורי Teams,‏ Zoom,‏ Google Meet,‏ Webex, חדרי BigBlueButton והשרתים של החדרים שלך כבר עושים זאת)
 	Dial-in numbers and other lines for the invitation (optional)	מספרי חיוג ושורות נוספות להזמנה (אופציונלי)
@@ -1441,7 +1441,7 @@ month	May	מאי
 	Not brought in	מה שלא יובא
 	Not brought in so far: {n}	לא יובאו עד כה: {n}
 	Notes: {n}	פתקים: {n}
-	Open an Outlook data file…	פתיחת קובץ נתונים של Outlook…
+	Open an Outlook data file…	פתח קובץ נתונים של Outlook…
 	Removing…	מסירים…
 	Saved in: {path}	נשמר ב: {path}
 	Show how the import is going	להציג את התקדמות הייבוא
@@ -1625,7 +1625,7 @@ month	May	מאי
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	תמונות נטענות כשההודעה נפתחת, אם שרת הדואר אישר מי שלח אותה והיא לא בדואר הזבל. השרת של כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת אותה. תמונות מעקב נשארות חסומות
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	ההודעה נראית חשודה או שלא ניתן היה לאשר את השולח, ולכן התמונות נשארות מוסתרות.
 	These senders' pictures always load, even when a message looks suspicious:	תמונות משולחים אלה נטענות תמיד, גם כשההודעה נראית חשודה:
-	Open a mail file	פתיחת קובץ דואר
+	Open a mail file	פתח קובץ דואר
 	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	הצגת הודעה שמורה (.eml או .msg של Outlook) בחלון משלה, בלי להוסיף אותה לתיקייה. התמונות שלה מהרשת לא נטענות ושום דבר בתוכה לא מופעל.
 	Nothing is kept: closing it leaves no trace in your mail.	שום דבר לא נשמר: אחרי הסגירה לא נשאר זכר בדואר שלך.
 	and {n} more	ועוד {n}
