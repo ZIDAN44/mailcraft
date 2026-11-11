@@ -35,13 +35,19 @@ finish-args:
   - --filesystem=xdg-download
   # Files dragged onto a message or pasted into it come as paths from the file manager (X11's
   # drag and drop and clipboard carry no portal handle): the home folder is readable so they can
-  # be attached (issue #10). Read-only: nothing is written outside the sandbox but Downloads.
+  # be attached (issue #10). Read-only: nothing is written outside the sandbox but Downloads and
+  # the data files' folder (below).
   - --filesystem=home:ro
   # MailCraft's Flatpak was ai.storyteller.mailcraft until 0.36: that sandbox's mail is read once,
   # to be brought into this one (apps/mailcraft/src/self_update/renamed.rs).
   - --filesystem=~/.var/app/ai.storyteller.mailcraft:ro
-  # Deliberately not granted: writing outside Downloads, the host filesystem, and sound. The mail
-  # cache lives in the sandbox's own data folder (~/.var/app/io.github.zidan44.MailCraft/data/mailcraft).
+  # Each account's data file is kept in Documents/MailCraft Files, as on every other system (and
+  # as Outlook keeps .pst files in Documents): that one folder is writable, made when missing.
+  # Read-only, as the rest of home, no account could be added.
+  - --filesystem=xdg-documents/MailCraft Files:create
+  # Deliberately not granted: writing anywhere else outside Downloads, the host filesystem, and
+  # sound. The account list and app state live in the sandbox's own data folder
+  # (~/.var/app/io.github.zidan44.MailCraft/data/mailcraft).
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
 modules:

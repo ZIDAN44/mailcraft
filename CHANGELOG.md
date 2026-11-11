@@ -19,6 +19,10 @@ on GitHub.
 - The Flatpak is a new app under the new id. It brings your accounts and settings across from the old one, then says how to remove that (`flatpak uninstall --delete-data ai.storyteller.mailcraft`).
 - Releases are published as **MailCraft vX.Y.Z**; test builds are still published for trying out what's next.
 
+### Fixed
+
+- The Flatpak can add an account on a desktop with a Documents folder: it couldn't write the data files it keeps in Documents › MailCraft Files.
+
 ## 0.35.0 - 2026-11-10
 
 *Mail built from templates reads as it was designed, a mail file opens from inside MailCraft, calendars and contacts sync with no email account, and each account checks for mail as often as you choose.*

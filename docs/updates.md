@@ -65,9 +65,9 @@ ones. At each start MailCraft tidies whatever else the old id left:
 - **Linux, FreeBSD:** a default mail app chosen in `mimeapps.list` now names the new desktop entry,
   and an unpacked `.tar.gz` loses the old desktop entry, AppStream file and icons.
 - **Flatpak:** the new id is a new app. On its first start it copies the old one's app folder
-  (accounts and settings), then says to remove the old one with
-  `flatpak uninstall --delete-data ai.storyteller.mailcraft`, which MailCraft can't do from inside
-  its sandbox.
+  (accounts and settings; the data files are in Documents › MailCraft Files, shared by both), then
+  says to remove the old one with `flatpak uninstall --delete-data ai.storyteller.mailcraft`, which
+  MailCraft can't do from inside its sandbox.
 
 ## Code
 
