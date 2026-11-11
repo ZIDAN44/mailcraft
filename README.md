@@ -11,6 +11,10 @@
 </p>
 
 <p align="center">
+  <a href="https://mailcraft.dev">mailcraft.dev</a> · <a href="https://mailcraft.dev/#download">Download</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="ROADMAP.md">Roadmap</a>
+</p>
+
+<p align="center">
   <img src="docs/images/reading.png" alt="MailCraft with the sample mailbox: folder pane, ribbon, the Inbox grouped by date and the reading pane" width="100%">
 </p>
 
@@ -39,7 +43,7 @@ of your mail on your computer, so it works offline.
 
 ## Install
 
-Download an installer from the [Releases](https://github.com/ZIDAN44/mailcraft/releases) page:
+Download an installer from [mailcraft.dev](https://mailcraft.dev/#download), which offers the file for your system, or from the [Releases](https://github.com/ZIDAN44/mailcraft/releases) page:
 
 - **Windows:** `.msi`, or a portable zip.
 - **macOS:** `.dmg`.
@@ -62,6 +66,10 @@ cd apps/mailcraft-web && trunk serve           # browser: http://127.0.0.1:8774/
 
 ## Documentation
 
+- [Setting up your email account](https://mailcraft.dev/setup)
+- [Switching from Outlook](https://mailcraft.dev/switch-from-outlook)
+- [Opening a `.pst` file without Outlook](https://mailcraft.dev/open-pst-without-outlook)
+- [Running MailCraft from a USB stick](https://mailcraft.dev/portable)
 - [What each version added](CHANGELOG.md)
 - [What comes next](ROADMAP.md)
 - [What's still missing](docs/gaps.md)
