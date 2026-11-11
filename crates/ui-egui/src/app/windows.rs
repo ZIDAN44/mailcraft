@@ -380,10 +380,26 @@ pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &Messa
         opened_file_toolbar(ui, s, st, key, acts);
         return;
     }
-    let t = &st.tokens;
     let close = || Action::Run("message.closeWindow", json!({"key": key.to_id()}));
     let flagged = s.summary(key).is_some_and(|m| m.flags.flagged);
     let unread = s.summary(key).is_some_and(|m| !m.flags.seen);
+    widgets::fitted_toolbar(ui, egui::Id::unique(("message-toolbar-fit", ui.ctx().viewport_id())), |ui| {
+        toolbar_row(ui, s, st, key, flagged, unread, close, acts)
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn toolbar_row(
+    ui: &mut Ui,
+    s: &Session,
+    st: &UiState,
+    key: &MessageKey,
+    flagged: bool,
+    unread: bool,
+    close: impl Fn() -> Action,
+    acts: &mut Vec<Action>,
+) {
+    let t = &st.tokens;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         for (id, icon, label) in

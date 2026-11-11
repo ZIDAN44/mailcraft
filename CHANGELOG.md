@@ -39,6 +39,9 @@ on GitHub.
 - Mail from the first days of this month is under **Earlier this month**, not **Last month**.
 - In a small window the message read or written keeps a width it can be read in: the folders and the list give way. At the smallest size it was a strip one word wide.
 - A reply written in a narrow reading pane: the ribbon's rows are one under the other (wrapped, they were far apart), and **Save draft** isn't drawn under **Discard**.
+- A message in a window of its own: the toolbar's last buttons go without their labels when the window is too narrow, as the ribbon's do. They were cut off at its edge.
+- A very long subject is four lines over its message, all of it under the pointer: it filled the reading pane.
+- A conversation's messages listed in the reading pane: the first words stop before the time, and a long name before the words.
 - In a narrow message list the sender's name keeps its room: the folder's name and **External** before the time give way.
 
 ## 0.36.0 - 2026-11-11
