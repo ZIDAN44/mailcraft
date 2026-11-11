@@ -344,7 +344,8 @@ const DELETED_ELSEWHERE: &[u8] = b"From: zoe@studio.example\r\nSubject: Old\r\nM
 /// there, every save's older version went).
 #[test]
 fn without_uidplus_the_own_copy_is_marked_deleted() {
-    for caps in ["IMAP4rev1 MOVE CONDSTORE ENABLE QUOTA", "IMAP4rev1 CONDSTORE ENABLE QUOTA"] {
+    // Each pass in a folder of its own: the last one's threads, still ending, can't write into it.
+    for (pass, caps) in ["IMAP4rev1 MOVE CONDSTORE ENABLE QUOTA", "IMAP4rev1 CONDSTORE ENABLE QUOTA"].into_iter().enumerate() {
         let st = State::new();
         st.lock().unwrap().caps = caps;
         with_drafts(&st);
@@ -353,7 +354,7 @@ fn without_uidplus_the_own_copy_is_marked_deleted() {
         if let Some(m) = st.lock().unwrap().mailbox("Drafts").and_then(|b| b.msgs.last_mut()) {
             m.flags.push(r"\Deleted".into());
         }
-        let (mut pool, store, _log) = online(&st, "draft-no-uidplus");
+        let (mut pool, store, _log) = online(&st, &format!("draft-no-uidplus-{pass}"));
         let own = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish\r\n".to_vec();
         save_draft(&mut pool, &own, "own@studio.example");
         put_in_drafts(&st, PHONE.to_vec());
@@ -376,12 +377,13 @@ fn without_uidplus_the_own_copy_is_marked_deleted() {
 /// its copy alone, and looks for no other.
 #[test]
 fn each_save_replaces_its_copy_alone() {
-    for caps in ["IMAP4rev1 MOVE CONDSTORE ENABLE QUOTA", "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA"] {
+    // Each pass in a folder of its own: the last one's threads, still ending, can't write into it.
+    for (pass, caps) in ["IMAP4rev1 MOVE CONDSTORE ENABLE QUOTA", "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA"].into_iter().enumerate() {
         let st = State::new();
         st.lock().unwrap().caps = caps;
         with_drafts(&st);
         with_trash(&st);
-        let (mut pool, store, _log) = online(&st, "draft-versions");
+        let (mut pool, store, _log) = online(&st, &format!("draft-versions-{pass}"));
         let mut replaces = None;
         let mut last = Vec::new();
         for n in 1..=3 {
