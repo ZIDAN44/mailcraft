@@ -42,6 +42,9 @@ on GitHub.
 - A message in a window of its own: the toolbar's last buttons go without their labels when the window is too narrow, as the ribbon's do. They were cut off at its edge.
 - A very long subject is four lines over its message, all of it under the pointer: it filled the reading pane.
 - A conversation's messages listed in the reading pane: the first words stop before the time, and a long name before the words.
+- Calendar in a narrow window: the days shown are no longer drawn under the **Day**, **Work week**, **Week** and **Month** buttons (those are on the ribbon), and **All day** fits beside the days in every language.
+- Tasks and People: a title, a status or an address too long for its column ends in "…". It was cut mid-letter.
+- **File › Info** in a narrow window: the page stays inside the window. In French and Russian the names at its side are whole.
 - In a narrow message list the sender's name keeps its room: the folder's name and **External** before the time give way.
 
 ## 0.36.0 - 2026-11-11

@@ -310,21 +310,13 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     }
                     let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
                     widgets::avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark));
-                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        r.left_center() + vec2(42.0, -7.0),
-                        egui::Align2::LEFT_CENTER,
-                        &name,
-                        theme::regular(13.5),
-                        t.text,
-                    );
+                    // Each on one line, "…" where the pane is too narrow (they were cut mid-letter).
+                    let room = r.width() - 46.0;
+                    let line = widgets::one_line(ui, &name, theme::regular(13.5), t.text, room);
+                    ui.painter().galley(r.left_center() + vec2(42.0, -7.0 - line.size().y / 2.0), line, t.text);
                     let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
-                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        r.left_center() + vec2(42.0, 8.0),
-                        egui::Align2::LEFT_CENTER,
-                        sub,
-                        theme::regular(11.5),
-                        t.dim,
-                    );
+                    let line = widgets::one_line(ui, &sub, theme::regular(11.5), t.dim, room);
+                    ui.painter().galley(r.left_center() + vec2(42.0, 8.0 - line.size().y / 2.0), line, t.dim);
                     if resp.clicked() {
                         st.person = Some(p.card.uid.clone());
                     }

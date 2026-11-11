@@ -48,8 +48,11 @@ pub(crate) fn app(name: &str) -> (MailApp, std::path::PathBuf) {
 }
 
 pub(crate) fn frame(ctx: &egui::Context, app: &mut MailApp, events: Vec<Event>) {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    windows::layout::dress(app);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, ..Default::default() };
     let mut out = ctx.run_ui(input, |ui| app.ui(ui));
+    windows::layout::look(app, &out.shapes);
     // No renderer here: drop the texture uploads deliberately.
     out.textures_delta.clear();
 }
