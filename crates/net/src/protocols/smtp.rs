@@ -99,6 +99,9 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
         let mechanisms: &[Mechanism] = if sign_in.oauth { &[Mechanism::Xoauth2] } else { DEFAULT_MECHANISMS };
         conn.auth(mechanisms, &Credentials::new(sign_in.user.to_string(), sign_in.password.to_string())).map_err(failed)?;
     }
+    // The server may check the whole message before it answers (RFC 5321 §4.5.3.2.6: wait ten
+    // minutes, since giving up early sends it twice).
+    conn.set_timeout(Some(SENT_TIMEOUT)).map_err(NetError::Io)?;
     let sent = conn.send(envelope, raw);
     conn.abort();
     sent.map_err(failed)?;
@@ -107,6 +110,9 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
 
 /// How long the server may take to answer.
 const TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How long it may take over a message it's been sent.
+const SENT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// The most of a server's addresses tried.
 const MAX_ADDRESSES: usize = 8;

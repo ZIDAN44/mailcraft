@@ -29,6 +29,7 @@ on GitHub.
 - An answer from an IMAP server that MailCraft's reader can't take (`INTERNALDATE NIL`) no longer stops the account until MailCraft starts again.
 - On a server without UIDPLUS, moving or deleting a message no longer removes for good the messages another program had marked as deleted.
 - New mail is noticed at once after a message is deleted for good, and after a folder that's gone from the server was opened.
+- Sending waits up to ten minutes for a server that checks a message before it answers, instead of sending it a second time after one.
 
 ## 0.36.0 - 2026-11-11
 
