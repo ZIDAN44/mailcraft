@@ -294,3 +294,38 @@ fn people_navigation_and_table_follow_interface_direction() {
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
+
+/// Long Latin contact names and email addresses must be shortened before they are
+/// anchored to the right edge; otherwise their *beginnings* disappear in RTL.
+#[test]
+fn long_latin_contact_details_stay_inside_rtl_navigation() {
+    const NAME: &str = "Alexandria Maximilian Turing with an exceptionally long and descriptive contact display name";
+    const EMAIL: &str = "extremely.long.contact.address.with.many.names.and.extra.details@really-long-example-domain.example";
+    for lang in ["he", "ar"] {
+        let (mut a, dir) = app(&format!("rtl-long-contact-{lang}"));
+        let mut f = crate::pim_dialogs::ContactForm { name: NAME.into(), ..Default::default() };
+        f.emails[0] = EMAIL.into();
+        a.ui.dialog = Some(Dialog::new_contact());
+        a.act(crate::Action::Submit("contact.create", f.params()));
+        assert!(a.session.people("").iter().any(|p| p.card.display() == NAME), "synthetic contact inserted");
+        a.ui.language = lang.into();
+        a.run("view.module", json!({"name": "people"}));
+        a.ui.people_view = crate::people::PeopleView::People;
+        let ctx = egui::Context::default();
+        let size = egui::vec2(1280.0, 800.0);
+        for _ in 0..3 {
+            drawn_text(&ctx, &mut a, size);
+        }
+        let texts = drawn_text(&ctx, &mut a, size);
+        for label in [NAME, EMAIL] {
+            let found = texts.iter().find(|(s, _, clip)| s == label && clip.width() < 400.0);
+            let (_, ink, clip) = found.unwrap_or_else(|| panic!("{lang}: no nav shape for {label:?}"));
+            assert!(
+                ink.min.x >= clip.min.x - 1.0 && ink.max.x <= clip.max.x + 1.0,
+                "{lang}: long Latin contact text extends beyond nav clip: {ink:?} in {clip:?}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}
