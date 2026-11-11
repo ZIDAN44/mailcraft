@@ -35,6 +35,7 @@ on GitHub.
 - A message closed while it's being sent opens again if the server then refuses it: it was in neither Drafts nor the Outbox.
 - A rule, a Quick Step and a snoozed message follow a folder that's renamed or moved: the rule's mail stayed in the Inbox, and the snoozed message never came back. Snoozing a message that's already snoozed changes when it comes back.
 - Mail you put in the Inbox of an account on a server (dragged there, a delete undone, **Not junk**) isn't taken for mail arriving: a rule could file it straight back, and it was announced as new.
+- `larger:2 MB`, with a space before the unit, searches by that size.
 
 ## 0.36.0 - 2026-11-11
 
