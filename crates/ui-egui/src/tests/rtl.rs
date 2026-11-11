@@ -253,10 +253,7 @@ fn calendar_results_and_the_source_bar_are_mirrored() {
 /// contact table starts at the reading edge (first column rightmost in Hebrew).
 #[test]
 fn people_navigation_and_table_follow_interface_direction() {
-    for (lang, rtl, full_name, company) in [
-        ("en", false, "Full name", "Company"),
-        ("he", true, "שם מלא", "חברה"),
-    ] {
+    for (lang, rtl, full_name, company) in [("en", false, "Full name", "Company"), ("he", true, "שם מלא", "חברה")] {
         let (mut a, dir) = app(&format!("rtl-people-views-{lang}"));
         a.ui.language = lang.into();
         a.run("view.module", json!({"name": "people"}));
@@ -269,19 +266,24 @@ fn people_navigation_and_table_follow_interface_direction() {
             }
             let texts = drawn_text(&ctx, &mut a, size);
             let x = |label: &str| {
-                texts
-                    .iter()
-                    .find(|(s, ..)| s == label)
-                    .map(|(_, rect, _)| rect.center().x)
-                    .unwrap_or_else(|| panic!("{lang} {view:?}: missing {label:?}"))
+                texts.iter().find(|(s, ..)| s == label).map(|(_, rect, _)| rect.center().x).unwrap_or_else(|| {
+                    panic!("{lang} {view:?}: missing {label:?}; shapes: {:?}", texts.iter().map(|(s, ..)| s.as_str()).collect::<Vec<_>>())
+                })
             };
             match view {
                 crate::people::PeopleView::People => {
                     assert_eq!(x("Zoe Park") > x("z"), rtl, "{lang}: list must precede A-Z index on reading side");
                 }
                 crate::people::PeopleView::Phone => {
-                    assert_eq!(x(full_name) > x(company), rtl, "{lang}: first table column must be at reading side");
+                    assert_eq!(x(&format!("{full_name} ↑")) > x(company), rtl, "{lang}: first table column must be at reading side");
                     assert_eq!(x("Zoe Park") > x("Studio Lantern"), rtl, "{lang}: table cells must follow header order");
+                    // Clicking a mirrored header must still sort the intended column.
+                    let click = texts.iter().find(|(s, ..)| s == company).unwrap().1.center();
+                    let button =
+                        |pressed| Event::PointerButton { pos: click, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+                    frame(&ctx, &mut a, vec![Event::PointerMoved(click), button(true)]);
+                    frame(&ctx, &mut a, vec![button(false)]);
+                    assert_eq!(a.ui.people_list.sort, Some(crate::people::Column::Company), "{lang}: Company header click sorts Company");
                 }
                 crate::people::PeopleView::Cards => unreachable!(),
             }
