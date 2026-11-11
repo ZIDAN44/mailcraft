@@ -60,7 +60,7 @@ MailCraft's id was `ai.storyteller.mailcraft` until 0.36 and is `io.github.zidan
 now. An update installs the new id's files, and the `.msi`, `.deb` and `.rpm` remove their old
 ones. At each start MailCraft tidies whatever else the old id left:
 
-- **Windows:** its notification name in the registry.
+- **Windows:** its notification name, and the notification settings Windows kept for it.
 - **macOS:** its preferences, saved window state, caches and web storage in `~/Library`.
 - **Linux, FreeBSD:** a default mail app chosen in `mimeapps.list` now names the new desktop entry,
   and an unpacked `.tar.gz` loses the old desktop entry, AppStream file and icons.

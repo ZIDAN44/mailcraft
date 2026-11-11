@@ -6,7 +6,7 @@
 //!
 //! | System | What the old id left | Here |
 //! |---|---|---|
-//! | Windows | Its notification name (`HKCU\Software\Classes\AppUserModelId\<id>`) | removed |
+//! | Windows | Its notification name (`HKCU\Software\Classes\AppUserModelId\<id>`), and the notification settings Windows kept for it | removed |
 //! | macOS | Its preferences, saved window state, caches and web storage in `~/Library` | removed |
 //! | Linux, FreeBSD | A default-app choice in `mimeapps.list` naming its desktop entry | pointed at the new entry |
 //! | `.tar.gz` | Its desktop entry, AppStream file and icons, beside the new ones | removed |
@@ -110,15 +110,7 @@ pub fn tidy() {
         log::info!("renamed: the earlier Flatpak's mail ({OLD_ID}) was brought over; that Flatpak stays installed until it's removed");
     }
     #[cfg(windows)]
-    {
-        let key = format!(r"Software\Classes\AppUserModelId\{OLD_ID}");
-        if windows_registry::CURRENT_USER.open(&key).is_ok() {
-            match windows_registry::CURRENT_USER.remove_tree(&key) {
-                Ok(()) => log::info!("renamed: removed the old id's notification name"),
-                Err(e) => log::warn!("renamed: the old id's notification name stays: {e}"),
-            }
-        }
-    }
+    report("the old id's notification keys", remove_keys(&windows_keys()));
     let home = std::env::var_os("HOME").map(PathBuf::from).filter(|h| h.is_absolute());
     if cfg!(target_os = "macos")
         && let Some(home) = &home
@@ -154,6 +146,31 @@ fn report(what: &str, (removed, failed): (usize, Vec<String>)) {
     for f in failed {
         log::warn!("renamed: {f}");
     }
+}
+
+/// The old id's keys under `HKCU`: its notification name, made by MailCraft (`toast.rs`), and
+/// the notification settings Windows keeps for each id a notification was shown under (an
+/// earlier build's portable copy had one of its own, `<id>.portable`).
+#[cfg(windows)]
+pub(super) fn windows_keys() -> Vec<String> {
+    let settings = r"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
+    vec![format!(r"Software\Classes\AppUserModelId\{OLD_ID}"), format!(r"{settings}\{OLD_ID}"), format!(r"{settings}\{OLD_ID}.portable")]
+}
+
+/// Each of `keys` under `HKCU` that's there removed, with what's under it.
+#[cfg(windows)]
+fn remove_keys(keys: &[String]) -> (usize, Vec<String>) {
+    let (mut removed, mut failed) = (0, Vec::new());
+    for key in keys {
+        if windows_registry::CURRENT_USER.open(key).is_err() {
+            continue;
+        }
+        match windows_registry::CURRENT_USER.remove_tree(key) {
+            Ok(()) => removed += 1,
+            Err(e) => failed.push(format!(r"HKCU\{key}: {e}")),
+        }
+    }
+    (removed, failed)
 }
 
 /// What macOS kept under the old bundle id, in `home`'s `Library`.
@@ -369,5 +386,28 @@ mod tests {
         assert_eq!(remove_all(&paths), (2, Vec::new()));
         assert!(prefs.join("com.example.other.plist").is_file() && !saved.exists());
         let _ = std::fs::remove_dir_all(&t);
+    }
+}
+
+/// On Windows: the old id's keys are its own and Windows' notification settings for it, and a
+/// key that's there goes with what's under it, one that isn't is passed by.
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+
+    #[test]
+    fn the_old_ids_notification_keys_go() {
+        let keys = windows_keys();
+        assert!(keys.iter().all(|k| k.starts_with(r"Software\") && k.contains(OLD_ID)));
+        assert!(keys.iter().any(|k| k.ends_with(&format!(r"Notifications\Settings\{OLD_ID}"))));
+        // Removing works on a key of the test's own.
+        let base = format!(r"Software\MailCraft-renamed-test-{}", std::process::id());
+        let there = format!(r"{base}\there");
+        let key = windows_registry::CURRENT_USER.create(format!(r"{there}\below")).unwrap();
+        key.set_string("Enabled", "0").unwrap();
+        drop(key);
+        assert_eq!(remove_keys(&[there.clone(), format!(r"{base}\missing")]), (1, Vec::new()));
+        assert!(windows_registry::CURRENT_USER.open(&there).is_err());
+        let _ = windows_registry::CURRENT_USER.remove_tree(&base);
     }
 }
