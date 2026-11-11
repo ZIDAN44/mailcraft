@@ -20,6 +20,7 @@ on GitHub.
 - A reply or forward keeps the `[tag]` its subject starts with (`Re: [Ticket#123] Printer`), which a help desk matches answers on.
 - Two notifications with the same `[tagged]` subject are no longer shown as one conversation.
 - A reply to a message that names only the message it answers keeps the whole conversation together in other mail programs.
+- A message can't mark itself as checked: only the result your own mail server put at the top counts, where one written by the sender lower down was believed (and its pictures could load by themselves).
 
 ## 0.36.0 - 2026-11-11
 

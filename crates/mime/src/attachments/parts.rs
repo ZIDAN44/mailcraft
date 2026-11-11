@@ -60,3 +60,9 @@ pub(crate) fn sent_bytes(p: MessagePart<'_>) -> Option<Vec<u8>> {
 pub(crate) fn header_raw<'m>(m: MessageRef<'m>, name: &str) -> Option<&'m str> {
     m.headers().get(name).and_then(|h| std::str::from_utf8(h.raw_value()).ok())
 }
+
+/// The value of a message's first (topmost) `name` header field as written, when it is UTF-8:
+/// the one the receiving server added, where a lower one may be the sender's own.
+pub(crate) fn header_top<'m>(m: MessageRef<'m>, name: &str) -> Option<&'m str> {
+    m.headers().all(name).next().and_then(|h| std::str::from_utf8(h.raw_value()).ok())
+}

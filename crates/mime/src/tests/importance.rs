@@ -24,6 +24,14 @@ fn importance_and_read_receipts_round_trip() {
     }
 }
 
+/// Only the topmost `Authentication-Results` is the receiving server's: one lower down may be
+/// the sender's own, saying its forged address passed (it was the one read).
+#[test]
+fn a_forged_result_under_the_servers_is_not_read() {
+    let raw = b"Authentication-Results: mx.studio.example; dmarc=fail header.from=bank.example\r\nReceived: from x\r\nAuthentication-Results: mx.studio.example; dmarc=pass header.from=bank.example\r\nFrom: Bank <alerts@bank.example>\r\nSubject: s\r\n\r\nbody\r\n";
+    assert_eq!(parse(raw).unwrap().sender_check, SenderCheck::Failed);
+}
+
 /// A reply keeps the `[tag]` a help desk matches answers on, and names what its parent answers
 /// when the parent has no References.
 #[test]

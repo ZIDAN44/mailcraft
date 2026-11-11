@@ -45,7 +45,7 @@ pub use attachments::{
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};
 pub use attachments::{REACTIONS, is_reaction_text, reaction};
-use attachments::{attached, files_of, has_real_attachments, header_raw, reaction_of};
+use attachments::{attached, files_of, has_real_attachments, header_raw, header_top, reaction_of};
 use files::attachment_name;
 pub use files::{alt_code_char, alt_code_pages, harmless_to_open, mime_from_name, runs_code, sanitize_filename};
 use hidden::hidden_text_where;
@@ -245,7 +245,7 @@ pub(crate) fn importance(m: &Message<'_>) -> i8 {
 /// RFC 3834 `Auto-Submitted`, the de-facto `Precedence: bulk|list|junk`, and no-reply senders).
 /// What the top `Authentication-Results` says of the one address in the From line.
 fn checked_sender(m: &Message<'_>) -> SenderCheck {
-    let Some(header) = header_raw(m.root(), "Authentication-Results") else { return SenderCheck::Unknown };
+    let Some(header) = header_top(m.root(), "Authentication-Results") else { return SenderCheck::Unknown };
     let Some(from) = m.from().filter(|f| f.iter().count() == 1 && !f.has_groups()) else { return SenderCheck::Unknown };
     let address = from.first().and_then(|a| a.address()).unwrap_or_default();
     trackers::sender_check(header, address.rsplit_once('@').map_or("", |(_, d)| d))
