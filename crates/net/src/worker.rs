@@ -698,6 +698,8 @@ struct Worker {
     pushed: bool,
     /// Open JMAP EventSource push stream, kept across waits and jobs instead of reconnecting.
     jmap_events: Option<crate::http::EventStream<Stream>>,
+    /// When the current `jmap_events` stream opened, so one that closes at once turns push off.
+    jmap_push_opened: Option<Instant>,
     /// Latest per-account type states (`StateChange.changed`) seen on `jmap_events`.
     jmap_push_state: serde_json::Map<String, serde_json::Value>,
     /// Folders to look at again soon: Graph and Exchange file a sent message's copy a moment
@@ -763,6 +765,7 @@ impl Worker {
             no_push: false,
             pushed: false,
             jmap_events: None,
+            jmap_push_opened: None,
             jmap_push_state: serde_json::Map::new(),
             soon: Vec::new(),
             search: Arc::new(AtomicU64::new(0)),

@@ -2,6 +2,7 @@
 
 use super::*;
 
+/// Registers calendar, contact, task, and note commands.
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         // Accounts
@@ -233,7 +234,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 "errors": s.directory_errors(q),
             }))
         })
-        .when(|s| s.directory_accounts().is_empty().then_some("the organisation directory is searched through an Exchange account"))
+        .when(|s| s.directory_accounts().is_empty().then_some("the organisation directory is searched through an Exchange or JMAP account"))
         .params(r#"{"query": string}"#),
         CommandSpec::new("contact.allowDirectory", "Allow searching the directory", "Message › Names › Address Book", |s, v| {
             s.allow_directory(p::str(v, "account"))

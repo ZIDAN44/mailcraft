@@ -37,8 +37,8 @@ use compose::*;
 pub(crate) use long_text::LongText;
 #[cfg(test)]
 pub(crate) use long_text::{CHUNK, chunks};
-pub(crate) use people::known_contact;
 use people::*;
+pub(crate) use people::{cards_by_email, known_contact};
 pub(crate) use pictures::{Got, Pictures, Want};
 pub(crate) use quote::QuoteEditors;
 #[cfg(test)]

@@ -533,38 +533,74 @@ pub fn start_group(ui: &Ui) {
 /// Max decoded contact photos kept in memory per window.
 const MAX_CONTACT_PHOTOS: usize = 256;
 
-#[derive(Clone, Default)]
-struct ContactPhotos(std::sync::Arc<std::sync::Mutex<std::collections::HashMap<u64, Option<egui::TextureHandle>>>>);
+type PhotoKey = (String, usize, u64);
 
-fn fnv1a(bytes: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for &b in bytes {
-        h ^= u64::from(b);
-        h = h.wrapping_mul(0x0100_0000_01b3);
+#[derive(Default)]
+struct ContactPhotoCache {
+    clock: u64,
+    entries: std::collections::HashMap<PhotoKey, (u64, Option<egui::TextureHandle>)>,
+}
+
+#[derive(Clone, Default)]
+struct ContactPhotos(std::sync::Arc<std::sync::Mutex<ContactPhotoCache>>);
+
+/// Fast constant-time fingerprint of up to 192 bytes (head, middle and tail) of `bytes`, so
+/// replacing a contact's photo with another image of the same byte length still refreshes the
+/// cache without scanning the full base64 payload on every frame.
+fn photo_fingerprint(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ (bytes.len() as u64);
+    let feed = |mut h: u64, slice: &[u8]| -> u64 {
+        for &b in slice {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        h
+    };
+    let n = bytes.len();
+    h = feed(h, bytes.get(..n.min(64)).unwrap_or_default());
+    if n > 128 {
+        let mid = n / 2;
+        h = feed(h, bytes.get(mid..mid.saturating_add(64).min(n)).unwrap_or_default());
+    }
+    if n > 64 {
+        h = feed(h, bytes.get(n.saturating_sub(64)..).unwrap_or_default());
     }
     h
 }
 
-fn contact_photo_texture(ctx: &egui::Context, b64: &str) -> Option<egui::TextureHandle> {
-    let key = fnv1a(b64.as_bytes());
+/// Look up or decode a contact's base64 photo texture, evicting only the least-recently-used
+/// entry when [`MAX_CONTACT_PHOTOS`] is reached.
+fn contact_photo_texture(ctx: &egui::Context, uid: &str, b64: &str) -> Option<egui::TextureHandle> {
+    let fp = photo_fingerprint(b64.as_bytes());
+    let key: PhotoKey = (uid.to_string(), b64.len(), fp);
     let cache_id = egui::Id::unique("contact-photo-cache");
     let holder = ctx.data_mut(|d| d.get_temp_mut_or_default::<ContactPhotos>(cache_id).clone());
-    if let Ok(map) = holder.0.lock()
-        && let Some(found) = map.get(&key)
-    {
-        return found.clone();
-    }
-    let loaded =
-        mailcraft_engine::mime::decode_base64(b64).and_then(|bytes| crate::reading::decode(ctx, &format!("contact-photo-{key:016x}"), &bytes, 256));
-    if let Ok(mut map) = holder.0.lock() {
-        if map.len() >= MAX_CONTACT_PHOTOS {
-            map.clear();
+    if let Ok(mut guard) = holder.0.lock() {
+        let cache = &mut *guard;
+        let next = cache.clock.wrapping_add(1);
+        if let Some((used, found)) = cache.entries.get_mut(&key) {
+            cache.clock = next;
+            *used = next;
+            return found.clone();
         }
-        map.insert(key, loaded.clone());
+    }
+    let tex_name = format!("contact-photo-{}-{}-{fp:016x}", uid, b64.len());
+    let loaded = mailcraft_engine::mime::decode_base64(b64).and_then(|bytes| crate::reading::decode(ctx, &tex_name, &bytes, 256));
+    if let Ok(mut cache) = holder.0.lock() {
+        if !cache.entries.contains_key(&key)
+            && cache.entries.len() >= MAX_CONTACT_PHOTOS
+            && let Some(lru_key) = cache.entries.iter().min_by_key(|(_, (used, _))| *used).map(|(k, _)| k.clone())
+        {
+            cache.entries.remove(&lru_key);
+        }
+        cache.clock = cache.clock.wrapping_add(1);
+        let tick = cache.clock;
+        cache.entries.insert(key, (tick, loaded.clone()));
     }
     loaded
 }
 
+/// Paint a center-cropped circular texture mesh with a 1 px feathered edge.
 fn paint_round_photo(painter: &egui::Painter, center: egui::Pos2, radius: f32, tex: &egui::TextureHandle) {
     let [tw, th] = tex.size();
     let (tw, th) = (tw.max(1) as f32, th.max(1) as f32);
@@ -603,10 +639,10 @@ pub fn avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: C
     ui.painter().text(center, egui::Align2::CENTER_CENTER, initials, theme::bold(radius * 0.8), Color32::WHITE);
 }
 
-/// A round avatar showing an inline base64 photo when valid, falling back to `initials`.
-pub fn photo_avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: Color32, photo_b64: Option<&str>) {
+/// A round avatar showing an inline base64 photo keyed by `uid` when valid, falling back to `initials`.
+pub fn photo_avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: Color32, uid: &str, photo_b64: Option<&str>) {
     if let Some(b64) = photo_b64.filter(|s| !s.is_empty())
-        && let Some(tex) = contact_photo_texture(ui.ctx(), b64)
+        && let Some(tex) = contact_photo_texture(ui.ctx(), uid, b64)
     {
         paint_round_photo(ui.painter(), center, radius, &tex);
         return;
@@ -618,7 +654,8 @@ pub fn photo_avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, co
 ///
 /// [`Card`]: mailcraft_engine::model::vcard::Card
 pub fn card_avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: Color32, card: Option<&mailcraft_engine::model::vcard::Card>) {
-    photo_avatar(ui, center, radius, initials, color, card.and_then(|c| c.photo_base64()));
+    let uid = card.map_or("", |c| c.uid.as_str());
+    photo_avatar(ui, center, radius, initials, color, uid, card.and_then(|c| c.photo_base64()));
 }
 
 pub fn human_size(bytes: usize) -> String {
@@ -689,4 +726,33 @@ pub(crate) fn command_label(t: &Tokens, enabled: bool) -> Color32 {
 /// The colour of a classic ribbon group's caption (Respond, Tags…): quiet, and read (issue #45).
 pub(crate) fn group_caption(t: &Tokens) -> Color32 {
     theme::quiet_text(t)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn contact_photo_cache_evicts_lru_and_refreshes_on_photo_change() {
+        let ctx = egui::Context::default();
+        let cache_id = egui::Id::unique("contact-photo-cache");
+        // Fill the cache with MAX_CONTACT_PHOTOS invalid payloads (recorded as None) and touch
+        // `uid-0` right before inserting one past capacity so `uid-1` becomes the LRU victim.
+        for i in 0..MAX_CONTACT_PHOTOS {
+            assert!(contact_photo_texture(&ctx, &format!("uid-{i}"), "not-an-image").is_none());
+        }
+        assert!(contact_photo_texture(&ctx, "uid-0", "not-an-image").is_none());
+        assert!(contact_photo_texture(&ctx, "uid-overflow", "not-an-image").is_none());
+        let holder = ctx.data_mut(|d| d.get_temp_mut_or_default::<ContactPhotos>(cache_id).clone());
+        {
+            let guard = holder.0.lock().unwrap();
+            assert_eq!(guard.entries.len(), MAX_CONTACT_PHOTOS);
+            assert!(guard.entries.keys().any(|(u, _, _)| u == "uid-0"), "touched entry kept");
+            assert!(!guard.entries.keys().any(|(u, _, _)| u == "uid-1"), "LRU entry evicted");
+            assert!(guard.entries.keys().any(|(u, _, _)| u == "uid-overflow"), "new entry inserted");
+        }
+        // Replacing a contact's photo (even with an equal-length base64 payload) produces a
+        // distinct cache key rather than returning a stale texture.
+        assert_ne!(photo_fingerprint(b"AAAA"), photo_fingerprint(b"BBBB"));
+    }
 }

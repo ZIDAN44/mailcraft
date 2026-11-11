@@ -88,14 +88,9 @@ pub fn provider_for_account(account: &mailcraft_model::AccountConfig) -> Option<
     let id = account.oauth.as_deref()?;
     if id == mailcraft_model::OAUTH_AUTOCONFIG {
         let cfg = account.oauth_config.as_ref()?;
-        if cfg.auth_url.is_empty() || cfg.token_url.is_empty() {
-            return None;
-        }
-        let name = if cfg.issuer.trim().is_empty() {
-            crate::http::Url::parse(&cfg.auth_url).map(|u| u.host).unwrap_or_else(|_| "OAuth".into())
-        } else {
-            cfg.issuer.trim().to_string()
-        };
+        let auth_parsed = crate::http::Url::parse(&cfg.auth_url).ok().filter(|u| u.https)?;
+        let _token_parsed = crate::http::Url::parse(&cfg.token_url).ok().filter(|u| u.https)?;
+        let name = if cfg.issuer.trim().is_empty() { auth_parsed.host } else { cfg.issuer.trim().to_string() };
         let client_id = if cfg.client_id.trim().is_empty() { "mailcraft".into() } else { cfg.client_id.trim().to_string() };
         let scope = if cfg.scope.trim().is_empty() { "mail caldav carddav offline_access".into() } else { cfg.scope.trim().to_string() };
         return Some(Provider {
@@ -412,6 +407,18 @@ pub(crate) mod tests {
         };
         let dyn_p = provider_for_account(&dyn_acc).unwrap();
         assert_eq!((dyn_p.name.as_str(), dyn_p.client_id.as_str()), ("nextxch.com", "mailcraft"));
+        for (auth_url, token_url) in [
+            ("http://mail.nextxch.com/oauth/authorize", "https://mail.nextxch.com/oauth/token"),
+            ("https://mail.nextxch.com/oauth/authorize", "http://mail.nextxch.com/oauth/token"),
+            ("not a url", "https://mail.nextxch.com/oauth/token"),
+        ] {
+            let mut bad = dyn_acc.clone();
+            if let Some(cfg) = bad.oauth_config.as_mut() {
+                cfg.auth_url = auth_url.into();
+                cfg.token_url = token_url.into();
+            }
+            assert!(provider_for_account(&bad).is_none(), "{auth_url} / {token_url}");
+        }
         // Who signed in, from an ID token's claims.
         let token = |claims: &str| format!("e30.{}.sig", b64url(claims.as_bytes()));
         assert_eq!(

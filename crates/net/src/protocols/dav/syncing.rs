@@ -615,31 +615,24 @@ fn has_all_of(server: &CalEvent, mine: &CalEvent) -> bool {
         && mine.attendees.iter().all(|a| answer(server, &a.email) == Some(a.partstat.to_ascii_uppercase()))
 }
 
-/// Store a `VTODO` or `VJOURNAL` item, refreshing its `If-Match` etag once if the server bumped
-/// the item's etag behind a unified groupware bridge.
-fn store_component(
-    dav: &Dav,
-    target_col: &str,
-    url: &str,
-    data: &str,
-    etag: Option<&str>,
-    dirty: bool,
-) -> Result<std::result::Result<String, Refused>> {
-    let first = dav.store(url, "text/calendar; charset=utf-8", data, etag)?;
-    if first == Err(Refused::Changed) && dirty {
-        let col = parent_of(url).unwrap_or_else(|| target_col.to_string());
-        if let Ok(listed) = dav.etags(&col) {
-            if let Some((_, cur)) = listed.into_iter().find(|(h, _)| h == url) {
-                return dav.store(url, "text/calendar; charset=utf-8", data, Some(&cur));
-            }
-            if etag.is_some() {
-                return dav.store(url, "text/calendar; charset=utf-8", data, None);
-            }
-        }
-    }
-    Ok(first)
+/// Store a `VTODO` or `VJOURNAL` item guarded by `etag`, then read back the collection's
+/// current etag for `url` in case a unified groupware bridge rewrote the stored item on PUT.
+fn store_component(dav: &Dav, target_col: &str, url: &str, data: &str, etag: Option<&str>) -> Result<std::result::Result<String, Refused>> {
+    let stored = match dav.store(url, "text/calendar; charset=utf-8", data, etag)? {
+        Ok(tag) => tag,
+        Err(refused) => return Ok(Err(refused)),
+    };
+    let col = parent_of(url).unwrap_or_else(|| target_col.to_string());
+    let current = match dav.etags(&col) {
+        Ok(listed) => listed.into_iter().find(|(h, _)| h == url).map(|(_, cur)| cur),
+        Err(e @ NetError::Auth(_)) => return Err(e),
+        Err(_) => None,
+    };
+    Ok(Ok(current.filter(|c| !c.is_empty()).unwrap_or(stored)))
 }
 
+/// Sync `VTODO` task collections both ways: push dirty or new tasks guarded by their etag, then
+/// read changed and unchanged server tasks.
 fn sync_tasks(
     dav: &Dav,
     task_cols: &[&Item],
@@ -658,7 +651,7 @@ fn sync_tasks(
             }
             let etag = (!t.href.is_empty()).then_some(t.etag.as_str());
             let data = ical::write_calendar(&[], std::slice::from_ref(&t.task), now);
-            match store_component(dav, target, &url, &data, etag, t.dirty) {
+            match store_component(dav, target, &url, &data, etag) {
                 Ok(Ok(new)) => out.pushed_tasks.push(StoredTask { href: url, etag: new, task: t.task.clone(), dirty: false }),
                 Ok(Err(_)) if !t.dirty => {}
                 Ok(Err(r)) => out.errors.push(format!("{}: {r}", t.task.title)),
@@ -704,6 +697,8 @@ fn sync_tasks(
     Ok(())
 }
 
+/// Sync `VJOURNAL` note collections both ways: push dirty or new notes guarded by their etag, then
+/// read changed and unchanged server notes.
 fn sync_notes(dav: &Dav, note_cols: &[&Item], pim: &Pim, ours: &impl Fn(&str) -> bool, now: i64, out: &mut DavSync) -> Result<()> {
     if let Some(target) = note_cols.iter().copied().find(|c| c.writable != Some(false)).map(|c| c.href.as_str()) {
         for n in pim.notes.iter().filter(|n| n.dirty || n.href.is_empty()) {
@@ -714,7 +709,7 @@ fn sync_notes(dav: &Dav, note_cols: &[&Item], pim: &Pim, ours: &impl Fn(&str) ->
             }
             let etag = (!n.href.is_empty()).then_some(n.etag.as_str());
             let data = ical::write_journal_calendar(&n.note, now);
-            match store_component(dav, target, &url, &data, etag, n.dirty) {
+            match store_component(dav, target, &url, &data, etag) {
                 Ok(Ok(new)) => out.pushed_notes.push(StoredNote { href: url, etag: new, note: n.note.clone(), dirty: false }),
                 Ok(Err(_)) if !n.dirty => {}
                 Ok(Err(r)) => out.errors.push(format!("{}: {r}", n.note.title())),

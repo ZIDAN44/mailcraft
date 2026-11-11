@@ -54,6 +54,8 @@ pub struct Data {
     pub made_identities: Vec<String>,
     /// Emit an RFC 8620 §7.3 initial `event: state` snapshot as soon as `/events/` opens.
     pub initial_state: bool,
+    /// Close `/events/` right after the initial response (a proxy that terminates SSE streams).
+    pub close_events_immediately: bool,
     pub event_connects: u32,
     next: u32,
 }
@@ -410,6 +412,7 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
                 assert!(path.contains("types=%2A") || path.contains("types=*"), "{path}");
                 let (tx, rx) = std::sync::mpsc::channel::<String>();
                 d.event_connects += 1;
+                let close_now = d.close_events_immediately;
                 let snapshot = d.initial_state.then(|| {
                     json!({"@type": "StateChange", "changed": {ACCOUNT: {"Email": format!("s{}", d.next), "Mailbox": "m1", "Calendar": "c1"}}})
                         .to_string()
@@ -423,6 +426,10 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
                     if s.write_all(format!("{:x}\r\n{msg}\r\n", msg.len()).as_bytes()).is_err() {
                         return;
                     }
+                }
+                if close_now {
+                    let _ = s.write_all(b"0\r\n\r\n");
+                    return;
                 }
                 loop {
                     let msg = match rx.recv_timeout(std::time::Duration::from_secs(1)) {
@@ -861,6 +868,34 @@ mod tests {
         assert_eq!(data.lock().unwrap().event_connects, 1, "same SSE push stream reused across jobs and syncs");
         drop(pool);
         let _ = std::fs::remove_dir_all(dir);
+
+        // When a proxy closes `/events/` right after opening, the worker switches to polling
+        // instead of reopening the stream in a tight loop.
+        let mut d2 = Data { initial_state: true, close_events_immediately: true, ..Default::default() };
+        let inbox2 = d2.mailbox("Inbox", None, Some("inbox"));
+        d2.deliver(&inbox2, &mail("First", "m1"), &["$seen"], "2026-10-14T09:00:00Z");
+        let server2 = serve(d2);
+        let data2 = server2.data.clone();
+        let dir2 = std::env::temp_dir().join(format!("mailcraft-jmap-push-short-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir2);
+        let store2 = Store::open(&dir2).unwrap();
+        crate::fakes::fake_dav::looked_for_today(&store2, "a1");
+        let mut pool2 = crate::worker::Pool::new(store2, Arc::new(crate::worker::MemoryCredentials::default()));
+        let account2 = AccountConfig {
+            id: "a1".into(),
+            name: "Me".into(),
+            email: USER.into(),
+            username: USER.into(),
+            jmap: Some(server2.base.clone()),
+            ..Default::default()
+        };
+        pool2.submit(Job::Start { account: account2, password: Some(Secret(PASSWORD.into())) });
+        until(&pool2, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+        eventually("push stream attempted", || data2.lock().unwrap().event_connects >= 1);
+        std::thread::sleep(Duration::from_millis(600));
+        assert_eq!(data2.lock().unwrap().event_connects, 1, "short-lived SSE stream falls back to polling");
+        drop(pool2);
+        let _ = std::fs::remove_dir_all(dir2);
     }
 
     /// For trying the browser app by hand: a sample JMAP server at http://127.0.0.1:8775 (or

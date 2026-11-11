@@ -820,14 +820,14 @@ mod tests {
         assert_eq!(notes.len(), 2);
         assert!(notes.iter().any(|n| n.note.uid == "local-n" && n.note.color == 2 && n.note.text == "Local note\nLine two"));
 
-        // Edit the note and delete the server task: even with a bridge-bumped etag, both go cleanly.
+        // Edit the note (whose stored etag already reflects the server rewrite) and delete the server task.
+        assert_eq!(first.pushed_notes[0].etag, notes.iter().find(|n| n.note.uid == "local-n").unwrap().etag);
         pim.tasks = tasks;
         pim.notes = notes;
         let gone = pim.tasks.iter().find(|t| t.task.uid == "server-t").unwrap().clone();
         pim.tasks.retain(|t| t.task.uid != "server-t");
         pim.deleted.push(Tombstone { href: gone.href, etag: gone.etag, ..Default::default() });
         let ln = pim.notes.iter_mut().find(|n| n.note.uid == "local-n").unwrap();
-        ln.etag = "\"stale\"".into();
         ln.note.text = "Local note\nUpdated body".into();
         ln.dirty = true;
 
@@ -835,5 +835,35 @@ mod tests {
         assert!(second.errors.is_empty(), "{:?}", second.errors);
         assert_eq!(second.tasks.as_ref().map(Vec::len), Some(1));
         assert_eq!(second.notes.as_ref().unwrap().iter().find(|n| n.note.uid == "local-n").unwrap().note.text, "Local note\nUpdated body");
+
+        // A dirty note also changed on the server is refused and the server's text stays intact.
+        pim.tasks = second.tasks.unwrap();
+        pim.notes = second.notes.unwrap();
+        pim.deleted.clear();
+        server.data.lock().unwrap().put(
+            &format!("{NOTES}local-n.ics"),
+            &ical::write_journal_calendar(
+                &Note { uid: "local-n".into(), text: "Server conflict wins".into(), color: 2, modified: 350, files: Vec::new() },
+                350,
+            ),
+        );
+        let ln = pim.notes.iter_mut().find(|n| n.note.uid == "local-n").unwrap();
+        ln.note.text = "Stale local edit".into();
+        ln.dirty = true;
+        let third = sync(&dav, &AT, &pim, 400, Zone::UTC).unwrap();
+        assert_eq!(third.errors.len(), 1, "{:?}", third.errors);
+        assert!(third.pushed_notes.is_empty());
+        assert!(server.data.lock().unwrap().items[&format!("{NOTES}local-n.ics")].1.contains("Server conflict wins"));
+
+        // A dirty item deleted on the server is refused rather than recreated.
+        pim.notes = third.notes.unwrap();
+        server.data.lock().unwrap().items.remove(&format!("{TASKS}local-t.ics"));
+        let lt = pim.tasks.iter_mut().find(|t| t.task.uid == "local-t").unwrap();
+        lt.task.title = "Edited after server delete".into();
+        lt.dirty = true;
+        let fourth = sync(&dav, &AT, &pim, 500, Zone::UTC).unwrap();
+        assert_eq!(fourth.errors.len(), 1, "{:?}", fourth.errors);
+        assert!(fourth.pushed_tasks.is_empty());
+        assert!(!server.data.lock().unwrap().items.contains_key(&format!("{TASKS}local-t.ics")));
     }
 }

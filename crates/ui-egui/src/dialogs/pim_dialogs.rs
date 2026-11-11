@@ -715,7 +715,15 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
     if f.photo.is_some() {
         ui.horizontal(|ui| {
             let (r, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
-            widgets::photo_avatar(ui, r.center(), 20.0, &initials, theme::avatar_color(&f.name, t.dark), f.photo.as_deref());
+            widgets::photo_avatar(
+                ui,
+                r.center(),
+                20.0,
+                &initials,
+                theme::avatar_color(&f.name, t.dark),
+                f.uid.as_deref().unwrap_or(""),
+                f.photo.as_deref(),
+            );
             ui.add_space(6.0);
             ui.label(RichText::new(tl!(if f.uid.is_some() { "Edit contact" } else { "New contact" })).font(theme::bold(19.0)).color(t.text));
         });

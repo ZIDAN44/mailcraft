@@ -2,6 +2,7 @@
 
 use super::*;
 
+/// Registers account and mailbox configuration commands.
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("folder.empty", "Empty folder", "Folder › Empty", |s, v| {
@@ -18,7 +19,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft"|"autoconfig", "oauthConfig"?: {"issuer"?: string, "authUrl": string, "tokenUrl": string, "scope"?: string, "clientId"?: string}, "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
         CommandSpec::new("account.exportPst", "Export to Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             let account = match p::str(v, "account") {
@@ -172,6 +173,7 @@ pub(super) fn server(v: &Value, prefix: &str, guess: &ServerConfig) -> Result<Se
     Ok(ServerConfig { host, port, security })
 }
 
+/// Validates parameters and adds a mail or calendar-only account to `s`.
 pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(server) = p::str(v, "dav") {
         return add_calendar_only(s, v, server);
@@ -462,6 +464,7 @@ pub(super) fn set_dav(s: &mut Session, v: &Value) -> CmdResult {
     s.set_dav(id, &caldav, &carddav, username.as_deref(), p::str(v, "password"))
 }
 
+/// Serialises configured accounts and their transport endpoints as JSON.
 pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!(s
         .accounts

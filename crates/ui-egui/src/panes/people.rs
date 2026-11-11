@@ -262,6 +262,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
     ui.separator();
 }
 
+/// Renders the address-book sidebar and contact list for the People module.
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     if widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {

@@ -147,6 +147,7 @@ impl Card {
     }
 }
 
+/// Extracts the inline base64 payload from a single unfolded `PHOTO` vCard property line.
 fn photo_base64_in(line: &str) -> Option<&str> {
     let mut quoted = false;
     let colon = line

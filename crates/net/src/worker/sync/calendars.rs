@@ -44,6 +44,7 @@ impl Worker {
         }
     }
 
+    /// Whether the account's autoconfig OAuth scopes cover CalDAV or CardDAV bearer authentication.
     fn oauth_dav_capable(&self) -> bool {
         self.acc.oauth.as_deref() == Some(mailcraft_model::OAUTH_AUTOCONFIG)
             && self.acc.oauth_config.as_ref().is_some_and(|c| {

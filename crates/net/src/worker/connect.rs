@@ -59,8 +59,10 @@ impl Worker {
         Ok(t)
     }
 
+    /// Close any open JMAP push stream and clear its state snapshot.
     pub(super) fn drop_jmap_push(&mut self) {
         self.jmap_events = None;
+        self.jmap_push_opened = None;
         self.jmap_push_state.clear();
         self.pushed = false;
     }
@@ -143,6 +145,7 @@ impl Worker {
         Ok(())
     }
 
+    /// Opens the configured mail transport (Graph, POP, EWS, JMAP, or IMAP) and resets backoff.
     fn open(&mut self) -> Result<()> {
         self.drop_jmap_push();
         self.status(SyncStatus::Connecting);

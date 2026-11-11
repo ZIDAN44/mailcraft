@@ -14,6 +14,23 @@ pub(crate) fn known_contact<'a>(s: &'a Session, email: &str) -> Option<&'a mailc
     s.pim.values().flat_map(|p| &p.cards).map(|c| &c.card).find(|c| c.emails.iter().any(|e| e.value.eq_ignore_ascii_case(email)))
 }
 
+/// Reusable lowercase-email to [`Card`] lookup for fast per-row list rendering, preserving the
+/// first-match order of [`known_contact`].
+///
+/// [`Card`]: mailcraft_engine::model::vcard::Card
+pub(crate) fn cards_by_email(s: &Session) -> std::collections::HashMap<String, mailcraft_engine::model::vcard::Card> {
+    let mut out = std::collections::HashMap::new();
+    for c in s.pim.values().flat_map(|p| &p.cards).map(|c| &c.card) {
+        for e in &c.emails {
+            let k = e.value.trim().to_ascii_lowercase();
+            if !k.is_empty() {
+                out.entry(k).or_insert_with(|| c.clone());
+            }
+        }
+    }
+    out
+}
+
 /// Someone's name above a message, as a link: lit and underlined under the pointer.
 pub(super) fn person_link(ui: &mut Ui, t: &Tokens, text: RichText) -> egui::Response {
     let r = ui.add(egui::Label::new(text).sense(Sense::click()).selectable(false));

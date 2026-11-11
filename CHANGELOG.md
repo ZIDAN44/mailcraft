@@ -27,7 +27,6 @@ on GitHub.
 - A calendar or address book you may not read no longer keeps the others from syncing, nor asks for your password again: it's kept as it is, and named (#61).
 - On FreeBSD, a new account isn't started from a data file another account has open, as elsewhere: it was copied while it was being written.
 - On a JMAP account, the live event stream stays open instead of reconnecting in a loop after the server's initial state greeting; storage quota asks for the mail capability (`urn:ietf:params:jmap:mail`), folders catch up when `Email/changes` reaches the server's history limit (`cannotCalculateChanges`), and CalDAV and CardDAV discovery uses the JMAP session's host.
-- Adding an on-premises Exchange (EWS) account tries Autodiscover again with your user name and password when a hybrid server answers an anonymous request with IMAP and SMTP settings only and leaves out `EwsUrl`.
 
 ### Added
 

@@ -59,10 +59,12 @@ fn blocks<'a>(xml: &'a str, tag: &str, attr: &str) -> Vec<&'a str> {
     out
 }
 
+/// Whether `host` contains only ASCII hostname characters (`a-z`, `0-9`, `.`, `-`).
 fn valid_host(host: &str) -> bool {
     !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
 }
 
+/// Parses one `<incomingServer>` or `<outgoingServer>` block into a `(ServerConfig, username)` pair.
 fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
     let host = text_of(block, "hostname")?;
     let port: u16 = text_of(block, "port")?.parse().ok()?;
@@ -79,10 +81,12 @@ fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
     ok.then_some((ServerConfig { host: host.to_ascii_lowercase(), port, security }, user))
 }
 
+/// Builds the `/.well-known/jmap` HTTPS discovery URL for `host` and `port`.
 fn jmap_url_for(host: &str, port: u16) -> String {
     if port == 443 { format!("https://{host}/.well-known/jmap") } else { format!("https://{host}:{port}/.well-known/jmap") }
 }
 
+/// Extracts the first valid HTTPS `<incomingServer type="jmap">` endpoint and expanded username.
 fn jmap_server(xml: &str, email: &str) -> Option<(String, String)> {
     let (local, domain) = email.rsplit_once('@').unwrap_or((email, ""));
     for b in blocks(xml, "incomingServer", "type=\"jmap\"") {
@@ -109,6 +113,7 @@ fn jmap_server(xml: &str, email: &str) -> Option<(String, String)> {
     None
 }
 
+/// Parses an `<oAuth2>` autoconfig block when both authorization and token URLs use valid HTTPS hosts.
 fn oauth_block(xml: &str) -> Option<mailcraft_model::OAuthConfig> {
     let start = xml.find("<oAuth2")?;
     let body_start = xml.get(start..)?.find('>')? + start + 1;
@@ -212,6 +217,7 @@ fn is_jmap_session_endpoint(r: &crate::http::Response) -> bool {
     }
 }
 
+/// Runs autoconfig XML, `/.well-known/jmap`, SRV, and MX discovery for `email`.
 fn discover_inner(email: &str, l: &mut Lookups<'_>, probe_jmap: &mut dyn FnMut(&str) -> bool) -> Option<Found> {
     let email = email.trim();
     let domain = email.rsplit_once('@').map(|(_, d)| d.trim().to_ascii_lowercase()).filter(|d| d.contains('.'))?;

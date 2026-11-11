@@ -292,6 +292,12 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
     let has_footer = s.more_on_server().is_some() || s.search.is_some();
     // A page (Page Up, Page Down): the rows shown at once, less one kept in view.
     st.list_page = ((ui.available_height() / mh.max(1.0)).floor() as u64).saturating_sub(1).max(1);
+    let pim_key = (s.pim_revision, s.pim.values().map(|p| p.cards.len()).sum::<usize>());
+    if st.cards_by_email.as_ref().is_none_or(|(k, _)| *k != pim_key) {
+        st.cards_by_email = Some((pim_key, crate::reading::cards_by_email(s)));
+    }
+    let empty_cards = std::collections::HashMap::new();
+    let cards = st.cards_by_email.as_ref().map_or(&empty_cards, |(_, m)| m);
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("list").show_viewport(ui, |ui, viewport| {
         ui.set_height(total + if has_footer { FOOTER_H } else { 0.0 });
         let origin = ui.min_rect().min;
@@ -340,7 +346,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
                     let drafting = drafted.marks(m);
-                    message_row(s, &t, ui, r, m, *count, *unread, sent_view, drafting, acts);
+                    message_row(s, &t, ui, r, m, *count, *unread, sent_view, drafting, cards, acts);
                 }
             }
         }
@@ -413,6 +419,7 @@ pub(crate) fn arrange_menu(ui: &mut Ui, s: &Session, acts: &mut Vec<Action>) {
     }
 }
 
+/// Renders a single message or thread row in the mail list pane.
 #[allow(clippy::too_many_arguments)]
 fn message_row(
     s: &Session,
@@ -424,6 +431,7 @@ fn message_row(
     unread_in_thread: usize,
     sent_view: bool,
     drafting: bool,
+    cards: &std::collections::HashMap<String, mailcraft_engine::model::vcard::Card>,
     acts: &mut Vec<Action>,
 ) {
     let id = ui.make_persistent_id(("row", &m.key));
@@ -480,7 +488,7 @@ fn message_row(
     let who_addr = if sent_view { m.to.first().cloned().unwrap_or_default() } else { m.from.clone() };
     if !compact {
         let c = mr.pos(egui::pos2(x + 17.0, r.min.y + 26.0));
-        let card = crate::reading::known_contact(s, &who_addr.email);
+        let card = cards.get(&who_addr.email.trim().to_ascii_lowercase());
         widgets::card_avatar(ui, c, 17.0, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark), card);
         x += 44.0;
     }

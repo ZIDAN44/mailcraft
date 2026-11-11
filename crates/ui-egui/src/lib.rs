@@ -421,6 +421,8 @@ pub struct UiState {
     pub(crate) people_book: Option<(String, String)>,
     /// The message list's rows and where each starts, kept while the list stays the same.
     pub(crate) list_rows: Option<list::ListRows>,
+    /// Email-to-contact lookup for the message list, refreshed whenever `pim_revision` changes.
+    pub(crate) cards_by_email: Option<((u64, usize), HashMap<String, mailcraft_engine::model::vcard::Card>)>,
     /// How People lays contacts out (Outlook's Change View).
     pub people_view: people::PeopleView,
     /// The People list's columns and sort.
@@ -566,6 +568,7 @@ impl MailApp {
                 people_query: String::new(),
                 people_book: None,
                 list_rows: None,
+                cards_by_email: None,
                 people_view: people::PeopleView::default(),
                 people_list: people::ListSettings::default(),
                 notes_query: String::new(),
