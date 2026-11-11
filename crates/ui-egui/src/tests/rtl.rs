@@ -171,11 +171,7 @@ fn top_search_query_follows_interface_direction() {
             let space_left = ink.left() - clip.left();
             let space_right = clip.right() - ink.right();
             assert!(space_left.is_finite() && space_right.is_finite(), "{module} {lang}: invalid search text geometry");
-            assert_eq!(
-                space_right < space_left,
-                rtl,
-                "{module} {lang}: text should start at the reading edge, ink={ink:?}, clip={clip:?}"
-            );
+            assert_eq!(space_right < space_left, rtl, "{module} {lang}: text should start at the reading edge, ink={ink:?}, clip={clip:?}");
             let _ = std::fs::remove_dir_all(dir);
         }
     }
