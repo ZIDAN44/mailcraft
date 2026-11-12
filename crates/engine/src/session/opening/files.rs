@@ -73,9 +73,11 @@ impl Session {
     }
 }
 
-/// Beside each link whose words say something else, where it really goes (` <address>`), in the
-/// formatted text and in its laid-out form: a file is opened to be inspected, and a link that
-/// hides where it goes is what such a look is for.
+/// Beside each link whose words name another place than it goes to, where it really goes
+/// (` <address>`), in the formatted text and in its laid-out form: a file is opened to be
+/// inspected, and a link that hides where it goes is what such a look is for. A link whose
+/// words name no place ("Track package") says nothing more: with every link's address after it,
+/// a message's columns no longer fitted, and it read nothing like what was sent.
 pub(super) fn show_link_targets(p: &mut mime::Parsed) {
     p.rich.iter_mut().for_each(line_targets);
     blocks_targets(&mut p.layout, 0);
@@ -122,7 +124,7 @@ fn line_targets(line: &mut Vec<mime::Span>) {
         if spans.peek().is_some_and(|next| next.link.as_ref() == Some(&link)) {
             continue;
         }
-        if !same_place(&link, &words) {
+        if another_place(&link, &words) {
             let mut shown = link.trim().to_string();
             if shown.len() > ADDRESS_SHOWN {
                 let cut = (0..=ADDRESS_SHOWN).rev().find(|i| shown.is_char_boundary(*i)).unwrap_or(0);
@@ -136,14 +138,25 @@ fn line_targets(line: &mut Vec<mime::Span>) {
     *line = out;
 }
 
-/// Whether a link's words name where it goes: the same address, give or take its scheme
-/// (`https://`, `mailto:`) and a closing slash.
-fn same_place(link: &str, words: &str) -> bool {
-    fn bare(s: &str) -> String {
-        let s = s.trim().to_lowercase();
-        let s = ["https://", "http://", "mailto:"].iter().find_map(|p| s.strip_prefix(p)).map_or(s.as_str(), |r| r).to_string();
-        s.trim_end_matches('/').to_string()
-    }
-    let words = bare(words);
-    !words.is_empty() && words == bare(link)
+/// Whether a link's words name a place it doesn't go to: one of them reads as an address
+/// (`bank.example/login`, `https://bank.example`, `help@bank.example`) of another site than the
+/// link's.
+fn another_place(link: &str, words: &str) -> bool {
+    let goes = site(link);
+    words.split_whitespace().take(64).filter_map(site).any(|named| Some(&named) != goes.as_ref())
+}
+
+/// The site an address is of, when it reads as one: its host, without `www.`, in lower case.
+fn site(address: &str) -> Option<String> {
+    let s = address.trim().trim_matches(|c: char| "<>()[]\"'.,;".contains(c)).to_lowercase();
+    let s = ["https://", "http://", "mailto:"].iter().find_map(|p| s.strip_prefix(p)).unwrap_or(&s);
+    // A mail address's site is what's after its `@`; a web address's, what's before its path.
+    let host = s.split(['/', '?', '#']).next().unwrap_or("");
+    let host = host.rsplit_once('@').map_or(host, |(_, h)| h);
+    let host = host.split(':').next().unwrap_or("").trim_start_matches("www.");
+    let labels: Vec<&str> = host.split('.').collect();
+    let named = labels.len() >= 2
+        && labels.iter().all(|l| !l.is_empty() && l.chars().all(|c| c.is_alphanumeric() || c == '-'))
+        && labels.last().is_some_and(|l| l.len() >= 2 && l.chars().all(char::is_alphabetic));
+    (named && host.len() <= 253).then(|| host.to_string())
 }

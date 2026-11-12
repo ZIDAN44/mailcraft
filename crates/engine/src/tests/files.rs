@@ -218,7 +218,7 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
         "Content-Type: multipart/mixed; boundary=b\r\n\r\n",
         "--b\r\nContent-Type: text/html\r\n\r\n",
         "<p>Dear <b>customer</b>, <a href=\"https://evil.example/login\">https://bank.example/<b>login</b></a>",
-        " or <a href=\"https://bank.example/help/\">bank.example/help</a></p><img src=\"https://t.example/o.gif\" width=300 alt=\"logo\">\r\n",
+        " or <a href=\"https://bank.example/help/\">bank.example/help</a>, <a href=\"https://shop.example/t\">Track package</a></p><img src=\"https://t.example/o.gif\" width=300 alt=\"logo\">\r\n",
         "--b\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=update.exe\r\n\r\nMZ\r\n--b--\r\n",
     );
     let path = scratch.put("inspect me.eml", source.as_bytes());
@@ -235,10 +235,10 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
     assert_eq!((p.subject.as_str(), p.cc.len()), ("Invoice", 1));
     assert!(p.attachments.iter().any(|a| a.name == "update.exe"));
     // A link whose words name another place says where it goes, once, after its last word; one
-    // whose words name it doesn't.
+    // whose words name it, or name no place ("Track package"), doesn't.
     let all: String = p.layout.iter().flat_map(texts).chain(p.rich.iter().flatten().map(|sp| sp.text.clone())).collect();
     assert!(all.contains("https://bank.example/login <https://evil.example/login>"), "{all}");
-    assert!(!all.contains("<https://bank.example/help/>"), "{all}");
+    assert!(!all.contains("<https://bank.example/help/>") && !all.contains("<https://shop.example/t>"), "{all}");
     assert!(p.text.contains("https://evil.example/login"), "shown as plain text, it says so too: {}", p.text);
     assert_eq!(s.list.len(), messages, "nothing added to a folder");
     assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), reading, "the reading pane is as it was");
