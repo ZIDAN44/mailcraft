@@ -380,7 +380,7 @@
 	Checking with the server…	בודק מול השרת…
 	Compact list	רשימה צפופה
 	Don't send automatic replies	אל תשלח תשובות אוטומטיות
-	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	כל שולח מקבל תשובה אחת ביום כל עוד הן פעילות. הן נשמרות בשרת הדואר שלך, כך שהן פועלות גם כשהמחשב כבוי.
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	כל שולח מקבל תשובה אחת ביום בזמן שהתשובות האוטומטיות מופעלות. ההגדרות נשמרות בשרת הדואר, ולכן התשובות נשלחות גם כשהמחשב כבוי.
 	Empty	רוקן
 	Empty Deleted Items…	רוקן פריטים שנמחקו…
 	Empty Junk Email…	רוקן דואר זבל…
@@ -422,7 +422,7 @@
 	Sort new mail as it arrives: move it, flag it, categorize it.	מיון הודעות חדשות עם הגעתן: העברה, סימון בדגל ושיוך לקטגוריה.
 	Source code and issues	קוד מקור ודיווחי תקלות
 	Subject (optional)	נושא (לא חובה)
-	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	ספר לאנשים שאתה לא זמין: כל שולח מקבל תשובה אחת כל עוד הן פעילות, גם כשהמחשב כבוי.
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	הודע שאינך זמין: כל שולח יקבל תשובה אחת בזמן שהתשובות האוטומטיות מופעלות, גם כשהמחשב כבוי.
 	The server doesn't say how much space is used.	השרת לא מציין כמה מקום בשימוש.
 	Until	עד
 	{free} free of {total}	{free} פנויים מתוך {total}
@@ -1293,7 +1293,7 @@ month	May	מאי
 	Write replies and forwards in a window of their own	כתיבת תשובות והעברות בחלון משלהן
 	Show Favorites at the top of the folder pane	הצגת מועדפים בראש חלונית התיקיות
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	הודעות שעדיין נשלחות: {n}. ייתכן שלא יישלחו אם MailCraft ייסגר עכשיו: המתן רגע, או סגור בכל זאת.
-	Add meeting invitations to the calendar as tentative when they arrive	הוספת הזמנות לפגישות ללוח השנה כטנטטיביות כשהן מגיעות
+	Add meeting invitations to the calendar as tentative when they arrive	הוסף הזמנות לפגישות ללוח השנה כלא סופיות עם קבלתן
 	Before they're answered; nothing is sent until you answer	לפני שעונים עליהן; דבר אינו נשלח עד שתענה
 	View message source	הצג את מקור ההודעה
 	{n} messages selected	הודעות שנבחרו: {n}
