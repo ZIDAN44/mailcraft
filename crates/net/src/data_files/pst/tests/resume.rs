@@ -134,10 +134,11 @@ fn cut_off_and_gone_on_with_is_the_same_import() {
                     written_past += store.cached_bodies("a1", &c.path, 1).into_iter().filter(|u| *u >= c.uid_next).count();
                 }
             }
-            _ => assert!(at < 300, "a folder done is in a checkpoint"),
+            Found::Nothing => assert!(at < 300, "a folder done is in a checkpoint"),
+            Found::Unsound => panic!("cut off at {at}: the checkpoint written doesn't add up"),
         }
         let (done, _) = go_on(&pst, &store, None);
-        assert_eq!((done.messages, done.skipped), (900, 0), "cut off at {at}");
+        assert_eq!((done.messages, done.skipped, done.blocked), (900, 0, None), "cut off at {at}");
         assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "cut off at {at}");
         indexed_where_marked(&store);
     }
