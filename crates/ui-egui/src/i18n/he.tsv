@@ -18,13 +18,13 @@
 	All	הכול
 	All Inboxes	כל תיבות הדואר הנכנס
 	All Sent	כל הפריטים שנשלחו
-	All caught up: nothing in this folder.	הכול מעודכן: אין כלום בתיקייה הזו.
+	All caught up: nothing in this folder.	הכול מעודכן: אין הודעות בתיקייה הזו.
 	All folders	כל התיקיות
 	Always show from {sender}	הצג תמיד מ-{sender}
 	Apr	אפר׳
 	Archive	ארכיון
 	Archive (Backspace)	העבר לארכיון (Backspace)
-	Ask before deleting for good	שאל לפני מחיקה לצמיתות
+	Ask before deleting for good	בקשת אישור לפני מחיקה לצמיתות
 	At the top of {account}	בראש {account}
 	Attach file	צירוף קובץ
 	Audio	שמע
@@ -75,8 +75,8 @@
 	Favorites	מועדפים
 	Feb	פבר׳
 	File	קובץ
-	Flag	סימון
-	Flag / Unflag (Insert)	סמן / בטל סימון (Insert)
+	Flag	סימון בדגל
+	Flag / Unflag (Insert)	סימון בדגל / הסרת דגל (Insert)
 	Flagged	מסומנים בדגל
 	Focused	ממוקד
 	Focused Inbox	תיבת דואר נכנס ממוקדת
@@ -164,13 +164,13 @@
 	New category…	קטגוריה חדשה…
 	New folder	תיקייה חדשה
 	New folder…	תיקייה חדשה…
-	New mail	דואר חדש
-	New mail (Ctrl+N)	דואר חדש (Ctrl+N)
+	New mail	הודעה חדשה
+	New mail (Ctrl+N)	הודעה חדשה (Ctrl+N)
 	New rule	כלל חדש
 	New rule…	כלל חדש…
 	Next week	השבוע הבא
 	No published settings: the usual server names are filled in. Check them under Server settings.	אין הגדרות מפורסמות: מולאו שמות השרתים הרגילים. בדוק אותם בהגדרות השרת.
-	No results. Try fewer words, or search all folders.	אין תוצאות. נסה פחות מילים, או חפש בכל התיקיות.
+	No results. Try fewer words, or search all folders.	אין תוצאות. אפשר לצמצם את מילות החיפוש או לחפש בכל התיקיות.
 	No rules yet.	אין עדיין כללים.
 	None (unsafe)	ללא (לא מאובטח)
 	Not an email address: {address}	לא כתובת דואר אלקטרוני: {address}
@@ -318,7 +318,7 @@
 	Tue	ג׳
 	Tuesday	יום שלישי
 	Two weeks ago	לפני שבועיים
-	Unflag	בטל סימון
+	Unflag	הסרת דגל
 	Unpin	בטל הצמדה
 	Unread	לא נקראו
 	Unread: {n}	לא נקראו: {n}
@@ -419,7 +419,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	העיצוב, הצבעים והתמונות מושמטים. „הצג מעוצב”, מעל הודעה, מציג אותה כפי שנשלחה.
 	Show mail without its formatting	הצג דואר ללא העיצוב שלו
 	Show a line of each message in the list	הצג שורה מכל הודעה ברשימה
-	Sort new mail as it arrives: move it, flag it, categorize it.	מיין דואר חדש כשהוא מגיע: העבר אותו, סמן אותו, סווג אותו.
+	Sort new mail as it arrives: move it, flag it, categorize it.	מיון הודעות חדשות עם הגעתן: העברה, סימון בדגל ושיוך לקטגוריה.
 	Source code and issues	קוד מקור ובעיות
 	Subject (optional)	נושא (לא חובה)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	ספר לאנשים שאתה לא זמין: כל שולח מקבל תשובה אחת כל עוד הן פעילות, גם כשהמחשב כבוי.
@@ -513,7 +513,7 @@
 	Open & Export	פתיחה וייצוא
 	Open data file	פתח קובץ נתונים
 	Open Outlook data file	פתח קובץ נתונים של Outlook
-	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	הבא את הדואר מקובץ נתונים של Outlook ‏(.pst). הוא נפתח כתיבת דואר נפרדת, עם התיקיות שלו, ונשמר במחשב הזה.
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	ייבוא הודעות מקובץ נתונים של Outlook ‏(.pst). ההודעות ייפתחו בתיבת דואר נפרדת עם התיקיות שלה, ויישמרו במחשב.
 	Open now: {files}	פתוח עכשיו: {files}
 	Outlook data file	קובץ נתונים של Outlook
 	Opened from an Outlook data file, kept on this computer only	נפתח מקובץ נתונים של Outlook, שמור רק במחשב הזה
@@ -572,7 +572,7 @@
 	Exporting to {file}…	מייצא אל {file}…
 	Export	ייצוא
 	Export to Outlook data file	ייצוא לקובץ נתונים של Outlook
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	כתוב את הדואר של חשבון, עם התיקיות שלו, לקובץ נתונים של Outlook ‏(.pst) ש-Outlook ואפליקציות דואר אחרות יכולות לפתוח.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	ייצוא הודעות החשבון ותיקיותיו לקובץ נתונים של Outlook ‏(.pst), שאפשר לפתוח ב־Outlook וביישומי דואר אחרים.
 folder	Archive	ארכיון
 month	May	מאי
 	Exchange server (EWS)	שרת Exchange ‏(EWS)
@@ -627,7 +627,7 @@ month	May	מאי
 	Work offline	עבוד במצב לא מקוון
 	Working offline	עובד במצב לא מקוון
 	Close every connection: changes, mail you send and drafts wait on this computer	סגור את כל החיבורים: שינויים, דואר שאתה שולח וטיוטות ממתינים במחשב הזה
-	Undo (Ctrl+Z)	בטל (Ctrl+Z)
+	Undo (Ctrl+Z)	ביטול פעולה (Ctrl+Z)
 	Filter	סינון
 	Categorized	מסווג
 	To or Cc me	אליי או עותק אליי
@@ -695,7 +695,7 @@ month	May	מאי
 	Don't send before	אל תשלח לפני
 	Have replies sent to another address	שלח תשובות לכתובת אחרת
 	Held in the Outbox: it will be sent {when}.	מוחזקת בתיבת הדואר היוצא: תישלח ב-{when}.
-	Keep it in the Outbox and send it later (MailCraft has to be running then)	השאר בתיבת הדואר היוצא ושלח מאוחר יותר (MailCraft צריך לפעול אז)
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	שמירת ההודעה בתיבת הדואר היוצא ושליחתה מאוחר יותר (MailCraft חייב לפעול בזמן השליחה)
 	Replies to	תשובות אל
 	Send right away	שלח מיד
 	Sends {when}	נשלחת ב-{when}
@@ -714,7 +714,7 @@ month	May	מאי
 	pin	הצמד
 	to “{text}”	אל „{text}”
 	Add a place	הוסף מקום
-	Add at least one name in To, Cc or Bcc before sending.	הוסף לפחות שם אחד בשדה 'אל', 'עותק' או 'עותק מוסתר' לפני השליחה.
+	Add at least one name in To, Cc or Bcc before sending.	יש להזין לפחות נמען אחד בשדה אל, עותק או עותק מוסתר לפני השליחה.
 	Edit link	ערוך קישור
 	Edit link…	ערוך קישור…
 	First and last name	שם פרטי ושם משפחה
@@ -748,7 +748,7 @@ month	May	מאי
 	Full name	שם מלא
 	Search notes	חפש פתקים
 	{n} notes	{n} פתקים
-	No notes yet: New note starts one.	אין עדיין פתקים: 'פתק חדש' מתחיל אחד.
+	No notes yet: New note starts one.	אין עדיין פתקים. כדי ליצור פתק, בחרו ״פתק חדש״.
 	No note matches.	אין פתק תואם.
 	Write your note…	כתוב את הפתק…
 	Blue	כחול
@@ -956,8 +956,8 @@ month	May	מאי
 	1 Reminder	תזכורת אחת
 	{n} Reminders	{n} תזכורות
 	Click Snooze to be reminded again in:	לחצו על „הזכר שוב מאוחר יותר” כדי לקבל תזכורת נוספת בעוד:
-	Dismiss	בטל
-	Dismiss All	בטל הכל
+	Dismiss	סגור
+	Dismiss All	סגור הכול
 	Open Item	פתח פריט
 	Overdue	באיחור
 	Now	עכשיו
