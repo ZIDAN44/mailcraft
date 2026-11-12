@@ -449,6 +449,11 @@ impl MailApp {
                 acts.push(Action::Run("view.folderPane", json!({"minimized": !expanded})));
             }
             let pane = self.session.prefs.reading_pane;
+            if module == Module::Mail {
+                // Beside the mail, at the window's end, while what's read keeps its room.
+                let least = if pane == ReadingPane::Right { LIST_LEAST + READING_LEAST } else { LIST_LEAST };
+                todo_bar::panel(&mut self.session, &mut self.ui, ui, least, &mut acts);
+            }
             let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
             match (module, pane) {
                 (Module::Calendar, _) => {

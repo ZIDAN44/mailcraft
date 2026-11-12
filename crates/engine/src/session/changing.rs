@@ -31,6 +31,7 @@ impl Session {
         }
         self.apply_op_memory(account, &op);
         let done = if local { self.apply_op_local(account, &op) } else { Ok(()) };
+        self.todo_op(account, &op);
         // A flag or category is changed in the list as it stands, where that gives the same list.
         if !self.patch_list(&op) {
             self.refresh_list();

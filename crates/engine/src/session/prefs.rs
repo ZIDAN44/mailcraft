@@ -157,6 +157,8 @@ pub struct Prefs {
     /// account ids, and shared mailboxes as `<account>|<address>`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pane_order: Vec<String>,
+    /// The To-Do Bar beside the mail (View › To-Do Bar): its parts and its width.
+    pub todo_bar: pim::TodoBar,
     /// When flagged messages are due (Follow Up › Today, Tomorrow…): Message-ID → local day.
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default, deserialize_with = "checked_days")]
@@ -331,6 +333,7 @@ impl Default for Prefs {
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),
             pane_order: Vec::new(),
+            todo_bar: pim::TodoBar::default(),
         }
     }
 }

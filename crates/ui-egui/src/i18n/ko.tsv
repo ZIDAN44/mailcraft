@@ -1655,3 +1655,9 @@ month	May	5월
 	Not available: this account has no mail server.	사용할 수 없음: 이 계정에는 메일 서버가 없습니다.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	메일을 이전 MailCraft Flatpak에서 가져왔습니다. 이전 Flatpak은 아직 설치되어 있습니다. 제거하려면 다음을 실행하세요: flatpak uninstall --delete-data {id}
 	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	{file}에서 열었습니다. 어떤 폴더에도 없고, 웹의 그림은 불러오지 않으며, 닫으면 아무 흔적도 남지 않습니다.
+	To-Do Bar	할 일 모음
+	Appointments	약속
+	Type a new task	새 작업 입력
+	Nothing to do	할 일이 없습니다
+	Nothing in the next 7 days	앞으로 7일 동안 일정이 없습니다
+	Show the calendar, what's coming up and your tasks beside the mail	메일 옆에 일정, 다가오는 약속, 작업을 표시합니다

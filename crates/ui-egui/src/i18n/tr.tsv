@@ -1656,3 +1656,9 @@ month	May	Mayıs
 	Not available: this account has no mail server.	Kullanılamıyor: bu hesabın posta sunucusu yok.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Postanız MailCraft'ın önceki Flatpak'ından taşındı; o hâlâ yüklü. Kaldırmak için şunu çalıştırın: flatpak uninstall --delete-data {id}
 	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	{file} dosyasından açıldı. Hiçbir klasörde değil, web'deki resimleri yüklenmez ve kapattığınızda iz kalmaz.
+	To-Do Bar	Yapılacaklar Çubuğu
+	Appointments	Randevular
+	Type a new task	Yeni bir görev yazın
+	Nothing to do	Yapılacak bir şey yok
+	Nothing in the next 7 days	Önümüzdeki 7 günde bir şey yok
+	Show the calendar, what's coming up and your tasks beside the mail	Takvimi, yaklaşanları ve görevlerinizi postanın yanında gösterin

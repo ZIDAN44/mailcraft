@@ -421,6 +421,8 @@ pub struct Session {
     pub pim: HashMap<String, mailcraft_model::pim::Pim>,
     /// The accounts whose calendars and contacts couldn't be read: never saved over.
     pub(crate) pim_unread: HashSet<String>,
+    /// The flagged mail of every folder, for the To-Do Bar's task list.
+    pub(crate) todo: pim::TodoMail,
     /// The documents (`rules.json`, `snoozes.json`) that couldn't be read at start: never saved
     /// over with what's shown in their place.
     pub(crate) docs_unread: HashSet<&'static str>,
@@ -545,6 +547,7 @@ impl Session {
             open_urls: Vec::new(),
             pim: HashMap::new(),
             pim_unread: HashSet::new(),
+            todo: pim::TodoMail::default(),
             docs_unread: HashSet::new(),
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,

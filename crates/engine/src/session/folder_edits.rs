@@ -509,6 +509,12 @@ impl Session {
     /// due day stays; Undo puts the flag and both days back as they were, in one step.
     pub fn complete_selection(&mut self) -> CmdResult {
         let sel = self.selected();
+        self.complete_messages(sel)
+    }
+
+    /// [`Session::complete_selection`] for these messages, wherever they are (the To-Do Bar's
+    /// are in any folder).
+    pub(crate) fn complete_messages(&mut self, sel: Vec<Summary>) -> CmdResult {
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }

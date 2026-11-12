@@ -1656,3 +1656,9 @@ month	May	maio
 	Not available: this account has no mail server.	Indisponível: esta conta não tem servidor de email.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Seu email veio do Flatpak anterior do MailCraft, que ainda está instalado. Para removê-lo, execute: flatpak uninstall --delete-data {id}
 	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Aberta de {file}. Ela não está em nenhuma pasta, as imagens da web não são carregadas e, ao fechar, não fica nenhum rastro.
+	To-Do Bar	Barra de Tarefas Pendentes
+	Appointments	Compromissos
+	Type a new task	Digite uma nova tarefa
+	Nothing to do	Nada a fazer
+	Nothing in the next 7 days	Nada nos próximos 7 dias
+	Show the calendar, what's coming up and your tasks beside the mail	Mostrar o calendário, o que vem a seguir e suas tarefas ao lado do email

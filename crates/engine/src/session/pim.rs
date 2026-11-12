@@ -21,6 +21,8 @@ mod reminders;
 mod sync;
 mod tasks;
 pub use tasks::{ListedTask, TASKS_CALENDAR, TaskRef, TasksOrder};
+mod todo;
+pub use todo::{TODO_BAR_WIDTH, TodoBar, TodoGroup, TodoItem, TodoMail, TodoWhat};
 pub mod web;
 
 /// The part of the app on screen.

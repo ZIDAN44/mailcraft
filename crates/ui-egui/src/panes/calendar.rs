@@ -94,11 +94,13 @@ fn months(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         y * 12 + i64::from(m) - 1
     });
     let count = s.prefs.calendar_months.clamp(1, 6);
+    // The days with events, looked up once for all the months shown.
+    let busy = busy_days(s, grid_start(shown), grid_start(shown + i64::from(count) - 1) + 42);
     for k in 0..i64::from(count) {
         if k > 0 {
             ui.add_space(8.0);
         }
-        mini_month(s, st, ui, acts, shown, shown + k, k == 0);
+        mini_month(s, st, ui, acts, (shown, shown + k), k == 0, false, &busy);
     }
     // The grip: dragged down, one more month for each month's height; up, one fewer.
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 12.0), Sense::click_and_drag());
@@ -130,9 +132,51 @@ fn months(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
 }
 
-/// A small month (`month`: months since year 0): click a day to show it. The first of them has
-/// the arrows that move them all (`shown` is the first one's month).
-fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, shown: i64, month: i64, arrows: bool) {
+/// The To-Do Bar's month beside the mail: this month until its arrows move it, the days with
+/// something on them in bold; a day clicked opens the calendar on it.
+pub(crate) fn bar_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let shown = st.todo_month.unwrap_or_else(|| {
+        let (y, m, _) = civil_from_days(today(s));
+        y * 12 + i64::from(m) - 1
+    });
+    let busy = busy_days(s, grid_start(shown), grid_start(shown) + 42);
+    mini_month(s, st, ui, acts, (shown, shown), true, true, &busy);
+}
+
+/// The first day a small month's grid shows (`month`: months since year 0): the Monday on or
+/// before its first.
+fn grid_start(month: i64) -> i64 {
+    let first = days_from_civil(month.div_euclid(12), u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1), 1);
+    first - (first + 3).rem_euclid(7)
+}
+
+/// The days from `from` up to `to` that have an event on them (Outlook's bold days).
+pub(crate) fn busy_days(s: &Session, from: i64, to: i64) -> std::collections::BTreeSet<i64> {
+    let mut days = std::collections::BTreeSet::new();
+    for it in s.agenda(s.local_midnight(from), s.local_midnight(to)).iter().filter(|it| !it.task) {
+        // Only the days asked about: an event years long is no longer to walk than these.
+        let last = day_of(it.end.saturating_sub(1).max(it.start), s).min(to - 1);
+        days.extend(day_of(it.start, s).max(from)..=last);
+    }
+    days
+}
+
+/// A small month (`months`: the first one shown and this one, in months since year 0): click a
+/// day to show it. The first of them has the arrows that move them all. The `busy` days, those
+/// with events, are bold. `bar`: the To-Do Bar's, which marks no days as shown and opens the
+/// calendar on the day clicked.
+#[allow(clippy::too_many_arguments)]
+fn mini_month(
+    s: &Session,
+    st: &mut UiState,
+    ui: &mut Ui,
+    acts: &mut Vec<Action>,
+    months: (i64, i64),
+    arrows: bool,
+    bar: bool,
+    busy: &std::collections::BTreeSet<i64>,
+) {
+    let (shown, month) = months;
     let t = st.tokens;
     let (y, m) = (month.div_euclid(12), u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1));
     ui.horizontal(|ui| {
@@ -145,11 +189,12 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
             return;
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let moved = if bar { &mut st.todo_month } else { &mut st.mini_month };
             if widgets::tiny_icon_button(ui, Icon::ChevronRight, "Next month", &t).clicked() {
-                st.mini_month = Some(shown + 1);
+                *moved = Some(shown + 1);
             }
             if widgets::tiny_icon_button(ui, Icon::ChevronLeft, "Previous month", &t).clicked() {
-                st.mini_month = Some(shown - 1);
+                *moved = Some(shown - 1);
             }
         });
     });
@@ -167,8 +212,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
             );
         }
     });
-    let first = days_from_civil(y, m, 1);
-    let start = first - (first + 3).rem_euclid(7);
+    let start = grid_start(month);
     let (sel0, sel1) = s.cal_days();
     let now = today(s);
     for week in 0..6 {
@@ -178,7 +222,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 let d = start + week * 7 + i;
                 let (r, resp) = ui.allocate_exact_size(vec2(w, 22.0), Sense::click());
                 let (_, dm, dd) = civil_from_days(d);
-                if d >= sel0 && d < sel1 && s.cal_mode != CalMode::Month {
+                if !bar && d >= sel0 && d < sel1 && s.cal_mode != CalMode::Month {
                     ui.painter().rect_filled(r.shrink(1.0), 4.0, t.accent_soft);
                 }
                 if d == now {
@@ -193,11 +237,18 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 } else {
                     t.text
                 };
-                ui.painter().text(r.center(), Align2::CENTER_CENTER, dd.to_string(), theme::regular(12.0), c);
+                let font = if busy.contains(&d) { theme::bold(12.0) } else { theme::regular(12.0) };
+                ui.painter().text(r.center(), Align2::CENTER_CENTER, dd.to_string(), font, c);
                 if resp.clicked() {
                     let (yy, mm, ddd) = civil_from_days(d);
+                    if bar {
+                        acts.push(Action::Run("view.module", json!({"name": "calendar"})));
+                        acts.push(Action::Run("calendar.view", json!({"mode": "day"})));
+                        st.todo_month = None;
+                    } else {
+                        st.mini_month = None;
+                    }
                     acts.push(Action::Run("calendar.goto", json!({"date": format!("{yy:04}-{mm:02}-{ddd:02}")})));
-                    st.mini_month = None;
                 }
             }
         });

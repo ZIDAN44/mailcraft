@@ -365,6 +365,14 @@ pub(crate) fn backstage_tour(a: &mut MailApp, ctx: &egui::Context) {
 
 /// Calendar (each view, an event open), People (someone picked, the form open) and Tasks.
 pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
+    // The To-Do Bar beside the mail, every part of it.
+    a.run("view.todoBar", json!({"part": "calendar", "on": true}));
+    a.run("view.todoBar", json!({"part": "appointments", "on": true}));
+    a.run("view.todoBar", json!({"part": "tasks", "on": true}));
+    for _ in 0..30 {
+        frame(ctx, a, vec![]);
+    }
+    a.run("view.todoBar", json!({"off": true}));
     a.run("view.module", json!({"name": "calendar"}));
     for mode in ["day", "week", "month"] {
         a.run("calendar.view", json!({"mode": mode}));

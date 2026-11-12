@@ -175,6 +175,37 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"after": s.prefs.answered_invites, "folders": s.prefs.answered_folders, "replies": s.prefs.answered_replies}))
         })
         .params(r#"{"after"?: "keep"|"delete"|"move", "account"?: string, "folder"?: string (with "move": where the account's go; "" for none), "replies"?: bool (guests' answers too)}"#),
+        CommandSpec::new("view.todoBar", "To-Do Bar", "View › Layout", |s, v| {
+            if p::bool(v, "off") == Some(true) {
+                s.todo_bar_part(None, Some(false))?;
+            } else if v.get("part").is_some() || v.get("on").is_some() || v.get("width").is_none() {
+                s.todo_bar_part(p::str(v, "part"), p::bool(v, "on"))?;
+            }
+            if let Some(w) = p::u64(v, "width") {
+                let (least, most) = (*crate::TODO_BAR_WIDTH.start(), *crate::TODO_BAR_WIDTH.end());
+                s.prefs.todo_bar.width = u16::try_from(w).unwrap_or(most).clamp(least, most);
+            }
+            let bar = s.prefs.todo_bar;
+            Ok(json!({"calendar": bar.calendar, "appointments": bar.appointments, "tasks": bar.tasks, "width": bar.width}))
+        })
+        .params(
+            r#"{"part"?: "calendar"|"appointments"|"tasks" (that part; none: all of them), "on"?: bool (shown or hidden; not given: the other way), "off"?: true (all hidden), "width"?: number}"#,
+        ),
+        CommandSpec::new("todo.complete", "Mark complete", "To-Do Bar", |s, v| {
+            let key = p::req_str(v, "key")?;
+            let key = mailcraft_model::MessageKey::from_id(key).ok_or_else(|| CmdError::Params(format!("`{key}` isn't a message")))?;
+            s.todo_complete(&key)
+        })
+        .params(r#"{"key": string (a flagged message of the To-Do Bar's task list)}"#),
+        CommandSpec::new("todo.open", "Open", "To-Do Bar", |s, v| {
+            let key = p::req_str(v, "key")?;
+            let key = mailcraft_model::MessageKey::from_id(key).ok_or_else(|| CmdError::Params(format!("`{key}` isn't a message")))?;
+            if s.todo_message(&key).is_none() {
+                return Err(CmdError::Params(format!("`{}` isn't flagged", key.to_id())));
+            }
+            s.pop_out(&key)
+        })
+        .params(r#"{"key": string (a flagged message of the To-Do Bar's task list: opened in a window of its own)}"#),
         CommandSpec::new("view.favorites", "Show Favorites", "View › Layout", |s, v| {
             s.prefs.show_favorites = p::bool(v, "on").unwrap_or(!s.prefs.show_favorites);
             Ok(json!({"on": s.prefs.show_favorites}))

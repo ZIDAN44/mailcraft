@@ -38,7 +38,7 @@ pub use look::thumbs::VideoFrame;
 pub use look::{bidi, craft_fonts, faces, icons, motion, theme};
 use look::{progress, thumbs, widgets};
 pub use panes::backstage;
-use panes::{calendar, list, nav, notes, organize, people, reminders, tasks};
+use panes::{calendar, list, nav, notes, organize, people, reminders, tasks, todo_bar};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -447,6 +447,11 @@ pub struct UiState {
     pub(crate) note_focus: bool,
     /// Tasks: the search, and the task picked (uid).
     pub(crate) tasks_query: String,
+    /// The month the To-Do Bar's date navigator shows (months since year 0), moved by its
+    /// arrows; `None`: this month.
+    pub(crate) todo_month: Option<i64>,
+    /// What's typed in the To-Do Bar's "Type a new task" box.
+    pub(crate) todo_new: String,
     pub(crate) task: Option<String>,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
@@ -591,6 +596,8 @@ impl MailApp {
                 note_edit: None,
                 note_focus: false,
                 tasks_query: String::new(),
+                todo_month: None,
+                todo_new: String::new(),
                 task: None,
                 person: None,
                 invite: None,
