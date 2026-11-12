@@ -12,6 +12,10 @@ on GitHub.
 
 *Messages as they look, on paper and from a file.*
 
+### Fixed
+
+- A mail file opened with MailCraft opens in front: its window came up behind the main window.
+- A mail file's pictures from the web can be shown: **Show pictures** loads them for that message, when you ask. They never load by themselves, whatever its sender says, and asking doesn't make its sender one whose pictures always load.
 
 ## 0.37.0 - 2026-11-12
 

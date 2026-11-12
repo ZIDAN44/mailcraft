@@ -71,7 +71,9 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
                     if ui.link(tl!("Show pictures")).clicked() {
                         acts.push(Action::Run("message.showPictures", json!({})));
                     }
-                    let who = p.from.email.clone();
+                    // Not for a message file opened to be looked at: who it says it's from may be
+                    // anyone, so nothing is trusted on its word.
+                    let who = if s.opened_file_name(key).is_some() { String::new() } else { p.from.email.clone() };
                     if !who.is_empty() && ui.link(tf!("Always show from {sender}", sender = who)).clicked() {
                         acts.push(Action::Run("message.showPictures", json!({"always": true})));
                     }

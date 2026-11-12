@@ -525,7 +525,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
             t,
             tl!("Open a mail file"),
             Some(tl!(
-                "See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs."
+                "See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs."
             )),
             |ui| {
                 setting_row(ui, t, true, note(t, tl!("Nothing is kept: closing it leaves no trace in your mail.")), None, |ui| {

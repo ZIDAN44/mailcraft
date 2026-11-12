@@ -1642,7 +1642,7 @@ month	May	maio
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Esta mensagem parece suspeita ou o remetente não pôde ser confirmado, por isso as imagens continuam ocultas.
 	These senders' pictures always load, even when a message looks suspicious:	As imagens destes remetentes sempre carregam, mesmo quando a mensagem parece suspeita:
 	Open a mail file	Abrir um arquivo de e-mail
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Veja uma mensagem salva (.eml ou .msg do Outlook) em uma janela própria, sem adicioná-la a uma pasta. As imagens da web não são carregadas e nada nela é executado.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Veja uma mensagem salva (.eml ou .msg do Outlook) em uma janela própria, sem adicioná-la a uma pasta. As imagens da web só são carregadas se você pedir e nada nela é executado.
 	Nothing is kept: closing it leaves no trace in your mail.	Nada é guardado: ao fechar, não fica nenhum rastro nos seus e-mails.
 	and {n} more	e mais {n}
 	Checking for new mail	Verificação de novos e-mails
@@ -1655,7 +1655,7 @@ month	May	maio
 	Server: {url} (CalDAV and CardDAV)	Servidor: {url} (CalDAV e CardDAV)
 	Not available: this account has no mail server.	Indisponível: esta conta não tem servidor de email.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Seu email veio do Flatpak anterior do MailCraft, que ainda está instalado. Para removê-lo, execute: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Aberta de {file}. Ela não está em nenhuma pasta, as imagens da web não são carregadas e, ao fechar, não fica nenhum rastro.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Aberta de {file}. Ela não está em nenhuma pasta, as imagens da web só são carregadas se você pedir e, ao fechar, não fica nenhum rastro.
 	To-Do Bar	Barra de Tarefas Pendentes
 	Appointments	Compromissos
 	Type a new task	Digite uma nova tarefa

@@ -1638,7 +1638,7 @@ month	May	5月
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	此邮件看起来可疑或无法确认发件人，因此其图片保持隐藏。
 	These senders' pictures always load, even when a message looks suspicious:	这些发件人的图片始终加载，即使邮件看起来可疑：
 	Open a mail file	打开邮件文件
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	在单独的窗口中查看已保存的邮件（.eml 或 Outlook 的 .msg），不会将其添加到文件夹。不会加载其中来自网络的图片，其中的任何内容也不会运行。
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	在单独的窗口中查看已保存的邮件（.eml 或 Outlook 的 .msg），不会将其添加到文件夹。只有在您要求时才会加载其中来自网络的图片，其中的任何内容也不会运行。
 	Nothing is kept: closing it leaves no trace in your mail.	不会保留任何内容：关闭后不会在邮件中留下痕迹。
 	and {n} more	另外 {n} 个
 	Checking for new mail	检查新邮件
@@ -1651,7 +1651,7 @@ month	May	5月
 	Server: {url} (CalDAV and CardDAV)	服务器: {url} (CalDAV 和 CardDAV)
 	Not available: this account has no mail server.	不可用：此帐户没有邮件服务器。
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	邮件已从 MailCraft 之前的 Flatpak 迁移过来，旧版仍已安装。要删除它，请运行：flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	从 {file} 打开。它不在任何文件夹中，不会加载其中来自网络的图片，关闭后不会留下痕迹。
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	从 {file} 打开。它不在任何文件夹中，只有在您要求时才会加载其中来自网络的图片，关闭后不会留下痕迹。
 	To-Do Bar	待办事项栏
 	Appointments	约会
 	Type a new task	键入新任务

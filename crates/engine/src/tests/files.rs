@@ -202,8 +202,9 @@ fn message_files_go_into_the_folder_open_and_a_msg_is_shown_when_read() {
 
 /// Issue #56: a message file opens in a message window of its own, as one double-clicked in a
 /// folder does, in no account and no folder. Who else it went to, what's attached and where its
-/// links really go are shown; nothing in it reaches the web, even from a sender whose pictures
-/// always load; and once its window closes, nothing of it is kept.
+/// links really go are shown; nothing in it reaches the web until its pictures are asked for,
+/// even from a sender whose pictures always load; and once its window closes, nothing of it is
+/// kept.
 #[test]
 fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
     let mut s = sample_session("open-window");
@@ -244,8 +245,13 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
 
     // As the open message (what its window's buttons act on): its source, its files, its PDF.
     s.reading = Some(w);
-    assert!(s.remote_pictures().is_empty() && !s.pictures_allowed(), "who it says it's from may be anyone");
-    assert!(s.run("message.showPictures", &json!({})).is_err());
+    // Its pictures from the web: only when asked for this one. Its sender's pictures always
+    // load and the setting loads them by themselves, and still nothing is fetched: who it says
+    // it's from may be anyone.
+    s.prefs.auto_pictures = true;
+    assert_eq!(s.remote_pictures(), ["https://t.example/o.gif"]);
+    assert!(!s.pictures_allowed(), "not on its sender's standing, nor by the setting");
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FetchUrl { .. })));
     assert_eq!(s.attachment_bytes(p.attachments.iter().find(|a| a.name == "update.exe").unwrap().index).unwrap(), b"MZ");
     assert!(s.message_source().unwrap().starts_with(b"From: Billing"));
     assert!(s.message_pdf().is_ok());
@@ -254,6 +260,16 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
     assert!(shown_source["text"].as_str().unwrap().contains("Subject: Invoice"), "{shown_source}");
     let asked = s.take_jobs();
     assert!(!asked.iter().any(|j| matches!(j, Job::FetchUrl { .. } | Job::FetchBody { .. })), "nothing asked of a server: {asked:?}");
+    // Asked for (Show pictures): this message's are fetched, and its sender gains nothing by it,
+    // even asked to always show theirs.
+    s.prefs.trusted_senders.clear();
+    s.reading = s.windows.iter().find(|w| w.key == key).cloned();
+    let shown_pictures = s.run("message.showPictures", &json!({"always": true})).unwrap();
+    assert_eq!((shown_pictures["pictures"].as_u64(), shown_pictures["trusted"].as_str()), (Some(1), None), "{shown_pictures}");
+    assert!(s.pictures_allowed() && s.prefs.trusted_senders.is_empty());
+    let asked = s.take_jobs();
+    assert!(asked.iter().any(|j| matches!(j, Job::FetchUrl { url } if url == "https://t.example/o.gif")), "{asked:?}");
+    s.reading = None;
     // It's in no list: the list's commands don't reach it.
     assert!(s.run("list.open", &json!({"key": key.to_id()})).is_err());
 

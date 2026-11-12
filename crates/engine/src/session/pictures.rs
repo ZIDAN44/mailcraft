@@ -6,9 +6,8 @@ impl Session {
     /// Web pictures of the open message (none for plain-text mail).
     pub fn remote_pictures(&self) -> Vec<String> {
         // Encrypted mail never reaches the web: a picture address could carry what it says out
-        // (EFAIL). Nor does a message file opened to be inspected (issue #56): who it says it's
-        // from may be anyone.
-        if self.reading_encrypted() || self.reading.as_ref().is_some_and(|r| r.key.account == OPENED_FILE) {
+        // (EFAIL).
+        if self.reading_encrypted() {
             return Vec::new();
         }
         self.reading
@@ -30,8 +29,10 @@ impl Session {
     /// everything from its sender, or for every message that doesn't look suspicious.
     pub fn pictures_allowed(&self) -> bool {
         let Some(r) = &self.reading else { return false };
+        // A message file opened to be inspected (issue #56): only when asked for this one. Who
+        // it says it's from may be anyone, so no sender's standing and no setting loads them.
         if r.key.account == OPENED_FILE {
-            return false;
+            return self.pictures_for.contains(&r.key);
         }
         let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
         self.pictures_for.contains(&r.key)
@@ -68,11 +69,10 @@ impl Session {
     /// Show the open message's pictures (`always`: and everything from its sender from now on).
     pub fn show_pictures(&mut self, always: bool) -> CmdResult {
         let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-        if r.key.account == OPENED_FILE {
-            return Err(CmdError::Disabled("a message file's pictures from the web aren't loaded".into()));
-        }
         self.pictures_for.insert(r.key.clone());
         let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
+        // A message file's sender is never trusted on the file's word.
+        let always = always && r.key.account != OPENED_FILE;
         if always && !sender.is_empty() && self.prefs.trusted_senders.len() < 10_000 {
             self.prefs.trusted_senders.insert(sender.clone());
         }

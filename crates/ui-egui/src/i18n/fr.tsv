@@ -1642,7 +1642,7 @@ month	May	mai
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Ce message semble suspect ou son expéditeur n'a pas pu être confirmé : ses images restent masquées.
 	These senders' pictures always load, even when a message looks suspicious:	Les images de ces expéditeurs se chargent toujours, même si un message semble suspect :
 	Open a mail file	Ouvrir un fichier de courrier
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Voir un message enregistré (.eml ou .msg d'Outlook) dans sa propre fenêtre, sans l'ajouter à un dossier. Ses images du web ne sont pas chargées et rien de ce qu'il contient ne s'exécute.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Voir un message enregistré (.eml ou .msg d'Outlook) dans sa propre fenêtre, sans l'ajouter à un dossier. Ses images du web ne sont chargées que si vous le demandez et rien de ce qu'il contient ne s'exécute.
 	Nothing is kept: closing it leaves no trace in your mail.	Rien n'est conservé : une fois fermé, il ne laisse aucune trace dans votre courrier.
 	and {n} more	et {n} de plus
 	Checking for new mail	Vérification du nouveau courrier
@@ -1655,7 +1655,7 @@ month	May	mai
 	Server: {url} (CalDAV and CardDAV)	Serveur : {url} (CalDAV et CardDAV)
 	Not available: this account has no mail server.	Non disponible : ce compte n’a pas de serveur de messagerie.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Votre courrier a été repris de l'ancien Flatpak de MailCraft, qui est toujours installé. Pour le supprimer, exécutez : flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Ouvert depuis {file}. Il n'est dans aucun dossier, ses images du web ne sont pas chargées, et une fois fermé il ne laisse aucune trace.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Ouvert depuis {file}. Il n'est dans aucun dossier, ses images du web ne sont chargées que si vous le demandez, et une fois fermé il ne laisse aucune trace.
 	To-Do Bar	Barre des tâches
 	Appointments	Rendez-vous
 	Type a new task	Saisir une nouvelle tâche

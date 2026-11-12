@@ -563,7 +563,7 @@ fn opened_file_bar(t: &Tokens, ui: &mut Ui, name: &str) {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new(tf!(
-                            "Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.",
+                            "Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.",
                             file = name
                         ))
                         .color(t.dim),

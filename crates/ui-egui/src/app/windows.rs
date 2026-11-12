@@ -182,6 +182,7 @@ impl MailApp {
                 st.compact.note_input(ui);
                 let mut place = st.places.get("message").copied();
                 after_open(ui, place);
+                raise_once(ui.ctx(), id);
                 WindowPlace::note(&mut place, ui);
                 if let Some(p) = place {
                     st.places.insert("message".into(), p);
@@ -403,7 +404,25 @@ pub(crate) fn opening(ctx: &egui::Context, viewport: egui::ViewportId) -> bool {
 
 /// A closed window opens afresh next time ([`after_open`]).
 pub(crate) fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
-    ctx.data_mut(|d| d.remove::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport))));
+    ctx.data_mut(|d| {
+        d.remove::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport)));
+        d.remove::<u8>(egui::Id::unique(("raised", viewport)));
+    });
+}
+
+/// A message window just opened comes to the front, once, when it's on screen (its second
+/// frame). The window of a mail file handed to a running MailCraft opened behind the main
+/// window, which that launch had just brought forward; so did one for a file MailCraft was
+/// started with.
+fn raise_once(ctx: &egui::Context, viewport: egui::ViewportId) {
+    let id = egui::Id::unique(("raised", viewport));
+    let frames = ctx.data(|d| d.get_temp::<u8>(id).unwrap_or(0));
+    if frames < 2 {
+        ctx.data_mut(|d| d.insert_temp(id, frames + 1));
+    }
+    if frames == 1 {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
 }
 
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so

@@ -1637,7 +1637,7 @@ month	May	מאי
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	ההודעה נראית חשודה או שלא ניתן היה לאשר את השולח, ולכן התמונות נשארות מוסתרות.
 	These senders' pictures always load, even when a message looks suspicious:	תמונות משולחים אלה נטענות תמיד, גם כשההודעה נראית חשודה:
 	Open a mail file	פתח קובץ דואר
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	הצגת הודעה שמורה (.eml או .msg של Outlook) בחלון משלה, בלי להוסיף אותה לתיקייה. התמונות שלה מהרשת לא נטענות ושום דבר בתוכה לא מופעל.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	הצגת הודעה שמורה (.eml או .msg של Outlook) בחלון משלה, בלי להוסיף אותה לתיקייה. התמונות שלה מהרשת נטענות רק אם תבקש, ושום דבר בתוכה לא מופעל.
 	Nothing is kept: closing it leaves no trace in your mail.	שום דבר לא נשמר: אחרי הסגירה לא נשאר זכר בדואר שלך.
 	and {n} more	ועוד {n}
 	Checking for new mail	בדיקת דואר חדש
@@ -1650,7 +1650,7 @@ month	May	מאי
 	Server: {url} (CalDAV and CardDAV)	שרת: {url} (CalDAV ו־CardDAV)
 	Not available: this account has no mail server.	לא זמין: לחשבון הזה אין שרת דואר.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	הדואר שלך הועבר מה-Flatpak הקודם של MailCraft, שעדיין מותקן. כדי להסיר אותו, הרץ: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	נפתחה מתוך {file}. היא לא נמצאת באף תיקייה, התמונות שלה מהרשת לא נטענות, ואחרי הסגירה לא נשאר זכר.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	נפתחה מתוך {file}. היא לא נמצאת באף תיקייה, התמונות שלה מהרשת נטענות רק אם תבקש, ואחרי הסגירה לא נשאר זכר.
 	To-Do Bar	סרגל המטלות
 	Appointments	פגישות
 	Type a new task	הקלד משימה חדשה

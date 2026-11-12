@@ -1637,7 +1637,7 @@ month	May	mei
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Dit bericht lijkt verdacht of de afzender kon niet worden bevestigd, dus de afbeeldingen blijven verborgen.
 	These senders' pictures always load, even when a message looks suspicious:	Afbeeldingen van deze afzenders worden altijd geladen, ook als een bericht verdacht lijkt:
 	Open a mail file	Een e-mailbestand openen
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Bekijk een opgeslagen bericht (.eml of .msg van Outlook) in een eigen venster, zonder het aan een map toe te voegen. De afbeeldingen van het web worden niet geladen en niets erin wordt uitgevoerd.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Bekijk een opgeslagen bericht (.eml of .msg van Outlook) in een eigen venster, zonder het aan een map toe te voegen. De afbeeldingen van het web worden alleen geladen als u daarom vraagt en niets erin wordt uitgevoerd.
 	Nothing is kept: closing it leaves no trace in your mail.	Er wordt niets bewaard: na het sluiten blijft er geen spoor achter in je e-mail.
 	and {n} more	en nog {n}
 	Checking for new mail	Controleren op nieuwe e-mail
@@ -1650,7 +1650,7 @@ month	May	mei
 	Server: {url} (CalDAV and CardDAV)	Server: {url} (CalDAV en CardDAV)
 	Not available: this account has no mail server.	Niet beschikbaar: dit account heeft geen mailserver.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Je e-mail is overgenomen uit de eerdere Flatpak van MailCraft, die nog geïnstalleerd is. Verwijder die met: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Geopend uit {file}. Het staat in geen enkele map, de afbeeldingen van het web worden niet geladen en na het sluiten blijft er geen spoor achter.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Geopend uit {file}. Het staat in geen enkele map, de afbeeldingen van het web worden alleen geladen als u daarom vraagt en na het sluiten blijft er geen spoor achter.
 	To-Do Bar	Takenbalk
 	Appointments	Afspraken
 	Type a new task	Typ een nieuwe taak

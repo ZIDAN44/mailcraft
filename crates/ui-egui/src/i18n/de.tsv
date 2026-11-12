@@ -1642,7 +1642,7 @@ month	May	Mai
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Diese Nachricht wirkt verdächtig oder ihr Absender konnte nicht bestätigt werden, daher bleiben ihre Bilder ausgeblendet.
 	These senders' pictures always load, even when a message looks suspicious:	Bilder dieser Absender werden immer geladen, auch wenn eine Nachricht verdächtig wirkt:
 	Open a mail file	Eine E-Mail-Datei öffnen
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Eine gespeicherte Nachricht (.eml oder .msg von Outlook) in einem eigenen Fenster ansehen, ohne sie einem Ordner hinzuzufügen. Ihre Bilder aus dem Web werden nicht geladen, und nichts darin wird ausgeführt.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Eine gespeicherte Nachricht (.eml oder .msg von Outlook) in einem eigenen Fenster ansehen, ohne sie einem Ordner hinzuzufügen. Ihre Bilder aus dem Web werden nur auf Ihren Wunsch geladen, und nichts darin wird ausgeführt.
 	Nothing is kept: closing it leaves no trace in your mail.	Nichts wird behalten: Nach dem Schließen bleibt keine Spur in Ihren E-Mails.
 	and {n} more	und {n} weitere
 	Checking for new mail	Nach neuen E-Mails suchen
@@ -1655,7 +1655,7 @@ month	May	Mai
 	Server: {url} (CalDAV and CardDAV)	Server: {url} (CalDAV und CardDAV)
 	Not available: this account has no mail server.	Nicht verfügbar: Dieses Konto hat keinen Mailserver.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Ihre E-Mails wurden aus dem früheren Flatpak von MailCraft übernommen, das noch installiert ist. Zum Entfernen ausführen: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Geöffnet aus {file}. Sie liegt in keinem Ordner, ihre Bilder aus dem Web werden nicht geladen, und nach dem Schließen bleibt keine Spur.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Geöffnet aus {file}. Sie liegt in keinem Ordner, ihre Bilder aus dem Web werden nur auf Ihren Wunsch geladen, und nach dem Schließen bleibt keine Spur.
 	To-Do Bar	Aufgabenleiste
 	Appointments	Termine
 	Type a new task	Neue Aufgabe eingeben
