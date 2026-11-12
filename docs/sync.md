@@ -50,7 +50,8 @@ Each account's worker repeats these stages:
   2. lists the folders with `LIST`, and finds each folder's role (Sent, Drafts…) from SPECIAL-USE
      (RFC 6154) or from the usual folder names;
   3. syncs every folder, Inbox first, and downloads messages the user opens between folders;
-  4. syncs calendars and contacts.
+  4. syncs calendars and contacts (an account whose calendars were never read has them read
+     right after its Inbox, so a big mailbox's first sync doesn't leave the calendar empty).
 - **Wait for new mail.** IDLE (RFC 2177) keeps a connection open so the server can announce new
   mail at once. The worker IDLEs on the Inbox and renews it every 10 minutes. On servers without
   IDLE it checks every 2 minutes. Every 15 minutes it runs a full sync.

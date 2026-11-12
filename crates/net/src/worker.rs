@@ -724,6 +724,9 @@ struct Worker {
     search: Arc<AtomicU64>,
     /// The calendar server's Digest challenge, answered from the next sync's first request.
     dav_digest: Option<crate::dav::digest::Challenge>,
+    /// Why the calendars and contacts couldn't be read, as last said: said once, not at every
+    /// sync.
+    dav_said: Option<String>,
     /// Done on this thread before it first connects ([`Worker::settle_password`]): the password
     /// just given, to keep in the keychain, or `None` to read the one kept there.
     keychain: Option<Option<String>>,
@@ -786,6 +789,7 @@ impl Worker {
             soon: Vec::new(),
             search: Arc::new(AtomicU64::new(0)),
             dav_digest: None,
+            dav_said: None,
             keychain: None,
             quick_start: None,
             no_password: Arc::default(),

@@ -485,53 +485,6 @@ fn note_xml(n: &Note) -> String {
 /// Public contact folders and calendars read, at most.
 const MAX_PUBLIC_PIM: usize = 20;
 
-/// Every item of a distinguished folder, with all its properties (bodies as text).
-fn items(c: &Client, folder: &str) -> Result<Vec<El>> {
-    items_in(c, &format!("<t:DistinguishedFolderId Id=\"{folder}\"/>"), if folder == "notes" { NOTE_COLOR } else { "" })
-}
-
-/// Every item of a folder (given as its EWS folder id element), with all its properties.
-fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Vec<El>> {
-    let folder = parent;
-    let mut ids: Vec<String> = Vec::new();
-    let mut offset = 0;
-    loop {
-        let m = c.call_one(&format!(
-            "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape></m:ItemShape>\
-             <m:IndexedPageItemView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
-             <m:ParentFolderIds>{folder}</m:ParentFolderIds></m:FindItem>"
-        ))?;
-        let Some(rf) = m.child("RootFolder") else { break };
-        let page: Vec<String> =
-            rf.child("Items").map(|i| i.kids.iter().filter_map(|k| k.child("ItemId")?.attr("Id").map(str::to_string)).collect()).unwrap_or_default();
-        let n = page.len();
-        ids.extend(page);
-        offset += n;
-        if n == 0 || rf.attr("IncludesLastItemInRange").is_none_or(|v| v == "true") || ids.len() >= MAX_ITEMS {
-            break;
-        }
-    }
-    let mut out = Vec::new();
-    for chunk in ids.chunks(BATCH) {
-        let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
-        let doc = c.call(&format!(
-            "<m:GetItem><m:ItemShape><t:BaseShape>AllProperties</t:BaseShape><t:BodyType>Text</t:BodyType>\
-             <t:AdditionalProperties><t:FieldURI FieldURI=\"calendar:Recurrence\"/><t:FieldURI FieldURI=\"item:EffectiveRights\"/>{}</t:AdditionalProperties></m:ItemShape>\
-             <m:ItemIds>{list}</m:ItemIds></m:GetItem>",
-            extra
-        ))?;
-        for m in crate::ews::messages(&doc) {
-            if m.attr("ResponseClass") == Some("Error") {
-                continue;
-            }
-            if let Some(items) = m.child("Items") {
-                out.extend(items.kids.iter().cloned());
-            }
-        }
-    }
-    Ok(out)
-}
-
 fn new_id(m: &El) -> (String, String) {
     let id = m.find("ItemId");
     (id.and_then(|i| i.attr("Id")).unwrap_or("").to_string(), id.and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string())
@@ -585,26 +538,6 @@ fn may_edit(c: &Client, folder: &str) -> Result<bool> {
 /// Whether an item says this account may change it (its own EffectiveRights).
 fn item_may_change(it: &El) -> bool {
     it.child("EffectiveRights").and_then(|r| r.child("Modify")).is_some_and(|m| m.text.trim().eq_ignore_ascii_case("true"))
-}
-
-/// A public folder's items. On Exchange 2013 and later its content is kept in a public folder
-/// mailbox, and reading it is routed there (asked for by the GUID the folder names); a server
-/// that answers without that (older ones, a single public folder mailbox) is asked plainly
-/// first.
-fn public_items(c: &Client, id: &str, replica: Option<&str>, total: u32) -> Result<Vec<El>> {
-    let folder = format!("<t:FolderId Id=\"{}\"/>", esc(id));
-    let plain = items_in(c, &folder, "");
-    let Some(guid) = replica else { return plain };
-    match plain {
-        Ok(list) if !list.is_empty() || total == 0 => Ok(list),
-        plain => match c.public_folder_mailbox(guid) {
-            Ok(mailbox) => c.routed_to(&mailbox, || items_in(c, &folder, "")),
-            Err(e) => {
-                log::info!("public folder mailbox {guid}: {e}");
-                plain
-            }
-        },
-    }
 }
 
 /// Send what changed here, then read the calendar and contacts again.
@@ -692,8 +625,9 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     // the calendar failed). A server that can't be reached stops the pass, so nothing read
     // before is dropped for want of an answer.
     match items(c, "calendar") {
-        Ok(list) => {
-            for it in list {
+        Ok(read) => {
+            read.say(&mut out, "Calendar");
+            for it in read.items {
                 if let Some(event) = event_of(&it) {
                     let (href, etag) = it
                         .child("ItemId")
@@ -704,7 +638,10 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             }
             out.synced_calendars.push(CALENDAR.into());
         }
-        Err(NetError::No(e)) => log::info!("calendar: {e}"),
+        // A mailbox without the folder has no calendar. One the server won't give is said, not
+        // only logged: a calendar that stays empty says why (issue #80).
+        Err(NetError::No(e)) if e.starts_with(crate::ews::GONE) => log::info!("calendar: {e}"),
+        Err(NetError::No(e)) => out.errors.push(format!("Calendar: {e}")),
         Err(e) => return Err(e),
     }
     // Named as the server names it, in the mailbox's language ("Agenda"), as Outlook shows it.
@@ -728,8 +665,10 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         // another mailbox's folder) when its events do, as Outlook finds by trying.
         let folder_rights = may_edit(c, &parent);
         let mut can_edit = *folder_rights.as_ref().unwrap_or(&false);
-        match items_in(c, &parent, "") {
-            Ok(list) => {
+        match items_in(c, &parent, RECURRENCE) {
+            Ok(read) => {
+                read.say(&mut out, &name);
+                let list = read.items;
                 can_edit |= list.iter().any(item_may_change);
                 if !can_edit && let Err(e) = &folder_rights {
                     log::info!("{email}'s calendar rights: {e}");
@@ -764,8 +703,9 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     }
     out.calendars = Some(calendars);
     match items(c, "contacts") {
-        Ok(list) => {
-            for it in list {
+        Ok(read) => {
+            read.say(&mut out, "Contacts");
+            for it in read.items {
                 if let Some(card) = card_of(&it) {
                     let etag = it.child("ItemId").and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string();
                     out.cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{}", card.uid), etag, card, dirty: false });
@@ -773,7 +713,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             }
             out.synced_books.push(CONTACTS.into());
         }
-        Err(NetError::No(e)) => log::info!("contacts: {e}"),
+        Err(NetError::No(e)) if e.starts_with(crate::ews::GONE) => log::info!("contacts: {e}"),
+        Err(NetError::No(e)) => out.errors.push(format!("Contacts: {e}")),
         Err(e) => return Err(e),
     }
     let own = folder_name(c, "contacts").unwrap_or_else(|| "Contacts".into());
@@ -789,8 +730,12 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             for (n, f) in list.into_iter().take(MAX_PUBLIC_PIM).enumerate() {
                 let (id, name, class) = (f.id, f.path, f.class);
                 let key = format!("public:{id}");
-                let found = match public_items(c, &id, f.replica.as_deref(), f.total) {
-                    Ok(found) => found,
+                let extra = if class.starts_with("IPF.Contact") { "" } else { RECURRENCE };
+                let found = match public_items(c, &id, f.replica.as_deref(), f.total, extra) {
+                    Ok(read) => {
+                        read.say(&mut out, &name);
+                        read.items
+                    }
                     Err(e) => {
                         out.errors.push(format!("{name}: {e}"));
                         continue;
@@ -859,14 +804,16 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         }
     }
     match items(c, "notes") {
-        Ok(list) => out.notes = Some(list.iter().filter_map(note_of).collect()),
+        Ok(read) => out.notes = Some(read.items.iter().filter_map(note_of).collect()),
         Err(e) => log::info!("no Notes folder: {e}"),
     }
     mailcraft_model::pim::separate_shared_uids(&mut out.events);
     Ok(out)
 }
 
+mod reading;
 mod reminders;
+use reading::{RECURRENCE, items, items_in, public_items};
 
 #[cfg(test)]
 mod tests;

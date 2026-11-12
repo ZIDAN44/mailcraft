@@ -68,6 +68,8 @@ on GitHub.
 - An Outlook data file import that was paused or cut off isn't continued on a file that has changed since, even when the change left the file's size and date as they were: MailCraft goes by what the file holds.
 - In Arabic and Hebrew what you type in the search box starts at its right edge, and in a narrow window the box is laid out from the right as the rest of the window is.
 - In Arabic and Hebrew the People pane is mirrored: pictures and names on the right, the A–Z index on the left, and the list view's columns from the right.
+- A new account's calendar and contacts are read as soon as its Inbox is in. They waited for every mail folder, so a big mailbox's calendar stayed empty for as long as its first sync took (#80).
+- An Exchange calendar or contacts folder the server won't give says so, with why, and appointments the server fails on are counted: nothing was said, and the calendar just stayed empty (#80).
 
 ## 0.36.0 - 2026-11-11
 

@@ -430,6 +430,9 @@ fn alternative_mailboxes(xml: &str) -> Vec<Alternative> {
         .collect()
 }
 
+/// How a refusal for something that isn't on the server begins.
+pub(crate) const GONE: &str = "not on the server any more";
+
 /// What a `…ResponseMessage` said.
 pub(crate) fn check_message(m: &El) -> Result<()> {
     match m.attr("ResponseClass") {
@@ -437,7 +440,7 @@ pub(crate) fn check_message(m: &El) -> Result<()> {
             let code = m.text_of("ResponseCode").unwrap_or("");
             let text = m.text_of("MessageText").unwrap_or(code);
             Err(match code {
-                "ErrorItemNotFound" | "ErrorFolderNotFound" => NetError::No(format!("not on the server any more ({text})")),
+                "ErrorItemNotFound" | "ErrorFolderNotFound" => NetError::No(format!("{GONE} ({text})")),
                 "ErrorAccessDenied" => NetError::No(text.to_string()),
                 _ => NetError::No(text.to_string()),
             })
