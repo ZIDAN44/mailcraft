@@ -157,6 +157,10 @@
 	Move to folder	Klasöre taşı
 	Move to…	Şuraya taşı…
 	Move {n} messages	{n} iletiyi taşı
+	Copy to folder	Klasöre kopyala
+	Copy to…	Şuraya kopyala…
+	Copy 1 message	1 iletiyi kopyala
+	Copy {n} messages	{n} iletiyi kopyala
 	Move “{folder}” to	“{folder}” klasörünü şuraya taşı
 	Name	Ad
 	Names <addresses>, separated by ; or ,	Adlar <adresler>, ; veya , ile ayrılmış
@@ -199,7 +203,6 @@
 	Password needed	Parola gerekli
 	Password…	Parola…
 	Personal	Kişisel
-	Pick messages from one account to move them to a folder.	Bir klasöre taşımak için tek bir hesaptan ileti seçin.
 	Picture	Resim
 	Pictures from the web are hidden to protect your privacy.	Gizliliğinizi korumak için web'den gelen resimler gizlendi.
 	Picture…	Resim…

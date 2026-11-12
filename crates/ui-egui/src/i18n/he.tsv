@@ -157,6 +157,10 @@
 	Move to folder	העבר לתיקייה
 	Move to…	העבר אל…
 	Move {n} messages	העבר {n} הודעות
+	Copy to folder	העתק לתיקייה
+	Copy to…	העתק אל…
+	Copy 1 message	העתק הודעה אחת
+	Copy {n} messages	העתק {n} הודעות
 	Move “{folder}” to	העבר את „{folder}” אל
 	Name	שם
 	Names <addresses>, separated by ; or ,	שמות <כתובות>, מופרדים ב-; או ,
@@ -199,7 +203,6 @@
 	Password needed	נדרשת סיסמה
 	Password…	סיסמה…
 	Personal	אישי
-	Pick messages from one account to move them to a folder.	בחר הודעות מחשבון אחד כדי להעביר אותן לתיקייה.
 	Picture	תמונה
 	Pictures from the web are hidden to protect your privacy.	תמונות מהאינטרנט מוסתרות כדי להגן על הפרטיות שלך.
 	Picture…	תמונה…

@@ -157,6 +157,10 @@
 	Move to folder	Mover para a pasta
 	Move to…	Mover para…
 	Move {n} messages	Mover {n} mensagens
+	Copy to folder	Copiar para a pasta
+	Copy to…	Copiar para…
+	Copy 1 message	Copiar 1 mensagem
+	Copy {n} messages	Copiar {n} mensagens
 	Move “{folder}” to	Mover “{folder}” para
 	Name	Nome
 	Names <addresses>, separated by ; or ,	Nomes <endereços>, separados por ; ou ,
@@ -199,7 +203,6 @@
 	Password needed	Senha necessária
 	Password…	Senha…
 	Personal	Pessoal
-	Pick messages from one account to move them to a folder.	Escolha mensagens de uma só conta para movê-las para uma pasta.
 	Picture	Imagem
 	Pictures from the web are hidden to protect your privacy.	As imagens da web estão ocultas para proteger sua privacidade.
 	Picture…	Imagem…

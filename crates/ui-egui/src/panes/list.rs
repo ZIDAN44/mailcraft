@@ -4,7 +4,7 @@
 
 use egui::{Color32, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::search::Problem;
-use mailcraft_engine::model::{FolderRole, MessageKey, Summary, addr, dates};
+use mailcraft_engine::model::{FolderRole, Summary, addr, dates};
 use mailcraft_engine::{ListFilter, Row, SearchScope, Session};
 use serde_json::json;
 
@@ -24,8 +24,9 @@ pub(crate) struct ListRows {
     total: f32,
 }
 
-/// What a dragged row carries.
-pub struct DragKeys(pub Vec<MessageKey>);
+/// What a dragged row carries: the selection goes where it's dropped (the row is selected as
+/// the drag starts).
+pub struct DragKeys;
 
 const HEADER_H: f32 = 30.0;
 
@@ -682,13 +683,19 @@ fn message_row(
         if !selected {
             acts.push(Action::Run("list.select", json!({"key": m.key.to_id()})));
         }
-        let keys = if selected { s.selection.clone() } else { vec![m.key.clone()] };
-        resp.dnd_set_drag_payload(DragKeys(keys));
+        resp.dnd_set_drag_payload(DragKeys);
     }
     if resp.dragged() {
         let n = if selected { s.selection.len() } else { 1 };
         egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), id.with("drag"), egui::PopupAnchor::Pointer).show(|ui| {
-            ui.label(if n == 1 { tl!("Move 1 message").to_string() } else { tf!("Move {n} messages", n = n) });
+            // With Ctrl held, dropped on a folder they're copied there.
+            let copy = ui.input(|i| i.modifiers.command);
+            ui.label(match (copy, n) {
+                (false, 1) => tl!("Move 1 message").to_string(),
+                (false, n) => tf!("Move {n} messages", n = n),
+                (true, 1) => tl!("Copy 1 message").to_string(),
+                (true, n) => tf!("Copy {n} messages", n = n),
+            });
         });
     }
     let key = m.key.clone();
@@ -730,6 +737,7 @@ fn message_row(
         ui.menu_button(tl!("Follow up"), |ui| crate::organize::follow_up_menu(ui, s, t, acts));
         ui.separator();
         item(ui, acts, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
+        item(ui, acts, tl!("Copy to…"), Action::Dialog(Dialog::copy_to()));
         item(ui, acts, tl!("Archive"), Action::Run("mail.archive", json!({})));
         item(ui, acts, tl!("Report junk"), Action::Run("mail.junk", json!({})));
         ui.menu_button(tl!("Junk"), |ui| crate::junk_menu(ui, s, acts));

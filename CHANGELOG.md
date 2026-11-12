@@ -12,6 +12,10 @@ on GitHub.
 
 *Messages as they look, on paper and from a file.*
 
+### Added
+
+- Mail can be moved or copied into a folder of another account (#82): from a mail server into an Outlook data file opened in MailCraft, from the file onto a server, or between two servers. Drag it there (hold Ctrl to copy), or pick the folder in **Move to** or the new **Copy to…**, which list every account's folders under the messages' own. It keeps its read mark, flag and categories. A message that isn't downloaded yet is downloaded first, and one that's moved is deleted where it was only once its copy is in the folder. Dropped on another account's folder, mail did nothing.
+
 ### Fixed
 
 - A mail file opened with MailCraft opens in front: its window came up behind the main window.

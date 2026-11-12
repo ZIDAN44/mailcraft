@@ -164,6 +164,7 @@ impl Session {
                     self.filed.push(Filed { account, folder, added, failed });
                 }
             }
+            Event::CopiesFiled { account, folder, done, failed, moved } => self.copies_filed(&account, &folder, done, failed, moved),
             Event::MessageFileRead { path, raw } => self.message_file_read(&path, raw),
             Event::DataFileHealth { account, health, error } => self.health_measured(&account, health.map(|h| *h), error),
             Event::Compacting { account, phase, work, exclusive_s } => self.compacting(&account, phase, work, exclusive_s),
@@ -201,6 +202,7 @@ impl Session {
             Event::Body { key, raw } if mime::is_text_first(&raw) => self.show_body(&key, &raw),
             Event::Body { key, raw } => {
                 self.source_arrived(&key, &raw);
+                self.transfer_arrived(&key, &raw);
                 // The open message's: parsed on another thread, where the window has one.
                 if !self.defer_arrived(&key, &raw) {
                     self.show_body(&key, &raw);
@@ -215,6 +217,7 @@ impl Session {
             Event::Filled { summary } => self.filled(*summary),
             Event::BodyFailed { key, error } => {
                 self.source_failed(&key, &error);
+                self.transfer_failed(&key, &error);
                 for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {
                     w.error = Some(error.clone());
                 }

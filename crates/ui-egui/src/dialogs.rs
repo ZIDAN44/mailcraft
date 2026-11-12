@@ -97,8 +97,10 @@ pub enum Dialog {
         uid: String,
         name: String,
     },
+    /// Pick the folder the selection is moved to, or (`copy`) copied to.
     MoveTo {
         filter: String,
+        copy: bool,
     },
     EmptySubject,
     /// What `compose.send` held the message for (a lookalike recipient, many people seeing each
@@ -311,7 +313,11 @@ impl Dialog {
     }
 
     pub fn move_to() -> Dialog {
-        Dialog::MoveTo { filter: String::new() }
+        Dialog::MoveTo { filter: String::new(), copy: false }
+    }
+
+    pub fn copy_to() -> Dialog {
+        Dialog::MoveTo { filter: String::new(), copy: true }
     }
 
     /// A new event (at a time, or the next hour).

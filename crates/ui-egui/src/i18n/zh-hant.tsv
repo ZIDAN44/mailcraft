@@ -157,6 +157,10 @@
 	Move to folder	移到資料夾
 	Move to…	移到…
 	Move {n} messages	移動 {n} 封郵件
+	Copy to folder	複製到資料夾
+	Copy to…	複製到…
+	Copy 1 message	複製 1 封郵件
+	Copy {n} messages	複製 {n} 封郵件
 	Move “{folder}” to	將「{folder}」移到
 	Name	名稱
 	Names <addresses>, separated by ; or ,	姓名 <地址>，以 ; 或 , 分隔
@@ -199,7 +203,6 @@
 	Password needed	需要密碼
 	Password…	密碼…
 	Personal	個人
-	Pick messages from one account to move them to a folder.	請選擇同一個帳戶的郵件來移到資料夾。
 	Picture	圖片
 	Pictures from the web are hidden to protect your privacy.	為保護您的隱私，已隱藏來自網路的圖片。
 	Picture…	圖片…

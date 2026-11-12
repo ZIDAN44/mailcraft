@@ -157,6 +157,10 @@
 	Move to folder	Sposta nella cartella
 	Move to…	Sposta in…
 	Move {n} messages	Sposta {n} messaggi
+	Copy to folder	Copia nella cartella
+	Copy to…	Copia in…
+	Copy 1 message	Copia 1 messaggio
+	Copy {n} messages	Copia {n} messaggi
 	Move “{folder}” to	Sposta «{folder}» in
 	Name	Nome
 	Names <addresses>, separated by ; or ,	Nomi <indirizzi>, separati da ; o ,
@@ -199,7 +203,6 @@
 	Password needed	Password richiesta
 	Password…	Password…
 	Personal	Personale
-	Pick messages from one account to move them to a folder.	Scegli messaggi di un solo account per spostarli in una cartella.
 	Picture	Immagine
 	Pictures from the web are hidden to protect your privacy.	Le immagini dal Web sono nascoste per proteggere la tua privacy.
 	Picture…	Immagine…

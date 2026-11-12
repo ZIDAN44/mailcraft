@@ -3,7 +3,7 @@
 //! and read; and a `.msg` read to be shown, as a mail file opened with MailCraft. (With the
 //! imports: they bring mail in from files too.)
 
-use mailcraft_model::Flags;
+use mailcraft_model::{Flags, MessageKey};
 
 use super::*;
 
@@ -61,6 +61,39 @@ pub(in crate::worker) fn file_here(store: &Store, sink: &Sink, account: &str, fo
     sink.emit(Event::MessagesFiled { account: account.to_string(), folder: folder.to_string(), added, failed });
 }
 
+/// The flags an IMAP `APPEND` gives a copy: how it was marked, and (`keywords`) its categories
+/// and other keywords, those a server can take as they are.
+fn imap_flags(flags: &Flags, keywords: bool) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    for (on, name) in [(flags.seen, "\\Seen"), (flags.flagged, "\\Flagged"), (flags.answered, "\\Answered"), (flags.draft, "\\Draft")] {
+        if on {
+            out.push(name);
+        }
+    }
+    if keywords {
+        if flags.forwarded {
+            out.push("$Forwarded");
+        }
+        let atom = |k: &&String| !k.is_empty() && k.len() <= 64 && k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '$' | '_' | '-' | '.'));
+        out.extend(flags.keywords.iter().filter(atom).take(32).map(String::as_str));
+    }
+    out.join(" ")
+}
+
+/// The keywords a JMAP server gives a copy: how it was marked, and its own.
+fn jmap_keywords(flags: &Flags) -> Vec<&str> {
+    let mut out: Vec<&str> = Vec::new();
+    for (on, name) in
+        [(flags.seen, "$seen"), (flags.flagged, "$flagged"), (flags.answered, "$answered"), (flags.draft, "$draft"), (flags.forwarded, "$forwarded")]
+    {
+        if on {
+            out.push(name);
+        }
+    }
+    out.extend(flags.keywords.iter().filter(|k| !k.is_empty() && k.len() <= 64).take(32).map(String::as_str));
+    out
+}
+
 impl Pool {
     /// A message file read on a thread of its own, answered by [`Event::MessageFileRead`].
     pub(in crate::worker) fn read_message_file(&self, path: String) {
@@ -114,6 +147,58 @@ impl Worker {
             }
         }
         self.sink.emit(Event::MessagesFiled { account: self.id(), folder, added, failed });
+    }
+}
+
+impl Worker {
+    /// Copies of messages kept here into a folder of the account's server (issue #82), each
+    /// marked as it was; the folder read again. One whose source isn't here, or that the server
+    /// won't take, is named with why: nothing is deleted for it.
+    pub(in crate::worker) fn file_copies(&mut self, folder: String, mail: Vec<(MessageKey, Flags)>, moved: bool) {
+        if self.conn.is_none()
+            && let Err(e) = self.connect()
+        {
+            let failed = mail.into_iter().map(|(k, _)| (k, e.to_string())).collect();
+            self.sink.emit(Event::CopiesFiled { account: self.id(), folder, done: Vec::new(), failed, moved });
+            return;
+        }
+        let (store, account) = (self.store.clone(), self.id());
+        let (mut done, mut failed) = (Vec::new(), Vec::new());
+        for (key, flags) in mail {
+            let Some(raw) = store.read_body(&key).filter(|raw| !mailcraft_mime::is_text_first(raw)) else {
+                failed.push((key, "it isn't downloaded".to_string()));
+                continue;
+            };
+            let jstate = &self.jstate;
+            let put = match self.conn.as_mut() {
+                // A server that won't keep one of its keywords still takes the message.
+                Some(Conn::Imap(c)) => {
+                    c.append(&folder, &imap_flags(&flags, true), &raw).or_else(|_| c.append(&folder, &imap_flags(&flags, false), &raw)).map(|_| ())
+                }
+                Some(Conn::Jmap(c)) => jmap::append(c, jstate, &folder, &raw, &jmap_keywords(&flags)).map(|_| ()),
+                // Exchange: EWS takes it as received (not a draft); Graph only makes drafts of
+                // what it's given whole.
+                Some(Conn::Ews(c)) => match jstate.mailbox(&folder) {
+                    Ok(m) => c.create_received(&raw, m).map(|_| ()),
+                    Err(e) => Err(e.into()),
+                },
+                Some(Conn::Graph(c)) => crate::graph::append(c, jstate, &folder, &raw).map(|_| ()),
+                Some(Conn::Pop) => crate::pop::file_locally(&store, &account, &folder, &raw, Flags { deleted: false, ..flags }, now()).map(|_| ()),
+                None => Err(NetError::Closed("not connected".into())),
+            };
+            match put {
+                Ok(()) => done.push(key),
+                Err(e) => failed.push((key, e.to_string())),
+            }
+        }
+        if !done.is_empty() {
+            if matches!(self.conn, Some(Conn::Pop)) {
+                self.sink.emit(Event::FolderChanged { account: self.id(), folder: folder.clone() });
+            } else {
+                self.sync_one(&folder);
+            }
+        }
+        self.sink.emit(Event::CopiesFiled { account: self.id(), folder, done, failed, moved });
     }
 }
 

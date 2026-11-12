@@ -113,6 +113,7 @@ impl Worker {
             }
             Job::SaveDraft { raw, folder, replaces, .. } => self.save_draft(raw, folder, replaces),
             Job::FileMessages { folder, paths, .. } => self.file_messages(folder, paths),
+            Job::FileCopies { folder, mail, moved, .. } => self.file_copies(folder, mail, moved),
             Job::FlushOutbox { .. } => self.flush_outbox(),
             Job::SyncDav { .. } => self.sync_dav(),
             Job::SearchDirectory { query, .. } => self.search_directory(query),

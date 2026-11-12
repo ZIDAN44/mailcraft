@@ -157,6 +157,10 @@
 	Move to folder	フォルダーへ移動
 	Move to…	移動先…
 	Move {n} messages	{n} 件のメッセージを移動
+	Copy to folder	フォルダーへコピー
+	Copy to…	コピー先…
+	Copy 1 message	1 件のメッセージをコピー
+	Copy {n} messages	{n} 件のメッセージをコピー
 	Move “{folder}” to	「{folder}」の移動先
 	Name	名前
 	Names <addresses>, separated by ; or ,	名前 <アドレス> を ; または , で区切って入力
@@ -199,7 +203,6 @@
 	Password needed	パスワードが必要です
 	Password…	パスワード…
 	Personal	個人
-	Pick messages from one account to move them to a folder.	1 つのアカウントのメッセージを選んでフォルダーに移動します。
 	Picture	画像
 	Pictures from the web are hidden to protect your privacy.	プライバシー保護のため、Web 上の画像は表示されません。
 	Picture…	画像…

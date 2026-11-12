@@ -248,6 +248,11 @@ impl Pool {
                     self.edits.file(&self.store, &self.sink, account, folder, paths);
                 }
             }
+            // Onto a server that isn't connected: none goes, and each says so.
+            Job::FileCopies { account, folder, mail, moved } if self.mail_offline(&account) => {
+                let failed = mail.into_iter().map(|(k, _)| (k, "the account is offline".to_string())).collect();
+                self.sink.emit(Event::CopiesFiled { account, folder, done: Vec::new(), failed, moved });
+            }
             Job::StopImport { account, how } => self.stop_import(&account, how),
             Job::KeepImport { account } => self.keep_import(account),
             Job::DataFileHealth { account } => self.data_file_health(account),

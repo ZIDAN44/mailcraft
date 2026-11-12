@@ -7,7 +7,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{AccountConfig, Folder, MessageKey, Summary};
+use crate::{AccountConfig, Flags, Folder, MessageKey, Summary};
 
 mod compact;
 pub mod eta;
@@ -160,6 +160,11 @@ pub enum Job {
     /// are, Outlook's `.msg` made standard messages (issue #38). Answered by
     /// [`Event::MessagesFiled`].
     FileMessages { account: String, folder: String, paths: Vec<String> },
+    /// Put copies of messages kept here (each by its key, with the flags it's to have) into a
+    /// folder of the account, on its server (issue #82: mail copied there, or moved there from
+    /// another account). Their sources are read from the cache. Answered by
+    /// [`Event::CopiesFiled`], which says `moved` again.
+    FileCopies { account: String, folder: String, mail: Vec<(MessageKey, Flags)>, moved: bool },
     /// Read a message file (an Outlook `.msg`) as a standard message, to show it. Answered by
     /// [`Event::MessageFileRead`].
     ReadMessageFile { path: String },
@@ -312,6 +317,7 @@ impl Job {
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
             | Job::FileMessages { account, .. }
+            | Job::FileCopies { account, .. }
             | Job::RereadDataFile { account, .. }
             | Job::StopImport { account, .. }
             | Job::KeepImport { account }
@@ -553,6 +559,15 @@ pub enum Event {
         folder: String,
         added: usize,
         failed: Vec<(String, String)>,
+    },
+    /// What [`Job::FileCopies`] did: the messages whose copies are in the folder now (`done`),
+    /// and those whose aren't, and why. `moved`: those done are to be deleted where they were.
+    CopiesFiled {
+        account: String,
+        folder: String,
+        done: Vec<MessageKey>,
+        failed: Vec<(MessageKey, String)>,
+        moved: bool,
     },
     /// A message file read ([`Job::ReadMessageFile`]): the message, or why it can't be read.
     MessageFileRead {

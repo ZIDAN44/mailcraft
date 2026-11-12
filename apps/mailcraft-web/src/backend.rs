@@ -472,6 +472,38 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
                 Err(e) => emit(sh, Event::SendFailed { account: id.to_string(), id: msg, error: e.to_string() }),
             }
         }
+        // Copies of mail kept here, into a folder on the server (issue #82), marked as they were.
+        Job::FileCopies { folder, mail, moved, .. } => {
+            let (mut done, mut failed) = (Vec::new(), Vec::new());
+            for (key, flags) in mail {
+                let Some(c) = client(sh, id) else {
+                    failed.push((key, "the account is offline".to_string()));
+                    continue;
+                };
+                let Some(raw) = store.read_body(&key).filter(|raw| !mailcraft_engine::mime::is_text_first(raw)) else {
+                    failed.push((key, "it isn't downloaded".to_string()));
+                    continue;
+                };
+                let marks = [
+                    (flags.seen, "$seen"),
+                    (flags.flagged, "$flagged"),
+                    (flags.answered, "$answered"),
+                    (flags.draft, "$draft"),
+                    (flags.forwarded, "$forwarded"),
+                ];
+                let mut keywords: Vec<&str> = marks.iter().filter(|(on, _)| *on).map(|(_, k)| *k).collect();
+                keywords.extend(flags.keywords.iter().filter(|k| !k.is_empty() && k.len() <= 64).take(32).map(String::as_str));
+                match mailcraft_jmap::append(&c, &state(sh, id), &folder, &raw, &keywords).await {
+                    Ok(_) => done.push(key),
+                    Err(e) => failed.push((key, e.to_string())),
+                }
+            }
+            let any = !done.is_empty();
+            emit(sh, Event::CopiesFiled { account: id.to_string(), folder: folder.clone(), done, failed, moved });
+            if any {
+                sync_one(sh, id, &folder).await
+            }
+        }
         // The browser has no closing to keep a draft through: it's filed as any other.
         Job::SaveDraft { raw, folder, replaces, .. } | Job::KeepDraft { raw, folder, replaces, .. } => {
             // Which draft it was, for the session holding the message until it's saved (#53).

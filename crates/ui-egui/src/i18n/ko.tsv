@@ -157,6 +157,10 @@
 	Move to folder	폴더로 이동
 	Move to…	이동…
 	Move {n} messages	메시지 {n}개 이동
+	Copy to folder	폴더로 복사
+	Copy to…	복사…
+	Copy 1 message	메시지 1개 복사
+	Copy {n} messages	메시지 {n}개 복사
 	Move “{folder}” to	"{folder}" 이동 위치
 	Name	이름
 	Names <addresses>, separated by ; or ,	이름 <주소>, ; 또는 ,로 구분
@@ -199,7 +203,6 @@
 	Password needed	암호 필요
 	Password…	암호…
 	Personal	개인
-	Pick messages from one account to move them to a folder.	한 계정의 메시지를 선택해 폴더로 이동하세요.
 	Picture	그림
 	Pictures from the web are hidden to protect your privacy.	개인 정보를 보호하기 위해 웹의 그림을 숨겼습니다.
 	Picture…	그림…

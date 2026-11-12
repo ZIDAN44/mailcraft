@@ -157,6 +157,10 @@
 	Move to folder	In Ordner verschieben
 	Move to…	Verschieben nach…
 	Move {n} messages	{n} Nachrichten verschieben
+	Copy to folder	In Ordner kopieren
+	Copy to…	Kopieren nach…
+	Copy 1 message	1 Nachricht kopieren
+	Copy {n} messages	{n} Nachrichten kopieren
 	Move “{folder}” to	„{folder}“ verschieben nach
 	Name	Name
 	Names <addresses>, separated by ; or ,	Namen <Adressen>, getrennt durch ; oder ,
@@ -199,7 +203,6 @@
 	Password needed	Kennwort erforderlich
 	Password…	Kennwort…
 	Personal	Persönlich
-	Pick messages from one account to move them to a folder.	Wählen Sie Nachrichten aus einem Konto, um sie in einen Ordner zu verschieben.
 	Picture	Bild
 	Pictures from the web are hidden to protect your privacy.	Bilder aus dem Web werden zum Schutz Ihrer Privatsphäre ausgeblendet.
 	Picture…	Bild…

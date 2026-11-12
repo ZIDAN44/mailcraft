@@ -157,6 +157,10 @@
 	Move to folder	Déplacer vers le dossier
 	Move to…	Déplacer vers…
 	Move {n} messages	Déplacer {n} messages
+	Copy to folder	Copier vers le dossier
+	Copy to…	Copier vers…
+	Copy 1 message	Copier 1 message
+	Copy {n} messages	Copier {n} messages
 	Move “{folder}” to	Déplacer « {folder} » vers
 	Name	Nom
 	Names <addresses>, separated by ; or ,	Noms <adresses>, séparés par ; ou ,
@@ -199,7 +203,6 @@
 	Password needed	Mot de passe requis
 	Password…	Mot de passe…
 	Personal	Personnel
-	Pick messages from one account to move them to a folder.	Choisissez des messages d’un seul compte pour les déplacer vers un dossier.
 	Picture	Image
 	Pictures from the web are hidden to protect your privacy.	Les images du Web sont masquées pour protéger votre vie privée.
 	Picture…	Image…

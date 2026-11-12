@@ -157,6 +157,10 @@
 	Move to folder	移动到文件夹
 	Move to…	移动到…
 	Move {n} messages	移动 {n} 封邮件
+	Copy to folder	复制到文件夹
+	Copy to…	复制到…
+	Copy 1 message	复制 1 封邮件
+	Copy {n} messages	复制 {n} 封邮件
 	Move “{folder}” to	将“{folder}”移动到
 	Name	名称
 	Names <addresses>, separated by ; or ,	姓名 <地址>，用 ; 或 , 分隔
@@ -199,7 +203,6 @@
 	Password needed	需要密码
 	Password…	密码…
 	Personal	个人
-	Pick messages from one account to move them to a folder.	请选择同一帐户中的邮件来移动到文件夹。
 	Picture	图片
 	Pictures from the web are hidden to protect your privacy.	为保护你的隐私，已隐藏来自网络的图片。
 	Picture…	图片…

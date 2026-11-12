@@ -157,6 +157,10 @@
 	Move to folder	نقل إلى مجلد
 	Move to…	نقل إلى…
 	Move {n} messages	نقل {n} رسائل
+	Copy to folder	نسخ إلى مجلد
+	Copy to…	نسخ إلى…
+	Copy 1 message	نسخ رسالة واحدة
+	Copy {n} messages	نسخ {n} رسائل
 	Move “{folder}” to	نقل «{folder}» إلى
 	Name	الاسم
 	Names <addresses>, separated by ; or ,	أسماء <عناوين>، مفصولة بـ ; أو ,
@@ -199,7 +203,6 @@
 	Password needed	كلمة المرور مطلوبة
 	Password…	كلمة المرور…
 	Personal	شخصي
-	Pick messages from one account to move them to a folder.	اختر رسائل من حساب واحد لنقلها إلى مجلد.
 	Picture	صورة
 	Pictures from the web are hidden to protect your privacy.	الصور من الويب مخفية لحماية خصوصيتك.
 	Picture…	صورة…

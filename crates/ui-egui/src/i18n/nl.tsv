@@ -157,6 +157,10 @@
 	Move to folder	Naar map verplaatsen
 	Move to…	Verplaatsen naar…
 	Move {n} messages	{n} berichten verplaatsen
+	Copy to folder	Naar map kopiëren
+	Copy to…	Kopiëren naar…
+	Copy 1 message	1 bericht kopiëren
+	Copy {n} messages	{n} berichten kopiëren
 	Move “{folder}” to	“{folder}” verplaatsen naar
 	Name	Naam
 	Names <addresses>, separated by ; or ,	Namen <adressen>, gescheiden door ; of ,
@@ -199,7 +203,6 @@
 	Password needed	Wachtwoord nodig
 	Password…	Wachtwoord…
 	Personal	Persoonlijk
-	Pick messages from one account to move them to a folder.	Kies berichten uit één account om ze naar een map te verplaatsen.
 	Picture	Afbeelding
 	Pictures from the web are hidden to protect your privacy.	Afbeeldingen van het web zijn verborgen om je privacy te beschermen.
 	Picture…	Afbeelding…

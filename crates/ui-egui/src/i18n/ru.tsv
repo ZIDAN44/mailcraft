@@ -157,6 +157,10 @@
 	Move to folder	Переместить в папку
 	Move to…	Переместить в…
 	Move {n} messages	Переместить письма: {n}
+	Copy to folder	Копировать в папку
+	Copy to…	Копировать в…
+	Copy 1 message	Копировать 1 письмо
+	Copy {n} messages	Копировать письма: {n}
 	Move “{folder}” to	Переместить «{folder}» в
 	Name	Имя
 	Names <addresses>, separated by ; or ,	Имена <адреса> через ; или ,
@@ -199,7 +203,6 @@
 	Password needed	Нужен пароль
 	Password…	Пароль…
 	Personal	Личное
-	Pick messages from one account to move them to a folder.	Выберите письма одной учётной записи, чтобы переместить их в папку.
 	Picture	Изображение
 	Pictures from the web are hidden to protect your privacy.	Изображения из интернета скрыты для защиты вашей конфиденциальности.
 	Picture…	Изображение…

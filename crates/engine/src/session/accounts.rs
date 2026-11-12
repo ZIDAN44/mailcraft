@@ -295,6 +295,7 @@ impl Session {
             return Err(CmdError::Params(format!("no account `{id}`")));
         };
         self.accounts.retain(|a| a.config.id != id);
+        self.forget_transfers(id);
         self.cache.retain(|(a, _), _| a != id);
         // Its messages held for their drafts go with it: kept as MailCraft closes, they'd be
         // written into a removed account's folder, and sent up by a later one of the same id.
