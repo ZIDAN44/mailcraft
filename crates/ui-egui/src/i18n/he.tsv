@@ -268,7 +268,7 @@
 	Keep MailCraft running when its window is closed	להשאיר את MailCraft פועל כשהחלון שלו נסגר
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	הוא נשאר באזור ההודעות, בודק דואר ומודיע עליו. ”יציאה“ בדף ”קובץ“, או בתפריט של הסמל שלו, סוגרת אותו.
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	החלון שלו ממוזער, ו־MailCraft ממשיך לבדוק דואר ולהודיע עליו. ”יציאה“ בדף ”קובץ“ סוגרת אותו.
-	Open MailCraft	פתיחת MailCraft
+	Open MailCraft	פתח את MailCraft
 	Show as plain text	הצג כטקסט רגיל
 	Show formatted	הצג מעוצב
 	Show in Favorites	הצג במועדפים
@@ -420,7 +420,7 @@
 	Show mail without its formatting	הצג דואר ללא העיצוב שלו
 	Show a line of each message in the list	הצג שורה מכל הודעה ברשימה
 	Sort new mail as it arrives: move it, flag it, categorize it.	מיון הודעות חדשות עם הגעתן: העברה, סימון בדגל ושיוך לקטגוריה.
-	Source code and issues	קוד מקור ובעיות
+	Source code and issues	קוד מקור ודיווחי תקלות
 	Subject (optional)	נושא (לא חובה)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	ספר לאנשים שאתה לא זמין: כל שולח מקבל תשובה אחת כל עוד הן פעילות, גם כשהמחשב כבוי.
 	The server doesn't say how much space is used.	השרת לא מציין כמה מקום בשימוש.
@@ -474,7 +474,7 @@
 	Next month	החודש הבא
 	No answer yet	עדיין אין תשובה
 	No contacts yet.	אין עדיין אנשי קשר.
-	No one matches.	אף אחד לא תואם.
+	No one matches.	לא נמצאו אנשים מתאימים.
 	Notes	הערות
 	November	נובמבר
 	October	אוקטובר
