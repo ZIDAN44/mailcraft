@@ -117,6 +117,7 @@
 	24-hour	24 小時制
 	12-hour	12 小時制
 	Whole date and time in the list	在清單中顯示完整日期和時間
+	Earlier this month	本月稍早
 	Last month	上個月
 	Last week	上週
 	Later	稍後
@@ -264,6 +265,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	伺服器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
 	Settings found: {source}	已找到設定: {source}
 	Show a desktop notification when new mail arrives	收到新郵件時顯示桌面通知
+	Keep MailCraft running when its window is closed	關閉視窗後讓 MailCraft 繼續執行
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	它會留在通知區域，檢查郵件並在有新郵件時通知。在「檔案」頁面或其圖示的選單中選擇「結束」即可關閉。
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	視窗會最小化，MailCraft 會繼續檢查郵件並在有新郵件時通知。在「檔案」頁面選擇「結束」即可關閉。
+	Open MailCraft	開啟 MailCraft
 	Show as plain text	以純文字顯示
 	Show formatted	以格式顯示
 	Show in Favorites	在我的最愛中顯示
@@ -772,6 +777,12 @@
 	Sign in with Microsoft	使用 Microsoft 登入
 	Sign in with Microsoft…	使用 Microsoft 登入…
 	Mailbox won't open	信箱無法開啟
+	Trust this computer's mail server?	要信任這部電腦上的郵件伺服器嗎？
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} 位於這部電腦上，出示的是它自行產生的憑證，沒有任何機構為其擔保。將郵件服務連接到郵件應用程式的程式就是這樣運作的。只有在該程式是您自己設定時，才信任它。
+	Certificate fingerprint (SHA-256)	憑證指紋 (SHA-256)
+	MailCraft asks again if the server shows another certificate.	如果伺服器出示其他憑證，MailCraft 會再次詢問。
+	Trust this certificate	信任此憑證
+	Certificate not trusted yet	憑證尚未受信任
 	The mailbox won't open	信箱無法開啟
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph 不經 IMAP 即可存取信箱，也會同步行事曆和連絡人。帳戶將透過它重新開始：郵件會從伺服器下載。
 	Turned IMAP on, or picked another account in the browser? Sign in again	已開啟 IMAP，或在瀏覽器中選了別的帳戶？重新登入

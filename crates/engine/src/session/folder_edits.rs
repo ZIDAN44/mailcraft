@@ -269,9 +269,19 @@ impl Session {
         }
     }
 
-    /// The message to show after `gone` leave the list: the next one down, else the one above.
+    /// The message to show after `gone` leave the list: the next row down, else the one above,
+    /// as the rows are shown (pinned ones first, a conversation one row). By the list's own
+    /// order, deleting a message jumped up to a pinned one, or into the conversation above.
     pub(super) fn successor(&self, gone: &[MessageKey]) -> Option<MessageKey> {
         let gone: HashSet<&MessageKey> = gone.iter().collect();
+        if let Some(last) = gone.iter().filter_map(|k| self.msg_row_of(k)).max() {
+            let stays = |p: usize| self.row_key(p).filter(|k| !gone.contains(k));
+            // Its own row first: a conversation that loses one message is still there.
+            let next = stays(last).or_else(|| (last + 1..self.row_count()).find_map(stays)).or_else(|| (0..last).rev().find_map(stays));
+            if next.is_some() {
+                return next.cloned();
+            }
+        }
         let last = self.list.iter().rposition(|m| gone.contains(&m.key))?;
         self.list
             .iter()

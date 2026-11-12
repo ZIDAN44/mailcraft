@@ -119,3 +119,74 @@ fn unreadable_and_distrusted_roots_are_left_out() {
     let ca: Distrusted = [internal_ca().to_vec()].into_iter().collect();
     assert!(usable_roots(vec![internal_ca()], &ca).is_empty());
 }
+
+/// A TLS server on 127.0.0.1 showing `identity`, greeting as an IMAP server does, for one
+/// connection.
+fn imap_over_tls(identity: (Vec<CertificateDer<'static>>, rustls::pki_types::PrivateKeyDer<'static>)) -> u16 {
+    use std::io::Write as _;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let config = rustls::ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(identity.0, identity.1)
+        .unwrap();
+    std::thread::spawn(move || {
+        let Ok((tcp, _)) = listener.accept() else { return };
+        let Ok(conn) = rustls::ServerConnection::new(Arc::new(config)) else { return };
+        let mut tls = rustls::StreamOwned::new(conn, tcp);
+        let _ = tls.write_all(b"* OK ready\r\n");
+        let _ = tls.flush();
+        // Held open until the client is done with it.
+        let _ = std::io::Read::read(&mut tls, &mut [0u8; 16]);
+    });
+    port
+}
+
+/// Issue #77: a mail server on this computer with a certificate of its own (a bridge to a mail
+/// service). Refused, saying which certificate it showed, so the user can be asked; accepted
+/// once the account trusts that certificate, and only that one.
+#[test]
+fn a_local_server_s_own_certificate_is_asked_about_then_trusted() {
+    use crate::imap::Client;
+    use mailcraft_model::{Security, ServerConfig};
+    let shown = super::fingerprint(&server_identity().0[0]);
+    let at = |port: u16| ServerConfig { host: "127.0.0.1".into(), port, security: Security::Tls };
+    let refused = |trusted: &[String]| match Client::connect_trusting(&at(imap_over_tls(server_identity())), trusted) {
+        Ok(_) => String::from("connected"),
+        Err(e) => e.to_string(),
+    };
+    // Not trusted yet, or another certificate trusted: which one it showed.
+    let other = super::fingerprint(&via_issuing_identity().0[0]);
+    for trusted in [Vec::new(), vec![other]] {
+        let why = refused(&trusted);
+        assert_eq!(mailcraft_model::untrusted_local_certificate(&why), Some(("127.0.0.1".to_string(), shown.clone())), "{why}");
+    }
+    // Trusted: the greeting is read over it.
+    assert_eq!(refused(std::slice::from_ref(&shown)), "connected");
+    // Plain `connect` trusts none.
+    assert!(Client::connect(&at(imap_over_tls(server_identity()))).is_err());
+    // A web address on this computer is checked as ever: nothing to ask about.
+    let sock = std::net::TcpStream::connect(("127.0.0.1", imap_over_tls(server_identity()))).unwrap();
+    let why = crate::stream::tls(sock, "127.0.0.1").err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(!why.is_empty() && mailcraft_model::untrusted_local_certificate(&why).is_none(), "{why}");
+}
+
+/// Only a fingerprint in a refusal's own words is read out of it.
+#[test]
+fn a_refusal_names_the_server_and_the_certificate() {
+    let print = "ab".repeat(32);
+    let said = format!("secure connection: {}", mailcraft_model::local_certificate_refusal("127.0.0.1", &print));
+    assert_eq!(mailcraft_model::untrusted_local_certificate(&said), Some(("127.0.0.1".to_string(), print.clone())));
+    for other in [
+        "invalid peer certificate: UnknownIssuer",
+        "",
+        &format!("({} {print})", "127.0.0.1"),
+        &mailcraft_model::local_certificate_refusal("127.0.0.1", "abc"),
+    ] {
+        assert_eq!(mailcraft_model::untrusted_local_certificate(other), None, "{other}");
+    }
+    assert!(mailcraft_model::is_certificate_fingerprint(&print) && !mailcraft_model::is_certificate_fingerprint("zz"));
+}

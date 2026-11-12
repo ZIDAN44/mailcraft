@@ -8,7 +8,68 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.36.0
+## 0.37.0
+
+*Fixes found by testing against real mail servers and awkward real-world mail.*
+
+### Added
+
+- **Keep MailCraft running when its window is closed** (File › Options › General, off unless you turn it on): closing the window puts it away, and MailCraft goes on checking for mail and announcing it. On Windows, and on Linux desktops with a notification area, the window is hidden and MailCraft's icon there opens it again; under Wayland, without a notification area, and on a Mac, the window is minimized instead. Starting MailCraft again brings it back too. **Exit** (the icon's, or the File page's) and a Mac's **Quit** end it (#67).
+- **A mail server on this computer with a certificate of its own can be trusted**: a program that connects a mail service to mail apps (a bridge) makes its own certificate, which MailCraft refused. Now it asks, showing the certificate's fingerprint, and **Trust this certificate** keeps it for that account, for receiving and sending. Only for a server on this computer; MailCraft asks again if the certificate changes, and a server anywhere else is checked as before (#77).
+
+### Fixed
+
+- A message whose text comes in several parts shows all of it: text under an attachment (a note, a mailing list's footer) was left out.
+- Text its sender wrapped softly (`format=flowed`) reads in whole paragraphs, not cut at each wrapped line.
+- A subject or sender's name written in Latin-1 or another old character set, unencoded, reads as written, not as `caf�`.
+- A reply or forward keeps the `[tag]` its subject starts with (`Re: [Ticket#123] Printer`), which a help desk matches answers on.
+- Two notifications with the same `[tagged]` subject are no longer shown as one conversation.
+- A reply to a message that names only the message it answers keeps the whole conversation together in other mail programs.
+- A message can't mark itself as checked: only the result your own mail server put at the top counts, where one written by the sender lower down was believed (and its pictures could load by themselves).
+- A draft keeps a recipient whose name has a comma (`"Park, Zoe"`) whole when it's saved.
+- Addresses pasted with only a space or a line end between them each get the message: the first was taken for the second's name.
+- A folder a server names `R&D-Team` without encoding it shows its whole name, and one it lists with letters outside ASCII is opened by that name, not another.
+- A folder with more than about 130,000 messages syncs: the account signed in again and again instead.
+- A change to another message, told by the server while new mail is fetched, no longer adds an empty message to the list.
+- An answer from an IMAP server that MailCraft's reader can't take (`INTERNALDATE NIL`) no longer stops the account until MailCraft starts again.
+- On a server without UIDPLUS, moving or deleting a message no longer removes for good the messages another program had marked as deleted.
+- New mail is noticed at once after a message is deleted for good, and after a folder that's gone from the server was opened.
+- Sending waits up to ten minutes for a server that checks a message before it answers, instead of sending it a second time after one.
+- In the Outbox, the selected message stays selected when one above it is sent: Delete could take the next one, which was then never sent.
+- After a delete or a move, the message opened is the next one down as the list shows it, with pinned messages and conversations too.
+- A message closed while it's being sent opens again if the server then refuses it: it was in neither Drafts nor the Outbox.
+- A rule, a Quick Step and a snoozed message follow a folder that's renamed or moved: the rule's mail stayed in the Inbox, and the snoozed message never came back. Snoozing a message that's already snoozed changes when it comes back.
+- Mail you put in the Inbox of an account on a server (dragged there, a delete undone, **Not junk**) isn't taken for mail arriving: a rule could file it straight back, and it was announced as new.
+- `larger:2 MB`, with a space before the unit, searches by that size.
+- Mail from the first days of this month is under **Earlier this month**, not **Last month**.
+- In a small window the message read or written keeps a width it can be read in: the folders and the list give way. At the smallest size it was a strip one word wide.
+- A reply written in a narrow reading pane: the ribbon's rows are one under the other (wrapped, they were far apart), and **Save draft** isn't drawn under **Discard**.
+- A message in a window of its own: the toolbar's last buttons go without their labels when the window is too narrow, as the ribbon's do. They were cut off at its edge.
+- A very long subject is four lines over its message, all of it under the pointer: it filled the reading pane.
+- A conversation's messages listed in the reading pane: the first words stop before the time, and a long name before the words.
+- Calendar in a narrow window: the days shown are no longer drawn under the **Day**, **Work week**, **Week** and **Month** buttons (those are on the ribbon), and **All day** fits beside the days in every language.
+- Tasks and People: a title, a status or an address too long for its column ends in "…". It was cut mid-letter.
+- **File › Info** in a narrow window: the page stays inside the window. In French and Russian the names at its side are whole.
+- In a narrow message list the sender's name keeps its room: the folder's name and **External** before the time give way.
+- An HTML message with text parts after it (a mailing list's footer) or before it shows them too: only the HTML was shown.
+- A message with two **From** or two **Subject** lines shows the first of each, as other mail programs do, and is never marked as from a checked sender.
+- A date written the old way, `04:07 EST`, is read in that time zone: it was taken for UTC, hours off.
+- A message the server took but never answered about (it stopped responding, or the connection dropped) is no longer sent again by itself, which is how mail arrived twice: it comes back saying it may have gone.
+- Calendar: events side by side in a narrow day show the start of their title on one line. It was a letter a line.
+- People: in a short window the A–Z index shows the letters that have names, all within reach. Its end was under the window's edge.
+- A message opened by a command, or from its conversation in the reading pane, is brought into view in the list.
+- In Arabic and Hebrew a notice appears in the left corner, clear of what opens from the status bar.
+- Mail that arrives while MailCraft is minimized is announced, and counted in the window's title, when it arrives: it waited until the window was opened again (#68).
+- **Print** and **Save as PDF** keep a message's formatting: headings, bold, italic, sizes, colours, highlights, underlined links and struck-through text. It printed the plain text (#72). Tables print as rows of text, and pictures as their descriptions.
+- In a PDF, the lines a table is drawn with in text are printed with `-`, `|` and `+`: they were empty boxes.
+- A logo or a title a message centres (`<center>`, `align`, `text-align`) is centred when the rest of the message flows. Only mail laid out in tables kept what it centred (#74).
+- A message forwarded or answered shows the pictures from the web it quotes, when you were shown them reading it: they were empty boxes (#74). Nothing is fetched for it.
+- The window's title bar, where the system draws it, is light or dark as MailCraft is set to be (File › Options › Theme): on Linux it followed the system alone (#74).
+- An Outlook data file import that was paused or cut off isn't continued on a file that has changed since, even when the change left the file's size and date as they were: MailCraft goes by what the file holds.
+- In Arabic and Hebrew what you type in the search box starts at its right edge, and in a narrow window the box is laid out from the right as the rest of the window is.
+- In Arabic and Hebrew the People pane is mirrored: pictures and names on the right, the A–Z index on the left, and the list view's columns from the right.
+
+## 0.36.0 - 2026-11-11
 
 *MailCraft as a project of its own: its own publisher, app id and releases.*
 

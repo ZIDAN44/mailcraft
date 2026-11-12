@@ -490,6 +490,35 @@ impl Session {
         }
     }
 
+    /// A connection was refused, and `error` says a mail server on this computer showed a
+    /// certificate no authority vouches for (issue #77): the window is to ask about it, once for
+    /// each certificate.
+    pub(crate) fn note_untrusted_certificate(&mut self, account: &str, error: &str) {
+        let Some((host, fingerprint)) = mailcraft_model::untrusted_local_certificate(error) else { return };
+        if self.asked_certificate.len() < 64 && self.asked_certificate.insert((account.to_string(), fingerprint.clone())) {
+            self.ask_certificate.push((account.to_string(), host, fingerprint));
+        }
+    }
+
+    /// Trust the certificate with this fingerprint for an account's servers on this computer,
+    /// and connect again. The newest [`mailcraft_model::MAX_TRUSTED_CERTIFICATES`] are kept.
+    pub fn trust_certificate(&mut self, account: &str, fingerprint: &str) -> CmdResult {
+        let fingerprint = fingerprint.trim().to_ascii_lowercase();
+        if !mailcraft_model::is_certificate_fingerprint(&fingerprint) {
+            return Err(CmdError::Params("`fingerprint` is a certificate's SHA-256 in hex: 64 characters".into()));
+        }
+        let mut config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if !config.has_server() {
+            return Err(CmdError::Params("that account has no server".into()));
+        }
+        config.trusted_certificates.retain(|t| !t.eq_ignore_ascii_case(&fingerprint));
+        config.trusted_certificates.push(fingerprint.clone());
+        let over = config.trusted_certificates.len().saturating_sub(mailcraft_model::MAX_TRUSTED_CERTIFICATES);
+        config.trusted_certificates.drain(..over);
+        self.update_account(config, None)?;
+        Ok(serde_json::json!({ "account": account, "trusted": fingerprint }))
+    }
+
     pub fn update_account(&mut self, mut config: AccountConfig, password: Option<String>) -> CmdResult {
         config.migrate_signature();
         let id = config.id.clone();
@@ -510,6 +539,7 @@ impl Session {
             || a.config.check_every != config.check_every
             || a.config.dav != config.dav
             || a.config.user_agent != config.user_agent
+            || a.config.trusted_certificates != config.trusted_certificates
             || password.is_some();
         if config.online_only && !config.can_be_online_only() {
             return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));

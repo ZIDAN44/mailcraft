@@ -11,8 +11,8 @@
 	Accounts	חשבונות
 	Accounts and settings	חשבונות והגדרות
 	Add a subject	הוסף נושא
-	Add account…	הוספת חשבון…
-	Add an account	הוספת חשבון
+	Add account…	הוסף חשבון…
+	Add an account	הוסף חשבון
 	Add an email account	הוספת חשבון דואר אלקטרוני
 	Added to new messages, replies and forwards.	מתווספת להודעות חדשות, לתשובות ולהעברות.
 	All	הכול
@@ -117,6 +117,7 @@
 	24-hour	24 שעות
 	12-hour	12 שעות
 	Whole date and time in the list	תאריך ושעה מלאים ברשימה
+	Earlier this month	מוקדם יותר החודש
 	Last month	החודש שעבר
 	Last week	השבוע שעבר
 	Later	מאוחר יותר
@@ -251,7 +252,7 @@
 	Send	שלח
 	Send (Ctrl+Enter)	שלח (Ctrl+Enter)
 	Send / Receive	שלח / קבל
-	Send / Receive all folders (F9)	שלח / קבל את כל התיקיות (F9)
+	Send / Receive all folders (F9)	שלח וקבל בכל התיקיות (F9)
 	Send anyway	שלח בכל זאת
 	Send now	שלח עכשיו
 	Send without a subject?	לשלוח בלי נושא?
@@ -264,6 +265,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	שרתים: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	נמצאו הגדרות: {source}
 	Show a desktop notification when new mail arrives	הצג התראה בשולחן העבודה כשמגיע דואר חדש
+	Keep MailCraft running when its window is closed	להשאיר את MailCraft פועל כשהחלון שלו נסגר
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	הוא נשאר באזור ההודעות, בודק דואר ומודיע עליו. ”יציאה“ בדף ”קובץ“, או בתפריט של הסמל שלו, סוגרת אותו.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	החלון שלו ממוזער, ו־MailCraft ממשיך לבדוק דואר ולהודיע עליו. ”יציאה“ בדף ”קובץ“ סוגרת אותו.
+	Open MailCraft	פתיחת MailCraft
 	Show as plain text	הצג כטקסט רגיל
 	Show formatted	הצג מעוצב
 	Show in Favorites	הצג במועדפים
@@ -616,8 +621,8 @@ month	May	מאי
 	With attachments	עם קבצים מצורפים
 	Without attachments	ללא קבצים מצורפים
 	(nobody)	(אף אחד)
-	Send / Receive all folders	שלח/קבל את כל התיקיות
-	Send all	שלח הכל
+	Send / Receive all folders	שלח וקבל בכל התיקיות
+	Send all	שלח הכול
 	Send what's waiting in the Outbox	שלח את מה שממתין בתיבת הדואר היוצא
 	Work offline	עבוד במצב לא מקוון
 	Working offline	עובד במצב לא מקוון
@@ -654,11 +659,11 @@ month	May	מאי
 	Look in	חפש ב
 	Account	חשבון
 	Account settings…	הגדרות חשבון…
-	Delete all…	מחק הכל…
-	Delete all	מחק הכל
+	Delete all…	מחק הכול…
+	Delete all	מחק הכול
 	Delete everything in “{folder}”?	למחוק את כל מה שב„{folder}”?
 	Every message in it will be moved to Deleted Items.	כל ההודעות שבה יועברו לפריטים שנמחקו.
-	Find related	חפש קשורים
+	Find related	חפש הודעות קשורות
 	Messages in this conversation	הודעות בשיחה זו
 	Messages from sender	הודעות מהשולח
 	Forward as attachment	העבר כקובץ מצורף
@@ -721,7 +726,7 @@ month	May	מאי
 	Cut	גזור
 	Copy	העתק
 	Paste	הדבק
-	Select all	בחר הכל
+	Select all	בחר הכול
 	Link…	קישור…
 	Open link	פתח קישור
 	Clear formatting	נקה עיצוב
@@ -774,6 +779,12 @@ month	May	מאי
 	Sign in with Microsoft	כניסה עם Microsoft
 	Sign in with Microsoft…	כניסה עם Microsoft…
 	Mailbox won't open	תיבת הדואר לא נפתחת
+	Trust this computer's mail server?	לתת אמון בשרת הדואר שבמחשב זה?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} נמצא במחשב זה ומציג אישור שיצר בעצמו, ששום רשות אינה ערבה לו. כך פועלת תוכנה שמחברת שירות דואר ליישומי דואר. יש לתת בו אמון רק אם התקנת את התוכנה הזאת.
+	Certificate fingerprint (SHA-256)	טביעת האצבע של האישור (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft ישאל שוב אם השרת יציג אישור אחר.
+	Trust this certificate	לתת אמון באישור זה
+	Certificate not trusted yet	האישור עדיין אינו מהימן
 	The mailbox won't open	תיבת הדואר לא נפתחת
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph מגיע לתיבת הדואר בלי IMAP, ומביא גם את לוח השנה ואנשי הקשר. החשבון מתחיל מחדש דרכו: הדואר שלו יורד מהשרת.
 	Turned IMAP on, or picked another account in the browser? Sign in again	הפעלת IMAP, או בחרת חשבון אחר בדפדפן? היכנס שוב
@@ -877,7 +888,7 @@ month	May	מאי
 	 and {n} more	 ועוד {n}
 	Add to contacts…	הוספה לאנשי הקשר…
 	Copy address	העתקת הכתובת
-	Edit contact…	עריכת איש הקשר…
+	Edit contact…	ערוך איש קשר…
 	Send email	שליחת דואר
 	Add	הוספה
 	Add a shared mailbox	הוספת תיבת דואר משותפת
@@ -889,7 +900,7 @@ month	May	מאי
 	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} יוסר מ-MailCraft. דבר אינו נמחק בשרת.
 	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} יוסר מ-MailCraft. קובץ הנתונים שלו, {file}, נשאר בתיקייה MailCraft Files: פתח אותו מקובץ › פתיחה וייצוא כדי לראות שוב את הדואר שלו.
 	{email} will be removed from MailCraft.	{email} יוסר מ-MailCraft.
-	Add shared mailbox…	הוספת תיבת דואר משותפת…
+	Add shared mailbox…	הוסף תיבת דואר משותפת…
 	Remove shared mailbox	הסרת תיבת הדואר המשותפת
 	Opened by the server for your access to it	נפתחה על ידי השרת כי יש לך גישה אליה
 	Shared mailbox {address}, opened by {email}	תיבת דואר משותפת {address}, נפתחת על ידי {email}
@@ -1194,7 +1205,7 @@ month	May	מאי
 	Your software installer opens to install it.	מתקין התוכנות שלך ייפתח כדי להתקין אותו.
 	An update is still downloading	עדכון עדיין בהורדה
 	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} מורד ({done} מתוך {total}).
-	Add another…	הוספת אישור נוסף…
+	Add another…	הוסף עוד…
 	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	אישור מחודש מקבל את החתימה וההצפנה; הישן נשמר לקריאת דואר קודם
 	Older certificate, valid until {date}: kept to read mail encrypted to it	אישור קודם, בתוקף עד {date}: נשמר לקריאת דואר שהוצפן עבורו
 	Use for sending	שימוש לשליחה
@@ -1366,7 +1377,7 @@ month	May	מאי
 	Access code:	קוד גישה:
 	Access code	קוד גישה
 	Remove online meeting	הסרת הפגישה המקוונת
-	Add online meeting	הוספת פגישה מקוונת
+	Add online meeting	הוסף פגישה מקוונת
 	Adds {room}: its link as the place, and how to join in the notes	מוסיף את {room}: הקישור שלו כמיקום, ובהערות איך מצטרפים
 	Add your meeting rooms under File › Options › Online meetings	הוסף את חדרי הפגישות שלך בקובץ › אפשרויות › פגישות מקוונות
 	Choose a room	בחירת חדר
@@ -1376,7 +1387,7 @@ month	May	מאי
 	access code {code}	קוד גישה {code}
 	Make default	קבע כברירת מחדל
 	Add online meeting adds this room unless another is chosen	„הוספת פגישה מקוונת” מוסיפה את החדר הזה אם לא נבחר אחר
-	Add room	הוספת חדר
+	Add room	הוסף חדר
 	Meeting hosts	שרתי פגישות
 	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	קישורים לשרתים האלה פותחים פגישה (קישורי Teams,‏ Zoom,‏ Google Meet,‏ Webex, חדרי BigBlueButton והשרתים של החדרים שלך כבר עושים זאת)
 	Dial-in numbers and other lines for the invitation (optional)	מספרי חיוג ושורות נוספות להזמנה (אופציונלי)
@@ -1441,7 +1452,7 @@ month	May	מאי
 	Not brought in	מה שלא יובא
 	Not brought in so far: {n}	לא יובאו עד כה: {n}
 	Notes: {n}	פתקים: {n}
-	Open an Outlook data file…	פתיחת קובץ נתונים של Outlook…
+	Open an Outlook data file…	פתח קובץ נתונים של Outlook…
 	Removing…	מסירים…
 	Saved in: {path}	נשמר ב: {path}
 	Show how the import is going	להציג את התקדמות הייבוא
@@ -1625,7 +1636,7 @@ month	May	מאי
 	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	תמונות נטענות כשההודעה נפתחת, אם שרת הדואר אישר מי שלח אותה והיא לא בדואר הזבל. השרת של כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת אותה. תמונות מעקב נשארות חסומות
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	ההודעה נראית חשודה או שלא ניתן היה לאשר את השולח, ולכן התמונות נשארות מוסתרות.
 	These senders' pictures always load, even when a message looks suspicious:	תמונות משולחים אלה נטענות תמיד, גם כשההודעה נראית חשודה:
-	Open a mail file	פתיחת קובץ דואר
+	Open a mail file	פתח קובץ דואר
 	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	הצגת הודעה שמורה (.eml או .msg של Outlook) בחלון משלה, בלי להוסיף אותה לתיקייה. התמונות שלה מהרשת לא נטענות ושום דבר בתוכה לא מופעל.
 	Nothing is kept: closing it leaves no trace in your mail.	שום דבר לא נשמר: אחרי הסגירה לא נשאר זכר בדואר שלך.
 	and {n} more	ועוד {n}

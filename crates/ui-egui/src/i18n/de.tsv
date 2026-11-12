@@ -117,6 +117,7 @@
 	24-hour	24 Stunden
 	12-hour	12 Stunden
 	Whole date and time in the list	Vollständiges Datum mit Uhrzeit in der Liste
+	Earlier this month	Früher in diesem Monat
 	Last month	Letzter Monat
 	Last week	Letzte Woche
 	Later	Später
@@ -264,6 +265,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Server: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Einstellungen gefunden: {source}
 	Show a desktop notification when new mail arrives	Bei neuen E-Mails eine Desktopbenachrichtigung anzeigen
+	Keep MailCraft running when its window is closed	MailCraft weiter ausführen, wenn das Fenster geschlossen wird
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Es bleibt im Infobereich, ruft E-Mails ab und meldet neue. „Beenden“ auf der Seite „Datei“ oder im Menü des Symbols schließt es.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Das Fenster wird minimiert, und MailCraft ruft weiter E-Mails ab und meldet neue. „Beenden“ auf der Seite „Datei“ schließt es.
+	Open MailCraft	MailCraft öffnen
 	Show as plain text	Als Nur-Text anzeigen
 	Show formatted	Formatiert anzeigen
 	Show in Favorites	In Favoriten anzeigen
@@ -773,6 +778,12 @@
 	Sign in with Microsoft	Mit Microsoft anmelden
 	Sign in with Microsoft…	Mit Microsoft anmelden…
 	Mailbox won't open	Postfach öffnet sich nicht
+	Trust this computer's mail server?	Dem Mailserver auf diesem Computer vertrauen?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} läuft auf diesem Computer und zeigt ein selbst erstelltes Zertifikat, für das keine Zertifizierungsstelle bürgt. So verhält sich ein Programm, das einen Maildienst mit Mailprogrammen verbindet. Vertrauen Sie ihm nur, wenn Sie dieses Programm selbst eingerichtet haben.
+	Certificate fingerprint (SHA-256)	Fingerabdruck des Zertifikats (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft fragt erneut, wenn der Server ein anderes Zertifikat zeigt.
+	Trust this certificate	Diesem Zertifikat vertrauen
+	Certificate not trusted yet	Zertifikat noch nicht vertrauenswürdig
 	The mailbox won't open	Das Postfach öffnet sich nicht
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph erreicht das Postfach ohne IMAP und bringt auch Kalender und Kontakte mit. Das Konto beginnt darüber neu: Die E-Mails werden vom Server geladen.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP eingeschaltet oder im Browser ein anderes Konto gewählt? Erneut anmelden

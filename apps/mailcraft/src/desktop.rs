@@ -8,6 +8,7 @@ pub(crate) mod boot;
 mod lanes;
 pub(crate) mod start;
 pub(crate) mod state_writer;
+pub(crate) mod tray;
 pub(crate) mod window_frame;
 
 pub(crate) struct PoolBackend(pub(crate) Pool);
@@ -263,6 +264,12 @@ impl Services for Desktop {
             ]
         };
         candidates.iter().find_map(|p| std::fs::read(p).ok())
+    }
+    fn keeps_running(&self) -> Option<mailcraft_ui_egui::KeptOnClose> {
+        tray::offered()
+    }
+    fn kept_on_close(&self) -> Option<mailcraft_ui_egui::KeptOnClose> {
+        tray::kept_on_close()
     }
     fn can_drag_out(&self) -> bool {
         // Elsewhere, under X11 only: a Wayland window isn't an X window.

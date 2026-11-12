@@ -351,3 +351,35 @@ fn twenty_steps_on_a_long_list() {
     assert_eq!(focus(&s), all[20], "as 20 single steps");
     done(s);
 }
+
+/// After a delete, the message read next is the next row down as the rows are shown: with a
+/// pinned message it was the next by date (the pinned one, back at the top), and with
+/// conversations an older message inside the conversation above.
+#[test]
+fn the_next_message_after_a_delete_is_the_next_row() {
+    let mut s = sample_session("successor-rows");
+    let third = s.row_keys().get(2).cloned().unwrap();
+    s.open_message(&third);
+    s.run("mail.pin", &json!({"on": true})).unwrap();
+    // Pinned, it's the top row; the message deleted is the one that was above it by date.
+    let keys = s.row_keys();
+    assert_eq!(keys.first(), Some(&third));
+    let (gone, below) = (keys[2].clone(), keys[3].clone());
+    s.open_message(&gone);
+    s.run("mail.delete", &json!({})).unwrap();
+    assert_eq!(s.focus.as_ref(), Some(&below), "not the pinned row above");
+    done(s);
+
+    let mut s = sample_session("successor-threads");
+    s.run("view.conversations", &json!({"on": true})).unwrap();
+    let keys = s.row_keys();
+    // A row whose next message by date has no row of its own (an older one of a conversation
+    // further up): the row under it is read, not that message.
+    let at = s.list.windows(2).position(|w| keys.contains(&w[0].key) && !keys.contains(&w[1].key)).unwrap();
+    let row = keys.iter().position(|k| *k == s.list[at].key).unwrap();
+    let (gone, below) = (keys[row].clone(), keys[row + 1].clone());
+    s.open_message(&gone);
+    s.run("mail.delete", &json!({})).unwrap();
+    assert_eq!(s.focus.as_ref(), Some(&below));
+    done(s);
+}

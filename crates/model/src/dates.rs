@@ -212,6 +212,8 @@ pub enum DateGroup {
     LastWeek,
     TwoWeeksAgo,
     ThreeWeeksAgo,
+    /// This month, before the weeks above.
+    ThisMonth,
     LastMonth,
     Older,
 }
@@ -250,7 +252,12 @@ impl DateGroup {
         let (ty, tm, _) = civil_from_days(today);
         let (y, m, _) = civil_from_days(day);
         let months_back = (ty * 12 + i64::from(tm)) - (y * 12 + i64::from(m));
-        if months_back <= 1 { DateGroup::LastMonth } else { DateGroup::Older }
+        match months_back {
+            // The first days of a month, from its end: they were under "Last month".
+            0 => DateGroup::ThisMonth,
+            1 => DateGroup::LastMonth,
+            _ => DateGroup::Older,
+        }
     }
 
     pub fn label(self) -> &'static str {
@@ -262,6 +269,7 @@ impl DateGroup {
             DateGroup::LastWeek => "Last week",
             DateGroup::TwoWeeksAgo => "Two weeks ago",
             DateGroup::ThreeWeeksAgo => "Three weeks ago",
+            DateGroup::ThisMonth => "Earlier this month",
             DateGroup::LastMonth => "Last month",
             DateGroup::Older => "Older",
         }
@@ -458,6 +466,12 @@ mod tests {
         assert_eq!(DateGroup::of(NOW - 12 * day, &clock), DateGroup::TwoWeeksAgo);
         assert_eq!(DateGroup::of(NOW - 30 * day, &clock), DateGroup::LastMonth);
         assert_eq!(DateGroup::of(NOW - 400 * day, &clock), DateGroup::Older);
+        // From Friday 30 October 2026: the 2nd is this month, not last; 28 September is.
+        let (today, second, september) = (20756, 20728, 20724);
+        assert_eq!(DateGroup::of_day(second, today), DateGroup::ThisMonth);
+        assert_eq!(DateGroup::of_day(today - 22, today), DateGroup::ThreeWeeksAgo);
+        assert_eq!(DateGroup::of_day(september, today), DateGroup::LastMonth);
+        assert_eq!(DateGroup::of_day(september - 40, today), DateGroup::Older);
     }
 
     /// Issue #46: dates written day first, month first or with dots, on a 12-hour clock, and the

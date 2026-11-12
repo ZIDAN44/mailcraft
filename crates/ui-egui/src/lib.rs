@@ -64,7 +64,7 @@ pub(crate) fn os_window() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default().with_app_id(APP_ID)
 }
 use icons::Icon;
-pub use services::{Backend, InstallAsks, Lane, NullBackend, NullServices, Services, UpdateState, Work};
+pub use services::{Backend, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Services, UpdateState, Work};
 use theme::Tokens;
 
 /// Whether the message being written shows in the reading pane: when it isn't popped out, or
@@ -285,6 +285,14 @@ pub struct UiState {
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
+    /// Whether MailCraft can keep running with its window closed (the desktop app), and what
+    /// becomes of the window then; looked up at every frame.
+    pub keeps_running: Option<KeptOnClose>,
+    /// The window was closed to the notification area and is hidden.
+    pub(crate) in_tray: bool,
+    /// Exit was chosen (the File page's, the tray icon's): the window's close ends MailCraft
+    /// rather than hiding it.
+    pub(crate) quit_wanted: bool,
     /// Where the data is kept and whether it can be moved; where it moves at the next start.
     pub data_folder: Option<(PathBuf, bool)>,
     pub pending_move: Option<PathBuf>,
@@ -463,6 +471,7 @@ impl MailApp {
     pub fn new(session: Session, backend: Box<dyn Backend>, mut services: Box<dyn Services>) -> MailApp {
         let seen = session.notices.len();
         let has_files = !services.downloads();
+        let keeps_running = services.keeps_running();
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
         let old_flatpak = services.carried_over_from();
         let mut session = session;
@@ -502,6 +511,9 @@ impl MailApp {
                 compact: Default::default(),
                 reminders: reminders::State::default(),
                 has_files,
+                keeps_running,
+                in_tray: false,
+                quit_wanted: false,
                 data_folder,
                 pending_move,
                 dark: None,
@@ -669,6 +681,9 @@ impl MailApp {
                 self.ui.dialog_for = self.session.compose.as_ref().filter(|c| c.window).map(|c| c.id);
                 self.ui.dialog = Some(Dialog::SendCheck(found));
             }
+            // A message opened by a command (a script's, a conversation's row in the reading
+            // pane) is brought into view in the list: it could be opened out of sight.
+            Ok(_) if id == "list.open" => self.ui.scroll_to_focus = true,
             Ok(_) => {}
             // Not from an account that can't send: said over the message, as why it didn't go.
             Err(CmdError::Disabled(_))

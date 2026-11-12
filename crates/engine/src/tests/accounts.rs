@@ -7,6 +7,7 @@ mod calendar_only;
 mod compacting;
 mod data_files;
 mod importing;
+mod trusting;
 
 #[test]
 fn jmap_accounts_need_no_imap_servers() {

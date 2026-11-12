@@ -8,6 +8,10 @@ use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_ver
 pub(crate) const TOP_BAR_H: f32 = 40.0;
 /// The top bar's margins, across and down.
 pub(crate) const TOP_BAR_MARGIN: (i8, i8) = (8, 5);
+/// The narrowest the message list goes beside the reading pane, and the width the reading pane
+/// keeps while the folders and the list have any to give.
+const LIST_LEAST: f32 = 280.0;
+const READING_LEAST: f32 = 300.0;
 
 impl MailApp {
     /// Every frame, the window minimized or hidden too: eframe runs only `logic` then, and closes
@@ -18,6 +22,35 @@ impl MailApp {
         // input time, so a minimized window's close is always decided).
         self.ui.close_checked = Some(ctx.input(|i| i.time));
         self.decide_close(ctx);
+        // What the mail servers sent is taken in and new mail announced here too: a minimized
+        // window draws no frame, and mail that came meanwhile was neither shown in the title
+        // nor announced until the window was opened again (issue #68).
+        self.pump();
+        self.announce(ctx);
+        self.flush_jobs();
+    }
+
+    /// The window back from the notification area (its icon clicked, MailCraft started again).
+    pub fn show_window(&mut self, ctx: &egui::Context) {
+        self.ui.in_tray = false;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
+    /// Exit, from the notification area's icon: MailCraft closes as it does without one, asking
+    /// what it asks.
+    pub fn exit(&mut self, ctx: &egui::Context) {
+        self.ui.quit_wanted = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        // The close is seen in the next pass: asked for, as a hidden window draws none by itself.
+        ctx.request_repaint();
+    }
+
+    /// What the notification area's icon says: its tooltip (the window's title, with the unread
+    /// count) and its menu's two lines, in the language shown.
+    pub fn tray_words(&self) -> (String, String, String) {
+        (self.ui.title_shown.clone(), tl!("Open MailCraft").to_string(), tl!("Exit").to_string())
     }
 
     /// Where the platform has a quit of its own (macOS: `terminate:`, `quit` returning true), a
@@ -72,6 +105,24 @@ impl MailApp {
             self.ui.close_now = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else if ctx.input(|i| i.viewport().close_requested()) {
+            // Kept running (issue #67): the window is hidden, or minimized where it couldn't be
+            // brought back from hiding; nothing ends and nothing is asked. Exit, an update's restart and a close already being
+            // answered go on to close it.
+            let ending = self.ui.quit_wanted || self.ui.closing_anyway || self.ui.restart_wanted || self.ui.graphics_lost;
+            if self.session.prefs.close_to_tray
+                && !ending
+                && let Some(kept) = self.services.kept_on_close()
+            {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                match kept {
+                    KeptOnClose::Hidden => {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                        self.ui.in_tray = true;
+                    }
+                    KeptOnClose::Minimized => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                }
+                return;
+            }
             // Messages being written: kept as drafts if wanted, as Outlook asks; never lost.
             let written = self.session.all_composes().filter(|c| self.session.written(c) && !c.sending).count();
             let (unsent, changes) = self.session.lost_on_close();
@@ -104,6 +155,10 @@ impl MailApp {
             if asked {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.ui.close_asked = true;
+                // Exit from the notification area's icon: the question needs the window.
+                if self.ui.in_tray {
+                    self.show_window(ctx);
+                }
                 // Closed from the taskbar or the Dock while minimized: the window comes back to ask.
                 if ctx.input(|i| i.viewport().minimized == Some(true)) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -172,12 +227,18 @@ impl MailApp {
         if !cfg!(target_os = "macos") && ctx.options(|o| !o.quit_shortcuts.is_empty()) {
             ctx.options_mut(|o| o.quit_shortcuts.clear());
         }
-        self.pump();
+        self.ui.keeps_running = self.services.keeps_running();
+        // Done in `logic` already when the app runs it, as the close is.
+        let in_logic = self.ui.close_checked == Some(ctx.input(|i| i.time));
+        if !in_logic {
+            self.pump();
+        }
         self.show_finished_import();
         self.step_search(&ctx);
         self.follow_compaction(&ctx);
         self.take_body();
         self.settle_composes(&ctx);
+        // Again after `logic`'s: the title follows what this frame opened.
         self.announce(&ctx);
         self.follow_update(&ctx);
         // Decided in `logic` already when the app runs it (the desktop app; not the tests or the browser).
@@ -196,6 +257,10 @@ impl MailApp {
             Some(theme) => theme == egui::Theme::Dark,
             None => self.services.system_dark().unwrap_or(false),
         });
+        // The title bars the system draws follow (issue #74). As the system is, the system knows
+        // best; except on Linux, where winit knows no system theme and would say dark.
+        let said = if cfg!(all(unix, not(target_os = "macos"))) { Some(dark) } else { self.ui.dark };
+        super::windows::title_bars_in(&ctx, said);
         // The theme: light or dark, with the accent colour and top bar chosen (issue #8).
         let want = Tokens::themed(dark, mailcraft_engine::accent_rgb(&self.session.prefs.accent), self.session.prefs.plain_top_bar);
         if want != self.ui.tokens || ctx.global_style().visuals.panel_fill != self.ui.tokens.surface {
@@ -340,10 +405,14 @@ impl MailApp {
             let mut expanded = !self.session.prefs.folder_pane_minimized;
             let strip =
                 start("nav-min").resizable(false).exact_size(52.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(4, 8)));
+            // In a small window the folders and the list give way, so what's read or written
+            // keeps a width it can be read in (it was a strip a word wide).
+            let mail_beside = module == Module::Mail && self.session.prefs.reading_pane == ReadingPane::Right;
+            let most_nav = if mail_beside { (ui.available_width() - LIST_LEAST - READING_LEAST).clamp(170.0, 380.0) } else { 380.0 };
             let full = start("nav")
                 .resizable(true)
                 .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
-                .size_range(170.0..=380.0)
+                .size_range(170.0..=most_nav)
                 .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)));
             egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
                 if !wide {
@@ -404,7 +473,8 @@ impl MailApp {
                 }
                 (Module::Mail, pane) => match pane {
                     ReadingPane::Right => {
-                        start("list").resizable(true).default_size(390.0).size_range(280.0..=720.0).frame(list_frame).show(ui, |ui| {
+                        let most = (ui.available_width() - READING_LEAST).clamp(LIST_LEAST, 720.0);
+                        start("list").resizable(true).default_size(390.0).size_range(LIST_LEAST..=most).frame(list_frame).show(ui, |ui| {
                             list::show(&self.session, &mut self.ui, ui, &mut acts);
                         });
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {

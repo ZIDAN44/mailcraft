@@ -13,6 +13,12 @@ impl MailApp {
                 self.ui.dialog = Some(Dialog::password(&a.config));
             }
         }
+        // A mail server on this computer with a certificate of its own asks to be trusted, the
+        // same way (issue #77).
+        if self.ui.dialog.is_none() && self.ui.backstage.is_none() && !self.session.ask_certificate.is_empty() {
+            let (account, host, fingerprint) = self.session.ask_certificate.remove(0);
+            self.ui.dialog = Some(Dialog::TrustCertificate { account, host, fingerprint });
+        }
         let news = self.session.take_new_mail();
         if !news.is_empty() {
             // Issue #4: the system keeps its notifications (Windows, in its history): one for an
@@ -528,6 +534,13 @@ impl MailApp {
 
     pub(crate) fn sign_in_again(&mut self, id: &str) {
         let Some((config, status)) = self.session.account(id).map(|a| (a.config.clone(), a.status.clone())) else { return };
+        // A server on this computer with a certificate of its own: asked about again.
+        if let SyncStatus::Error { error } = &status
+            && let Some((host, fingerprint)) = mailcraft_engine::model::untrusted_local_certificate(error)
+        {
+            self.ui.dialog = Some(Dialog::TrustCertificate { account: id.to_string(), host, fingerprint });
+            return;
+        }
         // Microsoft took the sign-in but won't open the mailbox: say why, and what helps.
         if let SyncStatus::Error { error } = &status
             && error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)

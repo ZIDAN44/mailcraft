@@ -224,14 +224,26 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 acts.push(Action::Run("calendar.goto", json!({"step": 1})));
             }
             ui.add_space(6.0);
-            ui.label(RichText::new(title(s)).font(theme::bold(18.0)).color(t.text));
+            let modes = [
+                (CalMode::Month, "Month", "month"),
+                (CalMode::Week, "Week", "week"),
+                (CalMode::WorkWeek, "Work week", "workWeek"),
+                (CalMode::Day, "Day", "day"),
+            ];
+            let pad = ui.spacing().button_padding.x * 2.0 + ui.spacing().item_spacing.x;
+            let buttons: f32 = modes
+                .iter()
+                .map(|(_, label, _)| ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.5), t.text).size().x + pad)
+                .sum();
+            let whole = ui.painter().layout_no_wrap(title(s), theme::bold(18.0), t.text).size().x;
+            // The days shown, then the views' buttons against the end. In a window with no room
+            // for both, the days alone (they ran on under the buttons): the views are on the
+            // ribbon too.
+            let both = whole <= ui.available_width() - buttons - 12.0;
+            let shown = widgets::one_line(ui, &title(s), theme::bold(18.0), t.text, ui.available_width());
+            ui.label(shown);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                for (mode, label, code) in [
-                    (CalMode::Month, "Month", "month"),
-                    (CalMode::Week, "Week", "week"),
-                    (CalMode::WorkWeek, "Work week", "workWeek"),
-                    (CalMode::Day, "Day", "day"),
-                ] {
+                for (mode, label, code) in modes.into_iter().filter(|_| both) {
                     if ui.selectable_label(s.cal_mode == mode, tl!(label)).clicked() {
                         acts.push(Action::Run("calendar.view", json!({"mode": code})));
                     }
@@ -302,8 +314,15 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
         icons::paint(ui.painter(), r, Icon::Task, if done { t.faint } else { t.dim });
     }
     let ink = if done { t.faint } else { t.text };
-    let mut job = egui::text::LayoutJob::simple(text.to_string(), font, ink, (rect.width() - lead - if lock { 22.0 } else { 8.0 }).max(4.0));
-    job.wrap.max_rows = ((rect.height() - 4.0) / row).floor().max(1.0) as usize;
+    let room = (rect.width() - lead - if lock { 22.0 } else { 8.0 }).max(4.0);
+    // Too narrow for a word of its title (events side by side in a narrow day): the start of
+    // the title on one line. Wrapped, it was a letter a line down the box.
+    let title = text.lines().next().unwrap_or_default();
+    let widest = title.split_whitespace().map(|w| ui.painter().layout_no_wrap(w.to_string(), font.clone(), ink).size().x).fold(0.0, f32::max);
+    let narrow = widest > room;
+    let mut job = egui::text::LayoutJob::simple(if narrow { title.to_string() } else { text.to_string() }, font, ink, room);
+    job.wrap.max_rows = if narrow { 1 } else { ((rect.height() - 4.0) / row).floor().max(1.0) as usize };
+    job.wrap.break_anywhere = narrow;
     job.wrap.overflow_character = Some('…');
     let galley = ui.fonts_mut(|f| f.layout_job(job));
     ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0 + lead, 2.0), galley, ink);
@@ -397,7 +416,10 @@ const PANE_GAP: f32 = 10.0;
 fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i64, d1: i64, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let n = (d1 - d0).max(1);
-    let gutter = 52.0;
+    // Wide enough for "All day" in the language shown ("Toute la journée" ran out of it, under
+    // the folder pane's edge).
+    let all_day = ui.painter().layout_no_wrap(tl!("All day").to_string(), theme::regular(11.0), t.faint).size().x;
+    let gutter = (all_day + 14.0).clamp(52.0, 110.0);
     let now = today(s);
     let full = ui.available_rect_before_wrap();
     // Side by side (Outlook's): each calendar shown a pane of its own, its days in it, under a

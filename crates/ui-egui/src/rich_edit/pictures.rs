@@ -54,12 +54,35 @@ pub(super) struct Pic {
     size: egui::Vec2,
 }
 
+/// The pictures from the web the reading pane has loaded, by their address: [`web_loaded`].
+pub(crate) type WebPictures = std::sync::Arc<HashMap<String, std::sync::Arc<Vec<u8>>>>;
+
+fn web_id() -> egui::Id {
+    egui::Id::unique("compose-web-pictures")
+}
+
+/// The pictures from the web that were loaded for reading, for this frame's editors: a message
+/// forwarded or answered shows the pictures it quotes that the reader was shown (they were
+/// empty boxes, issue #74). Nothing is fetched for the editor.
+pub(crate) fn web_loaded(ctx: &egui::Context, loaded: WebPictures) {
+    ctx.data_mut(|d| d.insert_temp(web_id(), loaded));
+}
+
 /// The own sizes of the message's pictures that can be shown (decoded once, then kept).
 pub(super) fn own_sizes(ctx: &egui::Context, ed: &mut Editor, c: &Compose) -> HashMap<String, egui::Vec2> {
+    let web: Option<WebPictures> = ctx.data(|d| d.get_temp(web_id()));
     let mut out = HashMap::new();
     for cid in rich::pictures(&c.body, &c.styles) {
+        let on_web = rich::web_picture(&cid).then(|| web.as_ref().and_then(|w| w.get(&cid))).flatten();
+        // One from the web may have been loaded since it was last looked for.
+        if on_web.is_some() && ed.pictures.get(&cid).is_some_and(Option::is_none) {
+            ed.pictures.remove(&cid);
+        }
         let pic = ed.pictures.entry(cid.clone()).or_insert_with(|| {
-            let data = &c.inline.iter().find(|p| p.cid == cid)?.data;
+            let data: &[u8] = match c.inline.iter().find(|p| p.cid == cid) {
+                Some(p) => &p.data,
+                None => on_web?,
+            };
             let size = own_size(data)?;
             let tex = crate::reading::decode(ctx, &format!("compose-{cid}"), data, DECODE_MAX)?;
             Some(Pic { tex, size: vec2(size.0 as f32, size.1 as f32) })

@@ -113,10 +113,21 @@ fn send_to(
     store: Vec<CertificateDer<'static>>,
     distrusted: &[CertificateDer<'static>],
 ) -> (Result<()>, String) {
+    send_trusting_to(identity, security, store, distrusted, &[])
+}
+
+/// [`send_to`], the account trusting the certificates with the fingerprints `trusted`.
+fn send_trusting_to(
+    identity: Identity,
+    security: Security,
+    store: Vec<CertificateDer<'static>>,
+    distrusted: &[CertificateDer<'static>],
+    trusted: &[String],
+) -> (Result<()>, String) {
     let (port, server) = serve(identity, security == Security::StartTls);
     let set: Distrusted = distrusted.iter().map(|c| c.to_vec()).collect();
     let roots = usable_roots(store.clone(), &set);
-    let trust = Trust { roots: &roots, verifier: check(store, distrusted) };
+    let trust = Trust { roots: &roots, verifier: check(store, distrusted), trusted };
     let config = ServerConfig { host: "127.0.0.1".into(), port, security };
     let envelope = Envelope::new(Some("ana@corp.test".parse().unwrap()), vec!["ben@corp.test".parse().unwrap()]).unwrap();
     let message = b"Subject: hi\r\n\r\nhello\r\n";
@@ -159,14 +170,47 @@ fn a_distrusted_server_or_intermediate_never_gets_the_password() {
     }
 }
 
-/// A CA the system doesn't trust, or distrusts though it's among the roots: refused in the
-/// handshake, as before.
+/// A CA the system doesn't trust, or distrusts though it's among the roots: refused before
+/// signing in. The server is on this computer (as a bridge to a mail service is), so the refusal
+/// says which certificate it showed, for the user to be asked about it (issue #77).
 #[test]
 fn a_ca_the_system_does_not_trust_is_refused() {
     for (store, distrusted) in [(vec![], vec![]), (vec![internal_ca()], vec![internal_ca()])] {
-        let (result, heard) = send_to(server_identity(), Security::Tls, store, &distrusted);
+        for security in [Security::Tls, Security::StartTls] {
+            let (result, heard) = send_to(server_identity(), security, store.clone(), &distrusted);
+            let why = refusal_text(result);
+            let (host, fingerprint) = mailcraft_model::untrusted_local_certificate(&why).unwrap_or_default();
+            assert_eq!(host, "127.0.0.1", "{why}");
+            assert_eq!(fingerprint, crate::stream::trust::fingerprint(&server_identity().0[0]), "{why}");
+            assert!(!heard.contains("AUTH"), "{heard}");
+        }
+    }
+}
+
+/// Issue #77: the certificate of a server on this computer that the user chose to trust is
+/// accepted, over implicit TLS and STARTTLS, though no authority vouches for it; another
+/// certificate isn't, nor one the system distrusts, whatever was trusted.
+#[test]
+fn a_local_server_s_certificate_the_user_trusts_is_accepted() {
+    let shown = crate::stream::trust::fingerprint(&server_identity().0[0]);
+    for security in [Security::Tls, Security::StartTls] {
+        let (result, heard) = send_trusting_to(server_identity(), security, vec![], &[], std::slice::from_ref(&shown));
+        assert!(result.is_ok(), "{security:?}: {}", refusal_text(result));
+        assert!(heard.contains("AUTH PLAIN") && heard.contains("DATA"), "{security:?}: {heard}");
+        // Trusted in capitals, as a person might type it.
+        let (result, _) = send_trusting_to(server_identity(), security, vec![], &[], &[shown.to_ascii_uppercase()]);
+        assert!(result.is_ok(), "{security:?}: {}", refusal_text(result));
+        // Another certificate than the one trusted: asked about again.
+        let other = crate::stream::trust::fingerprint(&via_issuing_identity().0[0]);
+        let (result, heard) = send_trusting_to(server_identity(), security, vec![], &[], std::slice::from_ref(&other));
         let why = refusal_text(result);
-        assert!(why.contains("UnknownIssuer"), "{why}");
+        assert_eq!(mailcraft_model::untrusted_local_certificate(&why).map(|(_, f)| f), Some(shown.clone()), "{why}");
+        assert!(!heard.contains("AUTH"), "{heard}");
+        // One the system distrusts stays refused.
+        let distrusted = server_identity().0[0].clone();
+        let (result, heard) =
+            send_trusting_to(server_identity(), security, vec![internal_ca()], std::slice::from_ref(&distrusted), std::slice::from_ref(&shown));
+        assert!(refusal_text(result).contains("Revoked"));
         assert!(!heard.contains("AUTH"), "{heard}");
     }
 }

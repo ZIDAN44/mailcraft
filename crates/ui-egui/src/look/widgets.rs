@@ -46,6 +46,31 @@ pub fn ribbon_fit_id() -> egui::Id {
     egui::Id::unique("ribbon-fit")
 }
 
+/// A toolbar of a window of its own, fitted to it as the ribbon is to the main window: its last
+/// buttons lose their labels, as few as it takes (they ran out past the window's edge, cut).
+/// `id` keeps how many did, from one frame to the next.
+pub fn fitted_toolbar(ui: &mut Ui, id: egui::Id, draw: impl FnOnce(&mut Ui)) {
+    let room = ui.max_rect();
+    let icons_from: usize = ui.ctx().data(|d| d.get_temp(id)).unwrap_or(usize::MAX);
+    let start = RibbonFit { active: true, icons_from, right: room.left(), left: room.right(), ..Default::default() };
+    // The main window's ribbon may be between frames of its own: its notes are put back.
+    let before = ui.ctx().data_mut(|d| {
+        let before = d.get_temp::<RibbonFit>(ribbon_fit_id());
+        d.insert_temp(ribbon_fit_id(), start);
+        before
+    });
+    draw(ui);
+    let mut fit = ui.ctx().data_mut(|d| std::mem::replace(d.get_temp_mut_or_default::<RibbonFit>(ribbon_fit_id()), before.unwrap_or_default()));
+    // What isn't a labelled button (the ⋯ at its end) takes room too.
+    fit.right = fit.right.max(ui.min_rect().right());
+    fit.left = fit.left.min(ui.min_rect().left());
+    let from = fit.fit(room, crate::i18n::current().rtl());
+    if from != icons_from.min(fit.count) {
+        ui.ctx().data_mut(|d| d.insert_temp(id, from));
+        ui.ctx().request_repaint();
+    }
+}
+
 /// While the ribbon is drawn: note a button (its label's width) and whether it goes without it.
 fn ribbon_button(ui: &Ui, label_width: f32) -> bool {
     ui.ctx().data_mut(|d| {

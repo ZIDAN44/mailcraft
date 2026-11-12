@@ -218,7 +218,7 @@ impl Session {
     /// A message as a draft's source, the Drafts folder it goes in, and its Message-ID.
     pub(crate) fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String, String), CmdError> {
         // Drafts may hold unfinished addresses: keep only the valid ones.
-        let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
+        let lenient = addr::parse_valid;
         let (body, html, inline) = c.bodies_with(&c.signature_code);
         let d = mime::Draft {
             reply_to: lenient(&c.reply_to),

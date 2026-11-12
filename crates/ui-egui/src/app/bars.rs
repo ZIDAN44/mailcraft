@@ -98,7 +98,8 @@ impl MailApp {
             .inner_margin(Margin::symmetric(8, 3));
         frame
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                // Keep the search icon and field on the language's reading edge.
+                ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), r, Icon::Search, t.dim);
                     // In the Calendar, People, Tasks and Notes it searches those (as Outlook's box
@@ -116,10 +117,12 @@ impl MailApp {
                             egui::TextEdit::singleline(query)
                                 .hint_text(hint)
                                 .frame(egui::Frame::NONE)
-                                .align(egui::Align2::LEFT_CENTER)
+                                .align(if i18n::current().rtl() { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER })
                                 .desired_width(search_w - 60.0)
                                 .text_color(t.text),
                         );
+                        #[cfg(test)]
+                        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft-top-search-input-rect"), resp.rect));
                         if focus {
                             resp.request_focus();
                         }
@@ -325,8 +328,12 @@ impl MailApp {
         } else {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64((at + ttl - motion::GENTLE as f64 - now).max(0.0)));
         }
+        // In the corner where the window's lines end: the left one in a right-to-left
+        // interface, where the right one is the status bar's start and what opens from it (the
+        // import's details were under the notice).
+        let (corner, aside) = if i18n::current().rtl() { (egui::Align2::LEFT_BOTTOM, 16.0) } else { (egui::Align2::RIGHT_BOTTOM, -16.0) };
         egui::Area::new(egui::Id::unique("toast"))
-            .anchor(egui::Align2::RIGHT_BOTTOM, vec2(-16.0, -36.0 + 14.0 * (1.0 - enter)))
+            .anchor(corner, vec2(aside, -36.0 + 14.0 * (1.0 - enter)))
             .order(egui::Order::Foreground)
             .fade_in(false)
             .show(ctx, |ui| {
@@ -351,7 +358,9 @@ pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
     match &a.status {
         SyncStatus::NeedsPassword { .. } => true,
         SyncStatus::Error { error } => {
-            error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS)
+            error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)
+                || error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS)
+                || error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE)
         }
         _ => false,
     }
@@ -396,6 +405,9 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
         }
         SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED) => {
             (t.danger, tl!("Mailbox won't open").to_string())
+        }
+        SyncStatus::Error { error } if error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE) => {
+            (t.danger, tl!("Certificate not trusted yet").to_string())
         }
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
         SyncStatus::Syncing { folder } => {

@@ -29,7 +29,7 @@ pub(crate) use links::link_dialog;
 use links::*;
 #[cfg(test)]
 pub(crate) use pictures::FIT_WIDTH;
-pub(crate) use pictures::{fitted_width, own_line, own_size};
+pub(crate) use pictures::{fitted_width, own_line, own_size, web_loaded};
 pub use toolbar::Counts;
 #[cfg(test)]
 pub(crate) use toolbar::{count_words, date_choices};

@@ -669,7 +669,7 @@ fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
         return Ok(());
     }
     if let Some(skip) = &ctx.resume
-        && !skip.same_file(ctx.path, &planned.record_key, planned.fingerprint())
+        && !skip.same_file(&planned.record_key, planned.fingerprint())
     {
         ctx.changed.store(true, Ordering::Relaxed);
         return Ok(());

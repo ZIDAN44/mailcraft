@@ -16,7 +16,7 @@ pub enum ReplyMode {
 }
 
 fn prefixed(prefix: &str, subject: &str) -> String {
-    let base = mailcraft_model::thread::base_subject(subject);
+    let base = mailcraft_model::thread::without_prefixes(subject);
     let already = subject.trim().to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase());
     if already { subject.trim().to_string() } else { format!("{prefix} {base}") }
 }
@@ -129,6 +129,10 @@ fn reply_doc_with(p: &Parsed, mode: ReplyMode, me: &[String], clock: &Clock, sig
             if !p.message_id.is_empty() {
                 d.in_reply_to = p.message_id.clone();
                 d.references = p.references.clone();
+                // A parent with no References: what it answers leads them (RFC 5322 §3.6.4).
+                if d.references.is_empty() && !p.in_reply_to.is_empty() {
+                    d.references.push(p.in_reply_to.clone());
+                }
                 d.references.push(p.message_id.clone());
                 // RFC 5322 §3.6.4 allows trimming; keep the first and the last 20.
                 if d.references.len() > 21 {

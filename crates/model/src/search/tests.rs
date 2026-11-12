@@ -65,6 +65,13 @@ fn sizes_and_lists() {
         let _ = q(junk, &m);
     }
     assert_eq!(Query::parse("larger:99999999999999999999GB").clauses[0].term, Term::Size(true, 1024u64.pow(4)));
+    // A space before the unit, quoted or not, is still one size (it was 2 bytes and "mb").
+    for spaced in ["larger:2 MB", "larger:\"2 MB\"", "larger:2 mb budget"] {
+        let parsed = Query::parse(spaced);
+        assert_eq!(parsed.clauses[0].term, Term::Size(true, 2 << 20), "{spaced}");
+        assert_eq!(parsed.clauses.len(), 1 + usize::from(spaced.ends_with("budget")), "{spaced}");
+    }
+    assert_eq!(Query::parse("larger:2 m&m").clauses.len(), 2, "a word that only starts like a unit stays a word");
     assert!(q("from:ana,zoe", &m) && q("from:\"zoe park\",ann", &m) && !q("from:ana,jun", &m) && q("to:x,ann", &m));
     assert!(!q("-from:ana,zoe", &m) && q("from:zoe,", &m) && q("from:,zoe", &m));
     assert_eq!(Query::parse("from:,,").clauses.len(), 1, "commas alone: a phrase to look for");
