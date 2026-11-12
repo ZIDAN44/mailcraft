@@ -5,8 +5,10 @@
 
 use super::*;
 
-/// Longest line accepted outside literals.
-const MAX_LINE: usize = 1 << 20;
+/// Longest line accepted outside literals. A folder's `UID SEARCH ALL` is answered in one line,
+/// some 8 bytes a message: at 1 MB a folder past 130,000 messages never synced, and the account
+/// signed in again and again. This holds four million.
+const MAX_LINE: usize = 32 << 20;
 
 /// Deepest nesting of parenthesised lists in one response passed to the parser. A message's
 /// `BODYSTRUCTURE` takes about two levels per level of MIME parts (its parameters are a list).
@@ -209,9 +211,12 @@ impl<S: Read + Write> Conn<S> {
         if nesting(&fixed) > MAX_NESTING {
             return Ok(Err(fixed));
         }
-        Ok(match Response::parse(&fixed) {
-            Ok((_, r)) => Ok(r.into_owned()),
-            Err(_) => Err(fixed),
+        // A panic inside imap-proto (`INTERNALDATE NIL` was one: it unwraps the date) ends the
+        // account's thread: the response is one it doesn't understand instead.
+        let parsed = std::panic::catch_unwind(|| Response::parse(&fixed).ok().map(|(_, r)| r.into_owned()));
+        Ok(match parsed {
+            Ok(Some(r)) => Ok(r),
+            _ => Err(fixed),
         })
     }
 

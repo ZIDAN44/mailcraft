@@ -5,6 +5,10 @@ crash on hostile input (see "Never crash" in [CLAUDE.md](../CLAUDE.md)). The tar
 workspace of their own, so the main build never needs a nightly toolchain.
 `.github/workflows/fuzz.yml` runs every target once a week.
 
+That workspace has a `Cargo.lock` of its own. It keeps the versions the main one has, so the
+fuzzers test what MailCraft ships: after a dependency moves, run `cargo xtask locks --update`
+(`cargo xtask ci` fails while the two differ).
+
 ## Run a target
 
 You need Linux, macOS or WSL, a nightly toolchain, and cargo-fuzz (`cargo install cargo-fuzz`).

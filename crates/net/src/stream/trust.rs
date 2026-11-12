@@ -93,8 +93,96 @@ pub(crate) fn verifier(roots: RootCertStore, distrusted: Arc<Distrusted>) -> Res
     Ok(Arc::new(Distrusting { inner, distrusted }))
 }
 
+/// A certificate's SHA-256 fingerprint, in hex: what a certificate trusted by hand is known by.
+pub(crate) fn fingerprint(der: &[u8]) -> String {
+    ring::digest::digest(&ring::digest::SHA256, der).as_ref().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The check for a server on this computer (issue #77: a bridge to a mail service, with a
+/// certificate it made itself): the usual one, and when that refuses, the certificates the user
+/// chose to trust for the account, each by its fingerprint. One the system distrusts stays
+/// refused. A certificate refused is remembered, for the user to be asked about it.
+#[derive(Debug)]
+pub(crate) struct Local {
+    usual: Arc<Distrusting>,
+    trusted: Vec<String>,
+    refused: std::sync::Mutex<Option<String>>,
+}
+
+impl Local {
+    pub(crate) fn new(usual: Arc<Distrusting>, trusted: &[String]) -> Arc<Local> {
+        Arc::new(Local { usual, trusted: trusted.to_vec(), refused: std::sync::Mutex::new(None) })
+    }
+
+    /// Whether the user chose to trust the certificate with this fingerprint.
+    pub(crate) fn trusts(&self, fingerprint: &str) -> bool {
+        self.trusted.iter().any(|t| t.eq_ignore_ascii_case(fingerprint))
+    }
+
+    /// The fingerprint of the certificate this refused, if it refused one.
+    pub(crate) fn refused(&self) -> Option<String> {
+        self.refused.lock().ok().and_then(|r| r.clone())
+    }
+
+    /// The usual check's verdict on a certificate, or the user's when they trusted this one.
+    pub(crate) fn judge(&self, end_entity: &[u8], verdict: Result<(), rustls::Error>) -> Result<(), rustls::Error> {
+        match verdict {
+            Ok(()) => Ok(()),
+            Err(e @ rustls::Error::InvalidCertificate(CertificateError::Revoked)) => Err(e),
+            Err(e) => {
+                let found = fingerprint(end_entity);
+                if self.trusts(&found) {
+                    return Ok(());
+                }
+                if let Ok(mut refused) = self.refused.lock() {
+                    *refused = Some(found);
+                }
+                Err(e)
+            }
+        }
+    }
+}
+
+impl ServerCertVerifier for Local {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        server_name: &ServerName<'_>,
+        ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        let verdict = self.usual.verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now).map(|_| ());
+        self.judge(end_entity, verdict).map(|()| ServerCertVerified::assertion())
+    }
+
+    // The handshake is still signed with the certificate's key: whoever shows a trusted
+    // certificate has to hold its key.
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.usual.verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.usual.verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.usual.supported_verify_schemes()
+    }
+}
+
 /// A client configuration whose server certificates `verifier` checks.
-pub(super) fn client_config(verifier: Arc<Distrusting>) -> Result<Arc<ClientConfig>, String> {
+pub(super) fn client_config<V: ServerCertVerifier + 'static>(verifier: Arc<V>) -> Result<Arc<ClientConfig>, String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let builder = ClientConfig::builder_with_provider(provider).with_safe_default_protocol_versions().map_err(|e| e.to_string())?;
     Ok(Arc::new(builder.dangerous().with_custom_certificate_verifier(verifier).with_no_client_auth()))

@@ -117,6 +117,7 @@
 	24-hour	24-uurs
 	12-hour	12-uurs
 	Whole date and time in the list	Volledige datum en tijd in de lijst
+	Earlier this month	Eerder deze maand
 	Last month	Vorige maand
 	Last week	Vorige week
 	Later	Later
@@ -264,6 +265,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Instellingen gevonden: {source}
 	Show a desktop notification when new mail arrives	Een bureaubladmelding tonen wanneer er nieuwe mail binnenkomt
+	Keep MailCraft running when its window is closed	MailCraft actief houden wanneer het venster wordt gesloten
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Het blijft in het systeemvak, controleert op e-mail en meldt die. ‘Afsluiten’ op de pagina Bestand, of in het menu van het pictogram, sluit het.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Het venster wordt geminimaliseerd en MailCraft blijft op e-mail controleren en die melden. ‘Afsluiten’ op de pagina Bestand sluit het.
+	Open MailCraft	MailCraft openen
 	Show as plain text	Als platte tekst weergeven
 	Show formatted	Met opmaak weergeven
 	Show in Favorites	In Favorieten weergeven
@@ -774,6 +779,12 @@ month	May	mei
 	Sign in with Microsoft	Aanmelden met Microsoft
 	Sign in with Microsoft…	Aanmelden met Microsoft…
 	Mailbox won't open	Postvak gaat niet open
+	Trust this computer's mail server?	De mailserver op deze computer vertrouwen?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} staat op deze computer en toont een certificaat dat het zelf heeft gemaakt en waar geen instantie voor instaat. Dat doet een programma dat een maildienst met mailprogramma’s verbindt. Vertrouw het alleen als u dat programma zelf hebt ingesteld.
+	Certificate fingerprint (SHA-256)	Vingerafdruk van het certificaat (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft vraagt het opnieuw als de server een ander certificaat toont.
+	Trust this certificate	Dit certificaat vertrouwen
+	Certificate not trusted yet	Certificaat nog niet vertrouwd
 	The mailbox won't open	Het postvak gaat niet open
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph bereikt het postvak zonder IMAP en brengt ook de agenda en contactpersonen mee. Het account begint daarmee opnieuw: de e-mail wordt van de server opgehaald.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP aangezet, of in de browser een ander account gekozen? Opnieuw aanmelden

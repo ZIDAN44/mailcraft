@@ -75,9 +75,28 @@ fn yes_no(v: &str) -> Option<bool> {
     }
 }
 
+/// `larger:2 MB` as one word: a unit after a space belongs to the size before it (it was a
+/// size of 2 bytes and the word "mb").
+fn size_units_joined(tokens: Vec<String>) -> Vec<String> {
+    let bare_size = |tok: &str| {
+        let t = tok.strip_prefix('-').unwrap_or(tok).to_ascii_lowercase();
+        let v = t.strip_prefix("larger:").or_else(|| t.strip_prefix("smaller:"));
+        v.is_some_and(|v| !v.is_empty() && v.chars().all(|c| c.is_ascii_digit() || c == '.'))
+    };
+    let mut out: Vec<String> = Vec::with_capacity(tokens.len());
+    for t in tokens {
+        let unit = matches!(t.to_ascii_lowercase().as_str(), "b" | "k" | "kb" | "m" | "mb" | "g" | "gb");
+        match out.last_mut() {
+            Some(prev) if unit && bare_size(prev) => prev.push_str(&t),
+            _ => out.push(t),
+        }
+    }
+    out
+}
+
 /// A size: `100KB`, `1.5MB`, `2 GB`, `300` (bytes); KB is 1024 bytes, as mail clients count.
 fn size(value: &str) -> Option<u64> {
-    let v = value.trim().to_ascii_lowercase();
+    let v = value.trim().trim_matches('"').trim().to_ascii_lowercase();
     let at = v.find(|c: char| !c.is_ascii_digit() && c != '.').unwrap_or(v.len());
     let (num, unit) = v.split_at(at);
     let n: f64 = num.parse().ok().filter(|n: &f64| n.is_finite() && *n >= 0.0)?;
@@ -155,7 +174,7 @@ impl Query {
     pub fn parse(input: &str) -> Query {
         let mut clauses = Vec::new();
         let mut problems = Vec::new();
-        for tok in split_tokens(input).into_iter().take(64) {
+        for tok in size_units_joined(split_tokens(input)).into_iter().take(64) {
             let (negated, tok) = match tok.strip_prefix('-') {
                 Some(rest) if !rest.is_empty() => (true, rest.to_string()),
                 _ => (false, tok),

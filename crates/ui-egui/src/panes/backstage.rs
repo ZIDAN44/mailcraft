@@ -83,7 +83,14 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let t = st.tokens;
     let Some(mut b) = st.backstage.take() else { return };
     let mut close = false;
-    egui::Panel::left("backstage-rail").exact_size(200.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
+    // As wide as its longest name in the language shown (bold, as the page open is), within
+    // reason: "Enregistrer les pièces jointes" was cut at the rail's edge.
+    let longest = ["Back", "Info", "Open & Export", "Save As", "Save Attachments", "Print", "Options", "About", "Exit"]
+        .iter()
+        .map(|l| ui.painter().layout_no_wrap(tl!(*l).to_string(), theme::bold(14.0), t.text).size().x)
+        .fold(0.0, f32::max);
+    let rail = (longest + 46.0 + 14.0).clamp(200.0, 280.0);
+    egui::Panel::left("backstage-rail").exact_size(rail).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
         ui,
         |ui| {
             ui.spacing_mut().item_spacing.y = 2.0;
@@ -120,6 +127,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
             // Close MailCraft (the desktop app; a browser tab is closed by the browser).
             if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
+                // Exit ends MailCraft, where closing the window only hides it (issue #67).
+                st.quit_wanted = true;
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         },
@@ -311,9 +320,12 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
     };
     let id = a.config.id.clone();
     // The account picker.
-    ui.horizontal(|ui| {
+    // In a narrow window the list is as wide as the page and the button goes under it (the two
+    // in a row pushed the page, and every card on it, past the window's edge).
+    ui.horizontal_wrapped(|ui| {
         let current = format!("{}   ·   {}", a.config.email, tl!(kind(a)));
-        egui::ComboBox::from_id_salt("backstage-account").width(420.0).selected_text(current).show_ui(ui, |ui| {
+        let width = (ui.available_width() - 2.0 * ui.spacing().button_padding.x).min(420.0);
+        egui::ComboBox::from_id_salt("backstage-account").width(width).selected_text(current).truncate().show_ui(ui, |ui| {
             for x in &s.accounts {
                 if ui.selectable_label(x.config.id == id, format!("{}   ·   {}", x.config.email, tl!(kind(x)))).clicked() {
                     b.account = Some(x.config.id.clone());

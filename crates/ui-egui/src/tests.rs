@@ -48,8 +48,11 @@ pub(crate) fn app(name: &str) -> (MailApp, std::path::PathBuf) {
 }
 
 pub(crate) fn frame(ctx: &egui::Context, app: &mut MailApp, events: Vec<Event>) {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    windows::layout::dress(app);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, ..Default::default() };
     let mut out = ctx.run_ui(input, |ui| app.ui(ui));
+    windows::layout::look(app, &out.shapes);
     // No renderer here: drop the texture uploads deliberately.
     out.textures_delta.clear();
 }
@@ -168,6 +171,7 @@ pub(crate) fn tour() {
                 email: "zoe@hotmail.com".into(),
                 error: format!("{}. Turn on IMAP on Outlook.com.", mailcraft_engine::model::MICROSOFT_IMAP_CLOSED),
             },
+            Dialog::TrustCertificate { account: "sample".into(), host: "127.0.0.1".into(), fingerprint: "0a1b2c3d".repeat(8) },
             Dialog::add_account_with("zoe@hotmail.com", true),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", true))),

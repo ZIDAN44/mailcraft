@@ -71,6 +71,21 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 acts.push(Action::Run("view.dateFormat", json!({"fullInList": v})));
             }
         });
+        if let Some(kept) = st.keeps_running {
+            let about = match kept {
+                crate::KeptOnClose::Hidden => {
+                    tl!(
+                        "It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it."
+                    )
+                }
+                crate::KeptOnClose::Minimized => {
+                    tl!("Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.")
+                }
+            };
+            setting(ui, false, tl!("Keep MailCraft running when its window is closed"), Some(about), &mut |ui| {
+                switch(ui, s.prefs.close_to_tray, tl!("Keep MailCraft running when its window is closed"), "view.closeToTray", acts);
+            });
+        }
         setting(ui, false, tl!("Language"), None, &mut |ui| {
             let language = st.language.as_str();
             let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());

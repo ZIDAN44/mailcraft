@@ -184,6 +184,8 @@ struct App {
     updater: Option<self_update::Updater>,
     /// When the settings were last looked at ([`App::keep_state`]).
     looked: std::time::Instant,
+    /// MailCraft's icon in the notification area, while it's kept running there.
+    tray: desktop::tray::Tray,
 }
 
 /// How often changed settings are written while MailCraft runs.
@@ -230,6 +232,7 @@ impl eframe::App for App {
         apple_events::deliver(&self.finder, &mut self.app, ctx);
         // An update ready while the window is minimized or behind others: the system says so.
         self.app.follow_update(ctx);
+        self.tray.follow(&mut self.app, ctx);
         // A close from the taskbar or the Dock while minimized: asked about here, as `ui` doesn't run.
         self.app.logic(ctx);
         // On a Mac a close nothing held open quits through AppKit (`apple_events::quit`); last, so
@@ -705,6 +708,7 @@ fn run(
                     native_wayland,
                     updater,
                     looked: std::time::Instant::now(),
+                    tray: desktop::tray::Tray::new(native_wayland),
                 }
             });
             Ok(Box::new(desktop::boot::Window::Booting(Box::new(desktop::boot::Booting {

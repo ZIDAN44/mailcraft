@@ -88,6 +88,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account": string} (a Microsoft account over IMAP starts again through Microsoft Graph, for a mailbox Microsoft won't open over IMAP)"#),
         CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
+        CommandSpec::new("account.trustCertificate", "Trust this certificate", "Account status", |s, v| {
+            s.trust_certificate(p::req_str(v, "account")?, p::req_str(v, "fingerprint")?)
+        })
+        .params(
+            r#"{"account": string, "fingerprint": string (the SHA-256, in hex, of the certificate a mail server on this computer showed: it's trusted for that account's servers on this computer only)}"#,
+        ),
         CommandSpec::new("account.dav", "Calendars and contacts", "File › Info › Account settings", set_dav).params(
             r#"{"account": string, "caldav"?: string (the calendar server's address: its own, the home, or one calendar; empty: found from the account's address), "carddav"?: string (the same for contacts), "username"?: string|null (its own sign-in; null: as the mail server), "password"?: string}"#,
         ),
@@ -241,6 +247,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         check_every: None,
         dav: None,
         user_agent,
+        trusted_certificates: Vec::new(),
     };
     // A line break or tab pasted in with the user name: no server would ever take it (in an
     // Exchange `DOMAIN\user`, a `\r` read from JSON became part of it, and sign-in failed).

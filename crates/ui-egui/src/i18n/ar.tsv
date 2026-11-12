@@ -117,6 +117,7 @@
 	24-hour	24 ساعة
 	12-hour	12 ساعة
 	Whole date and time in the list	التاريخ والوقت كاملان في القائمة
+	Earlier this month	في وقت سابق من هذا الشهر
 	Last month	الشهر الماضي
 	Last week	الأسبوع الماضي
 	Later	لاحقًا
@@ -264,6 +265,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	الخوادم: {imap} (IMAP {imap_port})، {smtp} (SMTP {smtp_port})
 	Settings found: {source}	عُثر على الإعدادات: {source}
 	Show a desktop notification when new mail arrives	اعرض إشعارًا على سطح المكتب عند وصول بريد جديد
+	Keep MailCraft running when its window is closed	إبقاء MailCraft قيد التشغيل عند إغلاق نافذته
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	يبقى في منطقة الإعلامات، ويتحقق من البريد ويعلن عنه. يغلقه «خروج» في صفحة «ملف» أو في قائمة أيقونته.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	تُصغَّر نافذته، ويواصل MailCraft التحقق من البريد والإعلان عنه. يغلقه «خروج» في صفحة «ملف».
+	Open MailCraft	فتح MailCraft
 	Show as plain text	عرض كنص عادي
 	Show formatted	عرض منسّق
 	Show in Favorites	عرض في المفضلة
@@ -774,6 +779,12 @@ month	May	مايو
 	Sign in with Microsoft	تسجيل الدخول باستخدام Microsoft
 	Sign in with Microsoft…	تسجيل الدخول باستخدام Microsoft…
 	Mailbox won't open	تعذّر فتح صندوق البريد
+	Trust this computer's mail server?	هل تثق بخادم البريد على هذا الحاسوب؟
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} موجود على هذا الحاسوب ويعرض شهادة أنشأها بنفسه، لا تضمنها أي جهة. هذا ما يفعله برنامج يربط خدمة بريد بتطبيقات البريد. ثق بها فقط إذا كنت أنت من أعدّ ذلك البرنامج.
+	Certificate fingerprint (SHA-256)	بصمة الشهادة (SHA-256)
+	MailCraft asks again if the server shows another certificate.	سيسأل MailCraft مجددًا إذا عرض الخادم شهادة أخرى.
+	Trust this certificate	الوثوق بهذه الشهادة
+	Certificate not trusted yet	الشهادة غير موثوقة بعد
 	The mailbox won't open	تعذّر فتح صندوق البريد
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	يصل Microsoft Graph إلى صندوق البريد دون IMAP، ويجلب التقويم وجهات الاتصال أيضًا. يبدأ الحساب من جديد عبره: يُنزَّل بريده من الخادم.
 	Turned IMAP on, or picked another account in the browser? Sign in again	هل شغّلت IMAP أو اخترت حسابًا آخر في المتصفح؟ سجّل الدخول مجددًا

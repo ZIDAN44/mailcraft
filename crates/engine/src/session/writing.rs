@@ -308,7 +308,17 @@ impl Session {
 
     /// Message `id`, the one on screen or one set aside: news of a send may come for either.
     pub(super) fn compose_by_id(&self, id: u64) -> Option<Compose> {
-        self.all_composes().find(|c| c.id == id).cloned()
+        self.all_composes().chain(self.sent_away.iter()).find(|c| c.id == id).cloned()
+    }
+
+    /// The message being written leaves the screen. One being sent is kept aside until word
+    /// of it comes ([`Session::sent_away`]).
+    pub(crate) fn let_go_compose(&mut self) -> Option<Compose> {
+        let c = self.compose.take()?;
+        if c.sending && self.sent_away.len() < 64 {
+            self.sent_away.push(c.clone());
+        }
+        Some(c)
     }
 
     pub fn new_compose(&mut self, account: Option<&str>) -> Result<&mut Compose, CmdError> {
@@ -632,6 +642,7 @@ impl Session {
             self.compose = None;
         }
         self.composes.retain(|x| x.id != c.id);
+        self.sent_away.retain(|x| x.id != c.id);
         self.notice("Message sent", false);
     }
 }

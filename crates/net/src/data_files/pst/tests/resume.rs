@@ -391,7 +391,13 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
         message_class: "IPM.Note",
         properties: &[],
     };
+    // A message more, in a file as big as it was and dated as it was (written in the second it
+    // was last written in, or by a program that puts the date back): what it holds says so.
+    let dated = std::fs::metadata(&changed).unwrap().modified().unwrap();
+    let as_it_was = resume::facts(&changed);
     write::append(&changed, &["Inbox"], &[BatchMessage { message: more, attachments: &[] }]).unwrap();
+    std::fs::File::options().write(true).open(&changed).unwrap().set_modified(dated).unwrap();
+    assert_eq!(resume::facts(&changed), as_it_was, "the file's size and date don't tell");
     let (done, _) = go_on(&changed, &store, None);
     assert_eq!((done.blocked, done.messages), (Some(Blocked::SourceChanged), 0));
     assert_eq!((checkpoint(&store), store.load_folders("a1").unwrap()), before, "nothing written");

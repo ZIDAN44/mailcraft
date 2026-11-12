@@ -117,6 +117,7 @@
 	24-hour	24시간제
 	12-hour	12시간제
 	Whole date and time in the list	목록에 날짜와 시간 모두 표시
+	Earlier this month	이번 달 초
 	Last month	지난달
 	Last week	지난주
 	Later	나중에
@@ -264,6 +265,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	서버: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	설정을 찾았습니다: {source}
 	Show a desktop notification when new mail arrives	새 메일이 오면 데스크톱 알림 표시
+	Keep MailCraft running when its window is closed	창을 닫아도 MailCraft 계속 실행
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	알림 영역에 남아 메일을 확인하고 새 메일을 알립니다. ‘파일’ 페이지나 아이콘 메뉴의 ‘끝내기’로 닫습니다.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	창이 최소화되고 MailCraft는 계속 메일을 확인하고 새 메일을 알립니다. ‘파일’ 페이지의 ‘끝내기’로 닫습니다.
+	Open MailCraft	MailCraft 열기
 	Show as plain text	일반 텍스트로 표시
 	Show formatted	서식 있게 표시
 	Show in Favorites	즐겨찾기에 표시
@@ -772,6 +777,12 @@
 	Sign in with Microsoft	Microsoft로 로그인
 	Sign in with Microsoft…	Microsoft로 로그인…
 	Mailbox won't open	사서함을 열 수 없음
+	Trust this computer's mail server?	이 컴퓨터의 메일 서버를 신뢰하시겠습니까?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host}은(는) 이 컴퓨터에 있으며 직접 만든 인증서를 제시합니다. 이 인증서를 보증하는 기관은 없습니다. 메일 서비스를 메일 앱에 연결하는 프로그램이 이렇게 동작합니다. 그 프로그램을 직접 설정한 경우에만 신뢰하세요.
+	Certificate fingerprint (SHA-256)	인증서 지문 (SHA-256)
+	MailCraft asks again if the server shows another certificate.	서버가 다른 인증서를 제시하면 MailCraft가 다시 묻습니다.
+	Trust this certificate	이 인증서 신뢰
+	Certificate not trusted yet	아직 신뢰하지 않는 인증서
 	The mailbox won't open	사서함을 열 수 없습니다
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph는 IMAP 없이 사서함에 접근하며 일정과 연락처도 가져옵니다. 계정이 Graph를 통해 다시 시작되며 메일은 서버에서 내려받습니다.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP을 켰거나 브라우저에서 다른 계정을 골랐나요? 다시 로그인

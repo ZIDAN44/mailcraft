@@ -271,6 +271,12 @@ impl Client<Stream> {
     /// Connect to the account's Sieve server: the IMAP host on port 4190, encrypted with
     /// STARTTLS unless the account is plain (local test servers).
     pub fn connect(imap: &ServerConfig, port: u16) -> Result<Client<Stream>> {
+        Self::connect_trusting(imap, port, &[])
+    }
+
+    /// [`Client::connect`] for an account's server: `trusted` are the certificates the user chose
+    /// to trust for one on this computer ([`stream::tls_trusting`]).
+    pub fn connect_trusting(imap: &ServerConfig, port: u16, trusted: &[String]) -> Result<Client<Stream>> {
         let sock = stream::tcp(&imap.host, port)?;
         let mut c = Client::from_stream(Stream::Plain(sock))?;
         if imap.security == Security::None {
@@ -285,7 +291,7 @@ impl Client<Stream> {
         }
         let Stream::Plain(sock) = c.io.into_inner() else { return Err(NetError::Tls("connection already encrypted".into())) };
         // The server repeats its capabilities over TLS (RFC 5804 §2.2); the earlier ones are void.
-        Client::from_stream(stream::tls(sock, &imap.host)?)
+        Client::from_stream(stream::tls_trusting(sock, &imap.host, trusted)?)
     }
 }
 

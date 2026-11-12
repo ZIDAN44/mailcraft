@@ -647,3 +647,19 @@ fn every_change_to_a_reply_is_something_written() {
     assert!(s.compose_written(), "not saved after all");
     done(s);
 }
+
+/// A name with a comma in it (`"Park, Zoe"`, as a reply writes it) stays one recipient in the
+/// draft: it was cut at the comma, leaving `Zoe`, and a name holding an address added one.
+#[test]
+fn a_draft_keeps_a_name_with_a_comma() {
+    let mut s = sample_session("draft-comma-name");
+    s.run("mail.new", &json!({})).unwrap();
+    let to = r#""Park, Zoe" <zoe@studio.example>; "sales@corp.example, Team" <team@studio.example>, half@"#;
+    s.run("compose.update", &json!({"to": to, "subject": "Comma"})).unwrap();
+    assert_eq!(s.run("compose.close", &json!({})).unwrap()["saved"], true);
+    s.run("folder.open", &json!({"account": "sample", "folder": "Drafts"})).unwrap();
+    let m = s.list.iter().find(|m| m.subject == "Comma").unwrap();
+    let to: Vec<(&str, &str)> = m.to.iter().map(|a| (a.name.as_str(), a.email.as_str())).collect();
+    assert_eq!(to, [("Park, Zoe", "zoe@studio.example"), ("sales@corp.example, Team", "team@studio.example")]);
+    done(s);
+}

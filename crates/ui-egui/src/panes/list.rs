@@ -493,21 +493,29 @@ fn message_row(
     // A search over several folders: each result says where it is, before its time.
     let several =
         s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
+    // In a narrow list the sender comes first: where a tag before the time would leave the name
+    // (and the address beside it) no room to be read, the tag isn't drawn.
+    let who_least = if marks.address { 150.0 } else { 90.0 };
+    let fits = |tw: f32, w: f32| right - tw - 10.0 - w - 10.0 - x >= who_least;
     if let Some(f) = s.folder(&m.key.account, &m.key.folder).filter(|_| several) {
         let name: String = crate::i18n::folder(f).chars().take(24).collect();
         let fg = p.layout_no_wrap(name, theme::regular(11.5), t.faint);
         let fw = fg.size().x;
-        p.galley(egui::pos2(mr.start(right - tw - 10.0 - fw, fw), line1 + 2.0), fg, t.faint);
-        tw += fw + 10.0;
+        if fits(tw, fw) {
+            p.galley(egui::pos2(mr.start(right - tw - 10.0 - fw, fw), line1 + 2.0), fg, t.faint);
+            tw += fw + 10.0;
+        }
     }
     // From outside the organisation: a small tag before the time.
     if marks.external {
         let eg = p.layout_no_wrap(tl!("External").to_string(), theme::regular(11.0), t.dim);
         let ew = eg.size().x + 10.0;
-        let er = mr.rect(Rect::from_min_size(egui::pos2(right - tw - 10.0 - ew, line1), vec2(ew, 17.0)));
-        p.rect_stroke(er, 4.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-        p.galley(er.center() - eg.size() / 2.0, eg, t.dim);
-        tw += ew + 10.0;
+        if fits(tw, ew) {
+            let er = mr.rect(Rect::from_min_size(egui::pos2(right - tw - 10.0 - ew, line1), vec2(ew, 17.0)));
+            p.rect_stroke(er, 4.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+            p.galley(er.center() - eg.size() / 2.0, eg, t.dim);
+            tw += ew + 10.0;
+        }
     }
     let mut who_x = x;
     // Something about the sender doesn't add up: a warning sign before the name (the reading

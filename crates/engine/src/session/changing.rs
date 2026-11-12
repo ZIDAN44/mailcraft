@@ -26,6 +26,9 @@ impl Session {
             return Ok(());
         }
         let local = self.account(account).is_none_or(AccountState::is_local);
+        if !local {
+            self.note_moved_in(account, &op);
+        }
         self.apply_op_memory(account, &op);
         let done = if local { self.apply_op_local(account, &op) } else { Ok(()) };
         // A flag or category is changed in the list as it stands, where that gives the same list.
@@ -37,6 +40,26 @@ impl Session {
             self.jobs.push(Job::Apply { account: account.to_string(), op });
         }
         done
+    }
+
+    /// Mail moved into an Inbox or Junk on a server is remembered ([`Session::moved_in`]): seen
+    /// there under a new UID, it was taken for mail arriving, so a rule filed it straight back
+    /// where it was dragged from, an undone delete was announced as new, and "Not junk" on a
+    /// blocked sender's message sent it back to Junk.
+    fn note_moved_in(&mut self, account: &str, op: &Op) {
+        let Op::Move { keys, to } = op else { return };
+        if !matches!(self.folder(account, to).map(|f| f.role), Some(FolderRole::Inbox | FolderRole::Junk)) {
+            return;
+        }
+        if self.moved_in.len() > 2000 {
+            self.moved_in.clear();
+        }
+        for k in keys.iter().filter(|k| k.folder != *to) {
+            let id = self.folder_state(&k.account, &k.folder).messages.iter().find(|m| m.key == *k).map(|m| m.message_id.clone());
+            if let Some(id) = id.filter(|id| !id.is_empty()) {
+                self.moved_in.insert((account.to_string(), to.clone(), id));
+            }
+        }
     }
 
     pub(super) fn apply_op_memory(&mut self, account: &str, op: &Op) {
@@ -338,6 +361,7 @@ impl Session {
                         }
                     }
                 }
+                self.organizing_follows_folder(account, from, to, delimiter);
             }
             Op::DeleteFolder { path } => {
                 self.cache.retain(|(acc, f), _| acc != account || !mailcraft_model::is_within(f, path, delimiter));

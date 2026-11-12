@@ -535,6 +535,7 @@ pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
     let html = &*crate::html::footers_last(html);
     let lower = html.to_ascii_lowercase();
     if !(lower.contains("<table")
+        || lower.contains("center")
         || lower.contains("flex")
         || lower.contains("grid")
         || lower.contains("inline-block")

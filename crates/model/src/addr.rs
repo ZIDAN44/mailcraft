@@ -89,6 +89,12 @@ pub fn parse_list(input: &str) -> Result<Vec<EmailAddress>, String> {
     if bad.is_empty() { Ok(out) } else { Err(bad.join(", ")) }
 }
 
+/// The addresses of [`parse_list`]'s reading that are whole: for a draft, which may hold one
+/// still being typed.
+pub fn parse_valid(input: &str) -> Vec<EmailAddress> {
+    split_outside_quotes(input).into_iter().filter_map(|p| parse_one(p.trim())).collect()
+}
+
 fn parse_one(s: &str) -> Option<EmailAddress> {
     if let (Some(lt), Some(gt)) = (s.rfind('<'), s.rfind('>')) {
         if gt < lt {
@@ -112,7 +118,12 @@ fn split_outside_quotes(s: &str) -> Vec<&str> {
         match c {
             '"' => quoted = !quoted,
             '<' if !quoted => angle = true,
-            '>' if !quoted => angle = false,
+            // An address ends at its `>`: `Ann <a@b.org> Bob <c@d.org>` (two lines pasted) is two.
+            '>' if !quoted && angle => {
+                angle = false;
+                parts.push(s.get(start..=i).unwrap_or_default());
+                start = i + 1;
+            }
             ',' | ';' if !quoted && !angle => {
                 parts.push(s.get(start..i).unwrap_or_default());
                 start = i + c.len_utf8();
@@ -174,5 +185,15 @@ mod tests {
         assert!(!is_valid_email("@b"));
         assert!(!is_valid_email("a b@c"));
         assert!(!is_valid_email("a@.c"));
+    }
+
+    /// Two addresses with nothing but a space or a line end between them (pasted from a list)
+    /// are two: the first was taken for the second's name and never got the message.
+    #[test]
+    fn addresses_run_together_are_each_read() {
+        let got = parse_list("Ann <a@b.org>\nBob <c@d.org> e@f.org; \"Park, Zoe\" <z@x.org>").unwrap();
+        let got: Vec<(&str, &str)> = got.iter().map(|a| (a.name.as_str(), a.email.as_str())).collect();
+        assert_eq!(got, [("Ann", "a@b.org"), ("Bob", "c@d.org"), ("", "e@f.org"), ("Park, Zoe", "z@x.org")]);
+        assert_eq!(parse_valid("\"Park, Zoe\" <z@x.org>, half@").len(), 1);
     }
 }

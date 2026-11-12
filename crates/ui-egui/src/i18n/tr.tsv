@@ -117,6 +117,7 @@
 	24-hour	24 saat
 	12-hour	12 saat
 	Whole date and time in the list	Listede tam tarih ve saat
+	Earlier this month	Bu ayın başlarında
 	Last month	Geçen ay
 	Last week	Geçen hafta
 	Later	Daha sonra
@@ -264,6 +265,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Sunucular: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Ayarlar bulundu: {source}
 	Show a desktop notification when new mail arrives	Yeni posta geldiğinde masaüstü bildirimi göster
+	Keep MailCraft running when its window is closed	Penceresi kapatıldığında MailCraft çalışmaya devam etsin
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Bildirim alanında kalır, postayı denetler ve yeni postayı bildirir. Dosya sayfasındaki veya simgesinin menüsündeki “Çıkış” onu kapatır.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Penceresi simge durumuna küçültülür ve MailCraft postayı denetlemeyi ve yeni postayı bildirmeyi sürdürür. Dosya sayfasındaki “Çıkış” onu kapatır.
+	Open MailCraft	MailCraft’ı aç
 	Show as plain text	Düz metin olarak göster
 	Show formatted	Biçimli göster
 	Show in Favorites	Sık Kullanılanlarda göster
@@ -773,6 +778,12 @@
 	Sign in with Microsoft	Microsoft ile oturum aç
 	Sign in with Microsoft…	Microsoft ile oturum aç…
 	Mailbox won't open	Posta kutusu açılmıyor
+	Trust this computer's mail server?	Bu bilgisayardaki posta sunucusuna güvenilsin mi?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} bu bilgisayarda ve kendi oluşturduğu, hiçbir yetkilinin kefil olmadığı bir sertifika gösteriyor. Bir posta hizmetini posta uygulamalarına bağlayan bir program böyle yapar. Yalnızca o programı siz kurduysanız güvenin.
+	Certificate fingerprint (SHA-256)	Sertifika parmak izi (SHA-256)
+	MailCraft asks again if the server shows another certificate.	Sunucu başka bir sertifika gösterirse MailCraft yeniden sorar.
+	Trust this certificate	Bu sertifikaya güven
+	Certificate not trusted yet	Sertifikaya henüz güvenilmiyor
 	The mailbox won't open	Posta kutusu açılmıyor
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph, posta kutusuna IMAP olmadan erişir; takvimini ve kişilerini de getirir. Hesap onun üzerinden yeniden başlar: postaları sunucudan indirilir.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP'i açtınız mı ya da tarayıcıda başka bir hesap mı seçtiniz? Yeniden oturum açın

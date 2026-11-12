@@ -36,7 +36,8 @@ pub fn deliver(queue: &Inbox, app: &mut mailcraft_ui_egui::MailApp, ctx: &egui::
     for event in queue.drain() {
         let files = match event {
             Event::Quit => {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                // Quit ends MailCraft, where a close of its window may only put it away.
+                app.exit(ctx);
                 continue;
             }
             Event::Open(files) => files,
@@ -105,9 +106,13 @@ pub fn install_menu(ctx: &egui::Context) -> muda::Result<()> {
     let ctx = ctx.clone();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         if event.id.as_ref() == QUIT_ITEM {
-            // Between frames: egui keeps the command for the next one, which this wakes.
-            ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
-            ctx.request_repaint();
+            // Quit ends MailCraft, where a close of its window may only put it away
+            // (`desktop/tray.rs`); before MailCraft is in the window, the window closes.
+            if !crate::desktop::tray::ask_exit(&ctx) {
+                // Between frames: egui keeps the command for the next one, which this wakes.
+                ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
+                ctx.request_repaint();
+            }
         }
     }));
     MENU.set(Some(menu));

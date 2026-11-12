@@ -2,6 +2,8 @@
 
 use super::*;
 
+pub(super) mod layout;
+
 #[test]
 fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
     let (a, dir) = app("tabs");

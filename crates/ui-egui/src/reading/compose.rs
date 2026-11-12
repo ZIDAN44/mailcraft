@@ -386,6 +386,12 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     // Out of the session while its form is drawn, so the original under a reply can be drawn
     // from the session as the reading pane draws a message; put back after.
     let Some(mut taken) = s.compose.take() else { return };
+    // The pictures from the web the reader was shown, for the ones this message quotes.
+    let loaded = s
+        .pictures
+        .iter()
+        .filter_map(|(url, p)| if let mailcraft_engine::Picture::Ready(data) = p { Some((url.clone(), data.clone())) } else { None });
+    rich_edit::web_loaded(ui.ctx(), std::sync::Arc::new(loaded.collect()));
     // The editor's state belongs to one message.
     if st.editor.as_ref().is_none_or(|e| e.id != taken.id) {
         st.editor = Some(rich_edit::Editor::new(taken.id));
@@ -485,15 +491,18 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             ui.add_space(4.0);
             // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);
             // Discard and Pop out (or in) kept at the right, as in Outlook.
-            ui.horizontal(|ui| {
-                let (icon, label, id) =
-                    if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
-                // Where windows can't open (the browser), messages stay in the reading pane.
-                let can_pop = !ui.ctx().embed_viewports();
-                let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
-                let gap = ui.spacing().item_spacing.x;
-                let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
-                let left_w = (ui.available_width() - right).max(120.0);
+            let (icon, label, id) = if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
+            // Where windows can't open (the browser), messages stay in the reading pane.
+            let can_pop = !ui.ctx().embed_viewports();
+            let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
+            let gap = ui.spacing().item_spacing.x;
+            let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
+            // A pane too narrow for both halves side by side has them one under the other (the
+            // left one was drawn under the right one).
+            let beside = ui.available_width() - right >= 160.0;
+            let halves = if beside { egui::Layout::left_to_right(egui::Align::Center) } else { egui::Layout::top_down(egui::Align::Min) };
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), 30.0), halves, |ui| {
+                let left_w = if beside { ui.available_width() - right } else { ui.available_width() };
                 ui.allocate_ui_with_layout(vec2(left_w, 30.0), crate::bidi::row_from_start(egui::Align::Center).with_main_wrap(true), |ui| {
                     if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
                         acts.push(Action::Run("compose.saveDraft", json!({})));

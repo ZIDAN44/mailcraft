@@ -310,21 +310,13 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     }
                     let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
                     widgets::avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark));
-                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        r.left_center() + vec2(42.0, -7.0),
-                        egui::Align2::LEFT_CENTER,
-                        &name,
-                        theme::regular(13.5),
-                        t.text,
-                    );
+                    // Each on one line, "…" where the pane is too narrow (they were cut mid-letter).
+                    let room = r.width() - 46.0;
+                    let line = widgets::one_line(ui, &name, theme::regular(13.5), t.text, room);
+                    ui.painter().galley(r.left_center() + vec2(42.0, -7.0 - line.size().y / 2.0), line, t.text);
                     let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
-                    ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        r.left_center() + vec2(42.0, 8.0),
-                        egui::Align2::LEFT_CENTER,
-                        sub,
-                        theme::regular(11.5),
-                        t.dim,
-                    );
+                    let line = widgets::one_line(ui, &sub, theme::regular(11.5), t.dim, room);
+                    ui.painter().galley(r.left_center() + vec2(42.0, 8.0 - line.size().y / 2.0), line, t.dim);
                     if resp.clicked() {
                         st.person = Some(p.card.uid.clone());
                     }
@@ -336,9 +328,15 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         });
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            for c in 'A'..='Z' {
+            // All of it in the height there is: in a short window the letters that have names
+            // only, closer together (it ran out under the window's edge, the last letters out
+            // of reach).
+            let room = ui.available_height();
+            let shown: Vec<char> = ('A'..='Z').filter(|c| room >= 26.0 * 11.0 || letters.contains(c)).collect();
+            let step = (room / shown.len().max(1) as f32).clamp(8.0, 16.0);
+            for c in shown {
                 let has = letters.contains(&c);
-                let (r, resp) = ui.allocate_exact_size(vec2(INDEX_W, 16.0), if has { Sense::click() } else { Sense::hover() });
+                let (r, resp) = ui.allocate_exact_size(vec2(INDEX_W, step), if has { Sense::click() } else { Sense::hover() });
                 if resp.hovered() && has {
                     ui.painter().rect_filled(r, 3.0, t.hover_row);
                 }
@@ -346,7 +344,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     r.center(),
                     egui::Align2::CENTER_CENTER,
                     c.to_lowercase().to_string(),
-                    theme::regular(11.0),
+                    theme::regular((step * 0.7).clamp(7.5, 11.0)),
                     if has { t.accent } else { t.faint },
                 );
                 if resp.clicked() {

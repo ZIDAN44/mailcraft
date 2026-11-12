@@ -45,7 +45,7 @@ pub use attachments::{
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};
 pub use attachments::{REACTIONS, is_reaction_text, reaction};
-use attachments::{attached, files_of, has_real_attachments, header_raw, reaction_of};
+use attachments::{attached, fields, files_of, has_real_attachments, header_raw, reaction_of};
 use files::attachment_name;
 pub use files::{alt_code_char, alt_code_pages, harmless_to_open, mime_from_name, runs_code, sanitize_filename};
 use hidden::hidden_text_where;
@@ -132,6 +132,7 @@ pub fn preview(text: &str) -> String {
 /// Build a summary from a message's header (or its whole source). `fallback_date` is the
 /// server's INTERNALDATE, used when the `Date` header is missing or unparseable.
 pub fn summary_from_header(raw: &[u8], key: MessageKey, flags: Flags, size: u32, fallback_date: i64) -> Summary {
+    let raw = &*readable_headers(raw);
     let Some(m) = MessageParser::default().parse(raw) else {
         return Summary { key, flags, size, date: fallback_date, subject: String::new(), ..Default::default() };
     };
@@ -139,8 +140,8 @@ pub fn summary_from_header(raw: &[u8], key: MessageKey, flags: Flags, size: u32,
 }
 
 fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u32, fallback_date: i64) -> Summary {
-    let from = addrs(m.from()).into_iter().next().or_else(|| addrs(m.sender()).into_iter().next()).unwrap_or_default();
-    let date = m.date().map(|d| d.to_timestamp()).filter(|t| *t > 0).unwrap_or(fallback_date);
+    let from = addrs(fields::from(m)).into_iter().next().or_else(|| addrs(m.sender()).into_iter().next()).unwrap_or_default();
+    let date = fields::date(m).filter(|t| *t > 0).unwrap_or(fallback_date);
     let content_type_multipart_mixed = m
         .root_part()
         .content_type()
@@ -159,7 +160,7 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         message_id: m.message_id().map(norm_id).unwrap_or_default(),
         in_reply_to: ids(m.in_reply_to()).into_iter().next().unwrap_or_default(),
         references: ids(m.references()),
-        subject: m.subject().unwrap_or_default().trim().to_string(),
+        subject: fields::subject(m),
         from,
         to: addrs(m.to()),
         cc: addrs(m.cc()),
@@ -242,19 +243,11 @@ pub(crate) fn importance(m: &Message<'_>) -> i8 {
 
 /// Mail sent in bulk: lists, newsletters, notifications (RFC 2369 `List-*`, RFC 2919 `List-Id`,
 /// RFC 3834 `Auto-Submitted`, the de-facto `Precedence: bulk|list|junk`, and no-reply senders).
-/// What the top `Authentication-Results` says of the one address in the From line.
-fn checked_sender(m: &Message<'_>) -> SenderCheck {
-    let Some(header) = header_raw(m.root(), "Authentication-Results") else { return SenderCheck::Unknown };
-    let Some(from) = m.from().filter(|f| f.iter().count() == 1 && !f.has_groups()) else { return SenderCheck::Unknown };
-    let address = from.first().and_then(|a| a.address()).unwrap_or_default();
-    trackers::sender_check(header, address.rsplit_once('@').map_or("", |(_, d)| d))
-}
-
 fn is_bulk(m: &Message<'_>) -> bool {
     let has = |name: &str| header_raw(m.root(), name).is_some_and(|v| !v.trim().is_empty());
     let precedence = header_raw(m.root(), "Precedence").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
     let auto = header_raw(m.root(), "Auto-Submitted").map(|v| v.trim().to_ascii_lowercase()).unwrap_or_default();
-    let from = m.from().and_then(|a| a.first()).and_then(|a| a.address()).unwrap_or_default().to_ascii_lowercase();
+    let from = fields::from(m).and_then(|a| a.first()).and_then(|a| a.address()).unwrap_or_default().to_ascii_lowercase();
     has("List-Id")
         || has("List-Unsubscribe")
         || matches!(precedence.as_str(), "bulk" | "list" | "junk")
@@ -383,6 +376,7 @@ pub type RichText = Vec<Vec<Span>>;
 
 /// Parse a full message for display. `None` only for input that isn't a message at all.
 pub fn parse(raw: &[u8]) -> Option<Parsed> {
+    let raw = &*readable_headers(raw);
     let m = MessageParser::default().parse(raw)?;
     // mail-parser lists text parts among the HTML bodies too (converted); only real HTML counts.
     let real_html = m.html_body().any(|p| is_html(&p));
@@ -392,7 +386,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         TnefBody::Html(h) if !real_html => Some(h.as_str()),
         _ => None,
     };
-    let html = m.body_html(0).filter(|_| real_html).or(tnef_html.map(std::borrow::Cow::Borrowed));
+    let html = html_whole(&m).filter(|_| real_html).or(tnef_html.map(std::borrow::Cow::Borrowed));
     // Read once as desktop Outlook reads it (issue #47): the copy a newsletter gives Outlook, in
     // tables, rather than the columns of floats it gives the others, and its VML made HTML. Cut
     // at the cap first: what's written from it is read up to a multiple of it ([`WRITTEN_MAX`]).
@@ -438,13 +432,14 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         Some(r) if html.as_deref() == Some(h) => html::html_to_text_within(&r.text, WRITTEN_MAX, r.hidden),
         _ => html_to_text(h),
     };
-    let (text, had_html) = match (m.text_body().len() > 0, m.body_text(0), m.body_html(0)) {
+    let (text, had_html) = match (m.text_body().len() > 0, m.body_text(0), html_whole(&m)) {
         _ if let Some(h) = tnef_html => (as_text(h), true),
         // Prefer the HTML version when the text part is an auto-generated stub.
         (_, Some(t), Some(h)) if t.trim().is_empty() => (as_text(&h), true),
-        (true, Some(t), _) if !m.text_body().next().is_some_and(|p| is_html(&p)) => (tidy_text(&t), real_html),
+        // Every text part (one after an attachment too), soft-wrapped lines whole again.
+        (true, Some(t), _) if !m.text_body().next().is_some_and(|p| is_html(&p)) => (tidy_text(&plain_body(&m).unwrap_or(t.into_owned())), real_html),
         (_, _, Some(h)) => (as_text(&h), true),
-        (_, Some(t), None) => (tidy_text(&t), false),
+        (_, Some(t), None) => (tidy_text(&plain_body(&m).unwrap_or(t.into_owned())), false),
         _ => (String::new(), false),
     };
     // Plain text Outlook wrapped, when the message has none of its own.
@@ -455,13 +450,13 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     let attachments = attached.into_iter().map(|a| a.info).collect();
     let unsubscribe = m.list_unsubscribe().and_then(|a| a.first()).and_then(|x| x.address()).map(|t| t.trim_matches(['<', '>']).to_string());
     Some(Parsed {
-        subject: m.subject().unwrap_or_default().trim().to_string(),
-        from: addrs(m.from()).into_iter().next().unwrap_or_default(),
+        subject: fields::subject(&m),
+        from: addrs(fields::from(&m)).into_iter().next().unwrap_or_default(),
         reply_to: addrs(m.reply_to()),
         to: addrs(m.to()),
         cc: addrs(m.cc()),
         bcc: addrs(m.bcc()),
-        date: m.date().map(|d| d.to_timestamp()).unwrap_or(0),
+        date: fields::date(&m).unwrap_or(0),
         message_id: m.message_id().map(norm_id).unwrap_or_default(),
         in_reply_to: ids(m.in_reply_to()).into_iter().next().unwrap_or_default(),
         references: ids(m.references()),
@@ -476,7 +471,7 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         trackers: tracking,
         unsubscribe,
         bulk: is_bulk(&m),
-        sender_check: checked_sender(&m),
+        sender_check: fields::checked_sender(&m),
         reaction: reaction_of(&m),
     })
 }
@@ -545,7 +540,7 @@ pub fn html_body(raw: &[u8]) -> Option<String> {
             _ => None,
         };
     }
-    m.body_html(0).map(|h| h.into_owned())
+    html_whole(&m).map(|h| h.into_owned())
 }
 
 /// A file attached to an outgoing message.

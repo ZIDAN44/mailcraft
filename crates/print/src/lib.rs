@@ -10,8 +10,12 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+mod rich;
+
+pub use rich::Run;
+
 /// What goes on the pages.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Doc {
     /// Printed large at the top (the subject).
     pub title: String,
@@ -19,6 +23,9 @@ pub struct Doc {
     pub header: Vec<(String, String)>,
     /// The text.
     pub body: String,
+    /// The text with its formatting, a line at a time, for a message that has any: printed in
+    /// place of `body`.
+    pub rich: Vec<Vec<Run>>,
 }
 
 /// Font files to embed (TrueType or OpenType with TrueType outlines).
@@ -50,7 +57,17 @@ struct Font<'a> {
 impl Font<'_> {
     /// The glyph drawing `c` (0, the missing glyph, when the font has none: TrueType ids fit 16 bits).
     fn glyph(&self, c: char) -> u16 {
-        self.charmap.map(c).and_then(|g| u16::try_from(g.to_u32()).ok()).unwrap_or(0)
+        let of = |c: char| self.charmap.map(c).and_then(|g| u16::try_from(g.to_u32()).ok()).unwrap_or(0);
+        match of(c) {
+            // The lines a table is drawn with in text, which few text fonts have: the nearest
+            // character every font has (they printed as empty boxes).
+            0 if ('\u{2500}'..='\u{257F}').contains(&c) => of(match c {
+                '\u{2500}' | '\u{2501}' | '\u{2504}' | '\u{2505}' | '\u{2508}' | '\u{2509}' | '\u{254C}' | '\u{254D}' | '\u{2550}' => '-',
+                '\u{2502}' | '\u{2503}' | '\u{2506}' | '\u{2507}' | '\u{250A}' | '\u{250B}' | '\u{254E}' | '\u{254F}' | '\u{2551}' => '|',
+                _ => '+',
+            }),
+            glyph => glyph,
+        }
     }
 
     /// How far a glyph moves the pen, in font units.
@@ -165,13 +182,26 @@ fn helvetica_width(c: char, bold: bool) -> f32 {
     f32::from(table.get(i).copied().unwrap_or(556))
 }
 
-/// A line of text to place: font (0 regular, 1 bold), size, position.
+/// A piece of text to place: font (0 regular, 1 bold), size, position; and for formatted text
+/// how wide it is, whether it leans, its colour, a highlight behind it and lines through it.
+#[derive(Default)]
 struct Placed {
     font: usize,
     size: f32,
     x: f32,
     y: f32,
     text: String,
+    width: f32,
+    slant: bool,
+    color: Option<[u8; 3]>,
+    background: Option<[u8; 3]>,
+    underline: bool,
+    strike: bool,
+}
+
+/// A colour as PDF's three numbers.
+fn rgb(c: [u8; 3]) -> String {
+    format!("{:.3} {:.3} {:.3}", f32::from(c[0]) / 255.0, f32::from(c[1]) / 255.0, f32::from(c[2]) / 255.0)
 }
 
 /// Split `text` into lines no wider than `width` (words, then characters for long words).
@@ -263,7 +293,7 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
         }
         *y -= lead;
         if let Some(p) = pages.last_mut() {
-            p.push(Placed { font, size, x, y: *y, text });
+            p.push(Placed { font, size, x, y: *y, text, ..Default::default() });
         }
         true
     };
@@ -279,7 +309,7 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
             if i == 0 {
                 let ok = place(&mut pages, &mut y, 1, 9.5, 13.0, MARGIN, format!("{k}:"));
                 if ok && let Some(p) = pages.last_mut() {
-                    p.push(Placed { font: 0, size: 9.5, x: MARGIN + label_w, y, text: line });
+                    p.push(Placed { font: 0, size: 9.5, x: MARGIN + label_w, y, text: line, ..Default::default() });
                 }
             } else {
                 place(&mut pages, &mut y, 0, 9.5, 13.0, MARGIN + label_w, line);
@@ -290,11 +320,30 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
     let rule_page = pages.len() - 1;
     let rule_y = y;
     y -= 6.0;
-    for line in wrap(&faces[0], &doc.body, 11.0, width) {
-        if !place(&mut pages, &mut y, 0, 11.0, 14.5, MARGIN, line) {
-            truncated = true;
-            break;
+    if doc.rich.is_empty() {
+        for line in wrap(&faces[0], &doc.body, rich::SIZE, width) {
+            if !place(&mut pages, &mut y, 0, rich::SIZE, rich::LEAD, MARGIN, line) {
+                truncated = true;
+                break;
+            }
         }
+    } else {
+        // A line of formatted pieces, on one baseline.
+        let fitted = rich::lay(&faces, &doc.rich, width, |lead, row| {
+            if y - lead < MARGIN + 20.0 {
+                if pages.len() >= MAX_PAGES {
+                    return false;
+                }
+                pages.push(Vec::new());
+                y = PAGE_H - MARGIN;
+            }
+            y -= lead;
+            if let Some(p) = pages.last_mut() {
+                p.extend(row.into_iter().map(|piece| Placed { x: MARGIN + piece.x, y, ..piece }));
+            }
+            true
+        });
+        truncated = !fitted;
     }
     if truncated {
         place(&mut pages, &mut y, 1, 11.0, 18.0, MARGIN, "(The rest of the message didn't fit in this document.)".into());
@@ -308,16 +357,37 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
         if i == rule_page {
             let _ = writeln!(c, "0.75 G 0.6 w {MARGIN:.2} {rule_y:.2} m {:.2} {rule_y:.2} l S 0 G", PAGE_W - MARGIN);
         }
+        // Highlights under the text.
+        for p in page {
+            if let Some(b) = p.background {
+                let _ = writeln!(c, "{} rg {:.2} {:.2} {:.2} {:.2} re f 0 g", rgb(b), p.x, p.y - p.size * 0.25, p.width, p.size * 1.2);
+            }
+        }
         c.push_str("BT\n");
         for p in page {
             let enc = faces.get_mut(p.font).map(|f| f.encode(&p.text)).unwrap_or_default();
-            let _ = writeln!(c, "/F{} {:.1} Tf 1 0 0 1 {:.2} {:.2} Tm {enc} Tj", p.font + 1, p.size, p.x, p.y);
+            if let Some(color) = p.color {
+                let _ = write!(c, "{} rg ", rgb(color));
+            }
+            // Italic: the upright font, leaning.
+            let lean = if p.slant { "0.21" } else { "0" };
+            let _ = write!(c, "/F{} {:.1} Tf 1 0 {lean} 1 {:.2} {:.2} Tm {enc} Tj", p.font + 1, p.size, p.x, p.y);
+            c.push_str(if p.color.is_some() { " 0 g\n" } else { "\n" });
         }
         let footer = format!("{} / {n}", i + 1);
         let fw = faces[0].text_width(&footer, 8.0);
         let enc = faces[0].encode(&footer);
         let _ = writeln!(c, "0.45 g /F1 8.0 Tf 1 0 0 1 {:.2} {:.2} Tm {enc} Tj 0 g", (PAGE_W - fw) / 2.0, MARGIN / 2.0);
         c.push_str("ET\n");
+        // Lines under and through the text, in its colour.
+        for p in page.iter().filter(|p| p.underline || p.strike) {
+            let ink = p.color.map_or_else(|| "0 0 0".to_string(), rgb);
+            for (on, at) in [(p.underline, p.y - p.size * 0.12), (p.strike, p.y + p.size * 0.28)] {
+                if on {
+                    let _ = writeln!(c, "{ink} RG {:.2} w {:.2} {at:.2} m {:.2} {at:.2} l S 0 G", p.size * 0.06, p.x, p.x + p.width);
+                }
+            }
+        }
         contents.push(c);
     }
 
@@ -448,6 +518,7 @@ mod tests {
             title: "Storyboard (v2) review".into(),
             header: vec![("From".into(), "Zoe Park <zoe@studio.example>".into()), ("Date".into(), "Wed 14 Oct 2026 09:30".into())],
             body: body.into(),
+            ..Default::default()
         }
     }
 

@@ -281,6 +281,11 @@ pub struct Session {
     /// start asks), once each while MailCraft runs; the window asks when nothing else is open.
     pub ask_password: Vec<String>,
     asked_password: HashSet<String>,
+    /// Certificates to ask about now (issue #77): a mail server on this computer showed one no
+    /// authority vouches for. The account, the server and the certificate's fingerprint; once
+    /// each while MailCraft runs, and the window asks when nothing else is open.
+    pub ask_certificate: Vec<(String, String, String)>,
+    asked_certificate: HashSet<(String, String)>,
     /// The messages on screen, newest first.
     pub list: Vec<SharedSummary>,
     /// Conversations over `list` (when [`Prefs::conversations`] is on).
@@ -303,6 +308,9 @@ pub struct Session {
     /// open): starting another sets the current one aside here rather than losing it.
     /// [`Session::activate_compose`] brings one back to act on.
     pub composes: Vec<Compose>,
+    /// Messages closed while they were being sent, kept until word of the send comes: one that
+    /// isn't sent after all opens again, where it was lost (in neither Drafts nor the Outbox).
+    pub(crate) sent_away: Vec<Compose>,
     /// Messages closed or made way for with their drafts still on the way to a server (#53):
     /// held here, out of sight, until the server or this computer has kept the draft
     /// ([`Event::DraftSaved`]), and given back to be written if neither could.
@@ -377,6 +385,10 @@ pub struct Session {
     pgp: security::PgpState,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
+    /// Mail the user put in a server account's Inbox or Junk (a move, an undo, a snooze over),
+    /// by (account, folder, Message-ID): the server gives it a new UID there, and it isn't
+    /// mail arriving.
+    pub(crate) moved_in: std::collections::HashSet<(String, String, String)>,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
     pub(crate) arrived_invites: Vec<MessageKey>,
     /// New mail to announce (desktop notifications), oldest first.
@@ -465,6 +477,8 @@ impl Session {
             recent_in_memory: Vec::new(),
             showing_more: None,
             ask_password: Vec::new(),
+            ask_certificate: Vec::new(),
+            asked_certificate: HashSet::new(),
             asked_password: HashSet::new(),
             list: Vec::new(),
             threads: Vec::new(),
@@ -477,6 +491,7 @@ impl Session {
             sources: Vec::new(),
             compose: None,
             composes: Vec::new(),
+            sent_away: Vec::new(),
             saving: Vec::new(),
             drafted: writing::DraftedMemo::default(),
             prefs: Prefs::default(),
@@ -513,6 +528,7 @@ impl Session {
             cards: Default::default(),
             pgp: Default::default(),
             seen_uid: HashMap::new(),
+            moved_in: std::collections::HashSet::new(),
             arrived_invites: Vec::new(),
             new_mail: Vec::new(),
             rules: Vec::new(),

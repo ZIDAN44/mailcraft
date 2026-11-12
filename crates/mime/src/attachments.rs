@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
+pub(crate) mod fields;
 mod index_text;
 mod parts;
 mod reactions;
@@ -14,7 +15,7 @@ pub use index_text::index_doc;
 #[doc(hidden)]
 pub use index_text::{IndexStats, index_doc_stats};
 use parts::sent_bytes;
-pub(crate) use parts::{contents, files_of, header_raw};
+pub(crate) use parts::{contents, files_of, header_raw, header_top};
 pub(crate) use reactions::reaction_of;
 pub use reactions::{REACTIONS, is_reaction_text, reaction};
 pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, part_name, text_first};

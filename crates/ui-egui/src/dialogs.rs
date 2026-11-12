@@ -21,6 +21,7 @@ mod organize;
 mod other;
 pub(crate) mod pim_dialogs;
 mod signatures;
+mod trust;
 mod writing;
 
 pub use accounts::*;
@@ -112,6 +113,13 @@ pub enum Dialog {
         account: String,
         email: String,
         error: String,
+    },
+    /// A mail server on this computer showed a certificate no authority vouches for (issue #77):
+    /// whether to trust that one for the account.
+    TrustCertificate {
+        account: String,
+        host: String,
+        fingerprint: String,
     },
     Signature(Box<SignatureForm>),
     /// An account's name, user name and servers.
@@ -268,6 +276,7 @@ impl Dialog {
                     | Dialog::RemoveAccount { .. }
                     | Dialog::StopImport { .. }
                     | Dialog::MailboxClosed { .. }
+                    | Dialog::TrustCertificate { .. }
                     | Dialog::EmptySubject
                     | Dialog::SaveChanges
                     | Dialog::SendCheck(_)
@@ -624,6 +633,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::MailboxClosed { .. }
         | Dialog::EditAccount(..)
         | Dialog::AddSharedMailbox { .. } => accounts::draw(ui, d, s, t, acts),
+        Dialog::TrustCertificate { .. } => trust::draw(ui, d, s, t, acts),
         Dialog::Signature(..) | Dialog::Vacation(..) => mailbox::draw(ui, d, s, t, acts),
         Dialog::Dav(f) => dav::draw(ui, f, t, acts),
         Dialog::ConfirmDelete { .. }

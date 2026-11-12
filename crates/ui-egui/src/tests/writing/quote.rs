@@ -87,3 +87,65 @@ fn a_draft_opens_again_from_drafts() {
     assert!(c.quote.as_ref().is_some_and(|q| !q.parsed.layout.is_empty()), "its original as it came");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #74: a message with a logo from the web, centred over its text, forwarded. The logo the
+/// reader was shown is shown in the forward too, where it was an empty box, and it stays in the
+/// middle. A picture the reader wasn't shown stays unloaded: nothing is fetched for the editor.
+#[test]
+fn a_forward_shows_the_web_picture_the_reader_was_shown_centred() {
+    use egui::{Pos2, Rect, Shape, vec2};
+    let (mut a, dir) = app("forward-web-picture");
+    a.session.prefs.reply_window = false;
+    let url = "https://pictures.example/logo.png";
+    let html = format!(
+        "<html><body><p style=\"text-align:center\"><img src=\"{url}\" width=\"160\" height=\"50\" alt=\"Logo\"></p><p style=\"text-align:center\"><b>Confirmation</b></p><p>Dear John,</p></body></html>"
+    );
+    let store = a.session.store.clone().unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "Archive".into(), validity: 1, uid: 1 };
+    let messages = vec![Summary { key: key.clone(), subject: "Confirmation".into(), date: NOW - 3600, ..Default::default() }];
+    let state = FolderState { validity: 1, uid_next: 2, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 };
+    store.save_folder("sample", "Archive", &state).unwrap();
+    let raw = format!(
+        "From: Trips <trips@x.example>\r\nSubject: Confirmation\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n"
+    );
+    store.write_body(&key, raw.as_bytes()).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("list.open", json!({"key": key.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.forward", json!({}));
+    // The pictures a frame paints (not the fonts' texture), and where "Dear John" is.
+    let paint = |a: &mut MailApp| -> Vec<Rect> {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        fn walk(s: &Shape, pictures: &mut Vec<Rect>) {
+            match s {
+                Shape::Vec(v) => v.iter().for_each(|s| walk(s, pictures)),
+                Shape::Mesh(m) if m.texture_id != egui::TextureId::default() => pictures.push(m.calc_bounds()),
+                _ => {}
+            }
+        }
+        let mut pictures = Vec::new();
+        out.shapes.iter().for_each(|c| walk(&c.shape, &mut pictures));
+        pictures
+    };
+    paint(&mut a);
+    assert!(paint(&mut a).is_empty(), "not shown to the reader: not shown here");
+    let mut png = Vec::new();
+    let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(160, 50, image::Rgba([40, 120, 200, 255])));
+    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    a.session.pictures.insert(url.to_string(), mailcraft_engine::Picture::Ready(std::sync::Arc::new(png)));
+    paint(&mut a);
+    let shown = paint(&mut a);
+    assert_eq!(shown.len(), 1, "the logo is drawn: {shown:?}");
+    let logo = shown[0];
+    assert!((logo.width() - 160.0).abs() < 1.0 && (logo.height() - 50.0).abs() < 1.0, "at its size: {logo:?}");
+    // In the middle of the pane it's in (which starts right of the folders and the list).
+    let pane = Rect::from_min_max(Pos2::new(620.0, 0.0), Pos2::new(1280.0, 800.0));
+    assert!((logo.center().x - pane.center().x).abs() < 40.0, "centred: {logo:?} in {pane:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -10,9 +10,36 @@ impl Session {
     }
 
     pub(super) fn after_outbox_change(&mut self) {
+        let before: Vec<(String, u64)> = self.outbox.iter().map(|(a, i)| (a.clone(), i.id)).collect();
         self.refresh_outbox();
         if self.view == View::Outbox {
+            self.follow_outbox_rows(&before);
             self.refresh_list();
+        }
+    }
+
+    /// An Outbox key counts rows, so a message's changes when one above it is sent or deleted.
+    /// What's selected and what's open follow their messages to their new rows: left on the row
+    /// number, they were another message, and Delete then took that one, never sent.
+    fn follow_outbox_rows(&mut self, before: &[(String, u64)]) {
+        let now = &self.outbox;
+        let moved = |k: &MessageKey| -> Option<MessageKey> {
+            if k.folder != OUTBOX {
+                return Some(k.clone());
+            }
+            let (account, id) = before.get(usize::try_from(k.uid).ok()?.checked_sub(1)?)?;
+            let at = now.iter().position(|(a, i)| a == account && i.id == *id)?;
+            Some(MessageKey { uid: u32::try_from(at + 1).ok()?, ..k.clone() })
+        };
+        let selection: Vec<MessageKey> = self.selection.iter().filter_map(&moved).collect();
+        let focus = self.focus.as_ref().and_then(moved);
+        let anchor = self.anchor.as_ref().and_then(moved);
+        let reading = self.reading.as_ref().map(|r| moved(&r.key));
+        (self.selection, self.focus, self.anchor) = (selection, focus, anchor);
+        match (reading, &mut self.reading) {
+            (Some(Some(key)), Some(r)) => r.key = key,
+            (Some(None), _) => self.reading = None,
+            _ => {}
         }
     }
 
