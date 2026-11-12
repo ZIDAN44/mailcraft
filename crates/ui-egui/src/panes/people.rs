@@ -224,18 +224,16 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
     let accounts = all.iter().map(|(a, _, _)| a).collect::<std::collections::BTreeSet<_>>().len();
     let row = |ui: &mut Ui, on: bool, label: &str, tip: Option<String>, shared: bool| {
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
+        let mirror = crate::bidi::Mirror::new(r);
         if on || resp.hovered() {
             ui.painter().rect_filled(r, 5.0, if on { t.accent_soft } else { t.hover_row });
         }
-        let icon = egui::Rect::from_center_size(r.left_center() + vec2(14.0, 0.0), vec2(14.0, 14.0));
+        let icon = egui::Rect::from_center_size(mirror.pos(r.left_center() + vec2(14.0, 0.0)), vec2(14.0, 14.0));
         icons::paint(ui.painter(), icon, if shared { Icon::People } else { Icon::Person }, if on { t.accent } else { t.dim });
-        ui.painter().with_clip_rect(r.shrink2(vec2(4.0, 0.0))).text(
-            r.left_center() + vec2(28.0, 0.0),
-            egui::Align2::LEFT_CENTER,
-            label,
-            theme::regular(13.0),
-            t.text,
-        );
+        // Limit Latin names too: right-aligned unbounded text would hide its start in RTL.
+        let text = widgets::one_line(ui, label, theme::regular(13.0), t.text, (r.width() - 36.0).max(1.0));
+        let at = egui::pos2(mirror.start(r.left() + 28.0, text.size().x), r.center().y - text.size().y / 2.0);
+        ui.painter().with_clip_rect(r.shrink2(vec2(4.0, 0.0))).galley(at, text, t.text);
         match tip {
             Some(tip) => resp.on_hover_text(tip).clicked(),
             None => resp.clicked(),
@@ -285,11 +283,11 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     };
     let jump_id = egui::Id::unique("people-jump");
     let jump: Option<char> = ui.ctx().data_mut(|d| d.remove_temp(jump_id));
-    ui.horizontal_top(|ui| {
+    ui.with_layout(crate::bidi::row_from_start(egui::Align::Min), |ui| {
         // The list leaves room for the index and the gap before it exactly: a few pixels more and
         // the pane (shared by every module) grew a little each frame, up to its widest.
         let list_w = (ui.available_width() - INDEX_W - ui.spacing().item_spacing.x).max(80.0);
-        ui.allocate_ui_with_layout(vec2(list_w, ui.available_height()), egui::Layout::top_down(egui::Align::Min), |ui| {
+        ui.allocate_ui_with_layout(vec2(list_w, ui.available_height()), crate::bidi::column(), |ui| {
             egui::ScrollArea::vertical().auto_shrink(false).id_salt("people").show(ui, |ui| {
                 let mut letter: Option<char> = None;
                 for p in &people {
@@ -305,18 +303,21 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     }
                     let selected = st.person.as_deref() == Some(p.card.uid.as_str());
                     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
+                    let mirror = crate::bidi::Mirror::new(r);
                     if selected || resp.hovered() {
                         ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
                     }
                     let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
-                    widgets::avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark));
+                    widgets::avatar(ui, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, &initials, theme::avatar_color(&name, t.dark));
                     // Each on one line, "…" where the pane is too narrow (they were cut mid-letter).
                     let room = r.width() - 46.0;
                     let line = widgets::one_line(ui, &name, theme::regular(13.5), t.text, room);
-                    ui.painter().galley(r.left_center() + vec2(42.0, -7.0 - line.size().y / 2.0), line, t.text);
+                    let at = egui::pos2(mirror.start(r.left() + 42.0, line.size().x), r.center().y - 7.0 - line.size().y / 2.0);
+                    ui.painter().galley(at, line, t.text);
                     let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
                     let line = widgets::one_line(ui, &sub, theme::regular(11.5), t.dim, room);
-                    ui.painter().galley(r.left_center() + vec2(42.0, 8.0 - line.size().y / 2.0), line, t.dim);
+                    let at = egui::pos2(mirror.start(r.left() + 42.0, line.size().x), r.center().y + 8.0 - line.size().y / 2.0);
+                    ui.painter().galley(at, line, t.dim);
                     if resp.clicked() {
                         st.person = Some(p.card.uid.clone());
                     }
@@ -565,6 +566,7 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
         let widths: Vec<f32> = cols.iter().map(|c| w * weight(c) / total).collect();
         let row = |ui: &mut Ui, cells: &[String], header: bool, fill: Option<egui::Color32>| -> (egui::Response, Vec<egui::Rect>) {
             let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), Sense::click());
+            let mirror = crate::bidi::Mirror::new(r);
             if let Some(f) = fill {
                 ui.painter().rect_filled(r, 4.0, f);
             }
@@ -573,8 +575,8 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
             for (cw, text) in widths.iter().zip(cells) {
                 let font = if header { theme::bold(12.5) } else { theme::regular(13.0) };
                 let g = widgets::one_line(ui, text, font, if header { t.dim } else { t.text }, cw - 12.0);
-                ui.painter().galley(egui::pos2(x, r.center().y - g.size().y / 2.0), g, t.text);
-                rects.push(egui::Rect::from_min_size(egui::pos2(x - 8.0, r.top()), vec2(*cw, r.height())));
+                ui.painter().galley(egui::pos2(mirror.start(x, g.size().x), r.center().y - g.size().y / 2.0), g, t.text);
+                rects.push(mirror.rect(egui::Rect::from_min_size(egui::pos2(x - 8.0, r.top()), vec2(*cw, r.height()))));
                 x += cw;
             }
             (resp, rects)
