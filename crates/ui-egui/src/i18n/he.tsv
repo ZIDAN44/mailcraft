@@ -169,7 +169,7 @@
 	New rule	כלל חדש
 	New rule…	כלל חדש…
 	Next week	השבוע הבא
-	No published settings: the usual server names are filled in. Check them under Server settings.	אין הגדרות מפורסמות: מולאו שמות השרתים הרגילים. בדוק אותם בהגדרות השרת.
+	No published settings: the usual server names are filled in. Check them under Server settings.	לא פורסמו הגדרות אוטומטיות לחשבון: מולאו שמות שרתים נפוצים. בדוק אותם בהגדרות השרת.
 	No results. Try fewer words, or search all folders.	אין תוצאות. אפשר לצמצם את מילות החיפוש או לחפש בכל התיקיות.
 	No rules yet.	אין עדיין כללים.
 	None (unsafe)	ללא (לא מאובטח)
@@ -1175,7 +1175,7 @@ month	May	מאי
 	the certificate is in another computer's certificate store	התעודה נמצאת במאגר התעודות של מחשב אחר
 	Or use one this computer has	או שימוש בתעודה שיש במחשב הזה
 	On a smart card, or kept by the system: the key stays where it is.	על כרטיס חכם, או שמור במערכת: המפתח נשאר במקומו.
-	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows אינו יכול להסכים על מפתח עם מפתח ה־EC הזה (ייתכן שהספק שלו שומר אותו לחתימה בלבד)
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows אינו יכול לגזור מפתח משותף באמצעות מפתח ה־EC הזה (ייתכן שהספק שלו מאפשר שימוש בו לחתימה בלבד)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	נותרו לכרטיס מעט ניסיונות PIN, ולכן MailCraft לא ינסה: הזן שוב את ה־PIN (קובץ › מידע › אבטחה › שימוש בכרטיס חכם…)
 	the list holds only what changed since another one	הרשימה מכילה רק את מה שהשתנה מאז רשימה אחרת
 	the list covers only some certificates or reasons	הרשימה מכסה רק חלק מהתעודות או מהסיבות
@@ -1206,7 +1206,7 @@ month	May	מאי
 	An update is still downloading	עדכון עדיין בהורדה
 	MailCraft {version} is downloading ({done} of {total}).	ההורדה של MailCraft {version} מתבצעת ({done} מתוך {total}).
 	Add another…	הוסף עוד…
-	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	אישור מחודש מקבל את החתימה וההצפנה; הישן נשמר לקריאת דואר קודם
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	תעודה מחודשת תשמש לחתימה ולהצפנה; התעודה הקודמת תישמר לקריאת דואר ישן
 	Older certificate, valid until {date}: kept to read mail encrypted to it	אישור קודם, בתוקף עד {date}: נשמר לקריאת דואר שהוצפן עבורו
 	Use for sending	שימוש לשליחה
 	Sign and encrypt with this one again; the one in use is kept for reading	לחתום ולהצפין שוב עם אישור זה; האישור שבשימוש נשמר לקריאה
