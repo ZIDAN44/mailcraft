@@ -66,6 +66,7 @@ on GitHub.
 - A message forwarded or answered shows the pictures from the web it quotes, when you were shown them reading it: they were empty boxes (#74). Nothing is fetched for it.
 - The window's title bar, where the system draws it, is light or dark as MailCraft is set to be (File › Options › Theme): on Linux it followed the system alone (#74).
 - An Outlook data file import that was paused or cut off isn't continued on a file that has changed since, even when the change left the file's size and date as they were: MailCraft goes by what the file holds.
+- In Arabic and Hebrew what you type in the search box starts at its right edge, and in a narrow window the box is laid out from the right as the rest of the window is.
 
 ## 0.36.0 - 2026-11-11
 

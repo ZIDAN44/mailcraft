@@ -143,6 +143,44 @@ fn a_right_to_left_interface_is_mirrored() {
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
 
+/// The search field's text starts at the reading edge in Mail and People.
+/// Measure against the actual TextEdit response rect recorded by the app in test builds:
+/// egui clips drawn text tightly to the glyphs, so the glyph clip is not the field rect.
+#[test]
+fn top_search_query_follows_interface_direction() {
+    const QUERY: &str = "R7Q";
+    for module in ["mail", "people"] {
+        for (lang, rtl) in [("en", false), ("he", true)] {
+            let (mut a, dir) = app(&format!("rtl-search-edge-{module}-{lang}"));
+            a.ui.language = lang.into();
+            if module == "people" {
+                a.run("view.module", json!({"name": "people"}));
+                a.ui.people_query = QUERY.into();
+            } else {
+                a.ui.search_text = QUERY.into();
+            }
+            let ctx = egui::Context::default();
+            let size = egui::vec2(1280.0, 800.0);
+            for _ in 0..3 {
+                drawn_text(&ctx, &mut a, size);
+            }
+            let texts = drawn_text(&ctx, &mut a, size);
+            let field: Vec<_> = texts.iter().filter(|(s, ..)| s == QUERY).collect();
+            assert_eq!(field.len(), 1, "{module} {lang}: search input missing or duplicated: {texts:?}");
+            let (_, ink, _) = field[0];
+            let rect = ctx
+                .data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("mailcraft-top-search-input-rect")))
+                .expect("top search TextEdit rect recorded by the app");
+            let space_left = ink.left() - rect.left();
+            let space_right = rect.right() - ink.right();
+            assert!(space_left.is_finite() && space_right.is_finite(), "{module} {lang}: invalid search text geometry");
+            assert_eq!(space_right < space_left, rtl, "{module} {lang}: text should start at the reading edge, ink={ink:?}, field={rect:?}");
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}
+
 /// A right-to-left ribbon too wide for the window starts at its right, New mail in view, and
 /// what doesn't fit can be scrolled to (it ran off the left edge, out of reach).
 #[test]
