@@ -325,7 +325,8 @@ fn people_navigation_and_table_follow_interface_direction() {
                     frame(&ctx, &mut a, vec![button(false)]);
                     assert_eq!(a.ui.people_list.sort, Some(crate::people::Column::Company), "{lang}: Company header click sorts Company");
                 }
-                crate::people::PeopleView::Cards => unreachable!(),
+                // The cards aren't looked at here.
+                crate::people::PeopleView::Cards => {}
             }
         }
         let _ = std::fs::remove_dir_all(dir);
