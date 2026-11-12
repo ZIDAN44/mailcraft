@@ -239,6 +239,17 @@ impl Node {
         out
     }
 
+    /// The room a `<div>` asks for above it (`margin-top`, or `margin`'s first length), in pixels:
+    /// `0` for none, and for any other box (a paragraph's is the empty line the text has for it).
+    pub(super) fn room_above(&self) -> u16 {
+        if self.tag != "div" {
+            return 0;
+        }
+        let all = self.style("margin");
+        let top = self.style("margin-top").or_else(|| all.as_deref().and_then(|v| v.split_whitespace().next()).map(str::to_string));
+        top.as_deref().and_then(length_px).map_or(0, |n| (n.round() as u16).min(MAX_ROOM))
+    }
+
     /// The line along one side of it (`top`, `right`, `bottom`, `left`) its style sets: from
     /// `border-top` or `border`, `border-top-width` and the like over them. None when its style is
     /// `none`, or says none, as CSS has it.

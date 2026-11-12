@@ -140,6 +140,36 @@ fn held(c: &Cell) -> bool {
     !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some() || c.width.is_some() || c.height.is_some()
 }
 
+/// The room inside a `table`'s cell: its own (`padding`), and above its first box the room that
+/// box asks for (`<div style="margin-top: 20px">`: a footer's first line stood against the top
+/// of its box).
+fn room(c: &Node, table: &Node) -> Option<[u16; 4]> {
+    let first = c.kids.iter().find(|k| !matches!(k, Kid::Text(t) if t.trim().is_empty()));
+    let above = match first {
+        Some(Kid::El(n)) if n.spacer().is_none() && n.rule().is_none() => n.room_above(),
+        _ => 0,
+    };
+    if above == 0 {
+        return c.padding();
+    }
+    let mut room = c.padding().unwrap_or([table.cell_padding(); 4]);
+    room[0] = room[0].saturating_add(above).min(MAX_ROOM);
+    Some(room)
+}
+
+/// A box with room above it (`margin-top`, a line's height or more) after text that leaves none
+/// after it: an empty line between them, as a browser parts them. (Paragraphs and line breaks
+/// leave their own, and a browser gives the larger of two, not both.)
+fn parted(n: &Node, pending: &str) -> bool {
+    let before = pending.trim_end();
+    // What the box before it ends with, inside its own closing tags.
+    let within = before.trim_end_matches("</div>").trim_end();
+    n.room_above() >= 12
+        && before.ends_with("</div>")
+        && !["</p>", "</ul>", "</ol>", "</h1>", "</h2>", "</h3>", "</h4>", "</h5>", "</h6>", "<br>", "<br/>"].iter().any(|t| within.ends_with(t))
+        && !matches!(n.kids.iter().find(|k| !matches!(k, Kid::Text(t) if t.trim().is_empty())), Some(Kid::El(c)) if c.tag == "p")
+}
+
 pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     // Boxes side by side (`inline-block`, floated) straight in a cell or the body, with no box
     // around them: columns as they are in any box (issue #47: a newsletter's three
@@ -231,7 +261,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         span: c.attr("colspan").and_then(|s| s.trim().parse::<u16>().ok()).unwrap_or(1).clamp(1, 50),
                                         background_image: c.background_image(),
                                         overlays: Vec::new(),
-                                        padding: c.padding(),
+                                        padding: room(c, n),
                                         valign: c.valign().or(row_valign).unwrap_or(VAlign::Middle),
                                         height: c.min_height().max(row_height),
                                         radius: c.radius(),
@@ -533,7 +563,12 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             // A table past what's laid out: read as blocks, one cell after another. A text table
             // here, of box-drawing lines in a monospace font, is no part of a layout.
             Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending, ctx.size, ctx.bold),
-            k => write_shown(k, &mut pending, ctx.size, ctx.bold),
+            k => {
+                if matches!(k, Kid::El(n) if parted(n, &pending)) {
+                    pending.push_str("<br>");
+                }
+                write_shown(k, &mut pending, ctx.size, ctx.bold);
+            }
         }
     }
     flush(&mut pending, &mut out, ctx);

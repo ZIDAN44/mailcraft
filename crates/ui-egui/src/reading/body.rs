@@ -241,6 +241,10 @@ fn span_font_at_full_size(sp: &mime::Span) -> egui::FontId {
     }
 }
 
+/// How tall an empty line is: the gap a browser leaves between two paragraphs of text this
+/// size (their `1em`), where a line of text is taller.
+pub(super) const BLANK: f32 = 14.0;
+
 impl Body<'_> {
     /// Formatted lines `width` wide, on a background of `page` (for the text's contrast).
     pub(super) fn lines(&mut self, st: &mut UiState, ui: &mut Ui, lines: &[Vec<mime::Span>], width: f32, page: [u8; 3], align: Align) {
@@ -248,7 +252,7 @@ impl Body<'_> {
         for line in lines {
             if line.is_empty() {
                 text_selection::blank(st);
-                ui.add_space(9.0);
+                ui.add_space(BLANK);
                 continue;
             }
             text_selection::line(st);

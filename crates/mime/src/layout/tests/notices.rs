@@ -125,3 +125,30 @@ fn a_divider_alone_in_a_column_is_as_wide_as_the_column() {
     let widths: Vec<Option<Width>> = all.iter().map(|t| t.width).collect();
     assert!(widths.contains(&Some(Width::Px(568))), "{widths:?}");
 }
+
+/// Room a box asks for above it (`margin-top`): above the first box in a cell it's room in the
+/// cell (a footer's first line stood against the top of its box), and between two boxes an
+/// empty line, one, where a paragraph doesn't leave its own.
+#[test]
+fn room_above_a_box_is_kept() {
+    let b = html_layout(&page(
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td width="100">Side</td><td style="padding:0 16px 16px 16px"><div style="margin-top:20px">One</div><div style="margin-top:20px">Two</div><div style="margin:20px 0"><p>Three</p><p>Four</p></div><div style="margin-top:20px">Five</div><div style="margin-top:2px">Six</div><div>Seven</div></td></tr></table>"#,
+    ));
+    let all = tables(&b);
+    let cell = all.iter().flat_map(|t| t.rows.iter().flatten()).find(|c| c.padding.is_some_and(|p| p[1] == 16)).unwrap_or_else(|| panic!("{b:?}"));
+    assert_eq!(cell.padding, Some([20, 16, 16, 16]));
+    let lines: Vec<String> = cell
+        .blocks
+        .iter()
+        .flat_map(|x| if let Block::Text(l) = x { l.clone() } else { Vec::new() })
+        .map(|l| l.iter().map(|s| s.text.as_str()).collect::<String>())
+        .collect();
+    assert_eq!(lines, ["One", "", "Two", "", "Three", "", "Four", "", "Five", "Six", "Seven"]);
+    // No room asked for, none given: a cell keeps its own, or its table's.
+    let plain = html_layout(&page(
+        r#"<table width="100%" cellpadding="3" cellspacing="0" role="presentation"><tr><td width="100">Side</td><td><div style="margin-top:8px">One</div></td><td><div>Two</div></td></tr></table>"#,
+    ));
+    let rooms: Vec<Option<[u16; 4]>> =
+        tables(&plain).iter().flat_map(|t| t.rows.iter().flatten()).filter(|c| c.width.is_none() && c.blocks.len() == 1).map(|c| c.padding).collect();
+    assert!(rooms.contains(&Some([11, 3, 3, 3])) && rooms.contains(&None), "{rooms:?}");
+}
