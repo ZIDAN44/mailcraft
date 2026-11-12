@@ -895,6 +895,8 @@
 	Add	Ajouter
 	Add a shared mailbox	Ajouter une boîte aux lettres partagée
 	Other addresses	Autres adresses
+	Key {key}: signs mail from {addresses}	Clé {key} : signe le courrier envoyé depuis {addresses}
+	Valid until {date}: signs mail from {addresses}	Valide jusqu’au {date} : signe le courrier envoyé depuis {addresses}
 	Find on the server	Chercher sur le serveur
 	Addresses of this same mailbox that you also send from.	Adresses de cette même boîte depuis lesquelles vous envoyez aussi.
 	Add an address	Ajouter une adresse

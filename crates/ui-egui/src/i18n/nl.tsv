@@ -896,6 +896,8 @@ month	May	mei
 	Add	Toevoegen
 	Add a shared mailbox	Een gedeeld postvak toevoegen
 	Other addresses	Andere adressen
+	Key {key}: signs mail from {addresses}	Sleutel {key}: ondertekent e-mail van {addresses}
+	Valid until {date}: signs mail from {addresses}	Geldig tot {date}: ondertekent e-mail van {addresses}
 	Find on the server	Op de server zoeken
 	Addresses of this same mailbox that you also send from.	Adressen van ditzelfde postvak waarvandaan u ook verzendt.
 	Add an address	Een adres toevoegen

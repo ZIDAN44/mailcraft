@@ -204,7 +204,7 @@ fn sending_with_pgp_encrypts_to_known_keys_and_self() {
     let sent = s.run("compose.send", &json!({})).unwrap();
     assert!(sent.get("protecting").is_some(), "{sent}");
     let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::Pgp { work: PgpWork::Protect { .. }, .. })).unwrap();
-    let Job::Pgp { work: PgpWork::Protect { id, raw, sign, encrypt_to, hide_subject }, .. } = job else { panic!() };
+    let Job::Pgp { work: PgpWork::Protect { id, raw, sign, encrypt_to, hide_subject, .. }, .. } = job else { panic!() };
     assert!(sign && hide_subject);
     assert_eq!(encrypt_to.len(), 2, "Ana, and Riley for the Sent copy");
     let head = String::from_utf8_lossy(&raw.0).to_string();
@@ -296,5 +296,45 @@ fn keys_are_listed_kept_and_forgotten() {
     // Nothing secret in what MailCraft keeps.
     let doc = std::fs::read_to_string(s.store.as_ref().unwrap().root().join("accounts").join("sample").join(crate::PGP_DOC)).unwrap_or_default();
     assert!(!doc.contains("PRIVATE"));
+    done(s);
+}
+
+/// Issue #81: mail from another of the account's addresses is signed with the key that names
+/// it, kept beside the one in use, which goes along in its Autocrypt header; with none that
+/// does it isn't signed, and carries no key.
+#[test]
+fn mail_from_another_address_is_signed_with_its_own_key() {
+    let mut s = with_key("pgp-addresses");
+    s.run("account.setAddress", &json!({"account": "sample", "address": "ana@posteo.example"})).unwrap();
+    assert!(s.pgp_key_from("sample", "ana@posteo.example").is_none());
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"from": "ana@posteo.example", "to": "bo@posteo.example", "subject": "Hello"})).unwrap();
+    assert!(!s.compose.as_ref().unwrap().sign, "nothing signs for that address");
+    s.compose.as_mut().unwrap().sign = true;
+    let err = s.run("compose.send", &json!({})).unwrap_err().to_string();
+    assert!(err.contains("no OpenPGP key for ana@posteo.example"), "{err}");
+    s.run("compose.discard", &json!({})).unwrap();
+    // Unsigned from it: no key of another address goes along.
+    let plain = b"From: Ana <ana@posteo.example>\r\nTo: bo@posteo.example\r\nSubject: x\r\n\r\nHi\r\n".to_vec();
+    assert_eq!(s.with_autocrypt("sample", plain.clone()), plain);
+
+    // Its key comes: kept beside Riley's, it signs mail from that address.
+    let riley = riley_key();
+    let ana = ana_public();
+    let ana_info = pgp::info(&ana).unwrap();
+    s.apply(Event::PgpKeys { account: "sample".into(), keys: vec![riley.public.clone(), ana.clone()], imported: None, error: None });
+    assert_eq!(s.pgp_key_from("sample", "ana@posteo.example").unwrap().fingerprint, ana_info.fingerprint);
+    assert_eq!(s.pgp_key_from("sample", "").unwrap().fingerprint, riley.info.fingerprint);
+    assert_eq!(s.signed_by_key("sample", &ana_info.fingerprint), ["ana@posteo.example"]);
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"from": "ana@posteo.example", "to": "bo@posteo.example", "subject": "Hello"})).unwrap();
+    assert!(s.compose.as_ref().unwrap().sign);
+    s.run("compose.send", &json!({})).unwrap();
+    let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::Pgp { work: PgpWork::Protect { .. }, .. })).unwrap();
+    let Job::Pgp { work: PgpWork::Protect { raw, sign, signer, .. }, .. } = job else { panic!() };
+    assert!(sign);
+    assert_eq!(signer.as_deref(), Some(ana_info.fingerprint.as_str()), "the key that names the address it's from");
+    let head = String::from_utf8_lossy(&raw.0).to_string();
+    assert!(head.starts_with("Autocrypt: addr=ana@posteo.example; keydata="), "that address's key goes along: {head}");
     done(s);
 }

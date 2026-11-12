@@ -137,6 +137,33 @@ impl Session {
         self.pgp.own.get(account).and_then(|o| o.first()).cloned()
     }
 
+    /// The account's OpenPGP key mail from `from` is signed with, as [`Session::own_cert_for`]:
+    /// the first that names the address and has nothing wrong with it now.
+    pub(crate) fn own_pgp_for(&self, account: &str, from: &str) -> Option<(Vec<u8>, openpgp::KeyInfo)> {
+        let address = self.address_from(account, from);
+        let s = self.pgp.settings.get(account)?;
+        let infos = self.pgp.own.get(account)?;
+        let mut keys: Vec<(Vec<u8>, openpgp::KeyInfo)> = s.keys.iter().cloned().zip(infos.iter().cloned()).collect();
+        let named = keys.iter().position(|(_, i)| i.is_for(&address) && i.problems(self.clock.now).is_empty());
+        match named {
+            Some(at) => Some(keys.swap_remove(at)),
+            None if self.is_own_address(account, &address) => keys.into_iter().next(),
+            None => None,
+        }
+    }
+
+    /// [`Session::pgp_key`] for mail from `from`: the key that signs it.
+    pub fn pgp_key_from(&self, account: &str, from: &str) -> Option<openpgp::KeyInfo> {
+        self.own_pgp_for(account, from).map(|(_, i)| i)
+    }
+
+    /// The account's addresses whose mail the OpenPGP key `fingerprint` signs, its own first.
+    pub fn signed_by_key(&self, account: &str, fingerprint: &str) -> Vec<String> {
+        self.addresses_signed(account, |s, address| {
+            s.own_pgp_for(account, address).is_some_and(|(_, i)| i.fingerprint.eq_ignore_ascii_case(fingerprint))
+        })
+    }
+
     /// The account's older keys, kept to decrypt mail sent to them.
     pub fn pgp_older_keys(&self, account: &str) -> Vec<openpgp::KeyInfo> {
         self.pgp.own.get(account).map(|o| o.iter().skip(1).cloned().collect()).unwrap_or_default()
@@ -338,7 +365,7 @@ impl Session {
         let from = from.trim().to_lowercase();
         let Some(s) = self.pgp.settings.get(account) else { return Vec::new() };
         let mut out: Vec<Vec<u8>> = s.known.get(&from).map(|k| k.key.clone()).into_iter().collect();
-        if self.accounts.iter().any(|a| a.config.email.trim().eq_ignore_ascii_case(&from)) {
+        if self.accounts.iter().any(|a| a.config.has_address(&from)) {
             out.extend(s.keys.iter().cloned());
         }
         out

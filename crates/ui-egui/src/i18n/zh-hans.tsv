@@ -897,6 +897,8 @@ month	May	5月
 	Add	添加
 	Add a shared mailbox	添加共享邮箱
 	Other addresses	其他地址
+	Key {key}: signs mail from {addresses}	密钥 {key}：为来自 {addresses} 的邮件签名
+	Valid until {date}: signs mail from {addresses}	有效期至 {date}：为来自 {addresses} 的邮件签名
 	Find on the server	在服务器上查找
 	Addresses of this same mailbox that you also send from.	同一邮箱中您也用来发信的地址。
 	Add an address	添加地址

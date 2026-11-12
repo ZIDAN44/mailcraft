@@ -895,6 +895,8 @@
 	Add	Ekle
 	Add a shared mailbox	Paylaşılan posta kutusu ekle
 	Other addresses	Diğer adresler
+	Key {key}: signs mail from {addresses}	Anahtar {key}: {addresses} adresinden giden postayı imzalar
+	Valid until {date}: signs mail from {addresses}	{date} tarihine kadar geçerli: {addresses} adresinden giden postayı imzalar
 	Find on the server	Sunucuda bul
 	Addresses of this same mailbox that you also send from.	Bu aynı posta kutusunun, ileti gönderdiğiniz diğer adresleri.
 	Add an address	Adres ekle

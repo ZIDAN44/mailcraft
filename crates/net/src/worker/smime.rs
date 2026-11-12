@@ -184,9 +184,10 @@ impl Pool {
             Job::UseOlderIdentity { account, fingerprint } => {
                 sink.emit(identity(account.id.clone(), kept::use_older(creds.as_ref(), &account, &fingerprint)))
             }
-            Job::Protect { account, id, raw, sign, encrypt_to, gcm, hide_subject } => {
-                let done = kept(creds.as_ref(), &account).and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
-                forget_wrong_pin(creds.as_ref(), &account, None, &done);
+            Job::Protect { account, id, raw, sign, encrypt_to, gcm, hide_subject, signer } => {
+                let (me, older) = kept::signing(creds.as_ref(), &account, signer.as_deref());
+                let done = me.and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
+                forget_wrong_pin(creds.as_ref(), &account, older.as_deref(), &done);
                 let (raw, error) = match done {
                     Ok(r) => (Some(Private(r)), None),
                     Err(e) => (None, Some(e)),

@@ -894,6 +894,8 @@
 	Add	新增
 	Add a shared mailbox	新增共用信箱
 	Other addresses	其他位址
+	Key {key}: signs mail from {addresses}	金鑰 {key}：為來自 {addresses} 的郵件簽名
+	Valid until {date}: signs mail from {addresses}	有效期至 {date}：為來自 {addresses} 的郵件簽名
 	Find on the server	在伺服器上尋找
 	Addresses of this same mailbox that you also send from.	同一信箱中您也用來寄信的位址。
 	Add an address	新增位址

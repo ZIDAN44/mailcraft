@@ -438,6 +438,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
         raw: mailcraft_model::Private(reply.into_bytes()),
         sign: true,
         encrypt_to: vec![pem("ana.pem"), pem("riley.pem")],
+        signer: None,
         gcm: false,
         hide_subject: false,
     });

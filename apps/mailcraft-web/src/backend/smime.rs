@@ -242,8 +242,13 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
                 Err(e) => emit(sh, failed(id, e.to_string())),
             }
         }
-        Job::Protect { id: msg, raw, sign, encrypt_to, gcm, hide_subject, .. } => {
-            let done = current(sh, id).and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
+        Job::Protect { id: msg, raw, sign, encrypt_to, gcm, hide_subject, signer, .. } => {
+            // With the certificate named (the one for the address it's from), else the one in use.
+            let me = match &signer {
+                Some(cert) => unlocked_for(sh, id, cert).ok_or_else(|| LOCKED.to_string()),
+                None => current(sh, id),
+            };
+            let done = me.and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
             let (raw, error) = match done {
                 Ok(r) => (Some(Private(r)), None),
                 Err(e) => (None, Some(e)),

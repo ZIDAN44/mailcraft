@@ -896,6 +896,8 @@ month	May	מאי
 	Add	הוספה
 	Add a shared mailbox	הוספת תיבת דואר משותפת
 	Other addresses	כתובות נוספות
+	Key {key}: signs mail from {addresses}	המפתח {key}: חותם על דואר מ־{addresses}
+	Valid until {date}: signs mail from {addresses}	בתוקף עד {date}: חותמת על דואר מ־{addresses}
 	Find on the server	חיפוש בשרת
 	Addresses of this same mailbox that you also send from.	כתובות של אותה תיבה שגם מהן אתם שולחים.
 	Add an address	הוספת כתובת

@@ -157,6 +157,7 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
             c.from = f;
         }
         s.follow_from(&was, &was_from);
+        s.signing_follows_from(&was, &was_from);
     }
     Ok(json!({"compose": id}))
 }

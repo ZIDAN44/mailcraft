@@ -894,6 +894,8 @@
 	Add	Добавить
 	Add a shared mailbox	Добавить общий почтовый ящик
 	Other addresses	Другие адреса
+	Key {key}: signs mail from {addresses}	Ключ {key}: подписывает письма с адреса {addresses}
+	Valid until {date}: signs mail from {addresses}	Действителен до {date}: подписывает письма с адреса {addresses}
 	Find on the server	Найти на сервере
 	Addresses of this same mailbox that you also send from.	Адреса этого же ящика, с которых вы тоже отправляете.
 	Add an address	Добавить адрес

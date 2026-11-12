@@ -897,6 +897,8 @@ month	May	5月
 	Add	追加
 	Add a shared mailbox	共有メールボックスを追加
 	Other addresses	その他のアドレス
+	Key {key}: signs mail from {addresses}	キー {key}: {addresses} からのメールに署名します
+	Valid until {date}: signs mail from {addresses}	有効期限 {date}: {addresses} からのメールに署名します
 	Find on the server	サーバーで探す
 	Addresses of this same mailbox that you also send from.	同じメールボックスの、送信にも使うアドレスです。
 	Add an address	アドレスを追加

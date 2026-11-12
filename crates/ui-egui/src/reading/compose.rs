@@ -377,11 +377,13 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     let can_delay = s.compose.as_ref().and_then(|c| s.account(&c.account)).is_some_and(|a| !a.is_local());
     // Sign and Encrypt, for an account with a certificate or an OpenPGP key; which of the two,
     // when it has both; whether everyone in it can receive it encrypted (issue #6).
-    let has_cert = s.compose.as_ref().is_some_and(|c| s.identity(&c.account).is_some());
+    // By the address it's from (issue #81); one with neither of its own can still encrypt
+    // with the account's.
+    let has_cert = s.compose.as_ref().is_some_and(|c| s.identity_for(&c.account, &c.from).or_else(|| s.identity(&c.account)).is_some());
     // Mail goes only from an account that can send it (none set up, or a data file, can't).
     let blocked = s.compose_send_block();
     let blocked_text = blocked.map(send_block_text);
-    let has_pgp = s.compose.as_ref().is_some_and(|c| s.pgp_key(&c.account).is_some());
+    let has_pgp = s.compose.as_ref().is_some_and(|c| s.pgp_key_from(&c.account, &c.from).or_else(|| s.pgp_key(&c.account)).is_some());
     let reach = s.encryption_reach();
     let signatures: Vec<String> = s
         .compose

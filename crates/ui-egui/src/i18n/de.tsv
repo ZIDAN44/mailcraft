@@ -895,6 +895,8 @@
 	Add	Hinzufügen
 	Add a shared mailbox	Freigegebenes Postfach hinzufügen
 	Other addresses	Weitere Adressen
+	Key {key}: signs mail from {addresses}	Schlüssel {key}: signiert E-Mails von {addresses}
+	Valid until {date}: signs mail from {addresses}	Gültig bis {date}: signiert E-Mails von {addresses}
 	Find on the server	Auf dem Server suchen
 	Addresses of this same mailbox that you also send from.	Adressen desselben Postfachs, von denen Sie ebenfalls senden.
 	Add an address	Adresse hinzufügen

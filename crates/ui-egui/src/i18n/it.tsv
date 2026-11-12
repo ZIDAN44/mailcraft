@@ -894,6 +894,8 @@
 	Add	Aggiungi
 	Add a shared mailbox	Aggiungi una cassetta postale condivisa
 	Other addresses	Altri indirizzi
+	Key {key}: signs mail from {addresses}	Chiave {key}: firma la posta inviata da {addresses}
+	Valid until {date}: signs mail from {addresses}	Valido fino al {date}: firma la posta inviata da {addresses}
 	Find on the server	Cerca sul server
 	Addresses of this same mailbox that you also send from.	Indirizzi di questa stessa casella da cui invii anche.
 	Add an address	Aggiungi un indirizzo

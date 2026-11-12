@@ -92,14 +92,6 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   that hostile or huge mail stays quick: a copy cut there would run its paragraphs together, and
   past two dozen tables, each one nested deeper makes its text slower to read.
 
-### 8. Signed and encrypted mail from an account's other addresses
-
-- **Impact:** A message written from one of an account's other addresses (an alias) is signed
-  with the account's own S/MIME certificate or OpenPGP key, which names the account's own
-  address: the recipient's mail program may warn that the signer isn't the sender.
-- **Workaround:** Send signed mail from the account's own address.
-- **Cause:** Certificates and keys are kept per account, not per address.
-
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

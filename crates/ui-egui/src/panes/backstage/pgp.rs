@@ -68,7 +68,13 @@ pub(super) fn pgp(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: 
         }
         for k in s.pgp_older_keys(&id) {
             let who = k.emails.first().cloned().unwrap_or_else(|| k.name.clone());
-            let about = tf!("Older key {key}: kept to decrypt mail sent to it", key = k.key_id);
+            // One of another of the account's addresses signs mail from it (issue #81).
+            let signs = s.signed_by_key(&id, &k.fingerprint);
+            let about = if signs.is_empty() {
+                tf!("Older key {key}: kept to decrypt mail sent to it", key = k.key_id)
+            } else {
+                tf!("Key {key}: signs mail from {addresses}", key = k.key_id, addresses = signs.join(", "))
+            };
             setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
                 if ui
                     .button(RichText::new(tl!("Remove")).color(t.danger))

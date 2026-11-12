@@ -90,6 +90,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
         sign: true,
         encrypt_to: vec![ole_pub.clone(), pia_pub.clone()],
         hide_subject: true,
+        signer: None,
     };
     pool.submit(Job::Pgp { account: pia_acc.clone(), work });
     let seen = until(&pool, 30, "the protected message", |e| matches!(e, Event::Protected { .. }));

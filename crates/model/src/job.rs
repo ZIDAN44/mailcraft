@@ -230,11 +230,21 @@ pub enum Job {
     /// kept for reading. Answered by [`Event::Identity`].
     UseOlderIdentity { account: AccountConfig, fingerprint: String },
     /// Sign (`sign`) and/or encrypt (to `encrypt_to`, certificates as DER, the account's own
-    /// among them; empty: not encrypted) a message about to be sent, with the account's key;
-    /// `gcm`: AES-GCM, every recipient reads it. Its header fields go inside too (RFC 9788);
-    /// encrypted with `hide_subject`, the Subject outside is `[...]`. Answered by
-    /// [`Event::Protected`].
-    Protect { account: AccountConfig, id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, gcm: bool, hide_subject: bool },
+    /// among them; empty: not encrypted) a message about to be sent, with the account's key:
+    /// that of its certificate `signer` (DER; issue #81: the one that names the address the
+    /// message is from), else of the one in use. `gcm`: AES-GCM, every recipient reads it. Its
+    /// header fields go inside too (RFC 9788); encrypted with `hide_subject`, the Subject
+    /// outside is `[...]`. Answered by [`Event::Protected`].
+    Protect {
+        account: AccountConfig,
+        id: u64,
+        raw: Private,
+        sign: bool,
+        encrypt_to: Vec<Vec<u8>>,
+        gcm: bool,
+        hide_subject: bool,
+        signer: Option<Vec<u8>>,
+    },
     /// Decrypt an encrypted message (its `smime.p7m`, `cms`) with the account's key, or the older
     /// one it was encrypted to. Answered by [`Event::Decrypted`].
     Decrypt { account: AccountConfig, key: MessageKey, cms: Vec<u8> },
@@ -279,8 +289,10 @@ pub enum PgpWork {
     Decrypt { key: MessageKey, data: Vec<u8>, inline: bool, charset: String, verify_with: Vec<Vec<u8>> },
     /// Sign (`sign`) and/or encrypt (to `encrypt_to`, public keys, the account's own among them;
     /// empty: not encrypted) a message about to be sent, as PGP/MIME; its header fields inside
-    /// too, the Subject outside `[...]` with `hide_subject`. Answered by [`Event::Protected`].
-    Protect { id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, hide_subject: bool },
+    /// too, the Subject outside `[...]` with `hide_subject`. Signed with the account's key
+    /// `signer` (its fingerprint; issue #81: the one that names the address the message is
+    /// from), else the one in use. Answered by [`Event::Protected`].
+    Protect { id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, hide_subject: bool, signer: Option<String> },
     /// A draft of a message to be encrypted, encrypted to the account's own key first, then saved
     /// as [`Job::SaveDraft`] (or kept as [`Job::KeepDraft`], `keep`).
     SealDraft { raw: Private, folder: String, replaces: Option<MessageKey>, keep: bool },

@@ -13,6 +13,7 @@ use mailcraft_smime as smime;
 
 use super::*;
 
+mod addresses;
 mod cards;
 mod pgp;
 mod revocation;
@@ -304,11 +305,12 @@ impl Session {
         self.identity(account).is_some() || self.pgp_key(account).is_some()
     }
 
-    /// A new message takes its account's settings.
+    /// A new message takes its account's settings: signed only from an address a certificate
+    /// or a key is for (issue #81).
     pub(super) fn smime_defaults(&self, c: &mut Compose) {
         let s = self.smime_settings(&c.account);
         if self.can_protect(&c.account) {
-            c.sign |= s.sign;
+            c.sign |= s.sign && self.can_sign_from(&c.account, &c.from);
             c.encrypt |= s.encrypt;
             // Encryption follows the recipients, unless it's on already.
             c.encrypt_auto = s.auto_encrypt && !c.encrypt;
@@ -484,9 +486,10 @@ impl Session {
     fn cert_for(&self, account: &str, email: &str) -> Option<(Vec<u8>, bool)> {
         let email = email.trim().to_lowercase();
         let s = self.smime.get(account)?;
-        // The account's own address: its own certificate.
-        if self.account(account).is_some_and(|a| a.config.email.trim().eq_ignore_ascii_case(&email)) {
-            return s.chain.first().map(|c| (c.clone(), true));
+        // One of the account's own addresses: its own certificate, that address's when it
+        // has one.
+        if self.account(account).is_some_and(|a| a.config.has_address(&email)) {
+            return self.own_cert_for(account, &email).map(|(c, _)| c).or_else(|| s.chain.first().cloned()).map(|c| (c, true));
         }
         let k = s.known.get(&email)?;
         // Out of date certificates aren't encrypted to.
@@ -505,10 +508,22 @@ impl Session {
         }
         let s = self.smime_settings(&c.account);
         let config = self.account(&c.account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
-        let Some(own) = s.chain.first().cloned() else {
-            return Err(CmdError::Params(
-                "there's no certificate for this account to sign or encrypt with: import one in File › Info › Security".into(),
-            ));
+        // The certificate of the address it's from (issue #81): one that names another address
+        // would sign as someone who isn't the sender. Only encrypted, the account's own does
+        // for the copy it keeps.
+        let own = match self.own_cert_for(&c.account, from).map(|(c, _)| c) {
+            Some(own) => own,
+            None if s.chain.is_empty() && s.older.is_empty() => {
+                return Err(CmdError::Params(
+                    "there's no certificate for this account to sign or encrypt with: import one in File › Info › Security".into(),
+                ));
+            }
+            None if c.sign => {
+                return Err(CmdError::Params(format!(
+                    "there's no certificate for {from} to sign with: import one that names it in File › Info › Security, or send without signing"
+                )));
+            }
+            None => s.chain.first().or(s.older.first()).cloned().unwrap_or_default(),
         };
         // A certificate out of date signs nothing anyone would trust.
         if let Ok(info) = smime::cert::info(&own)
@@ -540,7 +555,7 @@ impl Session {
                 )));
             }
             // The Sent copy reads too.
-            encrypt_to.push(own);
+            encrypt_to.push(own.clone());
         }
         let job = Job::Protect {
             account: config,
@@ -550,6 +565,7 @@ impl Session {
             encrypt_to,
             gcm: gcm && c.encrypt,
             hide_subject: !s.keep_subject,
+            signer: Some(own),
         };
         self.protecting.insert(c.id, Protecting { compose: c.clone(), from: from.to_string(), recipients: recipients.to_vec() });
         Ok(Some(job))

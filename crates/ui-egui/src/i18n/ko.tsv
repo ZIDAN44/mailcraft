@@ -894,6 +894,8 @@
 	Add	추가
 	Add a shared mailbox	공유 사서함 추가
 	Other addresses	다른 주소
+	Key {key}: signs mail from {addresses}	키 {key}: {addresses}에서 보내는 메일에 서명합니다
+	Valid until {date}: signs mail from {addresses}	{date}까지 유효: {addresses}에서 보내는 메일에 서명합니다
 	Find on the server	서버에서 찾기
 	Addresses of this same mailbox that you also send from.	같은 사서함의 주소로, 여기서도 메일을 보냅니다.
 	Add an address	주소 추가

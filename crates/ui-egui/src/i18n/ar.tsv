@@ -896,6 +896,8 @@ month	May	مايو
 	Add	إضافة
 	Add a shared mailbox	إضافة صندوق بريد مشترك
 	Other addresses	عناوين أخرى
+	Key {key}: signs mail from {addresses}	المفتاح {key}: يوقّع البريد المرسل من {addresses}
+	Valid until {date}: signs mail from {addresses}	صالحة حتى {date}: توقّع البريد المرسل من {addresses}
 	Find on the server	البحث على الخادم
 	Addresses of this same mailbox that you also send from.	عناوين لهذا الصندوق نفسه ترسل منها أيضًا.
 	Add an address	إضافة عنوان
