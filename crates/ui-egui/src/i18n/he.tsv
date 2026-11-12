@@ -17,7 +17,7 @@
 	Added to new messages, replies and forwards.	מתווספת להודעות חדשות, לתשובות ולהעברות.
 	All	הכול
 	All Inboxes	כל תיבות הדואר הנכנס
-	All Sent	כל הנשלחים
+	All Sent	כל הפריטים שנשלחו
 	All caught up: nothing in this folder.	הכול מעודכן: אין כלום בתיקייה הזו.
 	All folders	כל התיקיות
 	Always show from {sender}	הצג תמיד מ-{sender}
@@ -77,7 +77,7 @@
 	File	קובץ
 	Flag	סימון
 	Flag / Unflag (Insert)	סמן / בטל סימון (Insert)
-	Flagged	מסומנים
+	Flagged	מסומנים בדגל
 	Focused	ממוקד
 	Focused Inbox	תיבת דואר נכנס ממוקדת
 	Focused Inbox: put newsletters and automatic mail in Other	תיבת דואר נכנס ממוקדת: העבר ידיעונים ודואר אוטומטי ל„אחר”
@@ -174,7 +174,7 @@
 	No rules yet.	אין עדיין כללים.
 	None (unsafe)	ללא (לא מאובטח)
 	Not an email address: {address}	לא כתובת דואר אלקטרוני: {address}
-	Not junk	לא זבל
+	Not junk	לא דואר זבל
 	Not sent: {error}	לא נשלח: {error}
 	Nothing matches this filter.	שום דבר לא תואם את המסנן.
 	Nov	נוב׳
@@ -222,7 +222,7 @@
 	Reply (Ctrl+R)	השב (Ctrl+R)
 	Reply all	השב לכולם
 	Reply all (Ctrl+Shift+R)	השב לכולם (Ctrl+Shift+R)
-	Report junk	דווח כזבל
+	Report junk	דווח כדואר זבל
 	Results for “{query}”	תוצאות עבור „{query}”
 	Right	ימין
 	Rules	כללים
@@ -244,7 +244,7 @@
 	Save draft	שמור טיוטה
 	Save draft (Ctrl+S)	שמור טיוטה (Ctrl+S)
 	Saved in the Outbox: it will be sent when you're back online	נשמר בדואר היוצא: יישלח כשתחזור להיות מחובר
-	Saved {n} attachments in {folder}	נשמרו {n} קבצים מצורפים ב-{folder}
+	Saved {n} attachments in {folder}	נשמרו {n} קבצים מצורפים בתיקייה {folder}
 	Saved {path}	נשמר {path}
 	Search folders	חפש תיקיות
 	Search mail (from:, subject:, has:attachment…)	חפש בדואר (from:, subject:, has:attachment…)
@@ -281,7 +281,7 @@
 	Sign in with {provider}	היכנס באמצעות {provider}
 	Signature	חתימה
 	Signature…	חתימה…
-	Snooze	נודניק
+	Snooze	הזכר שוב מאוחר יותר
 	Stop showing pictures from this sender	הפסק להציג תמונות מהשולח הזה
 	Strikethrough	קו חוצה
 	Subject	נושא
@@ -617,7 +617,7 @@ month	May	מאי
 	500 KB to 1 MB	500 KB עד 1 MB
 	1 to 5 MB	1 עד 5 MB
 	Over 5 MB	יותר מ-5 MB
-	Not flagged	לא מסומן
+	Not flagged	לא מסומנים בדגל
 	With attachments	עם קבצים מצורפים
 	Without attachments	ללא קבצים מצורפים
 	(nobody)	(אף אחד)
@@ -676,12 +676,12 @@ month	May	מאי
 	{folder} Properties	מאפייני {folder}
 	Size on this computer	גודל במחשב זה
 	Quick print	הדפסה מהירה
-	Always move to Focused	העבר תמיד למיקוד
-	Always move to Other	העבר תמיד לאחר
+	Always move to Focused	העבר תמיד אל „ממוקד”
+	Always move to Other	העבר תמיד אל „אחר”
 	Follow up	מעקב
 	No date	ללא תאריך
 	Mark complete	סמן כהושלם
-	Clear flag	נקה דגל
+	Clear flag	הסר סימון בדגל
 	This week	השבוע
 	Follow up.	מעקב.
 	Follow up. Due today.	מעקב. היעד היום.
@@ -955,7 +955,7 @@ month	May	מאי
 	0 minutes before start	0 דקות לפני ההתחלה
 	1 Reminder	תזכורת אחת
 	{n} Reminders	{n} תזכורות
-	Click Snooze to be reminded again in:	לחץ על 'נודניק' כדי לקבל תזכורת שוב בעוד:
+	Click Snooze to be reminded again in:	לחצו על „הזכר שוב מאוחר יותר” כדי לקבל תזכורת נוספת בעוד:
 	Dismiss	בטל
 	Dismiss All	בטל הכל
 	Open Item	פתח פריט
@@ -970,9 +970,9 @@ month	May	מאי
 	Block sender	חסום שולח
 	Never block sender	לעולם אל תחסום את השולח
 	Never block sender's domain	לעולם אל תחסום את תחום השולח
-	Their mail goes to Junk Email from now on	הדואר שלו יעבור לדואר זבל מעכשיו
-	Their mail is never treated as junk	הדואר שלו לעולם לא ייחשב כזבל
-	Mail from anyone at their domain is never treated as junk	דואר מכל אחד בתחום שלו לעולם לא ייחשב כזבל
+	Their mail goes to Junk Email from now on	מעתה הודעות מהשולח יעברו לדואר זבל
+	Their mail is never treated as junk	הודעות מהשולח לא יסווגו כדואר זבל
+	Mail from anyone at their domain is never treated as junk	הודעות מכל כתובת בתחום של השולח לא יסווגו כדואר זבל
 	Blocked senders	שולחים חסומים
 	Safe senders	שולחים בטוחים
 	Mail from these addresses and domains goes to Junk Email as it arrives.	דואר מכתובות ותחומים אלה עובר לדואר זבל עם הגעתו.
@@ -980,7 +980,7 @@ month	May	מאי
 	name@example.com or @example.com	name@example.com או ‎@example.com
 	And {n} more	ועוד {n}
 	Clean up conversation	נקה שיחה
-	Clean up folder	נקה תיקיה
+	Clean up folder	נקה תיקייה
 	Messages quoted in full by a later reply go to Deleted Items	הודעות שמצוטטות במלואן בתשובה מאוחרת יותר עוברות לפריטים שנמחקו
 	Work week	שבוע עבודה
 	No conversations to clean up	אין שיחות לניקוי
@@ -991,7 +991,7 @@ month	May	מאי
 	Edit Search Folder	ערוך תיקיית חיפוש
 	Customize this Search Folder…	התאם אישית תיקיית חיפוש זו…
 	Delete Search Folder	מחק תיקיית חיפוש
-	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	מציג את הדואר שנמצא בכל תיקיה, למעט פריטים שנמחקו ודואר זבל.
+	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	מציג דואר שנמצא בכל תיקייה, למעט פריטים שנמחקו ודואר זבל.
 	Show	הצג
 	From these people (addresses or names, separated by commas)	מאנשים אלה (כתובות או שמות, מופרדים בפסיקים)
 	Search for	חפש
@@ -1193,7 +1193,7 @@ month	May	מאי
 	It installs the next time you close MailCraft.	הוא יותקן בפעם הבאה שתסגור את MailCraft.
 	It installs when you close MailCraft.	הוא יותקן כשתסגור את MailCraft.
 	Keep MailCraft open	להשאיר את MailCraft פתוח
-	MailCraft {version} is downloading.	MailCraft {version} מורד.
+	MailCraft {version} is downloading.	ההורדה של MailCraft {version} מתבצעת.
 	MailCraft {version} is ready	MailCraft {version} מוכן
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} מוכן. הפעל מחדש עכשיו כדי להתקין אותו, או שהוא יותקן כשתסגור את MailCraft.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	הפעל מחדש את MailCraft כדי להתקין אותו עכשיו, או שהוא יותקן כשתסגור את MailCraft.
@@ -1204,7 +1204,7 @@ month	May	מאי
 	The system asks for your password to install it.	המערכת תבקש את הסיסמה שלך כדי להתקין אותו.
 	Your software installer opens to install it.	מתקין התוכנות שלך ייפתח כדי להתקין אותו.
 	An update is still downloading	עדכון עדיין בהורדה
-	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} מורד ({done} מתוך {total}).
+	MailCraft {version} is downloading ({done} of {total}).	ההורדה של MailCraft {version} מתבצעת ({done} מתוך {total}).
 	Add another…	הוסף עוד…
 	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	אישור מחודש מקבל את החתימה וההצפנה; הישן נשמר לקריאת דואר קודם
 	Older certificate, valid until {date}: kept to read mail encrypted to it	אישור קודם, בתוקף עד {date}: נשמר לקריאת דואר שהוצפן עבורו
@@ -1217,7 +1217,7 @@ month	May	מאי
 	Contacts server (CardDAV)	שרת אנשי קשר (CardDAV)
 	Calendars at {url}	לוחות שנה בכתובת {url}
 	Calendars come from a server of their own: give its address and sign-in	לוחות השנה נמצאים בשרת נפרד: יש להזין את כתובתו ואת פרטי הכניסה
-	Looked for when the account syncs	יחופש כשהחשבון מסתנכרן
+	Looked for when the account syncs	החיפוש יתבצע בעת סנכרון החשבון
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft מחפש את לוחות השנה ואנשי הקשר שלך בשרת של ספק הדואר. אם הם לא נמצאים, יש להזין את הכתובות מדפי העזרה של הספק; שדה שיישאר ריק ימשיך להיות מחופש.
 	No calendars were found at the address given: check it, and its sign-in	לא נמצאו לוחות שנה בכתובת שהוזנה: יש לבדוק אותה ואת פרטי הכניסה
 	Password (kept: type to change it)	סיסמה (שמורה: יש להקליד כדי לשנות)
