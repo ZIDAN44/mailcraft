@@ -117,6 +117,25 @@ impl Worker {
             Job::FlushOutbox { .. } => self.flush_outbox(),
             Job::SyncDav { .. } => self.sync_dav(),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
+            // Only a JMAP server keeps the addresses its mail is sent from where a mail
+            // program can ask for them.
+            Job::FindIdentities { .. } => {
+                if self.conn.is_none()
+                    && let Err(e) = self.connect()
+                {
+                    self.sink.emit(Event::IdentitiesFound { account: self.id(), found: Vec::new(), error: Some(e.to_string()) });
+                    return;
+                }
+                let found = match self.conn.as_ref() {
+                    Some(Conn::Jmap(c)) => jmap::identities(c).map_err(|e| e.to_string()),
+                    _ => Err("this account's server doesn't say which addresses it sends from".to_string()),
+                };
+                let (found, error) = match found {
+                    Ok(found) => (found, None),
+                    Err(e) => (Vec::new(), Some(e)),
+                };
+                self.sink.emit(Event::IdentitiesFound { account: self.id(), found, error });
+            }
             Job::GetVacation { .. } => {
                 let r = self.vacation(None);
                 self.report_vacation(r, None);

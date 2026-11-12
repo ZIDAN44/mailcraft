@@ -408,6 +408,9 @@ impl Pool {
                     });
                 }
             }
+            Job::FindIdentities { account } if self.mail_offline(&account) => {
+                self.sink.emit(Event::IdentitiesFound { account, found: Vec::new(), error: Some("the account is offline".into()) });
+            }
             Job::GetVacation { account } | Job::SetVacation { account, .. } if self.mail_offline(&account) => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
             }

@@ -96,10 +96,10 @@ impl Session {
         let mut people = KnownPeople::new();
         let mut own: Vec<String> = Vec::new();
         for a in &self.accounts {
-            for email in [&a.config.email, &a.config.username] {
+            for email in a.config.addresses().chain([a.config.username.as_str()]) {
                 if addr::is_valid_email(email.trim()) {
-                    people.add(&EmailAddress::new(a.config.name.clone(), email.clone()));
-                    own.push(email.clone());
+                    people.add(&EmailAddress::new(a.config.name.clone(), email.to_string()));
+                    own.push(email.to_string());
                 }
             }
         }

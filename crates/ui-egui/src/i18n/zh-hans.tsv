@@ -896,6 +896,15 @@ month	May	5月
 	Send email	发送电子邮件
 	Add	添加
 	Add a shared mailbox	添加共享邮箱
+	Other addresses	其他地址
+	Find on the server	在服务器上查找
+	Addresses of this same mailbox that you also send from.	同一邮箱中您也用来发信的地址。
+	Add an address	添加地址
+	Change an address	更改地址
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	同一邮箱的另一个地址（例如别名），可以用它发送邮件。写邮件时在“发件人”中选择它。您的邮件服务器必须允许从该地址发送。
+	Name on mail from it	用此地址发信时显示的姓名
+	Replies go to	回复发送到
+	(the account's own)	（帐户自己的签名）
 	Add…	添加…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其文件夹显示在此帐户下。你需要在 Exchange 服务器上拥有访问权限；拥有完全访问权限的邮箱会自动打开。
 	Mailboxes you have full access to open by themselves.	拥有完全访问权限的邮箱会自动打开。

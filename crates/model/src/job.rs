@@ -7,7 +7,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{AccountConfig, Flags, Folder, MessageKey, Summary};
+use crate::{AccountConfig, Flags, Folder, Identity, MessageKey, Summary};
 
 mod compact;
 pub mod eta;
@@ -156,6 +156,9 @@ pub enum Job {
     /// Ask where MailCraft is published for its recent releases (File › About › Check for
     /// updates); answered by [`Event::Releases`].
     CheckUpdates,
+    /// Ask the account's server which addresses its mail is sent from (issue #81: a JMAP
+    /// server keeps them, as identities). Answered by [`Event::IdentitiesFound`].
+    FindIdentities { account: String },
     /// Put message files into a folder of the account, as mail received and read: `.eml` as they
     /// are, Outlook's `.msg` made standard messages (issue #38). Answered by
     /// [`Event::MessagesFiled`].
@@ -317,6 +320,7 @@ impl Job {
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
             | Job::FileMessages { account, .. }
+            | Job::FindIdentities { account }
             | Job::FileCopies { account, .. }
             | Job::RereadDataFile { account, .. }
             | Job::StopImport { account, .. }
@@ -559,6 +563,13 @@ pub enum Event {
         folder: String,
         added: usize,
         failed: Vec<(String, String)>,
+    },
+    /// The addresses the account's server says its mail is sent from ([`Job::FindIdentities`]),
+    /// the account's own among them maybe; or why they couldn't be asked for.
+    IdentitiesFound {
+        account: String,
+        found: Vec<Identity>,
+        error: Option<String>,
     },
     /// What [`Job::FileCopies`] did: the messages whose copies are in the folder now (`done`),
     /// and those whose aren't, and why. `moved`: those done are to be deleted where they were.

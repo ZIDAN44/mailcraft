@@ -300,7 +300,7 @@ mod tests {
     /// Found from the address, as an account with nothing given by hand. The tests' syncs never
     /// look for anything there, out on the network: their calendars and contacts are given, or
     /// were looked for already (`dav_checked`), the contacts none.
-    const AT: Where<'static> = Where { email: USER, username: "", imap_host: "imap.example", caldav: None, carddav: None, mails: true };
+    const AT: Where<'static> = Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true };
 
     fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
         CalEvent { uid: uid.into(), summary: summary.into(), start, end: start + 3600, ..Default::default() }

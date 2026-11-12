@@ -86,6 +86,7 @@ impl Worker {
         let at = crate::dav::Where {
             email: &self.acc.email,
             username: &self.acc.username,
+            others: &self.acc.identities,
             imap_host: host,
             caldav: Some(given.caldav.as_str()).filter(|c| !c.trim().is_empty()),
             carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),

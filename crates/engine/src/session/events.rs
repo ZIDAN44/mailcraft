@@ -165,6 +165,7 @@ impl Session {
                 }
             }
             Event::CopiesFiled { account, folder, done, failed, moved } => self.copies_filed(&account, &folder, done, failed, moved),
+            Event::IdentitiesFound { account, found, error } => self.identities_found(&account, found, error),
             Event::MessageFileRead { path, raw } => self.message_file_read(&path, raw),
             Event::DataFileHealth { account, health, error } => self.health_measured(&account, health.map(|h| *h), error),
             Event::Compacting { account, phase, work, exclusive_s } => self.compacting(&account, phase, work, exclusive_s),
@@ -260,8 +261,14 @@ impl Session {
                     c.window = true;
                     self.open_compose(c);
                 }
+                let mut error = error;
                 if let Some(c) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| c.id == id) {
                     c.sending = false;
+                    // From another of the account's addresses (issue #81): a server that
+                    // refuses it says so in words of its own, which don't name the cause.
+                    if !c.from.is_empty() {
+                        error = format!("{error} (It was written from {}: the mail server may not allow sending from that address.)", c.from);
+                    }
                     c.error = Some(error.clone());
                 }
                 self.notice(format!("Not sent: {error}"), true);

@@ -381,6 +381,43 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                 acts.push(Action::Dialog(Dialog::edit_account(&a.config)));
             }
         });
+        // Its other addresses (issue #81): the same mailbox's, to send from. Not a data file's,
+        // which sends nothing.
+        if !a.is_data_file() {
+            let others = &a.config.identities;
+            let about = if others.is_empty() {
+                tl!("Addresses of this same mailbox that you also send from.").to_string()
+            } else {
+                others.iter().map(|i| i.email.as_str()).collect::<Vec<_>>().join(", ")
+            };
+            setting_row(ui, t, false, name(t, tl!("Other addresses")), Some(note(t, &about)), |ui| {
+                // A JMAP server keeps them: asked for, they're added.
+                if a.config.jmap.is_some() && ui.button(tl!("Find on the server")).clicked() {
+                    acts.push(Action::Run("account.findAddresses", json!({"account": id})));
+                }
+                if ui.button(tl!("Add…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::Address(crate::dialogs::AddressForm::new(&id))));
+                }
+                if !others.is_empty() {
+                    ui.menu_button(tl!("Edit"), |ui| {
+                        for i in others {
+                            if ui.button(i.email.as_str()).clicked() {
+                                acts.push(Action::Dialog(Dialog::Address(crate::dialogs::AddressForm::of(&id, i))));
+                                ui.close();
+                            }
+                        }
+                    });
+                    ui.menu_button(tl!("Remove"), |ui| {
+                        for i in others {
+                            if ui.button(i.email.as_str()).clicked() {
+                                acts.push(Action::Run("account.removeAddress", json!({"account": id, "address": i.email})));
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+            });
+        }
         if a.config.ews.is_some() {
             let added = &a.config.shared_mailboxes;
             let about = if added.is_empty() { tl!("Mailboxes you have full access to open by themselves.").to_string() } else { added.join(", ") };

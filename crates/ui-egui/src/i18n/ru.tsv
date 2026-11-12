@@ -893,6 +893,15 @@
 	Send email	Отправить письмо
 	Add	Добавить
 	Add a shared mailbox	Добавить общий почтовый ящик
+	Other addresses	Другие адреса
+	Find on the server	Найти на сервере
+	Addresses of this same mailbox that you also send from.	Адреса этого же ящика, с которых вы тоже отправляете.
+	Add an address	Добавить адрес
+	Change an address	Изменить адрес
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Ещё один адрес этого же ящика, например псевдоним, с которого можно отправлять почту. Выберите его в поле «От» при написании письма. Почтовый сервер должен разрешать отправку с него.
+	Name on mail from it	Имя в письмах с этого адреса
+	Replies go to	Ответы приходят на
+	(the account's own)	(подпись учётной записи)
 	Add…	Добавить…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Его папки появятся в этой учётной записи. Нужен доступ к нему на сервере Exchange; ящики с полным доступом открываются сами.
 	Mailboxes you have full access to open by themselves.	Ящики с полным доступом открываются сами.

@@ -133,6 +133,11 @@ impl Session {
         if s.no_autocrypt || email.is_empty() || openpgp::info(own).map(|i| i.encryptable(self.clock.now).is_err()).unwrap_or(true) {
             return raw;
         }
+        // The header names the address the message is from: not on one from another of the
+        // account's addresses (issue #81), whose key this isn't.
+        if mime::parse(&raw).is_some_and(|p| !p.from.email.trim().eq_ignore_ascii_case(&email)) {
+            return raw;
+        }
         let Ok(small) = openpgp::minimal(own, &email) else { return raw };
         let mutual = self.smime_settings(account).auto_encrypt;
         [openpgp::autocrypt::header(&email, &small, mutual).as_bytes(), &raw].concat()

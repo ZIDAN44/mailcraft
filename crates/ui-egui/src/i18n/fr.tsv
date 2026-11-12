@@ -894,6 +894,15 @@
 	Send email	Envoyer un courrier
 	Add	Ajouter
 	Add a shared mailbox	Ajouter une boîte aux lettres partagée
+	Other addresses	Autres adresses
+	Find on the server	Chercher sur le serveur
+	Addresses of this same mailbox that you also send from.	Adresses de cette même boîte depuis lesquelles vous envoyez aussi.
+	Add an address	Ajouter une adresse
+	Change an address	Modifier une adresse
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Une autre adresse de cette même boîte, par exemple un alias, depuis laquelle du courrier peut être envoyé. Choisissez-la dans « De » en écrivant un message. Votre serveur de messagerie doit autoriser l’envoi depuis cette adresse.
+	Name on mail from it	Nom sur le courrier envoyé depuis cette adresse
+	Replies go to	Les réponses vont à
+	(the account's own)	(celle du compte)
 	Add…	Ajouter…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Ses dossiers apparaissent sous ce compte. Vous devez y avoir accès sur le serveur Exchange ; celles auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.
 	Mailboxes you have full access to open by themselves.	Les boîtes auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.

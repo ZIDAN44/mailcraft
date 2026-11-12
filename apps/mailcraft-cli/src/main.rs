@@ -14,7 +14,8 @@
 //!   read KEY                       print a message (KEY from `list`)
 //!   search QUERY                   search the cache (from:, subject:, has:attachment…)
 //!   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE] [--signature NAME|none]
-//!        [--from ID]                (From changed to that account after the message is made)
+//!        [--from ID|ADDRESS]        (From changed to that account, or to one of an account's
+//!                                   addresses, after the message is made)
 //!   commands                       every engine command, as JSON
 //!   run ID [JSON]                  run an engine command against the cache (its changes
 //!                                  to mail go to the server with the next `sync`)
@@ -453,7 +454,14 @@ fn run() -> Result<(), String> {
                 Some(name) => drop(s.run("compose.insertSignature", &json!({"name": name})).map_err(|e| e.to_string())?),
             }
             // Sent from another account (From changed): its signature takes the first one's place.
+            // Or from one of an account's addresses (issue #81), given as the address.
             let account = match args.opt("--from") {
+                Some(from) if from.contains('@') => {
+                    let of = s.accounts.iter().find(|a| a.config.has_address(&from)).map(|a| a.config.id.clone());
+                    let of = of.ok_or_else(|| format!("{from} isn't an address of any account"))?;
+                    s.run("compose.update", &json!({"account": of, "from": from})).map_err(|e| e.to_string())?;
+                    of
+                }
                 Some(from) => {
                     s.run("compose.update", &json!({"account": from})).map_err(|e| e.to_string())?;
                     from

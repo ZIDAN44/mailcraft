@@ -156,6 +156,14 @@ pub(crate) fn tour() {
             Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) },
             Dialog::SubscribeCalendar { url: "webcal://holidays.example/de.ics".into(), name: String::new(), error: Some("HTTP 404".into()) },
             Dialog::AddSharedMailbox { account: "sample".into(), address: "sales@contoso.example".into(), error: Some("already open".into()) },
+            Dialog::Address(crate::dialogs::AddressForm {
+                account: "sample".into(),
+                address: "shop@studio.example".into(),
+                name: "The Shop".into(),
+                reply_to: "help@studio.example".into(),
+                error: Some("that's the account's own address".into()),
+                ..Default::default()
+            }),
             Dialog::Dav(crate::dialogs::DavForm {
                 account: "sample".into(),
                 caldav: "https://dav.example.com/calendars/riley/default".into(),

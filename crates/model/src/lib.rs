@@ -25,6 +25,7 @@ pub mod vcard;
 use serde::{Deserialize, Serialize};
 
 pub use addr::EmailAddress;
+pub use addr::identity::Identity;
 pub use dates::zone;
 pub use signature::Signature;
 pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
@@ -144,6 +145,9 @@ pub struct AccountConfig {
     /// differs from `email`: an alias, or another account picked on the sign-in page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth_user: Option<String>,
+    /// Its other addresses (issue #81): the same mailbox's, each one that mail is written from.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub identities: Vec<Identity>,
     /// Other mailboxes this account opens, added by hand (Exchange: Outlook's "Open these
     /// additional mailboxes"); those the server maps to it open by themselves.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

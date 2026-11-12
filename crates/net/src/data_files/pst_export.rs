@@ -252,10 +252,14 @@ pub fn export(
 /// Whose mail and calendar `account`'s are: its addresses (the one it sends from, the one it
 /// signs in as, the one its provider says it signed in as), the meetings its calendar keeps as a
 /// guest, and this computer's zone.
+fn owner_addresses(a: &mailcraft_model::AccountConfig) -> Vec<String> {
+    let known = a.addresses().chain([a.username.as_str(), a.oauth_user.as_deref().unwrap_or_default()]);
+    known.filter(|m| m.contains('@')).map(str::to_string).collect()
+}
+
 fn owner(store: &Store, account: &str, pim: &mailcraft_model::pim::Pim) -> calendar::Owner {
     let config = store.load_accounts().unwrap_or_default().into_iter().find(|a| a.id == account);
-    let me =
-        config.map(|a| [a.email, a.username, a.oauth_user.unwrap_or_default()].into_iter().filter(|m| m.contains('@')).collect()).unwrap_or_default();
+    let me = config.map(|a| owner_addresses(&a)).unwrap_or_default();
     let zone = iana_time_zone::get_timezone().ok().and_then(|z| mailcraft_model::zone::Zone::named(&z)).unwrap_or_default();
     calendar::Owner { me, guest: pim.guest_copies.clone(), zone }
 }

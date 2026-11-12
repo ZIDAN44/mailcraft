@@ -392,7 +392,7 @@ impl Session {
         }
         // Only a signature: the one put in, or (a message from before) the account's.
         let put = c.signature.trim();
-        let signature = self.default_signature(&c.account, c.mode.is_some()).map(|s| signature_parts(&s).0).unwrap_or_default();
+        let signature = self.signature_for(&c.account, &c.from, c.mode.is_some()).map(|s| signature_parts(&s).0).unwrap_or_default();
         let body = c.body.trim();
         !(c.to.trim().is_empty()
             && c.cc.trim().is_empty()
@@ -456,7 +456,8 @@ impl Session {
     /// Build the address book from the cache if it isn't built.
     pub(super) fn ensure_contacts(&mut self) {
         if self.contacts.is_none() {
-            let mine: Vec<String> = self.accounts.iter().flat_map(|a| [a.config.email.clone(), a.config.username.clone()]).collect();
+            let mine: Vec<String> =
+                self.accounts.iter().flat_map(|a| a.config.addresses().chain([a.config.username.as_str()])).map(str::to_string).collect();
             let folders: Vec<(String, String)> =
                 self.accounts.iter().flat_map(|a| a.folders.iter().filter(|f| f.selectable).map(|f| (a.config.id.clone(), f.path.clone()))).collect();
             let mut book = ContactBook::new();
@@ -610,10 +611,8 @@ impl Session {
             ListFilter::Attachments => m.has_attachments,
             ListFilter::Categorized => self.is_categorized(m),
             ListFilter::Important => m.importance > 0,
-            ListFilter::ToMe => self.account(&m.key.account).is_some_and(|a| {
-                let me = a.config.email.trim();
-                !me.is_empty() && m.to.iter().chain(&m.cc).any(|r| r.email.trim().eq_ignore_ascii_case(me))
-            }),
+            // To any of the account's addresses (issue #81).
+            ListFilter::ToMe => self.account(&m.key.account).is_some_and(|a| m.to.iter().chain(&m.cc).any(|r| a.config.has_address(&r.email))),
         }
     }
 

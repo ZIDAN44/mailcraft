@@ -85,10 +85,12 @@ impl Session {
         if to == account {
             return;
         }
+        let mut was_from = String::new();
         if let Some(c) = self.compose.as_mut() {
             c.account = to;
+            was_from = std::mem::take(&mut c.from);
         }
-        self.follow_from(&account);
+        self.follow_from(&account, &was_from);
     }
 
     /// An error unless mail can be sent from `account`.

@@ -893,6 +893,15 @@
 	Send email	傳送電子郵件
 	Add	新增
 	Add a shared mailbox	新增共用信箱
+	Other addresses	其他位址
+	Find on the server	在伺服器上尋找
+	Addresses of this same mailbox that you also send from.	同一信箱中您也用來寄信的位址。
+	Add an address	新增位址
+	Change an address	變更位址
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	同一信箱的另一個位址（例如別名），可以用它寄送郵件。撰寫郵件時在「寄件者」中選擇它。您的郵件伺服器必須允許從該位址寄送。
+	Name on mail from it	用此位址寄信時顯示的名稱
+	Replies go to	回覆寄到
+	(the account's own)	（帳戶自己的簽名）
 	Add…	新增…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其資料夾會顯示在此帳戶下。你需要在 Exchange 伺服器上擁有存取權；擁有完整存取權的信箱會自動開啟。
 	Mailboxes you have full access to open by themselves.	擁有完整存取權的信箱會自動開啟。

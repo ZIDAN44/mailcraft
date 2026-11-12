@@ -48,9 +48,12 @@ impl Session {
             }
         }
         let (importance, read_receipt, source) = mime::sending_options(raw);
+        // From the address it was written from, when that's one of the account's others.
+        let from = self.account(account).and_then(|a| a.config.identity(&p.from.email)).map(|i| i.email.clone()).unwrap_or_default();
         let mut c = Compose {
             id: self.fresh_id(),
             account: account.to_string(),
+            from,
             to: addr::format_field(&p.to),
             cc: addr::format_field(&p.cc),
             bcc: addr::format_field(&p.bcc),

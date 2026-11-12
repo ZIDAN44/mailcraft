@@ -304,7 +304,7 @@ impl Session {
         }
         let Some(p) = mime::parse(raw) else { return };
         let from = p.from.email.trim().to_lowercase();
-        if from.is_empty() || self.accounts.iter().any(|a| a.config.email.trim().eq_ignore_ascii_case(&from)) {
+        if from.is_empty() || self.accounts.iter().any(|a| a.config.has_address(&from)) {
             return;
         }
         let seen = p.date;

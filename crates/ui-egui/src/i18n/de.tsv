@@ -894,6 +894,15 @@
 	Send email	E-Mail senden
 	Add	Hinzufügen
 	Add a shared mailbox	Freigegebenes Postfach hinzufügen
+	Other addresses	Weitere Adressen
+	Find on the server	Auf dem Server suchen
+	Addresses of this same mailbox that you also send from.	Adressen desselben Postfachs, von denen Sie ebenfalls senden.
+	Add an address	Adresse hinzufügen
+	Change an address	Adresse ändern
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Eine weitere Adresse desselben Postfachs, etwa ein Alias, von der E-Mails gesendet werden können. Wählen Sie sie beim Schreiben unter „Von“ aus. Ihr Mailserver muss das Senden von dieser Adresse erlauben.
+	Name on mail from it	Name auf E-Mails von dieser Adresse
+	Replies go to	Antworten gehen an
+	(the account's own)	(die des Kontos)
 	Add…	Hinzufügen…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Seine Ordner erscheinen unter diesem Konto. Sie brauchen auf dem Exchange-Server Zugriff darauf; Postfächer mit Vollzugriff öffnen sich von selbst.
 	Mailboxes you have full access to open by themselves.	Postfächer mit Vollzugriff öffnen sich von selbst.

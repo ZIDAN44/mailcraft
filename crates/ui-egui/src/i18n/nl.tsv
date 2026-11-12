@@ -895,6 +895,15 @@ month	May	mei
 	Send email	E-mail verzenden
 	Add	Toevoegen
 	Add a shared mailbox	Een gedeeld postvak toevoegen
+	Other addresses	Andere adressen
+	Find on the server	Op de server zoeken
+	Addresses of this same mailbox that you also send from.	Adressen van ditzelfde postvak waarvandaan u ook verzendt.
+	Add an address	Een adres toevoegen
+	Change an address	Een adres wijzigen
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Een ander adres van ditzelfde postvak, zoals een alias, waarvandaan e-mail kan worden verzonden. Kies het bij ‘Van’ wanneer u een bericht schrijft. Uw mailserver moet verzenden vanaf dit adres toestaan.
+	Name on mail from it	Naam op e-mail vanaf dit adres
+	Replies go to	Antwoorden gaan naar
+	(the account's own)	(die van het account)
 	Add…	Toevoegen…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	De mappen verschijnen onder dit account. U hebt er toegang toe nodig op de Exchange-server; postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
 	Mailboxes you have full access to open by themselves.	Postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.

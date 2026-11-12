@@ -131,6 +131,11 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
     Ok(block_on(mailcraft_jmap::apply_remote(&c.0, st, op))?)
 }
 
+/// The addresses the account's mail is sent from, as the server keeps them.
+pub fn identities(c: &Client) -> Result<Vec<mailcraft_model::Identity>> {
+    Ok(block_on(c.0.identities())?)
+}
+
 /// Store a message in a folder (a draft, or the copy of a sent message).
 pub fn append(c: &Client, st: &State, folder: &str, raw: &[u8], keywords: &[&str]) -> Result<String> {
     Ok(block_on(mailcraft_jmap::append(&c.0, st, folder, raw, keywords))?)

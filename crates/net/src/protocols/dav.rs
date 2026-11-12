@@ -210,6 +210,8 @@ pub struct Where<'a> {
     pub email: &'a str,
     /// The account's user name when it isn't its address (a meeting it organizes may name it).
     pub username: &'a str,
+    /// Its other addresses (issue #81): a meeting may name one of them.
+    pub others: &'a [mailcraft_model::Identity],
     pub imap_host: &'a str,
     pub caldav: Option<&'a str>,
     pub carddav: Option<&'a str>,
@@ -223,7 +225,8 @@ impl Where<'_> {
     pub fn is_me(&self, address: &str) -> bool {
         let a = address.trim();
         let a = a.get(..7).filter(|p| p.eq_ignore_ascii_case("mailto:")).map_or(a, |_| a.get(7..).unwrap_or("")).trim();
-        !a.is_empty() && [self.email, self.username].iter().any(|m| m.contains('@') && m.trim().eq_ignore_ascii_case(a))
+        let mine = [self.email, self.username].into_iter().chain(self.others.iter().map(|i| i.email.as_str()));
+        !a.is_empty() && mine.into_iter().any(|m| m.contains('@') && m.trim().eq_ignore_ascii_case(a))
     }
 }
 

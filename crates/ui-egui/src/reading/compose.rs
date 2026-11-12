@@ -340,13 +340,19 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             }
         });
     }
-    // From offers the accounts that can send (and the one it's from, whatever it is).
+    // From offers the accounts that can send (and the one it's from, whatever it is), each
+    // with its other addresses under it (issue #81): the account, the address ("" its own),
+    // and who that is.
     let from = s.compose.as_ref().map(|c| c.account.as_str()).unwrap_or_default();
-    let accounts: Vec<(String, String)> = s
+    let accounts: Vec<(String, String, String)> = s
         .accounts
         .iter()
         .filter(|a| a.config.id == from || s.send_block(&a.config.id).is_none())
-        .map(|a| (a.config.id.clone(), EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string()))
+        .flat_map(|a| {
+            let own = (a.config.id.clone(), String::new(), a.config.sender("").to_string());
+            let others = a.config.identities.iter().map(|i| (a.config.id.clone(), i.email.clone(), a.config.sender(&i.email).to_string()));
+            std::iter::once(own).chain(others).collect::<Vec<_>>()
+        })
         .collect();
     // Suggestions for the recipient box being typed in (computed before the form borrows it).
     let suggestions: Vec<Contact> = match (st.suggest_field, s.compose.as_ref()) {
@@ -622,15 +628,22 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                     ui.add_space(10.0);
                     crate::bidi::vertical(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
+                            let is_from = |id: &str, address: &str| c.account == id && c.from.eq_ignore_ascii_case(address);
+                            let current = accounts.iter().find(|(id, address, _)| is_from(id, address)).map(|(_, _, l)| l.clone());
+                            // One no longer among them (an address taken out): the account's own.
+                            let current = current
+                                .or_else(|| accounts.iter().find(|(id, _, _)| *id == c.account).map(|(_, _, l)| l.clone()))
+                                .unwrap_or_default();
                             let many = accounts.len() > 1;
                             let b = label_button_menu(ui, &t, "From", many, many);
                             if many {
                                 egui::Popup::menu(&b).show(|ui| {
-                                    // Through the engine: the signature follows the account (issue #11).
-                                    for (id, label) in &accounts {
-                                        if ui.selectable_label(c.account == *id, label).clicked() && c.account != *id {
-                                            acts.push(Action::Run("compose.update", json!({"account": id})));
+                                    // Through the engine: the signature follows the account
+                                    // (issue #11), and the address.
+                                    for (id, address, label) in &accounts {
+                                        let picked = is_from(id, address);
+                                        if ui.selectable_label(picked, label).clicked() && !picked {
+                                            acts.push(Action::Run("compose.update", json!({"account": id, "from": address})));
                                         }
                                     }
                                 });

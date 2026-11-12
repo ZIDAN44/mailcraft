@@ -893,6 +893,15 @@
 	Send email	메일 보내기
 	Add	추가
 	Add a shared mailbox	공유 사서함 추가
+	Other addresses	다른 주소
+	Find on the server	서버에서 찾기
+	Addresses of this same mailbox that you also send from.	같은 사서함의 주소로, 여기서도 메일을 보냅니다.
+	Add an address	주소 추가
+	Change an address	주소 변경
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	별칭처럼 같은 사서함의 다른 주소로, 이 주소에서 메일을 보낼 수 있습니다. 메시지를 쓸 때 ‘보낸 사람’에서 고르세요. 메일 서버가 이 주소에서 보내는 것을 허용해야 합니다.
+	Name on mail from it	이 주소로 보내는 메일의 이름
+	Replies go to	회신 받을 주소
+	(the account's own)	(계정의 서명)
 	Add…	추가…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	폴더가 이 계정 아래에 표시됩니다. Exchange 서버에서 액세스 권한이 필요하며, 모든 권한이 있는 사서함은 자동으로 열립니다.
 	Mailboxes you have full access to open by themselves.	모든 권한이 있는 사서함은 자동으로 열립니다.

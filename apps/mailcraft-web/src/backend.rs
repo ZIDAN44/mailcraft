@@ -532,6 +532,16 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
                 }
             }
         }
+        Job::FindIdentities { .. } => {
+            let (found, error) = match client(sh, id) {
+                Some(c) => match c.identities().await {
+                    Ok(found) => (found, None),
+                    Err(e) => (Vec::new(), Some(e.to_string())),
+                },
+                None => (Vec::new(), Some("the account is offline".to_string())),
+            };
+            emit(sh, Event::IdentitiesFound { account: id.to_string(), found, error })
+        }
         Job::GetVacation { .. } | Job::SetVacation { .. } => {
             let Some(c) = client(sh, id) else {
                 return emit(sh, Event::Vacation { account: id.to_string(), vacation: None, error: Some("the account is offline".into()) });

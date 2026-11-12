@@ -129,7 +129,8 @@ impl Session {
     pub(crate) fn my_addresses(&self) -> Vec<String> {
         self.accounts
             .iter()
-            .flat_map(|a| [a.config.email.trim().to_ascii_lowercase(), a.config.username.trim().to_ascii_lowercase()])
+            .flat_map(|a| a.config.addresses().chain([a.config.username.as_str()]))
+            .map(|e| e.trim().to_ascii_lowercase())
             .filter(|e| e.contains('@'))
             .collect()
     }

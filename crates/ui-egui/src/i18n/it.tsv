@@ -893,6 +893,15 @@
 	Send email	Invia email
 	Add	Aggiungi
 	Add a shared mailbox	Aggiungi una cassetta postale condivisa
+	Other addresses	Altri indirizzi
+	Find on the server	Cerca sul server
+	Addresses of this same mailbox that you also send from.	Indirizzi di questa stessa casella da cui invii anche.
+	Add an address	Aggiungi un indirizzo
+	Change an address	Modifica un indirizzo
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Un altro indirizzo di questa stessa casella, ad esempio un alias, da cui si può inviare posta. Sceglilo in «Da» quando scrivi un messaggio. Il server di posta deve consentire l’invio da questo indirizzo.
+	Name on mail from it	Nome sulla posta inviata da questo indirizzo
+	Replies go to	Le risposte vanno a
+	(the account's own)	(quella dell’account)
 	Add…	Aggiungi…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Le sue cartelle compaiono sotto questo account. Serve l'accesso sul server Exchange; quelle a cui hai accesso completo si aprono da sole.
 	Mailboxes you have full access to open by themselves.	Le cassette a cui hai accesso completo si aprono da sole.

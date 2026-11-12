@@ -700,6 +700,11 @@ mod tests {
 
         // Mailbox settings: the space used, automatic replies, emptying Deleted Items.
         assert!(seen.iter().any(|e| matches!(e, Event::Quota { used, limit: 1_000_000, .. } if *used > 0)), "the quota comes with a full sync");
+        // The addresses it sends from, as the server keeps them (issue #81).
+        pool.submit(Job::FindIdentities { account: "a1".into() });
+        let seen = until(&pool, "identities", |e| matches!(e, Event::IdentitiesFound { .. }));
+        let Some(Event::IdentitiesFound { found, error: None, .. }) = seen.last() else { panic!("{:?}", seen.last()) };
+        assert_eq!(found.iter().map(|i| (i.email.as_str(), i.name.as_str())).collect::<Vec<_>>(), [(USER, "Me")]);
         pool.submit(Job::GetVacation { account: "a1".into() });
         until(&pool, "replies read", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if !v.enabled));
         let away = mailcraft_model::job::Vacation {

@@ -895,6 +895,15 @@ month	May	מאי
 	Send email	שליחת דואר
 	Add	הוספה
 	Add a shared mailbox	הוספת תיבת דואר משותפת
+	Other addresses	כתובות נוספות
+	Find on the server	חיפוש בשרת
+	Addresses of this same mailbox that you also send from.	כתובות של אותה תיבה שגם מהן אתם שולחים.
+	Add an address	הוספת כתובת
+	Change an address	שינוי כתובת
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	כתובת נוספת של אותה תיבה, למשל כינוי, שאפשר לשלוח ממנה דואר. בחרו בה בשדה ״מאת״ בעת כתיבת הודעה. שרת הדואר צריך לאפשר שליחה ממנה.
+	Name on mail from it	השם על דואר שנשלח ממנה
+	Replies go to	תשובות נשלחות אל
+	(the account's own)	(זו של החשבון)
 	Add…	הוספה…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	התיקיות שלה יופיעו תחת החשבון הזה. נדרשת לך גישה אליה בשרת Exchange; תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.
 	Mailboxes you have full access to open by themselves.	תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.

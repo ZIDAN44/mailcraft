@@ -896,6 +896,15 @@ month	May	5月
 	Send email	メールを送信
 	Add	追加
 	Add a shared mailbox	共有メールボックスを追加
+	Other addresses	その他のアドレス
+	Find on the server	サーバーで探す
+	Addresses of this same mailbox that you also send from.	同じメールボックスの、送信にも使うアドレスです。
+	Add an address	アドレスを追加
+	Change an address	アドレスを変更
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	エイリアスなど、同じメールボックスの別のアドレスで、そこからメールを送信できます。メッセージを書くときに「差出人」で選びます。メール サーバーがそのアドレスからの送信を許可している必要があります。
+	Name on mail from it	このアドレスから送るメールの名前
+	Replies go to	返信先
+	(the account's own)	(アカウントの署名)
 	Add…	追加…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	フォルダーはこのアカウントの下に表示されます。Exchange サーバーでのアクセス権が必要です。フル アクセス権のあるメールボックスは自動的に開きます。
 	Mailboxes you have full access to open by themselves.	フル アクセス権のあるメールボックスは自動的に開きます。

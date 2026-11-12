@@ -4,6 +4,8 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+pub mod identity;
+
 /// A display name and an address (`Zoe Park <zoe@example.org>`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EmailAddress {

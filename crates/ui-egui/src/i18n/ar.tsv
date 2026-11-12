@@ -895,6 +895,15 @@ month	May	مايو
 	Send email	إرسال بريد إلكتروني
 	Add	إضافة
 	Add a shared mailbox	إضافة صندوق بريد مشترك
+	Other addresses	عناوين أخرى
+	Find on the server	البحث على الخادم
+	Addresses of this same mailbox that you also send from.	عناوين لهذا الصندوق نفسه ترسل منها أيضًا.
+	Add an address	إضافة عنوان
+	Change an address	تغيير عنوان
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	عنوان آخر لهذا الصندوق نفسه، مثل اسم مستعار، يمكن إرسال البريد منه. اختره في «من» عند كتابة رسالة. يجب أن يسمح خادم البريد بالإرسال منه.
+	Name on mail from it	الاسم على البريد المرسل منه
+	Replies go to	الردود تذهب إلى
+	(the account's own)	(توقيع الحساب نفسه)
 	Add…	إضافة…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	تظهر مجلداته تحت هذا الحساب. تحتاج إلى صلاحية الوصول إليه على خادم Exchange؛ وتُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
 	Mailboxes you have full access to open by themselves.	تُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
