@@ -1403,9 +1403,9 @@ month	May	מאי
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft נפתח בלעדיהם; כל חשבון יציין מה הבעיה כשתשתמש בו.
 	Continue	המשך
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft לא הצליח לפתוח את קובצי הנתונים, ולכן הפעם הוא פועל ללא מטמון הדואר.
-	Indexing {percent}%	אינדוקס {percent}%
-	Indexing…	מאנדקס…
-	Making your mail searchable: {done} of {total} messages	הדואר שלך מוכן לחיפוש: {done} מתוך {total} הודעות
+	Indexing {percent}%	מתבצע אינדוקס: {percent}%
+	Indexing…	מבצע אינדוקס…
+	Making your mail searchable: {done} of {total} messages	מכין את הדואר לחיפוש: {done} מתוך {total} הודעות
 	Searching…	מחפש…
 	Some results may be missing: still indexing ({percent}%)	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע ({percent}%)
 	Some results may be missing: still indexing	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע
@@ -1420,7 +1420,7 @@ month	May	מאי
 	Close MailCraft	לסגור את MailCraft
 	Contacts: {n}	אנשי קשר: {n}
 	Continue importing	להמשיך בייבוא
-	Counting items…	סופרים פריטים…
+	Counting items…	מתבצעת ספירת פריטים…
 	Data: {done} of {total}	נתונים: {done} מתוך {total}
 	Folder: {folder} ({n} of {total})	תיקייה: {folder} ({n} מתוך {total})
 	Free there: {free}	פנוי שם: {free}
