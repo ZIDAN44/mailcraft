@@ -460,4 +460,5 @@ fn outlooks_copy_is_written_again_only_when_the_tree_reads_otherwise() {
 }
 
 mod buttons;
+mod notices;
 mod templates;

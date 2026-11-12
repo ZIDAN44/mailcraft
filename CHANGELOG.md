@@ -17,6 +17,7 @@ on GitHub.
 - A mail file opened with MailCraft opens in front: its window came up behind the main window.
 - A mail file's pictures from the web can be shown: **Show pictures** loads them for that message, when you ask. They never load by themselves, whatever its sender says, and asking doesn't make its sender one whose pictures always load.
 - **Print** and **Save as PDF** show a message as it's laid out on screen: its columns side by side, its backgrounds, lines and buttons, the pictures it carries and those from the web that have been shown, and links that can be clicked. Tables came out as rows of text between lines of dashes, and pictures as their names.
+- A shop's notice reads as it was sent (#47): the steps of an order drawn with their dots and lines, words set bold by the box around them (a step's name, a total), what a cell puts at its right standing there, an item's picture at the size its style sheet gives it on a wide screen, a divider no wider than its column, and a faint tint behind a picture.
 
 ## 0.37.0 - 2026-11-12
 

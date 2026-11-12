@@ -144,7 +144,7 @@ impl Node {
         let gradient = || {
             let v = self.style("background").or_else(|| self.style("background-image"))?;
             let inner = v.get(v.find("gradient(")? + 9..)?;
-            inner.split(',').find_map(|stop| color(stop.split_whitespace().next()?))
+            stops(inner).into_iter().find_map(|stop| color(stop.trim().split(" ").next()?).or_else(|| color(stop.trim())))
         };
         own.or_else(shorthand).or_else(attr).or_else(gradient)
     }
@@ -414,11 +414,28 @@ impl Node {
 
     /// Where a table sits: `align`, or auto side margins.
     pub(super) fn table_align(&self) -> Align {
+        self.own_table_align().unwrap_or_default()
+    }
+
+    /// [`Node::table_align`], when the table says.
+    pub(super) fn own_table_align(&self) -> Option<Align> {
         let margin = self.style("margin").unwrap_or_default();
         if margin.contains("auto") || self.style("margin-left").is_some_and(|m| m == "auto") {
-            return Align::Center;
+            return Some(Align::Center);
         }
-        self.align()
+        self.own_align()
+    }
+
+    /// Where the boxes in it sit across it, when its `align` attribute says (`<td
+    /// align="right">`): HTML's `align` moves the tables in a cell too, where CSS's `text-align`
+    /// moves its words alone.
+    pub(super) fn boxes_align(&self) -> Option<Align> {
+        match self.attr("align")?.trim().to_ascii_lowercase().as_str() {
+            "center" | "middle" => Some(Align::Center),
+            "right" => Some(Align::Right),
+            "left" => Some(Align::Left),
+            _ => None,
+        }
     }
 
     /// Whether a table, side-by-side boxes or a box of a set width are somewhere inside.
@@ -543,6 +560,18 @@ impl Node {
             _ => self.font_size(),
         };
         px.filter(|p| p.is_finite() && *p >= 1.0).map_or(around, |p| p.round().min(f32::from(u16::MAX)) as u16)
+    }
+
+    /// Whether the text in it is bold, given whether what's around it is: as its style's
+    /// `font-weight` says, when it says. (What's bold by its tag, `<b>` or a heading, the text
+    /// converter reads itself.)
+    pub(super) fn bold(&self, around: bool) -> bool {
+        match self.style("font-weight").as_deref().map(str::trim) {
+            Some("bold" | "bolder") => true,
+            Some("normal" | "lighter") => false,
+            Some(v) => v.parse::<f32>().map_or(around, |w| w >= 600.0),
+            None => around,
+        }
     }
 
     pub(super) fn font_size(&self) -> Option<f32> {

@@ -16,6 +16,8 @@ pub(super) struct Ctx {
     pub(super) unwrapped: usize,
     /// The size of text here, in pixels, as the boxes around set it (`0`: not set).
     pub(super) size: u16,
+    /// Text here is bold, as the boxes around set it (a cell's `font-weight`).
+    pub(super) bold: bool,
 }
 
 /// What's known of the box a part is in.
@@ -27,6 +29,8 @@ pub(super) struct Around {
     pub(super) colour: Option<[u8; 3]>,
     /// How what's in it lines up.
     pub(super) align: Align,
+    /// Where a table in it sits when the table doesn't say (the cell's `align` attribute).
+    pub(super) boxes: Align,
 }
 
 impl Ctx {
@@ -56,6 +60,7 @@ impl Ctx {
             room: cell.map(|w| w.saturating_sub(less)),
             colour: c.background().or(n.background()),
             align: c.own_align().unwrap_or(self.around.align),
+            boxes: c.boxes_align().unwrap_or_default(),
         }
     }
 
@@ -98,12 +103,15 @@ impl Ctx {
     }
 }
 
-/// `f` with the text colour and size `n` sets, if it sets them, as CSS inherits them.
+/// `f` with the text colour, size and weight `n` sets, if it sets them, as CSS inherits them.
 pub(super) fn colored<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R) -> R {
     let size = n.text_size(ctx.size);
     let saved_size = std::mem::replace(&mut ctx.size, size);
+    let bold = n.bold(ctx.bold);
+    let saved_bold = std::mem::replace(&mut ctx.bold, bold);
     let r = colored_only(ctx, n, f);
     ctx.size = saved_size;
+    ctx.bold = saved_bold;
     r
 }
 
@@ -122,6 +130,14 @@ fn colored_only<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R) -> R 
         }
         None => f(ctx),
     }
+}
+
+/// Whether a cell holds its place in its row: one with something in it or behind it, or one
+/// that says how wide or tall it is (a spacer). An empty cell that says neither is left out; one
+/// that does was too, and what came after it in the row moved into its place (a progress bar's
+/// first step stood at its column's edge, its line gone from before it).
+fn held(c: &Cell) -> bool {
+    !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some() || c.width.is_some() || c.height.is_some()
 }
 
 pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
@@ -221,7 +237,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         radius: c.radius(),
                                     }
                                 })
-                                .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
+                                .filter(held)
                                 .collect::<Vec<Cell>>()
                         })
                         .filter(|r| !r.is_empty())
@@ -233,7 +249,9 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 out.push(Block::Table(Table {
                     rows,
                     width: n.width(),
-                    align: n.table_align(),
+                    // Where it says, else where the cell it's in puts its boxes (`<td
+                    // align="right">`: a header's link stood at the left of its cell).
+                    align: n.own_table_align().unwrap_or(ctx.around.boxes),
                     background: n.background(),
                     background_image: n.background_image(),
                     spacing: Some(n.cell_spacing()),
@@ -347,7 +365,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         radius: c.radius(),
                                     }
                                 })
-                                .filter(|c| !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some())
+                                .filter(held)
                                 .collect::<Vec<Cell>>()
                         })
                         .filter(|r| !r.is_empty())
@@ -415,8 +433,17 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 out.extend(inner);
             }
             // A column of a set width (`max-width: 600px; margin: 0 auto`): a one-cell table that
-            // wide, so it isn't stretched across the window (issue #10).
-            Kid::El(n) if depth < MAX_DEPTH && n.fixed_width() && (n.has_text(0) || n.has_picture(0)) => {
+            // wide, so it isn't stretched across the window (issue #10). One that holds only a
+            // divider between two parts is one too: its line ran the width of the window, past
+            // the column it divides, or wasn't drawn.
+            Kid::El(n)
+                if depth < MAX_DEPTH
+                    && n.fixed_width()
+                    && (n.has_text(0)
+                        || n.has_picture(0)
+                        || n.has_table(0)
+                        || n.kids.iter().any(|k| matches!(k, Kid::El(c) if c.rule().is_some()))) =>
+            {
                 flush(&mut pending, &mut out, ctx);
                 ctx.cells += 1;
                 let room = n.padding().unwrap_or_default();
@@ -428,6 +455,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     room: wide.map(|w| w.saturating_sub(u32::from(room[1]).saturating_add(u32::from(room[3])))),
                     colour: n.background(),
                     align: n.own_align().unwrap_or(ctx.around.align),
+                    boxes: n.boxes_align().unwrap_or(ctx.around.boxes),
                 };
                 let inner = colored(ctx, n, |ctx| ctx.within(around, |ctx| blocks(&n.kids, ctx, depth + 1)));
                 if !inner.is_empty() {
@@ -468,6 +496,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                     room: wide.map(|w| w.saturating_sub(u32::from(room[1]).saturating_add(u32::from(room[3])))),
                     colour: n.background(),
                     align,
+                    boxes: n.boxes_align().unwrap_or(ctx.around.boxes),
                 };
                 let inner = colored(ctx, n, |ctx| ctx.within(around, |ctx| blocks(&n.kids, ctx, depth + 1)));
                 let cell = Cell {
@@ -503,8 +532,8 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             }
             // A table past what's laid out: read as blocks, one cell after another. A text table
             // here, of box-drawing lines in a monospace font, is no part of a layout.
-            Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending, ctx.size),
-            k => write_shown(k, &mut pending, ctx.size),
+            Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending, ctx.size, ctx.bold),
+            k => write_shown(k, &mut pending, ctx.size, ctx.bold),
         }
     }
     flush(&mut pending, &mut out, ctx);

@@ -216,9 +216,11 @@ fn color(v: &str) -> Option<[u8; 3]> {
         };
     }
     if let Some(args) = v.strip_prefix("rgb(").or_else(|| v.strip_prefix("rgba(")) {
-        let parts: Vec<u8> =
-            args.trim_end_matches(')').split(',').take(3).filter_map(|p| p.trim().parse::<f32>().ok()).map(|f| f.clamp(0.0, 255.0) as u8).collect();
-        return Some([*parts.first()?, *parts.get(1)?, *parts.get(2)?]);
+        let parts: Vec<f32> = args.trim_end_matches(')').split(',').take(4).filter_map(|p| p.trim().parse::<f32>().ok()).collect();
+        // A colour that shows through (`rgba(15, 17, 17, 0.03)`, a tint) is what it is on white.
+        let through = 1.0 - parts.get(3).map_or(1.0, |a| a.clamp(0.0, 1.0));
+        let on_white = |c: f32| (c.clamp(0.0, 255.0) + (255.0 - c.clamp(0.0, 255.0)) * through).round() as u8;
+        return Some([on_white(*parts.first()?), on_white(*parts.get(1)?), on_white(*parts.get(2)?)]);
     }
     match v {
         "white" => Some([255, 255, 255]),
@@ -231,6 +233,31 @@ fn color(v: &str) -> Option<[u8; 3]> {
         "lightgray" | "lightgrey" => Some([211, 211, 211]),
         _ => None,
     }
+}
+
+/// A gradient's colour stops: what's between its commas, those inside a colour's brackets
+/// (`rgba(15, 17, 17, 0.03)`) left alone. (Split at every comma, such a colour was no colour, and
+/// a picture's tinted box had no tint.)
+fn stops(inner: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let (mut depth, mut from) = (0usize, 0usize);
+    for (i, c) in inner.char_indices().take(2000) {
+        match c {
+            '(' => depth += 1,
+            ')' if depth == 0 => {
+                out.push(inner.get(from..i).unwrap_or(""));
+                return out;
+            }
+            ')' => depth -= 1,
+            ',' if depth == 0 => {
+                out.push(inner.get(from..i).unwrap_or(""));
+                from = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(inner.get(from..).unwrap_or(""));
+    out
 }
 
 /// Elements whose content is text taken as it is, not markup.
@@ -384,7 +411,10 @@ struct Ancestor {
 }
 
 fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<Ancestor>, depth: usize) {
-    if depth > MAX_DEPTH * 4 || matches!(n.tag.as_str(), "head" | "style" | "script" | "title" | "template") {
+    // As deep as the tree goes ([`MAX_OPEN`]): a template nests its boxes deep, and past four
+    // dozen levels none of its style sheets' rules reached them (a product's picture kept the size
+    // its style sets for a phone, a title its plain weight).
+    if depth > MAX_OPEN || matches!(n.tag.as_str(), "head" | "style" | "script" | "title" | "template") {
         return;
     }
     for k in &mut n.kids {
@@ -469,18 +499,23 @@ fn make_headings(n: &mut Node, depth: usize) {
 
 /// Markup for a part of the tree (to hand to the text converter).
 fn write(k: &Kid, out: &mut String) {
-    write_as(k, out, How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0 }, false);
+    write_as(
+        k,
+        out,
+        How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0, bold: false },
+        false,
+    );
 }
 
 /// [`write`], without what's hidden from Outlook (a layout's text, as it's shown), the size of
-/// its text marked (`size`: what's around it).
-fn write_shown(k: &Kid, out: &mut String, size: u16) {
-    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size }, false);
+/// its text marked (`size`: what's around it), and bold where the boxes around it are (`bold`).
+fn write_shown(k: &Kid, out: &mut String, size: u16, bold: bool) {
+    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size, bold }, false);
 }
 
 /// [`write_shown`], every table in it written as blocks.
-fn write_flat(k: &Kid, out: &mut String, size: u16) {
-    write_as(k, out, How { leave_hidden: true, blocks: true, styles: true, in_values: false, flat: true, sizing: true, size }, false);
+fn write_flat(k: &Kid, out: &mut String, size: u16, bold: bool) {
+    write_as(k, out, How { leave_hidden: true, blocks: true, styles: true, in_values: false, flat: true, sizing: true, size, bold }, false);
 }
 
 /// A shallow copy of a part of the tree (its children too).
@@ -551,7 +586,7 @@ pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
         let root = parse(html);
         let mut css = String::new();
         collect_css(&root, &mut css, 0);
-        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None, around: Around::default(), unwrapped: 0, size: 0 };
+        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None, around: Around::default(), unwrapped: 0, size: 0, bold: false };
         let body = find(&root, "body", 0).unwrap_or(&root);
         // A body of a set width is a column of that width, as a box would be.
         let out = if body.tag == "body" && matches!(body.width(), Some(Width::Px(_))) {
