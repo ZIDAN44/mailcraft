@@ -299,3 +299,72 @@ fn texts(b: &mailcraft_mime::layout::Block) -> Vec<String> {
 fn mailcraft_engine_is_message_file(path: &str) -> bool {
     crate::cmd::is_message_file(path)
 }
+
+/// Print and Save as PDF lay a message out as it's read (it came out as lines of text, its
+/// tables drawn with dashes and its pictures as their names): its pictures are in the PDF, the
+/// one it carries always, one from the web once it has been shown, a tracking picture never;
+/// its links can be clicked.
+#[test]
+fn a_message_prints_as_it_is_laid_out() {
+    const DOT: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    let mut s = sample_session("print-layout");
+    let scratch = TempFolder::new("print");
+    let source = format!(
+        concat!(
+            "From: Shop <orders@shop.example>\r\nTo: Ana <ana@x.example>\r\nSubject: Shipped\r\nMIME-Version: 1.0\r\n",
+            "Content-Type: multipart/related; boundary=b\r\n\r\n",
+            "--b\r\nContent-Type: text/html; charset=utf-8\r\n\r\n",
+            "<table width=\"600\" bgcolor=\"#f3f3f3\"><tr><td width=\"150\"><img src=\"cid:logo@shop\" width=\"40\" height=\"40\" alt=\"logo\"></td>",
+            "<td><a href=\"https://shop.example/track\">Track package</a></td></tr>",
+            "<tr><td colspan=\"2\"><img src=\"https://cdn.shop.example/item.png\" width=\"90\" height=\"90\" alt=\"the item\">",
+            "<img src=\"https://t.shop.example/open.gif?id=1\" width=\"1\" height=\"1\"></td></tr></table>\r\n",
+            "--b\r\nContent-Type: image/png\r\nContent-ID: <logo@shop>\r\nContent-Transfer-Encoding: base64\r\n",
+            "Content-Disposition: inline; filename=logo.png\r\n\r\n{dot}\r\n--b--\r\n",
+        ),
+        dot = DOT
+    );
+    let path = scratch.put("shipped.eml", source.as_bytes());
+    let shown = open_path(&mut s, &path).unwrap();
+    let key = shown["key"].as_str().and_then(mailcraft_model::MessageKey::from_id).unwrap();
+    s.reading = s.windows.iter().find(|w| w.key == key).cloned();
+    let p = s.reading.as_ref().and_then(|r| r.parsed.clone()).unwrap();
+    assert!(!p.layout.is_empty(), "laid out in columns");
+    let pictures = |pdf: &[u8]| {
+        let text = String::from_utf8_lossy(pdf).to_string();
+        let dict = text.split("/XObject <<").nth(1).and_then(|r| r.split(">>").next()).unwrap_or("").to_string();
+        (dict.matches("/Im").count(), text.matches("/URI (https://shop.example/track)").count())
+    };
+    // The picture it carries is in it, and its link; the one from the web isn't fetched for it.
+    let pdf = s.message_pdf().unwrap();
+    assert!(pdf.starts_with(b"%PDF-") && pdf.ends_with(b"%%EOF\n"));
+    assert_eq!(pictures(&pdf), (1, 1));
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FetchUrl { .. })), "a PDF fetches nothing");
+    // Shown (the reader asked), it's in it too; the tracking picture never is.
+    s.run("message.showPictures", &json!({})).unwrap();
+    let png = base64_decode(DOT);
+    s.apply(Event::Fetched { url: "https://cdn.shop.example/item.png".into(), data: Some(png.clone()), error: None });
+    s.apply(Event::Fetched { url: "https://t.shop.example/open.gif?id=1".into(), data: Some(png), error: None });
+    assert_eq!(pictures(&s.message_pdf().unwrap()), (2, 1));
+    // A picture that can't be read isn't one: the PDF is made without it.
+    s.apply(Event::Fetched { url: "https://cdn.shop.example/item.png".into(), data: Some(b"not a picture".to_vec()), error: None });
+    assert_eq!(pictures(&s.message_pdf().unwrap()), (1, 1));
+    s.reading = None;
+}
+
+fn base64_decode(text: &str) -> Vec<u8> {
+    let value = |c: u8| match c {
+        b'A'..=b'Z' => Some(c - b'A'),
+        b'a'..=b'z' => Some(c - b'a' + 26),
+        b'0'..=b'9' => Some(c - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    };
+    let bits: Vec<u8> = text.bytes().filter_map(value).collect();
+    bits.chunks(4)
+        .flat_map(|c| {
+            let n = c.iter().fold(0u32, |n, b| (n << 6) | u32::from(*b)) << (6 * (4 - c.len()));
+            [(n >> 16) as u8, (n >> 8) as u8, n as u8].into_iter().take(c.len().saturating_sub(1))
+        })
+        .collect()
+}

@@ -17,11 +17,23 @@ pub struct Run {
     pub color: Option<[u8; 3]>,
     /// A highlight behind the text.
     pub background: Option<[u8; 3]>,
+    /// It's on a background of the message's own (a cell's, a button's), so its colour is kept
+    /// however light: white words on a blue button stay white.
+    pub on_background: bool,
+    /// Where a click on it goes.
+    pub link: Option<String>,
+    /// A picture in the text's place: which of the document's, and how wide and tall it's
+    /// shown, in points.
+    pub picture: Option<(usize, f32, f32)>,
 }
 
 /// The size of text that sets none, and the room a line of it takes.
 pub(super) const SIZE: f32 = 11.0;
 pub(super) const LEAD: f32 = 14.5;
+/// The tallest a picture is shown: more is scaled down, so it's whole on a page.
+const TALLEST: f32 = 620.0;
+/// The room a picture's line keeps over it.
+const OVER_PICTURE: f32 = 4.0;
 
 /// A colour too light to read on white paper (white text from a message with a dark background,
 /// which isn't printed): such text is printed black.
@@ -31,8 +43,9 @@ fn too_light(c: [u8; 3]) -> bool {
 
 fn piece(run: &Run, text: String, x: f32, width: f32) -> Placed {
     let size = run.size.map_or(SIZE, |s| s.clamp(6.0, 36.0));
-    // A highlight keeps the colour written on it; without one, the paper is white.
-    let color = run.color.filter(|c| run.background.is_some() || !too_light(*c));
+    // A highlight keeps the colour written on it, as a background of the message's does;
+    // without one, the paper is white.
+    let color = run.color.filter(|c| run.background.is_some() || run.on_background || !too_light(*c));
     Placed {
         font: usize::from(run.bold),
         size,
@@ -45,23 +58,67 @@ fn piece(run: &Run, text: String, x: f32, width: f32) -> Placed {
         background: run.background,
         underline: run.underline,
         strike: run.strike,
+        link: run.link.clone(),
+        picture: None,
     }
+}
+
+/// A run's size, and how wide `text` is in it.
+fn measured(faces: &[Face<'_>], run: &Run, text: &str) -> f32 {
+    let size = run.size.map_or(SIZE, |s| s.clamp(6.0, 36.0));
+    faces.get(usize::from(run.bold)).map_or(0.0, |f| f.text_width(text, size))
+}
+
+/// What a line needs across: at least its longest word (a picture shrinks to fit), and how
+/// wide it is on one line.
+pub(super) fn fit(faces: &[Face<'_>], line: &[Run]) -> (f32, f32) {
+    let (mut min, mut max) = (0.0f32, 0.0f32);
+    for run in line {
+        if let Some((_, w, _)) = run.picture {
+            min = min.max(w.min(24.0));
+            max += w;
+            continue;
+        }
+        let text = run.text.replace(['\n', '\r'], " ").replace('\t', "    ");
+        for word in text.split(' ').filter(|w| !w.is_empty()) {
+            min = min.max(measured(faces, run, word));
+        }
+        max += measured(faces, run, &text);
+    }
+    (min, max)
 }
 
 /// Lay `lines` out `width` wide: `put` is given each line of the page in turn, its pieces placed
 /// from the left edge at 0 and the room it takes down the page; it says whether there was room.
 pub(super) fn lay(faces: &[Face<'_>], lines: &[Vec<Run>], width: f32, mut put: impl FnMut(f32, Vec<Placed>) -> bool) -> bool {
-    let measure = |run: &Run, text: &str| {
-        let size = run.size.map_or(SIZE, |s| s.clamp(6.0, 36.0));
-        faces.get(usize::from(run.bold)).map_or(0.0, |f| f.text_width(text, size))
-    };
-    let lead_of = |row: &[Placed]| row.iter().map(|p| p.size * LEAD / SIZE).fold(LEAD, f32::max);
+    let measure = |run: &Run, text: &str| measured(faces, run, text);
+    // A line is as tall as its biggest text, or its tallest picture.
+    let lead_of = |row: &[Placed]| row.iter().map(|p| p.picture.map_or(p.size * LEAD / SIZE, |(_, h)| h + OVER_PICTURE)).fold(LEAD, f32::max);
     for line in lines {
         let mut row: Vec<Placed> = Vec::new();
         let mut x = 0.0f32;
         // A space is owed before the next word (one ended the last word, or began this run).
         let mut space = false;
         for run in line {
+            // A picture: one box, never wider than the line nor taller than a page, on the next
+            // line when this one has no room left.
+            if let Some((index, w, h)) = run.picture {
+                let scale = (width / w.max(1.0)).min(TALLEST / h.max(1.0)).min(1.0);
+                let (w, h) = (w.max(1.0) * scale, h.max(1.0) * scale);
+                let gap = if space && x > 0.0 { measure(run, " ") } else { 0.0 };
+                if x > 0.0 && x + gap + w > width {
+                    let lead = lead_of(&row);
+                    if !put(lead, std::mem::take(&mut row)) {
+                        return false;
+                    }
+                    x = 0.0;
+                }
+                let at = if x > 0.0 { x + gap } else { 0.0 };
+                row.push(Placed { x: at, width: w, size: SIZE, picture: Some((index, h)), link: run.link.clone(), ..Default::default() });
+                x = at + w;
+                space = false;
+                continue;
+            }
             let text = run.text.replace(['\n', '\r'], " ").replace('\t', "    ");
             for (i, word) in text.split(' ').enumerate() {
                 if i > 0 {
@@ -173,10 +230,13 @@ mod tests {
     fn light_text_prints_black_unless_it_has_a_background() {
         let white = Run { color: Some([255, 255, 255]), ..run("invisible on paper") };
         let on_blue = Run { background: Some([31, 58, 95]), ..white.clone() };
-        let r = rows(&[vec![white], vec![on_blue], vec![]], 500.0);
-        assert_eq!(r.len(), 3, "an empty line is a line");
+        // In a box the message colours (a button's words): kept, the box being printed too.
+        let on_button = Run { on_background: true, ..white.clone() };
+        let r = rows(&[vec![white], vec![on_blue], vec![], vec![on_button]], 500.0);
+        assert_eq!(r.len(), 4, "an empty line is a line");
         assert!(r[0].iter().all(|p| p.color.is_none()));
         assert!(r[1].iter().all(|p| p.color == Some([255, 255, 255]) && p.background.is_some()));
+        assert!(r[3].iter().all(|p| p.color == Some([255, 255, 255]) && p.background.is_none()));
         // A word wider than the page is cut, not run off it.
         let long = rows(&[vec![run(&"x".repeat(400))]], 100.0);
         assert!(long.len() > 5 && long.iter().flatten().all(|p| p.width <= 100.5));

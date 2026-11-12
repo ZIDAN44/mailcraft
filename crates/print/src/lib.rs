@@ -10,8 +10,14 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+mod blocks;
+mod objects;
+mod picture;
 mod rich;
+mod sheet;
 
+pub use blocks::{Align, Block, Cell, HELD_BACK, Line, Table, VAlign, Width};
+pub use picture::Picture;
 pub use rich::Run;
 
 /// What goes on the pages.
@@ -26,6 +32,11 @@ pub struct Doc {
     /// The text with its formatting, a line at a time, for a message that has any: printed in
     /// place of `body`.
     pub rich: Vec<Vec<Run>>,
+    /// The message as it's laid out on screen (its tables, their backgrounds and lines, its
+    /// pictures), for one that is: printed in place of `rich`.
+    pub blocks: Vec<Block>,
+    /// The pictures `blocks` show ([`Run::picture`] names one by its place here).
+    pub pictures: Vec<Picture>,
 }
 
 /// Font files to embed (TrueType or OpenType with TrueType outlines).
@@ -184,7 +195,7 @@ fn helvetica_width(c: char, bold: bool) -> f32 {
 
 /// A piece of text to place: font (0 regular, 1 bold), size, position; and for formatted text
 /// how wide it is, whether it leans, its colour, a highlight behind it and lines through it.
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct Placed {
     font: usize,
     size: f32,
@@ -197,6 +208,10 @@ struct Placed {
     background: Option<[u8; 3]>,
     underline: bool,
     strike: bool,
+    /// Where a click on it goes.
+    link: Option<String>,
+    /// A picture in its place: which, and how tall (`width` is how wide).
+    picture: Option<(usize, f32)>,
 }
 
 /// A colour as PDF's three numbers.
@@ -320,7 +335,48 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
     let rule_page = pages.len() - 1;
     let rule_y = y;
     y -= 6.0;
-    if doc.rich.is_empty() {
+    // What each page holds beside its text (a laid-out message's boxes, pictures and links).
+    let mut extras: Vec<objects::Extra> = Vec::new();
+    if !doc.blocks.is_empty() {
+        // Laid out on one long sheet, then cut into pages between its lines.
+        let mut ops = Vec::new();
+        let mut down = 0.0f32;
+        blocks::Lay { faces: &faces }.blocks(&doc.blocks, 0.0, width, Align::Left, &mut down, &mut ops, 0);
+        truncated = ops.len() >= blocks::MAX_OPS;
+        let bottom = MARGIN + 20.0;
+        let (tops, more) = sheet::cuts(&ops, y - bottom, PAGE_H - MARGIN - bottom, MAX_PAGES.saturating_sub(pages.len() - 1));
+        truncated |= more;
+        for (k, on_page) in sheet::pages(ops, &tops).into_iter().enumerate() {
+            if k > 0 {
+                pages.push(Vec::new());
+            }
+            let top = if k == 0 { y } else { PAGE_H - MARGIN };
+            extras.resize_with(pages.len(), Default::default);
+            let (Some(page), Some(extra)) = (pages.last_mut(), extras.last_mut()) else { break };
+            let mut low = top;
+            for op in on_page {
+                match op {
+                    sheet::Op::Fill { x, y: from, w, h, color, radius } => {
+                        extra.fills.push(objects::Fill { x: MARGIN + x, y: top - from - h, w, h, color, radius });
+                    }
+                    sheet::Op::Text { bottom, mut piece, .. } => {
+                        piece.x += MARGIN;
+                        piece.y = top - piece.y;
+                        low = low.min(top - bottom);
+                        page.push(piece);
+                    }
+                    sheet::Op::Image { x, y: from, w, h, index } => {
+                        low = low.min(top - from - h);
+                        if doc.pictures.get(index).is_some() {
+                            extra.images.push(objects::Image { index, x: MARGIN + x, y: top - from - h, w, h });
+                        }
+                    }
+                    sheet::Op::Link { x, y: from, w, h, url } => extra.links.push(objects::Link { x: MARGIN + x, y: top - from - h, w, h, url }),
+                }
+            }
+            y = low;
+        }
+    } else if doc.rich.is_empty() {
         for line in wrap(&faces[0], &doc.body, rich::SIZE, width) {
             if !place(&mut pages, &mut y, 0, rich::SIZE, rich::LEAD, MARGIN, line) {
                 truncated = true;
@@ -357,9 +413,15 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
         if i == rule_page {
             let _ = writeln!(c, "0.75 G 0.6 w {MARGIN:.2} {rule_y:.2} m {:.2} {rule_y:.2} l S 0 G", PAGE_W - MARGIN);
         }
+        // A laid-out message's boxes, under everything; its pictures over them.
+        if let Some(e) = extras.get(i) {
+            e.fills_into(&mut c);
+            e.images_into(&mut c);
+        }
         // Highlights under the text.
         for p in page {
-            if let Some(b) = p.background {
+            // (Not behind a space alone: it stuck out past the end of a button's words.)
+            if let Some(b) = p.background.filter(|_| !p.text.trim().is_empty()) {
                 let _ = writeln!(c, "{} rg {:.2} {:.2} {:.2} {:.2} re f 0 g", rgb(b), p.x, p.y - p.size * 0.25, p.width, p.size * 1.2);
             }
         }
@@ -471,15 +533,26 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
         font_refs.push(r);
     }
     let fonts_dict: String = font_refs.iter().enumerate().map(|(i, r)| format!("/F{} {r} 0 R", i + 1)).collect::<Vec<_>>().join(" ");
+    // The pictures the pages draw, each once.
+    let shown: std::collections::BTreeSet<usize> = extras.iter().flat_map(|e| e.images.iter().map(|i| i.index)).collect();
+    let mut pictures_dict = String::new();
+    for index in shown {
+        if let Some(p) = doc.pictures.get(index) {
+            let r = objects::picture(p, &mut objects);
+            let _ = write!(pictures_dict, "/Im{index} {r} 0 R ");
+        }
+    }
+    let pictures_dict = if pictures_dict.is_empty() { String::new() } else { format!(" /XObject << {pictures_dict}>>") };
     let mut kids = Vec::new();
-    for c in &contents {
+    for (i, c) in contents.iter().enumerate() {
         let packed = compress(c.as_bytes());
         let mut s = format!("<< /Length {} /Filter /FlateDecode >>\nstream\n", packed.len()).into_bytes();
         s.extend_from_slice(&packed);
         s.extend_from_slice(b"\nendstream");
         let content_ref = add(&mut objects, s);
+        let annots = extras.get(i).map(objects::Extra::annots).unwrap_or_default();
         let page = format!(
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.2} {PAGE_H:.2}] /Resources << /Font << {fonts_dict} >> >> /Contents {content_ref} 0 R >>"
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.2} {PAGE_H:.2}] /Resources << /Font << {fonts_dict} >>{pictures_dict} >> /Contents {content_ref} 0 R{annots} >>"
         );
         kids.push(add(&mut objects, page.into_bytes()));
     }
@@ -538,6 +611,47 @@ mod tests {
             n += 1;
         }
         assert!(n >= 4);
+    }
+
+    /// A laid-out message: its boxes, pictures (a JPEG as it is, another with what shows through
+    /// it as a mask) and links are in the file, each picture once, and the file holds together.
+    #[test]
+    fn a_laid_out_message_has_its_boxes_pictures_and_links() {
+        let png = |pixel: [u8; 4]| {
+            let mut out = std::io::Cursor::new(Vec::new());
+            image::RgbaImage::from_pixel(8, 6, image::Rgba(pixel)).write_to(&mut out, image::ImageFormat::Png).unwrap();
+            out.into_inner()
+        };
+        let mut jpeg = std::io::Cursor::new(Vec::new());
+        image::RgbImage::from_pixel(16, 8, image::Rgb([200, 100, 50])).write_to(&mut jpeg, image::ImageFormat::Jpeg).unwrap();
+        let pictures = vec![
+            Picture::decode(&png([9, 9, 9, 100])).unwrap(),
+            Picture::decode(&jpeg.into_inner()).unwrap(),
+            Picture::decode(&png([1, 1, 1, 255])).unwrap(),
+        ];
+        let picture = |index| Run { picture: Some((index, 60.0, 45.0)), ..Default::default() };
+        let link = Run { text: "Track package".into(), link: Some("https://shop.example/track?a=(1)".into()), underline: true, ..Default::default() };
+        let cell =
+            |runs: Vec<Run>| Cell { blocks: vec![Block::Text(vec![runs])], background: Some([240, 240, 240]), radius: 6.0, ..Default::default() };
+        // Enough rows to go over a page: the pictures are drawn on several pages, and kept once.
+        let rows: Vec<Vec<Cell>> = (0..40).map(|_| vec![cell(vec![picture(0), picture(1)]), cell(vec![link.clone(), picture(7)])]).collect();
+        let table = Table { rows, width: Some(Width::Percent(100.0)), spacing: 3.0, padding: 4.0, ..Default::default() };
+        let d = Doc { blocks: vec![Block::Table(table)], pictures, ..doc("") };
+        let p = pdf(&d, None).unwrap();
+        objects_are_where_the_xref_says(&p);
+        let text = String::from_utf8_lossy(&p);
+        let count: usize = text.split("/Count ").nth(1).and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse().ok()).unwrap();
+        assert!(count >= 3, "{count} pages");
+        // The two it shows, each once (and the mask of the one that shows through); not the one
+        // it doesn't show, nor one it names that isn't there.
+        assert_eq!(text.matches("/Subtype /Image").count(), 3);
+        assert_eq!((text.matches("/DCTDecode").count(), text.matches("/SMask ").count()), (1, 1));
+        let dict = text.split("/XObject <<").nth(1).and_then(|r| r.split(">>").next()).unwrap();
+        assert!(dict.contains("/Im0 ") && dict.contains("/Im1 ") && !dict.contains("/Im2") && !dict.contains("/Im7"), "{dict}");
+        assert_eq!(text.matches("/URI (https://shop.example/track?a=\\(1\\))").count(), 40);
+        // Nothing but the header on a page of its own, and no blocks: as before.
+        let plain = pdf(&doc("Hello"), None).unwrap();
+        assert!(!String::from_utf8_lossy(&plain).contains("/XObject"));
     }
 
     #[test]

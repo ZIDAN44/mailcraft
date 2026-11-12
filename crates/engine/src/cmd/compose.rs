@@ -340,65 +340,6 @@ impl Session {
         let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
         self.body_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))
     }
-
-    /// The open message as a PDF: subject, header, its text as it's formatted (bold, italic,
-    /// headings, sizes, colours, links underlined) and the names of its attachments.
-    pub fn message_pdf(&self) -> Result<Vec<u8>, CmdError> {
-        let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-        let m = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
-        let mut header = vec![("From".to_string(), m.from.to_string())];
-        if !m.to.is_empty() {
-            header.push(("To".into(), mailcraft_model::addr::format_list(&m.to)));
-        }
-        if !m.cc.is_empty() {
-            header.push(("Cc".into(), mailcraft_model::addr::format_list(&m.cc)));
-        }
-        if m.date > 0 {
-            header.push(("Date".into(), mailcraft_model::dates::full_time(m.date, &self.clock)));
-        }
-        let files: Vec<String> = m.attachments.iter().filter(|a| !a.inline).map(|a| a.name.clone()).collect();
-        if !files.is_empty() {
-            header.push(("Attachments".into(), files.join(", ")));
-        }
-        let doc = mailcraft_print::Doc { title: m.subject.clone(), header, body: m.text.clone(), rich: printed_runs(&m.rich) };
-        let fonts = self.print_fonts.as_ref().map(|(r, b)| mailcraft_print::Fonts { regular: r, bold: b.as_deref() });
-        mailcraft_print::pdf(&doc, fonts).map_err(CmdError::Failed)
-    }
-}
-
-/// A formatted message's lines as the PDF prints them (issue #72: it printed the plain text,
-/// its formatting gone). A picture is its description; a message without formatting has none.
-fn printed_runs(rich: &mailcraft_mime::RichText) -> Vec<Vec<mailcraft_print::Run>> {
-    const LINK: [u8; 3] = [0x0B, 0x57, 0xD0];
-    rich.iter()
-        .map(|line| {
-            line.iter()
-                .filter(|s| s.image.is_none() || !s.text.trim().is_empty())
-                .map(|s| {
-                    let heading = match s.heading {
-                        0 => None,
-                        1 => Some(20.0),
-                        2 => Some(17.0),
-                        3 => Some(14.5),
-                        _ => Some(12.5),
-                    };
-                    mailcraft_print::Run {
-                        // Struck-through text comes with a stroke over each letter for where no
-                        // line can be drawn: here one is.
-                        text: if s.image.is_some() { format!("[{}]", s.text.trim()) } else { s.text.replace('\u{336}', "") },
-                        bold: s.bold || heading.is_some(),
-                        italic: s.italic,
-                        underline: s.link.is_some(),
-                        strike: s.strike,
-                        // CSS pixels to points.
-                        size: heading.or(s.size.map(|px| f32::from(px) * 0.75)),
-                        color: s.color.or(s.link.as_ref().map(|_| LINK)),
-                        background: s.background,
-                    }
-                })
-                .collect()
-        })
-        .collect()
 }
 
 pub(super) fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {

@@ -19,6 +19,7 @@ bin = [
     { name = "jmap", bench = false, test = false, doc = false, path = "fuzz_targets/jmap.rs" }, # JMAP replies, push events and URLs
     { name = "mime_parse", bench = false, test = false, doc = false, path = "fuzz_targets/mime_parse.rs" }, # raw message sources
     { name = "msg", bench = false, test = false, doc = false, path = "fuzz_targets/pst/msg.rs" }, # Outlook message files (.msg)
+    { name = "pdf", bench = false, test = false, doc = false, path = "fuzz_targets/print/pdf.rs" }, # a message printed: pictures embedded, tables laid out on pages
     { name = "pgp", bench = false, test = false, doc = false, path = "fuzz_targets/crypto/pgp.rs" }, # OpenPGP keys, messages, signatures, PGP/MIME, Autocrypt
     { name = "photo", bench = false, test = false, doc = false, path = "fuzz_targets/photo.rs" }, # photos' EXIF and XMP blocks as they're sent
     { name = "pst", bench = false, test = false, doc = false, path = "fuzz_targets/pst.rs" }, # Outlook data file import
@@ -44,6 +45,7 @@ mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
 mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
 mailcraft-smime.path = "../crates/smime" # S/MIME
 mailcraft-pst.path = "../crates/pst" # the .pst reader and writer
+mailcraft-print.path = "../crates/print" # messages as PDF pages
 mailcraft-pgp.path = "../crates/pgp" # OpenPGP
 rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
 mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to, the search index
