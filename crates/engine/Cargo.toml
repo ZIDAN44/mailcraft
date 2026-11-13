@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft engine: the session, its command registry and the sans-I/O job/event loop (no network, wasm-safe)"
 
 [lints]

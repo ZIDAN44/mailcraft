@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Outlook data files (.pst, MS-PST): read them, add to them and write new ones"
 
 [lints]

@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft S/MIME (RFC 8551): certificates from .p12 files, signatures made and checked, mail encrypted and decrypted (pure Rust, wasm-safe)"
 
 [lints]
