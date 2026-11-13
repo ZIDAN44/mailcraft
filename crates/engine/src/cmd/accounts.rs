@@ -115,7 +115,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.setAddress", "Add or change an address", "File › Info › Account settings", set_address).params(
-            r#"{"account": string, "address": string (another address of the same mailbox, to send from), "name"?: string (shown on mail from it; else the account's), "replyTo"?: string (where replies to it go), "signature"?: string|null (one of the account's, for mail from it; null: the account's own)}"#,
+            r#"{"account": string, "address": string (another address of the same mailbox, to send from), "name"?: string (shown on mail from it; else the account's), "replyTo"?: string (where replies to it go), "signature"?: string|null (one of the account's, for mail from it; null: the account's own), "newMail"?: bool (new mail is written from it, not from the account's own address: one address at most)}"#,
         ),
         CommandSpec::new("account.findAddresses", "Find addresses on the server", "File › Info › Account settings", |s, v| {
             let id = account_param(s, v)?;
@@ -490,6 +490,9 @@ pub(super) fn set_address(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::String(name)) => identity.signature = Some(name.clone()),
         _ => {}
     }
+    if let Some(new_mail) = p::bool(v, "newMail") {
+        identity.new_mail = new_mail;
+    }
     // An address another account is, or has, would make two accounts answer for it.
     let taken = s.accounts.iter().any(|a| a.config.id != c.id && a.config.has_address(&identity.email));
     if taken {
@@ -499,7 +502,7 @@ pub(super) fn set_address(s: &mut Session, v: &Value) -> CmdResult {
     c.set_identity(identity.clone()).map_err(CmdError::Params)?;
     let email = c.identity(&identity.email).map(|i| i.email.clone()).unwrap_or_default();
     s.update_account(c, None)?;
-    Ok(json!({ "account": id, "address": email, "added": added }))
+    Ok(json!({ "account": id, "address": email, "added": added, "newMail": identity.new_mail }))
 }
 
 /// Take an address out of those the account's mail is sent from. A message being written from

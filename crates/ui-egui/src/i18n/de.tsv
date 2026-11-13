@@ -72,6 +72,7 @@
 	Edit rule	Regel bearbeiten
 	Email address	E-Mail-Adresse
 	Enter the password for {email}.	Geben Sie das Kennwort für {email} ein.
+	Enter the password for {email}, which signs in as {user}.	Geben Sie das Kennwort für {email} ein, das sich als {user} anmeldet.
 	Favorites	Favoriten
 	Feb	Feb
 	File	Datei
@@ -933,6 +934,9 @@
 	Name on mail from it	Name auf E-Mails von dieser Adresse
 	Replies go to	Antworten gehen an
 	(the account's own)	(die des Kontos)
+	Write new mail from this address	Neue Nachrichten von dieser Adresse schreiben
+	A new message starts from this address, not from {email}. Pick another in From as ever.	Eine neue Nachricht beginnt mit dieser Adresse, nicht mit {email}. Unter „Von“ lässt sich wie bisher eine andere wählen.
+	{address} (new mail)	{address} (neue Nachrichten)
 	Add…	Hinzufügen…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Seine Ordner erscheinen unter diesem Konto. Sie brauchen auf dem Exchange-Server Zugriff darauf; Postfächer mit Vollzugriff öffnen sich von selbst.
 	Mailboxes you have full access to open by themselves.	Postfächer mit Vollzugriff öffnen sich von selbst.

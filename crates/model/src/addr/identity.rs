@@ -24,6 +24,10 @@ pub struct Identity {
     /// the account's own for each.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
+    /// New mail is written from it (issue #88), not from the account's own address: one of
+    /// an account's addresses at most.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub new_mail: bool,
 }
 
 /// The most other addresses an account has.
@@ -60,6 +64,12 @@ impl AccountConfig {
         }
     }
 
+    /// The address its new mail is written from (issue #88): the one of its other addresses
+    /// chosen for that, or none for its own.
+    pub fn new_mail_from(&self) -> &str {
+        self.identities.iter().find(|i| i.new_mail).map(|i| i.email.as_str()).unwrap_or_default()
+    }
+
     /// Add `identity` to its other addresses, or change the one of that address. Refused with
     /// why: an address that isn't one, the account's own, a name or a place for replies that
     /// can't be, a signature it doesn't have, or too many.
@@ -87,7 +97,11 @@ impl AccountConfig {
             Some(n) => Some(self.signature_named(n).map(|s| s.name.clone()).ok_or_else(|| format!("no signature `{n}`"))?),
             None => None,
         };
-        let new = Identity { email, name, reply_to, signature };
+        let new = Identity { email, name, reply_to, signature, new_mail: identity.new_mail };
+        // One address at most is the one new mail is written from.
+        if new.new_mail {
+            self.identities.iter_mut().for_each(|i| i.new_mail = false);
+        }
         match self.identities.iter().position(|i| i.email.eq_ignore_ascii_case(&new.email)) {
             Some(at) => {
                 if let Some(old) = self.identities.get_mut(at) {
@@ -132,9 +146,16 @@ mod tests {
             name: " The Shop ".into(),
             reply_to: "help@studio.example".into(),
             signature: Some("short".into()),
+            new_mail: true,
         })
         .unwrap();
+        assert_eq!(a.new_mail_from(), "Shop@Studio.example");
+        // One address at most is the one new mail is written from (issue #88).
+        a.set_identity(Identity { email: "plain@studio.example".into(), new_mail: true, ..Default::default() }).unwrap();
+        assert_eq!(a.new_mail_from(), "plain@studio.example");
+        assert_eq!(a.identities.iter().filter(|i| i.new_mail).count(), 1);
         a.set_identity(Identity { email: "plain@studio.example".into(), ..Default::default() }).unwrap();
+        assert_eq!(a.new_mail_from(), "", "none: the account's own");
         assert_eq!(a.addresses().collect::<Vec<_>>(), ["riley@studio.example", "Shop@Studio.example", "plain@studio.example"]);
         assert!(a.has_address("SHOP@studio.example") && a.has_address("riley@studio.example") && !a.has_address("") && !a.has_address("x@y.example"));
         assert_eq!(a.identity("shop@studio.example").unwrap().signature.as_deref(), Some("Short"), "the signature's own name");

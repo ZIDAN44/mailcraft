@@ -72,6 +72,7 @@
 	Edit rule	Modifica regola
 	Email address	Indirizzo email
 	Enter the password for {email}.	Inserisci la password di {email}.
+	Enter the password for {email}, which signs in as {user}.	Inserisci la password di {email}, che accede come {user}.
 	Favorites	Preferiti
 	Feb	feb
 	File	File
@@ -932,6 +933,9 @@
 	Name on mail from it	Nome sulla posta inviata da questo indirizzo
 	Replies go to	Le risposte vanno a
 	(the account's own)	(quella dell’account)
+	Write new mail from this address	Scrivi i nuovi messaggi da questo indirizzo
+	A new message starts from this address, not from {email}. Pick another in From as ever.	Un nuovo messaggio parte da questo indirizzo, non da {email}. In Da puoi sceglierne un altro, come sempre.
+	{address} (new mail)	{address} (nuovi messaggi)
 	Add…	Aggiungi…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Le sue cartelle compaiono sotto questo account. Serve l'accesso sul server Exchange; quelle a cui hai accesso completo si aprono da sole.
 	Mailboxes you have full access to open by themselves.	Le cassette a cui hai accesso completo si aprono da sole.

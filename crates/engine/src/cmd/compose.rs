@@ -103,6 +103,8 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
         }
         None => None,
     };
+    // The address another account writes its new mail from (issue #88).
+    let new_mail_from = account.as_deref().and_then(|a| s.account(a)).map(|a| a.config.new_mail_from().to_string()).unwrap_or_default();
     let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
     if c.sending {
         return Err(CmdError::Disabled("the message is being sent".into()));
@@ -147,9 +149,10 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     if account.is_some() || from.is_some() {
         let (was, was_from) = (c.account.clone(), c.from.clone());
         if let Some(a) = account {
-            // Another account's addresses aren't this one's: its own, unless one is picked.
+            // Another account's addresses aren't this one's: the one that account writes new
+            // mail from (an answer goes from its own), unless one is picked.
             if a != c.account {
-                c.from.clear();
+                c.from = if c.mode.is_none() { new_mail_from } else { String::new() };
             }
             c.account = a;
         }

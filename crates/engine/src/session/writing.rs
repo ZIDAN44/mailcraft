@@ -330,10 +330,12 @@ impl Session {
             None => self.current_account().map(|a| self.sending_account(a.config.id.clone())),
         }
         .ok_or_else(|| CmdError::Disabled("add an account first".into()))?;
-        let sig = self.default_signature(&account, false);
+        // From the address the account writes its new mail from (issue #88), with its signature.
+        let from = self.account(&account).map(|a| a.config.new_mail_from().to_string()).unwrap_or_default();
+        let sig = self.signature_for(&account, &from, false);
         let id = self.fresh_id();
         let window = self.prefs.new_mail_window;
-        self.open_compose(Compose { id, account, window, ..Default::default() });
+        self.open_compose(Compose { id, account, from, window, ..Default::default() });
         self.put_signature(sig.as_ref(), None)?;
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
@@ -360,7 +362,15 @@ impl Session {
             let sent_to = |email: &str| parsed.to.iter().chain(&parsed.cc).any(|t| t.email.eq_ignore_ascii_case(email));
             // One's own mail, written from one of them, is followed up from it.
             let own = config.identity(&parsed.from.email).map(|i| i.email.clone());
-            own.or_else(|| if sent_to(&config.email) { None } else { config.identities.iter().find(|i| sent_to(&i.email)).map(|i| i.email.clone()) })
+            // Sent to none of its addresses (a list's mail, a hidden copy): from the one its new
+            // mail is written from (issue #88).
+            own.or_else(|| {
+                if sent_to(&config.email) {
+                    None
+                } else {
+                    config.identities.iter().find(|i| sent_to(&i.email)).map(|i| i.email.clone()).or_else(|| Some(config.new_mail_from().to_string()))
+                }
+            })
         });
         let from = from.unwrap_or_default();
         let signature = self.signature_for(&account, &from, true);

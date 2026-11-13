@@ -72,6 +72,7 @@
 	Edit rule	تحرير القاعدة
 	Email address	عنوان البريد الإلكتروني
 	Enter the password for {email}.	أدخل كلمة المرور لـ {email}.
+	Enter the password for {email}, which signs in as {user}.	أدخل كلمة المرور لـ {email}، الذي يسجّل الدخول باسم {user}.
 	Favorites	المفضلة
 	Feb	فبراير
 	File	ملف
@@ -934,6 +935,9 @@ month	May	مايو
 	Name on mail from it	الاسم على البريد المرسل منه
 	Replies go to	الردود تذهب إلى
 	(the account's own)	(توقيع الحساب نفسه)
+	Write new mail from this address	اكتب الرسائل الجديدة من هذا العنوان
+	A new message starts from this address, not from {email}. Pick another in From as ever.	تبدأ الرسالة الجديدة من هذا العنوان، لا من {email}. ويمكنك اختيار عنوان آخر في «من» كما في السابق.
+	{address} (new mail)	{address} (الرسائل الجديدة)
 	Add…	إضافة…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	تظهر مجلداته تحت هذا الحساب. تحتاج إلى صلاحية الوصول إليه على خادم Exchange؛ وتُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
 	Mailboxes you have full access to open by themselves.	تُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.

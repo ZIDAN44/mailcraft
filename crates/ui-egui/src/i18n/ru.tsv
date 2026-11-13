@@ -72,6 +72,7 @@
 	Edit rule	Изменить правило
 	Email address	Адрес электронной почты
 	Enter the password for {email}.	Введите пароль для {email}.
+	Enter the password for {email}, which signs in as {user}.	Введите пароль для {email}: вход выполняется под именем {user}.
 	Favorites	Избранное
 	Feb	фев
 	File	Файл
@@ -932,6 +933,9 @@
 	Name on mail from it	Имя в письмах с этого адреса
 	Replies go to	Ответы приходят на
 	(the account's own)	(подпись учётной записи)
+	Write new mail from this address	Писать новые письма с этого адреса
+	A new message starts from this address, not from {email}. Pick another in From as ever.	Новое письмо начинается с этого адреса, а не с {email}. В поле «От» по-прежнему можно выбрать другой.
+	{address} (new mail)	{address} (новые письма)
 	Add…	Добавить…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Его папки появятся в этой учётной записи. Нужен доступ к нему на сервере Exchange; ящики с полным доступом открываются сами.
 	Mailboxes you have full access to open by themselves.	Ящики с полным доступом открываются сами.

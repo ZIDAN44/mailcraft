@@ -46,6 +46,8 @@ pub enum Dialog {
     Password {
         account: String,
         email: String,
+        /// The user name it signs in with, when that isn't its address; else empty.
+        user: String,
         password: String,
     },
     ConfirmDelete {
@@ -451,7 +453,13 @@ impl Dialog {
     }
 
     pub fn password(a: &AccountConfig) -> Dialog {
-        Dialog::Password { account: a.id.clone(), email: a.email.clone(), password: String::new() }
+        // The user name it signs in with, when that isn't its address (issue #88).
+        let user = if a.username.trim().is_empty() || a.username.trim().eq_ignore_ascii_case(a.email.trim()) {
+            String::new()
+        } else {
+            a.username.trim().to_string()
+        };
+        Dialog::Password { account: a.id.clone(), email: a.email.clone(), user, password: String::new() }
     }
 
     /// Set the error shown in the add-account form.

@@ -72,6 +72,7 @@
 	Edit rule	Regel bewerken
 	Email address	E-mailadres
 	Enter the password for {email}.	Voer het wachtwoord voor {email} in.
+	Enter the password for {email}, which signs in as {user}.	Voer het wachtwoord in voor {email}, dat zich aanmeldt als {user}.
 	Favorites	Favorieten
 	Feb	feb
 	File	Bestand
@@ -934,6 +935,9 @@ month	May	mei
 	Name on mail from it	Naam op e-mail vanaf dit adres
 	Replies go to	Antwoorden gaan naar
 	(the account's own)	(die van het account)
+	Write new mail from this address	Nieuwe berichten vanaf dit adres schrijven
+	A new message starts from this address, not from {email}. Pick another in From as ever.	Een nieuw bericht begint vanaf dit adres, niet vanaf {email}. Bij Van kiest u zoals altijd een ander.
+	{address} (new mail)	{address} (nieuwe berichten)
 	Add…	Toevoegen…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	De mappen verschijnen onder dit account. U hebt er toegang toe nodig op de Exchange-server; postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
 	Mailboxes you have full access to open by themselves.	Postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.

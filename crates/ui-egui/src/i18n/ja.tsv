@@ -72,6 +72,7 @@
 	Edit rule	ルールを編集
 	Email address	メール アドレス
 	Enter the password for {email}.	{email} のパスワードを入力してください。
+	Enter the password for {email}, which signs in as {user}.	{email} のパスワードを入力してください。サインインには {user} を使います。
 	Favorites	お気に入り
 	Feb	2月
 	File	ファイル
@@ -935,6 +936,9 @@ month	May	5月
 	Name on mail from it	このアドレスから送るメールの名前
 	Replies go to	返信先
 	(the account's own)	(アカウントの署名)
+	Write new mail from this address	新しいメールをこのアドレスから書く
+	A new message starts from this address, not from {email}. Pick another in From as ever.	新しいメッセージは {email} ではなく、このアドレスから始まります。これまでどおり［差出人］で別のアドレスを選べます。
+	{address} (new mail)	{address}（新しいメール）
 	Add…	追加…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	フォルダーはこのアカウントの下に表示されます。Exchange サーバーでのアクセス権が必要です。フル アクセス権のあるメールボックスは自動的に開きます。
 	Mailboxes you have full access to open by themselves.	フル アクセス権のあるメールボックスは自動的に開きます。

@@ -72,6 +72,7 @@
 	Edit rule	עריכת כלל
 	Email address	כתובת דואר אלקטרוני
 	Enter the password for {email}.	הזן את הסיסמה של {email}.
+	Enter the password for {email}, which signs in as {user}.	הזינו את הסיסמה של {email}, שנכנס בשם {user}.
 	Favorites	מועדפים
 	Feb	פבר׳
 	File	קובץ
@@ -934,6 +935,9 @@ month	May	מאי
 	Name on mail from it	השם על דואר שנשלח ממנה
 	Replies go to	תשובות נשלחות אל
 	(the account's own)	(זו של החשבון)
+	Write new mail from this address	כתיבת הודעות חדשות מכתובת זו
+	A new message starts from this address, not from {email}. Pick another in From as ever.	הודעה חדשה מתחילה מכתובת זו, ולא מ-{email}. אפשר לבחור אחרת ב'מאת', כתמיד.
+	{address} (new mail)	{address} (הודעות חדשות)
 	Add…	הוספה…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	התיקיות שלה יופיעו תחת החשבון הזה. נדרשת לך גישה אליה בשרת Exchange; תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.
 	Mailboxes you have full access to open by themselves.	תיבות שיש לך אליהן גישה מלאה נפתחות מעצמן.

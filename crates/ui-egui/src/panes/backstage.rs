@@ -389,7 +389,11 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
             let about = if others.is_empty() {
                 tl!("Addresses of this same mailbox that you also send from.").to_string()
             } else {
-                others.iter().map(|i| i.email.as_str()).collect::<Vec<_>>().join(", ")
+                // The one new mail is written from says so (issue #88).
+                let named = |i: &mailcraft_engine::model::Identity| {
+                    if i.new_mail { tf!("{address} (new mail)", address = i.email) } else { i.email.clone() }
+                };
+                others.iter().map(named).collect::<Vec<_>>().join(", ")
             };
             setting_row(ui, t, false, name(t, tl!("Other addresses")), Some(note(t, &about)), |ui| {
                 // A JMAP server keeps them: asked for, they're added.

@@ -72,6 +72,7 @@
 	Edit rule	编辑规则
 	Email address	电子邮件地址
 	Enter the password for {email}.	请输入 {email} 的密码。
+	Enter the password for {email}, which signs in as {user}.	请输入 {email} 的密码，它以 {user} 登录。
 	Favorites	收藏夹
 	Feb	2月
 	File	文件
@@ -935,6 +936,9 @@ month	May	5月
 	Name on mail from it	用此地址发信时显示的姓名
 	Replies go to	回复发送到
 	(the account's own)	（帐户自己的签名）
+	Write new mail from this address	用此地址写新邮件
+	A new message starts from this address, not from {email}. Pick another in From as ever.	新邮件从此地址开始，而不是 {email}。仍可在“发件人”中另选一个。
+	{address} (new mail)	{address}（新邮件）
 	Add…	添加…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其文件夹显示在此帐户下。你需要在 Exchange 服务器上拥有访问权限；拥有完全访问权限的邮箱会自动打开。
 	Mailboxes you have full access to open by themselves.	拥有完全访问权限的邮箱会自动打开。

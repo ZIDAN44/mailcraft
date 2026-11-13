@@ -183,7 +183,7 @@ pub(crate) fn tour() {
             Dialog::add_account_with("zoe@hotmail.com", true),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", true))),
-            Dialog::Password { account: "sample".into(), email: "x".into(), password: String::new() },
+            Dialog::Password { account: "sample".into(), email: "x".into(), user: "riley".into(), password: String::new() },
             Dialog::Certificate { account: "sample".into(), path: "riley.p12".into(), data: None, password: String::new() },
             Dialog::Certificate { account: "sample".into(), path: String::new(), data: None, password: String::new() },
             Dialog::Backup(Default::default()),

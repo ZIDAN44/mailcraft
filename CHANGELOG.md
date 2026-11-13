@@ -12,10 +12,15 @@ on GitHub.
 
 *What testers met in their first days with 0.38.*
 
+### Added
+
+- One of an account's other addresses can be the one new mail is written from (#88): tick **Write new mail from this address** when you add or change it under **File › Info › Other addresses**. A new message then starts from it, with its name and signature, and **From** still offers the others. An answer goes from the address the mail came to, as before, and from the chosen one when the mail came to none of the account's addresses (a list's mail, a hidden copy). For a mailbox that signs in as one address and writes as another, such as a Gmail mailbox with a domain of your own.
+
 ### Fixed
 
 - A certificate file (`.p12`, `.pfx`) saved by Thunderbird or Firefox is imported (#89): they write the file another way than OpenSSL and Windows do, and every one was refused as a wrong password, old files and new. What stops an import is now said as what it is: a wrong password, a file locked in a way MailCraft doesn't read, or a file that isn't a certificate file.
 - An account with calendars and contacts only is no longer listed in the mail folder pane (#86), where it opened to nothing and several of them filled the pane. Its calendars and contacts are in Calendar and People as before, and the account under **File › Info**. **All Inboxes** and **All Sent** show only when more than one account has mail.
+- **Sign in again** says which user name the account signs in with, when that isn't its address (#88): asked for "the password for" the address, it read as signing in with the address.
 
 ## 0.38.0 - 2026-11-13
 

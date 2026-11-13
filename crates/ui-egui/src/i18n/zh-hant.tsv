@@ -72,6 +72,7 @@
 	Edit rule	編輯規則
 	Email address	電子郵件地址
 	Enter the password for {email}.	請輸入 {email} 的密碼。
+	Enter the password for {email}, which signs in as {user}.	請輸入 {email} 的密碼，它以 {user} 登入。
 	Favorites	我的最愛
 	Feb	2月
 	File	檔案
@@ -932,6 +933,9 @@
 	Name on mail from it	用此位址寄信時顯示的名稱
 	Replies go to	回覆寄到
 	(the account's own)	（帳戶自己的簽名）
+	Write new mail from this address	用此地址寫新郵件
+	A new message starts from this address, not from {email}. Pick another in From as ever.	新郵件從此地址開始，而不是 {email}。仍可在「寄件者」中另選一個。
+	{address} (new mail)	{address}（新郵件）
 	Add…	新增…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其資料夾會顯示在此帳戶下。你需要在 Exchange 伺服器上擁有存取權；擁有完整存取權的信箱會自動開啟。
 	Mailboxes you have full access to open by themselves.	擁有完整存取權的信箱會自動開啟。

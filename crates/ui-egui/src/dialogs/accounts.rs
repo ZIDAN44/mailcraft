@@ -344,10 +344,17 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::Password { account, email, password } => {
+        Dialog::Password { account, email, user, password } => {
             ui.set_width(380.0);
             title(ui, t, "Sign in again");
-            ui.label(RichText::new(tf!("Enter the password for {email}.", email = email)).color(t.dim));
+            // An account that signs in with a user name of its own says so: asked for "the
+            // password for" its address, it read as signing in with the address (issue #88).
+            let about = if user.is_empty() {
+                tf!("Enter the password for {email}.", email = email)
+            } else {
+                tf!("Enter the password for {email}, which signs in as {user}.", email = email, user = user)
+            };
+            ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
             ui.add_space(8.0);
             let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
             // Before the focus request below, which would hide the Enter that ended input.

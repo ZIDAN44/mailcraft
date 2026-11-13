@@ -469,7 +469,7 @@ impl<H: Http> Client<H> {
                 email: text(i.get("email"), 254),
                 name: text(i.get("name"), 200),
                 reply_to: text(reply_to, 254),
-                signature: None,
+                ..Default::default()
             }
         });
         Ok(found.filter(|i| mailcraft_model::addr::is_valid_email(&i.email)).collect())

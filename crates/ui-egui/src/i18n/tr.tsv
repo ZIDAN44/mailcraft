@@ -72,6 +72,7 @@
 	Edit rule	Kuralı düzenle
 	Email address	E-posta adresi
 	Enter the password for {email}.	{email} için parolayı girin.
+	Enter the password for {email}, which signs in as {user}.	{email} için parolayı girin; {user} olarak oturum açar.
 	Favorites	Sık Kullanılanlar
 	Feb	Şub
 	File	Dosya
@@ -933,6 +934,9 @@
 	Name on mail from it	Bu adresten giden postadaki ad
 	Replies go to	Yanıtlar şuraya gider
 	(the account's own)	(hesabın imzası)
+	Write new mail from this address	Yeni iletileri bu adresten yaz
+	A new message starts from this address, not from {email}. Pick another in From as ever.	Yeni ileti {email} adresinden değil, bu adresten başlar. Kimden alanında her zamanki gibi başka birini seçebilirsiniz.
+	{address} (new mail)	{address} (yeni iletiler)
 	Add…	Ekle…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Klasörleri bu hesabın altında görünür. Exchange sunucusunda ona erişiminiz olmalıdır; tam erişiminiz olanlar kendiliğinden açılır.
 	Mailboxes you have full access to open by themselves.	Tam erişiminiz olan posta kutuları kendiliğinden açılır.
