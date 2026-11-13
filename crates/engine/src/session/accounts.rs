@@ -327,10 +327,17 @@ impl Session {
         }
         self.save_accounts();
         self.jobs.push(Job::Remove { account: id.to_string() });
-        if self.compose.as_ref().is_some_and(|c| c.account == id) {
-            self.compose = None;
+        // What's being written from it isn't thrown away with it: it goes From an account that
+        // can send (now, or once one is added), as a message written in a data file's folders.
+        // Its saved copy and the message it answers went with the account.
+        for c in self.compose.iter_mut().chain(self.composes.iter_mut()).filter(|c| c.account == id) {
+            (c.draft, c.source, c.sending) = (None, None, false);
+            (c.on_its_way, c.saves, c.saved_as, c.error) = (None, 0, None, None);
+            c.draft_id.clear();
         }
-        self.composes.retain(|c| c.account != id);
+        // Nor is one of its messages still being signed sent on from another account.
+        self.forget_protecting(id);
+        self.move_to_sending_account();
         let view = self.default_view();
         self.open_view(view);
         Ok(serde_json::json!({ "removed": id, "dataFile": kept.map(|f| f.display().to_string()) }))
@@ -373,6 +380,9 @@ impl Session {
             return Err(CmdError::Params("signing in with Microsoft isn't set up in this copy of MailCraft".into()));
         }
         let at = self.accounts.iter().position(|x| x.config.id == id).unwrap_or(0);
+        // What's being written from it stays its: from the account as it is after, with the
+        // address it was written from (left to itself, it went to another account that sends).
+        let written: Vec<(u64, String)> = self.all_composes().filter(|w| w.account == id).map(|w| (w.id, w.from.clone())).collect();
         // Starting again from the server: its old file isn't kept beside the new one.
         self.drop_account(id, Leaves::Nothing)?;
         let config = AccountConfig {
@@ -383,11 +393,18 @@ impl Session {
             signatures: c.signatures,
             signature_new: c.signature_new,
             signature_reply: c.signature_reply,
+            // And its other addresses.
+            identities: c.identities,
             oauth: Some("microsoft".into()),
             graph: Some(mailcraft_model::GRAPH_URL.to_string()),
             ..Default::default()
         };
         let new = self.add_account(config, None)?;
+        for w in self.compose.iter_mut().chain(self.composes.iter_mut()) {
+            if let Some((_, from)) = written.iter().find(|(wid, _)| *wid == w.id) {
+                (w.account, w.from) = (new.clone(), from.clone());
+            }
+        }
         if let Some(from) = self.accounts.iter().position(|x| x.config.id == new) {
             let mut moved = self.accounts.remove(from);
             moved.config.color = c.color;

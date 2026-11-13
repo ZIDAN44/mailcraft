@@ -216,10 +216,45 @@ fn invitations_from_others_or_out_of_date_are_not_applied() {
     assert!(s.run("invite.apply", &json!({})).is_err());
     let zoe = |s: &Session| s.find_event(&own).unwrap().1.event.attendees.iter().find(|a| a.email == "zoe@studio.example").unwrap().partstat.clone();
     assert_eq!(zoe(&s), "NEEDS-ACTION");
+    // Found in review: nor from someone the meeting names only in another of its parts, whose
+    // answer the part that's taken in says is Zoe's (the first guest stood in for the sender).
+    let elsewhere = CalEvent {
+        recurrence_id: Some(reply.start + WEEK),
+        start: reply.start + WEEK,
+        end: reply.end + WEEK,
+        attendees: vec![Attendee { email: "mallory@evil.example".into(), name: "Mallory".into(), partstat: "ACCEPTED".into(), rsvp: false }],
+        ..reply.clone()
+    };
+    deliver(&mut s, 9, ("Mallory", "mallory@evil.example"), "REPLY", &[reply.clone(), elsewhere], NOW);
+    assert_eq!(s.invite().unwrap().problem, Some(InviteProblem::NotFromGuest));
+    assert!(s.run("invite.apply", &json!({})).is_err());
+    assert_eq!(zoe(&s), "NEEDS-ACTION");
     deliver(&mut s, 8, ("Zoe Park", "ZOE@studio.example"), "REPLY", &[reply], NOW);
     assert_eq!(s.invite().unwrap().problem, None, "the address is compared without case");
     s.run("invite.apply", &json!({})).unwrap();
     assert_eq!(zoe(&s), "DECLINED");
+
+    // Found in review (issue #81): invited at another of the account's addresses, the answer
+    // goes from that address, the guest it's for: from the account's own, the organizer's
+    // program took it for someone else's and recorded nothing.
+    s.run("account.setAddress", &json!({"account": "sample", "address": "shop@studio.example", "name": "The Shop"})).unwrap();
+    let shop = Attendee { email: "shop@studio.example".into(), name: "The Shop".into(), partstat: "NEEDS-ACTION".into(), rsvp: true };
+    let asked = CalEvent {
+        uid: "stock@soundlab.example".into(),
+        summary: "Stock take".into(),
+        start: NOW + 3 * 86_400,
+        end: NOW + 3 * 86_400 + 3600,
+        organizer: Some(Attendee { email: ANA.1.into(), name: ANA.0.into(), ..Default::default() }),
+        attendees: vec![shop],
+        ..Default::default()
+    };
+    deliver(&mut s, 10, ANA, "REQUEST", &[asked], NOW);
+    s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    let (method, raw) = sent_calendar(&s, "Sent", "Accepted: Stock take");
+    assert_eq!(method, "REPLY");
+    let sent = mailcraft_mime::parse(raw.as_bytes()).unwrap();
+    assert_eq!((sent.from.name.as_str(), sent.from.email.as_str()), ("The Shop", "shop@studio.example"));
+    assert!(raw.contains("shop@studio.example") && raw.contains("PARTSTAT=ACCEPTED"), "{raw}");
     done(s);
 }
 

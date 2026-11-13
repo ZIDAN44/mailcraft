@@ -358,7 +358,9 @@ impl Session {
         // own as well (issue #81): the answer comes from where the mail went.
         let from = self.account(&account).filter(|_| account == r.key.account).map(|a| &a.config).and_then(|config| {
             let sent_to = |email: &str| parsed.to.iter().chain(&parsed.cc).any(|t| t.email.eq_ignore_ascii_case(email));
-            if sent_to(&config.email) { None } else { config.identities.iter().find(|i| sent_to(&i.email)).map(|i| i.email.clone()) }
+            // One's own mail, written from one of them, is followed up from it.
+            let own = config.identity(&parsed.from.email).map(|i| i.email.clone());
+            own.or_else(|| if sent_to(&config.email) { None } else { config.identities.iter().find(|i| sent_to(&i.email)).map(|i| i.email.clone()) })
         });
         let from = from.unwrap_or_default();
         let signature = self.signature_for(&account, &from, true);
@@ -511,7 +513,7 @@ impl Session {
                 found.push(SendCheck::Lookalike { address: a.email.trim().to_string(), like: like.to_string() });
             }
         }
-        let mine = self.account(&c.account).map(|a| lookalike::domain_of(&a.config.email)).unwrap_or_default();
+        let mine = self.account(&c.account).map(|a| lookalike::domain_of(&a.config.sender(&c.from).email)).unwrap_or_default();
         let mut people = BTreeSet::new();
         for a in d.to.iter().chain(&d.cc) {
             let domain = lookalike::domain_of(&a.email);
@@ -530,7 +532,9 @@ impl Session {
     /// seeing who else did.
     pub fn hide_recipients(&mut self) -> CmdResult {
         let c = self.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-        let me = self.account(&c.account).map(|a| EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string()).unwrap_or_default();
+        // The address it's written from: the account's main one, put there for one of its
+        // others, showed everyone the address the message wasn't to come from.
+        let me = self.account(&c.account).map(|a| a.config.sender(&c.from).to_string()).unwrap_or_default();
         let c = self.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
         let moved: Vec<&str> = [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()]
             .into_iter()

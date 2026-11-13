@@ -473,17 +473,28 @@ fn run() -> Result<(), String> {
             }
             let local = s.account(&account).is_some_and(|a| a.is_local());
             if local {
-                print(&s.run("compose.send", &json!({"allowEmptySubject": true})).map_err(|e| e.to_string())?);
+                print(&s.run("compose.send", &json!({"allowEmptySubject": true, "checked": args.flag("--checked")})).map_err(|e| e.to_string())?);
                 return Ok(());
             }
             let mut pool = start(&mut s, &store, &account)?;
-            let sending = s.run("compose.send", &json!({"allowEmptySubject": true})).map_err(|e| e.to_string())?;
-            let me = sending["sending"].as_u64();
+            let sending = s.run("compose.send", &json!({"allowEmptySubject": true, "checked": args.flag("--checked")})).map_err(|e| e.to_string())?;
+            // Held to be looked at again (an address that looks like another, many people shown
+            // each other's addresses): said at once. It waited out the three minutes unsaid.
+            if let Some(checks) = sending.get("check") {
+                return Err(format!("not sent: it's held to be checked first ({checks}); send it with --checked once it's been looked at"));
+            }
+            // Being signed or encrypted first, then sent under the same number: waited for by
+            // that (it was sent, and "timed out" said three minutes later, for a script to
+            // send it again).
+            let me = sending["sending"].as_u64().or_else(|| sending["protecting"].as_u64());
             // This message's word only: one waiting in the Outbox goes out as the account connects,
             // and its word ended the wait before this one was sent (issue #19's testing).
             drive(&mut s, &mut pool, Duration::from_secs(180), |e| match e {
                 Event::Sent { id, .. } if Some(*id) == me => Some(Ok(())),
                 Event::SendFailed { id, error, .. } if Some(*id) == me => Some(Err(error.clone())),
+                Event::Protected { id, error: Some(error), .. } if Some(*id) == me => {
+                    Some(Err(format!("it couldn't be signed or encrypted: {error}")))
+                }
                 // Kept in the Outbox to go later (it waited there unsaid until the time ran out).
                 Event::Queued { id, error, .. } if Some(*id) == me => Some(Err(format!("not sent yet, kept in the Outbox: {error}"))),
                 _ => None,

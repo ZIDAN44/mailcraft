@@ -40,6 +40,11 @@ on GitHub.
 - **Undo** that can't be done any more (the mail was deleted for good since) is dropped, not kept in the way of every Undo after it. Moving a message to the folder it's in leaves it open.
 - A server that fails after signing in is tried less and less often, not every five seconds for good; a connection that got an answer it couldn't read is closed, not used again.
 - Automatic replies on a server without them read "Not available: this server doesn't offer automatic replies", without "the server refused:" in the middle.
+- From one of an account's other addresses (#81): **Put everyone in Bcc** puts that address in To, not the account's main one; a renamed signature stays the address's; a follow-up to your own mail from it comes from it; and an invitation sent to it is answered from it (answered from the main address, the organizer's program took none of it).
+- A meeting answer counts only from the guest it's for: one that named its sender in another part of the meeting set someone else's answer.
+- What's being written isn't lost: a message closed while it was being signed opens again when signing fails; removing its account leaves it open, to go from another (with no account left, it's kept as MailCraft closes and is back when it opens); and a draft saved on a server no longer opens a second time while it's still being written.
+- A recipient after a name with an unbalanced quote is said to be wrong: it was left out of the message without a word.
+- `mailcraft-cli send` says so at once when a message is held to be checked (`--checked` sends it), and waits for one that's signed first (it said "timed out" after the message had gone).
 
 ## 0.37.0 - 2026-11-12
 

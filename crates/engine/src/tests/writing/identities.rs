@@ -195,7 +195,33 @@ fn replies_and_drafts_keep_the_address() {
     s.run("compose.close", &json!({"save": false})).unwrap();
 
     // Sent to the account's own address as well: answered from that.
-    s.run("account.setAddress", &json!({"account": id, "address": "shop@example.org"})).unwrap();
+    s.run("account.setAddress", &json!({"account": id, "address": "shop@example.org", "signature": "Shop"})).unwrap();
+    // Found in review. Its signature renamed, the address's follows: left with the old name,
+    // its mail got the account's own, and the address couldn't be changed any more.
+    s.run("account.setSignature", &json!({"account": id, "was": "Shop", "name": "Shop desk", "signature": "The shop's desk"})).unwrap();
+    assert_eq!(s.account(&id).unwrap().config.identities[0].signature.as_deref(), Some("Shop desk"));
+    s.run("account.setAddress", &json!({"account": id, "address": "shop@example.org", "name": "The Shop"})).unwrap();
+    // Everyone put in Bcc from that address: it's the one in To, not the account's main one.
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"from": "shop@example.org", "to": "ann@x.example; ben@x.example"})).unwrap();
+    s.run("compose.hideRecipients", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert!(c.to.contains("shop@example.org") && !c.to.contains("zoe@example.org"), "{}", c.to);
+    s.run("compose.close", &json!({"save": false})).unwrap();
+    // One's own mail from that address, followed up: from it again.
+    let own = b"From: The Shop <shop@example.org>\r\nTo: Ann <ann@x.example>\r\nSubject: Sent\r\nMessage-ID: <3@example.org>\r\n\r\nOn its way.\r\n";
+    let third = put(&mut s, &id, "INBOX", 3, own);
+    // (The first change heard is taken for the answer to the read mark made above.)
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.run("list.open", &json!({"key": third.to_id()})).unwrap();
+    s.run("mail.replyAll", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!(c.from, "shop@example.org");
+    assert!(c.to.contains("ann@x.example"), "{}", c.to);
+    s.run("compose.close", &json!({"save": false})).unwrap();
+    // The signature removed: the address has none of its own.
+    s.run("account.setSignature", &json!({"account": id, "name": "Shop desk", "signature": ""})).unwrap();
+    assert_eq!(s.account(&id).unwrap().config.identities[0].signature, None);
     s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": second.to_id()})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
@@ -252,5 +278,45 @@ fn a_jmap_servers_identities_become_the_accounts_addresses() {
     s.apply(Event::IdentitiesFound { account: id.clone(), found: Vec::new(), error: Some("the account is offline".into()) });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("offline")));
     assert_eq!(s.account(&id).unwrap().config.identities.len(), 3);
+    done(s);
+}
+
+/// Found in review. An account removed took what was being written from it along, unsaid; and
+/// a draft saved on a server, opened again from Drafts while it was still being written,
+/// opened a second time (sent from one, the other was sent again or kept as a draft of it).
+#[test]
+fn what_is_being_written_is_neither_lost_nor_opened_twice() {
+    let (mut s, id) = one_account("identities-kept");
+    // Saved on the server: the copy there is this one, by its Message-ID.
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plan", "body": "Half written"})).unwrap();
+    let cid = s.compose.as_ref().unwrap().id;
+    s.compose.as_mut().unwrap().draft_id = "<plan@example.org>".into();
+    let saved = b"From: Zoe Park <zoe@example.org>\r\nTo: ann@x.example\r\nSubject: Plan\r\nMessage-ID: <plan@example.org>\r\n\r\nHalf written\r\n";
+    let draft = put(&mut s, &id, "Drafts", 9, saved);
+    let again = s.run("draft.edit", &json!({"key": draft.to_id()})).unwrap();
+    assert_eq!(again["compose"], json!(cid), "the one being written, brought forward");
+    assert_eq!(s.all_composes().count(), 1);
+
+    // The account removed, with another that can send: the message goes From that one.
+    let other =
+        s.run("account.add", &json!({"email": "ben@example.net", "password": "pw", "name": "Ben"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(s.compose.as_ref().unwrap().account, id);
+    s.run("account.remove", &json!({"account": id})).unwrap();
+    let c = s.compose.clone().expect("still being written");
+    assert_eq!((c.account.as_str(), c.body.contains("Half written"), c.draft, c.draft_id.as_str()), (other.as_str(), true, None, ""));
+    // The last account removed: still there, to be sent once there's one to send from.
+    s.run("account.remove", &json!({"account": other})).unwrap();
+    assert!(s.compose.as_ref().is_some_and(|c| c.body.contains("Half written")));
+    assert!(s.run("compose.send", &json!({})).is_err());
+    // MailCraft closed like that: kept all the same, and being written again when it opens
+    // (with no Drafts folder to go to, it was let go).
+    assert_eq!(s.keep_drafts(), 1);
+    let again = Session::open(s.store.clone(), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert!(again.all_composes().any(|c| c.body.contains("Half written") && c.window), "back when MailCraft opens");
+    assert!(Session::open(s.store.clone(), mailcraft_model::dates::Clock::new(NOW, 0)).all_composes().next().is_none(), "once");
+    let third =
+        s.run("account.add", &json!({"email": "cy@example.net", "password": "pw", "name": "Cy"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(s.compose.as_ref().unwrap().account, third);
     done(s);
 }

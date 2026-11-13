@@ -102,6 +102,17 @@ fn parse_one(s: &str) -> Option<EmailAddress> {
         if gt < lt {
             return None;
         }
+        // Nothing after it: with a quote left open (`Jo 6" Doe <jo@x.example>; bo@x.example`)
+        // the next address is in the same piece, and was left out of the message unsaid.
+        // Nor with a quote left open before it, which holds an address inside the name
+        // (`Jo 6" Doe <jo@x.example>; Bo <bo@x.example>` was Bo alone, named all of that).
+        // What ends an entry (`;`, `,`), and a quote around all of it, may follow.
+        let after = s.get(gt + 1..).unwrap_or_default().trim_matches(|c: char| c.is_whitespace() || matches!(c, ';' | ',' | '"'));
+        let open_quote = s.get(..lt).is_some_and(|name| name.matches('"').count() % 2 == 1) && !s.trim_start().starts_with('"');
+        let inside = s.get(..lt).is_some_and(|name| name.contains('<') || name.contains('>'));
+        if !after.is_empty() || (open_quote && inside) {
+            return None;
+        }
         let email = s.get(lt + 1..gt)?.trim().to_string();
         let name = s.get(..lt)?.trim().trim_matches('"').trim().to_string();
         let a = EmailAddress { name, email };
@@ -167,6 +178,18 @@ mod tests {
         assert_eq!(parse_list("  ; ,").unwrap(), vec![]);
         assert_eq!(parse_list("good@x.org, not an address").unwrap_err(), "not an address");
         assert!(parse_list("a@b.c <").is_err());
+        // Found in review: a quote left open kept the next address in the same piece, where
+        // it was dropped without a word, and the message went without that person.
+        let err = parse_list("Jo 6\" Doe <jo@x.org>; bob@y.org").unwrap_err();
+        assert!(err.contains("bob@y.org"), "{err}");
+        assert!(parse_list("Jo <jo@x.org> and more").is_err());
+        assert_eq!(parse_list("Jo <jo@x.org> ; bob@y.org").unwrap().len(), 2);
+        assert!(parse_valid("Jo 6\" Doe <jo@x.org>; bob@y.org").is_empty());
+        // Found in a second review: nor when the next one has its own brackets (it was sent
+        // to Bob alone, named all the rest); and what ends an entry may follow it.
+        assert!(parse_list("Jo 6\" Doe <jo@x.org>; Bob <bob@y.org>").is_err());
+        assert_eq!(parse_list("Jo 6\" Doe <jo@x.org>; ").unwrap(), [EmailAddress::new("Jo 6\" Doe", "jo@x.org")]);
+        assert_eq!(parse_list("\"Zoe <zoe@x.org>\"").unwrap()[0].email, "zoe@x.org");
     }
 
     #[test]

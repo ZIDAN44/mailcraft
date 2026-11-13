@@ -263,10 +263,11 @@ impl Session {
             .find(|a| mine.contains(&a.email.to_ascii_lowercase()))
             .map(|a| a.partstat.clone())
             .unwrap_or_else(|| "NEEDS-ACTION".into());
-        let replier = (method == "REPLY")
-            .then(|| event.attendees.iter().find(|a| same_address(&a.email, &sender)).or_else(|| event.attendees.first()).cloned())
-            .flatten();
-        let problem = self.invite_problem(&cal, &sender);
+        // The guest the answer is from: the one its sender is, in the event that's taken in.
+        // (The first guest named stood in when the sender wasn't one of them: an answer that
+        // named the sender only in another part of the meeting set someone else's.)
+        let replier = (method == "REPLY").then(|| event.attendees.iter().find(|a| same_address(&a.email, &sender)).cloned()).flatten();
+        let problem = self.invite_problem(&cal, &sender).or_else(|| (method == "REPLY" && replier.is_none()).then_some(InviteProblem::NotFromGuest));
         Some(Invite { method, event, answer, in_calendar: !parts.is_empty(), replier, problem })
     }
 
@@ -468,10 +469,19 @@ impl Session {
     /// Send the organizer the user's answer.
     fn send_reply(&mut self, account: &str, event: &CalEvent, stat: &str) -> Result<(), CmdError> {
         let Some(organizer) = event.organizer.clone().filter(|o| addr::is_valid_email(&o.email)) else { return Ok(()) };
-        let me = self.account(account).map(|a| (a.config.name.clone(), a.config.email.clone())).unwrap_or_default();
-        if organizer.email.eq_ignore_ascii_case(&me.1) {
+        let config = self.account(account).map(|a| a.config.clone()).unwrap_or_default();
+        // Answered from the address that was invited, when it's one of the account's others
+        // and its own wasn't (issue #81): from the account's own, the organizer's program saw
+        // an answer for one guest sent by someone else, and took none of it.
+        let own_invited = event.attendees.iter().any(|a| a.email.eq_ignore_ascii_case(&config.email));
+        let invited =
+            event.attendees.iter().filter(|_| !own_invited).find_map(|a| config.identity(&a.email)).map(|i| i.email.clone()).unwrap_or_default();
+        let sender = config.sender(&invited);
+        // One's own meeting (organised from the address this would come from): no one to answer.
+        if organizer.email.eq_ignore_ascii_case(&sender.email) || organizer.email.eq_ignore_ascii_case(&config.email) {
             return Ok(());
         }
+        let me = (sender.name.clone(), sender.email.clone());
         let mine = self.my_addresses();
         let mut reply = event.clone();
         reply.attendees.retain(|a| mine.contains(&a.email.to_ascii_lowercase()));
@@ -490,17 +500,22 @@ impl Session {
         let who = if me.0.is_empty() { me.1.clone() } else { me.0.clone() };
         let body = format!("{who} {} the invitation to {}.", word.to_ascii_lowercase(), event.summary);
         let to = vec![EmailAddress::new(organizer.name.clone(), organizer.email.clone())];
-        self.send_itip(account, to, "REPLY", &[reply], &format!("{word}: {}", event.summary), &body)
+        self.send_itip(account, &invited, to, "REPLY", &[reply], &format!("{word}: {}", event.summary), &body)
     }
 
     /// Invite the guests of one of the user's events (or tell them of a change: `REQUEST`, or
     /// that it's off: `CANCEL`).
     pub fn send_invitations(&mut self, event: &CalEvent, account: &str, method: &str) -> Result<usize, CmdError> {
-        let me = self.account(account).map(|a| a.config.email.to_ascii_lowercase()).unwrap_or_default();
+        let config = self.account(account).map(|a| a.config.clone()).unwrap_or_default();
+        // From the address that organises it, when that's one of the account's others. The
+        // organizer isn't invited to their own meeting; another of the account's addresses
+        // that's a guest (a list the user also sends as) is.
+        let from = event.organizer.as_ref().and_then(|o| config.identity(&o.email)).map(|i| i.email.clone()).unwrap_or_default();
+        let me = config.sender(&from).email;
         let to: Vec<EmailAddress> = event
             .attendees
             .iter()
-            .filter(|a| !a.email.eq_ignore_ascii_case(&me) && addr::is_valid_email(&a.email))
+            .filter(|a| !a.email.eq_ignore_ascii_case(&me) && !a.email.eq_ignore_ascii_case(&config.email) && addr::is_valid_email(&a.email))
             .map(|a| EmailAddress::new(a.name.clone(), a.email.clone()))
             .collect();
         if to.is_empty() {
@@ -516,14 +531,17 @@ impl Session {
             (format!("Invitation: {}", event.summary), format!("{}\nWhen: {when}{place}\n\n{}", event.summary, event.description))
         };
         let n = to.len();
-        self.send_itip(account, to, method, &[e], &subject, &body)?;
+        self.send_itip(account, &from, to, method, &[e], &subject, &body)?;
         Ok(n)
     }
 
-    /// Send a message carrying a calendar (`text/calendar; method=…`, RFC 6047).
+    /// Send a message carrying a calendar (`text/calendar; method=…`, RFC 6047), from the
+    /// account's address `from` (one of its others; empty: its own).
+    #[allow(clippy::too_many_arguments)]
     fn send_itip(
         &mut self,
         account: &str,
+        from: &str,
         to: Vec<EmailAddress>,
         method: &str,
         events: &[CalEvent],
@@ -537,7 +555,7 @@ impl Session {
             return Ok(());
         }
         let acc = self.account(account).ok_or_else(|| CmdError::Failed("the account is gone".into()))?;
-        let from = EmailAddress::new(acc.config.name.clone(), acc.config.email.clone());
+        let from = acc.config.sender(from);
         let local = acc.is_local();
         let sent_folder = acc.folder(FolderRole::Sent).map(|f| f.path.clone());
         let ics = ical::write(events, Some(method), self.clock.now);

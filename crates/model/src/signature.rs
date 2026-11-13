@@ -85,7 +85,10 @@ impl AccountConfig {
         match at.or(same) {
             Some(i) => {
                 let old = self.signatures.get(i).map(|s| s.name.clone()).unwrap_or_default();
-                for d in [&mut self.signature_new, &mut self.signature_reply] {
+                // Its other addresses' too: one left with the old name got the account's own
+                // signature instead, and couldn't be changed for naming one that's gone.
+                let others = self.identities.iter_mut().map(|i| &mut i.signature);
+                for d in [&mut self.signature_new, &mut self.signature_reply].into_iter().chain(others) {
                     if d.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(&old)) {
                         *d = Some(name.clone());
                     }
@@ -112,7 +115,8 @@ impl AccountConfig {
     pub fn remove_signature(&mut self, name: &str) -> bool {
         let before = self.signatures.len();
         self.signatures.retain(|s| !s.name.eq_ignore_ascii_case(name.trim()));
-        for d in [&mut self.signature_new, &mut self.signature_reply] {
+        let others = self.identities.iter_mut().map(|i| &mut i.signature);
+        for d in [&mut self.signature_new, &mut self.signature_reply].into_iter().chain(others) {
             if d.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(name.trim())) {
                 *d = None;
             }
