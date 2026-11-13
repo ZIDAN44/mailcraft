@@ -9,6 +9,7 @@ mod fold;
 mod fuzz;
 mod ico;
 mod icons;
+mod locks;
 mod sizes;
 mod version;
 
@@ -21,11 +22,13 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
-  ci       fmt --check, sizes, fold --check, clippy -D warnings, tests, forks pinned alike, layers,
-           assets, fuzz, wasm (stops at the first failure)
+  ci       fmt --check, sizes, fold --check, clippy -D warnings, tests, forks pinned alike, locks,
+           layers, assets, fuzz, wasm (stops at the first failure)
   layers   enforce the crate layering (docs/architecture.md)
   assets   check that every asset file is attributed in ATTRIBUTION.md
   fuzz     check that every fuzz target has its seeds and dictionary (fuzz/README.md)
+  locks    fuzz/Cargo.lock has the versions Cargo.lock has of what both build; `locks --update`
+           moves the fuzz workspace's to them
   sizes    files stay under 1000 lines and folders under 16 Rust files (xtask/sizes.txt holds
            what was over then, which may shrink but never grow); `sizes --update` lowers it
   fold     write search's fold table (crates/model/src/search/fold_table.rs); `fold --check`
@@ -254,6 +257,7 @@ fn cmd_ci() -> Result<(), String> {
     test.args(["test", "--workspace"]);
     run(test, "cargo test")?;
     patched(&root())?;
+    locks::run(&root(), &[])?;
     cmd_layers()?;
     cmd_assets()?;
     fuzz::run(&root())?;
@@ -267,6 +271,7 @@ fn main() -> ExitCode {
         Some("layers") => cmd_layers(),
         Some("assets") => cmd_assets(),
         Some("fuzz") => fuzz::run(&root()),
+        Some("locks") => locks::run(&root(), &args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),
         Some("sizes") => sizes::run(&root(), &args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),
         Some("fold") => fold::run(&root(), &args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()),
         Some("wasm") => cmd_wasm(),

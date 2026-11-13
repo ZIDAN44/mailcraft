@@ -11,6 +11,7 @@
 //! script the events directly.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod backup;
 pub mod cmd;
 pub mod sample;
 mod session;
@@ -35,7 +36,7 @@ pub use session::{
     newer_release, parse_key,
     pim::{
         ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, EVENT_HITS_MAX, EventHit, EventWhen, ListedTask, LocalEvents, Module, NoteRef, Person,
-        TASKS_CALENDAR, TaskRef, TasksOrder, parse_local,
+        TASKS_CALENDAR, TODO_BAR_WIDTH, TaskRef, TasksOrder, TodoBar, TodoGroup, TodoItem, TodoWhat, parse_local,
     },
     quick_steps::QuickStep,
     search_folders::SearchFolder,

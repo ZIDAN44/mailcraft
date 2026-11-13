@@ -6,6 +6,10 @@ use super::*;
 /// Messages held at most while their drafts are on the way to the server ([`Session::saving`]).
 const MAX_SAVING: usize = 64;
 
+/// Where messages being written with no account are kept as MailCraft closes, and the most.
+const UNSENT_DOC: &str = "unsent.json";
+const UNSENT_MAX: usize = 20;
+
 impl Session {
     /// Another message is shown in the reading pane: the message being written there (inline)
     /// makes way for it, as Outlook's does. Kept in Drafts when something was written in it,
@@ -152,8 +156,42 @@ impl Session {
     /// Those whose drafts are still on the way to the server too ([`Session::keep_held`]).
     pub fn keep_drafts(&mut self) -> usize {
         let written: Vec<Compose> = self.all_composes().filter(|c| self.written(c) && !c.sending).cloned().collect();
+        // Those of no account (theirs was removed, and there's none to send from): kept apart,
+        // to be written on when MailCraft opens again. With no Drafts folder to go to, they
+        // were let go as it closed.
+        let (homeless, written): (Vec<Compose>, Vec<Compose>) = written.into_iter().partition(|c| self.account(&c.account).is_none());
         let kept = written.iter().filter(|c| self.keep_draft(c)).count();
-        kept + self.keep_held()
+        kept + self.keep_unsent(homeless) + self.keep_held()
+    }
+
+    /// Messages being written that have no account, kept as they are (`unsent.json`). How many.
+    fn keep_unsent(&mut self, homeless: Vec<Compose>) -> usize {
+        let Some(store) = self.store.clone().filter(|_| !homeless.is_empty()) else { return 0 };
+        let mut kept: Vec<Compose> = store.load_doc(UNSENT_DOC).unwrap_or_default();
+        kept.extend(homeless.into_iter().map(|c| Compose { sending: false, error: None, on_its_way: None, saves: 0, saved_as: None, ..c }));
+        kept.truncate(UNSENT_MAX);
+        match store.save_doc(UNSENT_DOC, &kept) {
+            Ok(()) => kept.len(),
+            Err(e) => {
+                self.notice(format!("A message being written couldn't be kept: {e}"), true);
+                0
+            }
+        }
+    }
+
+    /// As MailCraft opens: the messages kept by [`Session::keep_drafts`] for want of an account
+    /// are being written again, from an account that can send when there is one.
+    pub(crate) fn restore_unsent(&mut self) {
+        let Some(store) = self.store.clone() else { return };
+        let kept: Vec<Compose> = store.load_doc(UNSENT_DOC).unwrap_or_default();
+        if kept.is_empty() || store.save_doc(UNSENT_DOC, &Vec::<Compose>::new()).is_err() {
+            return;
+        }
+        for c in kept.into_iter().take(UNSENT_MAX) {
+            let id = self.fresh_id();
+            self.composes.push(Compose { id, window: true, sending: false, ..c });
+        }
+        self.move_to_sending_account();
     }
 
     /// The messages held while their drafts are on the way to the server ([`Session::saving`]),
@@ -218,7 +256,7 @@ impl Session {
     /// A message as a draft's source, the Drafts folder it goes in, and its Message-ID.
     pub(crate) fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String, String), CmdError> {
         // Drafts may hold unfinished addresses: keep only the valid ones.
-        let lenient = |s: &str| s.split([',', ';']).filter_map(|p| addr::parse_list(p).ok()).flatten().collect::<Vec<_>>();
+        let lenient = addr::parse_valid;
         let (body, html, inline) = c.bodies_with(&c.signature_code);
         let d = mime::Draft {
             reply_to: lenient(&c.reply_to),

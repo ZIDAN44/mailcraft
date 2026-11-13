@@ -152,7 +152,9 @@ impl Session {
             if let Some(inbox) = self.account(&a).and_then(|x| x.folder(FolderRole::Inbox)).map(|f| f.path.clone())
                 && inbox != m.key.folder
             {
-                self.apply_op(&a, Op::Move { keys: vec![m.key.clone()], to: inbox });
+                self.apply_op(&a, Op::Move { keys: vec![m.key.clone()], to: inbox.clone() });
+                // Seen arriving in the Inbox: it's the server's filing that's put right.
+                self.moved_in.remove(&(a, inbox, m.message_id.clone()));
             }
         }
     }

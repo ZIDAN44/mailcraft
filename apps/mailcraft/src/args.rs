@@ -19,6 +19,8 @@ Usage: mailcraft [options] [mailto:LINK | FILE]…
   --light, --dark   start in the light or dark theme
   --cmd ID[=JSON]   run a command once the window opens (repeatable), e.g.
                     --cmd 'list.open={\"key\":\"sample:1:1:INBOX\"}' --cmd mail.reply
+  --open LINK|FILE  open that and take nothing after it for an option (how the
+                    system starts MailCraft for a link or a file)
   --log             also write the log to the terminal
   --version, -V     print the version
   --help, -h        print this
@@ -36,6 +38,27 @@ pub fn version_line() -> String {
         (Some(sha), Some(date)) if !sha.is_empty() => format!("{v} ({}, {date})", sha.get(..9).unwrap_or(sha)),
         _ => v,
     }
+}
+
+/// Started by the system for a link or a file: `--open` first, as the Windows installer
+/// registers MailCraft (`mailcraft.exe --open "%1"`). What follows is what to open and nothing
+/// else: the options, emptied, and those links and files. Windows puts the link into that line
+/// as it is, so one with a `"` in it (from a program that doesn't escape what it hands over)
+/// ends the argument, and the rest of the link read as MailCraft's own options: `--cmd` ran
+/// commands as its window opened, `--data` pointed it at another folder.
+pub fn opened(args: Vec<String>) -> (Vec<String>, Option<Vec<String>>) {
+    if args.first().is_none_or(|a| a != "--open") {
+        return (args, None);
+    }
+    // One thing: the link, or the file (its path whole again, when it came apart at spaces).
+    // Nothing more is opened for what came after a link: a path there was looked for (on
+    // another computer, when it named one) and opened (a calendar file's events taken in).
+    let given: Vec<String> = args.into_iter().skip(1).take(MAX_HANDED * 8).collect();
+    let what = match given.first() {
+        Some(link) if scheme(link).is_some() => link.clone(),
+        _ => given.join(" "),
+    };
+    (Vec::new(), Some(one(&what).into_iter().collect()))
 }
 
 /// Options followed by a value of their own.
@@ -173,6 +196,33 @@ mod tests {
         assert_eq!(h(&["--data"]), Vec::<String>::new(), "a missing value is fine");
         let many: Vec<String> = (0..200).map(|i| format!("mailto:{i}@x.example")).collect();
         assert_eq!(handed(&many).len(), MAX_HANDED);
+    }
+
+    /// Found in review: started by the system for a link (`--open`), nothing after it is an
+    /// option. A link with a `"` in it, put into the command line as it is, ended its argument
+    /// there, and what followed ran as `--cmd` or moved the data with `--data`.
+    #[test]
+    fn what_follows_open_is_never_an_option() {
+        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        // As Windows splits `mailcraft.exe --open "mailto:a@x.example" --cmd "mail.new" --data "\\\\host\\share"`.
+        let (options, handed) = opened(args(&["--open", "mailto:a@x.example", "--cmd", "mail.new", "--data", r"\\host\share", "--sample"]));
+        assert!(options.is_empty(), "no option is left to act on");
+        assert_eq!(handed.unwrap(), ["mailto:a@x.example"], "the link and nothing after it");
+        // A file's path that came apart at its spaces is one path; one after a link isn't opened.
+        // (A path the system takes as whole: one that isn't is read from the folder MailCraft
+        // started in.)
+        let whole = if cfg!(windows) { r"D:\Mail\Order" } else { "/home/zoe/Order" };
+        let (_, handed) = opened(args(&["--open", whole, "42.eml"]));
+        assert_eq!(handed.unwrap(), [format!("{whole} 42.eml")]);
+        let (_, handed) = opened(args(&["--open", "mailto:a@x.example", r"\\host\share\x.ics"]));
+        assert_eq!(handed.unwrap(), ["mailto:a@x.example"]);
+        // Just the link, or the file.
+        assert_eq!(opened(args(&["--open", "mailto:a@x.example?subject=Hi"])).1.unwrap(), ["mailto:a@x.example?subject=Hi"]);
+        assert_eq!(opened(args(&["--open"])), (Vec::new(), Some(Vec::new())));
+        // Not first: an option like any other, and the rest are read as ever.
+        let given = args(&["--sample", "--open", "mailto:a@x.example", "--cmd", "ui.about"]);
+        assert_eq!(opened(given.clone()), (given.clone(), None));
+        assert_eq!(handed_with(&given, |_| false), ["mailto:a@x.example"]);
     }
 
     /// Paths are made absolute against this launch's folder; `file:` links are read.

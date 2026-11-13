@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft's private keys held where it can't read them: smart cards and tokens (PKCS #11) and the macOS Keychain, signing and decrypting S/MIME mail there (native only)"
 
 # The workspace's lints, but `unsafe` denied rather than forbidden: the macOS Keychain's and

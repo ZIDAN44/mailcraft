@@ -39,6 +39,7 @@ impl From<NetError> for mailcraft_jmap::Error {
             NetError::Auth(m) => E::Auth(m),
             NetError::Closed(m) => E::Closed(m),
             NetError::Smtp(m) | NetError::Later(m) => E::Send(m),
+            e @ NetError::Unconfirmed(_) => E::Send(e.to_string()),
             NetError::Store(e) => E::Store(e),
         }
     }
@@ -128,6 +129,11 @@ pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Re
 /// Apply one change on the server.
 pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
     Ok(block_on(mailcraft_jmap::apply_remote(&c.0, st, op))?)
+}
+
+/// The addresses the account's mail is sent from, as the server keeps them.
+pub fn identities(c: &Client) -> Result<Vec<mailcraft_model::Identity>> {
+    Ok(block_on(c.0.identities())?)
 }
 
 /// Store a message in a folder (a draft, or the copy of a sent message).

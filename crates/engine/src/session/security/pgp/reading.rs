@@ -26,6 +26,21 @@ fn broken(why: String) -> SignedBy {
     SignedBy { seal: Seal::Broken(why), cert: None, key: None, at: None, weak: false, revocation: None }
 }
 
+/// `signed` as it stands for a message shown as from `from`: a key that doesn't name that
+/// address signs for someone else.
+fn named_by_key(mut signed: SignedBy, from: &str) -> SignedBy {
+    let Some(emails) = signed.key.as_ref().filter(|k| !from.trim().is_empty() && !k.is_for(from)).map(|k| k.emails.clone()) else {
+        return signed;
+    };
+    let other = smime::Problem::OtherAddress(emails);
+    match &mut signed.seal {
+        Seal::Trusted => signed.seal = Seal::Untrusted(vec![other]),
+        Seal::Untrusted(problems) if !problems.iter().any(|p| matches!(p, smime::Problem::OtherAddress(_))) => problems.push(other),
+        _ => {}
+    }
+    signed
+}
+
 impl Session {
     /// What a signature says, as the reading pane shows it: it holds by a key for the sender
     /// that's valid now, or with what's wrong with the key; or it doesn't hold, or can't be
@@ -79,12 +94,14 @@ impl Session {
             mime::pgp::Protection::None => Step::Not,
             mime::pgp::Protection::Signed { content, signature } => {
                 sec.pgp = true;
+                // By the From that's shown: the one inside, when the signed part has its own.
+                let (next, headers) = mime::smime::with_entity_protected(cur, &content);
                 if sec.signed.is_none() {
+                    let from = sender(&next);
                     let keys = self.keys_for(&key.account, &from);
                     let refs: Vec<&[u8]> = keys.iter().map(Vec::as_slice).collect();
                     sec.signed = Some(self.checked(openpgp::verify(&content, &signature, &refs), &keys, &from));
                 }
-                let (next, headers) = mime::smime::with_entity_protected(cur, &content);
                 sec.headers |= headers;
                 Step::Next(next)
             }
@@ -147,10 +164,12 @@ impl Session {
         }
         if let Some((entity, _)) = self.opened.get(key) {
             sec.lock = Some(Lock::Open { authenticated: true });
-            if sec.signed.is_none() {
-                sec.signed = self.pgp.signed.get(key).cloned();
-            }
             let (next, headers) = mime::smime::with_entity_protected(cur, entity);
+            if sec.signed.is_none() {
+                // Its signature was checked for the sender on the outside: the one shown is
+                // the one inside, which the key has to name too.
+                sec.signed = self.pgp.signed.get(key).cloned().map(|s| named_by_key(s, &sender(&next)));
+            }
             sec.headers |= headers;
             return Step::Next(next);
         }

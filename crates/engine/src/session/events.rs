@@ -10,6 +10,10 @@ impl Session {
         }
         // An account's data file had to itself by a compaction: what it sends waits for it.
         let Some(e) = self.defer_for_compaction(e) else { return };
+        // The To-Do Bar's flagged mail of a folder that changed is read again.
+        if let Event::FolderChanged { account, folder } = &e {
+            self.todo_folder_changed(account, folder);
+        }
         match e {
             e @ (Event::Identity { .. }
             | Event::Protected { .. }
@@ -24,6 +28,10 @@ impl Session {
                     && self.showing_more.as_ref().is_some_and(|(a, _)| *a == account)
                 {
                     self.showing_more = None;
+                }
+                // A server on this computer with a certificate of its own: asked about.
+                if let SyncStatus::Error { error } = &status {
+                    self.note_untrusted_certificate(&account, error);
                 }
                 // Refusals that need something done say so once, as they come.
                 if let SyncStatus::Error { error } = &status
@@ -156,6 +164,8 @@ impl Session {
                     self.filed.push(Filed { account, folder, added, failed });
                 }
             }
+            Event::CopiesFiled { account, folder, done, failed, moved } => self.copies_filed(&account, &folder, done, failed, moved),
+            Event::IdentitiesFound { account, found, error } => self.identities_found(&account, found, error),
             Event::MessageFileRead { path, raw } => self.message_file_read(&path, raw),
             Event::DataFileHealth { account, health, error } => self.health_measured(&account, health.map(|h| *h), error),
             Event::Compacting { account, phase, work, exclusive_s } => self.compacting(&account, phase, work, exclusive_s),
@@ -193,6 +203,7 @@ impl Session {
             Event::Body { key, raw } if mime::is_text_first(&raw) => self.show_body(&key, &raw),
             Event::Body { key, raw } => {
                 self.source_arrived(&key, &raw);
+                self.transfer_arrived(&key, &raw);
                 // The open message's: parsed on another thread, where the window has one.
                 if !self.defer_arrived(&key, &raw) {
                     self.show_body(&key, &raw);
@@ -207,6 +218,7 @@ impl Session {
             Event::Filled { summary } => self.filled(*summary),
             Event::BodyFailed { key, error } => {
                 self.source_failed(&key, &error);
+                self.transfer_failed(&key, &error);
                 for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {
                     w.error = Some(error.clone());
                 }
@@ -229,7 +241,8 @@ impl Session {
                 }
                 self.after_outbox_change();
             }
-            Event::Queued { id, error, .. } => {
+            Event::Queued { account, id, error } => {
+                self.note_untrusted_certificate(&account, &error);
                 if let Some(c) = self.compose_by_id(id) {
                     // It's safe in the Outbox: as far as the user is concerned, the message is done
                     // (a Replied/Forwarded flag stays owed until delivery).
@@ -242,8 +255,20 @@ impl Session {
                 self.after_outbox_change();
             }
             Event::SendFailed { id, error, .. } => {
+                // Closed while it was being sent: open again, to be sent or kept.
+                if let Some(at) = self.sent_away.iter().position(|c| c.id == id) {
+                    let mut c = self.sent_away.remove(at);
+                    c.window = true;
+                    self.open_compose(c);
+                }
+                let mut error = error;
                 if let Some(c) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| c.id == id) {
                     c.sending = false;
+                    // From another of the account's addresses (issue #81): a server that
+                    // refuses it says so in words of its own, which don't name the cause.
+                    if !c.from.is_empty() {
+                        error = format!("{error} (It was written from {}: the mail server may not allow sending from that address.)", c.from);
+                    }
                     c.error = Some(error.clone());
                 }
                 self.notice(format!("Not sent: {error}"), true);

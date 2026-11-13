@@ -13,6 +13,7 @@ use mailcraft_smime as smime;
 
 use super::*;
 
+mod addresses;
 mod cards;
 mod pgp;
 mod revocation;
@@ -68,6 +69,8 @@ pub struct KnownCert {
     pub gcm: bool,
     /// When it was last seen (Unix seconds).
     pub seen: i64,
+    /// It came with nothing wrong with it: from an authority this computer trusts, in date.
+    pub trusted: bool,
 }
 
 /// How a message shown was protected.
@@ -139,6 +142,28 @@ pub(super) struct Protecting {
 /// The sender's address, from a message's headers.
 fn sender(raw: &[u8]) -> String {
     mime::parse(raw).map(|p| p.from.email.trim().to_lowercase()).unwrap_or_default()
+}
+
+/// Whether `raw` is encrypted whole (S/MIME, or OpenPGP in a part of its own), as MailCraft
+/// keeps a draft and sends a message: not text that has an encrypted block in it, which is
+/// what its writer put there (a draft with one pasted in never opened again otherwise).
+pub(crate) fn is_sealed(raw: &[u8]) -> bool {
+    matches!(mime::smime::protection(raw), mime::smime::Protection::Encrypted(_))
+        || matches!(mime::pgp::protection(raw), mime::pgp::Protection::Encrypted(_))
+}
+
+/// Whether `raw` is encrypted as it stands (S/MIME, or OpenPGP in its own part or in its text).
+pub(crate) fn is_encrypted(raw: &[u8]) -> bool {
+    if matches!(mime::smime::protection(raw), mime::smime::Protection::Encrypted(_)) {
+        return true;
+    }
+    match mime::pgp::protection(raw) {
+        mime::pgp::Protection::Encrypted(_) => true,
+        mime::pgp::Protection::Inline { body, .. } => {
+            matches!(mailcraft_pgp::inline(&body), Some(mailcraft_pgp::Inline::Message(block)) if mailcraft_pgp::is_encrypted(block))
+        }
+        _ => false,
+    }
 }
 
 impl Session {
@@ -304,11 +329,12 @@ impl Session {
         self.identity(account).is_some() || self.pgp_key(account).is_some()
     }
 
-    /// A new message takes its account's settings.
+    /// A new message takes its account's settings: signed only from an address a certificate
+    /// or a key is for (issue #81).
     pub(super) fn smime_defaults(&self, c: &mut Compose) {
         let s = self.smime_settings(&c.account);
         if self.can_protect(&c.account) {
-            c.sign |= s.sign;
+            c.sign |= s.sign && self.can_sign_from(&c.account, &c.from);
             c.encrypt |= s.encrypt;
             // Encryption follows the recipients, unless it's on already.
             c.encrypt_auto = s.auto_encrypt && !c.encrypt;
@@ -343,25 +369,29 @@ impl Session {
                 },
                 mime::smime::Protection::Signed { content, signature } => {
                     any = true;
-                    if sec.signed.is_none() {
-                        sec.signed = Some(self.check_signature(&key.account, &signature, Some(&content), &sender(&cur)));
-                    }
+                    // Checked against the From that's shown: the one inside when the signed
+                    // part carries its own (a message from one address, signed by its real
+                    // sender, read as signed by the other it named inside otherwise).
                     let (next, headers) = mime::smime::with_entity_protected(&cur, &content);
+                    if sec.signed.is_none() {
+                        sec.signed = Some(self.check_signature(&key.account, &signature, Some(&content), &sender(&next)));
+                    }
                     sec.headers |= headers;
                     cur = next;
                 }
                 mime::smime::Protection::Opaque(cms) => {
                     any = true;
+                    let inside = smime::carried(&cms).ok().map(|content| mime::smime::with_entity_protected(&cur, &content));
                     if sec.signed.is_none() {
-                        sec.signed = Some(self.check_signature(&key.account, &cms, None, &sender(&cur)));
+                        let from = inside.as_ref().map_or_else(|| sender(&cur), |(next, _)| sender(next));
+                        sec.signed = Some(self.check_signature(&key.account, &cms, None, &from));
                     }
-                    match smime::carried(&cms) {
-                        Ok(content) => {
-                            let (next, headers) = mime::smime::with_entity_protected(&cur, &content);
+                    match inside {
+                        Some((next, headers)) => {
                             sec.headers |= headers;
                             cur = next;
                         }
-                        Err(_) => break,
+                        None => break,
                     }
                 }
                 mime::smime::Protection::Encrypted(cms) => {
@@ -394,25 +424,83 @@ impl Session {
 
     /// A message as it reads: what [`Session::unwrap`] shows, without checking anything again.
     pub fn readable_raw(&self, key: &MessageKey) -> Option<Vec<u8>> {
-        let mut cur = self.body_raw(key)?;
+        Some(self.as_written(key, self.body_raw(key)?).0)
+    }
+
+    /// `raw` (message `key`) with its protection taken off as far as it can be (an encryption
+    /// not decrypted yet stays), and whether a signature and an encryption were.
+    pub(crate) fn as_written(&self, key: &MessageKey, raw: Vec<u8>) -> (Vec<u8>, bool, bool) {
+        let mut cur = raw;
+        let (mut signed, mut encrypted) = (false, false);
         for _ in 0..4 {
             cur = match mime::smime::protection(&cur) {
-                mime::smime::Protection::None => match self.readable_pgp(key, &cur) {
-                    Some(next) => next,
-                    None => break,
-                },
-                mime::smime::Protection::Signed { content, .. } => mime::smime::with_entity(&cur, &content),
+                mime::smime::Protection::None => {
+                    let kind = mime::pgp::protection(&cur);
+                    let sealed = is_encrypted(&cur);
+                    match self.readable_pgp(key, &cur) {
+                        Some(next) => {
+                            encrypted |= sealed;
+                            signed |= !sealed && !matches!(kind, mime::pgp::Protection::None);
+                            next
+                        }
+                        None => break,
+                    }
+                }
+                mime::smime::Protection::Signed { content, .. } => {
+                    signed = true;
+                    mime::smime::with_entity(&cur, &content)
+                }
                 mime::smime::Protection::Opaque(cms) => match smime::carried(&cms) {
-                    Ok(c) => mime::smime::with_entity(&cur, &c),
+                    Ok(c) => {
+                        signed = true;
+                        mime::smime::with_entity(&cur, &c)
+                    }
                     Err(_) => break,
                 },
                 mime::smime::Protection::Encrypted(_) => match self.opened.get(key) {
-                    Some((entity, _)) => mime::smime::with_entity(&cur, entity),
+                    Some((entity, _)) => {
+                        encrypted = true;
+                        mime::smime::with_entity(&cur, entity)
+                    }
                     None => break,
                 },
             };
         }
-        Some(cur)
+        (cur, signed, encrypted)
+    }
+
+    /// Whether what was decrypted for `key` is to be taken: asked for, and not an answer to
+    /// an asking from before its folder's keys moved on (those come first, in order).
+    pub(crate) fn decrypt_awaited(&mut self, key: &MessageKey) -> bool {
+        if let Some(n) = self.stale_decrypts.get_mut(key) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                self.stale_decrypts.remove(key);
+            }
+            return false;
+        }
+        self.opening.remove(key) || key.folder != crate::session::OUTBOX
+    }
+
+    /// `account`'s messages being signed or encrypted are let go (the account is gone).
+    pub(crate) fn forget_protecting(&mut self, account: &str) {
+        self.protecting.retain(|_, p| p.compose.account != account);
+    }
+
+    /// What was decrypted, and what's being, of the messages in `folder` is forgotten: its keys
+    /// name other messages now (the Outbox's count its rows). An answer still to come for one
+    /// asked before is that message's, not the one its key names now: it's let pass.
+    pub(crate) fn forget_opened_in(&mut self, folder: &str) {
+        if self.stale_decrypts.len() > 256 {
+            self.stale_decrypts.clear();
+        }
+        for k in self.opening.iter().filter(|k| k.folder == folder) {
+            *self.stale_decrypts.entry(k.clone()).or_default() += 1;
+        }
+        self.opened.retain(|k, _| k.folder != folder);
+        self.opening.retain(|k| k.folder != folder);
+        self.decrypt_errors.retain(|k, _| k.folder != folder);
+        self.pgp.forget_folder(folder);
     }
 
     fn ask_decrypt(&mut self, key: &MessageKey, cms: Vec<u8>) -> Lock {
@@ -434,10 +522,16 @@ impl Session {
                 let roots = self.anchors();
                 let (mut problems, path) = smime::cert::check_with_path(&signed.signer, &signed.certs, &roots, self.clock.now, from)
                     .unwrap_or_else(|_| (vec![smime::Problem::UnknownIssuer], Vec::new()));
-                let revocation = self.revocation_of(&path, &mut problems);
-                let for_sender = !problems.iter().any(|p| matches!(p, smime::Problem::OtherAddress(_) | smime::Problem::NotForEmail));
-                if for_sender && !from.is_empty() {
-                    self.remember_cert(account, from, &signed);
+                // Its authority is asked only when it's one this computer trusts: where to ask
+                // is written in the certificate, and one anyone made names a server of theirs
+                // (which then heard that, and when, the message was read).
+                let known_authority = !problems.contains(&smime::Problem::UnknownIssuer);
+                let revocation = if known_authority { self.revocation_of(&path, &mut problems) } else { None };
+                // Remembered to encrypt to them: one that's theirs and in date. One from no
+                // authority this computer trusts only where none is kept yet.
+                let theirs = problems.iter().all(|p| matches!(p, smime::Problem::UnknownIssuer));
+                if theirs && !from.is_empty() {
+                    self.remember_cert(account, from, &signed, problems.is_empty());
                 }
                 SignedBy {
                     seal: if problems.is_empty() { Seal::Trusted } else { Seal::Untrusted(problems) },
@@ -462,11 +556,31 @@ impl Session {
         }
     }
 
-    fn remember_cert(&mut self, account: &str, from: &str, signed: &smime::Signed) {
+    /// The certificate `signed` came with is the one to encrypt to `from` with. It doesn't
+    /// take the place of another kept for them when it's the lesser one: any mail naming them
+    /// did (one signed with a certificate its sender made, and the next message to them was
+    /// encrypted to that sender; an old message read again, and to the certificate they had
+    /// before). A trusted one (`trusted`: nothing is wrong with it) that can still be
+    /// encrypted to gives way only to a trusted one that isn't older. One that isn't trusted
+    /// gives way to whichever came last, as ever: by their dates, one made today in someone's
+    /// name stayed for good over the one they really sign with.
+    fn remember_cert(&mut self, account: &str, from: &str, signed: &smime::Signed, trusted: bool) {
         let now = self.clock.now;
+        // The one kept, when it's trusted and still good to encrypt to: in date, not withdrawn.
+        let good = |cert: &[u8]| smime::cert::info(cert).is_ok_and(|i| i.not_before <= now && i.not_after >= now) && !self.heard_revoked(cert);
+        let kept_holds = self.smime.get(account).and_then(|s| s.known.get(from)).is_some_and(|k| k.trusted && good(&k.cert));
         let s = self.smime.entry(account.to_string()).or_default();
-        let known = KnownCert { cert: signed.signer.clone(), gcm: signed.reads_gcm(), seen: now };
-        let changed = s.known.get(from).is_none_or(|k| k.cert != known.cert || k.gcm != known.gcm);
+        // The same one seen again where its authority isn't known stays the one that was.
+        let trusted = trusted || s.known.get(from).is_some_and(|k| k.trusted && k.cert == signed.signer);
+        let known = KnownCert { cert: signed.signer.clone(), gcm: signed.reads_gcm(), seen: now, trusted };
+        if let Some(kept) = s.known.get(from).filter(|k| k.cert != known.cert) {
+            let since = |cert: &[u8]| smime::cert::info(cert).map_or(i64::MIN, |i| i.not_before);
+            let older = since(&known.cert) < since(&kept.cert);
+            if kept_holds && (!trusted || older) {
+                return;
+            }
+        }
+        let changed = s.known.get(from).is_none_or(|k| k.cert != known.cert || k.gcm != known.gcm || k.trusted != known.trusted);
         // At most a few thousand people; the oldest seen goes first.
         if s.known.len() >= 5000
             && !s.known.contains_key(from)
@@ -484,14 +598,16 @@ impl Session {
     fn cert_for(&self, account: &str, email: &str) -> Option<(Vec<u8>, bool)> {
         let email = email.trim().to_lowercase();
         let s = self.smime.get(account)?;
-        // The account's own address: its own certificate.
-        if self.account(account).is_some_and(|a| a.config.email.trim().eq_ignore_ascii_case(&email)) {
-            return s.chain.first().map(|c| (c.clone(), true));
+        // One of the account's own addresses: its own certificate, that address's when it
+        // has one.
+        if self.account(account).is_some_and(|a| a.config.has_address(&email)) {
+            return self.own_cert_for(account, &email).map(|(c, _)| c).or_else(|| s.chain.first().cloned()).map(|c| (c, true));
         }
         let k = s.known.get(&email)?;
-        // Out of date certificates aren't encrypted to.
+        // Out of date certificates aren't encrypted to, nor one its authority withdrew.
         let info = smime::cert::info(&k.cert).ok()?;
-        (info.not_after >= self.clock.now).then(|| (k.cert.clone(), k.gcm))
+        let now = self.clock.now;
+        (info.not_before <= now && info.not_after >= now && !self.heard_revoked(&k.cert)).then(|| (k.cert.clone(), k.gcm))
     }
 
     /// Before `c` goes: what signing and encrypting it takes. `None` when it's neither; else the
@@ -505,10 +621,22 @@ impl Session {
         }
         let s = self.smime_settings(&c.account);
         let config = self.account(&c.account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
-        let Some(own) = s.chain.first().cloned() else {
-            return Err(CmdError::Params(
-                "there's no certificate for this account to sign or encrypt with: import one in File › Info › Security".into(),
-            ));
+        // The certificate of the address it's from (issue #81): one that names another address
+        // would sign as someone who isn't the sender. Only encrypted, the account's own does
+        // for the copy it keeps.
+        let own = match self.own_cert_for(&c.account, from).map(|(c, _)| c) {
+            Some(own) => own,
+            None if s.chain.is_empty() && s.older.is_empty() => {
+                return Err(CmdError::Params(
+                    "there's no certificate for this account to sign or encrypt with: import one in File › Info › Security".into(),
+                ));
+            }
+            None if c.sign => {
+                return Err(CmdError::Params(format!(
+                    "there's no certificate for {from} to sign with: import one that names it in File › Info › Security, or send without signing"
+                )));
+            }
+            None => s.chain.first().or(s.older.first()).cloned().unwrap_or_default(),
         };
         // A certificate out of date signs nothing anyone would trust.
         if let Ok(info) = smime::cert::info(&own)
@@ -540,7 +668,7 @@ impl Session {
                 )));
             }
             // The Sent copy reads too.
-            encrypt_to.push(own);
+            encrypt_to.push(own.clone());
         }
         let job = Job::Protect {
             account: config,
@@ -550,6 +678,7 @@ impl Session {
             encrypt_to,
             gcm: gcm && c.encrypt,
             hide_subject: !s.keep_subject,
+            signer: Some(own),
         };
         self.protecting.insert(c.id, Protecting { compose: c.clone(), from: from.to_string(), recipients: recipients.to_vec() });
         Ok(Some(job))
@@ -612,7 +741,10 @@ impl Session {
                 }
             }
             Event::Decrypted { key, content, authenticated, error } => {
-                self.opening.remove(&key);
+                // One no longer asked for (the Outbox's rows moved meanwhile) is another's now.
+                if !self.decrypt_awaited(&key) {
+                    return;
+                }
                 match (content, error) {
                     (Some(Private(entity)), None) => {
                         if self.opened.len() >= OPENED_MAX
@@ -638,7 +770,7 @@ impl Session {
 
     /// A message shown (in the reading pane or a window of its own) shown again, its protection
     /// taken off and checked anew.
-    fn show_again(&mut self, key: &MessageKey) {
+    pub(crate) fn show_again(&mut self, key: &MessageKey) {
         let shown = self.reading.as_ref().is_some_and(|r| r.key == *key) || self.windows.iter().any(|w| w.key == *key);
         if shown && let Some(raw) = self.body_raw(key) {
             for w in self.windows.iter_mut().filter(|w| w.key == *key) {
@@ -650,6 +782,13 @@ impl Session {
 
     /// The message being written (or set aside) `id` couldn't go: said over it.
     fn send_problem(&mut self, id: u64, error: String) {
+        // Closed while it was being signed or encrypted: open again, to be sent or kept (as one
+        // the server refused is). Only said, its text was nowhere any more.
+        if let Some(at) = self.sent_away.iter().position(|c| c.id == id) {
+            let mut c = self.sent_away.remove(at);
+            c.window = true;
+            self.open_compose(c);
+        }
         let mut found = false;
         for c in self.compose.iter_mut().chain(self.composes.iter_mut()).filter(|c| c.id == id) {
             c.sending = false;

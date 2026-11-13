@@ -463,6 +463,27 @@ impl MailApp {
                                 acts.push(Action::Run(id, json!({})));
                             }
                         }
+                        // The To-Do Bar beside the mail: its parts, each on or off, as Outlook's menu.
+                        let bar = s.prefs.todo_bar;
+                        let r = widgets::tool_button(ui, Icon::Task, "To-Do Bar", &t, true)
+                            .on_hover_text(tl!("Show the calendar, what's coming up and your tasks beside the mail"));
+                        egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+                            for (on, label, part) in [
+                                (bar.calendar, "Calendar", "calendar"),
+                                (bar.appointments, "Appointments", "appointments"),
+                                (bar.tasks, "Tasks", "tasks"),
+                            ] {
+                                let mut now = on;
+                                if ui.checkbox(&mut now, tl!(label)).changed() {
+                                    acts.push(Action::Run("view.todoBar", json!({"part": part, "on": now})));
+                                }
+                            }
+                            ui.separator();
+                            if ui.selectable_label(!bar.shown(), tl!("Off")).clicked() {
+                                acts.push(Action::Run("view.todoBar", json!({"off": true})));
+                                ui.close();
+                            }
+                        });
                         widgets::group(ui, &t, "Layout", false);
                         let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
                         let mut r = widgets::tool_button(ui, Icon::ListBullet, &arrange, &t, true);

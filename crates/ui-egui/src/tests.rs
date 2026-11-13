@@ -48,8 +48,11 @@ pub(crate) fn app(name: &str) -> (MailApp, std::path::PathBuf) {
 }
 
 pub(crate) fn frame(ctx: &egui::Context, app: &mut MailApp, events: Vec<Event>) {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    windows::layout::dress(app);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, ..Default::default() };
     let mut out = ctx.run_ui(input, |ui| app.ui(ui));
+    windows::layout::look(app, &out.shapes);
     // No renderer here: drop the texture uploads deliberately.
     out.textures_delta.clear();
 }
@@ -153,6 +156,14 @@ pub(crate) fn tour() {
             Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) },
             Dialog::SubscribeCalendar { url: "webcal://holidays.example/de.ics".into(), name: String::new(), error: Some("HTTP 404".into()) },
             Dialog::AddSharedMailbox { account: "sample".into(), address: "sales@contoso.example".into(), error: Some("already open".into()) },
+            Dialog::Address(crate::dialogs::AddressForm {
+                account: "sample".into(),
+                address: "shop@studio.example".into(),
+                name: "The Shop".into(),
+                reply_to: "help@studio.example".into(),
+                error: Some("that's the account's own address".into()),
+                ..Default::default()
+            }),
             Dialog::Dav(crate::dialogs::DavForm {
                 account: "sample".into(),
                 caldav: "https://dav.example.com/calendars/riley/default".into(),
@@ -168,12 +179,15 @@ pub(crate) fn tour() {
                 email: "zoe@hotmail.com".into(),
                 error: format!("{}. Turn on IMAP on Outlook.com.", mailcraft_engine::model::MICROSOFT_IMAP_CLOSED),
             },
+            Dialog::TrustCertificate { account: "sample".into(), host: "127.0.0.1".into(), fingerprint: "0a1b2c3d".repeat(8) },
             Dialog::add_account_with("zoe@hotmail.com", true),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))),
             Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", true))),
             Dialog::Password { account: "sample".into(), email: "x".into(), password: String::new() },
             Dialog::Certificate { account: "sample".into(), path: "riley.p12".into(), data: None, password: String::new() },
             Dialog::Certificate { account: "sample".into(), path: String::new(), data: None, password: String::new() },
+            Dialog::Backup(Default::default()),
+            Dialog::Restore(crate::dialogs::RestoreForm { name: "MailCraft backup 2026-11-13.mailcraft-backup".into(), ..Default::default() }),
             Dialog::PgpKey { account: "sample".into(), path: "ana-secret.asc".into(), passphrase: String::new() },
             Dialog::SmartCard { account: "sample".into(), module: "/usr/lib/opensc-pkcs11.so".into(), pin: "1234".into(), system: false },
             Dialog::SmartCard { account: "sample".into(), module: String::new(), pin: String::new(), system: true },
@@ -361,6 +375,14 @@ pub(crate) fn backstage_tour(a: &mut MailApp, ctx: &egui::Context) {
 
 /// Calendar (each view, an event open), People (someone picked, the form open) and Tasks.
 pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
+    // The To-Do Bar beside the mail, every part of it.
+    a.run("view.todoBar", json!({"part": "calendar", "on": true}));
+    a.run("view.todoBar", json!({"part": "appointments", "on": true}));
+    a.run("view.todoBar", json!({"part": "tasks", "on": true}));
+    for _ in 0..30 {
+        frame(ctx, a, vec![]);
+    }
+    a.run("view.todoBar", json!({"off": true}));
     a.run("view.module", json!({"name": "calendar"}));
     for mode in ["day", "week", "month"] {
         a.run("calendar.view", json!({"mode": mode}));
@@ -457,6 +479,8 @@ struct WebLike {
     downloads: std::rc::Rc<std::cell::RefCell<Vec<(String, usize)>>>,
     picked: Vec<(String, String, Vec<u8>)>,
     asked: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+    /// The file the picker gives next (else a note).
+    hands: std::rc::Rc<std::cell::RefCell<Option<Vec<u8>>>>,
 }
 
 impl crate::Services for WebLike {
@@ -480,7 +504,8 @@ impl crate::Services for WebLike {
     }
     fn pick_later(&mut self, purpose: &str) -> bool {
         self.asked.borrow_mut().push(purpose.to_string());
-        self.picked.push((purpose.to_string(), "notes.txt".into(), b"remember".to_vec()));
+        let file = self.hands.borrow_mut().take().unwrap_or_else(|| b"remember".to_vec());
+        self.picked.push((purpose.to_string(), "notes.txt".into(), file));
         true
     }
     fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {

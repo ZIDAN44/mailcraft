@@ -16,5 +16,6 @@ mod scheduling;
 mod sogo;
 mod tasks;
 mod tentative;
+mod todo;
 mod together;
 mod web_calendars;

@@ -85,7 +85,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .params(r#"{"emoji": string (👍 ❤️ 🎉 😆 😮 😢, or other emoji), "key"?: string (the message shown)}"#)
             .when(has_reading),
         // Home › Move
-        CommandSpec::new("mail.move", "Move to", "Home › Move", move_to).key("Mod+Shift+V").params(r#"{"folder": string}"#).when(has_selection),
+        CommandSpec::new("mail.move", "Move to", "Home › Move", move_to)
+            .key("Mod+Shift+V")
+            .params(r#"{"folder": string, "account"?: string (the folder's account, when it isn't the messages' own)}"#)
+            .when(has_selection),
+        CommandSpec::new("mail.copy", "Copy to", "Home › Move", copy_to)
+            .params(r#"{"folder": string, "account"?: string (the folder's account; else the messages' own)}"#)
+            .when(has_selection),
         // Home › Tags
         CommandSpec::new("mail.markRead", "Mark as read", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(true))).key("Mod+Q").when(has_selection),
         CommandSpec::new("mail.markUnread", "Mark as unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(false))).key("Mod+U").when(has_selection),
@@ -218,8 +224,24 @@ pub(super) fn delete(s: &mut Session, v: &Value) -> CmdResult {
     s.move_selection(MoveTarget::Role(FolderRole::Trash))
 }
 
+/// Copy the selection into a folder: its own account's, or `account`'s.
+pub(super) fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
+    let folder = p::req_str(v, "folder")?;
+    let own = s.selected().first().map(|m| m.key.account.clone());
+    let Some(account) = p::str(v, "account").map(str::to_string).or(own) else {
+        return Err(CmdError::Disabled("no message selected".into()));
+    };
+    s.transfer_selection(&account, folder, false)
+}
+
 pub(super) fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_str(v, "folder")?;
+    // Into another account's folder: a copy is filed there, then it's deleted where it was.
+    if let Some(account) = p::str(v, "account")
+        && s.selected().iter().any(|m| m.key.account != account)
+    {
+        return s.transfer_selection(account, folder, true);
+    }
     if let Some(role) = folder.strip_prefix("role:").and_then(FolderRole::from_code) {
         return s.move_selection(MoveTarget::Role(role));
     }

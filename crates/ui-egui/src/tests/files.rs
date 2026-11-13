@@ -308,10 +308,21 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     let drawn: Vec<String> =
         super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(t, ..)| t).skip_while(|t| t != "Invoice – Message").collect();
     let has = |want: &str| drawn.iter().any(|t| t.contains(want));
-    for want in ["Invoice – Message", "Print", "Ben", "update.exe", "customer", " <https://evil.example/login>", "Opened from inspect me.eml"] {
+    // Its pictures from the web are there to ask for, this once: not to always show its sender's,
+    // who may be anyone.
+    for want in [
+        "Invoice – Message",
+        "Print",
+        "Ben",
+        "update.exe",
+        "customer",
+        " <https://evil.example/login>",
+        "Opened from inspect me.eml",
+        "Show pictures",
+    ] {
         assert!(has(want), "{want:?} not drawn: {drawn:?}");
     }
-    for gone in ["Reply", "Archive", "Move to", "Show pictures", "1970"] {
+    for gone in ["Reply", "Archive", "Move to", "Always show from", "1970"] {
         assert!(!has(gone), "{gone:?} drawn: {drawn:?}");
     }
     // (The window's own search index may be built meanwhile.)
@@ -353,5 +364,37 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     a.services = Box::new(Picks(huge));
     a.act(crate::Action::OpenMailFile);
     assert_eq!(a.session.notices.last().unwrap().text, "huge.eml is too big");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A mail file handed to MailCraft opens in front: its window is brought forward once, when it's
+/// on screen (it opened behind the main window, which the launch handing it over had just
+/// brought forward), and not again while it stays open. Opened again after closing, again.
+#[test]
+fn a_mail_files_window_comes_to_the_front() {
+    let (mut a, dir) = app("open-mail-file-front");
+    std::fs::create_dir_all(&dir).unwrap();
+    let eml = dir.join("note.eml");
+    std::fs::write(&eml, "From: Sam <sam@studio.example>\r\nSubject: Note\r\nMessage-ID: <note@x>\r\n\r\nHello.\r\n").unwrap();
+    let ctx = egui::Context::default();
+    let focused = |a: &mut MailApp, frames: usize| {
+        let mut n = 0;
+        for _ in 0..frames {
+            let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+            out.textures_delta.clear();
+            n += out.viewport_output.values().flat_map(|v| v.commands.iter()).filter(|c| matches!(c, egui::ViewportCommand::Focus)).count();
+        }
+        n
+    };
+    assert_eq!(focused(&mut a, 4), 0, "nothing to bring forward yet");
+    a.open_handed(&eml.to_string_lossy());
+    let key = a.session.windows.first().map(|w| w.key.clone()).unwrap_or_else(|| panic!("{:?}", a.session.notices));
+    assert_eq!(focused(&mut a, 6), 1, "brought forward once");
+    assert_eq!(focused(&mut a, 6), 0, "and left alone after");
+    a.run("message.closeWindow", json!({"key": key.to_id()}));
+    assert_eq!(focused(&mut a, 3), 0);
+    a.open_handed(&eml.to_string_lossy());
+    assert_eq!(focused(&mut a, 6), 1, "opened again: in front again");
     let _ = std::fs::remove_dir_all(dir);
 }

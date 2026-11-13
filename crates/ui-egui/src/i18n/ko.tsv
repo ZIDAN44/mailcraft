@@ -117,6 +117,7 @@
 	24-hour	24시간제
 	12-hour	12시간제
 	Whole date and time in the list	목록에 날짜와 시간 모두 표시
+	Earlier this month	이번 달 초
 	Last month	지난달
 	Last week	지난주
 	Later	나중에
@@ -156,6 +157,10 @@
 	Move to folder	폴더로 이동
 	Move to…	이동…
 	Move {n} messages	메시지 {n}개 이동
+	Copy to folder	폴더로 복사
+	Copy to…	복사…
+	Copy 1 message	메시지 1개 복사
+	Copy {n} messages	메시지 {n}개 복사
 	Move “{folder}” to	"{folder}" 이동 위치
 	Name	이름
 	Names <addresses>, separated by ; or ,	이름 <주소>, ; 또는 ,로 구분
@@ -198,7 +203,6 @@
 	Password needed	암호 필요
 	Password…	암호…
 	Personal	개인
-	Pick messages from one account to move them to a folder.	한 계정의 메시지를 선택해 폴더로 이동하세요.
 	Picture	그림
 	Pictures from the web are hidden to protect your privacy.	개인 정보를 보호하기 위해 웹의 그림을 숨겼습니다.
 	Picture…	그림…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	첨부 파일 {n}개를 {folder}에 저장했습니다
 	Saved {path}	{path}에 저장했습니다
 	Search folders	폴더 검색
+	(the rest isn't shown: open the file to see it all)	(나머지는 표시되지 않습니다. 모두 보려면 파일을 여세요)
+	Pick a category	범주를 선택하세요
+	Pick a folder	폴더를 선택하세요
+	Say what to look for	찾을 내용을 입력하세요
+	Give the rule a name	규칙에 이름을 지정하세요
 	Search mail (from:, subject:, has:attachment…)	메일 검색 (from:, subject:, has:attachment…)
 	Select a message first.	먼저 메시지를 선택하세요.
 	Send	보내기
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	서버: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	설정을 찾았습니다: {source}
 	Show a desktop notification when new mail arrives	새 메일이 오면 데스크톱 알림 표시
+	Keep MailCraft running when its window is closed	창을 닫아도 MailCraft 계속 실행
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	알림 영역에 남아 메일을 확인하고 새 메일을 알립니다. ‘파일’ 페이지나 아이콘 메뉴의 ‘끝내기’로 닫습니다.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	창이 최소화되고 MailCraft는 계속 메일을 확인하고 새 메일을 알립니다. ‘파일’ 페이지의 ‘끝내기’로 닫습니다.
+	Open MailCraft	MailCraft 열기
 	Show as plain text	일반 텍스트로 표시
 	Show formatted	서식 있게 표시
 	Show in Favorites	즐겨찾기에 표시
@@ -767,11 +780,18 @@
 	Move down	아래로 이동
 	Updating…	업데이트하는 중…
 	All folders are up to date	모든 폴더가 최신 상태입니다
+	1 account disconnected	계정 1개 연결 끊김
 	{n} accounts disconnected	{n}개 계정의 연결이 끊김
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Microsoft로 로그인
 	Sign in with Microsoft…	Microsoft로 로그인…
 	Mailbox won't open	사서함을 열 수 없음
+	Trust this computer's mail server?	이 컴퓨터의 메일 서버를 신뢰하시겠습니까?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host}은(는) 이 컴퓨터에 있으며 직접 만든 인증서를 제시합니다. 이 인증서를 보증하는 기관은 없습니다. 메일 서비스를 메일 앱에 연결하는 프로그램이 이렇게 동작합니다. 그 프로그램을 직접 설정한 경우에만 신뢰하세요.
+	Certificate fingerprint (SHA-256)	인증서 지문 (SHA-256)
+	MailCraft asks again if the server shows another certificate.	서버가 다른 인증서를 제시하면 MailCraft가 다시 묻습니다.
+	Trust this certificate	이 인증서 신뢰
+	Certificate not trusted yet	아직 신뢰하지 않는 인증서
 	The mailbox won't open	사서함을 열 수 없습니다
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph는 IMAP 없이 사서함에 접근하며 일정과 연락처도 가져옵니다. 계정이 Graph를 통해 다시 시작되며 메일은 서버에서 내려받습니다.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP을 켰거나 브라우저에서 다른 계정을 골랐나요? 다시 로그인
@@ -852,6 +872,28 @@
 	Delete this contact?	이 연락처를 삭제할까요?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	이 연락처와 저장된 모든 정보가 삭제됩니다. 되돌릴 수 없습니다.
 	Export…	내보내기…
+	{file} isn't a MailCraft backup.	{file}은(는) MailCraft 백업이 아닙니다.
+	A backup is brought in where MailCraft runs in the browser.	백업은 MailCraft가 브라우저에서 실행되는 곳에서 불러옵니다.
+	Backup saved as {file}	백업을 {file}(으)로 저장했습니다
+	Restore…	복원…
+	Bring a backup file in. It takes the place of what's kept here now.	백업 파일을 불러옵니다. 지금 여기에 보관된 것을 대체합니다.
+	Back up…	백업…
+	Save what's kept here to a file, with a password if you like.	여기에 보관된 것을 파일로 저장합니다. 원하면 암호를 걸 수 있습니다.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft는 계정, 설정, 메일을 이 브라우저에만 보관합니다. 이 사이트의 브라우저 데이터를 지우면 사라집니다. 백업 파일이 있으면 이 브라우저나 다른 브라우저에서 되돌릴 수 있습니다.
+	Backup	백업
+	The backup's password	백업의 암호
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	MailCraft가 지금 이 브라우저에 보관하는 모든 것(계정, 설정, 메일)이 이것으로 바뀝니다. 각 계정의 암호를 다시 묻습니다.
+	Restore from a backup…	백업에서 복원…
+	Restore from backup	백업에서 복원
+	The two passwords aren't the same.	두 암호가 같지 않습니다.
+	Save backup	백업 저장
+	The file can't be opened without this password: MailCraft can't recover it.	이 암호 없이는 파일을 열 수 없습니다. MailCraft는 암호를 복구할 수 없습니다.
+	Without a password, anyone who has the file can read what's in it.	암호가 없으면 파일을 가진 사람은 누구나 내용을 읽을 수 있습니다.
+	The password again	암호 다시 입력
+	Password for the file (optional)	파일 암호(선택 사항)
+	Include the mail downloaded to this browser	이 브라우저에 다운로드한 메일 포함
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	계정과 그 설정, 규칙, 서명, 일정, 연락처가 하나의 파일에 담깁니다. 암호는 절대 들어가지 않습니다.
+	Back up	백업하기
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft에서 저장한 파일의 규칙을 추가합니다. 이 컴퓨터에 없는 계정의 규칙은 꺼진 상태로 추가됩니다.
 	Change…	변경…
 	Clean up	정리
@@ -879,6 +921,17 @@
 	Send email	메일 보내기
 	Add	추가
 	Add a shared mailbox	공유 사서함 추가
+	Other addresses	다른 주소
+	Key {key}: signs mail from {addresses}	키 {key}: {addresses}에서 보내는 메일에 서명합니다
+	Valid until {date}: signs mail from {addresses}	{date}까지 유효: {addresses}에서 보내는 메일에 서명합니다
+	Find on the server	서버에서 찾기
+	Addresses of this same mailbox that you also send from.	같은 사서함의 주소로, 여기서도 메일을 보냅니다.
+	Add an address	주소 추가
+	Change an address	주소 변경
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	별칭처럼 같은 사서함의 다른 주소로, 이 주소에서 메일을 보낼 수 있습니다. 메시지를 쓸 때 ‘보낸 사람’에서 고르세요. 메일 서버가 이 주소에서 보내는 것을 허용해야 합니다.
+	Name on mail from it	이 주소로 보내는 메일의 이름
+	Replies go to	회신 받을 주소
+	(the account's own)	(계정의 서명)
 	Add…	추가…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	폴더가 이 계정 아래에 표시됩니다. Exchange 서버에서 액세스 권한이 필요하며, 모든 권한이 있는 사서함은 자동으로 열립니다.
 	Mailboxes you have full access to open by themselves.	모든 권한이 있는 사서함은 자동으로 열립니다.
@@ -1630,7 +1683,7 @@ month	May	5월
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	이 메시지는 의심스럽거나 보낸 사람을 확인할 수 없어 그림을 숨겨 둡니다.
 	These senders' pictures always load, even when a message looks suspicious:	이 보낸 사람의 그림은 메시지가 의심스러워 보여도 항상 불러옵니다:
 	Open a mail file	메일 파일 열기
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	저장된 메시지(.eml 또는 Outlook .msg)를 폴더에 추가하지 않고 별도 창에서 봅니다. 웹의 그림은 불러오지 않으며 그 안의 어떤 것도 실행되지 않습니다.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	저장된 메시지(.eml 또는 Outlook .msg)를 폴더에 추가하지 않고 별도 창에서 봅니다. 웹의 그림은 요청할 때만 불러오며 그 안의 어떤 것도 실행되지 않습니다.
 	Nothing is kept: closing it leaves no trace in your mail.	아무것도 보관되지 않습니다. 닫으면 메일에 아무 흔적도 남지 않습니다.
 	and {n} more	외 {n}개
 	Checking for new mail	새 메일 확인
@@ -1643,4 +1696,10 @@ month	May	5월
 	Server: {url} (CalDAV and CardDAV)	서버: {url} (CalDAV 및 CardDAV)
 	Not available: this account has no mail server.	사용할 수 없음: 이 계정에는 메일 서버가 없습니다.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	메일을 이전 MailCraft Flatpak에서 가져왔습니다. 이전 Flatpak은 아직 설치되어 있습니다. 제거하려면 다음을 실행하세요: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	{file}에서 열었습니다. 어떤 폴더에도 없고, 웹의 그림은 불러오지 않으며, 닫으면 아무 흔적도 남지 않습니다.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	{file}에서 열었습니다. 어떤 폴더에도 없고, 웹의 그림은 요청할 때만 불러오며, 닫으면 아무 흔적도 남지 않습니다.
+	To-Do Bar	할 일 모음
+	Appointments	약속
+	Type a new task	새 작업 입력
+	Nothing to do	할 일이 없습니다
+	Nothing in the next 7 days	앞으로 7일 동안 일정이 없습니다
+	Show the calendar, what's coming up and your tasks beside the mail	메일 옆에 일정, 다가오는 약속, 작업을 표시합니다

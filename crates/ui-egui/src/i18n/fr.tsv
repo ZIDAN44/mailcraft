@@ -117,6 +117,7 @@
 	24-hour	24 heures
 	12-hour	12 heures
 	Whole date and time in the list	Date et heure complètes dans la liste
+	Earlier this month	Plus tôt ce mois-ci
 	Last month	Le mois dernier
 	Last week	La semaine dernière
 	Later	Plus tard
@@ -156,6 +157,10 @@
 	Move to folder	Déplacer vers le dossier
 	Move to…	Déplacer vers…
 	Move {n} messages	Déplacer {n} messages
+	Copy to folder	Copier vers le dossier
+	Copy to…	Copier vers…
+	Copy 1 message	Copier 1 message
+	Copy {n} messages	Copier {n} messages
 	Move “{folder}” to	Déplacer « {folder} » vers
 	Name	Nom
 	Names <addresses>, separated by ; or ,	Noms <adresses>, séparés par ; ou ,
@@ -198,7 +203,6 @@
 	Password needed	Mot de passe requis
 	Password…	Mot de passe…
 	Personal	Personnel
-	Pick messages from one account to move them to a folder.	Choisissez des messages d’un seul compte pour les déplacer vers un dossier.
 	Picture	Image
 	Pictures from the web are hidden to protect your privacy.	Les images du Web sont masquées pour protéger votre vie privée.
 	Picture…	Image…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} pièces jointes enregistrées dans {folder}
 	Saved {path}	Enregistré : {path}
 	Search folders	Rechercher des dossiers
+	(the rest isn't shown: open the file to see it all)	(le reste n’est pas affiché : ouvrez le fichier pour tout voir)
+	Pick a category	Choisissez une catégorie
+	Pick a folder	Choisissez un dossier
+	Say what to look for	Indiquez ce qu’il faut rechercher
+	Give the rule a name	Donnez un nom à la règle
 	Search mail (from:, subject:, has:attachment…)	Rechercher dans le courrier (from:, subject:, has:attachment…)
 	Select a message first.	Sélectionnez d’abord un message.
 	Send	Envoyer
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Serveurs : {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Paramètres trouvés : {source}
 	Show a desktop notification when new mail arrives	Afficher une notification de bureau à l’arrivée de nouveau courrier
+	Keep MailCraft running when its window is closed	Garder MailCraft en cours d’exécution quand sa fenêtre est fermée
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Il reste dans la zone de notification, relève le courrier et l’annonce. « Quitter », sur la page Fichier ou dans le menu de son icône, le ferme.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Sa fenêtre est réduite, et MailCraft continue de relever le courrier et de l’annoncer. « Quitter », sur la page Fichier, le ferme.
+	Open MailCraft	Ouvrir MailCraft
 	Show as plain text	Afficher en texte brut
 	Show formatted	Afficher avec la mise en forme
 	Show in Favorites	Afficher dans les Favoris
@@ -768,11 +781,18 @@
 	Move down	Descendre
 	Updating…	Mise à jour…
 	All folders are up to date	Tous les dossiers sont à jour
+	1 account disconnected	1 compte déconnecté
 	{n} accounts disconnected	{n} comptes déconnectés
 	{account}: {status}	{account} : {status}
 	Sign in with Microsoft	Se connecter avec Microsoft
 	Sign in with Microsoft…	Se connecter avec Microsoft…
 	Mailbox won't open	La boîte aux lettres ne s'ouvre pas
+	Trust this computer's mail server?	Faire confiance au serveur de messagerie de cet ordinateur ?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} se trouve sur cet ordinateur et présente un certificat qu’il a créé lui-même, dont aucune autorité ne se porte garante. C’est ce que fait un programme qui relie un service de messagerie aux applications de messagerie. Ne lui faites confiance que si vous avez installé ce programme.
+	Certificate fingerprint (SHA-256)	Empreinte du certificat (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft redemandera si le serveur présente un autre certificat.
+	Trust this certificate	Faire confiance à ce certificat
+	Certificate not trusted yet	Certificat pas encore approuvé
 	The mailbox won't open	La boîte aux lettres ne s'ouvre pas
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph accède à la boîte aux lettres sans IMAP et apporte aussi son calendrier et ses contacts. Le compte repart par ce biais : son courrier est téléchargé depuis le serveur.
 	Turned IMAP on, or picked another account in the browser? Sign in again	Vous avez activé IMAP ou choisi un autre compte dans le navigateur ? Reconnectez-vous
@@ -853,6 +873,28 @@
 	Delete this contact?	Supprimer ce contact ?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Ce contact sera supprimé, avec tout ce qui est enregistré à son sujet. Cette action est irréversible.
 	Export…	Exporter…
+	{file} isn't a MailCraft backup.	{file} n’est pas une sauvegarde MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	Une sauvegarde se charge là où MailCraft fonctionne dans le navigateur.
+	Backup saved as {file}	Sauvegarde enregistrée sous {file}
+	Restore…	Restaurer…
+	Bring a backup file in. It takes the place of what's kept here now.	Charger un fichier de sauvegarde. Il remplace ce qui est conservé ici.
+	Back up…	Sauvegarder…
+	Save what's kept here to a file, with a password if you like.	Enregistrez dans un fichier ce qui est conservé ici, avec un mot de passe si vous le souhaitez.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft conserve vos comptes, vos réglages et votre courrier dans ce navigateur uniquement. Effacer les données du navigateur pour ce site les supprime : un fichier de sauvegarde les rétablit, ici ou dans un autre navigateur.
+	Backup	Sauvegarde
+	The backup's password	Le mot de passe de la sauvegarde
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Cela remplace tout ce que MailCraft conserve actuellement dans ce navigateur : ses comptes, leurs réglages et leur courrier. Le mot de passe de chaque compte sera redemandé.
+	Restore from a backup…	Restaurer depuis une sauvegarde…
+	Restore from backup	Restaurer depuis une sauvegarde
+	The two passwords aren't the same.	Les deux mots de passe ne sont pas identiques.
+	Save backup	Enregistrer la sauvegarde
+	The file can't be opened without this password: MailCraft can't recover it.	Le fichier ne peut pas être ouvert sans ce mot de passe : MailCraft ne peut pas le retrouver.
+	Without a password, anyone who has the file can read what's in it.	Sans mot de passe, toute personne qui possède le fichier peut en lire le contenu.
+	The password again	Le mot de passe à nouveau
+	Password for the file (optional)	Mot de passe du fichier (facultatif)
+	Include the mail downloaded to this browser	Inclure le courrier téléchargé dans ce navigateur
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Vos comptes et leurs réglages, règles, signatures, calendriers et contacts vont dans un seul fichier. Les mots de passe n’y figurent jamais.
+	Back up	Sauvegarder
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Ajoute les règles d'un fichier enregistré par MailCraft. Une règle pour un compte absent de cet ordinateur arrive désactivée.
 	Change…	Modifier…
 	Clean up	Nettoyer
@@ -880,6 +922,17 @@
 	Send email	Envoyer un courrier
 	Add	Ajouter
 	Add a shared mailbox	Ajouter une boîte aux lettres partagée
+	Other addresses	Autres adresses
+	Key {key}: signs mail from {addresses}	Clé {key} : signe le courrier envoyé depuis {addresses}
+	Valid until {date}: signs mail from {addresses}	Valide jusqu’au {date} : signe le courrier envoyé depuis {addresses}
+	Find on the server	Chercher sur le serveur
+	Addresses of this same mailbox that you also send from.	Adresses de cette même boîte depuis lesquelles vous envoyez aussi.
+	Add an address	Ajouter une adresse
+	Change an address	Modifier une adresse
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Une autre adresse de cette même boîte, par exemple un alias, depuis laquelle du courrier peut être envoyé. Choisissez-la dans « De » en écrivant un message. Votre serveur de messagerie doit autoriser l’envoi depuis cette adresse.
+	Name on mail from it	Nom sur le courrier envoyé depuis cette adresse
+	Replies go to	Les réponses vont à
+	(the account's own)	(celle du compte)
 	Add…	Ajouter…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Ses dossiers apparaissent sous ce compte. Vous devez y avoir accès sur le serveur Exchange ; celles auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.
 	Mailboxes you have full access to open by themselves.	Les boîtes auxquelles vous avez un accès complet s'ouvrent d'elles-mêmes.
@@ -1631,7 +1684,7 @@ month	May	mai
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Ce message semble suspect ou son expéditeur n'a pas pu être confirmé : ses images restent masquées.
 	These senders' pictures always load, even when a message looks suspicious:	Les images de ces expéditeurs se chargent toujours, même si un message semble suspect :
 	Open a mail file	Ouvrir un fichier de courrier
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Voir un message enregistré (.eml ou .msg d'Outlook) dans sa propre fenêtre, sans l'ajouter à un dossier. Ses images du web ne sont pas chargées et rien de ce qu'il contient ne s'exécute.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Voir un message enregistré (.eml ou .msg d'Outlook) dans sa propre fenêtre, sans l'ajouter à un dossier. Ses images du web ne sont chargées que si vous le demandez et rien de ce qu'il contient ne s'exécute.
 	Nothing is kept: closing it leaves no trace in your mail.	Rien n'est conservé : une fois fermé, il ne laisse aucune trace dans votre courrier.
 	and {n} more	et {n} de plus
 	Checking for new mail	Vérification du nouveau courrier
@@ -1644,4 +1697,10 @@ month	May	mai
 	Server: {url} (CalDAV and CardDAV)	Serveur : {url} (CalDAV et CardDAV)
 	Not available: this account has no mail server.	Non disponible : ce compte n’a pas de serveur de messagerie.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Votre courrier a été repris de l'ancien Flatpak de MailCraft, qui est toujours installé. Pour le supprimer, exécutez : flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Ouvert depuis {file}. Il n'est dans aucun dossier, ses images du web ne sont pas chargées, et une fois fermé il ne laisse aucune trace.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Ouvert depuis {file}. Il n'est dans aucun dossier, ses images du web ne sont chargées que si vous le demandez, et une fois fermé il ne laisse aucune trace.
+	To-Do Bar	Barre des tâches
+	Appointments	Rendez-vous
+	Type a new task	Saisir une nouvelle tâche
+	Nothing to do	Rien à faire
+	Nothing in the next 7 days	Rien dans les 7 prochains jours
+	Show the calendar, what's coming up and your tasks beside the mail	Afficher le calendrier, ce qui arrive et vos tâches à côté du courrier

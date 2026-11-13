@@ -97,6 +97,16 @@ pub struct Work {
 }
 
 /// Platform services the UI needs.
+/// What becomes of the window when it's closed and MailCraft is kept running.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeptOnClose {
+    /// Hidden: MailCraft's icon in the system's notification area brings it back.
+    Hidden,
+    /// Minimized: where a hidden window couldn't be brought back (Wayland, no notification
+    /// area), the taskbar does.
+    Minimized,
+}
+
 pub trait Services {
     /// Unix seconds and the local UTC offset in seconds.
     fn clock(&self) -> (i64, i32);
@@ -246,6 +256,15 @@ pub trait Services {
     fn has_background(&self) -> bool {
         false
     }
+    /// Whether this app can keep running with its window closed, and what becomes of the window
+    /// then: what the option says of itself (none: it isn't offered), and what a close does now
+    /// (none: it closes).
+    fn keeps_running(&self) -> Option<KeptOnClose> {
+        None
+    }
+    fn kept_on_close(&self) -> Option<KeptOnClose> {
+        None
+    }
     /// Whether files can be dragged out of the window to other apps (see
     /// [`MailApp::take_drag_out`]).
     fn can_drag_out(&self) -> bool {
@@ -258,9 +277,20 @@ pub trait Services {
     }
     /// Hand `bytes` to the user as a download named `name`.
     fn download(&mut self, _name: &str, _bytes: &[u8]) {}
-    /// Start choosing files without waiting (the browser): `purpose` is `attach` or `picture`,
-    /// and the files arrive through [`Services::take_picked`]. `false` (the default) means
-    /// [`Services::pick_files`] answers at once.
+    /// 28 bytes from the system's source of randomness, for what locks a backup (issue #83);
+    /// `None` where the window has none to give.
+    fn random_bytes(&mut self) -> Option<[u8; 28]> {
+        None
+    }
+    /// Put a backup's files and settings in the place of what MailCraft keeps, and start again
+    /// from them (the browser: the page loads anew). The default has nowhere to.
+    fn restore(&mut self, _files: Vec<(String, Vec<u8>)>, _state: serde_json::Value) -> Result<(), String> {
+        Err("a backup is brought in where MailCraft runs in the browser".into())
+    }
+    /// Start choosing files without waiting (the browser): `purpose` is `attach`, `picture`,
+    /// `backup`, `rules`, `categories` or `certificate:<account>`, and the files arrive through
+    /// [`Services::take_picked`]. `false` (the default) means [`Services::pick_files`] answers
+    /// at once.
     fn pick_later(&mut self, _purpose: &str) -> bool {
         false
     }

@@ -6,6 +6,30 @@ use super::*;
 /// The colour of a table's lines when `border="1"` is all that's said.
 const TABLE_LINE: [u8; 3] = [128, 128, 128];
 
+/// The words of a CSS value: split at spaces outside brackets, so `rgb(204, 204, 204)` is one.
+fn words(v: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let (mut depth, mut word) = (0usize, String::new());
+    for c in v.chars() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            c if c.is_whitespace() && depth == 0 => {
+                if !word.is_empty() {
+                    out.push(std::mem::take(&mut word));
+                }
+                continue;
+            }
+            _ => {}
+        }
+        word.push(c);
+    }
+    if !word.is_empty() {
+        out.push(word);
+    }
+    out
+}
+
 /// One word of a `border` shorthand: its width, its style or its colour.
 fn read_line_word(word: &str, width: &mut Option<u32>, kind: &mut Option<String>, colour: &mut Option<[u8; 3]>) {
     if matches!(word, "none" | "hidden" | "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset" | "outset") {
@@ -40,15 +64,29 @@ impl Node {
 
     /// A property of the inline `style` as written (addresses keep their case).
     pub(super) fn style_as_written(&self, prop: &str) -> Option<String> {
-        let style = self.attr("style")?;
-        style.split(';').find_map(|d| {
-            let (k, v) = d.split_once(':')?;
-            k.trim().eq_ignore_ascii_case(prop).then(|| {
-                let v = v.trim();
-                let v = v.get(..v.to_ascii_lowercase().find("!important").unwrap_or(v.len())).unwrap_or(v);
-                v.trim().to_string()
-            })
-        })
+        self.styles_as_written(prop).into_iter().next()
+    }
+
+    /// Every value the inline `style` gives a property, the one that counts first: as in CSS,
+    /// the last marked `!important`, else the last (`display:none;display:block` shows it).
+    /// The rest follow, for a value a reader can't read (`width:600px;width:calc(…)`): a
+    /// browser takes the last it can.
+    pub(super) fn styles_as_written(&self, prop: &str) -> Vec<String> {
+        let Some(style) = self.attr("style") else { return Vec::new() };
+        let (mut marked, mut plain) = (Vec::new(), Vec::new());
+        for d in style.split(';').rev() {
+            let Some((k, v)) = d.split_once(':') else { continue };
+            if !k.trim().eq_ignore_ascii_case(prop) {
+                continue;
+            }
+            let v = v.trim();
+            match v.to_ascii_lowercase().find("!important") {
+                Some(at) => marked.push(v.get(..at).unwrap_or(v).trim().to_string()),
+                None => plain.push(v.to_string()),
+            }
+        }
+        marked.extend(plain);
+        marked
     }
 
     /// The picture behind it: the `background` attribute, or `url(…)` in `background-image` or
@@ -132,25 +170,56 @@ impl Node {
         // The first that reads: `background-color`, a colour in `background`, the `bgcolor`
         // attribute (what Outlook shows for a gradient it doesn't draw, issue #41), and last a
         // gradient's first colour.
-        let own = self.style("background-color").and_then(|v| color(v.split_whitespace().next()?));
+        // Whole first: `rgb(34, 34, 34)`, as programs that write styles out put it, has spaces.
+        // (The one that counts, of those that read: `#0a0` under a `var(--b)` after it.)
+        let own = self
+            .styles_as_written("background-color")
+            .iter()
+            .map(|v| v.to_ascii_lowercase())
+            .find_map(|v| color(&v).or_else(|| color(words(&v).first()?)));
         let shorthand = || {
             let v = self.style("background")?;
             if v.contains("gradient(") {
                 return None;
             }
-            v.split_whitespace().find_map(color)
+            words(&v).iter().find_map(|w| color(w))
         };
         let attr = || self.attr("bgcolor").map(str::to_ascii_lowercase).and_then(|v| color(&v));
         let gradient = || {
             let v = self.style("background").or_else(|| self.style("background-image"))?;
             let inner = v.get(v.find("gradient(")? + 9..)?;
-            inner.split(',').find_map(|stop| color(stop.split_whitespace().next()?))
+            stops(inner).into_iter().find_map(|stop| color(stop.trim().split(" ").next()?).or_else(|| color(stop.trim())))
         };
         own.or_else(shorthand).or_else(attr).or_else(gradient)
     }
 
     pub(super) fn align(&self) -> Align {
         self.own_align().unwrap_or_default()
+    }
+
+    /// Whether it's a title (`<h1>` to `<h6>`).
+    pub(super) fn is_title(&self) -> bool {
+        matches!(self.tag.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+    }
+
+    /// The element without what lines it up (`align`, `text-align`): for inside the cell that
+    /// does it instead.
+    pub(super) fn unaligned(&self) -> Node {
+        let attrs = self
+            .attrs
+            .iter()
+            .filter(|(k, _)| k != "align")
+            .map(|(k, v)| {
+                if k == "style" {
+                    let kept: Vec<&str> =
+                        v.split(';').filter(|d| !d.split(':').next().is_some_and(|p| p.trim().eq_ignore_ascii_case("text-align"))).collect();
+                    (k.clone(), kept.join(";"))
+                } else {
+                    (k.clone(), v.clone())
+                }
+            })
+            .collect();
+        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect() }
     }
 
     /// How what's in it lines up, when it says (`align`, `text-align`).
@@ -214,16 +283,27 @@ impl Node {
         out
     }
 
+    /// The room a `<div>` asks for above it (`margin-top`, or `margin`'s first length), in pixels:
+    /// `0` for none, and for any other box (a paragraph's is the empty line the text has for it).
+    pub(super) fn room_above(&self) -> u16 {
+        if self.tag != "div" {
+            return 0;
+        }
+        let all = self.style("margin");
+        let top = self.style("margin-top").or_else(|| all.as_deref().and_then(|v| v.split_whitespace().next()).map(str::to_string));
+        top.as_deref().and_then(length_px).map_or(0, |n| (n.round() as u16).min(MAX_ROOM))
+    }
+
     /// The line along one side of it (`top`, `right`, `bottom`, `left`) its style sets: from
     /// `border-top` or `border`, `border-top-width` and the like over them. None when its style is
     /// `none`, or says none, as CSS has it.
     pub(super) fn line(&self, side: &str) -> Option<Line> {
         let short = self.style(&format!("border-{side}")).or_else(|| self.style("border"));
         let (mut width, mut kind, mut colour): (Option<u32>, Option<String>, Option<[u8; 3]>) = (None, None, None);
-        for word in short.as_deref().unwrap_or("").split_whitespace() {
-            read_line_word(word, &mut width, &mut kind, &mut colour);
+        for word in words(short.as_deref().unwrap_or("")) {
+            read_line_word(&word, &mut width, &mut kind, &mut colour);
         }
-        let one = |prop: &str, all: &str| self.style(prop).or_else(|| self.style(all)).filter(|v| v.split_whitespace().count() == 1);
+        let one = |prop: &str, all: &str| self.style(prop).or_else(|| self.style(all)).filter(|v| words(v).len() == 1);
         if let Some(v) = one(&format!("border-{side}-width"), "border-width") {
             width = line_width(&v);
         }
@@ -389,11 +469,28 @@ impl Node {
 
     /// Where a table sits: `align`, or auto side margins.
     pub(super) fn table_align(&self) -> Align {
+        self.own_table_align().unwrap_or_default()
+    }
+
+    /// [`Node::table_align`], when the table says.
+    pub(super) fn own_table_align(&self) -> Option<Align> {
         let margin = self.style("margin").unwrap_or_default();
         if margin.contains("auto") || self.style("margin-left").is_some_and(|m| m == "auto") {
-            return Align::Center;
+            return Some(Align::Center);
         }
-        self.align()
+        self.own_align()
+    }
+
+    /// Where the boxes in it sit across it, when its `align` attribute says (`<td
+    /// align="right">`): HTML's `align` moves the tables in a cell too, where CSS's `text-align`
+    /// moves its words alone.
+    pub(super) fn boxes_align(&self) -> Option<Align> {
+        match self.attr("align")?.trim().to_ascii_lowercase().as_str() {
+            "center" | "middle" => Some(Align::Center),
+            "right" => Some(Align::Right),
+            "left" => Some(Align::Left),
+            _ => None,
+        }
     }
 
     /// Whether a table, side-by-side boxes or a box of a set width are somewhere inside.
@@ -518,6 +615,18 @@ impl Node {
             _ => self.font_size(),
         };
         px.filter(|p| p.is_finite() && *p >= 1.0).map_or(around, |p| p.round().min(f32::from(u16::MAX)) as u16)
+    }
+
+    /// Whether the text in it is bold, given whether what's around it is: as its style's
+    /// `font-weight` says, when it says. (What's bold by its tag, `<b>` or a heading, the text
+    /// converter reads itself.)
+    pub(super) fn bold(&self, around: bool) -> bool {
+        match self.style("font-weight").as_deref().map(str::trim) {
+            Some("bold" | "bolder") => true,
+            Some("normal" | "lighter") => false,
+            Some(v) => v.parse::<f32>().map_or(around, |w| w >= 600.0),
+            None => around,
+        }
     }
 
     pub(super) fn font_size(&self) -> Option<f32> {

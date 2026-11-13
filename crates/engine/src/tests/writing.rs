@@ -3,6 +3,7 @@
 use super::*;
 
 mod drafts;
+mod identities;
 mod quote;
 mod reactions;
 mod sending;

@@ -8,7 +8,118 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.36.0
+## 0.38.0
+
+*Messages as they look, on paper and from a file.*
+
+### Added
+
+- An account can have other addresses to send from (#81): the aliases and identities a provider gives one mailbox (iCloud, Gmail's "Send mail as", Exchange, Fastmail). Add them under **File › Info › Other addresses**, each with the name shown on its mail, where replies to it go and one of the account's signatures; a JMAP account's are found on its server with **Find on the server**. **From** lists them when you write a message, mail sent to one is answered from it, and the mailbox is still read and kept once. A mail server that refuses the address is said so, with the address. Mail from another address is signed with the certificate or OpenPGP key that names it: import it with **Add another…** under Security, where it's kept beside the account's own and says which address it signs for; with none that names the address, the message isn't signed as someone else.
+- Mail can be moved or copied into a folder of another account (#82): from a mail server into an Outlook data file opened in MailCraft, from the file onto a server, or between two servers. Drag it there (hold Ctrl to copy), or pick the folder in **Move to** or the new **Copy to…**, which list every account's folders under the messages' own. It keeps its read mark, flag and categories. A message that isn't downloaded yet is downloaded first, and one that's moved is deleted where it was only once its copy is in the folder. Dropped on another account's folder, mail did nothing.
+- In the browser, everything MailCraft keeps can be saved to a backup file and brought back (#83): **File › Open & Export › Back up…** downloads the accounts and their settings, rules, signatures, calendars and contacts, and the downloaded mail when asked, as one file, locked with a password if you give one; **Restore…** (there, and on the welcome page of a browser that has nothing yet) brings it into this browser or another. The browser keeps all of it for the site only, so clearing its data lost it for good. Passwords are never in the file, and nothing goes through a server.
+
+### Fixed
+
+- A mail file opened with MailCraft opens in front: its window came up behind the main window.
+- A mail file's pictures from the web can be shown: **Show pictures** loads them for that message, when you ask. They never load by themselves, whatever its sender says, and asking doesn't make its sender one whose pictures always load.
+- **Print** and **Save as PDF** show a message as it's laid out on screen: its columns side by side, its backgrounds, lines and buttons, the pictures it carries and those from the web that have been shown, and links that can be clicked. Tables came out as rows of text between lines of dashes, and pictures as their names.
+- A shop's notice reads as it was sent (#47): the steps of an order drawn with their dots and lines, words set bold by the box around them (a step's name, a total), what a cell puts at its right standing there, an item's picture at the size its style sheet gives it on a wide screen, a divider no wider than its column, and a faint tint behind a picture.
+- Paragraphs stand as far apart as in a browser: an empty line between them was half as tall. Room a box asks for above it (`margin-top`) is kept too: a footer's first line stood against the top of its box.
+- A mail file's links say where they go only when their words name another place: with every link's address after it, a message's columns no longer fitted.
+- A signed message is checked for the sender it shows. When the signed part carries its own From, that's the one shown, and the signature was checked for the one outside: mail signed by one person read as signed by the one it named inside.
+- The certificate kept for someone, to encrypt to, isn't replaced by a lesser one: any signed mail naming them did (one from no authority this computer trusts, or the certificate they had before, when an old message was read again). Certificates are asked about at their authority only when it's one this computer trusts; an OpenPGP key from a message dated years ahead no longer stays in place of every later one.
+- A draft kept encrypted is still sent encrypted when it's opened again (it went in the clear unless the account encrypts everything), and opens only once it has been decrypted.
+- A signed or encrypted message taken back from the Outbox opens as it was written, to be signed and encrypted again as it goes, at the time it was to go: it opened as the signature's or the encryption's own file, and the message that waited was gone. What was decrypted for one Outbox message is no longer shown for the one that takes its row.
+- Looking for an account's calendars and contacts, the mail password goes only to a server of the account's own that asks for it. It went with the first request to every place tried: the address's domain (a web site, for most), a host a DNS answer named, wherever a redirect led. A calendar server at another name than the address's and the mail server's isn't found by itself any more: give its address under **Calendars and contacts**. A sign-in no longer follows a redirect to another site either.
+- On Windows a link or a file opens MailCraft with nothing after it read as an option: a `mailto:` link with a `"` in it could run commands as the window opened, point MailCraft at another data folder, or have another file opened.
+- What a crash said is no longer written to the log or shown: only where it happened.
+- A calendar rule that never matches (`FREQ=DAILY;BYSETPOS=2`: a day has no second day) no longer freezes MailCraft: an invitation or a calendar file with one was gone through to the end of time, and the calendar and its reminders never came back.
+- From an Outlook data file, appointments on the last weekday of a month come once a month (not on each of its last five weekdays), those on the 31st fall on the last day of shorter months, and every-other-week ones keep their weeks where Outlook's weeks start on Sunday (`WKST` is read).
+- A calendar rule with an end that isn't a date no longer ends an Exchange account's connection at every sync. An Exchange server that closed an idle connection no longer has the password asked for again; nor does a POP mailbox that's busy.
+- Folders whose names have a `"` or a `\` in them open, and take mail: they were shown and asked for with the server's escapes still in.
+- Mail moved or copied into another account keeps its categories and the day it came; a slow server no longer gets it twice; one that never got an answer can be moved again; and put into another account's Inbox it isn't taken for new mail (a rule filed it straight out again). While it's on its way to a server that's said (#85), and again when it's there.
+- **Undo** that can't be done any more (the mail was deleted for good since) is dropped, not kept in the way of every Undo after it. Moving a message to the folder it's in leaves it open.
+- A server that fails after signing in is tried less and less often, not every five seconds for good; a connection that got an answer it couldn't read is closed, not used again.
+- Automatic replies on a server without them read "Not available: this server doesn't offer automatic replies", without "the server refused:" in the middle.
+- From one of an account's other addresses (#81): **Put everyone in Bcc** puts that address in To, not the account's main one; a renamed signature stays the address's; a follow-up to your own mail from it comes from it; and an invitation sent to it is answered from it (answered from the main address, the organizer's program took none of it).
+- A meeting answer counts only from the guest it's for: one that named its sender in another part of the meeting set someone else's answer.
+- What's being written isn't lost: a message closed while it was being signed opens again when signing fails; removing its account leaves it open, to go from another (with no account left, it's kept as MailCraft closes and is back when it opens); and a draft saved on a server no longer opens a second time while it's still being written.
+- A recipient after a name with an unbalanced quote is said to be wrong: it was left out of the message without a word.
+- `mailcraft-cli send` says so at once when a message is held to be checked (`--checked` sends it), and waits for one that's signed first (it said "timed out" after the message had gone).
+- A message with a megabyte of stray `<` opens at once (it took minutes). A file with a Content-ID (a PDF from some invoicing programs) is listed with the message's files; colours written with spaces (`rgb(34, 34, 34)`), a style rule after `@import`, a picture's address written without quotes and the last of two declarations are read.
+- An attached message saved with bare line feeds goes with whole line ends: mail servers refused it.
+- Deleting from Deleted Items asks first wherever it's asked from: a row's bin, the menu, a message's own window and the reading pane didn't. Ctrl+Enter sends only the message being written beside the list, asking about an empty subject as its Send button does, and not from another box beside it.
+- **Move to folder** names other accounts by their address (each had the same name: yours), and Tab leaves its search box. A rule's **Run it now** runs only once the rule is saved, and what the rule dialog asks for is said in your language.
+- File › Info no longer redraws without end with a renewed certificate or key listed, and doesn't offer an expired key for sending.
+- The status bar says "1 account disconnected" for one (it read "1 accounts").
+- In the browser, **File › Open & Export** offers what works there: **Open a data file** and **Export to Outlook data file** did nothing (a page reads and writes no data files), and are no longer shown. Rules and categories go to a file and back there too: **Export…** downloads the file and **Import…** takes one from the browser's picker, where both buttons did nothing.
+
+## 0.37.0 - 2026-11-12
+
+*Fixes found by testing against real mail servers and awkward real-world mail.*
+
+### Added
+
+- **Keep MailCraft running when its window is closed** (File › Options › General, off unless you turn it on): closing the window puts it away, and MailCraft goes on checking for mail and announcing it. On Windows, and on Linux desktops with a notification area, the window is hidden and MailCraft's icon there opens it again; under Wayland, without a notification area, and on a Mac, the window is minimized instead. Starting MailCraft again brings it back too. **Exit** (the icon's, or the File page's) and a Mac's **Quit** end it (#67).
+- **A mail server on this computer with a certificate of its own can be trusted**: a program that connects a mail service to mail apps (a bridge) makes its own certificate, which MailCraft refused. Now it asks, showing the certificate's fingerprint, and **Trust this certificate** keeps it for that account, for receiving and sending. Only for a server on this computer; MailCraft asks again if the certificate changes, and a server anywhere else is checked as before (#77).
+- **To-Do Bar** beside the mail (View › To-Do Bar), as Outlook's: a month to go to a day from, what's coming up in your calendars in the next week, and your tasks with the mail flagged in any folder, under when they're due. Type a new task into it, mark one complete, click a flagged message to open it, click a day to open the calendar on it. Each part is shown or closed on its own, and the parts and the bar's width are remembered (#79).
+- The Calendar's small months show the days with something on them in bold.
+
+### Fixed
+
+- A message whose text comes in several parts shows all of it: text under an attachment (a note, a mailing list's footer) was left out.
+- Text its sender wrapped softly (`format=flowed`) reads in whole paragraphs, not cut at each wrapped line.
+- A subject or sender's name written in Latin-1 or another old character set, unencoded, reads as written, not as `caf�`.
+- A reply or forward keeps the `[tag]` its subject starts with (`Re: [Ticket#123] Printer`), which a help desk matches answers on.
+- Two notifications with the same `[tagged]` subject are no longer shown as one conversation.
+- A reply to a message that names only the message it answers keeps the whole conversation together in other mail programs.
+- A message can't mark itself as checked: only the result your own mail server put at the top counts, where one written by the sender lower down was believed (and its pictures could load by themselves).
+- A draft keeps a recipient whose name has a comma (`"Park, Zoe"`) whole when it's saved.
+- Addresses pasted with only a space or a line end between them each get the message: the first was taken for the second's name.
+- A folder a server names `R&D-Team` without encoding it shows its whole name, and one it lists with letters outside ASCII is opened by that name, not another.
+- A folder with more than about 130,000 messages syncs: the account signed in again and again instead.
+- A change to another message, told by the server while new mail is fetched, no longer adds an empty message to the list.
+- An answer from an IMAP server that MailCraft's reader can't take (`INTERNALDATE NIL`) no longer stops the account until MailCraft starts again.
+- On a server without UIDPLUS, moving or deleting a message no longer removes for good the messages another program had marked as deleted.
+- New mail is noticed at once after a message is deleted for good, and after a folder that's gone from the server was opened.
+- Sending waits up to ten minutes for a server that checks a message before it answers, instead of sending it a second time after one.
+- In the Outbox, the selected message stays selected when one above it is sent: Delete could take the next one, which was then never sent.
+- After a delete or a move, the message opened is the next one down as the list shows it, with pinned messages and conversations too.
+- A message closed while it's being sent opens again if the server then refuses it: it was in neither Drafts nor the Outbox.
+- A rule, a Quick Step and a snoozed message follow a folder that's renamed or moved: the rule's mail stayed in the Inbox, and the snoozed message never came back. Snoozing a message that's already snoozed changes when it comes back.
+- Mail you put in the Inbox of an account on a server (dragged there, a delete undone, **Not junk**) isn't taken for mail arriving: a rule could file it straight back, and it was announced as new.
+- `larger:2 MB`, with a space before the unit, searches by that size.
+- Mail from the first days of this month is under **Earlier this month**, not **Last month**.
+- In a small window the message read or written keeps a width it can be read in: the folders and the list give way. At the smallest size it was a strip one word wide.
+- A reply written in a narrow reading pane: the ribbon's rows are one under the other (wrapped, they were far apart), and **Save draft** isn't drawn under **Discard**.
+- A message in a window of its own: the toolbar's last buttons go without their labels when the window is too narrow, as the ribbon's do. They were cut off at its edge.
+- A very long subject is four lines over its message, all of it under the pointer: it filled the reading pane.
+- A conversation's messages listed in the reading pane: the first words stop before the time, and a long name before the words.
+- Calendar in a narrow window: the days shown are no longer drawn under the **Day**, **Work week**, **Week** and **Month** buttons (those are on the ribbon), and **All day** fits beside the days in every language.
+- Tasks and People: a title, a status or an address too long for its column ends in "…". It was cut mid-letter.
+- **File › Info** in a narrow window: the page stays inside the window. In French and Russian the names at its side are whole.
+- In a narrow message list the sender's name keeps its room: the folder's name and **External** before the time give way.
+- An HTML message with text parts after it (a mailing list's footer) or before it shows them too: only the HTML was shown.
+- A message with two **From** or two **Subject** lines shows the first of each, as other mail programs do, and is never marked as from a checked sender.
+- A date written the old way, `04:07 EST`, is read in that time zone: it was taken for UTC, hours off.
+- A message the server took but never answered about (it stopped responding, or the connection dropped) is no longer sent again by itself, which is how mail arrived twice: it comes back saying it may have gone.
+- Calendar: events side by side in a narrow day show the start of their title on one line. It was a letter a line.
+- People: in a short window the A–Z index shows the letters that have names, all within reach. Its end was under the window's edge.
+- A message opened by a command, or from its conversation in the reading pane, is brought into view in the list.
+- In Arabic and Hebrew a notice appears in the left corner, clear of what opens from the status bar.
+- Mail that arrives while MailCraft is minimized is announced, and counted in the window's title, when it arrives: it waited until the window was opened again (#68).
+- **Print** and **Save as PDF** keep a message's formatting: headings, bold, italic, sizes, colours, highlights, underlined links and struck-through text. It printed the plain text (#72). Tables print as rows of text, and pictures as their descriptions.
+- In a PDF, the lines a table is drawn with in text are printed with `-`, `|` and `+`: they were empty boxes.
+- A logo or a title a message centres (`<center>`, `align`, `text-align`) is centred when the rest of the message flows. Only mail laid out in tables kept what it centred (#74).
+- A message forwarded or answered shows the pictures from the web it quotes, when you were shown them reading it: they were empty boxes (#74). Nothing is fetched for it.
+- The window's title bar, where the system draws it, is light or dark as MailCraft is set to be (File › Options › Theme): on Linux it followed the system alone (#74).
+- An Outlook data file import that was paused or cut off isn't continued on a file that has changed since, even when the change left the file's size and date as they were: MailCraft goes by what the file holds.
+- In Arabic and Hebrew what you type in the search box starts at its right edge, and in a narrow window the box is laid out from the right as the rest of the window is.
+- In Arabic and Hebrew the People pane is mirrored: pictures and names on the right, the A–Z index on the left, and the list view's columns from the right.
+- A new account's calendar and contacts are read as soon as its Inbox is in. They waited for every mail folder, so a big mailbox's calendar stayed empty for as long as its first sync took (#80).
+- An Exchange calendar or contacts folder the server won't give says so, with why, and appointments the server fails on are counted: nothing was said, and the calendar just stayed empty (#80).
+
+## 0.36.0 - 2026-11-11
 
 *MailCraft as a project of its own: its own publisher, app id and releases.*
 

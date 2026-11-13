@@ -8,6 +8,7 @@ use mailcraft_store::Store;
 
 use super::*;
 
+mod calendars;
 mod directory;
 mod pim;
 

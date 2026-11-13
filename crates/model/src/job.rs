@@ -7,7 +7,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{AccountConfig, Folder, MessageKey, Summary};
+use crate::{AccountConfig, Flags, Folder, Identity, MessageKey, Summary};
 
 mod compact;
 pub mod eta;
@@ -156,10 +156,18 @@ pub enum Job {
     /// Ask where MailCraft is published for its recent releases (File › About › Check for
     /// updates); answered by [`Event::Releases`].
     CheckUpdates,
+    /// Ask the account's server which addresses its mail is sent from (issue #81: a JMAP
+    /// server keeps them, as identities). Answered by [`Event::IdentitiesFound`].
+    FindIdentities { account: String },
     /// Put message files into a folder of the account, as mail received and read: `.eml` as they
     /// are, Outlook's `.msg` made standard messages (issue #38). Answered by
     /// [`Event::MessagesFiled`].
     FileMessages { account: String, folder: String, paths: Vec<String> },
+    /// Put copies of messages kept here (each by its key, with the flags it's to have) into a
+    /// folder of the account, on its server (issue #82: mail copied there, or moved there from
+    /// another account). Their sources are read from the cache. Answered by
+    /// [`Event::CopiesFiled`], which says `moved` again.
+    FileCopies { account: String, folder: String, mail: Vec<(MessageKey, Flags)>, moved: bool },
     /// Read a message file (an Outlook `.msg`) as a standard message, to show it. Answered by
     /// [`Event::MessageFileRead`].
     ReadMessageFile { path: String },
@@ -222,11 +230,21 @@ pub enum Job {
     /// kept for reading. Answered by [`Event::Identity`].
     UseOlderIdentity { account: AccountConfig, fingerprint: String },
     /// Sign (`sign`) and/or encrypt (to `encrypt_to`, certificates as DER, the account's own
-    /// among them; empty: not encrypted) a message about to be sent, with the account's key;
-    /// `gcm`: AES-GCM, every recipient reads it. Its header fields go inside too (RFC 9788);
-    /// encrypted with `hide_subject`, the Subject outside is `[...]`. Answered by
-    /// [`Event::Protected`].
-    Protect { account: AccountConfig, id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, gcm: bool, hide_subject: bool },
+    /// among them; empty: not encrypted) a message about to be sent, with the account's key:
+    /// that of its certificate `signer` (DER; issue #81: the one that names the address the
+    /// message is from), else of the one in use. `gcm`: AES-GCM, every recipient reads it. Its
+    /// header fields go inside too (RFC 9788); encrypted with `hide_subject`, the Subject
+    /// outside is `[...]`. Answered by [`Event::Protected`].
+    Protect {
+        account: AccountConfig,
+        id: u64,
+        raw: Private,
+        sign: bool,
+        encrypt_to: Vec<Vec<u8>>,
+        gcm: bool,
+        hide_subject: bool,
+        signer: Option<Vec<u8>>,
+    },
     /// Decrypt an encrypted message (its `smime.p7m`, `cms`) with the account's key, or the older
     /// one it was encrypted to. Answered by [`Event::Decrypted`].
     Decrypt { account: AccountConfig, key: MessageKey, cms: Vec<u8> },
@@ -271,8 +289,10 @@ pub enum PgpWork {
     Decrypt { key: MessageKey, data: Vec<u8>, inline: bool, charset: String, verify_with: Vec<Vec<u8>> },
     /// Sign (`sign`) and/or encrypt (to `encrypt_to`, public keys, the account's own among them;
     /// empty: not encrypted) a message about to be sent, as PGP/MIME; its header fields inside
-    /// too, the Subject outside `[...]` with `hide_subject`. Answered by [`Event::Protected`].
-    Protect { id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, hide_subject: bool },
+    /// too, the Subject outside `[...]` with `hide_subject`. Signed with the account's key
+    /// `signer` (its fingerprint; issue #81: the one that names the address the message is
+    /// from), else the one in use. Answered by [`Event::Protected`].
+    Protect { id: u64, raw: Private, sign: bool, encrypt_to: Vec<Vec<u8>>, hide_subject: bool, signer: Option<String> },
     /// A draft of a message to be encrypted, encrypted to the account's own key first, then saved
     /// as [`Job::SaveDraft`] (or kept as [`Job::KeepDraft`], `keep`).
     SealDraft { raw: Private, folder: String, replaces: Option<MessageKey>, keep: bool },
@@ -312,6 +332,8 @@ impl Job {
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
             | Job::FileMessages { account, .. }
+            | Job::FindIdentities { account }
+            | Job::FileCopies { account, .. }
             | Job::RereadDataFile { account, .. }
             | Job::StopImport { account, .. }
             | Job::KeepImport { account }
@@ -553,6 +575,22 @@ pub enum Event {
         folder: String,
         added: usize,
         failed: Vec<(String, String)>,
+    },
+    /// The addresses the account's server says its mail is sent from ([`Job::FindIdentities`]),
+    /// the account's own among them maybe; or why they couldn't be asked for.
+    IdentitiesFound {
+        account: String,
+        found: Vec<Identity>,
+        error: Option<String>,
+    },
+    /// What [`Job::FileCopies`] did: the messages whose copies are in the folder now (`done`),
+    /// and those whose aren't, and why. `moved`: those done are to be deleted where they were.
+    CopiesFiled {
+        account: String,
+        folder: String,
+        done: Vec<MessageKey>,
+        failed: Vec<(MessageKey, String)>,
+        moved: bool,
     },
     /// A message file read ([`Job::ReadMessageFile`]): the message, or why it can't be read.
     MessageFileRead {

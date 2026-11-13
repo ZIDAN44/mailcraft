@@ -93,6 +93,9 @@ pub struct Prefs {
     pub confirm_permanent_delete: bool,
     /// Desktop notifications for new mail in an Inbox.
     pub notify: bool,
+    /// Closing the window leaves MailCraft running in the notification area, where the app
+    /// has one (issue #67): mail is still checked and announced.
+    pub close_to_tray: bool,
     /// The categories offered, in order.
     pub categories: Vec<mailcraft_model::organize::Category>,
     /// Split the Inbox into Focused and Other.
@@ -154,6 +157,8 @@ pub struct Prefs {
     /// account ids, and shared mailboxes as `<account>|<address>`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pane_order: Vec<String>,
+    /// The To-Do Bar beside the mail (View › To-Do Bar): its parts and its width.
+    pub todo_bar: pim::TodoBar,
     /// When flagged messages are due (Follow Up › Today, Tomorrow…): Message-ID → local day.
     /// IMAP has nowhere for it, so it's kept here, as Outlook keeps it for IMAP accounts.
     #[serde(default, deserialize_with = "checked_days")]
@@ -286,6 +291,7 @@ impl Default for Prefs {
             confirm_permanent_delete: true,
             favorites: None,
             notify: true,
+            close_to_tray: false,
             categories: mailcraft_model::organize::default_categories(),
             focused_inbox: false,
             focus_overrides: std::collections::BTreeMap::new(),
@@ -327,6 +333,7 @@ impl Default for Prefs {
             folder_pane_minimized: false,
             collapsed: BTreeSet::new(),
             pane_order: Vec::new(),
+            todo_bar: pim::TodoBar::default(),
         }
     }
 }

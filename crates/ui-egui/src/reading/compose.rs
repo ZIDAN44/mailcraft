@@ -326,6 +326,9 @@ pub fn compose_window(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
 
 pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, in_window: bool) {
     let t = st.tokens;
+    if !in_window {
+        st.compose_area = Some((ui.ctx().cumulative_pass_nr(), ui.max_rect()));
+    }
     attach_dropped(ui, &t, acts);
     // Where there are no windows of their own (the browser), the other messages being written
     // are a click away above this one.
@@ -340,13 +343,19 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             }
         });
     }
-    // From offers the accounts that can send (and the one it's from, whatever it is).
+    // From offers the accounts that can send (and the one it's from, whatever it is), each
+    // with its other addresses under it (issue #81): the account, the address ("" its own),
+    // and who that is.
     let from = s.compose.as_ref().map(|c| c.account.as_str()).unwrap_or_default();
-    let accounts: Vec<(String, String)> = s
+    let accounts: Vec<(String, String, String)> = s
         .accounts
         .iter()
         .filter(|a| a.config.id == from || s.send_block(&a.config.id).is_none())
-        .map(|a| (a.config.id.clone(), EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string()))
+        .flat_map(|a| {
+            let own = (a.config.id.clone(), String::new(), a.config.sender("").to_string());
+            let others = a.config.identities.iter().map(|i| (a.config.id.clone(), i.email.clone(), a.config.sender(&i.email).to_string()));
+            std::iter::once(own).chain(others).collect::<Vec<_>>()
+        })
         .collect();
     // Suggestions for the recipient box being typed in (computed before the form borrows it).
     let suggestions: Vec<Contact> = match (st.suggest_field, s.compose.as_ref()) {
@@ -371,11 +380,13 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     let can_delay = s.compose.as_ref().and_then(|c| s.account(&c.account)).is_some_and(|a| !a.is_local());
     // Sign and Encrypt, for an account with a certificate or an OpenPGP key; which of the two,
     // when it has both; whether everyone in it can receive it encrypted (issue #6).
-    let has_cert = s.compose.as_ref().is_some_and(|c| s.identity(&c.account).is_some());
+    // By the address it's from (issue #81); one with neither of its own can still encrypt
+    // with the account's.
+    let has_cert = s.compose.as_ref().is_some_and(|c| s.identity_for(&c.account, &c.from).or_else(|| s.identity(&c.account)).is_some());
     // Mail goes only from an account that can send it (none set up, or a data file, can't).
     let blocked = s.compose_send_block();
     let blocked_text = blocked.map(send_block_text);
-    let has_pgp = s.compose.as_ref().is_some_and(|c| s.pgp_key(&c.account).is_some());
+    let has_pgp = s.compose.as_ref().is_some_and(|c| s.pgp_key_from(&c.account, &c.from).or_else(|| s.pgp_key(&c.account)).is_some());
     let reach = s.encryption_reach();
     let signatures: Vec<String> = s
         .compose
@@ -386,6 +397,12 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     // Out of the session while its form is drawn, so the original under a reply can be drawn
     // from the session as the reading pane draws a message; put back after.
     let Some(mut taken) = s.compose.take() else { return };
+    // The pictures from the web the reader was shown, for the ones this message quotes.
+    let loaded = s
+        .pictures
+        .iter()
+        .filter_map(|(url, p)| if let mailcraft_engine::Picture::Ready(data) = p { Some((url.clone(), data.clone())) } else { None });
+    rich_edit::web_loaded(ui.ctx(), std::sync::Arc::new(loaded.collect()));
     // The editor's state belongs to one message.
     if st.editor.as_ref().is_none_or(|e| e.id != taken.id) {
         st.editor = Some(rich_edit::Editor::new(taken.id));
@@ -485,15 +502,18 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             ui.add_space(4.0);
             // Drafts, Bcc and the format at the left (wrapping onto a second line in a narrow pane);
             // Discard and Pop out (or in) kept at the right, as in Outlook.
-            ui.horizontal(|ui| {
-                let (icon, label, id) =
-                    if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
-                // Where windows can't open (the browser), messages stay in the reading pane.
-                let can_pop = !ui.ctx().embed_viewports();
-                let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
-                let gap = ui.spacing().item_spacing.x;
-                let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
-                let left_w = (ui.available_width() - right).max(120.0);
+            let (icon, label, id) = if in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
+            // Where windows can't open (the browser), messages stay in the reading pane.
+            let can_pop = !ui.ctx().embed_viewports();
+            let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
+            let gap = ui.spacing().item_spacing.x;
+            let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
+            // A pane too narrow for both halves side by side has them one under the other (the
+            // left one was drawn under the right one).
+            let beside = ui.available_width() - right >= 160.0;
+            let halves = if beside { egui::Layout::left_to_right(egui::Align::Center) } else { egui::Layout::top_down(egui::Align::Min) };
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), 30.0), halves, |ui| {
+                let left_w = if beside { ui.available_width() - right } else { ui.available_width() };
                 ui.allocate_ui_with_layout(vec2(left_w, 30.0), crate::bidi::row_from_start(egui::Align::Center).with_main_wrap(true), |ui| {
                     if widgets::tool_button(ui, Icon::Drafts, "Save draft", &t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
                         acts.push(Action::Run("compose.saveDraft", json!({})));
@@ -613,15 +633,22 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                     ui.add_space(10.0);
                     crate::bidi::vertical(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let current = accounts.iter().find(|(id, _)| *id == c.account).map(|(_, l)| l.clone()).unwrap_or_default();
+                            let is_from = |id: &str, address: &str| c.account == id && c.from.eq_ignore_ascii_case(address);
+                            let current = accounts.iter().find(|(id, address, _)| is_from(id, address)).map(|(_, _, l)| l.clone());
+                            // One no longer among them (an address taken out): the account's own.
+                            let current = current
+                                .or_else(|| accounts.iter().find(|(id, _, _)| *id == c.account).map(|(_, _, l)| l.clone()))
+                                .unwrap_or_default();
                             let many = accounts.len() > 1;
                             let b = label_button_menu(ui, &t, "From", many, many);
                             if many {
                                 egui::Popup::menu(&b).show(|ui| {
-                                    // Through the engine: the signature follows the account (issue #11).
-                                    for (id, label) in &accounts {
-                                        if ui.selectable_label(c.account == *id, label).clicked() && c.account != *id {
-                                            acts.push(Action::Run("compose.update", json!({"account": id})));
+                                    // Through the engine: the signature follows the account
+                                    // (issue #11), and the address.
+                                    for (id, address, label) in &accounts {
+                                        let picked = is_from(id, address);
+                                        if ui.selectable_label(picked, label).clicked() && !picked {
+                                            acts.push(Action::Run("compose.update", json!({"account": id, "from": address})));
                                         }
                                     }
                                 });

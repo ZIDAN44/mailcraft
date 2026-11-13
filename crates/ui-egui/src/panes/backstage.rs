@@ -14,6 +14,7 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, UpdateState, widgets};
 
+mod backup;
 mod data_file;
 #[cfg(test)]
 pub(crate) use data_file::report_line;
@@ -83,7 +84,14 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let t = st.tokens;
     let Some(mut b) = st.backstage.take() else { return };
     let mut close = false;
-    egui::Panel::left("backstage-rail").exact_size(200.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
+    // As wide as its longest name in the language shown (bold, as the page open is), within
+    // reason: "Enregistrer les pièces jointes" was cut at the rail's edge.
+    let longest = ["Back", "Info", "Open & Export", "Save As", "Save Attachments", "Print", "Options", "About", "Exit"]
+        .iter()
+        .map(|l| ui.painter().layout_no_wrap(tl!(*l).to_string(), theme::bold(14.0), t.text).size().x)
+        .fold(0.0, f32::max);
+    let rail = (longest + 46.0 + 14.0).clamp(200.0, 280.0);
+    egui::Panel::left("backstage-rail").exact_size(rail).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
         ui,
         |ui| {
             ui.spacing_mut().item_spacing.y = 2.0;
@@ -120,6 +128,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
             // Close MailCraft (the desktop app; a browser tab is closed by the browser).
             if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
+                // Exit ends MailCraft, where closing the window only hides it (issue #67).
+                st.quit_wanted = true;
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             }
         },
@@ -311,9 +321,12 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
     };
     let id = a.config.id.clone();
     // The account picker.
-    ui.horizontal(|ui| {
+    // In a narrow window the list is as wide as the page and the button goes under it (the two
+    // in a row pushed the page, and every card on it, past the window's edge).
+    ui.horizontal_wrapped(|ui| {
         let current = format!("{}   ·   {}", a.config.email, tl!(kind(a)));
-        egui::ComboBox::from_id_salt("backstage-account").width(420.0).selected_text(current).show_ui(ui, |ui| {
+        let width = (ui.available_width() - 2.0 * ui.spacing().button_padding.x).min(420.0);
+        egui::ComboBox::from_id_salt("backstage-account").width(width).selected_text(current).truncate().show_ui(ui, |ui| {
             for x in &s.accounts {
                 if ui.selectable_label(x.config.id == id, format!("{}   ·   {}", x.config.email, tl!(kind(x)))).clicked() {
                     b.account = Some(x.config.id.clone());
@@ -369,6 +382,43 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                 acts.push(Action::Dialog(Dialog::edit_account(&a.config)));
             }
         });
+        // Its other addresses (issue #81): the same mailbox's, to send from. Not a data file's,
+        // which sends nothing.
+        if !a.is_data_file() {
+            let others = &a.config.identities;
+            let about = if others.is_empty() {
+                tl!("Addresses of this same mailbox that you also send from.").to_string()
+            } else {
+                others.iter().map(|i| i.email.as_str()).collect::<Vec<_>>().join(", ")
+            };
+            setting_row(ui, t, false, name(t, tl!("Other addresses")), Some(note(t, &about)), |ui| {
+                // A JMAP server keeps them: asked for, they're added.
+                if a.config.jmap.is_some() && ui.button(tl!("Find on the server")).clicked() {
+                    acts.push(Action::Run("account.findAddresses", json!({"account": id})));
+                }
+                if ui.button(tl!("Add…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::Address(crate::dialogs::AddressForm::new(&id))));
+                }
+                if !others.is_empty() {
+                    ui.menu_button(tl!("Edit"), |ui| {
+                        for i in others {
+                            if ui.button(i.email.as_str()).clicked() {
+                                acts.push(Action::Dialog(Dialog::Address(crate::dialogs::AddressForm::of(&id, i))));
+                                ui.close();
+                            }
+                        }
+                    });
+                    ui.menu_button(tl!("Remove"), |ui| {
+                        for i in others {
+                            if ui.button(i.email.as_str()).clicked() {
+                                acts.push(Action::Run("account.removeAddress", json!({"account": id, "address": i.email})));
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+            });
+        }
         if a.config.ews.is_some() {
             let added = &a.config.shared_mailboxes;
             let about = if added.is_empty() { tl!("Mailboxes you have full access to open by themselves.").to_string() } else { added.join(", ") };
@@ -488,32 +538,33 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
 fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Open & Export");
     ui.set_max_width(ui.available_width().min(760.0));
-    card(
-        ui,
-        t,
-        tl!("Open a data file"),
-        Some(tl!(
-            "Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer."
-        )),
-        |ui| {
-            let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
-            let open_now = (!files.is_empty()).then(|| tf!("Open now: {files}", files = files.join(", ")));
-            let label = open_now.as_deref().map_or_else(|| note(t, tl!("No data file is open.")), |s| note(t, s));
-            setting_row(ui, t, true, label, None, |ui| {
-                if ui.button(tl!("Open…")).clicked() {
-                    acts.push(Action::OpenDataFile);
-                }
-            });
-        },
-    );
-    // Not in the browser, which can't read a file by its path.
+    backup::backup(s, t, ui, acts);
+    // Not in the browser: it reads no file by its path, and keeps no data files to open or write.
     if !s.jmap_only {
+        card(
+            ui,
+            t,
+            tl!("Open a data file"),
+            Some(tl!(
+                "Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer."
+            )),
+            |ui| {
+                let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
+                let open_now = (!files.is_empty()).then(|| tf!("Open now: {files}", files = files.join(", ")));
+                let label = open_now.as_deref().map_or_else(|| note(t, tl!("No data file is open.")), |s| note(t, s));
+                setting_row(ui, t, true, label, None, |ui| {
+                    if ui.button(tl!("Open…")).clicked() {
+                        acts.push(Action::OpenDataFile);
+                    }
+                });
+            },
+        );
         card(
             ui,
             t,
             tl!("Open a mail file"),
             Some(tl!(
-                "See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs."
+                "See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs."
             )),
             |ui| {
                 setting_row(ui, t, true, note(t, tl!("Nothing is kept: closing it leaves no trace in your mail.")), None, |ui| {
@@ -523,44 +574,44 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                 });
             },
         );
-    }
-    // The account to export: picked in the list (one line, however many accounts there are),
-    // else the one being looked at.
-    let chosen = b
-        .export
-        .as_deref()
-        .and_then(|id| s.account(id))
-        .or_else(|| s.current_account())
-        .or_else(|| s.accounts.first())
-        .map(|a| (a.config.id.clone(), format!("{}   ·   {}", a.config.email, tl!(kind(a)))));
-    card(
-        ui,
-        t,
-        tl!("Export to Outlook data file"),
-        Some(tl!("Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.")),
-        |ui| {
-            let Some((id, label)) = &chosen else { return };
-            setting_row(
-                ui,
-                t,
-                true,
-                name(t, tl!("Account")),
-                Some(note(t, tl!("Its contacts, calendar, notes and tasks go inside it too."))),
-                |ui| {
-                    if ui.button(tl!("Export…")).clicked() {
-                        acts.push(Action::ExportDataFile(id.clone()));
-                    }
-                    egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
-                        for a in &s.accounts {
-                            if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
-                                b.export = Some(a.config.id.clone());
-                            }
+        // The account to export: picked in the list (one line, however many accounts there are),
+        // else the one being looked at.
+        let chosen = b
+            .export
+            .as_deref()
+            .and_then(|id| s.account(id))
+            .or_else(|| s.current_account())
+            .or_else(|| s.accounts.first())
+            .map(|a| (a.config.id.clone(), format!("{}   ·   {}", a.config.email, tl!(kind(a)))));
+        card(
+            ui,
+            t,
+            tl!("Export to Outlook data file"),
+            Some(tl!("Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.")),
+            |ui| {
+                let Some((id, label)) = &chosen else { return };
+                setting_row(
+                    ui,
+                    t,
+                    true,
+                    name(t, tl!("Account")),
+                    Some(note(t, tl!("Its contacts, calendar, notes and tasks go inside it too."))),
+                    |ui| {
+                        if ui.button(tl!("Export…")).clicked() {
+                            acts.push(Action::ExportDataFile(id.clone()));
                         }
-                    });
-                },
-            );
-        },
-    );
+                        egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
+                            for a in &s.accounts {
+                                if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
+                                    b.export = Some(a.config.id.clone());
+                                }
+                            }
+                        });
+                    },
+                );
+            },
+        );
+    }
     // Rules to a file and back, as Outlook's Import and Export Rules.
     card(ui, t, tl!("Rules"), None, |ui| {
         setting_row(

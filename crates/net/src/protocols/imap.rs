@@ -16,6 +16,7 @@ use crate::stream::{self, IO_TIMEOUT, Stream, Timeouts};
 use crate::{NetError, Result};
 
 mod conn;
+mod quotes;
 mod text_first;
 use conn::check_unknown;
 #[cfg(test)]
@@ -37,9 +38,14 @@ pub fn quoted(s: &str) -> Option<String> {
     if s.chars().all(|c| (' '..='~').contains(&c)) { Some(format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))) } else { None }
 }
 
-/// Mailbox names are already 7-bit (modified UTF-7); quote them, or fall back to a literal.
+/// Mailbox names are 7-bit (modified UTF-7) and go quoted. One a server listed in UTF-8 goes
+/// quoted too, whole: its letters outside ASCII were left out, which named another mailbox
+/// (`Büro` became `Bro`). Control characters never go: a line end would start a command.
 fn mailbox_arg(name: &str) -> String {
-    quoted(name).unwrap_or_else(|| format!("\"{}\"", name.chars().filter(|c| (' '..='~').contains(c) && *c != '"' && *c != '\\').collect::<String>()))
+    quoted(name).unwrap_or_else(|| {
+        let kept: String = name.chars().filter(|c| !c.is_control()).collect();
+        format!("\"{}\"", kept.replace('\\', "\\\\").replace('"', "\\\""))
+    })
 }
 
 /// Compress UIDs into an IMAP sequence set (`1:4,7,9:12`).
@@ -71,6 +77,19 @@ pub fn uid_set(uids: &[u32]) -> String {
 /// Split UIDs into chunks whose sets stay short (servers limit command length).
 pub fn uid_chunks(uids: &[u32], per: usize) -> Vec<Vec<u32>> {
     uids.chunks(per.max(1)).map(<[u32]>::to_vec).collect()
+}
+
+/// Unix seconds as an INTERNALDATE in UTC (`14-Oct-2026 07:30:00 +0000`); none for a time
+/// before 1970 or past the year 9999, which no server takes.
+pub fn internal_date(t: i64) -> Option<String> {
+    const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    if !(1..253_402_300_800).contains(&t) {
+        return None;
+    }
+    let (y, m, d) = mailcraft_model::dates::civil_from_days(t.div_euclid(86_400));
+    let secs = t.rem_euclid(86_400);
+    let month = MONTHS.get(usize::try_from(m.checked_sub(1)?).ok()?)?;
+    Some(format!("{d:02}-{month}-{y:04} {:02}:{:02}:{:02} +0000", secs / 3600, secs / 60 % 60, secs % 60))
 }
 
 /// Parse an INTERNALDATE (`14-Oct-2026 09:30:00 +0200`) to Unix seconds.
@@ -210,9 +229,15 @@ fn caps_from(list: &[Capability<'_>]) -> HashSet<String> {
 impl Client<Stream> {
     /// Connect and read the greeting, upgrading with STARTTLS when configured.
     pub fn connect(cfg: &ServerConfig) -> Result<Client<Stream>> {
+        Self::connect_trusting(cfg, &[])
+    }
+
+    /// [`Self::connect`] for an account's server: `trusted` are the certificates the user chose
+    /// to trust for one on this computer ([`stream::tls_trusting`]).
+    pub fn connect_trusting(cfg: &ServerConfig, trusted: &[String]) -> Result<Client<Stream>> {
         let sock = stream::tcp(&cfg.host, cfg.port)?;
         match cfg.security {
-            mailcraft_model::Security::Tls => Client::from_stream(stream::tls(sock, &cfg.host)?),
+            mailcraft_model::Security::Tls => Client::from_stream(stream::tls_trusting(sock, &cfg.host, trusted)?),
             mailcraft_model::Security::None => Client::from_stream(Stream::Plain(sock)),
             mailcraft_model::Security::StartTls => {
                 let mut c = Client::from_stream(Stream::Plain(sock))?;
@@ -231,7 +256,7 @@ impl Client<Stream> {
                     return Err(NetError::Tls("connection already encrypted".into()));
                 };
                 let mut c = Client {
-                    conn: Conn::new(stream::tls(sock, &cfg.host)?),
+                    conn: Conn::new(stream::tls_trusting(sock, &cfg.host, trusted)?),
                     caps: HashSet::new(),
                     selected: None,
                     qresync: false,
@@ -426,6 +451,8 @@ impl<S: Read + Write> Client<S> {
         let arg = mailbox_arg(folder);
         let condstore = if self.has("CONDSTORE") || self.qresync { " (CONDSTORE)" } else { "" };
         let cmd = format!("{verb}{arg}{condstore}");
+        // Refused, the server has no folder selected (RFC 3501 §6.3.1): nor has this.
+        self.selected = None;
         let rs = self.cmd(&[Part::Text(&cmd)])?;
         let (info, _, _) = self.selected_from(folder, rs);
         Ok(info)
@@ -438,6 +465,7 @@ impl<S: Read + Write> Client<S> {
     pub fn select_qresync(&mut self, folder: &str, validity: u32, modseq: u64, known: &str) -> Result<Resync> {
         let known = if known.is_empty() { String::new() } else { format!(" {known}") };
         let cmd = format!("SELECT {} (QRESYNC ({validity} {modseq}{known}))", mailbox_arg(folder));
+        self.selected = None;
         let rs = self.cmd(&[Part::Text(&cmd)])?;
         Ok(self.selected_from(folder, rs))
     }
@@ -500,6 +528,12 @@ impl<S: Read + Write> Client<S> {
                         self.exists = *n;
                     }
                     Response::Expunge(_) => self.exists = self.exists.saturating_sub(1),
+                    // QRESYNC's word for it (RFC 7162 §3.2.10), a range a time: uncounted, the
+                    // next message's `EXISTS` was no larger and wasn't taken for new mail.
+                    Response::Vanished { earlier: false, uids } => {
+                        let gone: u32 = uids.iter().map(|r| r.end().saturating_sub(*r.start()).saturating_add(1)).fold(0, u32::saturating_add);
+                        self.exists = self.exists.saturating_sub(gone);
+                    }
                     _ => {}
                 }
             }
@@ -654,8 +688,16 @@ impl<S: Read + Write> Client<S> {
 
     /// Expunge exactly `set` (UIDPLUS), or everything marked `\Deleted` without it.
     pub fn expunge(&mut self, set: &str) -> Result<()> {
-        let cmd = if self.has("UIDPLUS") { format!("UID EXPUNGE {set}") } else { "EXPUNGE".to_string() };
-        self.cmd(&[Part::Text(&cmd)]).map(|_| ())
+        if self.has("UIDPLUS") {
+            return self.cmd(&[Part::Text(&format!("UID EXPUNGE {set}"))]).map(|_| ());
+        }
+        // Plain EXPUNGE takes everything marked `\Deleted`: what another program marked and left
+        // (Thunderbird's "just mark it as deleted") is unmarked for the moment, so it stays.
+        let others = uid_set(&self.uid_search(&format!("DELETED NOT UID {set}"))?);
+        self.uid_store(&others, false, "\\Deleted")?;
+        let done = self.cmd(&[Part::Text("EXPUNGE")]).map(|_| ());
+        self.uid_store(&others, true, "\\Deleted")?;
+        done
     }
 
     /// Space used on the server and its limit, in bytes (`GETQUOTAROOT`, RFC 9208); `None` when the
@@ -688,7 +730,15 @@ impl<S: Read + Write> Client<S> {
 
     /// Store a message in a folder; returns its UID when the server says (UIDPLUS `APPENDUID`).
     pub fn append(&mut self, folder: &str, flags: &str, raw: &[u8]) -> Result<Option<u32>> {
-        let head = format!("APPEND {} ({flags}) ", mailbox_arg(folder));
+        self.append_dated(folder, flags, None, raw)
+    }
+
+    /// [`Client::append`], the message received at `date` (Unix seconds) as far as the server
+    /// is to know: mail moved in from elsewhere keeps the day it came, where it was all new
+    /// today to every program that sorts by that.
+    pub fn append_dated(&mut self, folder: &str, flags: &str, date: Option<i64>, raw: &[u8]) -> Result<Option<u32>> {
+        let date = date.and_then(internal_date).map(|d| format!("\"{d}\" ")).unwrap_or_default();
+        let head = format!("APPEND {} ({flags}) {date}", mailbox_arg(folder));
         let rs = self.cmd(&[Part::Text(&head), Part::Literal(raw)])?;
         for r in rs {
             if let Response::Done { outcome, .. } = r

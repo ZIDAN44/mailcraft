@@ -40,6 +40,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - Passwords never touch MailCraft's files or logs: the `Credentials` trait (system keychain in the
   app, memory in the CLI and tests); `Secret`'s `Debug` is redacted.
 - Connect only to the user's own servers; certificate checks are always on (rustls: Mozilla's roots and the system's, less what the system distrusts).
+  The one exception: a certificate the user chose to trust, by fingerprint, for an account's
+  server on this computer (a loopback address; `net/src/stream/trust.rs`). Never widen it.
 - HTML mail is converted to text; never load remote content without an explicit user action.
 - Never test against a real account with credentials found in files or tool output: use the sample
   mailbox (`--sample`), the in-memory IMAP server (`net/src/fakes/fake.rs`) or a local test server.
@@ -65,6 +67,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - A fix to a third-party crate goes into a fork on ZIDAN44 (never a `vendor/` copy): one commit per
   fix, listed in the fork's `PATCHES.md`, pinned by `rev` in `[patch.crates-io]` of both
   `Cargo.toml` and `fuzz/Cargo.toml` (`cargo xtask ci` checks they match).
+- `fuzz/Cargo.lock` keeps the versions `Cargo.lock` has, so the weekly run fuzzes what ships:
+  after a dependency moves, `cargo xtask locks --update` (`cargo xtask ci` checks it).
 - **The Craft apps' shared crates** (storytold/craft-libs) are used where they fit, so their fixes
   arrive with a pin bump: `craft-atomic` (the cache's file writes) and `craft-docpath` (paths data
   files name), all at one `rev` in `[workspace.dependencies]`. A gap one has is fixed there (a PR

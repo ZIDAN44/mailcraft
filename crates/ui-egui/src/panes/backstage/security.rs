@@ -45,28 +45,39 @@ fn until(s: &Session, not_after: i64) -> String {
     crate::i18n::date(&mailcraft_engine::model::dates::day_text(not_after.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400), &s.clock))
 }
 
-/// The older certificates kept to read mail encrypted to them (after a renewal), each with
-/// buttons to sign and encrypt with it again or to forget it.
+/// The account's other certificates: those of its other addresses, which sign mail from them
+/// (issue #81), and the older ones kept to read mail encrypted to them (after a renewal), each
+/// with buttons to sign and encrypt with it again or to forget it.
 fn older(s: &Session, t: &Tokens, ui: &mut Ui, id: &str, acts: &mut Vec<Action>) {
     for cert in s.older_identities(id) {
         let who = cert.emails.first().cloned().unwrap_or_else(|| cert.name.clone());
-        let about = tf!("Older certificate, valid until {date}: kept to read mail encrypted to it", date = until(s, cert.not_after));
-        setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
-            if ui
-                .button(RichText::new(tl!("Remove")).color(t.danger))
-                .on_hover_text(tl!("Forget this certificate: mail encrypted to it can't be read any more"))
-                .clicked()
-            {
-                acts.push(Action::Run("security.forget", json!({"account": id, "older": cert.fingerprint})));
-            }
-            if cert.not_after >= s.clock.now
-                && ui
-                    .button(tl!("Use for sending"))
-                    .on_hover_text(tl!("Sign and encrypt with this one again; the one in use is kept for reading"))
+        let signs = s.signed_by_certificate(id, &cert.fingerprint);
+        let about = if signs.is_empty() {
+            tf!("Older certificate, valid until {date}: kept to read mail encrypted to it", date = until(s, cert.not_after))
+        } else {
+            tf!("Valid until {date}: signs mail from {addresses}", date = until(s, cert.not_after), addresses = signs.join(", "))
+        };
+        // Each by its own certificate: a renewed one names the same address as the one in use
+        // (the row's label), and the two rows, taking each other's measures, were laid out
+        // anew every frame for as long as the page was open.
+        ui.push_id(("older-certificate", &cert.fingerprint), |ui| {
+            setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
+                if ui
+                    .button(RichText::new(tl!("Remove")).color(t.danger))
+                    .on_hover_text(tl!("Forget this certificate: mail encrypted to it can't be read any more"))
                     .clicked()
-            {
-                acts.push(Action::Run("security.useOlder", json!({"account": id, "older": cert.fingerprint})));
-            }
+                {
+                    acts.push(Action::Run("security.forget", json!({"account": id, "older": cert.fingerprint})));
+                }
+                if cert.not_after >= s.clock.now
+                    && ui
+                        .button(tl!("Use for sending"))
+                        .on_hover_text(tl!("Sign and encrypt with this one again; the one in use is kept for reading"))
+                        .clicked()
+                {
+                    acts.push(Action::Run("security.useOlder", json!({"account": id, "older": cert.fingerprint})));
+                }
+            });
         });
     }
 }

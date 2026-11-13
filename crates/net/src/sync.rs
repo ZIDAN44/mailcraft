@@ -459,7 +459,7 @@ fn new_mail<S: Read + Write>(
     fetch_headers(c, st, account, folder, &uids, report)
 }
 
-fn fetch_headers<S: Read + Write>(
+pub(crate) fn fetch_headers<S: Read + Write>(
     c: &mut Client<S>,
     st: &mut FolderState,
     account: &str,
@@ -469,6 +469,11 @@ fn fetch_headers<S: Read + Write>(
 ) -> Result<()> {
     for chunk in uid_chunks(uids, 200) {
         for f in c.uid_fetch(&uid_set(&chunk), HEADER_ITEMS, "")? {
+            // A flag change the server tells of in passing (with QRESYNC it names the UID) is
+            // no header: it made an empty message, and its real header was then skipped.
+            if f.header.is_none() || !chunk.contains(&f.uid) {
+                continue;
+            }
             if st.find(f.uid).is_none() {
                 st.messages.push(summary(account, folder, st.validity, &f).into());
                 report.new += 1;

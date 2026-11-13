@@ -252,8 +252,38 @@ fn a_centred_title_in_a_column_stays_centred_and_big() {
     assert!(span.heading > 0 && span.bold, "{span:?}");
     assert_eq!(span.color, Some([0x1F, 0x38, 0x64]));
     assert!(matches!(&cell[1], Block::Text(t) if t.iter().flatten().any(|s| s.text.contains("Hello") && s.heading == 0)), "{cell:?}");
-    // Text that flows (no column) keeps flowing: no layout for a centred paragraph alone.
-    assert!(html_layout(r#"<p style="text-align:center">Just centred</p>"#).is_empty());
+    // Text that flows keeps flowing: no layout for paragraphs that line up nothing.
+    assert!(html_layout(r#"<p style="text-align:left">Just text</p><p>More</p>"#).is_empty());
+}
+
+/// Issue #74: a logo and a title centred over a message that otherwise flows (`<center>`,
+/// `align`, `text-align`) are centred. They were at the left: only mail laid out in tables kept
+/// what it centred.
+#[test]
+fn what_a_flowing_message_centres_is_centred() {
+    for html in [
+        r#"<center><img src="cid:logo" width="200" height="60"></center><center><b>Transfers Confirmation</b></center><p>Dear John,</p>"#,
+        r#"<p style="text-align:center"><img src="cid:logo"></p><p style="text-align: center;"><strong>Transfers Confirmation</strong></p><p>Dear John,</p>"#,
+        r#"<div align="center"><img src="cid:logo"></div><h3 align="center">Transfers Confirmation</h3><p>Dear John,</p>"#,
+    ] {
+        let b = html_layout(html);
+        let centred: Vec<&Table> = b.iter().filter_map(|b| if let Block::Table(t) = b { Some(t) } else { None }).collect();
+        assert_eq!(centred.len(), 2, "{html}: {b:?}");
+        assert!(centred.iter().all(|t| t.align == Align::Center && t.rows[0][0].align == Align::Center), "{b:?}");
+        let spans = |t: &Table| -> Vec<crate::Span> {
+            t.rows[0][0].blocks.iter().filter_map(|b| if let Block::Text(l) = b { Some(l.clone()) } else { None }).flatten().flatten().collect()
+        };
+        assert!(spans(centred[0]).iter().any(|s| s.image.as_deref() == Some("cid:logo")), "{b:?}");
+        let title = spans(centred[1]);
+        assert!(title.iter().any(|s| s.text.contains("Transfers Confirmation") && (s.bold || s.heading > 0)), "{title:?}");
+        // What isn't centred flows at the start, as before.
+        assert!(matches!(b.last(), Some(Block::Text(l)) if l.iter().flatten().any(|s| s.text.contains("Dear John"))), "{b:?}");
+    }
+    // A centred title stays a title.
+    let b = html_layout(r#"<h2 style="text-align:center;color:#1F3864">Report</h2><p>Text</p>"#);
+    let Some(Block::Table(t)) = b.first() else { panic!("{b:?}") };
+    let Block::Text(lines) = &t.rows[0][0].blocks[0] else { panic!("{b:?}") };
+    assert!(lines.iter().flatten().any(|s| s.text == "Report" && s.heading == 2 && s.color == Some([0x1F, 0x38, 0x64])), "{lines:?}");
 }
 
 /// A business card (issue #11): the photo's column as wide as the photo, the details beside it.
@@ -430,4 +460,5 @@ fn outlooks_copy_is_written_again_only_when_the_tree_reads_otherwise() {
 }
 
 mod buttons;
+mod notices;
 mod templates;

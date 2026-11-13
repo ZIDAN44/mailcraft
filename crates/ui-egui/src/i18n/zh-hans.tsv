@@ -117,6 +117,7 @@
 	24-hour	24 小时制
 	12-hour	12 小时制
 	Whole date and time in the list	在列表中显示完整日期和时间
+	Earlier this month	本月早些时候
 	Last month	上个月
 	Last week	上周
 	Later	稍后
@@ -156,6 +157,10 @@
 	Move to folder	移动到文件夹
 	Move to…	移动到…
 	Move {n} messages	移动 {n} 封邮件
+	Copy to folder	复制到文件夹
+	Copy to…	复制到…
+	Copy 1 message	复制 1 封邮件
+	Copy {n} messages	复制 {n} 封邮件
 	Move “{folder}” to	将“{folder}”移动到
 	Name	名称
 	Names <addresses>, separated by ; or ,	姓名 <地址>，用 ; 或 , 分隔
@@ -198,7 +203,6 @@
 	Password needed	需要密码
 	Password…	密码…
 	Personal	个人
-	Pick messages from one account to move them to a folder.	请选择同一帐户中的邮件来移动到文件夹。
 	Picture	图片
 	Pictures from the web are hidden to protect your privacy.	为保护你的隐私，已隐藏来自网络的图片。
 	Picture…	图片…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	已将 {n} 个附件保存到 {folder}
 	Saved {path}	已保存 {path}
 	Search folders	搜索文件夹
+	(the rest isn't shown: open the file to see it all)	（其余部分未显示：打开文件可查看全部）
+	Pick a category	请选择类别
+	Pick a folder	请选择文件夹
+	Say what to look for	请填写要查找的内容
+	Give the rule a name	请为规则命名
 	Search mail (from:, subject:, has:attachment…)	搜索邮件 (from:, subject:, has:attachment…)
 	Select a message first.	请先选择一封邮件。
 	Send	发送
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	服务器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
 	Settings found: {source}	已找到设置: {source}
 	Show a desktop notification when new mail arrives	收到新邮件时显示桌面通知
+	Keep MailCraft running when its window is closed	关闭窗口后让 MailCraft 继续运行
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	它会留在通知区域，检查邮件并在有新邮件时通知。在“文件”页或其图标菜单中选择“退出”可将其关闭。
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	窗口会最小化，MailCraft 会继续检查邮件并在有新邮件时通知。在“文件”页选择“退出”可将其关闭。
+	Open MailCraft	打开 MailCraft
 	Show as plain text	以纯文本显示
 	Show formatted	显示格式
 	Show in Favorites	在收藏夹中显示
@@ -770,11 +783,18 @@ month	May	5月
 	Move down	下移
 	Updating…	正在更新…
 	All folders are up to date	所有文件夹都是最新的
+	1 account disconnected	1 个帐户已断开连接
 	{n} accounts disconnected	{n} 个帐户已断开连接
 	{account}: {status}	{account}:{status}
 	Sign in with Microsoft	使用 Microsoft 登录
 	Sign in with Microsoft…	使用 Microsoft 登录…
 	Mailbox won't open	邮箱无法打开
+	Trust this computer's mail server?	信任此电脑上的邮件服务器吗？
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} 位于此电脑上，出示的是它自己生成的证书，没有任何机构为其担保。把邮件服务连接到邮件应用的程序就是这样做的。只有当该程序是您自己设置的时，才信任它。
+	Certificate fingerprint (SHA-256)	证书指纹 (SHA-256)
+	MailCraft asks again if the server shows another certificate.	如果服务器出示其他证书，MailCraft 会再次询问。
+	Trust this certificate	信任此证书
+	Certificate not trusted yet	证书尚未受信任
 	The mailbox won't open	邮箱无法打开
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph 不经 IMAP 即可访问邮箱，还会同步日历和联系人。账户将通过它重新开始：邮件会从服务器下载。
 	Turned IMAP on, or picked another account in the browser? Sign in again	已开启 IMAP，或在浏览器中选了别的账户？重新登录
@@ -855,6 +875,28 @@ month	May	5月
 	Delete this contact?	删除此联系人?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	将删除此联系人及其保存的所有信息。此操作无法撤消。
 	Export…	导出…
+	{file} isn't a MailCraft backup.	{file} 不是 MailCraft 备份。
+	A backup is brought in where MailCraft runs in the browser.	备份需在 MailCraft 于浏览器中运行时载入。
+	Backup saved as {file}	备份已保存为 {file}
+	Restore…	还原…
+	Bring a backup file in. It takes the place of what's kept here now.	载入备份文件。它将替换这里目前保存的内容。
+	Back up…	备份…
+	Save what's kept here to a file, with a password if you like.	把这里保存的内容存入一个文件，可以选择设置密码。
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft 只在此浏览器中保存你的帐户、设置和邮件。清除此网站的浏览器数据会将其删除：备份文件可以在此浏览器或其他浏览器中把它们找回来。
+	Backup	备份与还原
+	The backup's password	备份的密码
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	这将替换 MailCraft 目前在此浏览器中保存的所有内容：帐户、其设置及邮件。每个帐户的密码都需要重新输入。
+	Restore from a backup…	从备份还原…
+	Restore from backup	从备份还原
+	The two passwords aren't the same.	两次输入的密码不一致。
+	Save backup	保存备份
+	The file can't be opened without this password: MailCraft can't recover it.	没有此密码就无法打开该文件：MailCraft 无法找回密码。
+	Without a password, anyone who has the file can read what's in it.	没有密码时，任何拿到该文件的人都能读取其中内容。
+	The password again	再次输入密码
+	Password for the file (optional)	文件密码（可选）
+	Include the mail downloaded to this browser	包含已下载到此浏览器的邮件
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	你的帐户及其设置、规则、签名、日历和联系人会存入一个文件。其中绝不包含密码。
+	Back up	备份
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	添加由 MailCraft 保存的文件中的规则。此计算机上没有的帐户的规则会以关闭状态添加。
 	Change…	更改…
 	Clean up	清理
@@ -882,6 +924,17 @@ month	May	5月
 	Send email	发送电子邮件
 	Add	添加
 	Add a shared mailbox	添加共享邮箱
+	Other addresses	其他地址
+	Key {key}: signs mail from {addresses}	密钥 {key}：为来自 {addresses} 的邮件签名
+	Valid until {date}: signs mail from {addresses}	有效期至 {date}：为来自 {addresses} 的邮件签名
+	Find on the server	在服务器上查找
+	Addresses of this same mailbox that you also send from.	同一邮箱中您也用来发信的地址。
+	Add an address	添加地址
+	Change an address	更改地址
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	同一邮箱的另一个地址（例如别名），可以用它发送邮件。写邮件时在“发件人”中选择它。您的邮件服务器必须允许从该地址发送。
+	Name on mail from it	用此地址发信时显示的姓名
+	Replies go to	回复发送到
+	(the account's own)	（帐户自己的签名）
 	Add…	添加…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其文件夹显示在此帐户下。你需要在 Exchange 服务器上拥有访问权限；拥有完全访问权限的邮箱会自动打开。
 	Mailboxes you have full access to open by themselves.	拥有完全访问权限的邮箱会自动打开。
@@ -1627,7 +1680,7 @@ month	May	5月
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	此邮件看起来可疑或无法确认发件人，因此其图片保持隐藏。
 	These senders' pictures always load, even when a message looks suspicious:	这些发件人的图片始终加载，即使邮件看起来可疑：
 	Open a mail file	打开邮件文件
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	在单独的窗口中查看已保存的邮件（.eml 或 Outlook 的 .msg），不会将其添加到文件夹。不会加载其中来自网络的图片，其中的任何内容也不会运行。
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	在单独的窗口中查看已保存的邮件（.eml 或 Outlook 的 .msg），不会将其添加到文件夹。只有在您要求时才会加载其中来自网络的图片，其中的任何内容也不会运行。
 	Nothing is kept: closing it leaves no trace in your mail.	不会保留任何内容：关闭后不会在邮件中留下痕迹。
 	and {n} more	另外 {n} 个
 	Checking for new mail	检查新邮件
@@ -1640,4 +1693,10 @@ month	May	5月
 	Server: {url} (CalDAV and CardDAV)	服务器: {url} (CalDAV 和 CardDAV)
 	Not available: this account has no mail server.	不可用：此帐户没有邮件服务器。
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	邮件已从 MailCraft 之前的 Flatpak 迁移过来，旧版仍已安装。要删除它，请运行：flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	从 {file} 打开。它不在任何文件夹中，不会加载其中来自网络的图片，关闭后不会留下痕迹。
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	从 {file} 打开。它不在任何文件夹中，只有在您要求时才会加载其中来自网络的图片，关闭后不会留下痕迹。
+	To-Do Bar	待办事项栏
+	Appointments	约会
+	Type a new task	键入新任务
+	Nothing to do	没有待办事项
+	Nothing in the next 7 days	未来 7 天没有安排
+	Show the calendar, what's coming up and your tasks beside the mail	在邮件旁显示日历、即将到来的约会和任务

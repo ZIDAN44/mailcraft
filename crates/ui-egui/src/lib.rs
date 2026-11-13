@@ -23,9 +23,11 @@ macro_rules! tf {
 
 mod a11y;
 mod app;
+mod backup;
 mod dialogs;
 pub mod i18n;
 mod keytips;
+mod lists;
 mod look;
 mod panes;
 mod reading;
@@ -38,7 +40,7 @@ pub use look::thumbs::VideoFrame;
 pub use look::{bidi, craft_fonts, faces, icons, motion, theme};
 use look::{progress, thumbs, widgets};
 pub use panes::backstage;
-use panes::{calendar, list, nav, notes, organize, people, reminders, tasks};
+use panes::{calendar, list, nav, notes, organize, people, reminders, tasks, todo_bar};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -64,7 +66,7 @@ pub(crate) fn os_window() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default().with_app_id(APP_ID)
 }
 use icons::Icon;
-pub use services::{Backend, InstallAsks, Lane, NullBackend, NullServices, Services, UpdateState, Work};
+pub use services::{Backend, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Services, UpdateState, Work};
 use theme::Tokens;
 
 /// Whether the message being written shows in the reading pane: when it isn't popped out, or
@@ -170,6 +172,17 @@ pub enum Action {
     /// The category list to a file, or categories from one.
     ExportCategories,
     ImportCategories,
+    /// Save a backup of what the browser keeps (issue #83), locked with the password when
+    /// there's one, with the downloaded mail when asked; pick one to bring back; bring it back.
+    Backup {
+        password: String,
+        mail: bool,
+    },
+    PickBackup,
+    Restore {
+        data: std::sync::Arc<Vec<u8>>,
+        password: String,
+    },
     /// Pick a `.p12` / `.pfx` file for an account's certificate, then ask its password.
     ImportCertificate(String),
     /// The browser: open the account's certificate it keeps, with its password, for this page.
@@ -285,6 +298,14 @@ pub struct UiState {
     pub tokens: Tokens,
     /// The platform has files (temporary ones for other apps): not in the browser.
     pub has_files: bool,
+    /// Whether MailCraft can keep running with its window closed (the desktop app), and what
+    /// becomes of the window then; looked up at every frame.
+    pub keeps_running: Option<KeptOnClose>,
+    /// The window was closed to the notification area and is hidden.
+    pub(crate) in_tray: bool,
+    /// Exit was chosen (the File page's, the tray icon's): the window's close ends MailCraft
+    /// rather than hiding it.
+    pub(crate) quit_wanted: bool,
     /// Where the data is kept and whether it can be moved; where it moves at the next start.
     pub data_folder: Option<(PathBuf, bool)>,
     pub pending_move: Option<PathBuf>,
@@ -361,6 +382,8 @@ pub struct UiState {
     fonts_ready: bool,
     /// The messages being written that have been shown, to focus a new one's first field once.
     pub(crate) compose_shown: std::collections::HashSet<u64>,
+    /// Where the message being written beside the list was drawn, and in which pass.
+    pub(crate) compose_area: Option<(u64, egui::Rect)>,
     /// The editors of the messages being written other than the one acting now (`editor`).
     pub(crate) editors: HashMap<u64, rich_edit::Editor>,
     /// The message whose window a dialog for messages belongs to (Save changes, Address Book).
@@ -439,6 +462,11 @@ pub struct UiState {
     pub(crate) note_focus: bool,
     /// Tasks: the search, and the task picked (uid).
     pub(crate) tasks_query: String,
+    /// The month the To-Do Bar's date navigator shows (months since year 0), moved by its
+    /// arrows; `None`: this month.
+    pub(crate) todo_month: Option<i64>,
+    /// What's typed in the To-Do Bar's "Type a new task" box.
+    pub(crate) todo_new: String,
     pub(crate) task: Option<String>,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
@@ -463,6 +491,7 @@ impl MailApp {
     pub fn new(session: Session, backend: Box<dyn Backend>, mut services: Box<dyn Services>) -> MailApp {
         let seen = session.notices.len();
         let has_files = !services.downloads();
+        let keeps_running = services.keeps_running();
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
         let old_flatpak = services.carried_over_from();
         let mut session = session;
@@ -502,6 +531,9 @@ impl MailApp {
                 compact: Default::default(),
                 reminders: reminders::State::default(),
                 has_files,
+                keeps_running,
+                in_tray: false,
+                quit_wanted: false,
                 data_folder,
                 pending_move,
                 dark: None,
@@ -539,6 +571,7 @@ impl MailApp {
                 source_headers: Default::default(),
                 fonts_ready: false,
                 compose_shown: Default::default(),
+                compose_area: None,
                 editors: HashMap::new(),
                 dialog_for: None,
                 editor: None,
@@ -579,6 +612,8 @@ impl MailApp {
                 note_edit: None,
                 note_focus: false,
                 tasks_query: String::new(),
+                todo_month: None,
+                todo_new: String::new(),
                 task: None,
                 person: None,
                 invite: None,
@@ -669,6 +704,9 @@ impl MailApp {
                 self.ui.dialog_for = self.session.compose.as_ref().filter(|c| c.window).map(|c| c.id);
                 self.ui.dialog = Some(Dialog::SendCheck(found));
             }
+            // A message opened by a command (a script's, a conversation's row in the reading
+            // pane) is brought into view in the list: it could be opened out of sight.
+            Ok(_) if id == "list.open" => self.ui.scroll_to_focus = true,
             Ok(_) => {}
             // Not from an account that can't send: said over the message, as why it didn't go.
             Err(CmdError::Disabled(_))
@@ -759,6 +797,12 @@ impl MailApp {
         for (purpose, name, data) in self.services.take_picked() {
             if let Some(account) = purpose.strip_prefix("certificate:") {
                 self.ui.dialog = Some(Dialog::Certificate { account: account.to_string(), path: name, data: Some(data), password: String::new() });
+            } else if purpose == "backup" {
+                self.backup_picked(name, data);
+            } else if purpose == "rules" {
+                self.rules_picked(&data);
+            } else if purpose == "categories" {
+                self.categories_picked(&data);
             } else if purpose == "picture" {
                 let size = rich_edit::own_size(&data);
                 let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));

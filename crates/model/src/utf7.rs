@@ -50,6 +50,10 @@ fn decode_chunk(chunk: &str) -> Option<String> {
         }
         bits &= (1 << nbits) - 1;
     }
+    // Too short for one character (`R&D-Team`, a name sent unencoded): not an encoded run.
+    if units.is_empty() && !chunk.is_empty() {
+        return None;
+    }
     String::from_utf16(&units).ok()
 }
 
@@ -121,5 +125,13 @@ mod tests {
     fn malformed_input_is_kept() {
         assert_eq!(decode("bad &!!- name"), "bad &!!- name");
         assert_eq!(decode("open &AOk"), "open &AOk");
+    }
+
+    /// A name sent unencoded, its `&` taken for the start of an encoded run too short to hold a
+    /// character: `R&D-Team` lost its `&D-`.
+    #[test]
+    fn a_run_too_short_for_a_character_is_kept() {
+        assert_eq!(decode("R&D-Team"), "R&D-Team");
+        assert_eq!(decode("&AOk-"), "é");
     }
 }

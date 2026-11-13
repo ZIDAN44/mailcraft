@@ -5,3 +5,4 @@ use super::*;
 mod meetings;
 mod pim;
 mod tasks;
+mod todo_bar;

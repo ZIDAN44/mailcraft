@@ -76,6 +76,12 @@ pub enum NetError {
     /// Can't go on, for a reason said in full (what to do included): not a server's words.
     #[error("{0}")]
     Refused(String),
+    /// The whole message went to the server, which never said whether it took it: it may have
+    /// been sent. Never sent again without the user saying so (that's how mail arrives twice).
+    #[error(
+        "the server didn't say whether it sent the message ({0}). It may have gone: look in Sent Items, or ask who it was for, before sending it again"
+    )]
+    Unconfirmed(String),
 }
 
 impl NetError {

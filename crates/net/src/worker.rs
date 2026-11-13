@@ -248,6 +248,11 @@ impl Pool {
                     self.edits.file(&self.store, &self.sink, account, folder, paths);
                 }
             }
+            // Onto a server that isn't connected: none goes, and each says so.
+            Job::FileCopies { account, folder, mail, moved } if self.mail_offline(&account) => {
+                let failed = mail.into_iter().map(|(k, _)| (k, "the account is offline".to_string())).collect();
+                self.sink.emit(Event::CopiesFiled { account, folder, done: Vec::new(), failed, moved });
+            }
             Job::StopImport { account, how } => self.stop_import(&account, how),
             Job::KeepImport { account } => self.keep_import(account),
             Job::DataFileHealth { account } => self.data_file_health(account),
@@ -403,6 +408,9 @@ impl Pool {
                     });
                 }
             }
+            Job::FindIdentities { account } if self.mail_offline(&account) => {
+                self.sink.emit(Event::IdentitiesFound { account, found: Vec::new(), error: Some("the account is offline".into()) });
+            }
             Job::GetVacation { account } | Job::SetVacation { account, .. } if self.mail_offline(&account) => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some("the account is offline".into()) });
             }
@@ -436,7 +444,12 @@ impl Pool {
                             },
                             None => other,
                         };
-                        if h.tx.send(other).is_err() {
+                        if let Err(mpsc::SendError(unsent)) = h.tx.send(other) {
+                            // Mail that was to be copied there is answered for: none went.
+                            if let Job::FileCopies { account, folder, mail, moved } = unsent {
+                                let failed = mail.into_iter().map(|(k, _)| (k, "the account's connection stopped".to_string())).collect();
+                                self.sink.emit(Event::CopiesFiled { account, folder, done: Vec::new(), failed, moved });
+                            }
                             self.sink.emit(Event::Notice {
                                 account: id,
                                 message: "the account's connection stopped; restart it from the account menu".into(),
@@ -724,6 +737,9 @@ struct Worker {
     search: Arc<AtomicU64>,
     /// The calendar server's Digest challenge, answered from the next sync's first request.
     dav_digest: Option<crate::dav::digest::Challenge>,
+    /// Why the calendars and contacts couldn't be read, as last said: said once, not at every
+    /// sync.
+    dav_said: Option<String>,
     /// Done on this thread before it first connects ([`Worker::settle_password`]): the password
     /// just given, to keep in the keychain, or `None` to read the one kept there.
     keychain: Option<Option<String>>,
@@ -786,6 +802,7 @@ impl Worker {
             soon: Vec::new(),
             search: Arc::new(AtomicU64::new(0)),
             dav_digest: None,
+            dav_said: None,
             keychain: None,
             quick_start: None,
             no_password: Arc::default(),

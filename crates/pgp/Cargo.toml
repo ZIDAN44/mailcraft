@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft OpenPGP (RFC 9580, PGP/MIME RFC 3156, Autocrypt): keys read and checked, mail signed, encrypted, decrypted and verified (pure Rust on rPGP, wasm-safe)"
 
 [lints]

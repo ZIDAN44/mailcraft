@@ -1,9 +1,10 @@
-//! Issue #38: message files dropped on a folder go into it.
+//! Issue #38: message files dropped on a folder go into it. Issue #82: so do copies of mail
+//! kept here.
 
 use std::time::{Duration, Instant};
 
 use mailcraft_model::job::Secret;
-use mailcraft_model::{AccountConfig, Security, ServerConfig, SyncStatus};
+use mailcraft_model::{AccountConfig, Flags, MessageKey, Security, ServerConfig, SyncStatus};
 
 use super::*;
 use crate::fake::{State, serve_tcp};
@@ -106,4 +107,58 @@ fn message_files_go_into_a_folder_here() {
     let seen = until(&pool, "read", |e| matches!(e, Event::MessageFileRead { .. }));
     assert!(matches!(seen.last(), Some(Event::MessageFileRead { raw: Err(_), .. })));
     let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Issue #82: copies of messages kept here go into a server's folder marked as they were, the
+/// folder is read again, and one whose source isn't here is named: nothing says it went. On an
+/// account that isn't connected none goes.
+#[test]
+fn copies_of_mail_kept_here_go_into_a_server_folder() {
+    let st = State::new();
+    let store = crate::fake::store("copies-imap");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    pool.opts.prefetch = 0;
+    let account = AccountConfig {
+        id: "a1".into(),
+        email: "me@studio.test".into(),
+        username: "me@studio.test".into(),
+        imap: ServerConfig { host: "127.0.0.1".into(), port: serve_tcp(&st), security: Security::None },
+        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+        ..Default::default()
+    };
+    // Two messages of a data file's, one with its source here.
+    let key = |uid| MessageKey { account: "file".into(), folder: "Kept".into(), validity: 1, uid };
+    let raw = b"From: Zoe <zoe@studio.test>\r\nTo: me@studio.test\r\nSubject: From the file\r\nMessage-ID: <kept@studio.test>\r\nDate: Mon, 2 Nov 2026 10:00:00 +0000\r\n\r\nHi.\r\n";
+    store.write_body(&key(1), raw).unwrap();
+    let marked = Flags { seen: true, flagged: true, keywords: vec!["work".into(), "to=20do".into(), "not an atom".into()], ..Default::default() };
+    let mail = vec![(key(1), marked), (key(2), Flags::default())];
+    // Not connected: none goes.
+    pool.submit(Job::FileCopies { account: "a1".into(), folder: "Archive".into(), mail: mail.clone(), moved: true });
+    let seen = until(&pool, "refused", |e| matches!(e, Event::CopiesFiled { .. }));
+    let Some(Event::CopiesFiled { done, failed, moved: true, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert!(done.is_empty() && failed.len() == 2 && failed.iter().all(|(_, why)| why.contains("offline")), "{failed:?}");
+
+    pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    pool.submit(Job::FileCopies { account: "a1".into(), folder: "Archive".into(), mail, moved: true });
+    let seen = until(&pool, "filed", |e| matches!(e, Event::CopiesFiled { .. }));
+    let Some(Event::CopiesFiled { done, failed, folder, moved: true, .. }) = seen.last() else { panic!("{seen:?}") };
+    assert_eq!((done.as_slice(), folder.as_str()), (std::slice::from_ref(&key(1)), "Archive"));
+    assert_eq!(failed.iter().map(|(k, why)| (k.uid, why.as_str())).collect::<Vec<_>>(), [(2, "it isn't downloaded")]);
+    {
+        let s = st.lock().unwrap();
+        let archive = s.boxes.iter().find(|b| b.name == "Archive").unwrap();
+        assert_eq!(archive.msgs.len(), 1);
+        assert_eq!(archive.msgs[0].raw, raw);
+        let flags = &archive.msgs[0].flags;
+        // Its categories too, as MailCraft names one with a space in it ("To do").
+        assert!([r"\Seen", r"\Flagged", "work", "to=20do"].iter().all(|f| flags.iter().any(|g| g == f)), "as it was marked: {flags:?}");
+        assert!(!flags.iter().any(|f| f.contains("atom")), "{flags:?}");
+        // Received when it was, as far as the server knows: not today.
+        assert!(s.log.iter().any(|l| l.contains("APPEND") && l.contains("\"02-Nov-2026 10:00:00 +0000\"")), "{:?}", s.log);
+    }
+    let kept = store.load_folder("a1", "Archive").unwrap();
+    assert_eq!(kept.messages.len(), 1, "the folder read again");
+    assert!(kept.messages[0].flags.seen && kept.messages[0].flags.flagged);
 }

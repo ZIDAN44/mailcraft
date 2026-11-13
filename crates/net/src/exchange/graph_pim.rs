@@ -67,12 +67,25 @@ pub fn rrule_of(r: &Value) -> Option<String> {
     let index = INDEX.iter().find(|(n, _)| *n == s(p, "index")).map_or(1, |(_, i)| *i);
     let month = p.get("month").and_then(Value::as_u64).unwrap_or(0);
     let mday = p.get("dayOfMonth").and_then(Value::as_u64).unwrap_or(0);
-    let by_index = days.iter().map(|d| format!("{index}{d}")).collect::<Vec<_>>().join(",");
+    // The nth of one weekday is that weekday's nth; of several ("weekday", "weekend day",
+    // "day"), the nth day that is one of them, not the nth of each (five days a month).
+    let by_index = match days.as_slice() {
+        [_] => format!("{index}{}", days.join(",")),
+        _ => format!("{};BYSETPOS={index}", days.join(",")),
+    };
+    // A day past the 28th is the month's last where it has no such day, as Exchange has it.
+    let by_mday = if (29..=31).contains(&mday) {
+        format!("{};BYSETPOS=-1", (28..=mday).map(|d| d.to_string()).collect::<Vec<_>>().join(","))
+    } else {
+        mday.to_string()
+    };
+    // The day weeks start on, for a rule every so many weeks (Monday needn't be said).
+    let week_start = day_code(&s(p, "firstDayOfWeek")).filter(|d| *d != "MO" && interval > 1).map(|d| format!(";WKST={d}")).unwrap_or_default();
     let mut rule = match s(p, "type").as_str() {
         "daily" => "FREQ=DAILY".to_string(),
-        "weekly" if !days.is_empty() => format!("FREQ=WEEKLY;BYDAY={}", days.join(",")),
+        "weekly" if !days.is_empty() => format!("FREQ=WEEKLY;BYDAY={}{week_start}", days.join(",")),
         "weekly" => "FREQ=WEEKLY".to_string(),
-        "absoluteMonthly" => format!("FREQ=MONTHLY;BYMONTHDAY={mday}"),
+        "absoluteMonthly" => format!("FREQ=MONTHLY;BYMONTHDAY={by_mday}"),
         "relativeMonthly" => format!("FREQ=MONTHLY;BYDAY={by_index}"),
         "absoluteYearly" => format!("FREQ=YEARLY;BYMONTH={month};BYMONTHDAY={mday}"),
         "relativeYearly" => format!("FREQ=YEARLY;BYMONTH={month};BYDAY={by_index}"),
@@ -117,18 +130,28 @@ pub fn recurrence_of(rule: &str, start: i64) -> Option<Value> {
         })
         .unwrap_or_default();
     let (y, m, d) = mailcraft_model::dates::civil_from_days(start.div_euclid(86_400));
+    // The nth of several weekdays is said with `BYSETPOS` (its days without a number); the
+    // 29th to 31st, or the month's last, as those days and `BYSETPOS=-1`: its largest.
+    let set_pos = get("BYSETPOS").and_then(|v| v.parse::<i32>().ok());
+    let byday: Vec<(i32, &str)> = match set_pos {
+        Some(nth) if byday.iter().all(|(n, _)| *n == 0) => byday.into_iter().map(|(_, d)| (nth, d)).collect(),
+        _ => byday,
+    };
+    let month_day = get("BYMONTHDAY").and_then(|v| v.split(',').filter_map(|d| d.trim().parse::<u32>().ok()).max());
     let index = |n: i32| INDEX.iter().find(|(_, i)| *i == n).map_or("first", |(name, _)| *name);
     let days: Vec<&str> = byday.iter().map(|(_, d)| *d).collect();
     let pattern = match get("FREQ")? {
         "DAILY" => json!({"type": "daily", "interval": interval}),
         "WEEKLY" => {
             let start_day = DAYS.get(usize::try_from((start.div_euclid(86_400) + 4).rem_euclid(7)).unwrap_or(0)).map_or("monday", |(n, _)| *n);
-            json!({"type": "weekly", "interval": interval, "daysOfWeek": if days.is_empty() { vec![start_day] } else { days }})
+            // Weeks start on the rule's day (Monday when it doesn't say: RFC 5545's).
+            let first = get("WKST").and_then(day_name).unwrap_or("monday");
+            json!({"type": "weekly", "interval": interval, "daysOfWeek": if days.is_empty() { vec![start_day] } else { days }, "firstDayOfWeek": first})
         }
         "MONTHLY" => match byday.first() {
             Some((n, _)) => json!({"type": "relativeMonthly", "interval": interval, "daysOfWeek": days, "index": index(*n)}),
             None => {
-                json!({"type": "absoluteMonthly", "interval": interval, "dayOfMonth": get("BYMONTHDAY").and_then(|v| v.parse::<u32>().ok()).unwrap_or(d)})
+                json!({"type": "absoluteMonthly", "interval": interval, "dayOfMonth": month_day.unwrap_or(d)})
             }
         },
         "YEARLY" => {
@@ -136,15 +159,19 @@ pub fn recurrence_of(rule: &str, start: i64) -> Option<Value> {
             match byday.first() {
                 Some((n, _)) => json!({"type": "relativeYearly", "interval": interval, "month": month, "daysOfWeek": days, "index": index(*n)}),
                 None => {
-                    json!({"type": "absoluteYearly", "interval": interval, "month": month, "dayOfMonth": get("BYMONTHDAY").and_then(|v| v.parse::<u32>().ok()).unwrap_or(d)})
+                    json!({"type": "absoluteYearly", "interval": interval, "month": month, "dayOfMonth": month_day.unwrap_or(d)})
                 }
             }
         }
         _ => return None,
     };
     let start_date = format!("{y:04}-{m:02}-{d:02}");
-    let range = if let Some(u) = get("UNTIL").filter(|u| u.len() >= 8) {
-        json!({"type": "endDate", "startDate": start_date, "endDate": format!("{}-{}-{}", &u[0..4], &u[4..6], &u[6..8])})
+    // Its eight digits (`YYYYMMDD`), read without slicing: the rule is what an invitation or a
+    // calendar file said, and one with a letter outside ASCII there (`UNTIL=202é1231`) ended
+    // the account's connection at every sync.
+    let until = get("UNTIL").and_then(|u| u.get(..8)).filter(|u| u.bytes().all(|b| b.is_ascii_digit()));
+    let range = if let Some((y, m, d)) = until.and_then(|u| Some((u.get(..4)?, u.get(4..6)?, u.get(6..8)?))) {
+        json!({"type": "endDate", "startDate": start_date, "endDate": format!("{y}-{m}-{d}")})
     } else if let Some(n) = get("COUNT").and_then(|v| v.parse::<u64>().ok()) {
         json!({"type": "numbered", "startDate": start_date, "numberOfOccurrences": n})
     } else {
@@ -545,6 +572,29 @@ mod tests {
         let r = recurrence_of("FREQ=WEEKLY", start).unwrap();
         assert_eq!(r["pattern"]["daysOfWeek"], json!(["monday"]), "the start's own day");
         assert!(recurrence_of("FREQ=SECONDLY", start).is_none() && recurrence_of("junk", start).is_none());
+        // Found in a second review: the nth of several weekdays, and the 31st or the month's
+        // last, as a data file's reader writes them, are said to Exchange as they are (the
+        // last weekday went as the first, the 31st as the day the series began), and read
+        // from it the same way.
+        let r = recurrence_of("FREQ=MONTHLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1", start).unwrap();
+        assert_eq!((r["pattern"]["type"].as_str(), r["pattern"]["index"].as_str()), (Some("relativeMonthly"), Some("last")));
+        assert_eq!(r["pattern"]["daysOfWeek"].as_array().map(Vec::len), Some(5));
+        assert_eq!(rrule_of(&r).unwrap(), "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1");
+        let r = recurrence_of("FREQ=MONTHLY;BYMONTHDAY=28,29,30,31;BYSETPOS=-1", start).unwrap();
+        assert_eq!((r["pattern"]["type"].as_str(), r["pattern"]["dayOfMonth"].as_u64()), (Some("absoluteMonthly"), Some(31)));
+        assert_eq!(rrule_of(&r).unwrap(), "FREQ=MONTHLY;BYMONTHDAY=28,29,30,31;BYSETPOS=-1");
+        // The day weeks start on goes both ways; Monday needn't be said.
+        let r = recurrence_of("FREQ=WEEKLY;INTERVAL=2;BYDAY=SA,SU;WKST=SU", start).unwrap();
+        assert_eq!(r["pattern"]["firstDayOfWeek"], "sunday");
+        assert_eq!(rrule_of(&r).unwrap(), "FREQ=WEEKLY;BYDAY=SA,SU;WKST=SU;INTERVAL=2");
+        let r = recurrence_of("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO", start).unwrap();
+        assert_eq!(r["pattern"]["firstDayOfWeek"], "monday");
+        assert_eq!(rrule_of(&r).unwrap(), "FREQ=WEEKLY;BYDAY=MO;INTERVAL=2");
+        // An end that isn't a date is no end, and never a panic (found in review).
+        for odd in ["202\u{e9}1231", "\u{e9}\u{e9}\u{e9}\u{e9}", "2026123", "2026-12-31", "\u{1F600}\u{1F600}", ""] {
+            let r = recurrence_of(&format!("FREQ=DAILY;UNTIL={odd}"), start).unwrap();
+            assert_eq!(r["range"]["type"], "noEnd", "{odd}");
+        }
     }
 
     /// Issue #25: an online meeting added in MailCraft goes to Graph in the place and the

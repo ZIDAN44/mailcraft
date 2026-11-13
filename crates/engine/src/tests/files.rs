@@ -202,8 +202,9 @@ fn message_files_go_into_the_folder_open_and_a_msg_is_shown_when_read() {
 
 /// Issue #56: a message file opens in a message window of its own, as one double-clicked in a
 /// folder does, in no account and no folder. Who else it went to, what's attached and where its
-/// links really go are shown; nothing in it reaches the web, even from a sender whose pictures
-/// always load; and once its window closes, nothing of it is kept.
+/// links really go are shown; nothing in it reaches the web until its pictures are asked for,
+/// even from a sender whose pictures always load; and once its window closes, nothing of it is
+/// kept.
 #[test]
 fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
     let mut s = sample_session("open-window");
@@ -217,7 +218,7 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
         "Content-Type: multipart/mixed; boundary=b\r\n\r\n",
         "--b\r\nContent-Type: text/html\r\n\r\n",
         "<p>Dear <b>customer</b>, <a href=\"https://evil.example/login\">https://bank.example/<b>login</b></a>",
-        " or <a href=\"https://bank.example/help/\">bank.example/help</a></p><img src=\"https://t.example/o.gif\" width=300 alt=\"logo\">\r\n",
+        " or <a href=\"https://bank.example/help/\">bank.example/help</a>, <a href=\"https://shop.example/t\">Track package</a></p><img src=\"https://t.example/o.gif\" width=300 alt=\"logo\">\r\n",
         "--b\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=update.exe\r\n\r\nMZ\r\n--b--\r\n",
     );
     let path = scratch.put("inspect me.eml", source.as_bytes());
@@ -234,18 +235,23 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
     assert_eq!((p.subject.as_str(), p.cc.len()), ("Invoice", 1));
     assert!(p.attachments.iter().any(|a| a.name == "update.exe"));
     // A link whose words name another place says where it goes, once, after its last word; one
-    // whose words name it doesn't.
+    // whose words name it, or name no place ("Track package"), doesn't.
     let all: String = p.layout.iter().flat_map(texts).chain(p.rich.iter().flatten().map(|sp| sp.text.clone())).collect();
     assert!(all.contains("https://bank.example/login <https://evil.example/login>"), "{all}");
-    assert!(!all.contains("<https://bank.example/help/>"), "{all}");
+    assert!(!all.contains("<https://bank.example/help/>") && !all.contains("<https://shop.example/t>"), "{all}");
     assert!(p.text.contains("https://evil.example/login"), "shown as plain text, it says so too: {}", p.text);
     assert_eq!(s.list.len(), messages, "nothing added to a folder");
     assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), reading, "the reading pane is as it was");
 
     // As the open message (what its window's buttons act on): its source, its files, its PDF.
     s.reading = Some(w);
-    assert!(s.remote_pictures().is_empty() && !s.pictures_allowed(), "who it says it's from may be anyone");
-    assert!(s.run("message.showPictures", &json!({})).is_err());
+    // Its pictures from the web: only when asked for this one. Its sender's pictures always
+    // load and the setting loads them by themselves, and still nothing is fetched: who it says
+    // it's from may be anyone.
+    s.prefs.auto_pictures = true;
+    assert_eq!(s.remote_pictures(), ["https://t.example/o.gif"]);
+    assert!(!s.pictures_allowed(), "not on its sender's standing, nor by the setting");
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FetchUrl { .. })));
     assert_eq!(s.attachment_bytes(p.attachments.iter().find(|a| a.name == "update.exe").unwrap().index).unwrap(), b"MZ");
     assert!(s.message_source().unwrap().starts_with(b"From: Billing"));
     assert!(s.message_pdf().is_ok());
@@ -254,6 +260,16 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
     assert!(shown_source["text"].as_str().unwrap().contains("Subject: Invoice"), "{shown_source}");
     let asked = s.take_jobs();
     assert!(!asked.iter().any(|j| matches!(j, Job::FetchUrl { .. } | Job::FetchBody { .. })), "nothing asked of a server: {asked:?}");
+    // Asked for (Show pictures): this message's are fetched, and its sender gains nothing by it,
+    // even asked to always show theirs.
+    s.prefs.trusted_senders.clear();
+    s.reading = s.windows.iter().find(|w| w.key == key).cloned();
+    let shown_pictures = s.run("message.showPictures", &json!({"always": true})).unwrap();
+    assert_eq!((shown_pictures["pictures"].as_u64(), shown_pictures["trusted"].as_str()), (Some(1), None), "{shown_pictures}");
+    assert!(s.pictures_allowed() && s.prefs.trusted_senders.is_empty());
+    let asked = s.take_jobs();
+    assert!(asked.iter().any(|j| matches!(j, Job::FetchUrl { url } if url == "https://t.example/o.gif")), "{asked:?}");
+    s.reading = None;
     // It's in no list: the list's commands don't reach it.
     assert!(s.run("list.open", &json!({"key": key.to_id()})).is_err());
 
@@ -282,4 +298,73 @@ fn texts(b: &mailcraft_mime::layout::Block) -> Vec<String> {
 
 fn mailcraft_engine_is_message_file(path: &str) -> bool {
     crate::cmd::is_message_file(path)
+}
+
+/// Print and Save as PDF lay a message out as it's read (it came out as lines of text, its
+/// tables drawn with dashes and its pictures as their names): its pictures are in the PDF, the
+/// one it carries always, one from the web once it has been shown, a tracking picture never;
+/// its links can be clicked.
+#[test]
+fn a_message_prints_as_it_is_laid_out() {
+    const DOT: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    let mut s = sample_session("print-layout");
+    let scratch = TempFolder::new("print");
+    let source = format!(
+        concat!(
+            "From: Shop <orders@shop.example>\r\nTo: Ana <ana@x.example>\r\nSubject: Shipped\r\nMIME-Version: 1.0\r\n",
+            "Content-Type: multipart/related; boundary=b\r\n\r\n",
+            "--b\r\nContent-Type: text/html; charset=utf-8\r\n\r\n",
+            "<table width=\"600\" bgcolor=\"#f3f3f3\"><tr><td width=\"150\"><img src=\"cid:logo@shop\" width=\"40\" height=\"40\" alt=\"logo\"></td>",
+            "<td><a href=\"https://shop.example/track\">Track package</a></td></tr>",
+            "<tr><td colspan=\"2\"><img src=\"https://cdn.shop.example/item.png\" width=\"90\" height=\"90\" alt=\"the item\">",
+            "<img src=\"https://t.shop.example/open.gif?id=1\" width=\"1\" height=\"1\"></td></tr></table>\r\n",
+            "--b\r\nContent-Type: image/png\r\nContent-ID: <logo@shop>\r\nContent-Transfer-Encoding: base64\r\n",
+            "Content-Disposition: inline; filename=logo.png\r\n\r\n{dot}\r\n--b--\r\n",
+        ),
+        dot = DOT
+    );
+    let path = scratch.put("shipped.eml", source.as_bytes());
+    let shown = open_path(&mut s, &path).unwrap();
+    let key = shown["key"].as_str().and_then(mailcraft_model::MessageKey::from_id).unwrap();
+    s.reading = s.windows.iter().find(|w| w.key == key).cloned();
+    let p = s.reading.as_ref().and_then(|r| r.parsed.clone()).unwrap();
+    assert!(!p.layout.is_empty(), "laid out in columns");
+    let pictures = |pdf: &[u8]| {
+        let text = String::from_utf8_lossy(pdf).to_string();
+        let dict = text.split("/XObject <<").nth(1).and_then(|r| r.split(">>").next()).unwrap_or("").to_string();
+        (dict.matches("/Im").count(), text.matches("/URI (https://shop.example/track)").count())
+    };
+    // The picture it carries is in it, and its link; the one from the web isn't fetched for it.
+    let pdf = s.message_pdf().unwrap();
+    assert!(pdf.starts_with(b"%PDF-") && pdf.ends_with(b"%%EOF\n"));
+    assert_eq!(pictures(&pdf), (1, 1));
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FetchUrl { .. })), "a PDF fetches nothing");
+    // Shown (the reader asked), it's in it too; the tracking picture never is.
+    s.run("message.showPictures", &json!({})).unwrap();
+    let png = base64_decode(DOT);
+    s.apply(Event::Fetched { url: "https://cdn.shop.example/item.png".into(), data: Some(png.clone()), error: None });
+    s.apply(Event::Fetched { url: "https://t.shop.example/open.gif?id=1".into(), data: Some(png), error: None });
+    assert_eq!(pictures(&s.message_pdf().unwrap()), (2, 1));
+    // A picture that can't be read isn't one: the PDF is made without it.
+    s.apply(Event::Fetched { url: "https://cdn.shop.example/item.png".into(), data: Some(b"not a picture".to_vec()), error: None });
+    assert_eq!(pictures(&s.message_pdf().unwrap()), (1, 1));
+    s.reading = None;
+}
+
+fn base64_decode(text: &str) -> Vec<u8> {
+    let value = |c: u8| match c {
+        b'A'..=b'Z' => Some(c - b'A'),
+        b'a'..=b'z' => Some(c - b'a' + 26),
+        b'0'..=b'9' => Some(c - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    };
+    let bits: Vec<u8> = text.bytes().filter_map(value).collect();
+    bits.chunks(4)
+        .flat_map(|c| {
+            let n = c.iter().fold(0u32, |n, b| (n << 6) | u32::from(*b)) << (6 * (4 - c.len()));
+            [(n >> 16) as u8, (n >> 8) as u8, n as u8].into_iter().take(c.len().saturating_sub(1))
+        })
+        .collect()
 }

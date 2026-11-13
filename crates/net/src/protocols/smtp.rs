@@ -8,7 +8,8 @@ use std::time::Duration;
 use lettre::address::{Address, Envelope};
 use lettre::transport::smtp::authentication::{Credentials, DEFAULT_MECHANISMS, Mechanism};
 use lettre::transport::smtp::client::{Certificate, SmtpConnection, TlsParameters};
-use lettre::transport::smtp::extension::ClientId;
+use lettre::transport::smtp::commands::{Data, Mail, Rcpt};
+use lettre::transport::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter};
 use mailcraft_model::{Security, ServerConfig};
 use rustls::pki_types::CertificateDer;
 
@@ -25,6 +26,22 @@ pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recip
 
 /// [`send`], signing in with an OAuth access token (XOAUTH2) when `oauth`.
 pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
+    send_trusting(server, user, password, oauth, from, recipients, raw, &[])
+}
+
+/// [`send_with`] for an account's server: `trusted` are the certificates the user chose to trust
+/// for one on this computer (their fingerprints), as [`crate::stream::tls_trusting`] takes them.
+#[allow(clippy::too_many_arguments)]
+pub fn send_trusting(
+    server: &ServerConfig,
+    user: &str,
+    password: &str,
+    oauth: bool,
+    from: &str,
+    recipients: &[String],
+    raw: &[u8],
+    trusted: &[String],
+) -> Result<()> {
     let from: Address = from.trim().parse().map_err(|e| NetError::Smtp(format!("sender {from}: {e}")))?;
     let mut to = Vec::with_capacity(recipients.len());
     for r in recipients {
@@ -34,7 +51,7 @@ pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool,
         return Err(NetError::Smtp("no recipients".into()));
     }
     let envelope = Envelope::new(Some(from), to).map_err(|e| NetError::Smtp(e.to_string()))?;
-    let trust = Trust { roots: crate::stream::system_roots(), verifier: crate::stream::system_verifier().map_err(NetError::Tls)? };
+    let trust = Trust { roots: crate::stream::system_roots(), verifier: crate::stream::system_verifier().map_err(NetError::Tls)?, trusted };
     submit(server, SignIn { user, password, oauth }, &envelope, raw, recipients, &trust)
 }
 
@@ -50,6 +67,8 @@ struct SignIn<'a> {
 struct Trust<'a> {
     roots: &'a [CertificateDer<'static>],
     verifier: Arc<Distrusting>,
+    /// The certificates the user chose to trust for a server on this computer.
+    trusted: &'a [String],
 }
 
 /// One message over one connection, as lettre's `SmtpTransport` sends it (connect and EHLO,
@@ -59,13 +78,16 @@ struct Trust<'a> {
 fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: &[u8], recipients: &[String], trust: &Trust<'_>) -> Result<()> {
     let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
     let host = server.host.as_str();
-    let wrapper = match server.security {
-        Security::Tls => Some(tls_parameters(host, trust.roots)?),
-        Security::StartTls | Security::None => None,
-    };
     // Each of the server's addresses in turn, as lettre would try them, greeted with this
     // computer's own address on the way to it.
     let addrs: Vec<SocketAddr> = (host, server.port).to_socket_addrs().map_err(NetError::Io)?.take(MAX_ADDRESSES).collect();
+    // A server on this computer (a bridge to a mail service) may show a certificate it made
+    // itself: lettre's handshake lets it by, and the check below decides, before any sign-in.
+    let local = !addrs.is_empty() && addrs.iter().all(|a| crate::stream::on_this_computer(a.ip()));
+    let wrapper = match server.security {
+        Security::Tls => Some(tls_parameters(host, trust.roots, local)?),
+        Security::StartTls | Security::None => None,
+    };
     let mut tried = None;
     let mut connected = None;
     for addr in addrs {
@@ -85,28 +107,80 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
         });
     };
     if server.security == Security::StartTls {
-        conn.starttls(&tls_parameters(host, trust.roots)?, &hello).map_err(failed)?;
+        conn.starttls(&tls_parameters(host, trust.roots, local)?, &hello).map_err(failed)?;
     }
     if server.security != Security::None {
         // After a handshake there's always a chain: lettre's call can't come back empty.
         let chain = conn.certificate_chain().map_err(failed)?;
-        if let Err(e) = trust::check_chain(&trust.verifier, &chain, host) {
+        let usual = trust::check_chain(&trust.verifier, &chain, host);
+        let verdict = match chain.first().filter(|_| local) {
+            // On this computer: one the user chose to trust, or it's said which it was.
+            Some(shown) => {
+                let check = trust::Local::new(Arc::clone(&trust.verifier), trust.trusted);
+                check.judge(shown, usual).map_err(|e| match check.refused() {
+                    Some(fingerprint) => mailcraft_model::local_certificate_refusal(host, &fingerprint),
+                    None => e.to_string(),
+                })
+            }
+            None => usual.map_err(|e| e.to_string()),
+        };
+        if let Err(said) = verdict {
             conn.abort();
-            return Err(NetError::Tls(e.to_string()));
+            return Err(NetError::Tls(said));
         }
     }
     if !sign_in.user.is_empty() {
         let mechanisms: &[Mechanism] = if sign_in.oauth { &[Mechanism::Xoauth2] } else { DEFAULT_MECHANISMS };
         conn.auth(mechanisms, &Credentials::new(sign_in.user.to_string(), sign_in.password.to_string())).map_err(failed)?;
     }
-    let sent = conn.send(envelope, raw);
+    let sent = hand_over(&mut conn, envelope, raw, recipients);
     conn.abort();
-    sent.map_err(failed)?;
-    Ok(())
+    sent
+}
+
+/// MAIL, RCPT, DATA and the message, as lettre's `SmtpConnection::send` goes through them, one
+/// at a time so it's known how far it got. Up to DATA nothing is sent, and a failure can be
+/// tried again. Once the message itself has gone, only the server's answer says what became of
+/// it: with none (it stopped answering, the connection dropped), the message may be on its way,
+/// and trying again by itself is how it arrives twice.
+fn hand_over(conn: &mut SmtpConnection, envelope: &Envelope, raw: &[u8], recipients: &[String]) -> Result<()> {
+    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
+    let lacks = |what: &str| NetError::Io(std::io::Error::other(format!("the server does not support {what}")));
+    let mut options = Vec::new();
+    let ascii = |a: &Address| AsRef::<str>::as_ref(a).is_ascii();
+    if !envelope.from().is_none_or(ascii) || !envelope.to().iter().all(ascii) {
+        if !conn.server_info().supports_feature(Extension::SmtpUtfEight) {
+            return Err(lacks("addresses outside ASCII (SMTPUTF8)"));
+        }
+        options.push(MailParameter::SmtpUtfEight);
+    }
+    if !raw.is_ascii() {
+        if !conn.server_info().supports_feature(Extension::EightBitMime) {
+            return Err(lacks("text outside ASCII (8BITMIME)"));
+        }
+        options.push(MailParameter::Body(MailBodyParameter::EightBitMime));
+    }
+    conn.command(Mail::new(envelope.from().cloned(), options)).map_err(failed)?;
+    for to in envelope.to() {
+        conn.command(Rcpt::new(to.clone(), Vec::new())).map_err(failed)?;
+    }
+    conn.command(Data).map_err(failed)?;
+    // The server may check the whole message before it answers (RFC 5321 §4.5.3.2.6: wait ten
+    // minutes).
+    conn.set_timeout(Some(SENT_TIMEOUT)).map_err(NetError::Io)?;
+    match conn.message(raw) {
+        Ok(_) => Ok(()),
+        // An answer, whatever it says, is the server's word on the message.
+        Err(e) if e.status().is_some() => Err(failed(e)),
+        Err(e) => Err(NetError::Unconfirmed(e.to_string())),
+    }
 }
 
 /// How long the server may take to answer.
 const TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How long it may take over a message it's been sent.
+const SENT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// The most of a server's addresses tried.
 const MAX_ADDRESSES: usize = 8;
@@ -150,8 +224,9 @@ fn failure(e: lettre::transport::smtp::Error, recipients: &[String]) -> NetError
 /// HTTPS trust too). lettre fails the whole build on a root it can't read, so `roots` holds
 /// only usable ones, the system's distrusted ones already left out
 /// ([`crate::stream::system_roots`]). What else the system distrusts, [`submit`] refuses.
-fn tls_parameters(host: &str, roots: &[CertificateDer<'static>]) -> Result<TlsParameters> {
-    let mut p = TlsParameters::builder(host.to_string());
+fn tls_parameters(host: &str, roots: &[CertificateDer<'static>], unchecked: bool) -> Result<TlsParameters> {
+    // `unchecked`: lettre's own check is left out, for [`submit`]'s to decide alone.
+    let mut p = TlsParameters::builder(host.to_string()).dangerous_accept_invalid_certs(unchecked);
     for der in roots {
         if let Ok(c) = Certificate::from_der(der.to_vec()) {
             p = p.add_root_certificate(c);
@@ -322,7 +397,12 @@ pub(crate) mod tests {
             let _ = out.write_all(b"220 scripted.test ready\r\n");
             for command in BufReader::new(sock).lines().map_while(std::result::Result::ok) {
                 let command = command.to_ascii_uppercase();
-                let _ = out.write_all(script(&command).as_bytes());
+                let answer = script(&command);
+                // "CLOSE": the connection drops there, nothing said.
+                if answer == "CLOSE" {
+                    break;
+                }
+                let _ = out.write_all(answer.as_bytes());
                 if command == "QUIT" {
                     break;
                 }
@@ -349,6 +429,36 @@ pub(crate) mod tests {
         assert!(matches!(e, NetError::Smtp(_)), "{e:?}");
     }
 
+    /// The server takes the whole message and the connection drops before it answers: the
+    /// message may have gone, so it isn't one to send again unasked (it was, and arrived twice).
+    /// Dropped before the message is handed over, nothing has gone, and it's tried again.
+    #[test]
+    fn no_answer_after_the_message_is_not_tried_again_unasked() {
+        let message = b"Subject: gone\r\n\r\ntext\r\n";
+        let to = ["a@y.example".to_string()];
+        let port = scripted(|command| match command.split(' ').next().unwrap_or_default() {
+            "EHLO" => "250-scripted.test\r\n250 AUTH PLAIN\r\n",
+            "AUTH" => "235 2.7.0 welcome\r\n",
+            "DATA" => "354 go on\r\n",
+            "SUBJECT:" | "" | "TEXT" => "",
+            "." => "CLOSE",
+            _ => "250 2.0.0 fine\r\n",
+        });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        let e = send(&server, "z@x.example", "pw", "z@x.example", &to, message).unwrap_err();
+        assert!(matches!(e, NetError::Unconfirmed(_)), "{e:?}");
+        assert!(!e.is_retryable(), "{e}");
+        let port = scripted(|command| match command.split(' ').next().unwrap_or_default() {
+            "EHLO" => "250-scripted.test\r\n250 AUTH PLAIN\r\n",
+            "AUTH" => "235 2.7.0 welcome\r\n",
+            "DATA" => "CLOSE",
+            _ => "250 2.0.0 fine\r\n",
+        });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        let e = send(&server, "z@x.example", "pw", "z@x.example", &to, message).unwrap_err();
+        assert!(matches!(e, NetError::Io(_)) && e.is_retryable(), "{e:?}");
+    }
+
     #[test]
     fn rejects_bad_addresses_before_connecting() {
         let server = ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None };
@@ -363,9 +473,9 @@ pub(crate) mod tests {
         use crate::stream::trust::test_certs::{internal_ca, unreadable};
         use crate::stream::trust::{Distrusted, usable_roots};
         let store = vec![unreadable(), internal_ca()];
-        assert!(tls_parameters("mail.corp.test", &usable_roots(store.clone(), &Distrusted::new())).is_ok());
-        assert!(tls_parameters("mail.corp.test", &[]).is_ok());
+        assert!(tls_parameters("mail.corp.test", &usable_roots(store.clone(), &Distrusted::new()), false).is_ok());
+        assert!(tls_parameters("mail.corp.test", &[], false).is_ok());
         // Why the store is sorted first: lettre refuses the lot.
-        assert!(tls_parameters("mail.corp.test", &store).is_err());
+        assert!(tls_parameters("mail.corp.test", &store, false).is_err());
     }
 }

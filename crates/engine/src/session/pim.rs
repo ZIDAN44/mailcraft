@@ -21,6 +21,8 @@ mod reminders;
 mod sync;
 mod tasks;
 pub use tasks::{ListedTask, TASKS_CALENDAR, TaskRef, TasksOrder};
+mod todo;
+pub use todo::{TODO_BAR_WIDTH, TodoBar, TodoGroup, TodoItem, TodoMail, TodoWhat};
 pub mod web;
 
 /// The part of the app on screen.
@@ -251,8 +253,16 @@ impl Session {
     /// The occurrences overlapping `[from, to)`, by start, from every calendar that's shown.
     /// (Each with its calendar's colour: [`Session::calendar_color`].)
     pub fn agenda(&self, from: i64, to: i64) -> Vec<AgendaItem> {
-        let mine: Vec<String> =
-            self.accounts.iter().flat_map(|a| [a.config.email.to_ascii_lowercase(), a.config.username.to_ascii_lowercase()]).collect();
+        // Every address of the accounts' (their others too: an invitation to one needs its
+        // answer like any).
+        let mine: Vec<String> = self
+            .accounts
+            .iter()
+            .flat_map(|a| {
+                let others = a.config.identities.iter().map(|i| i.email.to_ascii_lowercase());
+                [a.config.email.to_ascii_lowercase(), a.config.username.to_ascii_lowercase()].into_iter().chain(others).collect::<Vec<_>>()
+            })
+            .collect();
         let mut out = Vec::new();
         for (account, p) in &self.pim {
             let Some(acc) = self.account(account) else { continue };

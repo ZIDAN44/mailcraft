@@ -40,6 +40,9 @@ pub enum SendCheck {
 pub struct Compose {
     pub id: u64,
     pub account: String,
+    /// Which of the account's addresses it's from (issue #81); empty: the account's own.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub from: String,
     /// The signature in the text as it was put there (`-- ` and the signature): replaced when
     /// another goes in, while it's still there unchanged.
     #[serde(default)]
@@ -144,7 +147,7 @@ impl Compose {
     fn fingerprint(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        (&self.account, &self.to, &self.cc, &self.bcc, &self.reply_to, &self.subject, &self.body).hash(&mut h);
+        (&self.account, &self.from, &self.to, &self.cc, &self.bcc, &self.reply_to, &self.subject, &self.body).hash(&mut h);
         (&self.signature, &self.signature_name, &self.signature_code).hash(&mut h);
         (self.importance, self.read_receipt, self.plain, self.send_after, self.sign).hash(&mut h);
         (!self.encrypt_auto).then_some(self.encrypt).hash(&mut h);
@@ -246,7 +249,7 @@ impl Compose {
 
 impl Session {
     pub(super) fn me(&self, account: &str) -> Vec<String> {
-        let mut v: Vec<String> = self.accounts.iter().map(|a| a.config.email.clone()).collect();
+        let mut v: Vec<String> = self.accounts.iter().flat_map(|a| a.config.addresses()).map(str::to_string).collect();
         if let Some(a) = self.account(account) {
             v.push(a.config.username.clone());
         }
@@ -308,7 +311,17 @@ impl Session {
 
     /// Message `id`, the one on screen or one set aside: news of a send may come for either.
     pub(super) fn compose_by_id(&self, id: u64) -> Option<Compose> {
-        self.all_composes().find(|c| c.id == id).cloned()
+        self.all_composes().chain(self.sent_away.iter()).find(|c| c.id == id).cloned()
+    }
+
+    /// The message being written leaves the screen. One being sent is kept aside until word
+    /// of it comes ([`Session::sent_away`]).
+    pub(crate) fn let_go_compose(&mut self) -> Option<Compose> {
+        let c = self.compose.take()?;
+        if c.sending && self.sent_away.len() < 64 {
+            self.sent_away.push(c.clone());
+        }
+        Some(c)
     }
 
     pub fn new_compose(&mut self, account: Option<&str>) -> Result<&mut Compose, CmdError> {
@@ -341,7 +354,16 @@ impl Session {
         }
         // Answered from an account that can send (not the data file it's in).
         let account = self.sending_account(r.key.account.clone());
-        let signature = self.default_signature(&account, true);
+        // From the address it was sent to, when that's one of the account's others and not its
+        // own as well (issue #81): the answer comes from where the mail went.
+        let from = self.account(&account).filter(|_| account == r.key.account).map(|a| &a.config).and_then(|config| {
+            let sent_to = |email: &str| parsed.to.iter().chain(&parsed.cc).any(|t| t.email.eq_ignore_ascii_case(email));
+            // One's own mail, written from one of them, is followed up from it.
+            let own = config.identity(&parsed.from.email).map(|i| i.email.clone());
+            own.or_else(|| if sent_to(&config.email) { None } else { config.identities.iter().find(|i| sent_to(&i.email)).map(|i| i.email.clone()) })
+        });
+        let from = from.unwrap_or_default();
+        let signature = self.signature_for(&account, &from, true);
         let block = Self::signature_text(signature.as_ref());
         let sig = block.strip_prefix("-- \n").unwrap_or_default();
         let raw = self.readable_raw(&r.key);
@@ -373,6 +395,7 @@ impl Session {
         self.open_compose(Compose {
             id,
             account,
+            from,
             signature: block.clone(),
             to: addr::format_field(&d.to),
             cc: addr::format_field(&d.cc),
@@ -413,8 +436,8 @@ impl Session {
             self.store.as_ref().and_then(|s| s.read_body(&r.key)).ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
         let out = self.reply_compose(ReplyMode::Forward)?;
         // The signature of the account it goes from (not the data file it's in).
-        let from = self.compose.as_ref().map_or(r.key.account.clone(), |c| c.account.clone());
-        let sig = self.default_signature(&from, true);
+        let (from, address) = self.compose.as_ref().map_or((r.key.account.clone(), String::new()), |c| (c.account.clone(), c.from.clone()));
+        let sig = self.signature_for(&from, &address, true);
         let subject = r.parsed.as_ref().map(|p| p.subject.trim().to_string()).unwrap_or_default();
         let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() });
         if let Some(c) = self.compose.as_mut() {
@@ -434,8 +457,10 @@ impl Session {
     pub(super) fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
         let parse = |field: &str, s: &str| addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")));
         let (body, html, inline) = c.bodies_with(&c.signature_code);
+        // Where replies to the address it's from go, unless the message says where.
+        let replies = self.account(&c.account).and_then(|a| a.config.identity(&c.from)).map(|i| i.reply_to.as_str()).unwrap_or_default();
         Ok(mime::Draft {
-            reply_to: parse("Replies to", &c.reply_to)?,
+            reply_to: parse("Replies to", if c.reply_to.trim().is_empty() { replies } else { &c.reply_to })?,
             to: parse("To", &c.to)?,
             cc: parse("Cc", &c.cc)?,
             bcc: parse("Bcc", &c.bcc)?,
@@ -461,7 +486,7 @@ impl Session {
 
     /// [`Session::compose_bytes`], with the Message-ID it was given.
     fn compose_bytes_with_id(&mut self, c: &Compose, d: &mime::Draft) -> Result<(Vec<u8>, String, String), CmdError> {
-        let email = self.account(&c.account).map(|a| a.config.email.clone()).unwrap_or_default();
+        let email = self.account(&c.account).map(|a| a.config.sender(&c.from).email).unwrap_or_default();
         let mid = mime::new_message_id(&email, self.clock.now, self.random());
         self.compose_bytes_as(c, d, mid)
     }
@@ -469,8 +494,10 @@ impl Session {
     /// [`Session::compose_bytes_with_id`], written with Message-ID `mid`.
     fn compose_bytes_as(&mut self, c: &Compose, d: &mime::Draft, mid: String) -> Result<(Vec<u8>, String, String), CmdError> {
         let acc = self.account(&c.account).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
-        let from = mailcraft_model::EmailAddress::new(acc.config.name.clone(), acc.config.email.clone());
-        let email = acc.config.email.clone();
+        // From the address picked, one of the account's (issue #81), which the server is told
+        // sends it too.
+        let from = acc.config.sender(&c.from);
+        let email = from.email.clone();
         let raw = mime::build(d, &from, self.clock.now, &mid).map_err(CmdError::Failed)?;
         Ok((raw, email, mid))
     }
@@ -486,7 +513,7 @@ impl Session {
                 found.push(SendCheck::Lookalike { address: a.email.trim().to_string(), like: like.to_string() });
             }
         }
-        let mine = self.account(&c.account).map(|a| lookalike::domain_of(&a.config.email)).unwrap_or_default();
+        let mine = self.account(&c.account).map(|a| lookalike::domain_of(&a.config.sender(&c.from).email)).unwrap_or_default();
         let mut people = BTreeSet::new();
         for a in d.to.iter().chain(&d.cc) {
             let domain = lookalike::domain_of(&a.email);
@@ -505,7 +532,9 @@ impl Session {
     /// seeing who else did.
     pub fn hide_recipients(&mut self) -> CmdResult {
         let c = self.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-        let me = self.account(&c.account).map(|a| EmailAddress::new(a.config.name.clone(), a.config.email.clone()).to_string()).unwrap_or_default();
+        // The address it's written from: the account's main one, put there for one of its
+        // others, showed everyone the address the message wasn't to come from.
+        let me = self.account(&c.account).map(|a| a.config.sender(&c.from).to_string()).unwrap_or_default();
         let c = self.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
         let moved: Vec<&str> = [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()]
             .into_iter()
@@ -632,6 +661,7 @@ impl Session {
             self.compose = None;
         }
         self.composes.retain(|x| x.id != c.id);
+        self.sent_away.retain(|x| x.id != c.id);
         self.notice("Message sent", false);
     }
 }

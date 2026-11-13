@@ -51,7 +51,8 @@ pub enum CheckState {
 }
 
 /// The data file read: where it was, how big, when it last changed, its record key, and the
-/// fingerprint of what it holds ([`plan::Plan::fingerprint`]).
+/// fingerprint of what it holds ([`plan::Plan::fingerprint`]). The last two say whether a file is
+/// still the one ([`Checkpoint::same_file`]); its size and date are kept for the record.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Source {
@@ -340,12 +341,12 @@ impl Skip {
         self.failed.contains(&Spot { node, row })
     }
 
-    /// Whether the file at `path`, planned as `record_key` and `fingerprint`, is the one the
-    /// import began on: unchanged on the disk, or changed only where its items aren't.
-    pub(super) fn same_file(&self, path: &Path, record_key: &str, fingerprint: u64) -> bool {
-        let (size, modified) = facts(path);
-        (size, modified) == (self.source.size, self.source.modified)
-            || (record_key == self.source.record_key && fingerprint == self.source.fingerprint)
+    /// Whether the file planned as `record_key` and `fingerprint` is the one the import began
+    /// on: it holds what it held (Outlook writing its header, or dating it anew, changes
+    /// neither). Its size and date don't vouch for it: a message added in the second the file
+    /// was last written in can leave both as they were.
+    pub(super) fn same_file(&self, record_key: &str, fingerprint: u64) -> bool {
+        record_key == self.source.record_key && fingerprint == self.source.fingerprint
     }
 }
 

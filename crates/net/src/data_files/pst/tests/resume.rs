@@ -134,10 +134,11 @@ fn cut_off_and_gone_on_with_is_the_same_import() {
                     written_past += store.cached_bodies("a1", &c.path, 1).into_iter().filter(|u| *u >= c.uid_next).count();
                 }
             }
-            _ => assert!(at < 300, "a folder done is in a checkpoint"),
+            Found::Nothing => assert!(at < 300, "a folder done is in a checkpoint"),
+            Found::Unsound => panic!("cut off at {at}: the checkpoint written doesn't add up"),
         }
         let (done, _) = go_on(&pst, &store, None);
-        assert_eq!((done.messages, done.skipped), (900, 0), "cut off at {at}");
+        assert_eq!((done.messages, done.skipped, done.blocked), (900, 0, None), "cut off at {at}");
         assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "cut off at {at}");
         indexed_where_marked(&store);
     }
@@ -391,7 +392,13 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
         message_class: "IPM.Note",
         properties: &[],
     };
+    // A message more, in a file as big as it was and dated as it was (written in the second it
+    // was last written in, or by a program that puts the date back): what it holds says so.
+    let dated = std::fs::metadata(&changed).unwrap().modified().unwrap();
+    let as_it_was = resume::facts(&changed);
     write::append(&changed, &["Inbox"], &[BatchMessage { message: more, attachments: &[] }]).unwrap();
+    std::fs::File::options().write(true).open(&changed).unwrap().set_modified(dated).unwrap();
+    assert_eq!(resume::facts(&changed), as_it_was, "the file's size and date don't tell");
     let (done, _) = go_on(&changed, &store, None);
     assert_eq!((done.blocked, done.messages), (Some(Blocked::SourceChanged), 0));
     assert_eq!((checkpoint(&store), store.load_folders("a1").unwrap()), before, "nothing written");

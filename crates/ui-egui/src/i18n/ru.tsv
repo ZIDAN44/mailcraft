@@ -117,6 +117,7 @@
 	24-hour	24-часовой
 	12-hour	12-часовой
 	Whole date and time in the list	Полные дата и время в списке
+	Earlier this month	Ранее в этом месяце
 	Last month	В прошлом месяце
 	Last week	На прошлой неделе
 	Later	Позже
@@ -156,6 +157,10 @@
 	Move to folder	Переместить в папку
 	Move to…	Переместить в…
 	Move {n} messages	Переместить письма: {n}
+	Copy to folder	Копировать в папку
+	Copy to…	Копировать в…
+	Copy 1 message	Копировать 1 письмо
+	Copy {n} messages	Копировать письма: {n}
 	Move “{folder}” to	Переместить «{folder}» в
 	Name	Имя
 	Names <addresses>, separated by ; or ,	Имена <адреса> через ; или ,
@@ -198,7 +203,6 @@
 	Password needed	Нужен пароль
 	Password…	Пароль…
 	Personal	Личное
-	Pick messages from one account to move them to a folder.	Выберите письма одной учётной записи, чтобы переместить их в папку.
 	Picture	Изображение
 	Pictures from the web are hidden to protect your privacy.	Изображения из интернета скрыты для защиты вашей конфиденциальности.
 	Picture…	Изображение…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	Вложений сохранено: {n}, в {folder}
 	Saved {path}	Сохранено: {path}
 	Search folders	Поиск папок
+	(the rest isn't shown: open the file to see it all)	(остальное не показано: откройте файл, чтобы увидеть всё)
+	Pick a category	Выберите категорию
+	Pick a folder	Выберите папку
+	Say what to look for	Укажите, что искать
+	Give the rule a name	Дайте правилу название
 	Search mail (from:, subject:, has:attachment…)	Поиск в почте (from:, subject:, has:attachment…)
 	Select a message first.	Сначала выберите письмо.
 	Send	Отправить
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Серверы: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Параметры найдены: {source}
 	Show a desktop notification when new mail arrives	Показывать уведомление на рабочем столе при новой почте
+	Keep MailCraft running when its window is closed	Не завершать MailCraft при закрытии окна
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Он остаётся в области уведомлений, проверяет почту и сообщает о новой. «Выход» на странице «Файл» или в меню значка закрывает его.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Окно сворачивается, а MailCraft продолжает проверять почту и сообщать о новой. «Выход» на странице «Файл» закрывает его.
+	Open MailCraft	Открыть MailCraft
 	Show as plain text	Показать как обычный текст
 	Show formatted	Показать с форматированием
 	Show in Favorites	Показать в избранном
@@ -767,11 +780,18 @@
 	Move down	Переместить вниз
 	Updating…	Обновление…
 	All folders are up to date	Все папки обновлены
+	1 account disconnected	1 учётная запись отключена
 	{n} accounts disconnected	Отключено учётных записей: {n}
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Войти через Microsoft
 	Sign in with Microsoft…	Войти через Microsoft…
 	Mailbox won't open	Почтовый ящик не открывается
+	Trust this computer's mail server?	Доверять почтовому серверу на этом компьютере?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} находится на этом компьютере и предъявляет сертификат, который создал сам и за который не ручается ни один центр сертификации. Так работает программа, связывающая почтовую службу с почтовыми приложениями. Доверяйте ему, только если вы сами настроили эту программу.
+	Certificate fingerprint (SHA-256)	Отпечаток сертификата (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft спросит снова, если сервер предъявит другой сертификат.
+	Trust this certificate	Доверять этому сертификату
+	Certificate not trusted yet	Сертификат пока не доверенный
 	The mailbox won't open	Почтовый ящик не открывается
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph открывает почтовый ящик без IMAP, а заодно календарь и контакты. Учётная запись начнётся заново через него: почта загрузится с сервера.
 	Turned IMAP on, or picked another account in the browser? Sign in again	Включили IMAP или выбрали в браузере другую учётную запись? Войдите снова
@@ -852,6 +872,28 @@
 	Delete this contact?	Удалить этот контакт?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Этот контакт будет удалён вместе со всеми сведениями о нём. Это действие нельзя отменить.
 	Export…	Экспорт…
+	{file} isn't a MailCraft backup.	{file} — не резервная копия MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	Резервная копия загружается там, где MailCraft работает в браузере.
+	Backup saved as {file}	Резервная копия сохранена как {file}
+	Restore…	Восстановить…
+	Bring a backup file in. It takes the place of what's kept here now.	Загрузить файл резервной копии. Он заменит то, что хранится здесь сейчас.
+	Back up…	Создать копию…
+	Save what's kept here to a file, with a password if you like.	Сохраните то, что хранится здесь, в файл; при желании с паролем.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft хранит ваши учётные записи, настройки и почту только в этом браузере. Очистка данных браузера для этого сайта удаляет их: файл резервной копии вернёт их, здесь или в другом браузере.
+	Backup	Резервная копия
+	The backup's password	Пароль резервной копии
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Это заменит всё, что MailCraft сейчас хранит в этом браузере: учётные записи, их настройки и почту. Пароль каждой учётной записи будет запрошен снова.
+	Restore from a backup…	Восстановить из резервной копии…
+	Restore from backup	Восстановление из резервной копии
+	The two passwords aren't the same.	Пароли не совпадают.
+	Save backup	Сохранить копию
+	The file can't be opened without this password: MailCraft can't recover it.	Без этого пароля файл не открыть: MailCraft не может его восстановить.
+	Without a password, anyone who has the file can read what's in it.	Без пароля любой, у кого есть файл, может прочитать его содержимое.
+	The password again	Пароль ещё раз
+	Password for the file (optional)	Пароль для файла (необязательно)
+	Include the mail downloaded to this browser	Включить почту, загруженную в этот браузер
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Ваши учётные записи с их настройками, правила, подписи, календари и контакты сохраняются в один файл. Паролей в нём никогда нет.
+	Back up	Создать резервную копию
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Добавляет правила из файла, сохранённого MailCraft. Правило для учётной записи, которой нет на этом компьютере, добавляется выключенным.
 	Change…	Изменить…
 	Clean up	Очистка
@@ -879,6 +921,17 @@
 	Send email	Отправить письмо
 	Add	Добавить
 	Add a shared mailbox	Добавить общий почтовый ящик
+	Other addresses	Другие адреса
+	Key {key}: signs mail from {addresses}	Ключ {key}: подписывает письма с адреса {addresses}
+	Valid until {date}: signs mail from {addresses}	Действителен до {date}: подписывает письма с адреса {addresses}
+	Find on the server	Найти на сервере
+	Addresses of this same mailbox that you also send from.	Адреса этого же ящика, с которых вы тоже отправляете.
+	Add an address	Добавить адрес
+	Change an address	Изменить адрес
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Ещё один адрес этого же ящика, например псевдоним, с которого можно отправлять почту. Выберите его в поле «От» при написании письма. Почтовый сервер должен разрешать отправку с него.
+	Name on mail from it	Имя в письмах с этого адреса
+	Replies go to	Ответы приходят на
+	(the account's own)	(подпись учётной записи)
 	Add…	Добавить…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Его папки появятся в этой учётной записи. Нужен доступ к нему на сервере Exchange; ящики с полным доступом открываются сами.
 	Mailboxes you have full access to open by themselves.	Ящики с полным доступом открываются сами.
@@ -1630,7 +1683,7 @@ month	May	Май
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Это письмо выглядит подозрительным или его отправителя не удалось подтвердить, поэтому картинки скрыты.
 	These senders' pictures always load, even when a message looks suspicious:	Картинки от этих отправителей загружаются всегда, даже если письмо выглядит подозрительным:
 	Open a mail file	Открыть файл письма
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Посмотреть сохранённое письмо (.eml или .msg из Outlook) в отдельном окне, не добавляя его в папку. Картинки из интернета не загружаются, и ничего из письма не запускается.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Посмотреть сохранённое письмо (.eml или .msg из Outlook) в отдельном окне, не добавляя его в папку. Картинки из интернета загружаются только по вашей просьбе, и ничего из письма не запускается.
 	Nothing is kept: closing it leaves no trace in your mail.	Ничего не сохраняется: после закрытия в вашей почте не останется следов.
 	and {n} more	и ещё {n}
 	Checking for new mail	Проверка новой почты
@@ -1643,4 +1696,10 @@ month	May	Май
 	Server: {url} (CalDAV and CardDAV)	Сервер: {url} (CalDAV и CardDAV)
 	Not available: this account has no mail server.	Недоступно: у этой учётной записи нет почтового сервера.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Почта перенесена из прежнего Flatpak MailCraft, который всё ещё установлен. Чтобы удалить его, выполните: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Открыто из {file}. Письмо не лежит ни в одной папке, картинки из интернета не загружаются, а после закрытия не остаётся следов.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Открыто из {file}. Письмо не лежит ни в одной папке, картинки из интернета загружаются только по вашей просьбе, а после закрытия не остаётся следов.
+	To-Do Bar	Панель дел
+	Appointments	Встречи
+	Type a new task	Введите новую задачу
+	Nothing to do	Дел нет
+	Nothing in the next 7 days	В ближайшие 7 дней ничего нет
+	Show the calendar, what's coming up and your tasks beside the mail	Показывать календарь, ближайшие встречи и задачи рядом с почтой

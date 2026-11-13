@@ -13,7 +13,10 @@ mailcraft-cli [--data DIR] <command>
   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
        [--signature NAME|none]   one of the account's signatures under the text (default:
                                  its own for new messages), or none
-       [--from ID]               From changed to that account: its signature follows
+       [--checked]               send it though it's held to be looked at first (an address
+                                 that looks like another, many people shown each other)
+       [--from ID|ADDRESS]       From changed to that account, or to one of an account's
+                                 addresses (`run account.setAddress`): its signature follows
   commands                       every engine command, as JSON
   run ID [JSON]                  run an engine command against the cache (its changes
                                  to mail go to the server with the next `sync`;

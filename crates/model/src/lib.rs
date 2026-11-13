@@ -25,6 +25,7 @@ pub mod vcard;
 use serde::{Deserialize, Serialize};
 
 pub use addr::EmailAddress;
+pub use addr::identity::Identity;
 pub use dates::zone;
 pub use signature::Signature;
 pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
@@ -144,6 +145,9 @@ pub struct AccountConfig {
     /// differs from `email`: an alias, or another account picked on the sign-in page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth_user: Option<String>,
+    /// Its other addresses (issue #81): the same mailbox's, each one that mail is written from.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub identities: Vec<Identity>,
     /// Other mailboxes this account opens, added by hand (Exchange: Outlook's "Open these
     /// additional mailboxes"); those the server maps to it open by themselves.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -166,6 +170,38 @@ pub struct AccountConfig {
     /// server that lets in only the clients it knows. Checked by [`user_agent`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
+    /// Certificates the user chose to trust for this account's servers on this computer (issue
+    /// #77: a bridge to a mail service makes its own, which no authority vouches for), by their
+    /// SHA-256 fingerprints in hex. Only ever used for a server at a loopback address.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trusted_certificates: Vec<String>,
+}
+
+/// The most certificates an account trusts by hand.
+pub const MAX_TRUSTED_CERTIFICATES: usize = 8;
+
+/// Why a mail server on this computer was refused: it showed a certificate of its own, which no
+/// authority vouches for and the user hasn't trusted. The refusal holds these words, then the
+/// server and the certificate's fingerprint ([`untrusted_local_certificate`]), so the UI can ask.
+pub const LOCAL_CERTIFICATE: &str = "the mail server on this computer uses a certificate of its own that isn't trusted yet";
+
+/// What a refusal for [`LOCAL_CERTIFICATE`] says: its words, the server and the fingerprint.
+pub fn local_certificate_refusal(host: &str, fingerprint: &str) -> String {
+    format!("{LOCAL_CERTIFICATE} ({host} {fingerprint})")
+}
+
+/// The server and the certificate's fingerprint in a refusal for [`LOCAL_CERTIFICATE`], wherever
+/// in an error's text it is.
+pub fn untrusted_local_certificate(error: &str) -> Option<(String, String)> {
+    let rest = error.split_once(LOCAL_CERTIFICATE)?.1.trim_start().strip_prefix('(')?;
+    let (inside, _) = rest.split_once(')')?;
+    let (host, fingerprint) = inside.rsplit_once(' ')?;
+    (!host.trim().is_empty() && is_certificate_fingerprint(fingerprint)).then(|| (host.trim().to_string(), fingerprint.to_ascii_lowercase()))
+}
+
+/// Whether `s` is a SHA-256 fingerprint in hex.
+pub fn is_certificate_fingerprint(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// Longest User-Agent an account can name.

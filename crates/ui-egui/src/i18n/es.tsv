@@ -117,6 +117,7 @@
 	24-hour	24 horas
 	12-hour	12 horas
 	Whole date and time in the list	Fecha y hora completas en la lista
+	Earlier this month	Anteriormente este mes
 	Last month	El mes pasado
 	Last week	La semana pasada
 	Later	Más tarde
@@ -156,6 +157,10 @@
 	Move to folder	Mover a la carpeta
 	Move to…	Mover a…
 	Move {n} messages	Mover {n} mensajes
+	Copy to folder	Copiar a la carpeta
+	Copy to…	Copiar a…
+	Copy 1 message	Copiar 1 mensaje
+	Copy {n} messages	Copiar {n} mensajes
 	Move “{folder}” to	Mover «{folder}» a
 	Name	Nombre
 	Names <addresses>, separated by ; or ,	Nombres <direcciones>, separados por ; o ,
@@ -198,7 +203,6 @@
 	Password needed	Se necesita la contraseña
 	Password…	Contraseña…
 	Personal	Personal
-	Pick messages from one account to move them to a folder.	Elige mensajes de una sola cuenta para moverlos a una carpeta.
 	Picture	Imagen
 	Pictures from the web are hidden to protect your privacy.	Las imágenes de la web están ocultas para proteger tu privacidad.
 	Picture…	Imagen…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	Se guardaron {n} archivos adjuntos en {folder}
 	Saved {path}	Guardado {path}
 	Search folders	Buscar carpetas
+	(the rest isn't shown: open the file to see it all)	(el resto no se muestra: abra el archivo para verlo todo)
+	Pick a category	Elija una categoría
+	Pick a folder	Elija una carpeta
+	Say what to look for	Indique qué buscar
+	Give the rule a name	Ponga un nombre a la regla
 	Search mail (from:, subject:, has:attachment…)	Buscar correo (from:, subject:, has:attachment…)
 	Select a message first.	Selecciona primero un mensaje.
 	Send	Enviar
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servidores: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Configuración encontrada: {source}
 	Show a desktop notification when new mail arrives	Mostrar una notificación de escritorio cuando llegue correo nuevo
+	Keep MailCraft running when its window is closed	Mantener MailCraft en ejecución al cerrar su ventana
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Se queda en el área de notificación, comprueba el correo y lo anuncia. «Salir» en la página Archivo, o en el menú de su icono, lo cierra.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Su ventana se minimiza, y MailCraft sigue comprobando el correo y anunciándolo. «Salir» en la página Archivo lo cierra.
+	Open MailCraft	Abrir MailCraft
 	Show as plain text	Mostrar como texto sin formato
 	Show formatted	Mostrar con formato
 	Show in Favorites	Mostrar en Favoritos
@@ -768,11 +781,18 @@
 	Move down	Bajar
 	Updating…	Actualizando…
 	All folders are up to date	Todas las carpetas están actualizadas
+	1 account disconnected	1 cuenta desconectada
 	{n} accounts disconnected	{n} cuentas desconectadas
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Iniciar sesión con Microsoft
 	Sign in with Microsoft…	Iniciar sesión con Microsoft…
 	Mailbox won't open	El buzón no se abre
+	Trust this computer's mail server?	¿Confiar en el servidor de correo de este equipo?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} está en este equipo y presenta un certificado creado por él mismo, que ninguna autoridad avala. Así actúa un programa que conecta un servicio de correo con las aplicaciones de correo. Confíe en él solo si usted configuró ese programa.
+	Certificate fingerprint (SHA-256)	Huella digital del certificado (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft volverá a preguntar si el servidor presenta otro certificado.
+	Trust this certificate	Confiar en este certificado
+	Certificate not trusted yet	Certificado aún no de confianza
 	The mailbox won't open	El buzón no se abre
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph llega al buzón sin IMAP y trae también su calendario y sus contactos. La cuenta empieza de nuevo a través de él: el correo se descarga del servidor.
 	Turned IMAP on, or picked another account in the browser? Sign in again	¿Activaste IMAP o elegiste otra cuenta en el navegador? Vuelve a iniciar sesión
@@ -853,6 +873,28 @@
 	Delete this contact?	¿Eliminar este contacto?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Se eliminará este contacto, junto con todo lo que se guarda sobre él. No se puede deshacer.
 	Export…	Exportar…
+	{file} isn't a MailCraft backup.	{file} no es una copia de seguridad de MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	Una copia de seguridad se carga donde MailCraft funciona en el navegador.
+	Backup saved as {file}	Copia de seguridad guardada como {file}
+	Restore…	Restaurar…
+	Bring a backup file in. It takes the place of what's kept here now.	Cargar un archivo de copia de seguridad. Sustituye lo que se conserva aquí ahora.
+	Back up…	Hacer copia…
+	Save what's kept here to a file, with a password if you like.	Guarde en un archivo lo que se conserva aquí, con contraseña si lo desea.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft guarda sus cuentas, su configuración y su correo solo en este navegador. Borrar los datos del navegador para este sitio los elimina: un archivo de copia de seguridad los recupera, aquí o en otro navegador.
+	Backup	Copias de seguridad
+	The backup's password	La contraseña de la copia
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Esto sustituye todo lo que MailCraft guarda ahora en este navegador: sus cuentas, su configuración y su correo. Se volverá a pedir la contraseña de cada cuenta.
+	Restore from a backup…	Restaurar desde una copia de seguridad…
+	Restore from backup	Restaurar desde una copia de seguridad
+	The two passwords aren't the same.	Las dos contraseñas no son iguales.
+	Save backup	Guardar copia
+	The file can't be opened without this password: MailCraft can't recover it.	El archivo no se puede abrir sin esta contraseña: MailCraft no puede recuperarla.
+	Without a password, anyone who has the file can read what's in it.	Sin contraseña, cualquiera que tenga el archivo puede leer lo que contiene.
+	The password again	La contraseña otra vez
+	Password for the file (optional)	Contraseña para el archivo (opcional)
+	Include the mail downloaded to this browser	Incluir el correo descargado en este navegador
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Sus cuentas y su configuración, reglas, firmas, calendarios y contactos van en un solo archivo. Las contraseñas nunca están en él.
+	Back up	Copia de seguridad
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Añade las reglas de un archivo guardado por MailCraft. Una regla de una cuenta que este equipo no tiene llega desactivada.
 	Change…	Cambiar…
 	Clean up	Limpiar
@@ -880,6 +922,17 @@
 	Send email	Enviar correo
 	Add	Agregar
 	Add a shared mailbox	Agregar un buzón compartido
+	Other addresses	Otras direcciones
+	Key {key}: signs mail from {addresses}	Clave {key}: firma el correo de {addresses}
+	Valid until {date}: signs mail from {addresses}	Válido hasta {date}: firma el correo de {addresses}
+	Find on the server	Buscar en el servidor
+	Addresses of this same mailbox that you also send from.	Direcciones de este mismo buzón desde las que también envía.
+	Add an address	Añadir una dirección
+	Change an address	Cambiar una dirección
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Otra dirección de este mismo buzón, como un alias, desde la que se puede enviar correo. Elíjala en «De» al escribir un mensaje. Su servidor de correo debe permitir enviar desde ella.
+	Name on mail from it	Nombre en el correo enviado desde ella
+	Replies go to	Las respuestas van a
+	(the account's own)	(la de la cuenta)
 	Add…	Agregar…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Sus carpetas aparecen debajo de esta cuenta. Necesitas acceso a él en el servidor Exchange; los buzones a los que tienes acceso completo se abren solos.
 	Mailboxes you have full access to open by themselves.	Los buzones a los que tienes acceso completo se abren solos.
@@ -1631,7 +1684,7 @@ month	May	mayo
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Este mensaje parece sospechoso o no se pudo confirmar su remitente, así que sus imágenes siguen ocultas.
 	These senders' pictures always load, even when a message looks suspicious:	Las imágenes de estos remitentes siempre se cargan, aunque un mensaje parezca sospechoso:
 	Open a mail file	Abrir un archivo de correo
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Ver un mensaje guardado (.eml o .msg de Outlook) en una ventana propia, sin añadirlo a una carpeta. Sus imágenes de la web no se cargan y nada de lo que contiene se ejecuta.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Ver un mensaje guardado (.eml o .msg de Outlook) en una ventana propia, sin añadirlo a una carpeta. Sus imágenes de la web solo se cargan si lo pide y nada de lo que contiene se ejecuta.
 	Nothing is kept: closing it leaves no trace in your mail.	No se guarda nada: al cerrarlo no queda rastro en tu correo.
 	and {n} more	y {n} más
 	Checking for new mail	Buscar correo nuevo
@@ -1644,4 +1697,10 @@ month	May	mayo
 	Server: {url} (CalDAV and CardDAV)	Servidor: {url} (CalDAV y CardDAV)
 	Not available: this account has no mail server.	No disponible: esta cuenta no tiene servidor de correo.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Tu correo se ha traído del Flatpak anterior de MailCraft, que sigue instalado. Para quitarlo, ejecuta: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Abierto desde {file}. No está en ninguna carpeta, sus imágenes de la web no se cargan y al cerrarlo no queda rastro.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Abierto desde {file}. No está en ninguna carpeta, sus imágenes de la web solo se cargan si lo pide y al cerrarlo no queda rastro.
+	To-Do Bar	Barra Tareas pendientes
+	Appointments	Citas
+	Type a new task	Escriba una tarea nueva
+	Nothing to do	Nada pendiente
+	Nothing in the next 7 days	Nada en los próximos 7 días
+	Show the calendar, what's coming up and your tasks beside the mail	Mostrar el calendario, lo próximo y sus tareas junto al correo

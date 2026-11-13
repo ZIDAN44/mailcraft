@@ -182,6 +182,7 @@ impl MailApp {
                 st.compact.note_input(ui);
                 let mut place = st.places.get("message").copied();
                 after_open(ui, place);
+                raise_once(ui.ctx(), id);
                 WindowPlace::note(&mut place, ui);
                 if let Some(p) = place {
                     st.places.insert("message".into(), p);
@@ -245,9 +246,42 @@ pub(crate) const SYSTEM_BAR: egui::Vec2 = egui::vec2(48.0, 48.0);
 /// The smallest a window is made to fit its monitor (the main window's minimum size).
 pub(crate) const FIT_MIN: egui::Vec2 = egui::vec2(760.0, 480.0);
 
+/// Light or dark as chosen in MailCraft (none: as the system is), for the title bars the system
+/// draws on its windows: they followed the system alone, a dark bar on a light MailCraft (issue
+/// #74). Said once a frame by the main window; each window tells the system when it changes.
+pub(crate) fn title_bars_in(ctx: &egui::Context, dark: Option<bool>) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("title-bars-in"), dark));
+}
+
+/// This window's title bar in MailCraft's light or dark ([`title_bars_in`]).
+fn title_bar_follows(ctx: &egui::Context) {
+    let Some(dark) = ctx.data(|d| d.get_temp::<Option<bool>>(egui::Id::unique("title-bars-in"))) else { return };
+    // Told again over a window's first frames: one that's just opening doesn't take it yet (on
+    // X11 it stayed as it opened).
+    const TIMES: u8 = 3;
+    let told = egui::Id::unique(("title-bar-told", ctx.viewport_id()));
+    let times = match ctx.data(|d| d.get_temp::<(Option<bool>, u8)>(told)) {
+        Some((was, times)) if was == dark => times,
+        _ => 0,
+    };
+    if times >= TIMES {
+        return;
+    }
+    ctx.data_mut(|d| d.insert_temp(told, (dark, times + 1)));
+    ctx.request_repaint();
+    let theme = match dark {
+        Some(true) => egui::SystemTheme::Dark,
+        Some(false) => egui::SystemTheme::Light,
+        None => egui::SystemTheme::SystemDefault,
+    };
+    ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme(theme));
+}
+
 impl WindowPlace {
     /// Note where a window is now (nothing while it's minimized; while maximized, only that).
+    /// Every window comes by here each frame: its title bar is kept in MailCraft's light or dark.
     pub fn note(place: &mut Option<WindowPlace>, ui: &Ui) {
+        title_bar_follows(ui.ctx());
         let v = ui.input(|i| i.viewport().clone());
         if v.minimized == Some(true) {
             return;
@@ -370,7 +404,25 @@ pub(crate) fn opening(ctx: &egui::Context, viewport: egui::ViewportId) -> bool {
 
 /// A closed window opens afresh next time ([`after_open`]).
 pub(crate) fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
-    ctx.data_mut(|d| d.remove::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport))));
+    ctx.data_mut(|d| {
+        d.remove::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport)));
+        d.remove::<u8>(egui::Id::unique(("raised", viewport)));
+    });
+}
+
+/// A message window just opened comes to the front, once, when it's on screen (its second
+/// frame). The window of a mail file handed to a running MailCraft opened behind the main
+/// window, which that launch had just brought forward; so did one for a file MailCraft was
+/// started with.
+fn raise_once(ctx: &egui::Context, viewport: egui::ViewportId) {
+    let id = egui::Id::unique(("raised", viewport));
+    let frames = ctx.data(|d| d.get_temp::<u8>(id).unwrap_or(0));
+    if frames < 2 {
+        ctx.data_mut(|d| d.insert_temp(id, frames + 1));
+    }
+    if frames == 1 {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
 }
 
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so
@@ -380,10 +432,26 @@ pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &Messa
         opened_file_toolbar(ui, s, st, key, acts);
         return;
     }
-    let t = &st.tokens;
     let close = || Action::Run("message.closeWindow", json!({"key": key.to_id()}));
     let flagged = s.summary(key).is_some_and(|m| m.flags.flagged);
     let unread = s.summary(key).is_some_and(|m| !m.flags.seen);
+    widgets::fitted_toolbar(ui, egui::Id::unique(("message-toolbar-fit", ui.ctx().viewport_id())), |ui| {
+        toolbar_row(ui, s, st, key, flagged, unread, close, acts)
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn toolbar_row(
+    ui: &mut Ui,
+    s: &Session,
+    st: &UiState,
+    key: &MessageKey,
+    flagged: bool,
+    unread: bool,
+    close: impl Fn() -> Action,
+    acts: &mut Vec<Action>,
+) {
+    let t = &st.tokens;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         for (id, icon, label) in

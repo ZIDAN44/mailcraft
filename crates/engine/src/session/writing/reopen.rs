@@ -7,21 +7,37 @@
 
 use super::signatures::{signature_block, style_signature};
 use super::*;
+use crate::session::security::is_sealed;
 
 impl Session {
     /// Carry on writing draft `key`. One being written already is brought forward instead.
     pub fn edit_draft(&mut self, key: &MessageKey) -> CmdResult {
-        let open = self.all_composes().find(|c| c.draft.as_ref() == Some(key)).map(|c| c.id);
+        // By the copy it was opened from, or the one it was saved as since (a save on a server
+        // is another copy, with the same Message-ID): opened a second time from that, sending
+        // one left the other to be sent again, or kept as a draft of mail already sent.
+        let id = self.summary(key).map(|m| mailcraft_model::thread::norm_id(&m.message_id)).filter(|i| !i.is_empty());
+        let saved_as = |c: &Compose| c.account == key.account && id.as_ref().is_some_and(|i| mailcraft_model::thread::norm_id(&c.draft_id) == *i);
+        let open = self.all_composes().find(|c| c.draft.as_ref() == Some(key) || saved_as(c)).map(|c| c.id);
         if let Some(id) = open {
             self.activate_compose(id);
             return Ok(serde_json::json!({ "compose": id }));
         }
         let raw = self.readable_raw(key).ok_or_else(|| CmdError::Disabled("the draft is still downloading".into()))?;
+        // One kept encrypted (a message to be sent encrypted is, on the server) opens once
+        // it's been decrypted, never as what encrypts it.
+        if is_sealed(&raw) {
+            return Err(CmdError::Disabled("the draft is encrypted: it opens once it has been decrypted".into()));
+        }
         // From an account that can send (not the data file it's in, whose copy stays as it is).
         let account = self.sending_account(key.account.clone());
         let mut c = self.compose_from_saved(&account, key, &raw)?;
         if account == key.account {
             c.draft = Some(key.clone());
+        }
+        // Kept encrypted, it was to be sent encrypted: it still is, whatever the account does
+        // by itself (opened again and sent, it went in the clear, with the text it quoted).
+        if self.body_raw(key).is_some_and(|stored| is_sealed(&stored)) {
+            c.encrypt = true;
         }
         c.window = self.prefs.new_mail_window;
         let id = c.id;
@@ -48,9 +64,12 @@ impl Session {
             }
         }
         let (importance, read_receipt, source) = mime::sending_options(raw);
+        // From the address it was written from, when that's one of the account's others.
+        let from = self.account(account).and_then(|a| a.config.identity(&p.from.email)).map(|i| i.email.clone()).unwrap_or_default();
         let mut c = Compose {
             id: self.fresh_id(),
             account: account.to_string(),
+            from,
             to: addr::format_field(&p.to),
             cc: addr::format_field(&p.cc),
             bcc: addr::format_field(&p.bcc),

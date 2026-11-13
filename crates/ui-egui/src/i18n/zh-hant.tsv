@@ -117,6 +117,7 @@
 	24-hour	24 小時制
 	12-hour	12 小時制
 	Whole date and time in the list	在清單中顯示完整日期和時間
+	Earlier this month	本月稍早
 	Last month	上個月
 	Last week	上週
 	Later	稍後
@@ -156,6 +157,10 @@
 	Move to folder	移到資料夾
 	Move to…	移到…
 	Move {n} messages	移動 {n} 封郵件
+	Copy to folder	複製到資料夾
+	Copy to…	複製到…
+	Copy 1 message	複製 1 封郵件
+	Copy {n} messages	複製 {n} 封郵件
 	Move “{folder}” to	將「{folder}」移到
 	Name	名稱
 	Names <addresses>, separated by ; or ,	姓名 <地址>，以 ; 或 , 分隔
@@ -198,7 +203,6 @@
 	Password needed	需要密碼
 	Password…	密碼…
 	Personal	個人
-	Pick messages from one account to move them to a folder.	請選擇同一個帳戶的郵件來移到資料夾。
 	Picture	圖片
 	Pictures from the web are hidden to protect your privacy.	為保護您的隱私，已隱藏來自網路的圖片。
 	Picture…	圖片…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	已將 {n} 個附件儲存到 {folder}
 	Saved {path}	已儲存 {path}
 	Search folders	搜尋資料夾
+	(the rest isn't shown: open the file to see it all)	（其餘部分未顯示：開啟檔案即可檢視全部）
+	Pick a category	請選擇類別
+	Pick a folder	請選擇資料夾
+	Say what to look for	請填寫要尋找的內容
+	Give the rule a name	請為規則命名
 	Search mail (from:, subject:, has:attachment…)	搜尋郵件 (from:, subject:, has:attachment…)
 	Select a message first.	請先選擇一封郵件。
 	Send	傳送
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	伺服器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
 	Settings found: {source}	已找到設定: {source}
 	Show a desktop notification when new mail arrives	收到新郵件時顯示桌面通知
+	Keep MailCraft running when its window is closed	關閉視窗後讓 MailCraft 繼續執行
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	它會留在通知區域，檢查郵件並在有新郵件時通知。在「檔案」頁面或其圖示的選單中選擇「結束」即可關閉。
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	視窗會最小化，MailCraft 會繼續檢查郵件並在有新郵件時通知。在「檔案」頁面選擇「結束」即可關閉。
+	Open MailCraft	開啟 MailCraft
 	Show as plain text	以純文字顯示
 	Show formatted	以格式顯示
 	Show in Favorites	在我的最愛中顯示
@@ -767,11 +780,18 @@
 	Move down	下移
 	Updating…	正在更新…
 	All folders are up to date	所有資料夾都是最新的
+	1 account disconnected	1 個帳戶已中斷連線
 	{n} accounts disconnected	{n} 個帳戶已中斷連線
 	{account}: {status}	{account}:{status}
 	Sign in with Microsoft	使用 Microsoft 登入
 	Sign in with Microsoft…	使用 Microsoft 登入…
 	Mailbox won't open	信箱無法開啟
+	Trust this computer's mail server?	要信任這部電腦上的郵件伺服器嗎？
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} 位於這部電腦上，出示的是它自行產生的憑證，沒有任何機構為其擔保。將郵件服務連接到郵件應用程式的程式就是這樣運作的。只有在該程式是您自己設定時，才信任它。
+	Certificate fingerprint (SHA-256)	憑證指紋 (SHA-256)
+	MailCraft asks again if the server shows another certificate.	如果伺服器出示其他憑證，MailCraft 會再次詢問。
+	Trust this certificate	信任此憑證
+	Certificate not trusted yet	憑證尚未受信任
 	The mailbox won't open	信箱無法開啟
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph 不經 IMAP 即可存取信箱，也會同步行事曆和連絡人。帳戶將透過它重新開始：郵件會從伺服器下載。
 	Turned IMAP on, or picked another account in the browser? Sign in again	已開啟 IMAP，或在瀏覽器中選了別的帳戶？重新登入
@@ -852,6 +872,28 @@
 	Delete this contact?	刪除此連絡人?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	將刪除此連絡人及其儲存的所有資訊。此動作無法復原。
 	Export…	匯出…
+	{file} isn't a MailCraft backup.	{file} 不是 MailCraft 備份。
+	A backup is brought in where MailCraft runs in the browser.	備份需在 MailCraft 於瀏覽器中執行時載入。
+	Backup saved as {file}	備份已儲存為 {file}
+	Restore…	還原…
+	Bring a backup file in. It takes the place of what's kept here now.	載入備份檔案。它會取代這裡目前保存的內容。
+	Back up…	備份…
+	Save what's kept here to a file, with a password if you like.	把這裡保存的內容存入一個檔案，可以選擇設定密碼。
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft 只在此瀏覽器中保存你的帳戶、設定和郵件。清除此網站的瀏覽器資料會將其刪除：備份檔案可以在此瀏覽器或其他瀏覽器中把它們找回來。
+	Backup	備份與還原
+	The backup's password	備份的密碼
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	這會取代 MailCraft 目前在此瀏覽器中保存的所有內容：帳戶、其設定及郵件。每個帳戶的密碼都需要重新輸入。
+	Restore from a backup…	從備份還原…
+	Restore from backup	從備份還原
+	The two passwords aren't the same.	兩次輸入的密碼不一致。
+	Save backup	儲存備份
+	The file can't be opened without this password: MailCraft can't recover it.	沒有此密碼就無法開啟該檔案：MailCraft 無法找回密碼。
+	Without a password, anyone who has the file can read what's in it.	沒有密碼時，任何拿到該檔案的人都能讀取其中內容。
+	The password again	再次輸入密碼
+	Password for the file (optional)	檔案密碼（選用）
+	Include the mail downloaded to this browser	包含已下載到此瀏覽器的郵件
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	你的帳戶及其設定、規則、簽名、行事曆和連絡人會存入一個檔案。其中絕不包含密碼。
+	Back up	備份
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	新增由 MailCraft 儲存的檔案中的規則。此電腦上沒有的帳戶的規則會以關閉狀態新增。
 	Change…	變更…
 	Clean up	清理
@@ -879,6 +921,17 @@
 	Send email	傳送電子郵件
 	Add	新增
 	Add a shared mailbox	新增共用信箱
+	Other addresses	其他位址
+	Key {key}: signs mail from {addresses}	金鑰 {key}：為來自 {addresses} 的郵件簽名
+	Valid until {date}: signs mail from {addresses}	有效期至 {date}：為來自 {addresses} 的郵件簽名
+	Find on the server	在伺服器上尋找
+	Addresses of this same mailbox that you also send from.	同一信箱中您也用來寄信的位址。
+	Add an address	新增位址
+	Change an address	變更位址
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	同一信箱的另一個位址（例如別名），可以用它寄送郵件。撰寫郵件時在「寄件者」中選擇它。您的郵件伺服器必須允許從該位址寄送。
+	Name on mail from it	用此位址寄信時顯示的名稱
+	Replies go to	回覆寄到
+	(the account's own)	（帳戶自己的簽名）
 	Add…	新增…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	其資料夾會顯示在此帳戶下。你需要在 Exchange 伺服器上擁有存取權；擁有完整存取權的信箱會自動開啟。
 	Mailboxes you have full access to open by themselves.	擁有完整存取權的信箱會自動開啟。
@@ -1630,7 +1683,7 @@ month	May	5月
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	此郵件看起來可疑或無法確認寄件者，因此其圖片保持隱藏。
 	These senders' pictures always load, even when a message looks suspicious:	這些寄件者的圖片一律載入，即使郵件看起來可疑：
 	Open a mail file	開啟郵件檔案
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	在單獨的視窗中檢視已儲存的郵件（.eml 或 Outlook 的 .msg），不會將其新增至資料夾。不會載入其中來自網路的圖片，其中的任何內容也不會執行。
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	在單獨的視窗中檢視已儲存的郵件（.eml 或 Outlook 的 .msg），不會將其新增至資料夾。只有在您要求時才會載入其中來自網路的圖片，其中的任何內容也不會執行。
 	Nothing is kept: closing it leaves no trace in your mail.	不會保留任何內容：關閉後不會在郵件中留下痕跡。
 	and {n} more	另外 {n} 個
 	Checking for new mail	檢查新郵件
@@ -1643,4 +1696,10 @@ month	May	5月
 	Server: {url} (CalDAV and CardDAV)	伺服器: {url} (CalDAV 和 CardDAV)
 	Not available: this account has no mail server.	無法使用：此帳戶沒有郵件伺服器。
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	郵件已從 MailCraft 先前的 Flatpak 移轉過來，舊版仍已安裝。若要移除，請執行：flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	從 {file} 開啟。它不在任何資料夾中，不會載入其中來自網路的圖片，關閉後不會留下痕跡。
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	從 {file} 開啟。它不在任何資料夾中，只有在您要求時才會載入其中來自網路的圖片，關閉後不會留下痕跡。
+	To-Do Bar	待辦事項列
+	Appointments	約會
+	Type a new task	輸入新工作
+	Nothing to do	沒有待辦事項
+	Nothing in the next 7 days	未來 7 天沒有安排
+	Show the calendar, what's coming up and your tasks beside the mail	在郵件旁顯示行事曆、即將到來的約會和工作

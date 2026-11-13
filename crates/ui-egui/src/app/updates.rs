@@ -51,6 +51,8 @@ impl MailApp {
         if self.ui.close_asked && !asking && !self.ui.close_now && !self.ui.closing_anyway {
             self.ui.close_asked = false;
             self.ui.restart_wanted = false;
+            // An Exit answered with Cancel: the next close of the window hides it again.
+            self.ui.quit_wanted = false;
             self.ui.update_answered = false;
             self.ui.compact.answered = false;
             self.ui.compact.dont_wait = false;

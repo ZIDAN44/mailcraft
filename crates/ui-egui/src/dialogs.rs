@@ -11,6 +11,8 @@ use crate::theme::{self, Tokens};
 use crate::{Action, Icon, widgets};
 
 mod accounts;
+mod addresses;
+mod backup;
 mod categories;
 mod closing;
 mod dav;
@@ -21,9 +23,12 @@ mod organize;
 mod other;
 pub(crate) mod pim_dialogs;
 mod signatures;
+mod trust;
 mod writing;
 
 pub use accounts::*;
+pub use addresses::AddressForm;
+pub use backup::RestoreForm;
 pub use dav::DavForm;
 pub(crate) use importing::skip_line;
 pub use mailbox::*;
@@ -96,8 +101,10 @@ pub enum Dialog {
         uid: String,
         name: String,
     },
+    /// Pick the folder the selection is moved to, or (`copy`) copied to.
     MoveTo {
         filter: String,
+        copy: bool,
     },
     EmptySubject,
     /// What `compose.send` held the message for (a lookalike recipient, many people seeing each
@@ -112,6 +119,13 @@ pub enum Dialog {
         account: String,
         email: String,
         error: String,
+    },
+    /// A mail server on this computer showed a certificate no authority vouches for (issue #77):
+    /// whether to trust that one for the account.
+    TrustCertificate {
+        account: String,
+        host: String,
+        fingerprint: String,
     },
     Signature(Box<SignatureForm>),
     /// An account's name, user name and servers.
@@ -146,6 +160,12 @@ pub enum Dialog {
     },
     /// Where an account's calendars and contacts are, given by hand (issue #7).
     Dav(dav::DavForm),
+    /// Another address an account's mail is sent from (issue #81), added or changed.
+    Address(addresses::AddressForm),
+    /// A backup of what the browser keeps (issue #83): about to be saved, and one picked to
+    /// be brought back.
+    Backup(backup::BackupForm),
+    Restore(backup::RestoreForm),
     /// The password of a certificate file being imported (S/MIME): from `path`, or `data` as the
     /// browser's picker gives it; neither, the one the browser keeps, unlocked.
     Certificate {
@@ -268,6 +288,7 @@ impl Dialog {
                     | Dialog::RemoveAccount { .. }
                     | Dialog::StopImport { .. }
                     | Dialog::MailboxClosed { .. }
+                    | Dialog::TrustCertificate { .. }
                     | Dialog::EmptySubject
                     | Dialog::SaveChanges
                     | Dialog::SendCheck(_)
@@ -302,7 +323,11 @@ impl Dialog {
     }
 
     pub fn move_to() -> Dialog {
-        Dialog::MoveTo { filter: String::new() }
+        Dialog::MoveTo { filter: String::new(), copy: false }
+    }
+
+    pub fn copy_to() -> Dialog {
+        Dialog::MoveTo { filter: String::new(), copy: true }
     }
 
     /// A new event (at a time, or the next hour).
@@ -446,6 +471,7 @@ impl Dialog {
             Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
             Dialog::Dav(f) => f.error = Some(e),
+            Dialog::Address(f) => f.error = Some(e),
             Dialog::OpenSharedCalendar { error, .. } | Dialog::SubscribeCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => {
                 *error = Some(e)
             }
@@ -496,7 +522,8 @@ impl Dialog {
         }
         let mut text = get("text");
         if v.get("truncated").and_then(serde_json::Value::as_bool).unwrap_or(false) {
-            text.push_str("\n… (the rest isn't shown: open the file to see it all)");
+            text.push_str("\n… ");
+            text.push_str(tl!("(the rest isn't shown: open the file to see it all)"));
         }
         let title = if get("kind") == "message" && !get("subject").is_empty() { get("subject") } else { get("name") };
         let warning = v.get("warning").and_then(|w| serde_json::from_value(w.clone()).ok());
@@ -624,8 +651,11 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::MailboxClosed { .. }
         | Dialog::EditAccount(..)
         | Dialog::AddSharedMailbox { .. } => accounts::draw(ui, d, s, t, acts),
+        Dialog::TrustCertificate { .. } => trust::draw(ui, d, s, t, acts),
         Dialog::Signature(..) | Dialog::Vacation(..) => mailbox::draw(ui, d, s, t, acts),
         Dialog::Dav(f) => dav::draw(ui, f, t, acts),
+        Dialog::Address(f) => addresses::draw(ui, f, s, t, acts),
+        Dialog::Backup(..) | Dialog::Restore(..) => backup::draw(ui, d, t, acts),
         Dialog::ConfirmDelete { .. }
         | Dialog::MoveTo { .. }
         | Dialog::FolderName { .. }

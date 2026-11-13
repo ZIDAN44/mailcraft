@@ -168,3 +168,32 @@ fn imports_at_once_lose_nothing() {
         assert_ne!(kept(creds.as_ref(), &a).unwrap().certificate(), p12("riley-2025.p12").certificate());
     }
 }
+
+/// Issue #81: a message is signed with the certificate named for it (the one of the address
+/// it's from), whether that's the one in use or one kept beside it; with none named, or one
+/// MailCraft doesn't have, as before.
+#[test]
+fn a_message_is_signed_with_the_certificate_named() {
+    let creds = MemoryCredentials::default();
+    let account = account();
+    let (riley, zoe) = (p12("riley-aes.p12"), p12("zoe-aes.p12"));
+    take(&creds, &account, &riley, NOW).unwrap();
+    take(&creds, &account, &zoe, NOW).unwrap();
+    let in_use = kept(&creds, &account).unwrap();
+    let beside = if in_use == riley { zoe.clone() } else { riley.clone() };
+    // None named: the one in use.
+    let (me, older) = signing(&creds, &account, None);
+    assert!(me.unwrap() == in_use && older.is_none());
+    // The one in use named: itself, not looked for among the others.
+    let (me, older) = signing(&creds, &account, Some(in_use.certificate()));
+    assert!(me.unwrap() == in_use && older.is_none());
+    // The other named: it, with its key, from where it's kept.
+    let (me, older) = signing(&creds, &account, Some(beside.certificate()));
+    assert!(me.unwrap() == beside);
+    assert_eq!(older, Some(fingerprint(beside.certificate())));
+    // One MailCraft doesn't have: said, nothing signed with another.
+    let stranger = p12("riley-2025.p12");
+    assert!(signing(&creds, &account, Some(stranger.certificate())).0.is_err());
+    // What can't be read as a certificate names none.
+    assert!(signing(&creds, &account, Some(b"junk")).0.unwrap() == in_use);
+}

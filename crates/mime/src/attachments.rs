@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
 
+pub(crate) mod fields;
 mod index_text;
 mod parts;
 mod reactions;
@@ -14,7 +15,7 @@ pub use index_text::index_doc;
 #[doc(hidden)]
 pub use index_text::{IndexStats, index_doc_stats};
 use parts::sent_bytes;
-pub(crate) use parts::{contents, files_of, header_raw};
+pub(crate) use parts::{contents, files_of, header_raw, header_top};
 pub(crate) use reactions::reaction_of;
 pub use reactions::{REACTIONS, is_reaction_text, reaction};
 pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, part_name, text_first};
@@ -64,12 +65,16 @@ pub(super) fn attached<'a>(m: &'a Message<'_>) -> (Vec<Attached<'a>>, TnefBody) 
         }
         let index = out.len();
         let name = attachment_name(p.attachment_name(), &mime, &data, index);
+        // A picture the text may show. A file that merely has a Content-ID and says nothing of
+        // how it's to be shown (a PDF from some invoicing programs) is a file: taken for
+        // inline, it was counted (the paperclip) and then listed nowhere, nor saved with the rest.
+        let inline = p.is_inline_part() && mime.starts_with("image/");
         let info = AttachmentInfo {
             index,
             name,
             mime,
             size: shown_size(p, &data),
-            inline: p.is_inline_part(),
+            inline,
             content_id: p.content_id().map(|c| c.trim().trim_matches(['<', '>']).to_string()),
             content_location: p.content_location().map(|c| c.trim().trim_matches(['<', '>', '"']).to_string()).filter(|c| !c.is_empty()),
         };

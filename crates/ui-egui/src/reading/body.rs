@@ -71,7 +71,9 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
                     if ui.link(tl!("Show pictures")).clicked() {
                         acts.push(Action::Run("message.showPictures", json!({})));
                     }
-                    let who = p.from.email.clone();
+                    // Not for a message file opened to be looked at: who it says it's from may be
+                    // anyone, so nothing is trusted on its word.
+                    let who = if s.opened_file_name(key).is_some() { String::new() } else { p.from.email.clone() };
                     if !who.is_empty() && ui.link(tf!("Always show from {sender}", sender = who)).clicked() {
                         acts.push(Action::Run("message.showPictures", json!({"always": true})));
                     }
@@ -239,6 +241,10 @@ fn span_font_at_full_size(sp: &mime::Span) -> egui::FontId {
     }
 }
 
+/// How tall an empty line is: the gap a browser leaves between two paragraphs of text this
+/// size (their `1em`), where a line of text is taller.
+pub(super) const BLANK: f32 = 14.0;
+
 impl Body<'_> {
     /// Formatted lines `width` wide, on a background of `page` (for the text's contrast).
     pub(super) fn lines(&mut self, st: &mut UiState, ui: &mut Ui, lines: &[Vec<mime::Span>], width: f32, page: [u8; 3], align: Align) {
@@ -246,7 +252,7 @@ impl Body<'_> {
         for line in lines {
             if line.is_empty() {
                 text_selection::blank(st);
-                ui.add_space(9.0);
+                ui.add_space(BLANK);
                 continue;
             }
             text_selection::line(st);

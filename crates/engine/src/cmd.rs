@@ -92,6 +92,7 @@ mod meetings;
 mod navigation;
 mod pgp;
 mod pim;
+mod printing;
 mod security;
 mod signatures;
 mod tasks;

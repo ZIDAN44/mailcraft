@@ -132,9 +132,15 @@ fn proto(m: impl Into<String>) -> NetError {
 impl Client<Stream> {
     /// Connect as the server settings say (no sign-in yet).
     pub fn connect(cfg: &ServerConfig) -> Result<Client<Stream>> {
+        Self::connect_trusting(cfg, &[])
+    }
+
+    /// [`Self::connect`] for an account's server: `trusted` are the certificates the user chose
+    /// to trust for one on this computer ([`stream::tls_trusting`]).
+    pub fn connect_trusting(cfg: &ServerConfig, trusted: &[String]) -> Result<Client<Stream>> {
         let sock = stream::tcp(&cfg.host, cfg.port)?;
         match cfg.security {
-            Security::Tls => Client::greet(stream::tls(sock, &cfg.host)?),
+            Security::Tls => Client::greet(stream::tls_trusting(sock, &cfg.host, trusted)?),
             Security::None => Client::greet(Stream::Plain(sock)),
             Security::StartTls => {
                 let mut c = Client::greet(Stream::Plain(sock))?;
@@ -143,7 +149,7 @@ impl Client<Stream> {
                     return Err(NetError::Tls("unexpected data before TLS negotiation".into()));
                 }
                 let Stream::Plain(sock) = c.r.into_inner() else { return Err(NetError::Tls("connection already encrypted".into())) };
-                Ok(Client { r: BufReader::new(stream::tls(sock, &cfg.host)?) })
+                Ok(Client { r: BufReader::new(stream::tls_trusting(sock, &cfg.host, trusted)?) })
             }
         }
     }
@@ -261,6 +267,11 @@ impl<S: Read + Write> Client<S> {
 
 fn auth(e: &NetError) -> NetError {
     match e {
+        // The mailbox is in use, or the server asks to wait (RFC 2449, 3206): not the password,
+        // which was asked for again, the account checking no more until it was typed.
+        NetError::No(m) if ["[in-use]", "[login-delay]", "[sys/temp]"].iter().any(|code| m.to_ascii_lowercase().contains(code)) => {
+            NetError::Later(m.clone())
+        }
         NetError::No(m) => NetError::Auth(if m.is_empty() { "the server refused the user name or password".into() } else { m.clone() }),
         e => NetError::Protocol(e.to_string()),
     }
@@ -270,7 +281,7 @@ fn auth(e: &NetError) -> NetError {
 pub fn open(acc: &AccountConfig, secret: &str) -> Result<Client<Stream>> {
     let cfg = acc.pop.as_ref().ok_or_else(|| proto("not a POP account"))?;
     let user = if acc.username.is_empty() { acc.email.as_str() } else { acc.username.as_str() };
-    let mut c = Client::connect(cfg)?;
+    let mut c = Client::connect_trusting(cfg, &acc.trusted_certificates)?;
     if acc.oauth.is_some() {
         c.login_xoauth2(user, secret)?;
     } else {
@@ -540,6 +551,17 @@ mod tests {
     fn mail(subject: &str, extra: &str) -> Vec<u8> {
         format!("From: Ana <ana@pop.example>\r\nTo: me@pop.example\r\nSubject: {subject}\r\nMessage-ID: <{subject}@x>\r\n\r\nHello.\r\n{extra}")
             .into_bytes()
+    }
+
+    /// Found in review: a mailbox another session holds, or a server that asks to wait, was
+    /// taken for a refused password, which was then asked for and the account checked no more.
+    #[test]
+    fn a_busy_mailbox_isnt_a_wrong_password() {
+        for busy in ["[IN-USE] mailbox locked", "[in-use] Do not hammer", "[LOGIN-DELAY] wait 30 seconds", "[SYS/TEMP] try later"] {
+            assert!(matches!(auth(&NetError::No(busy.into())), NetError::Later(m) if m == busy), "{busy}");
+        }
+        assert!(matches!(auth(&NetError::No("[AUTH] wrong password".into())), NetError::Auth(_)));
+        assert!(matches!(auth(&NetError::No(String::new())), NetError::Auth(_)));
     }
 
     #[test]

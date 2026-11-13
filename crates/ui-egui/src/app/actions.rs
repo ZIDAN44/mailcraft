@@ -13,6 +13,12 @@ impl MailApp {
                 self.ui.dialog = Some(Dialog::password(&a.config));
             }
         }
+        // A mail server on this computer with a certificate of its own asks to be trusted, the
+        // same way (issue #77).
+        if self.ui.dialog.is_none() && self.ui.backstage.is_none() && !self.session.ask_certificate.is_empty() {
+            let (account, host, fingerprint) = self.session.ask_certificate.remove(0);
+            self.ui.dialog = Some(Dialog::TrustCertificate { account, host, fingerprint });
+        }
         let news = self.session.take_new_mail();
         if !news.is_empty() {
             // Issue #4: the system keeps its notifications (Windows, in its history): one for an
@@ -120,6 +126,12 @@ impl MailApp {
                 Ok(v) => self.ui.raise_source = v.get("key").and_then(Value::as_str).and_then(MessageKey::from_id),
                 Err(e) => self.session.notice(e.to_string(), true),
             },
+            // Deleting from Deleted Items is for good: asked first wherever it's asked from
+            // (a row's bin, the menu, a message's own window and the reading pane's button
+            // didn't, one slip from Flag).
+            Action::Run("mail.delete", p) if p.get("permanent").is_none() && self.needs_delete_confirm() => {
+                self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
+            }
             Action::Run(id, p) => {
                 // A Search Folder isn't a search typed in: the box is left empty.
                 if matches!(id, "search.clear" | "searchFolder.open") {
@@ -219,19 +231,11 @@ impl MailApp {
                     }
                 }
             }
-            Action::ExportRules => {
-                if let Some(path) = self.services.save_path("MailCraft rules.json") {
-                    match self.session.run("rules.export", &json!({"path": path.to_string_lossy()})) {
-                        Ok(v) => {
-                            let n = v.get("rules").and_then(Value::as_u64).unwrap_or(0);
-                            let file = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                            self.session.notice(tf!("Rules saved in {file}: {n}", n = n, file = file), false);
-                        }
-                        Err(e) => self.session.notice(e.to_string(), true),
-                    }
-                }
-            }
+            Action::ExportRules => self.export_rules(),
             // The browser's picker answers later (with the file's bytes).
+            Action::Backup { password, mail } => self.save_backup(&password, mail),
+            Action::PickBackup => self.pick_backup(),
+            Action::Restore { data, password } => self.restore_backup(&data, &password),
             Action::ImportCertificate(account) if self.services.pick_later(&format!("certificate:{account}")) => {}
             Action::ImportCertificate(account) => {
                 if let Some(path) = self.services.pick_certificate() {
@@ -263,58 +267,9 @@ impl MailApp {
                 self.run("security.findKeys", json!({"keychain": true}));
                 self.ui.dialog = Some(Dialog::SmartCard { account, module: String::new(), pin: String::new(), system: true });
             }
-            Action::ImportRules => {
-                if let Some(path) = self.services.pick_rules_file() {
-                    match self.session.run("rules.import", &json!({"path": path.to_string_lossy()})) {
-                        Ok(v) => {
-                            let n = v.get("added").and_then(Value::as_u64).unwrap_or(0);
-                            let off = v.get("turnedOff").and_then(Value::as_u64).unwrap_or(0);
-                            let text = if off > 0 {
-                                tf!("Rules imported: {n} ({off} turned off, as their account isn't on this computer)", n = n, off = off)
-                            } else {
-                                tf!("Rules imported: {n}", n = n)
-                            };
-                            self.session.notice(text, false);
-                        }
-                        Err(e) => self.session.notice(e.to_string(), true),
-                    }
-                }
-            }
-            Action::ExportCategories => {
-                if let Some(path) = self.services.save_path("MailCraft categories.json") {
-                    match self.session.run("category.export", &json!({"path": path.to_string_lossy()})) {
-                        Ok(v) => {
-                            let n = v.get("categories").and_then(Value::as_u64).unwrap_or(0);
-                            let file = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                            self.session.notice(tf!("Categories saved in {file}: {n}", n = n, file = file), false);
-                        }
-                        Err(e) => self.session.notice(e.to_string(), true),
-                    }
-                }
-            }
-            Action::ImportCategories => {
-                if let Some(path) = self.services.pick_categories_file() {
-                    match self.session.run("category.import", &json!({"path": path.to_string_lossy()})) {
-                        Ok(v) => {
-                            let n = v.get("added").and_then(Value::as_u64).unwrap_or(0);
-                            let changed = v.get("changed").and_then(Value::as_u64).unwrap_or(0);
-                            let skipped = v.get("skipped").and_then(Value::as_array).map_or(0, Vec::len);
-                            let text = if skipped > 0 {
-                                tf!(
-                                    "Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)",
-                                    n = n,
-                                    changed = changed,
-                                    skipped = skipped
-                                )
-                            } else {
-                                tf!("Categories imported: {n} new, {changed} changed", n = n, changed = changed)
-                            };
-                            self.session.notice(text, skipped > 0);
-                        }
-                        Err(e) => self.session.notice(e.to_string(), true),
-                    }
-                }
-            }
+            Action::ImportRules => self.import_rules(),
+            Action::ExportCategories => self.export_categories(),
+            Action::ImportCategories => self.import_categories(),
             Action::OpenFolder(path) => {
                 if let Err(e) = self.services.open_path(&path) {
                     self.session.notice(e, true);
@@ -359,6 +314,12 @@ impl MailApp {
                         self.ui.search_text.clear();
                     }
                     self.ui.dialog = None;
+                    // A rule saved to be run now: run, now that it is.
+                    if id == "rules.set"
+                        && let Some(at) = p.get("runNow").and_then(Value::as_u64)
+                    {
+                        self.run("rules.run", json!({"index": at, "inbox": true}));
+                    }
                 }
                 Err(e) => {
                     if let Some(d) = self.ui.dialog.as_mut() {
@@ -528,6 +489,13 @@ impl MailApp {
 
     pub(crate) fn sign_in_again(&mut self, id: &str) {
         let Some((config, status)) = self.session.account(id).map(|a| (a.config.clone(), a.status.clone())) else { return };
+        // A server on this computer with a certificate of its own: asked about again.
+        if let SyncStatus::Error { error } = &status
+            && let Some((host, fingerprint)) = mailcraft_engine::model::untrusted_local_certificate(error)
+        {
+            self.ui.dialog = Some(Dialog::TrustCertificate { account: id.to_string(), host, fingerprint });
+            return;
+        }
         // Microsoft took the sign-in but won't open the mailbox: say why, and what helps.
         if let SyncStatus::Error { error } = &status
             && error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)

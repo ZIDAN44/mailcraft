@@ -23,6 +23,14 @@ fn tags(html: &str, mut each: impl FnMut(&str, bool, std::ops::Range<usize>) -> 
         let end = bytes.get(lt + 1).is_some_and(|&c| c == b'/');
         let start = lt + 1 + usize::from(end);
         let name_len = bytes.get(start..).map_or(0, |b| b.iter().take_while(|c| c.is_ascii_alphanumeric()).count());
+        // Not a tag (`<` and no name), or, inside a raw text element, not its own end tag: on
+        // from the next byte, before its end is looked for. Looked for first, a megabyte of
+        // `<<<<` was read from each `<` to the end of the message, and took minutes.
+        let name = html.get(start..start + name_len).unwrap_or_default().to_ascii_lowercase();
+        if name_len == 0 || raw.is_some_and(|r| !(end && name == r)) {
+            at = lt + 1;
+            continue;
+        }
         // The tag's end, past quoted values (a `>` in one doesn't end it).
         let mut close = start + name_len;
         let mut quote = None;
@@ -36,19 +44,9 @@ fn tags(html: &str, mut each: impl FnMut(&str, bool, std::ops::Range<usize>) -> 
             close += 1;
         }
         let next = (close + 1).min(bytes.len());
-        if name_len == 0 {
-            at = lt + 1;
-            continue;
-        }
-        let name = html.get(start..start + name_len).unwrap_or_default().to_ascii_lowercase();
-        if let Some(r) = raw {
-            // Inside a raw text element only its own end tag counts.
-            if end && name == r {
-                raw = None;
-            } else {
-                at = lt + 1;
-                continue;
-            }
+        if raw.is_some() {
+            // Inside a raw text element only its own end tag counts: this is it.
+            raw = None;
         } else if !end {
             raw = ["script", "style", "textarea", "title"].into_iter().find(|r| *r == name);
         }
@@ -132,6 +130,27 @@ mod tests {
         // Tags in a comment, a style sheet or a script, or a `>` in a value, nest nothing.
         let quiet = format!("<!--{}--><style>{}</style><a title=\"{}\">x</a>", "<table>".repeat(100), "<table>".repeat(100), "<table>".repeat(100));
         assert!(!too_deep(&quiet));
+    }
+
+    /// Found in review: `<` with no name after it, and `<a` inside a `style` left open, were
+    /// each read to the end of the message, a megabyte of them for minutes.
+    #[test]
+    fn a_megabyte_of_stray_angle_brackets_is_read_once() {
+        let tables = "<table></table>".repeat(MAX_TABLES + 1);
+        let started = std::time::Instant::now();
+        for junk in ["<".repeat(1 << 20), "< ".repeat(1 << 19), format!("<style>{}", "<a ".repeat(1 << 18)), "<\"".repeat(1 << 19)] {
+            let html = format!("{tables}{junk}");
+            assert!(!too_deep(&html));
+            let _ = flattened(&html);
+        }
+        assert!(started.elapsed() < std::time::Duration::from_secs(20), "{:?}", started.elapsed());
+        // What the tags are is as before.
+        let mut seen = Vec::new();
+        tags("<p>a < b <i>c</i><style>x<y</style><script>if (a</b>) {}</script><b>", |name, end, _| {
+            seen.push(format!("{}{name}", if end { "/" } else { "" }));
+            true
+        });
+        assert_eq!(seen, ["p", "i", "/i", "style", "/style", "script", "/script", "b"]);
     }
 
     #[test]

@@ -182,8 +182,10 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let title = if task.title.trim().is_empty() { tl!("(no title)").to_string() } else { task.title.clone() };
     let (shown, title_rtl) = crate::bidi::shown(&title);
     let title_color = if done { t.faint } else { t.text };
-    let galley = p.layout_no_wrap(shown.into_owned(), theme::bold(13.0), title_color);
+    // Cut with "…" where it doesn't fit, as the list's subjects are (it stopped mid-letter at
+    // the next column).
     let room = (x_due - x_title - 10.0).max(10.0);
+    let galley = widgets::one_line(ui, &shown, theme::bold(13.0), title_color, room);
     let title_w = galley.size().x.min(room);
     let title_x = if title_rtl && !mr.on() { rect.min.x + x_title + room - title_w } else { rect.min.x + x_title };
     // Under it: that it repeats, its categories, its notes' first line.
@@ -206,7 +208,9 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
         let y = title_rect.center().y;
         p.with_clip_rect(clip).line_segment([pos2(title_rect.min.x, y), pos2(title_rect.max.x, y)], egui::Stroke::new(1.0, t.faint));
     }
-    p.with_clip_rect(clip).text(mr.pos(pos2(rect.min.x + x_title, rect.min.y + 31.0)), start, under.join(" · "), theme::regular(11.5), t.dim);
+    let under = widgets::one_line(ui, &under.join(" · "), theme::regular(11.5), t.dim, room);
+    let under_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_title, rect.min.y + 31.0)), under.size());
+    p.with_clip_rect(clip).galley(under_at.min, under, t.dim);
     let due_text = task.due.map_or_else(|| tl!("None").to_string(), |d| due_label(d, s));
     let due_color = if late {
         t.danger
@@ -223,7 +227,9 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
         other => tl!(crate::pim_dialogs::status_label(other)).to_string(),
     };
     let status_clip = mr.rect(Rect::from_min_size(pos2(rect.min.x + x_status, rect.min.y), vec2(STATUS_W - 8.0, ROW)));
-    p.with_clip_rect(status_clip).text(mr.pos(pos2(rect.min.x + x_status, rect.center().y)), start, status, theme::regular(12.5), t.dim);
+    let status = widgets::one_line(ui, &status, theme::regular(12.5), t.dim, STATUS_W - 8.0);
+    let status_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_status, rect.center().y)), status.size());
+    p.with_clip_rect(status_clip).galley(status_at.min, status, t.dim);
     if task.priority != TaskPriority::Normal {
         let high = task.priority == TaskPriority::High;
         let text = if high { "!" } else { "↓" };

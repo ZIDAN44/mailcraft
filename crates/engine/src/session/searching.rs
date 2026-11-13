@@ -193,7 +193,8 @@ impl AwaitingScan {
         let mine = s
             .accounts
             .iter()
-            .flat_map(|a| [a.config.email.trim().to_lowercase(), a.config.username.trim().to_lowercase()])
+            .flat_map(|a| a.config.addresses().chain([a.config.username.as_str()]))
+            .map(|e| e.trim().to_lowercase())
             .filter(|e| e.contains('@'))
             .collect();
         let folders = s

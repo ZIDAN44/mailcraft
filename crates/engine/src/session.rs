@@ -281,6 +281,11 @@ pub struct Session {
     /// start asks), once each while MailCraft runs; the window asks when nothing else is open.
     pub ask_password: Vec<String>,
     asked_password: HashSet<String>,
+    /// Certificates to ask about now (issue #77): a mail server on this computer showed one no
+    /// authority vouches for. The account, the server and the certificate's fingerprint; once
+    /// each while MailCraft runs, and the window asks when nothing else is open.
+    pub ask_certificate: Vec<(String, String, String)>,
+    asked_certificate: HashSet<(String, String)>,
     /// The messages on screen, newest first.
     pub list: Vec<SharedSummary>,
     /// Conversations over `list` (when [`Prefs::conversations`] is on).
@@ -303,6 +308,9 @@ pub struct Session {
     /// open): starting another sets the current one aside here rather than losing it.
     /// [`Session::activate_compose`] brings one back to act on.
     pub composes: Vec<Compose>,
+    /// Messages closed while they were being sent, kept until word of the send comes: one that
+    /// isn't sent after all opens again, where it was lost (in neither Drafts nor the Outbox).
+    pub(crate) sent_away: Vec<Compose>,
     /// Messages closed or made way for with their drafts still on the way to a server (#53):
     /// held here, out of sight, until the server or this computer has kept the draft
     /// ([`Event::DraftSaved`]), and given back to be written if neither could.
@@ -370,6 +378,9 @@ pub struct Session {
     opened: HashMap<MessageKey, (Vec<u8>, bool)>,
     opening: HashSet<MessageKey>,
     decrypt_errors: HashMap<MessageKey, String>,
+    /// Answers still to come for messages asked to be decrypted before their keys came to
+    /// name others (the Outbox's rows moved): how many, by key. Each is let pass.
+    stale_decrypts: HashMap<MessageKey, u32>,
     protecting: HashMap<u64, security::Protecting>,
     revocation: security::Revocations,
     cards: security::CardSearch,
@@ -377,6 +388,14 @@ pub struct Session {
     pgp: security::PgpState,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
+    /// Mail the user put in a server account's Inbox or Junk (a move, an undo, a snooze over),
+    /// by (account, folder, Message-ID): the server gives it a new UID there, and it isn't
+    /// mail arriving.
+    pub(crate) moved_in: std::collections::HashSet<(String, String, String)>,
+    /// When mail was last moved (Unix seconds): its Undo waits for a server to have moved it.
+    pub(crate) moved_at: i64,
+    /// Mail moved or copied into a folder on this computer, waiting for its source (issue #82).
+    pub(crate) transfers: Vec<mailboxes::Transfer>,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
     pub(crate) arrived_invites: Vec<MessageKey>,
     /// New mail to announce (desktop notifications), oldest first.
@@ -409,6 +428,8 @@ pub struct Session {
     pub pim: HashMap<String, mailcraft_model::pim::Pim>,
     /// The accounts whose calendars and contacts couldn't be read: never saved over.
     pub(crate) pim_unread: HashSet<String>,
+    /// The flagged mail of every folder, for the To-Do Bar's task list.
+    pub(crate) todo: pim::TodoMail,
     /// The documents (`rules.json`, `snoozes.json`) that couldn't be read at start: never saved
     /// over with what's shown in their place.
     pub(crate) docs_unread: HashSet<&'static str>,
@@ -465,6 +486,8 @@ impl Session {
             recent_in_memory: Vec::new(),
             showing_more: None,
             ask_password: Vec::new(),
+            ask_certificate: Vec::new(),
+            asked_certificate: HashSet::new(),
             asked_password: HashSet::new(),
             list: Vec::new(),
             threads: Vec::new(),
@@ -477,6 +500,7 @@ impl Session {
             sources: Vec::new(),
             compose: None,
             composes: Vec::new(),
+            sent_away: Vec::new(),
             saving: Vec::new(),
             drafted: writing::DraftedMemo::default(),
             prefs: Prefs::default(),
@@ -508,11 +532,15 @@ impl Session {
             opened: HashMap::new(),
             opening: HashSet::new(),
             decrypt_errors: HashMap::new(),
+            stale_decrypts: HashMap::new(),
             protecting: HashMap::new(),
             revocation: Default::default(),
             cards: Default::default(),
             pgp: Default::default(),
             seen_uid: HashMap::new(),
+            moved_in: std::collections::HashSet::new(),
+            moved_at: 0,
+            transfers: Vec::new(),
             arrived_invites: Vec::new(),
             new_mail: Vec::new(),
             rules: Vec::new(),
@@ -529,6 +557,7 @@ impl Session {
             open_urls: Vec::new(),
             pim: HashMap::new(),
             pim_unread: HashSet::new(),
+            todo: pim::TodoMail::default(),
             docs_unread: HashSet::new(),
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,
@@ -579,6 +608,7 @@ impl Session {
             s.read_drafts(&id);
         }
         s.refresh_outbox();
+        s.restore_unsent();
         s.load_pim();
         s.load_smime();
         s.view = s.default_view();

@@ -102,6 +102,14 @@ pub(crate) struct PgpState {
     own: HashMap<String, Vec<openpgp::KeyInfo>>,
 }
 
+impl PgpState {
+    /// What's known of the messages in `folder` goes: its keys name other messages now.
+    pub(crate) fn forget_folder(&mut self, folder: &str) {
+        self.asked.retain(|k, _| k.folder != folder);
+        self.signed.retain(|k, _| k.folder != folder);
+    }
+}
+
 impl Session {
     pub(crate) fn load_pgp(&mut self) {
         let Some(store) = self.store.clone() else { return };
@@ -135,6 +143,33 @@ impl Session {
     /// The account's key in use, when it has one.
     pub fn pgp_key(&self, account: &str) -> Option<openpgp::KeyInfo> {
         self.pgp.own.get(account).and_then(|o| o.first()).cloned()
+    }
+
+    /// The account's OpenPGP key mail from `from` is signed with, as [`Session::own_cert_for`]:
+    /// the first that names the address and has nothing wrong with it now.
+    pub(crate) fn own_pgp_for(&self, account: &str, from: &str) -> Option<(Vec<u8>, openpgp::KeyInfo)> {
+        let address = self.address_from(account, from);
+        let s = self.pgp.settings.get(account)?;
+        let infos = self.pgp.own.get(account)?;
+        let mut keys: Vec<(Vec<u8>, openpgp::KeyInfo)> = s.keys.iter().cloned().zip(infos.iter().cloned()).collect();
+        let named = keys.iter().position(|(_, i)| i.is_for(&address) && i.problems(self.clock.now).is_empty());
+        match named {
+            Some(at) => Some(keys.swap_remove(at)),
+            None if self.is_own_address(account, &address) => keys.into_iter().next(),
+            None => None,
+        }
+    }
+
+    /// [`Session::pgp_key`] for mail from `from`: the key that signs it.
+    pub fn pgp_key_from(&self, account: &str, from: &str) -> Option<openpgp::KeyInfo> {
+        self.own_pgp_for(account, from).map(|(_, i)| i)
+    }
+
+    /// The account's addresses whose mail the OpenPGP key `fingerprint` signs, its own first.
+    pub fn signed_by_key(&self, account: &str, fingerprint: &str) -> Vec<String> {
+        self.addresses_signed(account, |s, address| {
+            s.own_pgp_for(account, address).is_some_and(|(_, i)| i.fingerprint.eq_ignore_ascii_case(fingerprint))
+        })
     }
 
     /// The account's older keys, kept to decrypt mail sent to them.
@@ -262,6 +297,8 @@ impl Session {
         if email.is_empty() || key.len() > 1 << 20 {
             return false;
         }
+        // One kept from before with a day still to come counts as today's.
+        let seen_cap = self.clock.now;
         let s = self.pgp.settings.entry(account.to_string()).or_default();
         if let Some(k) = s.known.get_mut(&email) {
             let by_hand = from == KeySource::Imported;
@@ -270,7 +307,7 @@ impl Session {
             }
             if k.info.fingerprint == info.fingerprint {
                 // The same key, perhaps with newer self-signatures (a later expiry).
-                if seen < k.seen && !by_hand {
+                if seen < k.seen.min(seen_cap) && !by_hand {
                     return false;
                 }
                 let changed = k.key != key || k.mutual != mutual || k.from != from;
@@ -281,7 +318,7 @@ impl Session {
                 k.from = if by_hand { from } else { k.from };
                 return changed;
             }
-            if seen < k.seen && !by_hand {
+            if seen < k.seen.min(seen_cap) && !by_hand {
                 return false;
             }
         } else if s.known.len() >= KNOWN_MAX
@@ -304,10 +341,13 @@ impl Session {
         }
         let Some(p) = mime::parse(raw) else { return };
         let from = p.from.email.trim().to_lowercase();
-        if from.is_empty() || self.accounts.iter().any(|a| a.config.email.trim().eq_ignore_ascii_case(&from)) {
+        if from.is_empty() || self.accounts.iter().any(|a| a.config.has_address(&from)) {
             return;
         }
-        let seen = p.date;
+        // No later than now (Autocrypt's "effective date"): a message dated years ahead kept
+        // its key in place of every one the person's real mail brought after, for good.
+        let now = self.clock.now;
+        let seen = if p.date > 0 { p.date.min(now) } else { now };
         let mut changed = false;
         for h in headers {
             let Some(a) = openpgp::autocrypt::parse(&h) else { continue };
@@ -338,7 +378,7 @@ impl Session {
         let from = from.trim().to_lowercase();
         let Some(s) = self.pgp.settings.get(account) else { return Vec::new() };
         let mut out: Vec<Vec<u8>> = s.known.get(&from).map(|k| k.key.clone()).into_iter().collect();
-        if self.accounts.iter().any(|a| a.config.email.trim().eq_ignore_ascii_case(&from)) {
+        if self.accounts.iter().any(|a| a.config.has_address(&from)) {
             out.extend(s.keys.iter().cloned());
         }
         out
@@ -373,7 +413,11 @@ impl Session {
                 }
             }
             Event::PgpDecrypted { key, content, signature, error } => {
-                self.opening.remove(&key);
+                // One no longer asked for (the Outbox's rows moved meanwhile) is another's now.
+                if !self.decrypt_awaited(&key) {
+                    self.pgp.asked.remove(&key);
+                    return;
+                }
                 let (keys, from) = self.pgp.asked.remove(&key).unwrap_or_default();
                 match (content, error) {
                     (Some(Private(entity)), None) => {

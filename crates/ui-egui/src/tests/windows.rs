@@ -2,6 +2,8 @@
 
 use super::*;
 
+pub(super) mod layout;
+
 #[test]
 fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
     let (a, dir) = app("tabs");
@@ -84,7 +86,7 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     sample::seed_if_empty(&store, NOW).unwrap();
     let s = Session::open(Some(store), Clock::new(NOW, 0));
     let web = WebLike::default();
-    let (downloads, asked) = (web.downloads.clone(), web.asked.clone());
+    let (downloads, asked, hands) = (web.downloads.clone(), web.asked.clone(), web.hands.clone());
     let mut a = MailApp::new(s, Box::new(NullBackend), Box::new(web));
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -113,6 +115,59 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     frame(&ctx, &mut a, vec![]);
     assert_eq!(asked.borrow().as_slice(), ["attach"]);
     assert!(a.session.compose.as_ref().is_some_and(|c| c.attachments.iter().any(|x| x.name == "notes.txt")));
+    a.run("compose.discard", json!({}));
+
+    // Rules and categories go to a file as downloads, and come back from the picker.
+    a.run(
+        "rules.add",
+        json!({"rule": {"name": "From Zoe", "conditions": [{"if": "from", "value": "zoe@example.com"}], "actions": [{"do": "flag"}]}}),
+    );
+    let (rules, categories) = (a.session.rules.len(), a.session.prefs.categories.len());
+    assert!(rules == 1 && categories > 0);
+    let before = downloads.borrow().len();
+    a.act(crate::Action::ExportRules);
+    a.act(crate::Action::ExportCategories);
+    let got = downloads.borrow().get(before..).unwrap_or_default().to_vec();
+    assert_eq!(got.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>(), ["MailCraft rules.json", "MailCraft categories.json"]);
+    assert!(got.iter().all(|(_, n)| *n > 0), "{got:?}");
+    *hands.borrow_mut() = Some(a.session.rules_file().unwrap());
+    a.run("rules.delete", json!({"index": 0}));
+    assert!(a.session.rules.is_empty());
+    a.act(crate::Action::ImportRules);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.rules.len(), rules, "the file's rule is back");
+    let kept = a.session.categories_file().unwrap();
+    a.session.prefs.categories.clear();
+    *hands.borrow_mut() = Some(kept);
+    a.act(crate::Action::ImportCategories);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.prefs.categories.len(), categories);
+    assert_eq!(asked.borrow().get(1..), Some(&["rules".to_string(), "categories".to_string()][..]));
+    // A file that isn't one is said so, and nothing changes.
+    a.act(crate::Action::ImportRules);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.rules.len(), rules);
+    assert!(a.session.notices.last().is_some_and(|n| n.error && n.text.contains("rules file")), "{:?}", a.session.notices.last().map(|n| &n.text));
+
+    // File › Open & Export has no data files to open or write there: the backup and the rules.
+    let size = egui::vec2(1280.0, 800.0);
+    let page = |a: &mut MailApp| -> Vec<String> {
+        a.act(crate::Action::Backstage(crate::backstage::Page::Open));
+        super::rtl::drawn_text(&ctx, a, size);
+        super::rtl::drawn_text(&ctx, a, size).into_iter().map(|(text, ..)| text).collect()
+    };
+    let there = page(&mut a);
+    for card in ["Backup", "Rules"] {
+        assert!(there.iter().any(|t| t == card), "{card} in {there:?}");
+    }
+    for card in ["Open a data file", "Open a mail file", "Export to Outlook data file"] {
+        assert!(!there.iter().any(|t| t == card), "{card} in {there:?}");
+    }
+    a.session.jmap_only = false;
+    let there = page(&mut a);
+    for card in ["Open a data file", "Open a mail file", "Export to Outlook data file"] {
+        assert!(there.iter().any(|t| t == card), "{card} in {there:?}");
+    }
 }
 
 #[test]

@@ -326,6 +326,13 @@ impl Worker {
         // Counts are said as folders are synced, once a second at most: each time writes them
         // into the account's folder list, and says all of it.
         let mut said = Instant::now();
+        // An account whose calendars and contacts were never read has them read once its first
+        // folder (the Inbox) is in, not after every folder: a big mailbox's first sync takes
+        // hours, and its calendar stayed empty until then (issue #80). Only on the first full
+        // sync after connecting: an account with no calendars to find is looked at after its
+        // mail, as ever.
+        let mut calendars_due = self.last_full.is_none() && !self.calendars_read_before();
+        let mut calendars_read = false;
         for path in paths {
             if !self.counts_unsaid.is_empty() && said.elapsed() >= COUNTS_EVERY {
                 self.say_counts();
@@ -343,6 +350,12 @@ impl Worker {
             }
             if self.sync_counted(&path) {
                 self.counts_unsaid.push(path);
+            }
+            if std::mem::take(&mut calendars_due) && !self.closed && self.conn.is_some() {
+                self.say_counts();
+                said = Instant::now();
+                self.calendars_and_contacts();
+                calendars_read = true;
             }
         }
         // What came during the last folder doesn't wait for the calendars and contacts either: a
@@ -362,16 +375,23 @@ impl Worker {
             self.prune_jmap_numbers();
             self.last_full = Some(Instant::now());
             self.looked = self.last_full;
+            // All of it read: a connection lost from here on is tried again soonest.
+            self.backoff = Duration::from_secs(5);
             // Anything left from a failed attempt gets another try every full sync.
             self.flush_outbox();
             log::info!("{}: synced {} folders in {:.1} s", self.acc.id, self.folders.len(), began.elapsed().as_secs_f32());
             self.status(SyncStatus::Online { at: now() });
         }
-        if self.conn.is_some() {
-            let began = Instant::now();
-            self.sync_dav();
-            log::info!("{}: PIM pass took {:?}", self.acc.id, began.elapsed());
+        if self.conn.is_some() && !calendars_read {
+            self.calendars_and_contacts();
         }
+    }
+
+    /// The account's calendars and contacts, synced with their server now.
+    fn calendars_and_contacts(&mut self) {
+        let began = Instant::now();
+        self.sync_dav();
+        log::info!("{}: PIM pass took {:?}", self.acc.id, began.elapsed());
     }
 
     /// Between two folders of a full sync: body fetches and local edits served, ahead of the rest,
@@ -593,7 +613,8 @@ impl Worker {
             if let Err(e) = found {
                 log::info!("{id}/{f}: searching the server: {e}");
                 failed = Some(e.to_string());
-                if matches!(e, NetError::Io(_) | NetError::Closed(_)) {
+                // Nothing more is asked on a connection that may hold half an answer.
+                if e.is_fatal() {
                     self.conn = None;
                     break;
                 }

@@ -170,10 +170,79 @@ pub fn send_public(req: &Request) -> Result<Response> {
     send_to(req, true)
 }
 
+/// Whether hosts `a` and `b` are one site's: the same, one under the other, or two under one
+/// name that isn't a registry's (`api.example.com` and `www.example.com`; not `a.co.uk` and
+/// `b.co.uk`, whose shared name is taken for a registry's: two letters after three at most).
+pub(crate) fn same_site(a: &str, b: &str) -> bool {
+    let (a, b) = (a.trim_end_matches('.').to_ascii_lowercase(), b.trim_end_matches('.').to_ascii_lowercase());
+    let under = |host: &str, parent: &str| host.strip_suffix(parent).is_some_and(|h| h.ends_with('.'));
+    // An address is itself and no other's neighbour.
+    if a == b {
+        return true;
+    }
+    if a.parse::<std::net::IpAddr>().is_ok() || b.parse::<std::net::IpAddr>().is_ok() {
+        return false;
+    }
+    // One under the other, when the upper one is someone's (not `uk`, `co.uk`, `github.io`).
+    if (under(&a, &b) && !registry(&b)) || (under(&b, &a) && !registry(&a)) {
+        return true;
+    }
+    let parent = |host: &str| host.split_once('.').map(|(_, p)| p.to_string());
+    match (parent(&a), parent(&b)) {
+        (Some(pa), Some(pb)) if pa == pb => !registry(&pa),
+        _ => false,
+    }
+}
+
+/// Whether `name` is one anyone can have a name under, as far as can be told without the list
+/// of them: a top-level name, a country's second level (`co.uk`, `com.au`: two letters after
+/// three at most), or one of the widely used ones that give out names to all comers.
+pub(crate) fn registry(name: &str) -> bool {
+    const SHARED: [&str; 16] = [
+        "github.io",
+        "gitlab.io",
+        "pages.dev",
+        "workers.dev",
+        "herokuapp.com",
+        "azurewebsites.net",
+        "cloudfront.net",
+        "amazonaws.com",
+        "duckdns.org",
+        "dyndns.org",
+        "no-ip.org",
+        "netlify.app",
+        "vercel.app",
+        "web.app",
+        "firebaseapp.com",
+        "blogspot.com",
+    ];
+    let name = name.trim_end_matches('.').to_ascii_lowercase();
+    match name.rsplit_once('.') {
+        None => true,
+        Some((label, tld)) => (tld.len() == 2 && label.len() <= 3 && !label.contains('.')) || SHARED.contains(&name.as_str()),
+    }
+}
+
+/// `req` as it goes on to `next` after a redirect from `from`: without its sign-in when that's
+/// another site (the password or token went along to wherever a redirect led).
+pub(crate) fn redirected(req: &Request, from: &Url, next: &Url) -> Option<Request> {
+    if same_site(&from.host, &next.host) || !req.headers.iter().any(|(k, _)| secret_header(k)) {
+        return None;
+    }
+    let mut bare = req.clone();
+    bare.headers.retain(|(k, _)| !secret_header(k));
+    Some(bare)
+}
+
+fn secret_header(name: &str) -> bool {
+    ["authorization", "cookie", "proxy-authorization"].iter().any(|h| name.eq_ignore_ascii_case(h))
+}
+
 fn send_to(req: &Request, public_only: bool) -> Result<Response> {
     let mut url = Url::parse(&req.url)?;
+    let mut bare: Option<Request> = None;
     for _ in 0..=MAX_REDIRECTS {
-        let resp = once(req, &url, public_only)?;
+        let resp = once(bare.as_ref().unwrap_or(req), &url, public_only)?;
         let follow = matches!(resp.status, 301 | 302 | 303 | 307 | 308) && (req.method == "GET" || req.method == "HEAD");
         match resp.header("Location").filter(|_| follow) {
             Some(loc) => {
@@ -181,6 +250,9 @@ fn send_to(req: &Request, public_only: bool) -> Result<Response> {
                 // Never from HTTPS down to plain HTTP.
                 if url.https && !next.https {
                     return Err(NetError::Tls("redirected from https to http".into()));
+                }
+                if let Some(without) = redirected(bare.as_ref().unwrap_or(req), &url, &next) {
+                    bare = Some(without);
                 }
                 url = next;
             }
@@ -559,6 +631,40 @@ pub(crate) mod tests {
     use std::net::TcpListener;
 
     use super::*;
+
+    /// Found in review: a redirect to another site took the request's sign-in along (the
+    /// password of a JMAP account, a Microsoft token). It stays with the site it was for.
+    #[test]
+    fn a_sign_in_doesnt_follow_a_redirect_to_another_site() {
+        for (a, b, same) in [
+            ("example.com", "EXAMPLE.com.", true),
+            ("example.com", "api.example.com", true),
+            ("api.example.com", "www.example.com", true),
+            ("a.b.example.com", "c.example.com", false),
+            ("example.com", "example.net", false),
+            ("example.com", "evilexample.com", false),
+            ("a.co.uk", "b.co.uk", false),
+            ("mail.a.co.uk", "dav.a.co.uk", true),
+            ("127.0.0.1", "127.0.0.1", true),
+            ("127.0.0.1", "127.0.0.2", false),
+            ("localhost", "example.com", false),
+            ("example.com", "com", false),
+            ("a.github.io", "b.github.io", false),
+            ("x.a.github.io", "a.github.io", true),
+            ("mail.example.co.uk", "co.uk", false),
+        ] {
+            assert_eq!(same_site(a, b), same, "{a} / {b}");
+        }
+        let req =
+            Request::get("https://example.com/.well-known/jmap", 1000).header("Authorization", "Basic c2VjcmV0").header("Accept", "application/json");
+        let at = |u: &str| Url::parse(u).unwrap();
+        // Another site: the rest of the request goes on, without it.
+        let bare = redirected(&req, &at("https://example.com/a"), &at("https://elsewhere.example/b")).unwrap();
+        assert_eq!(bare.headers, [("Accept".to_string(), "application/json".to_string())]);
+        // The same site, or nothing secret in it: as it is.
+        assert!(redirected(&req, &at("https://example.com/a"), &at("https://api.example.com/b")).is_none());
+        assert!(redirected(&bare, &at("https://example.com/a"), &at("https://elsewhere.example/b")).is_none());
+    }
 
     /// Serve `responses` (one per connection, in order) on localhost; returns the base URL and
     /// the requests received.

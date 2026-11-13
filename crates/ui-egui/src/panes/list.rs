@@ -4,7 +4,7 @@
 
 use egui::{Color32, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::search::Problem;
-use mailcraft_engine::model::{FolderRole, MessageKey, Summary, addr, dates};
+use mailcraft_engine::model::{FolderRole, Summary, addr, dates};
 use mailcraft_engine::{ListFilter, Row, SearchScope, Session};
 use serde_json::json;
 
@@ -24,8 +24,9 @@ pub(crate) struct ListRows {
     total: f32,
 }
 
-/// What a dragged row carries.
-pub struct DragKeys(pub Vec<MessageKey>);
+/// What a dragged row carries: the selection goes where it's dropped (the row is selected as
+/// the drag starts).
+pub struct DragKeys;
 
 const HEADER_H: f32 = 30.0;
 
@@ -493,21 +494,29 @@ fn message_row(
     // A search over several folders: each result says where it is, before its time.
     let several =
         s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
+    // In a narrow list the sender comes first: where a tag before the time would leave the name
+    // (and the address beside it) no room to be read, the tag isn't drawn.
+    let who_least = if marks.address { 150.0 } else { 90.0 };
+    let fits = |tw: f32, w: f32| right - tw - 10.0 - w - 10.0 - x >= who_least;
     if let Some(f) = s.folder(&m.key.account, &m.key.folder).filter(|_| several) {
         let name: String = crate::i18n::folder(f).chars().take(24).collect();
         let fg = p.layout_no_wrap(name, theme::regular(11.5), t.faint);
         let fw = fg.size().x;
-        p.galley(egui::pos2(mr.start(right - tw - 10.0 - fw, fw), line1 + 2.0), fg, t.faint);
-        tw += fw + 10.0;
+        if fits(tw, fw) {
+            p.galley(egui::pos2(mr.start(right - tw - 10.0 - fw, fw), line1 + 2.0), fg, t.faint);
+            tw += fw + 10.0;
+        }
     }
     // From outside the organisation: a small tag before the time.
     if marks.external {
         let eg = p.layout_no_wrap(tl!("External").to_string(), theme::regular(11.0), t.dim);
         let ew = eg.size().x + 10.0;
-        let er = mr.rect(Rect::from_min_size(egui::pos2(right - tw - 10.0 - ew, line1), vec2(ew, 17.0)));
-        p.rect_stroke(er, 4.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-        p.galley(er.center() - eg.size() / 2.0, eg, t.dim);
-        tw += ew + 10.0;
+        if fits(tw, ew) {
+            let er = mr.rect(Rect::from_min_size(egui::pos2(right - tw - 10.0 - ew, line1), vec2(ew, 17.0)));
+            p.rect_stroke(er, 4.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+            p.galley(er.center() - eg.size() / 2.0, eg, t.dim);
+            tw += ew + 10.0;
+        }
     }
     let mut who_x = x;
     // Something about the sender doesn't add up: a warning sign before the name (the reading
@@ -674,13 +683,19 @@ fn message_row(
         if !selected {
             acts.push(Action::Run("list.select", json!({"key": m.key.to_id()})));
         }
-        let keys = if selected { s.selection.clone() } else { vec![m.key.clone()] };
-        resp.dnd_set_drag_payload(DragKeys(keys));
+        resp.dnd_set_drag_payload(DragKeys);
     }
     if resp.dragged() {
         let n = if selected { s.selection.len() } else { 1 };
         egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), id.with("drag"), egui::PopupAnchor::Pointer).show(|ui| {
-            ui.label(if n == 1 { tl!("Move 1 message").to_string() } else { tf!("Move {n} messages", n = n) });
+            // With Ctrl held, dropped on a folder they're copied there.
+            let copy = ui.input(|i| i.modifiers.command);
+            ui.label(match (copy, n) {
+                (false, 1) => tl!("Move 1 message").to_string(),
+                (false, n) => tf!("Move {n} messages", n = n),
+                (true, 1) => tl!("Copy 1 message").to_string(),
+                (true, n) => tf!("Copy {n} messages", n = n),
+            });
         });
     }
     let key = m.key.clone();
@@ -722,6 +737,7 @@ fn message_row(
         ui.menu_button(tl!("Follow up"), |ui| crate::organize::follow_up_menu(ui, s, t, acts));
         ui.separator();
         item(ui, acts, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
+        item(ui, acts, tl!("Copy to…"), Action::Dialog(Dialog::copy_to()));
         item(ui, acts, tl!("Archive"), Action::Run("mail.archive", json!({})));
         item(ui, acts, tl!("Report junk"), Action::Run("mail.junk", json!({})));
         ui.menu_button(tl!("Junk"), |ui| crate::junk_menu(ui, s, acts));

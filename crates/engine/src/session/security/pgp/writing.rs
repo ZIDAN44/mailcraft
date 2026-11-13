@@ -23,13 +23,13 @@ impl Session {
             .collect()
     }
 
-    /// The key to encrypt to `email` with: the account's own for its own address, else theirs,
-    /// when it can be encrypted to now.
+    /// The key to encrypt to `email` with: the account's own for one of its own addresses
+    /// (that address's when it has one), else theirs, when it can be encrypted to now.
     fn pgp_key_for(&self, account: &str, email: &str) -> Option<Vec<u8>> {
         let email = email.trim().to_lowercase();
         let s = self.pgp.settings.get(account)?;
-        if self.account(account).is_some_and(|a| a.config.email.trim().eq_ignore_ascii_case(&email)) {
-            return s.keys.first().cloned();
+        if self.account(account).is_some_and(|a| a.config.has_address(&email)) {
+            return self.own_pgp_for(account, &email).map(|(k, _)| k).or_else(|| s.keys.first().cloned());
         }
         let k = s.known.get(&email)?;
         k.info.encryptable(self.clock.now).is_ok().then(|| k.key.clone())
@@ -53,8 +53,10 @@ impl Session {
     /// Which protection `c` gets: the one chosen, else the one the account has, else (it has
     /// both) the one every recipient can receive, S/MIME when both or neither reach them all.
     pub(crate) fn scheme_for(&self, c: &Compose, recipients: &[String]) -> Scheme {
-        let smime = self.identity(&c.account).is_some();
-        let pgp = self.pgp_key(&c.account).is_some();
+        // What the address it's from has (issue #81); an address with neither, what the
+        // account has.
+        let (smime, pgp) = (self.identity_for(&c.account, &c.from).is_some(), self.pgp_key_from(&c.account, &c.from).is_some());
+        let (smime, pgp) = if smime || pgp { (smime, pgp) } else { (self.identity(&c.account).is_some(), self.pgp_key(&c.account).is_some()) };
         match (c.scheme, smime, pgp) {
             (Some(Scheme::Pgp), _, true) | (_, false, true) => Scheme::Pgp,
             (Some(Scheme::Smime), true, _) | (_, true, false) | (_, false, false) => Scheme::Smime,
@@ -70,10 +72,18 @@ impl Session {
     pub(crate) fn pgp_protect_job(&mut self, c: &Compose, raw: &[u8], recipients: &[String], from: &str) -> Result<Job, CmdError> {
         let config = self.account(&c.account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Failed("the sending account is gone".into()))?;
         let s = self.pgp_settings(&c.account);
-        let Some(own) = s.keys.first().cloned() else {
-            return Err(CmdError::Params(
-                "there's no OpenPGP key for this account to sign or encrypt with: import one in File › Info › Security".into(),
-            ));
+        // The key of the address it's from (issue #81). Only encrypted, the account's own does
+        // for the copy it keeps.
+        let own = match self.own_pgp_for(&c.account, from).map(|(k, _)| k) {
+            Some(own) => own,
+            None if c.sign && !s.keys.is_empty() => {
+                return Err(CmdError::Params(format!(
+                    "there's no OpenPGP key for {from} to sign with: import one that names it in File › Info › Security, or send without signing"
+                )));
+            }
+            None => s.keys.first().cloned().ok_or_else(|| {
+                CmdError::Params("there's no OpenPGP key for this account to sign or encrypt with: import one in File › Info › Security".into())
+            })?,
         };
         let info = openpgp::info(&own).map_err(|e| CmdError::Failed(e.to_string()))?;
         if let Some(p) = info.problems(self.clock.now).first() {
@@ -112,7 +122,8 @@ impl Session {
             }
         }
         let hide_subject = !self.smime_settings(&c.account).keep_subject;
-        let work = PgpWork::Protect { id: c.id, raw: Private(raw.to_vec()), sign: c.sign, encrypt_to, hide_subject };
+        let work =
+            PgpWork::Protect { id: c.id, raw: Private(raw.to_vec()), sign: c.sign, encrypt_to, hide_subject, signer: Some(info.fingerprint.clone()) };
         self.protecting.insert(c.id, Protecting { compose: c.clone(), from: from.to_string(), recipients: recipients.to_vec() });
         Ok(Job::Pgp { account: config, work })
     }
@@ -128,12 +139,17 @@ impl Session {
     /// and hasn't turned that off.
     pub(crate) fn with_autocrypt(&self, account: &str, raw: Vec<u8>) -> Vec<u8> {
         let s = self.pgp_settings(account);
-        let (Some(own), Some(a)) = (s.keys.first(), self.account(account)) else { return raw };
-        let email = a.config.email.trim().to_string();
-        if s.no_autocrypt || email.is_empty() || openpgp::info(own).map(|i| i.encryptable(self.clock.now).is_err()).unwrap_or(true) {
+        if s.no_autocrypt || self.account(account).is_none() {
             return raw;
         }
-        let Ok(small) = openpgp::minimal(own, &email) else { return raw };
+        // The header names the address the message is from, with that address's key (issue
+        // #81): one of the account's other addresses has it when a key is its own.
+        let email = mime::parse(&raw).map(|p| p.from.email.trim().to_string()).unwrap_or_default();
+        let Some((own, info)) = self.own_pgp_for(account, &email).filter(|_| !email.is_empty()) else { return raw };
+        if info.encryptable(self.clock.now).is_err() {
+            return raw;
+        }
+        let Ok(small) = openpgp::minimal(&own, &email) else { return raw };
         let mutual = self.smime_settings(account).auto_encrypt;
         [openpgp::autocrypt::header(&email, &small, mutual).as_bytes(), &raw].concat()
     }

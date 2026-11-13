@@ -142,7 +142,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     None if getting_ready => {
                         if let Some(m) = &summary {
                             let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-                            crate::bidi::label(ui, subject, theme::bold(21.0), t.text);
+                            subject_heading(ui, subject, &t);
                             ui.add_space(8.0);
                         }
                         ui.spinner();
@@ -172,7 +172,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     // Subject.
                     ui.horizontal_wrapped(|ui| {
                         let subject = if p.subject.is_empty() { tl!("(no subject)") } else { p.subject.as_str() };
-                        crate::bidi::label(ui, subject, theme::bold(21.0), t.text);
+                        subject_heading(ui, subject, &t);
                         if summary.as_ref().is_some_and(|m| m.flags.flagged) {
                             let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                             icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
@@ -563,7 +563,7 @@ fn opened_file_bar(t: &Tokens, ui: &mut Ui, name: &str) {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new(tf!(
-                            "Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.",
+                            "Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.",
                             file = name
                         ))
                         .color(t.dim),
@@ -736,21 +736,18 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
                 }
                 let font = if !m.flags.seen { theme::bold(13.0) } else { theme::regular(13.0) };
                 let p = ui.painter_at(rect);
-                p.text(rect.left_center() + vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, m.from.display(), font, t.text);
-                p.text(
-                    rect.left_center() + vec2(170.0, 0.0),
-                    egui::Align2::LEFT_CENTER,
-                    widgets::shorten(&m.preview, 70),
-                    theme::regular(12.5),
-                    t.dim,
-                );
-                p.text(
-                    rect.right_center() - vec2(8.0, 0.0),
-                    egui::Align2::RIGHT_CENTER,
-                    crate::i18n::date(&dates::list_time(m.when(), &s.clock)),
-                    theme::regular(12.0),
-                    t.dim,
-                );
+                // Who, the first words and when, each in its own room: the words ran on under
+                // the time in a narrow pane, and a long name under the words.
+                let when = p.layout_no_wrap(crate::i18n::date(&dates::list_time(m.when(), &s.clock)), theme::regular(12.0), t.dim);
+                let who = widgets::one_line(ui, m.from.display(), font, t.text, 154.0);
+                let mid = |g: &egui::Galley| rect.center().y - g.size().y / 2.0;
+                let room = rect.width() - 170.0 - when.size().x - 20.0;
+                p.galley(egui::pos2(rect.left() + 8.0, mid(&who)), who, t.text);
+                if room > 24.0 {
+                    let words = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, room);
+                    p.galley(egui::pos2(rect.left() + 170.0, mid(&words)), words, t.dim);
+                }
+                p.galley(egui::pos2(rect.right() - 8.0 - when.size().x, mid(&when)), when, t.dim);
                 if resp.clicked() && !current {
                     acts.push(Action::Open(k.clone()));
                 }

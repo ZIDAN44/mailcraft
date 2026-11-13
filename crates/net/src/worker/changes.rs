@@ -113,9 +113,27 @@ impl Worker {
             }
             Job::SaveDraft { raw, folder, replaces, .. } => self.save_draft(raw, folder, replaces),
             Job::FileMessages { folder, paths, .. } => self.file_messages(folder, paths),
+            Job::FileCopies { folder, mail, moved, .. } => self.file_copies(folder, mail, moved),
             Job::FlushOutbox { .. } => self.flush_outbox(),
             Job::SyncDav { .. } => self.sync_dav(),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
+            // Only a JMAP server keeps the addresses its mail is sent from where a mail
+            // program can ask for them.
+            Job::FindIdentities { .. } => {
+                if let Err(e) = self.connected_for_job() {
+                    self.sink.emit(Event::IdentitiesFound { account: self.id(), found: Vec::new(), error: Some(e) });
+                    return;
+                }
+                let found = match self.conn.as_ref() {
+                    Some(Conn::Jmap(c)) => jmap::identities(c).map_err(|e| e.to_string()),
+                    _ => Err("this account's server doesn't say which addresses it sends from".to_string()),
+                };
+                let (found, error) = match found {
+                    Ok(found) => (found, None),
+                    Err(e) => (Vec::new(), Some(e)),
+                };
+                self.sink.emit(Event::IdentitiesFound { account: self.id(), found, error });
+            }
             Job::GetVacation { .. } => {
                 let r = self.vacation(None);
                 self.report_vacation(r, None);
@@ -173,6 +191,30 @@ impl Worker {
 
     /// Read (and first change, when `set`) the automatic replies: JMAP's own, or a Sieve script
     /// through ManageSieve on the IMAP host.
+    /// Connected for a job that needs the server, with one try when it isn't. A refused sign-in
+    /// isn't tried again (the password known to be wrong was sent with each such job), and a
+    /// try that fails shows as the account's status (left at "Connecting…" otherwise).
+    pub(super) fn connected_for_job(&mut self) -> std::result::Result<(), String> {
+        if self.conn.is_some() {
+            return Ok(());
+        }
+        if self.auth_failed {
+            return Err("the account isn't signed in".into());
+        }
+        // Between tries at a server that couldn't be reached: not one more now (each failed
+        // one puts the next further off, long after the network is back).
+        if Instant::now() < self.next_attempt {
+            return Err("the server couldn't be reached; it's tried again shortly".into());
+        }
+        self.connect().map_err(|e| {
+            let said = e.to_string();
+            if self.main.is_none() {
+                self.connect_failed(e);
+            }
+            said
+        })
+    }
+
     pub(super) fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
         // Not connected: one try, and a failure shows as the account's status (it said
         // "Connecting…" for good when the vacation page was opened on an account that can't).
@@ -212,7 +254,7 @@ impl Worker {
         }
         let secret = self.secret()?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
-        let mut s = crate::sieve::Client::connect(&self.acc.imap, self.sieve_port).map_err(|e| match e {
+        let mut s = crate::sieve::Client::connect_trusting(&self.acc.imap, self.sieve_port, &self.acc.trusted_certificates).map_err(|e| match e {
             NetError::Io(_) => NetError::No("this server doesn't offer automatic replies (no ManageSieve)".into()),
             e => e,
         })?;
@@ -232,6 +274,9 @@ impl Worker {
     pub(super) fn report_vacation(&self, r: Result<mailcraft_model::job::Vacation>, failed: Option<String>) {
         let (vacation, error) = match r {
             Ok(v) => (Some(v), failed),
+            // What the server said, without "the server refused:" before it: the page says
+            // "Not available:" already, and a server without automatic replies refused nothing.
+            Err(NetError::No(said)) if !said.trim().is_empty() => (None, Some(failed.unwrap_or(said))),
             Err(e) => (None, Some(failed.unwrap_or_else(|| e.to_string()))),
         };
         self.sink.emit(Event::Vacation { account: self.id(), vacation, error });

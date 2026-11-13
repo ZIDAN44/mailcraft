@@ -4,18 +4,20 @@ use super::*;
 pub(crate) struct Script {
     input: io::Cursor<Vec<u8>>,
     pub written: Vec<u8>,
+    /// The most bytes one read gives.
+    step: usize,
 }
 
 impl Script {
     fn new(s: &[u8]) -> Self {
-        Script { input: io::Cursor::new(s.to_vec()), written: Vec::new() }
+        // A few bytes at a time, to exercise framing across reads.
+        Script { input: io::Cursor::new(s.to_vec()), written: Vec::new(), step: 7 }
     }
 }
 
 impl Read for Script {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        // Deliver a few bytes at a time to exercise framing across reads.
-        let n = buf.len().min(7);
+        let n = buf.len().min(self.step);
         self.input.read(&mut buf[..n])
     }
 }
@@ -117,6 +119,16 @@ fn a_code_right_before_non_ascii_text_never_panics() {
     assert_eq!(super::conn::space_after_code(b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n".to_vec()), b"* 1 FETCH (X \"[a]\xc3\xa9\")\r\n");
 }
 
+/// A response imap-proto panics on (`INTERNALDATE NIL`, found in review: it unwraps the date)
+/// is skipped like any other it doesn't understand, and the command carries on.
+#[test]
+fn a_response_the_parser_panics_on_is_skipped() {
+    let s = b"* OK hi\r\n* 1 FETCH (UID 5 FLAGS (\\Seen) INTERNALDATE NIL)\r\n* 2 FETCH (UID 6 FLAGS (\\Seen))\r\nM1 OK done\r\n";
+    let mut c = Client::from_stream(Script::new(s)).unwrap();
+    let got = c.uid_fetch("5:6", "UID FLAGS INTERNALDATE", "").unwrap();
+    assert_eq!(got.iter().map(|f| f.uid).collect::<Vec<_>>(), [6]);
+}
+
 /// A signed or encrypted message never comes as its text first (only its whole source shows it
 /// and checks it); nor one of a single part. Neither asks for more than its structure.
 #[test]
@@ -157,4 +169,136 @@ fn deeply_nested_lists_dont_overflow_the_stack() {
     assert!(out.iter().all(|(_, ok)| *ok), "{out:?}");
     // The count skips quoted strings and literals.
     assert_eq!(conn::nesting(b"* 1 FETCH (UID 1 BODY[] {5}\r\n(((((\r\n FLAGS (\"((\" \\Seen))"), 2);
+}
+
+/// A folder's `UID SEARCH ALL` is answered in one line: past 1 MB (some 130,000 messages) it
+/// was refused, the connection dropped, and the account signed in again without end.
+#[test]
+fn a_big_folders_search_line_is_read() {
+    let mut s = b"* OK hi\r\n* SEARCH".to_vec();
+    for u in 1..=200_000u32 {
+        s.extend(format!(" {u}").as_bytes());
+    }
+    s.extend(b"\r\nM1 OK done\r\n");
+    assert!(s.len() > 1 << 20);
+    let mut c = Client::from_stream(Script { step: 16 << 10, ..Script::new(&s) }).unwrap();
+    assert_eq!(c.uid_search("ALL").unwrap().len(), 200_000);
+}
+
+/// A refused SELECT leaves no folder selected (RFC 3501 §6.3.1): the one before was still
+/// taken for selected, so IDLE waited on nothing and the Inbox's messages couldn't be opened.
+#[test]
+fn a_refused_select_leaves_nothing_selected() {
+    let mut c = Client::from_stream(Script::new(b"* OK hi\r\n* 3 EXISTS\r\nM1 OK [READ-WRITE] done\r\nM2 NO no such mailbox\r\n")).unwrap();
+    c.select("INBOX", false).unwrap();
+    assert_eq!(c.selected(), Some("INBOX"));
+    assert!(c.select("Gone", false).is_err());
+    assert_eq!(c.selected(), None);
+}
+
+/// `VANISHED` (QRESYNC's EXPUNGE) lowers the count of messages, so the next one's `EXISTS`
+/// is taken for new mail.
+#[test]
+fn mail_after_a_vanished_message_is_new() {
+    let s = b"* OK hi\r\n* 10 EXISTS\r\nM1 OK [READ-WRITE] done\r\n* VANISHED 57,60:61\r\nM2 OK done\r\n* 8 EXISTS\r\nM3 OK done\r\n";
+    let mut c = Client::from_stream(Script::new(s)).unwrap();
+    c.select("INBOX", false).unwrap();
+    c.take_news();
+    c.noop().unwrap();
+    assert!(!c.take_news());
+    c.noop().unwrap();
+    assert!(c.take_news(), "7 left, then 8");
+}
+
+/// A mailbox a server lists in UTF-8 is named whole (`Büro` went as `Bro`, another mailbox),
+/// and never with a line end in it.
+#[test]
+fn a_utf8_mailbox_name_is_sent_whole() {
+    let mut c = Client::from_stream(Script::new(b"* OK hi\r\nM1 NO x\r\nM2 NO x\r\n")).unwrap();
+    let _ = c.select("B\u{fc}ro \"x\"", false);
+    let _ = c.select("a\r\nM9 DELETE b\u{fc}", false);
+    let sent = String::from_utf8_lossy(&c.conn.into_inner().written).into_owned();
+    assert_eq!(sent, "M1 SELECT \"B\u{fc}ro \\\"x\\\"\"\r\nM2 SELECT \"aM9 DELETE b\u{fc}\"\r\n");
+}
+
+/// Without UIDPLUS, EXPUNGE takes every message marked `\Deleted`: the ones another program
+/// marked and left are unmarked while it runs, so only what was asked for goes.
+#[test]
+fn a_plain_expunge_spares_what_others_marked() {
+    let s = b"* OK hi\r\n* SEARCH 4 9\r\nM1 OK done\r\nM2 OK done\r\nM3 OK done\r\nM4 OK done\r\n";
+    let mut c = Client::from_stream(Script::new(s)).unwrap();
+    c.expunge("7").unwrap();
+    let sent = String::from_utf8_lossy(&c.conn.into_inner().written).into_owned();
+    let want = "M1 UID SEARCH DELETED NOT UID 7\r\nM2 UID STORE 4,9 -FLAGS.SILENT (\\Deleted)\r\nM3 EXPUNGE\r\nM4 UID STORE 4,9 +FLAGS.SILENT (\\Deleted)\r\n";
+    assert_eq!(sent, want);
+}
+
+/// A flag change the server tells of while headers are fetched (with QRESYNC it names the
+/// UID) is no header: it made a message with no subject or sender, and that message's real
+/// header, in a later answer, was skipped.
+#[test]
+fn a_flag_change_told_in_passing_makes_no_message() {
+    let s = b"* OK hi\r\n* 1 FETCH (UID 5 FLAGS () RFC822.SIZE 20 BODY[HEADER] {15}\r\nSubject: five\r\n)\r\n* 9 FETCH (UID 300 FLAGS (\\Seen) MODSEQ (991))\r\nM1 OK done\r\n";
+    let mut c = Client::from_stream(Script::new(s)).unwrap();
+    let mut st = mailcraft_store::FolderState { validity: 1, ..Default::default() };
+    crate::sync::fetch_headers(&mut c, &mut st, "a", "INBOX", &[5], &mut Default::default()).unwrap();
+    assert_eq!(st.messages.iter().map(|m| (m.key.uid, m.subject.clone())).collect::<Vec<_>>(), [(5, "five".to_string())]);
+}
+
+/// Found against a real server: a folder it lists as `"Back\\slash"` or `"Say \"hi\""` was
+/// shown, and asked for, with its backslashes still in (imap-proto hands quoted strings back
+/// unread), so it couldn't be opened or filed into. The delimiter stays as the parser wants it.
+#[test]
+fn a_quoted_name_is_read_without_its_escapes() {
+    let server = br#"* OK hi
+* LIST (\HasNoChildren) "\\" "Back\\slash"
+* LIST (\HasNoChildren) "/" "Say \"hi\""
+* LIST (\HasNoChildren) "/" "\\"
+* LIST (\HasNoChildren) "/" "Plain name"
+* LIST (\Noselect) NIL "Flat\\name"
+* LIST (\HasNoChildren) "/" {5}
+Lit\"
+M1 OK done
+"#;
+    let mut c = Client::from_stream(Script::new(server)).unwrap();
+    let folders = c.list("a").unwrap();
+    let names: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(names, [r"Back\slash", r#"Say "hi""#, r"\", "Plain name", r"Flat\name", r#"Lit\""#]);
+    assert_eq!(folders[0].delimiter, Some('\\'));
+    // Asked for by the name it has, escaped once.
+    let mut c = Client::from_stream(Script::new(b"* OK hi\r\nM1 OK done\r\n")).unwrap();
+    c.create(r"Back\slash").unwrap();
+    let written = String::from_utf8_lossy(&c.conn_mut().get_mut().written).to_string();
+    assert!(written.contains(r#"CREATE "Back\\slash""#), "{written}");
+
+    use super::quotes::plain_quotes;
+    let same = |raw: &[u8]| assert_eq!(plain_quotes(raw.to_vec()), raw, "{}", String::from_utf8_lossy(raw));
+    // A status response's text isn't strings; nor is a quote that never closes; a literal's
+    // bytes are the message's own; a delimiter outside a listing is one character.
+    same(br#"M1 NO "a\\b" isn't there"#);
+    same(br#"+ "a\\b""#);
+    same(br#"* 1 FETCH (X "a\\b)"#);
+    same(b"* 1 FETCH (BODY[] {8}\r\n\"a\\\\b\" x)\r\n");
+    let mixed = [&br#"* 1 FETCH (X ("a \"b\".pdf" "c") BODY[] {3}"#[..], b"\r\n", br#""\\ Y "d\\e")"#, b"\r\n"].concat();
+    let fixed = [&b"* 1 FETCH (X ({9}\r\n"[..], br#"a "b".pdf "c") BODY[] {3}"#, b"\r\n", br#""\\ Y {3}"#, b"\r\n", br"d\e)", b"\r\n"].concat();
+    assert_eq!(plain_quotes(mixed), fixed);
+    // Junk never panics.
+    for junk in [&br"\"[..], br#""\"#, br#"* LIST "\""#, b"* X \"\\\r\n", br#""\"\"\""#, b"* X {99999999999}\r\n\"\\\\\""] {
+        let _ = plain_quotes(junk.to_vec());
+    }
+}
+
+/// A server that answers in its own language: a completion in words outside ASCII is the
+/// command done all the same, and what its codes say is read.
+#[test]
+fn a_completion_in_another_language_is_still_done() {
+    let mut c = Client::from_stream(Script::new("* OK hi\r\nM1 OK Terminé avec succès\r\n".as_bytes())).unwrap();
+    assert!(c.noop().is_ok());
+    let mut c = Client::from_stream(Script::new("* OK hi\r\n+ go\r\nM1 OK [APPENDUID 7 9] gespeichert für später\r\n".as_bytes())).unwrap();
+    assert_eq!(c.append("Drafts", "", b"x").unwrap(), Some(9));
+    let server =
+        "* OK hi\r\n* 3 EXISTS\r\n* OK [UIDVALIDITY 5] gültig\r\n* OK [UIDNEXT 9] nächste\r\nM1 OK [READ-WRITE] ausgewählt für Änderungen\r\n";
+    let mut c = Client::from_stream(Script::new(server.as_bytes())).unwrap();
+    let info = c.select("INBOX", false).unwrap();
+    assert_eq!((info.exists, info.validity, info.uid_next), (3, 5, 9));
 }

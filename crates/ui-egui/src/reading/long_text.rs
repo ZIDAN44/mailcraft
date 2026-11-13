@@ -209,7 +209,11 @@ pub(super) fn rich(body: &mut Body, st: &mut UiState, ui: &mut Ui, id: egui::Id,
             .map(|line| {
                 let text: usize = line.iter().map(|sp| sp.text.chars().count()).fold(0, usize::saturating_add);
                 let pictures = if line.iter().any(|sp| sp.image.is_some()) { 120.0 } else { 0.0 };
-                if line.is_empty() { 9.0 } else { text.div_ceil(((width / letter) as usize).max(1)).max(1) as f32 * row + gap + pictures }
+                if line.is_empty() {
+                    super::body::BLANK
+                } else {
+                    text.div_ceil(((width / letter) as usize).max(1)).max(1) as f32 * row + gap + pictures
+                }
             })
             .sum(),
         Some(Unit::Table(mime::layout::Block::Table(t))) => t.rows.len().min(1_000) as f32 * 3.0 * row,

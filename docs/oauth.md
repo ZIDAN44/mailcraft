@@ -1,8 +1,8 @@
 # Microsoft and Google sign-in
 
 A build of MailCraft offers **Sign in with Microsoft** and **Sign in with Google** only when it
-carries a registered app. This page is for whoever builds or ships MailCraft, and for users whose
-Outlook.com account won't connect.
+carries a registered app. This page is for whoever builds or ships MailCraft, for users adding a
+Gmail or Google Workspace account, and for users whose Outlook.com account won't connect.
 
 Microsoft and Google ask mail apps to sign in through the browser. MailCraft does this the way
 RFC 8252 describes for native apps, with PKCE (RFC 7636): a one-time code that stops another
@@ -47,21 +47,51 @@ Two kinds of account need more:
   address the account's **primary alias** at account.live.com, then add the account with that
   address.
 
-## Google says MailCraft isn't verified
+## Gmail and Google Workspace
 
-When you **Sign in with Google**, Google may first warn that it hasn't verified MailCraft. This
-is expected. MailCraft asks for full access to Gmail, which IMAP and SMTP need, and
-Google shows this warning for every app with that access that hasn't been through its review.
-That review includes a security assessment by an outside lab, repeated every year, and MailCraft
-hasn't been through it.
+The MailCraft released from this repository has no **Sign in with Google**: its builds carry no
+Google client, so they never open Google's sign-in page. A Gmail or Google Workspace account is
+added with an app password.
 
-- **To go on:** choose **Advanced**, then **Go to MailCraft**, and approve access to your mail.
-- **Google Workspace, if your company blocks unverified apps:** an administrator can allow
-  MailCraft under **Security › Access and data control › API controls › Manage Third-Party App
-  Access**: **Configure new app**, find MailCraft by name or client ID, and set it to **Trusted**.
-- **Without Google sign-in:** create an [app password](https://support.google.com/accounts/answer/185833)
-  (it needs 2-Step Verification, and on Workspace your administrator must allow it), then add the
-  account with that password. MailCraft connects over IMAP and SMTP, and Google shows no warning.
+### Add the account with an app password
+
+1. In your Google account, turn on **2-Step Verification** (myaccount.google.com › Security).
+2. Open [App passwords](https://myaccount.google.com/apppasswords), name one "MailCraft" and
+   create it. Google shows its 16 letters once.
+3. In MailCraft, add the account with your address and that app password, not your usual one.
+
+MailCraft fills in Gmail's servers for a `gmail.com` address. For an address on your own domain,
+tick **Server settings**: `imap.gmail.com`, 993, SSL/TLS, and `smtp.gmail.com`, 465, SSL/TLS, with
+your full address as the user name.
+
+If Google shows no App passwords page, 2-Step Verification is off, the account is in Advanced
+Protection, or (Google Workspace) your administrator hasn't allowed app passwords. A Workspace
+administrator can also have IMAP turned off for the organisation.
+
+### Why the released builds have no Google sign-in
+
+MailCraft asks Google for full access to Gmail (`https://mail.google.com/`), which IMAP and SMTP
+need. Google treats that as a restricted scope:
+
+- An app Google hasn't verified shows a warning before sign-in and is limited to 100 users over
+  the life of its Google project. After that, Google blocks new sign-ins.
+- Verification for this scope includes a security assessment by an outside lab, repeated every
+  year. MailCraft hasn't been through it.
+
+### Sign in with Google through a client of your own
+
+A build, or a running MailCraft, that is given a Google client offers **Sign in with Google**.
+This suits a Google Workspace organisation: a client its administrator creates as **Internal**
+has no warning and no user limit, and works for that organisation's accounts only.
+
+1. In Google Cloud Console, create a project, and under **Google Auth Platform › Audience** choose
+   **Internal**.
+2. Under **Clients**, create an OAuth client of the type **Desktop app**.
+3. Set `MAILCRAFT_GOOGLE_CLIENT_ID` and `MAILCRAFT_GOOGLE_CLIENT_SECRET` to its ID and secret
+   before MailCraft starts.
+
+A client that is **External** and not verified works too, with Google's warning (choose
+**Advanced**, then **Go to MailCraft**) and its limit of 100 users.
 
 ## Fix an Outlook.com account that won't connect
 

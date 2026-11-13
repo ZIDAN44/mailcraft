@@ -15,19 +15,15 @@ impl Worker {
         // Exchange Online: its calendars and contacts through Graph.
         if let Some(Conn::Graph(c)) = &self.conn {
             let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-            match crate::graph_pim::sync(c, &pim, now()) {
-                Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
-                Err(e) => log::info!("{}: calendars and contacts: {e}", self.acc.id),
-            }
+            let read = crate::graph_pim::sync(c, &pim, now());
+            self.exchange_read(read);
             return;
         }
         // On-premises Exchange: its calendar and contacts through EWS.
         if let Some(Conn::Ews(c)) = &self.conn {
             let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-            match crate::ews_pim::sync(c, &pim, now()) {
-                Ok(sync) => self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) }),
-                Err(e) => log::info!("{}: calendars and contacts: {e}", self.acc.id),
-            }
+            let read = crate::ews_pim::sync(c, &pim, now());
+            self.exchange_read(read);
             return;
         }
         // OAuth tokens are for mail only: such an account's calendars need a sign-in of their own.
@@ -41,6 +37,36 @@ impl Worker {
                 self.notice(format!("calendars and contacts: {e}"));
             }
         }
+    }
+
+    /// An Exchange account's calendars and contacts, read or not. What the server wouldn't give
+    /// is said with why, once and not at every sync (issue #80: the calendar stayed empty and
+    /// nothing said so); a server that couldn't be reached is the mail's to say.
+    fn exchange_read(&mut self, read: Result<mailcraft_model::pim::DavSync>) {
+        match read {
+            Ok(mut sync) => {
+                let said = (!sync.errors.is_empty()).then(|| sync.errors.join("; "));
+                if said.is_some() && said == self.dav_said {
+                    sync.errors.clear();
+                }
+                self.dav_said = said;
+                self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) });
+            }
+            Err(e) => {
+                log::warn!("{}: calendars and contacts: {e}", self.acc.id);
+                let why = e.to_string();
+                if !matches!(e, NetError::Io(_) | NetError::Closed(_)) && self.dav_said.as_deref() != Some(why.as_str()) {
+                    self.notice(format!("calendars and contacts: {why}"));
+                    self.dav_said = Some(why);
+                }
+            }
+        }
+    }
+
+    /// Whether the account's calendars and contacts have ever been read from its server.
+    pub(in crate::worker) fn calendars_read_before(&self) -> bool {
+        let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+        pim.dav_checked.is_some()
     }
 
     /// One sync with the CalDAV and CardDAV server: the addresses given by hand (issue #7), or
@@ -60,6 +86,7 @@ impl Worker {
         let at = crate::dav::Where {
             email: &self.acc.email,
             username: &self.acc.username,
+            others: &self.acc.identities,
             imap_host: host,
             caldav: Some(given.caldav.as_str()).filter(|c| !c.trim().is_empty()),
             carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),

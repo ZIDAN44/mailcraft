@@ -12,15 +12,19 @@ use super::*;
 pub fn get_into<W: Write>(req: &Request, open: impl FnOnce(&Response) -> Result<Option<W>>) -> Result<Response> {
     let mut url = Url::parse(&req.url)?;
     let mut open = Some(open);
+    let mut bare: Option<Request> = None;
     for _ in 0..=MAX_REDIRECTS {
         let sock = stream::tcp(&url.host, url.port)?;
         let mut s = if url.https { stream::tls(sock, &url.host)? } else { Stream::Plain(sock) };
-        let head = exchange_into(&mut s, req, &url, |head| open.take().map_or(Ok(None), |open| open(head)))?;
+        let head = exchange_into(&mut s, bare.as_ref().unwrap_or(req), &url, |head| open.take().map_or(Ok(None), |open| open(head)))?;
         match redirect(&head) {
             Some(loc) => {
                 let next = url.join(loc)?;
                 if url.https && !next.https {
                     return Err(NetError::Tls("redirected from https to http".into()));
+                }
+                if let Some(without) = super::redirected(bare.as_ref().unwrap_or(req), &url, &next) {
+                    bare = Some(without);
                 }
                 url = next;
             }

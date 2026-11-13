@@ -103,7 +103,14 @@ pub fn start() {
                         session.mix_random(u64::from_le_bytes(bits));
                     }
                     let backend = WebBackend::new(store.clone(), cc.egui_ctx.clone());
-                    let services = WebServices { picked: Rc::default(), ctx: cc.egui_ctx.clone(), font: Rc::default() };
+                    let restore = Restoring::default();
+                    let services = WebServices {
+                        picked: Rc::default(),
+                        ctx: cc.egui_ctx.clone(),
+                        font: Rc::default(),
+                        restore: restore.clone(),
+                        keeps: db.is_some(),
+                    };
                     let mut app = MailApp::new(session, Box::new(backend), Box::new(services));
                     if sample {
                         app.ui.title_base = "MailCraft – Sample mailbox".into();
@@ -115,7 +122,7 @@ pub fn start() {
                     if let Some(key) = param("open") {
                         app.show_message_page(&key);
                     }
-                    Ok(Box::new(WebShell { app, store, sample, db }))
+                    Ok(Box::new(WebShell { app, store, sample, db, restore, restored: false }))
                 }),
             )
             .await;
@@ -160,11 +167,49 @@ struct WebShell {
     sample: bool,
     /// Where the cache is kept between visits.
     db: Option<web_sys::IdbDatabase>,
+    /// A backup to put in the place of what's kept (issue #83), once the window asks.
+    restore: Restoring,
+    /// One was: nothing of this page's is kept over it while the page loads anew.
+    restored: bool,
+}
+
+impl WebShell {
+    /// What's kept gives way to a backup's files and settings, and the page starts again
+    /// from them.
+    fn bring_in(&mut self, files: &[(String, Vec<u8>)], state: &serde_json::Value, frame: &mut eframe::Frame) {
+        let Some(db) = &self.db else { return };
+        let reload = || {
+            if let Some(w) = web_sys::window() {
+                let _ = w.location().reload();
+            }
+        };
+        match crate::idb::replace(db, files, reload) {
+            Ok(()) => {
+                self.restored = true;
+                if let Some(storage) = frame.storage_mut() {
+                    storage.remove_string(FILES_KEY);
+                    if let Ok(j) = serde_json::to_string(state) {
+                        storage.set_string(UI_KEY, j);
+                    }
+                    storage.flush();
+                }
+            }
+            Err(e) => self.app.session.notice(format!("The backup couldn't be brought in: {e}"), true),
+        }
+    }
 }
 
 impl eframe::App for WebShell {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        if self.restored {
+            return;
+        }
+        let asked = self.restore.borrow_mut().take();
+        if let Some((files, state)) = asked {
+            self.bring_in(&files, &state, frame);
+            return;
+        }
         // What changed in the cache this frame goes to IndexedDB.
         if let Some(db) = &self.db {
             let changes: Vec<_> = self.store.take_changes().into_iter().filter(|(p, _)| !p.ends_with(".bad")).collect();
@@ -179,7 +224,7 @@ impl eframe::App for WebShell {
     /// Keep the settings, and without IndexedDB the account and folder lists (not mail, never
     /// passwords).
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        if self.sample {
+        if self.sample || self.restored {
             return;
         }
         if let Ok(j) = serde_json::to_string(&self.app.saved_state()) {
@@ -211,11 +256,16 @@ impl eframe::App for WebShell {
 
 /// Files chosen in the picker: (purpose, name, bytes).
 type Picked = Rc<RefCell<Vec<(String, String, Vec<u8>)>>>;
+/// A backup's files and settings the window asked to bring in.
+type Restoring = Rc<RefCell<Option<(Vec<(String, Vec<u8>)>, serde_json::Value)>>>;
 
 struct WebServices {
     picked: Picked,
     ctx: egui::Context,
     font: Rc<RefCell<FontFetch>>,
+    restore: Restoring,
+    /// Whether this page keeps anything between visits (not the sample, nor without IndexedDB).
+    keeps: bool,
 }
 
 /// The Simplified Chinese font, fetched once when wanted.
@@ -275,9 +325,25 @@ impl Services for WebServices {
             log::error!("download of {name} failed: {e}");
         }
     }
+    fn random_bytes(&mut self) -> Option<[u8; 28]> {
+        let mut bytes = [0u8; 28];
+        rand_core::RngCore::try_fill_bytes(&mut rand_core::OsRng, &mut bytes).ok().map(|()| bytes)
+    }
+    fn restore(&mut self, files: Vec<(String, Vec<u8>)>, state: serde_json::Value) -> Result<(), String> {
+        if !self.keeps {
+            return Err("this page keeps nothing between visits (the sample mailbox, or a browser without its storage), so there's nowhere to bring a backup in".into());
+        }
+        *self.restore.borrow_mut() = Some((files, state));
+        self.ctx.request_repaint();
+        Ok(())
+    }
     fn pick_later(&mut self, purpose: &str) -> bool {
         let (picked, ctx, purpose) = (self.picked.clone(), self.ctx.clone(), purpose.to_string());
-        let dialog = if purpose == "picture" {
+        let dialog = if purpose == "backup" {
+            rfd::AsyncFileDialog::new().add_filter("MailCraft backup", &["mailcraft-backup"])
+        } else if purpose == "rules" || purpose == "categories" {
+            rfd::AsyncFileDialog::new().add_filter("MailCraft file", &["json"])
+        } else if purpose == "picture" {
             rfd::AsyncFileDialog::new().add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
         } else if purpose.starts_with("certificate:") {
             rfd::AsyncFileDialog::new().add_filter("Certificate with its key", &["p12", "pfx"])

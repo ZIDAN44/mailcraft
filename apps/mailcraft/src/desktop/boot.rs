@@ -23,12 +23,10 @@ fn take<T>(slot: &Mutex<Option<T>>) -> Option<T> {
     slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
 }
 
-/// What a panic said.
-fn panic_text(p: &(dyn std::any::Any + Send)) -> String {
-    p.downcast_ref::<&str>()
-        .map(|s| (*s).to_string())
-        .or_else(|| p.downcast_ref::<String>().cloned())
-        .unwrap_or_else(|| "it stopped unexpectedly".into())
+/// What's said of a panic: that it happened. Where is in the log (`logfile.rs`); what it said
+/// is written nowhere, as it can quote what was being read.
+fn panic_text(_: &(dyn std::any::Any + Send)) -> String {
+    "it stopped unexpectedly (the log says where)".into()
 }
 
 /// Open `store`'s data files on a thread of their own, then the session (`session` makes it). A

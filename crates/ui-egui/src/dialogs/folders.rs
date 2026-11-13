@@ -20,11 +20,19 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::MoveTo { filter } => {
+        Dialog::MoveTo { filter, copy } => {
+            let copy = *copy;
             ui.set_width(340.0);
-            title(ui, t, "Move to folder");
+            title(ui, t, if copy { "Copy to folder" } else { "Move to folder" });
             let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
-            r.request_focus();
+            // Once, as it opens (it wasn't drawn the frame before), whatever had the keys:
+            // asked for every frame, Tab never left the box.
+            let (shown, now) = (egui::Id::unique("move-to-shown"), ui.ctx().cumulative_pass_nr());
+            let before: Option<u64> = ui.data(|d| d.get_temp(shown));
+            ui.data_mut(|d| d.insert_temp(shown, now));
+            if before.is_none_or(|last| last.saturating_add(2) < now) {
+                r.request_focus();
+            }
             let mut accounts: Vec<String> = s.selected_iter().map(|m| m.key.account.clone()).collect();
             accounts.sort_unstable();
             accounts.dedup();
@@ -32,33 +40,43 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.label(RichText::new(tl!("Select a message first.")).color(t.dim));
                 return !buttons(ui, t, "Close", false).1;
             };
-            if accounts.len() > 1 {
-                ui.label(RichText::new(tl!("Pick messages from one account to move them to a folder.")).color(t.warn).small());
-            }
             let needle = filter.to_lowercase();
-            let folders: Vec<&Folder> = account
-                .folders
-                .iter()
+            // The messages' own account's folders, then every other account's, each under its
+            // name: mail goes into any of them (issue #82).
+            let own = account.config.id.clone();
+            let others = s.accounts.iter().filter(|a| a.config.id != own);
+            let folders: Vec<&Folder> = std::iter::once(account)
+                .chain(others)
+                .flat_map(|a| a.folders.iter())
                 .filter(|f| f.selectable && mailcraft_engine::model::utf7::decode(&f.path).to_lowercase().contains(&needle))
                 .collect();
             let mut chosen = None;
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                let mut of = own.as_str();
                 for f in &folders {
+                    if f.account != of {
+                        of = f.account.as_str();
+                        // By its address, as the folder list names it: the name on its mail
+                        // is the user's own, the same for each of their accounts.
+                        let name = s.account(of).map(|a| a.config.email.clone()).unwrap_or_default();
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(name).color(t.dim).small());
+                    }
                     let indent = "    ".repeat(f.depth());
                     if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
-                        chosen = Some(f.path.clone());
+                        chosen = Some((f.account.clone(), f.path.clone()));
                     }
                 }
             });
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
             if enter && folders.len() == 1 {
-                chosen = folders.first().map(|f| f.path.clone());
+                chosen = folders.first().map(|f| (f.account.clone(), f.path.clone()));
             }
-            if let Some(path) = chosen {
-                acts.push(Action::Run("mail.move", json!({"folder": path})));
+            if let Some((to, path)) = chosen {
+                acts.push(Action::Run(if copy { "mail.copy" } else { "mail.move" }, json!({"folder": path, "account": to})));
                 return false;
             }
-            !buttons(ui, t, "Move", false).1
+            !buttons(ui, t, if copy { "Copy" } else { "Move" }, false).1
         }
         Dialog::FolderName { account, parent, rename, name, error } => {
             ui.set_width(360.0);

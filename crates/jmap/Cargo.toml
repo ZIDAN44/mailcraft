@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft's JMAP mail transport (RFC 8620/8621) over any HTTP client: the desktop's sockets or the browser's fetch (portable, wasm)"
 
 [lints]

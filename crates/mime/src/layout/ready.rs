@@ -98,7 +98,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
             write_as(
                 &root,
                 &mut out,
-                How { leave_hidden: true, blocks: outlooks, styles: false, in_values: false, flat: false, sizing: false, size: 0 },
+                How { leave_hidden: true, blocks: outlooks, styles: false, in_values: false, flat: false, sizing: false, size: 0, bold: false },
                 false,
             );
             out
@@ -116,7 +116,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
             write_as(
                 &root,
                 &mut out,
-                How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0 },
+                How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0, bold: false },
                 false,
             );
             out
@@ -175,7 +175,7 @@ pub(crate) fn sized_html(html: &str) -> Option<String> {
         write_as(
             &Kid::El(tree.root),
             &mut out,
-            How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size: 0 },
+            How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size: 0, bold: false },
             false,
         );
         Some(out)
@@ -203,6 +203,9 @@ pub(super) struct How {
     pub(super) sizing: bool,
     /// The size of the text here, in pixels (`0`: not set).
     pub(super) size: u16,
+    /// The text here is bold (`font-weight` on a box around it: the text converter reads bold
+    /// from `<b>` alone, and a step's name or a total set bold by its cell came out plain).
+    pub(super) bold: bool,
 }
 
 /// Parts of a table, written as blocks in a layout table read as blocks.
@@ -216,13 +219,23 @@ fn table_part(tag: &str) -> bool {
 pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
     match k {
         // Its size around the words: a space outside it stays a space between words.
-        Kid::Text(t) if how.sizing && how.size > 0 && !t.trim().is_empty() => {
+        Kid::Text(t) if how.sizing && (how.size > 0 || how.bold) && !t.trim().is_empty() => {
             let words = t.trim();
             let before = t.len() - t.trim_start().len();
             escaped(t.get(..before).unwrap_or(""), out, false);
-            out.push(crate::html::size_mark(how.size));
+            if how.bold {
+                out.push_str("<b>");
+            }
+            if how.size > 0 {
+                out.push(crate::html::size_mark(how.size));
+            }
             escaped(words, out, false);
-            out.push(crate::html::SIZE_END);
+            if how.size > 0 {
+                out.push(crate::html::SIZE_END);
+            }
+            if how.bold {
+                out.push_str("</b>");
+            }
             escaped(t.get(before + words.len()..).unwrap_or(""), out, false);
         }
         Kid::Text(t) => escaped(t, out, false),
@@ -236,7 +249,7 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
             if how.leave_hidden && n.attr("style").is_some_and(crate::html::mso_hidden) {
                 return;
             }
-            let how = if how.sizing { How { size: n.text_size(how.size), ..how } } else { how };
+            let how = if how.sizing { How { size: n.text_size(how.size), bold: n.bold(how.bold), ..how } } else { how };
             let (tag, layout, how) = match n.tag.as_str() {
                 // Its text as it's written, in a box that ends (`<plaintext>` doesn't, and the
                 // tags written after it showed as text; found in review).

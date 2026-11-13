@@ -29,7 +29,7 @@ In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JM
 | L0 | `mailcraft-model` | — | Pure data and algorithms. `Job` and `Event` live here, so `net` and `engine` agree without depending on each other |
 | L1 | `mailcraft-mime` | model | Parse and build MIME (`mail-parser`, `mail-builder`); turn HTML into text (`html2text`, `html5ever`) |
 | L1 | `mailcraft-store` | model | The local cache: one redb data file per account, or plain files plus JSON; atomic writes; the search index |
-| L1 | `mailcraft-print` | — | Messages as PDF pages, with an embedded TrueType font |
+| L1 | `mailcraft-print` | — | Messages as PDF pages, laid out as they're read (tables, backgrounds, pictures, links), with an embedded TrueType font |
 | L1 | `mailcraft-pst` | — | Outlook data files (MS-PST): read them (wasm-safe), add to them and write new ones |
 | L1 | `mailcraft-smime` | — | S/MIME (RFC 8551) on RustCrypto, with keys behind a `PrivateKey` trait; wasm-safe |
 | L1 | `mailcraft-pgp` | — | OpenPGP (RFC 9580) on rPGP: keys and their self-signatures, signing, encrypting, decrypting, verifying; Autocrypt headers; inline PGP blocks; wasm-safe |

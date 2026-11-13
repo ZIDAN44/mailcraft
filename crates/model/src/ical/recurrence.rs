@@ -22,6 +22,9 @@ pub(super) struct Rule {
     pub(super) by_month: Vec<u32>,
     /// Which of each period's days count (1-based; negative from the end).
     pub(super) by_set_pos: Vec<i32>,
+    /// The day weeks start on (`WKST`; 0 = Monday, RFC 5545's when it isn't said): which
+    /// weeks an every-other-week rule takes.
+    pub(super) week_start: u32,
     /// The hours, minutes and seconds of the occurrences (none: the start's).
     pub(super) by_hour: Vec<i64>,
     pub(super) by_minute: Vec<i64>,
@@ -64,6 +67,7 @@ impl Rule {
                 "BYSETPOS" => {
                     r.by_set_pos = v.split(',').filter_map(|p| p.trim().parse().ok()).filter(|p: &i32| *p != 0 && p.abs() <= 366).take(31).collect()
                 }
+                "WKST" => r.week_start = weekday_code(v.trim()).unwrap_or(0),
                 "BYHOUR" => r.by_hour = numbers(v, 23),
                 "BYMINUTE" => r.by_minute = numbers(v, 59),
                 "BYSECOND" => r.by_second = numbers(v, 59),
@@ -140,9 +144,12 @@ impl Rule {
             "DAILY" => [day].into_iter().filter(|d| self.weekday_ok(*d) && self.month_day_ok(*d)).collect(),
             "WEEKLY" if self.by_day.is_empty() => vec![day],
             "WEEKLY" => {
-                // The week (Monday first) containing `day`.
-                let monday = day - i64::from(wd(day));
-                self.by_day.iter().map(|(_, w)| monday + i64::from(*w)).filter(|d| self.month_day_ok(*d)).collect()
+                // The week containing `day`, from the day weeks start on: a rule for every other
+                // week on Saturday and Sunday, weeks starting on Sunday (as Outlook has them in
+                // much of the world), had its Sundays a week off with Monday taken for it.
+                let start = i64::from(self.week_start);
+                let first = day - (i64::from(wd(day)) - start).rem_euclid(7);
+                self.by_day.iter().map(|(_, w)| first + (i64::from(*w) - start).rem_euclid(7)).filter(|d| self.month_day_ok(*d)).collect()
             }
             "MONTHLY" => self.days_in_month(y, m, sd),
             "YEARLY" => {
@@ -263,7 +270,20 @@ fn by_rule(e: &CalEvent, before: i64) -> Vec<i64> {
     let mut k = 0i64;
     'periods: while let Some(p) = rule.period(start_day, k) {
         k += 1;
-        for local in rule.moments_in_period(if k == 1 { start_day } else { p }, start_day, &times) {
+        // A period wholly past the window ends it: one that starts more than eight days after
+        // it (two for any zone, and six for a week's days before the start's own weekday: a
+        // week is counted from that one, and a Monday of a rule begun on a Friday is four days
+        // before it). One the rule gives nothing in is a step too. A rule that never matches (`FREQ=DAILY;BYSETPOS=2`:
+        // a day has no second day) went through every day there is otherwise, which no
+        // calendar that had such an event came back from.
+        if p.checked_mul(86_400).is_none_or(|t| t.saturating_sub(8 * 86_400) >= before) {
+            break;
+        }
+        let moments = rule.moments_in_period(if k == 1 { start_day } else { p }, start_day, &times);
+        if moments.is_empty() {
+            steps += 1;
+        }
+        for local in moments {
             steps += 1;
             if steps > MAX_STEPS {
                 break 'periods;

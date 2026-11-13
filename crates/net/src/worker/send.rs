@@ -87,7 +87,7 @@ impl Worker {
                 }
             }
             Err(e) => {
-                if matches!(e, NetError::Closed(_) | NetError::Io(_)) {
+                if e.is_fatal() {
                     self.conn = None;
                 }
                 self.sink.emit(Event::SendFailed { account: self.id(), id: *id, error: e.to_string() });
@@ -309,7 +309,9 @@ impl Worker {
             }
             None => (if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() }, self.secret()?),
         };
-        smtp::send_with(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw).map_err(|e| match e {
+        let sent =
+            smtp::send_trusting(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw, &self.acc.trusted_certificates);
+        sent.map_err(|e| match e {
             // Say whether the sign-in covered sending: Microsoft lists what it granted.
             NetError::Auth(m) if self.acc.oauth.as_deref() == Some("microsoft") => {
                 let granted = self.granted();

@@ -117,6 +117,7 @@
 	24-hour	24-uurs
 	12-hour	12-uurs
 	Whole date and time in the list	Volledige datum en tijd in de lijst
+	Earlier this month	Eerder deze maand
 	Last month	Vorige maand
 	Last week	Vorige week
 	Later	Later
@@ -156,6 +157,10 @@
 	Move to folder	Naar map verplaatsen
 	Move to…	Verplaatsen naar…
 	Move {n} messages	{n} berichten verplaatsen
+	Copy to folder	Naar map kopiëren
+	Copy to…	Kopiëren naar…
+	Copy 1 message	1 bericht kopiëren
+	Copy {n} messages	{n} berichten kopiëren
 	Move “{folder}” to	“{folder}” verplaatsen naar
 	Name	Naam
 	Names <addresses>, separated by ; or ,	Namen <adressen>, gescheiden door ; of ,
@@ -198,7 +203,6 @@
 	Password needed	Wachtwoord nodig
 	Password…	Wachtwoord…
 	Personal	Persoonlijk
-	Pick messages from one account to move them to a folder.	Kies berichten uit één account om ze naar een map te verplaatsen.
 	Picture	Afbeelding
 	Pictures from the web are hidden to protect your privacy.	Afbeeldingen van het web zijn verborgen om je privacy te beschermen.
 	Picture…	Afbeelding…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} bijlagen opgeslagen in {folder}
 	Saved {path}	{path} opgeslagen
 	Search folders	Mappen zoeken
+	(the rest isn't shown: open the file to see it all)	(de rest wordt niet getoond: open het bestand om alles te zien)
+	Pick a category	Kies een categorie
+	Pick a folder	Kies een map
+	Say what to look for	Geef aan waarnaar moet worden gezocht
+	Give the rule a name	Geef de regel een naam
 	Search mail (from:, subject:, has:attachment…)	Mail zoeken (from:, subject:, has:attachment…)
 	Select a message first.	Selecteer eerst een bericht.
 	Send	Verzenden
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Instellingen gevonden: {source}
 	Show a desktop notification when new mail arrives	Een bureaubladmelding tonen wanneer er nieuwe mail binnenkomt
+	Keep MailCraft running when its window is closed	MailCraft actief houden wanneer het venster wordt gesloten
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Het blijft in het systeemvak, controleert op e-mail en meldt die. ‘Afsluiten’ op de pagina Bestand, of in het menu van het pictogram, sluit het.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Het venster wordt geminimaliseerd en MailCraft blijft op e-mail controleren en die melden. ‘Afsluiten’ op de pagina Bestand sluit het.
+	Open MailCraft	MailCraft openen
 	Show as plain text	Als platte tekst weergeven
 	Show formatted	Met opmaak weergeven
 	Show in Favorites	In Favorieten weergeven
@@ -769,11 +782,18 @@ month	May	mei
 	Move down	Omlaag
 	Updating…	Bijwerken…
 	All folders are up to date	Alle mappen zijn bijgewerkt
+	1 account disconnected	1 account niet verbonden
 	{n} accounts disconnected	{n} accounts niet verbonden
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Aanmelden met Microsoft
 	Sign in with Microsoft…	Aanmelden met Microsoft…
 	Mailbox won't open	Postvak gaat niet open
+	Trust this computer's mail server?	De mailserver op deze computer vertrouwen?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} staat op deze computer en toont een certificaat dat het zelf heeft gemaakt en waar geen instantie voor instaat. Dat doet een programma dat een maildienst met mailprogramma’s verbindt. Vertrouw het alleen als u dat programma zelf hebt ingesteld.
+	Certificate fingerprint (SHA-256)	Vingerafdruk van het certificaat (SHA-256)
+	MailCraft asks again if the server shows another certificate.	MailCraft vraagt het opnieuw als de server een ander certificaat toont.
+	Trust this certificate	Dit certificaat vertrouwen
+	Certificate not trusted yet	Certificaat nog niet vertrouwd
 	The mailbox won't open	Het postvak gaat niet open
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph bereikt het postvak zonder IMAP en brengt ook de agenda en contactpersonen mee. Het account begint daarmee opnieuw: de e-mail wordt van de server opgehaald.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP aangezet, of in de browser een ander account gekozen? Opnieuw aanmelden
@@ -854,6 +874,28 @@ month	May	mei
 	Delete this contact?	Dit contact verwijderen?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Dit contact wordt verwijderd, met alles wat erover is bewaard. Dit kan niet ongedaan worden gemaakt.
 	Export…	Exporteren…
+	{file} isn't a MailCraft backup.	{file} is geen back-up van MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	Een back-up wordt ingelezen waar MailCraft in de browser draait.
+	Backup saved as {file}	Back-up opgeslagen als {file}
+	Restore…	Herstellen…
+	Bring a backup file in. It takes the place of what's kept here now.	Een back-upbestand inlezen. Het vervangt wat hier nu wordt bewaard.
+	Back up…	Back-up maken…
+	Save what's kept here to a file, with a password if you like.	Sla wat hier wordt bewaard op in een bestand, desgewenst met een wachtwoord.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft bewaart uw accounts, instellingen en e-mail alleen in deze browser. Als de browsergegevens voor deze site worden gewist, zijn ze weg: een back-upbestand brengt ze terug, hier of in een andere browser.
+	Backup	Back-up
+	The backup's password	Het wachtwoord van de back-up
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Dit vervangt alles wat MailCraft nu in deze browser bewaart: de accounts, hun instellingen en hun e-mail. Het wachtwoord van elk account wordt opnieuw gevraagd.
+	Restore from a backup…	Herstellen vanuit een back-up…
+	Restore from backup	Herstellen vanuit back-up
+	The two passwords aren't the same.	De twee wachtwoorden zijn niet gelijk.
+	Save backup	Back-up opslaan
+	The file can't be opened without this password: MailCraft can't recover it.	Het bestand kan niet worden geopend zonder dit wachtwoord: MailCraft kan het niet herstellen.
+	Without a password, anyone who has the file can read what's in it.	Zonder wachtwoord kan iedereen die het bestand heeft de inhoud lezen.
+	The password again	Nogmaals het wachtwoord
+	Password for the file (optional)	Wachtwoord voor het bestand (optioneel)
+	Include the mail downloaded to this browser	De e-mail opnemen die naar deze browser is gedownload
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Uw accounts met hun instellingen, regels, handtekeningen, agenda's en contactpersonen gaan in één bestand. Wachtwoorden staan er nooit in.
+	Back up	Back-up maken
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Voegt de regels toe uit een bestand dat MailCraft heeft opgeslagen. Een regel voor een account dat niet op deze computer staat, komt uitgeschakeld binnen.
 	Change…	Wijzigen…
 	Clean up	Opruimen
@@ -881,6 +923,17 @@ month	May	mei
 	Send email	E-mail verzenden
 	Add	Toevoegen
 	Add a shared mailbox	Een gedeeld postvak toevoegen
+	Other addresses	Andere adressen
+	Key {key}: signs mail from {addresses}	Sleutel {key}: ondertekent e-mail van {addresses}
+	Valid until {date}: signs mail from {addresses}	Geldig tot {date}: ondertekent e-mail van {addresses}
+	Find on the server	Op de server zoeken
+	Addresses of this same mailbox that you also send from.	Adressen van ditzelfde postvak waarvandaan u ook verzendt.
+	Add an address	Een adres toevoegen
+	Change an address	Een adres wijzigen
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Een ander adres van ditzelfde postvak, zoals een alias, waarvandaan e-mail kan worden verzonden. Kies het bij ‘Van’ wanneer u een bericht schrijft. Uw mailserver moet verzenden vanaf dit adres toestaan.
+	Name on mail from it	Naam op e-mail vanaf dit adres
+	Replies go to	Antwoorden gaan naar
+	(the account's own)	(die van het account)
 	Add…	Toevoegen…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	De mappen verschijnen onder dit account. U hebt er toegang toe nodig op de Exchange-server; postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
 	Mailboxes you have full access to open by themselves.	Postvakken waartoe u volledige toegang hebt, worden vanzelf geopend.
@@ -1626,7 +1679,7 @@ month	May	mei
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Dit bericht lijkt verdacht of de afzender kon niet worden bevestigd, dus de afbeeldingen blijven verborgen.
 	These senders' pictures always load, even when a message looks suspicious:	Afbeeldingen van deze afzenders worden altijd geladen, ook als een bericht verdacht lijkt:
 	Open a mail file	Een e-mailbestand openen
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Bekijk een opgeslagen bericht (.eml of .msg van Outlook) in een eigen venster, zonder het aan een map toe te voegen. De afbeeldingen van het web worden niet geladen en niets erin wordt uitgevoerd.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Bekijk een opgeslagen bericht (.eml of .msg van Outlook) in een eigen venster, zonder het aan een map toe te voegen. De afbeeldingen van het web worden alleen geladen als u daarom vraagt en niets erin wordt uitgevoerd.
 	Nothing is kept: closing it leaves no trace in your mail.	Er wordt niets bewaard: na het sluiten blijft er geen spoor achter in je e-mail.
 	and {n} more	en nog {n}
 	Checking for new mail	Controleren op nieuwe e-mail
@@ -1639,4 +1692,10 @@ month	May	mei
 	Server: {url} (CalDAV and CardDAV)	Server: {url} (CalDAV en CardDAV)
 	Not available: this account has no mail server.	Niet beschikbaar: dit account heeft geen mailserver.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Je e-mail is overgenomen uit de eerdere Flatpak van MailCraft, die nog geïnstalleerd is. Verwijder die met: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	Geopend uit {file}. Het staat in geen enkele map, de afbeeldingen van het web worden niet geladen en na het sluiten blijft er geen spoor achter.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Geopend uit {file}. Het staat in geen enkele map, de afbeeldingen van het web worden alleen geladen als u daarom vraagt en na het sluiten blijft er geen spoor achter.
+	To-Do Bar	Takenbalk
+	Appointments	Afspraken
+	Type a new task	Typ een nieuwe taak
+	Nothing to do	Niets te doen
+	Nothing in the next 7 days	Niets in de komende 7 dagen
+	Show the calendar, what's coming up and your tasks beside the mail	De agenda, wat eraan komt en uw taken naast de e-mail weergeven

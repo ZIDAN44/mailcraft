@@ -116,6 +116,61 @@ impl Session {
         self.account(account).and_then(|a| a.config.default_signature(reply)).cloned()
     }
 
+    /// [`Session::default_signature`] for a message from `from`, one of the account's addresses
+    /// (issue #81): that address's own signature when it has one, new or a reply.
+    pub fn signature_for(&self, account: &str, from: &str, reply: bool) -> Option<Signature> {
+        let config = &self.account(account)?.config;
+        let own = config.identity(from).and_then(|i| i.signature.as_deref()).and_then(|n| config.signature_named(n));
+        own.or_else(|| config.default_signature(reply)).cloned()
+    }
+
+    /// The addresses `account`'s server says its mail is sent from (issue #81): those it
+    /// doesn't have yet become its other addresses, with the name and the place for replies
+    /// the server keeps for each. Its own address, one it has already (kept as it's set here)
+    /// and another account's are left out.
+    pub(in crate::session) fn identities_found(&mut self, account: &str, found: Vec<mailcraft_model::Identity>, error: Option<String>) {
+        if let Some(e) = error {
+            return self.notice(format!("The server's addresses couldn't be read: {e}"), true);
+        }
+        let Some(mut config) = self.account(account).map(|a| a.config.clone()) else { return };
+        let mut added = 0usize;
+        for i in found {
+            let taken = self.accounts.iter().any(|a| a.config.has_address(&i.email));
+            // A name the same as the account's is the account's: left for it to follow.
+            let name = if i.name.trim() == config.name.trim() { String::new() } else { i.name };
+            if !taken && config.set_identity(mailcraft_model::Identity { name, ..i }).is_ok() {
+                added += 1;
+            }
+        }
+        if added == 0 {
+            return self.notice("The server has no other addresses for this account.", false);
+        }
+        match self.update_account(config, None) {
+            Ok(_) => self.notice(format!("{added} {} found on the server and added.", if added == 1 { "address" } else { "addresses" }), false),
+            Err(e) => self.notice(e.to_string(), true),
+        }
+    }
+
+    /// One of `account`'s other addresses is gone: each message being written from it goes
+    /// from the account's own, its signature following as a From change does.
+    pub(crate) fn address_removed(&mut self, account: &str, address: &str) {
+        let current = self.compose.take();
+        let aside = std::mem::take(&mut self.composes);
+        let mut kept = Vec::with_capacity(aside.len());
+        // Each in turn is the current one while it changes (the signature works on that one).
+        for c in aside.into_iter().map(Some).chain([current]) {
+            self.compose = c;
+            let from_it = self.compose.as_ref().is_some_and(|c| !c.sending && c.account == account && c.from.eq_ignore_ascii_case(address));
+            if from_it {
+                let was = self.compose.as_mut().map(|c| std::mem::take(&mut c.from)).unwrap_or_default();
+                self.follow_from(account, &was);
+            }
+            kept.push(self.compose.take());
+        }
+        self.compose = kept.pop().flatten();
+        self.composes = kept.into_iter().flatten().collect();
+    }
+
     /// A signature's text as it first goes in: plain, its look given after ([`style_signature`]).
     pub(crate) fn signature_text(sig: Option<&Signature>) -> String {
         sig.map(|s| signature_parts(s).0).filter(|t| !t.trim().is_empty()).map(|t| signature_block(&t)).unwrap_or_default()
@@ -196,22 +251,22 @@ impl Session {
         Ok(start..start + text.chars().count())
     }
 
-    /// From changed to another account (`was` the one it was from): the new account's
-    /// signature takes the place of the one put in, while that's still there as it was, or
-    /// goes in where none was because the old account had none; where the new account has
-    /// none, the old one goes. A signature changed in the message stays as it is (Outlook's
-    /// way too).
-    pub fn follow_from(&mut self, was: &str) {
+    /// From changed to another account, or another of its addresses (`was` the account it was
+    /// from, `was_from` the address): the new one's signature takes the place of the one put
+    /// in, while that's still there as it was, or goes in where none was because the old one
+    /// had none; where the new one has none, the old one goes. A signature changed in the
+    /// message stays as it is (Outlook's way too).
+    pub fn follow_from(&mut self, was: &str, was_from: &str) {
         let Some(c) = self.compose.as_ref() else { return };
-        if c.account == was {
+        if c.account == was && c.from.eq_ignore_ascii_case(was_from) {
             return;
         }
         let reply = c.mode.is_some();
-        let untouched = if c.signature.is_empty() { self.default_signature(was, reply).is_none() } else { c.signature_at().is_some() };
+        let untouched = if c.signature.is_empty() { self.signature_for(was, was_from, reply).is_none() } else { c.signature_at().is_some() };
         if !untouched {
             return;
         }
-        let new = self.default_signature(&c.account, reply);
+        let new = self.signature_for(&c.account, &c.from, reply);
         if let Err(e) = self.put_signature(new.as_ref(), None) {
             log::warn!("signature: {e}");
         }

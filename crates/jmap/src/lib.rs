@@ -454,6 +454,27 @@ impl<H: Http> Client<H> {
         set_error(r.first(), "notCreated").map_err(|e| Error::Send(e.to_string()))
     }
 
+    /// The addresses the account's mail is sent from, as the server keeps them (RFC 8621 §6:
+    /// its identities), each with its name and where replies to it go; none for a server
+    /// that doesn't send mail. At most a hundred, each held to what an address is.
+    pub async fn identities(&self) -> Result<Vec<mailcraft_model::Identity>> {
+        if !self.submission {
+            return Ok(Vec::new());
+        }
+        let r = self.call(&[CORE, MAIL, SUBMISSION], vec![("Identity/get", json!({"accountId": self.account, "ids": null}))]).await?;
+        let text = |v: Option<&Value>, most: usize| v.and_then(Value::as_str).unwrap_or_default().trim().chars().take(most).collect::<String>();
+        let found = list(r.first(), "list").iter().take(100).map(|i| {
+            let reply_to = i.get("replyTo").and_then(Value::as_array).and_then(|l| l.first()).and_then(|a| a.get("email"));
+            mailcraft_model::Identity {
+                email: text(i.get("email"), 254),
+                name: text(i.get("name"), 200),
+                reply_to: text(reply_to, 254),
+                signature: None,
+            }
+        });
+        Ok(found.filter(|i| mailcraft_model::addr::is_valid_email(&i.email)).collect())
+    }
+
     /// Space used and the limit in bytes for the whole account (RFC 9425); `None` without quotas.
     pub async fn quota(&self) -> Result<Option<(u64, u64)>> {
         if !self.quota {

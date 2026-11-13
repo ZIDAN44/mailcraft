@@ -14,7 +14,8 @@
 //!   read KEY                       print a message (KEY from `list`)
 //!   search QUERY                   search the cache (from:, subject:, has:attachment…)
 //!   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE] [--signature NAME|none]
-//!        [--from ID]                (From changed to that account after the message is made)
+//!        [--from ID|ADDRESS]        (From changed to that account, or to one of an account's
+//!                                   addresses, after the message is made)
 //!   commands                       every engine command, as JSON
 //!   run ID [JSON]                  run an engine command against the cache (its changes
 //!                                  to mail go to the server with the next `sync`)
@@ -453,7 +454,14 @@ fn run() -> Result<(), String> {
                 Some(name) => drop(s.run("compose.insertSignature", &json!({"name": name})).map_err(|e| e.to_string())?),
             }
             // Sent from another account (From changed): its signature takes the first one's place.
+            // Or from one of an account's addresses (issue #81), given as the address.
             let account = match args.opt("--from") {
+                Some(from) if from.contains('@') => {
+                    let of = s.accounts.iter().find(|a| a.config.has_address(&from)).map(|a| a.config.id.clone());
+                    let of = of.ok_or_else(|| format!("{from} isn't an address of any account"))?;
+                    s.run("compose.update", &json!({"account": of, "from": from})).map_err(|e| e.to_string())?;
+                    of
+                }
                 Some(from) => {
                     s.run("compose.update", &json!({"account": from})).map_err(|e| e.to_string())?;
                     from
@@ -465,17 +473,28 @@ fn run() -> Result<(), String> {
             }
             let local = s.account(&account).is_some_and(|a| a.is_local());
             if local {
-                print(&s.run("compose.send", &json!({"allowEmptySubject": true})).map_err(|e| e.to_string())?);
+                print(&s.run("compose.send", &json!({"allowEmptySubject": true, "checked": args.flag("--checked")})).map_err(|e| e.to_string())?);
                 return Ok(());
             }
             let mut pool = start(&mut s, &store, &account)?;
-            let sending = s.run("compose.send", &json!({"allowEmptySubject": true})).map_err(|e| e.to_string())?;
-            let me = sending["sending"].as_u64();
+            let sending = s.run("compose.send", &json!({"allowEmptySubject": true, "checked": args.flag("--checked")})).map_err(|e| e.to_string())?;
+            // Held to be looked at again (an address that looks like another, many people shown
+            // each other's addresses): said at once. It waited out the three minutes unsaid.
+            if let Some(checks) = sending.get("check") {
+                return Err(format!("not sent: it's held to be checked first ({checks}); send it with --checked once it's been looked at"));
+            }
+            // Being signed or encrypted first, then sent under the same number: waited for by
+            // that (it was sent, and "timed out" said three minutes later, for a script to
+            // send it again).
+            let me = sending["sending"].as_u64().or_else(|| sending["protecting"].as_u64());
             // This message's word only: one waiting in the Outbox goes out as the account connects,
             // and its word ended the wait before this one was sent (issue #19's testing).
             drive(&mut s, &mut pool, Duration::from_secs(180), |e| match e {
                 Event::Sent { id, .. } if Some(*id) == me => Some(Ok(())),
                 Event::SendFailed { id, error, .. } if Some(*id) == me => Some(Err(error.clone())),
+                Event::Protected { id, error: Some(error), .. } if Some(*id) == me => {
+                    Some(Err(format!("it couldn't be signed or encrypted: {error}")))
+                }
                 // Kept in the Outbox to go later (it waited there unsaid until the time ran out).
                 Event::Queued { id, error, .. } if Some(*id) == me => Some(Err(format!("not sent yet, kept in the Outbox: {error}"))),
                 _ => None,

@@ -101,7 +101,10 @@ impl Worker {
             }
             Err(e) => {
                 log::info!("{}: message {}: left to the main connection: {e}", self.acc.id, key.uid);
-                if matches!(e, NetError::Closed(_) | NetError::Io(_)) {
+                // Nothing more is asked on a connection that may hold half an answer (a
+                // message past the size taken left its line there, and every message opened
+                // after it failed on that too).
+                if e.is_fatal() {
                     self.conn = None;
                 }
                 if let Some(m) = &self.main {

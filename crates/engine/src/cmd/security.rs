@@ -71,6 +71,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             if wants && !s.can_protect(&c.account) {
                 return Err(CmdError::Disabled("import a certificate or an OpenPGP key for the account first (File › Info › Security)".into()));
             }
+            // Signed as the address it's from (issue #81): with a certificate or a key of its own.
+            if p::bool(v, "sign") == Some(true) && !s.can_sign_from(&c.account, &c.from) {
+                return Err(CmdError::Disabled(format!(
+                    "there's no certificate or OpenPGP key for {}: import one that names it first (File › Info › Security)",
+                    c.from
+                )));
+            }
             let scheme = match p::str(v, "scheme") {
                 None => None,
                 Some("smime") if s.identity(&c.account).is_some() => Some(Some(crate::Scheme::Smime)),

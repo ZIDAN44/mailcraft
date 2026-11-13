@@ -117,6 +117,7 @@
 	24-hour	24 ساعة
 	12-hour	12 ساعة
 	Whole date and time in the list	التاريخ والوقت كاملان في القائمة
+	Earlier this month	في وقت سابق من هذا الشهر
 	Last month	الشهر الماضي
 	Last week	الأسبوع الماضي
 	Later	لاحقًا
@@ -156,6 +157,10 @@
 	Move to folder	نقل إلى مجلد
 	Move to…	نقل إلى…
 	Move {n} messages	نقل {n} رسائل
+	Copy to folder	نسخ إلى مجلد
+	Copy to…	نسخ إلى…
+	Copy 1 message	نسخ رسالة واحدة
+	Copy {n} messages	نسخ {n} رسائل
 	Move “{folder}” to	نقل «{folder}» إلى
 	Name	الاسم
 	Names <addresses>, separated by ; or ,	أسماء <عناوين>، مفصولة بـ ; أو ,
@@ -198,7 +203,6 @@
 	Password needed	كلمة المرور مطلوبة
 	Password…	كلمة المرور…
 	Personal	شخصي
-	Pick messages from one account to move them to a folder.	اختر رسائل من حساب واحد لنقلها إلى مجلد.
 	Picture	صورة
 	Pictures from the web are hidden to protect your privacy.	الصور من الويب مخفية لحماية خصوصيتك.
 	Picture…	صورة…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	حُفظت {n} مرفقات في {folder}
 	Saved {path}	حُفظ {path}
 	Search folders	البحث في المجلدات
+	(the rest isn't shown: open the file to see it all)	(الباقي غير معروض: افتح الملف لرؤيته كاملًا)
+	Pick a category	اختر فئة
+	Pick a folder	اختر مجلدًا
+	Say what to look for	اذكر ما يُبحث عنه
+	Give the rule a name	أعطِ القاعدة اسمًا
 	Search mail (from:, subject:, has:attachment…)	البحث في البريد (from:، subject:، has:attachment…)
 	Select a message first.	اختر رسالة أولًا.
 	Send	إرسال
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	الخوادم: {imap} (IMAP {imap_port})، {smtp} (SMTP {smtp_port})
 	Settings found: {source}	عُثر على الإعدادات: {source}
 	Show a desktop notification when new mail arrives	اعرض إشعارًا على سطح المكتب عند وصول بريد جديد
+	Keep MailCraft running when its window is closed	إبقاء MailCraft قيد التشغيل عند إغلاق نافذته
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	يبقى في منطقة الإعلامات، ويتحقق من البريد ويعلن عنه. يغلقه «خروج» في صفحة «ملف» أو في قائمة أيقونته.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	تُصغَّر نافذته، ويواصل MailCraft التحقق من البريد والإعلان عنه. يغلقه «خروج» في صفحة «ملف».
+	Open MailCraft	فتح MailCraft
 	Show as plain text	عرض كنص عادي
 	Show formatted	عرض منسّق
 	Show in Favorites	عرض في المفضلة
@@ -769,11 +782,18 @@ month	May	مايو
 	Move down	نقل لأسفل
 	Updating…	جارٍ التحديث…
 	All folders are up to date	كل المجلدات محدّثة
+	1 account disconnected	حساب واحد غير متصل
 	{n} accounts disconnected	{n} حسابات غير متصلة
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	تسجيل الدخول باستخدام Microsoft
 	Sign in with Microsoft…	تسجيل الدخول باستخدام Microsoft…
 	Mailbox won't open	تعذّر فتح صندوق البريد
+	Trust this computer's mail server?	هل تثق بخادم البريد على هذا الحاسوب؟
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} موجود على هذا الحاسوب ويعرض شهادة أنشأها بنفسه، لا تضمنها أي جهة. هذا ما يفعله برنامج يربط خدمة بريد بتطبيقات البريد. ثق بها فقط إذا كنت أنت من أعدّ ذلك البرنامج.
+	Certificate fingerprint (SHA-256)	بصمة الشهادة (SHA-256)
+	MailCraft asks again if the server shows another certificate.	سيسأل MailCraft مجددًا إذا عرض الخادم شهادة أخرى.
+	Trust this certificate	الوثوق بهذه الشهادة
+	Certificate not trusted yet	الشهادة غير موثوقة بعد
 	The mailbox won't open	تعذّر فتح صندوق البريد
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	يصل Microsoft Graph إلى صندوق البريد دون IMAP، ويجلب التقويم وجهات الاتصال أيضًا. يبدأ الحساب من جديد عبره: يُنزَّل بريده من الخادم.
 	Turned IMAP on, or picked another account in the browser? Sign in again	هل شغّلت IMAP أو اخترت حسابًا آخر في المتصفح؟ سجّل الدخول مجددًا
@@ -854,6 +874,28 @@ month	May	مايو
 	Delete this contact?	هل تريد حذف جهة الاتصال هذه؟
 	This contact will be deleted, along with everything kept about them. This can't be undone.	سيتم حذف جهة الاتصال هذه مع كل ما هو محفوظ عنها. لا يمكن التراجع عن ذلك.
 	Export…	تصدير…
+	{file} isn't a MailCraft backup.	{file} ليس نسخة احتياطية من MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	تُستعاد النسخة الاحتياطية حيث يعمل MailCraft في المتصفح.
+	Backup saved as {file}	تم حفظ النسخة الاحتياطية باسم {file}
+	Restore…	استعادة…
+	Bring a backup file in. It takes the place of what's kept here now.	أدخل ملف نسخة احتياطية. سيحل محل ما يُحتفظ به هنا الآن.
+	Back up…	نسخ احتياطي…
+	Save what's kept here to a file, with a password if you like.	احفظ ما يُحتفظ به هنا في ملف، بكلمة مرور إن شئت.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	يحتفظ MailCraft بحساباتك وإعداداتك وبريدك في هذا المتصفح فقط. مسح بيانات المتصفح لهذا الموقع يزيلها: ملف النسخة الاحتياطية يعيدها، هنا أو في متصفح آخر.
+	Backup	النسخ الاحتياطي
+	The backup's password	كلمة مرور النسخة الاحتياطية
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	يحل هذا محل كل ما يحتفظ به MailCraft في هذا المتصفح الآن: حساباته وإعداداتها وبريدها. ستُطلب كلمة مرور كل حساب من جديد.
+	Restore from a backup…	استعادة من نسخة احتياطية…
+	Restore from backup	الاستعادة من نسخة احتياطية
+	The two passwords aren't the same.	كلمتا المرور غير متطابقتين.
+	Save backup	حفظ النسخة الاحتياطية
+	The file can't be opened without this password: MailCraft can't recover it.	لا يمكن فتح الملف بدون كلمة المرور هذه: لا يستطيع MailCraft استعادتها.
+	Without a password, anyone who has the file can read what's in it.	بدون كلمة مرور، يمكن لأي شخص لديه الملف قراءة ما فيه.
+	The password again	كلمة المرور مرة أخرى
+	Password for the file (optional)	كلمة مرور للملف (اختيارية)
+	Include the mail downloaded to this browser	تضمين البريد الذي تم تنزيله إلى هذا المتصفح
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	حساباتك وإعداداتها والقواعد والتواقيع والتقويمات وجهات الاتصال تُحفظ في ملف واحد. كلمات المرور ليست فيه أبدًا.
+	Back up	نسخ احتياطي
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	يضيف القواعد من ملف حفظه MailCraft. القاعدة الخاصة بحساب غير موجود على هذا الكمبيوتر تُضاف معطّلة.
 	Change…	تغيير…
 	Clean up	تنظيف
@@ -881,6 +923,17 @@ month	May	مايو
 	Send email	إرسال بريد إلكتروني
 	Add	إضافة
 	Add a shared mailbox	إضافة صندوق بريد مشترك
+	Other addresses	عناوين أخرى
+	Key {key}: signs mail from {addresses}	المفتاح {key}: يوقّع البريد المرسل من {addresses}
+	Valid until {date}: signs mail from {addresses}	صالحة حتى {date}: توقّع البريد المرسل من {addresses}
+	Find on the server	البحث على الخادم
+	Addresses of this same mailbox that you also send from.	عناوين لهذا الصندوق نفسه ترسل منها أيضًا.
+	Add an address	إضافة عنوان
+	Change an address	تغيير عنوان
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	عنوان آخر لهذا الصندوق نفسه، مثل اسم مستعار، يمكن إرسال البريد منه. اختره في «من» عند كتابة رسالة. يجب أن يسمح خادم البريد بالإرسال منه.
+	Name on mail from it	الاسم على البريد المرسل منه
+	Replies go to	الردود تذهب إلى
+	(the account's own)	(توقيع الحساب نفسه)
 	Add…	إضافة…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	تظهر مجلداته تحت هذا الحساب. تحتاج إلى صلاحية الوصول إليه على خادم Exchange؛ وتُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
 	Mailboxes you have full access to open by themselves.	تُفتح الصناديق التي لديك وصول كامل إليها تلقائيًا.
@@ -1626,7 +1679,7 @@ month	May	مايو
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	تبدو هذه الرسالة مريبة أو تعذّر تأكيد مرسلها، لذا تظل صورها مخفية.
 	These senders' pictures always load, even when a message looks suspicious:	تُحمَّل صور هؤلاء المرسلين دائمًا، حتى عندما تبدو الرسالة مريبة:
 	Open a mail file	فتح ملف بريد
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	اعرض رسالة محفوظة (.eml أو .msg من Outlook) في نافذة خاصة بها دون إضافتها إلى مجلد. لا تُحمَّل صورها من الويب ولا يعمل أي شيء بداخلها.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	اعرض رسالة محفوظة (.eml أو .msg من Outlook) في نافذة خاصة بها دون إضافتها إلى مجلد. لا تُحمَّل صورها من الويب إلا إذا طلبت ذلك، ولا يعمل أي شيء بداخلها.
 	Nothing is kept: closing it leaves no trace in your mail.	لا يُحتفظ بشيء: عند إغلاقها لا يبقى أي أثر في بريدك.
 	and {n} more	و{n} أخرى
 	Checking for new mail	التحقق من البريد الجديد
@@ -1639,4 +1692,10 @@ month	May	مايو
 	Server: {url} (CalDAV and CardDAV)	الخادم: {url} (CalDAV وCardDAV)
 	Not available: this account has no mail server.	غير متاح: هذا الحساب بلا خادم بريد.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	انتقل بريدك من إصدار Flatpak السابق من MailCraft، وهو لا يزال مثبتًا. لإزالته، شغّل: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	فُتحت من {file}. ليست في أي مجلد، ولا تُحمَّل صورها من الويب، وعند إغلاقها لا يبقى أي أثر.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	فُتحت من {file}. ليست في أي مجلد، ولا تُحمَّل صورها من الويب إلا إذا طلبت ذلك، وعند إغلاقها لا يبقى أي أثر.
+	To-Do Bar	شريط المهام
+	Appointments	المواعيد
+	Type a new task	اكتب مهمة جديدة
+	Nothing to do	لا شيء للقيام به
+	Nothing in the next 7 days	لا شيء في الأيام السبعة القادمة
+	Show the calendar, what's coming up and your tasks beside the mail	إظهار التقويم والمواعيد القادمة ومهامك بجانب البريد

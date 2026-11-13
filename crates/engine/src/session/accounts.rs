@@ -295,6 +295,7 @@ impl Session {
             return Err(CmdError::Params(format!("no account `{id}`")));
         };
         self.accounts.retain(|a| a.config.id != id);
+        self.forget_transfers(id);
         self.cache.retain(|(a, _), _| a != id);
         // Its messages held for their drafts go with it: kept as MailCraft closes, they'd be
         // written into a removed account's folder, and sent up by a later one of the same id.
@@ -326,10 +327,17 @@ impl Session {
         }
         self.save_accounts();
         self.jobs.push(Job::Remove { account: id.to_string() });
-        if self.compose.as_ref().is_some_and(|c| c.account == id) {
-            self.compose = None;
+        // What's being written from it isn't thrown away with it: it goes From an account that
+        // can send (now, or once one is added), as a message written in a data file's folders.
+        // Its saved copy and the message it answers went with the account.
+        for c in self.compose.iter_mut().chain(self.composes.iter_mut()).filter(|c| c.account == id) {
+            (c.draft, c.source, c.sending) = (None, None, false);
+            (c.on_its_way, c.saves, c.saved_as, c.error) = (None, 0, None, None);
+            c.draft_id.clear();
         }
-        self.composes.retain(|c| c.account != id);
+        // Nor is one of its messages still being signed sent on from another account.
+        self.forget_protecting(id);
+        self.move_to_sending_account();
         let view = self.default_view();
         self.open_view(view);
         Ok(serde_json::json!({ "removed": id, "dataFile": kept.map(|f| f.display().to_string()) }))
@@ -372,6 +380,9 @@ impl Session {
             return Err(CmdError::Params("signing in with Microsoft isn't set up in this copy of MailCraft".into()));
         }
         let at = self.accounts.iter().position(|x| x.config.id == id).unwrap_or(0);
+        // What's being written from it stays its: from the account as it is after, with the
+        // address it was written from (left to itself, it went to another account that sends).
+        let written: Vec<(u64, String)> = self.all_composes().filter(|w| w.account == id).map(|w| (w.id, w.from.clone())).collect();
         // Starting again from the server: its old file isn't kept beside the new one.
         self.drop_account(id, Leaves::Nothing)?;
         let config = AccountConfig {
@@ -382,11 +393,18 @@ impl Session {
             signatures: c.signatures,
             signature_new: c.signature_new,
             signature_reply: c.signature_reply,
+            // And its other addresses.
+            identities: c.identities,
             oauth: Some("microsoft".into()),
             graph: Some(mailcraft_model::GRAPH_URL.to_string()),
             ..Default::default()
         };
         let new = self.add_account(config, None)?;
+        for w in self.compose.iter_mut().chain(self.composes.iter_mut()) {
+            if let Some((_, from)) = written.iter().find(|(wid, _)| *wid == w.id) {
+                (w.account, w.from) = (new.clone(), from.clone());
+            }
+        }
         if let Some(from) = self.accounts.iter().position(|x| x.config.id == new) {
             let mut moved = self.accounts.remove(from);
             moved.config.color = c.color;
@@ -490,6 +508,35 @@ impl Session {
         }
     }
 
+    /// A connection was refused, and `error` says a mail server on this computer showed a
+    /// certificate no authority vouches for (issue #77): the window is to ask about it, once for
+    /// each certificate.
+    pub(crate) fn note_untrusted_certificate(&mut self, account: &str, error: &str) {
+        let Some((host, fingerprint)) = mailcraft_model::untrusted_local_certificate(error) else { return };
+        if self.asked_certificate.len() < 64 && self.asked_certificate.insert((account.to_string(), fingerprint.clone())) {
+            self.ask_certificate.push((account.to_string(), host, fingerprint));
+        }
+    }
+
+    /// Trust the certificate with this fingerprint for an account's servers on this computer,
+    /// and connect again. The newest [`mailcraft_model::MAX_TRUSTED_CERTIFICATES`] are kept.
+    pub fn trust_certificate(&mut self, account: &str, fingerprint: &str) -> CmdResult {
+        let fingerprint = fingerprint.trim().to_ascii_lowercase();
+        if !mailcraft_model::is_certificate_fingerprint(&fingerprint) {
+            return Err(CmdError::Params("`fingerprint` is a certificate's SHA-256 in hex: 64 characters".into()));
+        }
+        let mut config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        if !config.has_server() {
+            return Err(CmdError::Params("that account has no server".into()));
+        }
+        config.trusted_certificates.retain(|t| !t.eq_ignore_ascii_case(&fingerprint));
+        config.trusted_certificates.push(fingerprint.clone());
+        let over = config.trusted_certificates.len().saturating_sub(mailcraft_model::MAX_TRUSTED_CERTIFICATES);
+        config.trusted_certificates.drain(..over);
+        self.update_account(config, None)?;
+        Ok(serde_json::json!({ "account": account, "trusted": fingerprint }))
+    }
+
     pub fn update_account(&mut self, mut config: AccountConfig, password: Option<String>) -> CmdResult {
         config.migrate_signature();
         let id = config.id.clone();
@@ -510,6 +557,7 @@ impl Session {
             || a.config.check_every != config.check_every
             || a.config.dav != config.dav
             || a.config.user_agent != config.user_agent
+            || a.config.trusted_certificates != config.trusted_certificates
             || password.is_some();
         if config.online_only && !config.can_be_online_only() {
             return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));

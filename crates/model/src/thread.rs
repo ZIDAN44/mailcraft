@@ -18,6 +18,9 @@ use std::collections::HashMap;
 
 use crate::Summary;
 
+/// What a reply or forward is marked with, in the languages mail programs write it in.
+const PREFIXES: [&str; 12] = ["re", "fw", "fwd", "aw", "sv", "vs", "wg", "rif", "tr", "antw", "odp", "ynt"];
+
 /// Strip `Re:`, `Fwd:`, `AW:`, `[list]` tags and the like from a subject.
 pub fn base_subject(subject: &str) -> String {
     let mut s = subject.trim();
@@ -30,7 +33,7 @@ pub fn base_subject(subject: &str) -> String {
         }
         // ASCII lowering keeps byte offsets equal to `s`'s.
         let lower = s.to_ascii_lowercase();
-        for p in ["re", "fw", "fwd", "aw", "sv", "vs", "wg", "rif", "tr", "antw", "odp", "ynt"] {
+        for p in PREFIXES {
             if let Some(rest) = lower.strip_prefix(p) {
                 // `Re:`, `RE[2]:`, `Re :`.
                 let rest_t = rest.trim_start_matches(|c: char| c.is_ascii_digit() || c == '[' || c == ']').trim_start();
@@ -48,9 +51,62 @@ pub fn base_subject(subject: &str) -> String {
     s.trim().to_string()
 }
 
-/// Whether a subject carries a reply or forward prefix.
+/// A subject's `[tags]` and the rest of it, without the `Re:`, `Fwd:`, `AW:`… before or between
+/// them, and whether there was one.
+fn tags_and_rest(subject: &str) -> (Vec<&str>, &str, bool) {
+    let mut s = subject.trim();
+    let (mut tags, mut prefixed) = (Vec::new(), false);
+    loop {
+        if s.starts_with('[')
+            && let Some(end) = s.find(']')
+            && let Some(rest) = s.get(end + 1..).filter(|r| !r.trim().is_empty())
+        {
+            tags.push(s.get(..=end).unwrap_or_default());
+            s = rest.trim_start();
+            continue;
+        }
+        let stripped = base_subject_step(s);
+        if stripped.len() == s.len() {
+            break;
+        }
+        prefixed = true;
+        s = stripped;
+    }
+    (tags, s, prefixed)
+}
+
+/// `s` without one leading `Re:`, `Fwd:`, `AW:`… (`RE[2]:`, `Re :`), or as it is.
+fn base_subject_step(s: &str) -> &str {
+    // ASCII lowering keeps byte offsets equal to `s`'s.
+    let lower = s.to_ascii_lowercase();
+    for p in PREFIXES {
+        if let Some(rest) = lower.strip_prefix(p) {
+            let rest_t = rest.trim_start_matches(|c: char| c.is_ascii_digit() || c == '[' || c == ']').trim_start();
+            if rest_t.starts_with(':') || rest_t.starts_with('：') {
+                let consumed = lower.len() - rest_t.len() + rest_t.chars().next().map_or(0, char::len_utf8);
+                return s.get(consumed..).unwrap_or_default().trim_start();
+            }
+        }
+    }
+    s
+}
+
+/// A subject without its `Re:`, `Fwd:`, `AW:`…, its `[tags]` kept: what a reply or forward puts
+/// its own prefix before (`Re: [Ticket#12] Printer`; a help desk matches answers on the tag).
+pub fn without_prefixes(subject: &str) -> String {
+    let (tags, rest, _) = tags_and_rest(subject);
+    let mut out = tags.join(" ");
+    if !out.is_empty() && !rest.is_empty() {
+        out.push(' ');
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Whether a subject carries a reply or forward prefix (a `[tag]` alone isn't one: two
+/// notifications `[JIRA] Build failed` aren't a conversation).
 pub fn is_reply_subject(subject: &str) -> bool {
-    base_subject(subject).len() != subject.trim().len()
+    tags_and_rest(subject).2
 }
 
 /// Normalise a Message-ID for comparison: no angle brackets or surrounding space.
@@ -552,5 +608,20 @@ mod tests {
         let refs_ref: Vec<&str> = refs.iter().map(String::as_str).collect();
         let msgs = vec![m("<z@x>", &refs_ref, "", "deep", 1)];
         assert_eq!(threads(&msgs).len(), 1);
+    }
+
+    /// A `[tag]` isn't a reply's mark: two notifications with one subject aren't a conversation
+    /// (they were, the tag read as `Re:`), and a reply keeps the tag its subject came with.
+    #[test]
+    fn a_tag_is_not_a_reply_prefix() {
+        assert!(!is_reply_subject("[JIRA] Build failed"));
+        assert!(is_reply_subject("[list] Re: Build failed") && is_reply_subject("AW: [x] y"));
+        let msgs = vec![m("<a@x>", &[], "", "[JIRA] Build failed", 1), m("<b@x>", &[], "", "[JIRA] Build failed", 2)];
+        assert_eq!(threads(&msgs).len(), 2);
+        assert_eq!(without_prefixes("[Ticket#123] Printer broken"), "[Ticket#123] Printer broken");
+        assert_eq!(without_prefixes("RE: [Ticket#123] AW: Fwd: Printer"), "[Ticket#123] Printer");
+        assert_eq!(without_prefixes("[a] [b] re[2]: x"), "[a] [b] x");
+        assert_eq!(without_prefixes("[URGENT]"), "[URGENT]");
+        assert_eq!(without_prefixes("  Re: "), "");
     }
 }

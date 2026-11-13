@@ -19,7 +19,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "kept": kept }))
         }),
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
-            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
+            .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "from"?: string (one of the account's addresses; "" for its own), "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
             .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
@@ -90,6 +90,19 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     {
         return Err(CmdError::Params(format!("no account `{a}`")));
     }
+    // Which of the account's addresses it's from (issue #81): the account's own is none.
+    let from = match p::str(v, "from") {
+        Some(address) => {
+            let of = account.clone().or_else(|| s.compose.as_ref().map(|c| c.account.clone())).unwrap_or_default();
+            let config = s.account(&of).map(|a| &a.config).ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            match config.identity(address) {
+                Some(i) => Some(i.email.clone()),
+                None if address.trim().is_empty() || config.email.eq_ignore_ascii_case(address.trim()) => Some(String::new()),
+                None => return Err(CmdError::Params(format!("`{}` isn't one of this account's addresses", address.trim()))),
+            }
+        }
+        None => None,
+    };
     let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
     if c.sending {
         return Err(CmdError::Disabled("the message is being sent".into()));
@@ -130,10 +143,21 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
         c.send_after = (at > 0).then_some(at);
     }
     let id = c.id;
-    // The signature follows the account it's sent from (issue #11).
-    if let Some(a) = account {
-        let was = std::mem::replace(&mut c.account, a);
-        s.follow_from(&was);
+    // The signature follows the account it's sent from (issue #11), and the address.
+    if account.is_some() || from.is_some() {
+        let (was, was_from) = (c.account.clone(), c.from.clone());
+        if let Some(a) = account {
+            // Another account's addresses aren't this one's: its own, unless one is picked.
+            if a != c.account {
+                c.from.clear();
+            }
+            c.account = a;
+        }
+        if let Some(f) = from {
+            c.from = f;
+        }
+        s.follow_from(&was, &was_from);
+        s.signing_follows_from(&was, &was_from);
     }
     Ok(json!({"compose": id}))
 }
@@ -313,13 +337,13 @@ pub(super) fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
         }
         s.let_go_saved();
     } else {
-        s.compose = None;
+        s.let_go_compose();
     }
     Ok(json!({"closed": c.id, "saved": saved}))
 }
 
 pub(super) fn discard(s: &mut Session, _: &Value) -> CmdResult {
-    let c = s.compose.take();
+    let c = s.let_go_compose();
     Ok(json!({"discarded": c.map(|c| c.id)}))
 }
 
@@ -339,29 +363,6 @@ impl Session {
     pub fn message_source(&self) -> Result<Vec<u8>, CmdError> {
         let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
         self.body_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))
-    }
-
-    /// The open message as a PDF: subject, header, text and the names of its attachments.
-    pub fn message_pdf(&self) -> Result<Vec<u8>, CmdError> {
-        let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-        let m = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
-        let mut header = vec![("From".to_string(), m.from.to_string())];
-        if !m.to.is_empty() {
-            header.push(("To".into(), mailcraft_model::addr::format_list(&m.to)));
-        }
-        if !m.cc.is_empty() {
-            header.push(("Cc".into(), mailcraft_model::addr::format_list(&m.cc)));
-        }
-        if m.date > 0 {
-            header.push(("Date".into(), mailcraft_model::dates::full_time(m.date, &self.clock)));
-        }
-        let files: Vec<String> = m.attachments.iter().filter(|a| !a.inline).map(|a| a.name.clone()).collect();
-        if !files.is_empty() {
-            header.push(("Attachments".into(), files.join(", ")));
-        }
-        let doc = mailcraft_print::Doc { title: m.subject.clone(), header, body: m.text.clone() };
-        let fonts = self.print_fonts.as_ref().map(|(r, b)| mailcraft_print::Fonts { regular: r, bold: b.as_deref() });
-        mailcraft_print::pdf(&doc, fonts).map_err(CmdError::Failed)
     }
 }
 

@@ -184,6 +184,8 @@ struct App {
     updater: Option<self_update::Updater>,
     /// When the settings were last looked at ([`App::keep_state`]).
     looked: std::time::Instant,
+    /// MailCraft's icon in the notification area, while it's kept running there.
+    tray: desktop::tray::Tray,
 }
 
 /// How often changed settings are written while MailCraft runs.
@@ -230,6 +232,7 @@ impl eframe::App for App {
         apple_events::deliver(&self.finder, &mut self.app, ctx);
         // An update ready while the window is minimized or behind others: the system says so.
         self.app.follow_update(ctx);
+        self.tray.follow(&mut self.app, ctx);
         // A close from the taskbar or the Dock while minimized: asked about here, as `ui` doesn't run.
         self.app.logic(ctx);
         // On a Mac a close nothing held open quits through AppKit (`apple_events::quit`); last, so
@@ -301,6 +304,8 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
     let args: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
+    // Started for a link or a file (`--open`): nothing after it is an option.
+    let (args, opened) = args::opened(args);
     if args.iter().any(|a| a == "--version" || a == "-V") {
         say_out(&args::version_line());
         return Ok(());
@@ -312,7 +317,7 @@ fn main() -> eframe::Result {
     }
     let cmd_args = args.clone();
     // `mailto:` links and mail files: MailCraft as the system's mail app, or Open with (`args.rs`).
-    let handed = args::handed(&args);
+    let handed = opened.unwrap_or_else(|| args::handed(&args));
     let sample = args.iter().any(|a| a == "--sample");
     // Text pasted from Outlook, Word or a web page keeps its look.
     // A logo copied with it from older Word or Outlook, a file of Office's own, comes along too.
@@ -492,11 +497,10 @@ fn main() -> eframe::Result {
             return Ok(());
         }
         Ok(Err(e)) => e.to_string(),
-        Err(p) => p
-            .downcast_ref::<&str>()
-            .map(|s| (*s).to_string())
-            .or_else(|| p.downcast_ref::<String>().cloned())
-            .unwrap_or_else(|| "it stopped unexpectedly".into()),
+        // Where it happened is in the log already (`logfile.rs`); what it said isn't written
+        // there, here or on the screen: it can quote what it was working on (a subject, a line
+        // of a message).
+        Err(_) => "it stopped unexpectedly (the log says where)".into(),
     };
     log::error!("the window couldn't open: {failed}");
     log::logger().flush();
@@ -705,6 +709,7 @@ fn run(
                     native_wayland,
                     updater,
                     looked: std::time::Instant::now(),
+                    tray: desktop::tray::Tray::new(native_wayland),
                 }
             });
             Ok(Box::new(desktop::boot::Window::Booting(Box::new(desktop::boot::Booting {

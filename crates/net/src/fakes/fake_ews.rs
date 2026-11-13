@@ -78,7 +78,8 @@ pub struct Data {
     pub hold: Option<std::time::Duration>,
     /// Ids of folders listed with `PidTagAttributeHidden` true.
     pub flagged_hidden: Vec<String>,
-    /// Messages whose source can't be had (the server fails on it).
+    /// Messages whose source can't be had (the server fails on it); appointments and contacts
+    /// that can't be read, and calendar or contacts folders that can't be listed.
     pub unreadable: Vec<String>,
     /// The public folder mailbox holding the public folders' content (Exchange 2013 and
     /// later): reading inside them is only answered when routed there.
@@ -477,8 +478,8 @@ impl Data {
             }
             "FindItem" if self.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())) => {
                 let folder = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
-                if self.unrouted(&folder) {
-                    out.push(err("ErrorFolderNotFound"));
+                if self.unrouted(&folder) || self.refuses_folder(&folder) {
+                    out.push(err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" }));
                     return ("FindItemResponse".into(), out);
                 }
                 let items: String =
@@ -551,6 +552,10 @@ impl Data {
                         continue;
                     }
                     if let Some((_, _, el)) = self.pim.iter().find(|(i, _, _)| *i == id) {
+                        if let Some(code) = self.refuses_item(op, &id, el) {
+                            out.push(err(code));
+                            continue;
+                        }
                         let mut el = el.clone();
                         el.kids.insert(
                             0,
@@ -767,6 +772,7 @@ use transport::serve_at;
 pub use transport::{Server, serve};
 
 mod directory;
+mod refusing;
 mod reminders;
 #[cfg(test)]
 mod tests;

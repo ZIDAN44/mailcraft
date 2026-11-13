@@ -137,13 +137,13 @@ impl Worker {
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         if let Some(url) = &self.acc.graph {
             self.conn = Some(Conn::Graph(crate::graph::Client::connect(url, &secret)?));
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         if self.acc.pop.is_some() {
             crate::pop::open(&self.acc, &secret)?.quit()?;
             self.conn = Some(Conn::Pop);
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         if let Some(url) = &self.acc.ews {
@@ -163,24 +163,34 @@ impl Worker {
             let c = crate::ews::Client::connect_as(&url, &user, &secret, &self.acc.email, self.acc.user_agent.as_deref())?;
             c.set_shared(&self.acc.shared_mailboxes);
             self.conn = Some(Conn::Ews(Box::new(c)));
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         if let Some(url) = &self.acc.jmap {
             self.conn = Some(Conn::Jmap(jmap::Client::connect(url, &user, &secret, self.acc.oauth.is_some())?));
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         let c = if self.acc.oauth.is_some() {
             self.imap_with_token(&user, &secret)?
         } else {
-            let mut c = Client::connect(&self.acc.imap)?;
+            let mut c = Client::connect_trusting(&self.acc.imap, &self.acc.trusted_certificates)?;
             c.login(&user, &secret)?;
             c
         };
         self.conn = Some(Conn::Imap(c));
-        self.backoff = Duration::from_secs(5);
+        self.signed_in();
         Ok(())
+    }
+
+    /// Signed in. The second connection waits its shortest again from here; the main one only
+    /// once it has synced the whole account ([`Self::sync_all`]): a failure after signing in
+    /// that comes back every time (one folder the server ends the connection on) signed in
+    /// again every five seconds for good, the folders after that one never read.
+    fn signed_in(&mut self) {
+        if self.main.is_some() {
+            self.backoff = Duration::from_secs(5);
+        }
     }
 
     /// An IMAP connection signed in with an OAuth token. Microsoft can take the token and then
@@ -189,7 +199,7 @@ impl Worker {
     /// address. The address it signed in as is tried once; otherwise it's a refusal that says
     /// what to do, not a sign-in to ask for again (that only loops).
     pub(super) fn imap_with_token(&self, user: &str, token: &str) -> Result<Client<Stream>> {
-        let mut c = Client::connect(&self.acc.imap)?;
+        let mut c = Client::connect_trusting(&self.acc.imap, &self.acc.trusted_certificates)?;
         let m = match c.login_xoauth2(user, token) {
             Ok(()) => return Ok(c),
             Err(NetError::Auth(m) | NetError::Bad(m) | NetError::No(m))
@@ -202,7 +212,7 @@ impl Worker {
         log::warn!("{}: {m}", self.acc.id);
         let other = self.acc.oauth_user.as_deref().filter(|o| !o.eq_ignore_ascii_case(user));
         if let Some(other) = other {
-            let mut c = Client::connect(&self.acc.imap)?;
+            let mut c = Client::connect_trusting(&self.acc.imap, &self.acc.trusted_certificates)?;
             if c.login_xoauth2(other, token).is_ok() {
                 return Ok(c);
             }
@@ -217,6 +227,16 @@ impl Worker {
         match e {
             e @ NetError::Auth(_) => self.failed(e),
             e if e.is_fatal() => self.failed(e),
+            // Asked to come back later (a POP mailbox another program holds): tried again by
+            // itself, as a server that can't be reached is. Left to wait until asked, the
+            // account checked no more.
+            e @ NetError::Later(_) => {
+                log::warn!("{}: {e}", self.acc.id);
+                self.conn = None;
+                self.next_attempt = Instant::now() + self.backoff;
+                self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
+                self.status(SyncStatus::Error { error: e.to_string() });
+            }
             e => {
                 log::warn!("{}: {e}", self.acc.id);
                 self.conn = None;

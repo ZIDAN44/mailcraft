@@ -117,6 +117,7 @@
 	24-hour	24 時間制
 	12-hour	12 時間制
 	Whole date and time in the list	一覧に日付と時刻をすべて表示
+	Earlier this month	今月（それ以前）
 	Last month	先月
 	Last week	先週
 	Later	後で
@@ -156,6 +157,10 @@
 	Move to folder	フォルダーへ移動
 	Move to…	移動先…
 	Move {n} messages	{n} 件のメッセージを移動
+	Copy to folder	フォルダーへコピー
+	Copy to…	コピー先…
+	Copy 1 message	1 件のメッセージをコピー
+	Copy {n} messages	{n} 件のメッセージをコピー
 	Move “{folder}” to	「{folder}」の移動先
 	Name	名前
 	Names <addresses>, separated by ; or ,	名前 <アドレス> を ; または , で区切って入力
@@ -198,7 +203,6 @@
 	Password needed	パスワードが必要です
 	Password…	パスワード…
 	Personal	個人
-	Pick messages from one account to move them to a folder.	1 つのアカウントのメッセージを選んでフォルダーに移動します。
 	Picture	画像
 	Pictures from the web are hidden to protect your privacy.	プライバシー保護のため、Web 上の画像は表示されません。
 	Picture…	画像…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} 個の添付ファイルを {folder} に保存しました
 	Saved {path}	{path} を保存しました
 	Search folders	フォルダーを検索
+	(the rest isn't shown: open the file to see it all)	(残りは表示されていません。すべて見るにはファイルを開いてください)
+	Pick a category	分類を選んでください
+	Pick a folder	フォルダーを選んでください
+	Say what to look for	探す内容を入力してください
+	Give the rule a name	ルールに名前を付けてください
 	Search mail (from:, subject:, has:attachment…)	メールを検索 (from:, subject:, has:attachment…)
 	Select a message first.	先にメッセージを選択してください。
 	Send	送信
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	サーバー: {imap} (IMAP {imap_port})、{smtp} (SMTP {smtp_port})
 	Settings found: {source}	設定が見つかりました: {source}
 	Show a desktop notification when new mail arrives	新しいメールが届いたらデスクトップ通知を表示する
+	Keep MailCraft running when its window is closed	ウィンドウを閉じても MailCraft を実行したままにする
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	通知領域に残り、メールを確認して新着を知らせます。「ファイル」ページ、またはアイコンのメニューの「終了」で閉じます。
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	ウィンドウは最小化され、MailCraft はメールの確認と新着の通知を続けます。「ファイル」ページの「終了」で閉じます。
+	Open MailCraft	MailCraft を開く
 	Show as plain text	プレーン テキストで表示
 	Show formatted	書式付きで表示
 	Show in Favorites	お気に入りに表示
@@ -770,11 +783,18 @@ month	May	5月
 	Move down	下へ移動
 	Updating…	更新しています…
 	All folders are up to date	すべてのフォルダーが最新です
+	1 account disconnected	1 個のアカウントが切断されています
 	{n} accounts disconnected	{n} 個のアカウントが切断されています
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Microsoft でサインイン
 	Sign in with Microsoft…	Microsoft でサインイン…
 	Mailbox won't open	メールボックスを開けません
+	Trust this computer's mail server?	このコンピューター上のメールサーバーを信頼しますか？
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} はこのコンピューター上にあり、自分で作成した証明書を提示しています。この証明書を保証する認証局はありません。メールサービスをメールアプリにつなぐプログラムはこのように動作します。そのプログラムをご自身で設定した場合にのみ信頼してください。
+	Certificate fingerprint (SHA-256)	証明書のフィンガープリント (SHA-256)
+	MailCraft asks again if the server shows another certificate.	サーバーが別の証明書を提示した場合、MailCraft はもう一度確認します。
+	Trust this certificate	この証明書を信頼する
+	Certificate not trusted yet	証明書はまだ信頼されていません
 	The mailbox won't open	メールボックスを開けません
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph は IMAP を使わずにメールボックスにアクセスし、予定表と連絡先も取り込みます。アカウントは Graph 経由で最初から始まり、メールはサーバーからダウンロードされます。
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP をオンにした、またはブラウザーで別のアカウントを選んだ場合は、もう一度サインイン
@@ -855,6 +875,28 @@ month	May	5月
 	Delete this contact?	この連絡先を削除しますか?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	この連絡先と、保存されているすべての情報が削除されます。元に戻すことはできません。
 	Export…	エクスポート…
+	{file} isn't a MailCraft backup.	{file} は MailCraft のバックアップではありません。
+	A backup is brought in where MailCraft runs in the browser.	バックアップは、MailCraft がブラウザーで動作しているところで読み込めます。
+	Backup saved as {file}	バックアップを {file} として保存しました
+	Restore…	復元…
+	Bring a backup file in. It takes the place of what's kept here now.	バックアップ ファイルを読み込みます。現在ここに保持されているものと置き換わります。
+	Back up…	バックアップ…
+	Save what's kept here to a file, with a password if you like.	ここに保持されているものをファイルに保存します。必要ならパスワードを付けられます。
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft はアカウント、設定、メールをこのブラウザーにのみ保持します。このサイトのブラウザー データを消去するとそれらは失われます。バックアップ ファイルがあれば、このブラウザーでも別のブラウザーでも元に戻せます。
+	Backup	バックアップ
+	The backup's password	バックアップのパスワード
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	MailCraft が現在このブラウザーに保持しているすべて (アカウント、その設定、メール) がこれに置き換わります。各アカウントのパスワードをもう一度求められます。
+	Restore from a backup…	バックアップから復元…
+	Restore from backup	バックアップから復元
+	The two passwords aren't the same.	2 つのパスワードが一致しません。
+	Save backup	バックアップを保存
+	The file can't be opened without this password: MailCraft can't recover it.	このパスワードがないとファイルは開けません。MailCraft では復元できません。
+	Without a password, anyone who has the file can read what's in it.	パスワードがないと、ファイルを持っている人は誰でも中身を読めます。
+	The password again	パスワードをもう一度
+	Password for the file (optional)	ファイルのパスワード (省略可)
+	Include the mail downloaded to this browser	このブラウザーにダウンロードしたメールを含める
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	アカウントとその設定、ルール、署名、予定表、連絡先が 1 つのファイルに入ります。パスワードは決して含まれません。
+	Back up	バックアップする
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft で保存したファイルからルールを追加します。このコンピューターにないアカウントのルールはオフの状態で追加されます。
 	Change…	変更…
 	Clean up	クリーンアップ
@@ -882,6 +924,17 @@ month	May	5月
 	Send email	メールを送信
 	Add	追加
 	Add a shared mailbox	共有メールボックスを追加
+	Other addresses	その他のアドレス
+	Key {key}: signs mail from {addresses}	キー {key}: {addresses} からのメールに署名します
+	Valid until {date}: signs mail from {addresses}	有効期限 {date}: {addresses} からのメールに署名します
+	Find on the server	サーバーで探す
+	Addresses of this same mailbox that you also send from.	同じメールボックスの、送信にも使うアドレスです。
+	Add an address	アドレスを追加
+	Change an address	アドレスを変更
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	エイリアスなど、同じメールボックスの別のアドレスで、そこからメールを送信できます。メッセージを書くときに「差出人」で選びます。メール サーバーがそのアドレスからの送信を許可している必要があります。
+	Name on mail from it	このアドレスから送るメールの名前
+	Replies go to	返信先
+	(the account's own)	(アカウントの署名)
 	Add…	追加…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	フォルダーはこのアカウントの下に表示されます。Exchange サーバーでのアクセス権が必要です。フル アクセス権のあるメールボックスは自動的に開きます。
 	Mailboxes you have full access to open by themselves.	フル アクセス権のあるメールボックスは自動的に開きます。
@@ -1627,7 +1680,7 @@ month	May	5月
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	このメッセージは不審であるか送信者を確認できないため、画像は非表示のままです。
 	These senders' pictures always load, even when a message looks suspicious:	これらの送信者の画像は、メッセージが不審に見える場合でも常に読み込まれます:
 	Open a mail file	メール ファイルを開く
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	保存したメッセージ (.eml または Outlook の .msg) を、フォルダーに追加せず専用のウィンドウで表示します。Web 上の画像は読み込まれず、中のものは何も実行されません。
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	保存したメッセージ (.eml または Outlook の .msg) を、フォルダーに追加せず専用のウィンドウで表示します。Web 上の画像は指示したときだけ読み込まれ、中のものは何も実行されません。
 	Nothing is kept: closing it leaves no trace in your mail.	何も保存されません。閉じるとメールには何も残りません。
 	and {n} more	ほか {n} 件
 	Checking for new mail	新着メールの確認
@@ -1640,4 +1693,10 @@ month	May	5月
 	Server: {url} (CalDAV and CardDAV)	サーバー: {url} (CalDAV と CardDAV)
 	Not available: this account has no mail server.	利用できません: このアカウントにはメール サーバーがありません。
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	メールは以前の MailCraft の Flatpak から引き継がれました。そちらはまだインストールされています。削除するには次を実行してください: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	{file} から開きました。どのフォルダーにも入っておらず、Web 上の画像は読み込まれません。閉じると何も残りません。
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	{file} から開きました。どのフォルダーにも入っておらず、Web 上の画像は指示したときだけ読み込まれます。閉じると何も残りません。
+	To-Do Bar	To Do バー
+	Appointments	予定
+	Type a new task	新しいタスクを入力
+	Nothing to do	することはありません
+	Nothing in the next 7 days	今後 7 日間の予定はありません
+	Show the calendar, what's coming up and your tasks beside the mail	メールの横に予定表、今後の予定、タスクを表示します

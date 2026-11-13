@@ -60,6 +60,22 @@ pub async fn load(db: &IdbDatabase) -> Result<Vec<(String, Vec<u8>)>, String> {
     Ok(keys.iter().zip(values.iter()).filter_map(|(k, v)| Some((k.as_string()?, v.dyn_into::<js_sys::Uint8Array>().ok()?.to_vec()))).collect())
 }
 
+/// Every file kept gives way to `files` (a backup's, issue #83), in one transaction: all of it,
+/// or what was there stays. `then` runs once the browser has them.
+pub fn replace(db: &IdbDatabase, files: &[(String, Vec<u8>)], then: impl FnOnce() + 'static) -> Result<(), String> {
+    let tx = db.transaction_with_str_and_mode(FILES, IdbTransactionMode::Readwrite).map_err(|e| js(&e))?;
+    let store = tx.object_store(FILES).map_err(|e| js(&e))?;
+    store.clear().map_err(|e| js(&e))?;
+    for (path, bytes) in files {
+        store.put_with_key(&js_sys::Uint8Array::from(bytes.as_slice()), &JsValue::from_str(path)).map_err(|e| js(&e))?;
+    }
+    let done = Closure::once_into_js(move |_: web_sys::Event| then());
+    tx.set_oncomplete(Some(done.unchecked_ref()));
+    let failed = Closure::once_into_js(|_: web_sys::Event| log::error!("the backup wasn't brought in: the browser's storage refused it (full?)"));
+    tx.set_onerror(Some(failed.unchecked_ref()));
+    Ok(())
+}
+
 /// Write changed files (`None`: removed), in one transaction that finishes on its own.
 pub fn save(db: &IdbDatabase, changes: &[(String, Option<Vec<u8>>)]) -> Result<(), String> {
     let tx = db.transaction_with_str_and_mode(FILES, IdbTransactionMode::Readwrite).map_err(|e| js(&e))?;

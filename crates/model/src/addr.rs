@@ -4,6 +4,8 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+pub mod identity;
+
 /// A display name and an address (`Zoe Park <zoe@example.org>`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EmailAddress {
@@ -89,9 +91,26 @@ pub fn parse_list(input: &str) -> Result<Vec<EmailAddress>, String> {
     if bad.is_empty() { Ok(out) } else { Err(bad.join(", ")) }
 }
 
+/// The addresses of [`parse_list`]'s reading that are whole: for a draft, which may hold one
+/// still being typed.
+pub fn parse_valid(input: &str) -> Vec<EmailAddress> {
+    split_outside_quotes(input).into_iter().filter_map(|p| parse_one(p.trim())).collect()
+}
+
 fn parse_one(s: &str) -> Option<EmailAddress> {
     if let (Some(lt), Some(gt)) = (s.rfind('<'), s.rfind('>')) {
         if gt < lt {
+            return None;
+        }
+        // Nothing after it: with a quote left open (`Jo 6" Doe <jo@x.example>; bo@x.example`)
+        // the next address is in the same piece, and was left out of the message unsaid.
+        // Nor with a quote left open before it, which holds an address inside the name
+        // (`Jo 6" Doe <jo@x.example>; Bo <bo@x.example>` was Bo alone, named all of that).
+        // What ends an entry (`;`, `,`), and a quote around all of it, may follow.
+        let after = s.get(gt + 1..).unwrap_or_default().trim_matches(|c: char| c.is_whitespace() || matches!(c, ';' | ',' | '"'));
+        let open_quote = s.get(..lt).is_some_and(|name| name.matches('"').count() % 2 == 1) && !s.trim_start().starts_with('"');
+        let inside = s.get(..lt).is_some_and(|name| name.contains('<') || name.contains('>'));
+        if !after.is_empty() || (open_quote && inside) {
             return None;
         }
         let email = s.get(lt + 1..gt)?.trim().to_string();
@@ -112,7 +131,12 @@ fn split_outside_quotes(s: &str) -> Vec<&str> {
         match c {
             '"' => quoted = !quoted,
             '<' if !quoted => angle = true,
-            '>' if !quoted => angle = false,
+            // An address ends at its `>`: `Ann <a@b.org> Bob <c@d.org>` (two lines pasted) is two.
+            '>' if !quoted && angle => {
+                angle = false;
+                parts.push(s.get(start..=i).unwrap_or_default());
+                start = i + 1;
+            }
             ',' | ';' if !quoted && !angle => {
                 parts.push(s.get(start..i).unwrap_or_default());
                 start = i + c.len_utf8();
@@ -154,6 +178,18 @@ mod tests {
         assert_eq!(parse_list("  ; ,").unwrap(), vec![]);
         assert_eq!(parse_list("good@x.org, not an address").unwrap_err(), "not an address");
         assert!(parse_list("a@b.c <").is_err());
+        // Found in review: a quote left open kept the next address in the same piece, where
+        // it was dropped without a word, and the message went without that person.
+        let err = parse_list("Jo 6\" Doe <jo@x.org>; bob@y.org").unwrap_err();
+        assert!(err.contains("bob@y.org"), "{err}");
+        assert!(parse_list("Jo <jo@x.org> and more").is_err());
+        assert_eq!(parse_list("Jo <jo@x.org> ; bob@y.org").unwrap().len(), 2);
+        assert!(parse_valid("Jo 6\" Doe <jo@x.org>; bob@y.org").is_empty());
+        // Found in a second review: nor when the next one has its own brackets (it was sent
+        // to Bob alone, named all the rest); and what ends an entry may follow it.
+        assert!(parse_list("Jo 6\" Doe <jo@x.org>; Bob <bob@y.org>").is_err());
+        assert_eq!(parse_list("Jo 6\" Doe <jo@x.org>; ").unwrap(), [EmailAddress::new("Jo 6\" Doe", "jo@x.org")]);
+        assert_eq!(parse_list("\"Zoe <zoe@x.org>\"").unwrap()[0].email, "zoe@x.org");
     }
 
     #[test]
@@ -174,5 +210,15 @@ mod tests {
         assert!(!is_valid_email("@b"));
         assert!(!is_valid_email("a b@c"));
         assert!(!is_valid_email("a@.c"));
+    }
+
+    /// Two addresses with nothing but a space or a line end between them (pasted from a list)
+    /// are two: the first was taken for the second's name and never got the message.
+    #[test]
+    fn addresses_run_together_are_each_read() {
+        let got = parse_list("Ann <a@b.org>\nBob <c@d.org> e@f.org; \"Park, Zoe\" <z@x.org>").unwrap();
+        let got: Vec<(&str, &str)> = got.iter().map(|a| (a.name.as_str(), a.email.as_str())).collect();
+        assert_eq!(got, [("Ann", "a@b.org"), ("Bob", "c@d.org"), ("", "e@f.org"), ("Park, Zoe", "z@x.org")]);
+        assert_eq!(parse_valid("\"Park, Zoe\" <z@x.org>, half@").len(), 1);
     }
 }

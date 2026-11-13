@@ -4,8 +4,10 @@
 //! from `style` attributes. Simple selectors only: a tag, `.class`, `#id`, `*` and combinations of
 //! them, chained as descendants (`table.report td`, `>` read as a descendant). Rules with
 //! pseudo-classes, attribute selectors or sibling combinators are left out, and so is everything
-//! inside `@media` and other at-rules (mobile overrides, fonts). Like all mail, the CSS is hostile
-//! input: its size, rule count and selector length are capped.
+//! inside at-rules (fonts, dark colours, mobile overrides), but for `@media` rules for a screen
+//! as wide as a desktop window's ([`wide_screen`]): a template keeps what a wide screen shows
+//! there (a product's picture at its full size). Like all mail, the CSS is hostile input: its
+//! size, rule count and selector length are capped.
 
 use std::collections::HashMap;
 
@@ -149,18 +151,75 @@ impl Compound {
     }
 }
 
+/// The width a message is read at, for its `@media` rules: a desktop window's, as Outlook's.
+const SCREEN: f32 = 1024.0;
+
+/// Whether an at-rule's head (`@media only screen and (min-width: 600px)`) is for a screen as
+/// wide as a desktop window: a screen (or any medium), every condition one about its width that
+/// holds at [`SCREEN`]. Print, dark colours, a phone's width and anything not understood aren't.
+fn wide_screen(head: &str) -> bool {
+    let head = head.to_ascii_lowercase();
+    let Some(queries) = head.strip_prefix("@media") else { return false };
+    queries.split(',').any(|q| {
+        // What's in brackets is a condition; the words around them say which medium.
+        let mut words = String::new();
+        let mut conditions = 0usize;
+        let mut rest = q;
+        while let Some(open) = rest.find('(') {
+            words.push_str(rest.get(..open).unwrap_or(""));
+            words.push(' ');
+            let Some(close) = rest.get(open..).and_then(|r| r.find(')')) else { return false };
+            let feature = rest.get(open + 1..open + close).unwrap_or("");
+            rest = rest.get(open + close + 1..).unwrap_or("");
+            let Some((name, value)) = feature.split_once(':') else { return false };
+            let Some(px) = value.trim().strip_suffix("px").and_then(|n| n.trim().parse::<f32>().ok()) else { return false };
+            let holds = match name.trim() {
+                "min-width" | "min-device-width" => px <= SCREEN,
+                "max-width" | "max-device-width" => px >= SCREEN,
+                _ => false,
+            };
+            if !holds {
+                return false;
+            }
+            conditions += 1;
+        }
+        words.push_str(rest);
+        let mut medium = false;
+        for word in words.split_whitespace() {
+            match word {
+                "screen" | "all" => medium = true,
+                "only" | "and" => {}
+                _ => return false,
+            }
+        }
+        // `@media screen` alone says nothing about width: a rule for every screen is one.
+        conditions > 0 || medium
+    })
+}
+
 impl Sheet {
     /// The rules in a message's style sheets (their text, one after another).
     pub(crate) fn parse(css: &str) -> Sheet {
         let css = css.get(..css.len().min(MAX_CSS)).unwrap_or("");
         let css = without_comments(css).replace("<!--", " ").replace("-->", " ");
         let mut sheet = Sheet::default();
-        let mut rest = css.as_str();
+        sheet.read(&css, 0);
+        sheet
+    }
+
+    /// The rules in `css`, and (`nested`: how many at-rules it's in) those of the `@media` blocks
+    /// in it that are for a wide screen.
+    fn read(&mut self, css: &str, nested: usize) {
+        let sheet = self;
+        let mut rest = css;
         while sheet.rules.len() < MAX_RULES {
             let Some(open) = rest.find('{') else { break };
-            let head = rest.get(..open).unwrap_or("").trim();
-            // `@import …;` before a block: drop it, and read on from after it.
-            if let Some(semi) = head.rfind(';').filter(|_| head.contains('@')) {
+            let before = rest.get(..open).unwrap_or("");
+            let head = before.trim();
+            // `@import …;` before a block: drop it, and read on from after it (where it ends
+            // in what's left, not in that trimmed: after white space the rule that followed was
+            // cut into, and lost).
+            if let Some(semi) = before.rfind(';').filter(|_| head.contains('@')) {
                 rest = rest.get(semi + 1..).unwrap_or("");
                 continue;
             }
@@ -183,6 +242,10 @@ impl Sheet {
             let Some(close) = close else { break };
             let body = rest.get(open + 1..close).unwrap_or("");
             rest = rest.get(close + 1..).unwrap_or("");
+            if head.starts_with('@') && nested < 2 && wide_screen(head) {
+                sheet.read(body, nested + 1);
+                continue;
+            }
             if head.starts_with('@') || body.contains('{') {
                 continue;
             }
@@ -213,7 +276,6 @@ impl Sheet {
                 }
             }
         }
-        sheet
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -270,6 +332,47 @@ mod tests {
         sheet.matching(chain).into_iter().map(|d| format!("{}:{}", d.prop, d.value)).collect()
     }
 
+    /// A template's rules for a wide screen apply (a product's picture at its full size: the
+    /// message was read as a phone shows it, its picture a thumbnail); those for a phone, for
+    /// print, for dark colours and what isn't understood don't.
+    #[test]
+    fn rules_for_a_wide_screen_apply() {
+        let sheet = Sheet::parse(
+            ".pic { max-width: 64px }
+             @media only screen and (min-width:600px){.box .pic{max-width:122px!important}.box td{height:122px!important}}
+             @media screen { .any { color: #111 } }
+             @media (max-width: 599px) { .pic { max-width: 30px } .any { color: #222 } }
+             @media print { .any { color: #333 } }
+             @media (prefers-color-scheme:dark) { .any { color: #444 } }
+             @media only screen and (min-width: 4000px) { .any { color: #555 } }
+             @media screen and (min-width:480px) and (orientation: landscape) { .any { color: #666 } }
+             @media print, screen and (min-width:480px) { .both { color: #777 } }
+             @supports (display: grid) { .any { color: #888 } }
+             @media screen and (min-width:480px) { @media (min-width: 600px) { .deep { color: #999 } } @media (min-width: 1px) { @media (min-width: 1px) { .deeper { color: #aaa } } } }",
+        );
+        assert_eq!(props(&sheet, &[el("div", &["box"]), el("img", &["pic"])]), ["max-width:64px", "max-width:122px"]);
+        assert!(sheet.matching(&[el("div", &["box"]), el("img", &["pic"])]).last().is_some_and(|d| d.important));
+        assert_eq!(props(&sheet, &[el("div", &["box"]), el("td", &[])]), ["height:122px"]);
+        assert_eq!(props(&sheet, &[el("p", &["any"])]), ["color:#111"]);
+        assert_eq!(props(&sheet, &[el("p", &["both"])]), ["color:#777"], "one of its media is a wide screen");
+        assert_eq!(props(&sheet, &[el("p", &["deep"])]), ["color:#999"]);
+        assert!(props(&sheet, &[el("p", &["deeper"])]).is_empty(), "no deeper than two");
+        for (head, wide) in [
+            ("@media only screen and (min-width:600px)", true),
+            ("@MEDIA ALL AND (MIN-WIDTH: 600PX)", true),
+            ("@media (min-width: 600px) and (max-width: 2000px)", true),
+            ("@media (min-width: 600px) and (max-width: 800px)", false),
+            ("@media (min-width: 60em)", false),
+            ("@media", false),
+            ("@media (min-width)", false),
+            ("@media (min-width: px)", false),
+            ("@media not screen", false),
+            ("@font-face", false),
+        ] {
+            assert_eq!(wide_screen(head), wide, "{head}");
+        }
+    }
+
     #[test]
     fn rules_apply_by_tag_class_id_and_ancestors() {
         let sheet = Sheet::parse(
@@ -286,6 +389,16 @@ mod tests {
         // Specificity before order: the class rule beats the later tag rule.
         let s = Sheet::parse(".x { color: red } p { color: blue }");
         assert_eq!(props(&s, &[el("p", &["x"])]), ["color:blue", "color:red"]);
+        // Found in review: the rule after an `@import …;` or `@charset …;` on a line of its own
+        // was cut into where the at-rule was dropped, and lost.
+        for sheet in [
+            "\n@import url(https://fonts.example/a.css);\n.x{color:red}",
+            "  @charset \"utf-8\";  .x{color:red}",
+            "@import 'a.css';.x{color:red}",
+            "\u{e9}\u{e9} @import url(x);\n.x{color:red}",
+        ] {
+            assert_eq!(props(&Sheet::parse(sheet), &[el("p", &["x"])]), ["color:red"], "{sheet}");
+        }
     }
 
     #[test]

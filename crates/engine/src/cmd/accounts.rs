@@ -88,6 +88,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account": string} (a Microsoft account over IMAP starts again through Microsoft Graph, for a mailbox Microsoft won't open over IMAP)"#),
         CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
+        CommandSpec::new("account.trustCertificate", "Trust this certificate", "Account status", |s, v| {
+            s.trust_certificate(p::req_str(v, "account")?, p::req_str(v, "fingerprint")?)
+        })
+        .params(
+            r#"{"account": string, "fingerprint": string (the SHA-256, in hex, of the certificate a mail server on this computer showed: it's trusted for that account's servers on this computer only)}"#,
+        ),
         CommandSpec::new("account.dav", "Calendars and contacts", "File › Info › Account settings", set_dav).params(
             r#"{"account": string, "caldav"?: string (the calendar server's address: its own, the home, or one calendar; empty: found from the account's address), "carddav"?: string (the same for contacts), "username"?: string|null (its own sign-in; null: as the mail server), "password"?: string}"#,
         ),
@@ -108,6 +114,20 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             shared_mailbox(s, v, false)
         })
         .params(r#"{"account": string, "address": string}"#),
+        CommandSpec::new("account.setAddress", "Add or change an address", "File › Info › Account settings", set_address).params(
+            r#"{"account": string, "address": string (another address of the same mailbox, to send from), "name"?: string (shown on mail from it; else the account's), "replyTo"?: string (where replies to it go), "signature"?: string|null (one of the account's, for mail from it; null: the account's own)}"#,
+        ),
+        CommandSpec::new("account.findAddresses", "Find addresses on the server", "File › Info › Account settings", |s, v| {
+            let id = account_param(s, v)?;
+            if s.account(&id).is_none_or(|a| a.config.jmap.is_none()) {
+                return Err(CmdError::Params("only a JMAP server says which addresses it sends from: add the others by hand".into()));
+            }
+            s.jobs.push(mailcraft_model::Job::FindIdentities { account: id.clone() });
+            Ok(json!({"account": id, "asked": true}))
+        })
+        .params(r#"{"account"?: string (a JMAP account: its server's identities become its other addresses)}"#),
+        CommandSpec::new("account.removeAddress", "Remove an address", "File › Info › Account settings", remove_address)
+            .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
             r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool, "ews"?: string, "userAgent"?: string (Exchange: the User-Agent its requests name; "" for MailCraft's)}"#,
         ),
@@ -236,11 +256,13 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         },
         pop_delete_with_trash: p::bool(v, "popDeleteWithTrash").unwrap_or(false),
         oauth_user: None,
+        identities: Vec::new(),
         shared_mailboxes: Vec::new(),
         online_only: p::bool(v, "onlineOnly").unwrap_or(false),
         check_every: None,
         dav: None,
         user_agent,
+        trusted_certificates: Vec::new(),
     };
     // A line break or tab pasted in with the user name: no server would ever take it (in an
     // Exchange `DOMAIN\user`, a `\r` read from JSON became part of it, and sign-in failed).
@@ -432,6 +454,7 @@ pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "account": a.config.id,
             "email": a.config.email,
             "name": a.config.name,
+            "addresses": a.config.identities.iter().map(|i| json!({"address": i.email, "name": i.name, "replyTo": i.reply_to, "signature": i.signature})).collect::<Vec<_>>(),
             "graph": a.config.graph,
             "pop": a.config.pop.as_ref().map(|p| format!("{}:{} ({})", p.host, p.port, p.security.code())),
             "ews": a.config.ews,
@@ -442,6 +465,55 @@ pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
             "folders": a.folders.iter().map(|f| json!({"path": f.path, "name": f.display_name(), "role": f.role.code(), "unread": f.unread, "total": f.total})).collect::<Vec<_>>(),
         }))
         .collect::<Vec<_>>()))
+}
+
+/// Add another address the account's mail is sent from (issue #81), or change the one of that
+/// address: what isn't given stays as it was. The account doesn't connect again: it's the same
+/// mailbox.
+pub(super) fn set_address(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_str(v, "account")?;
+    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    if s.account(id).is_some_and(|a| a.is_data_file()) {
+        return Err(CmdError::Params("mail isn't sent from a data file".into()));
+    }
+    let address = p::req_str(v, "address")?;
+    let mut identity =
+        c.identity(address).cloned().unwrap_or_else(|| mailcraft_model::Identity { email: address.trim().to_string(), ..Default::default() });
+    if let Some(name) = p::str(v, "name") {
+        identity.name = name.to_string();
+    }
+    if let Some(to) = p::str(v, "replyTo") {
+        identity.reply_to = to.to_string();
+    }
+    match v.get("signature") {
+        Some(Value::Null) => identity.signature = None,
+        Some(Value::String(name)) => identity.signature = Some(name.clone()),
+        _ => {}
+    }
+    // An address another account is, or has, would make two accounts answer for it.
+    let taken = s.accounts.iter().any(|a| a.config.id != c.id && a.config.has_address(&identity.email));
+    if taken {
+        return Err(CmdError::Params(format!("{} is another account's address", identity.email.trim())));
+    }
+    let added = c.identity(&identity.email).is_none();
+    c.set_identity(identity.clone()).map_err(CmdError::Params)?;
+    let email = c.identity(&identity.email).map(|i| i.email.clone()).unwrap_or_default();
+    s.update_account(c, None)?;
+    Ok(json!({ "account": id, "address": email, "added": added }))
+}
+
+/// Take an address out of those the account's mail is sent from. A message being written from
+/// it goes from the account's own.
+pub(super) fn remove_address(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_str(v, "account")?;
+    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    let address = p::req_str(v, "address")?.trim().to_string();
+    if !c.remove_identity(&address) {
+        return Err(CmdError::Params(format!("{address} isn't one of this account's other addresses")));
+    }
+    s.update_account(c, None)?;
+    s.address_removed(id, &address);
+    Ok(json!({ "account": id, "address": address, "removed": true }))
 }
 
 /// Add a shared mailbox to an Exchange account by its address (Outlook's "Open these additional

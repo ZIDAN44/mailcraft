@@ -117,6 +117,7 @@
 	24-hour	24 saat
 	12-hour	12 saat
 	Whole date and time in the list	Listede tam tarih ve saat
+	Earlier this month	Bu ayın başlarında
 	Last month	Geçen ay
 	Last week	Geçen hafta
 	Later	Daha sonra
@@ -156,6 +157,10 @@
 	Move to folder	Klasöre taşı
 	Move to…	Şuraya taşı…
 	Move {n} messages	{n} iletiyi taşı
+	Copy to folder	Klasöre kopyala
+	Copy to…	Şuraya kopyala…
+	Copy 1 message	1 iletiyi kopyala
+	Copy {n} messages	{n} iletiyi kopyala
 	Move “{folder}” to	“{folder}” klasörünü şuraya taşı
 	Name	Ad
 	Names <addresses>, separated by ; or ,	Adlar <adresler>, ; veya , ile ayrılmış
@@ -198,7 +203,6 @@
 	Password needed	Parola gerekli
 	Password…	Parola…
 	Personal	Kişisel
-	Pick messages from one account to move them to a folder.	Bir klasöre taşımak için tek bir hesaptan ileti seçin.
 	Picture	Resim
 	Pictures from the web are hidden to protect your privacy.	Gizliliğinizi korumak için web'den gelen resimler gizlendi.
 	Picture…	Resim…
@@ -246,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} ek {folder} klasörüne kaydedildi
 	Saved {path}	Kaydedildi: {path}
 	Search folders	Klasörlerde ara
+	(the rest isn't shown: open the file to see it all)	(gerisi gösterilmiyor: tümünü görmek için dosyayı açın)
+	Pick a category	Bir kategori seçin
+	Pick a folder	Bir klasör seçin
+	Say what to look for	Neyin aranacağını belirtin
+	Give the rule a name	Kurala bir ad verin
 	Search mail (from:, subject:, has:attachment…)	Postada ara (from:, subject:, has:attachment…)
 	Select a message first.	Önce bir ileti seçin.
 	Send	Gönder
@@ -264,6 +273,10 @@
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Sunucular: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Ayarlar bulundu: {source}
 	Show a desktop notification when new mail arrives	Yeni posta geldiğinde masaüstü bildirimi göster
+	Keep MailCraft running when its window is closed	Penceresi kapatıldığında MailCraft çalışmaya devam etsin
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Bildirim alanında kalır, postayı denetler ve yeni postayı bildirir. Dosya sayfasındaki veya simgesinin menüsündeki “Çıkış” onu kapatır.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Penceresi simge durumuna küçültülür ve MailCraft postayı denetlemeyi ve yeni postayı bildirmeyi sürdürür. Dosya sayfasındaki “Çıkış” onu kapatır.
+	Open MailCraft	MailCraft’ı aç
 	Show as plain text	Düz metin olarak göster
 	Show formatted	Biçimli göster
 	Show in Favorites	Sık Kullanılanlarda göster
@@ -768,11 +781,18 @@
 	Move down	Aşağı taşı
 	Updating…	Güncelleniyor…
 	All folders are up to date	Tüm klasörler güncel
+	1 account disconnected	1 hesabın bağlantısı kesildi
 	{n} accounts disconnected	{n} hesabın bağlantısı kesildi
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Microsoft ile oturum aç
 	Sign in with Microsoft…	Microsoft ile oturum aç…
 	Mailbox won't open	Posta kutusu açılmıyor
+	Trust this computer's mail server?	Bu bilgisayardaki posta sunucusuna güvenilsin mi?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} bu bilgisayarda ve kendi oluşturduğu, hiçbir yetkilinin kefil olmadığı bir sertifika gösteriyor. Bir posta hizmetini posta uygulamalarına bağlayan bir program böyle yapar. Yalnızca o programı siz kurduysanız güvenin.
+	Certificate fingerprint (SHA-256)	Sertifika parmak izi (SHA-256)
+	MailCraft asks again if the server shows another certificate.	Sunucu başka bir sertifika gösterirse MailCraft yeniden sorar.
+	Trust this certificate	Bu sertifikaya güven
+	Certificate not trusted yet	Sertifikaya henüz güvenilmiyor
 	The mailbox won't open	Posta kutusu açılmıyor
 	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph, posta kutusuna IMAP olmadan erişir; takvimini ve kişilerini de getirir. Hesap onun üzerinden yeniden başlar: postaları sunucudan indirilir.
 	Turned IMAP on, or picked another account in the browser? Sign in again	IMAP'i açtınız mı ya da tarayıcıda başka bir hesap mı seçtiniz? Yeniden oturum açın
@@ -853,6 +873,28 @@
 	Delete this contact?	Bu kişi silinsin mi?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Bu kişi, hakkında tutulan her şeyle birlikte silinecek. Bu işlem geri alınamaz.
 	Export…	Dışa aktar…
+	{file} isn't a MailCraft backup.	{file} bir MailCraft yedeği değil.
+	A backup is brought in where MailCraft runs in the browser.	Yedek, MailCraft'ın tarayıcıda çalıştığı yerde yüklenir.
+	Backup saved as {file}	Yedek {file} olarak kaydedildi
+	Restore…	Geri yükle…
+	Bring a backup file in. It takes the place of what's kept here now.	Bir yedek dosyası yükleyin. Şu anda burada tutulanların yerini alır.
+	Back up…	Yedekle…
+	Save what's kept here to a file, with a password if you like.	Burada tutulanları bir dosyaya kaydedin; isterseniz parolayla.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft hesaplarınızı, ayarlarınızı ve postanızı yalnızca bu tarayıcıda tutar. Bu site için tarayıcı verilerini temizlemek onları siler: bir yedek dosyası onları burada veya başka bir tarayıcıda geri getirir.
+	Backup	Yedekleme
+	The backup's password	Yedeğin parolası
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Bu, MailCraft'ın şu anda bu tarayıcıda tuttuğu her şeyin yerini alır: hesaplar, ayarları ve postaları. Her hesabın parolası yeniden sorulur.
+	Restore from a backup…	Bir yedekten geri yükle…
+	Restore from backup	Yedekten geri yükle
+	The two passwords aren't the same.	İki parola aynı değil.
+	Save backup	Yedeği kaydet
+	The file can't be opened without this password: MailCraft can't recover it.	Dosya bu parola olmadan açılamaz: MailCraft parolayı kurtaramaz.
+	Without a password, anyone who has the file can read what's in it.	Parola olmadan, dosyaya sahip olan herkes içindekileri okuyabilir.
+	The password again	Parola yeniden
+	Password for the file (optional)	Dosya için parola (isteğe bağlı)
+	Include the mail downloaded to this browser	Bu tarayıcıya indirilen postayı dahil et
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Hesaplarınız ile ayarları, kurallar, imzalar, takvimler ve kişiler tek bir dosyaya girer. Parolalar hiçbir zaman içinde olmaz.
+	Back up	Yedekle
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft'ın kaydettiği bir dosyadaki kuralları ekleyin. Bu bilgisayarda olmayan bir hesaba ait kural kapalı olarak gelir.
 	Change…	Değiştir…
 	Clean up	Toparla
@@ -880,6 +922,17 @@
 	Send email	E-posta gönder
 	Add	Ekle
 	Add a shared mailbox	Paylaşılan posta kutusu ekle
+	Other addresses	Diğer adresler
+	Key {key}: signs mail from {addresses}	Anahtar {key}: {addresses} adresinden giden postayı imzalar
+	Valid until {date}: signs mail from {addresses}	{date} tarihine kadar geçerli: {addresses} adresinden giden postayı imzalar
+	Find on the server	Sunucuda bul
+	Addresses of this same mailbox that you also send from.	Bu aynı posta kutusunun, ileti gönderdiğiniz diğer adresleri.
+	Add an address	Adres ekle
+	Change an address	Adresi değiştir
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Bu aynı posta kutusunun, takma ad gibi, posta gönderilebilen başka bir adresi. İleti yazarken “Kimden” alanında seçin. Posta sunucunuzun bu adresten göndermeye izin vermesi gerekir.
+	Name on mail from it	Bu adresten giden postadaki ad
+	Replies go to	Yanıtlar şuraya gider
+	(the account's own)	(hesabın imzası)
 	Add…	Ekle…
 	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Klasörleri bu hesabın altında görünür. Exchange sunucusunda ona erişiminiz olmalıdır; tam erişiminiz olanlar kendiliğinden açılır.
 	Mailboxes you have full access to open by themselves.	Tam erişiminiz olan posta kutuları kendiliğinden açılır.
@@ -1631,7 +1684,7 @@ month	May	Mayıs
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Bu ileti şüpheli görünüyor veya göndereni doğrulanamadı, bu yüzden resimleri gizli kalıyor.
 	These senders' pictures always load, even when a message looks suspicious:	Bu gönderenlerin resimleri, ileti şüpheli görünse bile her zaman yüklenir:
 	Open a mail file	Bir posta dosyası aç
-	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web aren't loaded and nothing in it runs.	Kaydedilmiş bir iletiyi (.eml veya Outlook .msg) bir klasöre eklemeden kendi penceresinde görün. Web'deki resimleri yüklenmez ve içindeki hiçbir şey çalışmaz.
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Kaydedilmiş bir iletiyi (.eml veya Outlook .msg) bir klasöre eklemeden kendi penceresinde görün. Web'deki resimleri yalnızca siz isterseniz yüklenir ve içindeki hiçbir şey çalışmaz.
 	Nothing is kept: closing it leaves no trace in your mail.	Hiçbir şey saklanmaz: kapattığınızda postanızda iz kalmaz.
 	and {n} more	ve {n} tane daha
 	Checking for new mail	Yeni posta denetimi
@@ -1644,4 +1697,10 @@ month	May	Mayıs
 	Server: {url} (CalDAV and CardDAV)	Sunucu: {url} (CalDAV ve CardDAV)
 	Not available: this account has no mail server.	Kullanılamıyor: bu hesabın posta sunucusu yok.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Postanız MailCraft'ın önceki Flatpak'ından taşındı; o hâlâ yüklü. Kaldırmak için şunu çalıştırın: flatpak uninstall --delete-data {id}
-	Opened from {file}. It isn't in any folder, its pictures from the web aren't loaded, and closing it leaves no trace.	{file} dosyasından açıldı. Hiçbir klasörde değil, web'deki resimleri yüklenmez ve kapattığınızda iz kalmaz.
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	{file} dosyasından açıldı. Hiçbir klasörde değil, web'deki resimleri yalnızca siz isterseniz yüklenir ve kapattığınızda iz kalmaz.
+	To-Do Bar	Yapılacaklar Çubuğu
+	Appointments	Randevular
+	Type a new task	Yeni bir görev yazın
+	Nothing to do	Yapılacak bir şey yok
+	Nothing in the next 7 days	Önümüzdeki 7 günde bir şey yok
+	Show the calendar, what's coming up and your tasks beside the mail	Takvimi, yaklaşanları ve görevlerinizi postanın yanında gösterin

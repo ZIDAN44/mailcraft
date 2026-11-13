@@ -269,9 +269,19 @@ impl Session {
         }
     }
 
-    /// The message to show after `gone` leave the list: the next one down, else the one above.
+    /// The message to show after `gone` leave the list: the next row down, else the one above,
+    /// as the rows are shown (pinned ones first, a conversation one row). By the list's own
+    /// order, deleting a message jumped up to a pinned one, or into the conversation above.
     pub(super) fn successor(&self, gone: &[MessageKey]) -> Option<MessageKey> {
         let gone: HashSet<&MessageKey> = gone.iter().collect();
+        if let Some(last) = gone.iter().filter_map(|k| self.msg_row_of(k)).max() {
+            let stays = |p: usize| self.row_key(p).filter(|k| !gone.contains(k));
+            // Its own row first: a conversation that loses one message is still there.
+            let next = stays(last).or_else(|| (last + 1..self.row_count()).find_map(stays)).or_else(|| (0..last).rev().find_map(stays));
+            if next.is_some() {
+                return next.cloned();
+            }
+        }
         let last = self.list.iter().rposition(|m| gone.contains(&m.key))?;
         self.list
             .iter()
@@ -328,9 +338,15 @@ impl Session {
                 // selection stays on it.
                 self.apply_op_checked(&a, Op::Move { keys, to: dest.clone() }).map_err(CmdError::Failed)?;
                 if !back.is_empty() {
+                    self.moved_at = self.clock.now;
                     self.remember(Undo::Move { account: a.clone(), to: dest, back });
                 }
             }
+        }
+        // All of it there already (Archive pressed in Archive): nothing moved, and the one open
+        // stays open (it gave way to the next all the same).
+        if moved == 0 {
+            return Ok(serde_json::json!({ "moved": 0 }));
         }
         self.after_removal(next);
         Ok(serde_json::json!({ "moved": moved }))
@@ -499,6 +515,12 @@ impl Session {
     /// due day stays; Undo puts the flag and both days back as they were, in one step.
     pub fn complete_selection(&mut self) -> CmdResult {
         let sel = self.selected();
+        self.complete_messages(sel)
+    }
+
+    /// [`Session::complete_selection`] for these messages, wherever they are (the To-Do Bar's
+    /// are in any folder).
+    pub(crate) fn complete_messages(&mut self, sel: Vec<Summary>) -> CmdResult {
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
@@ -604,9 +626,18 @@ impl Session {
                     }
                 }
                 if by_folder.is_empty() {
-                    // Not there yet (the server is still moving them): try again in a moment.
-                    self.undo.push(Undo::Move { account, to, back });
-                    return Err(CmdError::Failed("still being moved; try Undo again in a moment".into()));
+                    // Not there yet (the server is still moving them, and the folder they go
+                    // to is read after): try again in a moment. For a couple of minutes after
+                    // the move; a server account's, as a move on this computer is done at once.
+                    let server = self.account(&account).is_some_and(|a| !a.is_local());
+                    if server && self.clock.now.saturating_sub(self.moved_at) < 120 {
+                        self.undo.push(Undo::Move { account, to, back });
+                        return Err(CmdError::Failed("still being moved; try Undo again in a moment".into()));
+                    }
+                    // Gone from there since (deleted for good, moved on, the folder emptied):
+                    // nothing to put back, and what was done before it can be undone. Kept to
+                    // be tried again, it stood in the way of every Undo after.
+                    return Err(CmdError::Failed("the mail isn't where it was moved to any more, so it can't be put back".into()));
                 }
                 let n = used.len();
                 for (from, keys) in by_folder {

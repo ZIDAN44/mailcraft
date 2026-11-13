@@ -293,3 +293,65 @@ fn a_message_set_aside_as_it_goes_hears_what_became_of_it() {
     assert_eq!(back.error.as_deref(), Some("no such person"));
     assert_eq!(s.compose.as_ref().map(|c| c.id), Some(writing), "the one on screen is left alone");
 }
+
+/// A message selected in the Outbox stays the one selected when the message above it is sent:
+/// keys there count rows, so the selection slid to the next message, and Delete took that one.
+#[test]
+fn an_outbox_selection_follows_its_message() {
+    let (mut s, id) = data_file_session("outbox-follows");
+    let store = s.store.clone().unwrap();
+    for (n, subject) in [(7u64, "First"), (8, "Second"), (9, "Third")] {
+        let raw = format!("From: x@example.org\r\nTo: ann@example.org\r\nSubject: {subject}\r\n\r\nhi\r\n");
+        let item = mailcraft_store::OutboxItem {
+            id: n,
+            recipients: vec!["ann@example.org".into()],
+            queued: NOW + n as i64,
+            not_before: NOW + 600,
+            ..Default::default()
+        };
+        store.outbox_add(&id, &item, raw.as_bytes()).unwrap();
+    }
+    s.run("folder.outbox", &json!({})).unwrap();
+    let second = s.list.iter().find(|m| m.subject == "Second").map(|m| m.key.clone()).unwrap();
+    s.open_message(&second);
+    // The first one goes.
+    store.outbox_remove(&id, 7);
+    s.apply(Event::Sent { account: id.clone(), id: 7 });
+    let chosen: Vec<u64> = s.selection.iter().filter_map(|k| s.outbox_entry(k)).map(|(_, i)| i.id).collect();
+    assert_eq!(chosen, [8]);
+    assert_eq!(s.reading.as_ref().and_then(|r| s.outbox_entry(&r.key)).map(|(_, i)| i.id), Some(8));
+    s.run("mail.delete", &json!({})).unwrap();
+    assert_eq!(store.outbox(&id).iter().map(|i| i.id).collect::<Vec<_>>(), [9]);
+    done(s);
+}
+
+/// A message closed (or discarded) while it's being sent isn't lost when the server then
+/// refuses it: it was in neither Drafts nor the Outbox, with only "Not sent" said. It opens
+/// again with the reason; one that does go is done with.
+#[test]
+fn a_message_closed_as_it_goes_comes_back_if_refused() {
+    let mut s = Session::open(Some(temp("closed-sending")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    for (close, params) in [("compose.close", json!({"save": true})), ("compose.discard", json!({}))] {
+        s.run("mail.new", &json!({"account": id})).unwrap();
+        s.run("compose.update", &json!({"to": "ben@x.example", "subject": "Refused", "body": "hi"})).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        let sent = s.compose.as_ref().map(|c| c.id).unwrap();
+        s.run(close, &params).unwrap();
+        assert!(s.all_composes().next().is_none(), "off the screen");
+        s.apply(Event::SendFailed { account: id.clone(), id: sent, error: "no such person".into() });
+        let back = s.compose.take().expect("open again");
+        assert_eq!((back.id, back.sending, back.error.as_deref(), back.subject.as_str()), (sent, false, Some("no such person"), "Refused"));
+    }
+    // Sent after all: nothing is kept of it.
+    s.run("mail.new", &json!({"account": id})).unwrap();
+    s.run("compose.update", &json!({"to": "ben@x.example", "subject": "Fine", "body": "hi"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    let sent = s.compose.as_ref().map(|c| c.id).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    s.apply(Event::Sent { account: id.clone(), id: sent });
+    assert!(s.sent_away.is_empty() && s.all_composes().next().is_none());
+}

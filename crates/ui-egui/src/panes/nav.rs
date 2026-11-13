@@ -480,10 +480,8 @@ fn shared_header(
     let address = top.mailbox.clone().unwrap_or_default();
     let resp = resp.on_hover_text(tf!("Shared mailbox {address}, opened by {email}", address = address, email = a.config.email));
     // Dropped messages or folders go into its top folder, as onto a folder.
-    if let Some(p) = resp.dnd_release_payload::<DragKeys>()
-        && p.0.iter().all(|k| k.account == top.account)
-    {
-        acts.push(Action::Run("mail.move", json!({"folder": top.path})));
+    if resp.dnd_release_payload::<DragKeys>().is_some() {
+        acts.push(dropped_mail(ui, &top.account, &top.path));
     }
     if let Some(p) = resp.dnd_release_payload::<DragFolder>()
         && p.account == top.account
@@ -519,6 +517,13 @@ fn shared_header(
         move_items(ui, sections, at, acts);
     });
     resp.clicked()
+}
+
+/// The selection dropped on a folder: moved there, or copied with Ctrl held (issue #82). The
+/// folder may be another account's (a drop there did nothing, and said nothing).
+fn dropped_mail(ui: &Ui, account: &str, folder: &str) -> Action {
+    let copy = ui.input(|i| i.modifiers.command);
+    Action::Run(if copy { "mail.copy" } else { "mail.move" }, json!({"folder": folder, "account": account}))
 }
 
 /// A folder's row; `collapse` is whether it's collapsed, for one with folders in it (it gets
@@ -558,11 +563,8 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     if f.selectable && resp.clicked() {
         acts.push(Action::Run("folder.open", json!({"account": f.account, "folder": f.path})));
     }
-    if f.selectable
-        && let Some(p) = resp.dnd_release_payload::<DragKeys>()
-        && p.0.iter().all(|k| k.account == f.account)
-    {
-        acts.push(Action::Run("mail.move", json!({"folder": f.path})));
+    if f.selectable && resp.dnd_release_payload::<DragKeys>().is_some() {
+        acts.push(dropped_mail(ui, &f.account, &f.path));
     }
     if let Some(p) = resp.dnd_release_payload::<DragFolder>()
         && p.account == f.account

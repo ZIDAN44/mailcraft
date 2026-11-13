@@ -86,6 +86,19 @@ pub(super) fn kept(creds: &dyn Credentials, account: &AccountConfig) -> std::res
     read(creds, account, SECRET)
 }
 
+/// The certificate a message is signed with, and its key: `signer` (DER; issue #81: the one
+/// that names the address the message is from), which may be one kept beside the one in use
+/// (its SHA-256 is given back then, as [`forget_wrong_pin`] takes it); the one in use for none.
+pub(super) fn signing(creds: &dyn Credentials, account: &AccountConfig, signer: Option<&[u8]>) -> (std::result::Result<Me, String>, Option<String>) {
+    let current = kept(creds, account);
+    let named = signer.map(fingerprint).filter(|fp| !fp.is_empty());
+    let in_use = current.as_ref().is_ok_and(|me| named.as_deref().is_none_or(|fp| fingerprint(me.certificate()).eq_ignore_ascii_case(fp)));
+    match named {
+        Some(fp) if !in_use => (kept_older(creds, account, &fp), Some(fp)),
+        _ => (current, None),
+    }
+}
+
 /// The older certificates' SHA-256s, newest kept first.
 pub(super) fn older_list(creds: &dyn Credentials, account: &AccountConfig) -> Vec<String> {
     let mut list: Vec<String> = creds.get_secret(account, OLDER).and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();

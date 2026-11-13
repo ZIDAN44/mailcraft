@@ -319,7 +319,7 @@ fn real_caldav_dismissed_reminder() {
     let p: Vec<&str> = v.split_whitespace().collect();
     let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
     let dav = crate::dav::Dav::new(user, password);
-    let at = crate::dav::Where { email: user, username: "", imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true };
+    let at = crate::dav::Where { email: user, username: "", others: &[], imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true };
     let zone = mailcraft_model::zone::Zone::Fixed(0);
     let now = 1_793_782_000;
     let sync = |pim: &Pim| {
@@ -438,6 +438,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
         raw: mailcraft_model::Private(reply.into_bytes()),
         sign: true,
         encrypt_to: vec![pem("ana.pem"), pem("riley.pem")],
+        signer: None,
         gcm: false,
         hide_subject: false,
     });
@@ -584,7 +585,7 @@ fn real_caldav_private_and_show_as() {
     let p: Vec<&str> = v.split_whitespace().collect();
     let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
     let dav = crate::dav::Dav::new(user, password);
-    let at = crate::dav::Where { email: user, username: "", imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true };
+    let at = crate::dav::Where { email: user, username: "", others: &[], imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true };
     let zone = mailcraft_model::zone::Zone::Fixed(0);
     let now = 1_792_000_000;
     // Each sync merged as the engine does, roughly: what the server has, what was pushed.

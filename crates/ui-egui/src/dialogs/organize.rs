@@ -204,10 +204,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             }
                         };
                         f.error = None;
-                        acts.push(Action::Submit("rules.set", json!({"rules": rules})));
-                        if f.run_now {
-                            acts.push(Action::Run("rules.run", json!({"index": at, "inbox": true})));
-                        }
+                        // Run once it's saved, and only then (`runNow`, read where the save is
+                        // answered): run whatever came of the save, a save refused left the rule
+                        // as it was before, and that one ran over the Inbox.
+                        let run = if f.run_now { json!(at) } else { serde_json::Value::Null };
+                        acts.push(Action::Submit("rules.set", json!({"rules": rules, "runNow": run})));
                     }
                     Err(e) => f.error = Some(e),
                 }
@@ -591,10 +592,10 @@ pub struct RuleForm {
 impl RuleForm {
     pub(super) fn to_rule(&self) -> Result<Rule, String> {
         if self.name.trim().is_empty() {
-            return Err("Give the rule a name".into());
+            return Err(tl!("Give the rule a name").to_string());
         }
         if self.test.needs_text() && self.text.trim().is_empty() {
-            return Err("Say what to look for".into());
+            return Err(tl!("Say what to look for").to_string());
         }
         let t = self.text.trim().to_string();
         let condition = match self.test {
@@ -606,11 +607,11 @@ impl RuleForm {
             RuleTest::Bulk => Condition::Bulk,
         };
         let action = match self.action {
-            RuleDo::MoveTo if self.target.is_empty() => return Err("Pick a folder".into()),
+            RuleDo::MoveTo if self.target.is_empty() => return Err(tl!("Pick a folder").to_string()),
             RuleDo::MoveTo => RuleAction::MoveTo(self.target.clone()),
             RuleDo::Archive => RuleAction::MoveToRole(FolderRole::Archive),
             RuleDo::Delete => RuleAction::Delete,
-            RuleDo::Categorize if self.target.is_empty() => return Err("Pick a category".into()),
+            RuleDo::Categorize if self.target.is_empty() => return Err(tl!("Pick a category").to_string()),
             RuleDo::Categorize => RuleAction::Categorize(self.target.clone()),
             RuleDo::MarkRead => RuleAction::MarkRead,
             RuleDo::Flag => RuleAction::Flag,

@@ -32,6 +32,8 @@ pub struct Data {
     pub digest: Option<String>,
     /// Requests refused for their sign-in.
     pub refused: usize,
+    /// Requests that came with a sign-in, right or wrong.
+    pub offered: usize,
     /// Collections the user may not read (403 to reading them), as a calendar shared for free /
     /// busy only.
     pub unreadable: Vec<String>,
@@ -147,6 +149,9 @@ pub fn serve() -> Server {
             let (method, path) = (parts.next().unwrap_or("").to_string(), parts.next().unwrap_or("/").to_string());
             let mut d = shared.lock().unwrap();
             d.log.push(format!("{method} {path}"));
+            if !given.is_empty() {
+                d.offered += 1;
+            }
             if let Some(nonce) = d.digest.clone() {
                 authorized = digest_ok(&given, &method, &path, &nonce);
                 if !authorized {
@@ -167,7 +172,7 @@ pub fn serve() -> Server {
                 }
             }
             if !authorized {
-                respond(&mut s, "401 Unauthorized", &[], "");
+                respond(&mut s, "401 Unauthorized", &[("WWW-Authenticate", "Basic realm=\"fake\"".to_string())], "");
                 continue;
             }
             if matches!(method.as_str(), "PROPFIND" | "REPORT") && d.unreadable.iter().any(|p| path.starts_with(p.as_str())) {
@@ -300,7 +305,7 @@ mod tests {
     /// Found from the address, as an account with nothing given by hand. The tests' syncs never
     /// look for anything there, out on the network: their calendars and contacts are given, or
     /// were looked for already (`dav_checked`), the contacts none.
-    const AT: Where<'static> = Where { email: USER, username: "", imap_host: "imap.example", caldav: None, carddav: None, mails: true };
+    const AT: Where<'static> = Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true };
 
     fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
         CalEvent { uid: uid.into(), summary: summary.into(), start, end: start + 3600, ..Default::default() }
@@ -453,6 +458,59 @@ mod tests {
         let book = format!("{}{BOOK}", server.base);
         assert_eq!((out.unchanged_books.clone(), out.synced_books.len()), (vec![book], 0));
         assert!(out.errors.iter().any(|e| e.contains("couldn't be read") && e.contains("403")), "{:?}", out.errors);
+    }
+
+    /// Found in review: while an account's calendar server is looked for, the mail password
+    /// went with the first request to every place tried (the address's domain, a host DNS
+    /// named, wherever a redirect led). It goes only to a server of the account's that asks.
+    #[test]
+    fn the_password_goes_only_to_the_accounts_own_server_while_looking() {
+        let server = serve();
+        let start = format!("{}/.well-known/caldav", server.base);
+        // Not the account's (its mail is elsewhere): asked without a password, refused, and
+        // that's "not here".
+        let dav = Dav::new(USER, PASSWORD);
+        dav.looking_for("riley@studio.example", "imap.studio.example");
+        assert!(matches!(dav.home_from(Kind::Calendars, &start), Err(crate::NetError::Auth(_))));
+        assert_eq!(server.data.lock().unwrap().offered, 0, "no password left for it");
+        // The account's own (its mail server): asked without one first, then signed in to.
+        let dav = Dav::new(USER, PASSWORD);
+        dav.looking_for("riley@studio.example", "127.0.0.1");
+        assert_eq!(dav.home_from(Kind::Calendars, &start).unwrap().unwrap(), format!("{}/dav/cal/", server.base));
+        let (offered, refused) = {
+            let d = server.data.lock().unwrap();
+            (d.offered, d.log.len() - d.offered)
+        };
+        assert!(offered >= 2 && refused >= 2, "asked first, once: {offered} with it, {refused} without");
+        // Found: as before, with the password from the first request.
+        dav.found();
+        let before = server.data.lock().unwrap().log.len();
+        dav.collections(Kind::Calendars, &format!("{}/dav/cal/", server.base)).unwrap();
+        let d = server.data.lock().unwrap();
+        assert_eq!(d.log.len() - before, 1);
+
+        use crate::dav::guard::Guard;
+        let g = Guard::new("Riley@Own-Domain.example", "IMAP.provider.example");
+        for (host, own) in [
+            ("own-domain.example", true),
+            ("caldav.OWN-domain.example", true),
+            ("imap.provider.example", true),
+            ("caldav.provider.example", true),
+            ("d1.dav.provider.example.", true),
+            ("provider.example", true),
+            ("notown-domain.example", false),
+            ("evil.example", false),
+            ("provider.example.evil.example", false),
+            ("example", false),
+            ("other.example", false),
+            ("", false),
+        ] {
+            assert_eq!(g.own(host), own, "{host}");
+        }
+        // A mail server at a domain's top has no neighbours; nor has an address.
+        assert!(!Guard::new("a@b.example", "mailhost.example").own("other.example"));
+        assert!(!Guard::new("a@b.example", "192.168.1.5").own("168.1.5"));
+        assert!(!Guard::new("nothing", "").own("anything.example"));
     }
 
     /// Issue #7: an address given by hand, as a user copies it from the provider's help: the
