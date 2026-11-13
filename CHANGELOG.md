@@ -20,6 +20,7 @@ on GitHub.
 
 - A certificate file (`.p12`, `.pfx`) saved by Thunderbird or Firefox is imported (#89): they write the file another way than OpenSSL and Windows do, and every one was refused as a wrong password, old files and new. What stops an import is now said as what it is: a wrong password, a file locked in a way MailCraft doesn't read, or a file that isn't a certificate file.
 - An account with calendars and contacts only is no longer listed in the mail folder pane (#86), where it opened to nothing and several of them filled the pane. Its calendars and contacts are in Calendar and People as before, and the account under **File › Info**. **All Inboxes** and **All Sent** show only when more than one account has mail.
+- A signature set out in columns keeps them in a reading pane of the usual width (#90): a logo, a name and an address side by side went one under the other, and the line between them was gone, unless the window was wide. Short lines now wrap a little beside columns that say how wide they are, as in a browser.
 - **Sign in again** says which user name the account signs in with, when that isn't its address (#88): asked for "the password for" the address, it read as signing in with the address.
 
 ## 0.38.0 - 2026-11-13

@@ -302,3 +302,31 @@ fn a_picture_held_back_keeps_its_size() {
     let long = held_back_words(&"é".repeat(300));
     assert!(long.ends_with("…]") && long.chars().count() == 51, "{long}");
 }
+
+/// Issue #90: a signature in three columns (a logo, a name and numbers, an address after a
+/// dividing line), the first two as wide as they say and the address taking the rest. In a
+/// reading pane of the usual width the address has less than a column's usual room, and its
+/// lines are short: it wraps a little and stays beside the others, as in a browser (Chrome keeps
+/// the three down to the widest word). The row went one under the other, its line gone. Too
+/// narrow for the address's widest word, it still does.
+#[test]
+fn a_signature_in_columns_stays_in_columns_in_a_pane_of_the_usual_width() {
+    let html = r#"<table width="720" style="width:720px;max-width:100%" cellspacing="0" cellpadding="0"><tr><td style="padding:8px 0"><table width="720" cellspacing="0" cellpadding="0" style="width:720px"><tr>
+<td width="180" valign="middle" style="width:180px;padding:0"><img src="cid:logo@x" width="180" height="60" style="display:block;width:180px;height:60px"></td>
+<td width="220" valign="middle" style="width:220px;padding:0 16px 0 12px"><span style="font-size:16px;font-weight:700;white-space:nowrap">Ms. Riley Moreno</span><br><span style="font-size:12px"><a href="mailto:riley@studio.example" style="white-space:nowrap">riley@studio.example</a><br><a href="https://studio.example" style="white-space:nowrap">www.studio.example</a><br><a href="tel:+15550100" style="white-space:nowrap">+1 555 0100 200</a></span></td>
+<td valign="middle" style="padding:0 0 0 16px;border-left:1px solid #E30613;font-size:11px;line-height:16px">12 Harbour Road<br>General Quay Street<br>Sail Loft Lane No: 35<br>The Old Sail Loft Centre, Floor: 6, Unit: 18<br>Portside / Harbourtown</td></tr></table></td></tr></table>"#;
+    let blocks = html_layout(html);
+    let Some(Block::Table(outer)) = blocks.first() else { panic!("a table: {blocks:?}") };
+    let inner =
+        outer.rows.first().and_then(|r| r.first()).and_then(|c| c.blocks.iter().find_map(|b| if let Block::Table(t) = b { Some(t) } else { None }));
+    let inner = inner.expect("the columns' table");
+    let m = with_ui(|ui| measured(ui, &key(), inner));
+    let address = m.columns.get(2).copied().flatten().expect("the address, measured");
+    assert!(address.min < 120.0 && address.max < PARAGRAPH, "short lines: {address:?}");
+    let widths = |room: f32| cell_widths(&inner.rows[0], &column_widths(&inner.rows), &m.columns, room, 0.0);
+    for room in [720.0, 560.0, 530.0, 500.0] {
+        let (w, stack) = widths(room);
+        assert!(!stack && close(&w, &[180.0, 220.0, room - 400.0]), "{room}: {w:?} {stack}");
+    }
+    assert!(widths(400.0 + address.min - 20.0).1, "no room for its widest word: one under the other");
+}

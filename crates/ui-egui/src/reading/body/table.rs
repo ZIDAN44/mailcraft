@@ -151,6 +151,11 @@ pub(super) fn table_place(own: mime::layout::Align, content: mime::layout::Align
     if own == mime::layout::Align::Left { content } else { own }
 }
 
+/// Wider than this unwrapped, what a cell holds is a paragraph: squeezed into a column narrower
+/// than [`MIN_COLUMN`] it reads badly, and the row's cells go one under the other. Shorter (a
+/// line of an address), it wraps once at most in a column that holds its widest word.
+const PARAGRAPH: f32 = 2.0 * MIN_COLUMN;
+
 /// Each cell's width in a row `width` wide, `spacing` between the cells, `columns` the widths the
 /// table's columns ask for and `content` what they hold ([`measure`]); and whether the cells
 /// stack instead, one too narrow to read beside the others. What cells ask for (pixels, or a
@@ -270,7 +275,11 @@ pub(crate) fn cell_widths(
     // Stacked when a column is squeezed too narrow to read; one as narrow as it asks (a
     // business card's photo, issue #11), or as its content (measured), stays beside the others:
     // one measured is squeezed when it can't hold its widest word, or when the row has less room
-    // than an even share of it would need and it would take more.
+    // than an even share of it would need and it would take more. Beside cells that say how
+    // wide they are (columns their writer set out), that's only for a paragraph, which would
+    // take much more: short lines (an address beside a name and a logo, issue #90) wrap a
+    // little and stay. A signature in three columns went one under the other in a pane of the
+    // usual width, its dividing line with it, where a browser keeps the columns.
     let even = if free > 0 { room / free as f32 } else { f32::INFINITY };
     let squeezed = |w: f32, asked: Option<f32>, fit: Option<Fit>, share: bool| {
         w < MIN_COLUMN
@@ -278,7 +287,7 @@ pub(crate) fn cell_widths(
                 // A share is as much of the row as it can have: too little only for what it holds.
                 (Some(_), f) if share => f.is_some_and(|f| w + 0.5 < f.min),
                 (Some(a), _) => w + 0.5 < a,
-                (None, Some(f)) if auto => w + 0.5 < f.min || (even < MIN_COLUMN && w + 0.5 < f.max),
+                (None, Some(f)) if auto => w + 0.5 < f.min || (even < MIN_COLUMN && w + 0.5 < f.max && (f.max > PARAGRAPH || fixed <= 0.0)),
                 (None, _) => true,
             }
     };
