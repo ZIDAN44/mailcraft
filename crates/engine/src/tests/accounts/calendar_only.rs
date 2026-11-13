@@ -41,6 +41,34 @@ fn a_calendar_only_account_starts_with_its_server_and_no_mail_one() {
     done(again);
 }
 
+/// Issue #86: it has no mailbox, so the folder pane doesn't show it (several of them filled the
+/// pane with accounts that open to nothing); it's still an account, with its place among the
+/// calendars. A mailbox moved up or down moves past the mailbox shown next to it.
+#[test]
+fn it_is_no_mailbox_in_the_folder_pane() {
+    let mut s = sample_session("calendar-only-pane");
+    let zoe = add(&mut s);
+    let mail =
+        s.run("account.add", &json!({"email": "riley@example.net", "password": "pw", "imapHost": "127.0.0.1", "imapPort": 1})).unwrap()["account"]
+            .as_str()
+            .unwrap()
+            .to_string();
+    let keys = |sections: Vec<crate::PaneSection>| sections.into_iter().map(|x| x.key).collect::<Vec<_>>();
+    assert_eq!(keys(s.pane_sections()), ["sample".to_string(), zoe.clone(), mail.clone()], "an account like the others");
+    assert_eq!(keys(s.mail_sections()), ["sample".to_string(), mail.clone()], "with no mailbox to show");
+    // Up one place is above the sample mailbox, not above the account that isn't shown.
+    assert_eq!(s.run("folderPane.move", &json!({"key": mail, "by": -1})).unwrap()["position"], 0);
+    assert_eq!(keys(s.mail_sections()), [mail.clone(), "sample".to_string()]);
+    assert_eq!(s.run("folderPane.move", &json!({"key": mail, "by": 1})).unwrap()["position"], 1);
+    assert_eq!(keys(s.mail_sections()), ["sample".to_string(), mail.clone()]);
+    assert_eq!(keys(s.pane_sections()).len(), 3, "none is lost in the moving");
+    // Itself, it moves among all the accounts (its calendars are listed in that order).
+    s.run("folderPane.move", &json!({"key": zoe, "by": -5})).unwrap();
+    assert_eq!(keys(s.pane_sections()).first(), Some(&zoe));
+    assert_eq!(keys(s.mail_sections()), ["sample".to_string(), mail]);
+    done(s);
+}
+
 #[test]
 fn what_it_needs_is_asked_for() {
     let mut s = Session::open(Some(temp("calendar-only-asks")), mailcraft_model::dates::Clock::new(NOW, 0));

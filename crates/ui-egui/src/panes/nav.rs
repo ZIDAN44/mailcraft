@@ -136,6 +136,12 @@ fn row(
     resp
 }
 
+/// Whether more than one account has mail: one with calendars and contacts only has none to
+/// gather with another's, nor a folder to tell from another's (issue #86).
+fn several_mailboxes(s: &Session) -> bool {
+    s.accounts.iter().filter(|a| !a.config.is_calendar_only()).count() > 1
+}
+
 pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
@@ -144,7 +150,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if s.prefs.show_favorites && section_header(ui, t, "Favorites", favorites_open) {
             acts.push(Action::Run("view.collapse", json!({"key": "favorites"})));
         }
-        if favorites_open && s.accounts.len() > 1 {
+        if favorites_open && several_mailboxes(s) {
             let unread: u32 = s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum();
             let sel = s.view == View::Unified { role: FolderRole::Inbox } && s.search.is_none();
             if row(ui, t, Icon::Inbox, tl!("All Inboxes"), Count::Unread(unread), 0, sel, false, false).clicked() {
@@ -173,7 +179,18 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         ui.add_space(8.0);
         // Accounts, and the shared mailboxes they open, each a mailbox of its own in the order
         // the user put them (issue #1).
-        let sections = s.pane_sections();
+        // (An account with calendars and contacts only has no mailbox to show, issue #86.)
+        let sections = s.mail_sections();
+        if sections.is_empty() && !s.accounts.is_empty() {
+            // Nothing but such accounts: what they have is a click away.
+            ui.horizontal(|ui| {
+                ui.add_space(8.0);
+                let what = ui.add(egui::Label::new(RichText::new(tl!("Calendars and contacts")).color(t.faint).small()).sense(Sense::click()));
+                if what.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                    acts.push(Action::Run("view.module", json!({"name": "calendar"})));
+                }
+            });
+        }
         for (at, sec) in sections.iter().enumerate() {
             let Some(a) = s.account(&sec.account) else { continue };
             if let Some(top) = sec.mailbox.as_ref().and_then(|p| a.folders.iter().find(|f| &f.path == p)) {
@@ -194,7 +211,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             ui.painter().circle_filled(m.pos(rect.min + vec2(26.0, 15.0)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_data_file() {
                 a.config.email.clone()
-            } else if a.is_local() && !a.config.is_calendar_only() {
+            } else if a.is_local() {
                 tf!("{email} (sample)", email = a.config.email)
             } else {
                 a.config.email.clone()
@@ -265,17 +282,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             if open {
                 // A data file being imported says how far it is; its folders come as each is done.
                 let importing = crate::app::importing::nav_line(s, t, ui, acts, &a.config.id);
-                if a.config.is_calendar_only() {
-                    // No mail (issue #61): what it has is a click away, not folders on their way.
-                    ui.horizontal(|ui| {
-                        ui.add_space(8.0);
-                        let what =
-                            ui.add(egui::Label::new(RichText::new(tl!("Calendars and contacts")).color(t.faint).small()).sense(Sense::click()));
-                        if what.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                            acts.push(Action::Run("view.module", json!({"name": "calendar"})));
-                        }
-                    });
-                } else if a.folders.is_empty() && !importing {
+                if a.folders.is_empty() && !importing {
                     ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
                 }
                 for f in a.folders.iter().filter(|f| f.mailbox.is_none()) {
@@ -538,7 +545,7 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     });
     let name = match s.account(&f.account) {
         _ if favorite && let Some(top) = shared_top => format!("{} · {top}", crate::i18n::folder(f)),
-        Some(a) if favorite && s.accounts.len() > 1 => {
+        Some(a) if favorite && several_mailboxes(s) => {
             format!("{} · {}", crate::i18n::folder(f), a.config.email.split('@').next().unwrap_or_default())
         }
         _ => crate::i18n::folder(f),

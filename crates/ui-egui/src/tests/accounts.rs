@@ -88,6 +88,30 @@ fn the_account_form_adds_calendar_only_accounts() {
     let added = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").unwrap();
     assert!(added.config.is_calendar_only());
     assert_eq!(added.config.username, "zoe@example.org", "signs in with the address when no user name is given");
+    let id = added.config.id.clone();
+    // Issue #86: it has no mailbox, so the folder pane doesn't list it; File › Info does.
+    a.run("view.module", json!({"name": "mail"}));
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    super::rtl::drawn_text(&ctx, &mut a, size);
+    let pane: Vec<String> = super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(text, ..)| text).collect();
+    assert!(pane.iter().any(|t| t.contains("(sample)")), "{pane:?}");
+    assert!(!pane.iter().any(|t| t.contains("zoe@example.org") || t == "Calendars and contacts"), "{pane:?}");
+    assert!(!pane.iter().any(|t| t == "All Inboxes"), "one mailbox: nothing to gather, {pane:?}");
+    a.act(crate::Action::Backstage(crate::backstage::Page::Info));
+    // (Picked in the page's list of accounts.)
+    if let Some(page) = a.ui.backstage.as_mut() {
+        page.account = Some(id);
+    }
+    super::rtl::drawn_text(&ctx, &mut a, size);
+    let info: Vec<String> = super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(text, ..)| text).collect();
+    assert!(info.iter().any(|t| t.contains("zoe@example.org")), "{info:?}");
+    // With no mailbox at all, the pane says where what there is can be found.
+    a.ui.backstage = None;
+    a.session.accounts.retain(|x| x.config.is_calendar_only());
+    super::rtl::drawn_text(&ctx, &mut a, size);
+    let pane: Vec<String> = super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(text, ..)| text).collect();
+    assert!(pane.iter().any(|t| t == "Calendars and contacts") && !pane.iter().any(|t| t.contains("zoe@example.org")), "{pane:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
 

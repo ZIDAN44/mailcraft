@@ -15,6 +15,7 @@ on GitHub.
 ### Fixed
 
 - A certificate file (`.p12`, `.pfx`) saved by Thunderbird or Firefox is imported (#89): they write the file another way than OpenSSL and Windows do, and every one was refused as a wrong password, old files and new. What stops an import is now said as what it is: a wrong password, a file locked in a way MailCraft doesn't read, or a file that isn't a certificate file.
+- An account with calendars and contacts only is no longer listed in the mail folder pane (#86), where it opened to nothing and several of them filled the pane. Its calendars and contacts are in Calendar and People as before, and the account under **File › Info**. **All Inboxes** and **All Sent** show only when more than one account has mail.
 
 ## 0.38.0 - 2026-11-13
 

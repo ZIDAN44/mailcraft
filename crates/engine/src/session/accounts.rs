@@ -253,16 +253,32 @@ impl Session {
         out
     }
 
-    /// Move a mailbox in the folder pane `by` places (an account's own order follows, as the
-    /// accounts' order is theirs everywhere else). Returns where it is now.
+    /// The mailboxes the folder pane shows: [`Session::pane_sections`] less the accounts that
+    /// have no mail (calendars and contacts only, issue #86), which are in Calendar and People.
+    pub fn mail_sections(&self) -> Vec<PaneSection> {
+        let no_mail = |id: &str| self.account(id).is_some_and(|a| a.config.is_calendar_only());
+        self.pane_sections().into_iter().filter(|s| !no_mail(&s.account)).collect()
+    }
+
+    /// Move a mailbox in the folder pane `by` places among the ones it shows (an account's own
+    /// order follows, as the accounts' order is theirs everywhere else). Returns where it is now.
     pub fn move_pane_section(&mut self, key: &str, by: i64) -> Result<usize, CmdError> {
         let mut order: Vec<String> = self.pane_sections().into_iter().map(|s| s.key).collect();
-        let from = order.iter().position(|k| k == key).ok_or_else(|| CmdError::Params(format!("no mailbox `{key}` in the folder pane")))?;
-        let last = order.len().saturating_sub(1);
+        // Counted among the mailboxes shown: one that isn't (it has no mail) is no place to
+        // move past. (An account with no mail moves among all of them.)
+        let mut shown: Vec<String> = self.mail_sections().into_iter().map(|s| s.key).collect();
+        if !shown.iter().any(|k| k == key) {
+            shown = order.clone();
+        }
+        let from = shown.iter().position(|k| k == key).ok_or_else(|| CmdError::Params(format!("no mailbox `{key}` in the folder pane")))?;
+        let last = shown.len().saturating_sub(1);
         let to = if by < 0 { from.saturating_sub(by.unsigned_abs() as usize) } else { from.saturating_add(by as usize).min(last) };
         if to != from {
-            let k = order.remove(from);
-            order.insert(to, k);
+            // Past the mailbox that's there now: before it going up, after it going down.
+            let past = shown.get(to).cloned().unwrap_or_default();
+            order.retain(|k| k != key);
+            let at = order.iter().position(|k| *k == past).map_or(order.len(), |at| if to > from { at + 1 } else { at });
+            order.insert(at, key.to_string());
             let ids: Vec<String> = order.iter().filter(|k| !k.contains('|')).cloned().collect();
             let mut accounts = std::mem::take(&mut self.accounts);
             accounts.sort_by_key(|a| ids.iter().position(|id| *id == a.config.id).unwrap_or(usize::MAX));
