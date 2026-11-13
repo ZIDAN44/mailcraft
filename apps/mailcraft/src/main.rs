@@ -304,6 +304,8 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
     let args: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
+    // Started for a link or a file (`--open`): nothing after it is an option.
+    let (args, opened) = args::opened(args);
     if args.iter().any(|a| a == "--version" || a == "-V") {
         say_out(&args::version_line());
         return Ok(());
@@ -315,7 +317,7 @@ fn main() -> eframe::Result {
     }
     let cmd_args = args.clone();
     // `mailto:` links and mail files: MailCraft as the system's mail app, or Open with (`args.rs`).
-    let handed = args::handed(&args);
+    let handed = opened.unwrap_or_else(|| args::handed(&args));
     let sample = args.iter().any(|a| a == "--sample");
     // Text pasted from Outlook, Word or a web page keeps its look.
     // A logo copied with it from older Word or Outlook, a file of Office's own, comes along too.
@@ -495,11 +497,10 @@ fn main() -> eframe::Result {
             return Ok(());
         }
         Ok(Err(e)) => e.to_string(),
-        Err(p) => p
-            .downcast_ref::<&str>()
-            .map(|s| (*s).to_string())
-            .or_else(|| p.downcast_ref::<String>().cloned())
-            .unwrap_or_else(|| "it stopped unexpectedly".into()),
+        // Where it happened is in the log already (`logfile.rs`); what it said isn't written
+        // there, here or on the screen: it can quote what it was working on (a subject, a line
+        // of a message).
+        Err(_) => "it stopped unexpectedly (the log says where)".into(),
     };
     log::error!("the window couldn't open: {failed}");
     log::logger().flush();

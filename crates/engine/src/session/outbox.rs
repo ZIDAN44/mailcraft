@@ -5,8 +5,14 @@ use super::*;
 impl Session {
     /// Re-read the Outbox from disk.
     pub fn refresh_outbox(&mut self) {
-        let Some(store) = &self.store else { return };
+        let Some(store) = self.store.clone() else { return };
+        let before: Vec<(String, u64)> = self.outbox.iter().map(|(a, i)| (a.clone(), i.id)).collect();
         self.outbox = self.accounts.iter().flat_map(|a| store.outbox(&a.config.id).into_iter().map(|i| (a.config.id.clone(), i))).collect();
+        // A row's key is another message's now: what was decrypted under it isn't that one's
+        // (it was shown as it, and opened to be changed as it). Wherever the Outbox is read.
+        if !before.iter().map(|(a, i)| (a.as_str(), *i)).eq(self.outbox.iter().map(|(a, i)| (a.as_str(), i.id))) {
+            self.forget_opened_in(OUTBOX);
+        }
     }
 
     pub(super) fn after_outbox_change(&mut self) {
@@ -15,6 +21,10 @@ impl Session {
         if self.view == View::Outbox {
             self.follow_outbox_rows(&before);
             self.refresh_list();
+            // The one being read is asked for again under the row it has now.
+            if let Some(key) = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| k.folder == OUTBOX) {
+                self.show_again(&key);
+            }
         }
     }
 
@@ -151,7 +161,15 @@ impl Session {
     pub fn edit_outbox(&mut self, key: &MessageKey) -> CmdResult {
         let (account, item) = self.outbox_entry(key).ok_or_else(|| CmdError::Params("not an Outbox message".into()))?;
         let store = self.store.clone().ok_or_else(|| CmdError::Failed("no mail cache".into()))?;
-        let raw = store.outbox_raw(&account, item.id).ok_or_else(|| CmdError::Failed("the message is gone".into()))?;
+        let stored = store.outbox_raw(&account, item.id).ok_or_else(|| CmdError::Failed("the message is gone".into()))?;
+        // What waits there is what goes: signed or encrypted already. It's changed as it was
+        // written, so its signature comes off; one encrypted opens once it's been decrypted
+        // (it's asked for as the message is shown). Opened as it stood, the text was the
+        // encryption's file, and the message that waited was gone.
+        let (raw, signed, encrypted) = self.as_written(key, stored);
+        if crate::session::security::is_sealed(&raw) {
+            return Err(CmdError::Disabled("the message is encrypted: it opens to be changed once it has been decrypted".into()));
+        }
         let p = mime::parse(&raw).ok_or_else(|| CmdError::Failed("the message can't be read".into()))?;
         // As it went in: formatted, its pictures in place, a reply's original as it was.
         let mut c = self.compose_from_saved(&account, key, &raw)?;
@@ -164,6 +182,10 @@ impl Session {
         (c.source, c.mode) = (None, None);
         // Not a copy in Drafts to replace.
         c.draft_id.clear();
+        // Signed and encrypted again as it goes; held back until the time it was to go.
+        c.sign = signed;
+        c.encrypt = encrypted;
+        c.send_after = Some(item.not_before).filter(|at| *at > self.clock.now);
         let id = c.id;
         self.open_compose(c);
         // Pulled back for editing: the owed flag moves onto the compose, for its delivery.

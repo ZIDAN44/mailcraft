@@ -25,6 +25,13 @@ on GitHub.
 - A shop's notice reads as it was sent (#47): the steps of an order drawn with their dots and lines, words set bold by the box around them (a step's name, a total), what a cell puts at its right standing there, an item's picture at the size its style sheet gives it on a wide screen, a divider no wider than its column, and a faint tint behind a picture.
 - Paragraphs stand as far apart as in a browser: an empty line between them was half as tall. Room a box asks for above it (`margin-top`) is kept too: a footer's first line stood against the top of its box.
 - A mail file's links say where they go only when their words name another place: with every link's address after it, a message's columns no longer fitted.
+- A signed message is checked for the sender it shows. When the signed part carries its own From, that's the one shown, and the signature was checked for the one outside: mail signed by one person read as signed by the one it named inside.
+- The certificate kept for someone, to encrypt to, isn't replaced by a lesser one: any signed mail naming them did (one from no authority this computer trusts, or the certificate they had before, when an old message was read again). Certificates are asked about at their authority only when it's one this computer trusts; an OpenPGP key from a message dated years ahead no longer stays in place of every later one.
+- A draft kept encrypted is still sent encrypted when it's opened again (it went in the clear unless the account encrypts everything), and opens only once it has been decrypted.
+- A signed or encrypted message taken back from the Outbox opens as it was written, to be signed and encrypted again as it goes, at the time it was to go: it opened as the signature's or the encryption's own file, and the message that waited was gone. What was decrypted for one Outbox message is no longer shown for the one that takes its row.
+- Looking for an account's calendars and contacts, the mail password goes only to a server of the account's own that asks for it. It went with the first request to every place tried: the address's domain (a web site, for most), a host a DNS answer named, wherever a redirect led. A calendar server at another name than the address's and the mail server's isn't found by itself any more: give its address under **Calendars and contacts**. A sign-in no longer follows a redirect to another site either.
+- On Windows a link or a file opens MailCraft with nothing after it read as an option: a `mailto:` link with a `"` in it could run commands as the window opened, point MailCraft at another data folder, or have another file opened.
+- What a crash said is no longer written to the log or shown: only where it happened.
 
 ## 0.37.0 - 2026-11-12
 

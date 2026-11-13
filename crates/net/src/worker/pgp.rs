@@ -66,8 +66,15 @@ fn secret(creds: &dyn Credentials, account: &AccountConfig, fingerprint: &str) -
 /// the one in use.
 fn signing_key(creds: &dyn Credentials, account: &AccountConfig, signer: Option<&str>) -> std::result::Result<Vec<u8>, String> {
     let keys = list(creds, account);
-    let named = signer.and_then(|fp| keys.iter().find(|k| k.eq_ignore_ascii_case(fp)));
-    let fp = named.or(keys.first()).ok_or_else(|| "there's no OpenPGP key for this account: import one in File › Info › Security".to_string())?;
+    let fp = match signer {
+        // The one named and no other: signed with the key in use instead, mail from one
+        // address went out signed as another (as with a certificate, it's said instead).
+        Some(named) => keys
+            .iter()
+            .find(|k| k.eq_ignore_ascii_case(named))
+            .ok_or_else(|| "the key for the address it's from isn't in the keychain: import the key again (File › Info › Security)".to_string())?,
+        None => keys.first().ok_or_else(|| "there's no OpenPGP key for this account: import one in File › Info › Security".to_string())?,
+    };
     secret(creds, account, fp)
 }
 

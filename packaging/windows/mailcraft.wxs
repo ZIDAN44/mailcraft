@@ -102,7 +102,7 @@
         <RegistryKey Root="HKLM" Key="Software\Classes\Applications\mailcraft.exe">
           <RegistryValue Name="FriendlyAppName" Type="string" Value="MailCraft" />
           <RegistryKey Key="shell\open\command">
-            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; &quot;%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; --open &quot;%1&quot;" />
           </RegistryKey>
           <RegistryKey Key="SupportedTypes">
             <RegistryValue Name=".eml" Type="string" Value="" />
@@ -121,7 +121,7 @@
             <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot;,0" />
           </RegistryKey>
           <RegistryKey Key="shell\open\command">
-            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; &quot;%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; --open &quot;%1&quot;" />
           </RegistryKey>
         </RegistryKey>
 
@@ -132,7 +132,7 @@
             <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot;,0" />
           </RegistryKey>
           <RegistryKey Key="shell\open\command">
-            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; &quot;%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; --open &quot;%1&quot;" />
           </RegistryKey>
         </RegistryKey>
         <RegistryKey Root="HKLM" Key="Software\Classes\.eml\OpenWithProgids">
@@ -146,7 +146,7 @@
             <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot;,0" />
           </RegistryKey>
           <RegistryKey Key="shell\open\command">
-            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; &quot;%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; --open &quot;%1&quot;" />
           </RegistryKey>
         </RegistryKey>
         <RegistryKey Root="HKLM" Key="Software\Classes\.msg\OpenWithProgids">
@@ -160,7 +160,7 @@
             <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot;,0" />
           </RegistryKey>
           <RegistryKey Key="shell\open\command">
-            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; &quot;%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; --open &quot;%1&quot;" />
           </RegistryKey>
         </RegistryKey>
         <RegistryKey Root="HKLM" Key="Software\Classes\.ics\OpenWithProgids">
@@ -174,7 +174,7 @@
             <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot;,0" />
           </RegistryKey>
           <RegistryKey Key="shell\open\command">
-            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; &quot;%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; --open &quot;%1&quot;" />
           </RegistryKey>
         </RegistryKey>
         <RegistryKey Root="HKLM" Key="Software\Classes\.vcf\OpenWithProgids">

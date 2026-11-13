@@ -378,6 +378,9 @@ pub struct Session {
     opened: HashMap<MessageKey, (Vec<u8>, bool)>,
     opening: HashSet<MessageKey>,
     decrypt_errors: HashMap<MessageKey, String>,
+    /// Answers still to come for messages asked to be decrypted before their keys came to
+    /// name others (the Outbox's rows moved): how many, by key. Each is let pass.
+    stale_decrypts: HashMap<MessageKey, u32>,
     protecting: HashMap<u64, security::Protecting>,
     revocation: security::Revocations,
     cards: security::CardSearch,
@@ -389,6 +392,8 @@ pub struct Session {
     /// by (account, folder, Message-ID): the server gives it a new UID there, and it isn't
     /// mail arriving.
     pub(crate) moved_in: std::collections::HashSet<(String, String, String)>,
+    /// When mail was last moved (Unix seconds): its Undo waits for a server to have moved it.
+    pub(crate) moved_at: i64,
     /// Mail moved or copied into a folder on this computer, waiting for its source (issue #82).
     pub(crate) transfers: Vec<mailboxes::Transfer>,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
@@ -527,12 +532,14 @@ impl Session {
             opened: HashMap::new(),
             opening: HashSet::new(),
             decrypt_errors: HashMap::new(),
+            stale_decrypts: HashMap::new(),
             protecting: HashMap::new(),
             revocation: Default::default(),
             cards: Default::default(),
             pgp: Default::default(),
             seen_uid: HashMap::new(),
             moved_in: std::collections::HashSet::new(),
+            moved_at: 0,
             transfers: Vec::new(),
             arrived_invites: Vec::new(),
             new_mail: Vec::new(),
@@ -601,6 +608,7 @@ impl Session {
             s.read_drafts(&id);
         }
         s.refresh_outbox();
+        s.restore_unsent();
         s.load_pim();
         s.load_smime();
         s.view = s.default_view();

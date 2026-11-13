@@ -313,6 +313,21 @@ Message-ID: <hp1@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/plai
     assert!(sec.headers);
     assert_eq!(sec.signed.unwrap().seal, Seal::Trusted);
     assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().subject, "The real subject");
+
+    // Found in review: the signature was checked for the sender on the outside, and the one
+    // inside was shown. Riley signs a message that names someone else inside: the name shown
+    // is the one inside, and the signature isn't theirs.
+    let raw = b"From: The Director <director@posteo.example>\r\nTo: riley@studio.example\r\nSubject: Pay this today\r\n\
+Date: Sat, 24 Oct 2026 09:00:00 +0000\r\nMessage-ID: <hp2@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nInside.\r\n";
+    let (outer, entity) = mailcraft_mime::smime::entity_of(raw);
+    let (_, protected) = mailcraft_mime::smime::protect_headers(&outer, &entity, false, false);
+    let signature = smime::sign(&protected, &riley(), LATER, &mut rand_core::OsRng).unwrap();
+    let outside = String::from_utf8_lossy(&outer).replace("The Director <director@posteo.example>", "Riley <riley@studio.example>").into_bytes();
+    let sent = mailcraft_mime::smime::signed_message(&outside, &protected, &signature, "=_t2");
+    open_raw(&mut s, 9352, &sent);
+    assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().from.email, "director@posteo.example");
+    let seal = security(&s).signed.unwrap().seal;
+    assert!(matches!(&seal, Seal::Untrusted(p) if p.iter().any(|p| matches!(p, smime::Problem::OtherAddress(_)))), "{seal:?}");
     done(s);
 }
 

@@ -338,3 +338,41 @@ fn mail_from_another_address_is_signed_with_its_own_key() {
     assert!(head.starts_with("Autocrypt: addr=ana@posteo.example; keydata="), "that address's key goes along: {head}");
     done(s);
 }
+
+/// Found in review: a key from mail takes the place of one from older mail, by the messages'
+/// dates as they were written. One dated years ahead stayed for good, whatever the person's
+/// real mail brought after. A key is never newer than the day it came.
+#[test]
+fn a_key_from_mail_dated_ahead_is_no_newer_than_today() {
+    let mut s = with_key("pgp-ahead");
+    let ahead = String::from_utf8(from_ana(true, "text/plain", "Hello\r\n")).unwrap().replace("24 Oct 2026", "24 Oct 2099");
+    open_raw(&mut s, 9501, ahead.as_bytes());
+    let kept = s.pgp_settings("sample").known["ana@posteo.example"].clone();
+    assert!(kept.seen <= s.clock.now, "{} is after {}", kept.seen, s.clock.now);
+    // No date at all is today's too.
+    let mut s2 = with_key("pgp-undated");
+    let undated = String::from_utf8(from_ana(true, "text/plain", "Hello\r\n")).unwrap().replace("Date: Sat, 24 Oct 2026 09:00:00 +0000\r\n", "");
+    open_raw(&mut s2, 9502, undated.as_bytes());
+    assert_eq!(s2.pgp_settings("sample").known["ana@posteo.example"].seen, s2.clock.now);
+    done(s);
+    done(s2);
+}
+
+/// Found in a second review: a draft in plain text with an encrypted block pasted into it (one
+/// made elsewhere, for someone else) was taken for a draft kept encrypted, which opens once
+/// it's been decrypted: never. It's text, and opens as that.
+#[test]
+fn a_draft_with_an_encrypted_block_in_its_text_opens() {
+    let mut s = with_key("pgp-pasted");
+    let block = String::from_utf8(pgpdata("to-bo.asc")).unwrap();
+    let raw = format!(
+        "From: Riley <riley@studio.example>\r\nTo: bo@posteo.example\r\nSubject: For you\r\nMessage-ID: <pasted@studio.example>\r\n\
+Content-Type: text/plain; charset=utf-8\r\n\r\n{}\r\n",
+        block.trim().replace("\r\n", "\n").replace('\n', "\r\n")
+    );
+    let key = open_raw(&mut s, 9601, raw.as_bytes());
+    s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.body.contains("BEGIN PGP MESSAGE") && !c.encrypt, "{}", c.body);
+    done(s);
+}

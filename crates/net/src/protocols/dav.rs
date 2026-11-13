@@ -266,12 +266,53 @@ pub struct Dav {
     /// The server's Digest challenge once it gave one (Baïkal's default): every request after
     /// answers it, rather than being refused first.
     digest: std::sync::Mutex<Option<digest::Challenge>>,
+    /// Set while the account's server is being looked for: who may have the password then.
+    guard: std::sync::Mutex<Option<guard::Guard>>,
 }
 
 impl Dav {
     pub fn new(user: &str, password: &str) -> Dav {
         let basic = format!("Basic {}", crate::imap::base64(format!("{user}:{password}").as_bytes()));
-        Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default() }
+        Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
+    }
+
+    /// Looking for the server of the account `email` (its mail server `mail_host`) from here on,
+    /// until [`Dav::found`]: the password goes only to a server of the account's that asks for it.
+    pub(crate) fn looking_for(&self, email: &str, mail_host: &str) {
+        *self.guard.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(guard::Guard::new(email, mail_host));
+    }
+
+    /// The looking is over: the servers asked from here on are the ones found, or given.
+    pub(crate) fn found(&self) {
+        *self.guard.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+
+    /// While looking: the answer to `req` sent without the password, when that's all this host
+    /// gets (it isn't the account's, or it didn't ask for one). `None` when the password goes.
+    fn unsigned(&self, req: &Request) -> Result<Option<Response>> {
+        let host = Url::parse(&req.url).map(|u| u.host).unwrap_or_default();
+        {
+            let held = self.guard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            match held.as_ref() {
+                None => return Ok(None),
+                Some(g) if g.own(&host) && g.asked(&host) => return Ok(None),
+                Some(_) => {}
+            }
+        }
+        let resp = http::send(req)?;
+        let mut held = self.guard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        match held.as_mut() {
+            Some(g) if resp.status == 401 && g.own(&host) && guard::asks_for_password(&resp.headers) => {
+                g.note_asked(&host);
+                // Asked for Digest: answered with that from the first, not Basic (the password
+                // itself) to a server that takes only Digest.
+                if let Some(c) = digest::challenge(&resp.headers) {
+                    *self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(c);
+                }
+                Ok(None)
+            }
+            _ => Ok(Some(resp)),
+        }
     }
 
     /// Answering the Digest challenge an earlier session was given, from its first request.
@@ -290,6 +331,9 @@ impl Dav {
     /// for a nonce gone stale, or another realm a redirect led to); refused again, it's the
     /// password.
     fn send(&self, req: &Request) -> Result<Response> {
+        if let Some(resp) = self.unsigned(req)? {
+            return Ok(resp);
+        }
         let uri = Url::parse(&req.url).map(|u| u.path).unwrap_or_else(|_| "/".into());
         let mut tries = 0;
         loop {
@@ -392,12 +436,10 @@ impl Dav {
             }
         }
         // A refused sign-in while looking (Google's servers want OAuth) means "not here".
-        for start in starts {
-            if let Ok(Some(h)) = self.home_from(kind, &start) {
-                return Ok(Some(h));
-            }
-        }
-        Ok(None)
+        self.looking_for(email, imap_host);
+        let home = starts.iter().find_map(|start| self.home_from(kind, start).ok().flatten());
+        self.found();
+        Ok(home)
     }
 
     /// The home at an address the user gave: the server's own address (its principal found from
@@ -719,6 +761,7 @@ fn path_of(url: &str) -> String {
 }
 
 pub(crate) mod digest;
+pub(crate) mod guard;
 mod syncing;
 pub use syncing::sync;
 #[cfg(test)]
