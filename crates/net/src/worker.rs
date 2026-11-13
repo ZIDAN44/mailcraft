@@ -444,7 +444,12 @@ impl Pool {
                             },
                             None => other,
                         };
-                        if h.tx.send(other).is_err() {
+                        if let Err(mpsc::SendError(unsent)) = h.tx.send(other) {
+                            // Mail that was to be copied there is answered for: none went.
+                            if let Job::FileCopies { account, folder, mail, moved } = unsent {
+                                let failed = mail.into_iter().map(|(k, _)| (k, "the account's connection stopped".to_string())).collect();
+                                self.sink.emit(Event::CopiesFiled { account, folder, done: Vec::new(), failed, moved });
+                            }
                             self.sink.emit(Event::Notice {
                                 account: id,
                                 message: "the account's connection stopped; restart it from the account menu".into(),

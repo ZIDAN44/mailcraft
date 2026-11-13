@@ -244,3 +244,61 @@ fn a_flag_change_told_in_passing_makes_no_message() {
     crate::sync::fetch_headers(&mut c, &mut st, "a", "INBOX", &[5], &mut Default::default()).unwrap();
     assert_eq!(st.messages.iter().map(|m| (m.key.uid, m.subject.clone())).collect::<Vec<_>>(), [(5, "five".to_string())]);
 }
+
+/// Found against a real server: a folder it lists as `"Back\\slash"` or `"Say \"hi\""` was
+/// shown, and asked for, with its backslashes still in (imap-proto hands quoted strings back
+/// unread), so it couldn't be opened or filed into. The delimiter stays as the parser wants it.
+#[test]
+fn a_quoted_name_is_read_without_its_escapes() {
+    let server = br#"* OK hi
+* LIST (\HasNoChildren) "\\" "Back\\slash"
+* LIST (\HasNoChildren) "/" "Say \"hi\""
+* LIST (\HasNoChildren) "/" "\\"
+* LIST (\HasNoChildren) "/" "Plain name"
+* LIST (\Noselect) NIL "Flat\\name"
+* LIST (\HasNoChildren) "/" {5}
+Lit\"
+M1 OK done
+"#;
+    let mut c = Client::from_stream(Script::new(server)).unwrap();
+    let folders = c.list("a").unwrap();
+    let names: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(names, [r"Back\slash", r#"Say "hi""#, r"\", "Plain name", r"Flat\name", r#"Lit\""#]);
+    assert_eq!(folders[0].delimiter, Some('\\'));
+    // Asked for by the name it has, escaped once.
+    let mut c = Client::from_stream(Script::new(b"* OK hi\r\nM1 OK done\r\n")).unwrap();
+    c.create(r"Back\slash").unwrap();
+    let written = String::from_utf8_lossy(&c.conn_mut().get_mut().written).to_string();
+    assert!(written.contains(r#"CREATE "Back\\slash""#), "{written}");
+
+    use super::quotes::plain_quotes;
+    let same = |raw: &[u8]| assert_eq!(plain_quotes(raw.to_vec()), raw, "{}", String::from_utf8_lossy(raw));
+    // A status response's text isn't strings; nor is a quote that never closes; a literal's
+    // bytes are the message's own; a delimiter outside a listing is one character.
+    same(br#"M1 NO "a\\b" isn't there"#);
+    same(br#"+ "a\\b""#);
+    same(br#"* 1 FETCH (X "a\\b)"#);
+    same(b"* 1 FETCH (BODY[] {8}\r\n\"a\\\\b\" x)\r\n");
+    let mixed = [&br#"* 1 FETCH (X ("a \"b\".pdf" "c") BODY[] {3}"#[..], b"\r\n", br#""\\ Y "d\\e")"#, b"\r\n"].concat();
+    let fixed = [&b"* 1 FETCH (X ({9}\r\n"[..], br#"a "b".pdf "c") BODY[] {3}"#, b"\r\n", br#""\\ Y {3}"#, b"\r\n", br"d\e)", b"\r\n"].concat();
+    assert_eq!(plain_quotes(mixed), fixed);
+    // Junk never panics.
+    for junk in [&br"\"[..], br#""\"#, br#"* LIST "\""#, b"* X \"\\\r\n", br#""\"\"\""#, b"* X {99999999999}\r\n\"\\\\\""] {
+        let _ = plain_quotes(junk.to_vec());
+    }
+}
+
+/// A server that answers in its own language: a completion in words outside ASCII is the
+/// command done all the same, and what its codes say is read.
+#[test]
+fn a_completion_in_another_language_is_still_done() {
+    let mut c = Client::from_stream(Script::new("* OK hi\r\nM1 OK Terminé avec succès\r\n".as_bytes())).unwrap();
+    assert!(c.noop().is_ok());
+    let mut c = Client::from_stream(Script::new("* OK hi\r\n+ go\r\nM1 OK [APPENDUID 7 9] gespeichert für später\r\n".as_bytes())).unwrap();
+    assert_eq!(c.append("Drafts", "", b"x").unwrap(), Some(9));
+    let server =
+        "* OK hi\r\n* 3 EXISTS\r\n* OK [UIDVALIDITY 5] gültig\r\n* OK [UIDNEXT 9] nächste\r\nM1 OK [READ-WRITE] ausgewählt für Änderungen\r\n";
+    let mut c = Client::from_stream(Script::new(server.as_bytes())).unwrap();
+    let info = c.select("INBOX", false).unwrap();
+    assert_eq!((info.exists, info.validity, info.uid_next), (3, 5, 9));
+}

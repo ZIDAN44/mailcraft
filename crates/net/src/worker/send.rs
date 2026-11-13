@@ -87,7 +87,7 @@ impl Worker {
                 }
             }
             Err(e) => {
-                if matches!(e, NetError::Closed(_) | NetError::Io(_)) {
+                if e.is_fatal() {
                     self.conn = None;
                 }
                 self.sink.emit(Event::SendFailed { account: self.id(), id: *id, error: e.to_string() });

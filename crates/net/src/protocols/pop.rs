@@ -267,6 +267,11 @@ impl<S: Read + Write> Client<S> {
 
 fn auth(e: &NetError) -> NetError {
     match e {
+        // The mailbox is in use, or the server asks to wait (RFC 2449, 3206): not the password,
+        // which was asked for again, the account checking no more until it was typed.
+        NetError::No(m) if ["[in-use]", "[login-delay]", "[sys/temp]"].iter().any(|code| m.to_ascii_lowercase().contains(code)) => {
+            NetError::Later(m.clone())
+        }
         NetError::No(m) => NetError::Auth(if m.is_empty() { "the server refused the user name or password".into() } else { m.clone() }),
         e => NetError::Protocol(e.to_string()),
     }
@@ -546,6 +551,17 @@ mod tests {
     fn mail(subject: &str, extra: &str) -> Vec<u8> {
         format!("From: Ana <ana@pop.example>\r\nTo: me@pop.example\r\nSubject: {subject}\r\nMessage-ID: <{subject}@x>\r\n\r\nHello.\r\n{extra}")
             .into_bytes()
+    }
+
+    /// Found in review: a mailbox another session holds, or a server that asks to wait, was
+    /// taken for a refused password, which was then asked for and the account checked no more.
+    #[test]
+    fn a_busy_mailbox_isnt_a_wrong_password() {
+        for busy in ["[IN-USE] mailbox locked", "[in-use] Do not hammer", "[LOGIN-DELAY] wait 30 seconds", "[SYS/TEMP] try later"] {
+            assert!(matches!(auth(&NetError::No(busy.into())), NetError::Later(m) if m == busy), "{busy}");
+        }
+        assert!(matches!(auth(&NetError::No("[AUTH] wrong password".into())), NetError::Auth(_)));
+        assert!(matches!(auth(&NetError::No(String::new())), NetError::Auth(_)));
     }
 
     #[test]

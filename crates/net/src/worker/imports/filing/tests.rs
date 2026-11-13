@@ -129,9 +129,9 @@ fn copies_of_mail_kept_here_go_into_a_server_folder() {
     };
     // Two messages of a data file's, one with its source here.
     let key = |uid| MessageKey { account: "file".into(), folder: "Kept".into(), validity: 1, uid };
-    let raw = b"From: Zoe <zoe@studio.test>\r\nTo: me@studio.test\r\nSubject: From the file\r\nMessage-ID: <kept@studio.test>\r\n\r\nHi.\r\n";
+    let raw = b"From: Zoe <zoe@studio.test>\r\nTo: me@studio.test\r\nSubject: From the file\r\nMessage-ID: <kept@studio.test>\r\nDate: Mon, 2 Nov 2026 10:00:00 +0000\r\n\r\nHi.\r\n";
     store.write_body(&key(1), raw).unwrap();
-    let marked = Flags { seen: true, flagged: true, keywords: vec!["work".into(), "not an atom".into()], ..Default::default() };
+    let marked = Flags { seen: true, flagged: true, keywords: vec!["work".into(), "to=20do".into(), "not an atom".into()], ..Default::default() };
     let mail = vec![(key(1), marked), (key(2), Flags::default())];
     // Not connected: none goes.
     pool.submit(Job::FileCopies { account: "a1".into(), folder: "Archive".into(), mail: mail.clone(), moved: true });
@@ -152,8 +152,11 @@ fn copies_of_mail_kept_here_go_into_a_server_folder() {
         assert_eq!(archive.msgs.len(), 1);
         assert_eq!(archive.msgs[0].raw, raw);
         let flags = &archive.msgs[0].flags;
-        assert!([r"\Seen", r"\Flagged", "work"].iter().all(|f| flags.iter().any(|g| g == f)), "as it was marked: {flags:?}");
+        // Its categories too, as MailCraft names one with a space in it ("To do").
+        assert!([r"\Seen", r"\Flagged", "work", "to=20do"].iter().all(|f| flags.iter().any(|g| g == f)), "as it was marked: {flags:?}");
         assert!(!flags.iter().any(|f| f.contains("atom")), "{flags:?}");
+        // Received when it was, as far as the server knows: not today.
+        assert!(s.log.iter().any(|l| l.contains("APPEND") && l.contains("\"02-Nov-2026 10:00:00 +0000\"")), "{:?}", s.log);
     }
     let kept = store.load_folder("a1", "Archive").unwrap();
     assert_eq!(kept.messages.len(), 1, "the folder read again");

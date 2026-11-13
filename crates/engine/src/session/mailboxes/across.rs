@@ -12,6 +12,10 @@ use mailcraft_model::Flags;
 
 /// The most messages waiting to be downloaded before they're moved or copied.
 const WAITING_MAX: usize = 500;
+/// How long one waiting for its download is waited for, in seconds. Past that nothing's coming
+/// for it: it may be moved again, and a download that comes for another reason no longer
+/// moves it.
+const WAIT: i64 = 30 * 60;
 
 /// A message on its way to where it was moved or copied to.
 #[derive(Clone, Debug)]
@@ -25,6 +29,10 @@ pub(crate) struct Transfer {
     date: i64,
     /// Handed to the network layer, which hasn't answered yet; else waiting for its source.
     sent: bool,
+    /// When it was asked for (Unix seconds).
+    at: i64,
+    /// Its Message-ID: put into an Inbox, it didn't arrive there.
+    message_id: String,
 }
 
 impl Session {
@@ -47,6 +55,12 @@ impl Session {
             return Err(CmdError::Params(format!("no folder `{folder}`")));
         }
         let here = self.takes_mail(account);
+        // Those waiting for a download that nothing came of are forgotten. One handed to the
+        // network layer is answered for, however long its upload takes (behind a first sync
+        // of the account it goes to, hours): forgotten too, it was sent again, and was there
+        // twice.
+        let now = self.clock.now;
+        self.transfers.retain(|t| t.sent || now.saturating_sub(t.at) < WAIT);
         // Where it's already, a move changes nothing; what waits in the Outbox isn't mail yet;
         // and one already on its way there isn't sent twice.
         let sel: Vec<&Summary> = sel
@@ -76,6 +90,8 @@ impl Session {
                 flags: Flags { deleted: false, ..m.flags.clone() },
                 date: m.date,
                 sent: false,
+                at: now,
+                message_id: m.message_id.clone(),
             };
             // Exchange's text first is MailCraft's, not the message's: its source is asked for.
             match self.body_raw(&m.key).is_some_and(|raw| !mime::is_text_first(&raw)) {
@@ -106,6 +122,13 @@ impl Session {
         let asked = waiting.len();
         self.transfers.extend(waiting);
         let did = if moved { "moved" } else { "copied" };
+        // On its way to a server: said, as it stays where it is until its copy is there
+        // (issue #85: dropped on another account's folder, nothing seemed to happen).
+        if sending > 0 {
+            let doing = if moved { "Moving" } else { "Copying" };
+            let what = if sending == 1 { "1 message".to_string() } else { format!("{sending} messages") };
+            self.notice(format!("{doing} {what} to {}…", mailcraft_model::utf7::decode(folder)), false);
+        }
         if asked > 0 {
             self.notice(format!("{asked} not downloaded yet: {did} as soon as {} here.", if asked == 1 { "it's" } else { "they're" }), false);
         }
@@ -122,6 +145,16 @@ impl Session {
     fn send_copies(&mut self, mail: Vec<Transfer>) {
         let Some(first) = mail.first() else { return };
         let (account, folder, moved) = (first.account.clone(), first.folder.clone(), first.moved);
+        // Put into an Inbox or Junk by hand, it didn't arrive there: no rules run on it (one
+        // filed it straight out again), nothing announced, as mail moved within an account.
+        if self.folder(&account, &folder).is_some_and(|f| matches!(f.role, FolderRole::Inbox | FolderRole::Junk)) {
+            if self.moved_in.len() > 2000 {
+                self.moved_in.clear();
+            }
+            for t in mail.iter().filter(|t| !t.message_id.is_empty()) {
+                self.moved_in.insert((account.clone(), folder.clone(), t.message_id.clone()));
+            }
+        }
         self.jobs.push(Job::FileCopies { account, folder, mail: mail.iter().map(|t| (t.key.clone(), t.flags.clone())).collect(), moved });
         self.transfers.extend(mail.into_iter().map(|t| Transfer { sent: true, ..t }));
     }
@@ -188,7 +221,13 @@ impl Session {
         }
         let (now, later): (Vec<Transfer>, Vec<Transfer>) = std::mem::take(&mut self.transfers).into_iter().partition(|t| &t.key == key && !t.sent);
         self.transfers = later;
-        for t in now {
+        let fresh = self.clock.now.saturating_sub(WAIT);
+        for t in now.into_iter().filter(|t| t.at > fresh) {
+            // Its folder gone since: it stays where it is.
+            if self.folder(&t.account, &t.folder).is_none() {
+                self.notice(format!("A message couldn't be {}: the folder it was to go to is gone.", if t.moved { "moved" } else { "copied" }), true);
+                continue;
+            }
             if !self.takes_mail(&t.account) {
                 self.send_copies(vec![t]);
                 continue;
@@ -223,6 +262,7 @@ impl Session {
         moved: bool,
     ) {
         let answered = |k: &MessageKey| done.contains(k) || failed.iter().any(|(f, _)| f == k);
+        let done_count = done.len();
         self.transfers.retain(|t| !(t.sent && t.account == account && t.folder == folder && answered(&t.key)));
         if moved && !done.is_empty() {
             // The message open, if it's one of them, gives way to the next as in any move.
@@ -234,6 +274,12 @@ impl Session {
             } else {
                 self.refresh_list();
             }
+        }
+        let arrived = done_count;
+        if arrived > 0 {
+            let did = if moved { "moved" } else { "copied" };
+            let what = if arrived == 1 { "1 message".to_string() } else { format!("{arrived} messages") };
+            self.notice(format!("{what} {did} to {}", mailcraft_model::utf7::decode(folder)), false);
         }
         if let Some((_, why)) = failed.first() {
             let did = if moved { "moved" } else { "copied" };

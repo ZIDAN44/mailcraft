@@ -158,6 +158,8 @@ fn mail_goes_into_a_folder_on_a_server_once_its_copy_is_there() {
         other => panic!("{other:?}"),
     }
     assert_eq!(held(&s, &file, "INBOX").len(), 1, "not deleted before its copy is there");
+    // Said meanwhile (issue #85): it's still where it was, and looked like nothing happened.
+    assert!(s.notices.iter().any(|n| !n.error && n.text == "Moving 1 message to Trash…"), "{:?}", s.notices.last());
     // Asked again while it's on its way: not twice.
     let again = s.run("mail.move", &json!({"folder": "Trash", "account": server})).unwrap();
     assert_eq!(again["sending"].as_u64(), Some(0), "{again}");
@@ -181,6 +183,7 @@ fn mail_goes_into_a_folder_on_a_server_once_its_copy_is_there() {
     s.run("mail.move", &json!({"folder": "Trash", "account": server})).unwrap();
     s.take_jobs();
     s.apply(Event::CopiesFiled { account: server.clone(), folder: "Trash".into(), done: vec![there], failed: vec![], moved: true });
+    assert!(s.notices.iter().any(|n| !n.error && n.text == "1 message moved to Trash"), "{:?}", s.notices.last());
     assert!(held(&s, &file, "INBOX").is_empty() && s.list.is_empty() && s.transfers.is_empty());
 
     // A copy within the server's account: uploaded too; the one not downloaded is asked for
@@ -208,5 +211,86 @@ fn mail_goes_into_a_folder_on_a_server_once_its_copy_is_there() {
     assert_eq!(s.transfers.len(), 2);
     s.run("account.remove", &json!({"account": server})).unwrap();
     assert!(s.transfers.is_empty());
+    done(s);
+}
+
+/// Found in review. A move the network layer never answered (its connection ended first) kept
+/// the message "on its way": moved again, nothing happened, until MailCraft started again; and
+/// one that waited for its download went when the message was merely opened, long after. Such
+/// a one is forgotten after a while. Mail put into another account's Inbox didn't arrive
+/// there: no rule runs on it.
+#[test]
+fn a_move_never_answered_is_forgotten_and_what_is_put_in_an_inbox_did_not_arrive() {
+    let (mut s, file, server, [first, second]) = two_accounts("across-stale");
+    // From the data file into the server's Inbox... first there has to be mail in the file.
+    s.run("list.select", &json!({"key": first.to_id()})).unwrap();
+    s.run("mail.copy", &json!({"folder": "Kept", "account": file})).unwrap();
+    s.run("folder.open", &json!({"account": file, "folder": "Kept"})).unwrap();
+    let kept = s.list.first().unwrap().key.clone();
+    s.run("list.select", &json!({"key": kept.to_id()})).unwrap();
+    let r = s.run("mail.copy", &json!({"folder": "INBOX", "account": server})).unwrap();
+    assert_eq!(r["sending"], 1);
+    assert!(s.moved_in.iter().any(|(a, f, id)| *a == server && f == "INBOX" && id.contains("1@x.example")), "put there by hand: {:?}", s.moved_in);
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FileCopies { .. })));
+    // Not answered yet, however long it takes (an upload waits behind the account's sync):
+    // asked again, it's on its way, and isn't sent twice. Answered that it didn't go (its
+    // connection stopped first): it can be sent again.
+    let again = s.run("mail.copy", &json!({"folder": "INBOX", "account": server})).unwrap();
+    assert_eq!(again["sending"], 0);
+    s.clock.now += 31 * 60;
+    let again = s.run("mail.copy", &json!({"folder": "INBOX", "account": server})).unwrap();
+    assert_eq!(again["sending"], 0, "still on its way: not there twice");
+    s.apply(Event::CopiesFiled {
+        account: server.clone(),
+        folder: "INBOX".into(),
+        done: Vec::new(),
+        failed: vec![(kept.clone(), "the account's connection stopped first".into())],
+        moved: false,
+    });
+    let again = s.run("mail.copy", &json!({"folder": "INBOX", "account": server})).unwrap();
+    assert_eq!(again["sending"], 1);
+    s.take_jobs();
+
+    // One waiting for its download, which never came: opened much later, it stays put.
+    s.run("folder.open", &json!({"account": server, "folder": "INBOX"})).unwrap();
+    s.run("list.select", &json!({"key": second.to_id()})).unwrap();
+    let r = s.run("mail.move", &json!({"folder": "Kept", "account": file})).unwrap();
+    assert_eq!(r["waiting"], 1);
+    s.clock.now += 31 * 60;
+    let store = s.store.clone().unwrap();
+    store.write_body(&second, SECOND).unwrap();
+    s.apply(Event::Body { key: second.clone(), raw: SECOND.to_vec() });
+    assert!(store.load_folder(&server, "INBOX").unwrap().messages.iter().any(|m| m.key == second), "not moved after all that time");
+    assert_eq!(held(&s, &file, "Kept").len(), 1);
+    done(s);
+}
+
+/// Found in review. Moved to the folder it's in (Archive pressed in Archive), a message gave
+/// way to the next one though nothing moved. And an Undo whose mail is gone from where it was
+/// moved to (deleted for good since) was kept to be tried again, in the way of every Undo
+/// after: it's dropped, and what was done before it is undone.
+#[test]
+fn nothing_moved_leaves_the_message_open_and_an_undo_that_cant_be_done_is_dropped() {
+    let (mut s, _file, server, [first, _second]) = two_accounts("across-undo");
+    s.run("list.open", &json!({"key": first.to_id()})).unwrap();
+    let r = s.run("mail.move", &json!({"folder": "INBOX"})).unwrap();
+    assert_eq!(r["moved"], 0);
+    assert_eq!(s.selection.first(), Some(&first), "still the one open");
+
+    // Flagged off, then moved to Trash; gone from Trash since.
+    s.run("mail.flag", &json!({"on": false})).unwrap();
+    s.run("mail.move", &json!({"folder": "Trash"})).unwrap();
+    s.take_jobs();
+    // Pressed at once, on a server account: the server hasn't moved it yet. Kept, to be tried
+    // again (found in a second review: dropped, an Undo a second after a move was lost).
+    let err = s.run("edit.undo", &json!({})).unwrap_err().to_string();
+    assert!(err.contains("still being moved"), "{err}");
+    s.clock.now += 600;
+    let err = s.run("edit.undo", &json!({})).unwrap_err().to_string();
+    assert!(err.contains("can't be put back"), "{err}");
+    // The one before it is undone now.
+    let undone = s.run("edit.undo", &json!({})).unwrap();
+    assert_ne!(undone["undone"], json!("move"), "{undone}");
+    let _ = server;
     done(s);
 }

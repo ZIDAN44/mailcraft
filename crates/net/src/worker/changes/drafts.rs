@@ -530,6 +530,13 @@ impl Worker {
         self.drain(rx);
         let mut kept_here = false;
         for job in std::mem::take(&mut self.queue) {
+            // Mail that was to be copied here stays where it is, and that's said: unanswered,
+            // it couldn't be moved again until MailCraft started again.
+            if let Job::FileCopies { account, folder, mail, moved } = job {
+                let failed = mail.into_iter().map(|(k, _)| (k, "the account's connection stopped first".to_string())).collect();
+                self.sink.emit(Event::CopiesFiled { account, folder, done: Vec::new(), failed, moved });
+                continue;
+            }
             let Job::SaveDraft { raw, folder, replaces, .. } = job else { continue };
             if !self.says_done(hash_of(&raw)) {
                 continue;

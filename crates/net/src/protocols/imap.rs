@@ -16,6 +16,7 @@ use crate::stream::{self, IO_TIMEOUT, Stream, Timeouts};
 use crate::{NetError, Result};
 
 mod conn;
+mod quotes;
 mod text_first;
 use conn::check_unknown;
 #[cfg(test)]
@@ -76,6 +77,19 @@ pub fn uid_set(uids: &[u32]) -> String {
 /// Split UIDs into chunks whose sets stay short (servers limit command length).
 pub fn uid_chunks(uids: &[u32], per: usize) -> Vec<Vec<u32>> {
     uids.chunks(per.max(1)).map(<[u32]>::to_vec).collect()
+}
+
+/// Unix seconds as an INTERNALDATE in UTC (`14-Oct-2026 07:30:00 +0000`); none for a time
+/// before 1970 or past the year 9999, which no server takes.
+pub fn internal_date(t: i64) -> Option<String> {
+    const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    if !(1..253_402_300_800).contains(&t) {
+        return None;
+    }
+    let (y, m, d) = mailcraft_model::dates::civil_from_days(t.div_euclid(86_400));
+    let secs = t.rem_euclid(86_400);
+    let month = MONTHS.get(usize::try_from(m.checked_sub(1)?).ok()?)?;
+    Some(format!("{d:02}-{month}-{y:04} {:02}:{:02}:{:02} +0000", secs / 3600, secs / 60 % 60, secs % 60))
 }
 
 /// Parse an INTERNALDATE (`14-Oct-2026 09:30:00 +0200`) to Unix seconds.
@@ -716,7 +730,15 @@ impl<S: Read + Write> Client<S> {
 
     /// Store a message in a folder; returns its UID when the server says (UIDPLUS `APPENDUID`).
     pub fn append(&mut self, folder: &str, flags: &str, raw: &[u8]) -> Result<Option<u32>> {
-        let head = format!("APPEND {} ({flags}) ", mailbox_arg(folder));
+        self.append_dated(folder, flags, None, raw)
+    }
+
+    /// [`Client::append`], the message received at `date` (Unix seconds) as far as the server
+    /// is to know: mail moved in from elsewhere keeps the day it came, where it was all new
+    /// today to every program that sorts by that.
+    pub fn append_dated(&mut self, folder: &str, flags: &str, date: Option<i64>, raw: &[u8]) -> Result<Option<u32>> {
+        let date = date.and_then(internal_date).map(|d| format!("\"{d}\" ")).unwrap_or_default();
+        let head = format!("APPEND {} ({flags}) {date}", mailbox_arg(folder));
         let rs = self.cmd(&[Part::Text(&head), Part::Literal(raw)])?;
         for r in rs {
             if let Response::Done { outcome, .. } = r

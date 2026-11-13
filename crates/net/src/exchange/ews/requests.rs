@@ -114,8 +114,10 @@ impl Client {
                 return Err(NetError::Auth("the server offers no sign-in MailCraft knows".into()));
             };
             // A server that asks again on a connection already signed in (its sign-in held per
-            // request, not per connection): signed in again, once.
-            if scheme == next && was_signed_in && matches!(scheme, Scheme::Kerberos) && attempt < 3 {
+            // request, not per connection), or on the new connection opened in place of one
+            // the server closed (NTLM signs in a connection, and this one never was): signed
+            // in again, once. Taken for a refused password, that was asked for anew.
+            if scheme == next && was_signed_in && attempt < 3 {
                 *self.signed_in.borrow_mut() = false;
                 continue;
             }

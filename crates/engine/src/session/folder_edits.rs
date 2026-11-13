@@ -338,9 +338,15 @@ impl Session {
                 // selection stays on it.
                 self.apply_op_checked(&a, Op::Move { keys, to: dest.clone() }).map_err(CmdError::Failed)?;
                 if !back.is_empty() {
+                    self.moved_at = self.clock.now;
                     self.remember(Undo::Move { account: a.clone(), to: dest, back });
                 }
             }
+        }
+        // All of it there already (Archive pressed in Archive): nothing moved, and the one open
+        // stays open (it gave way to the next all the same).
+        if moved == 0 {
+            return Ok(serde_json::json!({ "moved": 0 }));
         }
         self.after_removal(next);
         Ok(serde_json::json!({ "moved": moved }))
@@ -620,9 +626,18 @@ impl Session {
                     }
                 }
                 if by_folder.is_empty() {
-                    // Not there yet (the server is still moving them): try again in a moment.
-                    self.undo.push(Undo::Move { account, to, back });
-                    return Err(CmdError::Failed("still being moved; try Undo again in a moment".into()));
+                    // Not there yet (the server is still moving them, and the folder they go
+                    // to is read after): try again in a moment. For a couple of minutes after
+                    // the move; a server account's, as a move on this computer is done at once.
+                    let server = self.account(&account).is_some_and(|a| !a.is_local());
+                    if server && self.clock.now.saturating_sub(self.moved_at) < 120 {
+                        self.undo.push(Undo::Move { account, to, back });
+                        return Err(CmdError::Failed("still being moved; try Undo again in a moment".into()));
+                    }
+                    // Gone from there since (deleted for good, moved on, the folder emptied):
+                    // nothing to put back, and what was done before it can be undone. Kept to
+                    // be tried again, it stood in the way of every Undo after.
+                    return Err(CmdError::Failed("the mail isn't where it was moved to any more, so it can't be put back".into()));
                 }
                 let n = used.len();
                 for (from, keys) in by_folder {

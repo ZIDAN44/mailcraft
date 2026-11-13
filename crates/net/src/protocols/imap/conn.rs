@@ -205,7 +205,7 @@ impl<S: Read + Write> Conn<S> {
         let raw = self.read_raw()?;
         // imap-proto wants CRLF line ends; tolerate servers that send bare LF.
         let fixed = if raw.ends_with(b"\r\n") { raw } else { crlf_line_ends(&raw) };
-        let fixed = space_after_code(fixed);
+        let fixed = super::quotes::plain_quotes(space_after_code(fixed));
         // imap-proto parses lists by recursion: a thousand nested `(` overflow the thread's
         // stack, which no `Result` catches. Nothing real nests that deep.
         if nesting(&fixed) > MAX_NESTING {

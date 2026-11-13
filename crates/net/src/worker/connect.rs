@@ -137,13 +137,13 @@ impl Worker {
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         if let Some(url) = &self.acc.graph {
             self.conn = Some(Conn::Graph(crate::graph::Client::connect(url, &secret)?));
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         if self.acc.pop.is_some() {
             crate::pop::open(&self.acc, &secret)?.quit()?;
             self.conn = Some(Conn::Pop);
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         if let Some(url) = &self.acc.ews {
@@ -163,12 +163,12 @@ impl Worker {
             let c = crate::ews::Client::connect_as(&url, &user, &secret, &self.acc.email, self.acc.user_agent.as_deref())?;
             c.set_shared(&self.acc.shared_mailboxes);
             self.conn = Some(Conn::Ews(Box::new(c)));
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         if let Some(url) = &self.acc.jmap {
             self.conn = Some(Conn::Jmap(jmap::Client::connect(url, &user, &secret, self.acc.oauth.is_some())?));
-            self.backoff = Duration::from_secs(5);
+            self.signed_in();
             return Ok(());
         }
         let c = if self.acc.oauth.is_some() {
@@ -179,8 +179,18 @@ impl Worker {
             c
         };
         self.conn = Some(Conn::Imap(c));
-        self.backoff = Duration::from_secs(5);
+        self.signed_in();
         Ok(())
+    }
+
+    /// Signed in. The second connection waits its shortest again from here; the main one only
+    /// once it has synced the whole account ([`Self::sync_all`]): a failure after signing in
+    /// that comes back every time (one folder the server ends the connection on) signed in
+    /// again every five seconds for good, the folders after that one never read.
+    fn signed_in(&mut self) {
+        if self.main.is_some() {
+            self.backoff = Duration::from_secs(5);
+        }
     }
 
     /// An IMAP connection signed in with an OAuth token. Microsoft can take the token and then
@@ -217,6 +227,16 @@ impl Worker {
         match e {
             e @ NetError::Auth(_) => self.failed(e),
             e if e.is_fatal() => self.failed(e),
+            // Asked to come back later (a POP mailbox another program holds): tried again by
+            // itself, as a server that can't be reached is. Left to wait until asked, the
+            // account checked no more.
+            e @ NetError::Later(_) => {
+                log::warn!("{}: {e}", self.acc.id);
+                self.conn = None;
+                self.next_attempt = Instant::now() + self.backoff;
+                self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
+                self.status(SyncStatus::Error { error: e.to_string() });
+            }
             e => {
                 log::warn!("{}: {e}", self.acc.id);
                 self.conn = None;

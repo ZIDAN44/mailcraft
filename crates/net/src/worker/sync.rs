@@ -375,6 +375,8 @@ impl Worker {
             self.prune_jmap_numbers();
             self.last_full = Some(Instant::now());
             self.looked = self.last_full;
+            // All of it read: a connection lost from here on is tried again soonest.
+            self.backoff = Duration::from_secs(5);
             // Anything left from a failed attempt gets another try every full sync.
             self.flush_outbox();
             log::info!("{}: synced {} folders in {:.1} s", self.acc.id, self.folders.len(), began.elapsed().as_secs_f32());
@@ -611,7 +613,8 @@ impl Worker {
             if let Err(e) = found {
                 log::info!("{id}/{f}: searching the server: {e}");
                 failed = Some(e.to_string());
-                if matches!(e, NetError::Io(_) | NetError::Closed(_)) {
+                // Nothing more is asked on a connection that may hold half an answer.
+                if e.is_fatal() {
                     self.conn = None;
                     break;
                 }

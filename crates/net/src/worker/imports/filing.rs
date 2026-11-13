@@ -74,10 +74,17 @@ fn imap_flags(flags: &Flags, keywords: bool) -> String {
         if flags.forwarded {
             out.push("$Forwarded");
         }
-        let atom = |k: &&String| !k.is_empty() && k.len() <= 64 && k.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '$' | '_' | '-' | '.'));
-        out.extend(flags.keywords.iter().filter(atom).take(32).map(String::as_str));
+        // Any a server takes: MailCraft's own for a category (`to=20do` for "To do") has a
+        // `=` in it, and was left behind with the message's categories.
+        out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(32).map(String::as_str));
     }
     out.join(" ")
+}
+
+/// When message `raw` came, by its own header (none when it doesn't say).
+fn received(raw: &[u8], key: &MessageKey) -> Option<i64> {
+    // No later than now: its header is its sender's word.
+    Some(mailcraft_mime::summary_from_header(raw, key.clone(), Flags::default(), 0, 0).date.min(now())).filter(|d| *d > 0)
 }
 
 /// The keywords a JMAP server gives a copy: how it was marked, and its own.
@@ -90,7 +97,7 @@ fn jmap_keywords(flags: &Flags) -> Vec<&str> {
             out.push(name);
         }
     }
-    out.extend(flags.keywords.iter().filter(|k| !k.is_empty() && k.len() <= 64).take(32).map(String::as_str));
+    out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(32).map(String::as_str));
     out
 }
 
@@ -114,10 +121,8 @@ impl Pool {
 impl Worker {
     /// Into a folder of the account's server, each as received and read; the folder read again.
     pub(in crate::worker) fn file_messages(&mut self, folder: String, paths: Vec<String>) {
-        if self.conn.is_none()
-            && let Err(e) = self.connect()
-        {
-            let failed = paths.iter().map(|p| (file_name(p), e.to_string())).collect();
+        if let Err(e) = self.connected_for_job() {
+            let failed = paths.iter().map(|p| (file_name(p), e.clone())).collect();
             self.sink.emit(Event::MessagesFiled { account: self.id(), folder, added: 0, failed });
             return;
         }
@@ -155,25 +160,41 @@ impl Worker {
     /// marked as it was; the folder read again. One whose source isn't here, or that the server
     /// won't take, is named with why: nothing is deleted for it.
     pub(in crate::worker) fn file_copies(&mut self, folder: String, mail: Vec<(MessageKey, Flags)>, moved: bool) {
-        if self.conn.is_none()
-            && let Err(e) = self.connect()
-        {
-            let failed = mail.into_iter().map(|(k, _)| (k, e.to_string())).collect();
+        if let Err(e) = self.connected_for_job() {
+            let failed = mail.into_iter().map(|(k, _)| (k, e.clone())).collect();
             self.sink.emit(Event::CopiesFiled { account: self.id(), folder, done: Vec::new(), failed, moved });
             return;
         }
         let (store, account) = (self.store.clone(), self.id());
         let (mut done, mut failed) = (Vec::new(), Vec::new());
+        // The connection lost on the way: the rest stay where they are, none tried on it.
+        let mut lost: Option<NetError> = None;
         for (key, flags) in mail {
+            if let Some(e) = &lost {
+                failed.push((key, e.to_string()));
+                continue;
+            }
             let Some(raw) = store.read_body(&key).filter(|raw| !mailcraft_mime::is_text_first(raw)) else {
                 failed.push((key, "it isn't downloaded".to_string()));
                 continue;
             };
             let jstate = &self.jstate;
             let put = match self.conn.as_mut() {
-                // A server that won't keep one of its keywords still takes the message.
+                // A server that won't keep one of its keywords still takes the message: asked
+                // again without them when it refuses, and only then. After no answer (a slow
+                // server, a connection gone) the message may well be there: asked again, it
+                // was there twice, and a moved one was then deleted where it had been.
                 Some(Conn::Imap(c)) => {
-                    c.append(&folder, &imap_flags(&flags, true), &raw).or_else(|_| c.append(&folder, &imap_flags(&flags, false), &raw)).map(|_| ())
+                    let date = received(&raw, &key);
+                    match c.append_dated(&folder, &imap_flags(&flags, true), date, &raw) {
+                        // Refused: without its keywords, then without the day it came too (a
+                        // server may take neither).
+                        Err(NetError::No(_) | NetError::Bad(_)) => match c.append_dated(&folder, &imap_flags(&flags, false), date, &raw) {
+                            Err(NetError::No(_) | NetError::Bad(_)) => c.append(&folder, &imap_flags(&flags, false), &raw).map(|_| ()),
+                            other => other.map(|_| ()),
+                        },
+                        other => other.map(|_| ()),
+                    }
                 }
                 Some(Conn::Jmap(c)) => jmap::append(c, jstate, &folder, &raw, &jmap_keywords(&flags)).map(|_| ()),
                 // Exchange: EWS takes it as received (not a draft); Graph only makes drafts of
@@ -188,8 +209,19 @@ impl Worker {
             };
             match put {
                 Ok(()) => done.push(key),
-                Err(e) => failed.push((key, e.to_string())),
+                Err(e) => {
+                    failed.push((key, e.to_string()));
+                    if e.is_fatal() {
+                        lost = Some(e);
+                    }
+                }
             }
+        }
+        if let Some(e) = lost {
+            // Signed in again before anything else is asked on it.
+            self.sink.emit(Event::CopiesFiled { account: self.id(), folder, done, failed, moved });
+            self.failed(e);
+            return;
         }
         if !done.is_empty() {
             if matches!(self.conn, Some(Conn::Pop)) {

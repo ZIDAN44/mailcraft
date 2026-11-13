@@ -120,10 +120,8 @@ impl Worker {
             // Only a JMAP server keeps the addresses its mail is sent from where a mail
             // program can ask for them.
             Job::FindIdentities { .. } => {
-                if self.conn.is_none()
-                    && let Err(e) = self.connect()
-                {
-                    self.sink.emit(Event::IdentitiesFound { account: self.id(), found: Vec::new(), error: Some(e.to_string()) });
+                if let Err(e) = self.connected_for_job() {
+                    self.sink.emit(Event::IdentitiesFound { account: self.id(), found: Vec::new(), error: Some(e) });
                     return;
                 }
                 let found = match self.conn.as_ref() {
@@ -193,6 +191,30 @@ impl Worker {
 
     /// Read (and first change, when `set`) the automatic replies: JMAP's own, or a Sieve script
     /// through ManageSieve on the IMAP host.
+    /// Connected for a job that needs the server, with one try when it isn't. A refused sign-in
+    /// isn't tried again (the password known to be wrong was sent with each such job), and a
+    /// try that fails shows as the account's status (left at "Connecting…" otherwise).
+    pub(super) fn connected_for_job(&mut self) -> std::result::Result<(), String> {
+        if self.conn.is_some() {
+            return Ok(());
+        }
+        if self.auth_failed {
+            return Err("the account isn't signed in".into());
+        }
+        // Between tries at a server that couldn't be reached: not one more now (each failed
+        // one puts the next further off, long after the network is back).
+        if Instant::now() < self.next_attempt {
+            return Err("the server couldn't be reached; it's tried again shortly".into());
+        }
+        self.connect().map_err(|e| {
+            let said = e.to_string();
+            if self.main.is_none() {
+                self.connect_failed(e);
+            }
+            said
+        })
+    }
+
     pub(super) fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
         // Not connected: one try, and a failure shows as the account's status (it said
         // "Connecting…" for good when the vacation page was opened on an account that can't).
@@ -252,6 +274,9 @@ impl Worker {
     pub(super) fn report_vacation(&self, r: Result<mailcraft_model::job::Vacation>, failed: Option<String>) {
         let (vacation, error) = match r {
             Ok(v) => (Some(v), failed),
+            // What the server said, without "the server refused:" before it: the page says
+            // "Not available:" already, and a server without automatic replies refused nothing.
+            Err(NetError::No(said)) if !said.trim().is_empty() => (None, Some(failed.unwrap_or(said))),
             Err(e) => (None, Some(failed.unwrap_or_else(|| e.to_string()))),
         };
         self.sink.emit(Event::Vacation { account: self.id(), vacation, error });

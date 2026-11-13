@@ -35,6 +35,11 @@ on GitHub.
 - A calendar rule that never matches (`FREQ=DAILY;BYSETPOS=2`: a day has no second day) no longer freezes MailCraft: an invitation or a calendar file with one was gone through to the end of time, and the calendar and its reminders never came back.
 - From an Outlook data file, appointments on the last weekday of a month come once a month (not on each of its last five weekdays), those on the 31st fall on the last day of shorter months, and every-other-week ones keep their weeks where Outlook's weeks start on Sunday (`WKST` is read).
 - A calendar rule with an end that isn't a date no longer ends an Exchange account's connection at every sync. An Exchange server that closed an idle connection no longer has the password asked for again; nor does a POP mailbox that's busy.
+- Folders whose names have a `"` or a `\` in them open, and take mail: they were shown and asked for with the server's escapes still in.
+- Mail moved or copied into another account keeps its categories and the day it came; a slow server no longer gets it twice; one that never got an answer can be moved again; and put into another account's Inbox it isn't taken for new mail (a rule filed it straight out again). While it's on its way to a server that's said (#85), and again when it's there.
+- **Undo** that can't be done any more (the mail was deleted for good since) is dropped, not kept in the way of every Undo after it. Moving a message to the folder it's in leaves it open.
+- A server that fails after signing in is tried less and less often, not every five seconds for good; a connection that got an answer it couldn't read is closed, not used again.
+- Automatic replies on a server without them read "Not available: this server doesn't offer automatic replies", without "the server refused:" in the middle.
 
 ## 0.37.0 - 2026-11-12
 
