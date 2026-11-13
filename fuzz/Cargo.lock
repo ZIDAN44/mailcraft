@@ -1997,10 +1997,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-engine"
+version = "0.38.0"
+dependencies = [
+ "aes-gcm",
+ "flate2",
+ "log",
+ "mailcraft-mime",
+ "mailcraft-model",
+ "mailcraft-pgp",
+ "mailcraft-print",
+ "mailcraft-smime",
+ "mailcraft-store",
+ "pbkdf2 0.12.2",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror",
+]
+
+[[package]]
 name = "mailcraft-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "mailcraft-engine",
  "mailcraft-jmap",
  "mailcraft-mime",
  "mailcraft-model",

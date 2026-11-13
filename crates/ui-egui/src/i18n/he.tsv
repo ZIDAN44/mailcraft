@@ -874,6 +874,28 @@ month	May	מאי
 	Delete this contact?	למחוק את איש הקשר הזה?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	איש הקשר יימחק, יחד עם כל מה שנשמר עליו. אי אפשר לבטל זאת.
 	Export…	ייצוא…
+	{file} isn't a MailCraft backup.	{file} אינו גיבוי של MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	גיבוי נטען במקום שבו MailCraft פועל בדפדפן.
+	Backup saved as {file}	הגיבוי נשמר בשם {file}
+	Restore…	שחזור…
+	Bring a backup file in. It takes the place of what's kept here now.	טען קובץ גיבוי. הוא מחליף את מה שנשמר כאן כעת.
+	Back up…	גיבוי…
+	Save what's kept here to a file, with a password if you like.	שמור בקובץ את מה שנשמר כאן, עם סיסמה אם תרצה.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft שומר את החשבונות, ההגדרות והדואר שלך בדפדפן זה בלבד. ניקוי נתוני הדפדפן עבור אתר זה מסיר אותם: קובץ גיבוי מחזיר אותם, כאן או בדפדפן אחר.
+	Backup	גיבויים
+	The backup's password	סיסמת הגיבוי
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	פעולה זו מחליפה את כל מה ש־MailCraft שומר כעת בדפדפן זה: החשבונות, ההגדרות שלהם והדואר שלהם. הסיסמה של כל חשבון תתבקש שוב.
+	Restore from a backup…	שחזור מגיבוי…
+	Restore from backup	שחזור מגיבוי
+	The two passwords aren't the same.	שתי הסיסמאות אינן זהות.
+	Save backup	שמור גיבוי
+	The file can't be opened without this password: MailCraft can't recover it.	אי אפשר לפתוח את הקובץ בלי הסיסמה הזו: MailCraft אינו יכול לשחזר אותה.
+	Without a password, anyone who has the file can read what's in it.	בלי סיסמה, כל מי שמחזיק בקובץ יכול לקרוא את תוכנו.
+	The password again	הסיסמה שוב
+	Password for the file (optional)	סיסמה לקובץ (לא חובה)
+	Include the mail downloaded to this browser	כלול את הדואר שהורד לדפדפן זה
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	החשבונות שלך וההגדרות שלהם, הכללים, החתימות, לוחות השנה ואנשי הקשר נשמרים בקובץ אחד. סיסמאות אף פעם אינן בו.
+	Back up	גיבוי
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	מוסיף את הכללים מקובץ ש-MailCraft שמר. כלל של חשבון שאינו במחשב הזה נוסף כשהוא כבוי.
 	Change…	שינוי…
 	Clean up	ניקוי

@@ -12,6 +12,7 @@ use crate::{Action, Icon, widgets};
 
 mod accounts;
 mod addresses;
+mod backup;
 mod categories;
 mod closing;
 mod dav;
@@ -27,6 +28,7 @@ mod writing;
 
 pub use accounts::*;
 pub use addresses::AddressForm;
+pub use backup::RestoreForm;
 pub use dav::DavForm;
 pub(crate) use importing::skip_line;
 pub use mailbox::*;
@@ -160,6 +162,10 @@ pub enum Dialog {
     Dav(dav::DavForm),
     /// Another address an account's mail is sent from (issue #81), added or changed.
     Address(addresses::AddressForm),
+    /// A backup of what the browser keeps (issue #83): about to be saved, and one picked to
+    /// be brought back.
+    Backup(backup::BackupForm),
+    Restore(backup::RestoreForm),
     /// The password of a certificate file being imported (S/MIME): from `path`, or `data` as the
     /// browser's picker gives it; neither, the one the browser keeps, unlocked.
     Certificate {
@@ -649,6 +655,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         Dialog::Signature(..) | Dialog::Vacation(..) => mailbox::draw(ui, d, s, t, acts),
         Dialog::Dav(f) => dav::draw(ui, f, t, acts),
         Dialog::Address(f) => addresses::draw(ui, f, s, t, acts),
+        Dialog::Backup(..) | Dialog::Restore(..) => backup::draw(ui, d, t, acts),
         Dialog::ConfirmDelete { .. }
         | Dialog::MoveTo { .. }
         | Dialog::FolderName { .. }

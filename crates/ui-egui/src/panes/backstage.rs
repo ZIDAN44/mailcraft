@@ -14,6 +14,7 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, UpdateState, widgets};
 
+mod backup;
 mod data_file;
 #[cfg(test)]
 pub(crate) use data_file::report_line;
@@ -537,6 +538,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
 fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Open & Export");
     ui.set_max_width(ui.available_width().min(760.0));
+    backup::backup(s, t, ui, acts);
     card(
         ui,
         t,

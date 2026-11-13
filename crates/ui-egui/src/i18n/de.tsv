@@ -873,6 +873,28 @@
 	Delete this contact?	Diesen Kontakt löschen?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Dieser Kontakt wird mit allem, was zu ihm gespeichert ist, gelöscht. Das lässt sich nicht rückgängig machen.
 	Export…	Exportieren…
+	{file} isn't a MailCraft backup.	{file} ist keine MailCraft-Sicherung.
+	A backup is brought in where MailCraft runs in the browser.	Eine Sicherung wird dort eingelesen, wo MailCraft im Browser läuft.
+	Backup saved as {file}	Sicherung gespeichert als {file}
+	Restore…	Wiederherstellen…
+	Bring a backup file in. It takes the place of what's kept here now.	Eine Sicherungsdatei einlesen. Sie ersetzt, was jetzt hier aufbewahrt wird.
+	Back up…	Sichern…
+	Save what's kept here to a file, with a password if you like.	Speichern Sie das hier Aufbewahrte in einer Datei, auf Wunsch mit Kennwort.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft bewahrt Ihre Konten, Einstellungen und E-Mails nur in diesem Browser auf. Werden die Browserdaten für diese Website gelöscht, sind sie weg: Eine Sicherungsdatei bringt sie zurück, hier oder in einem anderen Browser.
+	Backup	Sicherung
+	The backup's password	Das Kennwort der Sicherung
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Dies ersetzt alles, was MailCraft jetzt in diesem Browser aufbewahrt: die Konten, ihre Einstellungen und ihre E-Mails. Das Kennwort jedes Kontos wird erneut abgefragt.
+	Restore from a backup…	Aus einer Sicherung wiederherstellen…
+	Restore from backup	Aus Sicherung wiederherstellen
+	The two passwords aren't the same.	Die beiden Kennwörter stimmen nicht überein.
+	Save backup	Sicherung speichern
+	The file can't be opened without this password: MailCraft can't recover it.	Ohne dieses Kennwort lässt sich die Datei nicht öffnen: MailCraft kann es nicht wiederherstellen.
+	Without a password, anyone who has the file can read what's in it.	Ohne Kennwort kann jeder, der die Datei hat, ihren Inhalt lesen.
+	The password again	Das Kennwort noch einmal
+	Password for the file (optional)	Kennwort für die Datei (optional)
+	Include the mail downloaded to this browser	Die in diesen Browser heruntergeladenen E-Mails einschließen
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Ihre Konten und deren Einstellungen, Regeln, Signaturen, Kalender und Kontakte kommen in eine Datei. Kennwörter sind nie darin.
+	Back up	Sichern
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Fügt die Regeln aus einer von MailCraft gespeicherten Datei hinzu. Eine Regel für ein Konto, das es auf diesem Computer nicht gibt, kommt ausgeschaltet an.
 	Change…	Ändern…
 	Clean up	Aufräumen

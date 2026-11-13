@@ -874,6 +874,28 @@ month	May	mei
 	Delete this contact?	Dit contact verwijderen?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Dit contact wordt verwijderd, met alles wat erover is bewaard. Dit kan niet ongedaan worden gemaakt.
 	Export…	Exporteren…
+	{file} isn't a MailCraft backup.	{file} is geen back-up van MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	Een back-up wordt ingelezen waar MailCraft in de browser draait.
+	Backup saved as {file}	Back-up opgeslagen als {file}
+	Restore…	Herstellen…
+	Bring a backup file in. It takes the place of what's kept here now.	Een back-upbestand inlezen. Het vervangt wat hier nu wordt bewaard.
+	Back up…	Back-up maken…
+	Save what's kept here to a file, with a password if you like.	Sla wat hier wordt bewaard op in een bestand, desgewenst met een wachtwoord.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft bewaart uw accounts, instellingen en e-mail alleen in deze browser. Als de browsergegevens voor deze site worden gewist, zijn ze weg: een back-upbestand brengt ze terug, hier of in een andere browser.
+	Backup	Back-up
+	The backup's password	Het wachtwoord van de back-up
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Dit vervangt alles wat MailCraft nu in deze browser bewaart: de accounts, hun instellingen en hun e-mail. Het wachtwoord van elk account wordt opnieuw gevraagd.
+	Restore from a backup…	Herstellen vanuit een back-up…
+	Restore from backup	Herstellen vanuit back-up
+	The two passwords aren't the same.	De twee wachtwoorden zijn niet gelijk.
+	Save backup	Back-up opslaan
+	The file can't be opened without this password: MailCraft can't recover it.	Het bestand kan niet worden geopend zonder dit wachtwoord: MailCraft kan het niet herstellen.
+	Without a password, anyone who has the file can read what's in it.	Zonder wachtwoord kan iedereen die het bestand heeft de inhoud lezen.
+	The password again	Nogmaals het wachtwoord
+	Password for the file (optional)	Wachtwoord voor het bestand (optioneel)
+	Include the mail downloaded to this browser	De e-mail opnemen die naar deze browser is gedownload
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Uw accounts met hun instellingen, regels, handtekeningen, agenda's en contactpersonen gaan in één bestand. Wachtwoorden staan er nooit in.
+	Back up	Back-up maken
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Voegt de regels toe uit een bestand dat MailCraft heeft opgeslagen. Een regel voor een account dat niet op deze computer staat, komt uitgeschakeld binnen.
 	Change…	Wijzigen…
 	Clean up	Opruimen

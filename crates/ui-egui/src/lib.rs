@@ -23,6 +23,7 @@ macro_rules! tf {
 
 mod a11y;
 mod app;
+mod backup;
 mod dialogs;
 pub mod i18n;
 mod keytips;
@@ -170,6 +171,17 @@ pub enum Action {
     /// The category list to a file, or categories from one.
     ExportCategories,
     ImportCategories,
+    /// Save a backup of what the browser keeps (issue #83), locked with the password when
+    /// there's one, with the downloaded mail when asked; pick one to bring back; bring it back.
+    Backup {
+        password: String,
+        mail: bool,
+    },
+    PickBackup,
+    Restore {
+        data: std::sync::Arc<Vec<u8>>,
+        password: String,
+    },
     /// Pick a `.p12` / `.pfx` file for an account's certificate, then ask its password.
     ImportCertificate(String),
     /// The browser: open the account's certificate it keeps, with its password, for this page.
@@ -784,6 +796,8 @@ impl MailApp {
         for (purpose, name, data) in self.services.take_picked() {
             if let Some(account) = purpose.strip_prefix("certificate:") {
                 self.ui.dialog = Some(Dialog::Certificate { account: account.to_string(), path: name, data: Some(data), password: String::new() });
+            } else if purpose == "backup" {
+                self.backup_picked(name, data);
             } else if purpose == "picture" {
                 let size = rich_edit::own_size(&data);
                 let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));

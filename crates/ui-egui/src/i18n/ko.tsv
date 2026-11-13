@@ -872,6 +872,28 @@
 	Delete this contact?	이 연락처를 삭제할까요?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	이 연락처와 저장된 모든 정보가 삭제됩니다. 되돌릴 수 없습니다.
 	Export…	내보내기…
+	{file} isn't a MailCraft backup.	{file}은(는) MailCraft 백업이 아닙니다.
+	A backup is brought in where MailCraft runs in the browser.	백업은 MailCraft가 브라우저에서 실행되는 곳에서 불러옵니다.
+	Backup saved as {file}	백업을 {file}(으)로 저장했습니다
+	Restore…	복원…
+	Bring a backup file in. It takes the place of what's kept here now.	백업 파일을 불러옵니다. 지금 여기에 보관된 것을 대체합니다.
+	Back up…	백업…
+	Save what's kept here to a file, with a password if you like.	여기에 보관된 것을 파일로 저장합니다. 원하면 암호를 걸 수 있습니다.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft는 계정, 설정, 메일을 이 브라우저에만 보관합니다. 이 사이트의 브라우저 데이터를 지우면 사라집니다. 백업 파일이 있으면 이 브라우저나 다른 브라우저에서 되돌릴 수 있습니다.
+	Backup	백업
+	The backup's password	백업의 암호
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	MailCraft가 지금 이 브라우저에 보관하는 모든 것(계정, 설정, 메일)이 이것으로 바뀝니다. 각 계정의 암호를 다시 묻습니다.
+	Restore from a backup…	백업에서 복원…
+	Restore from backup	백업에서 복원
+	The two passwords aren't the same.	두 암호가 같지 않습니다.
+	Save backup	백업 저장
+	The file can't be opened without this password: MailCraft can't recover it.	이 암호 없이는 파일을 열 수 없습니다. MailCraft는 암호를 복구할 수 없습니다.
+	Without a password, anyone who has the file can read what's in it.	암호가 없으면 파일을 가진 사람은 누구나 내용을 읽을 수 있습니다.
+	The password again	암호 다시 입력
+	Password for the file (optional)	파일 암호(선택 사항)
+	Include the mail downloaded to this browser	이 브라우저에 다운로드한 메일 포함
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	계정과 그 설정, 규칙, 서명, 일정, 연락처가 하나의 파일에 담깁니다. 암호는 절대 들어가지 않습니다.
+	Back up	백업하기
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft에서 저장한 파일의 규칙을 추가합니다. 이 컴퓨터에 없는 계정의 규칙은 꺼진 상태로 추가됩니다.
 	Change…	변경…
 	Clean up	정리

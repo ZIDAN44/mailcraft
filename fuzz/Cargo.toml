@@ -8,6 +8,7 @@ workspace = { members = ["."] }
 
 # One binary per target, each kept out of `cargo test`, `cargo doc` and `cargo bench`.
 bin = [
+    { name = "backup", bench = false, test = false, doc = false, path = "fuzz_targets/store/backup.rs" }, # a backup of what the browser keeps
     { name = "data_file", bench = false, test = false, doc = false, path = "fuzz_targets/store/data_file.rs" }, # an account's data file, measured and compressed again
     { name = "data_folder", bench = false, test = false, doc = false, path = "fuzz_targets/store/data_folder.rs" }, # a data folder's id, a data file's owner and a folder's list of data files
     { name = "html", bench = false, test = false, doc = false, path = "fuzz_targets/html.rs" }, # received HTML bodies and our own markup
@@ -39,6 +40,7 @@ bin = [
 [dependencies]
 libfuzzer-sys = "0.4"
 # The MailCraft crates under test, straight from this checkout.
+mailcraft-engine.path = "../crates/engine" # a backup of what the browser keeps
 mailcraft-jmap.path = "../crates/jmap" # the JMAP client
 mailcraft-mime.path = "../crates/mime" # MIME, HTML and markup
 mailcraft-model.path = "../crates/model" # iCalendar, vCard, search

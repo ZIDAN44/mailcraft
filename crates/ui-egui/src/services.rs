@@ -277,6 +277,16 @@ pub trait Services {
     }
     /// Hand `bytes` to the user as a download named `name`.
     fn download(&mut self, _name: &str, _bytes: &[u8]) {}
+    /// 28 bytes from the system's source of randomness, for what locks a backup (issue #83);
+    /// `None` where the window has none to give.
+    fn random_bytes(&mut self) -> Option<[u8; 28]> {
+        None
+    }
+    /// Put a backup's files and settings in the place of what MailCraft keeps, and start again
+    /// from them (the browser: the page loads anew). The default has nowhere to.
+    fn restore(&mut self, _files: Vec<(String, Vec<u8>)>, _state: serde_json::Value) -> Result<(), String> {
+        Err("a backup is brought in where MailCraft runs in the browser".into())
+    }
     /// Start choosing files without waiting (the browser): `purpose` is `attach` or `picture`,
     /// and the files arrive through [`Services::take_picked`]. `false` (the default) means
     /// [`Services::pick_files`] answers at once.

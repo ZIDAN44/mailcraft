@@ -57,6 +57,13 @@ Without HTTPS, MailCraft draws with WebGL2 instead of WebGPU.
 - **S/MIME `.p12` files** are stored as they came, still encrypted with their password.
   **Unlock…** opens them.
 - **Saving and printing** download a file. **Print** downloads a PDF.
+- **Backup:** **File › Open & Export › Back up…** downloads everything the browser keeps for the
+  site (accounts and their settings, rules, signatures, calendars, contacts; the downloaded
+  mail too, when asked) as one `.mailcraft-backup` file, locked with a password if one is
+  given. **Restore…** brings such a file in, in this browser or another, in place of what's
+  kept there. Nothing goes through a server, and no password is ever in the file. Clearing
+  the browser's data for the site removes everything MailCraft keeps: tell your users to make
+  a backup first.
 - **Desktop only:** IMAP and SMTP, Google and Microsoft sign-in, Exchange, `.pst` files,
   CalDAV and CardDAV, notifications, smart cards, certificate revocation checks, and dragging
   attachments out.

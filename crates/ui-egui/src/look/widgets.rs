@@ -608,12 +608,16 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>)
                 if accent_button(ui, Icon::Plus, "Add an account", t, true).clicked() {
                     acts.push(Action::Dialog(Dialog::add_account()));
                 }
-                // Or begin from what Outlook kept: there are no data files in the browser.
-                if !jmap_only {
-                    ui.add_space(6.0);
-                    if ui.button(tl!("Open an Outlook data file…")).clicked() {
-                        acts.push(Action::OpenDataFile);
+                // Or begin from what Outlook kept: there are no data files in the browser. There,
+                // from a backup of what another browser kept, or this one before its data for
+                // the site was cleared (issue #83).
+                ui.add_space(6.0);
+                if jmap_only {
+                    if ui.button(tl!("Restore from a backup…")).clicked() {
+                        acts.push(Action::PickBackup);
                     }
+                } else if ui.button(tl!("Open an Outlook data file…")).clicked() {
+                    acts.push(Action::OpenDataFile);
                 }
             });
         });

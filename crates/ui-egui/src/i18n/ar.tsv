@@ -874,6 +874,28 @@ month	May	مايو
 	Delete this contact?	هل تريد حذف جهة الاتصال هذه؟
 	This contact will be deleted, along with everything kept about them. This can't be undone.	سيتم حذف جهة الاتصال هذه مع كل ما هو محفوظ عنها. لا يمكن التراجع عن ذلك.
 	Export…	تصدير…
+	{file} isn't a MailCraft backup.	{file} ليس نسخة احتياطية من MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	تُستعاد النسخة الاحتياطية حيث يعمل MailCraft في المتصفح.
+	Backup saved as {file}	تم حفظ النسخة الاحتياطية باسم {file}
+	Restore…	استعادة…
+	Bring a backup file in. It takes the place of what's kept here now.	أدخل ملف نسخة احتياطية. سيحل محل ما يُحتفظ به هنا الآن.
+	Back up…	نسخ احتياطي…
+	Save what's kept here to a file, with a password if you like.	احفظ ما يُحتفظ به هنا في ملف، بكلمة مرور إن شئت.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	يحتفظ MailCraft بحساباتك وإعداداتك وبريدك في هذا المتصفح فقط. مسح بيانات المتصفح لهذا الموقع يزيلها: ملف النسخة الاحتياطية يعيدها، هنا أو في متصفح آخر.
+	Backup	النسخ الاحتياطي
+	The backup's password	كلمة مرور النسخة الاحتياطية
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	يحل هذا محل كل ما يحتفظ به MailCraft في هذا المتصفح الآن: حساباته وإعداداتها وبريدها. ستُطلب كلمة مرور كل حساب من جديد.
+	Restore from a backup…	استعادة من نسخة احتياطية…
+	Restore from backup	الاستعادة من نسخة احتياطية
+	The two passwords aren't the same.	كلمتا المرور غير متطابقتين.
+	Save backup	حفظ النسخة الاحتياطية
+	The file can't be opened without this password: MailCraft can't recover it.	لا يمكن فتح الملف بدون كلمة المرور هذه: لا يستطيع MailCraft استعادتها.
+	Without a password, anyone who has the file can read what's in it.	بدون كلمة مرور، يمكن لأي شخص لديه الملف قراءة ما فيه.
+	The password again	كلمة المرور مرة أخرى
+	Password for the file (optional)	كلمة مرور للملف (اختيارية)
+	Include the mail downloaded to this browser	تضمين البريد الذي تم تنزيله إلى هذا المتصفح
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	حساباتك وإعداداتها والقواعد والتواقيع والتقويمات وجهات الاتصال تُحفظ في ملف واحد. كلمات المرور ليست فيه أبدًا.
+	Back up	نسخ احتياطي
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	يضيف القواعد من ملف حفظه MailCraft. القاعدة الخاصة بحساب غير موجود على هذا الكمبيوتر تُضاف معطّلة.
 	Change…	تغيير…
 	Clean up	تنظيف

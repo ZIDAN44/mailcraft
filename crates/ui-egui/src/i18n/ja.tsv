@@ -875,6 +875,28 @@ month	May	5月
 	Delete this contact?	この連絡先を削除しますか?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	この連絡先と、保存されているすべての情報が削除されます。元に戻すことはできません。
 	Export…	エクスポート…
+	{file} isn't a MailCraft backup.	{file} は MailCraft のバックアップではありません。
+	A backup is brought in where MailCraft runs in the browser.	バックアップは、MailCraft がブラウザーで動作しているところで読み込めます。
+	Backup saved as {file}	バックアップを {file} として保存しました
+	Restore…	復元…
+	Bring a backup file in. It takes the place of what's kept here now.	バックアップ ファイルを読み込みます。現在ここに保持されているものと置き換わります。
+	Back up…	バックアップ…
+	Save what's kept here to a file, with a password if you like.	ここに保持されているものをファイルに保存します。必要ならパスワードを付けられます。
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft はアカウント、設定、メールをこのブラウザーにのみ保持します。このサイトのブラウザー データを消去するとそれらは失われます。バックアップ ファイルがあれば、このブラウザーでも別のブラウザーでも元に戻せます。
+	Backup	バックアップ
+	The backup's password	バックアップのパスワード
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	MailCraft が現在このブラウザーに保持しているすべて (アカウント、その設定、メール) がこれに置き換わります。各アカウントのパスワードをもう一度求められます。
+	Restore from a backup…	バックアップから復元…
+	Restore from backup	バックアップから復元
+	The two passwords aren't the same.	2 つのパスワードが一致しません。
+	Save backup	バックアップを保存
+	The file can't be opened without this password: MailCraft can't recover it.	このパスワードがないとファイルは開けません。MailCraft では復元できません。
+	Without a password, anyone who has the file can read what's in it.	パスワードがないと、ファイルを持っている人は誰でも中身を読めます。
+	The password again	パスワードをもう一度
+	Password for the file (optional)	ファイルのパスワード (省略可)
+	Include the mail downloaded to this browser	このブラウザーにダウンロードしたメールを含める
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	アカウントとその設定、ルール、署名、予定表、連絡先が 1 つのファイルに入ります。パスワードは決して含まれません。
+	Back up	バックアップする
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft で保存したファイルからルールを追加します。このコンピューターにないアカウントのルールはオフの状態で追加されます。
 	Change…	変更…
 	Clean up	クリーンアップ

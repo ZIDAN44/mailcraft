@@ -873,6 +873,28 @@
 	Delete this contact?	Bu kişi silinsin mi?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Bu kişi, hakkında tutulan her şeyle birlikte silinecek. Bu işlem geri alınamaz.
 	Export…	Dışa aktar…
+	{file} isn't a MailCraft backup.	{file} bir MailCraft yedeği değil.
+	A backup is brought in where MailCraft runs in the browser.	Yedek, MailCraft'ın tarayıcıda çalıştığı yerde yüklenir.
+	Backup saved as {file}	Yedek {file} olarak kaydedildi
+	Restore…	Geri yükle…
+	Bring a backup file in. It takes the place of what's kept here now.	Bir yedek dosyası yükleyin. Şu anda burada tutulanların yerini alır.
+	Back up…	Yedekle…
+	Save what's kept here to a file, with a password if you like.	Burada tutulanları bir dosyaya kaydedin; isterseniz parolayla.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft hesaplarınızı, ayarlarınızı ve postanızı yalnızca bu tarayıcıda tutar. Bu site için tarayıcı verilerini temizlemek onları siler: bir yedek dosyası onları burada veya başka bir tarayıcıda geri getirir.
+	Backup	Yedekleme
+	The backup's password	Yedeğin parolası
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Bu, MailCraft'ın şu anda bu tarayıcıda tuttuğu her şeyin yerini alır: hesaplar, ayarları ve postaları. Her hesabın parolası yeniden sorulur.
+	Restore from a backup…	Bir yedekten geri yükle…
+	Restore from backup	Yedekten geri yükle
+	The two passwords aren't the same.	İki parola aynı değil.
+	Save backup	Yedeği kaydet
+	The file can't be opened without this password: MailCraft can't recover it.	Dosya bu parola olmadan açılamaz: MailCraft parolayı kurtaramaz.
+	Without a password, anyone who has the file can read what's in it.	Parola olmadan, dosyaya sahip olan herkes içindekileri okuyabilir.
+	The password again	Parola yeniden
+	Password for the file (optional)	Dosya için parola (isteğe bağlı)
+	Include the mail downloaded to this browser	Bu tarayıcıya indirilen postayı dahil et
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Hesaplarınız ile ayarları, kurallar, imzalar, takvimler ve kişiler tek bir dosyaya girer. Parolalar hiçbir zaman içinde olmaz.
+	Back up	Yedekle
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	MailCraft'ın kaydettiği bir dosyadaki kuralları ekleyin. Bu bilgisayarda olmayan bir hesaba ait kural kapalı olarak gelir.
 	Change…	Değiştir…
 	Clean up	Toparla

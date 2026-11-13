@@ -244,6 +244,9 @@ impl MailApp {
                 }
             }
             // The browser's picker answers later (with the file's bytes).
+            Action::Backup { password, mail } => self.save_backup(&password, mail),
+            Action::PickBackup => self.pick_backup(),
+            Action::Restore { data, password } => self.restore_backup(&data, &password),
             Action::ImportCertificate(account) if self.services.pick_later(&format!("certificate:{account}")) => {}
             Action::ImportCertificate(account) => {
                 if let Some(path) = self.services.pick_certificate() {

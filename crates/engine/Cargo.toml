@@ -20,6 +20,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+# A backup of what the browser keeps (issue #83), packed and, with a password, locked: pure
+# Rust, wasm too; the generation the S/MIME crate builds already.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+sha2 = "0.10"
 
 [dev-dependencies]
 # S/MIME tests read PEM and play the network layer's decrypting.

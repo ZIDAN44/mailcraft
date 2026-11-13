@@ -873,6 +873,28 @@
 	Delete this contact?	¿Eliminar este contacto?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Se eliminará este contacto, junto con todo lo que se guarda sobre él. No se puede deshacer.
 	Export…	Exportar…
+	{file} isn't a MailCraft backup.	{file} no es una copia de seguridad de MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	Una copia de seguridad se carga donde MailCraft funciona en el navegador.
+	Backup saved as {file}	Copia de seguridad guardada como {file}
+	Restore…	Restaurar…
+	Bring a backup file in. It takes the place of what's kept here now.	Cargar un archivo de copia de seguridad. Sustituye lo que se conserva aquí ahora.
+	Back up…	Hacer copia…
+	Save what's kept here to a file, with a password if you like.	Guarde en un archivo lo que se conserva aquí, con contraseña si lo desea.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft guarda sus cuentas, su configuración y su correo solo en este navegador. Borrar los datos del navegador para este sitio los elimina: un archivo de copia de seguridad los recupera, aquí o en otro navegador.
+	Backup	Copias de seguridad
+	The backup's password	La contraseña de la copia
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Esto sustituye todo lo que MailCraft guarda ahora en este navegador: sus cuentas, su configuración y su correo. Se volverá a pedir la contraseña de cada cuenta.
+	Restore from a backup…	Restaurar desde una copia de seguridad…
+	Restore from backup	Restaurar desde una copia de seguridad
+	The two passwords aren't the same.	Las dos contraseñas no son iguales.
+	Save backup	Guardar copia
+	The file can't be opened without this password: MailCraft can't recover it.	El archivo no se puede abrir sin esta contraseña: MailCraft no puede recuperarla.
+	Without a password, anyone who has the file can read what's in it.	Sin contraseña, cualquiera que tenga el archivo puede leer lo que contiene.
+	The password again	La contraseña otra vez
+	Password for the file (optional)	Contraseña para el archivo (opcional)
+	Include the mail downloaded to this browser	Incluir el correo descargado en este navegador
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Sus cuentas y su configuración, reglas, firmas, calendarios y contactos van en un solo archivo. Las contraseñas nunca están en él.
+	Back up	Copia de seguridad
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Añade las reglas de un archivo guardado por MailCraft. Una regla de una cuenta que este equipo no tiene llega desactivada.
 	Change…	Cambiar…
 	Clean up	Limpiar

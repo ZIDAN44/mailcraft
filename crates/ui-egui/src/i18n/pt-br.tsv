@@ -873,6 +873,28 @@
 	Delete this contact?	Excluir este contato?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	Este contato será excluído, com tudo o que está guardado sobre ele. Isso não pode ser desfeito.
 	Export…	Exportar…
+	{file} isn't a MailCraft backup.	{file} não é um backup do MailCraft.
+	A backup is brought in where MailCraft runs in the browser.	Um backup é carregado onde o MailCraft roda no navegador.
+	Backup saved as {file}	Backup salvo como {file}
+	Restore…	Restaurar…
+	Bring a backup file in. It takes the place of what's kept here now.	Carregar um arquivo de backup. Ele substitui o que é guardado aqui agora.
+	Back up…	Fazer backup…
+	Save what's kept here to a file, with a password if you like.	Salve em um arquivo o que é guardado aqui, com senha se quiser.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	O MailCraft guarda suas contas, configurações e e-mails somente neste navegador. Limpar os dados do navegador para este site os remove: um arquivo de backup os traz de volta, aqui ou em outro navegador.
+	Backup	Backup
+	The backup's password	A senha do backup
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Isto substitui tudo o que o MailCraft guarda agora neste navegador: as contas, as configurações e os e-mails delas. A senha de cada conta será pedida de novo.
+	Restore from a backup…	Restaurar de um backup…
+	Restore from backup	Restaurar de um backup
+	The two passwords aren't the same.	As duas senhas não são iguais.
+	Save backup	Salvar backup
+	The file can't be opened without this password: MailCraft can't recover it.	O arquivo não pode ser aberto sem esta senha: o MailCraft não consegue recuperá-la.
+	Without a password, anyone who has the file can read what's in it.	Sem senha, qualquer pessoa que tenha o arquivo pode ler o que há nele.
+	The password again	A senha novamente
+	Password for the file (optional)	Senha do arquivo (opcional)
+	Include the mail downloaded to this browser	Incluir os e-mails baixados neste navegador
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Suas contas e as configurações, regras, assinaturas, calendários e contatos delas vão para um único arquivo. As senhas nunca ficam nele.
+	Back up	Fazer backup
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Adiciona as regras de um arquivo salvo pelo MailCraft. Uma regra de uma conta que este computador não tem chega desativada.
 	Change…	Alterar…
 	Clean up	Limpar

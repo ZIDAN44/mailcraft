@@ -872,6 +872,28 @@
 	Delete this contact?	刪除此連絡人?
 	This contact will be deleted, along with everything kept about them. This can't be undone.	將刪除此連絡人及其儲存的所有資訊。此動作無法復原。
 	Export…	匯出…
+	{file} isn't a MailCraft backup.	{file} 不是 MailCraft 備份。
+	A backup is brought in where MailCraft runs in the browser.	備份需在 MailCraft 於瀏覽器中執行時載入。
+	Backup saved as {file}	備份已儲存為 {file}
+	Restore…	還原…
+	Bring a backup file in. It takes the place of what's kept here now.	載入備份檔案。它會取代這裡目前保存的內容。
+	Back up…	備份…
+	Save what's kept here to a file, with a password if you like.	把這裡保存的內容存入一個檔案，可以選擇設定密碼。
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft 只在此瀏覽器中保存你的帳戶、設定和郵件。清除此網站的瀏覽器資料會將其刪除：備份檔案可以在此瀏覽器或其他瀏覽器中把它們找回來。
+	Backup	備份與還原
+	The backup's password	備份的密碼
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	這會取代 MailCraft 目前在此瀏覽器中保存的所有內容：帳戶、其設定及郵件。每個帳戶的密碼都需要重新輸入。
+	Restore from a backup…	從備份還原…
+	Restore from backup	從備份還原
+	The two passwords aren't the same.	兩次輸入的密碼不一致。
+	Save backup	儲存備份
+	The file can't be opened without this password: MailCraft can't recover it.	沒有此密碼就無法開啟該檔案：MailCraft 無法找回密碼。
+	Without a password, anyone who has the file can read what's in it.	沒有密碼時，任何拿到該檔案的人都能讀取其中內容。
+	The password again	再次輸入密碼
+	Password for the file (optional)	檔案密碼（選用）
+	Include the mail downloaded to this browser	包含已下載到此瀏覽器的郵件
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	你的帳戶及其設定、規則、簽名、行事曆和連絡人會存入一個檔案。其中絕不包含密碼。
+	Back up	備份
 	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	新增由 MailCraft 儲存的檔案中的規則。此電腦上沒有的帳戶的規則會以關閉狀態新增。
 	Change…	變更…
 	Clean up	清理
