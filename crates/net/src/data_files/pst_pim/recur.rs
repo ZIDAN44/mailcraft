@@ -53,6 +53,13 @@ impl<'a> Bytes<'a> {
 
 const DAYS: [&str; 7] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
+/// The `nth` (-1: the last) of the days in `mask` in a month. Of one weekday: that weekday's
+/// nth. Of several (Outlook's "weekday", "weekend day" and "day"): the nth day that is one of
+/// them, not the nth of each (the last weekday of the month was five days a month).
+fn nth_of(mask: u32, nth: i32) -> String {
+    if mask.count_ones() > 1 { format!("BYDAY={};BYSETPOS={nth}", byday(mask, None)) } else { format!("BYDAY={}", byday(mask, Some(nth))) }
+}
+
 fn byday(mask: u32, ordinal: Option<i32>) -> String {
     let pre = ordinal.map(|n| n.to_string()).unwrap_or_default();
     DAYS.iter().enumerate().filter(|(i, _)| mask & (1 << i) != 0).map(|(_, d)| format!("{pre}{d}")).collect::<Vec<_>>().join(",")
@@ -141,22 +148,30 @@ pub(crate) fn pattern(blob: &[u8], start: i64, tzid: &str) -> Option<Pattern> {
         (0x200A, 0x0000) => format!("FREQ=DAILY;INTERVAL={}", (period / 1440).max(1)),
         (0x200A, 0x0001) => "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR".to_string(),
         (0x200B, 0x0001) => format!("FREQ=WEEKLY;INTERVAL={};BYDAY={}", period.max(1), byday(a, None)),
+        // A day past the 28th is the month's last where it has no such day, as Outlook has it
+        // (the 31st every month: said as that day alone, five months of the year had none).
+        (0x200C, 0x0002) if (29..=31).contains(&a) => {
+            let days: Vec<String> = (28..=a).map(|d| d.to_string()).collect();
+            format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY={};BYSETPOS=-1", period.max(1), days.join(","))
+        }
         (0x200C, 0x0002) => format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY={a}", period.max(1)),
         (0x200C, 0x0004) => format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY=-1", period.max(1)),
-        (0x200C, 0x0003) => format!("FREQ=MONTHLY;INTERVAL={};BYDAY={}", period.max(1), byday(a, Some(nth(c)))),
+        (0x200C, 0x0003) => format!("FREQ=MONTHLY;INTERVAL={};{}", period.max(1), nth_of(a, nth(c))),
         (0x200D, 0x0002 | 0x0004) => format!("FREQ=YEARLY;INTERVAL={}", (period / 12).max(1)),
         (0x200D, 0x0003) => {
             // Its month: the first day's, where the series is (its UTC start may be in the next).
             let (_, month, _) = civil_from_days((first_day - EPOCH_MINUTES).div_euclid(1440));
-            format!("FREQ=YEARLY;INTERVAL={};BYMONTH={month};BYDAY={}", (period / 12).max(1), byday(a, Some(nth(c))))
+            format!("FREQ=YEARLY;INTERVAL={};BYMONTH={month};{}", (period / 12).max(1), nth_of(a, nth(c)))
         }
         _ => return None,
     };
     // The day weeks start on (FirstDOW) says which weeks an every-so-many-weeks rule takes
-    // (RFC 5545's WKST); Sunday, as a rule's default, needn't be said.
+    // (RFC 5545's WKST): said unless it's Monday, the day a rule that doesn't say starts its
+    // weeks on. (Sunday was the one left unsaid: a pattern for every other week on Saturday
+    // and Sunday, as Outlook writes it where weeks start on Sunday, had its Sundays a week off.)
     if (frequency, pattern) == (0x200B, 0x0001)
         && period > 1
-        && let Some(day) = usize::try_from(first_dow).ok().filter(|d| *d > 0).and_then(|d| DAYS.get(d))
+        && let Some(day) = usize::try_from(first_dow).ok().filter(|d| *d != 1).and_then(|d| DAYS.get(d))
     {
         rule.push_str(&format!(";WKST={day}"));
     }

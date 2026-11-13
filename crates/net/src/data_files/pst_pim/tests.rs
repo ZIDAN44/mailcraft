@@ -69,6 +69,22 @@ fn recurrence_patterns_become_rules() {
         "FREQ=MONTHLY;INTERVAL=1;BYDAY=-1FR"
     );
     assert_eq!(recurrence(&blob(0x200D, 0x0002, 12, &[5], (0x2023, 0), &[], &[], first), start).unwrap().0, "FREQ=YEARLY;INTERVAL=1");
+    // Found in review. The last weekday of each month (Outlook's "weekday": Monday to Friday)
+    // is one day a month, not the last of each of the five; the second weekend day likewise.
+    assert_eq!(
+        recurrence(&blob(0x200C, 0x0003, 1, &[0x3E, 5], (0x2023, 0), &[], &[], first), start).unwrap().0,
+        "FREQ=MONTHLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1"
+    );
+    assert_eq!(
+        recurrence(&blob(0x200C, 0x0003, 1, &[0x41, 2], (0x2023, 0), &[], &[], first), start).unwrap().0,
+        "FREQ=MONTHLY;INTERVAL=1;BYDAY=SU,SA;BYSETPOS=2"
+    );
+    // The 31st of each month is the last day of a month that has none; the 15th is the 15th.
+    assert_eq!(
+        recurrence(&blob(0x200C, 0x0002, 1, &[31], (0x2023, 0), &[], &[], first), start).unwrap().0,
+        "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=28,29,30,31;BYSETPOS=-1"
+    );
+    assert_eq!(recurrence(&blob(0x200C, 0x0002, 1, &[15], (0x2023, 0), &[], &[], first), start).unwrap().0, "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15");
     // Junk is no rule, and never a crash.
     assert!(recurrence(&[], start).is_none());
     assert!(recurrence(&b[..20], start).is_none());

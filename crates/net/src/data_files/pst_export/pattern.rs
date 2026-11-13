@@ -34,12 +34,15 @@ struct Rule {
     count: Option<u32>,
     /// The last day (days since 1970).
     until: Option<i64>,
-    /// The day weeks start on (`WKST`: 0 Sunday, the default).
+    /// The day weeks start on (`WKST`: 0 Sunday; Monday, 1, when it isn't said).
     week_start: u32,
 }
 
 fn parse(rule: &str) -> Option<Rule> {
-    let mut r = Rule { interval: 1, ..Default::default() };
+    let mut r = Rule { interval: 1, week_start: 1, ..Default::default() };
+    // Which of a period's days (`BYSETPOS`), and the days of the month, as the reader of a
+    // pattern writes two of Outlook's: "the last weekday" and "the 31st, or the month's last".
+    let (mut set_pos, mut month_days): (Option<i32>, Vec<i32>) = (None, Vec::new());
     for part in rule.split(';').filter(|p| !p.trim().is_empty()) {
         let (k, v) = part.split_once('=')?;
         let v = v.trim();
@@ -63,11 +66,25 @@ fn parse(rule: &str) -> Option<Rule> {
                     r.days.push((nth, day));
                 }
             }
-            "BYMONTHDAY" => r.month_day = Some(v.parse().ok()?),
+            "BYMONTHDAY" => month_days = v.split(',').map(|d| d.trim().parse().ok()).collect::<Option<_>>()?,
+            "BYSETPOS" => set_pos = Some(v.parse().ok().filter(|n| matches!(n, 1..=4 | -1))?),
             "BYMONTH" => r.month = Some(v.parse().ok().filter(|m| (1..=12).contains(m))?),
             "WKST" => r.week_start = DAYS.iter().position(|x| x.eq_ignore_ascii_case(v)).and_then(|i| u32::try_from(i).ok())?,
             _ => return None,
         }
+    }
+    match (set_pos, month_days.as_slice()) {
+        (None, []) => {}
+        (None, [day]) => r.month_day = Some(*day),
+        // The nth of several weekdays: the pattern's own ordinal for them all.
+        (Some(nth), []) if r.days.len() > 1 && r.days.iter().all(|(n, _)| *n == 0) => r.days.iter_mut().for_each(|d| d.0 = nth),
+        // The 29th, 30th or 31st, or the last day of a month without it: that day.
+        (Some(-1), [28, rest @ ..])
+            if r.days.is_empty() && !rest.is_empty() && rest.iter().copied().eq(29..=28 + i32::try_from(rest.len()).ok()?) =>
+        {
+            r.month_day = month_days.last().copied();
+        }
+        _ => return None,
     }
     (r.count.is_none() || r.until.is_none()).then_some(r)
 }
@@ -169,7 +186,7 @@ pub(super) fn minutes(day: i64) -> Option<u32> {
 /// Whether the pattern `p`, read back as the import reads it from the task's first day `from`,
 /// says what `rule` says (the same parts, `INTERVAL=1` said or not, the days in any order, an
 /// end on the same day, the day weeks start on where it matters: every so many weeks, and not
-/// Sunday, the default).
+/// Monday, the day when a rule doesn't say).
 pub(super) fn says(p: &[u8], from: i64, rule: &str) -> bool {
     let parts = |r: &str| {
         let mut out: Vec<(String, String)> = r
@@ -192,7 +209,7 @@ pub(super) fn says(p: &[u8], from: i64, rule: &str) -> bool {
             .collect();
         let has = |k: &str, f: &dyn Fn(&str) -> bool| out.iter().any(|(key, v)| key == k && f(v));
         let weeks = has("FREQ", &|v| v == "WEEKLY") && has("INTERVAL", &|_| true);
-        out.retain(|(k, v)| k != "WKST" || (weeks && v != "SU"));
+        out.retain(|(k, v)| k != "WKST" || (weeks && v != "MO"));
         out.sort();
         out
     };
@@ -251,8 +268,28 @@ mod tests {
             assert_eq!(u32::from_le_bytes(p[at..at + 4].try_into().unwrap()), dow, "{rule}");
             assert!(says(&p, from, rule), "{rule}: {:?}", crate::pst_pim::recurrence(&p, from));
         }
-        let sunday = write("FREQ=WEEKLY;INTERVAL=2;BYDAY=SU,MO", from).unwrap();
-        assert!(!says(&sunday, from, "FREQ=WEEKLY;WKST=MO;INTERVAL=2;BYDAY=SU,MO"));
+        // Found in a second review: what the reader makes of Outlook's "last weekday" and
+        // "31st" is written back as those patterns, not as so many single appointments.
+        for rule in [
+            "FREQ=MONTHLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+            "FREQ=MONTHLY;INTERVAL=1;BYDAY=SU,SA;BYSETPOS=2",
+            "FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=28,29,30,31;BYSETPOS=-1",
+        ] {
+            let p = write(rule, from).unwrap_or_else(|| panic!("{rule}"));
+            assert!(says(&p, from, rule), "{rule}: {:?}", crate::pst_pim::recurrence(&p, from));
+        }
+        for rule in [
+            "FREQ=MONTHLY;BYDAY=MO,TU;BYSETPOS=5",
+            "FREQ=MONTHLY;BYMONTHDAY=1,15",
+            "FREQ=MONTHLY;BYMONTHDAY=28,30;BYSETPOS=-1",
+            "FREQ=MONTHLY;BYMONTHDAY=28;BYSETPOS=-1",
+        ] {
+            assert!(write(rule, from).is_none(), "{rule}");
+        }
+        // None said is Monday (RFC 5545), not Sunday.
+        let unsaid = write("FREQ=WEEKLY;INTERVAL=2;BYDAY=SU,MO", from).unwrap();
+        assert!(says(&unsaid, from, "FREQ=WEEKLY;WKST=MO;INTERVAL=2;BYDAY=SU,MO"));
+        assert!(!says(&unsaid, from, "FREQ=WEEKLY;WKST=SU;INTERVAL=2;BYDAY=SU,MO"));
         assert!(write("FREQ=WEEKLY;WKST=XX", from).is_none());
         let p = write("FREQ=DAILY;UNTIL=20261110", from).unwrap();
         assert!(says(&p, from, "FREQ=DAILY;UNTIL=20261110"));

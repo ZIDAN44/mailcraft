@@ -32,6 +32,9 @@ on GitHub.
 - Looking for an account's calendars and contacts, the mail password goes only to a server of the account's own that asks for it. It went with the first request to every place tried: the address's domain (a web site, for most), a host a DNS answer named, wherever a redirect led. A calendar server at another name than the address's and the mail server's isn't found by itself any more: give its address under **Calendars and contacts**. A sign-in no longer follows a redirect to another site either.
 - On Windows a link or a file opens MailCraft with nothing after it read as an option: a `mailto:` link with a `"` in it could run commands as the window opened, point MailCraft at another data folder, or have another file opened.
 - What a crash said is no longer written to the log or shown: only where it happened.
+- A calendar rule that never matches (`FREQ=DAILY;BYSETPOS=2`: a day has no second day) no longer freezes MailCraft: an invitation or a calendar file with one was gone through to the end of time, and the calendar and its reminders never came back.
+- From an Outlook data file, appointments on the last weekday of a month come once a month (not on each of its last five weekdays), those on the 31st fall on the last day of shorter months, and every-other-week ones keep their weeks where Outlook's weeks start on Sunday (`WKST` is read).
+- A calendar rule with an end that isn't a date no longer ends an Exchange account's connection at every sync. An Exchange server that closed an idle connection no longer has the password asked for again; nor does a POP mailbox that's busy.
 
 ## 0.37.0 - 2026-11-12
 
