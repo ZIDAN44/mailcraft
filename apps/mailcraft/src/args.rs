@@ -209,8 +209,11 @@ mod tests {
         assert!(options.is_empty(), "no option is left to act on");
         assert_eq!(handed.unwrap(), ["mailto:a@x.example"], "the link and nothing after it");
         // A file's path that came apart at its spaces is one path; one after a link isn't opened.
-        let (_, handed) = opened(args(&["--open", r"D:\Mail\Order", "42.eml"]));
-        assert_eq!(handed.unwrap(), [r"D:\Mail\Order 42.eml"]);
+        // (A path the system takes as whole: one that isn't is read from the folder MailCraft
+        // started in.)
+        let whole = if cfg!(windows) { r"D:\Mail\Order" } else { "/home/zoe/Order" };
+        let (_, handed) = opened(args(&["--open", whole, "42.eml"]));
+        assert_eq!(handed.unwrap(), [format!("{whole} 42.eml")]);
         let (_, handed) = opened(args(&["--open", "mailto:a@x.example", r"\\host\share\x.ics"]));
         assert_eq!(handed.unwrap(), ["mailto:a@x.example"]);
         // Just the link, or the file.
