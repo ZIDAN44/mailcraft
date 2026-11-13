@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	Вложений сохранено: {n}, в {folder}
 	Saved {path}	Сохранено: {path}
 	Search folders	Поиск папок
+	(the rest isn't shown: open the file to see it all)	(остальное не показано: откройте файл, чтобы увидеть всё)
+	Pick a category	Выберите категорию
+	Pick a folder	Выберите папку
+	Say what to look for	Укажите, что искать
+	Give the rule a name	Дайте правилу название
 	Search mail (from:, subject:, has:attachment…)	Поиск в почте (from:, subject:, has:attachment…)
 	Select a message first.	Сначала выберите письмо.
 	Send	Отправить
@@ -775,6 +780,7 @@
 	Move down	Переместить вниз
 	Updating…	Обновление…
 	All folders are up to date	Все папки обновлены
+	1 account disconnected	1 учётная запись отключена
 	{n} accounts disconnected	Отключено учётных записей: {n}
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Войти через Microsoft

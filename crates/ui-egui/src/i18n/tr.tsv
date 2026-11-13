@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} ek {folder} klasörüne kaydedildi
 	Saved {path}	Kaydedildi: {path}
 	Search folders	Klasörlerde ara
+	(the rest isn't shown: open the file to see it all)	(gerisi gösterilmiyor: tümünü görmek için dosyayı açın)
+	Pick a category	Bir kategori seçin
+	Pick a folder	Bir klasör seçin
+	Say what to look for	Neyin aranacağını belirtin
+	Give the rule a name	Kurala bir ad verin
 	Search mail (from:, subject:, has:attachment…)	Postada ara (from:, subject:, has:attachment…)
 	Select a message first.	Önce bir ileti seçin.
 	Send	Gönder
@@ -776,6 +781,7 @@
 	Move down	Aşağı taşı
 	Updating…	Güncelleniyor…
 	All folders are up to date	Tüm klasörler güncel
+	1 account disconnected	1 hesabın bağlantısı kesildi
 	{n} accounts disconnected	{n} hesabın bağlantısı kesildi
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Microsoft ile oturum aç

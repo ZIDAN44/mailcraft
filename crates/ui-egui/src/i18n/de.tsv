@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} Anhänge in {folder} gespeichert
 	Saved {path}	Gespeichert: {path}
 	Search folders	Ordner durchsuchen
+	(the rest isn't shown: open the file to see it all)	(der Rest wird nicht angezeigt: Öffnen Sie die Datei, um alles zu sehen)
+	Pick a category	Wählen Sie eine Kategorie
+	Pick a folder	Wählen Sie einen Ordner
+	Say what to look for	Geben Sie an, wonach gesucht werden soll
+	Give the rule a name	Geben Sie der Regel einen Namen
 	Search mail (from:, subject:, has:attachment…)	E-Mails durchsuchen (from:, subject:, has:attachment…)
 	Select a message first.	Wählen Sie zuerst eine Nachricht aus.
 	Send	Senden
@@ -776,6 +781,7 @@
 	Move down	Nach unten
 	Updating…	Wird aktualisiert…
 	All folders are up to date	Alle Ordner sind auf dem neuesten Stand
+	1 account disconnected	1 Konto getrennt
 	{n} accounts disconnected	{n} Konten getrennt
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Mit Microsoft anmelden

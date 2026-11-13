@@ -75,21 +75,27 @@ pub(super) fn pgp(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: 
             } else {
                 tf!("Key {key}: signs mail from {addresses}", key = k.key_id, addresses = signs.join(", "))
             };
-            setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
-                if ui
-                    .button(RichText::new(tl!("Remove")).color(t.danger))
-                    .on_hover_text(tl!("Forget this key: mail encrypted to it can't be read any more"))
-                    .clicked()
-                {
-                    acts.push(Action::Run("pgp.forget", json!({"account": id, "fingerprint": k.fingerprint})));
-                }
-                if ui
-                    .button(tl!("Use for sending"))
-                    .on_hover_text(tl!("Sign and decrypt with this key again; the one in use is kept to decrypt"))
-                    .clicked()
-                {
-                    acts.push(Action::Run("pgp.use", json!({"account": id, "fingerprint": k.fingerprint})));
-                }
+            // Each by its own key (as the certificates' rows: the same address names both).
+            let usable = k.problems(s.clock.now).is_empty();
+            ui.push_id(("older-key", &k.fingerprint), |ui| {
+                setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
+                    if ui
+                        .button(RichText::new(tl!("Remove")).color(t.danger))
+                        .on_hover_text(tl!("Forget this key: mail encrypted to it can't be read any more"))
+                        .clicked()
+                    {
+                        acts.push(Action::Run("pgp.forget", json!({"account": id, "fingerprint": k.fingerprint})));
+                    }
+                    // Not one that ran out or was withdrawn (as an older certificate isn't offered).
+                    if usable
+                        && ui
+                            .button(tl!("Use for sending"))
+                            .on_hover_text(tl!("Sign and decrypt with this key again; the one in use is kept to decrypt"))
+                            .clicked()
+                    {
+                        acts.push(Action::Run("pgp.use", json!({"account": id, "fingerprint": k.fingerprint})));
+                    }
+                });
             });
         }
         let settings = s.pgp_settings(&id);

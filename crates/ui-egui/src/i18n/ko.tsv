@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	첨부 파일 {n}개를 {folder}에 저장했습니다
 	Saved {path}	{path}에 저장했습니다
 	Search folders	폴더 검색
+	(the rest isn't shown: open the file to see it all)	(나머지는 표시되지 않습니다. 모두 보려면 파일을 여세요)
+	Pick a category	범주를 선택하세요
+	Pick a folder	폴더를 선택하세요
+	Say what to look for	찾을 내용을 입력하세요
+	Give the rule a name	규칙에 이름을 지정하세요
 	Search mail (from:, subject:, has:attachment…)	메일 검색 (from:, subject:, has:attachment…)
 	Select a message first.	먼저 메시지를 선택하세요.
 	Send	보내기
@@ -775,6 +780,7 @@
 	Move down	아래로 이동
 	Updating…	업데이트하는 중…
 	All folders are up to date	모든 폴더가 최신 상태입니다
+	1 account disconnected	계정 1개 연결 끊김
 	{n} accounts disconnected	{n}개 계정의 연결이 끊김
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Microsoft로 로그인

@@ -238,6 +238,9 @@ impl MailApp {
                     (t.accent, tl!("Updating…").to_string())
                 } else if connecting {
                     (t.accent, tl!("Connecting…").to_string())
+                } else if failed == 1 {
+                    // One is one: it read "1 accounts disconnected".
+                    (t.warn, tl!("1 account disconnected").to_string())
                 } else if failed > 0 {
                     (t.warn, tf!("{n} accounts disconnected", n = failed))
                 } else if online {

@@ -369,6 +369,8 @@ pub struct UiState {
     fonts_ready: bool,
     /// The messages being written that have been shown, to focus a new one's first field once.
     pub(crate) compose_shown: std::collections::HashSet<u64>,
+    /// Where the message being written beside the list was drawn, and in which pass.
+    pub(crate) compose_area: Option<(u64, egui::Rect)>,
     /// The editors of the messages being written other than the one acting now (`editor`).
     pub(crate) editors: HashMap<u64, rich_edit::Editor>,
     /// The message whose window a dialog for messages belongs to (Save changes, Address Book).
@@ -556,6 +558,7 @@ impl MailApp {
                 source_headers: Default::default(),
                 fonts_ready: false,
                 compose_shown: Default::default(),
+                compose_area: None,
                 editors: HashMap::new(),
                 dialog_for: None,
                 editor: None,

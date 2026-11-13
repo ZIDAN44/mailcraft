@@ -25,7 +25,14 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.set_width(340.0);
             title(ui, t, if copy { "Copy to folder" } else { "Move to folder" });
             let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
-            r.request_focus();
+            // Once, as it opens (it wasn't drawn the frame before), whatever had the keys:
+            // asked for every frame, Tab never left the box.
+            let (shown, now) = (egui::Id::unique("move-to-shown"), ui.ctx().cumulative_pass_nr());
+            let before: Option<u64> = ui.data(|d| d.get_temp(shown));
+            ui.data_mut(|d| d.insert_temp(shown, now));
+            if before.is_none_or(|last| last.saturating_add(2) < now) {
+                r.request_focus();
+            }
             let mut accounts: Vec<String> = s.selected_iter().map(|m| m.key.account.clone()).collect();
             accounts.sort_unstable();
             accounts.dedup();
@@ -49,7 +56,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 for f in &folders {
                     if f.account != of {
                         of = f.account.as_str();
-                        let name = s.account(of).map(|a| a.config.name.clone()).unwrap_or_default();
+                        // By its address, as the folder list names it: the name on its mail
+                        // is the user's own, the same for each of their accounts.
+                        let name = s.account(of).map(|a| a.config.email.clone()).unwrap_or_default();
                         ui.add_space(4.0);
                         ui.label(RichText::new(name).color(t.dim).small());
                     }

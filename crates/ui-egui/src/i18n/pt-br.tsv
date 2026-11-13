@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} anexos salvos em {folder}
 	Saved {path}	Salvo: {path}
 	Search folders	Pesquisar pastas
+	(the rest isn't shown: open the file to see it all)	(o restante não é mostrado: abra o arquivo para ver tudo)
+	Pick a category	Escolha uma categoria
+	Pick a folder	Escolha uma pasta
+	Say what to look for	Diga o que procurar
+	Give the rule a name	Dê um nome à regra
 	Search mail (from:, subject:, has:attachment…)	Pesquisar emails (from:, subject:, has:attachment…)
 	Select a message first.	Selecione uma mensagem primeiro.
 	Send	Enviar
@@ -776,6 +781,7 @@
 	Move down	Mover para baixo
 	Updating…	Atualizando…
 	All folders are up to date	Todas as pastas estão atualizadas
+	1 account disconnected	1 conta desconectada
 	{n} accounts disconnected	{n} contas desconectadas
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Entrar com a Microsoft

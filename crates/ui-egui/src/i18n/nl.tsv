@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} bijlagen opgeslagen in {folder}
 	Saved {path}	{path} opgeslagen
 	Search folders	Mappen zoeken
+	(the rest isn't shown: open the file to see it all)	(de rest wordt niet getoond: open het bestand om alles te zien)
+	Pick a category	Kies een categorie
+	Pick a folder	Kies een map
+	Say what to look for	Geef aan waarnaar moet worden gezocht
+	Give the rule a name	Geef de regel een naam
 	Search mail (from:, subject:, has:attachment…)	Mail zoeken (from:, subject:, has:attachment…)
 	Select a message first.	Selecteer eerst een bericht.
 	Send	Verzenden
@@ -777,6 +782,7 @@ month	May	mei
 	Move down	Omlaag
 	Updating…	Bijwerken…
 	All folders are up to date	Alle mappen zijn bijgewerkt
+	1 account disconnected	1 account niet verbonden
 	{n} accounts disconnected	{n} accounts niet verbonden
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Aanmelden met Microsoft

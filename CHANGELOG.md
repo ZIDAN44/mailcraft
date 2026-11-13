@@ -47,6 +47,10 @@ on GitHub.
 - `mailcraft-cli send` says so at once when a message is held to be checked (`--checked` sends it), and waits for one that's signed first (it said "timed out" after the message had gone).
 - A message with a megabyte of stray `<` opens at once (it took minutes). A file with a Content-ID (a PDF from some invoicing programs) is listed with the message's files; colours written with spaces (`rgb(34, 34, 34)`), a style rule after `@import`, a picture's address written without quotes and the last of two declarations are read.
 - An attached message saved with bare line feeds goes with whole line ends: mail servers refused it.
+- Deleting from Deleted Items asks first wherever it's asked from: a row's bin, the menu, a message's own window and the reading pane didn't. Ctrl+Enter sends only the message being written beside the list, asking about an empty subject as its Send button does, and not from another box beside it.
+- **Move to folder** names other accounts by their address (each had the same name: yours), and Tab leaves its search box. A rule's **Run it now** runs only once the rule is saved, and what the rule dialog asks for is said in your language.
+- File › Info no longer redraws without end with a renewed certificate or key listed, and doesn't offer an expired key for sending.
+- The status bar says "1 account disconnected" for one (it read "1 accounts").
 
 ## 0.37.0 - 2026-11-12
 

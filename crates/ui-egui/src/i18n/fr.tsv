@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} pièces jointes enregistrées dans {folder}
 	Saved {path}	Enregistré : {path}
 	Search folders	Rechercher des dossiers
+	(the rest isn't shown: open the file to see it all)	(le reste n’est pas affiché : ouvrez le fichier pour tout voir)
+	Pick a category	Choisissez une catégorie
+	Pick a folder	Choisissez un dossier
+	Say what to look for	Indiquez ce qu’il faut rechercher
+	Give the rule a name	Donnez un nom à la règle
 	Search mail (from:, subject:, has:attachment…)	Rechercher dans le courrier (from:, subject:, has:attachment…)
 	Select a message first.	Sélectionnez d’abord un message.
 	Send	Envoyer
@@ -776,6 +781,7 @@
 	Move down	Descendre
 	Updating…	Mise à jour…
 	All folders are up to date	Tous les dossiers sont à jour
+	1 account disconnected	1 compte déconnecté
 	{n} accounts disconnected	{n} comptes déconnectés
 	{account}: {status}	{account} : {status}
 	Sign in with Microsoft	Se connecter avec Microsoft

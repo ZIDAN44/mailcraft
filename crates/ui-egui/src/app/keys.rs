@@ -127,6 +127,26 @@ impl MailApp {
             }
             if let Some(spec) = reg.by_shortcut(&combo) {
                 let id = spec.id;
+                // Ctrl+Enter sends the message being written beside the list, as its Send
+                // button does: asked first when it has no subject (the command's own words
+                // came up instead, in English, braces and all), and not while the keys are
+                // the search box's, a dialog's or another part of MailCraft's (it went, half
+                // written, from Calendar or with a search typed).
+                if id == "compose.send" {
+                    // With the keys in the message (or nowhere): not in a box beside it, a
+                    // new task's in the To-Do bar.
+                    let area = self.ui.compose_area.filter(|(pass, _)| pass.saturating_add(3) > ctx.cumulative_pass_nr()).map(|(_, r)| r);
+                    let in_it = ctx.memory(|m| m.focused()).is_none_or(|id| match (area, ctx.read_response(id)) {
+                        (Some(area), Some(r)) => area.contains(r.rect.center()),
+                        _ => true,
+                    });
+                    let here = self.session.module == Module::Mail && !self.ui.search_focused && self.ui.dialog.is_none() && in_it;
+                    let Some(c) = self.session.compose.as_ref().filter(|c| here && !c.sending && compose_inline(c, ctx)) else { continue };
+                    if c.subject.trim().is_empty() && self.session.compose_send_block().is_none() {
+                        self.ui.dialog = Some(Dialog::EmptySubject);
+                        continue;
+                    }
+                }
                 if id == "search.run" {
                     continue;
                 }
@@ -158,15 +178,14 @@ impl MailApp {
                 }
             }
         }
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(Key::Enter)) && self.session.compose.is_some() {
-            self.run("compose.send", json!({}));
-        }
     }
 
     /// Deleting from Deleted Items is permanent: ask first.
     pub fn needs_delete_confirm(&self) -> bool {
         self.session.prefs.confirm_permanent_delete
             && !self.session.selection.is_empty()
+            // (One whose message is in the list: a message's own window may show one that isn't.)
+            && self.session.selected_iter().next().is_some()
             && self.session.selected_iter().all(|m| {
                 self.session
                     .account(&m.key.account)

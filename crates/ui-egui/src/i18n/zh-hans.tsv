@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	已将 {n} 个附件保存到 {folder}
 	Saved {path}	已保存 {path}
 	Search folders	搜索文件夹
+	(the rest isn't shown: open the file to see it all)	（其余部分未显示：打开文件可查看全部）
+	Pick a category	请选择类别
+	Pick a folder	请选择文件夹
+	Say what to look for	请填写要查找的内容
+	Give the rule a name	请为规则命名
 	Search mail (from:, subject:, has:attachment…)	搜索邮件 (from:, subject:, has:attachment…)
 	Select a message first.	请先选择一封邮件。
 	Send	发送
@@ -778,6 +783,7 @@ month	May	5月
 	Move down	下移
 	Updating…	正在更新…
 	All folders are up to date	所有文件夹都是最新的
+	1 account disconnected	1 个帐户已断开连接
 	{n} accounts disconnected	{n} 个帐户已断开连接
 	{account}: {status}	{account}:{status}
 	Sign in with Microsoft	使用 Microsoft 登录

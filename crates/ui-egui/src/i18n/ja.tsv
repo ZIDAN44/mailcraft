@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} 個の添付ファイルを {folder} に保存しました
 	Saved {path}	{path} を保存しました
 	Search folders	フォルダーを検索
+	(the rest isn't shown: open the file to see it all)	(残りは表示されていません。すべて見るにはファイルを開いてください)
+	Pick a category	分類を選んでください
+	Pick a folder	フォルダーを選んでください
+	Say what to look for	探す内容を入力してください
+	Give the rule a name	ルールに名前を付けてください
 	Search mail (from:, subject:, has:attachment…)	メールを検索 (from:, subject:, has:attachment…)
 	Select a message first.	先にメッセージを選択してください。
 	Send	送信
@@ -778,6 +783,7 @@ month	May	5月
 	Move down	下へ移動
 	Updating…	更新しています…
 	All folders are up to date	すべてのフォルダーが最新です
+	1 account disconnected	1 個のアカウントが切断されています
 	{n} accounts disconnected	{n} 個のアカウントが切断されています
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Microsoft でサインイン

@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	حُفظت {n} مرفقات في {folder}
 	Saved {path}	حُفظ {path}
 	Search folders	البحث في المجلدات
+	(the rest isn't shown: open the file to see it all)	(الباقي غير معروض: افتح الملف لرؤيته كاملًا)
+	Pick a category	اختر فئة
+	Pick a folder	اختر مجلدًا
+	Say what to look for	اذكر ما يُبحث عنه
+	Give the rule a name	أعطِ القاعدة اسمًا
 	Search mail (from:, subject:, has:attachment…)	البحث في البريد (from:، subject:، has:attachment…)
 	Select a message first.	اختر رسالة أولًا.
 	Send	إرسال
@@ -777,6 +782,7 @@ month	May	مايو
 	Move down	نقل لأسفل
 	Updating…	جارٍ التحديث…
 	All folders are up to date	كل المجلدات محدّثة
+	1 account disconnected	حساب واحد غير متصل
 	{n} accounts disconnected	{n} حسابات غير متصلة
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	تسجيل الدخول باستخدام Microsoft

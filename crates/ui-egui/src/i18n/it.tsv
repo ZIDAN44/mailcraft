@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	{n} allegati salvati in {folder}
 	Saved {path}	Salvato {path}
 	Search folders	Cerca cartelle
+	(the rest isn't shown: open the file to see it all)	(il resto non è mostrato: apri il file per vederlo tutto)
+	Pick a category	Scegli una categoria
+	Pick a folder	Scegli una cartella
+	Say what to look for	Indica che cosa cercare
+	Give the rule a name	Dai un nome alla regola
 	Search mail (from:, subject:, has:attachment…)	Cerca nella posta (from:, subject:, has:attachment…)
 	Select a message first.	Seleziona prima un messaggio.
 	Send	Invia
@@ -775,6 +780,7 @@
 	Move down	Sposta giù
 	Updating…	Aggiornamento…
 	All folders are up to date	Tutte le cartelle sono aggiornate
+	1 account disconnected	1 account disconnesso
 	{n} accounts disconnected	{n} account disconnessi
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	Accedi con Microsoft

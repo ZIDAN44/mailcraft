@@ -516,7 +516,8 @@ impl Dialog {
         }
         let mut text = get("text");
         if v.get("truncated").and_then(serde_json::Value::as_bool).unwrap_or(false) {
-            text.push_str("\n… (the rest isn't shown: open the file to see it all)");
+            text.push_str("\n… ");
+            text.push_str(tl!("(the rest isn't shown: open the file to see it all)"));
         }
         let title = if get("kind") == "message" && !get("subject").is_empty() { get("subject") } else { get("name") };
         let warning = v.get("warning").and_then(|w| serde_json::from_value(w.clone()).ok());

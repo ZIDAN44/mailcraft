@@ -57,22 +57,27 @@ fn older(s: &Session, t: &Tokens, ui: &mut Ui, id: &str, acts: &mut Vec<Action>)
         } else {
             tf!("Valid until {date}: signs mail from {addresses}", date = until(s, cert.not_after), addresses = signs.join(", "))
         };
-        setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
-            if ui
-                .button(RichText::new(tl!("Remove")).color(t.danger))
-                .on_hover_text(tl!("Forget this certificate: mail encrypted to it can't be read any more"))
-                .clicked()
-            {
-                acts.push(Action::Run("security.forget", json!({"account": id, "older": cert.fingerprint})));
-            }
-            if cert.not_after >= s.clock.now
-                && ui
-                    .button(tl!("Use for sending"))
-                    .on_hover_text(tl!("Sign and encrypt with this one again; the one in use is kept for reading"))
+        // Each by its own certificate: a renewed one names the same address as the one in use
+        // (the row's label), and the two rows, taking each other's measures, were laid out
+        // anew every frame for as long as the page was open.
+        ui.push_id(("older-certificate", &cert.fingerprint), |ui| {
+            setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
+                if ui
+                    .button(RichText::new(tl!("Remove")).color(t.danger))
+                    .on_hover_text(tl!("Forget this certificate: mail encrypted to it can't be read any more"))
                     .clicked()
-            {
-                acts.push(Action::Run("security.useOlder", json!({"account": id, "older": cert.fingerprint})));
-            }
+                {
+                    acts.push(Action::Run("security.forget", json!({"account": id, "older": cert.fingerprint})));
+                }
+                if cert.not_after >= s.clock.now
+                    && ui
+                        .button(tl!("Use for sending"))
+                        .on_hover_text(tl!("Sign and encrypt with this one again; the one in use is kept for reading"))
+                        .clicked()
+                {
+                    acts.push(Action::Run("security.useOlder", json!({"account": id, "older": cert.fingerprint})));
+                }
+            });
         });
     }
 }

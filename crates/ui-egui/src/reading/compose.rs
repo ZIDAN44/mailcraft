@@ -326,6 +326,9 @@ pub fn compose_window(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
 
 pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, in_window: bool) {
     let t = st.tokens;
+    if !in_window {
+        st.compose_area = Some((ui.ctx().cumulative_pass_nr(), ui.max_rect()));
+    }
     attach_dropped(ui, &t, acts);
     // Where there are no windows of their own (the browser), the other messages being written
     // are a click away above this one.

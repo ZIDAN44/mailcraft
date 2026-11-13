@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	已將 {n} 個附件儲存到 {folder}
 	Saved {path}	已儲存 {path}
 	Search folders	搜尋資料夾
+	(the rest isn't shown: open the file to see it all)	（其餘部分未顯示：開啟檔案即可檢視全部）
+	Pick a category	請選擇類別
+	Pick a folder	請選擇資料夾
+	Say what to look for	請填寫要尋找的內容
+	Give the rule a name	請為規則命名
 	Search mail (from:, subject:, has:attachment…)	搜尋郵件 (from:, subject:, has:attachment…)
 	Select a message first.	請先選擇一封郵件。
 	Send	傳送
@@ -775,6 +780,7 @@
 	Move down	下移
 	Updating…	正在更新…
 	All folders are up to date	所有資料夾都是最新的
+	1 account disconnected	1 個帳戶已中斷連線
 	{n} accounts disconnected	{n} 個帳戶已中斷連線
 	{account}: {status}	{account}:{status}
 	Sign in with Microsoft	使用 Microsoft 登入

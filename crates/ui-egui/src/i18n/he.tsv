@@ -250,6 +250,11 @@
 	Saved {n} attachments in {folder}	נשמרו {n} קבצים מצורפים ב-{folder}
 	Saved {path}	נשמר {path}
 	Search folders	חפש תיקיות
+	(the rest isn't shown: open the file to see it all)	(השאר אינו מוצג: פתח את הקובץ כדי לראות הכול)
+	Pick a category	בחר קטגוריה
+	Pick a folder	בחר תיקייה
+	Say what to look for	ציין מה לחפש
+	Give the rule a name	תן שם לכלל
 	Search mail (from:, subject:, has:attachment…)	חפש בדואר (from:, subject:, has:attachment…)
 	Select a message first.	בחר הודעה קודם.
 	Send	שלח
@@ -777,6 +782,7 @@ month	May	מאי
 	Move down	העבר למטה
 	Updating…	מעדכן…
 	All folders are up to date	כל התיקיות מעודכנות
+	1 account disconnected	חשבון אחד מנותק
 	{n} accounts disconnected	{n} חשבונות מנותקים
 	{account}: {status}	{account}: {status}
 	Sign in with Microsoft	כניסה עם Microsoft

@@ -126,6 +126,12 @@ impl MailApp {
                 Ok(v) => self.ui.raise_source = v.get("key").and_then(Value::as_str).and_then(MessageKey::from_id),
                 Err(e) => self.session.notice(e.to_string(), true),
             },
+            // Deleting from Deleted Items is for good: asked first wherever it's asked from
+            // (a row's bin, the menu, a message's own window and the reading pane's button
+            // didn't, one slip from Flag).
+            Action::Run("mail.delete", p) if p.get("permanent").is_none() && self.needs_delete_confirm() => {
+                self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
+            }
             Action::Run(id, p) => {
                 // A Search Folder isn't a search typed in: the box is left empty.
                 if matches!(id, "search.clear" | "searchFolder.open") {
@@ -365,6 +371,12 @@ impl MailApp {
                         self.ui.search_text.clear();
                     }
                     self.ui.dialog = None;
+                    // A rule saved to be run now: run, now that it is.
+                    if id == "rules.set"
+                        && let Some(at) = p.get("runNow").and_then(Value::as_u64)
+                    {
+                        self.run("rules.run", json!({"index": at, "inbox": true}));
+                    }
                 }
                 Err(e) => {
                     if let Some(d) = self.ui.dialog.as_mut() {
