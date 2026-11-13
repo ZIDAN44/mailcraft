@@ -17,14 +17,14 @@
 	Added to new messages, replies and forwards.	מתווספת להודעות חדשות, לתשובות ולהעברות.
 	All	הכול
 	All Inboxes	כל תיבות הדואר הנכנס
-	All Sent	כל הנשלחים
-	All caught up: nothing in this folder.	הכול מעודכן: אין כלום בתיקייה הזו.
+	All Sent	כל הפריטים שנשלחו
+	All caught up: nothing in this folder.	הכול מעודכן: אין הודעות בתיקייה הזו.
 	All folders	כל התיקיות
 	Always show from {sender}	הצג תמיד מ-{sender}
 	Apr	אפר׳
 	Archive	ארכיון
 	Archive (Backspace)	העבר לארכיון (Backspace)
-	Ask before deleting for good	שאל לפני מחיקה לצמיתות
+	Ask before deleting for good	בקשת אישור לפני מחיקה לצמיתות
 	At the top of {account}	בראש {account}
 	Attach file	צירוף קובץ
 	Audio	שמע
@@ -75,9 +75,9 @@
 	Favorites	מועדפים
 	Feb	פבר׳
 	File	קובץ
-	Flag	סימון
-	Flag / Unflag (Insert)	סמן / בטל סימון (Insert)
-	Flagged	מסומנים
+	Flag	סימון בדגל
+	Flag / Unflag (Insert)	סימון בדגל / הסרת דגל (Insert)
+	Flagged	מסומנים בדגל
 	Focused	ממוקד
 	Focused Inbox	תיבת דואר נכנס ממוקדת
 	Focused Inbox: put newsletters and automatic mail in Other	תיבת דואר נכנס ממוקדת: העבר ידיעונים ודואר אוטומטי ל„אחר”
@@ -164,17 +164,17 @@
 	New category…	קטגוריה חדשה…
 	New folder	תיקייה חדשה
 	New folder…	תיקייה חדשה…
-	New mail	דואר חדש
-	New mail (Ctrl+N)	דואר חדש (Ctrl+N)
+	New mail	הודעה חדשה
+	New mail (Ctrl+N)	הודעה חדשה (Ctrl+N)
 	New rule	כלל חדש
 	New rule…	כלל חדש…
 	Next week	השבוע הבא
-	No published settings: the usual server names are filled in. Check them under Server settings.	אין הגדרות מפורסמות: מולאו שמות השרתים הרגילים. בדוק אותם בהגדרות השרת.
-	No results. Try fewer words, or search all folders.	אין תוצאות. נסה פחות מילים, או חפש בכל התיקיות.
+	No published settings: the usual server names are filled in. Check them under Server settings.	לא פורסמו הגדרות אוטומטיות לחשבון: מולאו שמות שרתים נפוצים. בדוק אותם בהגדרות השרת.
+	No results. Try fewer words, or search all folders.	אין תוצאות. אפשר לצמצם את מילות החיפוש או לחפש בכל התיקיות.
 	No rules yet.	אין עדיין כללים.
 	None (unsafe)	ללא (לא מאובטח)
 	Not an email address: {address}	לא כתובת דואר אלקטרוני: {address}
-	Not junk	לא זבל
+	Not junk	לא דואר זבל
 	Not sent: {error}	לא נשלח: {error}
 	Nothing matches this filter.	שום דבר לא תואם את המסנן.
 	Nov	נוב׳
@@ -222,7 +222,7 @@
 	Reply (Ctrl+R)	השב (Ctrl+R)
 	Reply all	השב לכולם
 	Reply all (Ctrl+Shift+R)	השב לכולם (Ctrl+Shift+R)
-	Report junk	דווח כזבל
+	Report junk	דווח כדואר זבל
 	Results for “{query}”	תוצאות עבור „{query}”
 	Right	ימין
 	Rules	כללים
@@ -244,7 +244,7 @@
 	Save draft	שמור טיוטה
 	Save draft (Ctrl+S)	שמור טיוטה (Ctrl+S)
 	Saved in the Outbox: it will be sent when you're back online	נשמר בדואר היוצא: יישלח כשתחזור להיות מחובר
-	Saved {n} attachments in {folder}	נשמרו {n} קבצים מצורפים ב-{folder}
+	Saved {n} attachments in {folder}	נשמרו {n} קבצים מצורפים בתיקייה {folder}
 	Saved {path}	נשמר {path}
 	Search folders	חפש תיקיות
 	Search mail (from:, subject:, has:attachment…)	חפש בדואר (from:, subject:, has:attachment…)
@@ -268,7 +268,7 @@
 	Keep MailCraft running when its window is closed	להשאיר את MailCraft פועל כשהחלון שלו נסגר
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	הוא נשאר באזור ההודעות, בודק דואר ומודיע עליו. ”יציאה“ בדף ”קובץ“, או בתפריט של הסמל שלו, סוגרת אותו.
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	החלון שלו ממוזער, ו־MailCraft ממשיך לבדוק דואר ולהודיע עליו. ”יציאה“ בדף ”קובץ“ סוגרת אותו.
-	Open MailCraft	פתיחת MailCraft
+	Open MailCraft	פתח את MailCraft
 	Show as plain text	הצג כטקסט רגיל
 	Show formatted	הצג מעוצב
 	Show in Favorites	הצג במועדפים
@@ -281,7 +281,7 @@
 	Sign in with {provider}	היכנס באמצעות {provider}
 	Signature	חתימה
 	Signature…	חתימה…
-	Snooze	נודניק
+	Snooze	הזכר שוב מאוחר יותר
 	Stop showing pictures from this sender	הפסק להציג תמונות מהשולח הזה
 	Strikethrough	קו חוצה
 	Subject	נושא
@@ -318,7 +318,7 @@
 	Tue	ג׳
 	Tuesday	יום שלישי
 	Two weeks ago	לפני שבועיים
-	Unflag	בטל סימון
+	Unflag	הסרת דגל
 	Unpin	בטל הצמדה
 	Unread	לא נקראו
 	Unread: {n}	לא נקראו: {n}
@@ -380,7 +380,7 @@
 	Checking with the server…	בודק מול השרת…
 	Compact list	רשימה צפופה
 	Don't send automatic replies	אל תשלח תשובות אוטומטיות
-	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	כל שולח מקבל תשובה אחת ביום כל עוד הן פעילות. הן נשמרות בשרת הדואר שלך, כך שהן פועלות גם כשהמחשב כבוי.
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	כל שולח מקבל תשובה אחת ביום בזמן שהתשובות האוטומטיות מופעלות. ההגדרות נשמרות בשרת הדואר, ולכן התשובות נשלחות גם כשהמחשב כבוי.
 	Empty	רוקן
 	Empty Deleted Items…	רוקן פריטים שנמחקו…
 	Empty Junk Email…	רוקן דואר זבל…
@@ -419,10 +419,10 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	העיצוב, הצבעים והתמונות מושמטים. „הצג מעוצב”, מעל הודעה, מציג אותה כפי שנשלחה.
 	Show mail without its formatting	הצג דואר ללא העיצוב שלו
 	Show a line of each message in the list	הצג שורה מכל הודעה ברשימה
-	Sort new mail as it arrives: move it, flag it, categorize it.	מיין דואר חדש כשהוא מגיע: העבר אותו, סמן אותו, סווג אותו.
-	Source code and issues	קוד מקור ובעיות
+	Sort new mail as it arrives: move it, flag it, categorize it.	מיון הודעות חדשות עם הגעתן: העברה, סימון בדגל ושיוך לקטגוריה.
+	Source code and issues	קוד מקור ודיווחי תקלות
 	Subject (optional)	נושא (לא חובה)
-	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	ספר לאנשים שאתה לא זמין: כל שולח מקבל תשובה אחת כל עוד הן פעילות, גם כשהמחשב כבוי.
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	הודע שאינך זמין: כל שולח יקבל תשובה אחת בזמן שהתשובות האוטומטיות מופעלות, גם כשהמחשב כבוי.
 	The server doesn't say how much space is used.	השרת לא מציין כמה מקום בשימוש.
 	Until	עד
 	{free} free of {total}	{free} פנויים מתוך {total}
@@ -474,7 +474,7 @@
 	Next month	החודש הבא
 	No answer yet	עדיין אין תשובה
 	No contacts yet.	אין עדיין אנשי קשר.
-	No one matches.	אף אחד לא תואם.
+	No one matches.	לא נמצאו אנשים מתאימים.
 	Notes	הערות
 	November	נובמבר
 	October	אוקטובר
@@ -513,7 +513,7 @@
 	Open & Export	פתיחה וייצוא
 	Open data file	פתח קובץ נתונים
 	Open Outlook data file	פתח קובץ נתונים של Outlook
-	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	הבא את הדואר מקובץ נתונים של Outlook ‏(.pst). הוא נפתח כתיבת דואר נפרדת, עם התיקיות שלו, ונשמר במחשב הזה.
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	ייבוא הודעות מקובץ נתונים של Outlook ‏(.pst). ההודעות ייפתחו בתיבת דואר נפרדת עם התיקיות שלה, ויישמרו במחשב.
 	Open now: {files}	פתוח עכשיו: {files}
 	Outlook data file	קובץ נתונים של Outlook
 	Opened from an Outlook data file, kept on this computer only	נפתח מקובץ נתונים של Outlook, שמור רק במחשב הזה
@@ -572,7 +572,7 @@
 	Exporting to {file}…	מייצא אל {file}…
 	Export	ייצוא
 	Export to Outlook data file	ייצוא לקובץ נתונים של Outlook
-	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	כתוב את הדואר של חשבון, עם התיקיות שלו, לקובץ נתונים של Outlook ‏(.pst) ש-Outlook ואפליקציות דואר אחרות יכולות לפתוח.
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	ייצוא הודעות החשבון ותיקיותיו לקובץ נתונים של Outlook ‏(.pst), שאפשר לפתוח ב־Outlook וביישומי דואר אחרים.
 folder	Archive	ארכיון
 month	May	מאי
 	Exchange server (EWS)	שרת Exchange ‏(EWS)
@@ -617,7 +617,7 @@ month	May	מאי
 	500 KB to 1 MB	500 KB עד 1 MB
 	1 to 5 MB	1 עד 5 MB
 	Over 5 MB	יותר מ-5 MB
-	Not flagged	לא מסומן
+	Not flagged	לא מסומנים בדגל
 	With attachments	עם קבצים מצורפים
 	Without attachments	ללא קבצים מצורפים
 	(nobody)	(אף אחד)
@@ -627,7 +627,7 @@ month	May	מאי
 	Work offline	עבוד במצב לא מקוון
 	Working offline	עובד במצב לא מקוון
 	Close every connection: changes, mail you send and drafts wait on this computer	סגור את כל החיבורים: שינויים, דואר שאתה שולח וטיוטות ממתינים במחשב הזה
-	Undo (Ctrl+Z)	בטל (Ctrl+Z)
+	Undo (Ctrl+Z)	ביטול פעולה (Ctrl+Z)
 	Filter	סינון
 	Categorized	מסווג
 	To or Cc me	אליי או עותק אליי
@@ -676,12 +676,12 @@ month	May	מאי
 	{folder} Properties	מאפייני {folder}
 	Size on this computer	גודל במחשב זה
 	Quick print	הדפסה מהירה
-	Always move to Focused	העבר תמיד למיקוד
-	Always move to Other	העבר תמיד לאחר
+	Always move to Focused	העבר תמיד אל „ממוקד”
+	Always move to Other	העבר תמיד אל „אחר”
 	Follow up	מעקב
 	No date	ללא תאריך
 	Mark complete	סמן כהושלם
-	Clear flag	נקה דגל
+	Clear flag	הסר סימון בדגל
 	This week	השבוע
 	Follow up.	מעקב.
 	Follow up. Due today.	מעקב. היעד היום.
@@ -695,7 +695,7 @@ month	May	מאי
 	Don't send before	אל תשלח לפני
 	Have replies sent to another address	שלח תשובות לכתובת אחרת
 	Held in the Outbox: it will be sent {when}.	מוחזקת בתיבת הדואר היוצא: תישלח ב-{when}.
-	Keep it in the Outbox and send it later (MailCraft has to be running then)	השאר בתיבת הדואר היוצא ושלח מאוחר יותר (MailCraft צריך לפעול אז)
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	שמירת ההודעה בתיבת הדואר היוצא ושליחתה מאוחר יותר (MailCraft חייב לפעול בזמן השליחה)
 	Replies to	תשובות אל
 	Send right away	שלח מיד
 	Sends {when}	נשלחת ב-{when}
@@ -714,7 +714,7 @@ month	May	מאי
 	pin	הצמד
 	to “{text}”	אל „{text}”
 	Add a place	הוסף מקום
-	Add at least one name in To, Cc or Bcc before sending.	הוסף לפחות שם אחד בשדה 'אל', 'עותק' או 'עותק מוסתר' לפני השליחה.
+	Add at least one name in To, Cc or Bcc before sending.	יש להזין לפחות נמען אחד בשדה אל, עותק או עותק מוסתר לפני השליחה.
 	Edit link	ערוך קישור
 	Edit link…	ערוך קישור…
 	First and last name	שם פרטי ושם משפחה
@@ -748,7 +748,7 @@ month	May	מאי
 	Full name	שם מלא
 	Search notes	חפש פתקים
 	{n} notes	{n} פתקים
-	No notes yet: New note starts one.	אין עדיין פתקים: 'פתק חדש' מתחיל אחד.
+	No notes yet: New note starts one.	אין עדיין פתקים. כדי ליצור פתק, בחרו ״פתק חדש״.
 	No note matches.	אין פתק תואם.
 	Write your note…	כתוב את הפתק…
 	Blue	כחול
@@ -955,9 +955,9 @@ month	May	מאי
 	0 minutes before start	0 דקות לפני ההתחלה
 	1 Reminder	תזכורת אחת
 	{n} Reminders	{n} תזכורות
-	Click Snooze to be reminded again in:	לחץ על 'נודניק' כדי לקבל תזכורת שוב בעוד:
-	Dismiss	בטל
-	Dismiss All	בטל הכל
+	Click Snooze to be reminded again in:	לחצו על „הזכר שוב מאוחר יותר” כדי לקבל תזכורת נוספת בעוד:
+	Dismiss	סגור
+	Dismiss All	סגור הכול
 	Open Item	פתח פריט
 	Overdue	באיחור
 	Now	עכשיו
@@ -970,9 +970,9 @@ month	May	מאי
 	Block sender	חסום שולח
 	Never block sender	לעולם אל תחסום את השולח
 	Never block sender's domain	לעולם אל תחסום את תחום השולח
-	Their mail goes to Junk Email from now on	הדואר שלו יעבור לדואר זבל מעכשיו
-	Their mail is never treated as junk	הדואר שלו לעולם לא ייחשב כזבל
-	Mail from anyone at their domain is never treated as junk	דואר מכל אחד בתחום שלו לעולם לא ייחשב כזבל
+	Their mail goes to Junk Email from now on	מעתה הודעות מהשולח יעברו לדואר זבל
+	Their mail is never treated as junk	הודעות מהשולח לא יסווגו כדואר זבל
+	Mail from anyone at their domain is never treated as junk	הודעות מכל כתובת בתחום של השולח לא יסווגו כדואר זבל
 	Blocked senders	שולחים חסומים
 	Safe senders	שולחים בטוחים
 	Mail from these addresses and domains goes to Junk Email as it arrives.	דואר מכתובות ותחומים אלה עובר לדואר זבל עם הגעתו.
@@ -980,7 +980,7 @@ month	May	מאי
 	name@example.com or @example.com	name@example.com או ‎@example.com
 	And {n} more	ועוד {n}
 	Clean up conversation	נקה שיחה
-	Clean up folder	נקה תיקיה
+	Clean up folder	נקה תיקייה
 	Messages quoted in full by a later reply go to Deleted Items	הודעות שמצוטטות במלואן בתשובה מאוחרת יותר עוברות לפריטים שנמחקו
 	Work week	שבוע עבודה
 	No conversations to clean up	אין שיחות לניקוי
@@ -991,7 +991,7 @@ month	May	מאי
 	Edit Search Folder	ערוך תיקיית חיפוש
 	Customize this Search Folder…	התאם אישית תיקיית חיפוש זו…
 	Delete Search Folder	מחק תיקיית חיפוש
-	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	מציג את הדואר שנמצא בכל תיקיה, למעט פריטים שנמחקו ודואר זבל.
+	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	מציג דואר שנמצא בכל תיקייה, למעט פריטים שנמחקו ודואר זבל.
 	Show	הצג
 	From these people (addresses or names, separated by commas)	מאנשים אלה (כתובות או שמות, מופרדים בפסיקים)
 	Search for	חפש
@@ -1175,7 +1175,7 @@ month	May	מאי
 	the certificate is in another computer's certificate store	התעודה נמצאת במאגר התעודות של מחשב אחר
 	Or use one this computer has	או שימוש בתעודה שיש במחשב הזה
 	On a smart card, or kept by the system: the key stays where it is.	על כרטיס חכם, או שמור במערכת: המפתח נשאר במקומו.
-	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows אינו יכול להסכים על מפתח עם מפתח ה־EC הזה (ייתכן שהספק שלו שומר אותו לחתימה בלבד)
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows אינו יכול לגזור מפתח משותף באמצעות מפתח ה־EC הזה (ייתכן שהספק שלו מאפשר שימוש בו לחתימה בלבד)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	נותרו לכרטיס מעט ניסיונות PIN, ולכן MailCraft לא ינסה: הזן שוב את ה־PIN (קובץ › מידע › אבטחה › שימוש בכרטיס חכם…)
 	the list holds only what changed since another one	הרשימה מכילה רק את מה שהשתנה מאז רשימה אחרת
 	the list covers only some certificates or reasons	הרשימה מכסה רק חלק מהתעודות או מהסיבות
@@ -1193,7 +1193,7 @@ month	May	מאי
 	It installs the next time you close MailCraft.	הוא יותקן בפעם הבאה שתסגור את MailCraft.
 	It installs when you close MailCraft.	הוא יותקן כשתסגור את MailCraft.
 	Keep MailCraft open	להשאיר את MailCraft פתוח
-	MailCraft {version} is downloading.	MailCraft {version} מורד.
+	MailCraft {version} is downloading.	ההורדה של MailCraft {version} מתבצעת.
 	MailCraft {version} is ready	MailCraft {version} מוכן
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} מוכן. הפעל מחדש עכשיו כדי להתקין אותו, או שהוא יותקן כשתסגור את MailCraft.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	הפעל מחדש את MailCraft כדי להתקין אותו עכשיו, או שהוא יותקן כשתסגור את MailCraft.
@@ -1204,9 +1204,9 @@ month	May	מאי
 	The system asks for your password to install it.	המערכת תבקש את הסיסמה שלך כדי להתקין אותו.
 	Your software installer opens to install it.	מתקין התוכנות שלך ייפתח כדי להתקין אותו.
 	An update is still downloading	עדכון עדיין בהורדה
-	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} מורד ({done} מתוך {total}).
+	MailCraft {version} is downloading ({done} of {total}).	ההורדה של MailCraft {version} מתבצעת ({done} מתוך {total}).
 	Add another…	הוסף עוד…
-	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	אישור מחודש מקבל את החתימה וההצפנה; הישן נשמר לקריאת דואר קודם
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	תעודה מחודשת תשמש לחתימה ולהצפנה; התעודה הקודמת תישמר לקריאת דואר ישן
 	Older certificate, valid until {date}: kept to read mail encrypted to it	אישור קודם, בתוקף עד {date}: נשמר לקריאת דואר שהוצפן עבורו
 	Use for sending	שימוש לשליחה
 	Sign and encrypt with this one again; the one in use is kept for reading	לחתום ולהצפין שוב עם אישור זה; האישור שבשימוש נשמר לקריאה
@@ -1217,7 +1217,7 @@ month	May	מאי
 	Contacts server (CardDAV)	שרת אנשי קשר (CardDAV)
 	Calendars at {url}	לוחות שנה בכתובת {url}
 	Calendars come from a server of their own: give its address and sign-in	לוחות השנה נמצאים בשרת נפרד: יש להזין את כתובתו ואת פרטי הכניסה
-	Looked for when the account syncs	יחופש כשהחשבון מסתנכרן
+	Looked for when the account syncs	החיפוש יתבצע בעת סנכרון החשבון
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft מחפש את לוחות השנה ואנשי הקשר שלך בשרת של ספק הדואר. אם הם לא נמצאים, יש להזין את הכתובות מדפי העזרה של הספק; שדה שיישאר ריק ימשיך להיות מחופש.
 	No calendars were found at the address given: check it, and its sign-in	לא נמצאו לוחות שנה בכתובת שהוזנה: יש לבדוק אותה ואת פרטי הכניסה
 	Password (kept: type to change it)	סיסמה (שמורה: יש להקליד כדי לשנות)
@@ -1293,7 +1293,7 @@ month	May	מאי
 	Write replies and forwards in a window of their own	כתיבת תשובות והעברות בחלון משלהן
 	Show Favorites at the top of the folder pane	הצגת מועדפים בראש חלונית התיקיות
 	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	הודעות שעדיין נשלחות: {n}. ייתכן שלא יישלחו אם MailCraft ייסגר עכשיו: המתן רגע, או סגור בכל זאת.
-	Add meeting invitations to the calendar as tentative when they arrive	הוספת הזמנות לפגישות ללוח השנה כטנטטיביות כשהן מגיעות
+	Add meeting invitations to the calendar as tentative when they arrive	הוסף הזמנות לפגישות ללוח השנה כלא סופיות עם קבלתן
 	Before they're answered; nothing is sent until you answer	לפני שעונים עליהן; דבר אינו נשלח עד שתענה
 	View message source	הצג את מקור ההודעה
 	{n} messages selected	הודעות שנבחרו: {n}
@@ -1403,9 +1403,9 @@ month	May	מאי
 	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft נפתח בלעדיהם; כל חשבון יציין מה הבעיה כשתשתמש בו.
 	Continue	המשך
 	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft לא הצליח לפתוח את קובצי הנתונים, ולכן הפעם הוא פועל ללא מטמון הדואר.
-	Indexing {percent}%	אינדוקס {percent}%
-	Indexing…	מאנדקס…
-	Making your mail searchable: {done} of {total} messages	הדואר שלך מוכן לחיפוש: {done} מתוך {total} הודעות
+	Indexing {percent}%	מתבצע אינדוקס: {percent}%
+	Indexing…	מבצע אינדוקס…
+	Making your mail searchable: {done} of {total} messages	מכין את הדואר לחיפוש: {done} מתוך {total} הודעות
 	Searching…	מחפש…
 	Some results may be missing: still indexing ({percent}%)	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע ({percent}%)
 	Some results may be missing: still indexing	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע
@@ -1420,7 +1420,7 @@ month	May	מאי
 	Close MailCraft	לסגור את MailCraft
 	Contacts: {n}	אנשי קשר: {n}
 	Continue importing	להמשיך בייבוא
-	Counting items…	סופרים פריטים…
+	Counting items…	מתבצעת ספירת פריטים…
 	Data: {done} of {total}	נתונים: {done} מתוך {total}
 	Folder: {folder} ({n} of {total})	תיקייה: {folder} ({n} מתוך {total})
 	Free there: {free}	פנוי שם: {free}
