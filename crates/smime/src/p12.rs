@@ -2,11 +2,15 @@
 //! Read by `p12-keystore`, which checks the file's MAC with the password and opens PBES2 (PBKDF2
 //! with AES, what OpenSSL 3 and newer Firefox write) and the older SHA-1 3DES and RC2-40 bags
 //! (Windows' default export, older Firefox, `openssl -legacy`).
+//!
+//! It reads DER only, and Firefox and Thunderbird write BER (issue #89): every length left open,
+//! the contents cut into pieces. Those are rewritten as DER first ([`crate::ber`]).
 
 use der::{Decode, Encode};
+use p12_keystore::{KeyStore, error::Error as StoreError};
 use x509_cert::Certificate;
 
-use crate::{Error, Identity, cert, oids};
+use crate::{Error, Identity, ber, cert, oids};
 
 /// The largest certificate file read.
 const P12_MAX: usize = 1 << 20;
@@ -18,7 +22,7 @@ pub fn read_p12(bytes: &[u8], password: &str) -> Result<Identity, Error> {
     if bytes.len() > P12_MAX {
         return Err(Error::Malformed("too big for a certificate file"));
     }
-    let store = p12_keystore::KeyStore::from_pkcs12(bytes, password).map_err(|_| Error::Password)?;
+    let store = open(bytes, password)?;
     let mut found: Vec<Identity> = Vec::new();
     for (_, entry) in store.entries() {
         let p12_keystore::KeyStoreEntry::PrivateKeyChain(c) = entry else { continue };
@@ -29,6 +33,48 @@ pub fn read_p12(bytes: &[u8], password: &str) -> Result<Identity, Error> {
     // The one for email first, when there are several.
     found.sort_by_key(|id| !cert::parse(id.certificate()).is_ok_and(|c| !cert::emails(&c).is_empty()));
     found.into_iter().next().ok_or(Error::NoKey)
+}
+
+/// The file opened with `password`: as it is when it's DER (OpenSSL, Windows), and rewritten as
+/// DER when it's BER (Firefox, Thunderbird and what else is built on NSS).
+fn open(bytes: &[u8], password: &str) -> Result<KeyStore, Error> {
+    match KeyStore::from_pkcs12(bytes, password) {
+        Ok(store) => return Ok(store),
+        // Not DER: BER, perhaps.
+        Err(StoreError::DerError(_)) => {}
+        Err(e) => return Err(refused(&e)),
+    }
+    // The outside as DER. What the file's check (its MAC) covers is inside an OCTET STRING,
+    // whose bytes stay as they were written.
+    let outer = ber::to_der(bytes).map_err(|_| Error::NotCertificateFile)?;
+    pkcs12::pfx::Pfx::from_der(&outer).map_err(|_| Error::NotCertificateFile)?;
+    match KeyStore::from_pkcs12(&outer, password) {
+        Ok(store) => return Ok(store),
+        // The outside is read (just above, as the library reads it), so this is the inside,
+        // which is read only after the password has been checked against the file: it's BER too.
+        Err(StoreError::DerError(_)) => {}
+        Err(e) => return Err(refused(&e)),
+    }
+    // The inside as DER too. The check no longer fits it, and has been made: it's left out.
+    let whole = ber::p12_to_der(bytes).map_err(|_| Error::NotCertificateFile)?;
+    let mut pfx = pkcs12::pfx::Pfx::from_der(&whole).map_err(|_| Error::NotCertificateFile)?;
+    pfx.mac_data = None;
+    KeyStore::from_pkcs12(&pfx.to_der().map_err(|_| Error::NotCertificateFile)?, password).map_err(|e| refused(&e))
+}
+
+/// Why a file wasn't opened, as far as it can be told: the password, a way of locking the file
+/// that isn't read here, or a file that isn't one.
+fn refused(e: &StoreError) -> Error {
+    match e {
+        // The file's own check of the password; and, in a file with no check, a key or
+        // certificates that don't come out whole.
+        StoreError::MacError(_) | StoreError::Pkcs5Error(_) | StoreError::UnpadError => Error::Password,
+        StoreError::UnsupportedEncryptionScheme | StoreError::UnsupportedMacAlgorithm => {
+            Error::Unsupported("the way this file is locked (save it again from the program it came from, or with OpenSSL)".into())
+        }
+        StoreError::UnsupportedContentType | StoreError::UnsupportedCertificateType => Error::Unsupported("what this file holds".into()),
+        _ => Error::NotCertificateFile,
+    }
 }
 
 /// Whether the certificate `cert` (DER) is the public half of `key` (PKCS #8 DER).

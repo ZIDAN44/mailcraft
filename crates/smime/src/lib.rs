@@ -45,8 +45,11 @@ pub const CMS_MAX: usize = 64 << 20;
 pub enum Error {
     #[error("it isn't valid S/MIME ({0})")]
     Malformed(&'static str),
-    #[error("the password is wrong, or it isn't a certificate file")]
+    #[error("the password is wrong")]
     Password,
+    /// Not a `.p12` / `.pfx` file, or one that's damaged.
+    #[error("it isn't a certificate file (.p12 or .pfx), or the file is damaged")]
+    NotCertificateFile,
     #[error("the file has no private key with its certificate")]
     NoKey,
     #[error("{0} isn't supported")]

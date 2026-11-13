@@ -25,6 +25,32 @@ fn riley() -> Identity {
     read_p12(&data("riley-aes.p12"), "secret").unwrap()
 }
 
+/// Issue #89: Firefox and Thunderbird (NSS) write a `.p12` in BER, every length left open, and
+/// name PBKDF2's HMAC without its NULL. The fixtures are Riley's, exported by NSS's `pk12util`
+/// as Thunderbird exports today (AES, SHA-256, 600 000 rounds), as it did before (3DES, SHA-1),
+/// and with a password that isn't ASCII. Each was refused as a wrong password.
+#[test]
+fn a_p12_from_thunderbird_opens() {
+    let riley = riley();
+    for (name, password) in [("riley-nss.p12", "secret"), ("riley-nss-3des.p12", "secret"), ("riley-nss-words.p12", "pässwörd €")] {
+        let file = data(name);
+        assert_eq!(file.get(..2), Some(&[0x30, 0x80][..]), "{name}: BER, its length left open");
+        let id = read_p12(&file, password).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(id == riley, "{name}: the key and the chain OpenSSL's file has");
+        // The password is still checked against the file, as it was written.
+        assert_eq!(read_p12(&file, "wrong"), Err(Error::Password), "{name}");
+        assert_eq!(read_p12(&file, ""), Err(Error::Password), "{name}");
+        let mut changed = file.clone();
+        if let Some(b) = changed.get_mut(file.len() / 2) {
+            *b ^= 1;
+        }
+        assert_eq!(read_p12(&changed, password), Err(Error::Password), "{name}: changed since it was written");
+        // Cut short, it isn't one.
+        assert_eq!(read_p12(file.get(..file.len() / 2).unwrap(), password), Err(Error::NotCertificateFile), "{name}");
+    }
+    assert_eq!(Error::Password.to_string(), "the password is wrong");
+}
+
 const BODY: &[u8] = b"Content-Type: text/plain; charset=utf-8\r\n\r\nHello Riley, the proof is approved.\r\n";
 
 #[test]
@@ -37,7 +63,7 @@ fn every_kind_of_p12_opens_and_a_wrong_password_doesnt() {
         assert_eq!(cert::info(&id.chain[1]).unwrap().name, "MailCraft Test CA");
     }
     assert_eq!(read_p12(&data("riley-aes.p12"), "wrong"), Err(Error::Password));
-    assert_eq!(read_p12(b"not a p12", "secret"), Err(Error::Password));
+    assert_eq!(read_p12(b"not a p12", "secret"), Err(Error::NotCertificateFile), "said as what it is, not as a wrong password");
     let info = cert::info(riley().certificate()).unwrap();
     assert_eq!(
         (info.name.as_str(), info.emails.as_slice(), info.issuer.as_str(), info.key.as_str()),

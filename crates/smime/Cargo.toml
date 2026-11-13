@@ -37,6 +37,8 @@ rand_core = "0.6"
 
 # .p12 / .pfx files: PBES2 (PBKDF2, AES) and the older 3DES and RC2-40 ones.
 p12-keystore = "0.1.5"
+# The file's outer structure, as p12-keystore reads it: to open the ones written in BER.
+pkcs12 = "0.1"
 
 # rand_core asks the system for randomness through getrandom (the caller's generator is what's
 # used here); in the browser that's `crypto.getRandomValues`.

@@ -12,6 +12,10 @@ on GitHub.
 
 *What testers met in their first days with 0.38.*
 
+### Fixed
+
+- A certificate file (`.p12`, `.pfx`) saved by Thunderbird or Firefox is imported (#89): they write the file another way than OpenSSL and Windows do, and every one was refused as a wrong password, old files and new. What stops an import is now said as what it is: a wrong password, a file locked in a way MailCraft doesn't read, or a file that isn't a certificate file.
+
 ## 0.38.0 - 2026-11-13
 
 *Messages as they look, on paper and from a file.*

@@ -35,17 +35,81 @@ const SEQUENCE: u8 = 0x30;
 const CONTEXT_0_CONSTRUCTED: u8 = 0xA0;
 const CONTEXT_0_PRIMITIVE: u8 = 0x80;
 
+/// PKCS #7 `data`, 1.2.840.113549.1.7.1 (the contents of its OBJECT IDENTIFIER).
+const DATA: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01];
+/// `hmacWithSHA1` and the SHA-2 ones after it, 1.2.840.113549.2.7 to .11, less the last byte.
+const HMAC: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02];
+const NULL: u8 = 0x05;
+/// A `.p12` file's data inside data: the file, what it's sure of, and each part's bags.
+const INSIDE_MAX: usize = 4;
+
 /// `input` (one BER element, nothing after it) as DER.
 pub fn to_der(input: &[u8]) -> Result<Vec<u8>, Error> {
     let mut count = 0usize;
-    let (node, used) = read(input, 0, &mut count)?;
-    if input.get(used..).is_some_and(|rest| rest.iter().any(|b| *b != 0)) {
-        return Err(Error::Malformed("data after the end"));
-    }
-    let node = tidy(node);
+    let node = tidy(whole(input, &mut count)?);
     let mut out = Vec::with_capacity(input.len());
     write(&node, &mut out);
     Ok(out)
+}
+
+/// A `.p12` file (PKCS #12) as DER, inside as well as out: what it holds is DER or BER again
+/// inside an OCTET STRING (`ContentInfo ::= SEQUENCE { data, [0] EXPLICIT OCTET STRING }`), which
+/// [`to_der`] leaves as bytes. The file's check of its password (its MAC) is made over those bytes
+/// as they were written, so it no longer fits what this gives: make it first.
+///
+/// A PBKDF2 that names its HMAC with no parameters (as NSS writes it; RFC 8018 has a NULL
+/// there, and both are to be read) is given the NULL, which is what `pkcs5` reads.
+pub(crate) fn p12_to_der(input: &[u8]) -> Result<Vec<u8>, Error> {
+    let mut count = 0usize;
+    let node = inside(tidy(whole(input, &mut count)?), 0, &mut count);
+    let mut out = Vec::with_capacity(input.len());
+    write(&node, &mut out);
+    Ok(out)
+}
+
+/// The one element `input` is, with nothing after it.
+fn whole(input: &[u8], count: &mut usize) -> Result<Node, Error> {
+    let (node, used) = read(input, 0, count)?;
+    if input.get(used..).is_some_and(|rest| rest.iter().any(|b| *b != 0)) {
+        return Err(Error::Malformed("data after the end"));
+    }
+    Ok(node)
+}
+
+/// [`p12_to_der`]'s part: `node` (tidied) with the data inside it tidied too.
+fn inside(node: Node, depth: usize, count: &mut usize) -> Node {
+    let Node { tag, body } = node;
+    let mut children: Vec<Node> = match body {
+        Body::Bytes(b) => return Node { tag, body: Body::Bytes(b) },
+        Body::Children(c) => c.into_iter().map(|c| inside(c, depth, count)).collect(),
+    };
+    if tag != [SEQUENCE] {
+        return Node { tag, body: Body::Children(children) };
+    }
+    let oid = |n: Option<&Node>| match n {
+        Some(Node { tag, body: Body::Bytes(b) }) if tag == &[OBJECT_ID] => Some(b.clone()),
+        _ => None,
+    };
+    let first = oid(children.first());
+    // `AlgorithmIdentifier ::= SEQUENCE { an HMAC }`, its parameters left out.
+    if children.len() == 1 && first.as_deref().and_then(|b| b.strip_prefix(HMAC)).is_some_and(|last| matches!(last, [7..=11])) {
+        children.push(Node { tag: vec![NULL], body: Body::Bytes(Vec::new()) });
+    }
+    // `ContentInfo ::= SEQUENCE { data, [0] EXPLICIT OCTET STRING }`: what the OCTET STRING holds.
+    if children.len() == 2
+        && first.as_deref() == Some(DATA)
+        && depth < INSIDE_MAX
+        && let Some(Node { tag, body: Body::Children(wrapped) }) = children.get_mut(1)
+        && tag == &[CONTEXT_0_CONSTRUCTED]
+        && let [Node { tag, body: Body::Bytes(held) }] = wrapped.as_mut_slice()
+        && tag == &[OCTET_STRING]
+        && let Ok(node) = whole(held, count)
+    {
+        let mut out = Vec::with_capacity(held.len());
+        write(&inside(tidy(node), depth + 1, count), &mut out);
+        *held = out;
+    }
+    Node { tag, body: Body::Children(children) }
 }
 
 fn read(input: &[u8], depth: usize, count: &mut usize) -> Result<(Node, usize), Error> {
@@ -209,12 +273,47 @@ mod tests {
         assert_eq!(to_der(&wrapped).ok(), Some(wrapped.to_vec()));
     }
 
+    /// A `.p12` holds DER or BER again inside its OCTET STRINGs, and NSS leaves the NULL out
+    /// after PBKDF2's HMAC (issue #89).
+    #[test]
+    fn a_p12_is_der_inside_too() {
+        const DATA_OID: [u8; 11] = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01];
+        // SEQUENCE (open) { SEQUENCE { hmacWithSHA256 } }
+        let held = [0x30, 0x80, 0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x09, 0, 0];
+        // SEQUENCE (open) { data, [0] (open) { OCTET STRING (in pieces) { held } } }
+        let mut ber = vec![0x30, 0x80];
+        ber.extend(DATA_OID);
+        ber.extend([0xA0, 0x80, 0x24, 0x80, 0x04, 0x04]);
+        ber.extend(&held[..4]);
+        ber.extend([0x04, 0x0C]);
+        ber.extend(&held[4..]);
+        ber.extend([0, 0, 0, 0, 0, 0]);
+        let held_der = [0x30, 0x0E, 0x30, 0x0C, 0x06, 0x08, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x09, 0x05, 0x00];
+        let mut der = vec![0x30, 0x1F];
+        der.extend(DATA_OID);
+        der.extend([0xA0, 0x12, 0x04, 0x10]);
+        der.extend(held_der);
+        assert_eq!(p12_to_der(&ber).ok(), Some(der.clone()));
+        assert_eq!(p12_to_der(&der).ok(), Some(der), "DER stays as it is");
+        // Outside a `.p12`, what an OCTET STRING holds is left as it was written.
+        let outside = to_der(&ber).unwrap();
+        assert!(outside.windows(held.len()).any(|w| w == held));
+        // Another algorithm keeps its parameters as they are, and bytes that aren't ASN.1 stay.
+        let other = [0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x03, 0x07];
+        assert_eq!(p12_to_der(&other).ok(), Some(other.to_vec()));
+        let mut odd = vec![0x30, 0x12];
+        odd.extend(DATA_OID);
+        odd.extend([0xA0, 0x05, 0x04, 0x03, 0x30, 0x80, 0x01]);
+        assert_eq!(p12_to_der(&odd).ok(), Some(odd));
+    }
+
     #[test]
     fn junk_is_an_error_not_a_panic() {
         for junk in
             [&[][..], &[0x30], &[0x30, 0x80], &[0x30, 0x85, 1, 1, 1, 1, 1], &[0x04, 0x80, 0, 0], &[0x1F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0]]
         {
             assert!(to_der(junk).is_err(), "{junk:?}");
+            assert!(p12_to_der(junk).is_err(), "{junk:?}");
         }
         let deep: Vec<u8> = std::iter::repeat_n([0x30u8, 0x80], 100).flatten().collect();
         assert!(to_der(&deep).is_err());
