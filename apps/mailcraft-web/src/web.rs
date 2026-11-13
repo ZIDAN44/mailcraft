@@ -341,6 +341,8 @@ impl Services for WebServices {
         let (picked, ctx, purpose) = (self.picked.clone(), self.ctx.clone(), purpose.to_string());
         let dialog = if purpose == "backup" {
             rfd::AsyncFileDialog::new().add_filter("MailCraft backup", &["mailcraft-backup"])
+        } else if purpose == "rules" || purpose == "categories" {
+            rfd::AsyncFileDialog::new().add_filter("MailCraft file", &["json"])
         } else if purpose == "picture" {
             rfd::AsyncFileDialog::new().add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
         } else if purpose.starts_with("certificate:") {

@@ -479,6 +479,8 @@ struct WebLike {
     downloads: std::rc::Rc<std::cell::RefCell<Vec<(String, usize)>>>,
     picked: Vec<(String, String, Vec<u8>)>,
     asked: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+    /// The file the picker gives next (else a note).
+    hands: std::rc::Rc<std::cell::RefCell<Option<Vec<u8>>>>,
 }
 
 impl crate::Services for WebLike {
@@ -502,7 +504,8 @@ impl crate::Services for WebLike {
     }
     fn pick_later(&mut self, purpose: &str) -> bool {
         self.asked.borrow_mut().push(purpose.to_string());
-        self.picked.push((purpose.to_string(), "notes.txt".into(), b"remember".to_vec()));
+        let file = self.hands.borrow_mut().take().unwrap_or_else(|| b"remember".to_vec());
+        self.picked.push((purpose.to_string(), "notes.txt".into(), file));
         true
     }
     fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {

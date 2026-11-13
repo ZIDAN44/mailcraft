@@ -539,26 +539,26 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
     heading(ui, t, "Open & Export");
     ui.set_max_width(ui.available_width().min(760.0));
     backup::backup(s, t, ui, acts);
-    card(
-        ui,
-        t,
-        tl!("Open a data file"),
-        Some(tl!(
-            "Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer."
-        )),
-        |ui| {
-            let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
-            let open_now = (!files.is_empty()).then(|| tf!("Open now: {files}", files = files.join(", ")));
-            let label = open_now.as_deref().map_or_else(|| note(t, tl!("No data file is open.")), |s| note(t, s));
-            setting_row(ui, t, true, label, None, |ui| {
-                if ui.button(tl!("Open…")).clicked() {
-                    acts.push(Action::OpenDataFile);
-                }
-            });
-        },
-    );
-    // Not in the browser, which can't read a file by its path.
+    // Not in the browser: it reads no file by its path, and keeps no data files to open or write.
     if !s.jmap_only {
+        card(
+            ui,
+            t,
+            tl!("Open a data file"),
+            Some(tl!(
+                "Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer."
+            )),
+            |ui| {
+                let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
+                let open_now = (!files.is_empty()).then(|| tf!("Open now: {files}", files = files.join(", ")));
+                let label = open_now.as_deref().map_or_else(|| note(t, tl!("No data file is open.")), |s| note(t, s));
+                setting_row(ui, t, true, label, None, |ui| {
+                    if ui.button(tl!("Open…")).clicked() {
+                        acts.push(Action::OpenDataFile);
+                    }
+                });
+            },
+        );
         card(
             ui,
             t,
@@ -574,44 +574,44 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                 });
             },
         );
-    }
-    // The account to export: picked in the list (one line, however many accounts there are),
-    // else the one being looked at.
-    let chosen = b
-        .export
-        .as_deref()
-        .and_then(|id| s.account(id))
-        .or_else(|| s.current_account())
-        .or_else(|| s.accounts.first())
-        .map(|a| (a.config.id.clone(), format!("{}   ·   {}", a.config.email, tl!(kind(a)))));
-    card(
-        ui,
-        t,
-        tl!("Export to Outlook data file"),
-        Some(tl!("Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.")),
-        |ui| {
-            let Some((id, label)) = &chosen else { return };
-            setting_row(
-                ui,
-                t,
-                true,
-                name(t, tl!("Account")),
-                Some(note(t, tl!("Its contacts, calendar, notes and tasks go inside it too."))),
-                |ui| {
-                    if ui.button(tl!("Export…")).clicked() {
-                        acts.push(Action::ExportDataFile(id.clone()));
-                    }
-                    egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
-                        for a in &s.accounts {
-                            if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
-                                b.export = Some(a.config.id.clone());
-                            }
+        // The account to export: picked in the list (one line, however many accounts there are),
+        // else the one being looked at.
+        let chosen = b
+            .export
+            .as_deref()
+            .and_then(|id| s.account(id))
+            .or_else(|| s.current_account())
+            .or_else(|| s.accounts.first())
+            .map(|a| (a.config.id.clone(), format!("{}   ·   {}", a.config.email, tl!(kind(a)))));
+        card(
+            ui,
+            t,
+            tl!("Export to Outlook data file"),
+            Some(tl!("Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.")),
+            |ui| {
+                let Some((id, label)) = &chosen else { return };
+                setting_row(
+                    ui,
+                    t,
+                    true,
+                    name(t, tl!("Account")),
+                    Some(note(t, tl!("Its contacts, calendar, notes and tasks go inside it too."))),
+                    |ui| {
+                        if ui.button(tl!("Export…")).clicked() {
+                            acts.push(Action::ExportDataFile(id.clone()));
                         }
-                    });
-                },
-            );
-        },
-    );
+                        egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
+                            for a in &s.accounts {
+                                if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
+                                    b.export = Some(a.config.id.clone());
+                                }
+                            }
+                        });
+                    },
+                );
+            },
+        );
+    }
     // Rules to a file and back, as Outlook's Import and Export Rules.
     card(ui, t, tl!("Rules"), None, |ui| {
         setting_row(

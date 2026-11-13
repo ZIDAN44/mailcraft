@@ -52,6 +52,7 @@ on GitHub.
 - **Move to folder** names other accounts by their address (each had the same name: yours), and Tab leaves its search box. A rule's **Run it now** runs only once the rule is saved, and what the rule dialog asks for is said in your language.
 - File › Info no longer redraws without end with a renewed certificate or key listed, and doesn't offer an expired key for sending.
 - The status bar says "1 account disconnected" for one (it read "1 accounts").
+- In the browser, **File › Open & Export** offers what works there: **Open a data file** and **Export to Outlook data file** did nothing (a page reads and writes no data files), and are no longer shown. Rules and categories go to a file and back there too: **Export…** downloads the file and **Import…** takes one from the browser's picker, where both buttons did nothing.
 
 ## 0.37.0 - 2026-11-12
 

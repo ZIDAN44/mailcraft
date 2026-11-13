@@ -27,6 +27,7 @@ mod backup;
 mod dialogs;
 pub mod i18n;
 mod keytips;
+mod lists;
 mod look;
 mod panes;
 mod reading;
@@ -798,6 +799,10 @@ impl MailApp {
                 self.ui.dialog = Some(Dialog::Certificate { account: account.to_string(), path: name, data: Some(data), password: String::new() });
             } else if purpose == "backup" {
                 self.backup_picked(name, data);
+            } else if purpose == "rules" {
+                self.rules_picked(&data);
+            } else if purpose == "categories" {
+                self.categories_picked(&data);
             } else if purpose == "picture" {
                 let size = rich_edit::own_size(&data);
                 let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));

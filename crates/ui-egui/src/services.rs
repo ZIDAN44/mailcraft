@@ -287,9 +287,10 @@ pub trait Services {
     fn restore(&mut self, _files: Vec<(String, Vec<u8>)>, _state: serde_json::Value) -> Result<(), String> {
         Err("a backup is brought in where MailCraft runs in the browser".into())
     }
-    /// Start choosing files without waiting (the browser): `purpose` is `attach` or `picture`,
-    /// and the files arrive through [`Services::take_picked`]. `false` (the default) means
-    /// [`Services::pick_files`] answers at once.
+    /// Start choosing files without waiting (the browser): `purpose` is `attach`, `picture`,
+    /// `backup`, `rules`, `categories` or `certificate:<account>`, and the files arrive through
+    /// [`Services::take_picked`]. `false` (the default) means [`Services::pick_files`] answers
+    /// at once.
     fn pick_later(&mut self, _purpose: &str) -> bool {
         false
     }
