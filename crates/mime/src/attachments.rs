@@ -65,12 +65,16 @@ pub(super) fn attached<'a>(m: &'a Message<'_>) -> (Vec<Attached<'a>>, TnefBody) 
         }
         let index = out.len();
         let name = attachment_name(p.attachment_name(), &mime, &data, index);
+        // A picture the text may show. A file that merely has a Content-ID and says nothing of
+        // how it's to be shown (a PDF from some invoicing programs) is a file: taken for
+        // inline, it was counted (the paperclip) and then listed nowhere, nor saved with the rest.
+        let inline = p.is_inline_part() && mime.starts_with("image/");
         let info = AttachmentInfo {
             index,
             name,
             mime,
             size: shown_size(p, &data),
-            inline: p.is_inline_part(),
+            inline,
             content_id: p.content_id().map(|c| c.trim().trim_matches(['<', '>']).to_string()),
             content_location: p.content_location().map(|c| c.trim().trim_matches(['<', '>', '"']).to_string()).filter(|c| !c.is_empty()),
         };

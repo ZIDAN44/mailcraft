@@ -728,9 +728,15 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
                     return MimePart::new(mime, a.data.as_slice()).attachment(sanitize_filename(&a.name));
                 }
                 let cte = if a.data.is_ascii() { "7bit" } else { "8bit" };
-                return MimePart::new(mime, a.data.as_slice())
-                    .attachment(sanitize_filename(&a.name))
-                    .header("Content-Transfer-Encoding", mail_builder::headers::raw::Raw::new(cte));
+                // Its lines end CR LF as it goes: a file saved with bare line feeds went with
+                // them, which mail servers refuse outright (and a line of one dot in it wasn't
+                // doubled, so the message ended there for a server that takes them).
+                let part = if crate::smime::bare_line_ends(&a.data) {
+                    MimePart::new(mime, crate::smime::crlf(&a.data))
+                } else {
+                    MimePart::new(mime, a.data.as_slice())
+                };
+                return part.attachment(sanitize_filename(&a.name)).header("Content-Transfer-Encoding", mail_builder::headers::raw::Raw::new(cte));
             }
             // A report's status goes as it is when it can (RFC 3464 §2.1: 7bit, so it stays
             // readable); one that can't is encoded as any other file.

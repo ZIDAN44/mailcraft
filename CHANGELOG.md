@@ -45,6 +45,8 @@ on GitHub.
 - What's being written isn't lost: a message closed while it was being signed opens again when signing fails; removing its account leaves it open, to go from another (with no account left, it's kept as MailCraft closes and is back when it opens); and a draft saved on a server no longer opens a second time while it's still being written.
 - A recipient after a name with an unbalanced quote is said to be wrong: it was left out of the message without a word.
 - `mailcraft-cli send` says so at once when a message is held to be checked (`--checked` sends it), and waits for one that's signed first (it said "timed out" after the message had gone).
+- A message with a megabyte of stray `<` opens at once (it took minutes). A file with a Content-ID (a PDF from some invoicing programs) is listed with the message's files; colours written with spaces (`rgb(34, 34, 34)`), a style rule after `@import`, a picture's address written without quotes and the last of two declarations are read.
+- An attached message saved with bare line feeds goes with whole line ends: mail servers refused it.
 
 ## 0.37.0 - 2026-11-12
 

@@ -47,6 +47,25 @@ fn quoted_printable(data: &[u8]) -> String {
 }
 
 /// A message with a short text body and these parts after it, each `(headers, body)`.
+/// Found in review: a file with a Content-ID and nothing on how it's shown (as some invoicing
+/// programs attach a PDF) was taken for a picture in the text: counted (the paperclip), and
+/// then listed nowhere. It's a file. A picture like that is still the text's.
+#[test]
+fn a_file_with_a_content_id_is_still_a_file() {
+    let raw = message(&[
+        ("Content-Type: application/pdf; name=\"invoice.pdf\"\r\nContent-ID: <inv@x>".into(), b"%PDF-1.4 not really".to_vec()),
+        ("Content-Type: image/png; name=\"logo.png\"\r\nContent-ID: <logo@x>".into(), b"\x89PNG\r\n\x1a\n".to_vec()),
+    ]);
+    let p = parse(&raw).unwrap();
+    let listed: Vec<(&str, bool)> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect();
+    assert_eq!(listed, [("invoice.pdf", false), ("logo.png", true)]);
+    // An address written without quotes is whole.
+    assert_eq!(
+        crate::html_images("<img src=https://x.example/a/b.png width=1><img src=cid:logo@x /><img src=https://x.example/c.png/>"),
+        ["https://x.example/a/b.png", "cid:logo@x", "https://x.example/c.png"]
+    );
+}
+
 fn message(parts: &[(String, Vec<u8>)]) -> Vec<u8> {
     let mut raw = b"From: Sam <sam@studio.example>\r\nTo: Lee <lee@studio.example>\r\nSubject: Files\r\nMIME-Version: 1.0\r\n\
         Content-Type: multipart/mixed; boundary=\"b1\"\r\n\r\n--b1\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nHere.\r\n"

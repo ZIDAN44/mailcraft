@@ -152,3 +152,28 @@ fn room_above_a_box_is_kept() {
         tables(&plain).iter().flat_map(|t| t.rows.iter().flatten()).filter(|c| c.width.is_none() && c.blocks.len() == 1).map(|c| c.padding).collect();
     assert!(rooms.contains(&Some([11, 3, 3, 3])) && rooms.contains(&None), "{rooms:?}");
 }
+
+/// Found in review, in styles as programs write them out. A colour with spaces in it
+/// (`rgb(34, 34, 34)`) wasn't read: the cell had no background, its line was black. The last
+/// declaration of a property is the one that counts, as in CSS: a cell that says a colour twice
+/// has the second (what's counted as hidden reads its styles the same way).
+#[test]
+fn styles_as_programs_write_them_are_read() {
+    let b = html_layout(&page(
+        r#"<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="background-color: rgb(34, 34, 34); color: #fff; border: 2px solid rgb(204, 204, 204)">Dark</td><td style="background: rgba(0, 130, 150, 1) none">Teal</td><td style="background-color:#ffffff;background-color:#c00000">Total</td></tr></table>"#,
+    ));
+    let all = tables(&b);
+    let row = all.iter().find_map(|t| t.rows.iter().find(|r| r.len() == 3)).unwrap_or_else(|| panic!("{b:?}"));
+    assert_eq!(row[0].background, Some([34, 34, 34]));
+    assert_eq!(row[0].borders[0], Some(Line { width: 2, color: [204, 204, 204] }));
+    assert_eq!(row[1].background, Some([0, 130, 150]));
+    assert_eq!(row[2].background, Some([0xc0, 0, 0]), "the last one said");
+    // Found in a second review: the one marked `!important` counts over a later one, and a
+    // value that can't be read gives way to the one before it, as in a browser.
+    let b = html_layout(&page(
+        r#"<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="background-color:#00aa00;background-color:var(--brand)">A</td><td style="background-color:#c00000 !important;background-color:#ffffff">B</td></tr></table>"#,
+    ));
+    let all = tables(&b);
+    let row = all.iter().find_map(|t| t.rows.iter().find(|r| r.len() == 2)).unwrap_or_else(|| panic!("{b:?}"));
+    assert_eq!((row[0].background, row[1].background), (Some([0, 0xaa, 0]), Some([0xc0, 0, 0])));
+}

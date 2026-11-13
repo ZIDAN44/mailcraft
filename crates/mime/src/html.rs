@@ -641,7 +641,12 @@ pub fn html_images(html: &str) -> Vec<String> {
             let v = tag.get(p + 5..).unwrap_or("");
             let src = match v.chars().next() {
                 Some(q @ ('"' | '\'')) => v.get(1..).and_then(|r| r.split(q).next()).unwrap_or(""),
-                _ => v.split([' ', '\t', '\n', '/']).next().unwrap_or(""),
+                // Unquoted: to the next space (an address has slashes; cut at the first,
+                // `src=https://…` was `https:`, a picture that could never be shown).
+                _ => {
+                    let bare = v.split([' ', '\t', '\n', '\r']).next().unwrap_or("");
+                    bare.strip_suffix('/').filter(|b| !b.ends_with('/')).unwrap_or(bare)
+                }
             };
             let src = src.trim().replace("&amp;", "&");
             if !src.is_empty() && src.len() < 4096 && !out.contains(&src) {

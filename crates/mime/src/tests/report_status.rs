@@ -68,6 +68,24 @@ fn a_report_status_with_a_boundary_line_is_encoded() {
     assert!(!seven_bit(b"--") && !seven_bit(b"a\r\n--b") && seven_bit(b"a-\r\n-b\r\n a--"));
 }
 
+/// Found in review: an attached message saved with bare line feeds went with them, which mail
+/// servers refuse (and a line of one dot in it wasn't doubled as the message was sent). Its
+/// lines end CR LF as it goes; one that has them already goes untouched.
+#[test]
+fn an_attached_message_goes_with_whole_line_ends() {
+    let from = EmailAddress::new("Riley", "riley@studio.example");
+    let eml = |data: &[u8]| OutAttachment { name: "note.eml".into(), mime: "message/rfc822".into(), data: data.to_vec(), ..Default::default() };
+    let bare = b"Subject: Lunch\n\nNoon.\n.\nAfter the dot.\rAnd a bare return.\r\nDone.\n";
+    let whole = b"Subject: Lunch\r\n\r\nNoon.\r\n.\r\nAfter the dot.\r\nAnd a bare return.\r\nDone.\r\n";
+    for data in [&bare[..], &whole[..]] {
+        let d = Draft { subject: "Fwd".into(), body: "See attached.".into(), attachments: vec![eml(data)], ..Default::default() };
+        let raw = build(&d, &from, 1_700_000_000, "m@x").unwrap();
+        assert!(!crate::smime::bare_line_ends(&raw), "{}", String::from_utf8_lossy(&raw));
+        assert_eq!(attachment_data(&raw, 0).unwrap(), whole);
+    }
+    assert!(crate::smime::bare_line_ends(b"a\nb") && crate::smime::bare_line_ends(b"a\r") && !crate::smime::bare_line_ends(b"a\r\nb\r\n"));
+}
+
 /// A status sent as it is keeps its Content-ID, as an encoded one does.
 #[test]
 fn a_seven_bit_report_status_keeps_its_content_id() {

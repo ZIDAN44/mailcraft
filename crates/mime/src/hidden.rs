@@ -131,8 +131,11 @@ fn hides(tag: &str, mso_hide: bool) -> bool {
     }
     let Some(style) = crate::html::tag_attr(tag, "style") else { return false };
     let style: String = style.to_ascii_lowercase().chars().filter(|c| !c.is_whitespace()).collect();
+    // The one that counts, as in CSS: the last marked `!important`, else the last
+    // (`display:none;display:block` isn't hidden; `display:none!important;display:block` is).
     let value = |prop: &str| {
-        style.split(';').find_map(|d| d.split_once(':').filter(|(p, _)| *p == prop).map(|(_, v)| v.trim_end_matches("!important").to_string()))
+        let said = || style.split(';').rev().filter_map(|d| d.split_once(':').filter(|(p, _)| *p == prop).map(|(_, v)| v));
+        said().find(|v| v.ends_with("!important")).or_else(|| said().next()).map(|v| v.trim_end_matches("!important").to_string())
     };
     let number = |v: &str| v.trim_end_matches(|c: char| c.is_ascii_alphabetic() || c == '%').parse::<f32>().ok();
     let overflow_hidden = value("overflow").is_some_and(|v| v == "hidden");
@@ -234,6 +237,14 @@ mod tests {
         // A `hidden` inside a value, or a style sheet, isn't hidden text.
         let html = format!("<div class=\"hidden-xs\" title=\"a hidden b\">{LONG}</div><style>p {{ display:none }} {LONG}</style>");
         assert_eq!(hidden_text(&html), None);
+        // The declaration that counts, as in CSS: the last, unless an earlier one is marked
+        // `!important` (found in review: the first was taken, whatever came after it).
+        let html = format!("<div style=\"display:none;display:block\">{LONG}</div>");
+        assert_eq!(hidden_text(&html), None);
+        let html = format!("<div style=\"display:none !important;display:block\">{LONG}</div>");
+        assert!(hidden_text(&html).is_some());
+        let html = format!("<div style=\"display:block;display:none\">{LONG}</div>");
+        assert!(hidden_text(&html).is_some());
         // The hidden part ends where its element does, even with unclosed elements inside.
         let html = format!("<div style=\"display:none\"><p>short<b>bold</div><p>{LONG}</p>");
         assert_eq!(hidden_text(&html), None);

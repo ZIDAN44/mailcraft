@@ -214,9 +214,12 @@ impl Sheet {
         let mut rest = css;
         while sheet.rules.len() < MAX_RULES {
             let Some(open) = rest.find('{') else { break };
-            let head = rest.get(..open).unwrap_or("").trim();
-            // `@import …;` before a block: drop it, and read on from after it.
-            if let Some(semi) = head.rfind(';').filter(|_| head.contains('@')) {
+            let before = rest.get(..open).unwrap_or("");
+            let head = before.trim();
+            // `@import …;` before a block: drop it, and read on from after it (where it ends
+            // in what's left, not in that trimmed: after white space the rule that followed was
+            // cut into, and lost).
+            if let Some(semi) = before.rfind(';').filter(|_| head.contains('@')) {
                 rest = rest.get(semi + 1..).unwrap_or("");
                 continue;
             }
@@ -386,6 +389,16 @@ mod tests {
         // Specificity before order: the class rule beats the later tag rule.
         let s = Sheet::parse(".x { color: red } p { color: blue }");
         assert_eq!(props(&s, &[el("p", &["x"])]), ["color:blue", "color:red"]);
+        // Found in review: the rule after an `@import …;` or `@charset …;` on a line of its own
+        // was cut into where the at-rule was dropped, and lost.
+        for sheet in [
+            "\n@import url(https://fonts.example/a.css);\n.x{color:red}",
+            "  @charset \"utf-8\";  .x{color:red}",
+            "@import 'a.css';.x{color:red}",
+            "\u{e9}\u{e9} @import url(x);\n.x{color:red}",
+        ] {
+            assert_eq!(props(&Sheet::parse(sheet), &[el("p", &["x"])]), ["color:red"], "{sheet}");
+        }
     }
 
     #[test]

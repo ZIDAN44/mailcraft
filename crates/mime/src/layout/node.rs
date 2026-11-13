@@ -6,6 +6,30 @@ use super::*;
 /// The colour of a table's lines when `border="1"` is all that's said.
 const TABLE_LINE: [u8; 3] = [128, 128, 128];
 
+/// The words of a CSS value: split at spaces outside brackets, so `rgb(204, 204, 204)` is one.
+fn words(v: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let (mut depth, mut word) = (0usize, String::new());
+    for c in v.chars() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            c if c.is_whitespace() && depth == 0 => {
+                if !word.is_empty() {
+                    out.push(std::mem::take(&mut word));
+                }
+                continue;
+            }
+            _ => {}
+        }
+        word.push(c);
+    }
+    if !word.is_empty() {
+        out.push(word);
+    }
+    out
+}
+
 /// One word of a `border` shorthand: its width, its style or its colour.
 fn read_line_word(word: &str, width: &mut Option<u32>, kind: &mut Option<String>, colour: &mut Option<[u8; 3]>) {
     if matches!(word, "none" | "hidden" | "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset" | "outset") {
@@ -40,15 +64,29 @@ impl Node {
 
     /// A property of the inline `style` as written (addresses keep their case).
     pub(super) fn style_as_written(&self, prop: &str) -> Option<String> {
-        let style = self.attr("style")?;
-        style.split(';').find_map(|d| {
-            let (k, v) = d.split_once(':')?;
-            k.trim().eq_ignore_ascii_case(prop).then(|| {
-                let v = v.trim();
-                let v = v.get(..v.to_ascii_lowercase().find("!important").unwrap_or(v.len())).unwrap_or(v);
-                v.trim().to_string()
-            })
-        })
+        self.styles_as_written(prop).into_iter().next()
+    }
+
+    /// Every value the inline `style` gives a property, the one that counts first: as in CSS,
+    /// the last marked `!important`, else the last (`display:none;display:block` shows it).
+    /// The rest follow, for a value a reader can't read (`width:600px;width:calc(…)`): a
+    /// browser takes the last it can.
+    pub(super) fn styles_as_written(&self, prop: &str) -> Vec<String> {
+        let Some(style) = self.attr("style") else { return Vec::new() };
+        let (mut marked, mut plain) = (Vec::new(), Vec::new());
+        for d in style.split(';').rev() {
+            let Some((k, v)) = d.split_once(':') else { continue };
+            if !k.trim().eq_ignore_ascii_case(prop) {
+                continue;
+            }
+            let v = v.trim();
+            match v.to_ascii_lowercase().find("!important") {
+                Some(at) => marked.push(v.get(..at).unwrap_or(v).trim().to_string()),
+                None => plain.push(v.to_string()),
+            }
+        }
+        marked.extend(plain);
+        marked
     }
 
     /// The picture behind it: the `background` attribute, or `url(…)` in `background-image` or
@@ -132,13 +170,19 @@ impl Node {
         // The first that reads: `background-color`, a colour in `background`, the `bgcolor`
         // attribute (what Outlook shows for a gradient it doesn't draw, issue #41), and last a
         // gradient's first colour.
-        let own = self.style("background-color").and_then(|v| color(v.split_whitespace().next()?));
+        // Whole first: `rgb(34, 34, 34)`, as programs that write styles out put it, has spaces.
+        // (The one that counts, of those that read: `#0a0` under a `var(--b)` after it.)
+        let own = self
+            .styles_as_written("background-color")
+            .iter()
+            .map(|v| v.to_ascii_lowercase())
+            .find_map(|v| color(&v).or_else(|| color(words(&v).first()?)));
         let shorthand = || {
             let v = self.style("background")?;
             if v.contains("gradient(") {
                 return None;
             }
-            v.split_whitespace().find_map(color)
+            words(&v).iter().find_map(|w| color(w))
         };
         let attr = || self.attr("bgcolor").map(str::to_ascii_lowercase).and_then(|v| color(&v));
         let gradient = || {
@@ -256,10 +300,10 @@ impl Node {
     pub(super) fn line(&self, side: &str) -> Option<Line> {
         let short = self.style(&format!("border-{side}")).or_else(|| self.style("border"));
         let (mut width, mut kind, mut colour): (Option<u32>, Option<String>, Option<[u8; 3]>) = (None, None, None);
-        for word in short.as_deref().unwrap_or("").split_whitespace() {
-            read_line_word(word, &mut width, &mut kind, &mut colour);
+        for word in words(short.as_deref().unwrap_or("")) {
+            read_line_word(&word, &mut width, &mut kind, &mut colour);
         }
-        let one = |prop: &str, all: &str| self.style(prop).or_else(|| self.style(all)).filter(|v| v.split_whitespace().count() == 1);
+        let one = |prop: &str, all: &str| self.style(prop).or_else(|| self.style(all)).filter(|v| words(v).len() == 1);
         if let Some(v) = one(&format!("border-{side}-width"), "border-width") {
             width = line_width(&v);
         }

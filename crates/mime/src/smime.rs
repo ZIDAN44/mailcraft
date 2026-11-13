@@ -122,8 +122,17 @@ pub fn protection(raw: &[u8]) -> Protection {
     }
 }
 
+/// Whether `text` has a line feed without its carriage return, or the other way round.
+pub(crate) fn bare_line_ends(text: &[u8]) -> bool {
+    text.iter().enumerate().any(|(i, &b)| match b {
+        b'\r' => text.get(i + 1) != Some(&b'\n'),
+        b'\n' => i.checked_sub(1).and_then(|j| text.get(j)) != Some(&b'\r'),
+        _ => false,
+    })
+}
+
 /// `text` with every line ending CRLF (lone LF and lone CR become CRLF).
-fn crlf(text: &[u8]) -> Vec<u8> {
+pub(crate) fn crlf(text: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(text.len() + text.len() / 32);
     let mut i = 0;
     while let Some(&b) = text.get(i) {
