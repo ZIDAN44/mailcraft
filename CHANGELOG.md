@@ -51,6 +51,7 @@ on GitHub.
 - In the browser, a file attached or a picture put into a message no longer takes many times its size in memory on the way in: a 25 MB file took about 600 MB.
 - A category given twice to an event or task is kept once.
 - An account's address changed in its settings, when it signs in with its address, is used at once: the account went on signing in with the old one until MailCraft was started again.
+- `account.add` with a data file whose path is refused no longer leaves the account added.
 
 ## 0.38.0 - 2026-11-13
 

@@ -6,6 +6,7 @@ mod beside;
 mod calendar_only;
 mod compacting;
 mod data_files;
+mod half_done;
 mod importing;
 mod reconnecting;
 mod trusting;

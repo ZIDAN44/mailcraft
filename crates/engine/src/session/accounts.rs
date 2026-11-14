@@ -5,6 +5,7 @@ use super::*;
 mod importing;
 #[cfg(test)]
 pub(crate) use importing::REMOVE_BACKSTOP;
+pub(crate) use importing::data_file_path;
 pub use importing::{Changes, ImportState, Imports};
 
 /// A local account with more messages than this keeps the counts it saved when it opens, rather

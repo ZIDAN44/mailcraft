@@ -279,13 +279,18 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     // The outgoing server's own sign-in (IMAP or POP with SMTP).
     let mut config = config;
     let smtp_password = smtp_sign_in(v, &mut config, true)?;
+    // `pst`: an existing data file whose mail comes into the account first. Checked before the
+    // account is made: refused after, the account was there although the command failed.
+    let pst = match p::str(v, "pst").map(str::trim).filter(|p| !p.is_empty()) {
+        Some(path) => Some(crate::session::data_file_path(path)?.to_string()),
+        None => None,
+    };
     let id = s.add_account(config, password)?;
     if let Some(pw) = smtp_password {
         s.keep_smtp_password(&id, pw);
     }
-    // `pst`: an existing data file whose mail comes into the account first.
-    if let Some(path) = p::str(v, "pst").map(str::trim).filter(|p| !p.is_empty()) {
-        s.attach_data_file(&id, path)?;
+    if let Some(path) = pst {
+        s.attach_data_file(&id, &path)?;
     }
     Ok(json!({"account": id}))
 }
