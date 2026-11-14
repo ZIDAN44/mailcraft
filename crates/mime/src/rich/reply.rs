@@ -5,7 +5,7 @@ use mailcraft_model::EmailAddress;
 use mailcraft_model::dates::{Clock, full_time};
 use serde::{Deserialize, Serialize};
 
-use crate::{Draft, Parsed, layout, rich};
+use crate::{Draft, Parsed, layout, markup, rich};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,7 +24,7 @@ fn prefixed(prefix: &str, subject: &str) -> String {
 /// The original under a reply or forward, the way Outlook lays it out: a rule, then who sent it
 /// to whom and when (labels in bold), then (`body`) the original with its own formatting.
 fn quoted_original(p: &Parsed, clock: &Clock, body: bool) -> (String, rich::Styles) {
-    let mut lines: Vec<(&str, String)> = vec![("From:", p.from.to_string()), ("Sent:", full_time(p.date, clock))];
+    let mut lines: Vec<(&str, String)> = vec![(markup::FROM_LABEL, p.from.to_string()), (markup::SENT_LABEL, full_time(p.date, clock))];
     if !p.to.is_empty() {
         lines.push(("To:", mailcraft_model::addr::format_list(&p.to)));
     }

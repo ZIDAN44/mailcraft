@@ -35,9 +35,7 @@ pub use url::{Url, pct};
 mod search;
 mod state;
 mod sync;
-use search::*;
 pub use search::*;
-use state::*;
 pub use state::*;
 pub use sync::{sync_folder, sync_folder_as};
 
@@ -57,6 +55,8 @@ pub const VALIDITY: u32 = 1;
 const INBOX: &str = "INBOX";
 /// Deepest mailbox nesting followed.
 const MAX_DEPTH: usize = 32;
+/// Most messages asked for in one `Email/get` (less when the server says so).
+const GET_CHUNK: usize = 200;
 
 /// What can go wrong, in the categories the callers act on.
 #[derive(Debug, thiserror::Error)]
@@ -334,10 +334,15 @@ impl<H: Http> Client<H> {
         Ok((ids, counts))
     }
 
+    /// How many messages to ask for in one `Email/get`.
+    fn get_chunk(&self) -> usize {
+        self.max_get.clamp(1, GET_CHUNK)
+    }
+
     /// Headers and details of messages, for the list.
     async fn headers(&self, ids: &[String]) -> Result<Vec<Value>> {
         let mut out = Vec::new();
-        for chunk in ids.chunks(self.max_get.min(200)) {
+        for chunk in ids.chunks(self.get_chunk()) {
             let r = self
                 .mail(vec![(
                     "Email/get",
@@ -760,7 +765,7 @@ impl<H: Http> Client<H> {
     /// Of these messages, those still in a mailbox, with their keywords.
     async fn still_in(&self, mailbox: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
         let mut out = Vec::new();
-        for chunk in ids.chunks(self.max_get.clamp(1, 200)) {
+        for chunk in ids.chunks(self.get_chunk()) {
             let r = self
                 .mail(vec![("Email/get", json!({"accountId": self.account, "ids": chunk, "properties": ["id", "keywords", "mailboxIds"]}))])
                 .await?;

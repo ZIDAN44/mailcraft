@@ -212,8 +212,8 @@ fn own_text(c: &mut Compose, own: &str) {
 fn rule_over_quote(c: &mut Compose) {
     let lines: Vec<&str> = c.body.split('\n').collect();
     let at = (1..lines.len()).find(|&i| {
-        lines.get(i).is_some_and(|l| l.starts_with("From: "))
-            && lines.get(i + 1).is_some_and(|l| l.starts_with("Sent: "))
+        lines.get(i).is_some_and(|l| is_labelled(l, mime::markup::FROM_LABEL))
+            && lines.get(i + 1).is_some_and(|l| is_labelled(l, mime::markup::SENT_LABEL))
             && lines.get(i - 1).is_some_and(|l| l.trim().is_empty())
     });
     let Some(at) = at else { return };
@@ -221,4 +221,9 @@ fn rule_over_quote(c: &mut Compose) {
     if let Some(p) = c.styles.paras.get_mut(at - 1) {
         p.rule = true;
     }
+}
+
+/// Whether a line starts with a header label (`From:`) and the space after it, as a reply writes them.
+fn is_labelled(line: &str, label: &str) -> bool {
+    line.strip_prefix(label).is_some_and(|rest| rest.starts_with(' '))
 }

@@ -19,8 +19,13 @@
 /// The rule above the original in a reply or forward (as Outlook writes it in plain text).
 pub const RULE: &str = "________________________________";
 
+/// The label of who sent the original, first in its header under a rule.
+pub const FROM_LABEL: &str = "From:";
+/// The label of when it was sent, right after.
+pub const SENT_LABEL: &str = "Sent:";
+
 /// The labels of the original's header under a rule.
-const HEADER_LABELS: [&str; 6] = ["From:", "Sent:", "Date:", "To:", "Cc:", "Subject:"];
+const HEADER_LABELS: [&str; 6] = [FROM_LABEL, SENT_LABEL, "Date:", "To:", "Cc:", "Subject:"];
 
 /// The length of the header label a line starts with (`From:`…), if it does.
 pub fn header_label(line: &str) -> Option<usize> {

@@ -217,9 +217,8 @@ impl Sheet {
     /// The rules in `css`, and (`nested`: how many at-rules it's in) those of the `@media` blocks
     /// in it that are for a wide screen.
     fn read(&mut self, css: &str, nested: usize) {
-        let sheet = self;
         let mut rest = css;
-        while sheet.rules.len() < MAX_RULES {
+        while self.rules.len() < MAX_RULES {
             let Some(open) = scanned(rest, rest.find('{')) else { break };
             let before = rest.get(..open).unwrap_or("");
             let head = before.trim();
@@ -251,7 +250,7 @@ impl Sheet {
             let body = rest.get(open + 1..close).unwrap_or("");
             rest = rest.get(close + 1..).unwrap_or("");
             if head.starts_with('@') && nested < 2 && wide_screen(head) {
-                sheet.read(body, nested + 1);
+                self.read(body, nested + 1);
                 continue;
             }
             if head.starts_with('@') || body.contains('{') {
@@ -270,16 +269,16 @@ impl Sheet {
                         c.saturating_add(u16::from(p.tag.is_some())),
                     )
                 });
-                let i = sheet.rules.len();
+                let i = self.rules.len();
                 let Some(last) = parts.last() else { continue };
                 match (&last.id, last.classes.first(), &last.tag) {
-                    (Some(id), _, _) => sheet.by_id.entry(id.clone()).or_default().push(i),
-                    (None, Some(c), _) => sheet.by_class.entry(c.clone()).or_default().push(i),
-                    (None, None, Some(t)) => sheet.by_tag.entry(t.clone()).or_default().push(i),
-                    (None, None, None) => sheet.any.push(i),
+                    (Some(id), _, _) => self.by_id.entry(id.clone()).or_default().push(i),
+                    (None, Some(c), _) => self.by_class.entry(c.clone()).or_default().push(i),
+                    (None, None, Some(t)) => self.by_tag.entry(t.clone()).or_default().push(i),
+                    (None, None, None) => self.any.push(i),
                 }
-                sheet.rules.push(Rule { parts, specificity, order: i, decls: decls.clone() });
-                if sheet.rules.len() >= MAX_RULES {
+                self.rules.push(Rule { parts, specificity, order: i, decls: decls.clone() });
+                if self.rules.len() >= MAX_RULES {
                     break;
                 }
             }

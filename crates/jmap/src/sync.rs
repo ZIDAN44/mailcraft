@@ -41,8 +41,7 @@ pub async fn sync_folder_as<H: Http>(
         report.reset = true;
     }
     fs.validity = VALIDITY;
-    let wanted: HashMap<u32, Flags> = newest.iter().map(|(id, f)| (st.number(id), f.clone())).collect();
-    let mut wanted = wanted;
+    let mut wanted: HashMap<u32, Flags> = newest.iter().map(|(id, f)| (st.number(id), f.clone())).collect();
     // Found by a search of the server past the window: kept while still in the mailbox.
     let extra = st.found_outside(folder, &fs.messages, &wanted);
     for (id, f) in c.still_in(&mailbox, &extra).await? {
