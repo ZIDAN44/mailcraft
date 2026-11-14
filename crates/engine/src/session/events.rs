@@ -317,6 +317,12 @@ impl Session {
             Event::Discovered { email, config, source } => {
                 self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config.map(|c| *c), source)));
             }
+            // Kept for an address asked about only.
+            Event::JmapProbed { url, probe } => {
+                if let Some(p) = self.jmap_probes.get_mut(&url) {
+                    *p = Some(probe);
+                }
+            }
             Event::Releases { releases, error } => {
                 self.update = match error {
                     Some(e) => UpdateCheck::Failed(e),

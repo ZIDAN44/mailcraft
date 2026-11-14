@@ -621,6 +621,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::FetchUrl { .. }
         | Job::FetchCalendar { .. }
         | Job::Discover { .. }
+        | Job::ProbeJmap { .. }
         | Job::SignIn { .. }
         | Job::ImportPst { .. }
         | Job::RereadDataFile { .. }
@@ -762,6 +763,10 @@ impl Backend for WebBackend {
             }
             // No autoconfiguration in the browser: the user gives the JMAP address.
             Job::Discover { email } => emit(sh, Event::Discovered { email, config: None, source: String::new() }),
+            // A single sign-on's sign-in needs the desktop app: here, a server takes a password.
+            Job::ProbeJmap { url } => {
+                emit(sh, Event::JmapProbed { url, probe: mailcraft_engine::model::JmapProbe { password: true, ..Default::default() } })
+            }
             Job::SignIn { account } => {
                 status(sh, &account.id, SyncStatus::NeedsPassword { error: "signing in through Google or Microsoft needs the desktop app".into() })
             }

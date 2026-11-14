@@ -209,6 +209,7 @@ impl Pool {
             Job::SignIn { account } => self.sign_in(account),
             Job::AllowDirectory { account } => self.allow_directory(account),
             Job::Discover { email } => self.discover(email),
+            Job::ProbeJmap { url } => self.probe_jmap(url),
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
             Job::RereadDataFile { account, path } => self.reread_data_file(account, path),
             Job::InspectDataFile { path } => self.inspect_data_file(path),

@@ -412,6 +412,8 @@ pub struct Session {
     pictures_for: BTreeSet<MessageKey>,
     /// Server settings looked up per address (lower case): `None` while looking.
     pub discovered: HashMap<String, Option<(Option<AccountConfig>, String)>>,
+    /// How JMAP servers are signed in to, by the address asked about: `None` while asking.
+    pub jmap_probes: HashMap<String, Option<mailcraft_model::JmapProbe>>,
     /// Accounts waiting for a data file to come in before they connect (their start).
     held: HashMap<String, Job>,
     /// OAuth providers this copy can sign in with (set by the app).
@@ -549,6 +551,7 @@ impl Session {
             pictures: HashMap::new(),
             pictures_for: BTreeSet::new(),
             discovered: HashMap::new(),
+            jmap_probes: HashMap::new(),
             held: HashMap::new(),
             oauth_available: Vec::new(),
             portable: false,

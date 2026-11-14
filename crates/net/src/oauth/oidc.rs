@@ -10,7 +10,7 @@
 //! (`https://sso.example.com=mailcraft;https://kc.example.org/realms/mail=mc-desktop`), read at
 //! run time and baked in at build time, run time's first.
 
-use mailcraft_model::OidcSettings;
+use mailcraft_model::{JmapProbe, OidcSettings};
 use serde_json::Value;
 
 use super::Provider;
@@ -144,16 +144,23 @@ pub fn describe(url: &str) -> Result<Description> {
     })
 }
 
-/// The scopes asked for: `wanted` (what the server's `WWW-Authenticate` named, kept with the
-/// account), else [`DEFAULT_SCOPE`]; with `offline_access` where the service takes it, so the
-/// sign-in lasts (OIDC Core §11). What isn't a scope is left out.
-pub fn scope_for(wanted: &str, supported: &[String]) -> String {
+/// The scopes in `s` (space-separated), each once, without what isn't one; at most
+/// [`MAX_SCOPES`].
+pub fn scopes(s: &str) -> Vec<&str> {
     let mut scopes: Vec<&str> = Vec::new();
-    for s in wanted.split_ascii_whitespace().filter(|s| scope_token(s)) {
+    for s in s.split_ascii_whitespace().filter(|s| scope_token(s)) {
         if !scopes.contains(&s) && scopes.len() < MAX_SCOPES {
             scopes.push(s);
         }
     }
+    scopes
+}
+
+/// The scopes asked for: `wanted` (what the server's `WWW-Authenticate` named, kept with the
+/// account), else [`DEFAULT_SCOPE`]; with `offline_access` where the service takes it, so the
+/// sign-in lasts (OIDC Core §11). What isn't a scope is left out.
+pub fn scope_for(wanted: &str, supported: &[String]) -> String {
+    let mut scopes = scopes(wanted);
     if scopes.is_empty() {
         scopes = DEFAULT_SCOPE.split(' ').collect();
     }
@@ -231,6 +238,41 @@ pub fn provider_from(d: &Description, client_id: String, scope: &str) -> Provide
         client_id,
         client_secret: None,
     }
+}
+
+/// The most of a session's answer without a sign-in that's read.
+const MAX_REFUSAL: usize = 64 << 10;
+
+/// How the JMAP server at `server` (a session address, or the server's name) is signed in to:
+/// what it answers a request without a sign-in, and where it takes bearer tokens, the single
+/// sign-on service its address names (as [`describe`] finds it, from wherever the session
+/// address sent the request). Only advice for the add dialog: what can't be asked is a password,
+/// whose usual sign-in then says what's wrong. A request to the server: only ever on a thread of
+/// its own.
+pub fn probe(server: &str) -> JmapProbe {
+    let password = JmapProbe { password: true, ..JmapProbe::default() };
+    let session = mailcraft_jmap::session_url(server);
+    let Ok((resp, at)) = crate::http::send_where(&Request::get(&session, MAX_REFUSAL).header("Accept", "application/json")) else { return password };
+    if resp.status != 401 {
+        return password;
+    }
+    let challenges = mailcraft_jmap::Response { status: resp.status, headers: resp.headers, body: Vec::new() }.challenges();
+    let offers = |scheme: &str| challenges.iter().find(|c| c.scheme == scheme);
+    let Some(bearer) = offers("bearer") else { return password };
+    let mut found = JmapProbe {
+        password: offers("basic").is_some(),
+        bearer: true,
+        scope: scopes(bearer.param("scope").unwrap_or_default()).join(" "),
+        ..JmapProbe::default()
+    };
+    match describe(&format!("{}{WELL_KNOWN}", at.origin())) {
+        Ok(d) => {
+            found.client_id = given_client(&d.issuer);
+            found.issuer = Some(d.issuer);
+        }
+        Err(e) => found.error = Some(e.to_string()),
+    }
+    found
 }
 
 #[cfg(test)]

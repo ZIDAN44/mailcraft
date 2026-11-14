@@ -1,6 +1,7 @@
 //! What the pool runs on threads of its own, so it never waits behind a sync: browser sign-in,
-//! looking up an address's servers, the release check, a message's pictures, calendars read
-//! from their links, and Outlook data files written (`imports.rs` reads them).
+//! looking up an address's servers, asking a JMAP server how it's signed in to, the release
+//! check, a message's pictures, calendars read from their links, and Outlook data files written
+//! (`imports.rs` reads them).
 
 use super::*;
 
@@ -33,6 +34,19 @@ impl Pool {
         });
         if let Err(e) = spawned {
             log::warn!("autoconfiguration: {e}");
+        }
+    }
+
+    /// How a JMAP server is signed in to: with a password, or through the browser with the
+    /// single sign-on its address names.
+    pub(super) fn probe_jmap(&mut self, url: String) {
+        let sink = self.sink.clone();
+        let spawned = std::thread::Builder::new().name("mail-probe".into()).spawn(move || {
+            let probe = crate::oauth::oidc::probe(&url);
+            sink.emit(Event::JmapProbed { url, probe });
+        });
+        if let Err(e) = spawned {
+            log::warn!("asking the JMAP server how it's signed in to: {e}");
         }
     }
 

@@ -14,6 +14,7 @@ pub mod eta;
 mod import;
 mod keys;
 mod op;
+mod probe;
 pub mod progress;
 mod vacation;
 pub use compact::*;
@@ -21,6 +22,7 @@ pub use eta::Eta;
 pub use import::*;
 pub use keys::{HeldKey, Revocation};
 pub use op::Op;
+pub use probe::JmapProbe;
 pub use progress::Work;
 pub use vacation::{Vacation, is_day};
 
@@ -131,6 +133,8 @@ pub enum Job {
     FetchCalendar { account: String, calendar: String, url: String, etag: String, modified: String },
     /// Look up the server settings for an address (autoconfiguration).
     Discover { email: String },
+    /// Ask the JMAP server at `url` how it's signed in to; answered by [`Event::JmapProbed`].
+    ProbeJmap { url: String },
     /// Sign an OAuth account in through the browser; it starts once signed in.
     SignIn { account: AccountConfig },
     /// Work offline (every account's connection closed, changes and mail kept to send later), or
@@ -347,6 +351,7 @@ impl Job {
             | Job::ReadMessageFile { .. }
             | Job::InspectDataFile { .. }
             | Job::Discover { .. }
+            | Job::ProbeJmap { .. }
             | Job::WorkOffline { .. }
             | Job::SetSync { .. }
             | Job::CheckUpdates
@@ -488,6 +493,11 @@ pub enum Event {
         email: String,
         config: Option<Box<AccountConfig>>,
         source: String,
+    },
+    /// How the JMAP server [`Job::ProbeJmap`] asked about is signed in to.
+    JmapProbed {
+        url: String,
+        probe: JmapProbe,
     },
     /// Show this page in the browser (an OAuth sign-in page).
     OpenUrl {

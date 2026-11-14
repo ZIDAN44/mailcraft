@@ -559,6 +559,9 @@ impl Session {
             || a.config.user_agent != config.user_agent
             || a.config.trusted_certificates != config.trusted_certificates
             || password.is_some();
+        // Another single sign-on, or another client id: signed in again through the browser, its
+        // refresh token taking the place of what was kept (never sent to the service as one).
+        let sign_in = config.oauth.as_deref() == Some(mailcraft_model::OIDC) && (a.config.oauth != config.oauth || a.config.oidc != config.oidc);
         if config.online_only && !config.can_be_online_only() {
             return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));
         }
@@ -580,7 +583,9 @@ impl Session {
             self.pim_mut(&id).leave_server();
             self.save_pim(&id);
         }
-        if reconnect && server {
+        if sign_in {
+            self.jobs.push(Job::SignIn { account: config });
+        } else if reconnect && server {
             self.jobs.push(Job::Start { account: config, password: password.map(Secret) });
         }
         Ok(serde_json::json!({ "updated": id }))
