@@ -211,7 +211,8 @@ fn read_batch(db: &Database, after: Option<&str>) -> io::Result<Batch> {
     Ok(b)
 }
 
-/// A file compressed as `pack` keeps it, when that saves a tenth or more.
+/// A file compressed as `pack` keeps it, when that saves a tenth or more (always, for one that
+/// starts as a compressed file or a note does).
 fn packed(bytes: &[u8]) -> Option<Vec<u8>> {
     match pack(bytes) {
         Cow::Owned(v) => Some(v),

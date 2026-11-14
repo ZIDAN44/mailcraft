@@ -9,7 +9,7 @@ pub(super) const FILES: TableDefinition<&str, &[u8]> = TableDefinition::new("fil
 /// big file goes in pieces that each fill their pages, and `FILES` keeps a note of it.
 pub(super) const PIECES: TableDefinition<(&str, u32), &[u8]> = TableDefinition::new("pieces");
 /// The note in `FILES` for a file kept in pieces: this, then its length (8 bytes, little-endian).
-/// Nothing MailCraft keeps starts with a NUL.
+/// A file that itself starts with this or [`DEFLATED`] is never kept raw ([`pack`]).
 const PIECED: &[u8] = b"\0MailCraft:pieces\0";
 /// Files up to this size (as kept: compressed when that helps) stay whole: one page's worth. A
 /// bigger value took the next power of two of pages, so it goes in pieces.
@@ -39,9 +39,16 @@ const RESERVE_MAX: usize = 64 << 20;
 /// The buffer starts at [`DEFLATE_ROOM`] of the file, what an attachment comes to, and grows to
 /// the most that would be kept only for a stream that needs it: an imported message waits in its
 /// batch in this buffer, and its unused end was a tenth of the message more.
+///
+/// A file that starts with [`DEFLATED`] or [`PIECED`] (a message can: its bytes are the server's)
+/// is kept compressed however little that saves: kept raw, it would be read back as a compressed
+/// one, or as the note of one in pieces. Compressed, it reads back as it came, in every build.
 pub(super) fn pack(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     use miniz_oxide::deflate::core::{CompressorOxide, TDEFLFlush, TDEFLStatus, compress, create_comp_flags_from_zip_params};
-    if bytes.len() < DEFLATE_MIN || bytes.starts_with(DEFLATED) {
+    if bytes.starts_with(DEFLATED) || bytes.starts_with(PIECED) {
+        return [DEFLATED, &miniz_oxide::deflate::compress_to_vec(bytes, 1)].concat().into();
+    }
+    if bytes.len() < DEFLATE_MIN {
         return bytes.into();
     }
     // Kept compressed only when it comes to less than this.
