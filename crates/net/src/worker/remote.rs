@@ -1,6 +1,116 @@
-//! Changes made here, carried out on an IMAP server.
+//! The connection to an account's server, and the changes made here carried out on it: what
+//! each kind of server does its own way is matched here once, not by every caller.
 
 use super::*;
+use crate::sync::{SearchArg, WordQuery};
+use mailcraft_model::job::Vacation;
+
+/// The connection to an account's server.
+pub(super) enum Conn {
+    Imap(Client<Stream>),
+    Jmap(jmap::Client),
+    Graph(crate::graph::Client),
+    Ews(Box<crate::ews::Client>),
+    /// POP3: signed in once to check the password; every download is a session of its own.
+    Pop,
+}
+
+/// A search of the server as each kind asks it: IMAP's `SEARCH` keys, JMAP's filter, and the
+/// words Graph and Exchange search for. `None` where that kind has nothing to ask.
+pub(super) struct ServerQuery {
+    imap: Option<Vec<SearchArg>>,
+    filter: Option<serde_json::Value>,
+    words: Option<WordQuery>,
+}
+
+impl ServerQuery {
+    pub(super) fn new(query: &str) -> ServerQuery {
+        ServerQuery { imap: crate::sync::imap_criteria(query), filter: mailcraft_jmap::search_filter(query), words: crate::sync::word_query(query) }
+    }
+}
+
+impl Conn {
+    /// Carry out one change on the server, with the account's Trash (permanent deletes on Gmail
+    /// need it). POP: changes are made here only (the cache has them already).
+    pub(super) fn apply_remote(&mut self, jstate: &jmap::State, op: &Op, trash: Option<&str>) -> Result<()> {
+        match self {
+            Conn::Imap(c) => apply_remote_with(c, op, trash),
+            Conn::Jmap(c) => jmap::apply_remote(c, jstate, op),
+            Conn::Graph(c) => crate::graph::apply_remote(c, jstate, op),
+            Conn::Ews(c) => crate::ews::apply_remote(c, jstate, op),
+            Conn::Pop => Ok(()),
+        }
+    }
+
+    /// The automatic replies a server keeps itself (JMAP, Graph, Exchange), first changed to
+    /// `set` when given; POP has none. `None` for IMAP: its go through ManageSieve, on a
+    /// connection of their own.
+    pub(super) fn vacation(&self, set: Option<&Vacation>) -> Option<Result<Vacation>> {
+        let r = match self {
+            Conn::Jmap(c) => set.map_or(Ok(()), |v| c.set_vacation(v)).and_then(|()| c.vacation()),
+            Conn::Graph(c) => set.map_or(Ok(()), |v| c.set_vacation(v)).and_then(|()| c.vacation()),
+            Conn::Ews(c) => set.map_or(Ok(()), |v| c.set_vacation(v)).and_then(|()| c.vacation()),
+            Conn::Pop => Err(NetError::No("POP accounts have no automatic replies on the server".into())),
+            Conn::Imap(_) => return None,
+        };
+        Some(r)
+    }
+
+    /// File a draft in `folder` on a server reached through its API (JMAP, Graph, Exchange),
+    /// then delete the copy it replaces. `None` for IMAP and POP, whose drafts the worker files
+    /// itself (a Drafts folder made, MailCraft's own copies looked for; the cache).
+    pub(super) fn file_api_draft(&mut self, jstate: &jmap::State, folder: &str, raw: &[u8], replaces: Option<&MessageKey>) -> Option<Result<()>> {
+        let gone = replaces.map(|old| Op::Expunge { keys: vec![old.clone()] });
+        let r = match self {
+            Conn::Jmap(c) => jmap::append(c, jstate, folder, raw, &["$draft", "$seen"])
+                .and_then(|_| gone.as_ref().map_or(Ok(()), |op| jmap::apply_remote(c, jstate, op))),
+            Conn::Graph(c) => crate::graph::append(c, jstate, folder, raw)
+                .and_then(|_| gone.as_ref().map_or(Ok(()), |op| crate::graph::apply_remote(c, jstate, op))),
+            Conn::Ews(c) => {
+                crate::ews::append(c, jstate, folder, raw).and_then(|_| gone.as_ref().map_or(Ok(()), |op| crate::ews::apply_remote(c, jstate, op)))
+            }
+            Conn::Imap(_) | Conn::Pop => return None,
+        };
+        Some(r)
+    }
+
+    /// Whether this kind of server has anything to ask for a search (POP: never).
+    pub(super) fn asks(&self, q: &ServerQuery) -> bool {
+        match self {
+            Conn::Imap(_) => q.imap.is_some(),
+            Conn::Jmap(_) => q.filter.is_some(),
+            Conn::Graph(_) | Conn::Ews(_) => q.words.is_some(),
+            Conn::Pop => false,
+        }
+    }
+
+    /// Search one folder on the server (issue #4): what's found goes to `sent` with how many came
+    /// into the folder's list, as it's found (IMAP, a range at a time) or at the end. `None` when
+    /// this kind of server has nothing to ask ([`Conn::asks`]).
+    pub(super) fn find_on_server(
+        &mut self,
+        jstate: &mut jmap::State,
+        store: &Store,
+        account: &str,
+        folder: &str,
+        q: &ServerQuery,
+        sent: &mut dyn FnMut(Vec<MessageKey>, usize) -> bool,
+    ) -> Option<Result<()>> {
+        let mut found = |r: Result<(Vec<MessageKey>, usize)>| {
+            r.map(|(keys, new)| {
+                sent(keys, new);
+            })
+        };
+        let r = match (self, &q.imap, &q.filter, &q.words) {
+            (Conn::Imap(c), Some(q), _, _) => crate::sync::find_on_server(c, store, account, folder, q, FOUND_MAX, sent).map(|_| ()),
+            (Conn::Jmap(c), _, Some(q), _) => found(jmap::find_on_server(c, jstate, store, account, folder, q, FOUND_MAX)),
+            (Conn::Graph(c), _, _, Some(q)) => found(crate::graph::find_on_server(c, jstate, store, account, folder, q, FOUND_MAX)),
+            (Conn::Ews(c), _, _, Some(q)) => found(crate::ews::find_on_server(c, jstate, store, account, folder, q, FOUND_MAX)),
+            _ => return None,
+        };
+        Some(r)
+    }
+}
 
 /// Group keys by folder, select each folder, and skip keys whose UIDVALIDITY is stale.
 pub(super) fn by_folder<S: std::io::Read + std::io::Write>(

@@ -422,25 +422,8 @@ impl Worker {
                 .ok_or_else(|| NetError::Closed("the account was removed".into()))??;
             return Ok((folder.to_string(), false));
         }
-        if let Some(Conn::Jmap(c)) = self.conn.as_mut() {
-            jmap::append(c, &self.jstate, folder, raw, &["$draft", "$seen"])?;
-            if let Some(old) = replaces {
-                jmap::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
-            }
-            return Ok((folder.to_string(), false));
-        }
-        if let Some(Conn::Graph(c)) = self.conn.as_mut() {
-            crate::graph::append(c, &self.jstate, folder, raw)?;
-            if let Some(old) = replaces {
-                crate::graph::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
-            }
-            return Ok((folder.to_string(), false));
-        }
-        if let Some(Conn::Ews(c)) = self.conn.as_mut() {
-            crate::ews::append(c, &self.jstate, folder, raw)?;
-            if let Some(old) = replaces {
-                crate::ews::apply_remote(c, &self.jstate, &Op::Expunge { keys: vec![old] })?;
-            }
+        if let Some(r) = self.conn.as_mut().and_then(|c| c.file_api_draft(&self.jstate, folder, raw, replaces.as_ref())) {
+            r?;
             return Ok((folder.to_string(), false));
         }
         // A server without Drafts gets one, as it gets Sent Items: once its folders are known

@@ -231,27 +231,10 @@ impl Worker {
                 return Err(NetError::Refused("it shows once the account is connected".into()));
             }
         }
-        if let Some(Conn::Pop) = &self.conn {
-            return Err(NetError::No("POP accounts have no automatic replies on the server".into()));
+        if let Some(r) = self.conn.as_ref().and_then(|c| c.vacation(set)) {
+            return r;
         }
-        if let Some(Conn::Jmap(c)) = &self.conn {
-            if let Some(v) = set {
-                c.set_vacation(v)?;
-            }
-            return c.vacation();
-        }
-        if let Some(Conn::Graph(c)) = &self.conn {
-            if let Some(v) = set {
-                c.set_vacation(v)?;
-            }
-            return c.vacation();
-        }
-        if let Some(Conn::Ews(c)) = &self.conn {
-            if let Some(v) = set {
-                c.set_vacation(v)?;
-            }
-            return c.vacation();
-        }
+        // IMAP: a Sieve script, through ManageSieve on the IMAP host.
         let secret = self.secret()?;
         let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
         let mut s = crate::sieve::Client::connect_trusting(&self.acc.imap, self.sieve_port, &self.acc.trusted_certificates).map_err(|e| match e {
@@ -318,12 +301,7 @@ impl Worker {
         for _ in 0..100_000 {
             let Some(op) = waiting.first().cloned() else { break };
             let r = match self.conn.as_mut() {
-                Some(Conn::Imap(c)) => apply_remote_with(c, &op, trash.as_deref()),
-                Some(Conn::Jmap(c)) => jmap::apply_remote(c, &self.jstate, &op),
-                Some(Conn::Graph(c)) => crate::graph::apply_remote(c, &self.jstate, &op),
-                Some(Conn::Ews(c)) => crate::ews::apply_remote(c, &self.jstate, &op),
-                // POP: changes are made here only (the cache has them already).
-                Some(Conn::Pop) => Ok(()),
+                Some(c) => c.apply_remote(&self.jstate, &op, trash.as_deref()),
                 None => Err(NetError::Closed("not connected".into())),
             };
             match r {

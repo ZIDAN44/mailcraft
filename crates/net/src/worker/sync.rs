@@ -559,7 +559,7 @@ impl Worker {
             self.connect_and_sync();
         }
         let store = self.store.clone();
-        let (imap, filter, words) = (crate::sync::imap_criteria(&query), mailcraft_jmap::search_filter(&query), crate::sync::word_query(&query));
+        let asked = ServerQuery::new(&query);
         let asks = match self.conn.as_ref() {
             None => {
                 self.sink.emit(answer(Vec::new(), Some("the account isn't connected".into()), true));
@@ -569,9 +569,7 @@ impl Worker {
                 self.sink.emit(answer(Vec::new(), Some("a POP account keeps all its mail here".into()), true));
                 return;
             }
-            Some(Conn::Imap(_)) => imap.is_some(),
-            Some(Conn::Jmap(_)) => filter.is_some(),
-            Some(Conn::Graph(_) | Conn::Ews(_)) => words.is_some(),
+            Some(c) => c.asks(&asked),
         };
         if !asks {
             self.sink.emit(answer(Vec::new(), None, true));
@@ -593,22 +591,8 @@ impl Worker {
                 }
                 still()
             };
-            let found = match (self.conn.as_mut(), &imap, &filter, &words) {
-                (Some(Conn::Imap(c)), Some(q), _, _) => crate::sync::find_on_server(c, &store, &id, f, q, FOUND_MAX, &mut sent).map(|_| ()),
-                (Some(Conn::Jmap(c)), _, Some(q), _) => jmap::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX).map(|(keys, new)| {
-                    sent(keys, new);
-                }),
-                (Some(Conn::Graph(c)), _, _, Some(q)) => {
-                    crate::graph::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX).map(|(keys, new)| {
-                        sent(keys, new);
-                    })
-                }
-                (Some(Conn::Ews(c)), _, _, Some(q)) => {
-                    crate::ews::find_on_server(c, &mut self.jstate, &store, &id, f, q, FOUND_MAX).map(|(keys, new)| {
-                        sent(keys, new);
-                    })
-                }
-                _ => break,
+            let Some(found) = self.conn.as_mut().and_then(|c| c.find_on_server(&mut self.jstate, &store, &id, f, &asked, &mut sent)) else {
+                break;
             };
             if let Err(e) = found {
                 log::info!("{id}/{f}: searching the server: {e}");

@@ -656,16 +656,6 @@ const SENT_LATER: Duration = Duration::from_secs(15);
 /// An account's second connection lets go after this long with nothing to do.
 const QUICK_IDLE: Duration = Duration::from_secs(5 * 60);
 
-/// The connection to an account's server.
-enum Conn {
-    Imap(Client<Stream>),
-    Jmap(jmap::Client),
-    Graph(crate::graph::Client),
-    Ews(Box<crate::ews::Client>),
-    /// POP3: signed in once to check the password; every download is a session of its own.
-    Pop,
-}
-
 struct Worker {
     acc: AccountConfig,
     auth: Arc<Mutex<Auth>>,

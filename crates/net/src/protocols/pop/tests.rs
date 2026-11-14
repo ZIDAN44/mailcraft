@@ -233,6 +233,19 @@ fn a_pop_account_works_through_the_pool() {
     until(&pool, "sent", &|e| matches!(e, Event::Sent { id: 1, .. }));
     assert!(smtp.join().unwrap().contains("RCPT TO:<ana@pop.example>"));
     assert_eq!(here("Sent Items", 1).messages.len(), 1);
+    // The server keeps no automatic replies, nor mail to search that isn't here.
+    pool.submit(Job::GetVacation { account: "p1".into() });
+    until(
+        &pool,
+        "no automatic replies",
+        &|e| matches!(e, Event::Vacation { vacation: None, error: Some(m), .. } if m == "POP accounts have no automatic replies on the server"),
+    );
+    pool.submit(Job::SearchServer { account: "p1".into(), folders: vec!["INBOX".into()], query: "invoice".into(), search: 1 });
+    until(
+        &pool,
+        "no search of the server",
+        &|e| matches!(e, Event::ServerSearched { done: true, keys, error: Some(m), .. } if keys.is_empty() && m == "a POP account keeps all its mail here"),
+    );
     pool.submit(Job::Remove { account: "p1".into() });
     let _ = std::fs::remove_dir_all(dir);
 }
