@@ -5,7 +5,7 @@
 //! never loses half a response. Parsing is `imap-proto`'s. Server input is hostile: line and
 //! literal sizes are capped and nothing indexes unchecked.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::time::{Duration, Instant};
 
@@ -627,6 +627,9 @@ impl<S: Read + Write> Client<S> {
         let cmd = if modifier.is_empty() { format!("UID FETCH {set} ({items})") } else { format!("UID FETCH {set} ({items}) {modifier}") };
         let rs = self.cmd(&[Part::Text(&cmd)])?;
         let mut out: Vec<Fetched> = Vec::new();
+        // Each UID's place in `out` (looked for in it, a big folder's flags were a pass over the
+        // answer per message).
+        let mut at: HashMap<u32, usize> = HashMap::new();
         for r in rs {
             let Response::Fetch(_, attrs) = r else { continue };
             let f = fetched(attrs);
@@ -634,7 +637,7 @@ impl<S: Read + Write> Client<S> {
             if f.uid == 0 {
                 continue;
             }
-            if let Some(existing) = out.iter_mut().find(|e| e.uid == f.uid) {
+            if let Some(existing) = at.get(&f.uid).and_then(|&i| out.get_mut(i)) {
                 existing.flags = f.flags.or(existing.flags.take());
                 existing.header = f.header.or(existing.header.take());
                 existing.body = f.body.or(existing.body.take());
@@ -642,6 +645,7 @@ impl<S: Read + Write> Client<S> {
                 existing.modseq = existing.modseq.max(f.modseq);
                 existing.internal_date = existing.internal_date.or(f.internal_date);
             } else {
+                at.insert(f.uid, out.len());
                 out.push(f);
             }
         }

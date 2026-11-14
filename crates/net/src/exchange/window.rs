@@ -125,8 +125,7 @@ fn prefetch<W: Window>(
     if wanted.is_empty() {
         return Ok(0);
     }
-    // Each message's place by its number (the first under it, as a search of the list found).
-    let at: HashMap<u32, usize> = fs.messages.iter().enumerate().rev().map(|(i, m)| (m.key.uid, i)).collect();
+    let at = places(fs);
     let mut fetched = 0;
     let mut failures = AheadFailures::new();
     for (n, id) in &wanted {
@@ -153,6 +152,12 @@ fn prefetch<W: Window>(
 /// The numbers a folder's list holds.
 pub(crate) fn kept_numbers(fs: &FolderState) -> HashSet<u32> {
     fs.messages.iter().map(|m| m.key.uid).collect()
+}
+
+/// Each message's place in a folder's list by its number: the first under it, as
+/// [`FolderState::find`] finds (looked for there, each was a pass over the folder).
+pub(crate) fn places(fs: &FolderState) -> HashMap<u32, usize> {
+    fs.messages.iter().enumerate().rev().map(|(i, m)| (m.key.uid, i)).collect()
 }
 
 /// What a search of the server found in `folder` brought into its list `fs`: `numbers`, all it

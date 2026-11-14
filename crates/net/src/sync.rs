@@ -22,6 +22,7 @@ use mailcraft_mime as mime;
 use mailcraft_model::{Flags, MessageKey, SharedSummary, Summary, sort_newest_first};
 use mailcraft_store::{FolderState, Store};
 
+use crate::exchange::window::{kept_numbers, places};
 use crate::imap::{Client, Fetched, uid_chunks, uid_set};
 use crate::{NetError, Result};
 
@@ -122,8 +123,9 @@ pub fn sync_folder_as<S: Read + Write>(
         st.messages.clear();
     } else if let Some((vanished, changed)) = quick {
         // 3 + 4 from what the server just said.
+        let at = places(&st);
         for f in changed {
-            if let (Some(m), Some(fl)) = (st.find_mut(f.uid), &f.flags) {
+            if let (Some(m), Some(fl)) = (at.get(&f.uid).and_then(|&i| st.messages.get_mut(i)).map(SharedSummary::make_mut), &f.flags) {
                 let flags = Flags::from_imap(fl.iter().map(String::as_str));
                 if m.flags != flags {
                     m.flags = flags;
@@ -159,8 +161,9 @@ pub fn sync_folder_as<S: Read + Write>(
             } else {
                 c.uid_fetch(&range, "UID FLAGS", "")?
             };
+            let at = places(&st);
             for f in changed {
-                if let (Some(m), Some(fl)) = (st.find_mut(f.uid), &f.flags) {
+                if let (Some(m), Some(fl)) = (at.get(&f.uid).and_then(|&i| st.messages.get_mut(i)).map(SharedSummary::make_mut), &f.flags) {
                     let flags = Flags::from_imap(fl.iter().map(String::as_str));
                     if m.flags != flags {
                         m.flags = flags;
@@ -399,14 +402,16 @@ pub fn find_on_server<S: Read + Write>(
         uids.sort_unstable();
         let uids = uids.split_off(uids.len().saturating_sub(cap - total));
         total += uids.len();
-        let missing: Vec<u32> = uids.iter().filter(|u| st.find(**u).is_none()).copied().collect();
+        let kept = kept_numbers(&st);
+        let missing: Vec<u32> = uids.iter().filter(|u| !kept.contains(*u)).copied().collect();
         let mut report = SyncReport::default();
         fetch_headers(c, &mut st, account, folder, &missing, &mut report)?;
         if report.new > 0 {
             sort_newest_first(&mut st.messages);
             if_kept(store, account, seen, || store.save_folder(account, folder, &st))?;
         }
-        let keys = uids.iter().filter_map(|u| st.find(*u).map(|m| m.key.clone())).collect();
+        let at = places(&st);
+        let keys = uids.iter().filter_map(|u| at.get(u).and_then(|&i| st.messages.get(i)).map(|m| m.key.clone())).collect();
         if !found(keys, report.new) {
             break;
         }
@@ -439,7 +444,8 @@ fn keep_more<S: Read + Write>(
     }
     let all = c.uid_search("ALL")?;
     let want = window - st.messages.len();
-    let take: Vec<u32> = all.iter().rev().filter(|u| st.find(**u).is_none()).take(want).copied().collect();
+    let kept = kept_numbers(st);
+    let take: Vec<u32> = all.iter().rev().filter(|u| !kept.contains(*u)).take(want).copied().collect();
     fetch_headers(c, st, account, folder, &take, report)?;
     st.window = window;
     Ok(())
@@ -468,6 +474,8 @@ pub(crate) fn fetch_headers<S: Read + Write>(
     uids: &[u32],
     report: &mut SyncReport,
 ) -> Result<()> {
+    // The numbers kept, in a set (looked up in the list, each new one was a pass over the folder).
+    let mut kept = kept_numbers(st);
     for chunk in uid_chunks(uids, 200) {
         for f in c.uid_fetch(&uid_set(&chunk), HEADER_ITEMS, "")? {
             // A flag change the server tells of in passing (with QRESYNC it names the UID) is
@@ -475,7 +483,7 @@ pub(crate) fn fetch_headers<S: Read + Write>(
             if f.header.is_none() || !chunk.contains(&f.uid) {
                 continue;
             }
-            if st.find(f.uid).is_none() {
+            if kept.insert(f.uid) {
                 st.messages.push(summary(account, folder, st.validity, &f).into());
                 report.new += 1;
             }

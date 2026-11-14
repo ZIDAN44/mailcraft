@@ -86,6 +86,7 @@ on GitHub.
 - Turning an account's Work online only setting on or off no longer needs twice the account's size in memory.
 - Printing or saving as PDF a message with deeply nested tables is faster.
 - Removing an account while it searched the server or downloaded a message no longer brings its files back.
+- Syncing a very large IMAP folder kept whole is faster on servers without CONDSTORE.
 
 ## 0.38.0 - 2026-11-13
 
