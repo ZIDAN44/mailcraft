@@ -52,6 +52,7 @@ on GitHub.
 - A category given twice to an event or task is kept once.
 - An account's address changed in its settings, when it signs in with its address, is used at once: the account went on signing in with the old one until MailCraft was started again.
 - `account.add` with a data file whose path is refused no longer leaves the account added.
+- In All Inboxes, one Undo puts back what was done to mail of several accounts at once (marked read, flagged, categorised, moved or deleted): it took one Undo per account, in no set order.
 
 ## 0.38.0 - 2026-11-13
 

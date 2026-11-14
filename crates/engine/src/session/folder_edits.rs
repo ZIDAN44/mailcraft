@@ -310,39 +310,49 @@ impl Session {
         let mut moved = 0usize;
         let mut accounts: Vec<String> = by_account.keys().cloned().collect();
         accounts.sort();
-        for a in accounts {
-            let keys = by_account.remove(&a).unwrap_or_default();
-            let dest = match &target {
-                MoveTarget::Folder(f) => Some(f.clone()),
-                MoveTarget::Role(r) => self.account(&a).and_then(|acc| acc.folder(*r)).map(|f| f.path.clone()),
-            };
-            let Some(dest) = dest else {
-                let what = match target {
-                    MoveTarget::Role(r) => r.label().unwrap_or("that folder"),
-                    MoveTarget::Folder(_) => "that folder",
+        let mut moves: Vec<(String, String, Vec<(String, String)>)> = Vec::new();
+        let done = (|| -> Result<(), CmdError> {
+            for a in accounts {
+                let keys = by_account.remove(&a).unwrap_or_default();
+                let dest = match &target {
+                    MoveTarget::Folder(f) => Some(f.clone()),
+                    MoveTarget::Role(r) => self.account(&a).and_then(|acc| acc.folder(*r)).map(|f| f.path.clone()),
                 };
-                return Err(CmdError::Failed(format!("this account has no {what} folder")));
-            };
-            if self.folder(&a, &dest).is_none() {
-                return Err(CmdError::Params(format!("no folder `{dest}`")));
-            }
-            let keys: Vec<MessageKey> = keys.into_iter().filter(|k| k.folder != dest).collect();
-            moved += keys.len();
-            if !keys.is_empty() {
-                // Undo finds them again by Message-ID (those without one can't come back).
-                let back: Vec<(String, String)> = keys
-                    .iter()
-                    .filter_map(|k| self.summary(k).filter(|m| !m.message_id.is_empty()).map(|m| (m.message_id.clone(), k.folder.clone())))
-                    .collect();
-                // One that didn't happen (a local store error) has nothing to undo, and the
-                // selection stays on it.
-                self.apply_op_checked(&a, Op::Move { keys, to: dest.clone() }).map_err(CmdError::Failed)?;
-                if !back.is_empty() {
-                    self.moved_at = self.clock.now;
-                    self.remember(Undo::Move { account: a.clone(), to: dest, back });
+                let Some(dest) = dest else {
+                    let what = match target {
+                        MoveTarget::Role(r) => r.label().unwrap_or("that folder"),
+                        MoveTarget::Folder(_) => "that folder",
+                    };
+                    return Err(CmdError::Failed(format!("this account has no {what} folder")));
+                };
+                if self.folder(&a, &dest).is_none() {
+                    return Err(CmdError::Params(format!("no folder `{dest}`")));
+                }
+                let keys: Vec<MessageKey> = keys.into_iter().filter(|k| k.folder != dest).collect();
+                moved += keys.len();
+                if !keys.is_empty() {
+                    // Undo finds them again by Message-ID (those without one can't come back).
+                    let back: Vec<(String, String)> = keys
+                        .iter()
+                        .filter_map(|k| self.summary(k).filter(|m| !m.message_id.is_empty()).map(|m| (m.message_id.clone(), k.folder.clone())))
+                        .collect();
+                    // One that didn't happen (a local store error) has nothing to undo, and the
+                    // selection stays on it.
+                    self.apply_op_checked(&a, Op::Move { keys, to: dest.clone() }).map_err(CmdError::Failed)?;
+                    if !back.is_empty() {
+                        moves.push((a.clone(), dest, back));
+                    }
                 }
             }
+            Ok(())
+        })();
+        // One Undo for all of it (All Inboxes: one per account took a Ctrl+Z each), kept even
+        // when an account after these couldn't move.
+        if !moves.is_empty() {
+            self.moved_at = self.clock.now;
+            self.remember(Undo::Move { moves });
         }
+        done?;
         // All of it there already (Archive pressed in Archive): nothing moved, and the one open
         // stays open (it gave way to the next all the same).
         if moved == 0 {
@@ -409,8 +419,10 @@ impl Session {
                 changed.entry(m.key.account.clone()).or_default().push(m.key.clone());
             }
         }
-        for (a, keys) in changed {
-            self.remember(Undo::Ops { account: a, ops: vec![Op::SetFlag { keys, flag, on: !on }] });
+        let mut undo: Vec<(String, Vec<Op>)> = changed.into_iter().map(|(a, keys)| (a, vec![Op::SetFlag { keys, flag, on: !on }])).collect();
+        if !undo.is_empty() {
+            undo.sort_by(|x, y| x.0.cmp(&y.0));
+            self.remember(Undo::Ops { ops: undo });
         }
         for (a, keys) in by_account {
             self.apply_op(&a, Op::SetFlag { keys, flag, on });
@@ -588,9 +600,11 @@ impl Session {
     pub fn undo_last(&mut self) -> CmdResult {
         let u = self.undo.pop().ok_or_else(|| CmdError::Disabled("nothing to undo".into()))?;
         match u {
-            Undo::Ops { account, ops } => {
-                for op in ops {
-                    self.apply_op(&account, op);
+            Undo::Ops { ops } => {
+                for (account, ops) in ops {
+                    for op in ops {
+                        self.apply_op(&account, op);
+                    }
                 }
                 Ok(serde_json::json!({ "undone": "changes" }))
             }
@@ -606,46 +620,64 @@ impl Session {
                 }
                 Ok(serde_json::json!({ "undone": "changes" }))
             }
-            Undo::Move { account, to, back } => {
-                if let Err(e) = self.import_holds(&account) {
-                    self.undo.push(Undo::Move { account, to, back });
-                    return Err(e);
-                }
-                if let Err(e) = self.folders_ready(&[(account.clone(), to.clone())]) {
-                    self.undo.push(Undo::Move { account, to, back });
-                    return Err(e);
-                }
-                // Where each one is now: the destination's messages with that Message-ID.
-                let here = self.folder_state(&account, &to).messages.clone();
-                let mut by_folder: std::collections::BTreeMap<String, Vec<MessageKey>> = std::collections::BTreeMap::new();
-                let mut used: BTreeSet<MessageKey> = BTreeSet::new();
-                for (id, from) in &back {
-                    if let Some(m) = here.iter().find(|m| &m.message_id == id && !used.contains(&m.key)) {
-                        used.insert(m.key.clone());
-                        by_folder.entry(from.clone()).or_default().push(m.key.clone());
+            Undo::Move { moves } => {
+                // Each account's put back; one that can't be yet is kept to be tried again.
+                let (mut n, mut again, mut failed) = (0, Vec::new(), None);
+                for (account, to, back) in moves {
+                    match self.move_back(&account, &to, &back) {
+                        Ok(k) => n += k,
+                        Err((e, keep)) => {
+                            if keep {
+                                again.push((account, to, back));
+                            }
+                            failed.get_or_insert(e);
+                        }
                     }
                 }
-                if by_folder.is_empty() {
-                    // Not there yet (the server is still moving them, and the folder they go
-                    // to is read after): try again in a moment. For a couple of minutes after
-                    // the move; a server account's, as a move on this computer is done at once.
-                    let server = self.account(&account).is_some_and(|a| !a.is_local());
-                    if server && self.clock.now.saturating_sub(self.moved_at) < 120 {
-                        self.undo.push(Undo::Move { account, to, back });
-                        return Err(CmdError::Failed("still being moved; try Undo again in a moment".into()));
-                    }
-                    // Gone from there since (deleted for good, moved on, the folder emptied):
-                    // nothing to put back, and what was done before it can be undone. Kept to
-                    // be tried again, it stood in the way of every Undo after.
-                    return Err(CmdError::Failed("the mail isn't where it was moved to any more, so it can't be put back".into()));
+                if !again.is_empty() {
+                    self.undo.push(Undo::Move { moves: again });
                 }
-                let n = used.len();
-                for (from, keys) in by_folder {
-                    self.apply_op(&account, Op::Move { keys, to: from });
+                match failed {
+                    Some(e) if n == 0 => Err(e),
+                    _ => Ok(serde_json::json!({ "undone": "move", "count": n })),
                 }
-                Ok(serde_json::json!({ "undone": "move", "count": n }))
             }
         }
+    }
+
+    /// The mail moved from `account`'s folders to `to` put back where each came from, found there
+    /// by its Message-ID (`back`); how many. Refused, with whether to keep it to try again.
+    fn move_back(&mut self, account: &str, to: &str, back: &[(String, String)]) -> Result<usize, (CmdError, bool)> {
+        self.import_holds(account).map_err(|e| (e, true))?;
+        self.folders_ready(&[(account.to_string(), to.to_string())]).map_err(|e| (e, true))?;
+        // Where each one is now: the destination's messages with that Message-ID.
+        let here = self.folder_state(account, to).messages.clone();
+        let mut by_folder: std::collections::BTreeMap<String, Vec<MessageKey>> = std::collections::BTreeMap::new();
+        let mut used: BTreeSet<MessageKey> = BTreeSet::new();
+        for (id, from) in back {
+            if let Some(m) = here.iter().find(|m| &m.message_id == id && !used.contains(&m.key)) {
+                used.insert(m.key.clone());
+                by_folder.entry(from.clone()).or_default().push(m.key.clone());
+            }
+        }
+        if by_folder.is_empty() {
+            // Not there yet (the server is still moving them, and the folder they go to is read
+            // after): try again in a moment. For a couple of minutes after the move; a server
+            // account's, as a move on this computer is done at once.
+            let server = self.account(account).is_some_and(|a| !a.is_local());
+            if server && self.clock.now.saturating_sub(self.moved_at) < 120 {
+                return Err((CmdError::Failed("still being moved; try Undo again in a moment".into()), true));
+            }
+            // Gone from there since (deleted for good, moved on, the folder emptied): nothing to
+            // put back, and what was done before it can be undone. Kept to be tried again, it
+            // stood in the way of every Undo after.
+            return Err((CmdError::Failed("the mail isn't where it was moved to any more, so it can't be put back".into()), false));
+        }
+        let n = used.len();
+        for (from, keys) in by_folder {
+            self.apply_op(account, Op::Move { keys, to: from });
+        }
+        Ok(n)
     }
 }
 

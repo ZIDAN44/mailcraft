@@ -182,11 +182,13 @@ pub struct PaneSection {
 /// A change the user made that Undo can put back.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Undo {
-    /// Messages moved (deleted to Deleted Items, archived, moved): found again in `to` by their
-    /// Message-ID (a move gives them new keys) and moved back where each came from.
-    Move { account: String, to: String, back: Vec<(String, String)> },
-    /// Flags or keywords changed: the changes that put them back.
-    Ops { account: String, ops: Vec<Op> },
+    /// Messages moved (deleted to Deleted Items, archived, moved), by account: where they went,
+    /// and each one's Message-ID (a move gives them new keys, so they're found again in that
+    /// folder by it) with the folder it's moved back to. One action over several accounts (All
+    /// Inboxes) is one entry.
+    Move { moves: Vec<(String, String, Vec<(String, String)>)> },
+    /// Flags or keywords changed: the changes that put them back, by account.
+    Ops { ops: Vec<(String, Vec<Op>)> },
     /// Follow-ups changed (flagged, cleared, marked complete): the flag and keyword changes that
     /// put them back, by account, and each message's due and done days as they were, by its
     /// follow-up id.

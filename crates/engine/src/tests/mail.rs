@@ -9,6 +9,7 @@ mod follow_up;
 mod marks;
 mod moving;
 mod nav;
+mod one_undo;
 mod search;
 mod search_big;
 mod store_errors;
