@@ -137,9 +137,11 @@ pub struct NamesForm {
     pub bcc: String,
 }
 
-/// Add `a` to a recipient field (`a; b` as Outlook writes them), unless it's there.
+/// Add `a` to a recipient field (`a; b` as Outlook writes them), unless it's there: an address
+/// in the field the same as its own, not one it's a part of (`joann@…`) or in a name.
 pub(super) fn add_to(field: &mut String, a: &mailcraft_engine::model::EmailAddress) {
-    if field.to_lowercase().contains(&a.email.to_lowercase()) {
+    let email = a.email.trim().to_lowercase();
+    if email.is_empty() || mailcraft_engine::model::addr::parse_valid(field).iter().any(|x| x.email.to_lowercase() == email) {
         return;
     }
     let f = field.trim().trim_end_matches([';', ',']).trim().to_string();
@@ -327,4 +329,24 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         return true;
     }
     !cancel
+}
+
+/// Select Names adds someone whose address is part of another's, or of a name, in the field;
+/// not someone already there, whatever the case.
+#[cfg(test)]
+#[test]
+fn an_address_is_added_unless_it_is_there_whole() {
+    let ann = mailcraft_engine::model::EmailAddress::new("Ann", "ann@x.example");
+    let added = |field: &str| {
+        let mut f = field.to_string();
+        add_to(&mut f, &ann);
+        f
+    };
+    assert_eq!(added(""), "Ann <ann@x.example>; ");
+    assert_eq!(added("joann@x.example; "), "joann@x.example; Ann <ann@x.example>; ");
+    assert_eq!(added("\"ann@x.example's desk\" <desk@x.example>"), "\"ann@x.example's desk\" <desk@x.example>; Ann <ann@x.example>; ");
+    assert_eq!(added("bo@x.example, zo"), "bo@x.example, zo; Ann <ann@x.example>; ");
+    for there in ["ann@x.example", "Ann Lee <ANN@x.example>; ", "bo@x.example; Ann@X.example; "] {
+        assert_eq!(added(there), there);
+    }
 }
