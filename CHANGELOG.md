@@ -116,6 +116,7 @@ on GitHub.
 - Picking Bold, a colour or another look with nothing selected no longer takes away Redo or makes the next Undo do nothing.
 - Undo no longer uses hundreds of megabytes of memory in a long message.
 - The message editor stays quick with a long selection while the ribbon or a menu is in use.
+- Writing a long message is smoother: the editor does much less work on each frame.
 
 ## 0.38.0 - 2026-11-13
 

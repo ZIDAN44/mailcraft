@@ -197,6 +197,8 @@ pub(super) fn indent_empty_rows(g: Arc<Galley>, st: &Styles, plain: bool) -> Arc
 }
 
 /// Lay the text out; centred and right-aligned paragraphs that fit on one line are moved over.
+/// (Afresh, for the tests: the editor keeps what it laid out with [`layout_kept`].)
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn layout(
     ui: &Ui,
@@ -208,11 +210,28 @@ pub(super) fn layout(
     own: &HashMap<String, egui::Vec2>,
     card: Option<&Card>,
 ) -> Arc<Galley> {
-    indent_empty_rows(layout_aligned(ui, text, st, plain, t, wrap, own, card), st, plain)
+    let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[], own, card));
+    indent_empty_rows(aligned(ui, first, text, st, plain, t, wrap, own, card), st, plain)
 }
 
+/// The text laid out last, given again while it would be laid out the same: egui gives back the
+/// same first layout (it keeps a layout while it's used, and lays out afresh when the fonts
+/// change), with the same paragraphs and width. Aligned paragraphs (laid out twice), right-to-left
+/// ones and empty list items were moved on every frame.
+#[derive(Default)]
+pub(super) struct Laid {
+    first: Option<Arc<Galley>>,
+    paras: Vec<rich::Para>,
+    plain: bool,
+    wrap: f32,
+    out: Option<Arc<Galley>>,
+}
+
+/// The text laid out, its centred and right-aligned paragraphs that fit on one line moved over;
+/// given again from `laid` when it's the same.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn layout_aligned(
+pub(super) fn layout_kept(
+    laid: &mut Laid,
     ui: &Ui,
     text: &str,
     st: &Styles,
@@ -223,12 +242,37 @@ pub(super) fn layout_aligned(
     card: Option<&Card>,
 ) -> Arc<Galley> {
     let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[], own, card));
-    // A right-to-left paragraph left as it was sits against the right edge.
-    let lines: Vec<&str> = text.split('\n').collect();
-    let align_of = |n: usize, a: Align| {
-        if a == Align::Left && lines.get(n).is_some_and(|l| crate::bidi::has_rtl(l) && crate::bidi::paragraph_rtl(l)) { Align::Right } else { a }
-    };
-    let rtl_of = |n: usize| lines.get(n).is_some_and(|l| crate::bidi::has_rtl(l) && crate::bidi::paragraph_rtl(l));
+    if let (Some(was), Some(out)) = (&laid.first, &laid.out)
+        && Arc::ptr_eq(was, &first)
+        && laid.paras == st.paras
+        && laid.plain == plain
+        && laid.wrap.to_bits() == wrap.to_bits()
+    {
+        return out.clone();
+    }
+    let out = indent_empty_rows(aligned(ui, first.clone(), text, st, plain, t, wrap, own, card), st, plain);
+    *laid = Laid { first: Some(first), paras: st.paras.clone(), plain, wrap, out: Some(out.clone()) };
+    out
+}
+
+/// `first` (the text laid out) with its centred and right-aligned paragraphs moved over.
+#[allow(clippy::too_many_arguments)]
+fn aligned(
+    ui: &Ui,
+    first: Arc<Galley>,
+    text: &str,
+    st: &Styles,
+    plain: bool,
+    t: &Tokens,
+    wrap: f32,
+    own: &HashMap<String, egui::Vec2>,
+    card: Option<&Card>,
+) -> Arc<Galley> {
+    // A right-to-left paragraph left as it was sits against the right edge. (Each paragraph is
+    // looked at once: it was again for each of its rows, and twice to align it.)
+    let rtl: Vec<bool> = text.split('\n').map(|l| crate::bidi::has_rtl(l) && crate::bidi::paragraph_rtl(l)).collect();
+    let rtl_of = |n: usize| rtl.get(n).copied().unwrap_or(false);
+    let align_of = |n: usize, a: Align| if a == Align::Left && rtl_of(n) { Align::Right } else { a };
     if plain {
         // Plain text has no alignment of its own: right-to-left paragraphs still start on the right.
         return rtl_rows_right(first, rtl_of, wrap, 1);

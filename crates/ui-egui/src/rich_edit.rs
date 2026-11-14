@@ -25,6 +25,7 @@ mod layout;
 mod links;
 mod pictures;
 mod toolbar;
+mod tracked;
 mod undo;
 pub(crate) use layout::Card;
 use layout::*;
@@ -37,6 +38,7 @@ pub use toolbar::Counts;
 #[cfg(test)]
 pub(crate) use toolbar::{count_words, date_choices};
 pub(crate) use toolbar::{ribbon, signature_bar};
+use tracked::Tracked;
 use undo::{History, Snap};
 
 /// Pixels per point.
@@ -101,6 +103,8 @@ pub(crate) struct Editor {
     /// signature's HTML code, laid out), and where its room was in the last frame.
     pub(crate) card: Option<Card>,
     pub(crate) card_rect: Option<Rect>,
+    /// The text as laid out last.
+    laid: Laid,
 }
 
 impl Editor {
@@ -122,6 +126,7 @@ impl Editor {
             min_height: None,
             card: None,
             card_rect: None,
+            laid: Laid::default(),
         }
     }
 
@@ -160,15 +165,37 @@ fn set_selection(ctx: &egui::Context, id: egui::Id, r: Range<usize>) {
 /// The look typing at `at` takes: the character before (or after, at a paragraph's start),
 /// without a link the text doesn't continue.
 fn typing_style(text: &str, styles: &Styles, at: usize) -> Style {
-    let chars: Vec<char> = text.chars().collect();
-    let before = at.checked_sub(1).filter(|i| chars.get(*i).is_some_and(|c| *c != '\n'));
-    let i = before.or_else(|| chars.get(at).filter(|c| **c != '\n').map(|_| at));
+    // The characters either side of `at` (the ribbon asks every frame: the text isn't copied).
+    let mut around = text.chars().skip(at.saturating_sub(1));
+    let before = if at > 0 { around.next() } else { None };
+    let after = around.next();
+    let i = if before.is_some_and(|c| c != '\n') { at.checked_sub(1) } else { after.filter(|c| *c != '\n').map(|_| at) };
     let Some(i) = i else { return Style::default() };
     let mut s = styles.style(i).for_typing();
     if s.link.is_some() && styles.style(at).link != s.link {
         s.link = None;
     }
     s
+}
+
+/// The line (paragraph) character `at` is in, the character it starts at, and whether it's
+/// empty: one look along the text as far as `at`.
+fn line_at(text: &str, at: usize) -> (usize, usize, bool) {
+    let mut chars = text.chars();
+    let (mut line, mut start, mut i) = (0, 0, 0);
+    while i < at {
+        match chars.next() {
+            Some('\n') => {
+                line += 1;
+                start = i + 1;
+            }
+            Some(_) => {}
+            None => break,
+        }
+        i += 1;
+    }
+    // Empty: nothing between its start and `at`, and a break or the end after.
+    (line, start, start == i && chars.next().is_none_or(|ch| ch == '\n'))
 }
 
 /// A change the ribbon or a shortcut asks for.
@@ -314,10 +341,8 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     let (mut undo_k, mut redo_k, mut link_k, mut book_k) = (false, false, false, false);
     // Lists: Enter on an empty item ends the list, Backspace at an item's start takes its bullet
     // away, Tab and Shift+Tab move it in and out.
-    let line = rich::lines_of(&c.body, ed.sel.start..ed.sel.start).0;
+    let (line, line_start, line_empty) = line_at(&c.body, ed.sel.start);
     let para = c.styles.para(line);
-    let line_start = c.body.split('\n').take(line).map(|l| l.chars().count() + 1).sum::<usize>();
-    let line_empty = c.body.split('\n').nth(line).is_some_and(str::is_empty);
     let at_start = ed.sel.is_empty() && ed.sel.start == line_start;
     let listed = para.list != List::None;
     // A card is one thing: Backspace after it, or Delete before it, takes all of it (its
@@ -448,13 +473,16 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
             paste_formatted(ui, ed, c, id);
         }
     }
-    let before = c.body.clone();
-    let styles = c.styles.clone();
     let plain = c.plain;
     let tokens = *t;
     let own = if plain { HashMap::new() } else { pictures::own_sizes(ui.ctx(), ed, c) };
     let card = ed.card.clone().filter(|_| !plain);
-    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap, &own, card.as_ref());
+    // The text box changes the text; its look is laid out as it was at the frame's start.
+    let mut text = Tracked::new(&mut c.body);
+    let styles = &c.styles;
+    let laid = &mut ed.laid;
+    let mut layouter =
+        |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout_kept(laid, ui, buf.as_str(), styles, plain, &tokens, wrap, &own, card.as_ref());
     // As tall as the pane, or, above the original of a reply shown as it came, as its text.
     let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });
     // A right-click inside the selection keeps it (egui's text box moves the cursor on any
@@ -471,7 +499,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         (true, true) => tl!("Write your signature, or paste it…"),
         (true, false) => tl!("Write your message…"),
     };
-    let out = egui::TextEdit::multiline(&mut c.body)
+    let out = egui::TextEdit::multiline(&mut text)
         .id(id)
         .frame(egui::Frame::NONE)
         .hint_text(hint)
@@ -481,6 +509,8 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         .desired_rows(if ed.min_height.is_some() { 1 } else { 4 })
         .layouter(&mut layouter)
         .show(ui);
+    // What the text was, when the text box changed it.
+    let before = text.before();
     let mut cursor = out.cursor_range.map(|r| {
         let r = r.as_sorted_char_range();
         r.start.0..r.end.0
@@ -499,9 +529,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     // way down it comes out after it, on the way up before it), and a selection that reaches
     // into it takes all of it.
     if let (Some(card), Some(r)) = (&card, cursor.as_mut())
-        && c.body == before
+        && before.is_none()
     {
-        let (first, last) = (card.before(&before), card.whole.end);
+        let (first, last) = (card.before(&c.body), card.whole.end);
         let inside = |p: usize| p > first && p < last;
         let moved = if r.start == r.end && inside(r.start) {
             let p = if ed.sel.start >= last { first } else { last };
@@ -523,16 +553,18 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         let top = out.galley_pos.y + row.min.y + 2.0;
         Rect::from_min_size(egui::pos2(out.galley_pos.x, top), vec2(out.response.rect.width(), card.size.y))
     });
-    if c.body != before {
+    if let Some(before) = before {
         // The look of what was typed: the ribbon's choice, else the text's at the cursor.
-        let typing = ed.typing.take().unwrap_or_else(|| typing_style(&before, &styles, ed.sel.start));
+        let typing = ed.typing.take().unwrap_or_else(|| typing_style(&before, &c.styles, ed.sel.start));
         let now = ui.input(|i| i.time);
         let breaks = c.body.matches('\n').count() != before.matches('\n').count();
-        if now - ed.last_change > 1.0 || breaks || ed.undo.is_empty() {
-            ed.remember_snap(Snap { text: before.clone(), styles: styles.clone(), cursor: ed.sel.start });
-        }
+        let step = now - ed.last_change > 1.0 || breaks || ed.undo.is_empty();
+        let styles = step.then(|| c.styles.clone());
         ed.last_change = now;
         c.styles.edit_at(&before, &c.body, &typing, cursor.as_ref().map(|r| r.end));
+        if let Some(styles) = styles {
+            ed.remember_snap(Snap { text: before, styles, cursor: ed.sel.start });
+        }
         ui.ctx().request_repaint();
     } else if cursor.as_ref().is_some_and(|r| *r != ed.sel) {
         // The cursor moved: what the ribbon set for typing no longer applies.
@@ -565,7 +597,8 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
 fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
-    let chosen: String = c.body.chars().skip(sel.start).take(sel.end - sel.start).collect();
+    // What's selected, copied out only when it's cut or copied (not every frame).
+    let chosen = |text: &str| -> String { text.chars().skip(sel.start).take(sel.end - sel.start).collect() };
     let link = c.styles.style(sel.start).link.filter(|_| n > 0);
     let shown = resp.context_menu(|ui| {
         ui.set_min_width(190.0);
@@ -579,13 +612,13 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
         };
         let some = !sel.is_empty();
         if item(ui, "Cut", "Ctrl+X", some && !c.sending) {
-            ui.ctx().copy_text(chosen.clone());
+            ui.ctx().copy_text(chosen(&c.body));
             let style = typing_style(&c.body, &c.styles, sel.start);
             replace(ed, c, sel.clone(), "", style);
             ed.refocus = Some(ed.sel.clone());
         }
         if item(ui, "Copy", "Ctrl+C", some) {
-            ui.ctx().copy_text(chosen.clone());
+            ui.ctx().copy_text(chosen(&c.body));
             ed.refocus = Some(sel.clone());
         }
         if item(ui, "Paste", "Ctrl+V", !c.sending) {
@@ -634,7 +667,12 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
 /// Bullets and numbers, rules and pictures.
 fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, g: &Galley, origin: egui::Pos2) {
     let painter = ui.painter().clone();
-    let at = |i: usize| -> Rect { g.pos_from_cursor(CCursor::new(i)).translate(origin.to_vec2()) };
+    // Each line's start, in order: its row found walking on from the last line's (looked for
+    // from the first row each time, a long message's lines took lines × rows a frame).
+    let mut carets = carets::Carets::new(g);
+    let mut at = |i: usize| -> Rect { carets.at(i).translate(origin.to_vec2()) };
+    // A character's look, not copied.
+    let look = |i: usize| c.styles.chars.get(i).and_then(|k| c.styles.palette.get(usize::from(*k)));
     let mut i = 0usize;
     let mut numbers: Vec<u32> = vec![0; 16];
     let right = ui.min_rect().right().max(origin.x + g.size().x);
@@ -657,8 +695,7 @@ fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, g: &Galle
                 for x in numbers.iter_mut().skip(depth + 1) {
                     *x = 0;
                 }
-                let style = c.styles.style(i);
-                let px = f32::from(style.size()) * PX;
+                let px = f32::from(look(i).map_or(rich::DEFAULT_SIZE, Style::size)) * PX;
                 let mark = if p.list == List::Bullet {
                     if depth % 2 == 0 { "•".to_string() } else { "◦".to_string() }
                 } else {
@@ -677,15 +714,17 @@ fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, g: &Galle
         {
             *x = 0;
         }
+        let mut count = 0;
         for (k, ch) in line.chars().enumerate() {
+            count = k + 1;
             if ch == PICTURE
                 && !in_card(i + k)
-                && let Some(cid) = c.styles.style(i + k).picture
+                && let Some(cid) = look(i + k).and_then(|s| s.picture.clone())
             {
                 pictures.push((i + k, cid));
             }
         }
-        i += line.chars().count() + 1;
+        i += count + 1;
     }
     for (at, cid) in pictures {
         let last = c.body.chars().nth(at + 1).is_none_or(|ch| ch == '\n');

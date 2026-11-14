@@ -407,9 +407,118 @@ fn drawn(frames: &[Vec<egui::epaint::ClippedShape>]) -> u64 {
     h.finish()
 }
 
+/// A long message with every kind of paragraph: bulleted, numbered and indented (some empty),
+/// centred and right-aligned, right-to-left, a rule, and pictures in lines.
+fn formatted_message(lines: usize) -> Compose {
+    let body: Vec<String> = (0..lines)
+        .map(|k| match k % 9 {
+            3 => "שלום עולם, זוהי פסקה בעברית שנכתבה מימין לשמאל".to_string(),
+            6 => String::new(),
+            7 => format!("A picture \u{FFFC} in line {k}, then more text after it."),
+            _ => format!("Paragraph {k}: the quick brown fox jumps over the lazy dog, naïve café 東京 — done."),
+        })
+        .collect();
+    let mut c = Compose { body: body.join("\n"), ..Default::default() };
+    c.styles = Styles::plain(&c.body);
+    let mut at = 0;
+    for (k, line) in body.iter().enumerate() {
+        let para = at..at;
+        match k % 10 {
+            0..=2 => c.styles.relayout(&c.body, para, |p| p.list = List::Bullet),
+            4 | 5 => c.styles.relayout(&c.body, para, |p| (p.list, p.indent) = (List::Number, 1)),
+            6 => c.styles.relayout(&c.body, para, |p| p.indent = 2),
+            8 => c.styles.relayout(&c.body, para, |p| p.align = if k % 20 == 8 { Align::Center } else { Align::Right }),
+            _ => {}
+        }
+        if k % 9 == 7 {
+            c.styles.restyle(&c.body, at + 10..at + 11, |s| Style { picture: Some("cid".into()), ..s.clone() });
+        }
+        if k == 50 {
+            c.styles.relayout(&c.body, at..at, |p| p.rule = true);
+        }
+        at += line.chars().count() + 1;
+    }
+    c
+}
+
+/// MEASURE: what a frame of the editor did with a long message and no longer does, each against
+/// what it does now (the median of 31 runs).
+#[test]
+#[ignore]
+fn measure_editor_frame_pieces() {
+    use std::hint::black_box;
+    fn median(mut f: impl FnMut()) -> std::time::Duration {
+        let mut times: Vec<_> = (0..31)
+            .map(|_| {
+                let t = std::time::Instant::now();
+                f();
+                t.elapsed()
+            })
+            .collect();
+        times.sort();
+        times[15]
+    }
+    let ctx = egui::Context::default();
+    let t = Tokens::light();
+    for (name, c) in [("plain paragraphs", long_message(3_400)), ("every kind of paragraph", formatted_message(3_400))] {
+        let n = c.body.chars().count();
+        let at = n / 2;
+        let starts: Vec<usize> = std::iter::once(0).chain(c.body.chars().enumerate().filter(|(_, ch)| *ch == '\n').map(|(i, _)| i + 1)).collect();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let own = HashMap::new();
+            let copy = median(|| {
+                black_box((c.body.clone(), c.styles.clone()));
+            });
+            let look_was = median(|| {
+                black_box(typing_style_was(&c.body, &c.styles, at));
+            });
+            let look = median(|| {
+                black_box(typing_style(&c.body, &c.styles, at));
+            });
+            let line_was = median(|| {
+                let line = rich::lines_of(&c.body, at..at).0;
+                let start = c.body.split('\n').take(line).map(|l| l.chars().count() + 1).sum::<usize>();
+                black_box((line, start, c.body.split('\n').nth(line).is_some_and(str::is_empty)));
+            });
+            let line = median(|| {
+                black_box(line_at(&c.body, at));
+            });
+            let chosen = median(|| {
+                black_box(c.body.chars().take(n).collect::<String>());
+            });
+            let fresh = median(|| {
+                black_box(layout::layout(ui, &c.body, &c.styles, false, &t, 900.0, &own, None));
+            });
+            let mut laid = layout::Laid::default();
+            let kept = median(|| {
+                black_box(layout::layout_kept(&mut laid, ui, &c.body, &c.styles, false, &t, 900.0, &own, None));
+            });
+            let g = layout::layout(ui, &c.body, &c.styles, false, &t, 900.0, &own, None);
+            let lines_was = median(|| {
+                for &i in &starts {
+                    black_box(g.pos_from_cursor(CCursor::new(i)));
+                }
+            });
+            let lines = median(|| {
+                let mut carets = carets::Carets::new(&g);
+                for &i in &starts {
+                    black_box(carets.at(i));
+                }
+            });
+            println!(
+                "MEASURE frame pieces, {} KB, {name}: text and looks copied {copy:?} -> none; typing look {look_was:?} -> {look:?}; \
+                 cursor's line {line_was:?} -> {line:?}; all selected copied {chosen:?} -> none; layout {fresh:?} -> {kept:?}; \
+                 lines' places {lines_was:?} -> {lines:?}",
+                c.body.len() / 1024
+            );
+        });
+        out.textures_delta.clear();
+    }
+}
+
 /// MEASURE: a frame of the editor with a long message: the cursor in it, everything selected
-/// in it, and a selection drawn while the text doesn't have the keyboard. What's drawn hashed,
-/// to show it's the same.
+/// in it, and a selection drawn while the text doesn't have the keyboard; and the cursor in a
+/// long message with every kind of paragraph. What's drawn hashed, to show it's the same.
 #[test]
 #[ignore]
 fn measure_editor_frames_with_a_long_message() {
@@ -417,7 +526,16 @@ fn measure_editor_frames_with_a_long_message() {
     c.id = 7;
     let n = c.body.chars().count();
     let id = body_id(&c);
-    for (case, sel, focus) in [("cursor", n / 2..n / 2, true), ("all selected", 0..n, true), ("selection drawn", 1_000..21_000, false)] {
+    let cases = [
+        ("cursor", n / 2..n / 2, true, false),
+        ("all selected", 0..n, true, false),
+        ("selection drawn", 1_000..21_000, false, false),
+        ("cursor, formatted", 0..0, true, true),
+    ];
+    for (case, sel, focus, formatted) in cases {
+        let mut c = if formatted { formatted_message(3_400) } else { c.clone() };
+        c.id = 7;
+        let sel = if formatted { c.body.chars().count() / 2..c.body.chars().count() / 2 } else { sel };
         let ctx = egui::Context::default();
         let mut ed = Editor::new(c.id);
         set_selection(&ctx, id, sel.clone());
@@ -426,12 +544,106 @@ fn measure_editor_frames_with_a_long_message() {
             ctx.memory_mut(|m| m.request_focus(id));
         }
         let mut frames: Vec<_> = (0..3).map(|_| editor_frame(&ctx, &mut ed, &mut c)).collect();
-        let count = 20;
-        let t = std::time::Instant::now();
-        for _ in 0..count {
+        let mut times = Vec::new();
+        for _ in 0..20 {
+            let t = std::time::Instant::now();
             frames.push(editor_frame(&ctx, &mut ed, &mut c));
+            times.push(t.elapsed());
         }
-        let each = t.elapsed() / count;
-        println!("MEASURE editor frame, {} KB message, {case}: {each:?} a frame; drawn {:016x}", c.body.len() / 1024, drawn(&frames));
+        times.sort();
+        let (least, middle) = (times[0], times[times.len() / 2]);
+        println!(
+            "MEASURE editor frame, {} KB message, {case}: least {least:?}, median {middle:?} a frame; drawn {:016x}",
+            c.body.len() / 1024,
+            drawn(&frames)
+        );
     }
+}
+
+/// As typing_style was: the text's characters copied into a list first.
+fn typing_style_was(text: &str, styles: &Styles, at: usize) -> Style {
+    let chars: Vec<char> = text.chars().collect();
+    let before = at.checked_sub(1).filter(|i| chars.get(*i).is_some_and(|c| *c != '\n'));
+    let i = before.or_else(|| chars.get(at).filter(|c| **c != '\n').map(|_| at));
+    let Some(i) = i else { return Style::default() };
+    let mut s = styles.style(i).for_typing();
+    if s.link.is_some() && styles.style(at).link != s.link {
+        s.link = None;
+    }
+    s
+}
+
+/// The look typed text takes and the line the cursor is in are what they were, now found
+/// without copying the text out (the ribbon and the shortcuts ask every frame): at every place
+/// in texts with empty lines, a line break first or last, letters that aren't ASCII, and places
+/// past the end.
+#[test]
+fn typing_look_and_line_are_as_they_were() {
+    for text in ["", "\n", "a", "ab\n\ncd", "\nnaïve\n東京🙂\n", "x\n\n\ny", "line one\nline two"] {
+        let mut st = Styles::plain(text);
+        let n = text.chars().count();
+        for i in 0..n {
+            st.restyle(text, i..i + 1, |s| Style { size: Some(8 + u8::try_from(i % 5).unwrap_or(0)), ..s.clone() });
+        }
+        st.restyle(text, 1..3, |s| Style { link: Some("https://example.com".into()), ..s.clone() });
+        for at in 0..n + 3 {
+            assert_eq!(typing_style(text, &st, at), typing_style_was(text, &st, at), "{text:?} at {at}");
+            let line = rich::lines_of(text, at..at).0;
+            let start = text.split('\n').take(line).map(|l| l.chars().count() + 1).sum::<usize>();
+            let empty = text.split('\n').nth(line).is_some_and(str::is_empty);
+            assert_eq!(line_at(text, at), (line, start, empty), "{text:?} at {at}");
+        }
+    }
+}
+
+/// The text box's text knows what it was only when the box changed it.
+#[test]
+fn the_text_box_text_knows_what_it_was() {
+    use egui::TextBuffer;
+    use egui::text::CharIndex;
+    let mut text = "naïve café".to_string();
+    assert_eq!(Tracked::new(&mut text).before(), None);
+    let mut t = Tracked::new(&mut text);
+    assert_eq!(t.insert_text("très ", CharIndex(6)), 5);
+    t.delete_char_range(CharIndex(0)..CharIndex(1));
+    assert_eq!(t.as_str(), "aïve très café");
+    assert_eq!(t.before().as_deref(), Some("naïve café"));
+    assert_eq!(text, "aïve très café");
+    // Changed and changed back: as it was.
+    let mut t = Tracked::new(&mut text);
+    t.insert_text("x", CharIndex(0));
+    t.delete_char_range(CharIndex(0)..CharIndex(1));
+    assert_eq!(t.before(), None);
+    let mut t = Tracked::new(&mut text);
+    t.replace_with("new");
+    assert_eq!(t.before().as_deref(), Some("aïve très café"));
+    assert_eq!(text, "new");
+}
+
+/// The text laid out last is given again only while it would be laid out the same: as laid out
+/// afresh after its paragraphs' alignment, its width (by less than egui rounds to) or plain text
+/// change.
+#[test]
+fn the_text_laid_out_is_kept_only_while_the_same() {
+    let ctx = egui::Context::default();
+    let t = Tokens::light();
+    let c = formatted_message(60);
+    let mut laid = layout::Laid::default();
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let own = HashMap::new();
+        let fresh = |st: &Styles, plain: bool, wrap: f32| format!("{:?}", layout::layout(ui, &c.body, st, plain, &t, wrap, &own, None));
+        let mut kept = |st: &Styles, plain: bool, wrap: f32| layout::layout_kept(&mut laid, ui, &c.body, st, plain, &t, wrap, &own, None);
+        let a = kept(&c.styles, false, 900.4);
+        let b = kept(&c.styles, false, 900.4);
+        assert!(Arc::ptr_eq(&a, &b), "given again");
+        assert!(format!("{a:?}") == fresh(&c.styles, false, 900.4), "as laid out afresh");
+        let mut right = c.styles.clone();
+        right.relayout(&c.body, 0..1, |p| p.align = Align::Right);
+        assert!(fresh(&right, false, 900.4) != fresh(&c.styles, false, 900.4), "the first line moved right");
+        assert!(format!("{:?}", kept(&right, false, 900.4)) == fresh(&right, false, 900.4), "aligned again");
+        assert!(fresh(&right, false, 899.6) != fresh(&right, false, 900.4), "it moved with the width");
+        assert!(format!("{:?}", kept(&right, false, 899.6)) == fresh(&right, false, 899.6), "a little narrower");
+        assert!(format!("{:?}", kept(&right, true, 899.6)) == fresh(&right, true, 899.6), "plain");
+    });
+    out.textures_delta.clear();
 }

@@ -96,7 +96,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
     let cur =
         ed.typing.clone().unwrap_or_else(|| if sel.is_empty() { typing_style(&c.body, &c.styles, sel.start) } else { c.styles.style(sel.start) });
-    let para = c.styles.para(rich::lines_of(&c.body, sel.start..sel.start).0);
+    let para = c.styles.para(line_at(&c.body, sel.start).0);
     let mut ops: Vec<Op> = Vec::new();
     wrapped_row(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
@@ -230,7 +230,7 @@ pub(crate) fn signature_bar(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Co
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
     let cur =
         ed.typing.clone().unwrap_or_else(|| if sel.is_empty() { typing_style(&c.body, &c.styles, sel.start) } else { c.styles.style(sel.start) });
-    let para = c.styles.para(rich::lines_of(&c.body, sel.start..sel.start).0);
+    let para = c.styles.para(line_at(&c.body, sel.start).0);
     let mut ops: Vec<Op> = Vec::new();
     wrapped_row(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
