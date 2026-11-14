@@ -3,6 +3,7 @@
 use super::*;
 
 mod attachments;
+mod people;
 mod plain_text;
 
 #[test]
