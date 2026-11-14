@@ -429,22 +429,42 @@ pub(super) fn save_all_attachments(s: &mut Session, v: &Value) -> CmdResult {
     let raw = s.readable_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
     // Only some of them, when asked (the ones selected).
     let only: Option<Vec<u64>> = v.get("indices").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).take(10_000).collect());
-    let mut saved = Vec::new();
-    for a in parsed.attachments.iter().filter(|a| !a.inline && only.as_ref().is_none_or(|o| o.contains(&(a.index as u64)))) {
-        let Some(data) = mailcraft_mime::attachment_data(&raw, a.index) else { continue };
-        let name = sanitize_filename(&a.name);
-        let (stem, ext) = name.rsplit_once('.').map_or((name.clone(), String::new()), |(s, e)| (s.to_string(), format!(".{e}")));
-        let mut path = dir.join(&name);
-        let mut n = 2;
-        while path.exists() && n < 1000 {
-            path = dir.join(format!("{stem} ({n}){ext}"));
-            n += 1;
+    let names: std::collections::HashMap<usize, &str> = parsed
+        .attachments
+        .iter()
+        .filter(|a| !a.inline && only.as_ref().is_none_or(|o| o.contains(&(a.index as u64))))
+        .map(|a| (a.index, a.name.as_str()))
+        .collect();
+    let wanted: Vec<usize> = names.keys().copied().collect();
+    let (mut saved, mut failed) = (Vec::new(), None);
+    // The message parsed once for all of them (it was once per file: a 25 MB message with 30
+    // files read 30 times), each file written as it's decoded.
+    mailcraft_mime::attachments_moved(&raw, &wanted, &mut |index, data| {
+        let Some(name) = names.get(&index).filter(|_| failed.is_none()) else { return };
+        match save_beside(&dir, name, &data) {
+            Ok(path) => saved.push(path),
+            Err(e) => failed = Some(e),
         }
-        std::fs::write(&path, &data).map_err(|e| CmdError::Failed(format!("{}: {e}", path.display())))?;
-        mark_from_internet(&path, &data);
-        saved.push(path.to_string_lossy().to_string());
+    });
+    match failed {
+        Some(e) => Err(e),
+        None => Ok(json!({"saved": saved})),
     }
-    Ok(json!({"saved": saved}))
+}
+
+/// `data` saved in `dir` as `name` (made safe), or with a number when that's taken.
+fn save_beside(dir: &std::path::Path, name: &str, data: &[u8]) -> Result<String, CmdError> {
+    let name = sanitize_filename(name);
+    let (stem, ext) = name.rsplit_once('.').map_or((name.clone(), String::new()), |(s, e)| (s.to_string(), format!(".{e}")));
+    let mut path = dir.join(&name);
+    let mut n = 2;
+    while path.exists() && n < 1000 {
+        path = dir.join(format!("{stem} ({n}){ext}"));
+        n += 1;
+    }
+    std::fs::write(&path, data).map_err(|e| CmdError::Failed(format!("{}: {e}", path.display())))?;
+    mark_from_internet(&path, data);
+    Ok(path.to_string_lossy().to_string())
 }
 
 /// An attachment as text, for previewing (`message` kind: an attached email, parsed).

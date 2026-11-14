@@ -113,7 +113,15 @@ fn attachments_preview_and_save_all() {
     assert!(s.run("attachment.preview", &json!({"index": 0})).is_err(), "a picture isn't text");
     let dir = s.store.as_ref().unwrap().root().join("out");
     std::fs::create_dir_all(&dir).unwrap();
-    s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})).unwrap();
+    let saved = s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})).unwrap();
+    // Each file's own bytes (all of them come from one parse of the message).
+    let r = s.reading.as_ref().unwrap();
+    let raw = s.readable_raw(&r.key).unwrap();
+    let files: Vec<&mailcraft_mime::AttachmentInfo> = r.parsed.as_ref().unwrap().attachments.iter().filter(|a| !a.inline).collect();
+    assert_eq!(saved["saved"].as_array().map(Vec::len), Some(files.len()));
+    for (path, a) in saved["saved"].as_array().unwrap().iter().zip(files) {
+        assert_eq!(std::fs::read(path.as_str().unwrap()).unwrap(), mailcraft_mime::attachment_data(&raw, a.index).unwrap(), "{}", a.name);
+    }
     let again = s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()})).unwrap();
     assert!(again["saved"][0].as_str().unwrap().contains("(2)"), "names already taken get a number");
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);

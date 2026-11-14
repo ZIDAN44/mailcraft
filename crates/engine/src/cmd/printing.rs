@@ -15,6 +15,10 @@ const PT: f32 = 0.75;
 /// Pictures embedded in one PDF, at most, and their pixels in all.
 const MAX_PICTURES: usize = 80;
 const MAX_PIXELS: u64 = 40_000_000;
+/// The message's own pictures decoded at once, each at most and all together at most this
+/// (one past either is read on its own when it's wanted).
+const PICTURE_BYTES: usize = 16 << 20;
+const PICTURES_BYTES: usize = 64 << 20;
 /// Tables nested deeper than this are printed without their boxes.
 const MAX_DEPTH: usize = 24;
 const LINK: [u8; 3] = [0x0B, 0x57, 0xD0];
@@ -40,7 +44,7 @@ impl Session {
         if !files.is_empty() {
             header.push(("Attachments".into(), files.join(", ")));
         }
-        let mut printing = Printing { s: self, key: &r.key, p: m, raw: None, pictures: Vec::new(), by_src: HashMap::new(), pixels: 0 };
+        let mut printing = Printing { s: self, key: &r.key, p: m, raw: None, own: None, pictures: Vec::new(), by_src: HashMap::new(), pixels: 0 };
         // A formatted message: its layout, or (one with no columns) its lines.
         let blocks = if !m.layout.is_empty() {
             printing.blocks(&m.layout, 0, false)
@@ -63,6 +67,9 @@ struct Printing<'a> {
     /// The message's source, read once a picture of its own is wanted (`Some(None)`: it isn't
     /// to be had).
     raw: Option<Option<Vec<u8>>>,
+    /// The message's pictures, by attachment, decoded from one parse when the first is wanted
+    /// (it was a parse of the whole message per picture).
+    own: Option<HashMap<usize, Vec<u8>>>,
     pictures: Vec<print::Picture>,
     /// Each picture address looked up: its place in `pictures`, or that there's none.
     by_src: HashMap<String, Option<usize>>,
@@ -96,9 +103,16 @@ impl Printing<'_> {
             }
         } else {
             let index = mailcraft_mime::picture_attachment(self.p, src)?;
-            let (s, key) = (self.s, self.key);
+            let (s, key, p) = (self.s, self.key, self.p);
             let raw = self.raw.get_or_insert_with(|| s.readable_raw(key)).as_ref()?;
-            mailcraft_mime::attachment_data(raw, index)?
+            let own = self.own.get_or_insert_with(|| {
+                let pictures: Vec<usize> = p.attachments.iter().filter(|a| a.mime.starts_with("image/")).map(|a| a.index).collect();
+                mailcraft_mime::attachments_data(raw, &pictures, PICTURE_BYTES, PICTURES_BYTES).into_iter().collect()
+            });
+            match own.get(&index) {
+                Some(b) => b.clone(),
+                None => mailcraft_mime::attachment_data(raw, index)?,
+            }
         };
         let picture = print::Picture::decode(&bytes)?;
         self.pixels = self.pixels.saturating_add(u64::from(picture.width) * u64::from(picture.height));

@@ -368,3 +368,69 @@ fn base64_decode(text: &str) -> Vec<u8> {
         })
         .collect()
 }
+
+/// Save all attachments of a message with 30 files of 600 KB, and the PDF of one with 40
+/// pictures of its own beside a 12 MB file, timed (a parse per file, or per picture, before).
+/// Run under the heavy lock:
+/// `cargo test -p mailcraft-engine --lib measure_attachments_parsed_once -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_attachments_parsed_once() {
+    use std::fmt::Write as _;
+    const DOT: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    // `n` bytes as base64 lines (any letters will do).
+    let b64 = |n: usize, seed: u8| {
+        let line: String = (0..76u8).map(|i| char::from(b'A' + i.wrapping_add(seed) % 26)).collect();
+        let mut out = String::new();
+        for _ in 0..n / 57 {
+            out.push_str(&line);
+            out.push_str("\r\n");
+        }
+        out
+    };
+    let mut s = sample_session("measure-parse");
+    let scratch = TempFolder::new("measure");
+    let open = |s: &mut Session, name: &str, source: &str| {
+        let path = scratch.put(name, source.as_bytes());
+        let key = open_path(s, &path).unwrap()["key"].as_str().and_then(mailcraft_model::MessageKey::from_id).unwrap();
+        s.reading = s.windows.iter().find(|w| w.key == key).cloned();
+        scratch.0.clone()
+    };
+    let mut files = String::from(
+        "From: a@x.example\r\nTo: b@x.example\r\nSubject: Files\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nhi\r\n",
+    );
+    for i in 0..30u8 {
+        let _ = write!(
+            files,
+            "--b\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=f{i}.bin\r\n\r\n{}",
+            b64(600 << 10, i)
+        );
+    }
+    files.push_str("--b--\r\n");
+    let out = open(&mut s, "files.eml", &files).join("out");
+    std::fs::create_dir_all(&out).unwrap();
+    let t = std::time::Instant::now();
+    let r = s.run("attachment.saveAll", &json!({"dir": out.to_string_lossy()})).unwrap();
+    let save_ms = t.elapsed().as_millis();
+    assert_eq!(r["saved"].as_array().map(Vec::len), Some(30));
+    let (mut html, mut parts) = (String::from("<p>"), String::new());
+    for i in 0..40 {
+        let _ = write!(html, "<img src=\"cid:p{i}@x\" width=\"8\" height=\"8\">");
+        let _ = write!(parts, "--b\r\nContent-Type: image/png\r\nContent-ID: <p{i}@x>\r\nContent-Transfer-Encoding: base64\r\n\r\n{DOT}\r\n");
+    }
+    let pictures = format!(
+        "From: a@x.example\r\nTo: b@x.example\r\nSubject: Pictures\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=m\r\n\r\n\
+         --m\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n{html}</p>\r\n{parts}--b--\r\n\
+         --m\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=big.bin\r\n\r\n{}--m--\r\n",
+        b64(12 << 20, 7)
+    );
+    open(&mut s, "pictures.eml", &pictures);
+    let t = std::time::Instant::now();
+    let pdf = s.message_pdf().unwrap();
+    let pdf_ms = t.elapsed().as_millis();
+    let text = String::from_utf8_lossy(&pdf).to_string();
+    let shown = text.split("/XObject <<").nth(1).and_then(|r| r.split(">>").next()).unwrap_or("").matches("/Im").count();
+    assert_eq!(shown, 40, "every picture in the PDF");
+    println!("MEASURE saveAll 30 files: {save_ms} ms; PDF with 40 pictures: {pdf_ms} ms");
+    s.reading = None;
+}
