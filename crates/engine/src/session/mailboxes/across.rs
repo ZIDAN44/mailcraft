@@ -193,15 +193,8 @@ impl Session {
     /// Delete, where they were, messages whose copies are in `folder` now. Whether all of them
     /// went.
     fn remove_moved(&mut self, keys: Vec<MessageKey>, folder: &str) -> bool {
-        let mut from: HashMap<String, Vec<MessageKey>> = HashMap::new();
-        for k in keys {
-            from.entry(k.account.clone()).or_default().push(k);
-        }
-        let mut accounts: Vec<String> = from.keys().cloned().collect();
-        accounts.sort();
         let mut all = true;
-        for a in accounts {
-            let keys = from.remove(&a).unwrap_or_default();
+        for (a, keys) in keys_by_account(keys) {
             // Its copy is there already: one that can't be deleted here stays, in both.
             if let Err(e) = self.apply_op_checked(&a, Op::Expunge { keys }) {
                 self.notice(format!("The mail was copied to {folder}, but couldn't be deleted where it was: {e}"), true);

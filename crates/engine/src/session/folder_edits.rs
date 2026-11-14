@@ -299,22 +299,16 @@ impl Session {
             return Err(CmdError::Disabled("no message selected".into()));
         }
         let next = self.successor(&self.selection.clone());
-        let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
-        for m in &sel {
-            by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
-        }
+        let by_account = keys_by_account(sel.iter().map(|m| m.key.clone()));
         // A data file's import writes its account's lists (and goes on writing them).
         for a in by_account.keys() {
             self.import_holds(a)?;
         }
         let mut moved = 0usize;
-        let mut accounts: Vec<String> = by_account.keys().cloned().collect();
-        accounts.sort();
         // Each account's destination, checked for all of them before anything moves (the first
         // account's mail was moved, and the selection left on it, when the second's was refused).
         let mut plan: Vec<(String, String, Vec<MessageKey>)> = Vec::new();
-        for a in accounts {
-            let keys = by_account.remove(&a).unwrap_or_default();
+        for (a, keys) in by_account {
             let dest = match &target {
                 MoveTarget::Folder(f) => Some(f.clone()),
                 MoveTarget::Role(r) => self.account(&a).and_then(|acc| acc.folder(*r)).map(|f| f.path.clone()),
@@ -375,10 +369,7 @@ impl Session {
             return Err(CmdError::Disabled("no message selected".into()));
         }
         let next = self.successor(&self.selection.clone());
-        let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
-        for m in &sel {
-            by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
-        }
+        let by_account = keys_by_account(sel.iter().map(|m| m.key.clone()));
         // Gone from an account its import writes, it would come back as the import goes on.
         for a in by_account.keys() {
             self.import_holds(a)?;
@@ -416,24 +407,21 @@ impl Session {
             self.remember_follow_up(undo, was);
             return Ok(serde_json::json!({ "on": on, "count": sel.len() }));
         }
-        let mut by_account: HashMap<String, Vec<MessageKey>> = HashMap::new();
-        // Undo puts back only the ones that changed.
-        let mut changed: HashMap<String, Vec<MessageKey>> = HashMap::new();
-        for m in &sel {
-            by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
-            if flag.get(&m.flags) != on {
-                changed.entry(m.key.account.clone()).or_default().push(m.key.clone());
-            }
-        }
-        let mut undo: Vec<(String, Vec<Op>)> = changed.into_iter().map(|(a, keys)| (a, vec![Op::SetFlag { keys, flag, on: !on }])).collect();
-        if !undo.is_empty() {
-            undo.sort_by(|x, y| x.0.cmp(&y.0));
-            self.remember(Undo::Ops { ops: undo });
-        }
-        for (a, keys) in by_account {
-            self.apply_op(&a, Op::SetFlag { keys, flag, on });
-        }
+        self.mark_selection(&sel, on, |m| flag.get(&m.flags), |keys, on| Op::SetFlag { keys, flag, on });
         Ok(serde_json::json!({ "on": on, "count": sel.len() }))
+    }
+
+    /// Put a mark on `sel` or take it off (`on`), each account's in one change, in the
+    /// accounts' order: `has` says whether a message has it, `op` is the change for some keys.
+    /// One Undo puts back the ones that changed.
+    pub(super) fn mark_selection(&mut self, sel: &[Summary], on: bool, has: impl Fn(&Summary) -> bool, op: impl Fn(Vec<MessageKey>, bool) -> Op) {
+        let changed = keys_by_account(sel.iter().filter(|m| has(m) != on).map(|m| m.key.clone()));
+        if !changed.is_empty() {
+            self.remember(Undo::Ops { ops: changed.into_iter().map(|(a, keys)| (a, vec![op(keys, !on)])).collect() });
+        }
+        for (a, keys) in keys_by_account(sel.iter().map(|m| m.key.clone())) {
+            self.apply_op(&a, op(keys, on));
+        }
     }
 
     /// Flag `sel` (or clear the flag): one marked complete no longer is, a fresh flag has no due
@@ -442,19 +430,10 @@ impl Session {
     /// A server that keeps one status for both (Microsoft Graph's flag) gets the
     /// [`FOLLOW_UP_COMPLETE`] keyword taken off before the flag is set, and put on after it.
     fn set_flagged(&mut self, sel: &[Summary], on: bool) -> Vec<(String, Vec<Op>)> {
-        let mut by_account: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
-        let mut changed: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
+        let by_account = keys_by_account(sel.iter().map(|m| m.key.clone()));
+        let changed = keys_by_account(sel.iter().filter(|m| m.flags.flagged != on).map(|m| m.key.clone()));
         // Carrying the keyword: complete, or flagged again elsewhere with it left behind.
-        let mut completed: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
-        for m in sel {
-            by_account.entry(m.key.account.clone()).or_default().push(m.key.clone());
-            if m.flags.flagged != on {
-                changed.entry(m.key.account.clone()).or_default().push(m.key.clone());
-            }
-            if m.flags.has(FOLLOW_UP_COMPLETE) {
-                completed.entry(m.key.account.clone()).or_default().push(m.key.clone());
-            }
-        }
+        let completed = keys_by_account(sel.iter().filter(|m| m.flags.has(FOLLOW_UP_COMPLETE)).map(|m| m.key.clone()));
         for (a, keys) in &completed {
             self.apply_op(a, Op::SetKeyword { keys: keys.clone(), keyword: FOLLOW_UP_COMPLETE.into(), on: false });
         }
@@ -544,15 +523,9 @@ impl Session {
         }
         let was = self.follow_up_days_of(&sel);
         let today = mailcraft_model::dates::today(&self.clock);
-        let mut flagged: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
-        let mut marked: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
+        let flagged = keys_by_account(sel.iter().filter(|m| m.flags.flagged).map(|m| m.key.clone()));
+        let marked = keys_by_account(sel.iter().filter(|m| !m.flags.has(FOLLOW_UP_COMPLETE)).map(|m| m.key.clone()));
         for m in &sel {
-            if m.flags.flagged {
-                flagged.entry(m.key.account.clone()).or_default().push(m.key.clone());
-            }
-            if !m.flags.has(FOLLOW_UP_COMPLETE) {
-                marked.entry(m.key.account.clone()).or_default().push(m.key.clone());
-            }
             // Done today, unless it was already done (marked complete again).
             let id = follow_up_id(m);
             if !(m.flags.follow_up_complete() && self.prefs.follow_up_done.contains_key(&id))
@@ -698,4 +671,13 @@ fn put_day(days: &mut BTreeMap<String, i64>, id: String, day: Option<i64>) {
             days.remove(&id);
         }
     }
+}
+
+/// Message keys by their account, the accounts in order (the changes made to each go out so).
+pub(super) fn keys_by_account(keys: impl IntoIterator<Item = MessageKey>) -> BTreeMap<String, Vec<MessageKey>> {
+    let mut out: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
+    for k in keys {
+        out.entry(k.account.clone()).or_default().push(k);
+    }
+    out
 }
