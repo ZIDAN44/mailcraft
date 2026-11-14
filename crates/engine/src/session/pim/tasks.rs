@@ -127,10 +127,33 @@ impl Session {
     /// Every task matching a search (in its title, notes and categories), in the order chosen;
     /// done ones last, and left out when the list hides them.
     pub fn tasks(&self, query: &str) -> Vec<ListedTask<'_>> {
+        let mut out = self.tasks_matching(query);
+        let title = |r: &ListedTask<'_>| r.task.title.trim().to_lowercase();
+        // No due day sorts after every due day.
+        let due = |r: &ListedTask<'_>| r.task.due.unwrap_or(i64::MAX);
+        let rank = |r: &ListedTask<'_>| std::cmp::Reverse(r.task.priority);
+        // The uid borrowed (it was copied for every task, every frame).
+        match self.prefs.tasks_order {
+            TasksOrder::Due => out.sort_by_cached_key(|r| (r.task.is_done(), due(r), rank(r), title(r), r.task.uid.as_str())),
+            TasksOrder::Priority => out.sort_by_cached_key(|r| (r.task.is_done(), rank(r), due(r), title(r), r.task.uid.as_str())),
+            TasksOrder::Title => out.sort_by_cached_key(|r| (r.task.is_done(), title(r), r.task.uid.as_str())),
+            TasksOrder::Modified => out.sort_by_key(|r| (r.task.is_done(), std::cmp::Reverse(r.task.modified), r.task.uid.as_str())),
+        }
+        out
+    }
+
+    /// How many tasks [`Session::tasks`] lists, and how many of them are overdue `today`: the
+    /// side pane's counts, each frame, without putting them in order.
+    pub fn task_counts(&self, query: &str, today: i64) -> (usize, usize) {
+        let list = self.tasks_matching(query);
+        (list.len(), list.iter().filter(|r| r.task.overdue(today)).count())
+    }
+
+    /// The tasks a search finds, done ones left out when the list hides them, in no order.
+    fn tasks_matching(&self, query: &str) -> Vec<ListedTask<'_>> {
         let words: Vec<String> = fold_all(query).split(' ').filter(|w| !w.is_empty()).map(str::to_string).collect();
         let hide_done = self.prefs.tasks_hide_done;
-        let mut out: Vec<ListedTask<'_>> = self
-            .pim
+        self.pim
             .iter()
             .flat_map(|(a, p)| {
                 p.tasks
@@ -138,18 +161,7 @@ impl Session {
                     .filter(|t| !(hide_done && t.task.is_done()) && task_matches(&t.task, &words))
                     .map(|t| ListedTask { account: a, task: &t.task })
             })
-            .collect();
-        let title = |r: &ListedTask<'_>| r.task.title.trim().to_lowercase();
-        // No due day sorts after every due day.
-        let due = |r: &ListedTask<'_>| r.task.due.unwrap_or(i64::MAX);
-        let rank = |r: &ListedTask<'_>| std::cmp::Reverse(r.task.priority);
-        match self.prefs.tasks_order {
-            TasksOrder::Due => out.sort_by_cached_key(|r| (r.task.is_done(), due(r), rank(r), title(r), r.task.uid.clone())),
-            TasksOrder::Priority => out.sort_by_cached_key(|r| (r.task.is_done(), rank(r), due(r), title(r), r.task.uid.clone())),
-            TasksOrder::Title => out.sort_by_cached_key(|r| (r.task.is_done(), title(r), r.task.uid.clone())),
-            TasksOrder::Modified => out.sort_by_cached_key(|r| (r.task.is_done(), std::cmp::Reverse(r.task.modified), r.task.uid.clone())),
-        }
-        out
+            .collect()
     }
 
     /// The task with a uid, and its account.

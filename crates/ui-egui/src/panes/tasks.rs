@@ -35,10 +35,8 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
             }
         }
         ui.add_space(8.0);
-        let list = s.tasks(&st.tasks_query);
-        let today = dates::today(&s.clock);
-        let late = list.iter().filter(|r| r.task.overdue(today)).count();
-        ui.label(RichText::new(tf!("{n} tasks", n = list.len())).color(t.faint).small());
+        let (n, late) = s.task_counts(&st.tasks_query, dates::today(&s.clock));
+        ui.label(RichText::new(tf!("{n} tasks", n = n)).color(t.faint).small());
         if late > 0 {
             ui.label(RichText::new(tf!("{n} overdue", n = late)).color(t.danger).small());
         }

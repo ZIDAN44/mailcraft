@@ -262,3 +262,30 @@ fn events_and_tasks_take_categories_and_repeats_alike() {
     assert_eq!(s.find_event(&event).unwrap().1.event.rrule, None);
     done(s);
 }
+
+/// What the Tasks view asks each frame of 10,000 tasks (the side pane's counts, the main pane's
+/// list, the To-Do Bar's), timed. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-engine --lib measure_tasks_frame -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_tasks_frame() {
+    let mut s = sample_session("measure-tasks");
+    let p = s.pim_mut("sample");
+    for i in 0..10_000_i64 {
+        let task = mailcraft_model::pim::Task {
+            uid: format!("t{i}@x.example"),
+            title: format!("Task number {i} to do"),
+            due: (i % 3 == 0).then_some(NOW + i * 3600),
+            ..Default::default()
+        };
+        p.tasks.push(mailcraft_model::pim::StoredTask { task });
+    }
+    let frame = |s: &Session| s.task_counts("", 0).0 + s.tasks("").len() + s.todo_items().len();
+    let n = frame(&s);
+    let t = std::time::Instant::now();
+    for _ in 0..20 {
+        assert_eq!(frame(&s), n);
+    }
+    println!("MEASURE the Tasks view of 10000, a frame: {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    done(s);
+}
