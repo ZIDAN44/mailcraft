@@ -801,6 +801,7 @@ impl Backend for WebBackend {
                     already: 0,
                     occurrences: 0,
                     replaced: 0,
+                    folders_skipped: 0,
                     done: true,
                     error: Some("writing Outlook data files needs the desktop app".into()),
                 },

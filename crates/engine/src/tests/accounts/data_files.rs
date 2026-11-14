@@ -167,16 +167,73 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     assert!(matches!(s.take_jobs().as_slice(), [Job::ExportPst { account, path, name, follow_up }]
         if *account == id && path == "C:/out/Archive.pst" && name == "Archive 2024" && follow_up.due.get("due@example.com") == Some(&20_000)
             && follow_up.done.get("done@example.com") == Some(&19_990)));
-    s.apply(Event::Exported { account: id.clone(), messages: 100, skipped: 0, already: 0, occurrences: 0, replaced: 0, done: false, error: None });
+    s.apply(Event::Exported {
+        account: id.clone(),
+        messages: 100,
+        skipped: 0,
+        already: 0,
+        occurrences: 0,
+        replaced: 0,
+        folders_skipped: 0,
+        done: false,
+        error: None,
+    });
     assert!(s.notices.last().is_some_and(|n| n.text.contains("100 messages exported so far")));
-    s.apply(Event::Exported { account: id.clone(), messages: 120, skipped: 3, already: 0, occurrences: 0, replaced: 0, done: true, error: None });
+    s.apply(Event::Exported {
+        account: id.clone(),
+        messages: 120,
+        skipped: 3,
+        already: 0,
+        occurrences: 0,
+        replaced: 0,
+        folders_skipped: 0,
+        done: true,
+        error: None,
+    });
     assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("120 messages exported (3 not on this computer")));
     // A series Outlook can't keep the rule of, written one occurrence at a time: the user is told.
-    s.apply(Event::Exported { account: id.clone(), messages: 5, skipped: 0, already: 0, occurrences: 40, replaced: 0, done: true, error: None });
+    s.apply(Event::Exported {
+        account: id.clone(),
+        messages: 5,
+        skipped: 0,
+        already: 0,
+        occurrences: 40,
+        replaced: 0,
+        folders_skipped: 0,
+        done: true,
+        error: None,
+    });
     assert!(s.notices.last().is_some_and(|n| n.text.contains("5 messages exported (40 occurrences of series whose rule Outlook can't keep")));
     // Items changed since the last export into the file, written in place of their earlier copies.
-    s.apply(Event::Exported { account: id.clone(), messages: 0, skipped: 0, already: 9, occurrences: 0, replaced: 4, done: true, error: None });
+    s.apply(Event::Exported {
+        account: id.clone(),
+        messages: 0,
+        skipped: 0,
+        already: 9,
+        occurrences: 0,
+        replaced: 4,
+        folders_skipped: 0,
+        done: true,
+        error: None,
+    });
     assert!(s.notices.last().is_some_and(|n| n.text.contains("0 messages exported (9 the data file already had; 4 calendar items, contacts, notes or tasks changed since the last export replaced their earlier copies)")));
+    // Folders whose list couldn't be read: their mail isn't in it, said as a problem.
+    s.apply(Event::Exported {
+        account: id.clone(),
+        messages: 8,
+        skipped: 0,
+        already: 0,
+        occurrences: 0,
+        replaced: 0,
+        folders_skipped: 2,
+        done: true,
+        error: None,
+    });
+    assert!(
+        s.notices
+            .last()
+            .is_some_and(|n| n.error && n.text.contains("8 messages exported (the mail of 2 folders couldn't be read, so it isn't in the file)"))
+    );
     s.apply(Event::Exported {
         account: id.clone(),
         messages: 0,
@@ -184,6 +241,7 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         already: 0,
         occurrences: 0,
         replaced: 0,
+        folders_skipped: 0,
         done: true,
         error: Some("disk full".into()),
     });

@@ -640,6 +640,9 @@ pub enum Event {
         /// them, written in place of their earlier copies.
         #[serde(default)]
         replaced: usize,
+        /// Folders whose list couldn't be read: their mail isn't in the file.
+        #[serde(default)]
+        folders_skipped: usize,
         done: bool,
         error: Option<String>,
     },

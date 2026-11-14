@@ -72,6 +72,8 @@ pub struct Exported {
     pub messages: usize,
     /// Messages whose body isn't on this computer, or that couldn't be read.
     pub skipped: usize,
+    /// Folders whose list couldn't be read: their mail isn't in the file.
+    pub folders_skipped: usize,
     /// Messages a data file already there had (by `Message-ID`), not written again.
     pub already: usize,
     /// The account's events written into it as appointments (a series is one)…
@@ -177,7 +179,14 @@ pub fn export(
     let placed = if format == Format::Ansi { place::apart(&placed, &targets) } else { placed };
     let mut write_all = || -> Result<(), String> {
         for (f, folder) in folders.iter().zip(&placed).filter(|(f, _)| f.selectable) {
-            let Ok(st) = store.load_folder(account, &f.path) else { continue };
+            let st = match store.load_folder(account, &f.path) {
+                Ok(st) => st,
+                Err(e) => {
+                    log::warn!("export: a folder's list couldn't be read, its mail is left out: {e}");
+                    done.folders_skipped += 1;
+                    continue;
+                }
+            };
             let folder = folder.clone();
             taken.push(folder.clone());
             let folder: Vec<&str> = folder.iter().map(String::as_str).collect();

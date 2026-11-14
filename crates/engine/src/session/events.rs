@@ -174,8 +174,8 @@ impl Session {
                 self.indexed(&account, IndexPass { work, generation, failed, finished })
             }
             Event::AttachmentsKnown { account, folder, with, without } => self.files_known(&account, &folder, &with, &without),
-            Event::Exported { account, messages, skipped, already, occurrences, replaced, done, error } => {
-                self.exported(&account, messages, (skipped, already, occurrences, replaced), done, error)
+            Event::Exported { account, messages, skipped, already, occurrences, replaced, folders_skipped, done, error } => {
+                self.exported(&account, messages, (skipped, already, occurrences, replaced, folders_skipped), done, error)
             }
             Event::Quota { account, used, limit } => {
                 if let Some(a) = self.account_mut(&account) {

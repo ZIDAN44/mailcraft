@@ -189,14 +189,19 @@ impl Session {
 
     /// How an export is going; `left`: messages not on this computer, ones the data file already
     /// had, and occurrences of series Outlook can't keep the rule of, each written on its own.
-    pub(super) fn exported(&mut self, account: &str, messages: usize, left: (usize, usize, usize, usize), done: bool, error: Option<String>) {
-        let (skipped, already, occurrences, replaced) = left;
+    pub(super) fn exported(&mut self, account: &str, messages: usize, left: (usize, usize, usize, usize, usize), done: bool, error: Option<String>) {
+        let (skipped, already, occurrences, replaced, folders) = left;
         let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
         match (done, error) {
             (false, _) => self.notice(format!("{name}: {messages} messages exported so far…"), false),
             (true, Some(e)) => self.notice(format!("{name} could not be exported: {e}"), true),
             (true, None) => {
                 let mut more = Vec::new();
+                // Mail that should be there and isn't: said as a problem.
+                if folders > 0 {
+                    let which = if folders == 1 { "1 folder".to_string() } else { format!("{folders} folders") };
+                    more.push(format!("the mail of {which} couldn't be read, so it isn't in the file"));
+                }
                 if skipped > 0 {
                     more.push(format!("{skipped} not on this computer were left out"));
                 }
@@ -212,7 +217,7 @@ impl Session {
                     ));
                 }
                 let more = if more.is_empty() { String::new() } else { format!(" ({})", more.join("; ")) };
-                self.notice(format!("{name}: {messages} messages exported{more}"), false);
+                self.notice(format!("{name}: {messages} messages exported{more}"), folders > 0);
             }
         }
     }
