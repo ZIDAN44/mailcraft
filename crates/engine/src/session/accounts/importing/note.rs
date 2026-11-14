@@ -30,13 +30,7 @@ struct NoteSource {
 pub(super) fn noted(store: &Store, account: &str) -> Option<(ImportStage, String)> {
     let bytes = store.load_account_doc_bytes(account, CHECKPOINT_DOC).ok().flatten().filter(|b| b.len() <= NOTE_MAX)?;
     let note: Note = serde_json::from_slice(&bytes).ok()?;
-    let stage = match note.state.as_str() {
-        "running" => ImportStage::Running,
-        "cancelled" => ImportStage::Stopped,
-        "done" => ImportStage::Done,
-        _ => return None,
-    };
-    Some((stage, note.source.path))
+    Some((ImportStage::from_note_state(&note.state)?, note.source.path))
 }
 
 impl Session {

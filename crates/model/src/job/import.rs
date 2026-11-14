@@ -97,6 +97,20 @@ pub enum ImportStage {
     Done,
 }
 
+impl ImportStage {
+    /// The stage an import's own note (its checkpoint in the account's data, written by the
+    /// network side) names by its `state`: `running` (cut off), `cancelled` (stopped by the
+    /// user) or `done`; none for anything else.
+    pub fn from_note_state(state: &str) -> Option<Self> {
+        match state {
+            "running" => Some(Self::Running),
+            "cancelled" => Some(Self::Stopped),
+            "done" => Some(Self::Done),
+            _ => None,
+        }
+    }
+}
+
 /// How an import is going: sent by the network layer as it goes (a newer one replaces an older
 /// one). Times are the worker's own, so the engine never reads a clock.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

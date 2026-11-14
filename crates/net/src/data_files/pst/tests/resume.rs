@@ -590,3 +590,18 @@ fn a_data_file_opened_again_after_a_failed_write_stops_the_import() {
         assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "{at}");
     }
 }
+
+/// The states the checkpoint is written with are the ones the session reads it by
+/// ([`mailcraft_model::job::ImportStage::from_note_state`]).
+#[test]
+fn the_session_reads_every_state_the_checkpoint_says() {
+    use mailcraft_model::job::ImportStage;
+    for (state, stage) in
+        [(CheckState::Running, ImportStage::Running), (CheckState::Cancelled, ImportStage::Stopped), (CheckState::Done, ImportStage::Done)]
+    {
+        let written = serde_json::to_value(state).unwrap();
+        assert_eq!(ImportStage::from_note_state(written.as_str().unwrap()), Some(stage), "{written}");
+    }
+    assert_eq!(ImportStage::from_note_state(""), None);
+    assert_eq!(ImportStage::from_note_state("Done"), None, "as written, lower case");
+}

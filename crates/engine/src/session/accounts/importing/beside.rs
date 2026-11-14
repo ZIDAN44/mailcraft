@@ -133,11 +133,8 @@ impl Session {
             a.folders = folders;
             a.status = SyncStatus::Offline;
         }
-        let stage = match found.state.as_str() {
-            "done" => ImportStage::Done,
-            "running" => ImportStage::Running,
-            _ => ImportStage::Stopped,
-        };
+        // A copy whose note says nothing it knows of waits on the user, as one cancelled.
+        let stage = ImportStage::from_note_state(&found.state).unwrap_or(ImportStage::Stopped);
         let record_key = self.facts_for(path).map(|f| f.record_key.clone()).unwrap_or_default();
         let row = DataSource { path: path.to_string(), size: found.size, modified: found.modified, record_key, stage, report: None };
         self.importing.sources.insert(id.to_string(), row);
