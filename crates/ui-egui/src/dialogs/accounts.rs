@@ -10,7 +10,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             title(ui, t, "Add an email account");
             if s.jmap_only {
                 // The browser: JMAP only, and its address is needed.
-                (f.jmap, f.graph, f.ews, f.pop, f.advanced) = (true, false, false, false, true);
+                (f.kind, f.advanced) = (AccountKind::Jmap, true);
                 ui.label(
                     RichText::new(tl!(
                         "In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server."
@@ -73,9 +73,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.end_row();
                 // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and
                 // Live, which take no passwords from mail apps (when this copy can sign in there).
-                let browser_only = f.graph
-                    || (!f.jmap
-                        && !f.ews
+                let browser_only = f.kind == AccountKind::Graph
+                    || (f.kind.imap_or_pop()
                         && mailcraft_engine::model::microsoft_consumer(&f.email)
                         && s.oauth_available.iter().any(|p| p == "microsoft"));
                 if !browser_only {
@@ -98,63 +97,59 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         ui.label(RichText::new(tl!(s)).strong().small());
                     };
                     if !s.jmap_only {
-                        let mut kind = if f.pop {
-                            4
-                        } else if f.ews {
-                            3
-                        } else if f.graph {
-                            2
-                        } else {
-                            u8::from(f.jmap)
-                        };
+                        let was = f.kind;
                         ui.horizontal_wrapped(|ui| {
                             label(ui, "Mail server");
-                            ui.radio_value(&mut kind, 0, tl!("IMAP and SMTP"));
-                            ui.radio_value(&mut kind, 4, tl!("POP and SMTP"));
-                            ui.radio_value(&mut kind, 1, tl!("JMAP"));
-                            ui.radio_value(&mut kind, 2, tl!("Exchange (Microsoft 365)"));
-                            ui.radio_value(&mut kind, 3, tl!("Exchange server (EWS)"));
+                            ui.radio_value(&mut f.kind, AccountKind::Imap, tl!("IMAP and SMTP"));
+                            ui.radio_value(&mut f.kind, AccountKind::Pop, tl!("POP and SMTP"));
+                            ui.radio_value(&mut f.kind, AccountKind::Jmap, tl!("JMAP"));
+                            ui.radio_value(&mut f.kind, AccountKind::Graph, tl!("Exchange (Microsoft 365)"));
+                            ui.radio_value(&mut f.kind, AccountKind::Ews, tl!("Exchange server (EWS)"));
                         });
-                        if kind == 4 && !f.pop && f.pop_host.is_empty() {
+                        // POP just chosen: its server named after the IMAP one, unless one is in.
+                        if f.kind == AccountKind::Pop && was != AccountKind::Pop && f.pop_host.is_empty() {
                             f.guess_pop();
                         }
-                        (f.jmap, f.graph, f.ews, f.pop) = (kind == 1, kind == 2, kind == 3, kind == 4);
                     }
-                    if f.graph {
-                        ui.label(
-                            RichText::new(tl!(
-                                "Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored."
-                            ))
-                            .color(t.dim)
-                            .small(),
-                        );
-                        return;
-                    }
-                    if f.ews {
-                        ui.label(
-                            RichText::new(tl!(
-                                "For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password."
-                            ))
-                            .color(t.dim)
-                            .small(),
-                        );
-                        label(ui, "Exchange server");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")));
-                        ui.add_space(4.0);
-                        label(ui, "User name");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
-                        user_agent_field(ui, t, w, &mut f.user_agent);
-                        return;
-                    }
-                    if f.jmap {
-                        label(ui, "JMAP session address");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
-                        ui.add_space(4.0);
-                        label(ui, "User name");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
-                        return;
-                    }
-                    if f.pop {
+                    let pop = match f.kind {
+                        AccountKind::Imap => false,
+                        AccountKind::Pop => true,
+                        AccountKind::Graph => {
+                            ui.label(
+                                RichText::new(tl!(
+                                    "Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored."
+                                ))
+                                .color(t.dim)
+                                .small(),
+                            );
+                            return;
+                        }
+                        AccountKind::Ews => {
+                            ui.label(
+                                RichText::new(tl!(
+                                    "For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password."
+                                ))
+                                .color(t.dim)
+                                .small(),
+                            );
+                            label(ui, "Exchange server");
+                            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")));
+                            ui.add_space(4.0);
+                            label(ui, "User name");
+                            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
+                            user_agent_field(ui, t, w, &mut f.user_agent);
+                            return;
+                        }
+                        AccountKind::Jmap => {
+                            label(ui, "JMAP session address");
+                            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+                            ui.add_space(4.0);
+                            label(ui, "User name");
+                            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+                            return;
+                        }
+                    };
+                    if pop {
                         label(ui, "Incoming mail (POP)");
                         ui.horizontal(|ui| {
                             edited |=
@@ -200,7 +195,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
                     f.smtp_sign_in.ui(ui, w);
                     f.servers_edited |= edited;
-                    if f.pop {
+                    if pop {
                         // Outlook's "use an existing data file": mail kept from before comes in first.
                         ui.add_space(4.0);
                         label(ui, "Existing data file (optional)");
@@ -214,7 +209,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             }
                         });
                     }
-                    let incoming = if f.pop { f.pop_security } else { f.imap_security };
+                    let incoming = if pop { f.pop_security } else { f.imap_security };
                     if incoming == Security::None || f.smtp_security == Security::None {
                         ui.label(
                             RichText::new(tl!("Without encryption your password travels in the clear. Use only for local test servers."))
@@ -223,13 +218,13 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         );
                     }
                 });
-            } else if f.graph {
+            } else if f.kind == AccountKind::Graph {
                 ui.label(RichText::new(tl!("Exchange (Microsoft 365)")).color(t.faint).small());
-            } else if f.ews && !f.ews_url.trim().is_empty() {
+            } else if f.kind == AccountKind::Ews && !f.ews_url.trim().is_empty() {
                 ui.label(RichText::new(tf!("Server: {url} (EWS)", url = f.ews_url.trim())).color(t.faint).small());
-            } else if f.jmap && !f.jmap_url.trim().is_empty() {
+            } else if f.kind == AccountKind::Jmap && !f.jmap_url.trim().is_empty() {
                 ui.label(RichText::new(tf!("Server: {url} (JMAP)", url = f.jmap_url.trim())).color(t.faint).small());
-            } else if f.pop && !f.pop_host.is_empty() {
+            } else if f.kind == AccountKind::Pop && !f.pop_host.is_empty() {
                 ui.label(
                     RichText::new(tf!(
                         "Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})",
@@ -274,7 +269,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 }
                 _ => {}
             }
-            if !f.pop {
+            if f.kind != AccountKind::Pop {
                 let mut on = f.online_only.unwrap_or(s.portable);
                 online_only(ui, t, &mut on);
                 f.online_only = Some(on);
@@ -284,11 +279,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.label(RichText::new(e).color(t.danger));
             }
             // Providers that sign in through the browser (OAuth), when this copy can.
-            let provider = if f.graph { Some("microsoft") } else { mailcraft_engine::model::oauth_provider_for(&f.imap_host) }
+            let provider = if f.kind == AccountKind::Graph { Some("microsoft") } else { mailcraft_engine::model::oauth_provider_for(&f.imap_host) }
                 .filter(|p| s.oauth_available.iter().any(|a| a == p));
             // Outlook.com, Hotmail and Live take no passwords from mail apps any more: without
             // Microsoft sign-in in this copy, say so rather than take a password that can't work.
-            let consumer = !f.jmap && !f.ews && mailcraft_engine::model::microsoft_consumer(&f.email);
+            let consumer = !matches!(f.kind, AccountKind::Jmap | AccountKind::Ews) && mailcraft_engine::model::microsoft_consumer(&f.email);
             let blocked = consumer && provider.is_none();
             if blocked {
                 ui.add_space(6.0);
@@ -302,7 +297,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     )
                     .wrap(),
                 );
-            } else if f.graph && provider.is_none() {
+            } else if f.kind == AccountKind::Graph && provider.is_none() {
                 ui.add_space(6.0);
                 ui.label(RichText::new(tl!("Signing in with Microsoft isn't set up in this copy of MailCraft.")).color(t.warn).small());
             }
@@ -330,13 +325,17 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
                 });
             }
-            let ready = !f.graph && !consumer && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
+            let ready = f.kind != AccountKind::Graph
+                && !consumer
+                && !f.email.trim().is_empty()
+                && !f.password.is_empty()
+                && (f.kind != AccountKind::Jmap || !f.jmap_url.trim().is_empty());
             let (ok, cancel) = buttons(ui, t, "Connect", ready);
             if ok {
-                if !f.jmap && !f.ews && f.imap_host.is_empty() {
+                if !matches!(f.kind, AccountKind::Jmap | AccountKind::Ews) && f.imap_host.is_empty() {
                     f.guess();
                 }
-                if f.pop && f.pop_host.trim().is_empty() {
+                if f.kind == AccountKind::Pop && f.pop_host.trim().is_empty() {
                     f.guess_pop();
                 }
                 f.error = None;
@@ -479,18 +478,15 @@ pub struct AccountForm {
     pub smtp_security: Security,
     /// The outgoing server's own user name and password.
     pub smtp_sign_in: SmtpSignIn,
-    /// Syncs over JMAP instead of IMAP and SMTP, through this session address.
-    pub jmap: bool,
+    /// The kind of mail server: each kind uses its own fields below.
+    pub kind: AccountKind,
+    /// JMAP: its session address.
     pub jmap_url: String,
-    /// Exchange Online through Microsoft Graph (signs in with Microsoft in the browser).
-    pub graph: bool,
-    /// An organisation's own Exchange server through EWS, at this address or server name.
-    pub ews: bool,
+    /// EWS: the Exchange server's address or name (empty: Autodiscover finds it).
     pub ews_url: String,
     /// The User-Agent EWS requests name (issue #9); empty for MailCraft's.
     pub user_agent: String,
-    /// Downloads mail over POP3 into folders on this computer (sends over SMTP).
-    pub pop: bool,
+    /// POP: its POP3 server (mail is sent over SMTP).
     pub pop_host: String,
     pub pop_port: String,
     pub pop_security: Security,
@@ -506,8 +502,33 @@ pub struct AccountForm {
     pub found_for: Option<String>,
     pub found_source: Option<String>,
     /// Calendars and contacts only, with no email (issue #61), at this CalDAV and CardDAV server.
+    /// Not a kind of its own: it's a dialog of its own, and unticked it gives back the kind
+    /// chosen before.
     pub calendar_only: bool,
     pub dav_url: String,
+}
+
+/// The kind of mail server an account added here works with.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AccountKind {
+    /// IMAP for incoming mail, SMTP for sending.
+    #[default]
+    Imap,
+    /// POP3 downloads mail into folders on this computer; SMTP sends.
+    Pop,
+    /// JMAP, through its session address.
+    Jmap,
+    /// Exchange Online through Microsoft Graph (signs in with Microsoft in the browser).
+    Graph,
+    /// An organisation's own Exchange server through EWS.
+    Ews,
+}
+
+impl AccountKind {
+    /// An incoming server (IMAP or POP) with SMTP for sending.
+    fn imap_or_pop(self) -> bool {
+        matches!(self, AccountKind::Imap | AccountKind::Pop)
+    }
 }
 
 /// The outgoing server's own sign-in, as Outlook's "Log on using" for SMTP: for servers whose
@@ -633,7 +654,7 @@ impl AccountForm {
 
     pub(crate) fn params(&self) -> serde_json::Value {
         let mut p = self.server_params();
-        if self.online_only == Some(true) && !self.pop {
+        if self.online_only == Some(true) && self.kind != AccountKind::Pop {
             p["onlineOnly"] = json!(true);
         }
         p
@@ -641,63 +662,42 @@ impl AccountForm {
 
     pub(super) fn server_params(&self) -> serde_json::Value {
         let port = |s: &str| s.trim().parse::<u64>().unwrap_or(0);
-        if self.graph {
-            return json!({"email": self.email.trim(), "name": self.name.trim(), "graph": true});
+        let mut p = json!({"email": self.email.trim(), "name": self.name.trim()});
+        // Microsoft Graph signs in with Microsoft in the browser: no password, no user name.
+        if self.kind != AccountKind::Graph {
+            p["password"] = json!(self.password);
+            p["username"] = json!(if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() });
         }
-        if self.ews {
-            return json!({
-                "email": self.email.trim(),
-                "name": self.name.trim(),
-                "password": self.password,
-                "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
+        match self.kind {
+            AccountKind::Graph => p["graph"] = json!(true),
+            AccountKind::Ews => {
                 // No server named: Autodiscover finds it.
-                "ews": if self.ews_url.trim().is_empty() { json!(true) } else { json!(self.ews_url.trim()) },
-                "userAgent": self.user_agent.trim(),
-            });
-        }
-        if self.jmap {
-            return json!({
-                "email": self.email.trim(),
-                "name": self.name.trim(),
-                "password": self.password,
-                "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
-                "jmap": self.jmap_url.trim(),
-            });
-        }
-        if self.pop {
-            let mut p = json!({
-                "email": self.email.trim(),
-                "name": self.name.trim(),
-                "password": self.password,
-                "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
-                "pop": true,
-                "popHost": self.pop_host.trim(),
-                "popPort": port(&self.pop_port),
-                "popSecurity": self.pop_security.code(),
-                "smtpHost": self.smtp_host.trim(),
-                "smtpPort": port(&self.smtp_port),
-                "smtpSecurity": self.smtp_security.code(),
-            });
-            self.pop_keep.params(&mut p);
-            self.smtp_sign_in.params(&mut p);
-            if !self.pst.trim().is_empty() {
-                p["pst"] = json!(self.pst.trim());
+                p["ews"] = if self.ews_url.trim().is_empty() { json!(true) } else { json!(self.ews_url.trim()) };
+                p["userAgent"] = json!(self.user_agent.trim());
             }
-            return p;
+            AccountKind::Jmap => p["jmap"] = json!(self.jmap_url.trim()),
+            AccountKind::Pop => {
+                p["pop"] = json!(true);
+                p["popHost"] = json!(self.pop_host.trim());
+                p["popPort"] = json!(port(&self.pop_port));
+                p["popSecurity"] = json!(self.pop_security.code());
+                self.pop_keep.params(&mut p);
+                if !self.pst.trim().is_empty() {
+                    p["pst"] = json!(self.pst.trim());
+                }
+            }
+            AccountKind::Imap => {
+                p["imapHost"] = json!(self.imap_host.trim());
+                p["imapPort"] = json!(port(&self.imap_port));
+                p["imapSecurity"] = json!(self.imap_security.code());
+            }
         }
-        let mut p = json!({
-            "email": self.email.trim(),
-            "name": self.name.trim(),
-            "password": self.password,
-            "username": if self.username.trim().is_empty() { self.email.trim() } else { self.username.trim() },
-            "imapHost": self.imap_host.trim(),
-            "imapPort": port(&self.imap_port),
-            "imapSecurity": self.imap_security.code(),
-            "smtpHost": self.smtp_host.trim(),
-            "smtpPort": port(&self.smtp_port),
-            "smtpSecurity": self.smtp_security.code(),
-        });
-        self.smtp_sign_in.params(&mut p);
+        if self.kind.imap_or_pop() {
+            p["smtpHost"] = json!(self.smtp_host.trim());
+            p["smtpPort"] = json!(port(&self.smtp_port));
+            p["smtpSecurity"] = json!(self.smtp_security.code());
+            self.smtp_sign_in.params(&mut p);
+        }
         p
     }
 }

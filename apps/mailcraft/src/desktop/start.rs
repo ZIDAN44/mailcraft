@@ -35,9 +35,13 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
                     p.get("advanced").and_then(|v| v.as_bool()).unwrap_or(false),
                 );
                 if let mailcraft_ui_egui::Dialog::AddAccount(f) = &mut d {
-                    f.graph = p.get("graph").and_then(|v| v.as_bool()).unwrap_or(false);
-                    f.pop = p.get("pop").and_then(|v| v.as_bool()).unwrap_or(false);
-                    f.calendar_only = p.get("calendarOnly").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let flag = |name: &str| p.get(name).and_then(|v| v.as_bool()).unwrap_or(false);
+                    if flag("graph") {
+                        f.kind = mailcraft_ui_egui::AccountKind::Graph;
+                    } else if flag("pop") {
+                        f.kind = mailcraft_ui_egui::AccountKind::Pop;
+                    }
+                    f.calendar_only = flag("calendarOnly");
                 }
                 app.ui.dialog = Some(d);
             }

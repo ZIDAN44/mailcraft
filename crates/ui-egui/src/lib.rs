@@ -53,7 +53,7 @@ use serde_json::{Value, json};
 pub use app::caption::take_zooming;
 pub use app::{BootCard, ClipboardRead, WindowPlace, after_open, alt_code_pages, alt_codes, clipboard_keys};
 pub(crate) use app::{SearchDrop, junk_menu, scope_label};
-pub use dialogs::Dialog;
+pub use dialogs::{AccountKind, Dialog};
 
 /// MailCraft's id: the Linux app id (its `.desktop` file and icon are named so), the macOS bundle
 /// id and the Windows notifications' app id.

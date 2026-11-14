@@ -106,7 +106,7 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     a.session.jmap_only = true;
     a.ui.dialog = Some(Dialog::add_account_with("zoe@fastmail.example", false));
     frame(&ctx, &mut a, vec![]);
-    assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.jmap && f.advanced));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.kind == crate::dialogs::AccountKind::Jmap && f.advanced));
     a.ui.dialog = None;
     assert!(a.session.run("account.add", &json!({"email": "zoe@example.com", "password": "pw", "imapHost": "imap.example.com"})).is_err());
 

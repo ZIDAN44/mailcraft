@@ -288,7 +288,7 @@ line two"
 fn jmap_form() -> Dialog {
     let mut d = Dialog::add_account_with("zoe@fastmail.example", true);
     if let Dialog::AddAccount(f) = &mut d {
-        f.jmap = true;
+        f.kind = crate::dialogs::AccountKind::Jmap;
         f.jmap_url = " https://api.fastmail.example/jmap/session".into();
         f.password = "pw".into();
     }
@@ -300,7 +300,7 @@ fn pop_form() -> Dialog {
     if let Dialog::AddAccount(f) = &mut d {
         f.imap_host = "imap.example.org".into();
         f.smtp_host = "smtp.example.org".into();
-        f.pop = true;
+        f.kind = crate::dialogs::AccountKind::Pop;
         f.pop_host = "pop.example.org".into();
         f.pop_port = "995".into();
         f.pop_security = mailcraft_engine::model::Security::Tls;
@@ -324,7 +324,7 @@ fn calendar_form() -> Dialog {
 fn graph_form() -> Dialog {
     let mut d = Dialog::add_account_with("ana@contoso.example", true);
     if let Dialog::AddAccount(f) = &mut d {
-        f.graph = true;
+        f.kind = crate::dialogs::AccountKind::Graph;
     }
     d
 }

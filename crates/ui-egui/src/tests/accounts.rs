@@ -3,6 +3,7 @@
 use super::*;
 
 pub(super) mod compacting;
+mod forms;
 pub(super) mod importing;
 
 #[test]
