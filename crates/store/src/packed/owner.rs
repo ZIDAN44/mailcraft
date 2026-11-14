@@ -75,6 +75,27 @@ fn owner_from(bytes: &[u8]) -> (String, String) {
     (id, field("path"))
 }
 
+/// The account an owner record says its file is, in the folder it names (the account's folder
+/// name there); `None` when it names none (a file made before accounts were recorded).
+fn account_from(bytes: &[u8]) -> Option<String> {
+    let record: serde_json::Value = Some(bytes).filter(|b| b.len() <= OWNER_MAX).and_then(|b| serde_json::from_slice(b).ok())?;
+    record.get("account").and_then(serde_json::Value::as_str).filter(|a| !a.is_empty()).map(str::to_string)
+}
+
+/// Which account of the data folder at `root` (its id `me`, when it has one) the data file at
+/// `path` says it is: `None` when it doesn't say (made before accounts were recorded), says it's
+/// another data folder's, or can't be read (not a data file, open elsewhere, not closed
+/// properly). Opened to read only.
+pub(super) fn account_named(path: &Path, root: &Path, me: Option<&str>) -> Option<String> {
+    let db = redb::ReadOnlyDatabase::open(path).ok()?;
+    let tx = db.begin_read().ok()?;
+    let table = tx.open_table(META).ok()?;
+    let record = table.get(OWNER).ok()??;
+    let (id, at) = owner_from(record.value());
+    let ours = !id.is_empty() && (me == Some(id.as_str()) || beside::same_key(Path::new(&at)) == beside::same_key(root));
+    if ours { account_from(record.value()) } else { None }
+}
+
 /// Whether a data folder's list of data files (`datafiles.json`'s bytes) names the copy whose
 /// key is `copy` ([`beside::same_key`]); `None` when it isn't a list.
 fn names_copy(bytes: &[u8], copy: &str) -> Option<bool> {
@@ -97,7 +118,8 @@ pub fn fuzz_data_folder(input: &[u8]) -> bool {
         p.len() <= PATH_MAX && !p.contains('\0') && !shared && p.as_ref() == path
     });
     let _ = names_copy(input, &beside::same_key(Path::new("C:/Mail/Archive.mailcraft")));
-    id_ok && owner_ok && path_ok
+    let account_ok = account_from(input).is_none_or(|a| !a.is_empty() && a.len() <= OWNER_MAX);
+    id_ok && owner_ok && path_ok && account_ok
 }
 
 /// The id of the data folder at `root`, made when it has none: written whole to a file of its
@@ -221,17 +243,19 @@ impl Packs {
         Some(self.id.get_or_init(|| id).clone())
     }
 
-    /// The record a data file of this folder's keeps of it (`None`: no id to record).
-    pub(super) fn owner_record(&self) -> Option<Vec<u8>> {
+    /// The record `account`'s data file keeps of this folder and of which account of it the file
+    /// is (`None`: no id to record). The account is what finds the file again when the list of
+    /// data files is damaged (`names.rs`).
+    pub(super) fn owner_record(&self, account: &str) -> Option<Vec<u8>> {
         let id = self.folder_id()?;
-        serde_json::to_vec(&serde_json::json!({ "id": id, "path": self.root.to_string_lossy() })).ok()
+        serde_json::to_vec(&serde_json::json!({ "id": id, "path": self.root.to_string_lossy(), "account": account })).ok()
     }
 
     /// What a data file made new says in `META` from the start: everything in it is kept as this
-    /// build keeps it, and it's this folder's.
-    pub(super) fn write_fresh_meta(&self, tx: &redb::WriteTransaction) -> io::Result<()> {
+    /// build keeps it, and it's `account`'s in this folder.
+    pub(super) fn write_fresh_meta(&self, tx: &redb::WriteTransaction, account: &str) -> io::Result<()> {
         let deflate = DEFLATE_NOW.to_le_bytes();
-        match self.owner_record() {
+        match self.owner_record(account) {
             Some(r) => write_meta(tx, &[(DEFLATE, deflate.as_slice()), (OWNER, r.as_slice())]),
             None => write_meta(tx, &[(DEFLATE, deflate.as_slice())]),
         }
@@ -244,7 +268,7 @@ impl Packs {
     pub(crate) fn set_owner(&self, account: &str, ours: bool) -> io::Result<()> {
         let db = if ours { TakingOver::with(|| self.db(account, false))? } else { self.db(account, false)? };
         let Some(db) = db else { return Ok(()) };
-        let record = if ours { self.owner_record() } else { None };
+        let record = if ours { self.owner_record(account) } else { None };
         let me = self.folder_id().unwrap_or_default();
         seal_with(&db, &self.seals, account, |tx| match &record {
             Some(r) => write_meta(tx, &[(OWNER, r.as_slice())]),

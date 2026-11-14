@@ -409,3 +409,93 @@ fn a_write_as_an_account_lets_go_never_lends_it_the_old_file() {
     drop(s);
     let _ = std::fs::remove_dir_all(t);
 }
+
+/// A damaged list of which data file is each account's is set aside, and each account's file is
+/// found again by the name it was given. The list was taken for empty: the account showed no
+/// mail, and the next write gave it a second file beside the first, which was forgotten. A list
+/// that can't be read at all stops the opening rather than being taken for none.
+#[test]
+fn a_damaged_list_of_data_files_finds_them_again() {
+    let k = |a: &str, uid| MessageKey { account: a.into(), folder: "INBOX".into(), validity: 1, uid };
+    let t = temp("names-damaged");
+    let (app, files) = (t.join("app"), t.join("Files"));
+    let s = Store::open_packed(&app, &files).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    s.write_body(&k("a1", 1), b"Subject: kept\r\n\r\nkept").unwrap();
+    let file = s.data_file("a1").unwrap();
+    drop(s);
+    std::fs::write(app.join(super::super::NAMES), b"{\"a1\": ").unwrap();
+    let s = Store::open_packed(&app, &files).unwrap();
+    assert_eq!(s.data_file("a1"), Some(file.clone()), "found again");
+    assert_eq!(s.read_body(&k("a1", 1)).unwrap(), b"Subject: kept\r\n\r\nkept");
+    s.write_body(&k("a1", 2), b"Subject: more\r\n\r\nmore").unwrap();
+    assert_eq!(
+        std::fs::read_dir(&files).unwrap().flatten().filter(|e| e.path().extension().is_some_and(|x| x == "mailcraft")).count(),
+        1,
+        "no second file"
+    );
+    assert!(app.join("datafiles.json.bad").exists(), "the damaged list is set aside");
+    drop(s);
+    // One that can't be read (a folder in its place, as a file another program holds would be).
+    std::fs::remove_file(app.join(super::super::NAMES)).unwrap();
+    std::fs::create_dir(app.join(super::super::NAMES)).unwrap();
+    assert!(Store::open_packed(&app, &files).is_err());
+    let _ = std::fs::remove_dir_all(t);
+}
+
+/// Two accounts with one address, their data files `<address>` and `<address> (2)`, with the
+/// accounts listed the other way round by then; and `ana`, an address of her own.
+fn two_of_one_address(name: &str) -> (std::path::PathBuf, std::path::PathBuf, Vec<std::path::PathBuf>) {
+    let k = |a: &str| MessageKey { account: a.into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let t = temp(name);
+    let (app, files) = (t.join("app"), t.join("Files"));
+    let s = Store::open_packed(&app, &files).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example"), account("a2", "zoe@studio.example"), account("a3", "ana@studio.example")]).unwrap();
+    for a in ["a1", "a2", "a3"] {
+        s.write_body(&k(a), format!("Subject: of {a}\r\n\r\nx").as_bytes()).unwrap();
+    }
+    let made: Vec<_> = ["a1", "a2", "a3"].iter().map(|a| s.data_file(a).unwrap()).collect();
+    assert!(made[1].to_string_lossy().ends_with("zoe@studio.example (2).mailcraft"));
+    s.save_accounts(&[account("a3", "ana@studio.example"), account("a2", "zoe@studio.example"), account("a1", "zoe@studio.example")]).unwrap();
+    (app, files, made)
+}
+
+/// With the list of data files damaged, two accounts of one address each get their own file
+/// back, by the account the file says it is. They were found by name alone, in the order the
+/// accounts are listed: the second account took the first one's file (and showed its mail), and
+/// the first was left with none.
+#[test]
+fn a_damaged_list_gives_accounts_of_one_address_their_own_files() {
+    let k = |a: &str| MessageKey { account: a.into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let (app, files, made) = two_of_one_address("names-one-address");
+    std::fs::write(app.join(super::super::NAMES), b"{\"a1\": ").unwrap();
+    let s = Store::open_packed(&app, &files).unwrap();
+    for (a, file) in ["a1", "a2", "a3"].iter().zip(&made) {
+        assert_eq!(s.data_file(a).as_ref(), Some(file), "{a}");
+        assert_eq!(s.read_body(&k(a)).unwrap(), format!("Subject: of {a}\r\n\r\nx").as_bytes(), "{a}");
+    }
+}
+
+/// Data files that don't say whose they are (made before they did): an account whose address is
+/// its own is found by its file's name; of two with one address neither is taken for the other.
+/// Each starts a new file, and the old ones stay.
+#[test]
+fn a_damaged_list_never_guesses_between_accounts_of_one_address() {
+    let k = |a: &str| MessageKey { account: a.into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let (app, files, made) = two_of_one_address("names-not-guessed");
+    {
+        let s = Store::open_packed(&app, &files).unwrap();
+        for a in ["a1", "a2", "a3"] {
+            packs(&s).set_owner(a, false).unwrap();
+        }
+    }
+    std::fs::write(app.join(super::super::NAMES), b"{\"a1\": ").unwrap();
+    let s = Store::open_packed(&app, &files).unwrap();
+    assert_eq!(s.data_file("a3").as_ref(), made.get(2), "found by its name");
+    assert_eq!(s.read_body(&k("a3")).unwrap(), b"Subject: of a3\r\n\r\nx");
+    assert_eq!((s.data_file("a1"), s.data_file("a2")), (None, None), "not guessed");
+    s.write_body(&k("a2"), b"Subject: new\r\n\r\ny").unwrap();
+    let new = s.data_file("a2").unwrap();
+    assert!(!made.contains(&new), "{}", new.display());
+    assert!(made.iter().all(|f| f.is_file()), "the old files stay");
+}

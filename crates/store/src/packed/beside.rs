@@ -88,9 +88,7 @@ impl Packs {
                         continue;
                     }
                     names.insert(account.to_string(), p.to_string());
-                    if let Ok(json) = serde_json::to_vec_pretty(&*names) {
-                        let _ = write_atomic(&self.root.join(NAMES), &json);
-                    }
+                    super::names::save(&self.root, &names);
                 }
                 // Taken on: this folder's from now on (a copy made new says so as it's made).
                 if found.as_ref().is_some_and(|f| !f.ours)

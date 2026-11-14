@@ -40,6 +40,7 @@ on GitHub.
 - A message with a line longer than 64 KB comes whole from a POP account: the line was broken in two, and a piece of it that was a lone `.` cut the message short there.
 - Turning on **Online only** for an account when one of its files can't be read says so and changes nothing; that file was left behind and then deleted with the rest, changes waiting for the server and the Outbox among what could go.
 - A move of the data files to another folder that stops, because a file of the same name turned up there meanwhile, leaves that file alone; it was deleted as the move was undone.
+- When the list of which data file is each account's (`datafiles.json`) is damaged, each account's data file is found again by its name, and the damaged list kept aside as `datafiles.json.bad`; one that can't be read at all is said, and tried again at the next start. Either was taken for an empty list: accounts showed no mail, and the next mail to come in started a second data file beside the first, which was then forgotten. Two accounts with one address each get their own file back, never the other's.
 
 ## 0.38.0 - 2026-11-13
 

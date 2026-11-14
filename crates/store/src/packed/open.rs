@@ -451,7 +451,7 @@ impl Packs {
         // account of (`owner.rs`). Not sealed, its writes say so until one of them reaches the
         // disk.
         if fresh {
-            match seal_with(&db, &self.seals, account, |tx| self.write_fresh_meta(tx)) {
+            match seal_with(&db, &self.seals, account, |tx| self.write_fresh_meta(tx, account)) {
                 Ok(()) => {}
                 Err(e) => {
                     log::warn!("{}: made, but couldn't say how it's kept yet: {e}", path.display());
