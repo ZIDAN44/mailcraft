@@ -43,6 +43,7 @@ on GitHub.
 - When the list of which data file is each account's (`datafiles.json`) is damaged, each account's data file is found again by its name, and the damaged list kept aside as `datafiles.json.bad`; one that can't be read at all is said, and tried again at the next start. Either was taken for an empty list: accounts showed no mail, and the next mail to come in started a second data file beside the first, which was then forgotten. Two accounts with one address each get their own file back, never the other's.
 - A rule with more than the rule editor shows (several conditions, any of which will do, several actions, or one account it's for: one brought in from a file, or made with a command) keeps all of that when you change it in the editor. Saving it, even only to rename it, kept just its first condition and first action, for every account, and a rule moving mail to Junk came back moving it to Archive.
 - A contact saved from **Edit contact** keeps the postal addresses the form has no place for (a second home address, say) and the kind of a number or address it shows under Other (a pager, a postal address): the extra addresses were deleted and those kinds dropped.
+- **Email** on a contact's card writes to that one person when the name has a comma, as Outlook's "Last, First" names do: the name was split into two recipients there, the first of them not an address, and the message couldn't be sent until it was put right.
 
 ## 0.38.0 - 2026-11-13
 

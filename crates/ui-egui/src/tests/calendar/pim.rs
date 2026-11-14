@@ -485,3 +485,21 @@ fn a_contact_saved_from_the_form_keeps_its_extra_addresses_and_kinds() {
     assert_eq!(after.addresses.len(), 3);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The Email button on a card named the Outlook way, "Last, First", starts a message to that one
+/// person. The name went in bare, and the comma parted it into two recipients, the first of
+/// them ("Park") not an address.
+#[test]
+fn email_on_a_card_named_last_first_writes_to_that_person() {
+    use mailcraft_engine::model::addr::parse_list;
+    let (mut a, dir) = app("email-last-first");
+    assert!(parse_list("Park, Ann <ann@studio.example>").is_err(), "the name as it went in");
+    for act in crate::panes::people::write_to("Park, Ann", "ann@studio.example") {
+        a.act(act);
+    }
+    let to = a.session.compose.as_ref().map(|c| c.to.clone()).unwrap_or_default();
+    let people = parse_list(&to).unwrap();
+    assert_eq!(people.len(), 1, "{to}");
+    assert_eq!((people[0].name.as_str(), people[0].email.as_str()), ("Park, Ann", "ann@studio.example"));
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -396,9 +396,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                         if let Some(e) = c.emails.first()
                             && widgets::pill_button(ui, Icon::NewMail, "Email", &t).clicked()
                         {
-                            acts.push(Action::Run("mail.new", json!({})));
-                            acts.push(Action::Run("compose.update", json!({"to": format!("{name} <{}>", e.value)})));
-                            acts.push(Action::Run("view.module", json!({"name": "mail"})));
+                            acts.extend(write_to(&name, &e.value));
                         }
                         // Someone in a shared address book (an organisation's) is only read.
                         if s.person_read_only(&c.uid) {
@@ -460,6 +458,14 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
         });
     });
+}
+
+/// What a card's Email button does: a new message to the person, in Mail. The name is written
+/// as a recipient's is (one with a comma quoted, as an Outlook "Last, First" name has):
+/// pasted in bare, the comma parted it into two recipients, the first not an address.
+pub(crate) fn write_to(name: &str, email: &str) -> [Action; 3] {
+    let to = mailcraft_engine::model::EmailAddress::new(name, email).to_string();
+    [Action::Run("mail.new", json!({})), Action::Run("compose.update", json!({ "to": to })), Action::Run("view.module", json!({"name": "mail"}))]
 }
 
 /// What a number is, as Outlook names it.
