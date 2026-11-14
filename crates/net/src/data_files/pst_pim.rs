@@ -134,7 +134,8 @@ impl Named {
         named
     }
 
-    /// Only the categories' property known, at `id` (for tests and the fuzz target).
+    /// Only the categories' property known, at `id`, for tests (the fuzz target's names are
+    /// [`Named::for_fuzzing`]).
     #[cfg(test)]
     pub(crate) fn with_keywords(id: u16) -> Named {
         Named { keywords: Some(id), ..Default::default() }
