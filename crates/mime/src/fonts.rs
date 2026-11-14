@@ -20,10 +20,7 @@ pub(crate) struct Font {
     pub family: Option<String>,
 }
 
-/// Elements that never hold anything (no end tag).
-fn void(tag: &str) -> bool {
-    matches!(tag, "br" | "img" | "hr" | "meta" | "link" | "input" | "col" | "area" | "base" | "wbr" | "source" | "track" | "embed" | "param")
-}
+use crate::html::void;
 
 /// An attribute of a start tag (`name="v"`, `name='v'`, `name=v`), case-insensitive.
 fn attr(tag: &str, name: &str) -> Option<String> {
@@ -113,7 +110,7 @@ pub(crate) fn mark(html: &str) -> (String, Vec<Font>) {
     while let Some(off) = lower.get(i..).and_then(|r| r.find('<')) {
         let at = i + off;
         out.push_str(html.get(i..at).unwrap_or(""));
-        let Some(close) = lower.get(at..).and_then(|r| r.find('>')).map(|c| at + c) else {
+        let Some(close) = crate::html::tag_end(lower.as_bytes(), at + 1) else {
             out.push_str(html.get(at..).unwrap_or(""));
             return (out, fonts);
         };

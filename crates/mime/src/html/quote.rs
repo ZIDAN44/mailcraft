@@ -78,7 +78,7 @@ pub fn quote_html(html: &str, given: &[(String, String)], trackers: &[String]) -
     let (mut last, mut from) = (0, 0);
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e + 1) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1).map(|e| e + 1) else { break };
         from = end;
         let tag = code.get(start..end).unwrap_or("");
         let Some(src) = tag_attr(tag, "src") else { continue };

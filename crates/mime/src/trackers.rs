@@ -265,7 +265,7 @@ pub fn trackers(html: &str) -> Trackers {
     let mut from = 0;
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         let tag = html.get(start..end).unwrap_or("");
         from = end + 1;
         let Some(src) = crate::html::tag_attr(tag, "src").map(|s| s.trim().replace("&amp;", "&")) else { continue };

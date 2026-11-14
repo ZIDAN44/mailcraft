@@ -15,8 +15,6 @@ const KEPT_MAX: usize = 20_000;
 /// Elements nested deeper than this are counted as the deepest.
 const DEPTH_MAX: usize = 512;
 
-/// Elements with no closing tag.
-const VOID: &[&str] = &["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"];
 /// Elements whose content is never text to read.
 const NOT_TEXT: &[&str] = &["head", "script", "style", "title", "template"];
 
@@ -78,7 +76,7 @@ pub(crate) fn hidden_text_where(html: &str, mso_hide_hides: bool) -> Option<(Str
             continue;
         }
         let name = tag_name(tag);
-        if name.is_empty() || name.starts_with('!') || name.starts_with('?') || VOID.contains(&name.as_str()) || tag.trim_end().ends_with('/') {
+        if name.is_empty() || name.starts_with('!') || name.starts_with('?') || crate::html::void(&name) || tag.trim_end().ends_with('/') {
             continue;
         }
         let not_text = NOT_TEXT.contains(&name.as_str());
@@ -94,18 +92,10 @@ pub(crate) fn hidden_text_where(html: &str, mso_hide_hides: bool) -> Option<(Str
     (words >= HIDDEN_WORDS_MIN).then_some((kept, words))
 }
 
-/// Where a tag that starts `s` (at its `<`) ends: its `>`, outside quoted values.
+/// Where a tag that starts `s` (at its `<`) ends: its `>`, as a browser finds it
+/// ([`crate::html::tag_end`]).
 fn tag_end(s: &str) -> Option<usize> {
-    let mut quote = None;
-    for (i, c) in s.char_indices().skip(1) {
-        match (quote, c) {
-            (Some(q), c) if c == q => quote = None,
-            (None, '"' | '\'') => quote = Some(c),
-            (None, '>') => return Some(i),
-            _ => {}
-        }
-    }
-    None
+    crate::html::tag_end(s.as_bytes(), 1)
 }
 
 fn tag_name(tag: &str) -> String {

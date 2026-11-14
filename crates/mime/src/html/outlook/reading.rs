@@ -187,33 +187,10 @@ fn tag_name(lower: &str, at: usize) -> &str {
     rest.get(..len).unwrap_or("")
 }
 
-/// Where a tag whose attributes start at `from` ends (its `>`), as a browser reads it: past
-/// values quoted after their `=`, a quote anywhere else being part of a name or value. `None`
-/// when it doesn't end.
+/// Where a tag whose attributes start at `from` ends (its `>`), as a browser reads it
+/// ([`crate::html::tag_end`]). `None` when it doesn't end.
 pub(super) fn tag_end_at(b: &[u8], from: usize) -> Option<usize> {
-    let mut j = from;
-    // Just past an attribute's `=`, its value still to come.
-    let mut value = false;
-    while let Some(&c) = b.get(j) {
-        match c {
-            b'>' => return Some(j),
-            b'=' if !value => value = true,
-            b'"' | b'\'' if value => {
-                j = j + 1 + b.get(j + 1..)?.iter().position(|x| *x == c)?;
-                value = false;
-            }
-            c if c.is_ascii_whitespace() => {}
-            _ if value => {
-                while b.get(j + 1).is_some_and(|d| !d.is_ascii_whitespace() && *d != b'>') {
-                    j += 1;
-                }
-                value = false;
-            }
-            _ => {}
-        }
-        j += 1;
-    }
-    None
+    crate::html::tag_end(b, from)
 }
 
 /// Where the comments in a text end, for a text read through from its start: each end is

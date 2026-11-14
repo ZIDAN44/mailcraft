@@ -43,7 +43,7 @@ pub(crate) fn mark_scripts(html: &str) -> String {
             from = start + 1;
             continue;
         };
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         out.push_str(html.get(last..start).unwrap_or(""));
         if closing {
             out.push(SCRIPT_END);
@@ -131,7 +131,7 @@ pub(crate) fn plain_scripts(html: &str) -> std::borrow::Cow<'_, str> {
             from = start + 4;
             continue;
         };
-        let Some(open_end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(open_end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         let Some(close) = lower.get(open_end..).and_then(|r| r.find("</sup")).map(|e| open_end + e) else { break };
         let Some(close_end) = lower.get(close..).and_then(|r| r.find('>')).map(|e| close + e) else { break };
         let inner = html.get(open_end + 1..close).unwrap_or("").trim();

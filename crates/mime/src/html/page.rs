@@ -18,7 +18,7 @@ pub(super) fn no_page_background(html: &str) -> String {
         let page =
             ["<body", "<html"].iter().any(|t| rest.starts_with(t) && rest.as_bytes().get(5).is_none_or(|c| c.is_ascii_whitespace() || *c == b'>'));
         if rest.starts_with("<style") {
-            let Some(open) = rest.find('>') else { break };
+            let Some(open) = crate::html::tag_end(rest.as_bytes(), 1) else { break };
             let body = start + open + 1;
             let end = lower.get(body..).and_then(|r| r.find("</style")).map_or(html.len(), |e| body + e);
             out.push_str(html.get(at..body).unwrap_or(""));
@@ -26,7 +26,7 @@ pub(super) fn no_page_background(html: &str) -> String {
             at = end;
             from = end;
         } else if page {
-            let Some(close) = rest.find('>') else { break };
+            let Some(close) = crate::html::tag_end(rest.as_bytes(), 1) else { break };
             out.push_str(html.get(at..start).unwrap_or(""));
             out.push_str(&without_background_attrs(html.get(start..=start + close).unwrap_or("")));
             at = start + close + 1;

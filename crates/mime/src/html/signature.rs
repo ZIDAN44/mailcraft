@@ -27,7 +27,7 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
     // Inside <body>, when there is one.
     let inner = lower
         .find("<body")
-        .and_then(|b| lower.get(b..)?.find('>').map(|e| b + e + 1))
+        .and_then(|b| crate::html::tag_end(lower.as_bytes(), b + 1).map(|e| e + 1))
         .map(|start| {
             let end = lower.get(start..).and_then(|r| r.rfind("</body")).map_or(html.len(), |e| start + e);
             html.get(start..end).unwrap_or("")
@@ -145,7 +145,7 @@ pub fn pictures_beside(html: &str) -> String {
     let (mut last, mut from) = (0, 0);
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         let tag = html.get(start..end).unwrap_or("");
         let Some(src) = tag_attr(tag, "src") else { continue };
@@ -174,7 +174,7 @@ pub fn code_without_pictures(code: &str) -> (String, Vec<String>) {
     let (mut last, mut from) = (0, 0);
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         let tag = code.get(start..end).unwrap_or("");
         let Some(src) = tag_attr(tag, "src").filter(|s| s.trim().get(..5).is_some_and(|p| p.eq_ignore_ascii_case("data:"))) else { continue };
@@ -220,7 +220,7 @@ pub(super) fn cells_in_turn(html: &str) -> String {
     let mut at = 0;
     while let Some(i) = lower.get(at..).and_then(|r| r.find('<')).map(|i| at + i) {
         out.push_str(html.get(at..i).unwrap_or(""));
-        let Some(end) = lower.get(i..).and_then(|r| r.find('>')).map(|e| i + e + 1) else {
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), i + 1).map(|e| e + 1) else {
             at = i;
             break;
         };
@@ -315,40 +315,10 @@ fn attributes(tag: &str) -> (usize, Vec<Attribute>) {
     (name_end, out)
 }
 
-/// Where the tag starting `html` ends (past its `>`), as a browser finds it: a `>` in a quoted
-/// value isn't its end. `None`: it never ends.
+/// Where the tag starting `html` ends (past its `>`), as a browser finds it
+/// ([`crate::html::tag_end`]). `None`: it never ends.
 fn tag_end(html: &str) -> Option<usize> {
-    let b = html.as_bytes();
-    let mut i = 1;
-    // In a quoted value (its quote), and whether a value may start here (after `=`).
-    let mut quote: Option<u8> = None;
-    let mut value_next = false;
-    while let Some(&c) = b.get(i) {
-        match quote {
-            Some(q) => {
-                if c == q {
-                    quote = None;
-                }
-            }
-            None => match c {
-                b'>' => return Some(i + 1),
-                b'"' | b'\'' if value_next => quote = Some(c),
-                b'=' => {
-                    value_next = true;
-                    i += 1;
-                    continue;
-                }
-                c if c.is_ascii_whitespace() && value_next => {
-                    i += 1;
-                    continue;
-                }
-                _ => {}
-            },
-        }
-        value_next = false;
-        i += 1;
-    }
-    None
+    crate::html::tag_end(html.as_bytes(), 1).map(|e| e + 1)
 }
 
 /// Whether an address hides a script a browser would run where `javascript:` written as it is

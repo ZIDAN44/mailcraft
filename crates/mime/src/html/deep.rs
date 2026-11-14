@@ -31,18 +31,8 @@ fn tags(html: &str, mut each: impl FnMut(&str, bool, std::ops::Range<usize>) -> 
             at = lt + 1;
             continue;
         }
-        // The tag's end, past quoted values (a `>` in one doesn't end it).
-        let mut close = start + name_len;
-        let mut quote = None;
-        while let Some(&c) = bytes.get(close) {
-            match (quote, c) {
-                (Some(q), c) if c == q => quote = None,
-                (None, b'"' | b'\'') => quote = Some(c),
-                (None, b'>') => break,
-                _ => {}
-            }
-            close += 1;
-        }
+        // The tag's end, past quoted values (a `>` in one doesn't end it), as a browser finds it.
+        let close = crate::html::tag_end(bytes, start + name_len).unwrap_or(bytes.len());
         let next = (close + 1).min(bytes.len());
         if raw.is_some() {
             // Inside a raw text element only its own end tag counts: this is it.

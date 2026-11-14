@@ -12,7 +12,7 @@ use super::*;
 
 /// Elements that never have content.
 pub(crate) fn void(tag: &str) -> bool {
-    matches!(tag, "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "source" | "track" | "wbr")
+    crate::html::void(tag)
 }
 
 /// Builds the tree from tokens.

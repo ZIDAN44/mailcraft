@@ -11,6 +11,7 @@ mod plain;
 mod quote;
 mod scripts;
 mod signature;
+mod tags;
 pub(crate) use footers::footers_last;
 pub use outlook::as_outlook_reads;
 pub(crate) use outlook::{HIDDEN_RULE, OUTLOOK_MARK, OUTLOOK_TABLE, OutlookCopy, marked_hidden, mso_hidden, outlook_copy};
@@ -20,6 +21,7 @@ pub use quote::*;
 use scripts::scripts_split;
 pub(crate) use scripts::{SIZE_END, mark_scripts, plain_scripts, size_mark};
 pub use signature::*;
+pub(crate) use tags::{tag_end, void};
 
 /// Most lines kept of a rich rendering (the rest is shown as text).
 pub(super) const RICH_MAX_LINES: usize = 20_000;
@@ -55,7 +57,7 @@ pub(super) fn picture_sizes(html: &str) -> Vec<(String, ImageSize)> {
     let mut from = 0;
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         let tag = html.get(start..end).unwrap_or("");
         let Some(src) = tag_attr(tag, "src").map(str::trim).filter(|s| !s.is_empty()) else { continue };
@@ -175,7 +177,7 @@ fn data_pictures(html: &str) -> (String, Vec<InlinePicture>) {
     let (mut last, mut from) = (0, 0);
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         let tag = html.get(start..end).unwrap_or("");
         let Some(src) = tag_attr(tag, "src") else { continue };
@@ -278,7 +280,7 @@ pub fn local_pictures(html: &str, mut read: impl FnMut(&str) -> Option<(String, 
     let mut from = 0;
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         if found.len() >= LOCAL_PICTURES {
             break;
@@ -477,7 +479,7 @@ pub(super) fn mark_pictures(html: &str) -> String {
     let mut from = 0;
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         let tag = html.get(start..end).unwrap_or("");
         let tiny = |a: &str| tag_attr(tag, a).is_some_and(|v| v.trim().trim_end_matches("px").trim().parse::<f32>().is_ok_and(|n| n <= 2.0));
         let described = tag_attr(tag, "alt").is_some_and(|a| !a.trim().is_empty());
@@ -582,7 +584,7 @@ pub(super) fn mark_headings(html: &str) -> String {
             from = start + 2;
             continue;
         }
-        let Some(end) = lower.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
+        let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         let closing = format!("</{}", lower.get(start + 1..start + 3).unwrap_or("h1"));
         let stop = lower.get(end + 1..).and_then(|r| r.find(&closing)).map_or(lower.len(), |e| end + 1 + e);
@@ -634,7 +636,7 @@ pub fn html_images(html: &str) -> Vec<String> {
     let mut from = 0;
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
-        let end = lower.get(start..).and_then(|r| r.find('>')).map_or(lower.len(), |e| start + e);
+        let end = crate::html::tag_end(lower.as_bytes(), start + 1).unwrap_or(lower.len());
         let tag_lower = lower.get(start..end).unwrap_or("");
         let tag = html.get(start..end).unwrap_or("");
         if let Some(p) = tag_lower.find(" src=").or_else(|| tag_lower.find("\nsrc=")) {
