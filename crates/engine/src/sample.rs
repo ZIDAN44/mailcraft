@@ -7,6 +7,7 @@ use mailcraft_model::pim::{StoredTask, Task, TaskPriority, TaskStatus};
 use mailcraft_model::{AccountConfig, EmailAddress, Flags, Folder, FolderRole, MessageKey, sort_newest_first};
 use mailcraft_store::{FolderState, Store, StoreError};
 
+#[cfg(any(test, feature = "test-fixtures"))]
 pub mod big;
 
 pub const SAMPLE_ACCOUNT: &str = "sample";

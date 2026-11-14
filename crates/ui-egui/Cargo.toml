@@ -33,6 +33,8 @@ hayro = { version = "0.9", default-features = false }
 web-time = "1.1"
 
 [dev-dependencies]
+# The search tests' big made-up mailbox (`sample::big`).
+mailcraft-engine = { workspace = true, features = ["test-fixtures"] }
 # The a11y guard's test: the consumer the system adapters run, fed with our updates. The version
 # egui already brings in, so nothing is built twice.
 accesskit_consumer = "=0.39.2"

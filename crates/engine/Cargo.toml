@@ -28,6 +28,11 @@ aes-gcm = { version = "0.10", default-features = false, features = ["aes", "allo
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 sha2 = "0.10"
 
+[features]
+# The big made-up mailbox (`sample::big`), for the tests of the crates over the engine: the
+# interface's, which turn it on. Not in the app.
+test-fixtures = []
+
 [dev-dependencies]
 # S/MIME tests read PEM and play the network layer's decrypting.
 der = { version = "0.8", features = ["pem"] }
