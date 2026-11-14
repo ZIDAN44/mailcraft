@@ -1,33 +1,37 @@
 //! A draft filed once on the server however its filing is cut short: an account's connection
 //! started again while it's on its way, or the server's answer lost (#53).
 
-use super::drafts::{kept_texts, on_the_server, with_drafts};
+use super::drafts::{kept_texts, on_the_server, threads_ended, until_waiting, with_drafts};
 use super::*;
 use crate::fakes::proxy::{Cut, Hang, Proxy};
 
 /// The account's connection started again (a password or setting changed, Work Offline turned
-/// off and on) while the server takes 1.5 s over each draft filed: the drafts in Drafts, by their
+/// off and on) while the server holds the first draft filed: the drafts in Drafts, by their
 /// text, and what the pool said.
 fn restarted_while_filing(name: &str, kept: Option<&str>, saved: Option<&str>) -> (Vec<String>, Vec<Event>, Vec<String>) {
     let (st, store, account) = with_drafts(name);
     if let Some(k) = kept {
         keep_draft(&store, "a1", "Drafts", None, k.into(), false, &Order::default()).unwrap();
     }
-    st.lock().unwrap().stall_on = Some(("APPEND".into(), Duration::from_millis(1500)));
+    let (hold, holding) = crate::fake::Hold::on("APPEND");
+    st.lock().unwrap().hold_on = Some(hold);
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("pw".into())) });
     if let Some(s) = saved {
         pool.submit(Job::SaveDraft { account: "a1".into(), raw: s.into(), folder: "Drafts".into(), replaces: None });
     }
-    // The draft on its way to the server as the connection starts again.
-    eventually("the draft on its way", || st.lock().unwrap().stalled > 0);
+    // The draft on its way to the server as the connection starts again, held there until the
+    // new connection is made and has done all it would (a copy of its own filed, or not).
+    holding.came();
     pool.submit(Job::Start { account, password: None });
-    let mut seen = events_until(&pool, "the draft filed", |_| !on_the_server(&st).is_empty() && kept_texts(&store).is_empty());
-    // Long enough for a second copy, filed by the new connection, to get there.
-    let end = Instant::now() + Duration::from_millis(2500);
-    while Instant::now() < end {
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    let logins = || st.lock().unwrap().log.iter().filter(|c| c.starts_with("LOGIN")).count();
+    let mut seen = events_until(&pool, "the new connection made", |_| logins() >= 2);
+    seen.extend(until_waiting(&pool));
+    holding.go(crate::fake::LetGo::Answer);
+    seen.extend(events_until(&pool, "the draft filed", |_| !on_the_server(&st).is_empty() && kept_texts(&store).is_empty()));
+    // The old connection's thread done, and the new one waiting: a second copy would be there.
+    threads_ended(&store, 1);
+    seen.extend(until_waiting(&pool));
     let (filed, kept) = (on_the_server(&st), kept_texts(&store));
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
@@ -78,7 +82,7 @@ fn a_draft_whose_answer_was_lost_is_filed_once() {
     // Send / Receive: the draft kept here is filed again.
     pool.submit(Job::SyncAll { account: "a1".into() });
     events_until(&pool, "nothing kept here", |_| kept_texts(&store).is_empty());
-    std::thread::sleep(Duration::from_millis(300));
+    until_waiting(&pool);
     assert_eq!(on_the_server(&st), [text]);
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
@@ -121,7 +125,9 @@ fn restarted_while_a_filing_hangs(name: &str, idle: bool, newer: Option<&str>) -
     // The old connection's filing fails as the link closes: the new one files the draft.
     hang.closed.store(true, Ordering::Relaxed);
     events_until(&pool, "both drafts filed", |_| on_the_server(&st).len() == 2 && kept_texts(&store).is_empty());
-    std::thread::sleep(Duration::from_millis(300));
+    // The old connection's thread done, and the new one waiting: a third copy would be there.
+    threads_ended(&store, 1);
+    until_waiting(&pool);
     let filed = on_the_server(&st);
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
@@ -156,16 +162,15 @@ fn filed_then_offline_before_heard(name: &str, uidplus: bool) -> (usize, usize, 
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: text.into(), folder: "Drafts".into(), replaces: None });
     // Filed, and Drafts read again, with nothing heard of it here yet.
     eventually("the draft filed", || on_the_server(&st) == [text]);
-    std::thread::sleep(Duration::from_millis(500));
+    seen.extend(until_waiting(&pool));
     pool.submit(Job::WorkOffline { on: true });
     seen.extend(pool.poll());
     let kept = kept_texts(&store).len();
     pool.submit(Job::WorkOffline { on: false });
     seen.extend(events_until(&pool, "nothing kept here", |_| kept_texts(&store).is_empty()));
-    let end = Instant::now() + Duration::from_millis(1500);
-    while Instant::now() < end {
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    // The stopped thread done, and the new one waiting: anything more would be said.
+    threads_ended(&store, 1);
+    seen.extend(until_waiting(&pool));
     let said = seen.iter().filter(|e| matches!(e, Event::DraftSaved { message_id, .. } if message_id == "heard@studio.example")).count();
     let filed = on_the_server(&st);
     pool.submit(Job::Remove { account: "a1".into() });

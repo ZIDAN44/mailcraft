@@ -299,3 +299,31 @@ pub(crate) mod waits {
         BEGUN.lock().map_or(0, |b| b.iter().filter(|(root, a)| root == store.root() && a == account).count())
     }
 }
+
+/// The account's main threads (not their second connections) that have ended, for the tests to
+/// wait on rather than time: by the store's folder and the account.
+#[cfg(test)]
+pub(crate) mod ended {
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+
+    use mailcraft_store::Store;
+
+    static ENDED: Mutex<Vec<(PathBuf, String)>> = Mutex::new(Vec::new());
+
+    /// Noted as a main thread ends, by being dropped.
+    pub(crate) struct Ending(pub(crate) PathBuf, pub(crate) String);
+
+    impl Drop for Ending {
+        fn drop(&mut self) {
+            if let Ok(mut e) = ENDED.lock() {
+                e.push((std::mem::take(&mut self.0), std::mem::take(&mut self.1)));
+            }
+        }
+    }
+
+    /// How many of `account`'s main threads over `store` have ended.
+    pub(crate) fn count(store: &Store, account: &str) -> usize {
+        ENDED.lock().map_or(0, |e| e.iter().filter(|(root, a)| root == store.root() && a == account).count())
+    }
+}

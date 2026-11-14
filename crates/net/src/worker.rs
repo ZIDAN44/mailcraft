@@ -550,6 +550,8 @@ impl Worker {
     }
 
     fn run(mut self, rx: Receiver<Job>) {
+        #[cfg(test)]
+        let _ending = self.main.is_none().then(|| connect::ended::Ending(self.store.root().to_path_buf(), self.acc.id.clone()));
         self.status(SyncStatus::Connecting);
         if !self.settle_password() {
             return;

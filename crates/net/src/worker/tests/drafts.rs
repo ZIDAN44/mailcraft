@@ -178,7 +178,8 @@ fn kept_drafts_stay_kept_until_each_is_filed() {
     // The one on its way gets there, and is kept no more; the others wait for the next run.
     holding.go(crate::fake::LetGo::Answer);
     eventually("the first filed", || on_the_server(&st).len() == 1 && kept_texts(&store).len() == 2);
-    std::thread::sleep(Duration::from_millis(300));
+    // The stopped thread done: nothing more of it.
+    threads_ended(&store, 1);
     assert_eq!(on_the_server(&st), texts[..1]);
     assert_eq!(kept_texts(&store), texts[1..]);
     drop(pool);
@@ -188,6 +189,18 @@ fn kept_drafts_stay_kept_until_each_is_filed() {
 /// The drafts kept on this computer, by their text.
 pub(super) fn kept_texts(store: &Store) -> Vec<String> {
     kept_raws(store, "a1").unwrap_or_default().iter().map(|raw| String::from_utf8_lossy(raw).into_owned()).collect()
+}
+
+/// Wait until `n` of the account's threads over `store` have ended (stopped ones, done with
+/// what they were doing): what they did is all done.
+pub(super) fn threads_ended(store: &Store, n: usize) {
+    eventually(&format!("{n} of the account's threads to end"), || connect::ended::count(store, "a1") >= n);
+}
+
+/// Every event until the account's thread waits (for a job, or out a wait of its own): what it
+/// was doing is all done, and nothing more is until something wakes it.
+pub(super) fn until_waiting(pool: &Pool) -> Vec<Event> {
+    events_until(pool, "the account's thread to wait", |_| pool.idle("a1"))
 }
 
 /// A draft kept as MailCraft closed, in a pool's files that the next run reads.
@@ -247,20 +260,22 @@ fn a_draft_saved_offline_outlives_the_older_save_filed_after() {
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "calendars and contacts synced", |e| matches!(e, Event::DavSynced { .. }));
-    st.lock().unwrap().stall_on = Some(("APPEND".into(), Duration::from_millis(1500)));
+    let (hold, holding) = crate::fake::Hold::on("APPEND");
+    st.lock().unwrap().hold_on = Some(hold);
     let first = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <off@studio.example>\r\n\r\nfirst\r\n";
     let later = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <off@studio.example>\r\n\r\nfirst, and what was written offline after\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: first.into(), folder: "Drafts".into(), replaces: None });
-    // On its way to the server as Work Offline is turned on.
-    eventually("the first on its way", || st.lock().unwrap().stalled > 0);
+    // On its way to the server, held there, as Work Offline is turned on.
+    holding.came();
     pool.submit(Job::WorkOffline { on: true });
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: later.into(), folder: "Drafts".into(), replaces: None });
     assert_eq!(kept_texts(&store), [later]);
+    holding.go(crate::fake::LetGo::Answer);
     eventually("the first filed", || on_the_server(&st) == [first]);
-    std::thread::sleep(Duration::from_millis(800));
+    // The stopped thread done with it.
+    threads_ended(&store, 1);
     assert_eq!(kept_texts(&store), [later], "what was written offline still kept");
     // Online again: it replaces the older one there.
-    st.lock().unwrap().stall_on = None;
     pool.submit(Job::WorkOffline { on: false });
     eventually("the later filed", || on_the_server(&st) == [later] && kept_texts(&store).is_empty());
     pool.submit(Job::Remove { account: "a1".into() });
@@ -276,14 +291,17 @@ fn a_save_filed_after_work_offline_says_nothing_of_the_account() {
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "calendars and contacts synced", |e| matches!(e, Event::DavSynced { .. }));
-    st.lock().unwrap().stall_on = Some(("APPEND".into(), Duration::from_millis(1000)));
+    let (hold, holding) = crate::fake::Hold::on("APPEND");
+    st.lock().unwrap().hold_on = Some(hold);
     let draft = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <quiet@studio.example>\r\n\r\nfirst\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft.into(), folder: "Drafts".into(), replaces: None });
-    eventually("the draft on its way", || st.lock().unwrap().stalled > 0);
+    holding.came();
     let _ = pool.poll();
     pool.submit(Job::WorkOffline { on: true });
+    holding.go(crate::fake::LetGo::Answer);
     eventually("the draft filed", || on_the_server(&st) == [draft]);
-    std::thread::sleep(Duration::from_millis(800));
+    // The stopped thread done: all it said is said.
+    threads_ended(&store, 1);
     let said: Vec<SyncStatus> = pool
         .poll()
         .into_iter()
@@ -339,16 +357,18 @@ fn a_removed_accounts_saved_draft_writes_nothing() {
         imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
         ..Default::default()
     };
-    st.lock().unwrap().stall_on = Some(("APPEND".into(), Duration::from_millis(1000)));
+    let (hold, holding) = crate::fake::Hold::on("APPEND");
+    st.lock().unwrap().hold_on = Some(hold);
     let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
     let (tx, rx) = mpsc::channel();
     let draft = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <gone2@studio.example>\r\n\r\nto finish\r\n".to_vec();
     tx.send(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "Drafts".into(), replaces: None }).unwrap();
     let t = std::thread::spawn(move || w.run(rx));
     // Removed while the APPEND is on its way, as `Job::Remove` does (its channel dropped).
-    eventually("the APPEND on its way", || st.lock().unwrap().stalled > 0);
+    holding.came();
     store.remove_account("a1").unwrap();
     drop(tx);
+    holding.go(crate::fake::LetGo::Answer);
     let _ = t.join();
     assert_eq!(st.lock().unwrap().mailbox("Drafts").map(|b| b.msgs.len()), Some(1), "saved on the server");
     assert!(!pool.poll().iter().any(|e| matches!(e, Event::DraftSaved { .. })), "nothing said of it");
@@ -390,8 +410,7 @@ fn a_kept_draft_that_drops_the_connection_holds_nothing_up() {
     seen.extend(events_until(&pool, "the newer version on the server, the older one kept no more", |_| {
         on_the_server(&st).iter().any(|m| m == newer) && kept_texts(&store).is_empty()
     }));
-    std::thread::sleep(Duration::from_millis(300));
-    seen.extend(pool.poll());
+    seen.extend(until_waiting(&pool));
     assert!(connections.load(Ordering::Relaxed) <= 3, "{} connections", connections.load(Ordering::Relaxed));
     assert_eq!(on_the_server(&st), [plans, newer]);
     assert!(kept_texts(&store).is_empty(), "the older version kept again: {:?}", kept_texts(&store));
@@ -426,12 +445,11 @@ fn a_kept_draft_failing_again_is_said_once() {
     // A busy machine's time to connect three times: what's checked is waited for, never timed.
     let mut seen = until(&pool, "the kept draft tried", failed);
     seen.extend(events_until(&pool, "connected again", |_| connections.load(Ordering::Relaxed) >= 2));
-    std::thread::sleep(Duration::from_millis(500));
+    seen.extend(until_waiting(&pool));
     assert_eq!(connections.load(Ordering::Relaxed), 2, "tried again before its wait");
     pool.submit(Job::SyncAll { account: "a1".into() });
     seen.extend(events_until(&pool, "tried again with Send / Receive", |_| connections.load(Ordering::Relaxed) >= 3));
-    std::thread::sleep(Duration::from_millis(500));
-    seen.extend(pool.poll());
+    seen.extend(until_waiting(&pool));
     assert_eq!(seen.iter().filter(|e| failed(e)).count(), 1, "{seen:?}");
     assert_eq!(connections.load(Ordering::Relaxed), 3);
     assert_eq!(kept_texts(&store), [big]);
@@ -496,8 +514,7 @@ fn saves_that_drop_the_connection_hold_the_next_back_by_no_wait() {
     events_until(&pool, "the save on the server", |_| on_the_server(&st).iter().any(|m| m == plans));
     // Each connection a filing dropped made again at once: no wait to connect again on its way.
     assert_eq!(connect::waits::begun(&store, "a1"), 0, "waited to connect again");
-    std::thread::sleep(Duration::from_millis(500));
-    let _ = pool.poll();
+    until_waiting(&pool);
     // One connection more for each that dropped it, and none after: each waits on its own.
     assert_eq!(connections.load(Ordering::Relaxed), 4);
     assert_eq!(kept_texts(&store).len(), 3, "those that dropped it kept here");
