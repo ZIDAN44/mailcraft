@@ -59,6 +59,22 @@ pub struct Style {
     pub picture_width: Option<u16>,
 }
 
+/// [`Style::default`], to lend.
+static PLAIN: Style = Style {
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    mono: false,
+    size: None,
+    font: None,
+    color: None,
+    highlight: None,
+    link: None,
+    picture: None,
+    picture_width: None,
+};
+
 impl Style {
     pub fn size(&self) -> u8 {
         self.size.unwrap_or(DEFAULT_SIZE)
@@ -155,7 +171,17 @@ impl Styles {
     }
 
     pub fn style(&self, i: usize) -> Style {
-        self.chars.get(i).and_then(|c| self.palette.get(usize::from(*c))).cloned().unwrap_or_default()
+        self.look(i).clone()
+    }
+
+    /// The style of character `i`, not copied.
+    fn look(&self, i: usize) -> &Style {
+        self.chars.get(i).and_then(|c| self.palette.get(usize::from(*c))).unwrap_or(&PLAIN)
+    }
+
+    /// Whether characters `i` and `j` look the same (the same palette entry, most often).
+    fn same(&self, i: usize, j: usize) -> bool {
+        self.chars.get(i) == self.chars.get(j) || self.look(i) == self.look(j)
     }
 
     pub fn para(&self, line: usize) -> Para {
@@ -218,9 +244,21 @@ impl Styles {
     pub fn restyle(&mut self, text: &str, range: std::ops::Range<usize>, f: impl Fn(&Style) -> Style) {
         self.fit(text);
         let end = range.end.min(self.chars.len());
+        // Each style used in the range is changed (and looked up in the palette) once.
+        let mut changed: Vec<Option<u16>> = vec![None; self.palette.len()];
         for i in range.start.min(end)..end {
-            let next = f(&self.style(i));
-            let id = self.intern(next);
+            let old = self.chars.get(i).copied().unwrap_or(0);
+            let id = match changed.get(usize::from(old)).copied().flatten() {
+                Some(id) => id,
+                None => {
+                    let next = f(self.look(i));
+                    let id = self.intern(next);
+                    if let Some(slot) = changed.get_mut(usize::from(old)) {
+                        *slot = Some(id);
+                    }
+                    id
+                }
+            };
             if let Some(c) = self.chars.get_mut(i) {
                 *c = id;
             }
@@ -288,7 +326,7 @@ pub fn lines_of(text: &str, range: std::ops::Range<usize>) -> (usize, usize) {
 pub fn all(text: &str, styles: &Styles, range: std::ops::Range<usize>, f: impl Fn(&Style) -> bool) -> bool {
     let n = char_len(text);
     let range = range.start.min(n)..range.end.min(n);
-    !range.is_empty() && range.clone().all(|i| f(&styles.style(i)))
+    !range.is_empty() && range.clone().all(|i| f(styles.look(i)))
 }
 
 /// The next size up (or down) from `size` in [`SIZES`].
@@ -326,9 +364,9 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
     let chars: Vec<char> = line.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        let st = styles.style(start + i);
+        let st = styles.look(start + i);
         let mut j = i + 1;
-        while j < chars.len() && styles.style(start + j) == st && chars.get(j) != Some(&PICTURE) && chars.get(i) != Some(&PICTURE) {
+        while j < chars.len() && styles.same(start + j, start + i) && chars.get(j) != Some(&PICTURE) && chars.get(i) != Some(&PICTURE) {
             j += 1;
         }
         let run: String = chars.get(i..j).map(|c| c.iter().collect()).unwrap_or_default();
@@ -456,9 +494,9 @@ pub fn to_text(text: &str, styles: &Styles) -> String {
         let chars: Vec<char> = line.chars().collect();
         let mut i = 0;
         while i < chars.len() {
-            let style = st.style(start + i);
+            let style = st.look(start + i);
             let mut j = i + 1;
-            while j < chars.len() && st.style(start + j) == style {
+            while j < chars.len() && st.same(start + j, start + i) {
                 j += 1;
             }
             let run: String = chars.get(i..j).map(|c| c.iter().collect()).unwrap_or_default();
@@ -695,102 +733,4 @@ pub fn append_to_fitted(text: &mut String, styles: &mut Styles, add: &str, add_s
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn bold() -> Style {
-        Style { bold: true, ..Default::default() }
-    }
-
-    #[test]
-    fn typing_follows_the_text() {
-        let mut s = Styles::plain("Hello world");
-        s.restyle("Hello world", 0..5, |st| Style { bold: true, ..st.clone() });
-        // Typed inside the bold word: bold; deleted across: gone.
-        s.edit("Hello world", "Helllo world", &bold());
-        assert_eq!(s.chars.len(), 12);
-        assert!(s.style(3).bold && !s.style(7).bold);
-        s.edit("Helllo world", "Hd", &Style::default());
-        assert_eq!((s.chars.len(), s.style(0).bold, s.style(1).bold), (2, true, false));
-        // A new paragraph takes the layout of the one it split.
-        let mut s = Styles::plain("one\ntwo");
-        s.relayout("one\ntwo", 0..1, |p| p.list = List::Bullet);
-        // Enter at the end of "one", then "new": typed where the cursor is.
-        s.edit_at("one\ntwo", "one\nnew\ntwo", &Style::default(), Some(7));
-        assert_eq!(s.paras.iter().map(|p| p.list).collect::<Vec<_>>(), [List::Bullet, List::Bullet, List::None]);
-        s.edit("one\nnew\ntwo", "one two", &Style::default());
-        assert_eq!(s.paras.len(), 1);
-        // A cursor past the end of the text (egui's, after Arabic text) is not trusted.
-        for cursor in [9, 40, usize::MAX] {
-            let mut s = Styles::plain("ab");
-            s.edit_at("ab", "abcd", &Style::default(), Some(cursor));
-            assert_eq!(s.chars.len(), 4, "cursor {cursor}");
-        }
-        // Junk lengths are fixed rather than trusted.
-        let mut j = Styles { chars: vec![9, 9, 9, 9, 9, 9], palette: vec![], paras: vec![] };
-        j.fit("ab");
-        assert_eq!((j.chars.as_slice(), j.paras.len()), (&[0u16, 0][..], 1));
-    }
-
-    #[test]
-    fn html_and_text() {
-        let text = "Hi team\nfirst\nsecond\n\nsee site\nx\u{FFFC}";
-        let mut s = Styles::plain(text);
-        s.restyle(text, 0..2, |st| Style { bold: true, color: Some([200, 0, 0]), ..st.clone() });
-        s.relayout(text, 8..10, |p| p.list = List::Number);
-        s.relayout(text, 14..16, |p| p.list = List::Number);
-        s.restyle(text, 26..30, |st| Style { link: Some("https://a.example/".into()), ..st.clone() });
-        s.relayout(text, 22..23, |p| p.align = Align::Center);
-        s.restyle(text, 32..33, |st| Style { picture: Some("pic@x".into()), ..st.clone() });
-        s.restyle(text, 3..7, |st| Style { size: Some(18), highlight: Some([255, 255, 0]), italic: true, underline: true, ..st.clone() });
-        let html = to_html(text, &s);
-        assert!(html.contains("<span style=\"color:#c80000\"><b>Hi</b></span>"), "{html}");
-        assert!(html.contains("<span style=\"font-size:18pt; background-color:#ffff00\"><i><u>team</u></i></span>"), "{html}");
-        assert!(html.contains("<ol>\n<li>first</li>\n<li>second</li>\n</ol>"), "{html}");
-        assert!(html.contains("<div style=\"text-align:center\">see <a href=\"https://a.example/\">site</a></div>"), "{html}");
-        assert!(html.contains("<div><br></div>") && html.contains("x<img src=\"cid:pic@x\" style=\"max-width:100%\">"), "{html}");
-        // A resized picture says how wide it was made; typing after it doesn't carry that on.
-        let mut resized = s.clone();
-        resized.restyle(text, 32..33, |st| Style { picture_width: Some(240), ..st.clone() });
-        assert!(to_html(text, &resized).contains("x<img src=\"cid:pic@x\" width=\"240\" style=\"max-width:100%\">"));
-        assert_eq!(resized.style(32).for_typing().picture_width, None);
-        let t = to_text(text, &s);
-        assert_eq!(t, "Hi team\n1. first\n2. second\n\nsee site <https://a.example/>\nx[picture]");
-        // Nothing typed can become markup.
-        let evil = "<script>x</script>";
-        assert!(!to_html(evil, &Styles::plain(evil)).contains("<script>"));
-        let mut s = Styles::plain("a");
-        s.restyle("a", 0..1, |st| Style { link: Some("javascript:alert(1)".into()), ..st.clone() });
-        assert!(!to_html("a", &s).contains("javascript"));
-    }
-
-    #[test]
-    fn rules_received_formatting_and_appending() {
-        let mut text = "Thanks".to_string();
-        let mut styles = Styles::plain(&text);
-        let (orig, ost) = from_rich(&vec![
-            vec![Span { text: "Big".into(), heading: 1, ..Default::default() }],
-            vec![Span { text: "plain ".into(), ..Default::default() }, Span { text: "red".into(), color: Some([255, 0, 0]), ..Default::default() }],
-        ]);
-        assert_eq!(orig, "Big\nplain red");
-        assert!(ost.style(0).bold && ost.style(0).size == Some(20) && ost.style(12).color == Some([255, 0, 0]));
-        let mut rule = Styles::plain("\n\n");
-        rule.paras[1].rule = true;
-        append(&mut text, &mut styles, "\n\n", &rule);
-        append(&mut text, &mut styles, &orig, &ost);
-        assert_eq!(text, "Thanks\n\nBig\nplain red");
-        assert!(styles.paras[1].rule && !styles.paras[2].rule);
-        assert!(styles.style(8).bold);
-        assert!(to_html(&text, &styles).contains("<hr"));
-        assert_eq!(to_text(&text, &styles).lines().nth(1), Some(crate::markup::RULE));
-        assert_eq!((step_size(11, true), step_size(11, false), step_size(36, true)), (12, 10, 36));
-        assert_eq!(lines_of("ab\ncd\nef", 1..4), (0, 1));
-        assert!(all("abc", &styles_bold("abc"), 0..3, |s| s.bold) && !all("abc", &styles_bold("abc"), 0..0, |s| s.bold));
-    }
-
-    fn styles_bold(t: &str) -> Styles {
-        let mut s = Styles::plain(t);
-        s.restyle(t, 0..t.len(), |_| bold());
-        s
-    }
-}
+mod tests;
