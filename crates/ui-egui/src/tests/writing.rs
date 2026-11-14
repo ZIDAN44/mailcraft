@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod form;
 mod names;
 mod quote;
 mod sending;
