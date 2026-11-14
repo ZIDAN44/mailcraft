@@ -165,18 +165,23 @@ fn a_folder_renamed_mid_sync_keeps_its_counts() {
     );
     pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Archive".into(), to: "Kept".into() } });
     seen.extend(until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. })));
-    let end = Instant::now() + Duration::from_millis(1500);
-    while Instant::now() < end {
+    let kept = |l: &[mailcraft_model::Folder]| l.iter().find(|f| f.path == "Kept").map(|f| (f.unread, f.total));
+    let said = |seen: &[Event]| -> Vec<(u32, u32)> {
+        seen.iter()
+            .filter_map(|e| match e {
+                Event::Folders { folders, .. } => kept(folders),
+                _ => None,
+            })
+            .collect()
+    };
+    // What's said for a second and a half, and until the worker has said it (waited for, as a
+    // busy computer takes its time).
+    let (began, end) = (Instant::now(), Instant::now() + Duration::from_secs(60));
+    while began.elapsed() < Duration::from_millis(1500) || said(&seen).len() < 2 {
+        assert!(Instant::now() < end, "the renamed folder's counts never said by the worker: {:?}", said(&seen));
         seen.extend(pool.wait(Duration::from_millis(50)));
     }
-    let kept = |l: &[mailcraft_model::Folder]| l.iter().find(|f| f.path == "Kept").map(|f| (f.unread, f.total));
-    let said: Vec<(u32, u32)> = seen
-        .iter()
-        .filter_map(|e| match e {
-            Event::Folders { folders, .. } => kept(folders),
-            _ => None,
-        })
-        .collect();
+    let said = said(&seen);
     assert_eq!(store.load_folder("a1", "Kept").map(|f| f.messages.len()).unwrap_or(0), 2, "the renamed folder's mail");
     // Said first as the folder was renamed on disk, before its counts got there; then by the
     // worker, each time with them.
