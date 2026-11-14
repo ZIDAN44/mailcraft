@@ -43,7 +43,9 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
             at = lower.get(i..).and_then(|r| r.find("-->")).map_or(inner.len(), |e| i + e + 3);
             continue;
         }
-        let Some(end) = lower.get(i..).and_then(|r| r.find('>')).map(|e| i + e + 1) else {
+        // Its end as a browser finds it: a `>` in a quoted value isn't it (`<img alt="a>b"
+        // onerror=…>` read as a tag ending at `a>` let its handler through as text).
+        let Some(end) = inner.get(i..).and_then(tag_end).map(|e| i + e) else {
             at = inner.len();
             break;
         };
@@ -75,54 +77,31 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
     out.trim().to_string()
 }
 
-/// A tag without its `on…` attributes and with `javascript:` addresses emptied.
+/// A tag without its `on…` attributes and with `javascript:` addresses emptied. Its attributes
+/// are read as a browser reads them ([`attributes`]): a handler after a quoted value with no
+/// space (`src="x"onerror=…`), or after a `/` (`<img/onerror=…>`), is one; and an address whose
+/// scheme comes out as `javascript:` or `vbscript:` once its character references are read and
+/// the spaces a browser drops are gone (`java&#x09;script:`) goes whole. Every `javascript:`
+/// written as it is is then emptied, as before.
 fn harmless_tag(tag: &str) -> String {
-    let lower = tag.to_ascii_lowercase();
-    if !lower.contains(" on") && !lower.contains("javascript:") && !lower.contains("\non") && !lower.contains("\ton") {
-        return tag.to_string();
-    }
-    let mut out = String::with_capacity(tag.len());
-    let chars: Vec<char> = tag.chars().collect();
-    let mut i = 0;
-    while let Some(&c) = chars.get(i) {
-        let starts_attr = c.is_whitespace()
-            && chars.get(i + 1).is_some_and(|c| c.eq_ignore_ascii_case(&'o'))
-            && chars.get(i + 2).is_some_and(|c| c.eq_ignore_ascii_case(&'n'))
-            && chars.get(i + 3).is_some_and(char::is_ascii_alphabetic);
-        if !starts_attr {
-            out.push(c);
-            i += 1;
-            continue;
-        }
-        // Skip the name, `=` and its value (quoted, or up to a space).
-        i += 1;
-        while chars.get(i).is_some_and(|c| c.is_ascii_alphanumeric() || *c == '-') {
-            i += 1;
-        }
-        while chars.get(i).is_some_and(|c| c.is_whitespace()) {
-            i += 1;
-        }
-        if chars.get(i) == Some(&'=') {
-            i += 1;
-            while chars.get(i).is_some_and(|c| c.is_whitespace()) {
-                i += 1;
-            }
-            match chars.get(i) {
-                Some(&q @ ('"' | '\'')) => {
-                    i += 1;
-                    while chars.get(i).is_some_and(|c| *c != q) {
-                        i += 1;
-                    }
-                    i += 1;
-                }
-                _ => {
-                    while chars.get(i).is_some_and(|c| !c.is_whitespace() && *c != '>') {
-                        i += 1;
-                    }
-                }
+    let (name_end, attrs) = attributes(tag);
+    let out = if tag.starts_with("</") || !attrs.iter().any(|a| a.name.starts_with("on") || hidden_script(&a.value)) {
+        tag.to_string()
+    } else {
+        let mut out = String::with_capacity(tag.len());
+        out.push_str(tag.get(..name_end).unwrap_or(""));
+        for a in attrs.iter().filter(|a| !a.name.starts_with("on")) {
+            out.push(' ');
+            if hidden_script(&a.value) {
+                out.push_str(tag.get(a.span.start..a.name_end).unwrap_or(""));
+                out.push_str("=\"#\"");
+            } else {
+                out.push_str(tag.get(a.span.clone()).unwrap_or(""));
             }
         }
-    }
+        out.push_str(if tag.trim_end_matches('>').trim_end().ends_with('/') { " />" } else { ">" });
+        out
+    };
     // Each `javascript:` emptied in one pass (`#` can't make another): lowering the tag again and
     // moving its tail for each one was quadratic in a tag full of them.
     const JS: &str = "javascript:";
@@ -262,4 +241,153 @@ pub(super) fn cells_in_turn(html: &str) -> String {
     }
     out.push_str(html.get(at..).unwrap_or(""));
     out
+}
+
+/// An attribute of a tag as a browser reads it: its name (lower-cased), its value as written
+/// (without its quotes), where it is in the tag (its name to its value's end) and where its
+/// name ends.
+struct Attribute {
+    name: String,
+    value: String,
+    span: std::ops::Range<usize>,
+    name_end: usize,
+}
+
+/// Where the tag's name ends, and its attributes, read as a browser reads them (the HTML
+/// standard's tokenizer): separated by spaces or `/`, or by nothing after a quoted value; a value
+/// quoted, or up to a space or `>` (a `/` in it is part of it).
+fn attributes(tag: &str) -> (usize, Vec<Attribute>) {
+    let b = tag.as_bytes();
+    let space = |i: usize| b.get(i).is_some_and(u8::is_ascii_whitespace);
+    let at = |i: usize| b.get(i).copied();
+    let mut i = 1;
+    while at(i).is_some_and(|c| !c.is_ascii_whitespace() && c != b'/' && c != b'>') {
+        i += 1;
+    }
+    let name_end = i;
+    let mut out = Vec::new();
+    loop {
+        while space(i) || at(i) == Some(b'/') {
+            i += 1;
+        }
+        if at(i).is_none_or(|c| c == b'>') {
+            break;
+        }
+        let start = i;
+        // A name: an `=` first is part of it.
+        i += 1;
+        while at(i).is_some_and(|c| !c.is_ascii_whitespace() && !matches!(c, b'/' | b'>' | b'=')) {
+            i += 1;
+        }
+        let name_end_here = i;
+        let mut j = i;
+        while space(j) {
+            j += 1;
+        }
+        let mut value = String::new();
+        if at(j) == Some(b'=') {
+            j += 1;
+            while space(j) {
+                j += 1;
+            }
+            match at(j) {
+                Some(q @ (b'"' | b'\'')) => {
+                    let mut k = j + 1;
+                    while at(k).is_some_and(|c| c != q) {
+                        k += 1;
+                    }
+                    value = tag.get(j + 1..k).unwrap_or("").to_string();
+                    i = (k + 1).min(b.len());
+                }
+                _ => {
+                    let mut k = j;
+                    while at(k).is_some_and(|c| !c.is_ascii_whitespace() && c != b'>') {
+                        k += 1;
+                    }
+                    value = tag.get(j..k).unwrap_or("").to_string();
+                    i = k;
+                }
+            }
+        }
+        let name = tag.get(start..name_end_here).unwrap_or("").to_ascii_lowercase();
+        out.push(Attribute { name, value, span: start..i, name_end: name_end_here });
+    }
+    (name_end, out)
+}
+
+/// Where the tag starting `html` ends (past its `>`), as a browser finds it: a `>` in a quoted
+/// value isn't its end. `None`: it never ends.
+fn tag_end(html: &str) -> Option<usize> {
+    let b = html.as_bytes();
+    let mut i = 1;
+    // In a quoted value (its quote), and whether a value may start here (after `=`).
+    let mut quote: Option<u8> = None;
+    let mut value_next = false;
+    while let Some(&c) = b.get(i) {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                }
+            }
+            None => match c {
+                b'>' => return Some(i + 1),
+                b'"' | b'\'' if value_next => quote = Some(c),
+                b'=' => {
+                    value_next = true;
+                    i += 1;
+                    continue;
+                }
+                c if c.is_ascii_whitespace() && value_next => {
+                    i += 1;
+                    continue;
+                }
+                _ => {}
+            },
+        }
+        value_next = false;
+        i += 1;
+    }
+    None
+}
+
+/// Whether an address hides a script a browser would run where `javascript:` written as it is
+/// doesn't show it: its scheme, once its character references are read and the spaces and
+/// control characters a browser drops are gone, is `javascript:` or `vbscript:`.
+fn hidden_script(value: &str) -> bool {
+    let mut scheme = String::new();
+    let mut rest = value;
+    while scheme.len() < 16 {
+        let Some(c) = rest.chars().next() else { break };
+        let (c, len) = if c == '&' { reference(rest).unwrap_or(('&', 1)) } else { (c, c.len_utf8()) };
+        rest = rest.get(len..).unwrap_or("");
+        if c == ':' {
+            let plain = value.trim_start().to_ascii_lowercase().starts_with("javascript:");
+            return scheme == "vbscript" || (scheme == "javascript" && !plain);
+        }
+        if !(c.is_ascii_whitespace() || c.is_ascii_control()) {
+            scheme.push(c.to_ascii_lowercase());
+        }
+    }
+    false
+}
+
+/// The character a reference at the start of `s` stands for, and how long it is: numbered ones
+/// (with or without their `;`, as a browser reads them) and those a scheme can hide behind.
+fn reference(s: &str) -> Option<(char, usize)> {
+    let after = s.get(1..)?;
+    for (name, c) in [("Tab;", '\t'), ("NewLine;", '\n'), ("colon;", ':')] {
+        if after.starts_with(name) {
+            return Some((c, 1 + name.len()));
+        }
+    }
+    let num = after.strip_prefix('#')?;
+    let (hex, digits) = match num.strip_prefix(['x', 'X']) {
+        Some(h) => (true, h),
+        None => (false, num),
+    };
+    let n = digits.chars().take_while(|c| if hex { c.is_ascii_hexdigit() } else { c.is_ascii_digit() }).take(8).count();
+    let code = u32::from_str_radix(digits.get(..n)?, if hex { 16 } else { 10 }).ok()?;
+    let semi = usize::from(digits.get(n..).is_some_and(|r| r.starts_with(';')));
+    Some((char::from_u32(code).unwrap_or('\u{fffd}'), 2 + usize::from(hex) + n + semi))
 }

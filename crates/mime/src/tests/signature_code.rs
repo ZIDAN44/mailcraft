@@ -93,3 +93,35 @@ fn a_tag_full_of_javascript_is_emptied_at_once() {
     assert!(quoted.contains(&format!("<a href=\"{}\">x</a>", "#".repeat(n))), "{}", quoted.chars().take(200).collect::<String>());
     assert!(took < std::time::Duration::from_secs(10), "{took:?}");
 }
+
+/// Handlers and scripts as a browser reads a tag, not only as written with a space before them:
+/// after a quoted value with none (`"x"onerror=`), after a `/`, past a `>` in a quoted value, and
+/// `javascript:` behind character references or spaces a browser drops. Each went into a reply
+/// (or a signature) as it came.
+#[test]
+fn handlers_and_scripts_are_found_as_a_browser_reads_them() {
+    for (code, gone) in [
+        ("<img src=\"x\"onerror=\"alert(1)\">", "onerror"),
+        ("<img/onerror=alert(1) src=x>", "onerror"),
+        ("<img alt=\"a>b\" onerror=alert(1)>", "onerror"),
+        ("<a href=\"java&#x09;script:alert(1)\">x</a>", "alert"),
+        ("<a href=\"java&#9script:alert(1)\">x</a>", "alert"),
+        ("<a href=\"  java\tscript:alert(1)\">x</a>", "alert"),
+        ("<a href=\"&#106;avascript:alert(1)\">x</a>", "alert"),
+        ("<a href=\"javascript&colon;alert(1)\">x</a>", "alert"),
+        ("<a href=\"VBScript:msgbox(1)\">x</a>", "msgbox"),
+    ] {
+        let kept = signature_code(code);
+        assert!(!kept.contains(gone), "{code} -> {kept}");
+        let quoted = quote_html(code, &[], &[]);
+        assert!(!quoted.contains(gone), "{code} quoted -> {quoted}");
+    }
+    // What isn't one stays as it was.
+    for code in [
+        "<a href=\"https://studio.example/?q=scripts\" title=\"on time\">x</a>",
+        "<img src=x/onerror=y alt=\"a>b\">",
+        "<p data-one=\"1\" class=onward>x</p>",
+    ] {
+        assert_eq!(signature_code(code), code);
+    }
+}
