@@ -107,26 +107,16 @@ pub(super) struct Ctx<'a> {
 }
 
 impl<'a> Ctx<'a> {
+    /// For a file imported into `account`, as `out` writes it.
     pub(super) fn new(path: &'a Path, opts: &'a ImportOptions, account: &'a str, out: &Out<'_>) -> Self {
         Ctx {
-            path,
-            opts,
             account,
             filetag: filetag(path),
             packs: out.store.packs(account),
             index: out.indexing(),
             budget: out.budget.clone(),
             tally: out.tally.clone(),
-            resume: None,
-            changed: AtomicBool::new(false),
-            halt: AtomicBool::new(false),
-            damaged: AtomicBool::new(false),
-            panics: AtomicUsize::new(0),
-            live: AtomicUsize::new(0),
-            orphaned: AtomicBool::new(false),
-            links: item::LinkReads::default(),
-            #[cfg(test)]
-            items_taken: std::sync::atomic::AtomicU64::new(0),
+            ..Ctx::looking(path, opts)
         }
     }
 
@@ -226,17 +216,30 @@ pub(super) fn gone(ctx: &Ctx<'_>, jobs: &Jobs, n: usize) {
 /// Answers a job when dropped, unless it was answered: a lane that unwinds with a job in hand
 /// still answers it, so the writer, which applies items in order, never waits for one.
 struct Answer<'a> {
-    job: Option<(u64, usize, u64, bool, u32, u64)>,
+    job: Option<Asked>,
     results: &'a Sender<Done>,
+}
+
+/// What the writer is told of a job, whatever came of it: its number, the plan's folder it's
+/// in, its size as the file gives it, whether the folder is contacts or a calendar, and the
+/// folder's node and the item's row in it.
+struct Asked {
+    seq: u64,
+    folder: usize,
+    size: u64,
+    pim: bool,
+    node: u32,
+    row: u64,
 }
 
 impl<'a> Answer<'a> {
     fn new(job: &Job, results: &'a Sender<Done>) -> Self {
-        Answer { job: Some((job.seq, job.folder, job.size, job.pim, job.folder_node, job.row)), results }
+        let asked = Asked { seq: job.seq, folder: job.folder, size: job.size, pim: job.pim, node: job.folder_node, row: job.row };
+        Answer { job: Some(asked), results }
     }
 
     fn send(&mut self, outcome: Outcome, charge: u64) {
-        if let Some((seq, folder, size, pim, node, row)) = self.job.take() {
+        if let Some(Asked { seq, folder, size, pim, node, row }) = self.job.take() {
             let _ = self.results.send(Done { seq, step: Step::Item { folder, size, pim, node, row, outcome }, charge });
         }
     }
