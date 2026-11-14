@@ -1,5 +1,6 @@
 //! Servers of the tests' own, in memory: IMAP, CalDAV/CardDAV, EWS, Graph and JMAP.
 
+mod exchange_e2e;
 pub(crate) mod fake;
 pub(crate) mod fake_dav;
 pub(crate) mod fake_ews;

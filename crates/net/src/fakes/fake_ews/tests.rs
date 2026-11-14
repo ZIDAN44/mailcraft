@@ -2,11 +2,12 @@
 
 use std::time::{Duration, Instant};
 
-use mailcraft_model::job::Secret;
+use mailcraft_model::job::{Secret, Vacation};
 use mailcraft_model::{AccountConfig, Event, Flag, Job, Op, SyncStatus};
 use mailcraft_store::Store;
 
 use super::*;
+use crate::fakes::exchange_e2e::{Exchange, OnServer, an_exchange_account_end_to_end};
 
 mod calendars;
 mod directory;
@@ -85,27 +86,13 @@ fn mail(subject: &str, id: &str) -> Vec<u8> {
         .into_bytes()
 }
 
+/// The story every Exchange account is checked by, over EWS (with a calendar among the folders,
+/// left out of the list).
 #[test]
 fn an_on_premises_exchange_account_works_through_ews() {
     let mut d = Data::default();
-    let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
-    d.folder("Drafts", None, Some("drafts"), "IPF.Note");
-    let sent = d.folder("Sent Items", None, Some("sentitems"), "IPF.Note");
-    let trash = d.folder("Deleted Items", None, Some("deleteditems"), "IPF.Note");
-    d.folder("Outbox", None, Some("outbox"), "IPF.Note");
     d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
-    let projects = d.folder("Projects", None, None, "IPF.Note");
-    d.folder("2024", Some(&projects), None, "IPF.Note");
-    let first = d.deliver(&inbox, &mail("Storyboard", "m1"), true, "2024-05-06T09:00:00Z");
-    let second = d.deliver(&inbox, &mail("Sound mix", "m2"), false, "2024-05-06T10:00:00Z");
-    d.deliver(&projects, &mail("Plan", "m3"), true, "2024-05-01T10:00:00Z");
     let server = serve(d);
-    let data = server.data.clone();
-
-    let dir = std::env::temp_dir().join(format!("mailcraft-ews-e2e-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open(&dir).unwrap();
-    let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),
         name: "Riley".into(),
@@ -114,69 +101,7 @@ fn an_on_premises_exchange_account_works_through_ews() {
         ews: Some(server.url.clone()),
         ..Default::default()
     };
-    assert!(!account.is_local() && account.is_api());
-
-    // A wrong password means signing in again.
-    pool.submit(Job::Start { account: account.clone(), password: Some(Secret("wrong".into())) });
-    until(&pool, "sign in again", |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
-
-    pool.submit(Job::Start { account: account.clone(), password: Some(Secret(PASSWORD.into())) });
-    let seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
-    let folders = seen
-        .iter()
-        .rev()
-        .find_map(|e| match e {
-            Event::Folders { folders, .. } => Some(folders.clone()),
-            _ => None,
-        })
-        .unwrap();
-    let mut paths: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
-    paths.sort_unstable();
-    assert_eq!(paths, ["Deleted Items", "Drafts", "INBOX", "Projects", "Projects/2024", "Sent Items"], "pages followed; no Outbox, no calendar");
-    let inbox_folder = folders.iter().find(|f| f.path == "INBOX").unwrap();
-    assert_eq!((inbox_folder.total, inbox_folder.unread), (2, 1));
-    let st = store.load_folder("a1", "INBOX").unwrap();
-    let subjects: Vec<&str> = st.messages.iter().map(|m| m.subject.as_str()).collect();
-    assert_eq!(subjects, ["Sound mix", "Storyboard"], "newest first");
-    assert!(st.messages[1].flags.seen && !st.messages[0].flags.seen);
-    assert_eq!(st.messages[0].from.email, "zoe@contoso.example");
-    assert!(store.has_body(&st.messages[0].key), "the newest sources are downloaded");
-    assert!(data.lock().unwrap().handshakes <= 2, "NTLM signs in the connection once, not every request");
-
-    // Open a message whose source isn't cached.
-    let key = st.messages[0].key.clone();
-    store.remove_body(&key);
-    pool.submit(Job::FetchBody { key: key.clone() });
-    until(&pool, "body", |e| matches!(e, Event::Body { key: k, raw } if *k == key && raw.starts_with(b"From:")));
-
-    // Read, flag, move (Exchange gives the moved message a new id).
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true } });
-    eventually("read on the server", || data.lock().unwrap().items.iter().any(|i| i.id == second && i.read));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key.clone()], flag: Flag::Flagged, on: true } });
-    eventually("flagged on the server", || data.lock().unwrap().items.iter().any(|i| i.id == second && i.flagged));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::Move { keys: vec![key.clone()], to: "Projects".into() } });
-    eventually("moved on the server", || {
-        data.lock().unwrap().items.iter().any(|i| i.folder == projects && String::from_utf8_lossy(&i.raw).contains("Sound mix"))
-    });
-    until(&pool, "the move shows in Projects", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Projects"));
-    eventually("in Projects here, flagged", || {
-        store.load_folder("a1", "Projects").unwrap().messages.iter().any(|m| m.subject == "Sound mix" && m.flags.flagged)
-    });
-
-    // Folders: create, rename and move to the top, delete.
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::CreateFolder { path: "Projects/Caf&AOk-".into() } });
-    eventually("created", || data.lock().unwrap().by_name("Café").is_some_and(|f| f.parent == projects));
-    until(&pool, "folder list", |e| matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "Projects/Caf&AOk-")));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Projects/Caf&AOk-".into(), to: "Clients".into() } });
-    eventually("renamed", || data.lock().unwrap().by_name("Clients").is_some_and(|f| f.parent == "ROOT"));
-    until(&pool, "renamed in the list", |e| matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "Clients")));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::DeleteFolder { path: "Clients".into() } });
-    eventually("deleted", || data.lock().unwrap().by_name("Clients").is_none());
-
-    // Automatic replies.
-    pool.submit(Job::GetVacation { account: "a1".into() });
-    until(&pool, "replies read", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if !v.enabled));
-    let away = mailcraft_model::job::Vacation {
+    let away = Vacation {
         enabled: true,
         subject: String::new(),
         text: "Back on Monday".into(),
@@ -184,57 +109,55 @@ fn an_on_premises_exchange_account_works_through_ews() {
         until: Some("2026-10-20".into()),
         ..Default::default()
     };
-    pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
-    until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
-    assert_eq!(data.lock().unwrap().oof.0, "Scheduled");
-    // Another reply for people outside the organisation, to the user's contacts only.
-    let split = mailcraft_model::job::Vacation { external: Some("Out of office".into()), outside: "known".into(), ..away.clone() };
-    pool.submit(Job::SetVacation { account: "a1".into(), vacation: split.clone() });
-    until(&pool, "two replies", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == split));
-    let oof = data.lock().unwrap().oof.clone();
-    assert_eq!((oof.4.as_str(), oof.5.as_str()), ("Out of office", "Known"));
-    pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
-    until(&pool, "one reply again", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
-    pool.submit(Job::SetVacation { account: "a1".into(), vacation: mailcraft_model::job::Vacation { text: "refuse".into(), ..away.clone() } });
-    until(&pool, "a refused change", |e| matches!(e, Event::Vacation { vacation: Some(v), error: Some(_), .. } if *v == away));
+    // Another reply for people outside the organisation, to the user's contacts only; then one
+    // reply again.
+    let split = Vacation { external: Some("Out of office".into()), outside: "known".into(), ..away.clone() };
+    an_exchange_account_end_to_end("ews-e2e", account, "wrong", PASSWORD, &[away.clone(), split, away], &server);
+}
 
-    // Empty Deleted Items; delete for good.
-    for i in 0..3 {
-        data.lock().unwrap().deliver(&trash, &mail(&format!("Old {i}"), &format!("t{i}")), true, "2024-01-01T00:00:00Z");
+impl Exchange for Server {
+    const TOP: &'static str = "ROOT";
+    const MOVES_KEEP_IDS: bool = false;
+    const NO_SUCH_RECIPIENT: &'static str = "ErrorInvalidRecipients";
+    fn folder(&self, name: &str, parent: Option<&str>, known: Option<&str>) -> String {
+        self.data.lock().unwrap().folder(name, parent, known, "IPF.Note")
     }
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::EmptyFolder { path: "Deleted Items".into() } });
-    eventually("emptied", || !data.lock().unwrap().items.iter().any(|i| i.folder == trash));
-    let gone = store.load_folder("a1", "INBOX").unwrap().messages.iter().find(|m| m.subject == "Storyboard").unwrap().key.clone();
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::Expunge { keys: vec![gone] } });
-    eventually("deleted for good", || !data.lock().unwrap().items.iter().any(|i| i.id == first));
-
-    // Send: the Bcc goes in the MIME for Exchange; Sent Items has the copy.
-    let raw = b"From: riley@contoso.example\r\nTo: zoe@contoso.example\r\nSubject: e2e\r\nMessage-ID: <e2e@x>\r\n\r\nhi\r\n".to_vec();
-    let send = |id: u64, to: Vec<String>| Job::Send {
-        account: "a1".into(),
-        id,
-        raw: raw.clone(),
-        from: "riley@contoso.example".into(),
-        recipients: to,
-        sent_folder: Some("Sent Items".into()),
-    };
-    pool.submit(send(7, vec!["zoe@contoso.example".into(), "boss@contoso.example".into()]));
-    until(&pool, "sent", |e| matches!(e, Event::Sent { id: 7, .. }));
-    let out = String::from_utf8(data.lock().unwrap().sent.last().unwrap().clone()).unwrap();
-    assert!(out.starts_with("Bcc: boss@contoso.example\r\nFrom:"), "{out}");
-    assert!(data.lock().unwrap().items.iter().any(|i| i.folder == sent));
-    pool.submit(send(8, vec!["nobody@contoso.example".into()]));
-    until(&pool, "refused", |e| matches!(e, Event::SendFailed { id: 8, .. }));
-
-    // A draft replaces its earlier copy.
-    pool.submit(Job::SaveDraft { account: "a1".into(), raw: mail("Draft one", "d1"), folder: "Drafts".into(), replaces: None });
-    until(&pool, "draft", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Drafts"));
-    let draft = store.load_folder("a1", "Drafts").unwrap().messages.iter().find(|m| m.subject == "Draft one").unwrap().key.clone();
-    assert!(store.load_folder("a1", "Drafts").unwrap().messages.iter().any(|m| m.flags.draft));
-    pool.submit(Job::SaveDraft { account: "a1".into(), raw: mail("Draft two", "d2"), folder: "Drafts".into(), replaces: Some(draft) });
-    eventually("one draft left", || data.lock().unwrap().items.iter().filter(|i| i.draft).count() == 1);
-    pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(dir);
+    fn deliver(&self, folder: &str, raw: &[u8], read: bool, at: &str) -> String {
+        self.data.lock().unwrap().deliver(folder, raw, read, at)
+    }
+    fn unreadable(&self, id: &str) {
+        self.data.lock().unwrap().unreadable.push(id.into());
+    }
+    fn message(&self, id: &str) -> Option<OnServer> {
+        let d = self.data.lock().unwrap();
+        d.items.iter().find(|i| i.id == id).map(|i| OnServer { read: i.read, flagged: i.flagged, folder: i.folder.clone() })
+    }
+    fn holds(&self, folder: &str, words: &str) -> bool {
+        self.data.lock().unwrap().items.iter().any(|i| i.folder == folder && String::from_utf8_lossy(&i.raw).contains(words))
+    }
+    fn count(&self, folder: &str) -> usize {
+        self.data.lock().unwrap().items.iter().filter(|i| i.folder == folder).count()
+    }
+    fn parent(&self, name: &str) -> Option<String> {
+        self.data.lock().unwrap().by_name(name).map(|f| f.parent.clone())
+    }
+    fn drafts(&self) -> usize {
+        self.data.lock().unwrap().items.iter().filter(|i| i.draft).count()
+    }
+    fn last_sent(&self) -> Option<Vec<u8>> {
+        self.data.lock().unwrap().sent.last().cloned()
+    }
+    fn replies_are(&self, v: &Vacation) {
+        let oof = self.data.lock().unwrap().oof.clone();
+        if v.external.is_some() {
+            assert_eq!((oof.4.as_str(), oof.5.as_str()), ("Out of office", "Known"));
+        } else {
+            assert_eq!(oof.0, "Scheduled");
+        }
+    }
+    fn after_first_sync(&self) {
+        assert!(self.data.lock().unwrap().handshakes <= 2, "NTLM signs in the connection once, not every request");
+    }
 }
 
 /// A folder flagged hidden is not offered as mail, nor is anything nested in it at any
@@ -515,27 +438,16 @@ fn basic_sign_in_when_that_is_what_the_server_offers() {
     assert!(matches!(crate::ews::Client::connect(&server.url, "x", "y", "e"), Err(crate::NetError::Auth(_))));
 }
 
-/// A message whose source the server won't give doesn't stop the folder: the others
-/// download, and the folder syncs.
+/// A message whose source the server won't give doesn't stop the folder, over EWS.
 #[test]
 fn one_unreadable_message_holds_up_nothing() {
-    let mut d = Data::default();
-    let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
-    d.deliver(&inbox, &mail("one", "m1"), false, "2026-10-01T09:00:00Z");
-    let bad = d.deliver(&inbox, &mail("two", "m2"), false, "2026-10-01T10:00:00Z");
-    d.deliver(&inbox, &mail("three", "m3"), false, "2026-10-01T11:00:00Z");
-    d.unreadable.push(bad);
-    let server = serve(d);
-    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
-    let store = crate::fake::tests_store("ews-unreadable");
-    let mut st = crate::jmap::State::default();
-    crate::ews::list_folders(&c, &mut st, "a1").unwrap();
-    crate::ews::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions::default()).unwrap();
-    let fs = store.load_folder("a1", "INBOX").unwrap();
-    assert_eq!(fs.messages.len(), 3);
-    let with_body: Vec<&str> = fs.messages.iter().filter(|m| store.has_body(&m.key)).map(|m| m.subject.as_str()).collect();
-    assert_eq!(with_body, ["three", "one"], "the others downloaded");
-    let _ = std::fs::remove_dir_all(store.root());
+    let server = serve(Data::default());
+    crate::fakes::exchange_e2e::one_unreadable_message_holds_up_nothing("ews-unreadable", &server, |store| {
+        let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+        let mut st = crate::jmap::State::default();
+        crate::ews::list_folders(&c, &mut st, "a1").unwrap();
+        crate::ews::sync_folder(&c, &mut st, store, "a1", "INBOX", &crate::sync::SyncOptions::default()).unwrap();
+    });
 }
 
 /// Issue #1: a mailbox made in Dutch showed "Inbox", "Sent Items"… where Outlook shows the

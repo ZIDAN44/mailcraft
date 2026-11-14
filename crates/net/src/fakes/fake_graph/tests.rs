@@ -2,10 +2,11 @@
 
 use std::time::{Duration, Instant};
 
-use mailcraft_model::job::Secret;
-use mailcraft_model::{AccountConfig, Event, Flag, Job, Op, SyncStatus};
+use mailcraft_model::job::{Secret, Vacation};
+use mailcraft_model::{AccountConfig, Event, Job, SyncStatus};
 
 use super::*;
+use crate::fakes::exchange_e2e::{Exchange, OnServer, an_exchange_account_end_to_end};
 
 mod directory;
 mod large_folder;
@@ -327,25 +328,11 @@ fn a_sent_message_shows_in_sent_items_soon_after() {
     let _ = std::fs::remove_dir_all(store.root());
 }
 
+/// The story every Exchange account is checked by, over Graph (small requests going in batches).
 #[test]
 fn an_exchange_account_syncs_changes_and_sends_through_graph() {
-    let mut d = Data::default();
-    let inbox = d.folder("Inbox", None, Some("inbox"));
-    d.folder("Drafts", None, Some("drafts"));
-    let sent = d.folder("Sent Items", None, Some("sentitems"));
-    let trash = d.folder("Deleted Items", None, Some("deleteditems"));
-    d.folder("Outbox", None, Some("outbox"));
-    let projects = d.folder("Projects", None, None);
-    d.folder("2024", Some(&projects), None);
-    d.replies = json!({"status": "disabled", "internalReplyMessage": ""});
-    let first = d.deliver(&inbox, &mail("Storyboard", "m1"), true, "2024-05-06T09:00:00Z");
-    let second = d.deliver(&inbox, &mail("Sound mix", "m2"), false, "2024-05-06T10:00:00Z");
-    d.deliver(&projects, &mail("Plan", "m3"), true, "2024-05-01T10:00:00Z");
+    let d = Data { replies: json!({"status": "disabled", "internalReplyMessage": ""}), ..Default::default() };
     let server = serve(d);
-    let data = server.data.clone();
-
-    let store = crate::fake::tests_store("graph-e2e");
-    let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),
         name: "Me".into(),
@@ -354,72 +341,7 @@ fn an_exchange_account_syncs_changes_and_sends_through_graph() {
         graph: Some(server.base.clone()),
         ..Default::default()
     };
-    assert!(!account.is_local() && account.is_api());
-
-    // A token Microsoft refuses means signing in again.
-    pool.submit(Job::Start { account: account.clone(), password: Some(Secret("expired".into())) });
-    until(&pool, "sign in again", |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
-
-    pool.submit(Job::Start { account: account.clone(), password: Some(Secret(TOKEN.into())) });
-    let seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
-    let folders = seen
-        .iter()
-        .rev()
-        .find_map(|e| match e {
-            Event::Folders { folders, .. } => Some(folders.clone()),
-            _ => None,
-        })
-        .unwrap();
-    let mut paths: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
-    paths.sort_unstable();
-    assert_eq!(
-        paths,
-        ["Deleted Items", "Drafts", "INBOX", "Projects", "Projects/2024", "Sent Items"],
-        "pages followed, children listed, the Outbox left out"
-    );
-    let role = |p: &str| folders.iter().find(|f| f.path == p).unwrap().role;
-    assert_eq!((role("Sent Items"), role("Deleted Items")), (mailcraft_model::FolderRole::Sent, mailcraft_model::FolderRole::Trash));
-    let inbox_folder = folders.iter().find(|f| f.path == "INBOX").unwrap();
-    assert_eq!((inbox_folder.total, inbox_folder.unread), (2, 1));
-    let st = store.load_folder("a1", "INBOX").unwrap();
-    let subjects: Vec<&str> = st.messages.iter().map(|m| m.subject.as_str()).collect();
-    assert_eq!(subjects, ["Sound mix", "Storyboard"], "newest first");
-    assert!(st.messages[1].flags.seen && !st.messages[0].flags.seen);
-    assert_eq!(st.messages[0].from.email, "zoe@contoso.example");
-    assert!(store.has_body(&st.messages[0].key), "the newest sources are downloaded");
-
-    // Open a message whose source isn't cached.
-    let key = st.messages[0].key.clone();
-    store.remove_body(&key);
-    pool.submit(Job::FetchBody { key: key.clone() });
-    until(&pool, "body", |e| matches!(e, Event::Body { key: k, raw } if *k == key && raw.starts_with(b"From:")));
-
-    // Read, flag, move: the same message keeps its number.
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true } });
-    eventually("read on the server", || data.lock().unwrap().message(&second).unwrap().read);
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key.clone()], flag: Flag::Flagged, on: true } });
-    eventually("flagged on the server", || data.lock().unwrap().message(&second).unwrap().flagged);
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::Move { keys: vec![key.clone()], to: "Projects".into() } });
-    eventually("moved on the server", || data.lock().unwrap().message(&second).unwrap().folder == projects);
-    until(&pool, "the move shows in Projects", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Projects"));
-    assert!(
-        store.load_folder("a1", "Projects").unwrap().messages.iter().any(|m| m.subject == "Sound mix" && m.key.uid == key.uid && m.flags.flagged)
-    );
-
-    // Folders: create inside Projects, rename and move it to the top, delete it.
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::CreateFolder { path: "Projects/Caf&AOk-".into() } });
-    eventually("created", || data.lock().unwrap().by_name("Café").is_some_and(|f| f.parent == projects));
-    until(&pool, "folder list", |e| matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "Projects/Caf&AOk-")));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Projects/Caf&AOk-".into(), to: "Clients".into() } });
-    eventually("renamed", || data.lock().unwrap().by_name("Clients").is_some_and(|f| f.parent == ROOT));
-    until(&pool, "renamed in the list", |e| matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "Clients")));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::DeleteFolder { path: "Clients".into() } });
-    eventually("deleted", || data.lock().unwrap().by_name("Clients").is_none());
-
-    // Automatic replies.
-    pool.submit(Job::GetVacation { account: "a1".into() });
-    until(&pool, "replies read", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if !v.enabled));
-    let away = mailcraft_model::job::Vacation {
+    let away = Vacation {
         enabled: true,
         subject: String::new(),
         text: "Back on Monday".into(),
@@ -428,75 +350,60 @@ fn an_exchange_account_syncs_changes_and_sends_through_graph() {
         external: Some("Out of office".into()),
         outside: "none".into(),
     };
-    pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
-    until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
-    assert_eq!(data.lock().unwrap().replies["scheduledEndDateTime"]["dateTime"], "2026-10-20T23:59:59");
-    pool.submit(Job::SetVacation { account: "a1".into(), vacation: mailcraft_model::job::Vacation { text: "refuse".into(), ..away.clone() } });
-    until(&pool, "a refused change", |e| matches!(e, Event::Vacation { vacation: Some(v), error: Some(_), .. } if *v == away));
-
-    // Empty Deleted Items; delete for good.
-    for i in 0..3 {
-        data.lock().unwrap().deliver(&trash, &mail(&format!("Old {i}"), &format!("t{i}")), true, "2024-01-01T00:00:00Z");
-    }
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::EmptyFolder { path: "Deleted Items".into() } });
-    eventually("emptied", || !data.lock().unwrap().messages.iter().any(|m| m.folder == trash));
-    let gone = store.load_folder("a1", "INBOX").unwrap().messages.iter().find(|m| m.subject == "Storyboard").unwrap().key.clone();
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::Expunge { keys: vec![gone] } });
-    eventually("deleted for good", || data.lock().unwrap().message(&first).is_none());
-
-    // Send: the Bcc goes in the MIME for Exchange; Sent Items has the copy.
-    let raw = b"From: me@contoso.example\r\nTo: zoe@contoso.example\r\nSubject: e2e\r\nMessage-ID: <e2e@x>\r\n\r\nhi\r\n".to_vec();
-    let send = |id: u64, to: Vec<String>| Job::Send {
-        account: "a1".into(),
-        id,
-        raw: raw.clone(),
-        from: "me@contoso.example".into(),
-        recipients: to,
-        sent_folder: Some("Sent Items".into()),
-    };
-    pool.submit(send(7, vec!["zoe@contoso.example".into(), "boss@contoso.example".into()]));
-    until(&pool, "sent", |e| matches!(e, Event::Sent { id: 7, .. }));
-    until(&pool, "the copy in Sent", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Sent Items"));
-    let out = String::from_utf8(data.lock().unwrap().sent.last().unwrap().clone()).unwrap();
-    assert!(out.starts_with("Bcc: boss@contoso.example\r\nFrom:"), "{out}");
-    assert!(data.lock().unwrap().messages.iter().any(|m| m.folder == sent));
-    pool.submit(send(8, vec!["nobody@contoso.example".into()]));
-    until(&pool, "refused", |e| matches!(e, Event::SendFailed { id: 8, error, .. } if error.contains("no such recipient")));
-
-    // A draft replaces its earlier copy.
-    pool.submit(Job::SaveDraft { account: "a1".into(), raw: mail("Draft one", "d1"), folder: "Drafts".into(), replaces: None });
-    until(&pool, "draft", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Drafts"));
-    let draft = store.load_folder("a1", "Drafts").unwrap().messages.iter().find(|m| m.subject == "Draft one").unwrap().key.clone();
-    pool.submit(Job::SaveDraft { account: "a1".into(), raw: mail("Draft two", "d2"), folder: "Drafts".into(), replaces: Some(draft) });
-    eventually("one draft left", || data.lock().unwrap().messages.iter().filter(|m| m.draft).count() == 1);
-    assert!(data.lock().unwrap().calls.iter().any(|c| c.starts_with("POST /$batch")), "small requests go in batches");
-    pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
+    // A token Microsoft refuses means signing in again.
+    an_exchange_account_end_to_end("graph-e2e", account, "expired", TOKEN, &[away], &server);
 }
 
-/// A message whose source the server won't give doesn't stop the folder: the others
-/// download, and the folder syncs.
+impl Exchange for Server {
+    const TOP: &'static str = ROOT;
+    const MOVES_KEEP_IDS: bool = true;
+    const NO_SUCH_RECIPIENT: &'static str = "no such recipient";
+    fn folder(&self, name: &str, parent: Option<&str>, known: Option<&str>) -> String {
+        self.data.lock().unwrap().folder(name, parent, known)
+    }
+    fn deliver(&self, folder: &str, raw: &[u8], read: bool, at: &str) -> String {
+        self.data.lock().unwrap().deliver(folder, raw, read, at)
+    }
+    fn unreadable(&self, id: &str) {
+        self.data.lock().unwrap().unreadable.push(id.into());
+    }
+    fn message(&self, id: &str) -> Option<OnServer> {
+        let d = self.data.lock().unwrap();
+        d.message(id).map(|m| OnServer { read: m.read, flagged: m.flagged, folder: m.folder.clone() })
+    }
+    fn holds(&self, folder: &str, words: &str) -> bool {
+        self.data.lock().unwrap().messages.iter().any(|m| m.folder == folder && String::from_utf8_lossy(&m.raw).contains(words))
+    }
+    fn count(&self, folder: &str) -> usize {
+        self.data.lock().unwrap().messages.iter().filter(|m| m.folder == folder).count()
+    }
+    fn parent(&self, name: &str) -> Option<String> {
+        self.data.lock().unwrap().by_name(name).map(|f| f.parent.clone())
+    }
+    fn drafts(&self) -> usize {
+        self.data.lock().unwrap().messages.iter().filter(|m| m.draft).count()
+    }
+    fn last_sent(&self) -> Option<Vec<u8>> {
+        self.data.lock().unwrap().sent.last().cloned()
+    }
+    fn replies_are(&self, _: &Vacation) {
+        assert_eq!(self.data.lock().unwrap().replies["scheduledEndDateTime"]["dateTime"], "2026-10-20T23:59:59");
+    }
+    fn at_the_end(&self) {
+        assert!(self.data.lock().unwrap().calls.iter().any(|c| c.starts_with("POST /$batch")), "small requests go in batches");
+    }
+}
+
+/// A message whose source the server won't give doesn't stop the folder, over Graph.
 #[test]
 fn one_unreadable_message_holds_up_nothing() {
-    let mut d = Data::default();
-    let inbox = d.folder("Inbox", None, Some("inbox"));
-    let mail =
-        |s: &str| format!("From: Zoe <zoe@studio.example>\r\nTo: me@x.example\r\nSubject: {s}\r\nMessage-ID: <{s}@x>\r\n\r\nHello.\r\n").into_bytes();
-    d.deliver(&inbox, &mail("one"), false, "2026-10-01T09:00:00Z");
-    let bad = d.deliver(&inbox, &mail("two"), false, "2026-10-01T10:00:00Z");
-    d.deliver(&inbox, &mail("three"), false, "2026-10-01T11:00:00Z");
-    d.unreadable.push(bad);
-    let server = serve(d);
-    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
-    let store = crate::fake::tests_store("graph-unreadable");
-    let mut st = crate::jmap::State::default();
-    crate::graph::list_folders(&c, &mut st, "a1").unwrap();
-    crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions::default()).unwrap();
-    let fs = store.load_folder("a1", "INBOX").unwrap();
-    assert_eq!(fs.messages.len(), 3);
-    let with_body: Vec<&str> = fs.messages.iter().filter(|m| store.has_body(&m.key)).map(|m| m.subject.as_str()).collect();
-    assert_eq!(with_body, ["three", "one"], "the others downloaded");
-    let _ = std::fs::remove_dir_all(store.root());
+    let server = serve(Data::default());
+    crate::fakes::exchange_e2e::one_unreadable_message_holds_up_nothing("graph-unreadable", &server, |store| {
+        let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+        let mut st = crate::jmap::State::default();
+        crate::graph::list_folders(&c, &mut st, "a1").unwrap();
+        crate::graph::sync_folder(&c, &mut st, store, "a1", "INBOX", &crate::sync::SyncOptions::default()).unwrap();
+    });
 }
 
 /// Issue #24: a message with files comes as its text first (its files named and sized, no
