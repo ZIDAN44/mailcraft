@@ -61,8 +61,8 @@ impl KeptDrafts {
     /// drafts read for this connection: once one has failed in this run (it may drop each
     /// connection), unless one of them is a version of the same draft, older, which goes first.
     pub(super) fn goes_ahead(&self, message_id: &str, replaces: Option<&MessageKey>) -> bool {
-        let same = |d: &Kept| (replaces.is_some() && d.replaces.as_ref() == replaces) || (!message_id.is_empty() && d.message_id == message_id);
-        self.queued.is_empty() || (!self.failed.is_empty() && !self.queued.iter().any(same))
+        let draft = DraftId { message_id, replaces };
+        self.queued.is_empty() || (!self.failed.is_empty() && !self.queued.iter().any(|d| draft.same(&d.draft())))
     }
 
     /// A kept draft failed (its source's hash): tried again after its wait, doubled from the

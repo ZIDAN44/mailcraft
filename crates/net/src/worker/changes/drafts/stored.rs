@@ -63,6 +63,13 @@ pub(crate) struct Kept {
     pub(crate) source: Digest,
 }
 
+impl Kept {
+    /// Which draft it's a version of.
+    pub(crate) fn draft(&self) -> DraftId<'_> {
+        DraftId { message_id: &self.message_id, replaces: self.replaces.as_ref() }
+    }
+}
+
 /// The kept drafts' list; those an earlier version kept moved into it first ([`move_old`]). With
 /// the kept drafts' file held ([`pending_file`]).
 pub(super) fn load(store: &Store, account: &str) -> Result<Vec<Kept>> {
