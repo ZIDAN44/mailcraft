@@ -39,3 +39,5 @@ der = { version = "0.8", features = ["pem"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 # Property tests of the list's index and arrangement (tests/mail/nav.rs).
 proptest = "1"
+# The sample's pictures, drawn in code, decoded (the version the PDF export uses already).
+image = { version = "0.25", default-features = false, features = ["png"] }

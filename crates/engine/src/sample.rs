@@ -230,7 +230,7 @@ pub fn sample_banner_png() -> Vec<u8> {
     })
 }
 
-/// An RGB PNG of `w`×`h` from a colour per pixel (small: one uncompressed DEFLATE block).
+/// An RGB PNG of `w`×`h` from a colour per pixel (uncompressed: stored DEFLATE blocks).
 fn png_of(w: u32, h: u32, pixel: impl Fn(u32, u32) -> [u8; 3]) -> Vec<u8> {
     // Uncompressed DEFLATE (stored blocks) keeps this dependency-free.
     let mut raw = Vec::new();
@@ -240,11 +240,17 @@ fn png_of(w: u32, h: u32, pixel: impl Fn(u32, u32) -> [u8; 3]) -> Vec<u8> {
             raw.extend_from_slice(&pixel(x, y));
         }
     }
-    let mut z = vec![0x78, 0x01, 0x01];
-    let len = u16::try_from(raw.len()).unwrap_or(0);
-    z.extend_from_slice(&len.to_le_bytes());
-    z.extend_from_slice(&(!len).to_le_bytes());
-    z.extend_from_slice(&raw);
+    let mut z = vec![0x78, 0x01];
+    // A stored block holds at most 65,535 bytes; only the last is marked final (an empty
+    // picture still has one, empty).
+    let blocks: Vec<&[u8]> = if raw.is_empty() { vec![&[]] } else { raw.chunks(usize::from(u16::MAX)).collect() };
+    for (i, block) in blocks.iter().enumerate() {
+        z.push(u8::from(i + 1 == blocks.len()));
+        let len = u16::try_from(block.len()).unwrap_or(u16::MAX);
+        z.extend_from_slice(&len.to_le_bytes());
+        z.extend_from_slice(&(!len).to_le_bytes());
+        z.extend_from_slice(block);
+    }
     let (mut a, mut b) = (1u32, 0u32);
     for &x in &raw {
         a = (a + u32::from(x)) % 65_521;
@@ -772,10 +778,37 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
 mod tests {
     use super::*;
 
+    /// The pictures drawn in code are PNGs a decoder reads as drawn: their chunks' CRCs, the
+    /// zlib stream and its Adler-32 (which decoders may skip, so checked on its own), the size
+    /// and the pixels; one bigger than a stored DEFLATE block holds (65,535 bytes) too.
     #[test]
-    fn png_is_well_formed() {
-        let png = sample_png();
-        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
-        assert_eq!(crc32(b"IEND"), 0xAE42_6082);
+    fn pngs_are_well_formed() {
+        let checker = |x: u32, y: u32| if (x / 2 + y / 2).is_multiple_of(2) { [0x3B, 0x5B, 0xDB] } else { [0xF2, 0xF4, 0xFA] };
+        let ramp = |x: u32, y: u32| [x as u8, y as u8, (x ^ y) as u8];
+        let pictures: [(Vec<u8>, (u32, u32), Option<&dyn Fn(u32, u32) -> [u8; 3]>); 3] = [
+            (sample_png(), (8, 8), Some(&checker)),
+            (sample_banner_png(), (96, 24), None),
+            // 160 rows of 481 bytes: 76,960, in two blocks.
+            (png_of(160, 160, ramp), (160, 160), Some(&ramp)),
+        ];
+        for (png, (w, h), drawn) in pictures {
+            let picture = image::load_from_memory_with_format(&png, image::ImageFormat::Png).unwrap().to_rgb8();
+            assert_eq!(picture.dimensions(), (w, h));
+            if let Some(drawn) = drawn {
+                assert!(picture.enumerate_pixels().all(|(x, y, p)| p.0 == drawn(x, y)), "{w}×{h}");
+            }
+            let mut rest = png.get(8..).unwrap();
+            let mut idat = Vec::new();
+            while rest.len() >= 12 {
+                let len = u32::from_be_bytes(rest[..4].try_into().unwrap()) as usize;
+                if &rest[4..8] == b"IDAT" {
+                    idat.extend_from_slice(&rest[8..8 + len]);
+                }
+                rest = &rest[12 + len..];
+            }
+            let mut raw = Vec::new();
+            std::io::Read::read_to_end(&mut flate2::read::ZlibDecoder::new(&idat[..]), &mut raw).unwrap();
+            assert_eq!(raw.len() as u32, h * (1 + 3 * w));
+        }
     }
 }

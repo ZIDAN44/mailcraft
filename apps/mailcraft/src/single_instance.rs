@@ -409,7 +409,9 @@ mod tests {
     /// of its own: the tests' did on the macOS CI runner, with a five-digit process id.
     #[test]
     fn socket_paths_fit_a_socket_address() {
-        let app = socket_path(Path::new("/home/zoe/.local/share/mailcraft")).unwrap_or_default();
+        let app = socket_path(Path::new("/home/zoe/.local/share/mailcraft"));
+        assert_eq!(app.is_some(), mailcraft_engine::store::scratch_dir("instance").is_some(), "a socket wherever its folder can be");
+        let app = app.unwrap_or_default();
         for p in [app, socket_at("together"), socket_at("stale"), socket_at("silent"), socket_at("show"), socket_at("keyed"), socket_at("handed")] {
             let len = p.as_os_str().len();
             assert!(len < 104, "{len} bytes: {}", p.display());
