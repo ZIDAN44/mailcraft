@@ -191,3 +191,16 @@ fn a_message_text_first_from_its_item() {
     let none = parse("<s:Envelope><s:Body><t:Message><t:Body BodyType=\"Text\">hi</t:Body></t:Message></s:Body></s:Envelope>");
     assert!(text_first::text_first(&none).is_none(), "no files: the whole of it is as quick");
 }
+
+/// A sign-in scheme is known by its whole name in any case, and its token read after it.
+#[test]
+fn sign_in_schemes_by_their_whole_name_in_any_case() {
+    assert_eq!(scheme_token("ntlm TlRMTVNTUA==", "NTLM"), Some("TlRMTVNTUA=="));
+    assert_eq!(scheme_token("  NTLM  ", "NTLM"), Some(""));
+    assert_eq!(scheme_token("NEGOTIATE YII=", "Negotiate"), Some("YII="));
+    assert_eq!(scheme_token("Negotiate, NTLM", "Negotiate"), Some(""));
+    assert_eq!(scheme_token("Basic realm=\"x\"", "Basic"), Some("realm=\"x\""));
+    for (value, scheme) in [("NTLMfoo abc", "NTLM"), ("Negotiate", "NTLM"), ("", "NTLM"), ("Bas", "Basic")] {
+        assert_eq!(scheme_token(value, scheme), None, "{value:?}");
+    }
+}

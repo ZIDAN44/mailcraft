@@ -71,17 +71,17 @@ impl Client {
                         first
                     } else {
                         let offered = Client::offered(&first);
-                        let token = offered.iter().find_map(|v| v.strip_prefix(name).map(|t| t.trim().to_string())).filter(|t| !t.is_empty());
+                        let token = offered.iter().find_map(|v| scheme_token(v, name).filter(|t| !t.is_empty()));
                         let Some(token) = token else {
                             // NTLM named but not done (a front that takes only Kerberos lists it
                             // anyway): Kerberos, when Negotiate is offered too.
-                            if name == "NTLM" && offered.iter().any(|v| v.eq_ignore_ascii_case("Negotiate")) {
+                            if name == "NTLM" && offered.iter().any(|v| scheme_token(v, "Negotiate").is_some()) {
                                 *self.scheme.borrow_mut() = Scheme::Kerberos;
                                 continue;
                             }
                             return Err(NetError::Auth("the server didn't answer the sign-in".into()));
                         };
-                        let challenge = crate::ntlm::challenge(&unb64(&token).ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))?)?;
+                        let challenge = crate::ntlm::challenge(&unb64(token).ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))?)?;
                         let mut client_challenge = [0u8; 8];
                         ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut client_challenge)
                             .map_err(|_| NetError::Protocol("no randomness".into()))?;
@@ -102,7 +102,7 @@ impl Client {
             }
             // Not signed in: learn how, once.
             let offered = Client::offered(&resp);
-            let starts = |p: &str| offered.iter().any(|v| v.len() >= p.len() && v.get(..p.len()).is_some_and(|h| h.eq_ignore_ascii_case(p)));
+            let starts = |p: &str| offered.iter().any(|v| scheme_token(v, p).is_some());
             let next = if starts("NTLM") {
                 Scheme::Ntlm("NTLM")
             } else if starts("Negotiate") {
@@ -173,6 +173,17 @@ impl Client {
     }
 }
 
+/// What a `WWW-Authenticate` value gives for the sign-in scheme `scheme`: its token (`NTLM <token>`,
+/// `""` when it names the scheme alone), the scheme's name taken in any case (RFC 9110 11.1) and
+/// whole (`NTLMfoo` isn't NTLM); `None` for another scheme.
+pub(super) fn scheme_token<'a>(value: &'a str, scheme: &str) -> Option<&'a str> {
+    let v = value.trim();
+    let end = v.find(|c: char| c.is_ascii_whitespace() || c == ',').unwrap_or(v.len());
+    let (name, rest) = v.split_at(end);
+    // A token goes up to the next challenge in the same value, if any.
+    name.eq_ignore_ascii_case(scheme).then(|| rest.split(',').next().unwrap_or("").trim())
+}
+
 /// [`messages`], moved out of the answer rather than copied (a message's source can be most of
 /// it).
 pub(crate) fn into_messages(doc: El) -> Vec<El> {
@@ -213,11 +224,7 @@ impl Client {
         let mut token = token;
         for _ in 0..3 {
             let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("Negotiate {}", base64::encode(&token))))?;
-            let back = Client::offered(&resp)
-                .iter()
-                .find_map(|v| v.strip_prefix("Negotiate").map(|t| t.trim().to_string()))
-                .filter(|t| !t.is_empty())
-                .and_then(|t| unb64(&t));
+            let back = Client::offered(&resp).iter().find_map(|v| scheme_token(v, "Negotiate").filter(|t| !t.is_empty())).and_then(unb64);
             if resp.status != 401 {
                 if let Some(b) = back
                     && let Err(e) = n.step(&b)

@@ -145,10 +145,11 @@ struct SignIn {
 impl SignIn {
     /// Whether the request may be answered; when not, its 401 (with a challenge) is sent.
     fn admits(&mut self, s: &mut impl Write, shared: &Arc<Mutex<Data>>, auth: &str) -> bool {
-        let (basic, open) = {
+        let (basic, open, lower) = {
             let d = shared.lock().unwrap();
-            (d.basic, d.open)
+            (d.basic, d.open, d.lower_case_schemes)
         };
+        let named = |scheme: &str| if lower { scheme.to_ascii_lowercase() } else { scheme.to_string() };
         if basic && !open {
             let expected = format!("Basic {}", mailcraft_model::base64::encode(format!("{DOMAIN}\\{USER}:{PASSWORD}").as_bytes()));
             if auth != expected {
@@ -160,7 +161,7 @@ impl SignIn {
                 Some(m) if m.get(8) == Some(&1) => {
                     let c = crate::ntlm::make_challenge([9; 8], &[]);
                     self.challenge = crate::ntlm::challenge(&c).ok();
-                    respond(s, 401, &[("WWW-Authenticate", format!("NTLM {}", mailcraft_model::base64::encode(&c)))], b"");
+                    respond(s, 401, &[("WWW-Authenticate", format!("{} {}", named("NTLM"), mailcraft_model::base64::encode(&c)))], b"");
                     return false;
                 }
                 Some(m) if m.get(8) == Some(&3) => {
@@ -173,7 +174,7 @@ impl SignIn {
                     shared.lock().unwrap().handshakes += 1;
                 }
                 _ => {
-                    respond(s, 401, &[("WWW-Authenticate", "Negotiate".into()), ("WWW-Authenticate", "NTLM".into())], b"");
+                    respond(s, 401, &[("WWW-Authenticate", named("Negotiate")), ("WWW-Authenticate", named("NTLM"))], b"");
                     return false;
                 }
             }

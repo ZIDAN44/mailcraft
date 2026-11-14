@@ -105,6 +105,8 @@ pub struct Data {
     pub only_agent: Option<String>,
     /// Signed in by a front in front of it (a Kerberos one): no sign-in asked here.
     pub open: bool,
+    /// Names its sign-in schemes in lower case (`ntlm <challenge>`), as a proxy may.
+    pub lower_case_schemes: bool,
     /// Its reminders (issue #40).
     pub reminders: reminders::Reminders,
     /// What came to it and went out, for a test's wait to tell where it stopped
@@ -149,6 +151,7 @@ impl Default for Data {
             agents: Vec::new(),
             only_agent: None,
             open: false,
+            lower_case_schemes: false,
             reminders: Default::default(),
             traffic: Default::default(),
             next: 0,

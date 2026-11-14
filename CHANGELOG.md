@@ -166,6 +166,7 @@ on GitHub.
 - Folders with millions of messages sync noticeably faster.
 - Automatic account setup no longer picks a server that a provider's settings file has commented out.
 - Exchange automatic replies containing <, > or & are kept as typed.
+- Exchange servers or proxies that name NTLM in lower case can be signed in to.
 
 ## 0.38.0 - 2026-11-13
 

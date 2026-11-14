@@ -150,6 +150,18 @@ fn automatic_replies_with_markup_characters_come_back_as_written() {
     assert_eq!(back.text, away.text);
 }
 
+/// A server (or a proxy before it) naming its sign-in schemes in lower case: its `ntlm` challenge
+/// is answered as `NTLM`'s.
+#[test]
+fn a_server_naming_ntlm_in_lower_case_is_signed_in() {
+    let mut d = Data { lower_case_schemes: true, ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    assert_eq!(c.mailboxes().unwrap().len(), 1);
+    assert!(server.data.lock().unwrap().handshakes >= 1, "signed in with NTLM");
+}
+
 /// A folder flagged hidden is not offered as mail, nor is anything nested in it at any
 /// depth; its siblings and their subfolders still are.
 #[test]

@@ -733,6 +733,8 @@ use discover::autodiscover_answer;
 use discover::autodiscover_urls;
 pub use discover::{autodiscover, autodiscover_as};
 pub(crate) use requests::into_messages;
+#[cfg(test)]
+use requests::scheme_token;
 mod shared;
 mod sync;
 pub use sync::{sync_folder, sync_folder_as};
