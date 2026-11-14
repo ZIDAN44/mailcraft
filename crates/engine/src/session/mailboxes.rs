@@ -379,6 +379,15 @@ impl Session {
         out
     }
 
+    /// A value that changes whenever what [`Session::suggest_contacts`] answers can: the people
+    /// seen in mail and saved (`None` while they're to be counted again), the directories'
+    /// answers, and the time by the second (how lately each was written to ranks them; a
+    /// directory's answer gone stale is asked again). What's suggested for the same text with
+    /// the same value is the same, so a window can keep it rather than ask on every frame.
+    pub fn suggestions_rev(&self) -> (Option<u64>, u64, i64) {
+        (self.contacts.as_ref().map(|_| self.contacts_built), self.directory.rev, self.clock.now)
+    }
+
     /// Whether anything was written in the message being written (more than its signature):
     /// closing it then asks whether to keep it.
     pub fn compose_written(&self) -> bool {

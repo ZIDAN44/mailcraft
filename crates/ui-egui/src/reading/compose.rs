@@ -397,12 +397,10 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                 "cc" => c.cc.clone(),
                 _ => c.bcc.clone(),
             };
-            let token = mailcraft_engine::model::contacts::last_token(&text).to_string();
-            if token.chars().count() < 1 || st.suggest_dismissed.as_deref() == Some(text.as_str()) {
+            if mailcraft_engine::model::contacts::last_token(&text).is_empty() || st.suggest_dismissed.as_deref() == Some(text.as_str()) {
                 Vec::new()
             } else {
-                let present = text.to_lowercase();
-                s.suggest_contacts(&token, 8).into_iter().filter(|x| !present.contains(&x.address.email.to_lowercase())).take(6).collect()
+                suggested(s, st, text)
             }
         }
         _ => Vec::new(),
@@ -813,6 +811,28 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     st.quote_editors = quote_eds;
     st.signature_cards.retain(|id, _| *id == taken.id || s.composes.iter().any(|c| c.id == *id));
     s.compose = Some(taken);
+}
+
+/// The people suggested for what's typed in a recipient box, and what they were made for.
+pub(crate) struct Suggested {
+    text: String,
+    rev: (Option<u64>, u64, i64),
+    people: Vec<Contact>,
+}
+
+/// The people to suggest for `text`, typed in a recipient box (those already in it left out):
+/// made again only when the text or what they're made of changes, not on every frame (each
+/// time the whole address book was read, lower-cased and sorted).
+fn suggested(s: &mut Session, st: &mut UiState, text: String) -> Vec<Contact> {
+    if let Some(kept) = st.suggested.as_ref().filter(|k| k.text == text && k.rev == s.suggestions_rev()) {
+        return kept.people.clone();
+    }
+    let token = mailcraft_engine::model::contacts::last_token(&text);
+    let present = text.to_lowercase();
+    let people: Vec<Contact> =
+        s.suggest_contacts(token, 8).into_iter().filter(|x| !present.contains(&x.address.email.to_lowercase())).take(6).collect();
+    st.suggested = Some(Suggested { rev: s.suggestions_rev(), people: people.clone(), text });
+    people
 }
 
 /// Files dragged from the desktop onto the message are attached (read from where they are, as

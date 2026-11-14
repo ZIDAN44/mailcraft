@@ -33,13 +33,13 @@ pub(crate) use attachments::decode;
 pub(crate) use attachments::previewed_text;
 use attachments::*;
 use body::*;
-pub(crate) use compose::ComposeAlert;
 pub use compose::compose_window;
 #[cfg(test)]
 pub(crate) use compose::parse_local;
 #[cfg(test)]
 pub(crate) use compose::send_block_text;
 use compose::*;
+pub(crate) use compose::{ComposeAlert, Suggested};
 pub(crate) use long_text::LongText;
 #[cfg(test)]
 pub(crate) use long_text::{CHUNK, chunks};

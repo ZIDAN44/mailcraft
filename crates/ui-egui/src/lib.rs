@@ -407,6 +407,9 @@ pub struct UiState {
     /// The recipient box a suggestion was just picked into: it keeps the cursor through the rest
     /// of that click (the release lands outside the box, which would otherwise end its focus).
     pub(crate) suggest_refocus: Option<&'static str>,
+    /// The people suggested for the text in that box, kept while it and what they're made of
+    /// stay the same.
+    pub(crate) suggested: Option<reading::Suggested>,
     /// Installed Craft apps (command, path), found at start-up.
     pub(crate) craft_apps: Vec<(&'static str, PathBuf)>,
     /// The interface language setting (`auto` or a language code).
@@ -587,6 +590,7 @@ impl MailApp {
                 suggest_index: 0,
                 suggest_dismissed: None,
                 suggest_refocus: None,
+                suggested: None,
                 craft_apps: Vec::new(),
                 language: i18n::AUTO.into(),
                 fonts: (None, None),

@@ -5,6 +5,7 @@ use super::*;
 mod names;
 mod quote;
 mod sending;
+mod suggest;
 
 #[test]
 fn recipient_boxes_suggest_people() {
