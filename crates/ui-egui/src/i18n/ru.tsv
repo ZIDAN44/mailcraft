@@ -1711,8 +1711,10 @@ month	May	Май
 	Saving opens the sign-in page in your browser.	При сохранении в браузере откроется страница входа.
 	Sign in through the browser	Войти через браузер
 	Sign-in	Вход
+	The server couldn't be asked how it signs you in: {error}	Не удалось выяснить, как сервер выполняет вход: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	Этот почтовый сервер не принимает пароли: нужно войти через браузер
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Этот почтовый сервер требует входа через браузер: узнайте у администратора идентификатор клиента, который нужно ввести
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Этот сервер выполняет вход через браузер, но его служба входа не найдена: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	Этот сервер не принимает пароли: вы входите через браузер с помощью единого входа.
 	with {service}: no password stored	через {service}: пароль не сохраняется
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} входит через единый вход, а это умеет только настольное приложение MailCraft

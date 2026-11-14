@@ -1712,8 +1712,10 @@ month	May	Mai
 	Saving opens the sign-in page in your browser.	Beim Speichern öffnet sich die Anmeldeseite in Ihrem Browser.
 	Sign in through the browser	Im Browser anmelden
 	Sign-in	Anmeldung
+	The server couldn't be asked how it signs you in: {error}	Der Server konnte nicht nach seiner Anmeldeart gefragt werden: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	Dieser Mailserver akzeptiert keine Kennwörter: Sie müssen sich im Browser anmelden
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Dieser Mailserver verlangt eine Anmeldung im Browser: Fragen Sie Ihren Administrator nach der einzugebenden Client-ID
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Dieser Server meldet Sie im Browser an, aber sein Anmeldedienst wurde nicht gefunden: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	Dieser Server akzeptiert keine Kennwörter: Sie melden sich im Browser mit seinem Single Sign-On an.
 	with {service}: no password stored	mit {service}: kein Kennwort gespeichert
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} meldet sich über Single Sign-On an, was nur die Desktop-App von MailCraft kann

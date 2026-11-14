@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default, rename_all = "camelCase")]
 pub struct JmapProbe {
     /// It takes a user name and password: it asks for them (Basic), says nothing of how, or
-    /// couldn't be asked (the usual sign-in says why).
+    /// couldn't be asked (`error` says why, and so does the usual sign-in).
     pub password: bool,
     /// It takes bearer tokens (RFC 6750): a sign-in through the browser.
     pub bearer: bool,
@@ -23,7 +23,9 @@ pub struct JmapProbe {
     /// The client id MailCraft was given for that service (`MAILCRAFT_OIDC_CLIENTS`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_id: Option<String>,
-    /// Why a server that takes bearer tokens has no service that could be found.
+    /// Why the server couldn't be asked (it wasn't reached, or failed), or why one that takes
+    /// bearer tokens has no service that could be found: either may be passing, so it's worth
+    /// asking again.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }

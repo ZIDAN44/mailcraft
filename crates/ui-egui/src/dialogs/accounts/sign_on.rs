@@ -2,7 +2,7 @@
 //! and in its server settings: the server asked how it's signed in to (`account.probeJmap`),
 //! what it said, and the client ID an administrator gives.
 
-use mailcraft_engine::model::{JmapProbe, NO_CLIENT_ID, OIDC};
+use mailcraft_engine::model::{JmapProbe, NO_CLIENT_ID, OIDC, OidcSettings};
 
 use super::*;
 use crate::icons::Icon;
@@ -13,8 +13,13 @@ const MAX_ADDRESS: usize = 2048;
 const MAX_CLIENT_ID: usize = 256;
 
 /// Whether this copy signs in through a single sign-on (the browser app doesn't).
-pub(super) fn available(s: &Session) -> bool {
+pub(crate) fn available(s: &Session) -> bool {
     s.oauth_available.iter().any(|p| p == OIDC)
+}
+
+/// An issuer as accounts keep it: its trailing `/` dropped.
+fn issuer_of(issuer: &str) -> &str {
+    issuer.trim().trim_end_matches('/')
 }
 
 /// What the JMAP server at `url` was found to say; `None` while it's asked, or before.
@@ -39,10 +44,16 @@ fn service(issuer: &str) -> &str {
 }
 
 /// What the server at `url` said, under its address: that it's being asked, that it takes no
-/// passwords, or that its sign-in service wasn't found. Nothing for one that takes a password.
-pub(super) fn note(ui: &mut Ui, t: &Tokens, s: &Session, url: &str) {
+/// passwords, or why it, or its sign-in service, couldn't be asked, with a way to ask again (it
+/// may be passing). Nothing for one that takes a password.
+pub(super) fn note(ui: &mut Ui, t: &Tokens, s: &Session, url: &str, acts: &mut Vec<Action>) {
     let say = |ui: &mut Ui, text: RichText| {
         ui.add(egui::Label::new(text.small()).wrap());
+    };
+    let again = |ui: &mut Ui, acts: &mut Vec<Action>| {
+        if ui.small_button(tl!("Try again")).clicked() {
+            acts.push(Action::Run("account.probeJmap", json!({"url": url.trim(), "again": true})));
+        }
     };
     match s.jmap_probes.get(url.trim()) {
         Some(None) => {
@@ -58,9 +69,14 @@ pub(super) fn note(ui: &mut Ui, t: &Tokens, s: &Session, url: &str) {
                 RichText::new(tf!("This server signs you in through your browser, but its sign-in service wasn't found: {error}", error = error))
                     .color(t.warn),
             );
+            again(ui, acts);
         }
         Some(Some(p)) if p.bearer && !p.password => {
             say(ui, RichText::new(tl!("This server takes no passwords: you sign in through your browser, with its single sign-on.")).color(t.dim));
+        }
+        Some(Some(JmapProbe { error: Some(error), .. })) => {
+            say(ui, RichText::new(tf!("The server couldn't be asked how it signs you in: {error}", error = error)).color(t.warn));
+            again(ui, acts);
         }
         _ => {}
     }
@@ -121,8 +137,12 @@ pub struct SignOn {
     pub was_browser: bool,
     /// The client ID its administrator gave; empty: the one MailCraft was given.
     pub client_id: String,
-    /// The one it had.
-    pub kept_client_id: String,
+    /// The single sign-on it had, and the JMAP server it had it for.
+    pub kept: OidcSettings,
+    pub kept_url: String,
+    /// The service the client ID box is for (an issuer as accounts keep it): one the server
+    /// names in place of it empties the box, as what was typed is the other service's.
+    pub issuer: String,
     /// The password it signs in with again, going back to one.
     pub password: String,
     /// It signs in with Google or Microsoft: nothing to choose.
@@ -132,15 +152,43 @@ pub struct SignOn {
 impl SignOn {
     pub(crate) fn of(c: &AccountConfig) -> SignOn {
         let browser = c.oauth.as_deref() == Some(OIDC);
-        let client_id = c.oidc.as_ref().map(|o| o.client_id.clone()).unwrap_or_default();
+        let kept = c.oidc.clone().unwrap_or_default();
         SignOn {
             browser,
             was_browser: browser,
-            kept_client_id: client_id.clone(),
-            client_id,
+            client_id: kept.client_id.clone(),
+            issuer: issuer_of(&kept.issuer).to_string(),
+            kept,
+            kept_url: c.jmap.as_deref().unwrap_or_default().trim().to_string(),
             password: String::new(),
             other: c.oauth.is_some() && !browser,
         }
+    }
+
+    /// Whether its server's address is another than the one it had: it signs in through the
+    /// single sign-on that one names.
+    fn moved(&self, url: &str) -> bool {
+        url.trim() != self.kept_url
+    }
+
+    /// The service saving signs it in through: the one the server at `url` named, starting to
+    /// sign in through the browser or moved to it; else the one it had.
+    fn service<'s>(&'s self, s: &'s Session, url: &str) -> Option<&'s str> {
+        if self.was_browser && !self.moved(url) {
+            return Some(issuer_of(&self.kept.issuer));
+        }
+        answer(s, url).filter(|p| p.bearer).and_then(|p| p.issuer.as_deref()).map(issuer_of)
+    }
+
+    /// The client ID it has for the service the box is for: its own, kept for that service.
+    fn kept_client_id(&self) -> &str {
+        if self.issuer == issuer_of(&self.kept.issuer) { self.kept.client_id.trim() } else { "" }
+    }
+
+    /// Whether saving signs it in again through the browser: it starts to, or another service,
+    /// or another client ID.
+    fn signs_in_again(&self) -> bool {
+        !self.was_browser || self.issuer != issuer_of(&self.kept.issuer) || self.client_id.trim() != self.kept.client_id.trim()
     }
 
     /// Its choice in the server settings of the JMAP account at `url` (`typing`: its address is
@@ -158,7 +206,17 @@ impl SignOn {
         });
         if self.browser {
             ask(s, url, typing, acts);
-            note(ui, t, s, url);
+            note(ui, t, s, url, acts);
+            // What was typed for another service isn't this one's; with none before, it is.
+            if let Some(service) = self.service(s, url).map(str::to_string)
+                && service != self.issuer
+            {
+                let another = !self.issuer.is_empty();
+                self.issuer = service;
+                if another {
+                    self.client_id = self.kept_client_id().to_string();
+                }
+            }
             let found = answer(s, url).filter(|p| p.bearer);
             ui.add_space(4.0);
             ui.label(RichText::new(tl!("Client ID")).strong().small());
@@ -167,7 +225,7 @@ impl SignOn {
             if found.is_some_and(needs_client_id) && self.client_id.trim().is_empty() {
                 ui.add(egui::Label::new(RichText::new(tl!(NO_CLIENT_ID)).color(t.warn).small()).wrap());
             }
-            if !self.was_browser || self.client_id.trim() != self.kept_client_id {
+            if self.signs_in_again() {
                 ui.label(RichText::new(tl!("Saving opens the sign-in page in your browser.")).color(t.faint).small());
             }
         } else if self.was_browser {
@@ -177,39 +235,38 @@ impl SignOn {
         }
     }
 
-    /// Whether what's chosen can be saved: going through the browser needs the server's sign-in
-    /// service found and a client ID; going back to a password needs it.
+    /// Whether what's chosen can be saved: going through the browser, or moved to another
+    /// server, needs its sign-in service found and a client ID; going back to a password needs it.
     pub(super) fn ready(&self, s: &Session, url: &str) -> bool {
-        match (self.browser, self.was_browser) {
-            (true, false) => {
-                answer(s, url).is_some_and(|p| p.bearer && p.issuer.is_some() && (p.client_id.is_some() || !self.client_id.trim().is_empty()))
-            }
-            (false, true) => !self.password.is_empty(),
-            _ => true,
+        if !self.browser {
+            return !self.was_browser || !self.password.is_empty();
         }
+        if self.was_browser && !self.moved(url) {
+            return true;
+        }
+        answer(s, url).is_some_and(|p| p.bearer && p.issuer.is_some() && (p.client_id.is_some() || !self.client_id.trim().is_empty()))
     }
 
-    /// `oauth`, with the service the server named (when it starts signing in through one) and
-    /// the client ID typed; or the password going back to one.
+    /// `oauth`, with the service the server named (when it starts signing in through one, or
+    /// moved to it) and the client ID typed (when it isn't the one it had for that service); or
+    /// the password going back to one.
     pub(super) fn params(&self, p: &mut serde_json::Value, s: &Session, url: &str) {
         let Some(o) = p.as_object_mut().filter(|_| !self.other) else { return };
-        match (self.browser, self.was_browser) {
-            (true, was) => {
-                o.insert("oauth".into(), json!(OIDC));
-                if !was && let Some(issuer) = answer(s, url).filter(|f| f.bearer).and_then(|f| f.issuer.as_deref()) {
-                    o.insert("issuer".into(), json!(issuer));
-                }
-                // Emptied: the one MailCraft was given.
-                let typed = self.client_id.trim();
-                if !typed.is_empty() || !self.kept_client_id.is_empty() {
-                    o.insert("clientId".into(), json!(typed));
-                }
+        if self.browser {
+            o.insert("oauth".into(), json!(OIDC));
+            if (!self.was_browser || self.moved(url))
+                && let Some(issuer) = self.service(s, url)
+            {
+                o.insert("issuer".into(), json!(issuer));
             }
-            (false, true) => {
-                o.insert("oauth".into(), serde_json::Value::Null);
-                o.insert("password".into(), json!(self.password));
+            // Emptied: the one MailCraft was given.
+            let typed = self.client_id.trim();
+            if typed != self.kept_client_id() {
+                o.insert("clientId".into(), json!(typed));
             }
-            (false, false) => {}
+        } else if self.was_browser {
+            o.insert("oauth".into(), serde_json::Value::Null);
+            o.insert("password".into(), json!(self.password));
         }
     }
 }

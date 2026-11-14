@@ -270,12 +270,19 @@ const MAX_REFUSAL: usize = 64 << 10;
 /// what it answers a request without a sign-in, and where it takes bearer tokens, the single
 /// sign-on service its address names (as [`describe`] finds it, from wherever the session
 /// address sent the request). Only advice for the add dialog: what can't be asked is a password,
-/// whose usual sign-in then says what's wrong. A request to the server: only ever on a thread of
-/// its own.
+/// whose usual sign-in then says what's wrong, with why it couldn't be asked (it may be passing:
+/// a server that's down, a network that isn't up yet). A request to the server: only ever on a
+/// thread of its own.
 pub fn probe(server: &str) -> JmapProbe {
     let password = JmapProbe { password: true, ..JmapProbe::default() };
     let session = mailcraft_jmap::session_url(server);
-    let Ok((resp, at)) = crate::http::send_where(&Request::get(&session, MAX_REFUSAL).header("Accept", "application/json")) else { return password };
+    let (resp, at) = match crate::http::send_where(&Request::get(&session, MAX_REFUSAL).header("Accept", "application/json")) {
+        Ok(r) => r,
+        Err(e) => return JmapProbe { error: Some(e.to_string()), ..password },
+    };
+    if resp.status >= 500 {
+        return JmapProbe { error: Some(format!("the server answered HTTP {}", resp.status)), ..password };
+    }
     if resp.status != 401 {
         return password;
     }

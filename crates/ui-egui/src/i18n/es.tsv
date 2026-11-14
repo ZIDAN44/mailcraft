@@ -1712,8 +1712,10 @@ month	May	mayo
 	Saving opens the sign-in page in your browser.	Al guardar se abre la página de inicio de sesión en tu navegador.
 	Sign in through the browser	Iniciar sesión en el navegador
 	Sign-in	Inicio de sesión
+	The server couldn't be asked how it signs you in: {error}	No se pudo consultar cómo inicia sesión el servidor: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	Este servidor de correo no acepta contraseñas: necesita que inicies sesión en el navegador
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Este servidor de correo necesita que inicies sesión en el navegador: pide a tu administrador el ID de cliente que debes escribir
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Este servidor inicia tu sesión en el navegador, pero no se encontró su servicio de inicio de sesión: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	Este servidor no acepta contraseñas: inicias sesión en tu navegador, con su inicio de sesión único.
 	with {service}: no password stored	con {service}: no se guarda ninguna contraseña
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} inicia sesión con un inicio de sesión único, algo que solo puede hacer la aplicación de escritorio de MailCraft

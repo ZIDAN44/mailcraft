@@ -14,7 +14,7 @@ on GitHub.
 
 ### Added
 
-- A JMAP account can sign in through its server's single sign-on (OpenID Connect), in the browser, with no password kept: **Add account** asks a JMAP server how it signs you in and, for one behind a single sign-on, offers **Sign in through the browser**; **Server settings › Sign-in** moves an account to it and back. Its **Client ID** comes from the service's administrator, or with the copy of MailCraft you install (`MAILCRAFT_OIDC_CLIENTS`); an account that needs one says so. What the service's administrator sets up is in [Signing in through the browser](docs/oauth.md).
+- In the desktop app, a JMAP account can sign in through its server's single sign-on (OpenID Connect), in your browser, with no password kept: **Add account** asks a JMAP server how it signs you in (**Try again** asks again when it couldn't) and, for one behind a single sign-on, offers **Sign in through the browser**; **Server settings › Sign-in** moves an account to it and back. Its **Client ID** comes from the service's administrator, or with the copy of MailCraft you install (`MAILCRAFT_OIDC_CLIENTS`); an account that needs one says so. What the service's administrator sets up is in [Signing in through the browser](docs/oauth.md).
 
 ### Fixed
 

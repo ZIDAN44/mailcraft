@@ -229,7 +229,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         .or_else(|| (graph.is_some() && password.as_deref().is_none_or(str::is_empty)).then(|| "microsoft".to_string()));
     // A JMAP server behind a single sign-on: the service it signs in through.
     let oidc = match (oauth.as_deref(), jmap.as_deref()) {
-        (Some(mailcraft_model::OIDC), Some(server)) => Some(super::sign_on::oidc_settings(s, v, server, None)?),
+        (Some(mailcraft_model::OIDC), Some(server)) => Some(super::sign_on::oidc_settings(s, v, server, None, false)?),
         (Some(mailcraft_model::OIDC), None) => {
             return Err(CmdError::Params("a single sign-on (oidc) signs in to a JMAP server: `jmap` is required".into()));
         }

@@ -92,6 +92,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   that hostile or huge mail stays quick: a copy cut there would run its paragraphs together, and
   past two dozen tables, each one nested deeper makes its text slower to read.
 
+### 8. Single sign-on in the browser
+
+- **Impact:** A JMAP account that signs in through its server's single sign-on (OpenID Connect)
+  works in the desktop app only. In the browser, it can't be added, and one whose server takes no
+  passwords is said to need the desktop app.
+- **Workaround:** Use that account in the desktop app.
+- **Cause:** The sign-in comes back to MailCraft at an address on this computer (RFC 8252), which
+  a web page can't listen on. The browser app would need a way back of its own (a page of its
+  own, registered with each service) and a safe place in the browser for the tokens.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

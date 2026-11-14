@@ -504,10 +504,16 @@ impl MailApp {
             return;
         }
         // A server that takes no passwords, or a single sign-on with no client ID: the server
-        // settings, at signing in through the browser.
+        // settings, at signing in through the browser. A copy that can't (the browser app) says
+        // which can: its server settings would have no way in.
         if let SyncStatus::Error { error } = &status
             && super::bars::single_sign_on_needed(error)
         {
+            if !crate::dialogs::single_sign_on_available(&self.session) {
+                let text = tf!("{email} signs in through a single sign-on, which only MailCraft's desktop app can do", email = config.email);
+                self.session.notice(text, true);
+                return;
+            }
             let mut d = Dialog::edit_account(&config);
             if let Dialog::EditAccount(f) = &mut d {
                 f.sign_on.browser = f.jmap && !f.sign_on.other;

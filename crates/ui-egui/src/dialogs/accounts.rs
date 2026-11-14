@@ -10,6 +10,7 @@ pub use add::AccountForm;
 pub use edit::EditForm;
 pub(super) use edit::edit_account;
 pub use sign_on::SignOn;
+pub(crate) use sign_on::available as single_sign_on_available;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {

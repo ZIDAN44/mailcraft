@@ -201,9 +201,14 @@ fn a_server_says_how_it_is_signed_in_to() {
         let p = probe(&format!("{server}/jmap/session"));
         assert_eq!(p, JmapProbe { password: true, ..JmapProbe::default() }, "{server}");
     }
-    // No server there: a password, whose sign-in says what's wrong.
+    // No server there, or one that fails: a password, whose sign-in says what's wrong, and why it
+    // couldn't be asked, which may be passing (the add dialog asks again).
     let gone = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
-    assert_eq!(probe(&format!("http://{gone}/jmap/session")), JmapProbe { password: true, ..JmapProbe::default() });
+    let p = probe(&format!("http://{gone}/jmap/session"));
+    assert!(p.password && !p.bearer && p.issuer.is_none() && p.error.is_some(), "{p:?}");
+    let failing = service(|_, _| b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let p = probe(&format!("{failing}/jmap/session"));
+    assert_eq!((p.password, p.bearer, p.error.as_deref()), (true, false, Some("the server answered HTTP 503")));
     // Bearer tokens, and no service to be found: said why.
     let lost = service(|_, line| {
         if line.contains("openid-configuration") { b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec() } else { refusal(&["Bearer"]) }

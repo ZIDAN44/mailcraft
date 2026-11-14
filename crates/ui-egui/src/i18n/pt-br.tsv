@@ -1712,8 +1712,10 @@ month	May	maio
 	Saving opens the sign-in page in your browser.	Ao salvar, a página de entrada abre no seu navegador.
 	Sign in through the browser	Entrar pelo navegador
 	Sign-in	Entrada
+	The server couldn't be asked how it signs you in: {error}	Não foi possível perguntar ao servidor como você entra: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	Este servidor de email não aceita senhas: você precisa entrar pelo navegador
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Este servidor de email exige que você entre pelo navegador: peça ao seu administrador o ID do cliente a digitar
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Este servidor faz você entrar pelo navegador, mas o serviço de entrada não foi encontrado: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	Este servidor não aceita senhas: você entra pelo navegador, com o login único (single sign-on).
 	with {service}: no password stored	com {service}: nenhuma senha armazenada
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} entra pelo login único (single sign-on), o que só o aplicativo para desktop do MailCraft consegue fazer

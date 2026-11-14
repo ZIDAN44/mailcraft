@@ -150,7 +150,7 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
                         label(ui, "JMAP session address");
                         let r = ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
                         sign_on::ask(s, &f.jmap_url, r.has_focus(), acts);
-                        sign_on::note(ui, t, s, &f.jmap_url);
+                        sign_on::note(ui, t, s, &f.jmap_url, acts);
                         // A single sign-on knows who signs in: no user name.
                         if !single_sign_on_only {
                             ui.add_space(4.0);

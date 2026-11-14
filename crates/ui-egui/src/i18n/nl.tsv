@@ -1707,8 +1707,10 @@ month	May	mei
 	Saving opens the sign-in page in your browser.	Bij opslaan opent de aanmeldpagina in uw browser.
 	Sign in through the browser	Aanmelden in de browser
 	Sign-in	Aanmelden
+	The server couldn't be asked how it signs you in: {error}	Er kon niet worden gevraagd hoe de server u aanmeldt: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	Deze mailserver accepteert geen wachtwoorden: u moet zich aanmelden in de browser
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Deze mailserver vraagt u zich aan te melden in de browser: vraag uw beheerder om de client-ID die u moet invullen
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Deze server meldt u aan in uw browser, maar de aanmeldservice is niet gevonden: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	Deze server accepteert geen wachtwoorden: u meldt zich aan in uw browser, met eenmalige aanmelding (single sign-on).
 	with {service}: no password stored	met {service}: er wordt geen wachtwoord opgeslagen
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} meldt zich aan met eenmalige aanmelding (single sign-on), wat alleen de desktop-app van MailCraft kan

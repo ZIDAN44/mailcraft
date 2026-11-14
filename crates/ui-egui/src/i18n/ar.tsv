@@ -1707,8 +1707,10 @@ month	May	مايو
 	Saving opens the sign-in page in your browser.	عند الحفظ تُفتح صفحة تسجيل الدخول في متصفحك.
 	Sign in through the browser	تسجيل الدخول عبر المتصفح
 	Sign-in	تسجيل الدخول
+	The server couldn't be asked how it signs you in: {error}	تعذّر سؤال الخادم عن طريقة تسجيل دخولك: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	لا يقبل خادم البريد هذا كلمات المرور: يجب أن تسجّل الدخول عبر المتصفح
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	يتطلب خادم البريد هذا تسجيل الدخول عبر المتصفح: اطلب من المسؤول معرّف العميل الذي يجب إدخاله
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	يسجّل هذا الخادم دخولك عبر المتصفح، لكن تعذّر العثور على خدمة تسجيل الدخول الخاصة به: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	لا يقبل هذا الخادم كلمات المرور: تسجّل الدخول عبر متصفحك باستخدام تسجيل الدخول الموحّد.
 	with {service}: no password stored	عبر {service}: لا تُحفظ كلمة المرور
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	يسجّل {email} الدخول عبر تسجيل الدخول الموحّد، ولا يتيح ذلك إلا تطبيق سطح المكتب من MailCraft

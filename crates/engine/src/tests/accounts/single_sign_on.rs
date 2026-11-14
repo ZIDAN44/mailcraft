@@ -73,10 +73,11 @@ fn an_account_signs_in_through_the_single_sign_on_its_server_names() {
         }
         s.run("account.add", &v)
     };
-    // What the server was found to say: its service, the client id MailCraft was given for it,
-    // and what it asks for. Signed in through the browser, with no password asked for.
+    // What the server was found to say: its service and what it asks for. The client id MailCraft
+    // was given for that service isn't kept: it's looked up as the account signs in. Signed in
+    // through the browser, with no password asked for.
     let id = add(&mut s, json!({})).unwrap()["account"].as_str().unwrap().to_string();
-    let want = OidcSettings { issuer: "https://sso.example.com".into(), client_id: "mailcraft".into(), scope: "openid email".into() };
+    let want = OidcSettings { issuer: "https://sso.example.com".into(), client_id: String::new(), scope: "openid email".into() };
     let c = config(&s, &id);
     assert_eq!((c.oauth.as_deref(), c.oidc.as_ref()), (Some(OIDC), Some(&want)));
     assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { account }] if account.oidc.as_ref() == Some(&want)));
@@ -142,13 +143,33 @@ fn an_account_changes_how_it_signs_in() {
     // the service as a token.
     s.run("account.update", &json!({"account": id, "oauth": "oidc"})).unwrap();
     let c = config(&s, &id);
-    assert_eq!((c.oauth.as_deref(), c.oidc.as_ref().map(|o| o.client_id.as_str())), (Some(OIDC), Some("mailcraft")));
+    assert_eq!((c.oauth.as_deref(), c.oidc.as_ref().map(|o| o.client_id.as_str())), (Some(OIDC), Some("")));
     assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { account }] if account.oauth.as_deref() == Some(OIDC)));
     // Another client id: signed in again under it. Its name: nothing to sign in again for.
     s.run("account.update", &json!({"account": id, "clientId": "mc-desktop"})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { account }] if account.oidc.as_ref().is_some_and(|o| o.client_id == "mc-desktop")));
     s.run("account.update", &json!({"account": id, "name": "Ana", "clientId": "mc-desktop"})).unwrap();
     assert!(s.take_jobs().is_empty());
+
+    // Moved to another server: the single sign-on that one names, with nothing of the other
+    // service's (its client id, its scopes), signed in to again.
+    const MOVED: &str = "https://mail.example.org/jmap/session";
+    s.run("account.probeJmap", &json!({"url": MOVED})).unwrap();
+    s.take_jobs();
+    let probe = JmapProbe { bearer: true, issuer: Some("https://kc.example.org/realms/mail/".into()), ..JmapProbe::default() };
+    s.apply(Event::JmapProbed { url: MOVED.into(), probe });
+    s.run("account.update", &json!({"account": id, "jmap": MOVED})).unwrap();
+    let want = OidcSettings { issuer: "https://kc.example.org/realms/mail".into(), ..OidcSettings::default() };
+    assert_eq!(config(&s, &id).oidc.as_ref(), Some(&want));
+    assert!(matches!(s.take_jobs().as_slice(), [Job::SignIn { account }] if account.oidc.as_ref() == Some(&want)));
+    // Moved to a server that wasn't asked about: the service it had, until another is known.
+    s.run("account.update", &json!({"account": id, "jmap": "https://unasked.example/jmap/session"})).unwrap();
+    assert_eq!(config(&s, &id).oidc.as_ref(), Some(&want));
+    // Its service given as it moves: that one.
+    s.run("account.update", &json!({"account": id, "jmap": SERVER, "issuer": "https://sso.example.com", "clientId": "mc-desktop"})).unwrap();
+    let c = config(&s, &id);
+    assert_eq!(c.oidc.as_ref().map(|o| (o.issuer.as_str(), o.client_id.as_str())), Some(("https://sso.example.com", "mc-desktop")));
+    s.take_jobs();
     // Its refresh token is what's kept: a password isn't put in its place.
     assert!(matches!(s.run("account.setPassword", &json!({"account": id, "password": "pw2"})), Err(CmdError::Params(_))));
     for bad in [json!({"account": id, "jmap": null}), json!({"account": id, "oauth": "google"}), json!({"account": id, "oauth": null})] {

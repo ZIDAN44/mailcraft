@@ -145,7 +145,8 @@ fn the_add_dialog_takes_the_client_id_given_and_still_a_password_where_one_is() 
     }
     assert_eq!(shown(&ctx, &mut a, "Connect"), Some(true), "a password still connects");
     click(&ctx, &mut a, "Sign in through the browser");
-    assert_eq!(added(&a, "ana@example.com").oidc.map(|o| o.client_id), Some("mailcraft".into()));
+    // MailCraft's own isn't kept with it: it's looked up as it signs in.
+    assert_eq!(added(&a, "ana@example.com").oidc.map(|o| o.client_id), Some(String::new()));
     assert!(jobs.take().iter().any(|j| matches!(j, Job::SignIn { .. })));
 
     // Where single sign-ons aren't signed in through (the browser app), the server isn't asked.
@@ -193,15 +194,15 @@ fn the_server_settings_move_an_account_to_its_single_sign_on_and_back() {
     click(&ctx, &mut a, "Save");
     assert!(a.ui.dialog.is_none());
     let c = a.session.account(&id).map(|x| x.config.clone()).unwrap();
-    assert_eq!((c.oauth.as_deref(), c.oidc.as_ref().map(|o| (o.issuer.as_str(), o.client_id.as_str()))), (Some(OIDC), Some((ISSUER, "mailcraft"))));
+    assert_eq!((c.oauth.as_deref(), c.oidc.as_ref().map(|o| (o.issuer.as_str(), o.client_id.as_str()))), (Some(OIDC), Some((ISSUER, ""))));
     let started = jobs.take();
     assert!(started.iter().any(|j| matches!(j, Job::SignIn { .. })), "signed in through the browser: {started:?}");
     assert!(!started.iter().any(|j| matches!(j, Job::Start { .. })), "the password kept never sent: {started:?}");
 
-    // Back to a password: Save waits for it.
+    // Back to a password: Save waits for it. MailCraft's client ID isn't shown as one typed.
     a.ui.dialog = Some(Dialog::edit_account(&c));
     if let Some(Dialog::EditAccount(f)) = a.ui.dialog.as_mut() {
-        assert!(f.sign_on.was_browser && f.sign_on.client_id == "mailcraft");
+        assert!(f.sign_on.was_browser && f.sign_on.client_id.is_empty());
         f.sign_on.browser = false;
     }
     assert_eq!(shown(&ctx, &mut a, "Save"), Some(false), "no password yet");
@@ -246,6 +247,99 @@ fn a_single_sign_on_without_a_client_id_is_put_right_in_the_server_settings() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+#[test]
+fn a_server_that_couldnt_be_asked_is_asked_again() {
+    let (mut a, jobs, dir) = with_sign_on("sso-again");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.ui.dialog = Some(add_dialog());
+    settle(&ctx, &mut a);
+    assert_eq!(asked(&jobs), vec![SERVER.to_string()]);
+    // It failed, which may be passing: said, and asked again when the user says, not before.
+    let failed = JmapProbe { password: true, error: Some("the server answered HTTP 503".into()), ..JmapProbe::default() };
+    a.session.apply(MailEvent::JmapProbed { url: SERVER.into(), probe: failed });
+    assert_eq!(shown(&ctx, &mut a, "Sign in through the browser"), None);
+    assert!(asked(&jobs).is_empty());
+    click(&ctx, &mut a, "Try again");
+    assert_eq!(asked(&jobs), vec![SERVER.to_string()]);
+    a.session.apply(bearer_only(Some("mailcraft")));
+    assert_eq!(shown(&ctx, &mut a, "Sign in through the browser"), Some(true));
+    assert_eq!(shown(&ctx, &mut a, "Try again"), None);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_account_moved_to_another_server_signs_in_through_the_service_that_one_names() {
+    const MOVED: &str = "https://mail.example.org/jmap/session";
+    let (mut a, jobs, dir) = with_sign_on("sso-moved");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    // Signed in through its server's single sign-on, under a client ID typed for it.
+    a.session.jmap_probes.insert(SERVER.into(), None);
+    a.session.apply(bearer_only(None));
+    let add = json!({"email": "ana@example.com", "jmap": SERVER, "oauth": "oidc", "clientId": "mc-desktop"});
+    let id = a.session.run("account.add", &add).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.take_jobs();
+    let c = a.session.account(&id).map(|x| x.config.clone()).unwrap();
+    a.ui.dialog = Some(Dialog::edit_account(&c));
+    let set_url = |a: &mut MailApp, url: &str| {
+        if let Some(Dialog::EditAccount(f)) = a.ui.dialog.as_mut() {
+            f.jmap_url = url.into();
+        }
+    };
+    let client_id = |a: &MailApp| match &a.ui.dialog {
+        Some(Dialog::EditAccount(f)) => f.sign_on.client_id.clone(),
+        _ => panic!("{:?}", a.ui.dialog),
+    };
+    // Moved: Save waits for the server to say which service signs its users in.
+    set_url(&mut a, MOVED);
+    settle(&ctx, &mut a);
+    assert_eq!(asked(&jobs), vec![MOVED.to_string()]);
+    assert_eq!(shown(&ctx, &mut a, "Save"), Some(false), "not before it answers");
+    // Another service, which MailCraft has a client ID for: the one typed for the other is gone,
+    // and back at its server it's there again.
+    let probe = JmapProbe {
+        bearer: true,
+        issuer: Some("https://kc.example.org/realms/mail/".into()),
+        client_id: Some("mailcraft".into()),
+        ..JmapProbe::default()
+    };
+    a.session.apply(MailEvent::JmapProbed { url: MOVED.into(), probe });
+    settle(&ctx, &mut a);
+    assert_eq!(client_id(&a), "");
+    set_url(&mut a, SERVER);
+    settle(&ctx, &mut a);
+    assert_eq!(client_id(&a), "mc-desktop");
+    set_url(&mut a, MOVED);
+    jobs.take();
+    click(&ctx, &mut a, "Save");
+    assert!(a.ui.dialog.is_none());
+    let c = a.session.account(&id).map(|x| x.config.clone()).unwrap();
+    let want = OidcSettings { issuer: "https://kc.example.org/realms/mail".into(), ..OidcSettings::default() };
+    assert_eq!((c.jmap.as_deref(), c.oidc.as_ref()), (Some(MOVED), Some(&want)));
+    let started = jobs.take();
+    assert!(started.iter().any(|j| matches!(j, Job::SignIn { .. })), "signed in to it: {started:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_browser_app_says_which_signs_in_through_a_single_sign_on() {
+    let (mut a, _jobs, dir) = with_sign_on("sso-web");
+    a.session.oauth_available.clear();
+    let id = a.session.run("account.add", &json!({"email": "ana@example.com", "password": "pw", "jmap": SERVER})).unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    for error in [NO_PASSWORDS, NO_CLIENT_ID] {
+        a.session.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::Error { error: error.into() } });
+        a.sign_in_again(&id);
+        assert!(a.ui.dialog.is_none(), "no server settings with no way in: {:?}", a.ui.dialog);
+        let said = a.session.notices.last().filter(|n| n.error).map(|n| n.text.clone());
+        assert!(said.as_deref().is_some_and(|t| t.starts_with("ana@example.com") && t.contains("desktop app")), "{said:?}");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Every state of the add dialog and the server settings, light and dark: drawn without fault.
 #[test]
 fn every_single_sign_on_state_is_drawn() {
@@ -256,7 +350,19 @@ fn every_single_sign_on_state_is_drawn() {
         .unwrap()
         .to_string();
     let config = a.session.account(&id).map(|x| x.config.clone()).unwrap();
+    // One that signs in through its single sign-on, its settings also moved to another server.
+    let mut signed_on = config.clone();
+    signed_on.oauth = Some(OIDC.into());
+    signed_on.oidc = Some(OidcSettings { issuer: ISSUER.into(), client_id: "mc-desktop".into(), ..OidcSettings::default() });
+    let moved = || {
+        let mut d = Dialog::edit_account(&signed_on);
+        if let Dialog::EditAccount(f) = &mut d {
+            f.jmap_url = "https://mail.example.org/jmap/session".into();
+        }
+        d
+    };
     let not_found = JmapProbe { bearer: true, error: Some("HTTP 404".into()), ..JmapProbe::default() };
+    let unreachable = JmapProbe { password: true, error: Some("connection refused".into()), ..JmapProbe::default() };
     for dark in [false, true] {
         a.ui.dark = Some(dark);
         for answer in [
@@ -264,13 +370,14 @@ fn every_single_sign_on_state_is_drawn() {
             Some(bearer_only(None)),
             Some(bearer_only(Some("mailcraft"))),
             Some(MailEvent::JmapProbed { url: SERVER.into(), probe: not_found.clone() }),
+            Some(MailEvent::JmapProbed { url: SERVER.into(), probe: unreachable.clone() }),
         ] {
             a.session.jmap_probes.clear();
             a.session.jmap_probes.insert(SERVER.into(), None);
             if let Some(e) = answer {
                 a.session.apply(e);
             }
-            for d in [add_dialog(), Dialog::edit_account(&config)] {
+            for d in [add_dialog(), Dialog::edit_account(&config), Dialog::edit_account(&signed_on), moved()] {
                 a.ui.dialog = Some(d);
                 if let Some(Dialog::EditAccount(f)) = a.ui.dialog.as_mut() {
                     f.sign_on.browser = true;

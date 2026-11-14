@@ -1708,8 +1708,10 @@ month	May	5月
 	Saving opens the sign-in page in your browser.	保存后会在浏览器中打开登录页面。
 	Sign in through the browser	在浏览器中登录
 	Sign-in	登录方式
+	The server couldn't be asked how it signs you in: {error}	无法询问服务器的登录方式: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	此邮件服务器不接受密码: 需要在浏览器中登录
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	此邮件服务器需要在浏览器中登录: 请向管理员索取要输入的客户端 ID
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	此服务器通过浏览器登录，但找不到其登录服务: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	此服务器不接受密码: 你需要通过其单点登录在浏览器中登录。
 	with {service}: no password stored	使用 {service}: 不存储密码
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} 通过单点登录进行登录，只有 MailCraft 的桌面应用可以做到

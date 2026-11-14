@@ -1711,8 +1711,10 @@ month	May	maggio
 	Saving opens the sign-in page in your browser.	Al salvataggio si apre la pagina di accesso nel browser.
 	Sign in through the browser	Accedi nel browser
 	Sign-in	Accesso
+	The server couldn't be asked how it signs you in: {error}	Impossibile chiedere al server il metodo di accesso: {error}
 	This mail server doesn't accept passwords: it needs you to sign in through the browser	Questo server di posta non accetta password: devi accedere nel browser
 	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Questo server di posta richiede l'accesso nel browser: chiedi al tuo amministratore l'ID client da inserire
 	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Questo server ti fa accedere nel browser, ma il suo servizio di accesso non è stato trovato: {error}
 	This server takes no passwords: you sign in through your browser, with its single sign-on.	Questo server non accetta password: accedi nel browser, con il suo accesso unico (single sign-on).
 	with {service}: no password stored	con {service}: nessuna password salvata
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} accede con l'accesso unico (single sign-on), che solo l'app desktop di MailCraft può gestire

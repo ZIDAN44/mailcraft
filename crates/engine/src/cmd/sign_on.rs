@@ -18,7 +18,7 @@ const MAX_SCOPES: usize = 32;
 
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![CommandSpec::new("account.probeJmap", "How the server is signed in to", "File › Accounts", probe_jmap).params(
-        r#"{"url": string (a JMAP session address, or the server's name), "again"?: bool (ask it again)} (asks once; call again for the answer: {"pending": true}, then {"password": bool (it takes a user name and password), "bearer": bool (it takes a sign-in through the browser), "issuer"?: string (the single sign-on service that signs its users in), "scope"?: string (what it asks for), "clientId"?: string (the one MailCraft was given for that service), "error"?: string (why its service wasn't found)})"#,
+        r#"{"url": string (a JMAP session address, or the server's name), "again"?: bool (ask it again)} (asks once; call again for the answer: {"pending": true}, then {"password": bool (it takes a user name and password), "bearer": bool (it takes a sign-in through the browser), "issuer"?: string (the single sign-on service that signs its users in), "scope"?: string (what it asks for), "clientId"?: string (the one MailCraft was given for that service), "error"?: string (why it, or its service, couldn't be asked: "again" asks again)})"#,
     )]
 }
 
@@ -105,16 +105,20 @@ fn scope_param(typed: &str) -> Result<String, CmdError> {
 
 /// The single sign-on of an account that signs in to the JMAP server at `jmap` through one:
 /// what `v` says (`issuer`, `clientId`, `scope`), else what the account had (`current`), else
-/// what asking the server found (`account.probeJmap`). Another issuer starts from nothing: the
-/// client id and scopes were the other service's.
-pub(super) fn oidc_settings(s: &Session, v: &Value, jmap: &str, current: Option<&OidcSettings>) -> Result<OidcSettings, CmdError> {
+/// what asking the server found (`account.probeJmap`), which comes first for a server the
+/// account was `moved` to: its service may be another. Another issuer starts from nothing: the
+/// client id and scopes were the other service's. The client id MailCraft was given for the
+/// issuer isn't kept with the account: it's looked up as it signs in, so a new one given with
+/// MailCraft is the one it signs in under.
+pub(super) fn oidc_settings(s: &Session, v: &Value, jmap: &str, current: Option<&OidcSettings>, moved: bool) -> Result<OidcSettings, CmdError> {
     let found = s.jmap_probes.get(jmap.trim()).and_then(Option::as_ref).filter(|f| f.bearer);
     let given = p::str(v, "issuer").map(issuer_param).transpose()?;
     let mut o = current.cloned().unwrap_or_default();
-    let issuer = match given {
-        Some(i) => i,
-        None if o.issuer.is_empty() => found.and_then(|f| f.issuer.as_deref()).and_then(|i| issuer_param(i).ok()).unwrap_or_default(),
-        None => o.issuer.clone(),
+    let named = found.and_then(|f| f.issuer.as_deref()).and_then(|i| issuer_param(i).ok());
+    let issuer = match (given, named) {
+        (Some(i), _) => i,
+        (None, Some(n)) if moved || o.issuer.is_empty() => n,
+        (None, _) => o.issuer.clone(),
     };
     if issuer.is_empty() {
         return Err(CmdError::Params("`issuer` is required: the sign-in service's address (account.probeJmap finds it)".into()));
@@ -124,10 +128,8 @@ pub(super) fn oidc_settings(s: &Session, v: &Value, jmap: &str, current: Option<
     }
     // What the server was found to ask for is its own service's.
     let found = found.filter(|f| f.issuer.as_deref().map(|i| i.trim().trim_end_matches('/')) == Some(o.issuer.as_str()));
-    match p::str(v, "clientId") {
-        Some(c) => o.client_id = client_id_param(c)?,
-        None if o.client_id.is_empty() => o.client_id = found.and_then(|f| f.client_id.clone()).unwrap_or_default(),
-        None => {}
+    if let Some(c) = p::str(v, "clientId") {
+        o.client_id = client_id_param(c)?;
     }
     match p::str(v, "scope") {
         Some(sc) => o.scope = scope_param(sc)?,
@@ -137,21 +139,23 @@ pub(super) fn oidc_settings(s: &Session, v: &Value, jmap: &str, current: Option<
     Ok(o)
 }
 
-/// `account.update`'s sign-in. `oauth`: "oidc" for a JMAP account to sign in through its single
-/// sign-on, with `issuer`, `clientId` and `scope` as `account.add` takes them (which change it,
-/// for one that does already); null to sign in with a password again, given as `password` and
-/// returned to be kept (the refresh token kept is never sent as one). An account that signs in
-/// with Google or Microsoft stays as it is.
+/// `account.update`'s sign-in, for `c` with its new settings. `oauth`: "oidc" for a JMAP account
+/// to sign in through its single sign-on, with `issuer`, `clientId` and `scope` as `account.add`
+/// takes them (which change it, for one that does already, as moving to another server does);
+/// null to sign in with a password again, given as `password` and returned to be kept. An
+/// account that signs in with Google or Microsoft stays as it is.
 pub(super) fn sign_in_param(s: &Session, v: &Value, c: &mut AccountConfig) -> Result<Option<String>, CmdError> {
     let other = |o: &str| CmdError::Params(format!("this account signs in with {o}"));
+    // Moved to another JMAP server, whose single sign-on may be another.
+    let moved = s.account(&c.id).is_some_and(|a| a.config.jmap != c.jmap);
     match v.get("oauth") {
         None if c.oauth.as_deref() != Some(OIDC) => Ok(None),
         None => {
             let Some(jmap) = c.jmap.clone() else {
                 return Err(CmdError::Params("an account that signs in through a single sign-on keeps its JMAP server".into()));
             };
-            if ["issuer", "clientId", "scope"].iter().any(|k| v.get(*k).is_some()) {
-                c.oidc = Some(oidc_settings(s, v, &jmap, c.oidc.as_ref())?);
+            if moved || ["issuer", "clientId", "scope"].iter().any(|k| v.get(*k).is_some()) {
+                c.oidc = Some(oidc_settings(s, v, &jmap, c.oidc.as_ref(), moved)?);
             }
             Ok(None)
         }
@@ -162,7 +166,7 @@ pub(super) fn sign_in_param(s: &Session, v: &Value, c: &mut AccountConfig) -> Re
             let Some(jmap) = c.jmap.clone() else {
                 return Err(CmdError::Params("only a JMAP account signs in through a single sign-on".into()));
             };
-            c.oidc = Some(oidc_settings(s, v, &jmap, c.oidc.as_ref())?);
+            c.oidc = Some(oidc_settings(s, v, &jmap, c.oidc.as_ref(), moved)?);
             c.oauth = Some(OIDC.into());
             Ok(None)
         }

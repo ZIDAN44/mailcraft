@@ -122,11 +122,17 @@ a sign-in with `401` and `WWW-Authenticate: Bearer`.
 - **Adding the account.** MailCraft asks the server how it signs you in, then finds its service
   from the server's `/.well-known/openid-configuration`, following redirects. The service must be
   on https and must name itself as the address it was found at. MailCraft then offers **Sign in
-  through the browser**.
+  through the browser**. If the server couldn't be asked (it wasn't reached, or it failed),
+  MailCraft says why, and **Try again** asks again.
 - **An account that has a password** moves to the single sign-on under **Server settings ›
   Sign-in**, and back the same way.
+- **An account moved to another server** (its **JMAP session address**) signs in through the
+  service that server names: in the browser again if it's another service.
 - **What MailCraft keeps.** The browser opens the service's sign-in page. MailCraft keeps no
-  password, only the service's refresh token, in the system keychain.
+  password, only the service's refresh token, in the system keychain. It sends that token only
+  to the service the account names, and refuses a description there that names another.
+- **In the desktop app only.** The browser app can't sign in this way
+  ([gap 8](gaps.md#8-single-sign-on-in-the-browser)).
 
 ### Register MailCraft with the service
 
@@ -168,3 +174,6 @@ MAILCRAFT_OIDC_CLIENTS="https://sso.example.com=mailcraft;https://kc.example.org
   trailing `/`.
 - MailCraft reads the variable when it starts. If it's set when MailCraft is built, the build
   keeps it. For the same issuer, a value set at start comes before the built one.
+- An account doesn't keep the client ID MailCraft was given: it's looked up each time the account
+  signs in, so a new one given with MailCraft is the one it signs in under. A client ID typed for
+  an account is that account's own.
