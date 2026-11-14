@@ -229,6 +229,8 @@ fn search_status(s: &Session, t: &theme::Tokens, ui: &mut Ui) {
         for p in problems {
             let text = match p {
                 Problem::Date(value) => tf!("Couldn't read the date “{value}”", value = value),
+                Problem::Value(value) => tf!("Couldn't read “{value}”", value = value),
+                Problem::TooLong => tl!("Part of a long search was left out").to_string(),
             };
             ui.label(RichText::new(text).color(t.warn).small());
         }

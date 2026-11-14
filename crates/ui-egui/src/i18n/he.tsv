@@ -1458,6 +1458,8 @@ month	May	מאי
 	Some results may be missing: still indexing	ייתכן שחסרות תוצאות: האינדוקס עדיין מתבצע
 	Some long messages were searched only in part	חלק מההודעות הארוכות נבדקו רק בחלקן
 	Couldn't read the date “{value}”	לא ניתן לקרוא את התאריך „{value}”
+	Couldn't read “{value}”	לא ניתן לקרוא את „{value}”
+	Part of a long search was left out	חלק מחיפוש ארוך הושמט
 	Received after	התקבל אחרי
 	Received before	התקבל לפני
 	About {h} h {m} min left	נותרו כ־{h} שע׳ {m} דק׳

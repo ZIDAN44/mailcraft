@@ -1463,6 +1463,8 @@ month	May	Mayıs
 	Some results may be missing: still indexing	Bazı sonuçlar eksik olabilir: dizinleme sürüyor
 	Some long messages were searched only in part	Bazı uzun iletilerde yalnızca bir kısmı arandı
 	Couldn't read the date “{value}”	“{value}” tarihi okunamadı
+	Couldn't read “{value}”	“{value}” okunamadı
+	Part of a long search was left out	Uzun bir aramanın bir kısmı dışarıda bırakıldı
 	Received after	Şundan sonra alınan
 	Received before	Şundan önce alınan
 	About {h} h {m} min left	Yaklaşık {h} sa {m} dk kaldı

@@ -107,7 +107,17 @@ pub struct Clause {
 pub enum Problem {
     /// A date that isn't one (`received:2024-13`, `after:party`): the term as typed.
     Date(String),
+    /// A size, or a yes or no, that isn't one (`larger:abc`, `isread:x`): the term as typed.
+    Value(String),
+    /// More terms than a search takes ([`MAX_TERMS`]), or more names in a list than it takes
+    /// ([`MAX_LIST`]): the rest were left out.
+    TooLong,
 }
+
+/// The most terms a search takes; those past them are left out ([`Problem::TooLong`]).
+pub const MAX_TERMS: usize = 64;
+/// The most names a list takes (`from:ana,jun,…`).
+pub const MAX_LIST: usize = 50;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Query {

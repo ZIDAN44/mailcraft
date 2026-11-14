@@ -68,6 +68,7 @@ on GitHub.
 - An event or task holding a huge part MailCraft doesn't read keeps only its first few hundred lines: all of it was saved with the calendar, and an event's read through each time the calendar was drawn. An event's reminder is still found after such a part.
 - An Outlook message file saved in a code page rather than Unicode keeps the accents and letters of its attachments' names: they were read as UTF-8 and lost, while its subject read right.
 - Clean Up leaves a message with a category another program gave it (`$label7`, shown as a category) where it is: every keyword starting with `$` was taken for a system mark, and such a message could be moved.
+- The search box says when part of a search was left out: a size or a yes-or-no it can't read (`larger:abc`, `isread:x`), or words past the 64th and names past a list's 50th. These were dropped without a word, and the search found more than was asked.
 
 ## 0.38.0 - 2026-11-13
 

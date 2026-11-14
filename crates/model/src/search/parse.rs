@@ -112,8 +112,8 @@ fn size(value: &str) -> Option<u64> {
     Some(bytes.min(1024f64.powi(4)) as u64)
 }
 
-/// A field that may hold a list: `from:ana,jun` is any of them.
-fn list_term(field: Field, value: &str) -> Option<Term> {
+/// A field that may hold a list: `from:ana,jun` is any of them (the first [`MAX_LIST`]).
+fn list_term(field: Field, value: &str, problems: &mut Vec<Problem>) -> Option<Term> {
     // Split at commas outside quotes: `"park, zoe",ann` is two.
     let mut parts = vec![String::new()];
     let mut quoted = false;
@@ -130,13 +130,31 @@ fn list_term(field: Field, value: &str) -> Option<Term> {
     if parts.len() < 2 {
         return text_term(field, value);
     }
-    let any: Vec<Term> = parts.iter().take(50).filter_map(|v| text_term(field.clone(), v.trim())).collect();
+    if parts.len() > MAX_LIST {
+        too_long(problems);
+    }
+    let any: Vec<Term> = parts.iter().take(MAX_LIST).filter_map(|v| text_term(field.clone(), v.trim())).collect();
     match any.len() {
         // Commas alone: looked for as they are.
         0 => text_term(field, value),
         1 => any.into_iter().next(),
         _ => Some(Term::AnyOf(any)),
     }
+}
+
+/// Terms were left out: said once.
+fn too_long(problems: &mut Vec<Problem>) {
+    if !problems.contains(&Problem::TooLong) {
+        problems.push(Problem::TooLong);
+    }
+}
+
+/// A field's value read by `read`, or, when it isn't one, the problem said (the term is left out).
+fn value_term<T>(read: Option<T>, tok: &str, problems: &mut Vec<Problem>, term: impl FnOnce(T) -> Term) -> Option<Term> {
+    if read.is_none() {
+        problems.push(Problem::Value(tok.chars().take(100).collect()));
+    }
+    read.map(term)
 }
 
 fn text_term(field: Field, value: &str) -> Option<Term> {
@@ -174,26 +192,28 @@ impl Query {
     pub fn parse(input: &str) -> Query {
         let mut clauses = Vec::new();
         let mut problems = Vec::new();
-        for tok in size_units_joined(split_tokens(input)).into_iter().take(64) {
+        let tokens = size_units_joined(split_tokens(input));
+        let too_many = tokens.len() > MAX_TERMS;
+        for tok in tokens.into_iter().take(MAX_TERMS) {
             let (negated, tok) = match tok.strip_prefix('-') {
                 Some(rest) if !rest.is_empty() => (true, rest.to_string()),
                 _ => (false, tok),
             };
             let term = match tok.split_once(':') {
                 Some((k, v)) if !v.is_empty() && !k.starts_with('"') => match k.to_ascii_lowercase().as_str() {
-                    "from" => list_term(Field::From, v),
-                    "to" | "cc" => list_term(Field::To, v),
-                    "larger" => size(v).map(|b| Term::Size(true, b)),
-                    "smaller" => size(v).map(|b| Term::Size(false, b)),
+                    "from" => list_term(Field::From, v, &mut problems),
+                    "to" | "cc" => list_term(Field::To, v, &mut problems),
+                    "larger" => value_term(size(v), &tok, &mut problems, |b| Term::Size(true, b)),
+                    "smaller" => value_term(size(v), &tok, &mut problems, |b| Term::Size(false, b)),
                     "subject" => text_term(Field::Subject, v),
                     "body" => text_term(Field::Body, v),
-                    "attachment" | "attachments" => list_term(Field::Attachment, v),
+                    "attachment" | "attachments" => list_term(Field::Attachment, v, &mut problems),
                     "received" => date_term(dates::period(v), v, &tok, &mut problems),
                     "sent" | "date" => date_term(dates::period(v).map(|s| DateSpec { sent: true, ..s }), v, &tok, &mut problems),
                     "after" => date_term(dates::after(v), v, &tok, &mut problems),
                     "before" => date_term(dates::before(v), v, &tok, &mut problems),
                     "has" if v.eq_ignore_ascii_case("attachment") || v.eq_ignore_ascii_case("attachments") => Some(Term::HasAttachment(true)),
-                    "hasattachment" | "hasattachments" => yes_no(v).map(Term::HasAttachment),
+                    "hasattachment" | "hasattachments" => value_term(yes_no(v), &tok, &mut problems, Term::HasAttachment),
                     "is" => match v.to_ascii_lowercase().as_str() {
                         "unread" => Some(Term::Unread(true)),
                         "read" => Some(Term::Unread(false)),
@@ -206,8 +226,8 @@ impl Query {
                         "awaiting" | "awaitingreply" | "unanswered" => Some(Term::Awaiting),
                         _ => text_term(Field::Any, &tok),
                     },
-                    "isread" => yes_no(v).map(|b| Term::Unread(!b)),
-                    "isflagged" => yes_no(v).map(Term::Flagged),
+                    "isread" => value_term(yes_no(v), &tok, &mut problems, |b| Term::Unread(!b)),
+                    "isflagged" => value_term(yes_no(v), &tok, &mut problems, Term::Flagged),
                     "keyword" | "category" | "label" | "tag" => Some(Term::Keyword(v.trim_matches('"').to_string())),
                     _ => text_term(Field::Any, &tok),
                 },
@@ -216,6 +236,10 @@ impl Query {
             if let Some(term) = term {
                 clauses.push(Clause { term, negated });
             }
+        }
+        // Said after what the terms taken said.
+        if too_many {
+            too_long(&mut problems);
         }
         Query { clauses, problems }
     }

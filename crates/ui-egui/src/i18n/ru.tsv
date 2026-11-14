@@ -1462,6 +1462,8 @@ month	May	Май
 	Some results may be missing: still indexing	Некоторые результаты могут отсутствовать: индексация ещё идёт
 	Some long messages were searched only in part	Некоторые длинные сообщения просмотрены не полностью
 	Couldn't read the date “{value}”	Не удалось прочитать дату «{value}»
+	Couldn't read “{value}”	Не удалось прочитать «{value}»
+	Part of a long search was left out	Часть длинного запроса не учтена
 	Received after	Получено после
 	Received before	Получено до
 	About {h} h {m} min left	Осталось около {h} ч {m} мин

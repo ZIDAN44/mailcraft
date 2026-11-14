@@ -1459,6 +1459,8 @@ month	May	5月
 	Some results may be missing: still indexing	可能缺少部分结果：仍在编制索引
 	Some long messages were searched only in part	部分长邮件只搜索了一部分
 	Couldn't read the date “{value}”	无法读取日期“{value}”
+	Couldn't read “{value}”	无法读取“{value}”
+	Part of a long search was left out	长搜索的一部分被略去了
 	Received after	接收日期晚于
 	Received before	接收日期早于
 	About {h} h {m} min left	大约还剩 {h} 小时 {m} 分钟

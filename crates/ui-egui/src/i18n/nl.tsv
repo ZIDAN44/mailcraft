@@ -1458,6 +1458,8 @@ month	May	mei
 	Some results may be missing: still indexing	Er kunnen resultaten ontbreken: nog bezig met indexeren
 	Some long messages were searched only in part	Sommige lange berichten zijn maar gedeeltelijk doorzocht
 	Couldn't read the date “{value}”	De datum “{value}” kon niet worden gelezen
+	Couldn't read “{value}”	“{value}” kon niet worden gelezen
+	Part of a long search was left out	Een deel van een lange zoekopdracht is weggelaten
 	Received after	Ontvangen na
 	Received before	Ontvangen voor
 	About {h} h {m} min left	Nog ongeveer {h} u {m} min

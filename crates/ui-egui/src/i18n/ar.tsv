@@ -1458,6 +1458,8 @@ month	May	مايو
 	Some results may be missing: still indexing	قد تنقص بعض النتائج: ما زالت الفهرسة جارية
 	Some long messages were searched only in part	بُحث في بعض الرسائل الطويلة جزئيًا فقط
 	Couldn't read the date “{value}”	تعذّرت قراءة التاريخ «{value}»
+	Couldn't read “{value}”	تعذّرت قراءة «{value}»
+	Part of a long search was left out	أُهمل جزء من بحث طويل
 	Received after	مستلمة بعد
 	Received before	مستلمة قبل
 	About {h} h {m} min left	يتبقى نحو {h} س {m} د

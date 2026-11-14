@@ -528,6 +528,27 @@ fn junk_dates_are_problems() {
     }
 }
 
+/// A size or a yes or no that isn't one is left out, and said: the search found more than was
+/// asked, and nothing told why. So is what's past the most terms a search takes, or the most a
+/// list does.
+#[test]
+fn terms_left_out_are_said() {
+    let query = Query::parse("budget larger:abc -isread:x hasattachments:maybe isflagged:yes smaller:2MB");
+    assert_eq!(query.clauses.len(), 3, "{:?}", query.clauses);
+    assert_eq!(
+        query.problems,
+        [Problem::Value("larger:abc".into()), Problem::Value("isread:x".into()), Problem::Value("hasattachments:maybe".into())]
+    );
+    let many: String = (0..70).map(|i| format!("w{i} ")).collect();
+    let query = Query::parse(&many);
+    assert_eq!((query.clauses.len(), query.problems), (64, vec![Problem::TooLong]));
+    let senders: Vec<String> = (0..60).map(|i| format!("p{i}")).collect();
+    let query = Query::parse(&format!("from:{} to:{}", senders.join(","), senders.join(",")));
+    assert_eq!(query.problems, [Problem::TooLong], "said once");
+    assert!(Query::parse(&format!("from:{}", senders[..50].join(","))).problems.is_empty());
+    assert!(Query::parse(&"w ".repeat(64)).problems.is_empty());
+}
+
 /// A word that folds to nothing (a combining mark alone, which Unicode counts a word) asks the
 /// index for nothing: as an empty prefix it offered every message, and matched them all.
 #[test]

@@ -1463,6 +1463,8 @@ month	May	mayo
 	Some results may be missing: still indexing	Puede que falten resultados: aún se está indexando
 	Some long messages were searched only in part	Algunos mensajes largos solo se buscaron en parte
 	Couldn't read the date “{value}”	No se pudo leer la fecha «{value}»
+	Couldn't read “{value}”	No se pudo leer «{value}»
+	Part of a long search was left out	Se omitió parte de una búsqueda larga
 	Received after	Recibido después del
 	Received before	Recibido antes del
 	About {h} h {m} min left	Quedan unas {h} h {m} min

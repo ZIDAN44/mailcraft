@@ -177,6 +177,14 @@ fn the_list_says_how_a_search_is_going() {
     let texts = drawn(&ctx, &mut a);
     assert!(texts.iter().any(|t| t == "Couldn't read the date “received:2024-13”"), "{texts:?}");
     assert!(!texts.iter().any(|t| t.starts_with("Indexing")), "the pass is over: {texts:?}");
+    // A size that isn't one, and a search too long: said too.
+    a.run("search.run", json!({"query": "larger:abc storyboard"}));
+    let texts = drawn(&ctx, &mut a);
+    assert!(texts.iter().any(|t| t == "Couldn't read “larger:abc”"), "{texts:?}");
+    let long: String = (0..70).map(|i| format!("w{i} ")).collect();
+    a.run("search.run", json!({ "query": long }));
+    let texts = drawn(&ctx, &mut a);
+    assert!(texts.iter().any(|t| t == "Part of a long search was left out"), "{texts:?}");
     // Advanced search's received dates, from the query and back to it.
     a.ui.search_text = "storyboard after:2024-03-01".into();
     let form = mailcraft_engine::model::search::Advanced::from_query(&a.ui.search_text);
