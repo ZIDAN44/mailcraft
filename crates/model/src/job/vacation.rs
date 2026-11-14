@@ -40,16 +40,7 @@ pub fn is_day(s: &str) -> bool {
     }
     let num = |a: usize, z: usize| s.get(a..z).filter(|x| x.bytes().all(|c| c.is_ascii_digit())).and_then(|x| x.parse::<u32>().ok());
     match (num(0, 4), num(5, 7), num(8, 10)) {
-        (Some(y), Some(m), Some(d)) => {
-            let days = match m {
-                1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-                4 | 6 | 9 | 11 => 30,
-                2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
-                2 => 28,
-                _ => 0,
-            };
-            y >= 1970 && (1..=days).contains(&d)
-        }
+        (Some(y), Some(m), Some(d)) => y >= 1970 && (1..=crate::dates::month_len(i64::from(y), m)).contains(&i64::from(d)),
         _ => false,
     }
 }

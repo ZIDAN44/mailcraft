@@ -242,7 +242,7 @@ pub(super) fn nth_weekday(year: i64, month: u32, nth: i32, weekday: u32) -> Opti
         return None;
     }
     let first = days_from_civil(year, month, 1);
-    let next = if month == 12 { days_from_civil(year + 1, 1, 1) } else { days_from_civil(year, month + 1, 1) };
+    let next = first.saturating_add(crate::dates::month_len(year, month));
     let wd = crate::dates::weekday_index;
     if nth > 0 {
         let offset = (i64::from(weekday) - i64::from(wd(first))).rem_euclid(7);
@@ -324,8 +324,7 @@ fn changes_in_year(offset: impl Fn(i64) -> i64, year: i64) -> Vec<(i64, i64, i64
 fn change_day(local: i64) -> (u32, Option<i64>, u32) {
     let day = local.div_euclid(86_400);
     let (y, m, d) = civil_from_days(day);
-    let month_len = month_day(y, m, -1).map_or(31, |last| last - days_from_civil(y, m, 1) + 1);
-    let nth = (i64::from(d) + 7 <= month_len).then(|| (i64::from(d) - 1) / 7 + 1);
+    let nth = (i64::from(d) + 7 <= crate::dates::month_len(y, m)).then(|| (i64::from(d) - 1) / 7 + 1);
     (m, nth, crate::dates::weekday_index(day))
 }
 

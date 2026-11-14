@@ -288,8 +288,7 @@ fn every_weekday(y: i64, m: u32, weekday: u32) -> Vec<i64> {
 /// The day of a month (`md` 1-based, negative from the end), if the month has it.
 pub(super) fn month_day(y: i64, m: u32, md: i32) -> Option<i64> {
     let first = days_from_civil(y, m, 1);
-    let next = if m == 12 { days_from_civil(y + 1, 1, 1) } else { days_from_civil(y, m + 1, 1) };
-    let len = next - first;
+    let len = crate::dates::month_len(y, m);
     let d = if md > 0 { i64::from(md) } else { len + 1 + i64::from(md) };
     (1..=len).contains(&d).then_some(first + d - 1)
 }

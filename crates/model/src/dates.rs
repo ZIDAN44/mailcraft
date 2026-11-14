@@ -166,6 +166,19 @@ pub fn civil_from_days(z: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
+/// The days in month `m` (1 to 12) of year `y`, proleptic Gregorian as [`days_from_civil`]
+/// counts them: 28 to 31; 0 for a month no calendar has.
+pub fn month_len(y: i64, m: u32) -> i64 {
+    let leap = y.rem_euclid(4) == 0 && (y.rem_euclid(100) != 0 || y.rem_euclid(400) == 0);
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
 /// (year, month, day) → days since 1970-01-01. A year too far out for an `i64` of days gives the
 /// nearest end (`i64::MIN` or `i64::MAX`), never a wrapped day: callers that read a year from
 /// a server or a file bound it themselves.
@@ -603,6 +616,29 @@ mod tests {
                 assert_eq!(day_string(zone.local_day(t)), format!("{:04}-{:02}-{:02}", c.year, c.month, c.day), "{t}");
             }
         }
+    }
+
+    /// A month's length, as the copies worked it out before: the first of the next month less
+    /// the first of this one (recurrences, time zones), and the Out of Office form's table.
+    #[test]
+    fn month_lengths_as_worked_out_by_hand() {
+        for y in -1_000..=11_000i64 {
+            for m in 1..=12u32 {
+                let next = if m == 12 { days_from_civil(y + 1, 1, 1) } else { days_from_civil(y, m + 1, 1) };
+                assert_eq!(month_len(y, m), next - days_from_civil(y, m, 1), "{y}-{m}");
+                let table = match m {
+                    1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+                    4 | 6 | 9 | 11 => 30,
+                    2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
+                    _ => 28,
+                };
+                if y >= 0 {
+                    assert_eq!(month_len(y, m), table, "{y}-{m}");
+                }
+            }
+            assert_eq!((month_len(y, 0), month_len(y, 13)), (0, 0));
+        }
+        assert_eq!((month_len(i64::MIN, 2), month_len(i64::MAX, 2)), (29, 28));
     }
 
     #[test]
