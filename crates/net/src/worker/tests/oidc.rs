@@ -60,7 +60,9 @@ fn a_single_sign_on_signs_in_through_the_browser_then_syncs_over_its_tokens() {
     let seen = until(&pool, |e| matches!(e, Event::OpenUrl { .. } | Event::Status { .. }));
     let Some(Event::OpenUrl { url }) = seen.last().cloned() else { panic!("{seen:?}") };
     assert!(url.starts_with(&format!("{}/authorize?", sso.base)), "{url}");
-    assert!(url.contains("code_challenge_method=S256") && url.contains("scope=openid%20profile%20email&"), "{url}");
+    // A lasting sign-in asked for, though the service doesn't list `offline_access`: it gives a
+    // refresh token only then.
+    assert!(url.contains("code_challenge_method=S256") && url.contains("scope=openid%20profile%20email%20offline_access&"), "{url}");
     std::thread::spawn(move || crate::http::get(&url, 10_000));
     let seen = until(&pool, |e| matches!(e, Event::SignedIn { .. } | Event::Status { .. }));
     assert!(matches!(seen.last(), Some(Event::SignedIn { user: Some(u), .. }) if u == USER), "{seen:?}");

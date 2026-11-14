@@ -19,13 +19,12 @@ pub const CLIENT_ID: &str = "mailcraft-test";
 pub struct Data {
     /// The fake JMAP server the tokens are for: each access token handed out is one it takes.
     pub jmap: Option<Arc<Mutex<fake_jmap::Data>>>,
-    /// Whether it says it takes `offline_access`.
-    pub offline_access: bool,
     /// Each sign-in page's query, and each form sent for tokens.
     pub pages: Vec<String>,
     pub forms: Vec<String>,
-    /// (code, PKCE challenge, redirect address), until the code is used.
-    codes: Vec<(String, String, String)>,
+    /// (code, PKCE challenge, redirect address, whether its sign-in asked to last), until the
+    /// code is used.
+    codes: Vec<(String, String, String, bool)>,
     refresh: Vec<String>,
     next: u32,
 }
@@ -85,16 +84,14 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, issuer: &str) {
     let (path, query) = target.split_once('?').unwrap_or((&target, ""));
     let mut d = shared.lock().unwrap();
     match path {
+        // As some services describe themselves: without `offline_access`, which they take all
+        // the same (a refresh token only for a sign-in that asks for it, below).
         "/.well-known/openid-configuration" => {
-            let mut scopes = vec!["openid", "profile", "email"];
-            if d.offline_access {
-                scopes.push("offline_access");
-            }
             let description = json!({
                 "issuer": issuer,
                 "authorization_endpoint": format!("{issuer}/authorize"),
                 "token_endpoint": format!("{issuer}/token"),
-                "scopes_supported": scopes,
+                "scopes_supported": ["openid", "profile", "email"],
                 "response_types_supported": ["code"],
                 "code_challenge_methods_supported": ["S256"],
             });
@@ -111,7 +108,8 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, issuer: &str) {
             } else {
                 d.next += 1;
                 let code = format!("code{}", d.next);
-                d.codes.push((code.clone(), get("code_challenge"), redirect.clone()));
+                let lasting = get("scope").split(' ').any(|s| s == "offline_access");
+                d.codes.push((code.clone(), get("code_challenge"), redirect.clone(), lasting));
                 format!("{redirect}?code={code}&state={state}")
             };
             answer(&mut s, "302 Found", &format!("Location: {then}\r\n"), "");
@@ -121,14 +119,22 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, issuer: &str) {
             d.forms.push(form.clone());
             let f = params(&form);
             let get = |k: &str| f.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
+            // Whether the code's sign-in asked to last (`offline_access`, OIDC Core §11).
+            let mut lasting = false;
             let granted = get("client_id") == CLIENT_ID
                 && match get("grant_type").as_str() {
                     // The code once, from the address it was sent to, with the verifier its
                     // challenge was made from (RFC 7636 §4.6).
                     "authorization_code" => {
                         let challenge = b64url(ring::digest::digest(&ring::digest::SHA256, get("code_verifier").as_bytes()).as_ref());
-                        let found = d.codes.iter().position(|(c, ch, r)| *c == get("code") && *ch == challenge && *r == get("redirect_uri"));
-                        found.map(|i| d.codes.remove(i)).is_some()
+                        let found = d.codes.iter().position(|(c, ch, r, _)| *c == get("code") && *ch == challenge && *r == get("redirect_uri"));
+                        match found.map(|i| d.codes.remove(i)) {
+                            Some((.., asked)) => {
+                                lasting = asked;
+                                true
+                            }
+                            None => false,
+                        }
                     }
                     "refresh_token" => d.refresh.contains(&get("refresh_token")),
                     _ => false,
@@ -143,9 +149,11 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, issuer: &str) {
             }
             let mut reply = json!({"access_token": access, "token_type": "Bearer", "expires_in": 3600, "scope": get("scope")});
             if get("grant_type") == "authorization_code" {
-                let refresh = format!("rt{}", d.next);
-                d.refresh.push(refresh.clone());
-                reply["refresh_token"] = json!(refresh);
+                if lasting {
+                    let refresh = format!("rt{}", d.next);
+                    d.refresh.push(refresh.clone());
+                    reply["refresh_token"] = json!(refresh);
+                }
                 let claims = json!({"iss": issuer, "sub": "u1", "email": fake_jmap::USER}).to_string();
                 reply["id_token"] = json!(format!("e30.{}.sig", b64url(claims.as_bytes())));
             }

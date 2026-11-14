@@ -27,8 +27,6 @@ pub const DEFAULT_SCOPE: &str = "openid profile email";
 const MAX_DESCRIPTION: usize = 256 << 10;
 /// The longest address or issuer taken from one.
 pub const MAX_FIELD: usize = 2048;
-/// The most scopes kept from a description.
-pub const MAX_SUPPORTED: usize = 256;
 /// The most scopes asked for.
 pub const MAX_SCOPES: usize = OidcSettings::MAX_SCOPES;
 
@@ -38,8 +36,6 @@ pub struct Description {
     pub issuer: String,
     pub authorization_endpoint: String,
     pub token_endpoint: String,
-    /// The scopes it says it takes (`offline_access` among them, or not).
-    pub scopes_supported: Vec<String>,
 }
 
 /// Https, or plain http to a test service at this computer's loopback address.
@@ -136,16 +132,10 @@ pub fn description_from(body: &[u8], at: &Url) -> Result<Description> {
     if methods.is_some_and(|m| !m.iter().any(|m| m.as_str() == Some("S256"))) {
         return Err(NetError::Protocol("the sign-in service doesn't take PKCE with S256".into()));
     }
-    let scopes_supported = v
-        .get("scopes_supported")
-        .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).filter(|s| scope_token(s)).take(MAX_SUPPORTED).map(str::to_string).collect())
-        .unwrap_or_default();
     Ok(Description {
         issuer: issuer.to_string(),
         authorization_endpoint: endpoint("authorization_endpoint")?,
         token_endpoint: endpoint("token_endpoint")?,
-        scopes_supported,
     })
 }
 
@@ -162,14 +152,16 @@ pub fn scopes(s: &str) -> Vec<&str> {
 }
 
 /// The scopes asked for: `wanted` (what the server's `WWW-Authenticate` named, kept with the
-/// account), else [`DEFAULT_SCOPE`]; with `offline_access` where the service takes it, so the
-/// sign-in lasts (OIDC Core §11). What isn't a scope is left out.
-pub fn scope_for(wanted: &str, supported: &[String]) -> String {
+/// account), else [`DEFAULT_SCOPE`]; with `offline_access` always, so the sign-in lasts (OIDC
+/// Core §11): MailCraft keeps it with a refresh token, which some services give only to a
+/// sign-in that asks for it, though their `scopes_supported` doesn't list it. What isn't a scope
+/// is left out.
+pub fn scope_for(wanted: &str) -> String {
     let mut scopes = scopes(wanted);
     if scopes.is_empty() {
         scopes = DEFAULT_SCOPE.split(' ').collect();
     }
-    if supported.iter().any(|s| s == "offline_access") && !scopes.contains(&"offline_access") {
+    if !scopes.contains(&"offline_access") {
         scopes.push("offline_access");
     }
     scopes.join(" ")
@@ -243,7 +235,7 @@ pub fn provider_from(d: &Description, client_id: String, scope: &str) -> Provide
         name: Url::parse(&d.issuer).map_or_else(|_| clip(&d.issuer), |u| u.host),
         auth_url: d.authorization_endpoint.clone(),
         token_url: d.token_endpoint.clone(),
-        scope: scope_for(scope, &d.scopes_supported),
+        scope: scope_for(scope),
         client_id,
         client_secret: None,
     }

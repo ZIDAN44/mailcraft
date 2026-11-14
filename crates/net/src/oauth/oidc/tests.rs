@@ -31,10 +31,11 @@ pub(crate) fn json(body: &str) -> Vec<u8> {
     format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).into_bytes()
 }
 
-/// A description whose issuer is `issuer`, with endpoints under it.
+/// A description whose issuer is `issuer`, with endpoints under it; as some services write
+/// theirs, `offline_access` isn't among the scopes it lists.
 pub(crate) fn description(issuer: &str) -> String {
     format!(
-        r#"{{"issuer":"{issuer}","authorization_endpoint":"{issuer}/authorize","token_endpoint":"{issuer}/token","scopes_supported":["openid","profile","email","offline_access"],"code_challenge_methods_supported":["plain","S256"]}}"#
+        r#"{{"issuer":"{issuer}","authorization_endpoint":"{issuer}/authorize","token_endpoint":"{issuer}/token","scopes_supported":["openid","profile","email"],"code_challenge_methods_supported":["plain","S256"]}}"#
     )
 }
 
@@ -56,6 +57,7 @@ fn a_description_names_the_service_at_its_own_address() {
     );
     let p = provider_from(&d, "mailcraft".into(), "");
     assert_eq!((p.id.as_str(), p.name.as_str(), p.client_id.as_str()), ("oidc", "127.0.0.1", "mailcraft"));
+    // A lasting sign-in, though the service doesn't list `offline_access`.
     assert_eq!(p.scope, "openid profile email offline_access");
     assert_eq!(p.client_secret, None);
     // Its issuer written with a trailing `/` is the same one.
@@ -154,22 +156,21 @@ proptest::proptest! {
                 let u = Url::parse(e).unwrap();
                 proptest::prop_assert!(u.https || (!at.https && loopback(&u.host)), "{e}");
             }
-            proptest::prop_assert!(d.scopes_supported.len() <= MAX_SUPPORTED && d.scopes_supported.iter().all(|s| scope_token(s)));
         }
     }
 }
 
 #[test]
 fn what_is_asked_for() {
-    let supported = |s: &[&str]| s.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    assert_eq!(scope_for("", &[]), DEFAULT_SCOPE);
-    assert_eq!(scope_for("  ", &supported(&["offline_access"])), "openid profile email offline_access");
-    assert_eq!(scope_for("openid email", &supported(&["openid", "email"])), "openid email");
+    // Always a lasting sign-in (`offline_access`), once.
+    assert_eq!(scope_for(""), format!("{DEFAULT_SCOPE} offline_access"));
+    assert_eq!(scope_for("  "), "openid profile email offline_access");
+    assert_eq!(scope_for("openid email"), "openid email offline_access");
+    assert_eq!(scope_for("openid offline_access"), "openid offline_access");
     // What the server named, without what isn't a scope or comes twice.
-    assert_eq!(scope_for("openid \"x\" mail\\ email openid é", &[]), "openid email");
-    assert_eq!(scope_for("openid offline_access", &supported(&["offline_access"])), "openid offline_access");
+    assert_eq!(scope_for("openid \"x\" mail\\ email openid é"), "openid email offline_access");
     let many = (0..100).map(|i| format!("s{i}")).collect::<Vec<_>>().join(" ");
-    assert_eq!(scope_for(&many, &[]).split(' ').count(), MAX_SCOPES);
+    assert_eq!(scope_for(&many).split(' ').count(), MAX_SCOPES + 1);
 }
 
 #[test]

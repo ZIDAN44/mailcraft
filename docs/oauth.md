@@ -146,9 +146,10 @@ The service's administrator registers MailCraft once, as one client for all its 
   port the system gives it, and the browser is sent back to `http://127.0.0.1:<port>/`
   (RFC 8252 §7.3). A service that compares redirect URIs exactly must allow any port for this
   one.
-- **The scopes `openid profile email`.** MailCraft asks for these, or for the scopes the mail
-  server names in its `WWW-Authenticate` challenge. It adds `offline_access` only when the
-  service lists it in `scopes_supported`.
+- **The scopes `openid profile email offline_access`.** MailCraft asks for `openid profile
+  email`, or for the scopes the mail server names in its `WWW-Authenticate` challenge, and always
+  adds `offline_access` (OIDC Core §11). Some services give a refresh token only when it's asked
+  for, even though their `scopes_supported` doesn't list it. Allow it for this client.
 - **Refresh tokens allowed.** MailCraft keeps the sign-in with the refresh token. If the service
   gives none, signing in fails: MailCraft says the service "gave no lasting sign-in".
 - **Tokens the mail server takes** for this client: the server checks the access token on every

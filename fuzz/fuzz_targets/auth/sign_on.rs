@@ -28,7 +28,6 @@ fuzz_target!(|data: &[u8]| {
     for endpoint in [&d.authorization_endpoint, &d.token_endpoint] {
         assert!(Url::parse(endpoint).is_ok_and(|u| u.https || !at.https));
     }
-    assert!(d.scopes_supported.len() <= oidc::MAX_SUPPORTED);
     let p = oidc::provider_from(&d, "mailcraft".into(), &String::from_utf8_lossy(body));
     assert!(p.scope.split(' ').count() <= oidc::MAX_SCOPES + 1);
 });

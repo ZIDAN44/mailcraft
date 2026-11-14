@@ -250,7 +250,8 @@ pub struct OidcSettings {
     pub issuer: String,
     /// Empty: the one MailCraft was given for the issuer (`MAILCRAFT_OIDC_CLIENTS`).
     pub client_id: String,
-    /// The scopes asked for, space-separated; empty: `openid profile email`.
+    /// The scopes asked for, space-separated, with `offline_access` always; empty: `openid
+    /// profile email`.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub scope: String,
 }
