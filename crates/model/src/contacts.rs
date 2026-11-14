@@ -30,9 +30,25 @@ impl Contact {
 /// Most addresses seen; a mailbox full of newsletters stays bounded.
 const MAX_CONTACTS: usize = 20_000;
 
+/// A contact as the book keeps it: with its name and address in lower case, as every search
+/// compares them (worked out once, not for each contact on each key typed).
+#[derive(Clone, Debug, Default)]
+struct Entry {
+    contact: Contact,
+    name_lower: String,
+    email_lower: String,
+}
+
+impl Entry {
+    /// What the address book's list is in order of: the name, or the address without one.
+    fn sort_key(&self) -> &str {
+        if self.name_lower.is_empty() { &self.email_lower } else { &self.name_lower }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ContactBook {
-    by_email: HashMap<String, Contact>,
+    by_email: HashMap<String, Entry>,
 }
 
 impl ContactBook {
@@ -50,10 +66,11 @@ impl ContactBook {
 
     /// What the book knows about an address.
     pub fn get(&self, email: &str) -> Option<&Contact> {
-        self.by_email.get(&email.trim().to_ascii_lowercase())
+        self.by_email.get(&email.trim().to_ascii_lowercase()).map(|e| &e.contact)
     }
 
-    fn note(&mut self, a: &EmailAddress, date: i64, sent: bool) {
+    /// Count `weight` messages with `a` on `date`: sent to them, or from them.
+    fn note(&mut self, a: &EmailAddress, date: i64, sent: bool, weight: u32) {
         let email = a.email.trim().to_ascii_lowercase();
         if !crate::addr::is_valid_email(&email) || email.contains("noreply") || email.contains("no-reply") || email.starts_with("mailer-daemon@") {
             return;
@@ -61,24 +78,28 @@ impl ContactBook {
         if self.by_email.len() >= MAX_CONTACTS && !self.by_email.contains_key(&email) {
             return;
         }
-        let c = self.by_email.entry(email.clone()).or_insert_with(|| Contact { address: EmailAddress::new("", email), ..Default::default() });
+        let e = self.by_email.entry(email.clone()).or_insert_with(|| Entry {
+            email_lower: email.to_lowercase(),
+            contact: Contact { address: EmailAddress::new("", email), ..Default::default() },
+            name_lower: String::new(),
+        });
+        let c = &mut e.contact;
         // The newest non-empty name wins (people fix their display names).
         if !a.name.trim().is_empty() && (c.address.name.is_empty() || date >= c.last) {
             c.address.name = a.name.trim().to_string();
+            e.name_lower = c.address.name.to_lowercase();
         }
         if sent {
-            c.sent = c.sent.saturating_add(1);
+            c.sent = c.sent.saturating_add(weight);
         } else {
-            c.received = c.received.saturating_add(1);
+            c.received = c.received.saturating_add(weight);
         }
         c.last = c.last.max(date);
     }
 
-    /// Someone saved in an address book: ranked as if written to often.
+    /// Someone saved in an address book: ranked as if written to often (eight messages).
     pub fn add_saved(&mut self, a: &EmailAddress, now: i64) {
-        for _ in 0..8 {
-            self.note(a, now, true);
-        }
+        self.note(a, now, true, 8);
     }
 
     /// Count a message. `mine` are the user's own addresses: a message from one of them is one
@@ -88,23 +109,23 @@ impl ContactBook {
         if from_me {
             for a in m.to.iter().chain(&m.cc) {
                 if !mine.iter().any(|e| e.eq_ignore_ascii_case(a.email.trim())) {
-                    self.note(a, m.date, true);
+                    self.note(a, m.date, true, 1);
                 }
             }
         } else {
-            self.note(&m.from, m.date, false);
+            self.note(&m.from, m.date, false, 1);
         }
     }
 
     /// The domains of the people the user writes to (or saved in an address book): the ones a
     /// lookalike sender would imitate ([`crate::lookalike`]).
     pub fn written_domains(&self) -> impl Iterator<Item = String> + '_ {
-        self.by_email.values().filter(|c| c.sent > 0).map(|c| crate::lookalike::domain_of(&c.address.email)).filter(|d| !d.is_empty())
+        self.written().map(|c| crate::lookalike::domain_of(&c.address.email)).filter(|d| !d.is_empty())
     }
 
     /// The people the user writes to (or saved in an address book).
     pub fn written(&self) -> impl Iterator<Item = &Contact> + '_ {
-        self.by_email.values().filter(|c| c.sent > 0)
+        self.by_email.values().map(|e| &e.contact).filter(|c| c.sent > 0)
     }
 
     /// Up to `limit` contacts matching `query` (the start of the address, of the name, or of any
@@ -117,14 +138,14 @@ impl ContactBook {
         let mut hits: Vec<(&Contact, f64)> = self
             .by_email
             .values()
-            .filter(|c| {
-                let name = c.address.name.to_lowercase();
-                c.address.email.starts_with(&q)
+            .filter(|e| {
+                let (name, email) = (&e.name_lower, &e.contact.address.email);
+                email.starts_with(&q)
                     || name.starts_with(&q)
                     || name.split(|ch: char| ch.is_whitespace() || ch == '-' || ch == '.').any(|w| w.starts_with(&q))
-                    || c.address.email.split(['.', '_', '-', '@']).any(|w| w.starts_with(&q))
+                    || email.split(['.', '_', '-', '@']).any(|w| w.starts_with(&q))
             })
-            .map(|c| (c, c.score(now)))
+            .map(|e| (&e.contact, e.contact.score(now)))
             .collect();
         hits.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.address.email.cmp(&b.0.address.email)));
         hits.into_iter().take(limit).map(|(c, _)| c.clone()).collect()
@@ -133,19 +154,18 @@ impl ContactBook {
 
 impl ContactBook {
     /// Everyone known whose name or address contains `query` (everyone for an empty one), by
-    /// name: the address book's list.
+    /// name (by address without one, and by address among the same names): the address book's
+    /// list. Only the `limit` listed are put in order and copied.
     pub fn list(&self, query: &str, limit: usize) -> Vec<Contact> {
         let q = query.trim().to_lowercase();
-        let mut v: Vec<Contact> = self
-            .by_email
-            .values()
-            .filter(|c| q.is_empty() || c.address.name.to_lowercase().contains(&q) || c.address.email.to_lowercase().contains(&q))
-            .cloned()
-            .collect();
-        let key = |c: &Contact| if c.address.name.trim().is_empty() { c.address.email.to_lowercase() } else { c.address.name.to_lowercase() };
-        v.sort_by_key(key);
-        v.truncate(limit);
-        v
+        let mut v: Vec<&Entry> = self.by_email.values().filter(|e| q.is_empty() || e.name_lower.contains(&q) || e.email_lower.contains(&q)).collect();
+        let order = |a: &&Entry, b: &&Entry| a.sort_key().cmp(b.sort_key()).then_with(|| a.email_lower.cmp(&b.email_lower));
+        if limit < v.len() {
+            v.select_nth_unstable_by(limit, order);
+            v.truncate(limit);
+        }
+        v.sort_unstable_by(order);
+        v.into_iter().map(|e| e.contact.clone()).collect()
     }
 }
 
@@ -283,6 +303,73 @@ mod tests {
         b.add(&msg(("Ann New", "ann.new@x.example"), &[], now), &me);
         let s = b.suggest("ann", 5, now);
         assert_eq!(s[0].address.email, "ann.new@x.example");
+    }
+
+    /// A full book: what the address book's search and the To box's suggestions cost per key.
+    #[test]
+    #[ignore = "a measurement: cargo test --release -p mailcraft-model --lib contacts_per_key -- --ignored --nocapture"]
+    fn contacts_per_key() {
+        let me = vec!["me@studio.example".to_string()];
+        let mut b = ContactBook::new();
+        let now = 2_000_000_000;
+        let started = std::time::Instant::now();
+        for i in 0..MAX_CONTACTS {
+            let them = EmailAddress::new(format!("Person{i} Family{}", i % 97), format!("p{i}@d{}.example", i % 50));
+            if i % 3 == 0 {
+                b.add_saved(&them, now);
+            } else {
+                b.add(&msg((&them.name, &them.email), &[("Me", "me@studio.example")], now - i as i64), &me);
+            }
+        }
+        let built = started.elapsed();
+        let started = std::time::Instant::now();
+        let mut rows = 0;
+        for q in ["", "p", "fam", "person1", "d7", "zz"] {
+            rows += b.list(q, 2000).len();
+        }
+        let listed = started.elapsed() / 6;
+        let started = std::time::Instant::now();
+        for q in ["p", "fam", "person1", "d7", "zz"] {
+            rows += b.suggest(q, 10, now).len();
+        }
+        let suggested = started.elapsed() / 5;
+        println!(
+            "MEASURE {} contacts: built {:.2} ms, list {:.2} ms, suggest {:.2} ms a query ({rows} rows)",
+            b.len(),
+            built.as_secs_f64() * 1000.0,
+            listed.as_secs_f64() * 1000.0,
+            suggested.as_secs_f64() * 1000.0
+        );
+    }
+
+    /// The address book's list of the first `limit` (picked out, then put in order) is the
+    /// start of the whole list in order, for every size and limit: with names shared by
+    /// several, people without a name, and a search.
+    #[test]
+    fn a_list_cut_short_is_the_start_of_the_whole_list() {
+        let names = ["Zoe Park", "ana lima", "", "Ana Lima", "Bo", "zoe park", "", "Élise"];
+        for n in 0..40usize {
+            let mut b = ContactBook::new();
+            for i in 0..n {
+                // In no order, the same name for several, and none for some.
+                let at = (i * 7 + 3) % 40;
+                b.note(&EmailAddress::new(names[at % names.len()], format!("p{at:02}@x.example")), 1000, false, 1);
+            }
+            assert_eq!(b.len(), n);
+            for query in ["", "ana", "p1", "nobody"] {
+                let whole = b.list(query, usize::MAX);
+                let mut by_hand: Vec<Contact> = whole.clone();
+                by_hand.sort_by_key(|c| {
+                    let (name, email) = (c.address.name.to_lowercase(), c.address.email.to_lowercase());
+                    (if name.is_empty() { email.clone() } else { name }, email)
+                });
+                assert_eq!(whole, by_hand, "{n} {query:?}");
+                for limit in 0..n + 2 {
+                    let listed = b.list(query, limit);
+                    assert_eq!(listed.as_slice(), &whole[..limit.min(whole.len())], "{n} people, {query:?}, the first {limit}");
+                }
+            }
+        }
     }
 
     #[test]

@@ -153,6 +153,7 @@ on GitHub.
 - Clean Up is faster on folders where much of the mail is unread or flagged.
 - Ignoring a conversation when many are already ignored keeps it ignored.
 - Automatic replies on a mailbox kept on this computer no longer call it "the sample mailbox", and a failed move or copy names the folder as it's shown.
+- Searching the address book is faster with many contacts.
 
 ## 0.38.0 - 2026-11-13
 
