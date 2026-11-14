@@ -62,14 +62,19 @@ impl Quote {
         text_blocks(&self.blocks).get(n).map(|(lines, align)| cell_text(lines, *align))
     }
 
+    /// Every block of text as [`Quote::cell`] gives it, in one walk of its layout (the editor
+    /// draws them all each frame: a walk for each took 4 ms a frame for 600 of them).
+    pub fn cell_texts(&self) -> Vec<(String, Styles)> {
+        text_blocks(&self.blocks)
+            .into_iter()
+            .enumerate()
+            .map(|(n, (lines, align))| self.edits.get(&n).cloned().unwrap_or_else(|| cell_text(lines, align)))
+            .collect()
+    }
+
     /// Its text, for the plain-text twin: each block of text on lines of its own.
     pub fn text(&self) -> String {
-        (0..self.cells())
-            .filter_map(|n| self.cell(n))
-            .map(|(t, s)| rich::to_text(&t, &s))
-            .filter(|t| !t.trim().is_empty())
-            .collect::<Vec<_>>()
-            .join("\n")
+        self.cell_texts().into_iter().map(|(t, s)| rich::to_text(&t, &s)).filter(|t| !t.trim().is_empty()).collect::<Vec<_>>().join("\n")
     }
 
     /// Its HTML as it goes out: as it came, or with its changed text written into its layout.
@@ -158,12 +163,28 @@ impl Compose {
     }
 
     /// Block of text `n` of the quote is now `text` with `styles` (kept only when it changed).
-    pub fn set_quote_cell(&mut self, n: usize, text: String, mut styles: Styles) {
-        let Some(q) = self.quote.as_mut() else { return };
-        styles.fit(&text);
-        let now = (text, styles);
-        if q.cell(n).is_some_and(|was| !same(&was, &now)) {
-            Arc::make_mut(q).edits.insert(n, now);
+    pub fn set_quote_cell(&mut self, n: usize, text: String, styles: Styles) {
+        self.set_quote_cells(vec![(n, text, styles)]);
+    }
+
+    /// [`Compose::set_quote_cell`] for each of these blocks (each drawn in the editor, every
+    /// frame): what's there read once, and one exactly as it was taken for unchanged at once.
+    pub fn set_quote_cells(&mut self, cells: Vec<(usize, String, Styles)>) {
+        let Some(q) = self.quote.as_ref() else { return };
+        let was = q.cell_texts();
+        let mut changed = Vec::new();
+        for (n, text, mut styles) in cells {
+            styles.fit(&text);
+            let now = (text, styles);
+            if was.get(n).is_some_and(|was| *was != now && !same(was, &now)) {
+                changed.push((n, now));
+            }
+        }
+        if changed.is_empty() {
+            return;
+        }
+        if let Some(q) = self.quote.as_mut() {
+            Arc::make_mut(q).edits.extend(changed);
         }
     }
 }

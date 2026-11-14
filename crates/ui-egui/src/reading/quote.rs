@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use mailcraft_engine::{Compose, Quote};
+use mailcraft_engine::Compose;
 
 use super::*;
 
@@ -47,7 +47,8 @@ fn cell_editor(compose: u64, n: usize) -> rich_edit::Editor {
 /// The blocks of text drawn as text boxes, as the reading pane's drawing comes to them.
 struct Cells<'a> {
     c: &'a mut Compose,
-    q: &'a Quote,
+    /// Each block's text and styles as it is (read once a frame).
+    texts: Vec<(String, mime::rich::Styles)>,
     /// Each block of text by where its lines are (the drawing walks the same blocks).
     index: HashMap<usize, usize>,
     eds: &'a mut QuoteEditors,
@@ -60,7 +61,7 @@ struct Cells<'a> {
 impl CellEdit for Cells<'_> {
     fn edit(&mut self, ui: &mut Ui, lines: &[Vec<mime::Span>], page: [u8; 3], acts: &mut Vec<Action>) -> bool {
         let Some(&n) = self.index.get(&(lines.as_ptr() as usize)) else { return false };
-        let Some((text, styles)) = self.q.cell(n) else { return false };
+        let Some((text, styles)) = self.texts.get(n).cloned() else { return false };
         let id = self.c.id;
         let mut ed = self.eds.remove(&(id, n)).unwrap_or_else(|| cell_editor(id, n));
         // The block's text stands in for the message's while its box is drawn.
@@ -98,7 +99,8 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &mut Compose, 
     }
     let index: HashMap<usize, usize> =
         mime::layout::text_blocks(&q.blocks).into_iter().enumerate().map(|(n, (lines, _))| (lines.as_ptr() as usize, n)).collect();
-    let mut cells = Cells { c, q: &q, index, eds, tokens: t, changed: Vec::new(), focus: None };
+    let texts = q.cell_texts();
+    let mut cells = Cells { c, texts, index, eds, tokens: t, changed: Vec::new(), focus: None };
     let mut shown: Vec<String> = Vec::new();
     let width = ui.available_width();
     let allowed = s.pictures_allowed();
@@ -109,9 +111,7 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &mut Compose, 
     let (changed, focus) = (std::mem::take(&mut cells.changed), cells.focus);
     drop(q);
     // Kept once the drawing let go of the quote (it isn't copied for each letter typed).
-    for (n, text, styles) in changed {
-        c.set_quote_cell(n, text, styles);
-    }
+    c.set_quote_cells(changed);
     if let Some(n) = focus {
         st.quote_focus = Some((c.id, n));
     }

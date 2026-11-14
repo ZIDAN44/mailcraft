@@ -168,3 +168,59 @@ fn a_reply_from_the_outbox_keeps_its_original() {
     assert!(html.unwrap_or_default().contains("cid:phone@mill.example") && pictures.len() == 1);
     done(s);
 }
+
+/// A reply to a message laid out in a table of 300 cells, its quote drawn as the editor draws
+/// it each frame (each cell's text read to edit, then kept back), timed. Run under the heavy
+/// lock: `cargo test --release -p mailcraft-engine --lib measure_quote_frame -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_quote_frame() {
+    let mut s = sample_session("measure-quote");
+    let cells: String =
+        (0..300).map(|i| format!("<tr><td>Item {i}</td><td><b>Some words about item {i}, kept to see a frame's cost.</b></td></tr>")).collect();
+    let raw = format!(
+        "From: Morgan Lee <morgan@mill.example>\r\nTo: riley@studio.example\r\nSubject: Prices\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><body><table>{cells}</table></body></html>\r\n"
+    );
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9401 };
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, raw.as_bytes()).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    let mut c = s.compose.clone().unwrap();
+    let n = c.quote.as_ref().unwrap().cells();
+    assert!(n >= 600, "{n} cells");
+    let t = std::time::Instant::now();
+    for _ in 0..20 {
+        let texts = c.quote.as_ref().unwrap().cell_texts();
+        c.set_quote_cells(texts.into_iter().enumerate().map(|(i, (t, st))| (i, t, st)).collect());
+    }
+    println!("MEASURE a frame of a quote of {n} cells: {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    assert!(c.quote.as_ref().unwrap().edits.is_empty(), "nothing changed");
+    done(s);
+}
+
+/// What the editor does each frame with a quote laid out in tables: every block read, every
+/// block given back, one of them typed into. Only that one is kept as changed, and it goes out.
+#[test]
+fn a_frame_keeps_the_cell_typed_into() {
+    let mut s = sample_session("quote-frame-typed");
+    open_mill(&mut s);
+    s.run("mail.reply", &json!({})).unwrap();
+    let mut c = s.compose.clone().unwrap();
+    let mut drawn: Vec<(usize, String, mailcraft_mime::rich::Styles)> =
+        c.quote.as_ref().unwrap().cell_texts().into_iter().enumerate().map(|(n, (t, st))| (n, t, st)).collect();
+    let typed = drawn.iter().position(|(_, t, _)| t.contains("+00 1234 5678")).unwrap();
+    if let Some((_, t, _)) = drawn.get_mut(typed) {
+        t.push_str(" (mobile)");
+    }
+    c.set_quote_cells(drawn);
+    let q = c.quote.as_ref().unwrap();
+    assert_eq!(q.edits.keys().copied().collect::<Vec<_>>(), [typed]);
+    assert!(q.cell_texts()[typed].0.ends_with(" (mobile)") && q.html().contains("+00 1234 5678 (mobile)"));
+    done(s);
+}
