@@ -85,6 +85,24 @@ fn an_account_has_other_addresses() {
     assert!(matches!(s.run("account.removeAddress", &json!({"account": id, "address": "shop@example.org"})), Err(CmdError::Params(_))));
 }
 
+/// An address taken out: every message being written from it, the one open and those set
+/// aside, goes from the account's own, each where it was.
+#[test]
+fn messages_from_an_address_taken_out_stay_where_they_were() {
+    let (mut s, id) = one_account("identities-removed-aside");
+    s.run("account.setAddress", &json!({"account": id, "address": "shop@example.org"})).unwrap();
+    for subject in ["One", "Two", "Three"] {
+        s.run("mail.new", &json!({})).unwrap();
+        s.run("compose.update", &json!({"from": "shop@example.org", "to": "ann@example.org", "subject": subject, "body": subject})).unwrap();
+    }
+    let order = |s: &Session| (s.compose.as_ref().map(|c| c.subject.clone()), s.composes.iter().map(|c| c.subject.clone()).collect::<Vec<_>>());
+    let before = order(&s);
+    assert!(s.all_composes().all(|c| c.from == "shop@example.org"));
+    s.run("account.removeAddress", &json!({"account": id, "address": "shop@example.org"})).unwrap();
+    assert_eq!(order(&s), before);
+    assert!(s.all_composes().all(|c| c.from.is_empty()));
+}
+
 /// A message written from another of the account's addresses: that address and its name in
 /// From, the server told it sends it, replies going where the address says, its signature in
 /// place of the account's; the account's own again when From goes back.

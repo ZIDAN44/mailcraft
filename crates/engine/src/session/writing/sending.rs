@@ -72,18 +72,7 @@ impl Session {
     /// data file's, or one gone) goes From it, its signature following as a From change does,
     /// so the message the bar asked to add an account for can go.
     pub(crate) fn move_to_sending_account(&mut self) {
-        let current = self.compose.take();
-        let aside = std::mem::take(&mut self.composes);
-        let mut moved = Vec::with_capacity(aside.len());
-        // Each in turn is the current one while it changes (the signature works on that one).
-        for c in aside {
-            self.compose = Some(c);
-            self.move_compose_to_sending_account();
-            moved.extend(self.compose.take());
-        }
-        self.composes = moved;
-        self.compose = current;
-        self.move_compose_to_sending_account();
+        self.each_compose(Self::move_compose_to_sending_account);
     }
 
     fn move_compose_to_sending_account(&mut self) {

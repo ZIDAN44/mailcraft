@@ -318,6 +318,39 @@ impl Session {
         self.compose.iter().chain(self.composes.iter())
     }
 
+    /// Run `change` on every message being written, each made the current one while it runs
+    /// (what changes a message works on that one: the signature, From): those set aside first,
+    /// then the current one. Each trades places with the current one and back, so none is ever
+    /// out of both, and each stays where it was.
+    pub(crate) fn each_compose(&mut self, mut change: impl FnMut(&mut Self)) {
+        let mut i = 0;
+        while i < self.composes.len() {
+            let traded = match (self.compose.as_mut(), self.composes.get_mut(i)) {
+                (Some(current), Some(aside)) => {
+                    std::mem::swap(current, aside);
+                    true
+                }
+                _ => false,
+            };
+            if traded {
+                change(self);
+                if let (Some(current), Some(aside)) = (self.compose.as_mut(), self.composes.get_mut(i)) {
+                    std::mem::swap(current, aside);
+                }
+            } else {
+                self.compose = Some(self.composes.remove(i));
+                change(self);
+                if let Some(c) = self.compose.take() {
+                    self.composes.insert(i.min(self.composes.len()), c);
+                }
+            }
+            i += 1;
+        }
+        if self.compose.is_some() {
+            change(self);
+        }
+    }
+
     /// Message `id`, the one on screen or one set aside: news of a send may come for either.
     pub(super) fn compose_by_id(&self, id: u64) -> Option<Compose> {
         self.all_composes().chain(self.sent_away.iter()).find(|c| c.id == id).cloned()

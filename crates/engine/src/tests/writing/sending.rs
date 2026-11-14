@@ -159,6 +159,28 @@ fn adding_an_account_lets_an_open_message_go() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Send { account, .. } if *account == zoe)));
 }
 
+/// Each message being written goes From the account added, and stays where it was: the one
+/// open stays open, those set aside stay in their order; with none open, none is opened.
+#[test]
+fn messages_moved_to_an_account_added_stay_where_they_were() {
+    for open in [true, false] {
+        let (mut s, _file) = data_file_session(&format!("send-add-account-order-{open}"));
+        for subject in ["One", "Two", "Three"] {
+            s.run("mail.new", &json!({})).unwrap();
+            s.run("compose.update", &json!({"to": "ann@example.org", "subject": subject, "body": subject})).unwrap();
+        }
+        if !open {
+            let c = s.compose.take().unwrap();
+            s.composes.insert(1, c);
+        }
+        let order = |s: &Session| (s.compose.as_ref().map(|c| c.subject.clone()), s.composes.iter().map(|c| c.subject.clone()).collect::<Vec<_>>());
+        let before = order(&s);
+        let zoe = s.add_account(mailcraft_model::AccountConfig::guess("zoe@example.org"), Some("pw".into())).unwrap();
+        assert_eq!(order(&s), before, "open: {open}");
+        assert!(s.all_composes().all(|c| c.account == zoe), "open: {open}");
+    }
+}
+
 /// No account at all (the one written from was removed): Send is off, and nothing goes.
 #[test]
 fn mail_isnt_sent_with_no_account() {

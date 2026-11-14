@@ -190,21 +190,13 @@ impl Session {
     /// One of `account`'s other addresses is gone: each message being written from it goes
     /// from the account's own, its signature following as a From change does.
     pub(crate) fn address_removed(&mut self, account: &str, address: &str) {
-        let current = self.compose.take();
-        let aside = std::mem::take(&mut self.composes);
-        let mut kept = Vec::with_capacity(aside.len());
-        // Each in turn is the current one while it changes (the signature works on that one).
-        for c in aside.into_iter().map(Some).chain([current]) {
-            self.compose = c;
-            let from_it = self.compose.as_ref().is_some_and(|c| !c.sending && c.account == account && c.from.eq_ignore_ascii_case(address));
+        self.each_compose(|s| {
+            let from_it = s.compose.as_ref().is_some_and(|c| !c.sending && c.account == account && c.from.eq_ignore_ascii_case(address));
             if from_it {
-                let was = self.compose.as_mut().map(|c| std::mem::take(&mut c.from)).unwrap_or_default();
-                self.follow_from(account, &was);
+                let was = s.compose.as_mut().map(|c| std::mem::take(&mut c.from)).unwrap_or_default();
+                s.follow_from(account, &was);
             }
-            kept.push(self.compose.take());
-        }
-        self.compose = kept.pop().flatten();
-        self.composes = kept.into_iter().flatten().collect();
+        });
     }
 
     /// A signature's text as it first goes in: plain, its look given after ([`style_signature`]).
