@@ -555,7 +555,7 @@ pub(crate) fn event_of(x: &Extra, subject: &str, body: &str, from: &EmailAddress
         Attendee { partstat: partstat.into(), rsvp: x.response_requested && matches!(partstat, "" | "NEEDS-ACTION"), ..person(a) }
     };
     let from = if from.email.is_empty() { x.organizer.as_ref().unwrap_or(from) } else { from };
-    Some(CalEvent {
+    let mut e = CalEvent {
         uid: if x.uid.is_empty() { uid } else { x.uid.clone() },
         summary: subject.to_string(),
         description: body.replace("\r\n", "\n").trim().to_string(),
@@ -571,24 +571,22 @@ pub(crate) fn event_of(x: &Extra, subject: &str, body: &str, from: &EmailAddress
         sequence: x.sequence,
         categories: x.categories.clone(),
         ..Default::default()
-    })
-    .map(|mut e| {
-        // Busy, the default, set as it is.
-        let show = x.busy.and_then(|b| BUSY.iter().find(|(n, _)| i64::from(*n) == b)).map(|(_, s)| *s).filter(|s| *s != ShowAs::Busy);
-        if let Some(show) = show {
-            ical::set_show_as(&mut e, show);
-        }
-        match x.sensitivity {
-            1 => ical::set_personal(&mut e),
-            2 => ical::set_privacy(&mut e, Privacy::Private),
-            3 => ical::set_privacy(&mut e, Privacy::Confidential),
-            _ => {}
-        }
-        if x.reminder.is_some() {
-            ical::set_reminder(&mut e, x.reminder);
-        }
-        e
-    })
+    };
+    // Busy, the default, set as it is.
+    let show = x.busy.and_then(|b| BUSY.iter().find(|(n, _)| i64::from(*n) == b)).map(|(_, s)| *s).filter(|s| *s != ShowAs::Busy);
+    if let Some(show) = show {
+        ical::set_show_as(&mut e, show);
+    }
+    match x.sensitivity {
+        1 => ical::set_personal(&mut e),
+        2 => ical::set_privacy(&mut e, Privacy::Private),
+        3 => ical::set_privacy(&mut e, Privacy::Confidential),
+        _ => {}
+    }
+    if x.reminder.is_some() {
+        ical::set_reminder(&mut e, x.reminder);
+    }
+    Some(e)
 }
 
 /// A meeting request, cancellation or answer (`IPM.Schedule.Meeting.*`, of class `class`) as
