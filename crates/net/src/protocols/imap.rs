@@ -231,13 +231,15 @@ fn caps_from(list: &[Capability<'_>]) -> HashSet<String> {
 }
 
 impl Client<Stream> {
-    /// Connect and read the greeting, upgrading with STARTTLS when configured.
+    /// [`Self::connect_trusting`] trusting no certificate by hand (the tests' servers).
+    #[cfg(test)]
     pub fn connect(cfg: &ServerConfig) -> Result<Client<Stream>> {
         Self::connect_trusting(cfg, &[])
     }
 
-    /// [`Self::connect`] for an account's server: `trusted` are the certificates the user chose
-    /// to trust for one on this computer ([`stream::tls_trusting`]).
+    /// Connect and read the greeting, upgrading with STARTTLS when configured: `trusted` are the
+    /// certificates the user chose to trust for the account's server on this computer
+    /// ([`stream::tls_trusting`]).
     pub fn connect_trusting(cfg: &ServerConfig, trusted: &[String]) -> Result<Client<Stream>> {
         let sock = stream::tcp(&cfg.host, cfg.port)?;
         match cfg.security {

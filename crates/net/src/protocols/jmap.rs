@@ -98,13 +98,15 @@ pub fn list_folders(c: &Client, st: &mut State, account: &str) -> Result<Vec<Fol
     Ok(block_on(mailcraft_jmap::list_folders(&c.0, st, account))?)
 }
 
-/// Bring one folder's cache up to date.
+/// [`sync_folder_as`] for an account as it is now (the tests').
+#[cfg(test)]
 pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions) -> Result<SyncReport> {
     sync_folder_as(c, st, store, account, folder, opts, store.removals(account))
 }
 
-/// [`sync_folder`] for a worker that started when its account had been removed `seen` times: a
-/// removal since, while the sync talks to the server, has it write nothing of the account again.
+/// Bring one folder's cache up to date, for a worker that started when its account had been
+/// removed `seen` times: a removal since, while the sync talks to the server, has it write
+/// nothing of the account again.
 pub fn sync_folder_as(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions, seen: u64) -> Result<SyncReport> {
     Ok(block_on(mailcraft_jmap::sync_folder_as(&c.0, st, store, account, folder, opts, seen))?)
 }

@@ -152,13 +152,8 @@ fn proto(m: impl Into<String>) -> NetError {
 }
 
 impl Client<Stream> {
-    /// Connect as the server settings say (no sign-in yet).
-    pub fn connect(cfg: &ServerConfig) -> Result<Client<Stream>> {
-        Self::connect_trusting(cfg, &[])
-    }
-
-    /// [`Self::connect`] for an account's server: `trusted` are the certificates the user chose
-    /// to trust for one on this computer ([`stream::tls_trusting`]).
+    /// Connect as the server settings say (no sign-in yet): `trusted` are the certificates the
+    /// user chose to trust for the account's server on this computer ([`stream::tls_trusting`]).
     pub fn connect_trusting(cfg: &ServerConfig, trusted: &[String]) -> Result<Client<Stream>> {
         let sock = stream::tcp(&cfg.host, cfg.port)?;
         match cfg.security {
@@ -353,14 +348,16 @@ pub fn folders(store: &Store, account: &str) -> Result<Vec<Folder>> {
     Ok(list)
 }
 
-/// Download what's new into the Inbox, and remove from the server what the account says should go
-/// (`keep`): at once, so many days after downloading, or once deleted here for good.
+/// [`fetch_new_as`] for an account as it is now (the tests').
+#[cfg(test)]
 pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, inbox: &str, keep: &Keep, now: i64) -> Result<SyncReport> {
     fetch_new_as(c, store, account, inbox, keep, now, store.removals(account))
 }
 
-/// [`fetch_new`] for a worker that started when its account had been removed `seen` times: a
-/// removal since has it write nothing of the account again, nor remove anything from the server.
+/// Download what's new into the Inbox, and remove from the server what the account says should go
+/// (`keep`): at once, so many days after downloading, or once deleted here for good. For a worker
+/// that started when its account had been removed `seen` times: a removal since has it write
+/// nothing of the account again, nor remove anything from the server.
 pub fn fetch_new_as<S: Read + Write>(
     c: &mut Client<S>,
     store: &Store,
