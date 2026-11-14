@@ -274,7 +274,9 @@ fn starts_from(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
 /// The starts the event's rule makes (its own start without one), from near `from` (see
 /// [`starts_from`]).
 fn by_rule(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
-    let Some(rule) = e.rrule.as_deref().map(Rule::parse).filter(|r| !r.freq.is_empty()) else {
+    // A frequency RFC 5545 doesn't have is no rule, as none is: the event occurs at its start.
+    let known = |r: &Rule| matches!(r.freq.as_str(), "SECONDLY" | "MINUTELY" | "HOURLY" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY");
+    let Some(rule) = e.rrule.as_deref().map(Rule::parse).filter(known) else {
         return vec![e.start];
     };
     let zone = zone_of(e);
