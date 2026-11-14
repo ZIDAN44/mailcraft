@@ -310,16 +310,23 @@ fn carrying(sig: &[u8], certs: &[Vec<u8>]) -> Vec<u8> {
     ::cms::content_info::ContentInfo { content_type: ci.content_type, content }.to_der().unwrap()
 }
 
-/// An issuer signs its certificate's bytes as it writes them, and a chain is checked over those
-/// (RFC 5280 §4.1.1.3, as OpenSSL does). Riley's certificate issued again by a CA, its extensions
-/// written with `critical FALSE` spelt out (DER leaves a DEFAULT out; `der` reads it and writes
-/// the certificate again without it): its chain holds as it came, and its fingerprint is of
-/// those bytes. Checked over the certificate written again, the chain was refused. One changed
-/// after it was signed, if only in how it's written, isn't one its issuer signed.
-#[test]
-fn a_certificate_is_checked_as_it_came() {
+/// Riley's certificate issued again by a CA of its own (P-256), its extensions written with
+/// `critical FALSE` spelt out: DER leaves a DEFAULT out, and `der` reads it and writes the
+/// certificate again without it, so the CA's signature holds over it only as it was written.
+struct SpeltOut {
+    ca_key: p256::ecdsa::SigningKey,
+    /// The CA's certificate (DER).
+    ca: Vec<u8>,
+    /// Riley's certificate, as the CA wrote and signed it.
+    as_written: Vec<u8>,
+    /// Its `tbsCertificate`, as written.
+    tbs_as_written: Vec<u8>,
+    /// The same certificate as `der` writes it again: the CA's signature doesn't hold over it.
+    written_again: Vec<u8>,
+}
+
+fn spelt_out() -> SpeltOut {
     use der::{Decode as _, Encode as _};
-    use sha2::Digest as _;
     use x509_cert::ext::pkix::BasicConstraints;
     let riley = riley();
     let ca_key = p256::ecdsa::SigningKey::random(&mut rng());
@@ -369,6 +376,21 @@ fn a_certificate_is_checked_as_it_came() {
     let written_again = x509_cert::Certificate::from_der(&as_written).unwrap().to_der().unwrap();
     assert_ne!(as_written, written_again, "der writes it again otherwise");
     assert_eq!(x509_cert::Certificate::from_der(&written_again), x509_cert::Certificate::from_der(&as_written));
+    SpeltOut { ca_key, ca, as_written, tbs_as_written, written_again }
+}
+
+/// An issuer signs its certificate's bytes as it writes them, and a chain is checked over those
+/// (RFC 5280 §4.1.1.3, as OpenSSL does). Riley's certificate issued again by a CA, its extensions
+/// written with `critical FALSE` spelt out (DER leaves a DEFAULT out; `der` reads it and writes
+/// the certificate again without it): its chain holds as it came, and its fingerprint is of
+/// those bytes. Checked over the certificate written again, the chain was refused. One changed
+/// after it was signed, if only in how it's written, isn't one its issuer signed.
+#[test]
+fn a_certificate_is_checked_as_it_came() {
+    use der::Decode as _;
+    use sha2::Digest as _;
+    let riley = riley();
+    let SpeltOut { ca_key, ca, as_written, tbs_as_written, written_again } = spelt_out();
 
     // Signed by Riley, with the CA's certificate after it or before.
     let id = Identity { key: riley.key.clone(), chain: vec![written_again.clone()] };
@@ -410,6 +432,34 @@ fn a_certificate_is_checked_as_it_came() {
     );
 }
 
+/// What MailCraft signs carries the signer's chain as it was kept, as its issuer wrote it: Riley's
+/// certificate written again (as it was sent) didn't hold for its CA, here or in OpenSSL.
+#[test]
+fn a_certificate_is_sent_as_it_was_kept() {
+    let riley = riley();
+    let SpeltOut { ca, as_written, written_again, .. } = spelt_out();
+    let id = Identity { key: riley.key.clone(), chain: vec![as_written.clone(), ca.clone()] };
+    let sig = sign(BODY, &id, NOW, &mut rng()).unwrap();
+    assert!(sig.windows(as_written.len()).any(|w| w == as_written), "sent as it was kept");
+    assert!(!sig.windows(written_again.len()).any(|w| w == written_again));
+    let (signed, _) = verify(&sig, Some(BODY)).unwrap();
+    assert_eq!(signed.signer, as_written);
+    assert_eq!(signed.certs, vec![as_written.clone()], "the root isn't sent");
+    assert_eq!(cert::check(&signed.signer, &signed.certs, std::slice::from_ref(&ca), NOW, "riley@studio.example").unwrap(), vec![]);
+    // Several sent: in DER's order for a SET OF, whatever order the chain has them in; one twice
+    // can't be written.
+    let (ana, zoe) = (pem("ana.pem"), pem("zoe.pem"));
+    let sign_chain = |chain: Vec<Vec<u8>>| sign(BODY, &Identity { key: riley.key.clone(), chain }, NOW, &mut rng());
+    let one = sign_chain(vec![as_written.clone(), ana.clone(), zoe.clone()]).unwrap();
+    assert_eq!(sign_chain(vec![as_written.clone(), zoe.clone(), ana.clone()]).unwrap(), one, "RSA signs alike each time");
+    let mut sent = verify(&one, Some(BODY)).unwrap().0.certs;
+    assert_eq!(sent.len(), 3);
+    let in_order = sent.clone();
+    sent.sort();
+    assert_eq!(in_order, sent);
+    assert!(sign_chain(vec![as_written.clone(), ana.clone(), ana]).is_err());
+}
+
 /// How long a signature takes to check, and its certificate's chain (`--release`, by hand).
 #[test]
 #[ignore]
@@ -440,6 +490,11 @@ fn write_for_openssl() {
     std::fs::write(dir.join("mc-body.txt"), BODY).unwrap();
     std::fs::write(dir.join("mc-sig-rsa.der"), sign(BODY, &riley, NOW, &mut rng()).unwrap()).unwrap();
     std::fs::write(dir.join("mc-sig-ec.der"), sign(BODY, &zoe, NOW, &mut rng()).unwrap()).unwrap();
+    // Riley's certificate with `critical FALSE` spelt out, and its CA (`mc-spelt-ca.der`).
+    let spelt = spelt_out();
+    let id = Identity { key: riley.key.clone(), chain: vec![spelt.as_written, spelt.ca.clone()] };
+    std::fs::write(dir.join("mc-sig-spelt.der"), sign(BODY, &id, NOW, &mut rng()).unwrap()).unwrap();
+    std::fs::write(dir.join("mc-spelt-ca.der"), spelt.ca).unwrap();
     std::fs::write(dir.join("mc-enc-cbc.der"), encrypt(BODY, &[riley.chain[0].clone()], Cipher::Aes256Cbc, &mut rng()).unwrap()).unwrap();
     std::fs::write(dir.join("mc-enc-gcm.der"), encrypt(BODY, &[riley.chain[0].clone()], Cipher::Aes256Gcm, &mut rng()).unwrap()).unwrap();
     std::fs::write(dir.join("mc-enc-ec.der"), encrypt(BODY, &[zoe.chain[0].clone()], Cipher::Aes256Cbc, &mut rng()).unwrap()).unwrap();

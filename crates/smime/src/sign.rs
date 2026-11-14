@@ -118,14 +118,21 @@ pub fn sign_with(content: &[u8], chain: &[Vec<u8>], key: &mut dyn crate::Private
     };
     let mut digests = SetOfVec::new();
     digests.insert(algorithm(oids::SHA256)).map_err(|_| Error::Malformed("can't be written"))?;
-    let mut certs = SetOfVec::new();
+    // Each certificate as it was kept, the bytes its issuer signed: decoded and written again,
+    // some aren't those ([`carried_certs`]).
+    let mut certs: Vec<&[u8]> = Vec::new();
     for d in chain {
         let c = Certificate::from_der(d).map_err(|_| Error::Malformed("a certificate can't be read"))?;
         // The root is the reader's to have; sending it proves nothing.
         if c.tbs_certificate.subject == c.tbs_certificate.issuer && chain.len() > 1 {
             continue;
         }
-        certs.insert(CertificateChoices::Certificate(c)).map_err(|_| Error::Malformed("can't be written"))?;
+        certs.push(d);
+    }
+    // A SET OF in DER: its elements in the order of their bytes, none twice.
+    certs.sort_unstable();
+    if certs.windows(2).any(|w| w.first() == w.get(1)) {
+        return Err(Error::Malformed("can't be written"));
     }
     let mut signers = SetOfVec::new();
     signers.insert(signer).map_err(|_| Error::Malformed("can't be written"))?;
@@ -133,12 +140,29 @@ pub fn sign_with(content: &[u8], chain: &[Vec<u8>], key: &mut dyn crate::Private
         version: CmsVersion::V1,
         digest_algorithms: DigestAlgorithmIdentifiers::from(digests),
         encap_content_info: EncapsulatedContentInfo { econtent_type: oids::DATA, econtent: None },
-        certificates: Some(CertificateSet(certs)),
+        certificates: None,
         crls: None,
         signer_infos: SignerInfos(signers),
     };
-    let ci = ContentInfo { content_type: oids::SIGNED_DATA, content: any(&sd)? };
+    let ci = ContentInfo { content_type: oids::SIGNED_DATA, content: carrying(&sd, &certs)? };
     ci.to_der().map_err(|_| Error::Malformed("can't be written"))
+}
+
+/// `sd` (its certificates and CRLs left out) carrying `certs` (DER, in order) in its
+/// `[0] IMPLICIT CertificateSet`, written as they are.
+fn carrying(sd: &SignedData, certs: &[&[u8]]) -> Result<Any, Error> {
+    let written = |r: der::Result<Vec<u8>>| r.map_err(|_| Error::Malformed("can't be written"));
+    let set = Any::new(Tag::ContextSpecific { constructed: true, number: TagNumber::N0 }, certs.concat())
+        .map_err(|_| Error::Malformed("can't be written"))?;
+    let inner = [
+        written(sd.version.to_der())?,
+        written(sd.digest_algorithms.to_der())?,
+        written(sd.encap_content_info.to_der())?,
+        written(set.to_der())?,
+        written(sd.signer_infos.to_der())?,
+    ]
+    .concat();
+    Any::new(Tag::Sequence, inner).map_err(|_| Error::Malformed("can't be written"))
 }
 
 /// The value of the attribute `oid` among `attrs`, when it has exactly one.
