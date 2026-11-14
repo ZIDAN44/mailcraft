@@ -312,3 +312,126 @@ fn undo_keeps_to_its_room() {
     assert_eq!(history.len(), 1);
     assert_eq!(history.pop(), Some(huge));
 }
+
+/// The selection drawn as it was, one cursor looked up from the first row for each end of each
+/// character (what `selection_rects` was).
+fn selection_rects_one_by_one(g: &Galley, sel: Range<usize>) -> Vec<Rect> {
+    let mut out: Vec<Rect> = Vec::new();
+    for i in sel.start..sel.end.min(sel.start + 20_000) {
+        let a = g.pos_from_cursor(CCursor::new(i));
+        let b = g.pos_from_cursor(CCursor::new(i + 1));
+        let right = if (b.min.y - a.min.y).abs() < 0.5 { b.min.x } else { a.min.x + 5.0 };
+        let r = Rect::from_min_max(egui::pos2(a.min.x, a.min.y), egui::pos2(right.max(a.min.x), a.max.y));
+        match out.last_mut() {
+            Some(last) if (last.min.y - r.min.y).abs() < 0.5 => *last = last.union(r),
+            _ => out.push(r),
+        }
+    }
+    out
+}
+
+/// A selection drawn while the text doesn't have the keyboard (a menu or the ribbon has it)
+/// is where it was drawn, now with the rows walked once: in wrapped paragraphs, empty and
+/// indented lines, lists, right-to-left and mixed paragraphs, pictures, a trailing line break,
+/// and selections that run past the text's end or past the most drawn. Each cursor is where
+/// egui puts it.
+#[test]
+fn a_selection_is_drawn_where_it_was() {
+    let ctx = egui::Context::default();
+    let t = Tokens::light();
+    let long = "a long paragraph that wraps over several rows of the editor ".repeat(40);
+    let texts = [
+        String::new(),
+        "one line".to_string(),
+        format!("{long}\n\nshort\n\u{FFFC} after a picture\nשלום עולם, and English\nEnglish then עברית here\n{long}\n"),
+        format!("first\n\n\n{long}\nזוהי פסקה ארוכה מאוד בעברית שתיכנס לכמה שורות כשהעורך צר {long}"),
+        "x\n".repeat(600),
+    ];
+    for text in &texts {
+        let mut st = Styles::plain(text);
+        st.relayout(text, 0..text.chars().count().min(40), |p| p.list = List::Bullet);
+        st.relayout(text, 9..12, |p| p.indent = 2);
+        st.restyle(text, 3..30, |s| Style { bold: true, size: Some(20), ..s.clone() });
+        for (i, ch) in text.chars().enumerate() {
+            if ch == PICTURE {
+                st.restyle(text, i..i + 1, |s| Style { picture: Some("cid".into()), ..s.clone() });
+            }
+        }
+        let own = HashMap::from([("cid".to_string(), vec2(120.0, 60.0))]);
+        let n = text.chars().count();
+        for wrap in [250.0, 700.0] {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let g = layout::layout(ui, text, &st, false, &t, wrap, &own, None);
+                let mut carets = carets::Carets::new(&g);
+                for i in 0..n + 3 {
+                    assert_eq!(carets.at(i), g.pos_from_cursor(CCursor::new(i)), "{wrap}: cursor {i} of {n}");
+                }
+                assert_eq!(carets.at(0), g.pos_from_cursor(CCursor::new(0)), "asked again from the start");
+                let sels = [0..n, 0..n + 4, n..n + 2, n / 3..n / 2, 1..2, 5..5, 2..25_000];
+                for sel in sels {
+                    assert_eq!(carets::selection_rects(&g, sel.clone()), selection_rects_one_by_one(&g, sel.clone()), "{wrap}: {sel:?} of {n}");
+                }
+            });
+            out.textures_delta.clear();
+        }
+    }
+}
+
+/// One frame of the message window's editor: its ribbon, then the text in a scroll area as the
+/// window has it. What was drawn.
+fn editor_frame(ctx: &egui::Context, ed: &mut Editor, c: &mut Compose) -> Vec<egui::epaint::ClippedShape> {
+    let t = Tokens::light();
+    let clock = Clock::default();
+    let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1000.0, 800.0))), ..Default::default() };
+    let mut acts = Vec::new();
+    let mut out = ctx.run_ui(raw, |ui| {
+        ribbon(ui, &t, ed, c, &[], &clock, &mut acts);
+        egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| body(ui, &t, ed, c, None, &mut acts));
+    });
+    out.textures_delta.clear();
+    out.shapes
+}
+
+/// What was drawn, hashed (without writing it all out).
+fn drawn(frames: &[Vec<egui::epaint::ClippedShape>]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    struct Feed<'a>(&'a mut std::collections::hash_map::DefaultHasher);
+    impl std::fmt::Write for Feed<'_> {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            s.hash(self.0);
+            Ok(())
+        }
+    }
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    let _ = std::fmt::write(&mut Feed(&mut h), format_args!("{frames:?}"));
+    h.finish()
+}
+
+/// MEASURE: a frame of the editor with a long message: the cursor in it, everything selected
+/// in it, and a selection drawn while the text doesn't have the keyboard. What's drawn hashed,
+/// to show it's the same.
+#[test]
+#[ignore]
+fn measure_editor_frames_with_a_long_message() {
+    let mut c = long_message(3_400);
+    c.id = 7;
+    let n = c.body.chars().count();
+    let id = body_id(&c);
+    for (case, sel, focus) in [("cursor", n / 2..n / 2, true), ("all selected", 0..n, true), ("selection drawn", 1_000..21_000, false)] {
+        let ctx = egui::Context::default();
+        let mut ed = Editor::new(c.id);
+        set_selection(&ctx, id, sel.clone());
+        ed.sel = sel;
+        if focus {
+            ctx.memory_mut(|m| m.request_focus(id));
+        }
+        let mut frames: Vec<_> = (0..3).map(|_| editor_frame(&ctx, &mut ed, &mut c)).collect();
+        let count = 20;
+        let t = std::time::Instant::now();
+        for _ in 0..count {
+            frames.push(editor_frame(&ctx, &mut ed, &mut c));
+        }
+        let each = t.elapsed() / count;
+        println!("MEASURE editor frame, {} KB message, {case}: {each:?} a frame; drawn {:016x}", c.body.len() / 1024, drawn(&frames));
+    }
+}

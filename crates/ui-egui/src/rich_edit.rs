@@ -20,6 +20,7 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog};
 
+mod carets;
 mod layout;
 mod links;
 mod pictures;
@@ -550,31 +551,13 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     }
     if !out.response.has_focus() && !ed.sel.is_empty() {
         let color = ui.visuals().selection.bg_fill.gamma_multiply(0.45);
-        let shapes: Vec<egui::Shape> = selection_rects(&out.galley, ed.sel.clone())
+        let shapes: Vec<egui::Shape> = carets::selection_rects(&out.galley, ed.sel.clone())
             .into_iter()
             .map(|r| egui::Shape::rect_filled(r.translate(out.galley_pos.to_vec2()), 0.0, color))
             .collect();
         ui.painter().set(behind, egui::Shape::Vec(shapes));
     }
     text_menu(&out.response, ed, c, acts);
-}
-
-/// The rectangles a selection covers, one per row (galley coordinates).
-fn selection_rects(g: &Galley, sel: Range<usize>) -> Vec<Rect> {
-    let mut out: Vec<Rect> = Vec::new();
-    // Long selections are drawn in full; past this many characters only their start is.
-    for i in sel.start..sel.end.min(sel.start + 20_000) {
-        let a = g.pos_from_cursor(CCursor::new(i));
-        let b = g.pos_from_cursor(CCursor::new(i + 1));
-        // A line's end: the selection runs a little past the text, as text boxes show it.
-        let right = if (b.min.y - a.min.y).abs() < 0.5 { b.min.x } else { a.min.x + 5.0 };
-        let r = Rect::from_min_max(egui::pos2(a.min.x, a.min.y), egui::pos2(right.max(a.min.x), a.max.y));
-        match out.last_mut() {
-            Some(last) if (last.min.y - r.min.y).abs() < 0.5 => *last = last.union(r),
-            _ => out.push(r),
-        }
-    }
-    out
 }
 
 /// The right-click menu on the text, as Outlook's: Cut, Copy, Paste and Select all; the link
