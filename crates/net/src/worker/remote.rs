@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::sync::{SearchArg, WordQuery};
+use mailcraft_model::Flags;
 use mailcraft_model::job::Vacation;
 
 /// The connection to an account's server.
@@ -74,6 +75,51 @@ impl Conn {
         Some(r)
     }
 
+    /// Put message `raw` into `folder` as received, marked with `flags`; for IMAP, `date` is when
+    /// it came (`None`: now, as the server sees it). A POP account's folders are on this computer:
+    /// `account`'s, in `store`.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn put(
+        &mut self,
+        jstate: &jmap::State,
+        store: &Store,
+        account: &str,
+        folder: &str,
+        raw: &[u8],
+        flags: &Flags,
+        date: Option<i64>,
+    ) -> Result<()> {
+        match self {
+            // A server that won't keep one of its keywords still takes the message: asked
+            // again without them when it refuses, and only then; then without the day it came
+            // too (a server may take neither). Nothing is asked twice word for word. After no
+            // answer (a slow server, a connection gone) the message may well be there: asked
+            // again, it was there twice, and a moved one was then deleted where it had been.
+            Conn::Imap(c) => {
+                let (all, plain) = (imap_flags(flags, true), imap_flags(flags, false));
+                let mut asked: Vec<(&str, Option<i64>)> = Vec::new();
+                let mut r = Ok(None);
+                for ask in [(all.as_str(), date), (plain.as_str(), date), (plain.as_str(), None)] {
+                    if asked.contains(&ask) {
+                        continue;
+                    }
+                    asked.push(ask);
+                    r = c.append_dated(folder, ask.0, ask.1, raw);
+                    if !matches!(r, Err(NetError::No(_) | NetError::Bad(_))) {
+                        break;
+                    }
+                }
+                r.map(|_| ())
+            }
+            Conn::Jmap(c) => jmap::append(c, jstate, folder, raw, &jmap_keywords(flags)).map(|_| ()),
+            // Exchange: EWS takes it as received (not a draft); Graph only makes drafts of what
+            // it's given whole.
+            Conn::Ews(c) => c.create_received(raw, jstate.mailbox(folder)?).map(|_| ()),
+            Conn::Graph(c) => crate::graph::append(c, jstate, folder, raw).map(|_| ()),
+            Conn::Pop => crate::pop::file_locally(store, account, folder, raw, Flags { deleted: false, ..flags.clone() }, now()).map(|_| ()),
+        }
+    }
+
     /// Whether this kind of server has anything to ask for a search (POP: never).
     pub(super) fn asks(&self, q: &ServerQuery) -> bool {
         match self {
@@ -111,6 +157,40 @@ impl Conn {
         };
         Some(r)
     }
+}
+
+/// The flags an IMAP `APPEND` gives a copy: how it was marked, and (`keywords`) its categories
+/// and other keywords, those a server can take as they are.
+fn imap_flags(flags: &Flags, keywords: bool) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    for (on, name) in [(flags.seen, "\\Seen"), (flags.flagged, "\\Flagged"), (flags.answered, "\\Answered"), (flags.draft, "\\Draft")] {
+        if on {
+            out.push(name);
+        }
+    }
+    if keywords {
+        if flags.forwarded {
+            out.push("$Forwarded");
+        }
+        // Any a server takes: MailCraft's own for a category (`to=20do` for "To do") has a
+        // `=` in it, and was left behind with the message's categories.
+        out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(32).map(String::as_str));
+    }
+    out.join(" ")
+}
+
+/// The keywords a JMAP server gives a copy: how it was marked, and its own.
+fn jmap_keywords(flags: &Flags) -> Vec<&str> {
+    let mut out: Vec<&str> = Vec::new();
+    for (on, name) in
+        [(flags.seen, "$seen"), (flags.flagged, "$flagged"), (flags.answered, "$answered"), (flags.draft, "$draft"), (flags.forwarded, "$forwarded")]
+    {
+        if on {
+            out.push(name);
+        }
+    }
+    out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(32).map(String::as_str));
+    out
 }
 
 /// Group keys by folder, select each folder, and skip keys whose UIDVALIDITY is stale.

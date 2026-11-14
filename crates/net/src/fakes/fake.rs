@@ -66,6 +66,8 @@ pub struct State {
     /// A header line the server adds to every message it's given (`APPEND`), so it keeps each at
     /// another size than sent, as a server that stamps what it stores does.
     pub stamp_appends: Option<&'static str>,
+    /// An `APPEND` with this text in it is refused (a keyword, a date the server won't keep).
+    pub refuse_appends: Option<&'static str>,
 }
 
 impl State {
@@ -92,6 +94,7 @@ impl State {
             stall_on: None,
             stalled: 0,
             stamp_appends: None,
+            refuse_appends: None,
         }))
     }
 
@@ -422,6 +425,8 @@ impl Fake {
                 self.selected = None;
             }
             ok(self, "");
+        } else if upper.starts_with("APPEND ") && st.refuse_appends.is_some_and(|text| rest.contains(text)) {
+            self.say(&format!("{tag} NO won't keep it"));
         } else if upper.starts_with("APPEND ") {
             let name = quoted_arg(rest);
             let flags = paren_arg(rest);

@@ -4,6 +4,8 @@ use super::*;
 
 /// Said when a sent message's copy has nowhere to go.
 const NO_SENT: &str = "sent, but no copy was saved: the server has no Sent Items folder, and one couldn't be made";
+/// Said, with why, when a sent message's copy couldn't be saved.
+const NOT_SAVED: &str = "sent, but no copy was saved in Sent Items";
 
 impl Worker {
     /// Say a sent message's copy couldn't be kept in Sent Items, and why.
@@ -80,7 +82,7 @@ impl Worker {
             Ok(()) => {
                 log::info!("{}: message {id} sent to {} recipient(s)", self.acc.id, recipients.len());
                 self.sink.emit(Event::Sent { account: self.id(), id: *id });
-                self.file_sent_quick(raw, sent_folder.clone());
+                self.file_sent_quick(*id, raw, sent_folder.clone());
             }
             Err(e) if e.is_retryable() => {
                 log::info!("{}: sending on the second connection: {e}; left to the main one", self.acc.id);
@@ -207,7 +209,7 @@ impl Worker {
     /// A sent message's copy: Exchange, Graph and JMAP file it themselves; IMAP servers get one
     /// (not Gmail, which files its own). Then the main connection reads Sent Items, now and, where
     /// the server files it a moment later, again then.
-    pub(super) fn file_sent_quick(&mut self, raw: &[u8], sent_folder: Option<String>) {
+    pub(super) fn file_sent_quick(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
         // What the main connection has listed since this one started.
         if let Ok(listed) = self.store.load_folders(&self.acc.id)
             && !listed.is_empty()
@@ -217,31 +219,10 @@ impl Worker {
         let folder = if self.acc.is_api() || self.files_itself() {
             sent_folder.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone()))
         } else {
-            let mut made = false;
-            let r = (|| -> Result<Option<String>> {
-                let Some(folder) = self.sent_folder(sent_folder)? else { return Ok(None) };
-                if self.conn.is_none() {
-                    self.connect()?;
-                }
-                let (folder, made_now) = self.file_in(&folder, FolderRole::Sent, "\\Seen", raw)?;
-                made = made_now;
-                Ok(Some(folder))
-            })();
-            match r {
-                Ok(Some(f)) => {
-                    log::info!("{}: sent copy saved in {f}", self.acc.id);
-                    if made {
-                        self.relist();
-                    }
-                    Some(f)
-                }
-                Ok(None) => {
-                    self.sent_copy_not_kept(NO_SENT.to_string());
-                    None
-                }
-                Err(e) => {
+            match self.save_sent_copy(id, raw, sent_folder) {
+                Ok(f) => f,
+                Err(_) => {
                     self.conn = None;
-                    self.sent_copy_not_kept(format!("sent, but no copy was saved in Sent Items: {e}"));
                     return;
                 }
             }
@@ -442,32 +423,44 @@ impl Worker {
         if self.files_itself() {
             return;
         }
-        let mut made = false;
-        let r = (|| -> Result<Option<String>> {
+        if let Ok(Some(folder)) = self.save_sent_copy(id, raw, sent_folder) {
+            self.sync_filed(&folder);
+        }
+    }
+
+    /// Keep message `id`'s sent copy: in Sent Items on an IMAP server (one made when there's
+    /// none, and the folders listed again), on this computer for POP. Connects when it isn't.
+    /// Where it went; when it went nowhere, or failed to, that's said.
+    fn save_sent_copy(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) -> Result<Option<String>> {
+        let r = (|| -> Result<Option<(String, bool)>> {
             if self.conn.is_none() {
                 self.connect()?;
             }
             // POP: Sent Items is on this computer.
             if let Some(Conn::Pop) = self.conn.as_ref() {
-                let folder = sent_folder.clone().unwrap_or_else(|| "Sent Items".into());
+                let folder = sent_folder.unwrap_or_else(|| "Sent Items".into());
                 let flags = mailcraft_model::Flags { seen: true, ..Default::default() };
-                return crate::pop::file_locally(&self.store, &self.acc.id, &folder, raw, flags, now()).map(|_| Some(folder));
+                return crate::pop::file_locally(&self.store, &self.acc.id, &folder, raw, flags, now()).map(|_| Some((folder, false)));
             }
-            let Some(folder) = self.sent_folder(sent_folder.clone())? else { return Ok(None) };
-            let (folder, made_now) = self.file_in(&folder, FolderRole::Sent, "\\Seen", raw)?;
-            made = made_now;
-            Ok(Some(folder))
+            let Some(folder) = self.sent_folder(sent_folder)? else { return Ok(None) };
+            self.file_in(&folder, FolderRole::Sent, "\\Seen", raw).map(Some)
         })();
         match r {
-            Ok(Some(folder)) => {
+            Ok(Some((folder, made))) => {
                 log::info!("{}: message {id}'s sent copy saved in {folder}", self.acc.id);
                 if made {
                     self.relist();
                 }
-                self.sync_filed(&folder);
+                Ok(Some(folder))
             }
-            Ok(None) => self.sent_copy_not_kept(NO_SENT.to_string()),
-            Err(e) => self.sent_copy_not_kept(format!("sent, but no copy was saved in Sent Items: {e}")),
+            Ok(None) => {
+                self.sent_copy_not_kept(NO_SENT.to_string());
+                Ok(None)
+            }
+            Err(e) => {
+                self.sent_copy_not_kept(format!("{NOT_SAVED}: {e}"));
+                Err(e)
+            }
         }
     }
 }

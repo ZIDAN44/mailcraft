@@ -9,6 +9,8 @@ use mailcraft_model::{AccountConfig, Flags, MessageKey, Security, ServerConfig, 
 use super::*;
 use crate::fake::{State, serve_tcp};
 
+mod kinds;
+
 fn until(pool: &Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
     let end = Instant::now() + Duration::from_secs(20);
     let mut seen = Vec::new();
