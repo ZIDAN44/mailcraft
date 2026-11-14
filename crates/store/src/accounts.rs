@@ -112,22 +112,14 @@ impl Store {
         }
         let dir = self.account_dir(account);
         let (from, to) = if on { (&self.files.main, &self.files.held) } else { (&self.files.held, &self.files.main) };
-        let mut items = Vec::new();
-        for p in from.walk(&dir) {
-            match from.read(&p) {
-                Ok(bytes) => items.push((p, bytes)),
-                // Gone since the folder was listed: nothing of it to carry over.
-                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-                // Left behind, its only copy would go with the rest below: nothing is switched.
-                Err(e) => return Err(io_err(&p)(e)),
-            }
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        to.write_many(&items)?;
-        #[cfg(target_arch = "wasm32")]
-        for (p, bytes) in &items {
-            to.write(p, bytes)?;
-        }
+        // Each file read just as it's written: an account of gigabytes isn't held twice.
+        to.write_each(&from.walk(&dir), &mut |p| match from.read(p) {
+            Ok(bytes) => Ok(Some(bytes)),
+            // Gone since the folder was listed: nothing of it to carry over.
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            // Left behind, its only copy would go with the rest below: nothing is switched.
+            Err(e) => Err(io_err(p)(e)),
+        })?;
         {
             let mut online = self.files.online();
             if on {

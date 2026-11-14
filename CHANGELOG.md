@@ -83,6 +83,7 @@ on GitHub.
 - A mail server sending a message date with an impossible year no longer crashes MailCraft; the date is ignored.
 - Large Exchange and calendar replies sent in small pieces are no longer refused as too big, and take less memory.
 - Exchange accounts with public folders sync faster: the public folder list is read once a sync instead of twice.
+- Turning an account's Work online only setting on or off no longer needs twice the account's size in memory.
 
 ## 0.38.0 - 2026-11-13
 

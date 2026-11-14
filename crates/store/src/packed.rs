@@ -375,6 +375,44 @@ impl Packs {
         Ok(())
     }
 
+    /// Files read one at a time by `read` (`None`: gone, so skipped) and written as they come,
+    /// one transaction per data file: no more than one of them is held twice at once, and a
+    /// failure, reading or writing, writes none of a data file's.
+    pub(crate) fn write_each(&self, paths: &[PathBuf], read: &mut dyn FnMut(&Path) -> Result<Option<Vec<u8>>>) -> Result<()> {
+        let mut by_account: std::collections::BTreeMap<String, Vec<(&Path, String)>> = std::collections::BTreeMap::new();
+        for p in paths {
+            match self.place(p) {
+                Place::In(a, k) => by_account.entry(a).or_default().push((p.as_path(), k)),
+                Place::Account(_) | Place::Disk => {
+                    if let Some(bytes) = read(p)? {
+                        write_atomic(p, &bytes)?;
+                    }
+                }
+            }
+        }
+        for (a, files) in by_account {
+            let mut unread = None;
+            let done = self.change(&a, |t| {
+                for (p, k) in &files {
+                    match read(p) {
+                        Ok(Some(bytes)) => t.put(k.as_str(), &bytes)?,
+                        Ok(None) => {}
+                        Err(e) => {
+                            unread = Some(e);
+                            return Err(io::Error::other("a file couldn't be read"));
+                        }
+                    }
+                }
+                Ok(())
+            });
+            if let Some(e) = unread {
+                return Err(e);
+            }
+            done.map_err(|source| StoreError::Io { path: a.clone(), source })?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn read(&self, p: &Path) -> io::Result<Vec<u8>> {
         match self.place(p) {
             Place::In(a, k) => self.get(&a, &k)?.ok_or_else(|| io::Error::from(io::ErrorKind::NotFound)),

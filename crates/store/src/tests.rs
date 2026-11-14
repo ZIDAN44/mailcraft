@@ -754,6 +754,15 @@ fn online_only_with_a_file_that_cant_be_read_keeps_it() {
     s.save_ops("a1", &[Op::SetFlag { keys: vec![msg(1, false).key], flag: Flag::Seen, on: true }]).unwrap();
     s.fail(Some("ops.json"), None);
     assert!(s.set_online_only("a1", true).is_err());
+    // Files are moved one at a time: the one read last failing, those moved before it go again.
+    let dir = s.account_dir("a1");
+    let listed = s.files.main.walk(&dir);
+    let (Some(first), Some(last)) = (listed.first(), listed.last()) else { panic!("{listed:?}") };
+    let last_name = last.file_name().unwrap().to_string_lossy().to_string();
+    assert!(!first.ends_with(&last_name), "{listed:?}");
+    s.fail(Some(&last_name), None);
+    assert!(s.set_online_only("a1", true).is_err());
+    assert!(s.files.held.walk(&dir).is_empty(), "nothing of it is left in memory");
     s.fail(None, None);
     assert!(!s.is_online_only("a1"));
     assert_eq!((s.load_ops("a1").unwrap().len(), s.load_folder("a1", "INBOX").unwrap().messages.len()), (1, 1), "still there");

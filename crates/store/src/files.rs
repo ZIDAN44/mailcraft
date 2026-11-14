@@ -105,14 +105,64 @@ impl Files {
         }
     }
 
-    /// Many files at once (importing a data file: desktop only).
+    /// Many files at once (importing a data file: desktop only), moved into memory rather than
+    /// copied.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(super) fn write_many(&self, items: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+    pub(super) fn write_many(&self, items: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
         match self {
-            Files::Packed(x) => x.write_many(items),
+            Files::Packed(x) => x.write_many(&items),
+            Files::Memory(m, _) => {
+                let paths: Vec<PathBuf> = items.iter().map(|(p, _)| p.clone()).collect();
+                Files::with(m, |m| m.extend(items));
+                self.mark(paths.iter().map(PathBuf::as_path));
+                Ok(())
+            }
             _ => {
-                for (p, bytes) in items {
+                for (p, bytes) in &items {
                     self.write(p, bytes)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Files read one at a time by `read` (`None`: gone, so skipped) and written as they come
+    /// (an account moved between memory and the store's own files, [`Store::set_online_only`]):
+    /// no more than one of them is held twice at once. A failure leaves none written in a data
+    /// file (one transaction) or in memory (what was moved in goes again); elsewhere what was
+    /// written before it stays.
+    pub(super) fn write_each(&self, paths: &[PathBuf], read: &mut dyn FnMut(&Path) -> Result<Option<Vec<u8>>>) -> Result<()> {
+        match self {
+            #[cfg(not(target_arch = "wasm32"))]
+            Files::Packed(x) => x.write_each(paths, read),
+            Files::Memory(m, _) => {
+                // What each path held before, put back on a failure.
+                let mut undo: Vec<(&Path, Option<Vec<u8>>)> = Vec::new();
+                for p in paths {
+                    match read(p) {
+                        Ok(Some(bytes)) => undo.push((p.as_path(), Files::with(m, |m| m.insert(p.clone(), bytes)))),
+                        Ok(None) => {}
+                        Err(e) => {
+                            Files::with(m, |m| {
+                                for (p, before) in undo.into_iter().rev() {
+                                    match before {
+                                        Some(bytes) => m.insert(p.to_path_buf(), bytes),
+                                        None => m.remove(p),
+                                    };
+                                }
+                            });
+                            return Err(e);
+                        }
+                    }
+                }
+                self.mark(undo.into_iter().map(|(p, _)| p));
+                Ok(())
+            }
+            _ => {
+                for p in paths {
+                    if let Some(bytes) = read(p)? {
+                        self.write(p, &bytes)?;
+                    }
                 }
                 Ok(())
             }
@@ -416,9 +466,9 @@ impl Routed {
     pub(super) fn write_many(&self, items: Vec<(PathBuf, Vec<u8>)>) -> Result<()> {
         let (held, main): (Vec<_>, Vec<_>) = items.into_iter().partition(|(p, _)| self.is_held(p));
         if !held.is_empty() {
-            self.held.write_many(&held)?;
+            self.held.write_many(held)?;
         }
-        if main.is_empty() { Ok(()) } else { self.main.write_many(&main) }
+        if main.is_empty() { Ok(()) } else { self.main.write_many(main) }
     }
 
     pub(super) fn write_prepared(&self, items: Vec<(PathBuf, Prepared)>, durable: bool) -> Result<()> {
