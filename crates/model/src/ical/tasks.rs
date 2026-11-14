@@ -186,7 +186,7 @@ fn finish(r: Reading<'_>, zones: &FileZones) -> Task {
 }
 
 /// One `VTODO`, folded; `now` is its `DTSTAMP`.
-pub fn write_task(t: &Task, now: i64, out: &mut String) {
+pub(super) fn write_task(t: &Task, now: i64, out: &mut String) {
     let clean = |s: &str| s.replace(['\r', '\n'], "");
     let mut lines: Vec<String> = vec!["BEGIN:VTODO".into(), format!("UID:{}", clean(&t.uid)), format!("DTSTAMP:{}", stamp(now))];
     if t.modified > 0 {

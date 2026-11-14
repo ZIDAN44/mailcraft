@@ -590,11 +590,10 @@ fn a_task_s_text_can_t_smuggle_lines_into_its_to_do() {
     assert_eq!((t.uid.as_str(), t.title.as_str(), t.notes.as_str()), ("u1", "Task", "Notes"));
     assert_eq!(t.rrule.as_deref(), Some("FREQ=DAILY"));
     assert_eq!(t.extra, ["X-KEEP:1"]);
-    let mut out = String::new();
-    mailcraft_model::ical::write_task(&t, 0, &mut out);
+    let out = mailcraft_model::ical::write_calendar(&[], std::slice::from_ref(&t), 0);
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.iter().filter(|l| l.starts_with("UID:")).collect::<Vec<_>>(), [&"UID:u1"]);
-    assert!(!out.contains("VEVENT") && !out.contains("VCALENDAR") && out.matches("END:VTODO").count() == 1, "{out}");
+    assert!(!out.contains("VEVENT") && out.matches("VCALENDAR").count() == 2 && out.matches("END:VTODO").count() == 1, "{out}");
     // A component it begins is kept whole, and held to what a to-do keeps.
     let many: String = (0..1_500).map(|i| format!("X-L:{i}\r\n")).collect();
     let body = format!("BEGIN:VTODO\r\nX-MAILCRAFT-REST:1\r\nBEGIN:X-PART\r\nX-IN:1\r\nEND:X-PART\r\n{many}END:VTODO");

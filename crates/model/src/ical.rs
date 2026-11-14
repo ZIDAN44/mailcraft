@@ -39,8 +39,8 @@ use recurrence::*;
 pub use recurrence::*;
 pub use scheduling::*;
 pub use showing::*;
+pub use tasks::TASK_STATUS;
 use tasks::*;
-pub use tasks::{TASK_STATUS, write_task};
 use zones::*;
 pub use zones::{ZoneChange, ZoneRule, wall_clock, zone_rule};
 
@@ -738,22 +738,36 @@ fn write_one(e: &CalEvent, now: i64, purpose: Purpose, out: &mut String) {
 /// An invitation is stamped `now`; a stored event keeps the stamp it came with, so the copy on a
 /// server still tells which invitation it was.
 pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
-    write_all(events, &[], method, now, Purpose::Plain)
+    write_all(events, method, now, Purpose::Plain)
 }
 
-/// A calendar file with these events and tasks (`VTODO`s): an account's calendar exported.
+/// A calendar file with these events and tasks (`VTODO`s). Nothing exports one yet: the tests and
+/// the fuzz targets write tasks with it, to check what reading a calendar's tasks keeps.
+#[doc(hidden)]
 pub fn write_calendar(events: &[CalEvent], tasks: &[crate::pim::Task], now: i64) -> String {
-    write_all(events, tasks, None, now, Purpose::Plain)
+    let mut out = write_events(events, None, now, Purpose::Plain);
+    for t in tasks {
+        write_task(t, now, &mut out);
+    }
+    fold("END:VCALENDAR", &mut out);
+    out
 }
 
 /// A CalDAV server's copy of these events: as [`write`] stores them, with who schedules them
 /// (`SCHEDULE-AGENT=CLIENT` on the organizer and every guest of a meeting MailCraft schedules)
 /// and the mark of a guest's own copy ([`mark_guest_copy`]).
 pub fn write_for_server(events: &[CalEvent], now: i64) -> String {
-    write_all(events, &[], None, now, Purpose::Server)
+    write_all(events, None, now, Purpose::Server)
 }
 
-fn write_all(events: &[CalEvent], tasks: &[crate::pim::Task], method: Option<&str>, now: i64, purpose: Purpose) -> String {
+fn write_all(events: &[CalEvent], method: Option<&str>, now: i64, purpose: Purpose) -> String {
+    let mut out = write_events(events, method, now, purpose);
+    fold("END:VCALENDAR", &mut out);
+    out
+}
+
+/// A calendar file's beginning, its zones and these events, folded; what's left is its end.
+fn write_events(events: &[CalEvent], method: Option<&str>, now: i64, purpose: Purpose) -> String {
     let mut out = String::new();
     for l in ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MailCraft//MailCraft//EN", "CALSCALE:GREGORIAN"] {
         fold(l, &mut out);
@@ -787,10 +801,6 @@ fn write_all(events: &[CalEvent], tasks: &[crate::pim::Task], method: Option<&st
         let stamp = if method.is_none() && e.dtstamp > 0 { e.dtstamp } else { now };
         write_one(e, stamp, purpose, &mut out);
     }
-    for t in tasks {
-        write_task(t, now, &mut out);
-    }
-    fold("END:VCALENDAR", &mut out);
     out
 }
 
