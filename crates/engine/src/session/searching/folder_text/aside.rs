@@ -173,6 +173,26 @@ impl Aside {
         self.pending
     }
 
+    /// A test's: wait, `within` at most, for a batch being made to come back, held for the next
+    /// take as one taken and deferred would be (`false`: none came back). Back at once when none
+    /// is being made.
+    #[cfg(test)]
+    pub(crate) fn wait(&mut self, within: std::time::Duration) -> bool {
+        if self.out.is_empty() {
+            return true;
+        }
+        let Ok(m) = self.from.recv_timeout(within) else { return false };
+        if let Some(n) = self.out.get_mut(&m.key) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                self.out.remove(&m.key);
+            }
+        }
+        // Still counted in `pending`, as handed out: the take that gets it lets it go.
+        self.held.push(m);
+        true
+    }
+
     /// Whether `key`'s texts are being made, or wait to be taken in (handed out again meanwhile,
     /// a folder whose batches were back but not taken in yet was made again and again: 559
     /// batches for a real file's 68).

@@ -223,15 +223,7 @@ fn ticks_make_the_texts_ahead() {
 fn threads_make_the_texts_aside() {
     let (mut s, t) = unticked();
     let batches: u64 = s.cache.values().map(|st| st.messages.len().div_ceil(512) as u64).sum();
-    let began = Instant::now();
-    s.tick();
-    // Most of them made by the time the ticks come for them.
-    std::thread::sleep(Duration::from_secs(1));
-    while s.texts_ahead_due() {
-        assert!(began.elapsed() < Duration::from_secs(60), "made aside in a minute");
-        std::thread::sleep(Duration::from_millis(1));
-        s.tick();
-    }
+    s.tick_until_texts_made(|_| {});
     let made = s.search_stats();
     assert_eq!(s.texts_handed_out(), batches, "each handed out once");
     assert_eq!(made.summary_texts, 0, "none made on the session's thread");

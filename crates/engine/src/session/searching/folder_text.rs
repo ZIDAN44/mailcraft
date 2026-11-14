@@ -372,6 +372,25 @@ impl Session {
         }
     }
 
+    /// A test's: tick until no texts are due ahead, waiting between ticks for a batch the threads
+    /// are making to come back (a minute at most for each), with no sleep; `each` is checked after
+    /// each tick.
+    #[cfg(test)]
+    pub(crate) fn tick_until_texts_made(&mut self, mut each: impl FnMut(&Session)) {
+        self.tick();
+        each(self);
+        let mut ticks = 0u32;
+        while self.texts_ahead_due() {
+            ticks += 1;
+            assert!(ticks < 100_000, "the ticks come to an end");
+            if let TextThreads::Running(aside) = &mut self.search_state.text_threads {
+                assert!(aside.wait(std::time::Duration::from_secs(60)), "a batch made aside in a minute");
+            }
+            self.tick();
+            each(self);
+        }
+    }
+
     /// A test's, as the browser's: the ticks make the texts, a slice a tick.
     #[cfg(test)]
     pub(crate) fn make_texts_on_ticks(&mut self) {

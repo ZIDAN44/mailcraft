@@ -111,19 +111,6 @@ fn session_with(messages: Vec<SharedSummary>) -> Session {
     s
 }
 
-/// Tick until no more texts are due ahead (a minute at most), checking `each` after each tick.
-fn tick_until_settled(s: &mut Session, mut each: impl FnMut(&Session)) {
-    let began = std::time::Instant::now();
-    s.tick();
-    each(s);
-    while s.texts_ahead_due() {
-        assert!(began.elapsed() < std::time::Duration::from_secs(60), "settled in a minute");
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        s.tick();
-        each(s);
-    }
-}
-
 /// A folder whose texts come to more than the room they're kept in: what's handed to the threads
 /// and not taken in yet stays within that room, about, a batch at most past it (all of it was
 /// handed out at the first tick, and waited to be taken in at well past the room), and what's
@@ -142,7 +129,7 @@ fn texts_handed_out_stay_within_the_room() {
     let mut s = session_with(messages);
     let room = TEXT_BYTES - AHEAD_ROOM;
     let mut most = 0;
-    tick_until_settled(&mut s, |s| {
+    s.tick_until_texts_made(|s| {
         let (kept, pending) = (s.search_state.texts.bytes, s.texts_pending());
         most = most.max(kept + pending);
         assert!(kept + pending <= room + aside::BATCH * each * 3 / 2, "{kept} kept, {pending} handed out");
@@ -166,7 +153,7 @@ fn a_batch_that_fails_isnt_handed_out_again() {
         })
         .collect();
     let mut s = session_with(messages);
-    tick_until_settled(&mut s, |_| {});
+    s.tick_until_texts_made(|_| {});
     for _ in 0..20 {
         s.tick();
     }
