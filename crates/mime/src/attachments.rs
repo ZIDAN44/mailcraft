@@ -408,7 +408,7 @@ pub fn quoted_pictures_given(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>,
                 InlinePicture { cid, name: a.name.clone(), mime: a.mime.clone(), data }
             }),
             Some(_) => None,
-            None => data_url(&src).map(|(mime, data)| {
+            None => data_url(&src, QUOTED_PICTURE_MAX).map(|(mime, data)| {
                 let n = out.len() + 1;
                 let ext = Some(crate::files::ext_for_mime(&mime)).filter(|e| !e.is_empty()).unwrap_or(".png");
                 InlinePicture {
@@ -442,19 +442,21 @@ pub fn quoted_pictures_given(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>,
     (out, used, given)
 }
 
-/// A picture written into HTML as `data:image/…;base64,…`: its type and bytes.
-fn data_url(src: &str) -> Option<(String, Vec<u8>)> {
-    let rest = src.trim().get(..11).filter(|p| p.eq_ignore_ascii_case("data:image/")).and_then(|_| src.trim().get(5..))?;
+/// A picture written into HTML as `data:image/…;base64,…` (PNG, JPEG, GIF, WebP or BMP) of at
+/// most `max` bytes: its type (`image/jpg` as `image/jpeg`) and bytes. The one reader of them, for
+/// a reply's quoted pictures and a signature's.
+pub(crate) fn data_url(src: &str, max: usize) -> Option<(String, Vec<u8>)> {
+    let src = src.trim();
+    let rest = src.get(..11).filter(|p| p.eq_ignore_ascii_case("data:image/")).and_then(|_| src.get(5..))?;
     let (kind, b64) = rest.split_once(',')?;
-    let mime = kind.strip_suffix(";base64").or_else(|| kind.strip_suffix(";BASE64"))?.to_ascii_lowercase();
-    if !["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/bmp"].contains(&mime.as_str())
-        || b64.len() > QUOTED_PICTURE_MAX / 3 * 4 + 8
-    {
+    let kind = kind.to_ascii_lowercase();
+    let mime = kind.strip_suffix(";base64")?;
+    if !["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/bmp"].contains(&mime) || b64.len() > max / 3 * 4 + 8 {
         return None;
     }
     let clean: Vec<u8> = b64.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
-    let data = encodify::base64::LENIENT.decode(&clean).ok().filter(|d| !d.is_empty())?;
-    Some((if mime == "image/jpg" { "image/jpeg".into() } else { mime }, data))
+    let data = encodify::base64::LENIENT.decode(&clean).ok().filter(|d| !d.is_empty() && d.len() <= max)?;
+    Some((if mime == "image/jpg" { "image/jpeg" } else { mime }.to_string(), data))
 }
 
 /// The bytes of attachment `index`.

@@ -188,22 +188,10 @@ fn data_pictures(html: &str) -> (String, Vec<InlinePicture>) {
         let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         let tag = html.get(start..end).unwrap_or("");
-        let Some(src) = tag_attr(tag, "src") else { continue };
-        let Some(rest) = src.trim().get(..11).filter(|p| p.eq_ignore_ascii_case("data:image/")).and_then(|_| src.trim().get(11..)) else { continue };
-        let Some((kind, b64)) = rest.split_once(',') else { continue };
-        let kind = kind.to_ascii_lowercase();
-        let ext = match kind.as_str() {
-            "png;base64" => "png",
-            "jpeg;base64" | "jpg;base64" => "jpg",
-            "gif;base64" => "gif",
-            "webp;base64" => "webp",
-            _ => continue,
-        };
-        if pictures.len() >= SIGNATURE_PICTURES || b64.len() > SIGNATURE_PICTURE_MAX / 3 * 4 + 8 {
-            continue;
-        }
-        let clean: Vec<u8> = b64.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
-        let Some(data) = encodify::base64::LENIENT.decode(&clean).ok().filter(|d| !d.is_empty() && d.len() <= SIGNATURE_PICTURE_MAX) else {
+        let Some(src) = tag_attr(tag, "src").filter(|_| pictures.len() < SIGNATURE_PICTURES) else { continue };
+        // Read as a reply reads one it quotes ([`attachments::data_url`]).
+        let Some((mime, data)) = attachments::data_url(src, SIGNATURE_PICTURE_MAX) else { continue };
+        let Some(ext) = SIGNATURE_PICTURE_TYPES.contains(&mime.as_str()).then(|| crate::files::ext_for_mime(&mime).trim_start_matches('.')) else {
             continue;
         };
         let n = pictures.len() + 1;
