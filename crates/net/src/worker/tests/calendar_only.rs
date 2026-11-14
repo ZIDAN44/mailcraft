@@ -106,9 +106,16 @@ fn a_wrong_password_waits_for_send_receive() {
 /// tried again later.
 #[test]
 fn a_server_gone_is_an_error_and_tried_again() {
+    // A port of the test's own, every connection to it dropped unanswered. Not one let go of:
+    // another test's server can be given it meanwhile (found under load: the "gone" server
+    // answered, and there was no second error).
     let gone = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://127.0.0.1:{}", gone.local_addr().unwrap().port());
-    drop(gone);
+    std::thread::spawn(move || {
+        for conn in gone.incoming() {
+            drop(conn);
+        }
+    });
     let mut pool = start("calendar-only-gone", &base, PASSWORD);
     let failed = until(&pool, "an error", |e| matches!(status(e), Some(SyncStatus::Error { .. })));
     let Some(SyncStatus::Error { error, .. }) = status(&failed) else { panic!("not an error: {failed:?}") };
