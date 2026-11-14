@@ -164,9 +164,6 @@ impl Session {
         // Put into an Inbox or Junk by hand, it didn't arrive there: no rules run on it (one
         // filed it straight out again), nothing announced, as mail moved within an account.
         if self.folder(&account, &folder).is_some_and(|f| matches!(f.role, FolderRole::Inbox | FolderRole::Junk)) {
-            if self.moved_in.len() > 2000 {
-                self.moved_in.clear();
-            }
             for t in mail.iter().filter(|t| !t.message_id.is_empty()) {
                 self.moved_in.insert((account.clone(), folder.clone(), t.message_id.clone()));
             }

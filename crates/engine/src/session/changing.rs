@@ -1,6 +1,55 @@
 //! The session: changing mail (flags, moves, deletions, undo).
 
+use std::collections::VecDeque;
+
 use super::*;
+
+/// The most moves into an Inbox or Junk remembered ([`MovedIn`]) before the oldest are
+/// forgotten: the server's answer takes each out again, so only those it never confirms stay.
+pub(crate) const MOVED_IN_MAX: usize = 50_000;
+
+/// Mail the user put in a server account's Inbox or Junk (a move, an undo, a snooze over), by
+/// (account, folder, Message-ID): the server gives it a new UID there, and it isn't mail
+/// arriving. Past [`MOVED_IN_MAX`] the oldest are forgotten first (all of them were, at once,
+/// so a move still on its way counted as mail arriving).
+#[derive(Debug, Default)]
+pub(crate) struct MovedIn {
+    /// Each one remembered and when (a count of insertions).
+    at: HashMap<(String, String, String), u64>,
+    /// The same, oldest first; one taken out since, or remembered again later, is skipped as it
+    /// comes up.
+    order: VecDeque<(u64, (String, String, String))>,
+    count: u64,
+}
+
+impl MovedIn {
+    pub(crate) fn insert(&mut self, k: (String, String, String)) {
+        self.count = self.count.saturating_add(1);
+        self.at.insert(k.clone(), self.count);
+        self.order.push_back((self.count, k));
+        while self.at.len() > MOVED_IN_MAX {
+            let Some((when, k)) = self.order.pop_front() else { break };
+            if self.at.get(&k) == Some(&when) {
+                self.at.remove(&k);
+            }
+        }
+        // What was taken out stays in the order until it comes up: not past twice the cap.
+        if self.order.len() > MOVED_IN_MAX.saturating_mul(2) {
+            let at = &self.at;
+            self.order.retain(|(when, k)| at.get(k) == Some(when));
+        }
+    }
+
+    /// Forget one; whether it was remembered.
+    pub(crate) fn remove(&mut self, k: &(String, String, String)) -> bool {
+        self.at.remove(k).is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &(String, String, String)> {
+        self.at.keys()
+    }
+}
 
 impl Session {
     /// Apply a change: to the in-memory list at once, then to the cache and server (through a
@@ -62,12 +111,20 @@ impl Session {
         if !matches!(self.folder(account, to).map(|f| f.role), Some(FolderRole::Inbox | FolderRole::Junk)) {
             return;
         }
-        if self.moved_in.len() > 2000 {
-            self.moved_in.clear();
-        }
+        // Each source folder looked through once (per message, 5,000 out of 50,000 took 80 ms).
+        let mut from: BTreeMap<(&str, &str), HashSet<&MessageKey>> = BTreeMap::new();
         for k in keys.iter().filter(|k| k.folder != *to) {
-            let id = self.folder_state(&k.account, &k.folder).messages.iter().find(|m| m.key == *k).map(|m| m.message_id.clone());
-            if let Some(id) = id.filter(|id| !id.is_empty()) {
+            from.entry((k.account.as_str(), k.folder.as_str())).or_default().insert(k);
+        }
+        for ((a, folder), keys) in from {
+            let ids: Vec<String> = self
+                .folder_state(a, folder)
+                .messages
+                .iter()
+                .filter(|m| !m.message_id.is_empty() && keys.contains(&m.key))
+                .map(|m| m.message_id.clone())
+                .collect();
+            for id in ids {
                 self.moved_in.insert((account.to_string(), to.clone(), id));
             }
         }

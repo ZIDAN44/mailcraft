@@ -56,6 +56,7 @@ on GitHub.
 - Archive or Move on mail of several accounts (All Inboxes) moves nothing when one of them has no such folder, instead of moving some and failing.
 - Copying a lot of mail, or moving it from another account, into a folder of a data file or a local account no longer holds up the window: each message was read twice and written on its own, and 5,000 of them took over ten seconds.
 - Deleting one changed occurrence of a repeating event from a calendar on Exchange or Microsoft 365 deletes it on the server too: it was taken out here only, and came back.
+- Moving more than 2,000 messages into an Inbox or Junk on a server no longer has some of them announced as new mail, or filed again by rules, when the server shows them there.
 
 ## 0.38.0 - 2026-11-13
 

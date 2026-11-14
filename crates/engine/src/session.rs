@@ -40,6 +40,8 @@ pub(crate) use accounts::REMOVE_BACKSTOP;
 pub(crate) use accounts::data_file_path;
 pub use accounts::{Changes, ImportState, Imports};
 use changing::Batch;
+#[cfg(test)]
+pub(crate) use changing::{MOVED_IN_MAX, MovedIn};
 use folder_edits::keys_by_account;
 pub use mailbox_settings::{Compacting, Compaction, IDLE_AFTER_S};
 #[cfg(test)]
@@ -398,10 +400,8 @@ pub struct Session {
     pgp: security::PgpState,
     /// The highest UID seen per Inbox, so only mail that arrives later is announced.
     pub(crate) seen_uid: HashMap<(String, String), u32>,
-    /// Mail the user put in a server account's Inbox or Junk (a move, an undo, a snooze over),
-    /// by (account, folder, Message-ID): the server gives it a new UID there, and it isn't
-    /// mail arriving.
-    pub(crate) moved_in: std::collections::HashSet<(String, String, String)>,
+    /// Mail the user put in a server account's Inbox or Junk, not mail arriving there.
+    pub(crate) moved_in: changing::MovedIn,
     /// When mail was last moved (Unix seconds): its Undo waits for a server to have moved it.
     pub(crate) moved_at: i64,
     /// Mail moved or copied into a folder on this computer, waiting for its source (issue #82).
@@ -553,7 +553,7 @@ impl Session {
             cards: Default::default(),
             pgp: Default::default(),
             seen_uid: HashMap::new(),
-            moved_in: std::collections::HashSet::new(),
+            moved_in: changing::MovedIn::default(),
             moved_at: 0,
             transfers: Vec::new(),
             arrived_invites: Vec::new(),
