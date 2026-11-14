@@ -48,7 +48,8 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
   earlier messages unchanged.
 - Some `pst` and `pst_append` seeds are written by tests run with `MC_PST_SEED` or
   `MC_PST_ANSI_SEED` set. The tests are `pst/tests/pim_written.rs` and `pst_export/tests/ansi.rs`,
-  both under `crates/net/src/data_files/`.
+  both under `crates/net/src/data_files/`. `level-255` in both (a B-tree page at an impossible
+  level) is written by `crates/pst/src/write/btree/tests.rs` with `MC_PST_LEVEL_SEED` set.
 
 ## Targets
 

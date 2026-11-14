@@ -8,7 +8,7 @@ use crate::util::{invalid, u8_at, u16_at, u32_at, u64_at};
 
 /// Levels a B-tree may have: each page must be one level below the page naming it, so a tree
 /// that names itself ends here.
-const MAX_LEVELS: u8 = 8;
+pub(crate) const MAX_LEVELS: u8 = 8;
 
 /// A node's entry in the node B-tree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

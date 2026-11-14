@@ -6,9 +6,12 @@ use std::io;
 use std::ops::Bound;
 
 use super::edit::Editor;
-use crate::ndb::btree::BtPage;
+use crate::ndb::btree::{BtPage, MAX_LEVELS};
 use crate::ndb::{Bref, Format, PAGE};
 use crate::util::invalid;
+
+#[cfg(test)]
+mod tests;
 
 /// A leaf entry as it is kept in a page.
 pub(crate) type Raw = Vec<u8>;
@@ -75,6 +78,16 @@ fn id_bytes(format: Format, id: u64) -> io::Result<Vec<u8>> {
     }
 }
 
+/// That a page at `level` may stand under one at `above`: one level below it, and below the most
+/// levels a tree has. The level is a byte from the file, so it is checked before anything is added
+/// to it.
+fn check_level(level: u8, above: Option<u8>) -> io::Result<()> {
+    if level >= MAX_LEVELS || above.is_some_and(|l| level.checked_add(1) != Some(l)) {
+        return Err(invalid("a B-tree doesn't go down level by level"));
+    }
+    Ok(())
+}
+
 /// The keys a page may hold: from the first, up to but not including the second.
 type KeyRange = (Option<u64>, Option<u64>);
 
@@ -130,9 +143,7 @@ impl Editor {
     ) -> io::Result<Vec<(u64, Bref)>> {
         let format = self.format();
         let p = BtPage::parse(self.pst.page(at.ib, ptype, at.bid)?, format, leaf)?;
-        if above.is_some_and(|l| p.level + 1 != l) || p.level > 7 {
-            return Err(invalid("a B-tree doesn't go down level by level"));
-        }
+        check_level(p.level, above)?;
         let keys = (0..p.count).map(|i| p.key(i, format)).collect::<io::Result<Vec<_>>>()?;
         ascending(keys.iter().copied())?;
         if keys.iter().any(|k| range.0.is_some_and(|low| *k < low) || range.1.is_some_and(|high| *k >= high)) {
@@ -195,10 +206,7 @@ impl Editor {
         let mut level = root_level;
         let mut pages = self.update_page(root, ptype, leaf, None, (None, None), changes)?;
         while pages.len() > 1 {
-            level += 1;
-            if level > 7 {
-                return Err(invalid("a B-tree of more levels than any has"));
-            }
+            level = level.checked_add(1).filter(|l| *l < MAX_LEVELS).ok_or_else(|| invalid("a B-tree of more levels than any has"))?;
             let entries = pages.iter().map(|(k, at)| Ok((*k, index_entry(format, *k, *at)?))).collect::<io::Result<Vec<_>>>()?;
             pages = self.pages_of(ptype, BtPage::index_entry(format), level, &entries)?;
         }
@@ -226,9 +234,7 @@ impl Editor {
                 return Err(invalid("a B-tree names a page twice"));
             }
             let p = BtPage::parse(self.pst.page(at.ib, ptype, at.bid)?, format, leaf_size)?;
-            if above.is_some_and(|l| p.level + 1 != l) || p.level > 7 {
-                return Err(invalid("a B-tree doesn't go down level by level"));
-            }
+            check_level(p.level, above)?;
             page(at.ib);
             if p.level == 0 {
                 for i in 0..p.count {
