@@ -54,8 +54,11 @@ impl Session {
         // Pictures its text shows stay in it; the rest are its files.
         let mut attachments = Vec::new();
         let mut inline = Vec::new();
+        // All its files from one parse of it.
+        let wanted: Vec<usize> = p.attachments.iter().map(|a| a.index).collect();
+        let mut outs: HashMap<usize, OutAttachment> = mime::attachments_out(raw, &wanted).into_iter().collect();
         for a in &p.attachments {
-            let Some(out) = mime::attachment_out(raw, a.index) else { continue };
+            let Some(out) = outs.remove(&a.index) else { continue };
             let shown =
                 a.content_id.clone().filter(|c| a.inline && !c.is_empty() && html.as_deref().is_some_and(|h| h.contains(&format!("cid:{c}"))));
             match shown {

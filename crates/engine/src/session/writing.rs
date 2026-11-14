@@ -395,8 +395,10 @@ impl Session {
         {
             // Pictures the quote shows go in it; any other, inline or not, as a file (a picture
             // sent inline beside plain text was lost).
+            let wanted: Vec<usize> = parsed.attachments.iter().map(|a| a.index).filter(|i| !quoted.contains(i)).collect();
+            let mut outs: HashMap<usize, OutAttachment> = mime::attachments_out(raw, &wanted).into_iter().collect();
             for a in parsed.attachments.iter().filter(|a| !quoted.contains(&a.index)) {
-                if let Some(out) = mime::attachment_out(raw, a.index) {
+                if let Some(out) = outs.remove(&a.index) {
                     attachments.push(OutAttachment { name: a.name.clone(), ..out });
                 }
             }

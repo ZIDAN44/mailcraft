@@ -408,13 +408,18 @@ pub fn quoted_pictures_given(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>,
         })
         .collect();
     let trackers = p.trackers.pictures.clone();
+    // The pictures in the message, read from one parse (each was the whole message parsed and
+    // every file in it decoded again: 40 ms for 30 pictures of 200 KB).
+    let wanted: Vec<usize> =
+        found.iter().filter_map(|(_, at)| p.attachments.get((*at)?)).filter(|a| a.size <= QUOTED_PICTURE_MAX).map(|a| a.index).collect();
+    let datas: std::collections::HashMap<usize, Vec<u8>> = attachments_data(raw, &wanted, usize::MAX, usize::MAX).into_iter().collect();
     let mut given: Vec<(String, String)> = Vec::new();
     for (src, at) in found {
         if given.iter().any(|(s, _)| *s == src) || out.len() >= QUOTED_PICTURES {
             continue;
         }
         let picture = match at.and_then(|i| p.attachments.get(i)) {
-            Some(a) if a.size <= QUOTED_PICTURE_MAX => attachment_data(raw, a.index).map(|data| {
+            Some(a) if a.size <= QUOTED_PICTURE_MAX => datas.get(&a.index).cloned().map(|data| {
                 let cid = a
                     .content_id
                     .clone()
@@ -519,17 +524,32 @@ pub fn attachment_text(raw: &[u8], index: usize) -> Option<String> {
 /// (`text/plain; charset=windows-1252`), so the copy is read as the original was; without it, a
 /// file in Latin-1 went out as bare `text/plain` and was read as UTF-8.
 pub fn attachment_out(raw: &[u8], index: usize) -> Option<crate::OutAttachment> {
-    let m = MessageParser::default().parse(raw)?;
-    let a = attached(&m).0.into_iter().find(|a| a.info.index == index)?;
-    let sent = a.part.and_then(sent_bytes);
-    let charset =
-        a.part.filter(|_| sent.is_some() && a.info.mime.starts_with("text/")).and_then(|p| charset_token(p.content_type()?.attribute("charset")?));
-    let mime = match charset {
-        Some(c) => format!("{}; charset={c}", a.info.mime),
-        None => a.info.mime.clone(),
-    };
-    let data = sent.unwrap_or_else(|| a.data.into_owned());
-    Some(crate::OutAttachment { name: a.info.name, mime, data, ..Default::default() })
+    attachments_out(raw, &[index]).pop().map(|(_, out)| out)
+}
+
+/// [`attachment_out`] for several files from one parse (a draft reopened, a message forwarded:
+/// each of its files was the whole message parsed and all its files decoded again). Each of
+/// `wanted` the message has, once, in the message's order.
+pub fn attachments_out(raw: &[u8], wanted: &[usize]) -> Vec<(usize, crate::OutAttachment)> {
+    let Some(m) = MessageParser::default().parse(raw) else { return Vec::new() };
+    let mut out: Vec<(usize, crate::OutAttachment)> = Vec::new();
+    for a in attached(&m).0.into_iter().filter(|a| wanted.contains(&a.info.index)) {
+        if out.iter().any(|(i, _)| *i == a.info.index) {
+            continue;
+        }
+        let sent = a.part.and_then(sent_bytes);
+        let charset = a
+            .part
+            .filter(|_| sent.is_some() && a.info.mime.starts_with("text/"))
+            .and_then(|p| charset_token(p.content_type()?.attribute("charset")?));
+        let mime = match charset {
+            Some(c) => format!("{}; charset={c}", a.info.mime),
+            None => a.info.mime.clone(),
+        };
+        let data = sent.unwrap_or_else(|| a.data.into_owned());
+        out.push((a.info.index, crate::OutAttachment { name: a.info.name, mime, data, ..Default::default() }));
+    }
+    out
 }
 
 /// A charset's name as it can go into a `Content-Type`: a token (RFC 2045 §5.1) of at most 64

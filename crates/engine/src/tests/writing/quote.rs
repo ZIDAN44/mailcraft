@@ -224,3 +224,89 @@ fn a_frame_keeps_the_cell_typed_into() {
     assert!(q.cell_texts()[typed].0.ends_with(" (mobile)") && q.html().contains("+00 1234 5678 (mobile)"));
     done(s);
 }
+
+/// A message with 30 files of about 200 KB forwarded, and one showing 30 pictures of that size
+/// replied to, timed. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-engine --lib measure_files_taken_along -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_files_taken_along() {
+    let mut s = sample_session("measure-files");
+    // 200,001 bytes of 7, in base64.
+    let data = "BwcH".repeat(66_667);
+    let part = |i: usize, inline: bool| {
+        let how = if inline { format!("inline\r\nContent-ID: <p{i}@x.example>") } else { "attachment".to_string() };
+        format!(
+            "--B\r\nContent-Type: image/png; name=\"p{i}.png\"\r\nContent-Disposition: {how}; filename=\"p{i}.png\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{data}\r\n"
+        )
+    };
+    let mut uid = 9500;
+    let mut open = |s: &mut Session, html: &str, inline: bool| {
+        let parts: String = (0..30).map(|i| part(i, inline)).collect();
+        let raw = format!(
+            "From: Morgan Lee <morgan@mill.example>\r\nTo: riley@studio.example\r\nSubject: Photos\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n{parts}--B--\r\n"
+        );
+        let store = s.store.clone().unwrap();
+        let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+        uid += 1;
+        let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
+        inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
+        store.save_folder("sample", "INBOX", &inbox).unwrap();
+        store.write_body(&key, raw.as_bytes()).unwrap();
+        s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+        s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+        s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    };
+    open(&mut s, "<p>The files.</p>", false);
+    let t = std::time::Instant::now();
+    s.run("mail.forward", &json!({})).unwrap();
+    println!("MEASURE forward 30 files: {} ms", t.elapsed().as_millis());
+    assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 30);
+    s.run("compose.discard", &json!({})).unwrap();
+    let pictures: String = (0..30).map(|i| format!("<img src=\"cid:p{i}@x.example\">")).collect();
+    open(&mut s, &format!("<p>The pictures.</p>{pictures}"), true);
+    let t = std::time::Instant::now();
+    s.run("mail.reply", &json!({})).unwrap();
+    println!("MEASURE reply quoting 30 pictures: {} ms", t.elapsed().as_millis());
+    done(s);
+}
+
+/// Forwarded, each file goes with its own name and bytes; replied to, each picture the message
+/// shows goes in the quote with its own (all of them read from one parse of the message).
+#[test]
+fn files_and_pictures_come_along_each_as_it_was() {
+    let mut s = sample_session("files-come-along");
+    let part = |i: u8, inline: bool| {
+        let how = if inline { format!("inline\r\nContent-ID: <p{i}@x.example>") } else { "attachment".to_string() };
+        format!("--B\r\nContent-Type: image/png; name=\"p{i}.png\"\r\nContent-Disposition: {how}; filename=\"p{i}.png\"\r\n\r\nfile {i}\r\n")
+    };
+    let pictures: String = (0..3).map(|i| format!("<img src=\"cid:p{i}@x.example\">")).collect();
+    let parts: String = (0..3).map(|i| part(i, true)).chain((3..5).map(|i| part(i, false))).collect();
+    let raw = format!(
+        "From: Morgan Lee <morgan@mill.example>\r\nTo: riley@studio.example\r\nSubject: Photos\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Look.</p>{pictures}\r\n{parts}--B--\r\n"
+    );
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9600 };
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, raw.as_bytes()).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    s.run("mail.forward", &json!({})).unwrap();
+    let files: Vec<(String, String)> =
+        s.compose.as_ref().unwrap().attachments.iter().map(|a| (a.name.clone(), String::from_utf8_lossy(&a.data).trim().to_string())).collect();
+    assert_eq!(
+        files,
+        [("p3.png".to_string(), "file 3".to_string()), ("p4.png".to_string(), "file 4".to_string())],
+        "the pictures the quote shows aren't files"
+    );
+    s.run("compose.discard", &json!({})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    let c = s.compose.as_ref().unwrap();
+    let mut shown: Vec<(String, String)> = c.inline.iter().map(|p| (p.cid.clone(), String::from_utf8_lossy(&p.data).trim().to_string())).collect();
+    shown.sort();
+    assert_eq!(shown, (0..3).map(|i| (format!("p{i}@x.example"), format!("file {i}"))).collect::<Vec<_>>());
+    done(s);
+}
