@@ -290,3 +290,29 @@ pub(crate) fn check_attachments(list: &[NewAttachment<'_>], depth: usize) -> io:
     }
     Ok(())
 }
+
+/// Why [`append`](super::append) wrote none of a batch: the file's name-to-ID map (MS-PST 2.4.7)
+/// can't take its named properties (damaged, or kept some other way). It's the cause inside the
+/// `io::Error`, so a caller can tell it ([`NamesRefused::is`]) and write the batch without them;
+/// its words can change.
+#[derive(Debug)]
+pub struct NamesRefused(pub io::Error);
+
+impl NamesRefused {
+    /// Whether `e` is this.
+    pub fn is(e: &io::Error) -> bool {
+        e.get_ref().is_some_and(|inner| inner.is::<NamesRefused>())
+    }
+}
+
+impl std::fmt::Display for NamesRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "name-to-ID map: {}", self.0)
+    }
+}
+
+impl std::error::Error for NamesRefused {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}

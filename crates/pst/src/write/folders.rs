@@ -229,7 +229,7 @@ impl Editor {
     /// Writes `batch` into folder `folder`.
     fn append_to(&mut self, folder: u32, batch: &[BatchMessage<'_>]) -> io::Result<()> {
         let format = self.format();
-        let named = self.resolve_named(batch).map_err(|e| io::Error::new(e.kind(), format!("name-to-ID map: {e}")))?;
+        let named = self.resolve_named(batch).map_err(|e| io::Error::new(e.kind(), NamesRefused(e)))?;
         let version = self.header.unique.wrapping_add(1);
         let key = self.record_key()?;
         struct Written {

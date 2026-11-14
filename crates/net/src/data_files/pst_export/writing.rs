@@ -143,7 +143,7 @@ pub(super) fn append(path: &Path, folder: &[&str], batch: &[BatchMessage<'_>]) -
     let named = |p: &NewProperty<'_>| matches!(p.key, PropertyKey::Named(..));
     // The writer says so before it writes any of the batch's messages (their folder may be made
     // by then, and stays).
-    if !e.to_string().starts_with("name-to-ID map") || !batch.iter().any(|m| m.message.properties.iter().any(named)) {
+    if !write::NamesRefused::is(&e) || !batch.iter().any(|m| m.message.properties.iter().any(named)) {
         return Err(e.to_string());
     }
     log::info!("the data file's name-to-ID map can't be added to ({e}): mail written without its flags' text, due days and categories");
