@@ -97,12 +97,12 @@ pub fn sync_folder_as<S: Read + Write>(
     seen: u64,
 ) -> Result<SyncReport> {
     let mut st = store.load_folder(account, folder)?;
-    let cached_max = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
-    let cached_min = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
+    // The cached UIDs' range: what's asked of the server about the cache.
+    let (mut known_min, mut known_max) = uid_range(&st);
     // QRESYNC: expunges and flag changes arrive with the SELECT itself (RFC 7162 §3.2.5).
-    let quick = c.qresync() && st.validity != 0 && st.highest_modseq > 0 && cached_max > 0;
+    let quick = c.qresync() && st.validity != 0 && st.highest_modseq > 0 && known_max > 0;
     let (info, quick) = if quick {
-        let (info, vanished, changed) = c.select_qresync(folder, st.validity, st.highest_modseq, &format!("{cached_min}:{cached_max}"))?;
+        let (info, vanished, changed) = c.select_qresync(folder, st.validity, st.highest_modseq, &format!("{known_min}:{known_max}"))?;
         (info, Some((vanished, changed)))
     } else {
         (c.select(folder, false)?, None)
@@ -113,6 +113,7 @@ pub fn sync_folder_as<S: Read + Write>(
         log::info!("{account}/{folder}: UIDVALIDITY {} → {}, dropping the cache", st.validity, info.validity);
         if_kept(store, account, seen, || store.clear_folder(account, folder))?;
         st = FolderState::default();
+        (known_min, known_max) = (0, 0);
         report.reset = true;
     }
     let quick = if report.reset { None } else { quick };
@@ -123,31 +124,11 @@ pub fn sync_folder_as<S: Read + Write>(
         st.messages.clear();
     } else if let Some((vanished, changed)) = quick {
         // 3 + 4 from what the server just said.
-        let at = places(&st);
-        for f in changed {
-            if let (Some(m), Some(fl)) = (at.get(&f.uid).and_then(|&i| st.messages.get_mut(i)).map(SharedSummary::make_mut), &f.flags) {
-                let flags = Flags::from_imap(fl.iter().map(String::as_str));
-                if m.flags != flags {
-                    m.flags = flags;
-                    report.changed += 1;
-                }
-                m.modseq = m.modseq.max(f.modseq);
-            }
-        }
-        let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
-            std::mem::take(&mut st.messages).into_iter().partition(|m| !vanished.iter().any(|r| r.contains(&m.key.uid)));
-        if_kept(store, account, seen, || {
-            gone.iter().for_each(|m| store.remove_body(&m.key));
-            Ok(())
-        })?;
-        report.removed = gone.len();
-        st.messages = kept;
-        new_mail(c, &mut st, account, folder, cached_max, &mut report)?;
+        apply_flag_changes(&mut st, changed, &mut report);
+        drop_gone(store, (account, seen), &mut st, |uid| !vanished.iter().any(|r| r.contains(&uid)), &mut report)?;
+        new_mail(c, &mut st, account, folder, known_max, &mut report)?;
         keep_more(c, &mut st, account, folder, opts.window, &mut report)?;
     } else {
-        let known_max = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
-        let known_min = st.messages.iter().map(|m| m.key.uid).min().unwrap_or(0);
-
         // 3 + 4: changes to what we have (before adding new mail, so only cached UIDs are asked).
         if known_max > 0 {
             let range = format!("{known_min}:{known_max}");
@@ -161,26 +142,9 @@ pub fn sync_folder_as<S: Read + Write>(
             } else {
                 c.uid_fetch(&range, "UID FLAGS", "")?
             };
-            let at = places(&st);
-            for f in changed {
-                if let (Some(m), Some(fl)) = (at.get(&f.uid).and_then(|&i| st.messages.get_mut(i)).map(SharedSummary::make_mut), &f.flags) {
-                    let flags = Flags::from_imap(fl.iter().map(String::as_str));
-                    if m.flags != flags {
-                        m.flags = flags;
-                        report.changed += 1;
-                    }
-                    m.modseq = m.modseq.max(f.modseq);
-                }
-            }
+            apply_flag_changes(&mut st, changed, &mut report);
             let alive = c.uid_search(&format!("UID {range}"))?;
-            let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
-                std::mem::take(&mut st.messages).into_iter().partition(|m| alive.binary_search(&m.key.uid).is_ok());
-            if_kept(store, account, seen, || {
-                gone.iter().for_each(|m| store.remove_body(&m.key));
-                Ok(())
-            })?;
-            report.removed = gone.len();
-            st.messages = kept;
+            drop_gone(store, (account, seen), &mut st, |uid| alive.binary_search(&uid).is_ok(), &mut report)?;
         }
 
         // 2: new mail.
@@ -197,7 +161,7 @@ pub fn sync_folder_as<S: Read + Write>(
     }
 
     sort_newest_first(&mut st.messages);
-    let max_uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0);
+    let (_, max_uid) = uid_range(&st);
     st.uid_next = if info.uid_next > 0 { info.uid_next } else { max_uid.saturating_add(1) };
     st.highest_modseq = info.highest_modseq;
     if_kept(store, account, seen, || store.save_folder(account, folder, &st))?;
@@ -208,6 +172,42 @@ pub fn sync_folder_as<S: Read + Write>(
     report.total = info.exists;
     report.unread = if info.exists == 0 { 0 } else { u32::try_from(c.uid_search("UNSEEN")?.len()).unwrap_or(u32::MAX) };
     Ok(report)
+}
+
+/// The lowest and highest UID a folder's list holds; `(0, 0)` when it's empty.
+fn uid_range(st: &FolderState) -> (u32, u32) {
+    let uids = st.messages.iter().map(|m| m.key.uid);
+    (uids.clone().min().unwrap_or(0), uids.max().unwrap_or(0))
+}
+
+/// The flags (and modseqs) the server says of kept messages, put on them: those that differ
+/// counted as changed.
+fn apply_flag_changes(st: &mut FolderState, changed: Vec<Fetched>, report: &mut SyncReport) {
+    let at = places(st);
+    for f in changed {
+        if let (Some(m), Some(fl)) = (at.get(&f.uid).and_then(|&i| st.messages.get_mut(i)).map(SharedSummary::make_mut), &f.flags) {
+            let flags = Flags::from_imap(fl.iter().map(String::as_str));
+            if m.flags != flags {
+                m.flags = flags;
+                report.changed += 1;
+            }
+            m.modseq = m.modseq.max(f.modseq);
+        }
+    }
+}
+
+/// The kept messages the server no longer has (`still` says which it has) taken out of the list,
+/// their sources with them; nothing written once the account was removed since it had been
+/// removed `seen` times ([`if_kept`]).
+fn drop_gone(store: &Store, (account, seen): (&str, u64), st: &mut FolderState, still: impl Fn(u32) -> bool, report: &mut SyncReport) -> Result<()> {
+    let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) = std::mem::take(&mut st.messages).into_iter().partition(|m| still(m.key.uid));
+    if_kept(store, account, seen, || {
+        gone.iter().for_each(|m| store.remove_body(&m.key));
+        Ok(())
+    })?;
+    report.removed = gone.len();
+    st.messages = kept;
+    Ok(())
 }
 
 /// An argument of an IMAP `SEARCH`: a search key, or a string it takes.
