@@ -124,24 +124,32 @@ pub(super) fn note_line(line: &str) -> Vec<NotePart> {
     out
 }
 
-/// The first `<scheme:…>` in a line: the text before it, the address, the text after.
+/// The first `<scheme:…>` in a line: the text before it, the address, the text after. Read in
+/// time the line's length: each `<` was looked at alone, its `>` searched for and what was
+/// before it lower-cased over the rest of the line, and a line of 100,000 brackets took half a
+/// minute (a debug build), each frame its event was open.
 pub(super) fn bracketed_link(line: &str) -> Option<(&str, &str, &str)> {
+    const SCHEMES: [&str; 4] = ["https://", "http://", "mailto:", "tel:"];
     let mut from = 0;
+    // The `>` after the last `<` looked at: every `<` before it ends there too.
+    let mut close = 0;
     loop {
         let open = from + line.get(from..)?.find('<')?;
-        let inner = line.get(open + 1..)?;
-        let close = inner.find('>');
-        let url = close.and_then(|c| inner.get(..c)).unwrap_or("");
-        let lower = url.to_ascii_lowercase();
-        let scheme = ["https://", "http://", "mailto:", "tel:"].iter().any(|s| lower.starts_with(s));
-        if let Some(c) = close
-            && scheme
-            && url.len() > 7
-            && !url.contains(char::is_whitespace)
-        {
-            return Some((line.get(..open)?, url, inner.get(c + 1..)?));
+        if close <= open {
+            // None after this `<` is none after any later one either.
+            close = open + 1 + line.get(open + 1..)?.find('>')?;
         }
-        from = open + 1;
+        let url = line.get(open + 1..close)?;
+        let scheme = SCHEMES.iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s)));
+        if scheme && url.len() > 7 {
+            match url.char_indices().find(|(_, c)| c.is_whitespace()) {
+                None => return Some((line.get(..open)?, url, line.get(close + 1..)?)),
+                // Every `<` before the space ends at the same `>`, past it: none of them is one.
+                Some((at, c)) => from = open + 1 + at + c.len_utf8(),
+            }
+        } else {
+            from = open + 1;
+        }
     }
 }
 

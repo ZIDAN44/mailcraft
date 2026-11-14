@@ -64,6 +64,7 @@ on GitHub.
 - A message whose style sheet is longer than MailCraft reads keeps the part read, instead of losing its colours and sizes.
 - A picture written `<img`, a tab, `src=…`, or `src = …`, is blocked or shown with the rest, and an address inside another attribute's text isn't taken for one.
 - A recurring event begun long ago still shows: a daily one started more than about 55 years back, or an hourly one more than five, was missing from the calendar, and a calendar of years-old series is drawn much faster.
+- An event whose notes hold a long run of `<` brackets opens at once: the app froze for seconds on every frame it was open.
 
 ## 0.38.0 - 2026-11-13
 
