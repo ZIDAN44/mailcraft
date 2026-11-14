@@ -2,6 +2,7 @@
 //! its Contacts, Notes and Tasks folders, and read back by MailCraft's import field by field.
 
 use super::*;
+use crate::data_files::scratch::scratch;
 use mailcraft_model::pim::{Note, Pim, StoredCard, StoredNote, StoredTask, Task, TaskPriority, TaskStatus};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use mailcraft_pst::write;
@@ -19,13 +20,6 @@ fn address(kind: &str, street: &str, city: &str) -> PostalAddress {
         postcode: "4000".into(),
         country: "Portugal".into(),
     }
-}
-
-fn scratch(label: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-pim-{label}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
 }
 
 /// A card with everything Outlook has a field for, and more than it has (a fourth address, a
@@ -161,7 +155,7 @@ fn by<T: Clone, K: Ord>(items: &[T], uid: impl Fn(&mut T), key: impl Fn(&T) -> K
 #[test]
 fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
     use mailcraft_pst::PropertyValue as V;
-    let dir = scratch("round-trip");
+    let dir = scratch("pst-export-pim-round-trip");
     let store = Store::open(dir.join("cache")).unwrap();
     let pim = account();
     store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
@@ -235,7 +229,6 @@ fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
         assert_eq!(h, w, "{}", w.title);
     }
     assert_eq!(have.len(), want.len());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file added to keeps its own contacts, and its own Contacts folder, whatever its name, takes
@@ -243,7 +236,7 @@ fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
 /// it, and the notes go beside it. Added to again, nothing goes in twice.
 #[test]
 fn a_file_added_to_keeps_its_own_contacts() {
-    let dir = scratch("added-to");
+    let dir = scratch("pst-export-pim-added-to");
     let file = dir.join("Outlook.pst");
     let first = NewMessage {
         subject: "Hello",
@@ -300,7 +293,6 @@ fn a_file_added_to_keeps_its_own_contacts() {
         assert!(folders.iter().any(|f| f.path == "Notes" && f.total == 1), "{folders:?}");
         assert!(!folders.iter().any(|f| f.path == "Contacts"), "{folders:?}");
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Added to, a file's own item with the same name and text as one of the account's doesn't stand
@@ -309,7 +301,7 @@ fn a_file_added_to_keeps_its_own_contacts() {
 /// as Outlook names one of its folders keeps its mail: the notes go beside it.
 #[test]
 fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
-    let dir = scratch("same-names");
+    let dir = scratch("pst-export-pim-same-names");
     let file = dir.join("Outlook.pst");
     let first = NewMessage {
         subject: "Hello",
@@ -377,5 +369,4 @@ fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
     assert_eq!(tasks, [(Some(day(4)), true), (Some(day(11)), false)]);
     let folders = back.load_folders("b1").unwrap();
     assert!(folders.iter().any(|f| f.path == "Notes" && f.total == 1), "{folders:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -3,6 +3,7 @@
 //! import pins it again; a message without it comes in unpinned.
 
 use super::*;
+use crate::data_files::scratch::scratch;
 use mailcraft_pst::{NamedPropertyGuid, NamedPropertyId, PropertyValue as V, PstFile, PstStore, write};
 
 /// The account's Inbox: "Pinned" pinned (and in a category), "Loose" not.
@@ -89,9 +90,7 @@ fn imported(file: &Path, dir: &Path, label: &str) -> Vec<(String, bool, Vec<Stri
 
 #[test]
 fn pinning_goes_into_a_unicode_data_file_and_back() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-pinned-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-pinned");
     let store = account(&dir);
     let file = dir.join("Out.pst");
     assert_eq!(export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap().messages, 2);
@@ -102,14 +101,11 @@ fn pinning_goes_into_a_unicode_data_file_and_back() {
         imported(&file, &dir, "b1"),
         [("Loose".into(), false, vec![]), ("Pinned".into(), true, vec!["$Pinned".to_string(), "to=20do".to_string()])]
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn pinning_goes_into_an_ansi_data_file_and_back() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-pinned-ansi-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-pinned-ansi");
     let store = account(&dir);
     let file = dir.join("Old.pst");
     write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
@@ -122,7 +118,6 @@ fn pinning_goes_into_an_ansi_data_file_and_back() {
         imported(&file, &dir, "b1"),
         [("Loose".into(), false, vec![]), ("Pinned".into(), true, vec!["$Pinned".to_string(), "to=20do".to_string()])]
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file written without MailCraft's pin (Outlook's, say) comes in unpinned, and so does one
@@ -131,9 +126,7 @@ fn pinning_goes_into_an_ansi_data_file_and_back() {
 fn a_message_without_the_pin_comes_in_unpinned() {
     use mailcraft_pst::PS_PUBLIC_STRINGS;
     use mailcraft_pst::write::{Name, NewValue};
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-unpinned-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-unpinned");
     let file = dir.join("Theirs.pst");
     let message = |subject, message_id, properties| NewMessage {
         subject,
@@ -155,5 +148,4 @@ fn a_message_without_the_pin_comes_in_unpinned() {
     write::create_empty(&file, mailcraft_pst::Format::Unicode).unwrap();
     write::append(&file, &["Inbox"], &batch).unwrap();
     assert_eq!(imported(&file, &dir, "b1"), [("Plain".into(), false, vec![]), ("Unpinned".into(), false, vec![])]);
-    let _ = std::fs::remove_dir_all(&dir);
 }

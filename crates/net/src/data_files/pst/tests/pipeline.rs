@@ -14,14 +14,13 @@ use super::super::lanes::MAX_PANICS;
 use super::super::lanes::tests::Fault;
 use super::super::out::Out;
 use super::super::{ImportOptions, ImportSink, Imported, PlannedFolder, Progress, SkipReason, import_into, import_with};
+use crate::data_files::scratch::scratch;
 
 /// A data file with mail in three folders, two nested: plain and HTML messages, some with a file
 /// of 10-300 KiB or a picture the HTML shows, some with no message id. `big` gives every third
 /// message a file of about a megabyte instead.
 pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, PathBuf) {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-lanes-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch(&format!("pst-lanes-{name}"));
     let pst = dir.join("in.pst");
     let recipients = [NewRecipient { name: "Zoe", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];
     let body = "Here is the week's plan, as agreed. ".repeat(20);
@@ -123,7 +122,7 @@ pub(super) fn run(pst: &Path, store: &Store, account: &str, opts: &ImportOptions
 /// one from the file and its place in it, not from the order the lanes finished in.
 #[test]
 fn parallel_import_is_identical_to_sequential() {
-    let (dir, pst) = data_file("same", 120, false);
+    let (_, pst) = data_file("same", 120, false);
     let (one, four) = (Store::memory(), Store::memory());
     let a = run(&pst, &one, "p1", &lanes(1));
     let b = run(&pst, &four, "p1", &lanes(4));
@@ -143,14 +142,13 @@ fn parallel_import_is_identical_to_sequential() {
     };
     assert!(!ids(&one).is_empty());
     assert!(ids(&one).iter().all(|i| i.starts_with("pst.p1.")), "{:?}", ids(&one));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A budget of one byte: every item waits until it's the one the writer needs next, and the
 /// import still finishes, the same as with room to spare.
 #[test]
 fn a_one_byte_budget_still_finishes() {
-    let (dir, pst) = data_file("tiny", 40, false);
+    let (_, pst) = data_file("tiny", 40, false);
     let roomy = Store::memory();
     run(&pst, &roomy, "t1", &lanes(1));
     let store = Store::memory();
@@ -159,14 +157,13 @@ fn a_one_byte_budget_still_finishes() {
     let done = within_a_minute(move || run(&path, &tight, "t1", &ImportOptions { lanes: 4, budget_bytes: 1, ..ImportOptions::default() }));
     assert_eq!((done.messages, done.skipped), (120, 0));
     assert_eq!(everything(&store, "t1"), everything(&roomy, "t1"));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Items of about a megabyte the file says are tiny: each is charged for what it is once read,
 /// waiting for room as any other, and the import is the same.
 #[test]
 fn an_item_bigger_than_the_file_says_is_charged_for_what_it_is() {
-    let (dir, pst) = data_file("understated", 12, true);
+    let (_, pst) = data_file("understated", 12, true);
     let plain = Store::memory();
     run(&pst, &plain, "u1", &lanes(1));
     let store = Store::memory();
@@ -176,14 +173,13 @@ fn an_item_bigger_than_the_file_says_is_charged_for_what_it_is() {
     assert_eq!((done.messages, done.skipped), (36, 0));
     assert!(done.stats.budget_wait_ms > 0 || done.stats.peak_budget_bytes > 0, "{:?}", done.stats);
     assert_eq!(everything(&store, "u1"), everything(&plain, "u1"));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The reader panicking on one item costs that item: it's counted as unreadable, the lane reads
 /// on with its handle opened again, and every other message comes in.
 #[test]
 fn a_lane_panic_skips_one_item() {
-    let (dir, pst) = data_file("panic-one", 30, false);
+    let (_, pst) = data_file("panic-one", 30, false);
     let store = Store::memory();
     let (path, s) = (pst.clone(), store.clone());
     let opts = ImportOptions { lanes: 4, fault: Some(Fault::PanicAt(17)), ..ImportOptions::default() };
@@ -192,14 +188,13 @@ fn a_lane_panic_skips_one_item() {
     assert_eq!(done.skips.get(&SkipReason::MessageUnreadable), Some(&1));
     let listed: usize = done.folders.iter().map(|f| store.load_folder("x1", &f.path).unwrap().messages.len()).sum();
     assert_eq!(listed, 89);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A reader that panics on every item: after a run of them the file is taken as damaged and
 /// reading stops, keeping what there is (the folders), and saying it stopped early.
 #[test]
 fn a_run_of_panics_stops_the_import() {
-    let (dir, pst) = data_file("panic-all", 60, false);
+    let (_, pst) = data_file("panic-all", 60, false);
     let store = Store::memory();
     let (path, s) = (pst.clone(), store.clone());
     let opts = ImportOptions { lanes: 4, fault: Some(Fault::PanicAlways), ..ImportOptions::default() };
@@ -208,14 +203,13 @@ fn a_run_of_panics_stops_the_import() {
     assert!(done.skipped >= MAX_PANICS && done.skipped < 180, "stopped reading: {done:?}");
     assert_eq!(done.skips.get(&SkipReason::StoppedEarly), Some(&1));
     assert!(done.folders.iter().any(|f| f.role == FolderRole::Inbox));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The planner panicking part-way: the folders it handed out are kept, with the messages read
 /// from them, listed and counted; the rest of the file isn't read.
 #[test]
 fn a_planner_panic_keeps_the_folders_read() {
-    let (dir, pst) = data_file("planner", 50, false);
+    let (_, pst) = data_file("planner", 50, false);
     let store = Store::memory();
     let (path, s) = (pst.clone(), store.clone());
     let opts = ImportOptions { lanes: 4, fault: Some(Fault::PlannerAfter(70)), ..ImportOptions::default() };
@@ -226,7 +220,6 @@ fn a_planner_panic_keeps_the_folders_read() {
     let projects = done.folders.iter().find(|f| f.path == "Projects").unwrap();
     assert_eq!(projects.total, 20, "a folder left part-way still gets its list");
     assert_eq!(store.load_folders("x3").unwrap(), done.folders);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The reader failing on a folder as the file is planned, before any item is read: that folder
@@ -234,7 +227,7 @@ fn a_planner_panic_keeps_the_folders_read() {
 /// in, rather than the import failing as a damaged file.
 #[test]
 fn a_folder_that_fails_as_it_is_planned_leaves_the_others() {
-    let (dir, pst) = data_file("plan", 30, false);
+    let (_, pst) = data_file("plan", 30, false);
     let store = Store::memory();
     let (path, s) = (pst.clone(), store.clone());
     let opts = ImportOptions { lanes: 4, fault: Some(Fault::PlanAt(2)), ..ImportOptions::default() };
@@ -245,14 +238,13 @@ fn a_folder_that_fails_as_it_is_planned_leaves_the_others() {
     assert_eq!(store.load_folder("x5", "INBOX").unwrap().messages.len(), 30);
     assert_eq!(done.skips.get(&SkipReason::FolderUnreadable), Some(&1), "{done:?}");
     assert_eq!(store.load_folders("x5").unwrap(), done.folders);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The writer panicking part-way: the import comes back (the lanes and the planner are told to
 /// stop, and nothing waits on the writer), with what was written kept.
 #[test]
 fn a_writer_panic_comes_back() {
-    let (dir, pst) = data_file("writer", 60, false);
+    let (_, pst) = data_file("writer", 60, false);
     let store = Store::memory();
     let (path, s) = (pst.clone(), store.clone());
     let opts = ImportOptions { lanes: 4, budget_bytes: 64 * 1024, fault: Some(Fault::WriterAfter(30)), ..ImportOptions::default() };
@@ -260,7 +252,6 @@ fn a_writer_panic_comes_back() {
     assert!(done.messages >= 30 && done.messages < 180, "{done:?}");
     let listed: usize = done.folders.iter().map(|f| store.load_folder("x4", &f.path).unwrap().messages.len()).sum();
     assert_eq!(listed, done.messages, "what was written is listed");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// What a sink is told.
@@ -292,7 +283,7 @@ impl ImportSink for Told {
 /// it; it's in the list on disk by then. The progress has the file's totals from the start.
 #[test]
 fn each_folder_is_said_once_as_it_finishes() {
-    let (dir, pst) = data_file("deltas", 210, false);
+    let (_, pst) = data_file("deltas", 210, false);
     let store = Store::memory();
     let mut told = Told::default();
     let done = import_into(&pst, &store, "d1", &lanes(4), &mut told).unwrap();
@@ -307,14 +298,13 @@ fn each_folder_is_said_once_as_it_finishes() {
     let last = told.progress.last().unwrap();
     assert_eq!((last.read, last.total), (600, 630));
     assert!(last.bytes_done <= last.bytes_total);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The folders a file holds are said before any comes in, each with the path it comes in under
 /// and its items; going on after a pause, again, with the paths the folders done went to.
 #[test]
 fn the_folders_planned_are_said_first_with_their_paths() {
-    let (dir, pst) = data_file("outline", 210, false);
+    let (_, pst) = data_file("outline", 210, false);
     let store = Store::memory();
     let mut told = Told::default();
     let done = import_into(&pst, &store, "o1", &lanes(4), &mut told).unwrap();
@@ -339,7 +329,6 @@ fn the_folders_planned_are_said_first_with_their_paths() {
     let mut again = Told::default();
     import_into(&pst, &store, "o1", &ImportOptions { resume: true, ..lanes(2) }, &mut again).unwrap();
     assert_eq!(again.planned, told.planned, "going on");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Folders finished close together go into the account's folder list in one write, not one

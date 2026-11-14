@@ -4,6 +4,7 @@
 use super::super::item::{File, Files, Got, from_row, linked, local_path, read_linked};
 use super::super::rebuild::{message, summary_of};
 use super::*;
+use crate::data_files::scratch::scratch;
 
 /// The error for an attachment the reader fails on.
 fn unreadable() -> io::Error {
@@ -68,9 +69,7 @@ fn an_unreadable_attachment_comes_from_its_row() {
 /// naming the path, counted as a link.
 #[test]
 fn a_link_brings_its_file_when_it_is_here() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-link-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-link");
     // The real path: macOS's temp folder is under /var, a link to /private/var, and a link is refused.
     #[cfg(not(windows))]
     let dir = std::fs::canonicalize(&dir).unwrap();
@@ -132,7 +131,6 @@ fn a_link_brings_its_file_when_it_is_here() {
     let names: Vec<String> = mailcraft_mime::parse(&raw).unwrap().attachments.into_iter().map(|a| a.name).collect();
     assert_eq!(names, ["Plan.pdf", "Plan.pdf (link).txt"]);
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A link's file is read only when it fits what's asked (a bigger one isn't opened), by a plain
@@ -140,8 +138,7 @@ fn a_link_brings_its_file_when_it_is_here() {
 /// another computer), and on Unix none of the system's own (a process's environment).
 #[test]
 fn a_link_s_file_is_read_only_by_a_plain_path() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-link-paths-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("pst-link-paths");
     std::fs::create_dir_all(dir.join("in")).unwrap();
     // The real path: macOS's temp folder is under /var, a link to /private/var, and a link is refused.
     #[cfg(not(windows))]
@@ -169,7 +166,6 @@ fn a_link_s_file_is_read_only_by_a_plain_path() {
     }
     #[cfg(unix)]
     assert!(read_linked("/proc/self/environ", 1 << 20).is_none() && read_linked("/dev/zero", 1 << 20).is_none());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Once a few reads of links' files were slow (a drive that is gone answers only when it times
@@ -201,8 +197,7 @@ fn slow_link_reads_stop_reading_links() {
 /// itself) counts none.
 #[test]
 fn files_left_out_are_counted_by_reason() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-left-out-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("pst-left-out");
     let store = Store::open(&dir).unwrap();
     let mut progress = |_| {};
     let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
@@ -231,7 +226,6 @@ fn files_left_out_are_counted_by_reason() {
         done.skips.into_iter().collect::<Vec<_>>(),
         [(SkipReason::AttachmentUnreadable, 1), (SkipReason::AttachmentLink, 3), (SkipReason::ItemNotUsable, 1)]
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file as the import holds it.

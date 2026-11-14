@@ -6,6 +6,7 @@
 //! messages' sources nor another test's.
 
 use super::*;
+use crate::data_files::scratch::scratch;
 
 /// Each file's size: more than the import keeps (100 MB).
 const BIG: usize = 120 << 20;
@@ -26,15 +27,6 @@ fn byte(n: usize, at: usize) -> u8 {
 /// Whether this system says what a process's peak working set is ([`peak`]): elsewhere the
 /// memory bound isn't checked, only the file.
 const MEASURED: bool = cfg!(any(windows, target_os = "linux"));
-
-/// A folder taken away when the test ends, passed or not: it holds about 1 GB.
-struct Scratch(std::path::PathBuf);
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
 
 /// This process's peak working set, in bytes (Windows' count, asked of PowerShell; Linux's
 /// `VmHWM`); `None` where neither is there.
@@ -97,10 +89,8 @@ fn files_in(path: &Path) -> usize {
 
 #[test]
 fn big_files_are_written_with_bounded_memory() {
-    let scratch = Scratch(std::env::temp_dir().join(format!("mailcraft-pst-export-big-{}", std::process::id())));
-    let dir = scratch.0.clone();
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    // About 1 GB, taken away when the test ends, passed or not.
+    let dir = scratch("pst-export-big");
     let store = Store::open(dir.join("cache")).unwrap();
     let mut messages = Vec::new();
     for n in 1..=2u32 {
@@ -157,7 +147,4 @@ fn big_files_are_written_with_bounded_memory() {
     let imported = crate::pst::import(&path, &back, "b1", &mut |_| {}).unwrap();
     assert_eq!(imported.messages, 2, "{imported:?}");
     assert_eq!(imported.skips.get(&mailcraft_model::job::SkipReason::AttachmentTooBig), Some(&2), "{imported:?}");
-    drop(back);
-    drop(scratch);
-    assert!(!dir.exists());
 }

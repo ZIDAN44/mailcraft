@@ -3,17 +3,11 @@
 //! an Outlook 97–2002 (ANSI) one; and the import reads each folder back with one copy of each.
 
 use super::*;
+use crate::data_files::scratch::scratch;
 use mailcraft_model::ical::CalEvent;
 use mailcraft_model::pim::{Note, Pim, StoredCard, StoredEvent, StoredNote, StoredTask, Task};
 use mailcraft_model::vcard::Card;
 use mailcraft_pst::write;
-
-fn scratch(label: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-replace-{label}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 /// Two of each: an event, a contact, a note and a task.
 fn account() -> Pim {
@@ -76,7 +70,7 @@ fn node(items: &BTreeMap<String, Vec<(String, u32)>>, folder: &str, subject: &st
 /// Export the account into `file`, change one of each and export again; then once more with
 /// nothing changed.
 fn exported_again_in_place(label: &str, ansi: bool) {
-    let dir = scratch(label);
+    let dir = scratch(&format!("pst-export-replace-{label}"));
     let file = dir.join("Out.pst");
     if ansi {
         write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
@@ -126,7 +120,6 @@ fn exported_again_in_place(label: &str, ansi: bool) {
     let done = export(&store, "a1", "Mine", &file, NONE, &mut |_| {}).unwrap();
     assert_eq!((done.events, done.contacts, done.notes, done.tasks, done.pim_already, done.pim_replaced), (0, 0, 0, 0, 8, 0), "{done:?}");
     assert_eq!(items(&file), after);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -144,7 +137,7 @@ fn changed_items_replace_their_earlier_copies_in_an_ansi_file() {
 /// fields: exported again, each keeps its own copies, and a change in one takes out only its own.
 #[test]
 fn two_accounts_in_one_file_keep_their_own_copies() {
-    let dir = scratch("two");
+    let dir = scratch("pst-export-replace-two");
     let file = dir.join("Out.pst");
     let store = Store::open(dir.join("cache")).unwrap();
     let person = |email: &str, name: &str, partstat: &str| mailcraft_model::ical::Attendee {
@@ -200,5 +193,4 @@ fn two_accounts_in_one_file_keep_their_own_copies() {
     let after = items(&file);
     assert_eq!(subjects(&after, "Calendar"), ["Review", "Review, moved"]);
     assert_eq!(after.get("Contacts"), both.get("Contacts"));
-    let _ = std::fs::remove_dir_all(&dir);
 }

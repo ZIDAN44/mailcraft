@@ -82,14 +82,13 @@ fn the_sent_folder_is_read_last_and_comes_out_the_same() {
         };
         assert_eq!((cp.state, cp.deferred.is_none()), (CheckState::Done, true));
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The reader failing on a folder after the Sent Items folder was put off: it's read all the
 /// same, after the failure, and the import says it stopped early.
 #[test]
 fn a_walk_that_fails_after_sent_was_seen_still_imports_sent() {
-    let (dir, pst) = data_file("sent-walk", 50, false);
+    let (_, pst) = data_file("sent-walk", 50, false);
     let store = Store::memory();
     // Inbox's 50, then 20 of the folder under the Sent Items one, then the walk fails.
     let done = import_with(&pst, &store, "a1", &opts(4, true, Some(Fault::PlannerAfter(70))), &mut |_| {}).unwrap();
@@ -97,7 +96,6 @@ fn a_walk_that_fails_after_sent_was_seen_still_imports_sent() {
     assert_eq!(done.skips.get(&SkipReason::StoppedEarly), Some(&1));
     assert_eq!(store.load_folder("a1", SENT).unwrap().messages.len(), 50, "the Sent Items folder whole");
     assert_eq!(store.load_folder("a1", "Projects/2024").unwrap().messages.len(), 20);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// An import into `store`'s `a1` stopped as `how` once `at` items are read.
@@ -155,7 +153,6 @@ fn stopped_around_the_sent_folder_and_gone_on_with_is_the_same_import() {
         assert_eq!((done.messages, done.skipped), (900, 0), "cut off at {at}");
         assert_eq!(kept(&store), kept(&whole), "cut off at {at}");
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A data file's items made replies and sent items (`touch`): row `k` of the folders read before
@@ -255,7 +252,6 @@ fn sent_items_get_their_ids_back_whatever_stops_the_import() {
         go_on(&pst, &store);
         assert_eq!(kept(&store), kept(&whole), "cut off at {at}");
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A conversation index: its header (GUID `g`) and `blocks` replies.

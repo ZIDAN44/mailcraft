@@ -2,18 +2,12 @@
 //! read back by MailCraft's import, field by field and occurrence by occurrence.
 
 use super::*;
+use crate::data_files::scratch::scratch;
 use mailcraft_model::dates::days_from_civil;
 use mailcraft_model::ical::{self, Attendee, CalEvent, Privacy, ShowAs};
 use mailcraft_model::pim::{Pim, StoredEvent};
 use mailcraft_model::zone::Zone;
 use mailcraft_pst::write;
-
-fn scratch(label: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-cal-{label}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 /// Local wall-clock `y-m-d h:mi` in `zone`, as an instant.
 fn at(zone: &str, y: i64, m: u32, d: u32, h: i64, mi: i64) -> i64 {
@@ -163,7 +157,7 @@ fn occurrences(events: &[CalEvent]) -> Vec<(String, i64, i64, String)> {
 #[test]
 fn the_calendar_round_trips_inside_a_data_file() {
     use mailcraft_pst::PropertyValue as V;
-    let dir = scratch("round-trip");
+    let dir = scratch("pst-export-cal-round-trip");
     let store = Store::open(dir.join("cache")).unwrap();
     let events = calendar();
     let pim = Pim { events: events.iter().map(|e| StoredEvent { event: e.clone(), ..Default::default() }).collect(), ..Default::default() };
@@ -237,7 +231,6 @@ fn the_calendar_round_trips_inside_a_data_file() {
     // Exported again into the same file: nothing goes in twice.
     let again = export(&store, "a1", "Calendar", &file, NONE, &mut |_| {}).unwrap();
     assert_eq!((again.events, again.occurrences, again.pim_already), (0, 0, 10), "{again:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A meeting's request carries the meeting's own properties as its appointment has them: the
@@ -246,7 +239,7 @@ fn the_calendar_round_trips_inside_a_data_file() {
 #[test]
 fn meeting_mail_carries_its_meeting() {
     use mailcraft_pst::PropertyValue as V;
-    let dir = scratch("meeting-mail");
+    let dir = scratch("pst-export-cal-meeting-mail");
     let store = Store::open(dir.join("cache")).unwrap();
     let mut invite = CalEvent {
         uid: "review@studio.example".into(),
@@ -347,7 +340,6 @@ fn meeting_mail_carries_its_meeting() {
     let cal = ical::parse(&mime::attachment_text(&raw, part.index).unwrap(), 0);
     assert_eq!(cal.method.as_deref(), Some("REQUEST"));
     assert_eq!(cal.events.len(), 2);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 use crate::data_files::pst_export::calendar::{self as cal, Owner};

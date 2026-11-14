@@ -98,12 +98,11 @@ impl Space for Filling {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data_files::scratch::scratch;
 
     #[test]
     fn room_is_asked_of_the_nearest_folder_there() {
-        let dir = std::env::temp_dir().join(format!("mailcraft-space-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = scratch("space");
         let deep = dir.join("not").join("made").join("yet");
         assert_eq!(nearest_existing(&deep), Some(dir.as_path()));
         assert_eq!(nearest_existing(&dir), Some(dir.as_path()));
@@ -113,6 +112,5 @@ mod tests {
         assert_eq!(nearest_existing(&file.join("x")), Some(dir.as_path()));
         assert!(Drives.free(&deep).is_some_and(|n| n > 0), "the temporary folder's drive has room");
         assert_eq!(nearest_existing(Path::new("")), Some(Path::new(".")));
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

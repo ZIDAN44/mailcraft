@@ -8,4 +8,6 @@ pub mod pst;
 mod pst_bench;
 pub mod pst_export;
 pub(crate) mod pst_pim;
+#[cfg(test)]
+mod scratch;
 pub mod space;

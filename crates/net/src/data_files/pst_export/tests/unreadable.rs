@@ -1,15 +1,14 @@
 //! Exporting an account one of whose folders can't be read.
 
 use super::*;
+use crate::data_files::scratch::scratch;
 
 /// A folder whose list can't be read (its file damaged, the disk failing) is said to be left out
 /// of the export, and the rest goes in. It was left out with nothing said, and the export said
 /// all was well.
 #[test]
 fn a_folder_that_cant_be_read_is_said_to_be_left_out() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-unreadable-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-unreadable");
     let store = Store::failing();
     let mut folders = Vec::new();
     for (path, role, subject) in [("INBOX", FolderRole::Inbox, "Kept"), ("Projects", FolderRole::Other, "Left out")] {
@@ -29,7 +28,6 @@ fn a_folder_that_cant_be_read_is_said_to_be_left_out() {
     store.fail(None, None);
     let done = done.unwrap();
     assert_eq!((done.messages, done.folders_skipped), (1, 1), "{done:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file added to whose folders can't be read back (after its mail went in) isn't taken for one
@@ -38,9 +36,7 @@ fn a_folder_that_cant_be_read_is_said_to_be_left_out() {
 #[test]
 fn a_file_that_cant_be_read_back_has_no_items_said_for_it() {
     use super::super::pim::{already, top_folders};
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-read-back-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-read-back");
     let junk = dir.join("junk.pst");
     std::fs::write(&junk, b"!BDN not really a data file").unwrap();
     assert!(already(&junk, &["Calendar"]).is_err());
@@ -49,7 +45,6 @@ fn a_file_that_cant_be_read_back_has_no_items_said_for_it() {
     write::create_empty(&empty, mailcraft_pst::Format::Unicode).unwrap();
     assert_eq!(already(&empty, &["Calendar"]).unwrap(), []);
     assert!(top_folders(&empty).is_ok());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// What of a file with a note exported into it can't be read, as the step that asks which of

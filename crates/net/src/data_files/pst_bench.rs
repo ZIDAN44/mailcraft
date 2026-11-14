@@ -48,6 +48,7 @@ use mailcraft_model::hash::{Fnv, fnv1a};
 use mailcraft_model::job::StopHow;
 use mailcraft_pst::write::{self, BatchMessage, NewAttachment, NewMessage, NewRecipient, RecipientType};
 
+use crate::data_files::scratch::scratch;
 use eta::{judge, judge_folders};
 
 fn env(name: &str) -> Option<String> {
@@ -490,9 +491,7 @@ impl crate::pst::ImportSink for Watch<'_> {
 /// held it whole), and changing it afterwards writes as any folder does.
 #[test]
 fn a_big_folder_comes_in_a_page_at_a_time() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-pages-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-pages");
     let pst = dir.join("big.pst");
     let n = mailcraft_store::PAGE_MESSAGES * 2 + 808;
     let owned: Vec<(String, String, i64)> =
@@ -544,5 +543,4 @@ fn a_big_folder_comes_in_a_page_at_a_time() {
     let key = st.messages[5].key.clone();
     store.save_folder("d1", "INBOX", &st).unwrap();
     assert!(store.load_folder("d1", "INBOX").unwrap().find(key.uid).unwrap().flags.seen);
-    let _ = std::fs::remove_dir_all(&dir);
 }

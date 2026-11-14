@@ -16,18 +16,12 @@ use mailcraft_pst::{
 };
 
 use super::super::props::text_of;
+use crate::data_files::scratch::scratch;
 
 /// The writer's node for an attachment's bytes (`NID_TYPE_INTERNAL`, index 0x200 + n) and for
 /// the attachment itself (`NID_TYPE_ATTACHMENT`, index 0x100 + n).
 const DATA_NODE: u64 = (0x200 << 5) | 0x01;
 const ATTACHMENT_NODE: u64 = (0x100 << 5) | 0x05;
-
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 fn message(subject: &str) -> NewMessage<'_> {
     with_id(subject, "<outer@example.com>")
@@ -242,7 +236,7 @@ fn read_in_time<T: Send + 'static>(path: &Path, read: impl FnOnce(PstFile) -> T 
 /// turn. A zero-byte file reads as one with no bytes.
 #[test]
 fn an_attached_message_and_an_empty_file_read() {
-    let dir = scratch("attached");
+    let dir = scratch("pst-attached");
     let path = with_an_attached_message(&dir);
     let (outer, inner) = read_in_time(&path, |pst| {
         let store = PstStore::read(Rc::new(pst)).unwrap();
@@ -254,7 +248,6 @@ fn an_attached_message_and_an_empty_file_read() {
     assert_eq!(outer, ["message Outer", "file 0"]);
     // The copy has the same attachments: its own are read with the file's own types.
     assert_eq!(inner, ("Outer".to_string(), vec!["message Outer".to_string(), "file 0".to_string()]));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What the import makes of a message attached to itself: it finishes in time, the zero-byte
@@ -262,13 +255,12 @@ fn an_attached_message_and_an_empty_file_read() {
 /// search key is that message's), is counted and left out rather than read again and again.
 #[test]
 fn the_import_of_a_message_attached_to_itself_ends() {
-    let dir = scratch("attached-import");
+    let dir = scratch("pst-attached-import");
     let path = with_an_attached_message(&dir);
     let (done, sources) = import_in_time(&path, &dir);
     assert_eq!((done.messages, done.skipped), (1, 0), "{done:?}");
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachedMessageUnreadable, 1)]);
     assert_eq!(sources.iter().map(|s| tree(s)).collect::<Vec<_>>(), ["Outer[empty.txt]"]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A message of a data file whose subject is `subject`: its property context's block and its
@@ -387,7 +379,7 @@ fn tree(raw: &[u8]) -> String {
 /// An attached message's own files were left out before.
 #[test]
 fn the_import_keeps_attached_messages_with_their_own_files() {
-    let dir = scratch("nested-import");
+    let dir = scratch("pst-nested-import");
     let path = with_nested_messages(&dir);
     let (done, sources) = import_in_time(&path, &dir);
     assert_eq!((done.messages, done.skipped), (3, 0), "{done:?}");
@@ -395,7 +387,6 @@ fn the_import_keeps_attached_messages_with_their_own_files() {
     let mut trees: Vec<String> = sources.iter().map(|s| tree(s)).collect();
     trees.sort();
     assert_eq!(trees, ["Deep[deep.txt]", "Middle[Deep[deep.txt], middle.txt]", "Outer[Middle[Deep[deep.txt], middle.txt], empty.txt]"]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A file of 20,000 bytes: three data blocks under an XBLOCK (btype 1, level 1, count, total).
@@ -428,7 +419,7 @@ fn first_attachment(pst: PstFile) -> Result<Vec<u8>, String> {
 /// A data tree is read up to the size it declares, and not at all past a limit the caller sets.
 #[test]
 fn a_data_tree_reads_no_more_than_it_declares_or_is_allowed() {
-    let dir = scratch("big");
+    let dir = scratch("pst-big");
     let (path, data) = with_a_big_file(&dir);
     assert_eq!(read_in_time(&path, first_attachment), Ok(data.clone()));
     // A limit under the value's size: an error before it is read.
@@ -444,14 +435,13 @@ fn a_data_tree_reads_no_more_than_it_declares_or_is_allowed() {
     seal(&mut f, x);
     std::fs::write(&path, &f).unwrap();
     assert_eq!(read_in_time(&path, first_attachment), Ok(data[..100].to_vec()));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An XBLOCK whose entry names the XBLOCK itself is an error, not a stack overflow (which ends
 /// the whole program, with no unwinding to catch).
 #[test]
 fn a_data_tree_that_points_at_itself_is_an_error() {
-    let dir = scratch("cycle");
+    let dir = scratch("pst-cycle");
     let (path, _) = with_a_big_file(&dir);
     let mut f = std::fs::read(&path).unwrap();
     let x = xblock(&f);
@@ -461,7 +451,6 @@ fn a_data_tree_that_points_at_itself_is_an_error() {
     std::fs::write(&path, &f).unwrap();
     let read = read_in_time(&path, first_attachment);
     assert!(read.as_ref().is_err_and(|e| e.contains("a list where a block should be")), "{read:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An XBLOCK whose entries all name the same data block reads no more than it declares, and
@@ -469,7 +458,7 @@ fn a_data_tree_that_points_at_itself_is_an_error() {
 /// XXBLOCK) can't make the reader hold gigabytes for one value.
 #[test]
 fn a_data_tree_that_names_one_block_over_and_over_reads_no_more_than_it_declares() {
-    let dir = scratch("repeat");
+    let dir = scratch("pst-repeat");
     let (path, data) = with_a_big_file(&dir);
     let mut f = std::fs::read(&path).unwrap();
     let x = xblock(&f);
@@ -491,7 +480,6 @@ fn a_data_tree_that_names_one_block_over_and_over_reads_no_more_than_it_declares
     seal(&mut f, x);
     std::fs::write(&path, &f).unwrap();
     assert_eq!(read_in_time(&path, first_attachment), Ok(data[..8176].to_vec()));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The big file, with the binary property `prop` of node `nid` (a store, a folder, the
@@ -535,7 +523,7 @@ fn binary_len(value: Option<&mailcraft_pst::PropertyValue>) -> Option<usize> {
 /// their data tree declared (up to 4 GiB).
 #[test]
 fn a_store_or_name_map_value_is_held_to_the_file_limit() {
-    let dir = scratch("store-limit");
+    let dir = scratch("pst-store-limit");
     // The store's record key (0x0FF9).
     let path = with_a_big_value(&dir, 0x21, 0x0FF9);
     let store = |limit: Option<u64>| {
@@ -564,14 +552,13 @@ fn a_store_or_name_map_value_is_held_to_the_file_limit() {
     assert_eq!(read_in_time(&path, map(None)), Ok(Some(20_000)));
     let limited = read_in_time(&path, map(Some(10_000)));
     assert!(limited.as_ref().is_err_and(|e| e.contains("over the limit")), "{limited:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A node B-tree page whose entry names the page itself is an error, not a stack overflow:
 /// every read goes through that tree.
 #[test]
 fn a_btree_page_that_points_at_itself_is_an_error() {
-    let dir = scratch("page-cycle");
+    let dir = scratch("pst-page-cycle");
     let (path, _) = with_a_big_file(&dir);
     let mut f = std::fs::read(&path).unwrap();
     // The header's root (offset 180): the node B-tree's BREF (bid, ib) at 216.
@@ -587,14 +574,13 @@ fn a_btree_page_that_points_at_itself_is_an_error() {
     std::fs::write(&path, &f).unwrap();
     let read = read_in_time(&path, |pst| PstStore::read(Rc::new(pst)).map(|_| ()).map_err(|e| e.to_string()));
     assert!(read.as_ref().is_err_and(|e| e.contains("level by level")), "{read:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An attachment whose own subnode tree can't be read finds its object in the message's
 /// subnode tree, the one place it was looked for before.
 #[test]
 fn an_attached_message_in_the_message_tree_reads_when_its_own_tree_is_damaged() {
-    let dir = scratch("own-damaged");
+    let dir = scratch("pst-own-damaged");
     let path = with_an_attached_message(&dir);
     let mut f = std::fs::read(&path).unwrap();
     let all = blocks(&f);
@@ -616,7 +602,6 @@ fn an_attached_message_in_the_message_tree_reads_when_its_own_tree_is_damaged() 
         attachments(&m).into_iter().next()
     });
     assert_eq!(read.as_deref(), Some("message Outer"));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An attachment the reader fails on, and one that only links to a file elsewhere, are counted
@@ -626,7 +611,7 @@ fn an_unreadable_attachment_and_a_link_are_counted() {
     use mailcraft_model::MessageKey;
     use mailcraft_model::job::SkipReason;
     use mailcraft_store::Store;
-    let dir = scratch("unread-and-link");
+    let dir = scratch("pst-unread-and-link");
     let path = dir.join("left-out.pst");
     let files = [file("letter.bin", b"twelve bytes"), file("share.txt", b"a path")];
     write::create_with(&path, &["Inbox"], &message("Outer"), &files).unwrap();
@@ -660,7 +645,6 @@ fn an_unreadable_attachment_and_a_link_are_counted() {
     let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
     let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
     assert!(p.attachments.is_empty(), "{:?}", p.attachments.iter().map(|a| &a.name).collect::<Vec<_>>());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Mark the attachment `nid` hidden (PidTagAttachmentHidden): the record of its file's type
@@ -707,7 +691,7 @@ fn hidden_files_are_left_out_by_the_items_class() {
         }
         names
     };
-    let dir = scratch("hidden-by-class");
+    let dir = scratch("pst-hidden-by-class");
     for (subject, kept) in [("IPM.Note", true), ("IPM.Schedule.Meeting.Request", false)] {
         let at = dir.join(subject);
         std::fs::create_dir_all(&at).unwrap();
@@ -727,5 +711,4 @@ fn hidden_files_are_left_out_by_the_items_class() {
         assert_eq!(names.iter().any(|n| n.ends_with(".eml")), kept, "{subject}: {names:?}");
         assert!(names.iter().any(|n| n == "empty.txt"), "{subject}: {names:?}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

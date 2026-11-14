@@ -2,6 +2,7 @@ use super::item::{File, item_of};
 use super::props::{decode, one_off_address, val};
 use super::rebuild::to_raw;
 use super::*;
+use crate::data_files::scratch::scratch;
 use mailcraft_pst::write;
 
 /// A one-off entry id holding `name`, `kind` and `address`, in UTF-16 or 8-bit.
@@ -53,8 +54,7 @@ fn a_recipient_s_address_from_its_one_off_entry_id() {
 /// Outlook's notes come in as notes: their text, colour and time; an empty one doesn't.
 #[test]
 fn notes_come_in_as_notes() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-notes-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("pst-notes");
     let store = Store::open(&dir).unwrap();
     let mut progress = |_| {};
     let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
@@ -77,7 +77,6 @@ fn notes_come_in_as_notes() {
     assert_eq!((n.text.as_str(), n.color, n.modified), ("Poster\nAsk about 170 gsm", 1, 1_700_000_500));
     assert_eq!(pim.notes[1].note.color, NOTE_YELLOW, "no colour: Outlook's yellow");
     assert!(pim.notes.iter().all(|s| !s.dirty && s.href.is_empty()), "kept on this computer");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A message too big for the batch being gathered goes into a transaction of its own, not on top
@@ -234,8 +233,7 @@ fn an_unsupported_charset_is_counted() {
 /// still came in: it isn't among the items left out.
 #[test]
 fn an_unsupported_charset_is_in_the_report() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-charset-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("pst-charset");
     let store = Store::open(&dir).unwrap();
     let mut progress = |_| {};
     let mut out = Out::new(&store, "d1", &ImportOptions::default(), &mut progress);
@@ -253,7 +251,6 @@ fn an_unsupported_charset_is_in_the_report() {
     let done = out.finish();
     assert_eq!((done.messages, done.skipped), (2, 0));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::CharsetUnsupported, 1)]);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -622,15 +619,13 @@ fn a_recipient_without_an_address_is_counted() {
     assert_eq!(read("From: a@x.example\r\nTo: b@x.example\r\n").recipients_without_address, 0);
 
     // The report counts them, not as items left out.
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-recipients-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("pst-recipients");
     let store = Store::open(&dir).unwrap();
     let mut progress = |_| {};
     let mut out = Out::new(&store, "r1", &ImportOptions::default(), &mut progress);
     let path = out.add_folder(None, "Inbox");
     out.add_message(&path, Item { subject: "s".into(), body: "b".into(), date: 1_704_067_200, ..read("") });
     let done = out.finish();
-    let _ = std::fs::remove_dir_all(&dir);
     assert_eq!((done.messages, done.skipped), (1, 0));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::RecipientWithoutAddress, 2)]);
 }
@@ -677,35 +672,28 @@ fn a_sent_item_keeps_its_bcc_and_gets_an_id() {
 
 #[test]
 fn an_offline_copy_is_explained() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-ost-{}", std::process::id()));
-    let _ = std::fs::create_dir_all(&dir);
+    let dir = scratch("ost");
     let file = dir.join("me@example.com.ost");
     std::fs::write(&file, b"!BDN\0\0\0\0SO$\0rest").unwrap();
     let store = Store::open(dir.join("cache")).unwrap();
     let e = import(&file, &store, "a1", &mut |_| {}).unwrap_err();
     assert!(e.contains(".ost") && e.contains("add the account"), "{e}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn junk_is_refused_and_nothing_is_written() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-junk-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-junk");
     let file = dir.join("junk.pst");
     std::fs::write(&file, b"!BDN this is not really a data file").unwrap();
     let store = Store::open(dir.join("cache")).unwrap();
     assert!(import(&file, &store, "a1", &mut |_| {}).is_err());
     assert!(import(&dir.join("missing.pst"), &store, "a1", &mut |_| {}).is_err());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn imports_a_data_file() {
     use mailcraft_pst::write::{NewAttachment, NewMessage, NewRecipient, RecipientType};
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst");
     let file = dir.join("Archive 2024.pst");
     let recipients = [
         NewRecipient { name: "Ana Ruiz", email: "ana@example.com", recipient_type: RecipientType::To, ..Default::default() },
@@ -781,7 +769,6 @@ fn imports_a_data_file() {
     assert_eq!(packed.load_folders("a1").unwrap(), all);
     assert_eq!(packed.read_body(&key), Some(raw));
     drop(packed);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 mod chunked;
@@ -802,45 +789,39 @@ mod resume;
 mod sent_ids;
 
 mod real_files {
+    use crate::data_files::scratch::scratch;
+
     /// Import a real data file named by `MAILCRAFT_PST` (counts only: no folder name, subject or
     /// address is printed). Fails when the variable is unset, the import fails or brings no mail.
     #[test]
     #[ignore]
     fn imports_the_file_in_mailcraft_pst() {
         let path = std::env::var("MAILCRAFT_PST").expect("MAILCRAFT_PST names the data file to import");
-        let dir = std::env::temp_dir().join(format!("mailcraft-real-pst-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let store = mailcraft_store::Store::open(&dir).unwrap();
+        let store = mailcraft_store::Store::open(scratch("real-pst")).unwrap();
         let t = std::time::Instant::now();
-        let r = super::import(std::path::Path::new(&path), &store, "r1", &mut |_| {});
-        if let Ok(done) = &r {
-            eprintln!("messages {} contacts {} events {} skipped {} in {:?}", done.messages, done.contacts, done.events, done.skipped, t.elapsed());
-            eprintln!("skips {:?}", done.skips);
-            let (mut parsed, mut html, mut files, mut dated) = (0, 0, 0, 0);
-            // Attached messages by level (0 = attached to an item) and the files inside them.
-            let (mut attached, mut inner) = ([0usize; 4], 0);
-            for (i, f) in done.folders.iter().enumerate() {
-                eprintln!("  folder {i:3} {:?} total {} unread {}", f.role, f.total, f.unread);
-                for m in store.load_folder("r1", &f.path).unwrap().messages {
-                    dated += usize::from(m.date > 0);
-                    let raw = store.read_body(&m.key).unwrap_or_default();
-                    if let Some(p) = mailcraft_mime::parse(&raw) {
-                        parsed += 1;
-                        html += usize::from(p.had_html);
-                        files += p.attachments.len();
-                        count_attached(&raw, 0, &mut attached, &mut inner);
-                    }
+        let done = super::import(std::path::Path::new(&path), &store, "r1", &mut |_| {}).unwrap_or_else(|e| panic!("the import failed: {e}"));
+        eprintln!("messages {} contacts {} events {} skipped {} in {:?}", done.messages, done.contacts, done.events, done.skipped, t.elapsed());
+        eprintln!("skips {:?}", done.skips);
+        let (mut parsed, mut html, mut files, mut dated) = (0, 0, 0, 0);
+        // Attached messages by level (0 = attached to an item) and the files inside them.
+        let (mut attached, mut inner) = ([0usize; 4], 0);
+        for (i, f) in done.folders.iter().enumerate() {
+            eprintln!("  folder {i:3} {:?} total {} unread {}", f.role, f.total, f.unread);
+            for m in store.load_folder("r1", &f.path).unwrap().messages {
+                dated += usize::from(m.date > 0);
+                let raw = store.read_body(&m.key).unwrap_or_default();
+                if let Some(p) = mailcraft_mime::parse(&raw) {
+                    parsed += 1;
+                    html += usize::from(p.had_html);
+                    files += p.attachments.len();
+                    count_attached(&raw, 0, &mut attached, &mut inner);
                 }
             }
-            eprintln!("parsed {parsed} (html {html}, attachments {files}, dated {dated})");
-            eprintln!("attached messages by level {attached:?}, files inside them {inner}");
         }
-        drop(store);
-        let _ = std::fs::remove_dir_all(dir);
-        let done = r.unwrap_or_else(|e| panic!("the import failed: {e}"));
+        eprintln!("parsed {parsed} (html {html}, attachments {files}, dated {dated})");
+        eprintln!("attached messages by level {attached:?}, files inside them {inner}");
         assert!(done.messages > 0, "the import brought no mail");
     }
-
     /// Counts the attached messages in `raw`, `level` down, and the other files inside them.
     fn count_attached(raw: &[u8], level: usize, attached: &mut [usize; 4], inner: &mut usize) {
         let Some(p) = mailcraft_mime::parse(raw) else { return };

@@ -7,6 +7,7 @@ use mailcraft_store::Store;
 use std::path::PathBuf;
 
 use super::super::{ImportOptions, Stop, import, import_with};
+use crate::data_files::scratch::scratch;
 
 /// One lane reads the items: what these tests count is one reader's.
 fn one_lane() -> ImportOptions {
@@ -15,9 +16,7 @@ fn one_lane() -> ImportOptions {
 
 /// A data file of `n` messages in its Inbox, in a folder of its own.
 fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch(&format!("pst-{name}"));
     let pst = dir.join("in.pst");
     let owned: Vec<(String, String)> = (0..n).map(|k| (format!("Report #{k}"), format!("<r{k}@run.example>"))).collect();
     let body = "Here is the week's plan, as agreed. ".repeat(40);
@@ -77,8 +76,6 @@ fn an_import_asked_to_stop_keeps_what_it_read() {
     let done = import_with(&small, &store, "s4", &opts, &mut |_| {}).unwrap();
     late.raise(StopHow::Cancel);
     assert_eq!((done.messages, done.stopped), (3, None));
-    let _ = std::fs::remove_dir_all(small.parent().unwrap());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Paused, an import writes what it read but leaves the folder it was part-way through out of
@@ -104,7 +101,6 @@ fn a_pause_hides_the_folder_part_way_and_a_discard_writes_nothing_more() {
     assert!(done.folders.is_empty());
     let listed: Vec<String> = store.load_folders("p2").unwrap().into_iter().map(|f| f.path).collect();
     assert_eq!(listed, ["Deleted Items"], "only what was in before it was thrown away (the data file goes with it)");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file looked at before it's imported is planned then: what it holds is told, and its import,
@@ -131,7 +127,6 @@ fn a_file_planned_when_looked_at_is_imported_without_planning_again() {
     std::fs::write(&junk, b"not a data file at all").unwrap();
     assert!(super::super::inspect(&junk).is_err());
     assert!(super::super::inspect(&dir.join("gone.pst")).is_err());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A stop only ever goes further:MailCraft closing (a pause) while an account is removed (a
@@ -183,13 +178,12 @@ fn an_import_counts_where_its_time_went() {
     let plain = Store::memory();
     let s = import(&pst, &plain, "t2", &mut |_| {}).unwrap().stats;
     assert_eq!(s.raw_bytes, s.kept_bytes);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A data file that can't be written to imports: nothing asks to write it.
 #[test]
 fn a_read_only_data_file_imports() {
-    let (dir, pst) = data_file("read-only", 5);
+    let (_, pst) = data_file("read-only", 5);
     let mut perms = std::fs::metadata(&pst).unwrap().permissions();
     perms.set_readonly(true);
     std::fs::set_permissions(&pst, perms.clone()).unwrap();
@@ -198,7 +192,6 @@ fn a_read_only_data_file_imports() {
     perms.set_readonly(false);
     std::fs::set_permissions(&pst, perms).unwrap();
     assert_eq!(done.map(|d| d.messages), Ok(5));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// While it's read, no other program may open the data file to write (Windows' sharing
@@ -206,7 +199,7 @@ fn a_read_only_data_file_imports() {
 #[cfg(windows)]
 #[test]
 fn nothing_writes_the_data_file_while_it_is_read() {
-    let (dir, pst) = data_file("shared", 450);
+    let (_, pst) = data_file("shared", 450);
     let before = std::fs::metadata(&pst).unwrap().modified().unwrap();
     let mut tried = Vec::new();
     let done = import(&pst, &Store::memory(), "w1", &mut |_| {
@@ -220,7 +213,6 @@ fn nothing_writes_the_data_file_while_it_is_read() {
     assert_eq!(std::fs::metadata(&pst).unwrap().modified().unwrap(), before);
     // Once it's done, the file is let go.
     assert!(std::fs::OpenOptions::new().write(true).open(&pst).is_ok());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The import's data file has the bulk cache while it writes, and the usual one after, however
@@ -244,5 +236,4 @@ fn an_import_has_the_bulk_cache_only_while_it_writes() {
         .unwrap();
     assert!(import_with(&junk, &store, "b2", &one_lane(), &mut |_| {}).is_err());
     assert_ne!(store.data_file_cache("b2"), Some(mailcraft_store::BULK_CACHE), "a failed import lets go of it too");
-    let _ = std::fs::remove_dir_all(&dir);
 }

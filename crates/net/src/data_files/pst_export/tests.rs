@@ -1,4 +1,5 @@
 use super::*;
+use crate::data_files::scratch::scratch;
 use mailcraft_model::{EmailAddress, Flags};
 use mailcraft_pst::{
     Message, PstFile, PstStore,
@@ -49,9 +50,7 @@ fn props_of(path: &Path, names: &[&str], subject: &str, ids: &[u16]) -> Vec<Opti
 #[test]
 fn an_account_round_trips_through_a_data_file() {
     use mailcraft_pst::PropertyValue as V;
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export");
     let store = Store::open(dir.join("cache")).unwrap();
     let mk = |folder: &str, uid: u32, subject: &str, with_file: bool, flags: Flags, edit: &dyn Fn(&mut mime::Draft)| {
         let mut d = mime::Draft {
@@ -299,16 +298,13 @@ fn an_account_round_trips_through_a_data_file() {
     let empty = dir.join("Empty.pst");
     assert!(export(&store, "nobody", "x", &empty, NONE, &mut |_| {}).is_err());
     assert!(!empty.exists());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file added to keeps its own special folders: the account's Sent mail goes into the folder
 /// it records, whatever its name, and none of its own is recorded in its place.
 #[test]
 fn an_export_uses_the_special_folders_a_file_has() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-special-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-special");
     let file = dir.join("Theirs.pst");
     let theirs = NewMessage {
         subject: "Theirs",
@@ -343,7 +339,6 @@ fn an_export_uses_the_special_folders_a_file_has() {
     let theirs = folders.iter().find(|f| f.path == "Gesendete Elemente").unwrap();
     assert_eq!((theirs.role, theirs.total), (FolderRole::Sent, 2), "{folders:?}");
     assert!(!folders.iter().any(|f| f.path == "Sent Items"), "{folders:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// MS-PST 5.1's permutation (`mpbbCrypt`'s first 256 bytes), which encodes a data block's bytes.
@@ -403,9 +398,7 @@ fn permute_encode(path: &Path) {
 /// it already has isn't written twice, it stays encoded, and the import reads it all back.
 #[test]
 fn an_export_adds_to_an_encoded_data_file() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-encoded-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-encoded");
     let file = dir.join("Outlook.pst");
     let theirs = |subject, message_id| NewMessage {
         subject,
@@ -445,7 +438,6 @@ fn an_export_adds_to_an_encoded_data_file() {
     let mut subjects: Vec<String> = back.load_folder("b1", "INBOX").unwrap().messages.iter().map(|m| m.subject.clone()).collect();
     subjects.sort();
     assert_eq!(subjects, ["Both", "Ours", "Theirs"]);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A data file whose name-to-ID map can't take names (here: its bucket count is 0) is still
@@ -453,9 +445,7 @@ fn an_export_adds_to_an_encoded_data_file() {
 #[test]
 fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
     use mailcraft_pst::PropertyValue as V;
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-name-map-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-name-map");
     let file = dir.join("Theirs.pst");
     let theirs = NewMessage {
         subject: "Theirs",
@@ -510,16 +500,13 @@ fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
     assert!(status.is_some());
     let back = Store::open(dir.join("back")).unwrap();
     assert_eq!(crate::pst::import(&file, &back, "b1", &mut |_| {}).unwrap().messages, 3);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// An Outlook 97–2002 file that is only a header (damaged) says it can't be read, before
 /// anything is written.
 #[test]
 fn a_damaged_ansi_data_file_says_it_cant_be_read() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-ansi-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-ansi");
     let file = dir.join("Old.pst");
     let mut head = b"!BDN\0\0\0\0SM".to_vec();
     head.extend_from_slice(&14u16.to_le_bytes());
@@ -527,7 +514,6 @@ fn a_damaged_ansi_data_file_says_it_cant_be_read() {
     std::fs::write(&file, &head).unwrap();
     assert!(ids_in(&file).is_err_and(|e| e.contains("can't be read")));
     assert_eq!(std::fs::read(&file).unwrap(), head);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A follow-up marked complete goes into the file as Outlook keeps one (status complete, when,
@@ -537,9 +523,7 @@ fn a_damaged_ansi_data_file_says_it_cant_be_read() {
 fn a_completed_follow_up_round_trips() {
     use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC};
     use mailcraft_pst::PropertyValue as V;
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-complete-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-complete");
     let store = Store::open(dir.join("cache")).unwrap();
     let complete = Flags { seen: true, keywords: vec![mailcraft_model::FOLLOW_UP_COMPLETE.into()], ..Default::default() };
     let flagged = Flags { flagged: true, ..Default::default() };
@@ -586,7 +570,6 @@ fn a_completed_follow_up_round_trips() {
     let done_back: BTreeMap<String, i64> = back.load_account_doc("b1", FOLLOW_UP_DONE_DOC).unwrap();
     assert_eq!(done_back, BTreeMap::from([("done@studio.example".to_string(), 20_390)]), "only the completed one's");
     drop((store, back));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 mod ansi;

@@ -18,6 +18,7 @@ use super::super::out::Out;
 use super::super::resume::{self, CHECKPOINT_DOC, CheckState, Checkpoint, Found};
 use super::super::{ImportOptions, Imported, Stop, import_with, keep_as_is};
 use super::pipeline::{data_file, everything};
+use crate::data_files::scratch::scratch;
 use crate::space::{Filling, LOW_SPACE};
 
 fn store_at(dir: &Path, name: &str) -> Store {
@@ -105,7 +106,6 @@ fn paused_and_gone_on_with_is_the_same_import() {
         let (again, _) = go_on(&dir.join("gone.pst"), &store, None);
         assert_eq!((again.messages, again.blocked, again.folders.len()), (900, None, all.folders.len()));
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Cut off as if the process ended (after a checkpoint part-way through a folder, and batches
@@ -144,7 +144,6 @@ fn cut_off_and_gone_on_with_is_the_same_import() {
     }
     assert!(part_way >= 3, "only {part_way} cuts went on from part-way through a folder");
     assert!(written_past > 0, "no source was written past a checkpoint");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Paused, gone on with and cut off part-way through, then gone on with again, the import is the
@@ -165,7 +164,6 @@ fn paused_then_cut_off_and_gone_on_with_is_the_same_import() {
     assert_eq!((done.messages, done.skipped), (900, 0));
     assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
     indexed_where_marked(&store);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Cancelled as it goes on from a pause, before the folder part-way through is reached again,
@@ -198,7 +196,6 @@ fn cancelled_before_the_paused_folder_is_reached_keeps_its_list() {
     let (done, _) = go_on(&pst, &store, None);
     assert_eq!((done.messages, done.skipped), (900, 0));
     assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Gone on with from a checkpoint (after a cut, nothing at its end saved them), the import goes
@@ -239,7 +236,6 @@ fn going_on_keeps_the_due_days_read_before_the_checkpoint() {
     assert_eq!(doc(FOLLOW_UP_DOC), BTreeMap::from([("before@x".to_string(), 20_400)]));
     assert_eq!(doc(FOLLOW_UP_DONE_DOC), BTreeMap::from([("finished@x".to_string(), 20_390)]));
     drop(out);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Paused while an item is read from a slow drive, the import stops at the read in hand, not at
@@ -277,7 +273,6 @@ fn a_pause_stops_part_way_through_an_item() {
     let (done, _) = go_on(&pst, &store, None);
     assert_eq!((done.messages, done.skipped), (120, 0));
     assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Kept as it is after a pause, or after being cut off past its checkpoint, an import's folder
@@ -325,7 +320,6 @@ fn keeping_a_paused_import_lists_the_folder_part_way_through() {
         assert_eq!(done.messages as u64, cp.counts.imported, "{n}");
     }
     assert!(written_past > 0, "no source was written past a checkpoint");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A row the reader fails on is counted once and never read again: gone on with, the import
@@ -344,7 +338,6 @@ fn a_row_the_reader_failed_on_is_not_read_again() {
     let (done, _) = go_on(&pst, &store, fault);
     assert_eq!((done.messages, done.skipped, done.skips.get(&SkipReason::MessageUnreadable)), (357, 3, Some(&3)));
     assert_eq!(everything(&store, "a1"), everything(&whole, "a1"));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file with a message more since the import stopped isn't gone on with, nor one that's gone,
@@ -404,15 +397,13 @@ fn a_changed_or_missing_file_is_not_gone_on_with() {
     assert_eq!((checkpoint(&store), store.load_folders("a1").unwrap()), before, "nothing written");
     store.save_account_doc("a1", CHECKPOINT_DOC, &serde_json::json!({"version": 9})).unwrap();
     assert_eq!(go_on(&pst, &store, None).0.blocked, Some(Blocked::SourceChanged));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Contacts and calendar items read before a checkpoint are in the account with it, and an import
 /// gone on from it keeps them and numbers the next after them.
 #[test]
 fn contacts_and_calendar_survive_with_their_checkpoint() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-resume-pim-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("pst-resume-pim");
     let store = store_at(&dir, "s");
     let note = |text: &str| Item {
         class: "IPM.StickyNote".into(),
@@ -449,7 +440,6 @@ fn contacts_and_calendar_survive_with_their_checkpoint() {
     assert_eq!(pim.notes.len(), 2);
     assert_ne!(pim.notes[0].note.uid, pim.notes[1].note.uid, "numbered after those read before");
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A checkpoint read from a file is checked: one that doesn't add up isn't gone on from, and one
@@ -516,7 +506,6 @@ fn a_full_drive_pauses_and_room_again_goes_on() {
     let none = import_with(&pst, &empty, "a1", &o, &mut |_| told += 1).unwrap();
     assert_eq!((none.blocked, none.messages, told), (Some(Blocked::DiskFull { free: left }), 0, 0));
     assert!(empty.data_file("a1").is_none_or(|f| !f.exists()), "no data file");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The drive filling up between two looks at it (something else wrote to it meanwhile): the
@@ -525,7 +514,7 @@ fn a_full_drive_pauses_and_room_again_goes_on() {
 /// there's room, it's the import that never stopped.
 #[test]
 fn a_write_the_full_drive_refuses_pauses_and_room_again_goes_on() {
-    let (dir, pst) = data_file("resume-refused", 300, false);
+    let (_, pst) = data_file("resume-refused", 300, false);
     let whole = Store::failing();
     import_with(&pst, &whole, "a1", &opts(2, None), &mut |_| {}).unwrap();
     let roomy = || Some(Arc::new(Filling::new(usize::MAX, 0)) as Arc<dyn crate::space::Space>);
@@ -550,7 +539,6 @@ fn a_write_the_full_drive_refuses_pauses_and_room_again_goes_on() {
         assert_eq!((done.messages, done.skipped, done.runs, done.blocked), (900, 0, 2, None), "{at}");
         assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "{at}");
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A write to the account's data file failing at the disk while the import runs (one from the
@@ -601,5 +589,4 @@ fn a_data_file_opened_again_after_a_failed_write_stops_the_import() {
         assert_eq!((done.messages, done.skipped, done.blocked), (900, 0, None), "{at}");
         assert_eq!(everything(&store, "a1"), everything(&whole, "a1"), "{at}");
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -2,6 +2,7 @@
 //! itself, twice.
 
 use super::*;
+use crate::data_files::scratch::scratch;
 
 /// The node of the folder at `names` below the top of a data file's folders.
 fn node_of(path: &Path, names: &[&str]) -> u32 {
@@ -94,13 +95,10 @@ fn looping(path: &Path) {
 /// ways and the export never began.
 #[test]
 fn a_data_file_whose_folders_go_round_is_read_once() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-export-loops-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-export-loops");
     let path = dir.join("loop.pst");
     looping(&path);
     let started = std::time::Instant::now();
     assert!(ids_in(&path).unwrap().is_empty());
     assert!(started.elapsed() < std::time::Duration::from_secs(10), "{:?}", started.elapsed());
-    let _ = std::fs::remove_dir_all(&dir);
 }

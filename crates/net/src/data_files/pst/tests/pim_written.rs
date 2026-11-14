@@ -13,6 +13,7 @@ use mailcraft_pst::{
 use mailcraft_store::Store;
 
 use super::super::import;
+use crate::data_files::scratch::scratch;
 
 /// PSETID_Appointment and PSETID_Address (MS-OXPROPS 1.3.2).
 const PSETID_APPOINTMENT: GuidValue = GuidValue::new(0x0006_2002, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
@@ -53,9 +54,7 @@ fn named<'a>(set: GuidValue, lid: u32, value: NewValue<'a>) -> NewProperty<'a> {
 /// own, and a card with its picture (PHOTO) and file, nothing left out.
 #[test]
 fn a_written_file_s_calendar_and_contacts_come_in() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-pim-written-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-pim-written");
     let path = dir.join("Calendar.pst");
     let at = |d: u32, h: i64| days_from_civil(2026, 10, d) * 86_400 + h * 3600;
     write::create_with(&path, &["Inbox"], &message("Hello", "IPM.Note", "Hi.", &[]), &[]).unwrap();
@@ -130,7 +129,6 @@ fn a_written_file_s_calendar_and_contacts_come_in() {
     );
     assert_eq!(card.extra, ["PHOTO:data:image/jpeg;base64,/9j/4A==", "X-MAILCRAFT-ATTACH;X-FILENAME=\"cv.pdf\":data:application/pdf;base64,Y3Y="]);
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Outlook's RSS Feeds folder and a feed's folder under it come in as mail folders of their
@@ -139,9 +137,7 @@ fn a_written_file_s_calendar_and_contacts_come_in() {
 /// import itself.
 #[test]
 fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-feeds-written-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-feeds-written");
     let path = dir.join("Feeds.pst");
     write::create_with(&path, &["Inbox"], &message("Hello", "IPM.Note", "Hi.", &[]), &[]).unwrap();
     write::create_folder(&path, &["RSS Feeds"], "IPF.Note.OutlookHomepage").unwrap();
@@ -196,7 +192,6 @@ fn a_written_file_s_feeds_and_other_kinds_in_mail_come_in() {
     let files: Vec<(&str, &str)> = kept.iter().map(|f| (f.file_name(), f.mime)).collect();
     assert_eq!((note.text.as_str(), files), ("Paper", vec![("swatch.pdf", "application/pdf")]));
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A message Outlook flagged for a day comes in with it (PidLidTaskDueDate, else
@@ -210,9 +205,7 @@ fn a_written_file_s_flagged_mail_comes_in_with_its_due_day() {
     use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC};
     use std::collections::BTreeMap;
     const PSETID_TASK: GuidValue = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-due-written-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-due-written");
     let path = dir.join("Flags.pst");
     write::create_with(&path, &["Inbox"], &message("Hello", "IPM.Note", "Hi.", &[]), &[]).unwrap();
     let day = days_from_civil(2026, 11, 20);
@@ -257,5 +250,4 @@ fn a_written_file_s_flagged_mail_comes_in_with_its_due_day() {
     complete.sort_unstable();
     assert_eq!(complete, ["done@studio.example", "finished@studio.example"]);
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }

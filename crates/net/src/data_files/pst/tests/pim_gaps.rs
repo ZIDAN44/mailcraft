@@ -12,6 +12,7 @@ use super::super::ImportOptions;
 use super::super::item::{File, Item};
 use super::super::out::Out;
 use super::super::rebuild::message;
+use crate::data_files::scratch::scratch;
 use crate::pst_pim::Extra;
 
 /// The names of a message's files, read back from its source.
@@ -81,22 +82,9 @@ fn meeting_items_carry_their_calendar() {
     assert_eq!(files_of(&message(carried, "id@x.invalid").unwrap().0), ["meeting.ics"]);
 }
 
-/// A scratch store for `Out`, removed when dropped.
-struct Scratch(std::path::PathBuf, Store);
-
-impl Scratch {
-    fn new(name: &str) -> Scratch {
-        let dir = std::env::temp_dir().join(format!("mailcraft-pst-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let store = Store::open(&dir).unwrap();
-        Scratch(dir, store)
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
+/// A store for `Out` in a scratch folder.
+fn scratch_store(name: &str) -> Store {
+    Store::open(scratch(&format!("pst-{name}"))).unwrap()
 }
 
 /// A post (an RSS feed's too), a document, a recall and its report, a sharing invitation and a
@@ -105,9 +93,9 @@ impl Drop for Scratch {
 /// left out, not dropped unsaid.
 #[test]
 fn posts_and_documents_are_mail_and_other_kinds_are_counted() {
-    let s = Scratch::new("kinds");
+    let s = scratch_store("kinds");
     let mut progress = |_| {};
-    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let mut out = Out::new(&s, "d1", &ImportOptions::default(), &mut progress);
     let path = out.add_folder(None, "Inbox");
     let mail = [
         "IPM.Post",
@@ -133,14 +121,14 @@ fn posts_and_documents_are_mail_and_other_kinds_are_counted() {
     let done = out.finish();
     assert_eq!((done.messages, done.contacts, done.skipped), (mail.len(), 1, 1));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::ItemNotUsable, 1)]);
-    let list = s.1.load_folder("d1", &path).unwrap().messages;
+    let list = s.load_folder("d1", &path).unwrap().messages;
     for class in mail {
         let m = list.iter().find(|m| m.subject == class).expect(class);
         assert_eq!(m.from.email, "riley@studio.example");
-        let raw = s.1.load_body(&m.key).unwrap().unwrap();
+        let raw = s.load_body(&m.key).unwrap().unwrap();
         assert!(mailcraft_mime::parse(&raw).unwrap().text.contains(&format!("Text of {class}")), "{class}");
     }
-    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let pim: Pim = s.load_account_doc("d1", PIM_DOC).unwrap();
     assert!(pim.cards.iter().any(|c| c.card.emails.iter().any(|e| e.value == "ana@posteo.example")));
 }
 
@@ -148,9 +136,9 @@ fn posts_and_documents_are_mail_and_other_kinds_are_counted() {
 /// its subject, its time and its text, and an empty one is counted.
 #[test]
 fn contact_groups_and_journal_entries_come_in() {
-    let s = Scratch::new("groups");
+    let s = scratch_store("groups");
     let mut progress = |_| {};
-    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let mut out = Out::new(&s, "d1", &ImportOptions::default(), &mut progress);
     let members = vec![("Ana".to_string(), "ana@posteo.example".to_string()), (String::new(), "ben@studio.example".to_string())];
     out.add_pim(Item {
         class: "IPM.DistList".into(),
@@ -170,7 +158,7 @@ fn contact_groups_and_journal_entries_come_in() {
     out.add_pim(entry(" ", "", None));
     let done = out.finish();
     assert_eq!((done.contacts, done.notes, done.skipped), (1, 1, 1));
-    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let pim: Pim = s.load_account_doc("d1", PIM_DOC).unwrap();
     let card = &pim.cards[0].card;
     assert_eq!(card.name, "Crew");
     assert_eq!(card.extra, ["KIND:group", "MEMBER:mailto:ana@posteo.example", "MEMBER:mailto:ben@studio.example"]);
@@ -185,9 +173,9 @@ fn contact_groups_and_journal_entries_come_in() {
 /// cap on a file is counted as too big, as a card's or an event's is.
 #[test]
 fn notes_and_journal_entries_keep_their_files() {
-    let s = Scratch::new("note-files");
+    let s = scratch_store("note-files");
     let mut progress = |_| {};
-    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let mut out = Out::new(&s, "d1", &ImportOptions::default(), &mut progress);
     let file = |name: &str, data: Vec<u8>| File::Data { name: name.into(), mime: "application/pdf".into(), cid: String::new(), data };
     let mail = Item { class: "IPM.Note".into(), subject: "Proofs".into(), body: "Attached.".into(), date: 1_700_000_000, ..Default::default() };
     out.add_pim(Item {
@@ -209,7 +197,7 @@ fn notes_and_journal_entries_keep_their_files() {
     let done = out.finish();
     assert_eq!((done.notes, done.skipped), (2, 0));
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentTooBig, 1)]);
-    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let pim: Pim = s.load_account_doc("d1", PIM_DOC).unwrap();
     let files = |i: usize| -> Vec<(String, String, Vec<u8>)> {
         pim.notes[i]
             .note
@@ -233,9 +221,9 @@ fn notes_and_journal_entries_keep_their_files() {
 /// task too; flagged mail stays mail.
 #[test]
 fn every_task_comes_in() {
-    let s = Scratch::new("tasks");
+    let s = scratch_store("tasks");
     let mut progress = |_| {};
-    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let mut out = Out::new(&s, "d1", &ImportOptions::default(), &mut progress);
     let day = mailcraft_model::dates::days_from_civil(2026, 11, 5) * 86_400;
     let task = |class: &str, subject: &str, x: Extra, files: Vec<File>| Item {
         class: class.into(),
@@ -261,7 +249,7 @@ fn every_task_comes_in() {
     out.save_folder(&path);
     let done = out.finish();
     assert_eq!((done.tasks, done.events, done.messages, done.skipped), (4, 0, 1, 0));
-    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let pim: Pim = s.load_account_doc("d1", PIM_DOC).unwrap();
     let tasks: Vec<&mailcraft_model::pim::Task> = pim.tasks.iter().map(|t| &t.task).collect();
     assert_eq!(tasks.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(), ["No day at all", "Due", "Done", "Asked of me"]);
     assert_eq!((tasks[0].due, tasks[0].status, tasks[0].modified), (None, mailcraft_model::pim::TaskStatus::Waiting, 1_700_000_000));
@@ -296,9 +284,9 @@ fn data(name: &str, mime: &str, n: usize) -> File {
 /// keep is counted as too big.
 #[test]
 fn changed_occurrences_and_files_come_in() {
-    let s = Scratch::new("pim-files");
+    let s = scratch_store("pim-files");
     let mut progress = |_| {};
-    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let mut out = Out::new(&s, "d1", &ImportOptions::default(), &mut progress);
     let at = |d: u32, h: i64| mailcraft_model::dates::days_from_civil(2026, 10, d) * 86_400 + h * 3600;
     let (pattern, start) = crate::pst_pim::tests::series(0x3009);
     let own = exception(at(19, 8), at(19, 8), "Bring the proofs.", vec![data("proofs.pdf", "application/pdf", 4)]);
@@ -327,7 +315,7 @@ fn changed_occurrences_and_files_come_in() {
     assert_eq!((done.events, done.contacts), (1, 1));
     assert_eq!(done.skipped, 0);
     assert_eq!(done.skips, [(SkipReason::AttachmentTooBig, 1), (SkipReason::ItemNotUsable, 1)].into_iter().collect());
-    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let pim: Pim = s.load_account_doc("d1", PIM_DOC).unwrap();
     let files_of = |extra: &[String]| -> Vec<String> {
         extra.iter().filter(|l| crate::pst_pim::is_file_line(l)).map(|l| l.split(':').next().unwrap_or_default().to_string()).collect()
     };
@@ -372,9 +360,9 @@ fn a_contact_s_picture() {
 /// every card and event with every file that was kept; those past the cap are counted.
 #[test]
 fn kept_files_read_back_from_the_exported_files() {
-    let s = Scratch::new("pim-files-back");
+    let s = scratch_store("pim-files-back");
     let mut progress = |_| {};
-    let mut out = Out::new(&s.1, "d1", &ImportOptions::default(), &mut progress);
+    let mut out = Out::new(&s, "d1", &ImportOptions::default(), &mut progress);
     // Pictures and files of 700,000 bytes: about 0.93 MB each in base64.
     for i in 0..6 {
         out.add_pim(Item {
@@ -396,7 +384,7 @@ fn kept_files_read_back_from_the_exported_files() {
     assert_eq!((done.contacts, done.events), (6, 6));
     let lost = done.skips.get(&SkipReason::AttachmentTooBig).copied().unwrap_or(0);
     assert_eq!(lost, 12 - 8, "eight fit in what's kept");
-    let pim: Pim = s.1.load_account_doc("d1", PIM_DOC).unwrap();
+    let pim: Pim = s.load_account_doc("d1", PIM_DOC).unwrap();
     let vcf: String = pim.cards.iter().map(|c| mailcraft_model::vcard::write(&c.card)).collect();
     let ics = mailcraft_model::ical::write(&pim.events.iter().map(|e| e.event.clone()).collect::<Vec<_>>(), None, 0);
     assert!(vcf.len() > 1 << 20 && ics.len() > 1 << 20, "past the old limits: {} {}", vcf.len(), ics.len());
@@ -415,9 +403,7 @@ fn kept_files_read_back_from_the_exported_files() {
 fn a_data_files_tasks_come_in() {
     use mailcraft_pst::GuidValue;
     use mailcraft_pst::write::{BatchMessage, Name, NewMessage, NewProperty, NewValue};
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-tasks-file-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-tasks-file");
     let pst = dir.join("tasks.pst");
     let task_set = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
     let day = mailcraft_model::dates::days_from_civil(2026, 11, 5) * 86_400;
@@ -466,7 +452,6 @@ fn a_data_files_tasks_come_in() {
         [("Book the stage".to_string(), Some(day), S::InProgress, P::High), ("Renew the licences".to_string(), None, S::Waiting, P::Normal)]
     );
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A file the writer made with a contact in the Inbox and a contact, an appointment, a task and a
@@ -476,9 +461,7 @@ fn a_data_files_tasks_come_in() {
 #[test]
 fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
     use mailcraft_pst::write::NewMessage;
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-trash-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-trash");
     let pst = dir.join("trash.pst");
     fn message<'a>(subject: &'a str, id: &'a str, class: &'a str) -> NewMessage<'a> {
         NewMessage {
@@ -514,5 +497,4 @@ fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
     assert_eq!(pim.cards.len(), 1);
     assert!(pim.events.is_empty() && pim.tasks.is_empty() && pim.notes.is_empty());
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }

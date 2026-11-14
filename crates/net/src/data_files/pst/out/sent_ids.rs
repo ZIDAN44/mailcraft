@@ -251,6 +251,7 @@ fn with_id(mut raw: Vec<u8>, id: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data_files::scratch::scratch;
 
     /// A conversation index: its header (GUID `g`) and `blocks` replies.
     fn index(g: u8, blocks: &[u8]) -> Vec<u8> {
@@ -412,8 +413,7 @@ mod tests {
         let none = b"From: a@studio.example\r\n\r\nMessage-ID: body\r\n".to_vec();
         assert_eq!(with_id(none, "x@mailcraft.invalid"), None);
 
-        let dir = std::env::temp_dir().join(format!("mailcraft-pst-sent-ids-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = scratch("pst-sent-ids");
         let store = Store::open_packed(dir.join("app"), dir.join("Files")).unwrap();
         let mut progress = |_| {};
         let mut out = Out::new(&store, "a1", &ImportOptions::default(), &mut progress);
@@ -439,6 +439,5 @@ mod tests {
         );
         assert_eq!(st.messages[1].size as usize, second.len());
         drop(out);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
