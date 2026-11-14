@@ -56,13 +56,39 @@ struct Args {
     rest: Vec<String>,
 }
 
+/// The options that take no value. Every other option takes the word after it: a switch was
+/// taken so too, and swallowed what followed it (`source --headers KEY` lost its KEY).
+const SWITCHES: [&str; 2] = ["--headers", "--checked"];
+
+/// Whether `a` is an option's name (`--to`), not a value that starts with dashes (`-- Riley`, a
+/// signature's).
+fn is_option(a: &str) -> bool {
+    a.strip_prefix("--").is_some_and(|n| n.starts_with(|c: char| c.is_ascii_alphabetic()))
+}
+
 impl Args {
+    /// Every option that takes a value has one: one given none took the next option for it
+    /// (`--to --subject x` sent to "--subject").
+    fn check(&self) -> Result<(), String> {
+        let mut it = self.rest.iter();
+        while let Some(a) = it.next() {
+            if is_option(a) && !SWITCHES.contains(&a.as_str()) && !it.next().is_some_and(|v| !is_option(v)) {
+                return Err(format!("{a} needs a value"));
+            }
+        }
+        Ok(())
+    }
     fn opt(&self, name: &str) -> Option<String> {
         self.rest.iter().position(|a| a == name).and_then(|i| self.rest.get(i + 1)).cloned()
     }
-    /// A switch given (`--headers`); it goes after the positional arguments.
+    /// A switch given (`--headers`), anywhere among the arguments.
     fn flag(&self, name: &str) -> bool {
         self.rest.iter().any(|a| a == name)
+    }
+    /// The number given with `name`, else `default`. One that isn't a number is an error: it was
+    /// dropped for the default without a word.
+    fn number(&self, name: &str, default: u64) -> Result<u64, String> {
+        self.opt(name).map_or(Ok(default), |v| v.trim().parse().map_err(|_| format!("{name} takes a number, not {v:?}")))
     }
     fn positional(&self, n: usize) -> Option<String> {
         let mut skip = false;
@@ -72,8 +98,8 @@ impl Args {
                 skip = false;
                 continue;
             }
-            if a.starts_with("--") {
-                skip = true;
+            if is_option(a) {
+                skip = !SWITCHES.contains(&a.as_str());
                 continue;
             }
             if i == n {
@@ -219,6 +245,7 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
     let args = Args { rest: raw };
+    args.check()?;
     let root =
         args.opt("--data").map(std::path::PathBuf::from).or_else(mailcraft_engine::store::default_root).ok_or("no data folder: pass --data DIR")?;
     // The same data files as the app: in Documents\MailCraft Files (or where they were moved),
@@ -302,7 +329,7 @@ fn run() -> Result<(), String> {
             let account = pick_account(&s, &args)?;
             let mut pool = start(&mut s, &store, &account)?;
             let test = cmd == "test";
-            let timeout = Duration::from_secs(args.opt("--timeout").and_then(|t| t.parse().ok()).unwrap_or(if test { 60 } else { 900 }));
+            let timeout = Duration::from_secs(args.number("--timeout", if test { 60 } else { 900 })?);
             let mut folders_seen = false;
             drive(&mut s, &mut pool, timeout, |e| match e {
                 Event::Folders { folders, .. } if test && !folders_seen => {
@@ -333,7 +360,7 @@ fn run() -> Result<(), String> {
                     .unwrap_or_else(|| "INBOX".into());
                 s.run("folder.open", &json!({"account": a, "folder": inbox})).map_err(|e| e.to_string())?;
             }
-            let limit = args.opt("--limit").and_then(|l| l.parse::<u64>().ok()).unwrap_or(30);
+            let limit = args.number("--limit", 30)?;
             let r = s.run("list.messages", &json!({"limit": limit})).map_err(|e| e.to_string())?;
             outln!("{} ({} messages)", r["view"].as_str().unwrap_or(""), r["total"]);
             for m in r["messages"].as_array().into_iter().flatten() {
@@ -673,6 +700,26 @@ mod tests {
     use super::*;
     use mailcraft_engine::model::job::Op;
     use mailcraft_engine::model::{Flag, MessageKey};
+
+    fn args(a: &[&str]) -> Args {
+        Args { rest: a.iter().map(|s| s.to_string()).collect() }
+    }
+
+    /// A switch anywhere takes no value; an option given none is said; a number that isn't one
+    /// is an error rather than the default.
+    #[test]
+    fn options_and_switches_are_told_apart() {
+        let a = args(&["source", "--headers", "a1:1:7:INBOX"]);
+        assert_eq!((a.positional(0).as_deref(), a.positional(1).as_deref(), a.flag("--headers")), (Some("source"), Some("a1:1:7:INBOX"), true));
+        let a = args(&["send", "--checked", "--to", "zoe@studio.example", "--body", "-- Riley"]);
+        assert!(a.check().is_ok());
+        assert_eq!((a.opt("--to").as_deref(), a.opt("--body").as_deref(), a.flag("--checked")), (Some("zoe@studio.example"), Some("-- Riley"), true));
+        assert_eq!(args(&["send", "--to", "--subject", "x"]).check(), Err("--to needs a value".into()));
+        assert_eq!(args(&["list", "--limit"]).check(), Err("--limit needs a value".into()));
+        assert_eq!(args(&["list", "--limit", "5"]).number("--limit", 30), Ok(5));
+        assert_eq!(args(&["list"]).number("--limit", 30), Ok(30));
+        assert!(args(&["list", "--limit", "two"]).number("--limit", 30).is_err());
+    }
 
     /// A change made with `run` waits for `sync` instead of being dropped.
     #[test]
