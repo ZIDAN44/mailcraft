@@ -36,6 +36,7 @@ on GitHub.
 - An export to an Outlook data file says so when a folder couldn't be read and its mail isn't in the file; it was left out with nothing said.
 - With an Exchange account (EWS or Microsoft 365), a calendar item, contact or note the server refuses to delete (access denied, say) is said not to be deleted and is asked again at the next sync; it was taken for already gone. A contact or note changed here whose old copy the server wouldn't delete is no longer made again beside it, twice over.
 - A big folder of an Exchange account (EWS or Microsoft 365) syncs, and is searched on the server, without looking each message up in the whole folder, as a JMAP account's now does.
+- Automatic replies can be read and set for an account that signs in with OAuth on a server with ManageSieve: its sign-in there was encoded twice, and always refused.
 
 ## 0.38.0 - 2026-11-13
 

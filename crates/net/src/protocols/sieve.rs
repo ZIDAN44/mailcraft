@@ -185,8 +185,10 @@ impl<S: Read + Write> Client<S> {
         if r.ok { Ok(()) } else { Err(NetError::Auth(if r.text.is_empty() { "the Sieve server refused the password".into() } else { r.text })) }
     }
 
+    /// Sign in with an OAuth token: `xoauth2` is the initial response in base64 already, sent as
+    /// IMAP sends it.
     pub fn login_xoauth2(&mut self, user: &str, token: &str) -> Result<()> {
-        let r = self.run(&format!("AUTHENTICATE \"XOAUTH2\" {}", q(&crate::imap::base64(crate::oauth::xoauth2(user, token).as_bytes()))))?;
+        let r = self.run(&format!("AUTHENTICATE \"XOAUTH2\" {}", q(&crate::oauth::xoauth2(user, token))))?;
         if r.ok { Ok(()) } else { Err(NetError::Auth(r.text)) }
     }
 
@@ -414,7 +416,7 @@ Zoe";"#
                 let caps = |s: &mut std::net::TcpStream, sieve: &str| {
                     let _ = write!(
                         s,
-                        "\"IMPLEMENTATION\" \"Fake\"\r\n\"SASL\" \"PLAIN\"\r\n\"SIEVE\" \"{sieve}\"\r\n\"VERSION\" \"1.0\"\r\nOK \"ready\"\r\n"
+                        "\"IMPLEMENTATION\" \"Fake\"\r\n\"SASL\" \"PLAIN XOAUTH2\"\r\n\"SIEVE\" \"{sieve}\"\r\n\"VERSION\" \"1.0\"\r\nOK \"ready\"\r\n"
                     );
                 };
                 caps(&mut s, shared.lock().unwrap().sieve);
@@ -428,7 +430,13 @@ Zoe";"#
                     let arg = |n: usize| line.split('"').nth(n).unwrap_or("").to_string();
                     let up = line.to_ascii_uppercase();
                     if up.starts_with("AUTHENTICATE") {
-                        let good = crate::imap::base64(b"\0me@studio.example\0pw");
+                        // PLAIN with the password, or XOAUTH2 with the token (its initial
+                        // response the SASL string in base64, RFC 5804 §2.1).
+                        let good = if up.contains("\"XOAUTH2\"") {
+                            format!("\"{}\"", crate::imap::base64(b"user=me@studio.example\x01auth=Bearer token\x01\x01"))
+                        } else {
+                            crate::imap::base64(b"\0me@studio.example\0pw")
+                        };
                         let _ = s.write_all(if line.contains(&good) { b"OK\r\n" as &[u8] } else { b"NO \"wrong password\"\r\n" });
                     } else if up.starts_with("LISTSCRIPTS") {
                         for (n, _) in &f.scripts {
@@ -477,6 +485,21 @@ Zoe";"#
         let mut c = Client::from_stream(std::net::TcpStream::connect(("127.0.0.1", port)).unwrap()).unwrap();
         c.login("me@studio.example", "pw").unwrap();
         c
+    }
+
+    /// An account signed in with OAuth reaches ManageSieve with XOAUTH2, its initial response
+    /// encoded once, as IMAP sends it: it went encoded twice, which no server can read, so its
+    /// automatic replies could never be read or set.
+    #[test]
+    fn oauth_accounts_sign_in_with_xoauth2() {
+        let (port, _) = serve(Fake { scripts: Vec::new(), active: None, sieve: "vacation", log: Vec::new() });
+        let mut c = Client::from_stream(std::net::TcpStream::connect(("127.0.0.1", port)).unwrap()).unwrap();
+        c.login_xoauth2("me@studio.example", "token").unwrap();
+        assert_eq!(c.vacation().unwrap(), Vacation::default());
+        c.logout();
+        let mut stale = Client::from_stream(std::net::TcpStream::connect(("127.0.0.1", port)).unwrap()).unwrap();
+        assert!(matches!(stale.login_xoauth2("me@studio.example", "expired"), Err(NetError::Auth(_))));
+        stale.logout();
     }
 
     #[test]
