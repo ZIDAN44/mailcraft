@@ -32,6 +32,7 @@ bin = [
     { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
     { name = "search_index", bench = false, test = false, doc = false, path = "fuzz_targets/store/search_index.rs" }, # the search index's files read back
     { name = "sign_in", bench = false, test = false, doc = false, path = "fuzz_targets/auth/sign_in.rs" }, # how a server asks to be signed in to, and a JMAP server's refusal
+    { name = "sign_on", bench = false, test = false, doc = false, path = "fuzz_targets/auth/sign_on.rs" }, # a single sign-on service's description
     { name = "signature", bench = false, test = false, doc = false, path = "fuzz_targets/signature.rs" }, # signatures as HTML code and saved web pages
     { name = "smime", bench = false, test = false, doc = false, path = "fuzz_targets/smime.rs" }, # signatures, encrypted mail, certificates, .p12
     { name = "tnef", bench = false, test = false, doc = false, path = "fuzz_targets/tnef.rs" }, # Outlook's winmail.dat and compressed RTF
@@ -45,7 +46,7 @@ mailcraft-engine.path = "../crates/engine" # a backup of what the browser keeps
 mailcraft-jmap.path = "../crates/jmap" # the JMAP client
 mailcraft-mime.path = "../crates/mime" # MIME, HTML and markup
 mailcraft-model.path = "../crates/model" # iCalendar, vCard, search
-mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst
+mailcraft-net.path = "../crates/net" # IMAP, WebDAV, .pst, single sign-on
 mailcraft-smime.path = "../crates/smime" # S/MIME
 mailcraft-pst.path = "../crates/pst" # the .pst reader and writer
 mailcraft-print.path = "../crates/print" # messages as PDF pages

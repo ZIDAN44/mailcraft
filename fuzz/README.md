@@ -65,6 +65,7 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
 | `imap` | A whole IMAP session, including a folder sync |
 | `jmap` | JMAP sign-in, sync, push events and URLs |
 | `sign_in` | How a server asks to be signed in to (`WWW-Authenticate`), and a JMAP server's refusal |
+| `sign_on` | A single sign-on service's description (OIDC Discovery), as it came from one of a few addresses |
 | `search` | The query language, dates, the **Advanced** form, JMAP filters, modified UTF-7 |
 | `data_file` | A damaged account data file |
 | `data_folder` | A damaged data folder's own files |

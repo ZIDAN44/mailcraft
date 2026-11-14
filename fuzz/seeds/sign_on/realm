@@ -1,0 +1,1 @@
+{"issuer":"https://kc.example.org/realms/mail","authorization_endpoint":"https://kc.example.org/realms/mail/authorize","token_endpoint":"https://kc.example.org/realms/mail/token","scopes_supported":["openid","profile","email","offline_access"],"code_challenge_methods_supported":["plain","S256"]}

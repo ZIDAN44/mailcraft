@@ -100,6 +100,65 @@ fn a_description_that_cant_be_trusted_is_refused() {
     assert!(e.contains("address isn't https"), "{e}");
 }
 
+/// An account signs in with the service it names: not with another, that the address it names
+/// sends the request on to. Its issuer written with a trailing `/` is the same one.
+#[test]
+fn an_account_signs_in_with_the_service_it_names() {
+    let sso = service(|base, _| json(&description(base)));
+    let to = sso.clone();
+    let elsewhere = service(move |_, _| format!("HTTP/1.1 302 Found\r\nLocation: {to}{WELL_KNOWN}\r\nContent-Length: 0\r\n\r\n").into_bytes());
+    let named = |issuer: String| OidcSettings { issuer, client_id: "mailcraft".into(), scope: String::new() };
+    let e = provider(&named(elsewhere.clone())).unwrap_err().to_string();
+    assert!(e.contains(&format!("at {elsewhere} says it's {sso}")), "{e}");
+    let p = provider(&named(format!("{sso}/"))).unwrap();
+    assert_eq!((p.auth_url, p.token_url), (format!("{sso}/authorize"), format!("{sso}/token")));
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(400))]
+    /// Whatever a service sends as its description is read within the caps, or refused. One
+    /// that's taken names the service where it came from, and its endpoints are https unless it
+    /// came over plain http from this computer; one that names its own service, within the caps
+    /// and with PKCE's S256, is taken.
+    #[test]
+    fn a_description_is_read_within_its_caps(
+        from in proptest::sample::select(vec!["https://sso.example.com", "https://kc.example.org/realms/mail", "http://127.0.0.1:8080"]),
+        own in proptest::prelude::any::<bool>(),
+        slash in proptest::prelude::any::<bool>(),
+        other in "[ -~]{0,40}",
+        long in 0usize..2100,
+        scopes in proptest::collection::vec("[ -~]{0,12}", 0..300),
+        methods in proptest::option::of(proptest::collection::vec("S256|plain|[a-z0-9]{0,4}", 0..3)),
+    ) {
+        let at = Url::parse(&format!("{from}{WELL_KNOWN}")).unwrap();
+        let (issuer, authorize, token) = if own {
+            (format!("{from}{}", if slash { "/" } else { "" }), format!("{from}/authorize{}", "a".repeat(long)), format!("{from}/token"))
+        } else {
+            (other.clone(), format!("{other}/authorize"), other.clone())
+        };
+        let mut body = serde_json::json!({"issuer": issuer, "authorization_endpoint": authorize, "token_endpoint": token, "scopes_supported": scopes});
+        if let (Some(m), Some(o)) = (&methods, body.as_object_mut()) {
+            o.insert("code_challenge_methods_supported".into(), serde_json::json!(m));
+        }
+        let read = description_from(body.to_string().as_bytes(), &at);
+        let s256 = methods.as_ref().is_none_or(|m| m.iter().any(|m| m == "S256"));
+        if own && authorize.len() <= MAX_FIELD && s256 {
+            proptest::prop_assert!(read.is_ok(), "{read:?}");
+        }
+        if let Ok(d) = read {
+            proptest::prop_assert!(same_issuer(from, &d.issuer) && s256, "{d:?}");
+            for f in [&d.issuer, &d.authorization_endpoint, &d.token_endpoint] {
+                proptest::prop_assert!(!f.is_empty() && f.len() <= MAX_FIELD && !f.chars().any(|c| c.is_whitespace() || c.is_control()));
+            }
+            for e in [&d.authorization_endpoint, &d.token_endpoint] {
+                let u = Url::parse(e).unwrap();
+                proptest::prop_assert!(u.https || (!at.https && loopback(&u.host)), "{e}");
+            }
+            proptest::prop_assert!(d.scopes_supported.len() <= MAX_SUPPORTED && d.scopes_supported.iter().all(|s| scope_token(s)));
+        }
+    }
+}
+
 /// A JMAP session's refusal of a request without a sign-in, asking for `challenges`.
 fn refusal(challenges: &[&str]) -> Vec<u8> {
     let asks: String = challenges.iter().map(|c| format!("WWW-Authenticate: {c}\r\n")).collect();

@@ -1,0 +1,1 @@
+{"issuer":"http://127.0.0.1:8080","authorization_endpoint":"http://127.0.0.1:8080/authorize","token_endpoint":"http://127.0.0.1:8080/token","scopes_supported":["openid","profile","email","offline_access"],"code_challenge_methods_supported":["plain","S256"]}

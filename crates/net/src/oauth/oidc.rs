@@ -26,11 +26,11 @@ pub const DEFAULT_SCOPE: &str = "openid profile email";
 /// The most of a description that's read: they're a few kilobytes.
 const MAX_DESCRIPTION: usize = 256 << 10;
 /// The longest address or issuer taken from one.
-const MAX_FIELD: usize = 2048;
+pub const MAX_FIELD: usize = 2048;
 /// The most scopes kept from a description.
-const MAX_SUPPORTED: usize = 256;
+pub const MAX_SUPPORTED: usize = 256;
 /// The most scopes asked for.
-const MAX_SCOPES: usize = 32;
+pub const MAX_SCOPES: usize = 32;
 /// The longest client id.
 pub const MAX_CLIENT_ID: usize = 256;
 
@@ -76,6 +76,21 @@ fn issuer_key(s: &str) -> Option<(String, String)> {
     Some((u.origin(), u.path.trim_end_matches('/').to_string()))
 }
 
+/// Whether `a` and `b` are the same issuer ([`issuer_key`]); what isn't one is no issuer's.
+fn same_issuer(a: &str, b: &str) -> bool {
+    issuer_key(a).is_some_and(|k| issuer_key(b) == Some(k))
+}
+
+/// The service at `at` speaks for another, `says`.
+fn another_service(at: &str, says: &str) -> NetError {
+    NetError::Protocol(format!("the sign-in service at {} says it's {}", clip(at), clip(says)))
+}
+
+/// The sign-in service's `what` isn't https.
+fn not_https(what: &str) -> NetError {
+    NetError::Tls(format!("the sign-in service's {what} isn't https"))
+}
+
 /// At most 120 characters of something a server said, for a message.
 fn clip(s: &str) -> String {
     s.chars().take(120).collect()
@@ -86,23 +101,29 @@ fn scope_token(s: &str) -> bool {
     !s.is_empty() && s.len() <= 256 && s.bytes().all(|b| b.is_ascii_graphic() && b != b'"' && b != b'\\')
 }
 
-/// A service's description at `url`, the redirects followed. Hostile input: capped, over https
-/// only (plain http to this computer's loopback address alone, for a test service, whose
-/// endpoints must be there too), and the issuer it names must be the one at the address it came
-/// from (OIDC Discovery §4.3): a description can't speak for another service.
+/// A service's description at `url`, the redirects followed, as [`description_from`] reads it.
+/// Asked for over https only: plain http to this computer's loopback address alone, for a test
+/// service.
 pub fn describe(url: &str) -> Result<Description> {
-    let not_https = |what: &str| NetError::Tls(format!("the sign-in service's {what} isn't https"));
     if !secure(&Url::parse(url)?) {
         return Err(not_https("address"));
     }
     let (resp, at) = crate::http::send_where(&Request::get(url, MAX_DESCRIPTION).header("Accept", "application/json"))?;
-    if !secure(&at) {
-        return Err(not_https("address"));
-    }
     if !resp.ok() {
         return Err(NetError::Protocol(format!("the sign-in service's description answered HTTP {}", resp.status)));
     }
-    let v: Value = serde_json::from_slice(&resp.body).map_err(|_| NetError::Protocol("the sign-in service's description isn't JSON".into()))?;
+    description_from(&resp.body, &at)
+}
+
+/// A service's description, `body`, as it came from `at`. Hostile input: capped, from https
+/// only (plain http from this computer's loopback address alone, for a test service, whose
+/// endpoints must be there too), and the issuer it names must be the one at `at` (OIDC
+/// Discovery §4.3): a description can't speak for another service.
+pub fn description_from(body: &[u8], at: &Url) -> Result<Description> {
+    if !secure(at) {
+        return Err(not_https("address"));
+    }
+    let v: Value = serde_json::from_slice(body).map_err(|_| NetError::Protocol("the sign-in service's description isn't JSON".into()))?;
     let text = |k: &str| {
         v.get(k)
             .and_then(Value::as_str)
@@ -112,10 +133,8 @@ pub fn describe(url: &str) -> Result<Description> {
     let missing = |k: &str| NetError::Protocol(format!("the sign-in service's description has no `{k}`"));
     let issuer = text("issuer").ok_or_else(|| missing("issuer"))?;
     let here = at.path.strip_suffix(WELL_KNOWN).map(|p| format!("{}{p}", at.origin()));
-    let theirs = issuer_key(issuer);
-    if theirs.is_none() || here.as_deref().and_then(issuer_key) != theirs {
-        let at = here.unwrap_or_else(|| format!("{}{}", at.origin(), at.path));
-        return Err(NetError::Protocol(format!("the sign-in service at {} says it's {}", clip(&at), clip(issuer))));
+    if !here.as_deref().is_some_and(|h| same_issuer(h, issuer)) {
+        return Err(another_service(&here.unwrap_or_else(|| format!("{}{}", at.origin(), at.path)), issuer));
     }
     let endpoint = |k: &str| -> Result<String> {
         let e = text(k).filter(|e| !e.contains('#')).ok_or_else(|| missing(k))?;
@@ -218,11 +237,15 @@ pub fn client_id(oidc: &OidcSettings) -> Option<String> {
 }
 
 /// The provider an account signs in with: the service its settings name, as that describes
-/// itself, under its client id, asking for its scopes. A request to the service: only ever on a
-/// thread of its own.
+/// itself, under its client id, asking for its scopes. Never another service its address sends
+/// the request on to: the account's tokens are its own service's. A request to the service: only
+/// ever on a thread of its own.
 pub fn provider(oidc: &OidcSettings) -> Result<Provider> {
     let client_id = client_id(oidc).ok_or_else(|| NetError::Auth(mailcraft_model::NO_CLIENT_ID.into()))?;
     let d = describe(&description_url(&oidc.issuer))?;
+    if !same_issuer(oidc.issuer.trim(), &d.issuer) {
+        return Err(another_service(oidc.issuer.trim(), &d.issuer));
+    }
     Ok(provider_from(&d, client_id, &oidc.scope))
 }
 
