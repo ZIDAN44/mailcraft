@@ -71,8 +71,11 @@ pub struct Data {
     /// The folder's rights say nothing of that (as some servers answer for another mailbox's
     /// calendar): only each item's rights do.
     pub item_rights_only: bool,
-    /// Listing a mail folder's messages takes this long (a big mailbox's first sync).
-    pub hold: Option<std::time::Duration>,
+    /// Listing a mail folder's messages waits while this is set, until the test lets it go (a big
+    /// mailbox's first sync, as long as the test likes).
+    pub hold: bool,
+    /// Listings of a mail folder's messages waiting now, held.
+    pub held: usize,
     /// Ids of folders listed with `PidTagAttributeHidden` true.
     pub flagged_hidden: Vec<String>,
     /// Messages whose source can't be had (the server fails on it); appointments and contacts
@@ -132,7 +135,8 @@ impl Default for Data {
             url: String::new(),
             editors: Vec::new(),
             item_rights_only: false,
-            hold: None,
+            hold: false,
+            held: 0,
             flagged_hidden: Vec::new(),
             unreadable: Vec::new(),
             pf_mailbox: None,

@@ -234,7 +234,8 @@ fn a_microsoft_account_without_a_mailbox_says_so_and_stops() {
         _ => None,
     });
     assert!(error.as_deref().is_some_and(|e| e.contains("no Outlook.com or Microsoft 365 mailbox")), "{error:?}");
-    std::thread::sleep(Duration::from_millis(1500));
+    // Once its thread waits, nothing more is asked of the server until something wakes it.
+    eventually("the account's thread waiting", || pool.idle("a1"));
     let tries = server.data.lock().unwrap().calls.len();
     assert!(tries <= 2, "asked once, not over and over: {tries} requests");
     let _ = std::fs::remove_dir_all(store.root());

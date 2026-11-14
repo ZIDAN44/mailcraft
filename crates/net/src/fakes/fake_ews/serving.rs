@@ -269,13 +269,19 @@ fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String
             "<soap:Envelope><soap:Body><soap:Fault><faultstring>no operation</faultstring></soap:Fault></soap:Body></soap:Envelope>".into(),
         );
     };
-    // A slow server: listing a mail folder takes its time (without holding up the others).
+    // A slow server: listing a mail folder waits while the test holds it (without holding up
+    // the others); a minute at most, so a test that never lets go fails rather than hangs.
     let hold = {
         let d = shared.lock().unwrap();
-        d.hold.filter(|_| op.name == "FindItem" && !d.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())))
+        d.hold && op.name == "FindItem" && !d.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first()))
     };
-    if let Some(h) = hold {
-        std::thread::sleep(h);
+    if hold {
+        shared.lock().unwrap().held += 1;
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while shared.lock().unwrap().hold && std::time::Instant::now() < end {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        shared.lock().unwrap().held -= 1;
     }
     let mut d = shared.lock().unwrap();
     d.calls.push(op.name.clone());

@@ -9,6 +9,14 @@ mod threads;
 const OFFLINE: &str = "the account is offline";
 
 impl Pool {
+    /// Whether the account's thread is waiting (for a job, or out a wait to connect again): what
+    /// it has done so far stays done until something wakes it. For the tests to wait on rather
+    /// than time.
+    #[cfg(test)]
+    pub(crate) fn idle(&self, account: &str) -> bool {
+        self.workers.get(account).is_some_and(|h| !h.busy.load(Ordering::Relaxed))
+    }
+
     pub fn submit(&mut self, job: Job) {
         self.forget_unstarted();
         self.release_compacted();

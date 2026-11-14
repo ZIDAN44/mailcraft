@@ -3,16 +3,32 @@
 
 use super::*;
 
+/// `ops` made here while `holding` holds the sync on a folder's `SELECT`, each in the cache and
+/// queued for the server before the sync is let go: the worker comes to them between that folder
+/// and the next, as one made then does (a sync that never comes to that `SELECT` fails the
+/// test). What the pool said meanwhile.
+pub(super) fn made_while_held(pool: &mut crate::worker::Pool, store: &Store, holding: holding::Holding, ops: &[Op]) -> Vec<Event> {
+    holding.came();
+    for op in ops {
+        pool.submit(Job::Apply { account: "a1".into(), op: op.clone() });
+    }
+    let queued = |_: &[Event]| store.load_ops("a1").is_ok_and(|q| q.len() == ops.len());
+    let seen = events_until(pool, "the changes made here, queued for the server", queued);
+    holding.go(LetGo::Answer);
+    seen
+}
+
 /// The Inbox's counts said last, as a full sync goes (`make`: a folder made while it's between
-/// two folders, within a second of the Inbox's counts changing).
+/// two folders, just after the Inbox's counts changed).
 fn inbox_counts_said(make: bool) -> Option<(u32, u32)> {
     let st = State::new();
+    let (hold, holding) = Hold::on("SELECT \"INBOX\"");
     {
         let mut s = st.lock().unwrap();
         for n in 0..3 {
             s.add("INBOX", &format!("m{n}"), &[]);
         }
-        s.stall_on = Some(("SELECT \"INBOX\"".into(), Duration::from_millis(600)));
+        s.hold_on = Some(hold);
     }
     let port = serve_tcp(&st);
     let store = store(if make { "counts-folder-made" } else { "counts-nothing-made" });
@@ -26,13 +42,10 @@ fn inbox_counts_said(make: bool) -> Option<(u32, u32)> {
         ..Default::default()
     };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    until(&pool, "syncing the Inbox", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder == "INBOX"));
-    if make {
-        pool.submit(Job::Apply { account: "a1".into(), op: Op::CreateFolder { path: "Plans".into() } });
-    }
-    let mut seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
-    std::thread::sleep(Duration::from_millis(300));
-    seen.extend(pool.poll());
+    let ops = if make { vec![Op::CreateFolder { path: "Plans".into() }] } else { Vec::new() };
+    let mut seen = made_while_held(&mut pool, &store, holding, &ops);
+    // Every count is said before the account is online.
+    seen.extend(until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. })));
     let said = seen
         .iter()
         .filter_map(|e| match e {
@@ -42,7 +55,6 @@ fn inbox_counts_said(make: bool) -> Option<(u32, u32)> {
         .next_back();
     let kept = store.load_folders("a1").unwrap_or_default().into_iter().find(|f| f.path == "INBOX").map(|f| (f.unread, f.total));
     assert_eq!(said, kept, "said as kept");
-    assert!(st.lock().unwrap().stalled > 0, "the sync never held in the Inbox");
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
     said
@@ -65,12 +77,13 @@ fn a_folder_made_mid_sync_keeps_the_counts_not_said_yet() {
 #[test]
 fn a_folder_renamed_mid_sync_is_never_shown_undone() {
     let st = State::new();
+    let (hold, holding) = Hold::on("SELECT \"INBOX\"");
     {
         let mut s = st.lock().unwrap();
         for n in 0..3 {
             s.add("INBOX", &format!("m{n}"), &[]);
         }
-        s.stall_on = Some(("SELECT \"INBOX\"".into(), Duration::from_millis(600)));
+        s.hold_on = Some(hold);
     }
     let port = serve_tcp(&st);
     let store = store("counts-folder-renamed");
@@ -84,13 +97,9 @@ fn a_folder_renamed_mid_sync_is_never_shown_undone() {
         ..Default::default()
     };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    let mut seen =
-        until(&pool, "syncing the Inbox", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder == "INBOX"));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Archive".into(), to: "Kept".into() } });
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::CreateFolder { path: "Plans".into() } });
+    let ops = [Op::RenameFolder { from: "Archive".into(), to: "Kept".into() }, Op::CreateFolder { path: "Plans".into() }];
+    let mut seen = made_while_held(&mut pool, &store, holding, &ops);
     seen.extend(until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. })));
-    std::thread::sleep(Duration::from_millis(300));
-    seen.extend(pool.poll());
     let lists: Vec<Vec<String>> = seen
         .iter()
         .filter_map(|e| match e {
@@ -141,11 +150,13 @@ fn a_folder_renamed_mid_sync_is_never_shown_undone() {
 #[test]
 fn a_folder_renamed_mid_sync_keeps_its_counts() {
     let st = State::new();
+    // The sync on the last folder, Archive's counts synced and not said.
+    let (hold, holding) = Hold::on("SELECT \"Projects");
     {
         let mut s = st.lock().unwrap();
         s.add("Archive", "kept", &["\\Seen"]);
         s.add("Archive", "kept", &[]);
-        s.stall_on = Some(("SELECT \"Projects".into(), Duration::from_millis(1500)));
+        s.hold_on = Some(hold);
     }
     let port = serve_tcp(&st);
     let store = store("counts-renamed-own");
@@ -159,12 +170,7 @@ fn a_folder_renamed_mid_sync_keeps_its_counts() {
         ..Default::default()
     };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    let mut seen = until(
-        &pool,
-        "syncing Projects",
-        |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder.starts_with("Projects")),
-    );
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Archive".into(), to: "Kept".into() } });
+    let mut seen = made_while_held(&mut pool, &store, holding, &[Op::RenameFolder { from: "Archive".into(), to: "Kept".into() }]);
     seen.extend(until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. })));
     let kept = |l: &[mailcraft_model::Folder]| l.iter().find(|f| f.path == "Kept").map(|f| (f.unread, f.total));
     let said = |seen: &[Event]| -> Vec<(u32, u32)> {
@@ -175,13 +181,12 @@ fn a_folder_renamed_mid_sync_keeps_its_counts() {
             })
             .collect()
     };
-    // What's said for a second and a half, and until the worker has said it (waited for, as a
-    // busy computer takes its time).
-    let (began, end) = (Instant::now(), Instant::now() + Duration::from_secs(60));
-    while began.elapsed() < Duration::from_millis(1500) || said(&seen).len() < 2 {
-        assert!(Instant::now() < end, "the renamed folder's counts never said by the worker: {:?}", said(&seen));
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    // Until the worker has said it, before or after the account is online.
+    let more = events_until(&pool, "the renamed folder said by the worker", |more| said(&seen).len() + said(more).len() >= 2);
+    seen.extend(more);
+    // And what's said after, until the worker has no more to do: a list with the counts from
+    // before would come last.
+    seen.extend(crate::waiting::until_idle(&pool, "a1"));
     let said = said(&seen);
     assert_eq!(store.load_folder("a1", "Kept").map(|f| f.messages.len()).unwrap_or(0), 2, "the renamed folder's mail");
     // Said first as the folder was renamed on disk, before its counts got there; then by the
@@ -219,18 +224,16 @@ fn a_folder_renamed_as_it_is_read_leaves_no_cache_behind() {
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let cached = |path: &str| store.load_folder("a1", path).map(|f| f.messages.len()).unwrap_or(0);
     assert_eq!(cached("Archive"), 2);
-    // Read again, slowly, with new mail in it: renamed as it's read.
+    // Read again, with new mail in it: renamed as it's read.
+    let (hold, holding) = Hold::on("SELECT \"Archive\"");
     {
         let mut s = st.lock().unwrap();
         s.add("Archive", "new", &[]);
-        s.stall_on = Some(("SELECT \"Archive\"".into(), Duration::from_millis(1000)));
+        s.hold_on = Some(hold);
     }
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "Archive".into() });
-    until(&pool, "reading Archive", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder == "Archive"));
-    pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Archive".into(), to: "Kept".into() } });
+    made_while_held(&mut pool, &store, holding, &[Op::RenameFolder { from: "Archive".into(), to: "Kept".into() }]);
     events_until(&pool, "Kept renamed on the server and read", |_| st.lock().unwrap().mailbox("Kept").is_some() && cached("Kept") >= 3);
-    std::thread::sleep(Duration::from_millis(300));
-    let _ = pool.poll();
     assert_eq!(cached("Archive"), 0, "a cache left under the old name");
     assert_eq!(cached("Kept"), 3, "the renamed folder's mail");
     pool.submit(Job::Remove { account: "a1".into() });
@@ -266,9 +269,8 @@ fn a_folder_made_here_keeps_the_counts_of_mail_read_here() {
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let inbox = |l: &[mailcraft_model::Folder]| l.iter().find(|f| f.path == "INBOX").map(|f| (f.unread, f.total));
+    // Every count of the sync was said before it was online.
     assert_eq!(inbox(&store.load_folders("a1").unwrap()), Some((3, 3)));
-    std::thread::sleep(Duration::from_millis(300));
-    let _ = pool.poll();
     // One read here (the window writes the Inbox's count), then a folder made.
     store.update_folder_counts("a1", &[("INBOX".into(), 2, 3)]).unwrap();
     pool.submit(Job::Apply { account: "a1".into(), op: Op::CreateFolder { path: "Plans".into() } });
@@ -284,9 +286,8 @@ fn a_folder_made_here_keeps_the_counts_of_mail_read_here() {
     };
     let made = || st.lock().unwrap().mailbox("Plans").is_some() && store.load_ops("a1").is_ok_and(|ops| ops.is_empty());
     let mut seen = events_until(&pool, "Plans made on the server, and the counts said twice", |seen| made() && said(seen).len() >= 2);
-    // And anything said just after.
-    std::thread::sleep(Duration::from_millis(300));
-    seen.extend(pool.poll());
+    // And anything said after, until the worker has no more to do.
+    seen.extend(crate::waiting::until_idle(&pool, "a1"));
     let kept = store.load_folders("a1").unwrap();
     assert!(kept.iter().any(|f| f.path == "Plans"), "{kept:?}");
     assert_eq!(inbox(&kept), Some((2, 3)), "the window's count kept");

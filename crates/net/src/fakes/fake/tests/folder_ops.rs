@@ -17,21 +17,21 @@ fn account(port: u16) -> AccountConfig {
 /// leaves said: the notices, and the server's folders after.
 fn mid_sync(op: Op, name: &str) -> (Vec<String>, Vec<String>) {
     let st = State::new();
+    let (hold, holding) = Hold::on("SELECT \"INBOX\"");
     {
         let mut s = st.lock().unwrap();
         s.add("Archive", "kept", &[]);
-        s.stall_on = Some(("SELECT \"INBOX\"".into(), Duration::from_millis(800)));
+        s.hold_on = Some(hold);
     }
     let port = serve_tcp(&st);
     let store = store(name);
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.submit(Job::Start { account: account(port), password: Some(Secret("pw".into())) });
-    let mut seen =
-        until(&pool, "syncing the Inbox", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder == "INBOX"));
-    pool.submit(Job::Apply { account: "a1".into(), op });
+    let mut seen = super::counts::made_while_held(&mut pool, &store, holding, &[op]);
     seen.extend(until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. })));
-    std::thread::sleep(Duration::from_millis(500));
-    seen.extend(pool.poll());
+    seen.extend(events_until(&pool, "the change sent", |_| store.load_ops("a1").is_ok_and(|ops| ops.is_empty())));
+    // The sync goes on to the folder's turn after the change is sent: what it says there too.
+    seen.extend(crate::waiting::until_idle(&pool, "a1"));
     let notices = seen
         .iter()
         .filter_map(|e| match e {
@@ -93,8 +93,9 @@ fn a_folder_renamed_twice_offline_keeps_its_mail() {
     st.lock().unwrap().log.clear();
     pool.submit(Job::WorkOffline { on: false });
     let mut seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
-    std::thread::sleep(Duration::from_millis(500));
-    seen.extend(pool.poll());
+    seen.extend(events_until(&pool, "the renames sent", |_| store.load_ops("a1").is_ok_and(|ops| ops.is_empty())));
+    // The folders are synced after the renames are sent: what's said, and cleared, then too.
+    seen.extend(crate::waiting::until_idle(&pool, "a1"));
     let notices: Vec<&String> = seen
         .iter()
         .filter_map(|e| match e {

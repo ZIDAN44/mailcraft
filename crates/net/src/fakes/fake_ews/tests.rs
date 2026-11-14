@@ -8,7 +8,7 @@ use mailcraft_store::Store;
 
 use super::*;
 use crate::fakes::exchange_e2e::{Exchange, OnServer, an_exchange_account_end_to_end};
-use crate::waiting::{eventually, until};
+use crate::waiting::{events_until, eventually, until};
 
 mod calendars;
 mod directory;
@@ -269,49 +269,40 @@ fn a_flag_set_mid_sync_is_not_lost() {
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
 
-    // Slow the server down (each folder's mail listed in 2 s), start a full sync, flag the
-    // message during it.
-    data.lock().unwrap().hold = Some(Duration::from_secs(2));
+    // Hold the server's listing of a folder's mail, start a full sync, flag the message during
+    // it.
+    data.lock().unwrap().hold = true;
     pool.submit(Job::SyncAll { account: "a1".into() });
-    until(&pool, "the sync under way", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { .. }, .. }));
+    eventually("the sync held on a folder", || data.lock().unwrap().held > 0);
     let op = Op::SetFlag { keys: vec![key.clone()], flag: Flag::Flagged, on: true };
     pool.submit(Job::Apply { account: "a1".into(), op: op.clone() });
     let flagged = || store.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.key == key && m.flags.flagged);
     // Made on the pool's thread for changes (not the window's), at once: not behind the sync,
-    // which says the account is online once every folder is listed. Waited for, not timed: a
-    // busy computer is slow either way. (A read of the changes as they're written can be
+    // which is held until the test lets it go. (A read of the changes as they're written can be
     // refused for a moment on Windows: not yet.)
-    let mut seen = Vec::new();
-    let end = Instant::now() + Duration::from_secs(60);
-    while !(flagged() && store.load_ops("a1").is_ok_and(|ops| !ops.is_empty())) {
-        assert!(Instant::now() < end, "the flag never made here");
-        seen.extend(pool.wait(Duration::from_millis(5)));
-    }
+    let seen = events_until(&pool, "the flag made here", |_| flagged() && store.load_ops("a1").is_ok_and(|ops| !ops.is_empty()));
     let online = |e: &Event| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. });
     assert!(!seen.iter().any(online), "made here only once the sync was done: {seen:?}");
     assert_eq!(store.load_ops("a1").unwrap(), [op], "ops.json written at once");
-    // Shut down mid-sync; a fresh pool must push the flag and keep showing it.
+    // Shut down mid-sync, the listing held answered; a fresh pool must push the flag and keep
+    // showing it.
     drop(pool);
-    data.lock().unwrap().hold = None;
-    std::thread::sleep(Duration::from_millis(2500));
+    data.lock().unwrap().hold = false;
+    eventually("the held listing answered", || data.lock().unwrap().held == 0);
     let pool = start(&store);
     until(&pool, "online again", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let on_server = || data.lock().unwrap().items.iter().any(|i| i.id == id && i.flagged);
-    let end = Instant::now() + Duration::from_secs(20);
-    while !on_server() || !store.load_ops("a1").is_ok_and(|ops| ops.is_empty()) {
-        assert!(Instant::now() < end, "the flag never arrived on the server");
-        let _ = pool.wait(Duration::from_millis(100));
-    }
+    events_until(&pool, "the flag on the server", |_| on_server() && store.load_ops("a1").is_ok_and(|ops| ops.is_empty()));
     assert!(flagged(), "the later syncs kept the flag locally");
     drop(pool);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Mail sent and automatic replies asked for while a big mailbox's first sync is still going
-/// go at once.
+/// go at once: they're done with the sync held until they are.
 #[test]
 fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
-    let mut d = Data { hold: Some(Duration::from_secs(4)), ..Default::default() };
+    let mut d = Data { hold: true, ..Default::default() };
     let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
     d.folder("Sent Items", None, Some("sentitems"), "IPF.Note");
     d.folder("Projects", None, None, "IPF.Note");
@@ -332,10 +323,10 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
         ..Default::default()
     };
     pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
-    // The folders are listed; their messages take 4 s a folder from here.
+    // The folders are listed; listing their messages is held from here.
     until(&pool, "folders", |e| matches!(e, Event::Folders { .. }));
+    eventually("the sync held on a folder", || data.lock().unwrap().held > 0);
     let raw = b"From: riley@contoso.example\r\nTo: zoe@contoso.example\r\nSubject: Quick answer\r\nMessage-ID: <q1@x>\r\n\r\nYes.\r\n".to_vec();
-    let asked = Instant::now();
     pool.submit(Job::Send {
         account: "a1".into(),
         id: 7,
@@ -345,19 +336,13 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
         sent_folder: Some("Sent Items".into()),
     });
     pool.submit(Job::GetVacation { account: "a1".into() });
-    let (mut sent, mut replies) = (None, None);
-    let end = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < end && (sent.is_none() || replies.is_none()) {
-        match pool.wait(Duration::from_millis(50)) {
-            Some(Event::Sent { id: 7, .. }) => sent = Some(asked.elapsed()),
-            Some(Event::SendFailed { error, .. }) => panic!("send failed: {error}"),
-            Some(Event::Vacation { vacation: Some(_), .. }) => replies = Some(asked.elapsed()),
-            _ => {}
-        }
-    }
-    let (sent, replies) = (sent.expect("sent"), replies.expect("replies read"));
-    assert!(sent < Duration::from_secs(3), "the message went in {sent:?}, behind the sync");
-    assert!(replies < Duration::from_secs(3), "the replies came in {replies:?}, behind the sync");
+    let sent = |e: &Event| matches!(e, Event::Sent { id: 7, .. });
+    let replies = |e: &Event| matches!(e, Event::Vacation { vacation: Some(_), .. });
+    let seen =
+        events_until(&pool, "the message sent and the replies read, with the sync held", |seen| seen.iter().any(sent) && seen.iter().any(replies));
+    let failed = seen.iter().find_map(|e| if let Event::SendFailed { error, .. } = e { Some(error) } else { None });
+    assert!(failed.is_none(), "send failed: {failed:?}");
+    assert_eq!(data.lock().unwrap().held, 1, "the sync still held");
     assert_eq!(data.lock().unwrap().sent.len(), 1, "sent once");
     // Several at once, and the replies changed meanwhile: each goes once, in order.
     for (id, subject) in [(8u64, "Second"), (9, "Third"), (10, "Fourth")] {
@@ -373,28 +358,18 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
     }
     let away = mailcraft_model::job::Vacation { enabled: true, text: "Away".into(), ..Default::default() };
     pool.submit(Job::SetVacation { account: "a1".into(), vacation: away.clone() });
-    let asked = Instant::now();
-    let mut done: Vec<u64> = Vec::new();
-    let mut set = false;
-    while asked.elapsed() < Duration::from_secs(30) && (done.len() < 3 || !set) {
-        match pool.wait(Duration::from_millis(50)) {
-            Some(Event::Sent { id, .. }) => done.push(id),
-            Some(Event::SendFailed { error, .. }) => panic!("send failed: {error}"),
-            Some(Event::Vacation { vacation: Some(v), error: None, .. }) if v == away => set = true,
-            Some(Event::Vacation { error: Some(e), .. }) => panic!("replies: {e}"),
-            _ => {}
-        }
-    }
-    assert_eq!(done, [8, 9, 10]);
-    assert!(set && asked.elapsed() < Duration::from_secs(4), "{:?}", asked.elapsed());
+    let done = |seen: &[Event]| -> Vec<u64> { seen.iter().filter_map(|e| if let Event::Sent { id, .. } = e { Some(*id) } else { None }).collect() };
+    let set = |e: &Event| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away);
+    let seen = events_until(&pool, "three sent and the replies set, with the sync held", |seen| done(seen).len() >= 3 && seen.iter().any(set));
+    let failed: Vec<&Event> = seen.iter().filter(|e| matches!(e, Event::SendFailed { .. } | Event::Vacation { error: Some(_), .. })).collect();
+    assert!(failed.is_empty(), "{failed:?}");
+    assert_eq!(done(&seen), [8, 9, 10]);
+    assert_eq!(data.lock().unwrap().held, 1, "the sync still held");
     let subjects: Vec<String> = data.lock().unwrap().sent.iter().map(|r| mailcraft_mime::parse(r).map(|p| p.subject).unwrap_or_default()).collect();
     assert_eq!(subjects, ["Quick answer", "Second", "Third", "Fourth"]);
-    // The sync carries on, and finishes (each folder 4 s, Sent Items read again once however
-    // many went).
-    let end = Instant::now() + Duration::from_secs(60);
-    while !matches!(pool.wait(Duration::from_millis(100)), Some(Event::Status { status: SyncStatus::Online { .. }, .. })) {
-        assert!(Instant::now() < end, "the sync never finished");
-    }
+    // Let go, the sync carries on, and finishes (Sent Items read again once however many went).
+    data.lock().unwrap().hold = false;
+    until(&pool, "the sync to finish", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     assert_eq!(data.lock().unwrap().sent.len(), 4, "not sent again");
     // Removing the account stops both connections.
     pool.submit(Job::Remove { account: "a1".into() });

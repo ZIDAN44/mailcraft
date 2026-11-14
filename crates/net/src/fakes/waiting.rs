@@ -55,6 +55,15 @@ pub(crate) fn events_until(pool: &Pool, what: &str, mut done: impl FnMut(&[Event
     seen
 }
 
+/// Every event the pool says until `account`'s thread waits (for a job, for mail, or out a wait
+/// of its own), and what was said by then: what it was doing is all done, and nothing more is
+/// said until something wakes it. For what must not be said after what a test waited for.
+pub(crate) fn until_idle(pool: &Pool, account: &str) -> Vec<Event> {
+    let mut seen = events_until(pool, "the account's thread to wait", |_| pool.idle(account));
+    seen.extend(std::iter::from_fn(|| pool.wait(Duration::ZERO)));
+    seen
+}
+
 /// Wait until `done` is so, with no pool to listen to (or its events not wanted).
 pub(crate) fn eventually(what: &str, mut done: impl FnMut() -> bool) {
     let end = Instant::now() + DEADLINE;
