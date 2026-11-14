@@ -3,6 +3,8 @@
 //! and time, subject, place and calendar's colour; upcoming ones first, then past ones, or only
 //! either. Clicking one goes to its day and opens it.
 
+use std::sync::Arc;
+
 use egui::{Align2, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::ical::Privacy;
 use mailcraft_engine::{EventHit, EventWhen, Session};
@@ -19,7 +21,8 @@ pub struct CalSearch {
     pub when: EventWhen,
     /// One calendar (account, calendar id) to look in; `None`: every one shown.
     pub scope: Option<(String, String)>,
-    found: Option<(Key, Vec<EventHit>)>,
+    /// Shared, so a frame takes them without copying each one.
+    found: Option<(Key, Arc<[EventHit]>)>,
 }
 
 /// What a search's results depend on: the query, the switches, the calendars' state, the minute.
@@ -36,7 +39,7 @@ impl CalSearch {
         !self.query.trim().is_empty()
     }
 
-    pub(crate) fn results(&mut self, s: &Session) -> &[EventHit] {
+    pub(crate) fn results(&mut self, s: &Session) -> Arc<[EventHit]> {
         let key: Key = (self.query.clone(), self.when, self.scope.clone(), s.pim_revision, s.clock.now.div_euclid(60));
         if self.found.as_ref().is_none_or(|(k, _)| *k != key) {
             let (account, calendar) = match &self.scope {
@@ -44,9 +47,9 @@ impl CalSearch {
                 None => (None, None),
             };
             let hits = s.find_events(&self.query, self.when, account, calendar, SHOWN);
-            self.found = Some((key, hits));
+            self.found = Some((key, hits.into()));
         }
-        self.found.as_ref().map_or(&[], |(_, h)| h.as_slice())
+        self.found.as_ref().map_or_else(|| Arc::from([]), |(_, h)| Arc::clone(h))
     }
 }
 
@@ -96,7 +99,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
             });
         });
     });
-    let hits = st.cal_search.results(s).to_vec();
+    let hits = st.cal_search.results(s);
     if hits.is_empty() {
         ui.add_space(40.0);
         ui.vertical_centered(|ui| {
@@ -110,7 +113,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("calendar-found").show(ui, |ui| {
         egui::Frame::new().inner_margin(Margin::symmetric(14, 0)).show(ui, |ui| {
             let mut heading: Option<bool> = None;
-            for h in &hits {
+            for h in hits.iter() {
                 // Upcoming ones, then past ones, each under its heading.
                 if st.cal_search.when == EventWhen::All && heading != Some(h.upcoming) {
                     heading = Some(h.upcoming);
@@ -120,7 +123,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                     });
                     ui.add_space(2.0);
                 }
-                if row(s, &t, ui, h).clicked() {
+                if row(s, &t, ui, h).is_some_and(|r| r.clicked()) {
                     open_hit(s, st, h, acts);
                 }
             }
@@ -141,9 +144,16 @@ pub(crate) fn open_hit(s: &Session, st: &mut UiState, h: &EventHit, acts: &mut V
 
 /// One result: its calendar's colour, its date and time, its subject (a lock when private, a
 /// mark when it repeats), its place and calendar. Laid out from the left, mirrored for a
-/// right-to-left interface (the colour on the right, the date's column after it).
-fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::click());
+/// right-to-left interface (the colour on the right, the date's column after it). Only a row in
+/// view is drawn: one out of it is room in the list (as `show_rows` leaves), and `None`.
+fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> Option<egui::Response> {
+    let size = vec2(ui.available_width(), ROW);
+    let (id, rect) = ui.allocate_space(size);
+    if !ui.is_rect_visible(rect) {
+        return None;
+    }
+    let mut resp = ui.interact(rect, id, Sense::click());
+    resp.set_intrinsic_size(size);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
     }
@@ -153,8 +163,8 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> egui::Response {
     time_strip(ui, mr.rect(Rect::from_min_size(rect.min + vec2(2.0, 6.0), vec2(4.0, ROW - 12.0))), c, h.show_as);
     let p = ui.painter().with_clip_rect(rect);
     let date_x = rect.min.x + 16.0;
-    let day = s.clock.local(h.start).div_euclid(86_400);
-    p.text(mr.pos(pos2(date_x, rect.min.y + 14.0)), start, long_date(day), theme::regular(12.5), t.text);
+    let date = long_date(s.clock.local_day(h.start));
+    p.text(mr.pos(pos2(date_x, rect.min.y + 14.0)), start, date.clone(), theme::regular(12.5), t.text);
     let time = if h.all_day { tl!("All day").to_string() } else { format!("{} – {}", hm(h.start, s), hm(h.end, s)) };
     p.text(mr.pos(pos2(date_x, rect.min.y + 32.0)), start, time, theme::regular(12.0), t.dim);
     // The subject and what's under it, after the date's column (narrower on a narrow pane).
@@ -172,7 +182,7 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> egui::Response {
     p.with_clip_rect(mr.rect(rect.with_min_x(sx).shrink2(vec2(0.0, 1.0)).with_max_x(rect.max.x - 8.0))).text(
         mr.pos(pos2(sx, rect.min.y + 14.0)),
         start,
-        title,
+        title.clone(),
         theme::bold(13.0),
         t.text,
     );
@@ -192,6 +202,6 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> egui::Response {
     );
     ui.painter().line_segment([rect.left_bottom(), rect.right_bottom()], egui::Stroke::new(1.0, t.border));
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
-    crate::widgets::named(ui, &resp, &format!("{} {}", long_date(day), event_title(&h.summary, h.privacy, h.show_as)), true, None);
-    resp
+    crate::widgets::named(ui, &resp, &format!("{date} {title}"), true, None);
+    Some(resp)
 }

@@ -6,5 +6,6 @@ mod dates;
 mod meetings;
 mod pim;
 mod repeat;
+mod search;
 mod tasks;
 mod todo_bar;
