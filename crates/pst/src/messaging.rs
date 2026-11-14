@@ -156,6 +156,29 @@ impl PstFolder {
         self.contents.get_or_init(|| self.table(NID_TYPE_CONTENTS_TABLE)).as_ref()
     }
 
+    /// The table of the node beside this folder's, of the given type, read now: `None` when the
+    /// folder has no such node, an error when it has one that can't be read.
+    fn read_table(&self, kind: u32) -> io::Result<Option<Rc<Table>>> {
+        let node = match self.pst.node((self.nid & !NID_TYPE_MASK) | kind) {
+            Ok(node) => node,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        Table::read(self.pst.clone(), node.data, node.sub).map(|t| Some(Rc::new(t)))
+    }
+
+    /// The folders in this one, for a caller that must tell a folder with none from one whose
+    /// table can't be read ([`PstFolder::hierarchy_table`] gives `None` for both): `None` only
+    /// when the folder has no such table.
+    pub fn read_hierarchy_table(&self) -> io::Result<Option<Rc<Table>>> {
+        self.read_table(NID_TYPE_HIERARCHY_TABLE)
+    }
+
+    /// The messages in this one, told apart as [`PstFolder::read_hierarchy_table`] tells them.
+    pub fn read_contents_table(&self) -> io::Result<Option<Rc<Table>>> {
+        self.read_table(NID_TYPE_CONTENTS_TABLE)
+    }
+
     /// The hidden messages in this one.
     pub fn associated_table(&self) -> Option<&Rc<Table>> {
         self.associated.get_or_init(|| self.table(NID_TYPE_ASSOC_CONTENTS_TABLE)).as_ref()
