@@ -422,25 +422,28 @@ fn no_notices_or_rules_after_a_cancel_and_continue() {
 }
 
 /// A data file looked at before it's imported, and one already open as an account: caught by
-/// its path (however it's written) or its record key, unless asked to import another copy.
+/// its path (`\` or `/`, and on Windows and macOS any case) or its record key, unless asked to
+/// import another copy.
 #[test]
 fn a_data_file_already_open_is_caught() {
     let mut s = sample_session("import-twice");
     let first = import(&mut s, r"C:\Mail\Archive.pst");
     // Looked at: asked once, answered later, with the account it's open as.
-    let asked = s.run("account.inspectDataFile", &json!({"path": "c:/mail/ARCHIVE.pst"})).unwrap();
+    let asked = s.run("account.inspectDataFile", &json!({"path": "C:/Mail/Archive.pst"})).unwrap();
     assert_eq!(asked["pending"], true);
-    assert_eq!(s.take_jobs(), [Job::InspectDataFile { path: "c:/mail/ARCHIVE.pst".into() }]);
-    s.run("account.inspectDataFile", &json!({"path": "c:/mail/ARCHIVE.pst"})).unwrap();
+    assert_eq!(s.take_jobs(), [Job::InspectDataFile { path: "C:/Mail/Archive.pst".into() }]);
+    s.run("account.inspectDataFile", &json!({"path": "C:/Mail/Archive.pst"})).unwrap();
     assert!(s.take_jobs().is_empty(), "asked once");
-    let facts = DataFileFacts { path: "c:/mail/ARCHIVE.pst".into(), messages: 12, record_key: "00aa".into(), ..Default::default() };
-    s.apply(Event::DataFileInspected { path: "c:/mail/ARCHIVE.pst".into(), facts: Box::new(facts) });
-    let seen = s.run("account.inspectDataFile", &json!({"path": "c:/mail/ARCHIVE.pst"})).unwrap();
+    let facts = DataFileFacts { path: "C:/Mail/Archive.pst".into(), messages: 12, record_key: "00aa".into(), ..Default::default() };
+    s.apply(Event::DataFileInspected { path: "C:/Mail/Archive.pst".into(), facts: Box::new(facts) });
+    let seen = s.run("account.inspectDataFile", &json!({"path": "C:/Mail/Archive.pst"})).unwrap();
     assert_eq!((seen["messages"].as_u64(), seen["alreadyOpenAs"]["account"].as_str()), (Some(12), Some(first.as_str())));
-    let refused = s.run("account.importPst", &json!({"path": "C:/MAIL/archive.pst"})).unwrap_err().to_string();
+    let refused = s.run("account.importPst", &json!({"path": "C:/Mail/Archive.pst"})).unwrap_err().to_string();
     assert!(refused.contains(&first) && refused.contains("again"), "{refused}");
+    // Written in another case: the same file where file names ignore it (Windows, macOS).
+    assert_eq!(s.data_file_open_as("c:/MAIL/archive.pst").is_some(), cfg!(any(windows, target_os = "macos")));
     // Asked for: another copy. Its record key comes from the look.
-    let second = s.run("account.importPst", &json!({"path": "c:/mail/ARCHIVE.pst", "again": true})).unwrap()["account"].as_str().unwrap().to_string();
+    let second = s.run("account.importPst", &json!({"path": "C:/Mail/Archive.pst", "again": true})).unwrap()["account"].as_str().unwrap().to_string();
     assert_eq!(sources(&s)[&second].record_key, "00aa");
     s.take_jobs();
 
@@ -539,13 +542,13 @@ fn the_window_is_handed_what_it_shows() {
     assert!(s.import_eta_s(&id).is_some_and(|left| left > 0));
     assert_eq!(s.import_eta_s("sample"), None);
 
-    s.run("account.inspectDataFile", &json!({"path": "c:/mail/archive.pst"})).unwrap();
-    assert!(s.inspecting("c:/mail/archive.pst") && s.data_file_facts("c:/mail/archive.pst").is_none());
-    let facts = DataFileFacts { path: "c:/mail/archive.pst".into(), messages: 7, ..Default::default() };
-    s.apply(Event::DataFileInspected { path: "c:/mail/archive.pst".into(), facts: Box::new(facts) });
-    assert!(!s.inspecting("c:/mail/archive.pst"));
-    assert_eq!(s.data_file_facts("c:/mail/archive.pst").map(|f| f.messages), Some(7));
-    assert_eq!(s.data_file_open_as("c:/mail/archive.pst"), Some(id.clone()), "the same file");
+    s.run("account.inspectDataFile", &json!({"path": r"C:\Mail\Archive.pst"})).unwrap();
+    assert!(s.inspecting(r"C:\Mail\Archive.pst") && s.data_file_facts(r"C:\Mail\Archive.pst").is_none());
+    let facts = DataFileFacts { path: r"C:\Mail\Archive.pst".into(), messages: 7, ..Default::default() };
+    s.apply(Event::DataFileInspected { path: r"C:\Mail\Archive.pst".into(), facts: Box::new(facts) });
+    assert!(!s.inspecting(r"C:\Mail\Archive.pst"));
+    assert_eq!(s.data_file_facts(r"C:\Mail\Archive.pst").map(|f| f.messages), Some(7));
+    assert_eq!(s.data_file_open_as(r"C:\Mail\Archive.pst"), Some(id.clone()), "the same file");
     assert_eq!(s.data_file_open_as("D:/Other.pst"), None);
 
     // Stopped: nothing to show yet. Done: shown once.

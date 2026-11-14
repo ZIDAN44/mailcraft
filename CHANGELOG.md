@@ -119,6 +119,7 @@ on GitHub.
 - Writing a long message is smoother: the editor does much less work on each frame.
 - In the browser, a password-locked backup is refused, rather than locked with weak randomness, when the browser can't supply secure random numbers.
 - Replied and Forwarded marks owed by replies waiting in the Outbox are no longer lost when their file can't be read at start. MailCraft says when it couldn't be read.
+- On Linux, a data file whose name differs from an open one only in case is no longer refused as already open.
 
 ## 0.38.0 - 2026-11-13
 

@@ -112,11 +112,19 @@ impl Imports {
     }
 }
 
-/// A path as compared for "the same file": `\` and `/` alike, case ignored.
+/// A path as compared for "the same file": `\` and `/` alike, case ignored on Windows and
+/// macOS, whose file systems mostly ignore it (elsewhere `Archive.pst` and `archive.pst` are
+/// two files).
 fn same_path(a: &str, b: &str) -> bool {
-    let norm = |p: &str| p.trim().replace('\\', "/").to_lowercase();
+    let norm = |p: &str| {
+        let p = p.trim().replace('\\', "/");
+        if FOLDS_CASE { p.to_lowercase() } else { p }
+    };
     norm(a) == norm(b)
 }
+
+/// Whether this system's file names ignore case (`Archive.pst` is `archive.pst`).
+const FOLDS_CASE: bool = cfg!(any(windows, target_os = "macos"));
 
 /// The file's name at the end of a path.
 fn file_name(path: &str) -> String {
