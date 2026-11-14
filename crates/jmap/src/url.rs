@@ -113,17 +113,7 @@ impl Url {
 }
 
 /// Percent-encode everything but RFC 3986's unreserved characters.
-pub fn pct(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
-            out.push(char::from(b));
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
-}
+pub use mailcraft_model::mailto::percent_encode as pct;
 
 #[cfg(test)]
 mod tests {

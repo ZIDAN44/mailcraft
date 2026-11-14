@@ -124,6 +124,24 @@ pub fn percent_decode_bytes(s: &str) -> Vec<u8> {
     bytes
 }
 
+/// Every byte of `s` but RFC 3986's unreserved characters (letters, digits, `-._~`) as `%XX`:
+/// for a query's value, a path's segment, a form's field or a mailto's subject. The one encoder
+/// of `%XX` there is.
+pub fn percent_encode(s: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(char::from(b));
+        } else {
+            out.push('%');
+            out.push(char::from(HEX.get(usize::from(b >> 4)).copied().unwrap_or(b'0')));
+            out.push(char::from(HEX.get(usize::from(b & 15)).copied().unwrap_or(b'0')));
+        }
+    }
+    out
+}
+
 /// Append each comma-separated address in `value` (flattened, blanks dropped) to `field`.
 fn add_addresses(field: &mut String, value: &str) {
     for address in value.split(',').map(flatten) {

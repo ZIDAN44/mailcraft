@@ -567,17 +567,7 @@ pub fn form(pairs: &[(&str, &str)]) -> Vec<u8> {
 }
 
 /// Percent-encode everything but the unreserved characters (RFC 3986 §2.3).
-pub fn pct(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
-            out.push(char::from(b));
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
-}
+pub use mailcraft_jmap::pct;
 
 #[cfg(test)]
 pub(crate) mod tests;
