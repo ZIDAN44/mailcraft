@@ -575,3 +575,107 @@ fn the_language_list_reads_in_order() {
     assert_eq!(names.get(..latin.len()), Some(&latin[..]), "{names:?}");
     assert!(names.iter().skip(latin.len()).all(|n| !n.is_ascii()), "{names:?}");
 }
+
+/// The catalog reader as it was, each key checked against every one before it: what [`parse`]
+/// must still read, entry for entry and error for error.
+fn parse_as_it_was(text: &str) -> (Vec<(String, String)>, Vec<String>) {
+    let mut entries: Vec<(String, String)> = Vec::new();
+    let mut errors = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        if line.trim().is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut cols = line.split('\t');
+        let (Some(ctx), Some(src), Some(tr), None) = (cols.next(), cols.next(), cols.next(), cols.next()) else {
+            errors.push(format!("line {}: expected context<TAB>source<TAB>translation", i + 1));
+            continue;
+        };
+        match (unescape(src), unescape(tr)) {
+            (Ok(s), Ok(t)) if !s.is_empty() && !t.is_empty() => {
+                if placeholders(&s) != placeholders(&t) {
+                    errors.push(format!("line {}: placeholders differ: {s:?}", i + 1));
+                } else if s.ends_with('…') != t.ends_with('…') {
+                    errors.push(format!("line {}: trailing ellipsis differs: {s:?}", i + 1));
+                } else {
+                    let key = if ctx.is_empty() { s } else { format!("{ctx}{CTX}{s}") };
+                    if entries.iter().any(|(e, _)| *e == key) {
+                        errors.push(format!("line {}: duplicate {key:?}", i + 1));
+                    } else {
+                        entries.push((key, t));
+                    }
+                }
+            }
+            (Err(e), _) | (_, Err(e)) => errors.push(format!("line {}: {e}", i + 1)),
+            _ => errors.push(format!("line {}: empty column", i + 1)),
+        }
+    }
+    (entries, errors)
+}
+
+/// A catalog with every kind of line: twice the same key (the first kept), a bad line before a
+/// good one for the same key, escapes, contexts, comments.
+const TRICKY: &str = "# a comment\n\tSave\tGuardar\n\tSave\tSalvar\nfolder\tArchive\tArchivo\n\tArchive\tArchivar\n\
+    \tOpen {x}\tAbrir\n\tOpen {x}\tAbrir {x}\n\tTab\\there\tTab\\taquí\n\tBad\\q\tMal\n\tBad\\q\tMal2\n\ttwo\n\t\tvacío\n\
+    \tMore…\tMás\n\tMore…\tMás…\n\tBack\\\\slash\tBarra\\\\invertida\n\t{time} AM\t{time} a. m.\n\t{time} AM\t{time} AM\n";
+
+/// Every key of every catalog reads as it did, translated the same, with the same errors; and a
+/// string read alone from a catalog's text ([`find`], what typing a time reads) is what the
+/// whole catalog gives it.
+#[test]
+fn every_catalog_reads_as_it_did() {
+    for (code, text) in LANGUAGES.iter().map(|l| (l.code, l.source)).chain([("tricky", TRICKY)]) {
+        let (entries, errors) = parse(text);
+        let (was, was_errors) = parse_as_it_was(text);
+        assert_eq!(entries, was, "{code}");
+        assert_eq!(errors, was_errors, "{code}");
+        let catalog: HashMap<String, String> = entries.into_iter().collect();
+        for (key, translation) in &was {
+            assert_eq!(catalog.get(key), Some(translation), "{code} {key:?}");
+            if !key.contains(CTX) {
+                assert_eq!(find(text, key).as_ref(), Some(translation), "{code} {key:?}");
+            }
+        }
+        for slot in ["{time}", "{hour}"] {
+            for half in ["AM", "PM"] {
+                let key = format!("{slot} {half}");
+                assert_eq!(find(text, &key), catalog.get(&key).cloned(), "{code} {key:?}");
+            }
+        }
+    }
+    for l in Lang::all() {
+        let (was, _) = parse_as_it_was(l.0.source);
+        assert_eq!(l.0.catalog().len(), was.len(), "{}", l.code());
+        assert!(was.iter().all(|(k, t)| l.0.catalog().get(k) == Some(t)), "{}", l.code());
+    }
+    let (tricky, _) = parse(TRICKY);
+    assert_eq!(tricky.len(), 8, "{tricky:?}");
+    assert_eq!(find(TRICKY, "Save").as_deref(), Some("Guardar"), "the first of two");
+    assert_eq!(find(TRICKY, "Open {x}").as_deref(), Some("Abrir {x}"), "the first good one");
+    assert_eq!(find(TRICKY, "Tab\there").as_deref(), Some("Tab\taquí"));
+    assert_eq!(find(TRICKY, "Back\\slash").as_deref(), Some("Barra\\invertida"));
+    assert_eq!(find(TRICKY, "Archive").as_deref(), Some("Archivar"), "not the folder's");
+    assert_eq!(find(TRICKY, "Bad\\q"), None);
+    assert_eq!(find(TRICKY, "Missing"), None);
+}
+
+/// The first time typed into a box (the words for before and after noon of every language),
+/// cold; then parsing all the catalogs, as showing the interface in each language once does.
+#[test]
+#[ignore = "a measurement: cargo test --release -p mailcraft-ui-egui --lib measure_catalogs -- --ignored --nocapture"]
+fn measure_catalogs() {
+    let start = std::time::Instant::now();
+    let halves = build_day_halves();
+    let cold = start.elapsed();
+    assert_eq!(dates::read_time("1:30 PM", &halves), Some((13, 30)));
+    const ROUNDS: u32 = 20;
+    let start = std::time::Instant::now();
+    let mut entries = 0;
+    for _ in 0..ROUNDS {
+        for l in &LANGUAGES {
+            entries += parse(l.source).0.len();
+        }
+    }
+    let each = start.elapsed() / ROUNDS;
+    println!("MEASURE first typed time (cold, every catalog's AM and PM): {cold:?}");
+    println!("MEASURE parsing all {} catalogs ({} entries): {each:?}", LANGUAGES.len(), entries / ROUNDS as usize);
+}

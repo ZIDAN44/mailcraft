@@ -16,7 +16,7 @@
 //! and that it covers every string the interface draws.
 
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 use mailcraft_engine::model::dates;
@@ -87,39 +87,64 @@ pub fn placeholders(text: &str) -> Vec<&str> {
     names
 }
 
-/// The entries of a catalog, and the errors of the lines that were skipped.
+/// The entries of a catalog, and the errors of the lines that were skipped. A key written twice
+/// keeps its first translation.
 pub fn parse(text: &str) -> (Vec<(String, String)>, Vec<String>) {
     let mut entries: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
     let mut errors = Vec::new();
     for (i, line) in text.lines().enumerate() {
-        if line.trim().is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let mut cols = line.split('\t');
-        let (Some(ctx), Some(src), Some(tr), None) = (cols.next(), cols.next(), cols.next(), cols.next()) else {
-            errors.push(format!("line {}: expected context<TAB>source<TAB>translation", i + 1));
-            continue;
-        };
-        match (unescape(src), unescape(tr)) {
-            (Ok(s), Ok(t)) if !s.is_empty() && !t.is_empty() => {
-                if placeholders(&s) != placeholders(&t) {
-                    errors.push(format!("line {}: placeholders differ: {s:?}", i + 1));
-                } else if s.ends_with('…') != t.ends_with('…') {
-                    errors.push(format!("line {}: trailing ellipsis differs: {s:?}", i + 1));
+        match entry(line) {
+            None => {}
+            Some(Err(e)) => errors.push(format!("line {}: {e}", i + 1)),
+            Some(Ok((key, t))) => {
+                if seen.contains(&key) {
+                    errors.push(format!("line {}: duplicate {key:?}", i + 1));
                 } else {
-                    let key = if ctx.is_empty() { s } else { format!("{ctx}{CTX}{s}") };
-                    if entries.iter().any(|(e, _)| *e == key) {
-                        errors.push(format!("line {}: duplicate {key:?}", i + 1));
-                    } else {
-                        entries.push((key, t));
-                    }
+                    seen.insert(key.clone());
+                    entries.push((key, t));
                 }
             }
-            (Err(e), _) | (_, Err(e)) => errors.push(format!("line {}: {e}", i + 1)),
-            _ => errors.push(format!("line {}: empty column", i + 1)),
         }
     }
     (entries, errors)
+}
+
+/// One line of a catalog as its key (the context and the English) and translation, or why it's
+/// skipped; `None` for a blank line or a comment.
+fn entry(line: &str) -> Option<Result<(String, String), String>> {
+    if line.trim().is_empty() || line.starts_with('#') {
+        return None;
+    }
+    let mut cols = line.split('\t');
+    let (Some(ctx), Some(src), Some(tr), None) = (cols.next(), cols.next(), cols.next(), cols.next()) else {
+        return Some(Err("expected context<TAB>source<TAB>translation".into()));
+    };
+    Some(match (unescape(src), unescape(tr)) {
+        (Ok(s), Ok(t)) if !s.is_empty() && !t.is_empty() => {
+            if placeholders(&s) != placeholders(&t) {
+                Err(format!("placeholders differ: {s:?}"))
+            } else if s.ends_with('…') != t.ends_with('…') {
+                Err(format!("trailing ellipsis differs: {s:?}"))
+            } else {
+                Ok((if ctx.is_empty() { s } else { format!("{ctx}{CTX}{s}") }, t))
+            }
+        }
+        (Err(e), _) | (_, Err(e)) => Err(e),
+        _ => Err("empty column".into()),
+    })
+}
+
+/// The translation a catalog's text gives a string that has no context, as [`parse`] reads it
+/// (its first good line), without reading the rest of the catalog.
+fn find(text: &str, s: &str) -> Option<String> {
+    text.lines()
+        .filter(|line| {
+            // Only a line whose English could be `s` is read in full.
+            line.split('\t').nth(1).is_some_and(|src| if src.contains('\\') { unescape(src).is_ok_and(|u| u == s) } else { src == s })
+        })
+        .find_map(|line| entry(line)?.ok().filter(|(key, _)| key == s))
+        .map(|(_, t)| t)
 }
 
 impl LangInfo {
@@ -389,18 +414,22 @@ pub fn read_time(text: &str) -> Option<(u32, u32)> {
 /// (`午後{time}`, `午後{hour}時`), as [`date`] shows them.
 fn day_halves() -> &'static dates::DayHalves {
     static HALVES: OnceLock<dates::DayHalves> = OnceLock::new();
-    HALVES.get_or_init(|| {
-        let mut halves = dates::DayHalves::default();
-        for lang in &LANGUAGES {
-            for slot in ["{time}", "{hour}"] {
-                let word = |half: &str| lang.catalog().get(&format!("{slot} {half}")).map(|w| w.replace(slot, ""));
-                if let (Some(am), Some(pm)) = (word("AM"), word("PM")) {
-                    halves.add(&am, &pm);
-                }
+    HALVES.get_or_init(build_day_halves)
+}
+
+/// Read from each catalog's text: the four strings of every language don't need its whole
+/// catalog built (and kept) for the first time typed into a box.
+fn build_day_halves() -> dates::DayHalves {
+    let mut halves = dates::DayHalves::default();
+    for lang in &LANGUAGES {
+        for slot in ["{time}", "{hour}"] {
+            let word = |half: &str| find(lang.source, &format!("{slot} {half}")).map(|w| w.replace(slot, ""));
+            if let (Some(am), Some(pm)) = (word("AM"), word("PM")) {
+                halves.add(&am, &pm);
             }
         }
-        halves
-    })
+    }
+    halves
 }
 
 #[cfg(test)]
