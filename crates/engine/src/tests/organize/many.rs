@@ -330,3 +330,67 @@ fn stuck_snoozes_arent_looked_for_every_frame() {
     assert_eq!(s.snoozes.len(), 2, "back from snooze");
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::Move { to, .. }, .. } if to == "INBOX")));
 }
+
+/// Clean Up on a folder of 6,000 downloaded messages in 2,000 conversations of three (each
+/// reply quoting the one before, in HTML and text, every fourth with a 200 KB attachment), with
+/// `read` of each conversation's messages read (unread mail stays), timed. Run under the heavy
+/// lock: `cargo test --release -p mailcraft-engine --lib measure_clean_up_folder -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_clean_up_folder() {
+    for read in [3, 0] {
+        let mut s = Session::open(Some(temp(&format!("measure-clean-up-{read}"))), mailcraft_model::dates::Clock::new(NOW, 0));
+        let id = s.run("account.add", &json!({"email": "riley@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+        let folder =
+            |path: &str, role| mailcraft_model::Folder { account: id.clone(), path: path.into(), role, selectable: true, ..Default::default() };
+        s.apply(Event::Folders { account: id.clone(), folders: vec![folder("INBOX", FolderRole::Inbox), folder("Trash", FolderRole::Trash)] });
+        let store = s.store.clone().unwrap();
+        let file = "QUJD".repeat(50_000);
+        let mut messages = Vec::new();
+        for c in 0..2000u32 {
+            let mut text = String::new();
+            for n in 0..3u32 {
+                let uid = c * 3 + n + 1;
+                let line = format!("Message {n} of conversation {c}: the figures for the north office are in, please look them over.");
+                text = if text.is_empty() {
+                    line
+                } else {
+                    format!("{line}\r\n\r\n{}", text.lines().map(|l| format!("> {l}")).collect::<Vec<_>>().join("\r\n"))
+                };
+                let html = format!("<html><body><p>{}</p></body></html>", text.replace("\r\n", "<br>"));
+                let attached = c % 4 == 0;
+                let file_part = if attached {
+                    format!(
+                        "--b\r\nContent-Type: application/octet-stream; name=\"figures.bin\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{file}\r\n"
+                    )
+                } else {
+                    String::new()
+                };
+                let raw = format!(
+                    "From: a@b.example\r\nSubject: Figures {c}\r\nMessage-ID: <c{c}-{n}@x.example>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\nContent-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\nContent-Type: text/plain\r\n\r\n{text}\r\n--a\r\nContent-Type: text/html\r\n\r\n{html}\r\n--a--\r\n{file_part}--b--\r\n"
+                );
+                let key = mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 9, uid };
+                store.write_body(&key, raw.as_bytes()).unwrap();
+                let ids: Vec<String> = (0..n).map(|p| format!("c{c}-{p}@x.example")).collect();
+                let m = mailcraft_model::Summary {
+                    key,
+                    subject: format!("Figures {c}"),
+                    message_id: format!("c{c}-{n}@x.example"),
+                    in_reply_to: ids.last().cloned().unwrap_or_default(),
+                    references: ids,
+                    date: NOW - 100_000 + i64::from(uid),
+                    has_attachments: attached,
+                    flags: mailcraft_model::Flags { seen: n < read, ..Default::default() },
+                    ..Default::default()
+                };
+                messages.push(m.into());
+            }
+        }
+        let st = mailcraft_store::FolderState { validity: 9, uid_next: 6001, messages, ..Default::default() };
+        store.save_folder(&id, "INBOX", &st).unwrap();
+        s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+        let t = std::time::Instant::now();
+        let r = s.run("folder.cleanUp", &json!({"account": id, "folder": "INBOX"})).unwrap();
+        println!("MEASURE Clean Up of 6000 in 2000 conversations, {read} of 3 read: {} ms ({r})", t.elapsed().as_millis());
+    }
+}

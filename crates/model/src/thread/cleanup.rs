@@ -50,19 +50,11 @@ pub fn redundant(msgs: &[&Summary], texts: &[Option<String>], categories: &[Stri
         texts.iter().map(|t| t.as_deref().filter(|t| t.len() <= TEXT_MAX).map(plain).filter(|p| !p.is_empty()).map(|p| format!(" {p} "))).collect();
     let mut out = Vec::new();
     for (i, m) in msgs.iter().enumerate() {
-        if !movable(m, categories) {
-            continue;
-        }
+        let Some(id) = may_go(m, categories) else { continue };
         let Some(Some(mine)) = plains.get(i) else { continue };
-        let id = crate::thread::norm_id(&m.message_id).to_ascii_lowercase();
-        if id.is_empty() {
-            continue;
-        }
         let quoted = msgs.iter().enumerate().any(|(j, later)| {
             j != i
-                && (later.date, &later.key) > (m.date, &m.key)
-                && (!m.has_attachments || later.has_attachments)
-                && std::iter::once(&later.in_reply_to).chain(&later.references).any(|r| crate::thread::norm_id(r).eq_ignore_ascii_case(&id))
+                && may_quote(later, m, &id)
                 && plains.get(j).and_then(Option::as_ref).is_some_and(|theirs| theirs.len() > mine.len() && theirs.contains(mine.as_str()))
         });
         if quoted {
@@ -70,6 +62,47 @@ pub fn redundant(msgs: &[&Summary], texts: &[Option<String>], categories: &[Stri
         }
     }
     out
+}
+
+/// Which of a conversation's messages [`redundant`] reads the text of: each that may go, when a
+/// later message may quote it, and those later messages. The others' texts change nothing, so
+/// they needn't be read (a conversation with none needs no text at all).
+pub fn texts_wanted(msgs: &[&Summary], categories: &[String]) -> Vec<bool> {
+    let mut wanted = vec![false; msgs.len()];
+    if msgs.len() > CONVERSATION_MAX {
+        return wanted;
+    }
+    for (i, m) in msgs.iter().enumerate() {
+        let Some(id) = may_go(m, categories) else { continue };
+        for (j, later) in msgs.iter().enumerate() {
+            if j != i && may_quote(later, m, &id) {
+                for k in [i, j] {
+                    if let Some(w) = wanted.get_mut(k) {
+                        *w = true;
+                    }
+                }
+            }
+        }
+    }
+    wanted
+}
+
+/// A message that may go, if a later one quotes it: [`movable`], with a Message-ID (its id,
+/// normalized, as replies name it).
+fn may_go(m: &Summary, categories: &[String]) -> Option<String> {
+    if !movable(m, categories) {
+        return None;
+    }
+    let id = crate::thread::norm_id(&m.message_id).to_ascii_lowercase();
+    (!id.is_empty()).then_some(id)
+}
+
+/// Whether `later` can stand for `m` (whose id is `id`) if it quotes it: later, a reply to it,
+/// and carrying attachments if `m` does.
+fn may_quote(later: &Summary, m: &Summary, id: &str) -> bool {
+    (later.date, &later.key) > (m.date, &m.key)
+        && (!m.has_attachments || later.has_attachments)
+        && std::iter::once(&later.in_reply_to).chain(&later.references).any(|r| crate::thread::norm_id(r).eq_ignore_ascii_case(id))
 }
 
 #[cfg(test)]
@@ -135,6 +168,40 @@ mod tests {
         // A huge text isn't compared.
         let huge = vec![Some("x ".repeat(TEXT_MAX)), Some(format!("y {}", "x ".repeat(TEXT_MAX))), None];
         assert!(redundant(&all, &huge, &[]).is_empty());
+    }
+
+    /// Only the texts that can change the answer are wanted, and the answer with only those is
+    /// the answer with all of them.
+    #[test]
+    fn only_texts_that_count_are_wanted() {
+        let texts = vec![
+            Some("Can you send the frames?\n\nZoe".to_string()),
+            Some("Sure, Thursday.\n\n> Can you send the frames?\n>\n> Zoe".to_string()),
+            Some("Great.\n> Sure, Thursday.\n>\n>> Can you send the frames?\n>>\n>> Zoe".to_string()),
+        ];
+        let (first, reply, last) = (msg(1, 100), msg(2, 200), msg(3, 300));
+        let mut unread = first.clone();
+        unread.flags.seen = false;
+        let mut flagged = reply.clone();
+        flagged.flags.flagged = true;
+        let mut stranger = last.clone();
+        (stranger.in_reply_to, stranger.references) = (String::new(), Vec::new());
+        let cases: [([&Summary; 3], [bool; 3]); 5] = [
+            ([&first, &reply, &last], [true, true, true]),
+            // Nothing that may go: no text needed.
+            ([&unread, &flagged, &last], [false, false, false]),
+            // Only the first may go: it and the replies to it.
+            ([&first, &flagged, &last], [true, true, true]),
+            // The last answers nobody: the first and its reply.
+            ([&first, &flagged, &stranger], [true, true, false]),
+            ([&unread, &reply, &stranger], [false, false, false]),
+        ];
+        for (n, (msgs, want)) in cases.iter().enumerate() {
+            let wanted = texts_wanted(msgs, &[]);
+            assert_eq!(wanted, want, "{n}");
+            let only: Vec<Option<String>> = texts.iter().zip(&wanted).map(|(t, w)| t.clone().filter(|_| *w)).collect();
+            assert_eq!(redundant(msgs, &only, &[]), redundant(msgs, &texts, &[]), "{n}");
+        }
     }
 
     /// A keyword is a category here as everywhere else (shown as one, found by `is:categorized`)

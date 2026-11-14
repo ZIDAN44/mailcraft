@@ -669,16 +669,25 @@ impl Session {
             if self.folder(a, f).is_none_or(|x| matches!(x.role, FolderRole::Trash | FolderRole::Junk)) {
                 continue;
             }
-            let msgs: Vec<Summary> = self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).map(|m| Summary::clone(m)).collect();
+            let msgs: Vec<SharedSummary> = self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).cloned().collect();
             for t in mailcraft_model::thread::threads(&msgs) {
-                let members: Vec<&Summary> = t.messages.iter().filter_map(|&i| msgs.get(i)).collect();
+                let members: Vec<&Summary> = t.messages.iter().filter_map(|&i| msgs.get(i).map(|m| &**m)).collect();
                 if members.len() < 2 || only.is_some_and(|keys| !members.iter().any(|m| keys.contains(&m.key))) {
                     continue;
                 }
                 looked += 1;
+                // Only the sources whose text can change the answer are read and parsed: none in a
+                // conversation where nothing may go (all unread, flagged or categorized).
+                let wanted = mailcraft_model::cleanup::texts_wanted(&members, &categories);
+                if !wanted.contains(&true) {
+                    continue;
+                }
                 let texts: Vec<Option<String>> = members
                     .iter()
-                    .map(|m| self.store.as_ref().and_then(|s| s.read_body(&m.key)).and_then(|raw| mime::parse(&raw)).map(|p| p.text))
+                    .zip(&wanted)
+                    .map(|(m, &w)| {
+                        w.then(|| self.store.as_ref().and_then(|s| s.read_body(&m.key)).and_then(|raw| mime::parse(&raw)).map(|p| p.text)).flatten()
+                    })
                     .collect();
                 gone.extend(
                     mailcraft_model::cleanup::redundant(&members, &texts, &categories)

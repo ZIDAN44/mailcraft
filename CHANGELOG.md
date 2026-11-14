@@ -150,6 +150,7 @@ on GitHub.
 - Blocking a sender when the blocked list is full no longer drops them from Safe Senders, and a move to Junk that fails is now said. Block Sender on several messages says when the list was full for some of them.
 - A rules import that fails no longer leaves new categories behind.
 - When a server numbers a folder again, its old mail is no longer announced as new or run through rules again.
+- Clean Up is faster on folders where much of the mail is unread or flagged.
 
 ## 0.38.0 - 2026-11-13
 
