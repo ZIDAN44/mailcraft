@@ -621,10 +621,13 @@ pub(crate) fn decode_blob(b: &[u8]) -> R<Blob> {
     Ok(blob)
 }
 
+/// A text page's bytes for each text before the text: its doc and its length.
+pub(crate) const TEXT_REC_HEAD: usize = 8;
+
 /// A text page: each doc's text, by doc (rising).
 pub(crate) fn encode_text_page<'a>(recs: impl Iterator<Item = (u32, &'a [u8])>) -> Vec<u8> {
     let recs: Vec<(u32, &[u8])> = recs.collect();
-    let mut out = Vec::with_capacity(7 + recs.iter().map(|(_, b)| b.len() + 8).sum::<usize>());
+    let mut out = Vec::with_capacity(7 + recs.iter().map(|(_, b)| b.len() + TEXT_REC_HEAD).sum::<usize>());
     out.extend_from_slice(TEXT);
     out.push(VERSION);
     out.extend_from_slice(&u16::try_from(recs.len()).unwrap_or(u16::MAX).to_le_bytes());
@@ -644,7 +647,7 @@ pub(crate) fn decode_text_page(b: &[u8], next_doc: u32) -> R<Vec<(u32, &[u8])>> 
     let mut r = Rd::new(b);
     r.header(TEXT)?;
     let n = usize::from(r.u16()?);
-    if n.saturating_mul(8) > r.left() {
+    if n.saturating_mul(TEXT_REC_HEAD) > r.left() {
         return Err("texts past what's there");
     }
     let mut out: Vec<(u32, &[u8])> = Vec::with_capacity(n);

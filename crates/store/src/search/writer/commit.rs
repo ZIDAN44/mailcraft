@@ -23,11 +23,11 @@ impl Writer {
     /// lose a text or gain some (read back for it), the changed doc pages, a segment of the words
     /// added, and the meta naming them.
     pub fn prepare(&self, store: &Store) -> Result<Flush> {
-        let mut meta = Meta { gone: Vec::new(), ..self.meta.clone() };
         if !self.has_changes() {
+            let meta = Meta { gone: Vec::new(), ..self.meta.clone() };
             return Ok(Flush { stamp: self.stamp, nothing: true, meta, files: Vec::new(), placed: Vec::new() });
         }
-        meta.generation = meta.generation.checked_add(1).ok_or_else(|| damaged(&self.base, "no generations left"))?;
+        let mut meta = self.next_meta()?;
         let mut files = Vec::new();
         let placed = self.prepare_texts(store, &mut meta, &mut files)?;
         let text_of: HashMap<u32, u32> = placed.iter().copied().collect();
@@ -64,24 +64,49 @@ impl Writer {
         let max_segments = self.max_segments.min(MAX_SEGMENTS);
         if self.meta.segments.len() >= max_segments {
             meta.tokenizer = 0;
-        } else if !self.words.is_empty() {
-            let mut b = SegBuilder::default();
-            for (k, p) in &self.words {
-                b.push(k, &p.docs, &p.places);
-            }
-            if !b.is_empty() {
-                let id = meta.next_seg;
-                meta.next_seg = id.checked_add(1).ok_or_else(|| damaged(&self.base, "no segment ids left"))?;
-                let seg = b.finish();
-                meta.segments.push(self.seg_info(id, self.word_docs, &seg)?);
-                self.seg_files(id, seg, &mut files);
-            }
+        } else {
+            self.add_segment(&mut meta, &self.words, self.word_docs, &mut files)?;
         }
         meta.live = self.live;
         meta.dead = self.dead;
         meta.folders.clone_from(&self.folders);
         meta.marks = self.marks.iter().map(|(f, r)| (*f, *r)).collect();
         Ok(Flush { stamp: self.stamp, nothing: false, meta, files, placed })
+    }
+
+    /// The next generation's meta, as the one in until it is changed: its number one on, nothing
+    /// gone yet. Every way a generation is made starts from it and ends with
+    /// [`switch_to`](Writer::switch_to) (or [`write_meta`](Writer::write_meta)).
+    pub(super) fn next_meta(&self) -> Result<Meta> {
+        let generation = self.meta.generation.checked_add(1).ok_or_else(|| damaged(&self.base, "no generations left"))?;
+        Ok(Meta { generation, gone: Vec::new(), ..self.meta.clone() })
+    }
+
+    /// The next segment's id, taken in `meta`.
+    pub(super) fn take_seg_id(&self, meta: &mut Meta) -> Result<u32> {
+        let id = meta.next_seg;
+        meta.next_seg = id.checked_add(1).ok_or_else(|| damaged(&self.base, "no segment ids left"))?;
+        Ok(id)
+    }
+
+    /// A segment of `words` (of `docs` docs) named in `meta`, its files put in `files`: none
+    /// when there are no words.
+    pub(super) fn add_segment(&self, meta: &mut Meta, words: &Words, docs: u32, files: &mut Vec<(PathBuf, Prepared)>) -> Result<()> {
+        let mut b = SegBuilder::default();
+        for (k, p) in words {
+            b.push(k, &p.docs, &p.places);
+        }
+        if b.is_empty() {
+            return Ok(());
+        }
+        if meta.segments.len() >= MAX_SEGMENTS {
+            return Err(damaged(&self.base, "more words than its segments hold"));
+        }
+        let id = self.take_seg_id(meta)?;
+        let seg = b.finish();
+        meta.segments.push(self.seg_info(id, docs, &seg)?);
+        self.seg_files(id, seg, files);
+        Ok(())
     }
 
     pub(super) fn seg_info(&self, id: u32, docs: u32, seg: &SegFiles) -> Result<SegInfo> {
@@ -135,18 +160,16 @@ impl Writer {
                 }
                 _ => u32::try_from(meta.text_pages.len()).map_err(|_| damaged(&self.base, "too many text pages"))?,
             };
-            let mut size = pages.get(&at).map_or(0, |r| r.iter().map(|(_, b)| b.len() + 8).sum::<usize>());
-            let mut count = pages.get(&at).map_or(0, Vec::len);
+            let mut packer = TextPacker::default();
+            for (_, blob) in pages.get(&at).into_iter().flatten() {
+                packer.put(blob.len());
+            }
             for (doc, blob) in &self.texts {
-                // A page this text would take past [`TEXT_PAGE`] is ended: a longer text has a
-                // page of its own.
-                let over = size > 0 && size.saturating_add(blob.len() + 8) > TEXT_PAGE;
-                if over || count >= usize::from(u16::MAX) {
+                if packer.full(blob.len()) {
                     at = at.checked_add(1).ok_or_else(|| damaged(&self.base, "too many text pages"))?;
-                    (size, count) = (0, 0);
+                    packer = TextPacker::default();
                 }
-                size += blob.len() + 8;
-                count += 1;
+                packer.put(blob.len());
                 pages.entry(at).or_default().push((*doc, blob.clone()));
                 placed.push((*doc, at));
             }
@@ -207,13 +230,7 @@ impl Writer {
         }
         self.orphans = true;
         self.write_batches(store, flush.files)?;
-        #[cfg(test)]
-        if self.stop_before_meta {
-            return Err(io_err(&self.base)(other("stopped before the meta")));
-        }
-        // What the meta now in no longer used, should it not all have gone with it, too.
-        let gone: Vec<Name> = self.meta.gone.iter().chain(&flush.meta.gone).copied().collect();
-        self.write_meta(store, &flush.meta, &gone)?;
+        self.switch_to(store, &flush.meta)?;
         self.orphans = false;
         let generation = flush.meta.generation;
         for (doc, page) in flush.placed {
@@ -268,10 +285,22 @@ impl Writer {
         Ok(())
     }
 
+    /// Switch to `meta` ([`write_meta`](Writer::write_meta)), removing what it no longer uses
+    /// and what the meta in no longer used, should that not all have gone with it.
+    pub(super) fn switch_to(&self, store: &Store, meta: &Meta) -> Result<()> {
+        let gone: Vec<Name> = self.meta.gone.iter().chain(&meta.gone).copied().collect();
+        self.write_meta(store, meta, &gone)
+    }
+
     /// The meta, the commit point, and the files `gone` (those already gone are no matter): one
-    /// transaction, durable and sealed, so a crash after it costs the data file no repair. A meta
-    /// that wouldn't read back is never written: the index is to be made again.
+    /// transaction, durable and sealed, so a crash after it costs the data file no repair. Every
+    /// way a generation is made writes its files first, and this last. A meta that wouldn't read
+    /// back is never written: the index is to be made again.
     pub(super) fn write_meta(&self, store: &Store, meta: &Meta, gone: &[Name]) -> Result<()> {
+        #[cfg(test)]
+        if self.stop_before_meta {
+            return Err(io_err(&self.base)(other("stopped before the meta")));
+        }
         let path = self.base.join("meta.bin");
         let bytes = encode_meta(meta);
         if bytes.len() > MAX_META || format::decode_meta(&bytes).is_err() {
@@ -314,8 +343,7 @@ impl Writer {
     /// as new segments in short batches as they fill, and switched to with one meta.
     pub(super) fn rebuild(&mut self, store: &Store) -> Result<()> {
         log::info!("{}'s search index: reading its words again (tokenizer {} → {TOKENIZER_VERSION})", self.account, self.meta.tokenizer);
-        let mut meta = Meta { tokenizer: TOKENIZER_VERSION, segments: Vec::new(), gone: Vec::new(), ..self.meta.clone() };
-        meta.generation = meta.generation.checked_add(1).ok_or_else(|| damaged(&self.base, "no generations left"))?;
+        let mut meta = Meta { tokenizer: TOKENIZER_VERSION, segments: Vec::new(), ..self.next_meta()? };
         for s in &self.meta.segments {
             meta.gone.extend(s.names());
         }
@@ -339,30 +367,16 @@ impl Writer {
             }
         }
         self.write_segment(store, &mut meta, words, docs)?;
-        let gone: Vec<Name> = self.meta.gone.iter().chain(&meta.gone).copied().collect();
-        self.write_meta(store, &meta, &gone)?;
+        self.switch_to(store, &meta)?;
         self.orphans = false;
         self.meta = meta;
         Ok(())
     }
 
+    /// A segment of `words` ([`add_segment`](Writer::add_segment)), its files written.
     pub(super) fn write_segment(&self, store: &Store, meta: &mut Meta, words: Words, docs: u32) -> Result<()> {
-        let mut b = SegBuilder::default();
-        for (k, p) in &words {
-            b.push(k, &p.docs, &p.places);
-        }
-        if b.is_empty() {
-            return Ok(());
-        }
-        if meta.segments.len() >= MAX_SEGMENTS {
-            return Err(damaged(&self.base, "more words than its segments hold"));
-        }
-        let id = meta.next_seg;
-        meta.next_seg = id.checked_add(1).ok_or_else(|| damaged(&self.base, "no segment ids left"))?;
-        let seg = b.finish();
-        meta.segments.push(self.seg_info(id, docs, &seg)?);
         let mut files = Vec::new();
-        self.seg_files(id, seg, &mut files);
+        self.add_segment(meta, &words, docs, &mut files)?;
         self.write_batches(store, files)
     }
 }

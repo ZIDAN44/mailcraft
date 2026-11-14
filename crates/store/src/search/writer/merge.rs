@@ -244,9 +244,8 @@ impl Writer {
 
     /// The meta again, a removed doc's words first seen in a segment (or none left) since `since`.
     fn write_since(&mut self, store: &Store, since: u64) -> Result<()> {
-        let mut meta = Meta { gone: Vec::new(), dead_since: since, ..self.meta.clone() };
-        meta.generation = meta.generation.checked_add(1).ok_or_else(|| damaged(&self.base, "no generations left"))?;
-        self.write_meta(store, &meta, &self.meta.gone)?;
+        let meta = Meta { dead_since: since, ..self.next_meta()? };
+        self.switch_to(store, &meta)?;
         self.meta = meta;
         self.stamp = self.stamp.wrapping_add(1);
         Ok(())
@@ -257,10 +256,8 @@ impl Writer {
         let next_doc = self.meta.next_doc;
         let base = self.base.clone();
         let mut inputs: Vec<Input> = segs.iter().filter_map(|&i| self.meta.segments.get(i).copied()).map(Input::new).collect();
-        let id = self.meta.next_seg;
-        let mut meta = Meta { gone: Vec::new(), ..self.meta.clone() };
-        meta.generation = meta.generation.checked_add(1).ok_or_else(|| damaged(&base, "no generations left"))?;
-        meta.next_seg = id.checked_add(1).ok_or_else(|| damaged(&base, "no segment ids left"))?;
+        let mut meta = self.next_meta()?;
+        let id = self.take_seg_id(&mut meta)?;
         self.orphans = true;
         let mut b = SegBuilder::default();
         let mut seen = Bits::new(next_doc);
@@ -346,12 +343,7 @@ impl Writer {
         }
         self.write_batches(store, files)?;
         meta.dead_since = self.dead_since(&meta.segments, &kept, now);
-        #[cfg(test)]
-        if self.stop_before_meta {
-            return Err(io_err(&self.base)(other("stopped before the meta")));
-        }
-        let gone: Vec<Name> = self.meta.gone.iter().chain(&meta.gone).copied().collect();
-        self.write_meta(store, &meta, &gone)?;
+        self.switch_to(store, &meta)?;
         for d in purged {
             if let Some(r) = self.docs.get_mut(d as usize) {
                 r.bits |= PURGED;
@@ -390,18 +382,16 @@ impl Writer {
             doc_pages: Vec::new(),
             text_pages: Vec::new(),
             segments: Vec::new(),
-            gone: Vec::new(),
             dead: 0,
             dead_since: 0,
-            ..self.meta.clone()
+            ..self.next_meta()?
         };
-        meta.generation = meta.generation.checked_add(1).ok_or_else(|| damaged(&self.base, "no generations left"))?;
         let generation = meta.generation;
         self.orphans = true;
         let mut docs: Vec<DocRec> = Vec::with_capacity(self.live as usize);
         let mut files: Vec<(PathBuf, Prepared)> = Vec::new();
         let mut page: Vec<(u32, Vec<u8>)> = Vec::new();
-        let mut page_bytes = 0usize;
+        let mut packer = TextPacker::default();
         let mut read: Option<(u32, Vec<(u32, Vec<u8>)>)> = None;
         let mut words = BTreeMap::new();
         let (mut word_bytes, mut word_docs) = (0usize, 0u32);
@@ -422,12 +412,12 @@ impl Writer {
                 let text = decode_blob(blob).map_err(|what| damaged(&path, what))?;
                 word_bytes = word_bytes.saturating_add(add_words(&mut words, new, &text.text, &text.names));
                 word_docs = word_docs.saturating_add(1);
-                if !page.is_empty() && (page_bytes.saturating_add(blob.len() + 8) > TEXT_PAGE || page.len() >= usize::from(u16::MAX)) {
+                if packer.full(blob.len()) {
                     self.close_text_page(&mut meta, std::mem::take(&mut page), &mut files);
-                    page_bytes = 0;
+                    packer = TextPacker::default();
                 }
                 rec.text = u32::try_from(meta.text_pages.len()).map_err(|_| damaged(&self.base, "too many text pages"))?;
-                page_bytes = page_bytes.saturating_add(blob.len() + 8);
+                packer.put(blob.len());
                 page.push((new, blob.clone()));
             }
             docs.push(rec);
@@ -451,10 +441,7 @@ impl Writer {
         self.write_batches(store, files)?;
         let n = u32::try_from(docs.len()).map_err(|_| damaged(&self.base, "no doc ids left"))?;
         (meta.next_doc, meta.live) = (n, n);
-        #[cfg(test)]
-        if self.stop_before_meta {
-            return Err(io_err(&self.base)(other("stopped before the meta")));
-        }
+        // Every file of the generation before goes: the meta switched to names none of them.
         let gone: Vec<Name> = self.meta.uses().into_iter().chain(self.meta.gone.iter().copied()).collect();
         self.write_meta(store, &meta, &gone)?;
         self.by_key = by_key(&docs);

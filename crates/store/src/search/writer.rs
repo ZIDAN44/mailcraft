@@ -14,7 +14,8 @@ use std::collections::{BTreeMap, HashMap};
 use mailcraft_model::search::{IndexDoc, TOKENIZER_VERSION};
 
 use super::format::{
-    MAX_META, MAX_NAME_BYTES, MAX_SEGMENTS, Meta, SegBuilder, SegFiles, SegInfo, TextPage, encode_blob, encode_docs, encode_meta, encode_text_page,
+    MAX_META, MAX_NAME_BYTES, MAX_SEGMENTS, Meta, SegBuilder, SegFiles, SegInfo, TEXT_REC_HEAD, TextPage, encode_blob, encode_docs, encode_meta,
+    encode_text_page,
 };
 use super::*;
 
@@ -24,6 +25,28 @@ mod words;
 
 pub use merge::{RENUMBER_SLACK, TOMBSTONE_AGE};
 pub(crate) use words::{Words, add_words, doc_words, file_word, merge_lists};
+
+/// Texts put in text pages one after another: what the page being filled holds.
+#[derive(Clone, Copy, Debug, Default)]
+struct TextPacker {
+    bytes: usize,
+    count: usize,
+}
+
+impl TextPacker {
+    /// Whether a text of `len` bytes goes in a new page: this one has some and the text would
+    /// take it past [`TEXT_PAGE`] (a longer text has a page of its own), or it has as many as a
+    /// page counts.
+    fn full(&self, len: usize) -> bool {
+        self.count > 0 && (self.bytes.saturating_add(len.saturating_add(TEXT_REC_HEAD)) > TEXT_PAGE || self.count >= usize::from(u16::MAX))
+    }
+
+    /// A text of `len` bytes put in the page.
+    fn put(&mut self, len: usize) {
+        self.bytes = self.bytes.saturating_add(len.saturating_add(TEXT_REC_HEAD));
+        self.count = self.count.saturating_add(1);
+    }
+}
 
 /// One account's index being written. One at a time per account: another
 /// [`open`](Writer::open) while it's held is [`StoreError::Busy`].

@@ -8,6 +8,7 @@ mod maint;
 mod memory;
 mod phrase;
 mod scan;
+mod switch;
 
 /// The three layouts, each in a folder of its own: memory, the folder layout, data files.
 fn layouts(name: &str) -> Vec<(&'static str, PathBuf, Store)> {
