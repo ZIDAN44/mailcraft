@@ -107,7 +107,7 @@ fn serve(identity: Identity, starttls: bool) -> (u16, JoinHandle<String>) {
 }
 
 /// Sends one message to such a server, the system trusting `store` less `distrusted`, as
-/// [`send_with`] does with the system's own. Its result, and what the server heard.
+/// [`send`] does with the system's own. Its result, and what the server heard.
 fn send_to(
     identity: Identity,
     security: Security,

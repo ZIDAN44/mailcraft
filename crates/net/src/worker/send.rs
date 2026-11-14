@@ -295,8 +295,8 @@ impl Worker {
             }
             None => (if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() }, self.secret()?),
         };
-        let sent =
-            smtp::send_trusting(&self.acc.smtp, &user, &secret, self.acc.oauth.is_some(), from, recipients, raw, &self.acc.trusted_certificates);
+        let sign_in = smtp::SignIn { user: &user, password: &secret, oauth: self.acc.oauth.is_some() };
+        let sent = smtp::send_trusting(&self.acc.smtp, sign_in, from, recipients, raw, &self.acc.trusted_certificates);
         sent.map_err(|e| match e {
             // Say whether the sign-in covered sending: Microsoft lists what it granted.
             NetError::Auth(m) if self.acc.oauth.as_deref() == Some("microsoft") => {

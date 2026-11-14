@@ -19,29 +19,17 @@ use crate::{NetError, Result};
 #[cfg(test)]
 mod tls_tests;
 
-/// Submit `raw` (an RFC 5322 message) from `from` to `recipients`.
+/// Submit `raw` (an RFC 5322 message) from `from` to `recipients`, signing in with a password:
+/// the tests' way to put mail on a server.
+#[cfg(test)]
 pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
-    send_with(server, user, password, false, from, recipients, raw)
+    send_trusting(server, SignIn { user, password, oauth: false }, from, recipients, raw, &[])
 }
 
-/// [`send`], signing in with an OAuth access token (XOAUTH2) when `oauth`.
-pub fn send_with(server: &ServerConfig, user: &str, password: &str, oauth: bool, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
-    send_trusting(server, user, password, oauth, from, recipients, raw, &[])
-}
-
-/// [`send_with`] for an account's server: `trusted` are the certificates the user chose to trust
-/// for one on this computer (their fingerprints), as [`crate::stream::tls_trusting`] takes them.
-#[allow(clippy::too_many_arguments)]
-pub fn send_trusting(
-    server: &ServerConfig,
-    user: &str,
-    password: &str,
-    oauth: bool,
-    from: &str,
-    recipients: &[String],
-    raw: &[u8],
-    trusted: &[String],
-) -> Result<()> {
+/// Submit `raw` (an RFC 5322 message) from `from` to `recipients` through an account's server,
+/// signing in as `sign_in` says: `trusted` are the certificates the user chose to trust for one
+/// on this computer (their fingerprints), as [`crate::stream::tls_trusting`] takes them.
+pub fn send_trusting(server: &ServerConfig, sign_in: SignIn<'_>, from: &str, recipients: &[String], raw: &[u8], trusted: &[String]) -> Result<()> {
     let from: Address = from.trim().parse().map_err(|e| NetError::Smtp(format!("sender {from}: {e}")))?;
     let mut to = Vec::with_capacity(recipients.len());
     for r in recipients {
@@ -52,14 +40,16 @@ pub fn send_trusting(
     }
     let envelope = Envelope::new(Some(from), to).map_err(|e| NetError::Smtp(e.to_string()))?;
     let trust = Trust { roots: crate::stream::system_roots(), verifier: crate::stream::system_verifier().map_err(NetError::Tls)?, trusted };
-    submit(server, SignIn { user, password, oauth }, &envelope, raw, recipients, &trust)
+    submit(server, sign_in, &envelope, raw, recipients, &trust)
 }
 
-/// Who signs in, and how: a password, or an OAuth access token (XOAUTH2).
-struct SignIn<'a> {
-    user: &'a str,
-    password: &'a str,
-    oauth: bool,
+/// Who signs in, and how: a password, or an OAuth access token (XOAUTH2) when `oauth`. An empty
+/// `user` sends without signing in.
+pub struct SignIn<'a> {
+    pub user: &'a str,
+    /// The password, or the access token when `oauth`.
+    pub password: &'a str,
+    pub oauth: bool,
 }
 
 /// What sending trusts: `roots` for lettre's handshake (the system's), and `verifier`, the check
