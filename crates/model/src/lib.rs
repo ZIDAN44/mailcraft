@@ -110,10 +110,15 @@ pub struct AccountConfig {
     /// The colour index the UI uses for this account's marker.
     #[serde(default)]
     pub color: u8,
-    /// Signs in with OAuth through this provider (`google`, `microsoft`) instead of a password;
-    /// the keychain then holds the refresh token.
+    /// Signs in with OAuth through this provider (`google`, `microsoft`, or [`OIDC`]: a single
+    /// sign-on, which `oidc` names) instead of a password; the keychain then holds the refresh
+    /// token.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth: Option<String>,
+    /// The single sign-on it signs in through when `oauth` is [`OIDC`] (OpenID Connect), as a
+    /// JMAP server that takes bearer tokens only asks for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oidc: Option<OidcSettings>,
     /// Syncs and sends over JMAP (RFC 8620/8621) through this session URL instead of IMAP and
     /// SMTP.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -229,6 +234,30 @@ pub struct DavSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub username: Option<String>,
 }
+
+/// What `oauth` names for a sign-in through any OpenID Connect provider (a single sign-on)
+/// rather than one MailCraft knows: [`OidcSettings`] say which.
+pub const OIDC: &str = "oidc";
+
+/// The single sign-on an account signs in through (OpenID Connect, in the browser with PKCE):
+/// who issues its tokens, the client id its administrator registered MailCraft under, and what
+/// it asks for.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OidcSettings {
+    /// The issuer (`https://sso.example.com`), whose `/.well-known/openid-configuration` names
+    /// its endpoints.
+    pub issuer: String,
+    /// Empty: the one MailCraft was given for the issuer (`MAILCRAFT_OIDC_CLIENTS`).
+    pub client_id: String,
+    /// The scopes asked for, space-separated; empty: `openid profile email`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub scope: String,
+}
+
+/// Why an account that signs in through a single sign-on can't: it has no client id, and
+/// MailCraft was given none for its issuer. Its status is this.
+pub const NO_CLIENT_ID: &str = "This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter";
 
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
 pub const EWS_AUTODISCOVER: &str = "autodiscover";

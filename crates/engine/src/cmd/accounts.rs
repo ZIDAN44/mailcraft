@@ -243,6 +243,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         signature_reply: None,
         color: 0,
         oauth,
+        oidc: None,
         jmap,
         graph,
         ews,

@@ -155,19 +155,25 @@ impl Request {
 
 /// Send a request; GET and HEAD follow redirects.
 pub fn send(req: &Request) -> Result<Response> {
+    send_to(req, false).map(|(r, _)| r)
+}
+
+/// Send a request as [`send`] does: the response, and the address it came from once the
+/// redirects were followed (a sign-in service's description speaks only for its own address).
+pub fn send_where(req: &Request) -> Result<(Response, Url)> {
     send_to(req, false)
 }
 
 /// GET from the internet only ([`stream::tcp_public`]), every redirect included: what a message
 /// asks for (its pictures) never reaches this computer or its network.
 pub fn get_public(url: &str, max: usize) -> Result<Response> {
-    send_to(&Request::get(url, max), true)
+    send_to(&Request::get(url, max), true).map(|(r, _)| r)
 }
 
 /// Send a request to the internet only, as [`get_public`]: an address a message or a certificate
 /// names never reaches this computer or its network.
 pub fn send_public(req: &Request) -> Result<Response> {
-    send_to(req, true)
+    send_to(req, true).map(|(r, _)| r)
 }
 
 /// Whether hosts `a` and `b` are one site's: the same, one under the other, or two under one
@@ -238,7 +244,7 @@ fn secret_header(name: &str) -> bool {
     ["authorization", "cookie", "proxy-authorization"].iter().any(|h| name.eq_ignore_ascii_case(h))
 }
 
-fn send_to(req: &Request, public_only: bool) -> Result<Response> {
+fn send_to(req: &Request, public_only: bool) -> Result<(Response, Url)> {
     let mut url = Url::parse(&req.url)?;
     let mut bare: Option<Request> = None;
     for _ in 0..=MAX_REDIRECTS {
@@ -256,7 +262,7 @@ fn send_to(req: &Request, public_only: bool) -> Result<Response> {
                 }
                 url = next;
             }
-            None => return Ok(resp),
+            None => return Ok((resp, url)),
         }
     }
     Err(NetError::Protocol("too many redirects".into()))

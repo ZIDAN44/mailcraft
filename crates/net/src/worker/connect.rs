@@ -9,14 +9,16 @@ impl Worker {
         // Held while refreshing: the account's other connection waits for the new token rather
         // than refreshing with the same old one.
         let mut auth = self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let Some(id) = self.acc.oauth.clone() else { return Ok(auth.secret.clone()) };
+        if self.acc.oauth.is_none() {
+            return Ok(auth.secret.clone());
+        }
         if let Some(t) = &auth.access
             && !t.expired()
         {
             return Ok(t.access.clone());
         }
-        let p = crate::oauth::provider_for_account(&self.acc)
-            .ok_or_else(|| NetError::Auth(format!("signing in with {id} isn't set up in this copy of MailCraft")))?;
+        // A single sign-on's endpoints are asked for each time: its service may have moved them.
+        let p = crate::oauth::sign_in_provider(&self.acc)?;
         let t = crate::oauth::refresh(&p, &auth.secret).inspect_err(|e| {
             // The refresh token itself refused: only signing in again helps.
             if matches!(e, NetError::Auth(_)) {
@@ -92,6 +94,13 @@ impl Worker {
             // A server that takes bearer tokens only (a single sign-on): asking for the password
             // again only loops. Its server settings switch it to signing in through the browser.
             NetError::Auth(m) if self.acc.oauth.is_none() && m == mailcraft_model::NO_PASSWORDS => {
+                self.conn = None;
+                self.auth_failed = true;
+                self.status(SyncStatus::Error { error: m });
+            }
+            // A single sign-on with no client id: signing in again can't help, the server
+            // settings can.
+            NetError::Auth(m) if m == mailcraft_model::NO_CLIENT_ID => {
                 self.conn = None;
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: m });

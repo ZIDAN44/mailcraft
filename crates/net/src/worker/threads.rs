@@ -37,14 +37,25 @@ impl Pool {
     }
 
     /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI
-    /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts.
+    /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts. A
+    /// single sign-on's service is asked where its pages are first.
     pub(super) fn sign_in(&mut self, account: AccountConfig) {
-        let Some(p) = crate::oauth::provider_for_account(&account) else {
-            let error = format!("signing in with {} isn't set up in this copy of MailCraft", account.oauth.as_deref().unwrap_or("that provider"));
-            return self.sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
-        };
         let (sink, creds) = (self.sink.clone(), self.creds.clone());
         let spawned = std::thread::Builder::new().name("mail-sign-in".into()).spawn(move || {
+            let p = match crate::oauth::sign_in_provider(&account) {
+                Ok(p) => p,
+                // Without a client id, signing in again can't help: the server settings can.
+                Err(NetError::Auth(error)) if error == mailcraft_model::NO_CLIENT_ID => {
+                    return sink.emit(Event::Status { account: account.id, status: SyncStatus::Error { error } });
+                }
+                Err(e) => {
+                    let error = match e {
+                        NetError::Auth(m) => m,
+                        e => e.to_string(),
+                    };
+                    return sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
+                }
+            };
             let mut open = |url: &str| -> std::result::Result<(), String> {
                 sink.emit(Event::OpenUrl { url: url.to_string() });
                 Ok(())

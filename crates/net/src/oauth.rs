@@ -11,7 +11,10 @@
 //! Google a client "secret" that isn't secret for installed apps) belongs to whoever ships
 //! MailCraft: it is read from `MAILCRAFT_GOOGLE_CLIENT_ID` / `MAILCRAFT_GOOGLE_CLIENT_SECRET` and
 //! `MAILCRAFT_MICROSOFT_CLIENT_ID`, at run time or baked in at build time. Without one, a
-//! provider isn't offered.
+//! provider isn't offered. A single sign-on (any OpenID Connect service, [`oidc`]) is found from
+//! the mail server, and its client id comes with the account.
+
+pub mod oidc;
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -91,6 +94,17 @@ pub fn provider_for_account(account: &mailcraft_model::AccountConfig) -> Option<
     Some(p)
 }
 
+/// The provider `account` signs in with: [`provider_for_account`]'s, or for a single sign-on
+/// ([`OIDC`](mailcraft_model::OIDC)) its service, as that describes itself (a request to it).
+pub fn sign_in_provider(account: &mailcraft_model::AccountConfig) -> Result<Provider> {
+    let id = account.oauth.as_deref().unwrap_or_default();
+    if id == mailcraft_model::OIDC {
+        let settings = account.oidc.as_ref().ok_or_else(|| NetError::Auth("this account doesn't say which sign-in service it uses".into()))?;
+        return oidc::provider(settings);
+    }
+    provider_for_account(account).ok_or_else(|| NetError::Auth(format!("signing in with {id} isn't set up in this copy of MailCraft")))
+}
+
 /// What searching the organisation's directory asks for (issue #9): the directory's people as a
 /// people picker sees them (name, address, photo) and the people relevant to the user, both
 /// granted by users themselves, no administrator needed. Asked for in a sign-in of its own,
@@ -110,9 +124,12 @@ pub fn directory_provider(account: &mailcraft_model::AccountConfig) -> Option<Pr
 
 const GRAPH_SCOPE: &str = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Contacts.ReadWrite offline_access";
 
-/// The providers with a registration, so sign-in can be offered.
+/// The providers with a registration, so sign-in can be offered; and a single sign-on
+/// ([`OIDC`](mailcraft_model::OIDC)), whose client id comes with the account.
 pub fn available() -> Vec<String> {
-    ["google", "microsoft"].into_iter().filter(|id| provider(id).is_some()).map(str::to_string).collect()
+    let mut ids: Vec<String> = ["google", "microsoft"].into_iter().filter(|id| provider(id).is_some()).map(str::to_string).collect();
+    ids.push(mailcraft_model::OIDC.into());
+    ids
 }
 
 /// Base64url without padding (RFC 4648 §5), as PKCE wants.
@@ -269,8 +286,10 @@ pub fn authorize(p: &Provider, login_hint: &str, open: &mut dyn FnMut(&str) -> s
     let redirect = format!("http://127.0.0.1:{}/", listener.local_addr()?.port());
     let state = b64url(&random(16)?);
     let (verifier, challenge) = pkce()?;
+    // A sign-in page's address may have a query of its own (RFC 6749 §3.1).
+    let then = if p.auth_url.contains('?') { '&' } else { '?' };
     let mut url = format!(
-        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={state}&code_challenge={challenge}&code_challenge_method=S256",
+        "{}{then}response_type=code&client_id={}&redirect_uri={}&scope={}&state={state}&code_challenge={challenge}&code_challenge_method=S256",
         p.auth_url,
         pct(&p.client_id),
         pct(&redirect),
