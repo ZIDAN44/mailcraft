@@ -270,6 +270,21 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe plan.\r\
     assert!(String::from_utf8_lossy(&quoted_printable("a\u{e9}= ")).contains("a=C3=A9=3D=20"));
 }
 
+/// `hp=` and `hp-legacy-display=` are read in any case, the boundary as written: the Legacy
+/// Display part under a boundary in capitals is still taken out.
+#[test]
+fn header_protection_parameters_are_read_as_written() {
+    let entity = b"Subject: Inner\r\nContent-Type: multipart/mixed;\r\n boundary=\"=_HpAbC\"; HP=Cipher\r\n\r\n\
+--=_HpAbC\r\nContent-Type: text/plain; HP-Legacy-Display=\"1\"\r\n\r\nSubject: Inner\r\n\r\n\
+--=_HpAbC\r\nContent-Type: text/plain\r\n\r\nBody\r\n--=_HpAbC--\r\n";
+    let (back, protected) = with_entity_protected(b"From: a@b.example\r\nSubject: [...]\r\n\r\nx\r\n", entity);
+    assert!(protected);
+    let p = crate::parse(&back).expect("the message parses");
+    assert_eq!(p.subject, "Inner");
+    assert_eq!(p.text.trim(), "Body", "the Legacy Display part isn't shown");
+    assert_eq!(parameter(b"Content-Type: multipart/mixed; Boundary=\"=_HpAbC\"", "boundary").as_deref(), Some("=_HpAbC"));
+}
+
 /// Any field's value reads as its text, not the Subject's alone: unfolded, encoded words
 /// decoded, trimmed, 8-bit bytes read as the reading pane reads them.
 #[test]

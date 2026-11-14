@@ -231,12 +231,12 @@ fn entity_parts(entity: &[u8]) -> (&[u8], &[u8]) {
 }
 
 /// The value of parameter `name` in a header field (`Content-Type: text/plain; hp="cipher"`),
-/// lower-case, quotes taken off.
+/// as written, quotes taken off: a boundary is matched exactly, the others in any case.
 fn parameter(field: &[u8], name: &str) -> Option<String> {
-    let text = String::from_utf8_lossy(field).replace("\r\n", " ");
+    let text = String::from_utf8_lossy(field);
     text.split(';').skip(1).find_map(|p| {
         let (k, v) = p.split_once('=')?;
-        k.trim().eq_ignore_ascii_case(name).then(|| v.trim().trim_matches('"').to_ascii_lowercase())
+        k.trim().eq_ignore_ascii_case(name).then(|| v.trim().trim_matches('"').to_string())
     })
 }
 
@@ -250,7 +250,7 @@ pub fn with_entity_protected(raw: &[u8], entity: &[u8]) -> (Vec<u8>, bool) {
     let (head, body) = entity_parts(&entity);
     let inner = fields(head);
     let content_type = inner.iter().find(|(n, _)| n == "content-type").map(|(_, f)| f.as_slice()).unwrap_or_default();
-    let protected = parameter(content_type, "hp").is_some_and(|v| v == "clear" || v == "cipher");
+    let protected = parameter(content_type, "hp").is_some_and(|v| v.eq_ignore_ascii_case("clear") || v.eq_ignore_ascii_case("cipher"));
     let names: Vec<&str> =
         inner.iter().map(|(n, _)| n.as_str()).filter(|n| !n.starts_with("content-") && *n != "hp-outer" && *n != "mime-version").collect();
     let mut out = Vec::new();
@@ -291,15 +291,7 @@ fn without_legacy_display(content_type: &[u8], body: &[u8]) -> Vec<u8> {
     else {
         return body.to_vec();
     };
-    // The boundary as written (parameter() lower-cases it).
-    let ct = String::from_utf8_lossy(content_type).to_string();
-    let written = ct
-        .split(';')
-        .find_map(|p| {
-            p.split_once('=').filter(|(k, _)| k.trim().eq_ignore_ascii_case("boundary")).map(|(_, v)| v.trim().trim_matches('"').to_string())
-        })
-        .unwrap_or(boundary);
-    let d = format!("--{written}");
+    let d = format!("--{boundary}");
     let starts: Vec<usize> = {
         let mut v = Vec::new();
         let mut from = 0;
