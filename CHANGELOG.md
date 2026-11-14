@@ -170,6 +170,7 @@ on GitHub.
 - In Microsoft 365 accounts, pictures shown in a message's body no longer appear as attachments while the message is still downloading.
 - Public folders holding many subfolders now list them all.
 - Reminders written in unusual forms by other calendar programs are now found, changed and dismissed.
+- Calendar search is faster on large calendars.
 
 ## 0.38.0 - 2026-11-13
 

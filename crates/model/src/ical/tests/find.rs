@@ -117,3 +117,28 @@ fn an_online_meeting_outside_the_place_and_notes_is_found() {
     }
     assert!(!m("notes:meet.example.edu", &room), "not in its notes");
 }
+
+/// A three-word search over a big calendar: each event's text built once, not once per term.
+#[test]
+#[ignore]
+fn measure_a_search_over_a_big_calendar() {
+    let notes = "Agenda: budget, hiring and the studio move. ".repeat(40);
+    let events: Vec<CalEvent> = (0..20_000)
+        .map(|i| CalEvent {
+            uid: format!("e{i}"),
+            summary: format!("Meeting {i}"),
+            description: notes.clone(),
+            attendees: (0..5)
+                .map(|k| Attendee { email: format!("p{k}@studio.example"), name: format!("Person {k}"), ..Default::default() })
+                .collect(),
+            ..board()
+        })
+        .collect();
+    let q = EventQuery::parse("budget studio zebra");
+    let t = std::time::Instant::now();
+    let mut found = 0;
+    for _ in 0..5 {
+        found = events.iter().filter(|e| q.matches(e)).count();
+    }
+    println!("MEASURE three words over 20,000 events: {:.1} ms ({found} found)", t.elapsed().as_secs_f64() * 1000.0 / 5.0);
+}
