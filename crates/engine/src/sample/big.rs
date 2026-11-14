@@ -10,7 +10,9 @@
 //! shown in the text (which aren't files). Seven in ten are read.
 
 use mailcraft_model::{AccountConfig, EmailAddress, Flags, Folder, FolderRole, MessageKey, Summary, sort_newest_first};
+use mailcraft_store::search::FilesFound;
 use mailcraft_store::{FolderState, Store, StoreError};
+use std::collections::BTreeMap;
 
 /// The account the mailbox is made in.
 pub const ACCOUNT: &str = "big";
@@ -240,17 +242,42 @@ pub fn generate(store: &Store, now: i64, shape: Shape) -> Result<Truth, StoreErr
     Ok(t)
 }
 
-/// Bring `account`'s search index up to its mail in one pass on this thread, as the indexer
-/// does: the generation written.
-pub fn index(store: &Store, account: &str) -> Result<u64, StoreError> {
+/// What a pass of [`index`] did.
+#[derive(Clone, Debug, Default)]
+pub struct IndexPass {
+    /// The index's generation written.
+    pub generation: u64,
+    /// How many messages it read and added.
+    pub added: usize,
+    /// The summaries it found saying otherwise than the source about carrying files, by folder.
+    pub files: BTreeMap<String, FilesFound>,
+    /// How many of those it put right in the folders' lists.
+    pub corrected: usize,
+}
+
+/// Bring `account`'s search index up to its mail (any account's, not only the big mailbox's) in
+/// one pass on this thread, as the indexer does it (`mailcraft-net`'s `worker::indexing`):
+/// every message not in it read and added, the summaries found wrong about carrying files put
+/// right (their folders looked at again by the next pass), the folders marked. Its merges, which
+/// go by the clock, are left to the next pass.
+pub fn index(store: &Store, account: &str) -> Result<IndexPass, StoreError> {
     let mut p = mailcraft_store::search::Pass::start(store, account, &[])?;
     let adds = p.adds().clone();
     for (i, m) in adds.iter().enumerate() {
         let doc = store.read_body(&m.key).map(|raw| mailcraft_mime::index_doc(&raw));
         p.add(store, i, doc.as_ref())?;
     }
+    let files = p.take_files();
+    let mut corrected = 0;
+    for (folder, found) in &files {
+        let put_right = store.set_has_files(account, folder, found)?;
+        if put_right > 0 {
+            p.unmark(folder);
+        }
+        corrected += put_right;
+    }
     p.finish(store, true)?;
-    Ok(p.generation())
+    Ok(IndexPass { generation: p.generation(), added: adds.len(), files, corrected })
 }
 
 #[cfg(test)]

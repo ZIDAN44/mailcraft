@@ -280,25 +280,16 @@ fn a_picture_shown_in_the_text_is_no_attachment() {
 fn the_has_files_filter_agrees_with_has_attachment() {
     let mut s = sample_session("search-files-known");
     let a = sample::SAMPLE_ACCOUNT.to_string();
-    let store = s.store.clone().unwrap();
     let key = logo_inside(&mut s, &a);
     let uid = key.uid;
     s.run("list.filter", &json!({"value": "attachments"})).unwrap();
     assert!(s.list.iter().any(|m| m.key == key), "as its summary says");
     // A pass, as the indexer runs it: what it found put right in the list kept, then told.
-    let mut p = mailcraft_store::search::Pass::start(&store, &a, &[]).unwrap();
-    let adds = p.adds().clone();
-    for (i, m) in adds.iter().enumerate() {
-        let doc = store.read_body(&m.key).map(|raw| mailcraft_mime::index_doc(&raw));
-        p.add(&store, i, doc.as_ref()).unwrap();
-    }
-    let found = p.take_files();
-    let inbox = found.get("INBOX").cloned().unwrap_or_default();
-    assert_eq!(inbox.without, [uid], "{found:?}");
-    assert_eq!(store.set_has_files(&a, "INBOX", &inbox).unwrap(), 1);
-    p.finish(&store, true).unwrap();
-    let generation = p.generation();
-    drop(p);
+    let pass = sample::big::index(s.store.as_ref().unwrap(), &a).unwrap();
+    let inbox = pass.files.get("INBOX").cloned().unwrap_or_default();
+    assert_eq!(inbox.without, [uid], "{:?}", pass.files);
+    assert_eq!(pass.corrected, 1);
+    let generation = pass.generation;
     s.apply(Event::AttachmentsKnown { account: a.clone(), folder: "INBOX".into(), with: inbox.with, without: inbox.without });
     assert!(!s.list.iter().any(|m| m.key == key), "the filter reads it as the index did");
     assert!(!s.folder_state(&a, "INBOX").find(uid).unwrap().has_attachments);

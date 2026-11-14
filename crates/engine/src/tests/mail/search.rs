@@ -5,17 +5,9 @@ use super::*;
 mod run;
 
 /// Bring `account`'s search index up to its mail at once, as the indexer does in the
-/// background: its generation.
+/// background ([`sample::big::index`]): its generation.
 pub(super) fn index_now(s: &Session, account: &str) -> u64 {
-    let store = s.store.clone().unwrap();
-    let mut p = mailcraft_store::search::Pass::start(&store, account, &[]).unwrap();
-    let adds = p.adds().clone();
-    for (i, m) in adds.iter().enumerate() {
-        let doc = store.read_body(&m.key).map(|raw| mailcraft_mime::index_doc(&raw));
-        p.add(&store, i, doc.as_ref()).unwrap();
-    }
-    p.finish(&store, true).unwrap();
-    p.generation()
+    sample::big::index(s.store.as_ref().unwrap(), account).unwrap().generation
 }
 
 /// Tell the session a pass over `account`'s index is over.

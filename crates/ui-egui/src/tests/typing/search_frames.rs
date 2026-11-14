@@ -42,13 +42,7 @@ fn generated(folders: usize, per: u32) -> MailApp {
         mailcraft_engine::model::sort_newest_first(&mut st.messages);
         store.save_folder("a1", &f.path, &st).unwrap();
     }
-    let mut p = mailcraft_engine::store::search::Pass::start(&store, "a1", &[]).unwrap();
-    let adds = p.adds().clone();
-    for (i, m) in adds.iter().enumerate() {
-        let doc = store.read_body(&m.key).map(|raw| mailcraft_engine::mime::index_doc(&raw));
-        p.add(&store, i, doc.as_ref()).unwrap();
-    }
-    p.finish(&store, true).unwrap();
+    mailcraft_engine::sample::big::index(&store, "a1").unwrap();
     let s = Session::open(Some(store), Clock::new(NOW, 0));
     MailApp::new(s, Box::new(NullBackend), Box::new(NullServices(NOW)))
 }

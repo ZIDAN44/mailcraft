@@ -151,15 +151,10 @@ fn big_mailbox() {
         println!("cache before searching: {}", serde_json::to_string(&store.cache_use(&account)).unwrap());
     }
     // The account's search index, as the indexer brings it up (one thread here).
-    step("indexing pass", || {
-        let Some(store) = s.store.clone() else { return };
-        let Ok(mut p) = crate::store::search::Pass::start(&store, &account, &[]) else { return };
-        let adds = p.adds().clone();
-        for (i, m) in adds.iter().enumerate() {
-            let doc = store.read_body(&m.key).map(|raw| crate::mime::index_doc(&raw));
-            let _ = p.add(&store, i, doc.as_ref());
-        }
-        let _ = p.finish(&store, true);
+    step("indexing pass", || match s.store.as_ref().map(|store| big::index(store, &account)) {
+        Some(Ok(pass)) => println!("indexed {}, {} summaries put right", pass.added, pass.corrected),
+        Some(Err(e)) => println!("indexing failed: {e}"),
+        None => {}
     });
     step("search this folder", || s.run_search(&here, crate::SearchScope::Current));
     println!("found {}", s.list.len());

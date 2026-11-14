@@ -39,19 +39,8 @@ fn files_agree() {
         return;
     };
     // What's left to index, as the indexer does it: summaries found wrong are put right.
-    let mut p = crate::store::search::Pass::start(&store, &account, &[]).unwrap();
-    let adds = p.adds().clone();
-    for (i, m) in adds.iter().enumerate() {
-        let doc = store.read_body(&m.key).map(|raw| crate::mime::index_doc(&raw));
-        p.add(&store, i, doc.as_ref()).unwrap();
-    }
-    let mut corrected = 0;
-    for (folder, found) in p.take_files() {
-        corrected += store.set_has_files(&account, &folder, &found).unwrap();
-    }
-    p.finish(&store, true).unwrap();
-    println!("indexed {} left over, {corrected} summaries put right", adds.len());
-    drop(p);
+    let pass = crate::sample::big::index(&store, &account).unwrap();
+    println!("indexed {} left over, {} summaries put right", pass.added, pass.corrected);
     let mut s = Session::open(Some(store), Clock::new(1_800_000_000, 0));
     let folders: Vec<String> = s.account(&account).map(|a| a.folders.iter().map(|f| f.path.clone()).collect()).unwrap_or_default();
     let (mut messages, mut clipped, mut filtered) = (0usize, HashSet::new(), HashSet::new());
