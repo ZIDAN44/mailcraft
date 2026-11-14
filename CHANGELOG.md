@@ -136,6 +136,7 @@ on GitHub.
 - Pictures in pasted HTML are read from `file:` links on this computer only: one naming another computer was read as a path here.
 - Video attachments' thumbnails are made a couple at a time instead of all at once, and their frames no longer stay in memory for the whole session.
 - On Windows installed outside C:\Windows, the interface and PDFs use Segoe UI again, and Arabic and Hebrew text gets its font.
+- `--cmd` with bad JSON says so for the window's own commands too (ui.addAccount and others) instead of opening the dialog empty.
 
 ## 0.38.0 - 2026-11-13
 
