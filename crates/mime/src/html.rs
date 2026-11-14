@@ -531,7 +531,6 @@ pub fn html_images(html: &str) -> Vec<String> {
     out
 }
 
-/// HTML → readable text. Never panics; returns an empty string when conversion fails.
 /// An HTML body's words for a preview: as [`html_to_text`] reads it, without its marks for bold
 /// and the like.
 pub(crate) fn html_to_words(html: &str) -> String {
@@ -545,6 +544,7 @@ pub(crate) fn html_to_words(html: &str) -> String {
     }
 }
 
+/// HTML → readable text. Never panics; returns an empty string when conversion fails.
 pub fn html_to_text(html: &str) -> String {
     html_to_text_within(html, HTML_MAX, false)
 }

@@ -39,7 +39,7 @@ fn states() -> Vec<(&'static str, Vec<String>)> {
     a.run("list.open", json!({"key": k.to_id()}));
     a.run("mail.reply", json!({}));
     if let Some(c) = a.session.compose.as_mut() {
-        c.show_cc = true;
+        c.show_bcc = true;
         c.show_reply_to = true;
         c.reply_to = "desk@example.org".into();
         c.importance = 1;

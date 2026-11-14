@@ -8,7 +8,7 @@ use super::*;
 pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engine::Compose, f: &Form, focus_to: bool, acts: &mut Vec<Action>) {
     let t = st.tokens;
     // Send beside the address rows (From, To, Cc and Bcc when shown).
-    let rows = if c.show_cc { 4.0 } else { 3.0 };
+    let rows = if c.show_bcc { 4.0 } else { 3.0 };
     let height = rows * ROW_H + (rows - 1.0) * 6.0;
     ui.horizontal_top(|ui| {
         if send_button(ui, &t, height, c.sending, f.blocked_text.as_deref()).clicked() {
@@ -21,7 +21,7 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
             for (name, label, hint) in
                 [("to", "To", "Names <addresses>, separated by ; or ,"), ("cc", "Cc", ""), ("bcc", "Bcc", "Hidden from the other recipients")]
             {
-                if name == "bcc" && !c.show_cc {
+                if name == "bcc" && !c.show_bcc {
                     continue;
                 }
                 let value = match name {

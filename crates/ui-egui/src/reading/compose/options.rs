@@ -42,8 +42,8 @@ fn left_options(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, f: &
     if widgets::tool_button(ui, Icon::Drafts, "Save draft", t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
         acts.push(Action::Run("compose.saveDraft", json!({})));
     }
-    if widgets::tool_button(ui, Icon::Person, if c.show_cc { "Hide Bcc" } else { "Bcc" }, t, !c.sending).clicked() {
-        c.show_cc = !c.show_cc;
+    if widgets::tool_button(ui, Icon::Person, if c.show_bcc { "Hide Bcc" } else { "Bcc" }, t, !c.sending).clicked() {
+        c.show_bcc = !c.show_bcc;
     }
     let mut plain = c.plain;
     if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {

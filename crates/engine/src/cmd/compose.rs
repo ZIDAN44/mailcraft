@@ -131,7 +131,7 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
         }
     }
     if !c.bcc.is_empty() {
-        c.show_cc = true;
+        c.show_bcc = true;
     }
     if let Some(i) = importance {
         c.importance = i;

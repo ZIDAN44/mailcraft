@@ -186,7 +186,7 @@ impl Session {
         let shown: Vec<String> = p.to.iter().chain(&p.cc).map(|a| a.email.to_ascii_lowercase()).collect();
         let bcc: Vec<String> = item.recipients.iter().filter(|r| !shown.contains(&r.to_ascii_lowercase())).cloned().collect();
         c.bcc = if bcc.is_empty() { String::new() } else { format!("{}; ", bcc.join("; ")) };
-        c.show_cc = !bcc.is_empty();
+        c.show_bcc = !bcc.is_empty();
         // What it answers comes with what the Outbox owed it, below.
         (c.source, c.mode) = (None, None);
         // Not a copy in Drafts to replace.

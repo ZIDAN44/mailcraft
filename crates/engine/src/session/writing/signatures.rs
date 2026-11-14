@@ -7,12 +7,12 @@ use mailcraft_model::Signature;
 
 use super::*;
 
-/// A signature as it goes into a message: after the usual `-- ` line (RFC 3676's delimiter).
-/// The line a signature starts with ([`signature_block`]).
-const SIGNATURE_LINE: &str = "-- \n";
+/// The line a signature starts with (RFC 3676's delimiter, [`signature_block`]).
+pub(super) const SIGNATURE_LINE: &str = "-- \n";
 
+/// A signature as it goes into a message: after the usual `-- ` line.
 pub fn signature_block(sig: &str) -> String {
-    format!("-- \n{}", sig.trim_end())
+    format!("{SIGNATURE_LINE}{}", sig.trim_end())
 }
 
 /// A signature's text, look and pictures: as its HTML has them, else its plain text.
@@ -36,7 +36,7 @@ pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles), pict
     if c.signature.is_empty() || styles.is_plain() {
         return;
     }
-    let mut block = "-- \n".to_string();
+    let mut block = SIGNATURE_LINE.to_string();
     let mut block_styles = mime::rich::Styles::plain(&block);
     mime::rich::append(&mut block, &mut block_styles, text.trim_end(), styles);
     if block != c.signature {
@@ -123,7 +123,7 @@ impl Compose {
 /// Where a signature goes in a message that has none: above the original of a reply or forward
 /// (the line drawn over it), else at the end, after a blank line. The character it goes at and
 /// what goes there.
-fn signature_place(c: &Compose, block: &str) -> (usize, String) {
+fn new_signature_spot(c: &Compose, block: &str) -> (usize, String) {
     // Before the line break that ends the line above the quote's: put at the start of the
     // quote's own line, the signature's first line took that line's rule.
     match quote_line(c) {
@@ -262,7 +262,7 @@ impl Session {
                     (at, at, format!("{before}{block}\n"))
                 }
                 None => {
-                    let (at, text) = signature_place(c, &block);
+                    let (at, text) = new_signature_spot(c, &block);
                     (at, at, text)
                 }
             },

@@ -76,7 +76,7 @@ impl Session {
             to: addr::format_field(&p.to),
             cc: addr::format_field(&p.cc),
             bcc: addr::format_field(&p.bcc),
-            show_cc: !p.bcc.is_empty(),
+            show_bcc: !p.bcc.is_empty(),
             reply_to: addr::format_field(&p.reply_to),
             show_reply_to: !p.reply_to.is_empty(),
             subject: p.subject.clone(),

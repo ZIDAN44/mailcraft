@@ -48,7 +48,7 @@ fn a_mailto_link_starts_a_message_and_attaches_nothing() {
     assert_eq!(draft.bcc, "ned@farm.example");
     assert_eq!(draft.subject, "Seed order");
     assert!(draft.body.starts_with("Dear Lee,\nthanks"), "{:?}", draft.body);
-    assert!(draft.show_cc, "the copy lines are shown when the link fills them");
+    assert!(draft.show_bcc, "the copy lines are shown when the link fills them");
     assert!(draft.attachments.is_empty(), "`attach=` in a link is ignored");
 
     for bad in [json!({ "url": "ftp://farm.example/seeds" }), json!({})] {

@@ -38,7 +38,12 @@ fn a_draft_opens_again_as_it_was_saved() {
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
     let c = s.compose.clone().expect("being written again");
     assert_eq!(c.draft.as_ref(), Some(&key), "its copy, to replace");
-    assert!(c.to.contains("morgan@mill.example") && c.bcc.contains("boss@studio.example") && c.show_cc, "{} / {}", c.to, c.bcc);
+    assert!(c.to.contains("morgan@mill.example") && c.bcc.contains("boss@studio.example") && c.show_bcc, "{} / {}", c.to, c.bcc);
+    // Kept as it was named before (`show_cc`, for the Bcc row), it's read still.
+    let mut kept = serde_json::to_value(&c).unwrap();
+    let shown = kept.as_object_mut().and_then(|o| o.remove("show_bcc")).expect("written as show_bcc");
+    kept["show_cc"] = shown;
+    assert!(serde_json::from_value::<crate::Compose>(kept).unwrap().show_bcc);
     assert_eq!((c.subject.as_str(), c.importance), ("Re: Invoice", 1));
     assert!(c.body.starts_with("All **paid**.") && c.styles.style(0).bold, "{}", c.body);
     assert!(c.body.contains("Subject: Invoice"), "who sent the original, in the text: {}", c.body);

@@ -74,8 +74,9 @@ pub struct Compose {
     /// replaced on the next save (the server gives it its place).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub draft_id: String,
-    /// The Bcc row is shown.
-    pub show_cc: bool,
+    /// The Bcc row is shown (`show_cc` as it was named, read still).
+    #[serde(alias = "show_cc")]
+    pub show_bcc: bool,
     /// Send as plain text only (lists written out, the rest of the formatting dropped).
     #[serde(default)]
     pub plain: bool,
@@ -264,7 +265,7 @@ impl Session {
         c.to = cap(&m.to);
         c.cc = cap(&m.cc);
         c.bcc = cap(&m.bcc);
-        c.show_cc |= !c.bcc.is_empty();
+        c.show_bcc |= !c.bcc.is_empty();
         c.subject = cap(&m.subject);
         if !m.body.is_empty() {
             let text = format!("{}{}", cap(&m.body), c.body);
@@ -374,7 +375,7 @@ impl Session {
         let from = from.unwrap_or_default();
         let signature = self.signature_for(&account, &from, true);
         let block = Self::signature_text(signature.as_ref());
-        let sig = block.strip_prefix("-- \n").unwrap_or_default();
+        let sig = block.strip_prefix(signatures::SIGNATURE_LINE).unwrap_or_default();
         let raw = self.readable_raw(&r.key);
         let original = parsed.clone();
         // The pictures in the quoted message go with it (they showed as "[picture]", issue #10).
@@ -555,7 +556,7 @@ impl Session {
         c.bcc = moved.join("; ");
         c.to = if me.is_empty() { String::new() } else { format!("{me}; ") };
         c.cc.clear();
-        c.show_cc = true;
+        c.show_bcc = true;
         Ok(serde_json::json!({ "bcc": c.bcc }))
     }
 

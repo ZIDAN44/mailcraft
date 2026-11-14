@@ -110,8 +110,9 @@ pub(super) fn scripts_split(spans: Vec<Span>, size: &mut u16) -> Vec<Span> {
     out
 }
 
-/// `html` for plain text: a `<sup>` or `<sub>` written as what's in it, unless that's digits,
-/// which the text converter writes as raised digits (issue #47: `^{$}15⁹⁸` in a price).
+/// `html` for plain text: a `<sup>` written as what's in it, unless that's digits, which the text
+/// converter writes as raised digits (issue #47: `^{$}15⁹⁸` in a price). A `<sub>` it writes as
+/// what's in it already.
 pub(crate) fn plain_scripts(html: &str) -> std::borrow::Cow<'_, str> {
     use std::borrow::Cow;
     let lower = html.to_ascii_lowercase();

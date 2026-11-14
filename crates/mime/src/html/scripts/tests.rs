@@ -85,3 +85,10 @@ fn how_long_the_scans_take() {
         println!("MEASURE scans of a megabyte of {:?}: {} ms", &html[..5], started.elapsed().as_millis());
     }
 }
+
+/// Lowered text in plain text: the converter writes what's in a `<sub>` as it is, so
+/// [`plain_scripts`] has only `<sup>` to look at.
+#[test]
+fn lowered_text_is_written_plainly() {
+    assert_eq!(html_to_text("<p>H<sub>2</sub>O and x<sub>ab</sub> and 1<sup>st</sup></p>"), "H2O and xab and 1st");
+}
