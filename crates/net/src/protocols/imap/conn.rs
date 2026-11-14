@@ -209,8 +209,7 @@ impl<S: Read + Write> Conn<S> {
     pub fn read(&mut self) -> Result<std::result::Result<Response<'static>, Vec<u8>>> {
         let raw = self.read_raw()?;
         // imap-proto wants CRLF line ends; tolerate servers that send bare LF.
-        let fixed = if raw.ends_with(b"\r\n") { raw } else { crlf_line_ends(&raw) };
-        let fixed = super::quotes::plain_quotes(space_after_code(fixed));
+        let fixed = super::quotes::plain_quotes(space_after_code(crlf_line_ends(raw)));
         // imap-proto parses lists by recursion: a thousand nested `(` overflow the thread's
         // stack, which no `Result` catches. Nothing real nests that deep.
         if nesting(&fixed) > MAX_NESTING {
@@ -324,19 +323,34 @@ pub(super) fn space_after_code(mut raw: Vec<u8>) -> Vec<u8> {
     raw
 }
 
-/// `raw` with each line feed that lacks its carriage return given one (so `\n` becomes `\r\n`).
-fn crlf_line_ends(raw: &[u8]) -> Vec<u8> {
-    let mut fixed = Vec::with_capacity(raw.len().saturating_add(raw.len() / 16));
-    for (i, piece) in raw.split(|&b| b == b'\n').enumerate() {
-        if i > 0 {
-            if fixed.last() != Some(&b'\r') {
-                fixed.push(b'\r');
-            }
-            fixed.push(b'\n');
+/// `raw` with each line's bare line feed given its carriage return (so `\n` becomes `\r\n`), and
+/// the `{n}` literals after lines left as they came: data, which the count says the length of.
+/// `raw` itself, not copied, when every line ends in CRLF already.
+fn crlf_line_ends(raw: Vec<u8>) -> Vec<u8> {
+    let mut fixed: Option<Vec<u8>> = None;
+    // Where the current line starts, and how much of `raw` is in `fixed` already.
+    let (mut i, mut copied) = (0usize, 0usize);
+    while let Some(nl) = raw.get(i..).and_then(|rest| rest.iter().position(|&b| b == b'\n')).map(|p| i + p) {
+        let line = raw.get(i..nl).unwrap_or_default();
+        let stripped = line.strip_suffix(b"\r");
+        if stripped.is_none() {
+            let out = fixed.get_or_insert_with(|| Vec::with_capacity(raw.len().saturating_add(raw.len() / 16)));
+            out.extend_from_slice(raw.get(copied..nl).unwrap_or_default());
+            out.push(b'\r');
+            copied = nl;
         }
-        fixed.extend_from_slice(piece);
+        i = nl + 1;
+        if let Some(n) = literal_len(stripped.unwrap_or(line)) {
+            i = i.saturating_add(n);
+        }
     }
-    fixed
+    match fixed {
+        Some(mut out) => {
+            out.extend_from_slice(raw.get(copied..).unwrap_or_default());
+            out
+        }
+        None => raw,
+    }
 }
 
 /// A response `imap-proto` couldn't parse: harmless if untagged; for our tag, read the status
