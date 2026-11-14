@@ -26,9 +26,9 @@ pub use mailcraft_pgp as pgp;
 pub use mailcraft_smime as smime;
 pub use mailcraft_store as store;
 pub use session::{
-    ACCENTS, ARRANGE_HEADINGS, AccountState, Arrange, BodyWork, CardSearch, Compacting, Compaction, Compose, Drafted, Filed, FolderRef, IDLE_AFTER_S,
-    ImportState, Imports, IndexPass, KeySource, KnownCert, KnownKey, ListFilter, Lock, MoveTarget, NotesOrder, Notice, PANICS_CAUGHT, PGP_DOC,
-    PaneSection, PgpSettings, Picture, Prefs, PreparedBody, Quote, Reach, Reactions, ReadInPane, Reading, ReadingPane, RevocationCheck, Row,
+    ACCENTS, ARRANGE_HEADINGS, AccountState, Arrange, BodyWork, CardSearch, Changes, Compacting, Compaction, Compose, Drafted, Filed, FolderRef,
+    IDLE_AFTER_S, ImportState, Imports, IndexPass, KeySource, KnownCert, KnownKey, ListFilter, Lock, MoveTarget, NotesOrder, Notice, PANICS_CAUGHT,
+    PGP_DOC, PaneSection, PgpSettings, Picture, Prefs, PreparedBody, Quote, Reach, Reactions, ReadInPane, Reading, ReadingPane, RevocationCheck, Row,
     SMIME_DOC, SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security, SendBlock, SendCheck, SenderAddresses,
     SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, UpdateCheck, VacationState, View, accent_code, accent_rgb,
     invite::{AnsweredInvites, Invite, InviteProblem, Route},

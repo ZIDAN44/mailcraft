@@ -235,13 +235,13 @@ pub enum Action {
     /// A saved message to look at (`.eml`, `.msg`), picked here as one handed over by the system.
     OpenMailFile,
     /// Import the data file at `path` (`again`: though it's open as another account already;
-    /// `changes`: what becomes of a file changed since MailCraft's copy of it was read, "read"
-    /// or "keep"; `take_over`: its copy is an account in another MailCraft data folder, and
-    /// becomes this one's).
+    /// `changes`: what becomes of a file changed since MailCraft's copy of it was read;
+    /// `take_over`: its copy is an account in another MailCraft data folder, and becomes this
+    /// one's).
     ImportDataFile {
         path: String,
         again: bool,
-        changes: Option<&'static str>,
+        changes: Option<mailcraft_engine::Changes>,
         take_over: bool,
     },
     /// Show how an account's import is going, beside the status bar.

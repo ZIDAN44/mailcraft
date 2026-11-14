@@ -480,3 +480,11 @@ fn an_import_s_due_days_come_in_under_the_user_s() {
     drop(next);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// What the window sends for a file changed since its copy was read is what the command reads.
+#[test]
+fn changes_are_read_as_sent() {
+    for c in [crate::Changes::Read, crate::Changes::Keep] {
+        assert_eq!(crate::Changes::parse(Some(c.code())).unwrap(), Some(c));
+    }
+}

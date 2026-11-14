@@ -3,7 +3,8 @@
 //! it's imported; stopping an import; removing an account while its file is imported; and what
 //! an import came to, every loss by its reason.
 
-use mailcraft_engine::model::job::{ImportReport, SkipReason};
+use mailcraft_engine::Changes;
+use mailcraft_engine::model::job::{DataFileFacts, ImportReport, SkipReason};
 
 use super::*;
 use crate::app::importing::{duration, inbox_of};
@@ -121,6 +122,50 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
     }
 }
 
+/// What the data file dialog offers, by what was found of the file: the first that applies.
+enum Offer {
+    /// Open as `account` here already: gone to, gone on with, what's new read in (when it
+    /// `changed` since its copy was read and that copy is `rereadable`), or another copy made.
+    OpenAs { account: String, changed: bool, rereadable: bool },
+    /// MailCraft's copy beside it is an account in another data folder: taken over (as it was,
+    /// or with what's new read in), or another copy made.
+    HeldElsewhere { changed: bool, rereadable: bool },
+    /// The copy from before, the file changed since: opened as it was, or what's new read in.
+    ChangedCopy { rereadable: bool },
+    /// Imported, or the copy from before (`copy`) opened.
+    Plain { copy: bool },
+}
+
+impl Offer {
+    fn of(s: &Session, path: &str) -> Offer {
+        let facts = s.data_file_facts(path).filter(|f| f.error.is_none());
+        if let Some(account) = s.data_file_open_as(path) {
+            // Its copy is the account's: changed since that was read, by the file's size and
+            // time then. What's new can be read in when the copy notes what came in from the
+            // file before, so it's told from what was deleted here.
+            let changed =
+                facts.zip(s.data_source(&account)).is_some_and(|(f, r)| f.is_pst() && r.size > 0 && (f.size, f.modified) != (r.size, r.modified));
+            let rereadable = changed && s.can_read_changes(&account);
+            return Offer::OpenAs { account, changed, rereadable };
+        }
+        // A copy beside it from before, no account's here: as it was found.
+        match facts.filter(|f| !f.copy.is_empty()) {
+            None => Offer::Plain { copy: false },
+            Some(f) if !f.copy_held_by.is_empty() => Offer::HeldElsewhere { changed: f.copy_changed, rereadable: f.copy_rereadable },
+            Some(f) if f.copy_changed => Offer::ChangedCopy { rereadable: f.copy_rereadable },
+            Some(_) => Offer::Plain { copy: true },
+        }
+    }
+}
+
+/// That the file changed since MailCraft read it, and when what's new can't be read in, why.
+fn changed_notes(ui: &mut Ui, t: &Tokens, rereadable: bool) {
+    say(ui, tl!("The file has changed since MailCraft read it.").to_string(), t.warn);
+    if !rereadable {
+        say(ui, tl!("MailCraft has no note of what came in from this file before, so its changes can't be read in.").to_string(), t.dim);
+    }
+}
+
 /// The data file chosen to open, before it's imported: what it holds, where MailCraft's copy goes
 /// (an Outlook file's beside it, never into the file itself) and whether there's room for it, the
 /// copy made there before, and the account it's open as already, if any.
@@ -139,181 +184,154 @@ fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut V
     };
     file_card(ui, t, path, &holds);
     ui.add_space(10.0);
-    let mut can_import = false;
-    // MailCraft's copy beside the file from before, and whether the file changed since.
-    let (mut copy, mut changed, mut rereadable) = (false, false, false);
-    // That copy an account in another MailCraft data folder: the folder.
-    let mut held = String::new();
-    match facts {
+    let can_import = match facts {
         None => {
             // Not looked at (or forgotten since): asked for, once.
             if !s.inspecting(path) {
                 acts.push(Action::Run("account.inspectDataFile", json!({"path": path})));
             }
             progress::bar(ui, t, None, vec2(ui.available_width(), 4.0));
+            false
         }
         Some(f) if f.error.is_some() => {
             let error = f.error.clone().unwrap_or_default();
             say(ui, tf!("This file couldn't be looked at: {error}", error = error), t.warn);
-            can_import = true;
+            true
         }
-        Some(f) => {
-            let outlook = f.kind.starts_with("pst");
-            (copy, changed, rereadable) = (!f.copy.is_empty(), f.copy_changed, f.copy_rereadable);
-            let about = widgets::human_bytes(f.estimate);
-            if copy {
-                say(ui, tf!("MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}", file = f.copy), t.dim);
-                if !f.copy_held_by.is_empty() {
-                    held.clone_from(&f.copy_held_by);
-                    say(ui, tf!("It's an account in another MailCraft data folder: {folder}", folder = held), t.warn);
-                    say(
-                        ui,
-                        tl!("Open it there, or take it over here: it's then this data folder's, and its account there should be removed.")
-                            .to_string(),
-                        t.dim,
-                    );
-                }
-                if changed {
-                    say(ui, tl!("The file has changed since MailCraft read it.").to_string(), t.warn);
-                    if !rereadable {
-                        say(
-                            ui,
-                            tl!("MailCraft has no note of what came in from this file before, so its changes can't be read in.").to_string(),
-                            t.dim,
-                        );
-                    }
-                }
-            } else if f.estimate > 0 && !f.destination.is_empty() {
-                let words = if outlook && f.elsewhere {
-                    tf!(
-                        "This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.",
-                        size = about,
-                        folder = f.destination
-                    )
-                } else if outlook {
-                    tf!(
-                        "MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.",
-                        size = about,
-                        folder = f.destination
-                    )
-                } else {
-                    tf!("MailCraft makes its own copy, about {size}, in {folder}.", size = about, folder = f.destination)
-                };
-                say(ui, words, t.dim);
-            }
-            let short = f.free.is_some_and(|free| free < f.need);
-            if let Some(free) = f.free.filter(|_| f.need > 0) {
-                ui.add_space(8.0);
-                room(ui, t, f.need, free, short);
-            }
-            if short {
-                ui.add_space(4.0);
-                // Beside the file, only room on its drive helps.
-                let words = if outlook && !f.elsewhere && !changed {
-                    tl!("There isn't room for the copy beside the file. Free up space on that drive.")
-                } else {
-                    tl!("There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).")
-                };
-                say(ui, words.to_string(), t.danger);
-            }
-            can_import = !short;
-        }
-    }
-    // Open as an account already: go to it, go on with it, or import another copy.
-    if let Some(other) = s.data_file_open_as(path) {
-        let name = s.account(&other).map(|a| a.config.name.clone()).unwrap_or_default();
+        Some(f) => facts_notes(ui, t, f),
+    };
+    let offer = Offer::of(s, path);
+    if let Offer::OpenAs { account, changed, rereadable } = &offer {
+        let name = s.account(account).map(|a| a.config.name.clone()).unwrap_or_default();
         ui.add_space(6.0);
         say(ui, tf!("This data file is already open as {name}.", name = name), t.warn);
-        // Changed since its copy was read: what's new can be read into it.
-        let stale = s
-            .data_file_facts(path)
-            .zip(s.data_source(&other))
-            .is_some_and(|(f, r)| f.error.is_none() && f.kind.starts_with("pst") && r.size > 0 && (f.size, f.modified) != (r.size, r.modified));
-        // Its copy notes what came in from the file before: what's new can be told from what was
-        // deleted here.
-        let rereadable = stale && s.can_read_changes(&other);
-        if stale {
-            say(ui, tl!("The file has changed since MailCraft read it.").to_string(), t.warn);
-            if !rereadable {
-                say(ui, tl!("MailCraft has no note of what came in from this file before, so its changes can't be read in.").to_string(), t.dim);
-            }
+        if *changed {
+            changed_notes(ui, t, *rereadable);
         }
-        let mut keep = true;
-        ui.add_space(6.0);
-        button_row(ui, |ui| {
-            if ui.button(tl!("Cancel")).clicked() {
-                keep = false;
-            }
-            if ui.add_enabled(can_import, egui::Button::new(tl!("Import another copy"))).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: true, changes: None, take_over: false });
-                keep = false;
-            }
-            if rereadable && s.import_state(&other).is_none() && ui.button(tl!("Read the changes in")).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read"), take_over: false });
-                keep = false;
-            }
-            if s.import_state(&other).is_some_and(|st| !st.live && !st.removing) && ui.button(tl!("Continue importing")).clicked() {
-                acts.push(Action::Run("account.resumeImport", json!({"account": other})));
-                keep = false;
-            }
-            if widgets::accent_button(ui, Icon::Inbox, "Go to it", t, true).clicked() {
-                if let Some(inbox) = inbox_of(s, &other) {
-                    acts.push(Action::Run("folder.open", json!({"account": other, "folder": inbox})));
+    }
+    offer_buttons(ui, t, s, path, &offer, can_import, acts)
+}
+
+/// What was found of a file looked at: the copy made beside it before (another data folder's,
+/// changed since), or where its copy goes; and the room for it. Whether there's room to import.
+fn facts_notes(ui: &mut Ui, t: &Tokens, f: &DataFileFacts) -> bool {
+    let outlook = f.is_pst();
+    if !f.copy.is_empty() {
+        say(ui, tf!("MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}", file = f.copy), t.dim);
+        if !f.copy_held_by.is_empty() {
+            say(ui, tf!("It's an account in another MailCraft data folder: {folder}", folder = f.copy_held_by), t.warn);
+            say(
+                ui,
+                tl!("Open it there, or take it over here: it's then this data folder's, and its account there should be removed.").to_string(),
+                t.dim,
+            );
+        }
+        if f.copy_changed {
+            changed_notes(ui, t, f.copy_rereadable);
+        }
+    } else if f.estimate > 0 && !f.destination.is_empty() {
+        let about = widgets::human_bytes(f.estimate);
+        let words = if outlook && f.elsewhere {
+            tf!("This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.", size = about, folder = f.destination)
+        } else if outlook {
+            tf!(
+                "MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.",
+                size = about,
+                folder = f.destination
+            )
+        } else {
+            tf!("MailCraft makes its own copy, about {size}, in {folder}.", size = about, folder = f.destination)
+        };
+        say(ui, words, t.dim);
+    }
+    let short = f.free.is_some_and(|free| free < f.need);
+    if let Some(free) = f.free.filter(|_| f.need > 0) {
+        ui.add_space(8.0);
+        room(ui, t, f.need, free, short);
+    }
+    if short {
+        ui.add_space(4.0);
+        // Beside the file, only room on its drive helps.
+        let words = if outlook && !f.elsewhere && !f.copy_changed {
+            tl!("There isn't room for the copy beside the file. Free up space on that drive.")
+        } else {
+            tl!("There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).")
+        };
+        say(ui, words.to_string(), t.danger);
+    }
+    !short
+}
+
+/// A button of the data file dialog, clicked (`enabled`: it can be).
+fn offered(ui: &mut Ui, words: &str, enabled: bool) -> bool {
+    ui.add_enabled(enabled, egui::Button::new(words)).clicked()
+}
+
+/// The dialog's buttons for `offer` (`can_import`: there's room for a new copy); whether it stays.
+fn offer_buttons(ui: &mut Ui, t: &Tokens, s: &Session, path: &str, offer: &Offer, can_import: bool, acts: &mut Vec<Action>) -> bool {
+    let import =
+        |again: bool, changes: Option<Changes>, take_over: bool| Action::ImportDataFile { path: path.to_string(), again, changes, take_over };
+    if let Offer::Plain { copy } = offer {
+        let (ok, cancel) = buttons(ui, t, if *copy { "Open" } else { "Import" }, can_import);
+        if ok {
+            acts.push(import(false, None, false));
+            return false;
+        }
+        return !cancel;
+    }
+    // The button clicked closes the dialog, doing what it says (Cancel and Go to it with no
+    // Inbox: nothing).
+    let mut picked: Option<Option<Action>> = None;
+    ui.add_space(6.0);
+    button_row(ui, |ui| {
+        if ui.button(tl!("Cancel")).clicked() {
+            picked = Some(None);
+        }
+        match offer {
+            Offer::OpenAs { account, rereadable, .. } => {
+                let state = s.import_state(account);
+                if offered(ui, tl!("Import another copy"), can_import) {
+                    picked = Some(Some(import(true, None, false)));
                 }
-                keep = false;
+                if *rereadable && state.is_none() && offered(ui, tl!("Read the changes in"), true) {
+                    picked = Some(Some(import(false, Some(Changes::Read), false)));
+                }
+                if state.is_some_and(|st| !st.live && !st.removing) && offered(ui, tl!("Continue importing"), true) {
+                    picked = Some(Some(Action::Run("account.resumeImport", json!({"account": account}))));
+                }
+                if widgets::accent_button(ui, Icon::Inbox, "Go to it", t, true).clicked() {
+                    picked = Some(inbox_of(s, account).map(|inbox| Action::Run("folder.open", json!({"account": account, "folder": inbox}))));
+                }
             }
-        });
-        return keep;
+            Offer::HeldElsewhere { changed, rereadable } => {
+                if offered(ui, tl!("Import another copy"), can_import) {
+                    picked = Some(Some(import(true, None, false)));
+                }
+                if *changed && *rereadable && offered(ui, tl!("Take it over and read the changes in"), can_import) {
+                    picked = Some(Some(import(false, Some(Changes::Read), true)));
+                }
+                if offered(ui, tl!("Take it over"), can_import) {
+                    picked = Some(Some(import(false, changed.then_some(Changes::Keep), true)));
+                }
+            }
+            Offer::ChangedCopy { rereadable } => {
+                if offered(ui, tl!("Open as it was"), true) {
+                    picked = Some(Some(import(false, Some(Changes::Keep), false)));
+                }
+                if *rereadable && offered(ui, tl!("Read the changes in"), can_import) {
+                    picked = Some(Some(import(false, Some(Changes::Read), false)));
+                }
+            }
+            Offer::Plain { .. } => {}
+        }
+    });
+    match picked {
+        None => true,
+        Some(act) => {
+            acts.extend(act);
+            false
+        }
     }
-    // The copy another data folder has: taken over (as it was, or with what's new read in), or
-    // another copy of the file made.
-    if !held.is_empty() {
-        let mut keep = true;
-        ui.add_space(6.0);
-        button_row(ui, |ui| {
-            if ui.button(tl!("Cancel")).clicked() {
-                keep = false;
-            }
-            if ui.add_enabled(can_import, egui::Button::new(tl!("Import another copy"))).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: true, changes: None, take_over: false });
-                keep = false;
-            }
-            if changed && rereadable && ui.add_enabled(can_import, egui::Button::new(tl!("Take it over and read the changes in"))).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read"), take_over: true });
-                keep = false;
-            }
-            if ui.add_enabled(can_import, egui::Button::new(tl!("Take it over"))).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: changed.then_some("keep"), take_over: true });
-                keep = false;
-            }
-        });
-        return keep;
-    }
-    // The copy from before, the file changed since: opened as it was, or what's new read in.
-    if copy && changed {
-        let mut keep = true;
-        ui.add_space(6.0);
-        button_row(ui, |ui| {
-            if ui.button(tl!("Cancel")).clicked() {
-                keep = false;
-            }
-            if ui.button(tl!("Open as it was")).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("keep"), take_over: false });
-                keep = false;
-            }
-            if rereadable && ui.add_enabled(can_import, egui::Button::new(tl!("Read the changes in"))).clicked() {
-                acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: Some("read"), take_over: false });
-                keep = false;
-            }
-        });
-        return keep;
-    }
-    let (ok, cancel) = buttons(ui, t, if copy { "Open" } else { "Import" }, can_import);
-    if ok {
-        acts.push(Action::ImportDataFile { path: path.to_string(), again: false, changes: None, take_over: false });
-        return false;
-    }
-    !cancel
 }
 
 /// What an import came to: messages and folders, the contacts, calendar, notes and tasks, the

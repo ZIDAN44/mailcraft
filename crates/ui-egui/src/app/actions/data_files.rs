@@ -33,8 +33,11 @@ impl MailApp {
     }
 
     /// The status bar and the folder pane show how it goes from here.
-    pub(super) fn import_data_file(&mut self, path: String, again: bool, changes: Option<&'static str>, take_over: bool) {
-        match self.session.run("account.importPst", &json!({"path": path, "again": again, "changes": changes, "takeOver": take_over})) {
+    pub(super) fn import_data_file(&mut self, path: String, again: bool, changes: Option<mailcraft_engine::Changes>, take_over: bool) {
+        match self.session.run(
+            "account.importPst",
+            &json!({"path": path, "again": again, "changes": changes.map(mailcraft_engine::Changes::code), "takeOver": take_over}),
+        ) {
             Ok(_) => self.ui.backstage = None,
             // Its copy found held by another data folder since the file was looked at:
             // the dialog again, saying so and offering to take it over.

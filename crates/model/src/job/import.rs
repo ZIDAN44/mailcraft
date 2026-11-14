@@ -297,6 +297,13 @@ pub struct DataFileFacts {
     pub error: Option<String>,
 }
 
+impl DataFileFacts {
+    /// An Outlook `.pst` (Unicode or ANSI), its copy beside it; not MailCraft's own data file.
+    pub fn is_pst(&self) -> bool {
+        self.kind.starts_with("pst")
+    }
+}
+
 /// Where an account's mail came from: a data file, as it was when its import began, and how far
 /// that import got.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

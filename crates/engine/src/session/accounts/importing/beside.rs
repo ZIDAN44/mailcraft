@@ -35,6 +35,14 @@ impl Changes {
             Some(c) => Err(CmdError::Params(format!("`changes` is \"read\" or \"keep\", not `{c}`"))),
         }
     }
+
+    /// As the command takes it: what [`Changes::parse`] reads back.
+    pub fn code(self) -> &'static str {
+        match self {
+            Changes::Read => "read",
+            Changes::Keep => "keep",
+        }
+    }
 }
 
 /// Whether `path` names an Outlook data file (its copy goes beside it), not MailCraft's own.

@@ -5,6 +5,7 @@ use super::*;
 pub(super) mod compacting;
 mod forms;
 pub(super) mod importing;
+mod offers;
 
 #[test]
 fn the_account_form_adds_exchange_accounts() {
