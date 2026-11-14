@@ -33,8 +33,9 @@ const OLD: &str = "mailcraft.old.log";
 struct FileLog {
     /// The open file and how much has gone into it.
     out: Mutex<Option<(File, u64)>>,
-    /// Lines also go to the terminal (a debug build, or `--log`).
-    echo: bool,
+    /// Lines also go to the terminal (a debug build, or `--log`): standard error, a stand-in in
+    /// tests.
+    terminal: Option<fn() -> Box<dyn Write>>,
     /// What waits for the log's thread.
     waiting: Mutex<Waiting>,
     /// Lines were handed over, or the thread wrote what it took.
@@ -60,9 +61,15 @@ fn echo(to: &mut dyn Write, line: &str) {
     let _ = to.write_all(line.as_bytes());
 }
 
+/// Standard error, the terminal lines are echoed to.
+fn stderr() -> Box<dyn Write> {
+    Box::new(std::io::stderr())
+}
+
 impl FileLog {
     fn new(file: Option<File>, echo: bool) -> FileLog {
-        FileLog { out: Mutex::new(file.map(|f| (f, 0))), echo, waiting: Mutex::default(), moved: Condvar::new() }
+        let terminal = echo.then_some(stderr as fn() -> Box<dyn Write>);
+        FileLog { out: Mutex::new(file.map(|f| (f, 0))), terminal, waiting: Mutex::default(), moved: Condvar::new() }
     }
 
     fn waiting(&self) -> std::sync::MutexGuard<'_, Waiting> {
@@ -157,8 +164,8 @@ impl log::Log for FileLog {
             return;
         }
         let line = line(&stamp(), r.level(), r.target(), &r.args().to_string());
-        if self.echo {
-            echo(&mut std::io::stderr(), &line);
+        if let Some(terminal) = self.terminal {
+            echo(&mut *terminal(), &line);
         }
         self.hand_over(&line);
     }
@@ -250,9 +257,13 @@ mod tests {
         assert_eq!(panic_line(None, None), "internal error: a panic on thread (unnamed) at an unknown place");
     }
 
-    /// A terminal that's gone doesn't end MailCraft (found when its starter exited).
+    /// A terminal that's gone doesn't end MailCraft (found when its starter exited): a line
+    /// logged with the terminal gone is passed over there and still written to the file, and so
+    /// is the next. (Found in audit, #233: this test only handed a line to a log without a file,
+    /// which never echoes, so the terminal's path wasn't run.)
     #[test]
     fn a_closed_terminal_is_passed_over() {
+        use log::Log;
         struct Gone;
         impl Write for Gone {
             fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
@@ -262,15 +273,20 @@ mod tests {
                 Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
             }
         }
-        echo(
-            &mut Gone, "a line
-",
-        );
-        let log = FileLog::new(None, true);
-        log.hand_over(
-            "still here
-",
-        );
+        echo(&mut Gone, "a line\n");
+        let dir = std::env::temp_dir().join(format!("mailcraft-log-gone-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(NAME);
+        let mut log = FileLog::new(Some(File::create(&path).unwrap()), true);
+        assert!(log.terminal.is_some(), "echoed");
+        log.terminal = Some(|| Box::new(Gone));
+        for msg in ["still here", "and on"] {
+            log.log(&Record::builder().level(Level::Warn).target("mailcraft::x").args(format_args!("{msg}")).build());
+        }
+        log.flush();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("mailcraft::x: still here\n") && text.ends_with("mailcraft::x: and on\n"), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -710,9 +710,17 @@ mod tests {
         assert!(m.contains("mailcraft.log") && !m.contains("  "), "{m}");
     }
 
+    /// The system's thumbnailer (as when ffmpeg isn't installed) makes a video's frame through
+    /// the desktop's services: the window's first ask is answered at once, the frame comes later.
+    /// It needs ffmpeg to make the clip and a thumbnailer on the system; without either it says
+    /// so and checks nothing (`desktop/video_frames.rs` checks the rest with a stand-in tool).
+    /// Found in audit (#233): it checked nothing of what its name says, and passed with no frame
+    /// when the system had no thumbnailer.
     #[test]
     fn video_thumbnails_are_made_off_the_ui_thread() {
-        let Some(ffmpeg) = video::find_tool("ffmpeg", &[]) else { return };
+        let skipped = |why: &str| eprintln!("video_thumbnails_are_made_off_the_ui_thread: SKIPPED, {why}");
+        let Some(ffmpeg) = video::find_tool("ffmpeg", &[]) else { return skipped("no ffmpeg to make the clip") };
+        let Some(system) = video::system() else { return skipped("no system thumbnailer") };
         let dir = std::env::temp_dir().join(format!("mailcraft-desktop-video-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let clip = dir.join("clip.mp4");
@@ -721,21 +729,21 @@ mod tests {
             .arg(&clip)
             .status();
         if !made.is_ok_and(|s| s.success()) {
-            return;
+            return skipped("ffmpeg made no clip");
         }
-        // The system's thumbnailer, as when ffmpeg isn't installed.
-        let mut d = Desktop { frames: desktop::video_frames::VideoFrames::with_source(video::system()), ..Default::default() };
+        let mut d = Desktop { frames: desktop::video_frames::VideoFrames::with_source(Some(system)), ..Default::default() };
+        let asked = std::time::Instant::now();
+        assert_eq!(d.video_frame(&clip), VideoFrame::Pending, "the first ask waits for nothing");
+        assert!(asked.elapsed() < std::time::Duration::from_secs(5), "the window waited {:?}", asked.elapsed());
         // Longer than the tool is given: a frame that never comes is the tool's to give up on.
         let end = std::time::Instant::now() + video::TIMEOUT.saturating_mul(2);
-        loop {
+        let frame = loop {
             match d.video_frame(&clip) {
                 VideoFrame::Pending if std::time::Instant::now() < end => std::thread::sleep(std::time::Duration::from_millis(50)),
-                f => {
-                    assert!(matches!(f, VideoFrame::Ready(_)) || video::system().is_none(), "{f:?}");
-                    break;
-                }
+                f => break f,
             }
-        }
+        };
+        assert!(matches!(&frame, VideoFrame::Ready(png) if png.starts_with(b"\x89PNG")), "{frame:?}");
         let _ = std::fs::remove_dir_all(dir);
     }
 }

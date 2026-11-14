@@ -115,13 +115,10 @@ fn a_release_build_updates_to_the_next_release_from_end_to_end() {
     };
     let later_name = name.replace("0.33.0", "0.34.0");
     let mut files = Vec::new();
-    let base = {
-        // The list names the files' addresses, so the port is chosen before it's served.
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-        format!("http://127.0.0.1:{port}/")
-    };
+    // The list names the files' addresses, so the port is taken before what's served is made;
+    // it stays this test's (freed and bound again, another test's server could take it between).
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://127.0.0.1:{}/", listener.local_addr().unwrap().port());
     let list = format!(
         "[{},{}]",
         release_json(&base, "v0.34.0-test.40", &later_name, b"a test build", true),
@@ -129,8 +126,8 @@ fn a_release_build_updates_to_the_next_release_from_end_to_end() {
     );
     files.push(("/releases".to_string(), list.into_bytes()));
     files.push((format!("/download/v0.33.0/{name}"), archive.clone()));
-    let served = serve_at(&base, files);
-    let feed = mailcraft_net::updates::Feed::local(&served).unwrap();
+    serve(listener, files);
+    let feed = mailcraft_net::updates::Feed::local(&base).unwrap();
     let data = dir.join("data-folder");
     std::fs::create_dir_all(&data).unwrap();
     let u = Updater::new(kind, data.clone(), feed, "0.32.0".into(), true).launch(None, Some(Duration::ZERO)).unwrap();
@@ -148,11 +145,9 @@ fn a_release_build_updates_to_the_next_release_from_end_to_end() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Serve `files` (path → body) over HTTP at `base` (a port on this computer chosen beforehand),
-/// as many requests as come, on a thread of its own.
-fn serve_at(base: &str, files: Vec<(String, Vec<u8>)>) -> String {
-    let port: u16 = base.trim_end_matches('/').rsplit(':').next().unwrap().parse().unwrap();
-    let listener = TcpListener::bind(("127.0.0.1", port)).unwrap();
+/// Serve `files` (path → body) over HTTP on `listener` (bound beforehand, so the addresses in
+/// the files could name its port), as many requests as come, on a thread of its own.
+fn serve(listener: TcpListener, files: Vec<(String, Vec<u8>)>) {
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -180,7 +175,6 @@ fn serve_at(base: &str, files: Vec<(String, Vec<u8>)>) -> String {
             let _ = reader.read_to_end(&mut rest);
         }
     });
-    base.to_string()
 }
 
 /// The package step run by a shell, `pkexec` and the package tools stood in for: the `.deb` goes
