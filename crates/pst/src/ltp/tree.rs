@@ -2,10 +2,9 @@
 
 use std::io;
 
-use super::{Heap, HeapId};
+use super::{BTH_SIG, Heap, HeapId};
 use crate::util::{invalid, short, u8_at, u32_at};
 
-const BTH_SIG: u8 = 0xB5;
 /// Index levels a tree may have: a heap ID is 32 bits, and no real tree comes near.
 const MAX_LEVELS: u8 = 8;
 /// Records and index records read at most, over the whole tree: records that point back up it

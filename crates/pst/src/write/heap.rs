@@ -2,23 +2,14 @@
 
 use std::io;
 
-use crate::ltp::{HeapId, PropertyType, PropertyValue};
-use crate::ndb::Format;
+use crate::ltp::{BTH_SIG, HN_SIG, HeapId, PC_SIG, PropertyType, PropertyValue};
+use crate::ndb::{Format, NID_TYPE_INTERNAL};
 use crate::util::{invalid, short};
 
 /// The most one allocation may be (MS-PST 2.3.1.1).
 pub(crate) const MAX_ALLOC: usize = 3580;
 /// Allocations a block may have: a heap ID's index is 11 bits.
 const MAX_ALLOCS: usize = 2047;
-
-// `bClientSig`.
-pub(crate) const CLIENT_TC: u8 = 0x7C;
-pub(crate) const CLIENT_PC: u8 = 0xBC;
-const HN_SIG: u8 = 0xEC;
-const BTH_SIG: u8 = 0xB5;
-
-/// The nodes a value too big for a heap goes in have this type: `NID_TYPE_INTERNAL`.
-pub(crate) const NID_TYPE_INTERNAL: u32 = 0x01;
 
 /// One block being filled.
 #[derive(Default)]
@@ -350,5 +341,5 @@ pub(crate) fn build_props_linked(
         records.push(r);
     }
     let root = build_tree(&mut heap, 2, 6, &records)?;
-    Ok(BuiltProps { blocks: heap.finish(CLIENT_PC, root)?, external })
+    Ok(BuiltProps { blocks: heap.finish(PC_SIG, root)?, external })
 }

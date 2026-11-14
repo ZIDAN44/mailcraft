@@ -20,9 +20,6 @@ pub(crate) const NID_MESSAGE_STORE: u32 = 0x21;
 /// The name-to-ID map's node (MS-PST 2.4.7).
 pub(crate) const NID_NAME_TO_ID_MAP: u32 = 0x61;
 
-pub(crate) const NID_TYPE_NORMAL_FOLDER: u32 = 0x02;
-const NID_TYPE_SEARCH_FOLDER: u32 = 0x03;
-
 /// `PidTagIpmSubtreeEntryId`.
 const IPM_SUBTREE: u16 = 0x35E0;
 

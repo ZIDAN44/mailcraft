@@ -4,9 +4,9 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 
 use super::edit::Editor;
-use super::heap::{CLIENT_TC, HeapBuilder, MAX_ALLOC, NID_TYPE_INTERNAL, build_tree};
-use crate::ltp::{Column, PropertyType, Table};
-use crate::ndb::{Format, SubNodes};
+use super::heap::{HeapBuilder, MAX_ALLOC, build_tree};
+use crate::ltp::{Column, PropertyType, TC_SIG, Table};
+use crate::ndb::{Format, NID_TYPE_INTERNAL, SubNodes};
 use crate::util::{invalid, short};
 
 pub(crate) const ROW_ID: u16 = 0x67F2;
@@ -184,7 +184,7 @@ pub(crate) fn build_table(format: Format, schema: &Schema, rows: &[NewRow], keep
         let nid = (next << 5) | NID_TYPE_INTERNAL;
         (nid, Some((nid, blocks)))
     };
-    let mut head = vec![CLIENT_TC, u8::try_from(schema.columns.len()).map_err(|_| short())?];
+    let mut head = vec![TC_SIG, u8::try_from(schema.columns.len()).map_err(|_| short())?];
     for e in schema.ends {
         head.extend(e.to_le_bytes());
     }
@@ -197,7 +197,7 @@ pub(crate) fn build_table(format: Format, schema: &Schema, rows: &[NewRow], keep
         head.extend([c.size, c.bit]);
     }
     let root = heap.alloc(head)?;
-    Ok(Built { blocks: heap.finish(CLIENT_TC, root)?, rows: rows_out, external })
+    Ok(Built { blocks: heap.finish(TC_SIG, root)?, rows: rows_out, external })
 }
 
 impl Editor {

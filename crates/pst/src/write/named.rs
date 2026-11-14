@@ -230,7 +230,7 @@ impl Editor {
         }
         // Any other subnodes the node has stay.
         for (node, (data, sub)) in old.iter() {
-            if subs.contains_key(node) || *node & crate::ndb::NID_TYPE_MASK == super::heap::NID_TYPE_INTERNAL {
+            if subs.contains_key(node) || *node & crate::ndb::NID_TYPE_MASK == crate::ndb::NID_TYPE_INTERNAL {
                 continue;
             }
             self.add_ref(*data);

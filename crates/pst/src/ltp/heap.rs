@@ -2,14 +2,12 @@
 
 use std::io;
 
+use super::HN_SIG;
 use crate::ndb::PstFile;
 use crate::util::{invalid, short, u8_at, u16_at, u32_at};
 
 /// Blocks a heap can have: a heap ID's block index is 16 bits.
 const MAX_BLOCKS: usize = 1 << 16;
-
-/// A heap's signature (`bSig`).
-const HN_SIG: u8 = 0xEC;
 
 /// An allocation in a heap (`HID`): five type bits (zero), its index from 1, then its block.
 pub(crate) type HeapId = u32;

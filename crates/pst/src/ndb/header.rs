@@ -46,11 +46,14 @@ pub(crate) struct Header {
     pub(crate) raw: Vec<u8>,
 }
 
-/// Bytes read to take in either format's header.
+/// Bytes read to take in either format's header: a Unicode one's, the longer.
 pub(crate) const HEADER_READ: usize = 564;
+/// An ANSI header's length.
+const HEADER_ANSI: usize = 512;
 
-const MAGIC: &[u8; 4] = b"!BDN";
-const CLIENT: &[u8; 2] = b"SM";
+/// `dwMagic` and `wMagicClient`.
+pub(crate) const MAGIC: &[u8; 4] = b"!BDN";
+pub(crate) const CLIENT: &[u8; 2] = b"SM";
 const CRC_START: usize = 8;
 const CRC_PARTIAL: usize = 471;
 const CRC_FULL: usize = 516;
@@ -73,6 +76,11 @@ impl Format {
     /// Bytes in a page before its trailer.
     pub(crate) fn page_data(self) -> usize {
         if self.wide() { 496 } else { 500 }
+    }
+
+    /// The header's length (MS-PST 2.2.2.6).
+    pub(crate) fn header_size(self) -> usize {
+        if self.wide() { HEADER_READ } else { HEADER_ANSI }
     }
 
     /// An ID's or an offset's size.
@@ -130,8 +138,7 @@ impl Header {
         } else {
             (u64::from(u32_at(b, 28)?), u64::from(u32_at(b, 24)?), u32_at(b, 32)?)
         };
-        let len = if format.wide() { 564 } else { 512 };
-        Ok(Header { format, crypt, root, next_page, next_block, unique, nids, raw: b.get(..len).ok_or_else(short)?.to_vec() })
+        Ok(Header { format, crypt, root, next_page, next_block, unique, nids, raw: b.get(..format.header_size()).ok_or_else(short)?.to_vec() })
     }
 
     fn root_wide(b: &[u8], at: usize) -> io::Result<Root> {
@@ -227,7 +234,7 @@ mod tests {
 
     /// A header of `format`, valid, with nothing in it but what these tests look at.
     pub(crate) fn blank(format: Format) -> Vec<u8> {
-        let mut b = vec![0u8; if format.wide() { 564 } else { 512 }];
+        let mut b = vec![0u8; format.header_size()];
         b[..4].copy_from_slice(MAGIC);
         b[8..10].copy_from_slice(CLIENT);
         b[10..12].copy_from_slice(&(if format.wide() { 23u16 } else { 14u16 }).to_le_bytes());

@@ -5,11 +5,10 @@ use std::collections::BTreeMap;
 use std::io;
 
 use super::value::{self, Bytes, PropertyType, PropertyValue};
-use super::{Heap, records};
+use super::{Heap, PC_SIG, records};
 use crate::ndb::{NID_TYPE_MASK, PstFile, SubNodes};
 use crate::util::{invalid, u16_at, u32_at};
 
-const PC_SIG: u8 = 0xBC;
 /// A record's key (the property's ID) and data (its type, and its value or where it is kept).
 const RECORD_KEY: usize = 2;
 const RECORD_DATA: usize = 6;

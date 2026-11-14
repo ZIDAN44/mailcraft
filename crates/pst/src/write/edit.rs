@@ -8,8 +8,8 @@ use std::path::Path;
 use std::rc::Rc;
 
 use super::btree::{Changes, finish_page};
-use super::space::{self, AMAP_BYTES, MapKind, Space, run_at, run_of};
-use crate::messaging::NID_TYPE_NORMAL_FOLDER;
+use super::put_id;
+use super::space::{self, AMAP_BYTES, AMAP_INVALID, AMAP_VALID, DLIST_AT, MapKind, Space, run_at, run_of};
 use crate::messaging::PstStore;
 use crate::ndb::btree::{block_entry, block_entry_size, node_entry_size};
 use crate::ndb::*;
@@ -20,17 +20,6 @@ pub const ADD_MAX_VALUE_SIZE: u64 = 256 * 1024 * 1024;
 
 /// Writes waiting to be made, to keep runs of blocks in one call.
 const WRITE_BUFFER: usize = 1 << 20;
-
-// Allocation map validity (`fAMapValid`).
-const AMAP_INVALID: u8 = 0;
-const AMAP_VALID: u8 = 2;
-
-const PT_AMAP: u8 = 0x84;
-const PT_PMAP: u8 = 0x83;
-const PT_FMAP: u8 = 0x82;
-const PT_FPMAP: u8 = 0x85;
-const PT_DLIST: u8 = 0x86;
-const DLIST_AT: u64 = 0x4200;
 
 /// A data file being changed.
 pub(crate) struct Editor {
@@ -467,15 +456,6 @@ impl Editor {
 
 fn apply_delta(v: u64, delta: i64) -> u64 {
     if delta >= 0 { v.saturating_add(delta.unsigned_abs()) } else { v.saturating_sub(delta.unsigned_abs()) }
-}
-
-fn put_id(out: &mut Vec<u8>, format: Format, id: u64) -> io::Result<()> {
-    if format.wide() {
-        out.extend(id.to_le_bytes());
-    } else {
-        out.extend(u32::try_from(id).map_err(|_| invalid("past what an ANSI data file can hold"))?.to_le_bytes());
-    }
-    Ok(())
 }
 
 /// A block entry as a leaf page keeps it.

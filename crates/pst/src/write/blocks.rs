@@ -3,12 +3,11 @@
 use std::io::{self, Read};
 
 use super::edit::Editor;
+use super::put_id;
 use crate::ndb::btree::id_at;
 use crate::ndb::*;
 use crate::util::{invalid, short, u8_at, u16_at};
 
-const BT_DATA: u8 = 0x01;
-const BT_SUBNODE: u8 = 0x02;
 /// Subnode trees nested at most when one is let go of: attached messages in attached messages,
 /// two levels each, and a file whose tree names itself ends here.
 const MAX_RELEASE_DEPTH: usize = 2 * crate::messaging::MAX_EMBEDDED_DEPTH + 8;
@@ -230,13 +229,4 @@ impl Editor {
         }
         Ok(())
     }
-}
-
-fn put_id(out: &mut Vec<u8>, format: Format, id: u64) -> io::Result<()> {
-    if format.wide() {
-        out.extend(id.to_le_bytes());
-    } else {
-        out.extend(u32::try_from(id).map_err(|_| invalid("past what an ANSI data file can hold"))?.to_le_bytes());
-    }
-    Ok(())
 }

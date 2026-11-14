@@ -1,4 +1,4 @@
-//! The sizes and page types MS-PST gives.
+//! The sizes, page types and block types MS-PST gives.
 
 /// A page is 512 bytes (MS-PST 2.2.2.7).
 pub(crate) const PAGE: usize = 512;
@@ -8,3 +8,12 @@ pub(crate) const MAX_BLOCK: usize = 8192;
 // Page types (`ptype`).
 pub(crate) const PT_BBT: u8 = 0x80;
 pub(crate) const PT_NBT: u8 = 0x81;
+pub(crate) const PT_FMAP: u8 = 0x82;
+pub(crate) const PT_PMAP: u8 = 0x83;
+pub(crate) const PT_AMAP: u8 = 0x84;
+pub(crate) const PT_FPMAP: u8 = 0x85;
+pub(crate) const PT_DLIST: u8 = 0x86;
+
+// Block types (`btype`, MS-PST 2.2.2.8.3).
+pub(crate) const BT_DATA: u8 = 0x01;
+pub(crate) const BT_SUBNODE: u8 = 0x02;

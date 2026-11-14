@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 use std::io::{self, Read};
 
+use super::table::{ROW_ID, ROW_VERSION};
 use crate::ltp::{Bytes, GuidValue, PropertyValue, Utf16};
 
 /// A recipient's kind (`PidTagRecipientType`).
@@ -203,15 +204,14 @@ impl SpecialFolder {
     }
 }
 
-/// Attached messages nest at most this deep.
-pub const MAX_EMBEDDED_DEPTH: usize = 32;
+pub use crate::messaging::MAX_EMBEDDED_DEPTH;
 /// The most a file read from a source can hold: `PidTagAttachSize` is a signed 32-bit integer.
 pub(crate) const MAX_SOURCE_SIZE: u64 = i32::MAX as u64 - (1 << 20);
 /// The longest string name, in UTF-16 units.
 pub(crate) const MAX_NAME: usize = 1024;
 
 /// Properties the writer works out itself.
-const MESSAGE_OWNED: [u16; 5] = [0x001A, 0x0E08, 0x0E1B, 0x67F2, 0x67F3];
+const MESSAGE_OWNED: [u16; 5] = [0x001A, 0x0E08, 0x0E1B, ROW_ID, ROW_VERSION];
 const ATTACHMENT_OWNED: [u16; 3] = [0x0E20, 0x3701, 0x3705];
 
 fn refused<T>(what: &str) -> io::Result<T> {

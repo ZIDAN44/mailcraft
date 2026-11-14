@@ -10,7 +10,7 @@ use super::table::{Built, Cell, NewRow, ROW_ID, ROW_VERSION, Schema, build_table
 use super::text::Text;
 use super::types::*;
 use crate::ltp::{Bytes, ObjectRef, PropertyType as P, PropertyValue};
-use crate::ndb::{Format, SubNodes};
+use crate::ndb::{Format, NID_TYPE_ATTACHMENT, NID_TYPE_INTERNAL, NID_TYPE_NORMAL_MESSAGE, SubNodes};
 use crate::util::short;
 
 const ATTACH_BY_VALUE: i32 = 1;
@@ -20,9 +20,6 @@ const MESSAGE_FLAG_HAS_ATTACH: i32 = 0x10;
 
 const NID_RECIPIENT_TABLE: u32 = 0x0692;
 const NID_ATTACHMENT_TABLE: u32 = 0x0671;
-const NID_TYPE_ATTACHMENT: u32 = 0x05;
-const NID_TYPE_INTERNAL: u32 = 0x01;
-pub(crate) const NID_TYPE_NORMAL_MESSAGE: u32 = 0x04;
 
 /// A message's values kept in subnodes of the message get indexes from here.
 const FIRST_VALUE_NODE: u32 = 0x80;

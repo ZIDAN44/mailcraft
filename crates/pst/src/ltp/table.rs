@@ -3,13 +3,12 @@
 use std::io;
 use std::rc::Rc;
 
-use super::Heap;
 use super::props::stored;
 use super::value::{self, PropertyType, PropertyValue};
+use super::{Heap, TC_SIG};
 use crate::ndb::{NID_TYPE_MASK, PstFile, SubNodes};
 use crate::util::{invalid, short, u8_at, u16_at, u32_at};
 
-const TC_SIG: u8 = 0x7C;
 /// Rows read at most, whatever the blocks hold.
 const MAX_ROWS: usize = 1 << 24;
 /// Cells of a table written again at most, and the bytes of text they may hold: past what the

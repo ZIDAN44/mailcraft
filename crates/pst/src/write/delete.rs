@@ -6,22 +6,18 @@ use std::io;
 use std::path::Path;
 
 use super::edit::Editor;
-use super::folders::{SUD_MSG_DEL, writable};
+use super::folders::{CONTENT_COUNT, CONTENT_UNREAD, SUD_MSG_DEL, writable};
 use super::table::Cell;
 use crate::ltp::{PropertyType as P, PropertyValue, Table};
 use crate::ndb::btree::{node_entry, node_entry_size};
-use crate::ndb::{NID_TYPE_CONTENTS_TABLE, NID_TYPE_MASK, NodeEntry, PT_NBT};
+use crate::ndb::{
+    NID_TYPE_CONTENTS_TABLE, NID_TYPE_MASK, NID_TYPE_NORMAL_FOLDER, NID_TYPE_NORMAL_MESSAGE, NID_TYPE_SEARCH_CONTENTS_TABLE, NID_TYPE_SEARCH_FOLDER,
+    NodeEntry, PT_NBT,
+};
 use crate::util::short;
-
-const NID_TYPE_NORMAL_MESSAGE: u32 = 0x04;
-const NID_TYPE_NORMAL_FOLDER: u32 = 0x02;
-const NID_TYPE_SEARCH_FOLDER: u32 = 0x03;
-const NID_TYPE_SEARCH_CONTENTS_TABLE: u32 = 0x10;
 
 const MESSAGE_FLAGS: u16 = 0x0E07;
 const MF_READ: i32 = 0x0001;
-const CONTENT_COUNT: u16 = 0x3602;
-const CONTENT_UNREAD: u16 = 0x3603;
 
 fn refused(what: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, what)

@@ -5,13 +5,11 @@ use std::rc::Rc;
 
 use super::{PstStore, node_properties};
 use crate::ltp::{Bytes, Heap, Properties, PropertyValue, Table, read_properties};
-use crate::ndb::{NID_TYPE_ATTACHMENT, NID_TYPE_MASK, SubNodes};
+use crate::ndb::{
+    NID_TYPE_ASSOC_MESSAGE, NID_TYPE_ATTACHMENT, NID_TYPE_ATTACHMENT_TABLE, NID_TYPE_MASK, NID_TYPE_NORMAL_MESSAGE, NID_TYPE_RECIPIENT_TABLE,
+    SubNodes,
+};
 use crate::util::invalid;
-
-const NID_TYPE_NORMAL_MESSAGE: u32 = 0x04;
-const NID_TYPE_ASSOC_MESSAGE: u32 = 0x08;
-const NID_TYPE_ATTACHMENT_TABLE: u32 = 0x11;
-const NID_TYPE_RECIPIENT_TABLE: u32 = 0x12;
 
 /// `PidTagAttachDataBinary` / `PidTagAttachDataObject`, and `PidTagAttachMethod`.
 const ATTACH_DATA: u16 = 0x3701;

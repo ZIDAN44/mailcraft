@@ -5,25 +5,27 @@ use std::io;
 use std::path::Path;
 
 use super::edit::Editor;
-use super::message::{NID_TYPE_NORMAL_MESSAGE, contents_cell, is_unread, text_of};
+use super::message::{contents_cell, is_unread, text_of};
 use super::table::{Cell, NewRow, ROW_ID, ROW_VERSION};
 use super::text::{Text, same_ansi_name};
 use super::types::*;
 use crate::ltp::{Bytes, PropertyType as P, PropertyValue, Table};
 use crate::messaging::{NID_MESSAGE_STORE, PstFolder, node_of_entry_id};
-use crate::ndb::{NID_TYPE_ASSOC_CONTENTS_TABLE, NID_TYPE_CONTENTS_TABLE, NID_TYPE_HIERARCHY_TABLE, NID_TYPE_MASK, SubNodes};
+use crate::ndb::{
+    NID_TYPE_ASSOC_CONTENTS_TABLE, NID_TYPE_CONTENTS_TABLE, NID_TYPE_HIERARCHY_TABLE, NID_TYPE_MASK, NID_TYPE_NORMAL_FOLDER, NID_TYPE_NORMAL_MESSAGE,
+    SubNodes,
+};
 use crate::util::{invalid, short};
 
 pub(crate) const NID_ROOT_FOLDER: u32 = 0x122;
-const NID_TYPE_NORMAL_FOLDER: u32 = 0x02;
 const NID_HIERARCHY_TEMPLATE: u32 = 0x60D;
 const NID_CONTENTS_TEMPLATE: u32 = 0x60E;
 const NID_ASSOC_TEMPLATE: u32 = 0x60F;
-const NID_SEARCH_QUEUE: u32 = 0x1E1;
+pub(crate) const NID_SEARCH_QUEUE: u32 = 0x1E1;
 
 const DISPLAY_NAME: u16 = 0x3001;
-const CONTENT_COUNT: u16 = 0x3602;
-const CONTENT_UNREAD: u16 = 0x3603;
+pub(crate) const CONTENT_COUNT: u16 = 0x3602;
+pub(crate) const CONTENT_UNREAD: u16 = 0x3603;
 const SUBFOLDERS: u16 = 0x360A;
 const CONTAINER_CLASS: u16 = 0x3613;
 

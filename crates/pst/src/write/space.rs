@@ -9,6 +9,12 @@ use std::io;
 use crate::ndb::{Format, PAGE};
 use crate::util::invalid;
 
+// Whether the header says the maps can be used (`fAMapValid`, MS-PST 2.2.2.5).
+pub(crate) const AMAP_INVALID: u8 = 0;
+pub(crate) const AMAP_VALID: u8 = 2;
+
+/// Where the density list is (MS-PST 2.2.2.7.4).
+pub(crate) const DLIST_AT: u64 = 0x4200;
 /// Where the first map is.
 pub(crate) const FIRST_AMAP: u64 = 0x4400;
 /// The bytes one map covers, itself included.

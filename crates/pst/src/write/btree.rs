@@ -6,6 +6,7 @@ use std::io;
 use std::ops::Bound;
 
 use super::edit::Editor;
+use super::put_id;
 use crate::ndb::btree::{BtPage, MAX_LEVELS};
 use crate::ndb::{Bref, Format, PAGE};
 use crate::util::invalid;
@@ -70,14 +71,6 @@ pub(crate) fn finish_page(b: &mut [u8], format: Format, ptype: u8, ib: u64, bid:
     Ok(())
 }
 
-fn id_bytes(format: Format, id: u64) -> io::Result<Vec<u8>> {
-    if format.wide() {
-        Ok(id.to_le_bytes().to_vec())
-    } else {
-        Ok(u32::try_from(id).map_err(|_| invalid("past what an ANSI data file can hold"))?.to_le_bytes().to_vec())
-    }
-}
-
 /// That a page at `level` may stand under one at `above`: one level below it, and below the most
 /// levels a tree has. The level is a byte from the file, so it is checked before anything is added
 /// to it.
@@ -105,7 +98,11 @@ fn ascending(mut keys: impl Iterator<Item = u64>) -> io::Result<()> {
 
 /// A `BTENTRY`: the first key under a page, and the page.
 fn index_entry(format: Format, key: u64, at: Bref) -> io::Result<Raw> {
-    Ok([id_bytes(format, key)?, id_bytes(format, at.bid)?, id_bytes(format, at.ib)?].concat())
+    let mut out = Vec::with_capacity(BtPage::index_entry(format));
+    for id in [key, at.bid, at.ib] {
+        put_id(&mut out, format, id)?;
+    }
+    Ok(out)
 }
 
 impl Editor {

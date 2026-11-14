@@ -11,10 +11,6 @@ use crate::util::{align64, invalid, size, u8_at, u16_at, u32_at, u64_at};
 /// A subnode tree's entries read at most: what a tree of the two levels MS-PST allows holds.
 const MAX_SUBNODES: usize = 1 << 20;
 
-// `btype`.
-const BT_DATA: u8 = 0x01;
-const BT_SUBNODE: u8 = 0x02;
-
 /// What a walk over a data tree hands over.
 enum Piece {
     /// About how many bytes are to come, before the first block; never more than the tree can
