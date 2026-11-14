@@ -12,7 +12,7 @@ use mail_parser::MessageParser;
 
 use crate::attachments::contents;
 
-use super::{RAW_MAX, crlf, entity_of, fields, find, first_part, protect_headers, safe_to_sign, split, with_entity};
+use super::{RAW_MAX, crlf, fields, find, first_part, protect_with, split};
 
 /// What protects a whole message.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -234,22 +234,15 @@ pub fn protect(
     hide_subject: bool,
     boundary: &str,
 ) -> Result<Vec<u8>, String> {
-    let (outer, entity) = entity_of(raw);
-    let (outer, mut entity) = protect_headers(&outer, &entity, encrypt.is_some(), hide_subject);
-    let mut message = with_entity(raw, &entity);
-    if let Some(sign) = sign {
-        if !safe_to_sign(&entity) {
-            return Err("a part of it couldn't be sent byte for byte, so its signature wouldn't hold".into());
-        }
-        let signature = sign(&entity)?;
-        message = signed_message(&outer, &entity, &signature, boundary);
-        entity = entity_of(&message).1;
-    }
-    if let Some(encrypt) = encrypt {
-        let armored = encrypt(&entity)?;
-        message = encrypted_message(&outer, &armored, &format!("{boundary}e"));
-    }
-    Ok(message)
+    let encrypted_boundary = format!("{boundary}e");
+    protect_with(
+        raw,
+        sign,
+        encrypt,
+        hide_subject,
+        |outer, entity, signature| signed_message(outer, entity, signature, boundary),
+        |outer, armored| encrypted_message(outer, armored, &encrypted_boundary),
+    )
 }
 
 #[cfg(test)]

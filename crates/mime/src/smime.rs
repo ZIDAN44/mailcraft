@@ -562,6 +562,29 @@ pub fn protect(
     hide_subject: bool,
     boundary: &str,
 ) -> Result<Vec<u8>, String> {
+    protect_with(
+        raw,
+        sign,
+        encrypt,
+        hide_subject,
+        |outer, entity, signature| signed_message(outer, entity, signature, boundary),
+        |outer, cms| encrypted_message(outer, cms, gcm),
+    )
+}
+
+/// `raw` signed and/or encrypted, S/MIME's way or PGP/MIME's ([`pgp::protect`]): its header
+/// fields protected inside ([`protect_headers`]), then signed if `sign` is given (`signed` writes
+/// the message around the entity and its signature) after making sure the entity would arrive
+/// byte for byte, then that whole signed entity encrypted if `encrypt` is given (`encrypted`
+/// writes the message around what it gives).
+fn protect_with(
+    raw: &[u8],
+    sign: Option<Crypto<'_>>,
+    encrypt: Option<Crypto<'_>>,
+    hide_subject: bool,
+    signed: impl Fn(&[u8], &[u8], &[u8]) -> Vec<u8>,
+    encrypted: impl Fn(&[u8], &[u8]) -> Vec<u8>,
+) -> Result<Vec<u8>, String> {
     let (outer, entity) = entity_of(raw);
     let (outer, mut entity) = protect_headers(&outer, &entity, encrypt.is_some(), hide_subject);
     let mut message = with_entity(raw, &entity);
@@ -570,12 +593,12 @@ pub fn protect(
             return Err("a part of it couldn't be sent byte for byte, so its signature wouldn't hold".into());
         }
         let signature = sign(&entity)?;
-        message = signed_message(&outer, &entity, &signature, boundary);
+        message = signed(&outer, &entity, &signature);
         entity = entity_of(&message).1;
     }
     if let Some(encrypt) = encrypt {
-        let cms = encrypt(&entity)?;
-        message = encrypted_message(&outer, &cms, gcm);
+        let sealed = encrypt(&entity)?;
+        message = encrypted(&outer, &sealed);
     }
     Ok(message)
 }
