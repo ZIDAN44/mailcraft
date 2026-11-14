@@ -190,11 +190,10 @@ fn filetag(path: &Path) -> String {
             }
         }
     }
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in head.get(..got).unwrap_or_default().iter().chain(&size.to_le_bytes()) {
-        h = (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
-    }
-    format!("{:08x}", h >> 32)
+    let mut h = mailcraft_model::hash::Fnv::new();
+    h.add(head.get(..got).unwrap_or_default());
+    h.add(&size.to_le_bytes());
+    format!("{:08x}", h.value() >> 32)
 }
 
 /// The jobs, shared by the lanes: each takes the next in turn.

@@ -4,12 +4,15 @@
 
 use super::*;
 
-/// A digest of what a [`Reach`] is worked out from, to work it out again only when that changes.
+/// A digest of what a [`Reach`] is worked out from, to work it out again only when that changes:
+/// FNV-1a of the parts, each ended by `0xff`.
 fn digest(parts: &[&[u8]]) -> u64 {
-    parts.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, p| {
-        let h = p.iter().fold(h, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3));
-        (h ^ 0xff).wrapping_mul(0x0100_0000_01b3)
-    })
+    let mut h = mailcraft_model::hash::Fnv::new();
+    for p in parts {
+        h.add(p);
+        h.add(&[0xff]);
+    }
+    h.value()
 }
 
 impl Session {

@@ -44,6 +44,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use mailcraft_model::hash::{Fnv, fnv1a};
 use mailcraft_model::job::StopHow;
 use mailcraft_pst::write::{self, BatchMessage, NewAttachment, NewMessage, NewRecipient, RecipientType};
 
@@ -353,18 +354,18 @@ fn import() {
         let each = env("MC_VERIFY").as_deref() == Some("folders");
         for (n, f) in done.folders.iter().enumerate() {
             let json = serde_json::to_vec(f).unwrap();
-            digest.mix(&json);
-            parts[0].mix(&json);
+            digest.add(&json);
+            parts[0].add(&json);
             let Ok(st) = store.load_folder("d1", &f.path) else { continue };
             let (mut list, mut sources) = (Fnv::default(), Fnv::default());
             for m in &st.messages {
                 let json = serde_json::to_vec(m).unwrap();
                 for d in [&mut digest, &mut parts[1], &mut list] {
-                    d.mix(&json);
+                    d.add(&json);
                 }
                 let Some(raw) = store.read_body(&m.key) else { continue };
                 for d in [&mut digest, &mut parts[2], &mut sources] {
-                    d.mix(&raw);
+                    d.add(&raw);
                 }
                 present += 1;
                 kept.add(m, &raw);
@@ -377,25 +378,25 @@ fn import() {
                 println!(
                     "  folder {n}: {} messages, folder {:016x}, list {:016x}, sources {:016x}",
                     st.messages.len(),
-                    Fnv::of(&json),
-                    list.0,
-                    sources.0
+                    fnv1a(&json),
+                    list.value(),
+                    sources.value()
                 );
             }
         }
         println!(
             "verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {:016x} (folders {:016x}, lists {:016x}, sources {:016x})",
             present - parsed,
-            digest.0,
-            parts[0].0,
-            parts[1].0,
-            parts[2].0
+            digest.value(),
+            parts[0].value(),
+            parts[1].value(),
+            parts[2].value()
         );
         println!("kept: {}", serde_json::to_string(&kept).unwrap());
         // The contacts, calendar, tasks, notes and journal that came in.
         let pim: mailcraft_model::pim::Pim = store.load_account_doc("d1", mailcraft_model::pim::PIM_DOC).unwrap_or_default();
         let json = serde_json::to_vec(&pim).unwrap();
-        println!("pim: {} bytes, digest {:016x}", json.len(), Fnv::of(&json));
+        println!("pim: {} bytes, digest {:016x}", json.len(), fnv1a(&json));
         // What a pass would still have to do for search, now the import is in.
         let reads = store.reads();
         let w = mailcraft_store::search::Writer::open(&store, "d1").unwrap();
@@ -409,29 +410,6 @@ fn import() {
             plan.total,
             store.reads() - reads
         );
-    }
-}
-
-/// FNV-1a, 64 bits.
-struct Fnv(u64);
-
-impl Default for Fnv {
-    fn default() -> Self {
-        Fnv(0xcbf2_9ce4_8422_2325)
-    }
-}
-
-impl Fnv {
-    fn mix(&mut self, bytes: &[u8]) {
-        for b in bytes {
-            self.0 = (self.0 ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
-        }
-    }
-
-    fn of(bytes: &[u8]) -> u64 {
-        let mut f = Fnv::default();
-        f.mix(bytes);
-        f.0
     }
 }
 

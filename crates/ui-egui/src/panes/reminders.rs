@@ -37,8 +37,10 @@ pub struct State {
 
 /// A digest of what decides the due list: the answers given, the events and the tasks.
 fn signature(s: &Session) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut mix = |v: u64| h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
+    // FNV-1a's constants, a number at a time (not kept: only compared within a run).
+    use mailcraft_engine::model::hash::{FNV_OFFSET, FNV_PRIME};
+    let mut h = FNV_OFFSET;
+    let mut mix = |v: u64| h = (h ^ v).wrapping_mul(FNV_PRIME);
     mix(s.prefs.reminders.len() as u64);
     for (k, v) in &s.prefs.reminders {
         mix(k.len() as u64);

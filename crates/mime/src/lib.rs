@@ -813,7 +813,7 @@ fn seven_bit(data: &[u8]) -> bool {
 
 /// FNV-1a, for boundaries.
 fn fnv(s: &str) -> u64 {
-    s.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    mailcraft_model::hash::fnv1a(s.as_bytes())
 }
 
 #[cfg(test)]

@@ -386,8 +386,9 @@ fn build_round_trips() {
 #[test]
 fn build_writes_the_same_bytes_as_before() {
     let digest = |raw: &[u8]| {
-        let kept = raw.split_inclusive(|b| *b == b'\n').filter(|l| !l.starts_with(b"X-Mailer:"));
-        kept.flatten().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3))
+        let mut h = mailcraft_model::hash::Fnv::new();
+        raw.split_inclusive(|b| *b == b'\n').filter(|l| !l.starts_with(b"X-Mailer:")).for_each(|l| h.add(l));
+        h.value()
     };
     let all_bytes: Vec<u8> = (0..=255u8).cycle().take(5000).collect();
     let d = Draft {

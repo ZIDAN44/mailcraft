@@ -21,7 +21,7 @@ fn fingerprint(days: &FollowUpDays) -> u64 {
     if !days.done.is_empty() {
         bytes.extend(serde_json::to_vec(&days.done).unwrap_or_default());
     }
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01b3))
+    mailcraft_model::hash::fnv1a(&bytes)
 }
 
 /// The days of `days` not in `taken` with the same day.

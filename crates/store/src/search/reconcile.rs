@@ -11,6 +11,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::hash::Hasher;
 
+use mailcraft_model::hash::Fnv;
+
 use super::*;
 
 /// A message to add, and what tells it from another.
@@ -118,7 +120,7 @@ pub fn revision(store: &Store, account: &str, folder: &str) -> Option<u64> {
     let validity = if head.is_empty() { 0 } else { serde_json::from_slice::<Head>(&head).ok()?.validity };
     let mut uids = store.cached_bodies(account, folder, validity);
     uids.sort_unstable();
-    let mut h = Fnv(0xcbf2_9ce4_8422_2325);
+    let mut h = Fnv::new();
     h.write(&REVISION_KIND.to_le_bytes());
     h.write(&head);
     h.write_u32(validity);
@@ -126,22 +128,6 @@ pub fn revision(store: &Store, account: &str, folder: &str) -> Option<u64> {
         h.write_u32(uid);
     }
     Some(h.finish().max(1))
-}
-
-/// FNV-1a over bytes.
-struct Fnv(u64);
-
-impl Hasher for Fnv {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-
-    fn write(&mut self, bytes: &[u8]) {
-        for b in bytes {
-            self.0 ^= u64::from(*b);
-            self.0 = self.0.wrapping_mul(0x0100_0000_01b3);
-        }
-    }
 }
 
 /// What brings `account`'s index (held by `w`) up to its mail, in `folders` (none: every folder

@@ -297,12 +297,7 @@ impl ListWriter {
 
 /// A page's hash (FNV-1a over its JSON), to tell which pages changed.
 fn page_hash(bytes: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in bytes {
-        h ^= u64::from(*b);
-        h = h.wrapping_mul(0x0100_0000_01b3);
-    }
-    h
+    mailcraft_model::hash::fnv1a(bytes)
 }
 
 impl FolderState {
@@ -372,12 +367,7 @@ fn is_zero(n: &i64) -> bool {
 /// FNV-1a: a stable, dependency-free hash for folder directory names (folder names can hold
 /// characters no file system accepts).
 pub fn fnv64(s: &str) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in s.as_bytes() {
-        h ^= u64::from(*b);
-        h = h.wrapping_mul(0x0100_0000_01b3);
-    }
-    h
+    mailcraft_model::hash::fnv1a(s.as_bytes())
 }
 
 /// Keep only characters that are safe in a path segment.

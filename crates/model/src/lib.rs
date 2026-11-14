@@ -32,6 +32,8 @@ pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSum
 // Clean Up is a part of conversations, kept under its old path.
 pub use job::{Event, HeldKey, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
 pub use thread::cleanup;
+// FNV-1a, for keys and fingerprints (with the message keys it mostly makes).
+pub use summary::hash;
 
 /// How a connection to a server is secured.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

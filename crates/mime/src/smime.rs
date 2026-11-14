@@ -421,7 +421,7 @@ pub fn protect_headers(outer: &[u8], entity: &[u8], encrypted: bool, hide_subjec
     match hidden_subject.filter(|s| !s.trim().is_empty()) {
         // The content becomes the second part of a multipart/mixed, after the Legacy Display part.
         Some(subject) => {
-            let seed: u64 = entity.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3));
+            let seed = mailcraft_model::hash::fnv1a(&entity);
             let boundary = format!("=_hp{seed:016x}");
             out.extend_from_slice(format!("Content-Type: multipart/mixed; boundary=\"{boundary}\"; hp=\"{hp}\"\r\n\r\n").as_bytes());
             out.extend_from_slice(format!("--{boundary}\r\n").as_bytes());

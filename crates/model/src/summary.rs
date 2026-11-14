@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{EmailAddress, organize, thread};
 
+pub mod hash;
+
 /// Identifies one message: the account, the folder, and the folder's UIDVALIDITY and the message's
 /// UID (RFC 3501 §2.3.1.1: the pair is unique and never reused).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

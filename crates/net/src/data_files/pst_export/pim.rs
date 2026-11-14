@@ -14,6 +14,7 @@
 //! had here. What Outlook has no place for stays in the item's text, as the import reads it back
 //! (`pst_pim::rest`).
 
+use mailcraft_model::hash::Fnv;
 use mailcraft_model::pim::{NOTE_COLORS, NOTE_YELLOW, Note, Pim};
 use mailcraft_pst::{
     GuidValue, PS_PUBLIC_STRINGS,
@@ -141,9 +142,9 @@ impl Item {
     /// FNV-1a (64 bits) over the item's class, subject, text, properties and files, each part
     /// with its length, so the same item always gives the same digest, whatever version wrote it.
     fn digest(&self) -> u64 {
-        let mut h = Fnv(0xCBF2_9CE4_8422_2325);
+        let mut h = Fnv::new();
         self.digest_into(&mut h);
-        h.0
+        h.value()
     }
 
     fn digest_into(&self, h: &mut Fnv) {
@@ -213,14 +214,16 @@ fn value_digest(h: &mut Fnv, value: &Value) {
     }
 }
 
-/// An FNV-1a hash being made.
-struct Fnv(u64);
+/// A piece of what an item is digested from, its length first (so pieces can't run into each
+/// other): FNV-1a of the lot.
+trait Part {
+    fn part(&mut self, bytes: &[u8]);
+}
 
-impl Fnv {
+impl Part for Fnv {
     fn part(&mut self, bytes: &[u8]) {
-        for b in u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes().iter().chain(bytes) {
-            self.0 = (self.0 ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01B3);
-        }
+        self.add(&u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes());
+        self.add(bytes);
     }
 }
 
@@ -248,9 +251,9 @@ pub(super) struct Written {
 /// What a mark says of the account whose item it is: a digest of its id (16 hex digits), so two
 /// accounts exported into one file each know their own copies and never take out the other's.
 fn owner_key(account: &str) -> String {
-    let mut h = Fnv(0xCBF2_9CE4_8422_2325);
+    let mut h = Fnv::new();
     h.part(account.as_bytes());
-    format!("{:016x}", h.0)
+    format!("{:016x}", h.value())
 }
 
 /// The account's items for each of the file's folders, those it has, each marked as `account`'s;

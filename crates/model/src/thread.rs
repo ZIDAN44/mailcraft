@@ -158,7 +158,7 @@ pub fn index_keys(index: &[u8]) -> IndexKeys {
 
 /// FNV-1a: kept in the lists, so it must never change.
 fn fnv(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    crate::hash::fnv1a(bytes)
 }
 
 #[derive(Default)]

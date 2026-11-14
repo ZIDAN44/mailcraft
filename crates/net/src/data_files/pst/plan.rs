@@ -113,20 +113,15 @@ impl Plan {
     /// their bytes, and the file's record key. A file changed where its items aren't (Outlook
     /// writing its header) has the same; one with an item more or less, another.
     pub(super) fn fingerprint(&self) -> u64 {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        let mut add = |bytes: &[u8]| {
-            for b in bytes {
-                h = (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
-            }
-        };
-        add(self.record_key.as_bytes());
+        let mut h = mailcraft_model::hash::Fnv::new();
+        h.add(self.record_key.as_bytes());
         for f in self.folders.iter().filter(|f| f.kind != Kind::LeftOut) {
-            add(&f.node.to_le_bytes());
-            add(&[u8::from(f.kind == Kind::Mail)]);
-            add(&f.rows.to_le_bytes());
-            add(&f.bytes.to_le_bytes());
+            h.add(&f.node.to_le_bytes());
+            h.add(&[u8::from(f.kind == Kind::Mail)]);
+            h.add(&f.rows.to_le_bytes());
+            h.add(&f.bytes.to_le_bytes());
         }
-        h
+        h.value()
     }
 
     fn lose(&mut self, reason: SkipReason) {
