@@ -271,7 +271,7 @@ impl<S: Read + Write> Client<S> {
 
     /// Sign in with an OAuth token (`AUTH XOAUTH2`).
     pub fn login_xoauth2(&mut self, user: &str, token: &str) -> Result<()> {
-        let blob = crate::imap::base64(format!("user={user}\x01auth=Bearer {token}\x01\x01").as_bytes());
+        let blob = mailcraft_model::base64::encode(format!("user={user}\x01auth=Bearer {token}\x01\x01").as_bytes());
         self.ok(&format!("AUTH XOAUTH2 {blob}")).map(drop).map_err(|e| auth(&e))
     }
 

@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use mailcraft_mime as mime;
-use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, Summary};
+use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, Summary, base64};
 use mailcraft_store::Store;
 use quick_xml::Reader;
 use quick_xml::events::Event as X;
@@ -252,11 +252,6 @@ xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\">\
 
 /// Messages kept of one folder at most, when all of them are asked for.
 const MAX_KEPT: usize = 100_000;
-
-/// Base64 without line breaks.
-fn b64(data: &[u8]) -> String {
-    crate::imap::base64(data)
-}
 
 /// Base64 text to bytes (whitespace skipped); `None` when it isn't base64.
 pub fn unb64(s: &str) -> Option<Vec<u8>> {
@@ -595,7 +590,7 @@ fn header_block(it: &El) -> Vec<u8> {
 
 /// A subject as an RFC 2047 word when it isn't ASCII.
 fn mime_word(s: &str) -> String {
-    if s.is_ascii() { s.to_string() } else { format!("=?UTF-8?B?{}?=", b64(s.as_bytes())) }
+    if s.is_ascii() { s.to_string() } else { format!("=?UTF-8?B?{}?=", base64::encode(s.as_bytes())) }
 }
 
 /// Refresh the folder list (and the folder ids behind it).

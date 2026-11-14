@@ -43,8 +43,6 @@ fn sets_and_dates() {
     assert_eq!(parse_internal_date("99-Oct-2026 09:30:00 +0200"), None);
     assert_eq!(parse_internal_date("31-Dec-9999 23:59:59 +0000"), Some(253_402_300_799));
     assert_eq!(parse_internal_date("01-Jan-0001 00:00:00 +0000"), Some(-62_135_596_800));
-    assert_eq!(base64(b"\0user\0pass"), "AHVzZXIAcGFzcw==");
-    assert_eq!(base64(b"ab"), "YWI=");
     assert_eq!(quoted("a\"b\\c").as_deref(), Some("\"a\\\"b\\\\c\""));
     assert_eq!(quoted("pässword"), None);
 }

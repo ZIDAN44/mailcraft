@@ -14,6 +14,8 @@ workspace = true
 # rsa 0.9, p256 0.13), so each is built once. bzip2 is left out: GnuPG compresses with ZIP and
 # ZLIB, and MailCraft sends uncompressed.
 [dependencies]
+# Its base64, shared with the other crates.
+mailcraft-model = { workspace = true }
 pgp = { version = "0.21", default-features = false }
 serde = { workspace = true }
 thiserror = { workspace = true }

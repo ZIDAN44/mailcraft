@@ -268,7 +268,7 @@ impl Data {
         let replica = if self.pf_mailbox.is_some() && self.public_ids().contains(&f.id) {
             format!(
                 "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x6698\" PropertyType=\"Binary\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
-                crate::imap::base64(format!("{PF_GUID}\0").as_bytes())
+                mailcraft_model::base64::encode(format!("{PF_GUID}\0").as_bytes())
             )
         } else {
             String::new()
@@ -324,7 +324,7 @@ impl Data {
         };
         let mut x = format!("<t:Message><t:ItemId Id=\"{}\" ChangeKey=\"ck\"/>", it.id);
         if mime_content {
-            x.push_str(&format!("<t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent>", crate::imap::base64(&it.raw)));
+            x.push_str(&format!("<t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent>", mailcraft_model::base64::encode(&it.raw)));
         }
         x.push_str(&format!(
             "<t:Subject>{}</t:Subject><t:DateTimeReceived>{}</t:DateTimeReceived><t:Size>{}</t:Size><t:HasAttachments>false</t:HasAttachments>",
@@ -848,7 +848,7 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
             (d.basic, d.open)
         };
         if basic && !open {
-            let expected = format!("Basic {}", crate::imap::base64(format!("{DOMAIN}\\{USER}:{PASSWORD}").as_bytes()));
+            let expected = format!("Basic {}", mailcraft_model::base64::encode(format!("{DOMAIN}\\{USER}:{PASSWORD}").as_bytes()));
             if auth != expected {
                 respond(&mut s, 401, &[("WWW-Authenticate", "Basic realm=\"x\"".into())], b"");
                 continue;
@@ -858,7 +858,7 @@ fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
                 Some(m) if m.get(8) == Some(&1) => {
                     let c = crate::ntlm::make_challenge([9; 8], &[]);
                     challenge = crate::ntlm::challenge(&c).ok();
-                    respond(&mut s, 401, &[("WWW-Authenticate", format!("NTLM {}", crate::imap::base64(&c)))], b"");
+                    respond(&mut s, 401, &[("WWW-Authenticate", format!("NTLM {}", mailcraft_model::base64::encode(&c)))], b"");
                     continue;
                 }
                 Some(m) if m.get(8) == Some(&3) => {

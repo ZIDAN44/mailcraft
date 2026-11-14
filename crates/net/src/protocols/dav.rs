@@ -272,7 +272,7 @@ pub struct Dav {
 
 impl Dav {
     pub fn new(user: &str, password: &str) -> Dav {
-        let basic = format!("Basic {}", crate::imap::base64(format!("{user}:{password}").as_bytes()));
+        let basic = format!("Basic {}", mailcraft_model::base64::encode(format!("{user}:{password}").as_bytes()));
         Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
     }
 

@@ -2131,6 +2131,7 @@ dependencies = [
 name = "mailcraft-pgp"
 version = "0.39.0"
 dependencies = [
+ "mailcraft-model",
  "pgp",
  "rand_core 0.6.4",
  "serde",

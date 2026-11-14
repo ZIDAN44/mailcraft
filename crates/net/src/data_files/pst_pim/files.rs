@@ -9,17 +9,22 @@ const MAX_NAME: usize = 255;
 
 /// The event's line holding the file `name`, of type `mime`.
 pub(crate) fn event_file(name: &str, mime: &str, data: &[u8]) -> String {
-    format!("ATTACH;FMTTYPE={};ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"{}\":{}", media_type(mime, name), param(name), crate::imap::base64(data))
+    format!(
+        "ATTACH;FMTTYPE={};ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"{}\":{}",
+        media_type(mime, name),
+        param(name),
+        mailcraft_model::base64::encode(data)
+    )
 }
 
 /// The card's line holding its picture, of type `mime`.
 pub(crate) fn card_photo(mime: &str, data: &[u8]) -> String {
-    format!("PHOTO:data:{};base64,{}", media_type(mime, "picture.jpg"), crate::imap::base64(data))
+    format!("PHOTO:data:{};base64,{}", media_type(mime, "picture.jpg"), mailcraft_model::base64::encode(data))
 }
 
 /// The card's line holding the file `name`, of type `mime`.
 pub(crate) fn card_file(name: &str, mime: &str, data: &[u8]) -> String {
-    format!("X-MAILCRAFT-ATTACH;X-FILENAME=\"{}\":data:{};base64,{}", param(name), media_type(mime, name), crate::imap::base64(data))
+    format!("X-MAILCRAFT-ATTACH;X-FILENAME=\"{}\":data:{};base64,{}", param(name), media_type(mime, name), mailcraft_model::base64::encode(data))
 }
 
 /// Whether a card's or event's line is one of these (its file's bytes count toward what an

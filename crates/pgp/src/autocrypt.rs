@@ -55,27 +55,12 @@ pub fn header(addr: &str, keydata: &[u8], mutual: bool) -> String {
         out.push_str("prefer-encrypt=mutual; ");
     }
     out.push_str("keydata=");
-    let text = base64(keydata);
+    let text = mailcraft_model::base64::encode(keydata);
     for line in text.as_bytes().chunks(72) {
         out.push_str("\r\n ");
         out.push_str(&String::from_utf8_lossy(line));
     }
     out.push_str("\r\n");
-    out
-}
-
-const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-fn base64(data: &[u8]) -> String {
-    let mut out = String::with_capacity(data.len() * 4 / 3 + 4);
-    for chunk in data.chunks(3) {
-        let b = [chunk.first().copied().unwrap_or(0), chunk.get(1).copied().unwrap_or(0), chunk.get(2).copied().unwrap_or(0)];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-        for i in 0..4 {
-            let c = if i <= chunk.len() { B64.get(((n >> (18 - 6 * i)) & 63) as usize).copied().unwrap_or(b'A') } else { b'=' };
-            out.push(char::from(c));
-        }
-    }
     out
 }
 

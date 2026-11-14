@@ -133,7 +133,7 @@ fn build(mut it: Item, text: String, fallback_id: &str, depth: usize) -> Result<
 fn extra_headers(it: &Item) -> Vec<(&'static str, String)> {
     let mut out = Vec::new();
     if !it.thread_index.is_empty() {
-        out.push(("Thread-Index", crate::imap::base64(&it.thread_index)));
+        out.push(("Thread-Index", mailcraft_model::base64::encode(&it.thread_index)));
     }
     let topic = header_text(&it.thread_topic, MAX_TOPIC);
     if !topic.is_empty() {
@@ -166,7 +166,7 @@ pub(super) fn header_text(s: &str, cap: usize) -> String {
         return text.to_string();
     }
     // Words of at most 45 bytes: 60 in base64, 72 with `=?utf-8?B?…?=`.
-    let word = |w: &str| format!("=?utf-8?B?{}?=", crate::imap::base64(w.as_bytes()));
+    let word = |w: &str| format!("=?utf-8?B?{}?=", mailcraft_model::base64::encode(w.as_bytes()));
     let mut words = Vec::new();
     let mut start = 0;
     for (i, c) in text.char_indices() {

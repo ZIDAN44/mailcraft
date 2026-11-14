@@ -180,7 +180,7 @@ impl<S: Read + Write> Client<S> {
     }
 
     pub fn login(&mut self, user: &str, pass: &str) -> Result<()> {
-        let token = crate::imap::base64(format!("\0{user}\0{pass}").as_bytes());
+        let token = mailcraft_model::base64::encode(format!("\0{user}\0{pass}").as_bytes());
         let r = self.run(&format!("AUTHENTICATE \"PLAIN\" {}", q(&token)))?;
         if r.ok { Ok(()) } else { Err(NetError::Auth(if r.text.is_empty() { "the Sieve server refused the password".into() } else { r.text })) }
     }
@@ -433,9 +433,9 @@ Zoe";"#
                         // PLAIN with the password, or XOAUTH2 with the token (its initial
                         // response the SASL string in base64, RFC 5804 §2.1).
                         let good = if up.contains("\"XOAUTH2\"") {
-                            format!("\"{}\"", crate::imap::base64(b"user=me@studio.example\x01auth=Bearer token\x01\x01"))
+                            format!("\"{}\"", mailcraft_model::base64::encode(b"user=me@studio.example\x01auth=Bearer token\x01\x01"))
                         } else {
-                            crate::imap::base64(b"\0me@studio.example\0pw")
+                            mailcraft_model::base64::encode(b"\0me@studio.example\0pw")
                         };
                         let _ = s.write_all(if line.contains(&good) { b"OK\r\n" as &[u8] } else { b"NO \"wrong password\"\r\n" });
                     } else if up.starts_with("LISTSCRIPTS") {

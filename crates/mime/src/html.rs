@@ -263,7 +263,7 @@ pub fn signature_html(html: &str) -> (String, rich::Styles, Vec<InlinePicture>) 
 pub fn embed_pictures(html: &str, pictures: &[InlinePicture]) -> String {
     let mut out = html.to_string();
     for p in pictures.iter().filter(|p| SIGNATURE_PICTURE_TYPES.contains(&p.mime.as_str())) {
-        let b64 = String::from_utf8(smime::base64(&p.data)).unwrap_or_default();
+        let b64 = mailcraft_model::base64::encode(&p.data);
         out = out.replace(&format!("src=\"cid:{}\"", p.cid), &format!("src=\"data:{};base64,{b64}\"", p.mime));
     }
     out

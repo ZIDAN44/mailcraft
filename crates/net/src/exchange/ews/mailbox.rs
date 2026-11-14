@@ -227,7 +227,7 @@ impl Client {
                 "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId><t:FolderId Id=\"{}\"/></m:SavedItemFolderId>\
                  <m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent>{flags}</t:Message></m:Items></m:CreateItem>",
                 esc(folder),
-                b64(raw)
+                base64::encode(raw)
             ))
         })?;
         Ok(m.find("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string())
@@ -241,7 +241,7 @@ impl Client {
                  <m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent><t:ExtendedProperty>\
                  <t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/><t:Value>1</t:Value></t:ExtendedProperty></t:Message></m:Items></m:CreateItem>",
                 esc(folder),
-                b64(raw)
+                base64::encode(raw)
             ))
         })?;
         Ok(m.find("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string())
@@ -252,7 +252,7 @@ impl Client {
         self.call_one(&format!(
             "<m:CreateItem MessageDisposition=\"SendAndSaveCopy\"><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"sentitems\"/></m:SavedItemFolderId>\
              <m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent></t:Message></m:Items></m:CreateItem>",
-            b64(raw)
+            base64::encode(raw)
         ))
         .map(drop)
     }

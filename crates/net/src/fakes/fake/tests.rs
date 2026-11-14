@@ -790,9 +790,9 @@ fn the_outgoing_server_signs_in_with_its_own_user_name_and_password() {
     pool.submit(send(2));
     until(&pool, "sent", |e| matches!(e, Event::Sent { id: 2, .. }));
     let log = smtp_log.join().unwrap();
-    let own = crate::imap::base64(b"\0relay-user\0smtp-secret");
+    let own = mailcraft_model::base64::encode(b"\0relay-user\0smtp-secret");
     assert!(log.contains(&own), "SMTP signed in as relay-user: {log}");
-    assert!(!log.contains(&crate::imap::base64(b"\0me@studio.example\0pw")), "not as the IMAP user");
+    assert!(!log.contains(&mailcraft_model::base64::encode(b"\0me@studio.example\0pw")), "not as the IMAP user");
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }

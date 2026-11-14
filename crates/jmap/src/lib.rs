@@ -30,7 +30,7 @@ use mailcraft_store::{FolderState, Store, StoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-pub use url::{Url, base64, pct};
+pub use url::{Url, pct};
 
 mod search;
 mod state;
@@ -187,7 +187,11 @@ fn expand(template: &str, vars: &[(&str, &str)]) -> String {
 impl<H: Http> Client<H> {
     /// Fetch the session and check it offers mail. `bearer` signs in with an OAuth access token.
     pub async fn connect(http: H, url: &str, user: &str, secret: &str, bearer: bool) -> Result<Client<H>> {
-        let auth = if bearer { format!("Bearer {secret}") } else { format!("Basic {}", base64(format!("{user}:{secret}").as_bytes())) };
+        let auth = if bearer {
+            format!("Bearer {secret}")
+        } else {
+            format!("Basic {}", mailcraft_model::base64::encode(format!("{user}:{secret}").as_bytes()))
+        };
         let session = session_url(url);
         let resp = http.send(Request::get(&session, 1 << 20).header("Authorization", &auth).header("Accept", "application/json")).await?;
         check(&resp)?;

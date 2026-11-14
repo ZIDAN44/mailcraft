@@ -117,7 +117,7 @@ pub fn available() -> Vec<String> {
 
 /// Base64url without padding (RFC 4648 §5), as PKCE wants.
 pub fn b64url(data: &[u8]) -> String {
-    crate::imap::base64(data).replace('+', "-").replace('/', "_").trim_end_matches('=').to_string()
+    mailcraft_model::base64::encode(data).replace('+', "-").replace('/', "_").trim_end_matches('=').to_string()
 }
 
 fn random(n: usize) -> Result<Vec<u8>> {
@@ -381,7 +381,7 @@ fn authorize_with(
 
 /// The SASL XOAUTH2 initial response (base64 of `user=…^Aauth=Bearer …^A^A`).
 pub fn xoauth2(user: &str, token: &str) -> String {
-    crate::imap::base64(format!("user={user}\x01auth=Bearer {token}\x01\x01").as_bytes())
+    mailcraft_model::base64::encode(format!("user={user}\x01auth=Bearer {token}\x01\x01").as_bytes())
 }
 
 use std::io::Read as _;
@@ -413,7 +413,7 @@ pub(crate) mod tests {
             b64url(ring::digest::digest(&ring::digest::SHA256, b"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk").as_ref()),
             "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
         );
-        assert_eq!(xoauth2("a@b.c", "tok"), crate::imap::base64(b"user=a@b.c\x01auth=Bearer tok\x01\x01"));
+        assert_eq!(xoauth2("a@b.c", "tok"), mailcraft_model::base64::encode(b"user=a@b.c\x01auth=Bearer tok\x01\x01"));
         assert_eq!(query_params("/?code=4%2F0A&state=s+1"), vec![("code".to_string(), "4/0A".to_string()), ("state".into(), "s 1".into())]);
         assert_eq!(provider_for_host("IMAP.gmail.com"), Some("google"));
         assert_eq!(provider_for_host("outlook.office365.com"), Some("microsoft"));

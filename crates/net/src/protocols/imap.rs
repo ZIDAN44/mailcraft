@@ -321,7 +321,7 @@ impl<S: Read + Write> Client<S> {
             other => other,
         };
         let res = if self.has("AUTH=PLAIN") && self.has("SASL-IR") {
-            let token = base64(format!("\0{user}\0{pass}").as_bytes());
+            let token = mailcraft_model::base64::encode(format!("\0{user}\0{pass}").as_bytes());
             self.cmd(&[Part::Text("AUTHENTICATE PLAIN "), Part::Text(&token)])
         } else if self.has("LOGINDISABLED") {
             return Err(NetError::Auth("the server does not allow sign-in on this connection (use TLS)".into()));
@@ -888,24 +888,6 @@ fn is_change(r: &Response<'_>) -> bool {
             | Response::Vanished { .. }
             | Response::Fetch(..)
     )
-}
-
-/// Standard base64 (for SASL).
-pub fn base64(data: &[u8]) -> String {
-    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
-    for chunk in data.chunks(3) {
-        let b = [chunk.first().copied().unwrap_or(0), chunk.get(1).copied().unwrap_or(0), chunk.get(2).copied().unwrap_or(0)];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-        for (i, shift) in [18u32, 12, 6, 0].into_iter().enumerate() {
-            if i <= chunk.len() {
-                out.push(char::from(T.get(((n >> shift) & 63) as usize).copied().unwrap_or(b'A')));
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
 
 /// One folder per special role, the rest ordinary folders: the one the server flags for it, else

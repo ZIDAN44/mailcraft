@@ -309,7 +309,7 @@ impl Client {
     /// A message from its MIME source, as a draft (Graph files it in Drafts), moved to `folder`
     /// when that's somewhere else. Its id.
     pub fn import(&self, raw: &[u8], folder: Option<&str>) -> Result<String> {
-        let v = self.send_raw("POST", "/me/messages", "text/plain", crate::imap::base64(raw).into_bytes())?;
+        let v = self.send_raw("POST", "/me/messages", "text/plain", mailcraft_model::base64::encode(raw).into_bytes())?;
         let id = v.get("id").and_then(Value::as_str).ok_or_else(|| NetError::Protocol("Graph: the message wasn't made".into()))?.to_string();
         if let Some(f) = folder {
             let parent = v.get("parentFolderId").and_then(Value::as_str).unwrap_or_default();
@@ -323,7 +323,7 @@ impl Client {
 
     /// Send a MIME message; Exchange files the copy in Sent Items.
     pub fn send_mime(&self, raw: &[u8]) -> Result<()> {
-        self.send_raw("POST", "/me/sendMail", "text/plain", crate::imap::base64(raw).into_bytes()).map(|_| ()).map_err(|e| match e {
+        self.send_raw("POST", "/me/sendMail", "text/plain", mailcraft_model::base64::encode(raw).into_bytes()).map(|_| ()).map_err(|e| match e {
             NetError::No(m) | NetError::Bad(m) => NetError::Smtp(m),
             e => e,
         })

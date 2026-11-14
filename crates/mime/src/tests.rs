@@ -672,8 +672,7 @@ fn a_signature_keeps_its_pictures() {
 /// pointing at a file of its own); the picture comes along, at the size it was given there.
 #[test]
 fn a_logo_copied_from_word_comes_along() {
-    let png = crate::smime::base64(&[0x89, b'P', b'N', b'G', 9, 9]);
-    let png = String::from_utf8(png).unwrap();
+    let png = mailcraft_model::base64::encode(&[0x89, b'P', b'N', b'G', 9, 9]);
     let html = format!(
         "<html><body><!--StartFragment--><p class=MsoNormal><span style='mso-no-proof:yes'><!--[if gte vml 1]><v:shape \
          style='width:135pt;height:40.5pt'><v:imagedata src=\"file:///C:/Users/x/AppData/Local/Temp/msohtmlclip1/01/clip_image001.png\" \

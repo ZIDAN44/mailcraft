@@ -111,7 +111,7 @@ pub fn serve() -> Server {
     let base = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
     let data = Arc::new(Mutex::new(Data::default()));
     let shared = data.clone();
-    let auth = format!("Basic {}", crate::imap::base64(format!("{USER}:{PASSWORD}").as_bytes()));
+    let auth = format!("Basic {}", mailcraft_model::base64::encode(format!("{USER}:{PASSWORD}").as_bytes()));
     std::thread::spawn(move || {
         for conn in l.incoming() {
             let Ok(mut s) = conn else { continue };

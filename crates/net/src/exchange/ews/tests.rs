@@ -82,7 +82,7 @@ fn a_big_source_downloads() {
     let mut answer = format!("HTTP/1.1 200 OK\r\nContent-Type: text/xml; charset=utf-8\r\nContent-Length: {len}\r\n\r\n{head}").into_bytes();
     answer.reserve(len);
     for piece in raw.chunks(3 << 20) {
-        answer.extend_from_slice(b64(piece).as_bytes());
+        answer.extend_from_slice(base64::encode(piece).as_bytes());
     }
     answer.extend_from_slice(tail.as_bytes());
     let answer = std::sync::Arc::new(answer);

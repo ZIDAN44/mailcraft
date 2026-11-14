@@ -61,11 +61,12 @@ impl Client {
                     Err(e) => return Err(e),
                 },
                 Scheme::Basic => {
-                    let token = b64(format!("{}:{}", self.user, self.password).as_bytes());
+                    let token = base64::encode(format!("{}:{}", self.user, self.password).as_bytes());
                     self.send_on_conn(&base.clone().header("Authorization", &format!("Basic {token}")))?
                 }
                 Scheme::Ntlm(name) if !*self.signed_in.borrow() => {
-                    let first = self.send_on_conn(&base.clone().header("Authorization", &format!("{name} {}", b64(&crate::ntlm::negotiate()))))?;
+                    let first =
+                        self.send_on_conn(&base.clone().header("Authorization", &format!("{name} {}", base64::encode(&crate::ntlm::negotiate()))))?;
                     if first.status != 401 {
                         first
                     } else {
@@ -87,7 +88,7 @@ impl Client {
                         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
                         let filetime = (now + 11_644_473_600) * 10_000_000;
                         let answer = crate::ntlm::authenticate(&challenge, &self.user, &self.password, filetime, client_challenge);
-                        let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("{name} {}", b64(&answer))))?;
+                        let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("{name} {}", base64::encode(&answer))))?;
                         if resp.status != 401 {
                             *self.signed_in.borrow_mut() = true;
                         }
@@ -211,7 +212,7 @@ impl Client {
         let (mut n, token) = crate::kerberos::Negotiation::start(&self.user, &self.email, &self.password, &host)?;
         let mut token = token;
         for _ in 0..3 {
-            let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("Negotiate {}", b64(&token))))?;
+            let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("Negotiate {}", base64::encode(&token))))?;
             let back = Client::offered(&resp)
                 .iter()
                 .find_map(|v| v.strip_prefix("Negotiate").map(|t| t.trim().to_string()))
