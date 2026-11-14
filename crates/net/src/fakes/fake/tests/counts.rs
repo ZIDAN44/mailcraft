@@ -12,7 +12,7 @@ fn inbox_counts_said(make: bool) -> Option<(u32, u32)> {
         for n in 0..3 {
             s.add("INBOX", &format!("m{n}"), &[]);
         }
-        s.stall_on = Some(("SELECT INBOX".into(), Duration::from_millis(600)));
+        s.stall_on = Some(("SELECT \"INBOX\"".into(), Duration::from_millis(600)));
     }
     let port = serve_tcp(&st);
     let store = store(if make { "counts-folder-made" } else { "counts-nothing-made" });
@@ -42,6 +42,7 @@ fn inbox_counts_said(make: bool) -> Option<(u32, u32)> {
         .next_back();
     let kept = store.load_folders("a1").unwrap_or_default().into_iter().find(|f| f.path == "INBOX").map(|f| (f.unread, f.total));
     assert_eq!(said, kept, "said as kept");
+    assert!(st.lock().unwrap().stalled > 0, "the sync never held in the Inbox");
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
     said
