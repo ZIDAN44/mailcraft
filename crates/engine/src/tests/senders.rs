@@ -15,13 +15,8 @@ fn deliver(s: &mut Session, n: u32, from: (&str, &str), subject: &str, headers: 
     };
     let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(from.0, from.1), NOW, &format!("<sender{n}@x>")).unwrap();
     let raw = [headers.as_bytes(), &raw].concat();
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9300 + n };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, &raw).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = mailcraft_model::MessageKey { uid: 9300 + n, ..next_key(s, "sample", "INBOX") };
+    let key = file_whole(s, key, &raw);
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     key

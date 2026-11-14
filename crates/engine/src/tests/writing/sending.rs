@@ -26,13 +26,7 @@ fn data_file_session(name: &str) -> (Session, String) {
 
 /// Put `raw` in the account's Inbox and open it.
 fn put_in_inbox(s: &mut Session, account: &str, uid: u32, raw: &[u8]) {
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder(account, "INBOX").unwrap_or_default();
-    let key = mailcraft_model::MessageKey { account: account.into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder(account, "INBOX", &inbox).unwrap();
-    store.write_body(&key, raw).unwrap();
-    s.apply(Event::FolderChanged { account: account.into(), folder: "INBOX".into() });
+    let key = file_whole(s, mailcraft_model::MessageKey { uid, ..next_key(s, account, "INBOX") }, raw);
     s.run("folder.open", &json!({"account": account, "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
 }

@@ -19,21 +19,9 @@ pub(super) fn deliver(s: &mut Session, n: u32, from: (&str, &str), method: &str,
 /// Put a message carrying this calendar file (its type and bytes), with the method in its subject,
 /// in the sample Inbox and open it.
 fn deliver_ics(s: &mut Session, n: u32, from: (&str, &str), method: &str, mime: &str, data: Vec<u8>) {
-    let d = mailcraft_mime::Draft {
-        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
-        subject: format!("{method} {n}"),
-        body: "See the calendar.".into(),
-        attachments: vec![mailcraft_mime::OutAttachment { name: "invite.ics".into(), mime: mime.into(), data, ..Default::default() }],
-        ..Default::default()
-    };
-    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(from.0, from.1), NOW, &format!("<i{n}@x>")).unwrap();
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9000 + n };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, &raw).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let raw = calendar_mail(from, &format!("{method} {n}"), mime, data, &format!("<i{n}@x>"));
+    let key = mailcraft_model::MessageKey { uid: 9000 + n, ..next_key(s, "sample", "INBOX") };
+    let key = file_whole(s, key, &raw);
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
 }

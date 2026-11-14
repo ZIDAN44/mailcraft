@@ -2,7 +2,7 @@
 //! written from any of its addresses, with that address's name, signature and place for
 //! replies, and the server is told that address sends it.
 
-use mailcraft_model::{Flags, Folder, MessageKey};
+use mailcraft_model::{Folder, MessageKey};
 
 use super::*;
 
@@ -26,14 +26,7 @@ fn one_account(name: &str) -> (Session, String) {
 
 /// Put a message in a folder of the account, its source here, and show the folder.
 fn put(s: &mut Session, account: &str, folder: &str, uid: u32, raw: &[u8]) -> MessageKey {
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(account, folder).unwrap_or_default();
-    st.validity = 7;
-    let key = MessageKey { account: account.into(), folder: folder.into(), validity: 7, uid };
-    st.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), Flags::default(), 0, NOW).into());
-    store.save_folder(account, folder, &st).unwrap();
-    store.write_body(&key, raw).unwrap();
-    s.apply(Event::FolderChanged { account: account.into(), folder: folder.into() });
+    let key = file_whole(s, MessageKey { account: account.into(), folder: folder.into(), validity: 7, uid }, raw);
     s.run("folder.open", &json!({"account": account, "folder": folder})).unwrap();
     key
 }

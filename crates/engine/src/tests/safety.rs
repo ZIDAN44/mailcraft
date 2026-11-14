@@ -54,13 +54,8 @@ fn deliver(s: &mut Session, n: u32, from: (&str, &str), subject: &str, html: Opt
         ..Default::default()
     };
     let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(from.0, from.1), NOW, &format!("<s{n}@x>")).unwrap();
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9100 + n };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, &raw).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = mailcraft_model::MessageKey { uid: 9100 + n, ..next_key(s, "sample", "INBOX") };
+    let key = file_whole(s, key, &raw);
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     key
@@ -179,12 +174,9 @@ fn sent_mail_without_an_answer_waits_for_a_reply() {
         ..Default::default()
     };
     let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Ana Lima", "ana@soundlab.example"), s.clock.now, "<answer@x>").unwrap();
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9200 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key, mailcraft_model::Flags::default(), 0, s.clock.now).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = mailcraft_model::MessageKey { uid: 9200, ..next_key(&s, "sample", "INBOX") };
+    let summary = mailcraft_mime::summary_from_full(&raw, key, mailcraft_model::Flags::default(), 0, s.clock.now);
+    file_in(&mut s, summary, None);
     assert!(!waiting(&mut s), "answered");
 
     // A month on, it's no longer waited for either way.

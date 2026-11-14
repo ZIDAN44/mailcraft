@@ -143,27 +143,11 @@ fn nothing_is_added_twice_or_when_turned_off() {
 fn an_invitation_whose_body_comes_later_is_taken_then() {
     let mut s = sample_session("tentative-later");
     let ics = mailcraft_model::ical::write(&[invitation("later@studio.example", "Later", 0)], Some("REQUEST"), NOW);
-    let d = mailcraft_mime::Draft {
-        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
-        subject: "Invitation: Later".into(),
-        body: "See the calendar.".into(),
-        attachments: vec![mailcraft_mime::OutAttachment {
-            name: "invite.ics".into(),
-            mime: "text/calendar; method=REQUEST".into(),
-            data: ics.into_bytes(),
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(ZOE.0, ZOE.1), NOW, "<later@x>").unwrap();
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9500 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_header(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let raw = calendar_mail(ZOE, "Invitation: Later", "text/calendar; method=REQUEST", ics.into_bytes(), "<later@x>");
+    let key = mailcraft_model::MessageKey { uid: 9500, ..next_key(&s, "sample", "INBOX") };
+    let key = file_in(&mut s, mailcraft_mime::summary_from_header(&raw, key, mailcraft_model::Flags::default(), 0, NOW), None);
     assert!(parts(&s, "later@studio.example").is_empty(), "no body yet");
-    store.write_body(&key, &raw).unwrap();
+    s.store.as_ref().unwrap().write_body(&key, &raw).unwrap();
     s.apply(Event::Body { key, raw });
     assert_eq!(answer(&s, "later@studio.example"), ["NEEDS-ACTION"]);
 }

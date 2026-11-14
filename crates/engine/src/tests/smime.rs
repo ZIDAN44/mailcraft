@@ -31,13 +31,9 @@ fn riley() -> smime::Identity {
 
 /// Put `raw` in the sample Inbox and open it.
 fn open_raw(s: &mut Session, uid: u32, raw: &[u8]) -> mailcraft_model::MessageKey {
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, s.clock.now).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, raw).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = mailcraft_model::MessageKey { uid, ..next_key(s, "sample", "INBOX") };
+    let summary = mailcraft_mime::summary_from_full(raw, key, mailcraft_model::Flags::default(), 0, s.clock.now);
+    let key = file_in(s, summary, Some(raw));
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     key

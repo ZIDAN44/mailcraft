@@ -59,6 +59,54 @@ fn sample_session(name: &str) -> Session {
     s
 }
 
+/// The key the next message to come into `account`'s `folder` gets: the validity of its list as
+/// kept, and the uid past its highest.
+fn next_key(s: &Session, account: &str, folder: &str) -> mailcraft_model::MessageKey {
+    let st = s.store.as_ref().unwrap().load_folder(account, folder).unwrap();
+    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    mailcraft_model::MessageKey { account: account.into(), folder: folder.into(), validity: st.validity, uid }
+}
+
+/// A message come into its folder (its key's), as the network layer files one: `summary` at the
+/// top of the folder's list kept (in place of one under the same key), `raw` kept as its source
+/// (none: not downloaded yet), and the session told the folder changed. A folder with no list
+/// kept yet takes the key's validity, as its first sync would give it.
+fn file_in(s: &mut Session, summary: mailcraft_model::Summary, raw: Option<&[u8]>) -> mailcraft_model::MessageKey {
+    let store = s.store.clone().unwrap();
+    let key = summary.key.clone();
+    let mut st = store.load_folder(&key.account, &key.folder).unwrap();
+    if st.validity == 0 && st.messages.is_empty() {
+        st.validity = key.validity;
+    }
+    st.messages.retain(|m| m.key != key);
+    st.messages.insert(0, summary.into());
+    store.save_folder(&key.account, &key.folder, &st).unwrap();
+    if let Some(raw) = raw {
+        store.write_body(&key, raw).unwrap();
+    }
+    s.apply(Event::FolderChanged { account: key.account.clone(), folder: key.folder.clone() });
+    key
+}
+
+/// [`file_in`] whole: its summary read from `raw` (dated `NOW` when it says no date), and `raw` kept.
+fn file_whole(s: &mut Session, key: mailcraft_model::MessageKey, raw: &[u8]) -> mailcraft_model::MessageKey {
+    let summary = mailcraft_mime::summary_from_full(raw, key, mailcraft_model::Flags::default(), 0, NOW);
+    file_in(s, summary, Some(raw))
+}
+
+/// A message to Riley from `from` carrying a calendar file (`invite.ics`, of type `mime`): an
+/// invitation, or an answer to one, as it comes.
+fn calendar_mail(from: (&str, &str), subject: &str, mime: &str, ics: Vec<u8>, message_id: &str) -> Vec<u8> {
+    let d = mailcraft_mime::Draft {
+        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
+        subject: subject.into(),
+        body: "See the calendar.".into(),
+        attachments: vec![mailcraft_mime::OutAttachment { name: "invite.ics".into(), mime: mime.into(), data: ics, ..Default::default() }],
+        ..Default::default()
+    };
+    mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(from.0, from.1), NOW, message_id).unwrap()
+}
+
 /// How many waits the store has logged on this thread. A wait for the read marks, or for the
 /// lock every change of a list is made under, is logged (by `mailcraft_store::marking`, on the
 /// thread that waited) once it took over 50 ms or was given up. While a test holds the marks, a

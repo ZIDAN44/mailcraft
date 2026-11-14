@@ -206,16 +206,13 @@ fn rules_file_new_mail_as_it_arrives() {
     assert!(s.run("rules.add", &json!({"rule": {"name": "x", "conditions": [], "actions": [{"do": "categorize", "value": "Nope"}]}})).is_err());
     // A message from Zoe arrives in the Inbox.
     let store = s.store.clone().unwrap();
-    let mut st = store.load_folder("sample", "INBOX").unwrap();
-    let mut m = mailcraft_model::Summary::clone(&st.messages[0]);
+    let mut m = mailcraft_model::Summary::clone(&store.load_folder("sample", "INBOX").unwrap().messages[0]);
     m.key.uid = 500;
     m.subject = "Fresh from Zoe".into();
     m.from = mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example");
     m.flags.seen = false;
     m.date = NOW;
-    st.messages.insert(0, m.into());
-    store.save_folder("sample", "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    file_in(&mut s, m, None);
     assert!(!s.list.iter().any(|m| m.subject == "Fresh from Zoe"), "filed away by the rule");
     // Filed in a folder, it's still new mail: announced, as Outlook does.
     assert!(s.take_new_mail().iter().any(|m| m.subject == "Fresh from Zoe"), "filed mail is announced");
@@ -287,9 +284,7 @@ fn ignored_conversations_stay_in_deleted_items() {
     assert_eq!(s.run("mail.ignore", &json!({})).unwrap()["moved"], 2, "Zoe's message and Sam's reply");
     assert!(!s.list.iter().any(|m| m.subject.contains("Storyboard review")));
     // A reply in it arrives.
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder("sample", "INBOX").unwrap();
-    let mut m = mailcraft_model::Summary::clone(&st.messages[0]);
+    let mut m = mailcraft_model::Summary::clone(&s.store.as_ref().unwrap().load_folder("sample", "INBOX").unwrap().messages[0]);
     let sam = s.folder_state("sample", &trash).messages.iter().find(|m| m.subject.starts_with("Re:")).cloned().unwrap();
     m.key.uid = 600;
     m.subject = "Re: Storyboard review on Thursday".into();
@@ -298,9 +293,7 @@ fn ignored_conversations_stay_in_deleted_items() {
     m.references = vec![sam.message_id.clone()];
     m.flags.seen = false;
     m.date = NOW;
-    st.messages.insert(0, m.into());
-    store.save_folder("sample", "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    file_in(&mut s, m, None);
     assert!(!s.list.iter().any(|m| m.subject.contains("Storyboard review")), "went to Deleted Items");
     assert!(s.take_new_mail().is_empty(), "not announced");
     assert!(s.folder_state("sample", &trash).messages.iter().any(|m| m.message_id == "late-reply@studio.example"));
@@ -332,17 +325,18 @@ fn mail_a_rule_deletes_is_not_announced() {
     let mut s = sample_session("rule-quiet");
     s.run("rules.add", &json!({"rule": {"name": "Zoe away", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "delete"}]}}))
         .unwrap();
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder("sample", "INBOX").unwrap();
-    let mut m = mailcraft_model::Summary::clone(&st.messages[0]);
+    let mut m = mailcraft_model::Summary::clone(&s.store.as_ref().unwrap().load_folder("sample", "INBOX").unwrap().messages[0]);
     m.key.uid = 700;
     m.subject = "Deleted on arrival".into();
     m.from = mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example");
     m.flags.seen = false;
     m.date = NOW;
-    st.messages.insert(0, m.into());
-    store.save_folder("sample", "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    file_in(&mut s, m, None);
+    // It came, and the rule deleted it: out of the Inbox, in Deleted Items.
+    let trash = s.account("sample").and_then(|a| a.folder(FolderRole::Trash)).map(|f| f.path.clone()).unwrap();
+    let has = |s: &mut Session, folder: &str| s.folder_state("sample", folder).messages.iter().any(|m| m.subject == "Deleted on arrival");
+    assert!(!has(&mut s, "INBOX"), "deleted by the rule");
+    assert!(has(&mut s, &trash), "in Deleted Items");
     assert!(!s.take_new_mail().iter().any(|m| m.subject == "Deleted on arrival"));
 }
 
@@ -398,11 +392,8 @@ fn blocked_and_safe_senders_sort_mail_as_it_arrives() {
     let junk = s.account("sample").and_then(|a| a.folder(FolderRole::Junk)).map(|f| f.path.clone()).unwrap();
     let store = s.store.clone().unwrap();
     let arrive = |s: &mut Session, folder: &str, uid: u32, from: &str, subject: &str| {
-        let mut st = store.load_folder("sample", folder).unwrap();
         let mut m = mailcraft_model::Summary::clone(&store.load_folder("sample", "INBOX").unwrap().messages[0]);
-        m.key.folder = folder.into();
-        m.key.uid = uid;
-        m.key.validity = st.validity;
+        m.key = mailcraft_model::MessageKey { uid, ..next_key(s, "sample", folder) };
         m.from = mailcraft_model::EmailAddress::new("", from);
         m.subject = subject.into();
         m.message_id = format!("{uid}@junk.example");
@@ -410,9 +401,7 @@ fn blocked_and_safe_senders_sort_mail_as_it_arrives() {
         m.references.clear();
         m.flags.seen = false;
         m.date = NOW;
-        st.messages.insert(0, m.into());
-        store.save_folder("sample", folder, &st).unwrap();
-        s.apply(Event::FolderChanged { account: "sample".into(), folder: folder.into() });
+        file_in(s, m, None);
     };
     let inbox_has = |s: &mut Session, subject: &str| s.folder_state("sample", "INBOX").messages.iter().any(|m| m.subject == subject);
     let junk_has = |s: &mut Session, subject: &str| s.folder_state("sample", &junk).messages.iter().any(|m| m.subject == subject);

@@ -56,28 +56,9 @@ fn invitation(uid: &str, sequence: u32) -> CalEvent {
 
 /// A message carrying a calendar arrives in the account's Inbox (its body downloaded).
 pub(super) fn arrive(s: &mut Session, id: &str, n: u32, method: &str, events: &[CalEvent]) -> MessageKey {
-    let ics = mailcraft_model::ical::write(events, Some(method), NOW);
-    let d = mailcraft_mime::Draft {
-        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
-        subject: format!("{method} {n}"),
-        body: "See the calendar.".into(),
-        attachments: vec![mailcraft_mime::OutAttachment {
-            name: "invite.ics".into(),
-            mime: format!("text/calendar; method={method}"),
-            data: ics.into_bytes(),
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new(ZOE.0, ZOE.1), NOW, &format!("<p{n}@x>")).unwrap();
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(id, "INBOX").unwrap();
-    let key = MessageKey { account: id.into(), folder: "INBOX".into(), validity: 7, uid: n };
-    st.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder(id, "INBOX", &st).unwrap();
-    store.write_body(&key, &raw).unwrap();
-    s.apply(Event::FolderChanged { account: id.into(), folder: "INBOX".into() });
-    key
+    let ics = mailcraft_model::ical::write(events, Some(method), NOW).into_bytes();
+    let raw = calendar_mail(ZOE, &format!("{method} {n}"), &format!("text/calendar; method={method}"), ics, &format!("<p{n}@x>"));
+    file_whole(s, MessageKey { account: id.into(), folder: "INBOX".into(), validity: 7, uid: n }, &raw)
 }
 
 fn cal(id: &str, name: &str, foreign: bool) -> CalendarInfo {

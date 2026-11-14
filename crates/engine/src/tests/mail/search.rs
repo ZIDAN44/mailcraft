@@ -433,15 +433,10 @@ fn a_body_indexed_later_joins_the_results() {
     let mut s = sample_session("search-ahead");
     let a = sample::SAMPLE_ACCOUNT.to_string();
     index_now(&s, &a);
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(&a, "INBOX").unwrap();
-    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
-    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
-    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Headers only".into(), ..Default::default() }.into());
-    store.save_folder(&a, "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    let key = next_key(&s, &a, "INBOX");
+    file_in(&mut s, mailcraft_model::Summary { key: key.clone(), subject: "Headers only".into(), ..Default::default() }, None);
     assert_eq!(s.run("search.run", &json!({"query": "zeppelin", "scope": "all"})).unwrap()["results"], 0);
-    store.write_body(&key, b"From: a@x.example\r\nSubject: Headers only\r\n\r\nThe zeppelin lands at noon.\r\n").unwrap();
+    s.store.as_ref().unwrap().write_body(&key, b"From: a@x.example\r\nSubject: Headers only\r\n\r\nThe zeppelin lands at noon.\r\n").unwrap();
     let generation = index_now(&s, &a);
     indexed(&mut s, &a, generation);
     assert_eq!(s.list.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), [key], "found as the index has it");
@@ -454,28 +449,19 @@ fn a_body_indexed_later_joins_the_results() {
 fn a_key_filed_again_is_checked_against_its_new_text() {
     let mut s = sample_session("search-key-again");
     let a = sample::SAMPLE_ACCOUNT.to_string();
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(&a, "INBOX").unwrap();
-    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
-    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
-    let file = |s: &mut Session, st: &mut mailcraft_store::FolderState, id: &str, body: &[u8]| {
-        store.write_body(&key, body).unwrap();
-        st.messages.retain(|m| m.key != key);
+    let key = next_key(&s, &a, "INBOX");
+    let file = |s: &mut Session, id: &str, body: &[u8]| {
         let size = u32::try_from(body.len()).unwrap();
-        st.messages.insert(
-            0,
-            mailcraft_model::Summary { key: key.clone(), subject: "Travel".into(), message_id: id.into(), size, ..Default::default() }.into(),
-        );
-        store.save_folder(&a, "INBOX", st).unwrap();
+        let summary = mailcraft_model::Summary { key: key.clone(), subject: "Travel".into(), message_id: id.into(), size, ..Default::default() };
+        file_in(s, summary, Some(body));
         let generation = index_now(s, &a);
-        s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
         indexed(s, &a, generation);
     };
-    file(&mut s, &mut st, "<one@x.example>", b"From: a@x.example\r\nSubject: Travel\r\n\r\nThe zeppelin lands at noon.\r\n");
+    file(&mut s, "<one@x.example>", b"From: a@x.example\r\nSubject: Travel\r\n\r\nThe zeppelin lands at noon.\r\n");
     let phrase = json!({"query": "\"zeppelin lands\"", "scope": "all"});
     assert_eq!(s.run("search.run", &phrase).unwrap()["results"], 1);
     // Both words, not one after the other.
-    file(&mut s, &mut st, "<two@x.example>", b"From: a@x.example\r\nSubject: Travel\r\n\r\nNo zeppelin today: the ferry lands at noon.\r\n");
+    file(&mut s, "<two@x.example>", b"From: a@x.example\r\nSubject: Travel\r\n\r\nNo zeppelin today: the ferry lands at noon.\r\n");
     assert_eq!(s.run("search.run", &phrase).unwrap()["results"], 0, "the new message's text checked");
     assert_eq!(s.run("search.run", &json!({"query": "\"ferry lands\"", "scope": "all"})).unwrap()["results"], 1);
 }
@@ -492,13 +478,9 @@ fn a_search_during_an_import_follows_it() {
     let sources = s.search_stats().sources;
     s.apply(Event::ImportProgress { account: a.clone(), progress: Default::default() });
     // A message comes into the Inbox as the import goes on.
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(&a, "INBOX").unwrap();
-    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
-    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
-    store.write_body(&key, b"From: a@x.example\r\nSubject: Imported\r\n\r\nThe storyboard, imported.\r\n").unwrap();
-    st.messages.push(mailcraft_model::Summary { key, subject: "Imported".into(), ..Default::default() }.into());
-    store.save_folder(&a, "INBOX", &st).unwrap();
+    let raw = b"From: a@x.example\r\nSubject: Imported\r\n\r\nThe storyboard, imported.\r\n";
+    let summary = mailcraft_model::Summary { key: next_key(&s, &a, "INBOX"), subject: "Imported".into(), ..Default::default() };
+    file_in(&mut s, summary, Some(raw));
     let folders: Vec<String> = s.account(&a).unwrap().folders.iter().map(|f| f.path.clone()).collect();
     for n in 0..50 {
         let folder = folders[n % folders.len()].clone();

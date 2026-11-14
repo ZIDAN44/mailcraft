@@ -6,14 +6,9 @@ use super::*;
 
 /// Put a message in the sample's Inbox, its source kept.
 fn put(s: &mut Session, uid: u32, raw: &[u8]) -> MessageKey {
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, raw).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
-    key
+    let key = MessageKey { uid, ..next_key(s, "sample", "INBOX") };
+    let summary = mailcraft_mime::summary_from_full(raw, key, mailcraft_model::Flags::default(), 0, NOW - 3600);
+    file_in(s, summary, Some(raw))
 }
 
 fn reacted(from: &str, emoji: &str, id: u32) -> Vec<u8> {

@@ -14,13 +14,9 @@ Content-Type: multipart/related; boundary=\"R\"\r\n\r\n--R\r\nContent-Type: text
 --R\r\nContent-Type: image/png\r\nContent-ID: <phone@mill.example>\r\nContent-Disposition: inline; filename=\"phone.png\"\r\n\r\nPNGDATA\r\n--R--\r\n";
 
 pub(super) fn open_mill(s: &mut Session) -> mailcraft_model::MessageKey {
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9400 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(MILL, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, MILL).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = mailcraft_model::MessageKey { uid: 9400, ..next_key(s, "sample", "INBOX") };
+    let summary = mailcraft_mime::summary_from_full(MILL, key, mailcraft_model::Flags::default(), 0, NOW - 3600);
+    let key = file_in(s, summary, Some(MILL));
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     key
@@ -178,13 +174,8 @@ fn measure_quote_frame() {
     let raw = format!(
         "From: Morgan Lee <morgan@mill.example>\r\nTo: riley@studio.example\r\nSubject: Prices\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><body><table>{cells}</table></body></html>\r\n"
     );
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9401 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, raw.as_bytes()).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = mailcraft_model::MessageKey { uid: 9401, ..next_key(&s, "sample", "INBOX") };
+    let key = file_whole(&mut s, key, raw.as_bytes());
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
@@ -241,14 +232,9 @@ fn measure_files_taken_along() {
         let raw = format!(
             "From: Morgan Lee <morgan@mill.example>\r\nTo: riley@studio.example\r\nSubject: Photos\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n{parts}--B--\r\n"
         );
-        let store = s.store.clone().unwrap();
-        let mut inbox = store.load_folder("sample", "INBOX").unwrap();
         uid += 1;
-        let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-        inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-        store.save_folder("sample", "INBOX", &inbox).unwrap();
-        store.write_body(&key, raw.as_bytes()).unwrap();
-        s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+        let key = mailcraft_model::MessageKey { uid, ..next_key(s, "sample", "INBOX") };
+        let key = file_whole(s, key, raw.as_bytes());
         s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
         s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     };
@@ -279,13 +265,8 @@ fn files_and_pictures_come_along_each_as_it_was() {
     let raw = format!(
         "From: Morgan Lee <morgan@mill.example>\r\nTo: riley@studio.example\r\nSubject: Photos\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Look.</p>{pictures}\r\n{parts}--B--\r\n"
     );
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9600 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, raw.as_bytes()).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = mailcraft_model::MessageKey { uid: 9600, ..next_key(&s, "sample", "INBOX") };
+    let key = file_whole(&mut s, key, raw.as_bytes());
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     s.run("mail.forward", &json!({})).unwrap();

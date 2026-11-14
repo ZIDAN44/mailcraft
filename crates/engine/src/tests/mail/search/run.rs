@@ -242,22 +242,25 @@ fn waiting_without_an_index_finds_what_the_index_finds() {
     assert_eq!(s.search_stats().sources, sources, "with the index, no message is read");
 }
 
+/// A message whose text shows its picture (no file), come into `account`'s Inbox with a summary
+/// that says it has files (as an old `.pst` import's did); its key.
+fn logo_inside(s: &mut Session, account: &str) -> mailcraft_model::MessageKey {
+    const RAW: &[u8] = b"From: a@x.example\r\nSubject: Logo inside\r\nContent-Type: multipart/related; boundary=b\r\n\r\n\
+--b\r\nContent-Type: text/html\r\n\r\n<p>Our logo <img src=\"cid:logo@x\"></p>\r\n\
+--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\n\
+Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
+    let key = next_key(s, account, "INBOX");
+    let summary = mailcraft_model::Summary { key, subject: "Logo inside".into(), has_attachments: true, ..Default::default() };
+    file_in(s, summary, Some(RAW))
+}
+
 /// `has:attachment` counts files, not pictures the text shows: as the index read the message,
 /// over what its summary says.
 #[test]
 fn a_picture_shown_in_the_text_is_no_attachment() {
     let mut s = sample_session("search-inline");
     let a = sample::SAMPLE_ACCOUNT.to_string();
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(&a, "INBOX").unwrap();
-    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
-    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
-    let raw = "From: a@x.example\r\nSubject: Logo inside\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>Our logo <img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
-    store.write_body(&key, raw.as_bytes()).unwrap();
-    st.messages
-        .insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Logo inside".into(), has_attachments: true, ..Default::default() }.into());
-    store.save_folder(&a, "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    let key = logo_inside(&mut s, &a);
     let found = |s: &mut Session| {
         s.run("search.run", &json!({"query": "has:attachment", "scope": "all"})).unwrap();
         s.list.iter().any(|m| m.key == key)
@@ -278,15 +281,8 @@ fn the_has_files_filter_agrees_with_has_attachment() {
     let mut s = sample_session("search-files-known");
     let a = sample::SAMPLE_ACCOUNT.to_string();
     let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(&a, "INBOX").unwrap();
-    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
-    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
-    let raw = "From: a@x.example\r\nSubject: Logo inside\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>Our logo <img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
-    store.write_body(&key, raw.as_bytes()).unwrap();
-    st.messages
-        .insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Logo inside".into(), has_attachments: true, ..Default::default() }.into());
-    store.save_folder(&a, "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    let key = logo_inside(&mut s, &a);
+    let uid = key.uid;
     s.run("list.filter", &json!({"value": "attachments"})).unwrap();
     assert!(s.list.iter().any(|m| m.key == key), "as its summary says");
     // A pass, as the indexer runs it: what it found put right in the list kept, then told.
@@ -327,19 +323,14 @@ fn the_has_files_filter_agrees_with_has_attachment() {
 fn long_texts_are_searched_whole() {
     let mut s = sample_session("search-long");
     let a = sample::SAMPLE_ACCOUNT.to_string();
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(&a, "INBOX").unwrap();
-    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
-    let key = mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
     // "needle haystack" across the first slice's end (256 KiB of text).
     let mut text = "lorem ".repeat(262_140 / 6);
     text.push_str("needle haystack ");
     text.push_str(&"ipsum ".repeat(20_000));
     text.push_str("zanzibar");
-    store.write_body(&key, format!("From: a@x.example\r\nSubject: Long\r\n\r\n{text}\r\n").as_bytes()).unwrap();
-    st.messages.insert(0, mailcraft_model::Summary { key: key.clone(), subject: "Long".into(), ..Default::default() }.into());
-    store.save_folder(&a, "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    let raw = format!("From: a@x.example\r\nSubject: Long\r\n\r\n{text}\r\n");
+    let summary = mailcraft_model::Summary { key: next_key(&s, &a, "INBOX"), subject: "Long".into(), ..Default::default() };
+    let key = file_in(&mut s, summary, Some(raw.as_bytes()));
     let hits = |s: &mut Session, q: &str| {
         s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();
         s.list.iter().any(|m| m.key == key)
@@ -368,21 +359,13 @@ fn long_texts_are_searched_whole() {
 fn what_the_index_settles_is_not_checked_again() {
     let mut s = sample_session("search-settled");
     let a = sample::SAMPLE_ACCOUNT.to_string();
-    let store = s.store.clone().unwrap();
-    let mut st = store.load_folder(&a, "INBOX").unwrap();
-    let uid = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
-    let key = |uid: u32| mailcraft_model::MessageKey { account: a.clone(), folder: "INBOX".into(), validity: st.validity, uid };
-    let (pictures, long, dotted) = (key(uid), key(uid + 1), key(uid + 2));
-    let raw = "From: a@x.example\r\nSubject: Pictures\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p><img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
-    store.write_body(&pictures, raw.as_bytes()).unwrap();
-    let text = format!("alpha beta {}zanzibar", "lorem ".repeat(200_000));
-    store.write_body(&long, format!("From: a@x.example\r\nSubject: Long\r\n\r\n{text}\r\n").as_bytes()).unwrap();
-    store.write_body(&dotted, b"From: a@x.example\r\nSubject: Dotted\r\n\r\nSee xx.quokka here.\r\n").unwrap();
-    for (k, subject) in [(&pictures, "Pictures"), (&long, "Long"), (&dotted, "Dotted")] {
-        st.messages.insert(0, mailcraft_model::Summary { key: k.clone(), subject: subject.into(), ..Default::default() }.into());
-    }
-    store.save_folder(&a, "INBOX", &st).unwrap();
-    s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
+    let pictures = "From: a@x.example\r\nSubject: Pictures\r\nContent-Type: multipart/related; boundary=b\r\n\r\n--b\r\nContent-Type: text/html\r\n\r\n<p><img src=\"cid:logo@x\"></p>\r\n--b\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Disposition: inline; filename=logo.png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--b--\r\n";
+    let long = format!("From: a@x.example\r\nSubject: Long\r\n\r\nalpha beta {}zanzibar\r\n", "lorem ".repeat(200_000));
+    let dotted = "From: a@x.example\r\nSubject: Dotted\r\n\r\nSee xx.quokka here.\r\n";
+    let [pictures, long, dotted] = [("Pictures", pictures), ("Long", &long), ("Dotted", dotted)].map(|(subject, raw)| {
+        let summary = mailcraft_model::Summary { key: next_key(&s, &a, "INBOX"), subject: subject.into(), ..Default::default() };
+        file_in(&mut s, summary, Some(raw.as_bytes()))
+    });
     index_now(&s, &a);
     let search = |s: &mut Session, q: &str| {
         s.run("search.run", &json!({"query": q, "scope": "all"})).unwrap();

@@ -15,17 +15,11 @@ fn smime_testdata(name: &str) -> Vec<u8> {
     std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../smime/testdata").join(name)).unwrap()
 }
 
-/// Put `raw` in the sample Inbox (no body kept when `None`); its key.
+/// Put `raw` in the sample Inbox (its source kept only when `keep`) and show the Inbox; its key.
 fn put(s: &mut Session, uid: u32, raw: &[u8], keep: bool) -> MessageKey {
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW - 3600).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    if keep {
-        store.write_body(&key, raw).unwrap();
-    }
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let key = MessageKey { uid, ..next_key(s, "sample", "INBOX") };
+    let summary = mailcraft_mime::summary_from_full(raw, key, mailcraft_model::Flags::default(), 0, NOW - 3600);
+    let key = file_in(s, summary, keep.then_some(raw));
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     key
 }

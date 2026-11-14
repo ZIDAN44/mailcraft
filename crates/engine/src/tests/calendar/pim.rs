@@ -193,27 +193,10 @@ fn own_events_invite_and_cancel_guests() {
         partstat: "ACCEPTED".into(),
         rsvp: false,
     }];
-    let ics = mailcraft_model::ical::write(&[reply], Some("REPLY"), NOW);
-    let d = mailcraft_mime::Draft {
-        to: vec![mailcraft_model::EmailAddress::new("Riley", "riley@studio.example")],
-        subject: "Accepted: Trailer review".into(),
-        body: "Zoe accepted.".into(),
-        attachments: vec![mailcraft_mime::OutAttachment {
-            name: "invite.ics".into(),
-            mime: "text/calendar; method=REPLY".into(),
-            data: ics.into_bytes(),
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Zoe Park", "zoe@studio.example"), NOW, "<r1@x>").unwrap();
-    let store = s.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 999 };
-    inbox.messages.insert(0, mailcraft_mime::summary_from_full(&raw, key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, &raw).unwrap();
-    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    let ics = mailcraft_model::ical::write(&[reply], Some("REPLY"), NOW).into_bytes();
+    let raw = calendar_mail(("Zoe Park", "zoe@studio.example"), "Accepted: Trailer review", "text/calendar; method=REPLY", ics, "<r1@x>");
+    let key = mailcraft_model::MessageKey { uid: 999, ..next_key(&s, "sample", "INBOX") };
+    let key = file_whole(&mut s, key, &raw);
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     let inv = s.invite().unwrap();

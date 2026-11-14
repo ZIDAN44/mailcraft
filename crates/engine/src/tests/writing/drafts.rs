@@ -191,12 +191,9 @@ fn the_mark_on_a_drafts_copy_goes_nowhere_else() {
         mailcraft_mime::COPY_HEADER
     );
     let key = mailcraft_model::MessageKey { account: id.clone(), folder: "Drafts".into(), validity: 7, uid: 1 };
-    let mut drafts = store.load_folder(&id, "Drafts").unwrap();
-    drafts.validity = 7;
     let flags = mailcraft_model::Flags { draft: true, ..Default::default() };
-    drafts.messages.push(mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), flags, 0, NOW).into());
-    store.save_folder(&id, "Drafts", &drafts).unwrap();
-    store.write_body(&key, raw.as_bytes()).unwrap();
+    let summary = mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), flags, 0, NOW);
+    file_in(&mut s, summary, Some(raw.as_bytes()));
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
     s.run("compose.update", &json!({"body": "Second"})).unwrap();
     s.run("compose.saveDraft", &json!({})).unwrap();
@@ -339,20 +336,14 @@ fn a_message_is_held_until_its_draft_is_kept() {
         ],
     });
     // Two messages to read.
-    let mut inbox = store.load_folder(&id, "INBOX").unwrap();
-    inbox.validity = 3;
     let mut keys = Vec::new();
     for uid in 1..=2u32 {
         let key = mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 3, uid };
         let raw = format!(
             "From: Ann <ann@example.org>\r\nTo: zoe@example.org\r\nSubject: Plans {uid}\r\nMessage-ID: <p{uid}@example.org>\r\n\r\nShall we?\r\n"
         );
-        store.write_body(&key, raw.as_bytes()).unwrap();
-        inbox.messages.push(mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), mailcraft_model::Flags::default(), 0, NOW).into());
-        keys.push(key);
+        keys.push(file_whole(&mut s, key, raw.as_bytes()));
     }
-    store.save_folder(&id, "INBOX", &inbox).unwrap();
-    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
     s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
     s.take_jobs();
     let saved_id = |s: &mut Session| {
