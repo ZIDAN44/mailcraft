@@ -4,6 +4,7 @@
 //! pointer, talks to the window under it, and hands over the file's address when the button is
 //! let go there. Under a Wayland session the window isn't an X window, so there is no drag.
 
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -21,6 +22,8 @@ const TICK: Duration = Duration::from_millis(15);
 /// The longest a drag lasts, and how long a drop target gets to take the file.
 const MAX_DRAG: Duration = Duration::from_secs(120);
 const MAX_FINISH: Duration = Duration::from_secs(5);
+/// How long a target gets to answer a position before it's told the next one anyway.
+const STATUS_WAIT: Duration = Duration::from_secs(1);
 
 struct Atoms {
     aware: Atom,
@@ -39,10 +42,11 @@ fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
-/// A path as a `file://` address (RFC 8089), each byte that isn't plain percent-encoded.
+/// A path as a `file://` address (RFC 8089), each byte that isn't plain percent-encoded: the
+/// path's own bytes, so a name that isn't UTF-8 names the same file.
 pub fn file_uri(path: &Path) -> String {
     let mut out = String::from("file://");
-    for b in path.to_string_lossy().bytes() {
+    for &b in path.as_os_str().as_bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'/' | b'-' | b'_' | b'.' | b'~') {
             out.push(char::from(b));
         } else {
@@ -88,28 +92,57 @@ fn send(conn: &impl Connection, to: Window, kind: Atom, data: [u32; 5]) -> Resul
     Ok(())
 }
 
-/// The XDND-aware window under the pointer (not ours), and the pointer's place and buttons.
-fn under_pointer(conn: &impl Connection, root: Window, own: Window, aware: Atom) -> Result<(Option<Window>, i16, i16, bool), String> {
+/// The pointer: the top-level window under it, its place on the screen, and whether the button
+/// is still held.
+struct Pointer {
+    child: Window,
+    x: i16,
+    y: i16,
+    held: bool,
+}
+
+fn pointer(conn: &impl Connection, root: Window) -> Result<Pointer, String> {
     let p = conn.query_pointer(root).map_err(err)?.reply().map_err(err)?;
-    let held = p.mask.contains(KeyButMask::BUTTON1);
-    let (x, y) = (p.root_x, p.root_y);
-    let mut w = p.child;
-    // Down from the top-level window to the one that says it takes drops.
+    Ok(Pointer { child: p.child, x: p.root_x, y: p.root_y, held: p.mask.contains(KeyButMask::BUTTON1) })
+}
+
+/// The XDND-aware window under the pointer, down from the top-level window `w` (`None` over
+/// ours, or over none that takes drops).
+fn aware_window(conn: &impl Connection, mut w: Window, own: Window, aware: Atom) -> Result<Option<Window>, String> {
     for _ in 0..16 {
-        if w == x11rb::NONE {
-            return Ok((None, x, y, held));
-        }
-        if w == own {
-            return Ok((None, x, y, held));
+        if w == x11rb::NONE || w == own {
+            return Ok(None);
         }
         let prop = conn.get_property(false, w, aware, AtomEnum::ATOM, 0, 1).map_err(err)?.reply().map_err(err)?;
         if prop.value32().and_then(|mut v| v.next()).is_some_and(|v| v >= 3) {
-            return Ok((Some(w), x, y, held));
+            return Ok(Some(w));
         }
-        let q = conn.query_pointer(w).map_err(err)?.reply().map_err(err)?;
-        w = q.child;
+        w = conn.query_pointer(w).map_err(err)?.reply().map_err(err)?.child;
     }
-    Ok((None, x, y, held))
+    Ok(None)
+}
+
+/// What's done once the button is let go over a target.
+#[derive(Debug, PartialEq)]
+enum Release {
+    /// Nothing yet: the target is still to be told the place, or to answer it.
+    Wait,
+    Drop,
+    Leave,
+}
+
+/// What to do once the button is let go: the drop is made where the target was last told the
+/// pointer is, so it's told the place the button was let go at first (`told_there`) and given
+/// its time to answer (`answered`, or `waited` out), then dropped on if it takes drops
+/// (`accepted`, as it last said).
+fn on_release(told_there: bool, answered: bool, waited: bool, accepted: bool) -> Release {
+    if !told_there || !(answered || waited) {
+        Release::Wait
+    } else if accepted {
+        Release::Drop
+    } else {
+        Release::Leave
+    }
 }
 
 fn run(conn: &impl Connection, root: Window, own: Window, src: Window, a: &Atoms, data: &[u8]) -> Result<bool, String> {
@@ -117,6 +150,16 @@ fn run(conn: &impl Connection, root: Window, own: Window, src: Window, a: &Atoms
     let mut target: Option<Window> = None;
     let mut accepted = false;
     let mut dropped_at: Option<Instant> = None;
+    // Where the pointer was last looked at, and the window that takes drops there: looked for
+    // again (a round trip for each window down from the top) only when the pointer moved.
+    let mut seen: Option<(Window, i16, i16)> = None;
+    let mut under: Option<Window> = None;
+    // The place the target was last told of, when, and whether it answered.
+    let mut told: Option<(i16, i16)> = None;
+    let mut told_at = Instant::now();
+    let mut answered = true;
+    // Where the button was let go, once it has been: the pointer isn't followed after that.
+    let mut released: Option<(i16, i16)> = None;
     loop {
         // What the target says, and its asks for the data.
         while let Some(ev) = conn.poll_for_event().map_err(err)? {
@@ -125,6 +168,7 @@ fn run(conn: &impl Connection, root: Window, own: Window, src: Window, a: &Atoms
                     let d = m.data.as_data32();
                     if Some(d[0]) == target {
                         accepted = d[1] & 1 != 0;
+                        answered = true;
                     }
                 }
                 Event::ClientMessage(m) if m.type_ == a.finished => return Ok(true),
@@ -149,9 +193,10 @@ fn run(conn: &impl Connection, root: Window, own: Window, src: Window, a: &Atoms
         }
         conn.flush().map_err(err)?;
         if let Some(at) = dropped_at {
-            // Dropped: waiting for the target to say it's done.
+            // Dropped: waiting for the target to say it's done. One that never does isn't
+            // known to have taken the file.
             if at.elapsed() > MAX_FINISH {
-                return Ok(accepted);
+                return Ok(false);
             }
             std::thread::sleep(TICK);
             continue;
@@ -162,32 +207,60 @@ fn run(conn: &impl Connection, root: Window, own: Window, src: Window, a: &Atoms
             }
             return Ok(false);
         }
-        let (under, x, y, held) = under_pointer(conn, root, own, a.aware)?;
-        if under != target {
-            if let Some(t) = target {
-                send(conn, t, a.leave, [src, 0, 0, 0, 0])?;
+        let place = match released {
+            Some(at) => at,
+            None => {
+                let p = pointer(conn, root)?;
+                if seen != Some((p.child, p.x, p.y)) {
+                    under = aware_window(conn, p.child, own, a.aware)?;
+                    seen = Some((p.child, p.x, p.y));
+                }
+                if under != target {
+                    if let Some(t) = target {
+                        send(conn, t, a.leave, [src, 0, 0, 0, 0])?;
+                    }
+                    if let Some(t) = under {
+                        send(conn, t, a.enter, [src, VERSION << 24, a.uri_list, 0, 0])?;
+                    }
+                    target = under;
+                    accepted = false;
+                    (told, answered) = (None, true);
+                }
+                if !p.held {
+                    released = Some((p.x, p.y));
+                }
+                (p.x, p.y)
             }
-            if let Some(t) = under {
-                send(conn, t, a.enter, [src, VERSION << 24, a.uri_list, 0, 0])?;
+        };
+        let waited = told_at.elapsed() > STATUS_WAIT;
+        let Some(t) = target else {
+            if released.is_some() {
+                return Ok(false);
             }
-            target = under;
-            accepted = false;
-        }
-        if !held {
-            match target {
-                Some(t) if accepted => {
+            conn.flush().map_err(err)?;
+            std::thread::sleep(TICK);
+            continue;
+        };
+        if told != Some(place) && (answered || waited) {
+            // Told where the pointer is when it moved, one place at a time as XDND asks: the
+            // next once the target answered the last (or hasn't for a while). The place the
+            // button is let go at is told too, before the drop: a target drops where it was
+            // last told (one let go on just after a move had the file at the place before).
+            let at = (u32::from(place.0.max(0).unsigned_abs()) << 16) | u32::from(place.1.max(0).unsigned_abs());
+            send(conn, t, a.position, [src, 0, at, x11rb::CURRENT_TIME, a.copy])?;
+            (told, told_at, answered) = (Some(place), Instant::now(), false);
+        } else if released.is_some() {
+            match on_release(told == Some(place), answered, waited, accepted) {
+                Release::Wait => {}
+                Release::Drop => {
                     send(conn, t, a.drop, [src, 0, x11rb::CURRENT_TIME, 0, 0])?;
                     dropped_at = Some(Instant::now());
                 }
-                Some(t) => {
+                Release::Leave => {
                     send(conn, t, a.leave, [src, 0, 0, 0, 0])?;
                     return Ok(false);
                 }
-                None => return Ok(false),
             }
-        } else if let Some(t) = target {
-            let at = (u32::from(x.max(0).unsigned_abs()) << 16) | u32::from(y.max(0).unsigned_abs());
-            send(conn, t, a.position, [src, 0, at, x11rb::CURRENT_TIME, a.copy])?;
         }
         conn.flush().map_err(err)?;
         std::thread::sleep(TICK);
@@ -200,14 +273,37 @@ mod tests {
     use x11rb::protocol::xproto::{BUTTON_PRESS_EVENT, BUTTON_RELEASE_EVENT, MOTION_NOTIFY_EVENT};
     use x11rb::protocol::xtest::ConnectionExt as _;
 
+    /// A file's address names its bytes: a name that isn't UTF-8 (found in audit, #243) became
+    /// `%EF%BF%BD`, a file that isn't there.
     #[test]
     fn addresses_are_escaped() {
         assert_eq!(file_uri(Path::new("/tmp/mailcraft/Plan v2 (final).pdf")), "file:///tmp/mailcraft/Plan%20v2%20%28final%29.pdf");
         assert_eq!(file_uri(Path::new("/tmp/café")), "file:///tmp/caf%C3%A9");
+        assert_eq!(file_uri(Path::new(std::ffi::OsStr::from_bytes(b"/tmp/caf\xe9.eml"))), "file:///tmp/caf%E9.eml");
+    }
+
+    /// Once the button is let go, the target is told the place it was let go at before it's
+    /// dropped on, and given its time to answer: the drop went out at once, at the place the
+    /// target was told before.
+    #[test]
+    fn the_drop_waits_for_the_place_it_is_at() {
+        // Let go where the target was last told, and it has answered: at once.
+        assert_eq!(on_release(true, true, false, true), Release::Drop);
+        assert_eq!(on_release(true, true, false, false), Release::Leave);
+        // Let go somewhere it hasn't been told: told first, whatever it said of the place before.
+        for (answered, waited) in [(true, false), (false, false), (false, true), (true, true)] {
+            assert_eq!(on_release(false, answered, waited, true), Release::Wait, "{answered} {waited}");
+        }
+        // Told, not answered yet: waited for, then dropped on as it last said.
+        assert_eq!(on_release(true, false, false, true), Release::Wait);
+        assert_eq!(on_release(true, false, true, true), Release::Drop);
+        assert_eq!(on_release(true, false, true, false), Release::Leave);
     }
 
     /// A whole drag on a real X server (Xvfb, when it's installed): a window that takes drops
-    /// gets the file's address.
+    /// gets the file's address. While the pointer stands still over it, it's told the place
+    /// once (found in audit, #243: a position every 15 ms, answered or not). Let go just after
+    /// a move, it's told that place before the drop.
     #[test]
     fn a_file_is_dropped_on_a_window_that_takes_it() {
         let Some(xvfb) = ["/usr/bin/Xvfb", "/usr/local/bin/Xvfb"].iter().find(|p| Path::new(p).exists()) else { return };
@@ -250,6 +346,9 @@ mod tests {
         conn.xtest_fake_input(MOTION_NOTIFY_EVENT, 0, 0, root, 500, 100, 0).unwrap();
         conn.flush().unwrap();
         let mut got = None;
+        let (mut positions, mut first_position) = (0, None::<Instant>);
+        // The place the target was last told, as the drop came.
+        let (mut last_place, mut dropped_at_place) = (0, None::<u32>);
         let mut released = false;
         let end = Instant::now() + Duration::from_secs(20);
         while Instant::now() < end && got.is_none() {
@@ -259,6 +358,9 @@ mod tests {
                         assert_eq!(m.data.as_data32()[2], uri, "offers a list of addresses");
                     }
                     Event::ClientMessage(m) if m.type_ == position => {
+                        positions += 1;
+                        first_position.get_or_insert_with(Instant::now);
+                        last_place = m.data.as_data32()[2];
                         let from = m.data.as_data32()[0];
                         conn.send_event(
                             false,
@@ -267,15 +369,10 @@ mod tests {
                             ClientMessageEvent::new(32, from, status, [target, 1, 0, 0, m.data.as_data32()[4]]),
                         )
                         .unwrap();
-                        if !released {
-                            // Accepted: let go over the target.
-                            conn.xtest_fake_input(BUTTON_RELEASE_EVENT, 1, 0, root, 0, 0, 0).unwrap();
-                            released = true;
-                        }
                     }
                     Event::ClientMessage(m) if m.type_ == drop => {
+                        dropped_at_place = Some(last_place);
                         conn.convert_selection(target, selection, uri, prop, x11rb::CURRENT_TIME).unwrap();
-                        let _ = m;
                     }
                     Event::SelectionNotify(n) if n.property == prop => {
                         let v = conn.get_property(true, target, prop, AtomEnum::ANY, 0, 4096).unwrap().reply().unwrap();
@@ -292,6 +389,15 @@ mod tests {
                     _ => {}
                 }
             }
+            // Accepted, and the pointer held still over the target for half a second (some 30
+            // of the drag's looks at it): told once. Then moved and let go at once, elsewhere
+            // over it.
+            if !released && first_position.is_some_and(|t| t.elapsed() > Duration::from_millis(500)) {
+                assert_eq!(positions, 1, "a position for each look while the pointer stood still");
+                conn.xtest_fake_input(MOTION_NOTIFY_EVENT, 0, 0, root, 600, 200, 0).unwrap();
+                conn.xtest_fake_input(BUTTON_RELEASE_EVENT, 1, 0, root, 0, 0, 0).unwrap();
+                released = true;
+            }
             conn.flush().unwrap();
             std::thread::sleep(Duration::from_millis(10));
         }
@@ -299,5 +405,6 @@ mod tests {
         let _ = server.kill();
         assert_eq!(got.as_deref(), Some(format!("{}\r\n", file_uri(&file)).as_str()));
         assert_eq!(taken, Ok(true));
+        assert_eq!(dropped_at_place, Some((600 << 16) | 200), "dropped where the button was let go");
     }
 }
