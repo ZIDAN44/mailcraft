@@ -456,9 +456,9 @@ impl MailApp {
                 if !text && let Some(png) = self.services.clipboard_picture() {
                     let size = rich_edit::own_size(&png);
                     let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
-                    let r = self
-                        .session
-                        .run("compose.insertPicture", &self.picture_place(json!({"name": "pasted.png", "data": png, "width": width, "line": line})));
+                    let handed = self.session.hand(png);
+                    let params = self.picture_place(json!({"name": "pasted.png", "handed": handed, "width": width, "line": line}));
+                    let r = self.session.run("compose.insertPicture", &params);
                     self.place_picture(r);
                 }
             }

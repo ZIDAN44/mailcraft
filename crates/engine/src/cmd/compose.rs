@@ -21,9 +21,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "from"?: string (one of the account's addresses; "" for its own), "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
             .when(has_compose),
-        CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
+        CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}"#).when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
-            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
+            .params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
             .when(has_compose),
         CommandSpec::new("compose.resizePicture", "Picture size", "Message › Picture", resize_picture)
             .params(r#"{"cid": string, "width"?: number (CSS pixels; 0 or none: its own width)}"#)
@@ -170,8 +170,45 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
 /// Largest attachment accepted (most servers refuse messages over 25–35 MB).
 pub(super) const ATTACH_MAX: usize = 25 << 20;
 
-/// A file from `path`, or `name` and `data` (bytes), at most 25 MB.
-pub(super) fn file_param(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
+/// Most files kept handed over at once ([`Session::hand`]): each command takes its own.
+const HANDED_KEPT: usize = 4;
+
+impl Session {
+    /// A file's bytes handed over by the window (one picked in the browser, a picture pasted)
+    /// for the command that follows, which names it `"handed": n` (and takes it, or it's let go
+    /// of when that command ends). Given as `"data"`, a JSON list
+    /// with a value per byte (24 bytes each on wasm32), a 25 MB file took about 600 MB.
+    pub fn hand(&mut self, data: Vec<u8>) -> u64 {
+        self.last_handed = self.last_handed.wrapping_add(1);
+        if self.handed.len() >= HANDED_KEPT {
+            self.handed.remove(0);
+        }
+        self.handed.push((self.last_handed, data));
+        self.last_handed
+    }
+
+    /// The file `v` names with `"handed"`, taken (each is used once); an error when it names one
+    /// that isn't here, `None` when it names none.
+    pub(crate) fn take_handed(&mut self, v: &Value) -> Result<Option<Vec<u8>>, CmdError> {
+        let Some(n) = v.get("handed") else { return Ok(None) };
+        let i = n.as_u64().and_then(|n| self.handed.iter().position(|(k, _)| *k == n));
+        let i = i.ok_or_else(|| CmdError::Params("`handed`: no such file was handed over".into()))?;
+        Ok(Some(self.handed.remove(i).1))
+    }
+
+    /// Let go of the file `v` names with `"handed"`, when it's still here: its command ended
+    /// without taking it (unknown, not available now, or refused before it read its file), and
+    /// nothing else will. It stayed, up to 25 MB of it, until four more were handed over.
+    pub(crate) fn drop_handed(&mut self, v: &Value) {
+        if let Some(n) = v.get("handed").and_then(Value::as_u64) {
+            self.handed.retain(|(k, _)| *k != n);
+        }
+    }
+}
+
+/// A file from `path`, or `name` and the bytes handed over (`handed`) or given (`data`), at most
+/// 25 MB.
+pub(super) fn file_param(s: &mut Session, v: &Value) -> Result<(String, Vec<u8>), CmdError> {
     let (name, data) = if let Some(path) = p::str(v, "path") {
         let pb = std::path::PathBuf::from(path);
         let data = read_capped(path, ATTACH_MAX as u64).map_err(|e| match e {
@@ -179,6 +216,8 @@ pub(super) fn file_param(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
             other => other,
         })?;
         (pb.file_name().and_then(|n| n.to_str()).unwrap_or("attachment").to_string(), data)
+    } else if let Some(data) = s.take_handed(v)? {
+        (p::req_str(v, "name")?.to_string(), data)
     } else {
         let name = p::req_str(v, "name")?.to_string();
         let data: Vec<u8> = v
@@ -203,7 +242,7 @@ pub(super) fn compose_size(c: &crate::Compose) -> usize {
 }
 
 pub(super) fn attach(s: &mut Session, v: &Value) -> CmdResult {
-    let (name, data) = file_param(v)?;
+    let (name, data) = file_param(s, v)?;
     let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
     let total: usize = compose_size(c) + data.len();
     if total > ATTACH_MAX {
@@ -218,7 +257,7 @@ pub(super) fn attach(s: &mut Session, v: &Value) -> CmdResult {
 /// Place a picture in the text. With `"insert": false` the mark isn't added to the text (the
 /// editor puts it at the cursor itself).
 pub(super) fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
-    let (name, data) = file_param(v)?;
+    let (name, data) = file_param(s, v)?;
     let name = sanitize_filename(&name);
     let mime = mime_from_name(&name).to_string();
     if !mime.starts_with("image/") {

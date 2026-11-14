@@ -139,6 +139,54 @@ fn attachments_preview_and_save_all() {
     done(s);
 }
 
+/// A file picked in the browser, or a picture pasted, is handed over as it is and named by the
+/// command (a JSON list of its bytes made each byte a value of 24 bytes); each is taken once,
+/// and only the last few are kept.
+#[test]
+fn files_handed_over_are_attached_as_they_are() {
+    let mut s = sample_session("handed");
+    s.run("mail.new", &json!({})).unwrap();
+    let file: Vec<u8> = (0..=255u8).cycle().take(300_000).collect();
+    let n = s.hand(file.clone());
+    s.run("compose.attach", &json!({"name": "big.bin", "handed": n})).unwrap();
+    const DOT: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0x1F, 0x15,
+        0xC4, 0x89,
+    ];
+    let picture = s.hand(DOT.to_vec());
+    s.run("compose.insertPicture", &json!({"name": "dot.png", "handed": picture})).unwrap();
+    let c = s.compose.as_ref().unwrap();
+    assert_eq!(c.attachments.last().map(|a| (a.name.as_str(), &a.data)), Some(("big.bin", &file)));
+    assert_eq!(c.inline.last().map(|p| p.data.as_slice()), Some(DOT));
+    // Taken once; one never handed over is an error, not an empty file.
+    assert!(matches!(s.run("compose.attach", &json!({"name": "again.bin", "handed": n})), Err(CmdError::Params(_))));
+    assert!(matches!(s.run("compose.attach", &json!({"name": "x.bin", "handed": 999})), Err(CmdError::Params(_))));
+    let kept: Vec<u64> = (0..6u8).map(|i| s.hand(vec![i])).collect();
+    assert_eq!(s.handed.len(), 4, "only the last few are kept");
+    assert!(s.run("compose.attach", &json!({"name": "old.bin", "handed": kept[0]})).is_err());
+    s.run("compose.attach", &json!({"name": "new.bin", "handed": kept[5]})).unwrap();
+    done(s);
+}
+
+/// A file handed over for a command that's refused before it looks for it (no message is being
+/// written, there's no such command) isn't kept: nothing would take it, and it stayed, up to
+/// 25 MB of it, until four more were handed over. Others handed over stay for their commands.
+#[test]
+fn a_file_handed_to_a_refused_command_is_let_go() {
+    let mut s = sample_session("handed-refused");
+    let other = s.hand(vec![7; 10]);
+    let n = s.hand(vec![1; 1000]);
+    let r = s.run("compose.attach", &json!({"name": "a.bin", "handed": n}));
+    assert!(matches!(r, Err(CmdError::Disabled(_))), "{r:?}");
+    assert_eq!(s.handed.iter().map(|(k, _)| *k).collect::<Vec<_>>(), [other]);
+    let n = s.hand(vec![2; 1000]);
+    assert!(matches!(s.run("compose.nothing", &json!({"handed": n})), Err(CmdError::Unknown(_))));
+    assert_eq!(s.handed.iter().map(|(k, _)| *k).collect::<Vec<_>>(), [other]);
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.attach", &json!({"name": "b.bin", "handed": other})).unwrap();
+    assert!(s.handed.is_empty());
+}
+
 #[test]
 fn formatted_messages_go_out_as_html_with_pictures() {
     let mut s = sample_session("rich");

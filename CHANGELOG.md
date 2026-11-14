@@ -48,6 +48,7 @@ on GitHub.
 - In the browser, a message popped out of a folder whose name has "sample" or "webgl" in it (`Samples`, say) opens in your own mailbox: its window opened the sample mailbox instead, and couldn't find the message.
 - An update that couldn't be installed (a portable zip that wouldn't unpack, a Mac disk image that wouldn't open, an administrator prompt declined, or MailCraft still running) is offered again at the next check, from the download already made. The download was thrown away, and that version wasn't offered again for a day.
 - `mailcraft-cli` takes `--headers` and `--checked` anywhere on the line, says which option was given no value, and says when `--limit` or `--timeout` isn't a number. `source --headers KEY` lost its KEY, an option without its value took the next option for it, and a bad number was quietly replaced by the default.
+- In the browser, a file attached or a picture put into a message no longer takes many times its size in memory on the way in: a 25 MB file took about 600 MB.
 
 ## 0.38.0 - 2026-11-13
 

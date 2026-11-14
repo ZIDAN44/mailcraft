@@ -809,11 +809,14 @@ impl MailApp {
             } else if purpose == "picture" {
                 let size = rich_edit::own_size(&data);
                 let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
-                let r =
-                    self.session.run("compose.insertPicture", &self.picture_place(json!({"name": name, "data": data, "width": width, "line": line})));
+                // Handed over as they are, not as a JSON list (a value per byte).
+                let handed = self.session.hand(data);
+                let params = self.picture_place(json!({"name": name, "handed": handed, "width": width, "line": line}));
+                let r = self.session.run("compose.insertPicture", &params);
                 self.place_picture(r);
             } else {
-                self.run("compose.attach", json!({"name": name, "data": data}));
+                let handed = self.session.hand(data);
+                self.run("compose.attach", json!({"name": name, "handed": handed}));
             }
         }
         // Snoozed mail that is due comes back.

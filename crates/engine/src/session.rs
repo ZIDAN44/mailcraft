@@ -428,6 +428,9 @@ pub struct Session {
     pub jmap_only: bool,
     /// The fonts PDFs embed (regular, bold): the system's, set by the app.
     pub print_fonts: Option<(Vec<u8>, Option<Vec<u8>>)>,
+    /// Files the window handed over for a command ([`Session::hand`]), by number, newest last.
+    pub(crate) handed: Vec<(u64, Vec<u8>)>,
+    pub(crate) last_handed: u64,
     /// Pages to show in the browser (OAuth sign-in), oldest first.
     pub open_urls: Vec<String>,
     /// Each account's calendars and address books.
@@ -562,6 +565,8 @@ impl Session {
             portable: false,
             jmap_only: false,
             print_fonts: None,
+            handed: Vec::new(),
+            last_handed: 0,
             open_urls: Vec::new(),
             pim: HashMap::new(),
             pim_unread: HashSet::new(),
@@ -636,6 +641,13 @@ impl Session {
     /// Run a command by id. Disabled commands fail with [`CmdError::Disabled`]. A panic inside a
     /// command is caught and reported as an error rather than taking the app down.
     pub fn run(&mut self, id: &str, params: &Value) -> CmdResult {
+        let result = self.run_command(id, params);
+        // A file handed over for it that it didn't take (refused before it looked for it).
+        self.drop_handed(params);
+        result
+    }
+
+    fn run_command(&mut self, id: &str, params: &Value) -> CmdResult {
         let reg = self.registry.clone();
         let spec = reg.get(id).ok_or_else(|| CmdError::Unknown(id.to_string()))?;
         // What the command acts on is the message as shown: its body, still being got ready on

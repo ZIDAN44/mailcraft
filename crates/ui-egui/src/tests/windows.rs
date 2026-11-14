@@ -114,7 +114,8 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     a.act(crate::Action::AttachFiles);
     frame(&ctx, &mut a, vec![]);
     assert_eq!(asked.borrow().as_slice(), ["attach"]);
-    assert!(a.session.compose.as_ref().is_some_and(|c| c.attachments.iter().any(|x| x.name == "notes.txt")));
+    // Its bytes handed over as they are.
+    assert!(a.session.compose.as_ref().is_some_and(|c| c.attachments.iter().any(|x| x.name == "notes.txt" && x.data == b"remember")));
     a.run("compose.discard", json!({}));
 
     // Rules and categories go to a file as downloads, and come back from the picker.
