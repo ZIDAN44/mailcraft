@@ -234,7 +234,10 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             ui.label(RichText::new(tl!("Email Address")).color(t.dim).small());
         });
         ui.separator();
-        egui::ScrollArea::vertical().max_height(210.0).auto_shrink([false, false]).show(ui, |ui| {
+        // Only the rows in view are laid out: the list holds up to 2,000 people. A row is as tall
+        // as `horizontal` makes it: its 22 points, or a control's height if that's more.
+        let row_height = ui.spacing().interact_size.y.max(22.0);
+        egui::ScrollArea::vertical().max_height(210.0).auto_shrink([false, false]).show_rows(ui, row_height, f.list.len(), |ui, range| {
             if f.list.is_empty() && !f.stale && !f.searching {
                 let hint = if f.directory && f.source == "directory" && f.query.trim().is_empty() {
                     tl!("Type a name to search your organisation's directory.")
@@ -243,7 +246,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
                 };
                 ui.label(RichText::new(hint).color(t.faint));
             }
-            for (i, a) in f.list.iter().enumerate() {
+            for (i, a) in f.list.iter().enumerate().take(range.end).skip(range.start) {
                 let on = f.selected == Some(i);
                 // A row: name and address, left-aligned as in Outlook's list.
                 let r = ui.horizontal(|ui| {
