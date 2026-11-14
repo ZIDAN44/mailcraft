@@ -63,6 +63,7 @@ on GitHub.
 - A message quoted in a reply or forward, and a signature's HTML code, lose every `on…` handler and script link a browser would run: one written without a space before it, after a `>` inside a quoted value, or as `javascript:` hidden behind character references went out as it came. Nor does one inside a tag written to end later than a browser ends it.
 - A message whose style sheet is longer than MailCraft reads keeps the part read, instead of losing its colours and sizes.
 - A picture written `<img`, a tab, `src=…`, or `src = …`, is blocked or shown with the rest, and an address inside another attribute's text isn't taken for one.
+- A recurring event begun long ago still shows: a daily one started more than about 55 years back, or an hourly one more than five, was missing from the calendar, and a calendar of years-old series is drawn much faster.
 
 ## 0.38.0 - 2026-11-13
 

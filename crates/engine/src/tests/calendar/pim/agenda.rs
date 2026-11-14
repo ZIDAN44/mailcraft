@@ -41,3 +41,36 @@ fn measure_agenda_frame() {
     println!("MEASURE agenda per frame ({n} items): {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 50.0);
     done(s);
 }
+
+/// A month's calendar of 200 daily series begun ten years ago, drawn: each was walked from its
+/// first day, 3,650 of them, each time.
+/// `cargo test --release -p mailcraft-engine --lib measure_old_series_frame -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_old_series_frame() {
+    use mailcraft_model::ical::CalEvent;
+    use mailcraft_model::pim::{LOCAL, StoredEvent};
+    let mut s = sample_session("measure-old-series");
+    let p = s.pim_mut("sample");
+    for i in 0..200_i64 {
+        let start = NOW - 10 * 365 * 86_400 + i * 300;
+        let e = CalEvent {
+            uid: format!("d{i}"),
+            summary: format!("Standup {i}"),
+            start,
+            end: start + 900,
+            rrule: Some("FREQ=DAILY".into()),
+            ..Default::default()
+        };
+        p.events.push(StoredEvent { calendar: LOCAL.into(), event: e, ..Default::default() });
+    }
+    let day = 86_400;
+    let from = NOW - NOW.rem_euclid(day) - 3 * day;
+    let n = s.agenda(from, from + 42 * day).len();
+    let t = std::time::Instant::now();
+    for _ in 0..20 {
+        assert_eq!(s.agenda(from, from + 42 * day).len(), n);
+    }
+    println!("MEASURE old series per frame ({n} items): {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    done(s);
+}

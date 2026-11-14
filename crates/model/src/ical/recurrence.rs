@@ -186,6 +186,23 @@ impl Rule {
         chosen.into_iter().collect()
     }
 
+    /// How many periods after the one containing `start_day` to begin looking from, for starts
+    /// on or after `day`: two before the one containing it (a week's days reach back before its
+    /// first, a zone's day differs from UTC's), none before the first.
+    fn periods_before(&self, start_day: i64, day: i64) -> i64 {
+        let (sy, sm, _) = civil_from_days(start_day);
+        let (y, m, _) = civil_from_days(day);
+        let interval = self.interval.max(1);
+        let periods = match self.freq.as_str() {
+            "DAILY" => day.saturating_sub(start_day) / interval,
+            "WEEKLY" => day.saturating_sub(start_day) / interval.saturating_mul(7),
+            "MONTHLY" => y.saturating_sub(sy).saturating_mul(12).saturating_add(i64::from(m) - i64::from(sm)) / interval,
+            "YEARLY" => y.saturating_sub(sy) / interval,
+            _ => 0,
+        };
+        periods.saturating_sub(2).max(0)
+    }
+
     /// The first day of the period `k` periods after the one containing `start_day`.
     pub(super) fn period(&self, start_day: i64, k: i64) -> Option<i64> {
         let (y, m, _) = civil_from_days(start_day);
@@ -236,7 +253,15 @@ pub(super) fn month_day(y: i64, m: u32, md: i32) -> Option<i64> {
 /// hourly, minutely or secondly rule steps from the start by so long, on the days it allows.
 /// `RDATE`'s dates are occurrences too, with the rule's or without one.
 pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
-    let mut out = by_rule(e, before);
+    starts_from(e, i64::MIN, before)
+}
+
+/// [`starts`] in `[from, before)`, and maybe some before `from`. A rule without `COUNT` is looked
+/// at from near `from`: walked from its first start, a series was worked through day by day each
+/// time the calendar was drawn, and one begun long ago (a daily one 55 years back) ran out of
+/// starts before it reached the window and wasn't shown.
+fn starts_from(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
+    let mut out = by_rule(e, from, before);
     if !e.rdates.is_empty() {
         out.extend(e.rdates.iter().copied().filter(|t| *t < before));
         out.sort_unstable();
@@ -246,8 +271,9 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
     out
 }
 
-/// The starts the event's rule makes (its own start without one).
-fn by_rule(e: &CalEvent, before: i64) -> Vec<i64> {
+/// The starts the event's rule makes (its own start without one), from near `from` (see
+/// [`starts_from`]).
+fn by_rule(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
     let Some(rule) = e.rrule.as_deref().map(Rule::parse).filter(|r| !r.freq.is_empty()) else {
         return vec![e.start];
     };
@@ -259,7 +285,7 @@ fn by_rule(e: &CalEvent, before: i64) -> Vec<i64> {
         _ => None,
     };
     if let Some(step) = step {
-        return within_days(e, &rule, step.saturating_mul(rule.interval), zone.as_ref(), before);
+        return within_days(e, &rule, step.saturating_mul(rule.interval), zone.as_ref(), from, before);
     }
     let local_start = zone.as_ref().map_or(e.start, |z| z.local(e.start));
     let start_day = local_start.div_euclid(86_400);
@@ -267,7 +293,10 @@ fn by_rule(e: &CalEvent, before: i64) -> Vec<i64> {
     let mut out = Vec::new();
     let mut produced = 0usize;
     let mut steps = 0usize;
-    let mut k = 0i64;
+    // A count is told from the first start; without one, the periods before the window are
+    // skipped (the day before `from`'s, for a zone ahead of UTC).
+    let first = if rule.count.is_some() { 0 } else { rule.periods_before(start_day, from.div_euclid(86_400).saturating_sub(1)) };
+    let mut k = first;
     'periods: while let Some(p) = rule.period(start_day, k) {
         k += 1;
         // A period wholly past the window ends it: one that starts more than eight days after
@@ -320,14 +349,20 @@ fn by_rule(e: &CalEvent, before: i64) -> Vec<i64> {
 /// The starts of an hourly, minutely or secondly series `e` (its `rule`), `step` seconds apart,
 /// on the days its rule allows where it is (`zone`), up to `before`. Within each step's hour
 /// (hourly) or minute (minutely), `BYMINUTE` and `BYSECOND` give its times; `BYHOUR`, and those
-/// of a finer step, limit them.
-fn within_days(e: &CalEvent, rule: &Rule, step: i64, zone: Option<&EventZone>, before: i64) -> Vec<i64> {
+/// of a finer step, limit them. Without `COUNT`, the steps more than two days before `from` are
+/// skipped, as [`by_rule`] skips periods.
+fn within_days(e: &CalEvent, rule: &Rule, step: i64, zone: Option<&EventZone>, from: i64, before: i64) -> Vec<i64> {
     let mut out = Vec::new();
     let mut produced = 0usize;
     let mut steps = 0usize;
     let first = zone.map_or(e.start, |z| z.local(e.start));
+    let skipped = if rule.count.is_some() { 0 } else { from.saturating_sub(2 * 86_400).saturating_sub(e.start).max(0) / step.max(1) };
     'steps: for k in 0..MAX_STEPS {
-        let Some(t) = i64::try_from(k).ok().and_then(|k| k.checked_mul(step)).and_then(|d| e.start.checked_add(d)) else { break };
+        let Some(t) =
+            i64::try_from(k).ok().and_then(|k| k.checked_add(skipped)).and_then(|k| k.checked_mul(step)).and_then(|d| e.start.checked_add(d))
+        else {
+            break;
+        };
         let local = zone.map_or(t, |z| z.local(t));
         // The step's own time, or those the rule gives within its hour or minute.
         let moments: Vec<i64> = match rule.freq.as_str() {
@@ -414,7 +449,7 @@ pub fn occurrences<E: std::borrow::Borrow<CalEvent>>(events: &[E], from: i64, to
             continue;
         }
         let mut n = 0;
-        for s in starts(e, to) {
+        for s in starts_from(e, from.saturating_sub(len), to) {
             if s >= to {
                 break;
             }
