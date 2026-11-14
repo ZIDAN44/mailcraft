@@ -269,7 +269,7 @@ pub(crate) fn uid_of(id: &[u8]) -> String {
     let data = id.get(40..).map(|d| d.get(..size).unwrap_or(d)).unwrap_or_default();
     if let Some(uid) = data.strip_prefix(&VCAL_UID[..]) {
         let uid = uid.get(..MAX_UID).unwrap_or(uid);
-        let uid = String::from_utf8_lossy(uid).trim_end_matches('\0').to_string();
+        let uid = crate::pst::without_nuls(String::from_utf8_lossy(uid).into_owned());
         if !uid.trim().is_empty() {
             return uid;
         }

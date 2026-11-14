@@ -251,7 +251,7 @@ fn info(b: &mut Bytes<'_>) -> Option<(Changed, u16)> {
     let text = |b: &mut Bytes<'_>| -> Option<String> {
         b.u16()?;
         let n = usize::from(b.u16()?);
-        Some(crate::pst::text_from_bytes(b.take(n)?, 1252, false).trim_end_matches('\0').to_string())
+        Some(crate::pst::without_nuls(crate::pst::text_from_bytes(b.take(n)?, 1252, false)))
     };
     if flags & ARO_SUBJECT != 0 {
         c.subject = Some(text(b)?);
@@ -297,7 +297,7 @@ fn extended(b: &mut Bytes<'_>, c: &mut Changed, flags: u16, writer: u32) -> Opti
         let mut wide = || -> Option<String> {
             let n = usize::from(b.u16()?).checked_mul(2)?;
             let units: Vec<u16> = b.take(n)?.as_chunks::<2>().0.iter().map(|u| u16::from_le_bytes(*u)).collect();
-            Some(String::from_utf16_lossy(&units).trim_end_matches('\0').to_string())
+            Some(crate::pst::without_nuls(String::from_utf16_lossy(&units)))
         };
         if flags & ARO_SUBJECT != 0 {
             c.subject = Some(wide()?);

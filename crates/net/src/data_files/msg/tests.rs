@@ -276,3 +276,60 @@ fn measure_msg_big_file() {
     }
     println!("MEASURE .msg with a 60 MB file read: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0 / 5.0);
 }
+
+/// How long turning a message file's multi-megabyte UTF-16 and 8-bit text property into its
+/// value takes.
+/// `cargo test --release -p mailcraft-net --lib msg_text_property_speed -- --ignored --nocapture`
+#[test]
+#[ignore = "a measurement"]
+fn msg_text_property_speed() {
+    const ROUNDS: u32 = 20;
+    let line = "Dear Ana, the r\u{e9}sum\u{e9} is attached; see you on Thursday at the caf\u{e9}.\r\n";
+    let text = line.repeat(8 * 1024 * 1024 / line.len());
+    let wide = Prop { id: 0x1000, ty: 0x001F, value: Stored::Bytes([utf16le(&text), vec![0; 4]].concat()) };
+    let narrow_bytes = text.chars().map(|c| if c == '\u{e9}' { 0xE9 } else { c as u8 }).chain([0]).collect();
+    let narrow = Prop { id: 0x1000, ty: 0x001E, value: Stored::Bytes(narrow_bytes) };
+    for (name, p) in [("UTF-16", &wide), ("8-bit", &narrow)] {
+        assert_eq!(val(p, 1252), Val::Text(Cow::Borrowed(text.as_str())), "{name}");
+        let started = std::time::Instant::now();
+        for _ in 0..ROUNDS {
+            std::hint::black_box(val(std::hint::black_box(p), 1252));
+        }
+        let per = started.elapsed() / ROUNDS;
+        println!("MEASURE .msg {name} text property of {} bytes into its value: {per:?} each ({ROUNDS} rounds)", text.len());
+    }
+}
+
+mod text_values {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    /// What a text came to before NULs were cut in place: trimmed, then copied.
+    fn copied(s: &str) -> String {
+        s.trim_end_matches('\0').to_string()
+    }
+
+    proptest! {
+        /// A message file's text value is what it was when it was trimmed and copied: trailing
+        /// NULs gone, inner ones kept, single and multi-valued, UTF-16 and 8-bit in a code page.
+        #[test]
+        fn a_text_value_is_unchanged(
+            s in proptest::collection::vec(prop_oneof![3 => Just('\0'), 2 => any::<char>()], 0..40),
+            b in proptest::collection::vec(prop_oneof![3 => Just(0u8), 2 => any::<u8>()], 0..40),
+            page in prop_oneof![Just(0u32), Just(1252), Just(65001), Just(932)],
+        ) {
+            let wide_bytes = utf16le(&s.into_iter().collect::<String>());
+            let wide = copied(&utf16(&wide_bytes));
+            let narrow = copied(&eight_bit(&b, page));
+            let one = |ty: u16, bytes: &[u8]| Prop { id: 0x0037, ty, value: Stored::Bytes(bytes.to_vec()) };
+            let many = |ty: u16, bytes: &[u8]| Prop { id: 0x0037, ty, value: Stored::Many(vec![bytes.to_vec(), bytes.to_vec()]) };
+            let (one_wide, one_narrow) = (one(0x001F, &wide_bytes), one(0x001E, &b));
+            let (some_wide, some_narrow) = (many(0x101F, &wide_bytes), many(0x101E, &b));
+            prop_assert_eq!(val(&one_wide, page), Val::Text(Cow::Borrowed(wide.as_str())));
+            prop_assert_eq!(val(&one_narrow, page), Val::Text(Cow::Borrowed(narrow.as_str())));
+            prop_assert_eq!(val(&some_wide, page), Val::Texts(vec![wide.clone(), wide]));
+            prop_assert_eq!(val(&some_narrow, page), Val::Texts(vec![narrow.clone(), narrow]));
+        }
+    }
+}

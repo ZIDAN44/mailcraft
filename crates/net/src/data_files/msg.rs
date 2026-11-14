@@ -12,7 +12,7 @@ use std::io::{Cursor, Read};
 
 use cfb::CompoundFile;
 
-use crate::pst::{Loose, LooseFile, Val, loose_message};
+use crate::pst::{Loose, LooseFile, Val, loose_message, without_nuls};
 use crate::pst_pim::Named;
 
 /// The largest file read.
@@ -202,7 +202,7 @@ fn text_value(p: &Prop, code_page: u32) -> Option<String> {
         0x001E => eight_bit(b, code_page),
         _ => return None,
     };
-    Some(s.trim_end_matches('\0').to_string())
+    Some(without_nuls(s))
 }
 
 fn utf16(b: &[u8]) -> String {
@@ -227,8 +227,8 @@ fn val(p: &Prop, code_page: u32) -> Val<'_> {
         (Stored::Fixed(f), 0x000B) => Val::Bool(f[0] != 0),
         (Stored::Fixed(f), 0x0040) => Val::Time(i64::from_le_bytes(*f)),
         (Stored::Fixed(f), 0x0005) => Val::Float(u64::from_le_bytes(*f)),
-        (Stored::Many(list), 0x101F) => Val::Texts(list.iter().map(|b| utf16(b).trim_end_matches('\0').to_string()).collect()),
-        (Stored::Many(list), 0x101E) => Val::Texts(list.iter().map(|b| eight_bit(b, code_page).trim_end_matches('\0').to_string()).collect()),
+        (Stored::Many(list), 0x101F) => Val::Texts(list.iter().map(|b| without_nuls(utf16(b))).collect()),
+        (Stored::Many(list), 0x101E) => Val::Texts(list.iter().map(|b| without_nuls(eight_bit(b, code_page))).collect()),
         (Stored::Many(list), 0x1102) => Val::Bins(list.iter().map(Vec::as_slice).collect()),
         (Stored::Object, _) => Val::Object,
         _ => Val::Other,

@@ -9,6 +9,9 @@ use mailcraft_pst::PropertyValue;
 
 use super::mime;
 
+#[cfg(test)]
+mod tests;
+
 /// A property's value, by what it holds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Val<'a> {
@@ -59,23 +62,28 @@ impl Val<'_> {
 /// A value read from the file, its 8-bit text in `code_page`.
 pub(super) fn val(v: &PropertyValue, code_page: u32) -> Val<'_> {
     match v {
-        PropertyValue::Unicode(u) => Val::Text(Cow::Owned(String::from_utf16_lossy(u.buffer()).trim_end_matches('\0').to_string())),
-        PropertyValue::String8(s) => Val::Text(Cow::Owned(decode(s.buffer(), code_page, false).trim_end_matches('\0').to_string())),
+        PropertyValue::Unicode(u) => Val::Text(Cow::Owned(without_nuls(String::from_utf16_lossy(u.buffer())))),
+        PropertyValue::String8(s) => Val::Text(Cow::Owned(without_nuls(decode(s.buffer(), code_page, false)))),
         PropertyValue::Binary(b) => Val::Bin(b.buffer()),
         PropertyValue::Integer32(n) => Val::Int(i64::from(*n)),
         PropertyValue::Boolean(b) => Val::Bool(*b),
         PropertyValue::Time(t) => Val::Time(*t),
         PropertyValue::Floating64(f) => Val::Float(f.to_bits()),
-        PropertyValue::MultipleUnicode(list) => {
-            Val::Texts(list.iter().map(|u| String::from_utf16_lossy(u.buffer()).trim_end_matches('\0').to_string()).collect())
-        }
-        PropertyValue::MultipleString8(list) => {
-            Val::Texts(list.iter().map(|s| decode(s.buffer(), code_page, false).trim_end_matches('\0').to_string()).collect())
-        }
+        PropertyValue::MultipleUnicode(list) => Val::Texts(list.iter().map(|u| without_nuls(String::from_utf16_lossy(u.buffer()))).collect()),
+        PropertyValue::MultipleString8(list) => Val::Texts(list.iter().map(|s| without_nuls(decode(s.buffer(), code_page, false))).collect()),
         PropertyValue::MultipleBinary(list) => Val::Bins(list.iter().map(|b| b.buffer()).collect()),
         PropertyValue::Object(_) => Val::Object,
         _ => Val::Other,
     }
+}
+
+/// `s` without the NULs it ends with (a string's terminator, and any padding after it), cut in
+/// place rather than copied: a body can be megabytes.
+pub(crate) fn without_nuls(mut s: String) -> String {
+    // What `trim_end_matches` leaves is a prefix of `s`, so its length is on a char boundary.
+    let kept = s.trim_end_matches('\0').len();
+    s.truncate(kept);
+    s
 }
 
 pub(crate) fn text_of(v: &PropertyValue) -> Option<String> {
