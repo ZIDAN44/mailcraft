@@ -109,32 +109,18 @@ where
     P: ReadableTable<(&'static str, u32), &'static [u8]>,
 {
     let mut h = std::hash::DefaultHasher::new();
-    let Some(len) = pieced_len(v) else {
-        h.write_usize(v.len());
-        h.write(v);
-        let bytes = if keep { v.to_vec() } else { Vec::new() };
-        return Ok(Some((Print { len: v.len() as u64, hash: h.finish() }, bytes)));
-    };
-    let Some(pieces) = pieces else { return Ok(None) };
     let mut bytes = Vec::new();
     if keep {
-        bytes.reserve(usize::try_from(len).unwrap_or(0).min(8 << 20));
+        bytes.reserve(kept_room(v));
     }
-    let mut seen = 0u64;
-    for item in pieces.range((key, 0)..=(key, u32::MAX)).map_err(disk)? {
-        let (_, piece) = item.map_err(disk)?;
-        let piece = piece.value();
-        seen = seen.saturating_add(piece.len() as u64);
-        if seen > len {
-            return Ok(None);
-        }
+    let len = kept_of(key, v, pieces, |piece| {
         h.write_usize(piece.len());
         h.write(piece);
         if keep {
             bytes.extend_from_slice(piece);
         }
-    }
-    Ok((seen == len).then(|| (Print { len, hash: h.finish() }, bytes)))
+    })?;
+    Ok(len.map(|len| (Print { len, hash: h.finish() }, bytes)))
 }
 
 /// Whether the file at `key` (its value in `FILES`: whole, or a note) is kept raw: its first bytes
@@ -158,49 +144,75 @@ fn read_batch(db: &Database, after: Option<&str>) -> io::Result<Batch> {
     let Some(files) = files_of(&tx).map_err(disk)? else { return Ok(Batch { end: true, ..b }) };
     let pieces = pieces_of(&tx).map_err(disk)?;
     let mut bytes = 0u64;
-    let (mut from, mut past_index) = (after.map(str::to_string), false);
+    let (last, end) = batch_after(&files, after, |key, v| {
+        if key.starts_with(SEARCH) {
+            // The index's files, all together: on past them ('0' comes right after '/').
+            return Ok(Next::Past(format!("{}0", SEARCH.trim_end_matches('/'))));
+        }
+        if b.looked >= BATCH_FILES as u64 {
+            return Ok(Next::Full);
+        }
+        let kept = pieced_len(v).unwrap_or(v.len() as u64);
+        // Raw (`None`: damaged, its first piece gone).
+        let raw = if kept >= DEFLATE_MIN as u64 { kept_raw(key, v, pieces.as_ref())? } else { Some(false) };
+        let wanted = raw == Some(true) && kept <= BIGGEST;
+        if wanted && !b.files.is_empty() && bytes.saturating_add(kept) > BATCH_BYTES {
+            return Ok(Next::Full);
+        }
+        b.looked = b.looked.saturating_add(1);
+        b.looked_bytes = b.looked_bytes.saturating_add(kept.min(INFLATE_MAX));
+        let read = if wanted { print_of(key, v, pieces.as_ref(), true)? } else { None };
+        if let Some((print, raw)) = read {
+            bytes = bytes.saturating_add(kept);
+            b.files.push(Raw { key: key.to_string(), bytes: raw, print });
+        } else if raw != Some(false) {
+            b.passed = b.passed.saturating_add(1);
+            b.passed_bytes = b.passed_bytes.saturating_add(kept);
+        }
+        Ok(Next::Took)
+    })?;
+    Ok(Batch { last, end, ..b })
+}
+
+/// What a batch's reader makes of the next file in `FILES`.
+pub(super) enum Next {
+    /// Looked at (read into the batch, or passed over): the batch has got to it.
+    Took,
+    /// The batch is full: this file starts the next one.
+    Full,
+    /// On to this key, past everything before it (the file there is looked at).
+    Past(String),
+}
+
+/// A batch of `files` read in key order after `after` (from the start: `None`), each file (its key
+/// and value in `FILES`) to `each` until it says the batch is full: the last key the batch got to
+/// (`None`: none), and whether `FILES` ends with it.
+pub(super) fn batch_after(
+    files: &impl ReadableTable<&'static str, &'static [u8]>,
+    after: Option<&str>,
+    mut each: impl FnMut(&str, &[u8]) -> io::Result<Next>,
+) -> io::Result<(Option<String>, bool)> {
+    let (mut last, mut from, mut past) = (None, after.map(str::to_string), false);
     'seek: loop {
-        let lower = match (&from, past_index) {
+        let lower = match (&from, past) {
             (None, _) => Bound::Unbounded,
             (Some(k), false) => Bound::Excluded(k.as_str()),
             (Some(k), true) => Bound::Included(k.as_str()),
         };
         for item in files.range::<&str>((lower, Bound::Unbounded)).map_err(disk)? {
             let (k, v) = item.map_err(disk)?;
-            let (key, v) = (k.value(), v.value());
-            if key.starts_with(SEARCH) {
-                // The index's files, all together: on past them ('0' comes right after '/').
-                from = Some(format!("{}0", SEARCH.trim_end_matches('/')));
-                past_index = true;
-                continue 'seek;
-            }
-            if b.looked >= BATCH_FILES as u64 {
-                return Ok(b);
-            }
-            let kept = pieced_len(v).unwrap_or(v.len() as u64);
-            // Raw (`None`: damaged, its first piece gone).
-            let raw = if kept >= DEFLATE_MIN as u64 { kept_raw(key, v, pieces.as_ref())? } else { Some(false) };
-            let wanted = raw == Some(true) && kept <= BIGGEST;
-            // Full: this file starts the next batch.
-            if wanted && !b.files.is_empty() && bytes.saturating_add(kept) > BATCH_BYTES {
-                return Ok(b);
-            }
-            b.looked = b.looked.saturating_add(1);
-            b.looked_bytes = b.looked_bytes.saturating_add(kept.min(INFLATE_MAX));
-            b.last = Some(key.to_string());
-            let read = if wanted { print_of(key, v, pieces.as_ref(), true)? } else { None };
-            if let Some((print, raw)) = read {
-                bytes = bytes.saturating_add(kept);
-                b.files.push(Raw { key: key.to_string(), bytes: raw, print });
-            } else if raw != Some(false) {
-                b.passed = b.passed.saturating_add(1);
-                b.passed_bytes = b.passed_bytes.saturating_add(kept);
+            match each(k.value(), v.value())? {
+                Next::Took => last = Some(k.value().to_string()),
+                Next::Full => return Ok((last, false)),
+                Next::Past(to) => {
+                    from = Some(to);
+                    past = true;
+                    continue 'seek;
+                }
             }
         }
-        break;
+        return Ok((last, true));
     }
-    b.end = true;
-    Ok(b)
 }
 
 /// A file compressed as `pack` keeps it, when that saves a tenth or more (always, for one that

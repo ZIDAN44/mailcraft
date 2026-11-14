@@ -79,6 +79,16 @@ fn u64_of(v: &[u8]) -> Option<u64> {
     Some(u64::from_le_bytes(v.get(..8)?.try_into().ok()?))
 }
 
+/// The value at `key` in `META` (`table`), as kept.
+fn meta_value(table: &impl ReadableTable<&'static str, &'static [u8]>, key: &str) -> io::Result<Option<Vec<u8>>> {
+    Ok(table.get(key).map_err(disk)?.map(|g| g.value().to_vec()))
+}
+
+/// A count in `META`: 0 when it isn't there, or isn't one.
+fn meta_count(table: &impl ReadableTable<&'static str, &'static [u8]>, key: &str) -> io::Result<u64> {
+    Ok(meta_value(table, key)?.as_deref().and_then(u64_of).unwrap_or(0))
+}
+
 /// The data file's `META`. One that isn't there (an old file), or isn't a table of this kind (a
 /// crafted file), says nothing.
 pub(super) fn read_meta(tx: &redb::ReadTransaction) -> io::Result<Meta> {
@@ -87,14 +97,14 @@ pub(super) fn read_meta(tx: &redb::ReadTransaction) -> io::Result<Meta> {
         Err(redb::TableError::Storage(e)) => return Err(disk(e)),
         Err(_) => return Ok(Meta::default()),
     };
-    let value = |key: &str| -> io::Result<Option<Vec<u8>>> { Ok(table.get(key).map_err(disk)?.map(|g| g.value().to_vec())) };
+    let value = |key: &str| meta_value(&table, key);
     Ok(Meta {
-        deflate: value(DEFLATE)?.as_deref().and_then(u64_of).unwrap_or(0),
+        deflate: meta_count(&table, DEFLATE)?,
         overhead: value(OVERHEAD)?.as_deref().and_then(u64_of).filter(|ppm| *ppm <= 1_000_000),
         cursor: value(CURSOR)?.filter(|c| !c.is_empty() && c.len() <= CURSOR_MAX).and_then(|c| String::from_utf8(c).ok()),
-        stayed_raw: value(STAYED_RAW)?.as_deref().and_then(u64_of).unwrap_or(0),
-        saved: value(SAVED)?.as_deref().and_then(u64_of).unwrap_or(0),
-        passed: value(PASSED)?.as_deref().and_then(u64_of).unwrap_or(0),
+        stayed_raw: meta_count(&table, STAYED_RAW)?,
+        saved: meta_count(&table, SAVED)?,
+        passed: meta_count(&table, PASSED)?,
         // Only what `next_pace` can come to: a crafted one doesn't make a big file seem quick.
         pace: value(PACE)?.as_deref().and_then(u64_of).filter(|p| (PACE_ONE / 20..=PACE_ONE * 20).contains(p)).unwrap_or(0),
         owner: value(super::owner::OWNER)?,
@@ -111,10 +121,7 @@ pub(super) fn pull_back(
     running: bool,
 ) -> io::Result<()> {
     let (deflate, stopped, back) = match tx.open_table(META) {
-        Ok(t) => {
-            let value = |k: &str| -> io::Result<Option<Vec<u8>>> { Ok(t.get(k).map_err(disk)?.map(|g| g.value().to_vec())) };
-            (value(DEFLATE)?.as_deref().and_then(u64_of).unwrap_or(0), value(CURSOR)?.is_some(), value(BACK)?)
-        }
+        Ok(t) => (meta_count(&t, DEFLATE)?, meta_value(&t, CURSOR)?.is_some(), meta_value(&t, BACK)?),
         Err(_) => return Ok(()),
     };
     if deflate >= DEFLATE_NOW || !(running || stopped) {

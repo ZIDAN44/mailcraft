@@ -127,6 +127,69 @@ pub(super) fn pieced_len(note: &[u8]) -> Option<u64> {
     Some(u64::from_le_bytes(rest.get(..8)?.try_into().ok()?))
 }
 
+/// The pieces of a file read so far, against the length its note says: the one rule for whether
+/// they add up. Pieces that come to more than that, or to less, are a damaged file.
+struct Tally {
+    len: u64,
+    seen: u64,
+    over: bool,
+}
+
+impl Tally {
+    fn new(len: u64) -> Self {
+        Tally { len, seen: 0, over: false }
+    }
+
+    /// A piece of `n` bytes more: false once they come to more than the note says (and so
+    /// damaged: read no further).
+    fn add(&mut self, n: usize) -> bool {
+        let seen = self.seen.saturating_add(n as u64);
+        self.over |= seen > self.len;
+        if !self.over {
+            self.seen = seen;
+        }
+        !self.over
+    }
+
+    /// Every piece read: they come to what the note says.
+    fn whole(&self) -> bool {
+        !self.over && self.seen == self.len
+    }
+}
+
+/// A file as kept, from its value in `FILES` (`v`: the file whole, or the note of one in pieces,
+/// read from `pieces`), to `each` a piece at a time, in order (a whole one as one piece): its
+/// length as kept, or `None` when it's damaged (its pieces gone, or not adding up to its note),
+/// told as soon as they come to more.
+pub(super) fn kept_of<P>(key: &str, v: &[u8], pieces: Option<&P>, mut each: impl FnMut(&[u8])) -> io::Result<Option<u64>>
+where
+    P: ReadableTable<(&'static str, u32), &'static [u8]>,
+{
+    let Some(len) = pieced_len(v) else {
+        each(v);
+        return Ok(Some(v.len() as u64));
+    };
+    let Some(pieces) = pieces else { return Ok(None) };
+    let mut tally = Tally::new(len);
+    for item in pieces.range((key, 0)..=(key, u32::MAX)).map_err(disk)? {
+        let (_, piece) = item.map_err(disk)?;
+        if !tally.add(piece.value().len()) {
+            return Ok(None);
+        }
+        each(piece.value());
+    }
+    Ok(tally.whole().then_some(len))
+}
+
+/// What's set aside to hold a file as kept, from its value in `FILES`: a whole one's length, at
+/// most 8 MiB for one in pieces (its note can say anything).
+pub(super) fn kept_room(v: &[u8]) -> usize {
+    match pieced_len(v) {
+        Some(len) => usize::try_from(len).unwrap_or(0).min(8 << 20),
+        None => v.len(),
+    }
+}
+
 /// A table opened in a read transaction: `None` when the data file has none. Any other error is
 /// as the database gave it, for each reader to tell as it needs.
 pub(super) type Opened<T> = std::result::Result<Option<T>, redb::TableError>;
@@ -240,7 +303,8 @@ pub(super) fn read_file(
     let Some(v) = files.get(key).map_err(other)?.map(|g| g.value().to_vec()) else { return Ok(None) };
     let Some(len) = pieced_len(&v) else { return unpack(v).map(Some) };
     let pieces = tx.open_table(PIECES).map_err(other)?;
-    let mut reader = PieceReader { pieces: pieces.range((key, 0)..=(key, u32::MAX)).map_err(other)?, piece: None, at: 0, read: 0, failed: false };
+    let mut reader =
+        PieceReader { pieces: pieces.range((key, 0)..=(key, u32::MAX)).map_err(other)?, piece: None, at: 0, tally: Tally::new(len), failed: false };
     // Whether it's compressed: its first bytes, read before anything else.
     let mut head = Vec::with_capacity(DEFLATED.len());
     (&mut reader).take(DEFLATED.len() as u64).read_to_end(&mut head)?;
@@ -253,7 +317,7 @@ pub(super) fn read_file(
         // What follows the stream, if anything, counted with the rest: a piece missing is told
         // as such whether or not the stream ended well without it.
         io::copy(&mut reader, &mut io::sink())?;
-        if reader.read != len {
+        if !reader.tally.whole() {
             return Err(pieces_missing(key));
         }
         inflated?;
@@ -265,7 +329,7 @@ pub(super) fn read_file(
         let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(RESERVE_MAX));
         out.extend_from_slice(&head);
         reader.read_to_end(&mut out)?;
-        if reader.read != len {
+        if !reader.tally.whole() {
             return Err(pieces_missing(key));
         }
         out
@@ -277,14 +341,15 @@ fn pieces_missing(key: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, format!("{key}: pieces missing"))
 }
 
-/// A file's pieces read one after another, as one stream of its bytes as kept, counted.
+/// A file's pieces read one after another, as one stream of its bytes as kept, counted: it ends
+/// at a piece that would take them past the note.
 struct PieceReader<'a> {
     pieces: redb::Range<'a, (&'static str, u32), &'static [u8]>,
     piece: Option<redb::AccessGuard<'a, &'static [u8]>>,
     /// How far into `piece`.
     at: usize,
-    /// Bytes read, all told.
-    read: u64,
+    /// The pieces taken up, against the note.
+    tally: Tally,
     /// A piece couldn't be read (the error was given).
     failed: bool,
 }
@@ -300,11 +365,14 @@ impl io::Read for PieceReader<'_> {
                         to.copy_from_slice(from);
                     }
                     self.at = self.at.saturating_add(n);
-                    self.read = self.read.saturating_add(n as u64);
                     return Ok(n);
                 }
             }
             match self.pieces.next() {
+                Some(Ok((_, piece))) if !self.tally.add(piece.value().len()) => {
+                    self.piece = None;
+                    return Ok(0);
+                }
                 Some(Ok((_, piece))) => {
                     self.piece = Some(piece);
                     self.at = 0;

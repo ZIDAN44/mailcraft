@@ -29,12 +29,11 @@
 //! made without it.
 
 use std::collections::BTreeSet;
-use std::ops::Bound;
 use std::time::{Duration, Instant};
 
 use mailcraft_model::job::{PACE_ONE, Work, compact_ms, next_pace};
 
-use super::compact::{BIGGEST, compress, count};
+use super::compact::{BIGGEST, Next, batch_after, compress, count};
 use super::*;
 use crate::Shrunk;
 
@@ -132,17 +131,9 @@ fn kept_bytes<P>(key: &str, v: &[u8], pieces: Option<&P>) -> io::Result<Option<V
 where
     P: ReadableTable<(&'static str, u32), &'static [u8]>,
 {
-    let Some(len) = pieced_len(v) else { return Ok(Some(v.to_vec())) };
-    let Some(pieces) = pieces else { return Ok(None) };
-    let mut out = Vec::with_capacity(usize::try_from(len).unwrap_or(0).min(8 << 20));
-    for item in pieces.range((key, 0)..=(key, u32::MAX)).map_err(disk)? {
-        let (_, piece) = item.map_err(disk)?;
-        if (out.len() as u64).saturating_add(piece.value().len() as u64) > len {
-            return Ok(None);
-        }
-        out.extend_from_slice(piece.value());
-    }
-    Ok((out.len() as u64 == len).then_some(out))
+    let mut out = Vec::with_capacity(kept_room(v));
+    let len = kept_of(key, v, pieces, |piece| out.extend_from_slice(piece))?;
+    Ok(len.map(|_| out))
 }
 
 /// The files of a copy's batch, as kept, and where it got to.
@@ -182,16 +173,12 @@ fn read_copy_batch(db: &Database, after: Option<&str>) -> io::Result<CopyBatch> 
     let tx = db.begin_read().map_err(disk)?;
     let Some(files) = files_of(&tx).map_err(disk)? else { return Ok(CopyBatch { end: true, ..b }) };
     let pieces = pieces_of(&tx).map_err(disk)?;
-    let lower = after.map_or(Bound::Unbounded, Bound::Excluded);
     let mut bytes = 0usize;
-    for item in files.range::<&str>((lower, Bound::Unbounded)).map_err(disk)? {
-        let (k, v) = item.map_err(disk)?;
-        let (key, v) = (k.value(), v.value());
+    let (last, end) = batch_after(&files, after, |key, v| {
         let kept = usize::try_from(pieced_len(v).unwrap_or(v.len() as u64)).unwrap_or(usize::MAX);
         if b.files.len() >= COPY_FILES || (!b.files.is_empty() && bytes.saturating_add(kept) > COPY_BYTES) {
-            return Ok(b);
+            return Ok(Next::Full);
         }
-        b.last = Some(key.to_string());
         b.looked_bytes = b.looked_bytes.saturating_add(kept as u64);
         match kept_bytes(key, v, pieces.as_ref())? {
             Some(file) => {
@@ -200,9 +187,9 @@ fn read_copy_batch(db: &Database, after: Option<&str>) -> io::Result<CopyBatch> 
             }
             None => b.damaged = b.damaged.saturating_add(1),
         }
-    }
-    b.end = true;
-    Ok(b)
+        Ok(Next::Took)
+    })?;
+    Ok(CopyBatch { last, end, ..b })
 }
 
 /// Every batch a copy of `db` would read, as many as it takes (the fuzz target's), with how
