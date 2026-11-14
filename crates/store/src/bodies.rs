@@ -406,6 +406,11 @@ impl Store {
             .filter_map(|(_, p)| self.files.read(p).ok())
             .filter_map(|b| serde_json::from_slice::<OutboxItem>(&b).ok())
             .filter(|i| there(&format!("{}.eml", i.id)) && !there(&format!("{}{GONE}", i.id)))
+            .map(|mut i| {
+                // One kept before `refused` was says so in its error's words.
+                i.refused |= i.error.as_deref().is_some_and(|e| e.starts_with(crate::OUTBOX_REFUSED));
+                i
+            })
             .collect();
         items.sort_by_key(|i| (i.queued, i.id));
         items

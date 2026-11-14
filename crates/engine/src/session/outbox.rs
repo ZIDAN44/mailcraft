@@ -65,6 +65,8 @@ impl Session {
             let flags = mailcraft_model::Flags { seen: true, ..Default::default() };
             let mut m = mime::summary_from_full(&raw, key, flags, size, item.queued);
             m.preview = match &item.error {
+                // Refused for good: it isn't tried again as it is, so not "yet".
+                Some(e) if item.refused => format!("Not sent, and not tried again until it's changed: {e}"),
                 Some(e) if e != "offline" => format!("Not sent yet: {e}"),
                 _ if item.not_before > self.clock.now => format!("Will be sent {}", mailcraft_model::dates::full_time(item.not_before, &self.clock)),
                 _ => "Waiting to be sent".to_string(),

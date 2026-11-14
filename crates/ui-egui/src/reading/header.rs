@@ -202,6 +202,19 @@ fn follow_up_line(s: &Session, t: &Tokens, ui: &mut Ui, summary: Option<&Summary
     ui.add_space(6.0);
 }
 
+/// What a message in the Outbox is told to be waiting for. One the server refused for good
+/// isn't waiting: it isn't tried again as it is (it read as one whose last try failed).
+fn outbox_says(item: &mailcraft_engine::store::OutboxItem, s: &Session) -> String {
+    match item.error.as_deref() {
+        Some(e) if item.refused => tf!("Not sent: {error}", error = widgets::shorten(e, 140)),
+        Some(e) if e != "offline" => tf!("Waiting in the Outbox. Last try: {error}", error = widgets::shorten(e, 140)),
+        _ if item.not_before > s.clock.now => {
+            tf!("Held in the Outbox: it will be sent {when}.", when = crate::i18n::date(&dates::full_time(item.not_before, &s.clock)))
+        }
+        _ => tl!("Waiting in the Outbox: it will be sent when you're back online.").to_string(),
+    }
+}
+
 /// What can be done with the message: one waiting in the Outbox is sent now, edited or deleted;
 /// a draft is carried on with or deleted; other mail is answered, printed, saved and the rest
 /// (not in a window of its own, whose ribbon has them).
@@ -210,14 +223,7 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut V
     let (r, p) = (o.r, o.p);
     if let Some((_, item)) = s.outbox_entry(&r.key) {
         egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-            let why = match item.error.as_deref() {
-                Some(e) if e != "offline" => tf!("Waiting in the Outbox. Last try: {error}", error = widgets::shorten(e, 140)),
-                _ if item.not_before > s.clock.now => {
-                    tf!("Held in the Outbox: it will be sent {when}.", when = crate::i18n::date(&dates::full_time(item.not_before, &s.clock)))
-                }
-                _ => tl!("Waiting in the Outbox: it will be sent when you're back online.").to_string(),
-            };
-            ui.label(RichText::new(why).color(t.text));
+            ui.label(RichText::new(outbox_says(&item, s)).color(t.text));
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
@@ -299,5 +305,26 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut V
                 plain_text_check(s, st, ui, &r.key, p, acts);
             });
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mailcraft_engine::store::OutboxItem;
+
+    /// A message the server refused for good says it wasn't sent, not that it waits in the
+    /// Outbox after a last try (it isn't tried again); one a try failed for, one held until
+    /// later and one waiting for the connection say what they said.
+    #[test]
+    fn a_message_refused_for_good_isnt_said_to_wait() {
+        let s = Session::open(None, mailcraft_engine::model::dates::Clock::new(1_760_000_000, 0));
+        let item = |error: Option<&str>, refused: bool| OutboxItem { error: error.map(str::to_string), refused, ..Default::default() };
+        assert_eq!(outbox_says(&item(Some("550 no such user"), true), &s), "Not sent: 550 no such user");
+        assert_eq!(outbox_says(&item(Some("connection reset"), false), &s), "Waiting in the Outbox. Last try: connection reset");
+        assert_eq!(outbox_says(&item(Some("offline"), false), &s), "Waiting in the Outbox: it will be sent when you're back online.");
+        assert_eq!(outbox_says(&item(None, false), &s), "Waiting in the Outbox: it will be sent when you're back online.");
+        let later = OutboxItem { not_before: s.clock.now + 3600, ..Default::default() };
+        assert!(outbox_says(&later, &s).starts_with("Held in the Outbox: it will be sent "), "{}", outbox_says(&later, &s));
     }
 }

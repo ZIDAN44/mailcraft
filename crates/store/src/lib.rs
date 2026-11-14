@@ -358,10 +358,22 @@ pub struct OutboxItem {
     /// Held back until then (Unix seconds; 0 = send at once): Outlook's Delay Delivery.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub not_before: i64,
+    /// The server refused it for good (not a connection that failed): it isn't tried again, and
+    /// waits for the user to change or delete it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub refused: bool,
 }
+
+/// How [`OutboxItem::error`] began for one refused for good, kept before
+/// [`OutboxItem::refused`] was.
+pub(crate) const OUTBOX_REFUSED: &str = "refused: ";
 
 fn is_zero(n: &i64) -> bool {
     *n == 0
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// FNV-1a: a stable, dependency-free hash for folder directory names (folder names can hold

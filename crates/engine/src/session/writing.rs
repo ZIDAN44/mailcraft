@@ -701,7 +701,17 @@ impl Session {
         let sent_folder = self.account(&c.account).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone());
         // Delay Delivery: into the Outbox, sent once it's time (the app has to be running then).
         if let Some(at) = c.send_after.filter(|at| *at > self.clock.now && !local) {
-            let item = OutboxItem { id: c.id, from, recipients, sent_folder, queued: self.clock.now, attempts: 0, error: None, not_before: at };
+            let item = OutboxItem {
+                id: c.id,
+                from,
+                recipients,
+                sent_folder,
+                queued: self.clock.now,
+                attempts: 0,
+                error: None,
+                not_before: at,
+                refused: false,
+            };
             let store = self.store.as_ref().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
             store.outbox_add(&c.account, &item, &raw).map_err(|e| CmdError::Failed(format!("the Outbox couldn't keep it: {e}")))?;
             self.after_outbox_change();

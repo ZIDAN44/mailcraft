@@ -298,6 +298,33 @@ fn owed_flags_that_cant_be_read_arent_written_over() {
     assert_eq!(owed(), before, "the owed flags aren't saved over");
 }
 
+/// An Outbox message the server refused for good says it isn't tried again; one that failed for
+/// now says it isn't sent yet (both read "Not sent yet").
+#[test]
+fn an_outbox_message_refused_for_good_doesnt_read_as_one_to_be_tried_again() {
+    let mut s = failing_session();
+    let item = |id: u64, refused: bool| mailcraft_store::OutboxItem {
+        id,
+        from: "me@example.com".into(),
+        recipients: vec!["ana@example.com".into()],
+        queued: NOW + i64::try_from(id).unwrap(),
+        error: Some("550 no such user here".into()),
+        refused,
+        ..Default::default()
+    };
+    let raw = |subject: &str| format!("From: me@example.com\r\nTo: ana@example.com\r\nSubject: {subject}\r\n\r\nhi\r\n").into_bytes();
+    store(&s).outbox_add(sample::SAMPLE_ACCOUNT, &item(81, true), &raw("Refused")).unwrap();
+    store(&s).outbox_add(sample::SAMPLE_ACCOUNT, &item(82, false), &raw("Later")).unwrap();
+    s.run("folder.outbox", &json!({})).unwrap();
+    let preview = |subject: &str| s.list.iter().find(|m| m.subject == subject).map(|m| m.preview.clone()).unwrap();
+    assert!(
+        preview("Refused").starts_with("Not sent, and not tried again") && preview("Refused").ends_with("550 no such user here"),
+        "{}",
+        preview("Refused")
+    );
+    assert_eq!(preview("Later"), "Not sent yet: 550 no such user here");
+}
+
 /// An Outbox message whose files can't be taken out stays, and that's said: deleted, it went all
 /// the same; taken back to be changed, it went twice (as it was, and as changed).
 #[test]

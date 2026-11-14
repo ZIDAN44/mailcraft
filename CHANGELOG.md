@@ -172,6 +172,7 @@ on GitHub.
 - Reminders written in unusual forms by other calendar programs are now found, changed and dismissed.
 - Calendar search is faster on large calendars.
 - Events with oddly written reminders from other programs can now be saved to the calendar server.
+- A message the server refused for good shows the server's reason in the Outbox, and no longer reads as one that will be tried again.
 
 ## 0.38.0 - 2026-11-13
 

@@ -159,6 +159,7 @@ Message-ID: <o1@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain
         attempts: 0,
         error: None,
         not_before,
+        refused: false,
     };
     store.outbox_add("sample", &item(71, 0), &encrypted).unwrap();
     store.outbox_add("sample", &item(72, later), &signed).unwrap();

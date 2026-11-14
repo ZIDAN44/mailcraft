@@ -176,6 +176,35 @@ fn a_refused_message_whose_mark_cant_be_written_isnt_tried_again() {
     assert_eq!(store.outbox("a1").len(), 1, "it waits in the Outbox to be changed");
 }
 
+/// Refused for good is a mark of its own, not words in its error: the error says only what the
+/// server said, and one marked so (or kept so by an earlier MailCraft, in its error's words)
+/// isn't tried again, whatever its error says.
+#[test]
+fn a_refused_message_is_marked_so_and_left() {
+    let st = crate::fake::State::new();
+    let imap = crate::fake::serve_tcp(&st);
+    let (smtp, took) = smtp_server();
+    let store = Store::memory();
+    let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    queue(&store, 7, "refused@example.com", "Refused");
+    worker(&pool, &store, imap, smtp).flush_outbox();
+    let item = store.outbox("a1").remove(0);
+    assert!(item.refused, "{item:?}");
+    assert!(item.error.as_deref().is_some_and(|e| !e.starts_with("refused") && e.contains("no such user")), "{item:?}");
+    // Marked, whatever its error says: left.
+    for (id, error) in [(8, None), (9, Some("refused: sending failed: 550 no such user"))] {
+        queue(&store, id, "ana@example.com", "Marked");
+        let mut item = store.outbox("a1").into_iter().find(|i| i.id == id).unwrap();
+        item.error = error.map(str::to_string);
+        item.refused = error.is_none();
+        store.outbox_update("a1", &item).unwrap();
+    }
+    worker(&pool, &store, imap, smtp).flush_outbox();
+    assert_eq!(took.lock().unwrap().refused.len(), 1, "asked once");
+    assert!(subjects(&took).is_empty(), "{:?}", subjects(&took));
+    assert_eq!(store.outbox("a1").len(), 3);
+}
+
 /// The first test through a real server on this computer, by hand: GreenMail's SMTP and IMAP
 /// (any password), `MAILCRAFT_REAL_OUTBOX="23025 23143"`. Delivered once to the recipient, one
 /// copy in Sent.

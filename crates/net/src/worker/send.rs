@@ -328,6 +328,7 @@ impl Worker {
                     attempts: 1,
                     error: Some(e.to_string()),
                     not_before: 0,
+                    refused: false,
                 };
                 match self.store.outbox_add(&self.acc.id, &item, raw) {
                     Ok(()) => self.sink.emit(Event::Queued { account: self.id(), id, error: e.to_string(), kind: e.failure() }),
@@ -352,16 +353,13 @@ impl Worker {
             if self.outbox_done.contains(&item.id) {
                 continue;
             }
-            // Held back (Delay Delivery) until its time; then dated when it goes.
-            if item.not_before > now() {
+            // Refused for good: waits for the user to edit or delete it. Held back (Delay
+            // Delivery) until its time; then dated when it goes.
+            if item.refused || item.not_before > now() {
                 continue;
             }
             let Some(raw) = self.store.outbox_raw(&self.acc.id, item.id) else { continue };
             let raw = if item.not_before > 0 { mailcraft_mime::with_date(&raw, now()) } else { raw };
-            if item.error.as_deref().is_some_and(|e| e.starts_with("refused:")) {
-                // Refused for good: waits for the user to edit or delete it.
-                continue;
-            }
             let sent = self.deliver(&raw, &item.from, &item.recipients, item.sent_folder.as_deref());
             match sent {
                 Ok(()) => {
@@ -383,7 +381,8 @@ impl Worker {
                 Err(e) => {
                     let retry = e.is_retryable();
                     item.attempts = item.attempts.saturating_add(1);
-                    item.error = Some(if retry { e.to_string() } else { format!("refused: {e}") });
+                    item.error = Some(e.to_string());
+                    item.refused = !retry;
                     if let Err(se) = self.store.outbox_update(&self.acc.id, &item) {
                         log::warn!("{}: message {}: why it wasn't sent couldn't be kept in the Outbox: {se}", self.acc.id, item.id);
                         // Refused for good: not tried again for nothing.
