@@ -158,8 +158,12 @@ fn make((key, index): &Id, job: Job) -> Made {
         Job::File { store, name } => Made::File((|| {
             let raw = store.read_body(key)?;
             let data = mime::attachment_data(&raw, *index)?;
+            // Named for the attachment, so that two of one name have each its own (and the
+            // decoder its own frame of each): of this data folder (the scratch folder is the
+            // user's, which a portable copy shares), this message and this attachment in it.
             let dir = mailcraft_engine::store::scratch_dir("thumbs")?;
-            let path = dir.join(format!("{:016x}-{}", mailcraft_engine::store::fnv64(&key.to_id()), mime::sanitize_filename(&name)));
+            let whose = mailcraft_engine::store::fnv64(&format!("{}\n{}", store.root().to_string_lossy(), key.to_id()));
+            let path = dir.join(format!("{whose:016x}-{index}-{}", mime::sanitize_filename(&name)));
             std::fs::write(&path, &data).ok()?;
             Some(path)
         })()),

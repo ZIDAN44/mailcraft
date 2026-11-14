@@ -101,6 +101,7 @@ on GitHub.
 - In the browser, a reply written in a message's own page now lists your contacts in Select Names.
 - Move to and Move folder find a folder by the name they show in your language.
 - Select Names adds someone whose address is part of another address, or of a name, already in the field.
+- Two video attachments with the same name now each show their own thumbnail.
 
 ## 0.38.0 - 2026-11-13
 

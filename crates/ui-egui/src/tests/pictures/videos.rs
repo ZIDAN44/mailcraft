@@ -25,6 +25,78 @@ impl crate::Services for Frames {
     }
 }
 
+/// Services whose platform makes each video's frame of what its file holds: as many pixels
+/// wide as 8 plus its first byte.
+struct OwnFrames;
+
+impl crate::Services for OwnFrames {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn video_frame(&mut self, path: &std::path::Path) -> crate::VideoFrame {
+        match std::fs::read(path).ok().and_then(|d| d.first().copied()) {
+            Some(b) => crate::VideoFrame::Ready(png(8 + u32::from(b), 8)),
+            None => crate::VideoFrame::Unavailable,
+        }
+    }
+}
+
+/// The widths of the video thumbnails shown of `key`, by attachment, once they're all made.
+fn thumb_widths(ctx: &egui::Context, a: &mut MailApp, key: &MessageKey, videos: usize) -> Vec<usize> {
+    a.run("list.open", json!({"key": key.to_id()}));
+    let shown = |a: &MailApp| a.ui.video_thumbs.iter().filter(|((k, _), (t, _))| k == key && t.is_some()).count() == videos;
+    pump(ctx, a, WINDOW, 20, shown);
+    let mut widths: Vec<(usize, usize)> =
+        a.ui.video_thumbs.iter().filter(|((k, _), _)| k == key).filter_map(|((_, i), (t, _))| Some((*i, t.as_ref()?.size()[0]))).collect();
+    widths.sort_unstable();
+    widths.into_iter().map(|(_, w)| w).collect()
+}
+
+/// Two videos of the same name each have their own file for the platform's decoder, and so
+/// their own thumbnail: two in one message (both were written to one file, and both chips
+/// showed the frame of whichever was written last), in two messages, and the same message's
+/// in two data folders (a portable copy beside the installed one: the scratch folder is the
+/// user's, not the data folder's).
+#[test]
+fn videos_of_one_name_each_have_their_own_thumbnail() {
+    let ctx = egui::Context::default();
+    let (mut a, dir) = app("video-names");
+    a.services = Box::new(OwnFrames);
+    frame(&ctx, &mut a, vec![]);
+    let both = with_files(&mut a, 9040, vec![("clip.mp4".into(), "video/mp4", vec![1u8; 64]), ("clip.mp4".into(), "video/mp4", vec![5u8; 64])]);
+    assert_eq!(thumb_widths(&ctx, &mut a, &both, 2), vec![9, 13], "each its own frame");
+    let files: Vec<&std::path::PathBuf> = a.ui.video_files.iter().filter(|((k, _), _)| *k == both).map(|(_, p)| p).collect();
+    assert_eq!(files.len(), 2);
+    assert_ne!(files[0], files[1], "each its own file");
+    // Two messages, each with its clip.
+    let first = with_files(&mut a, 9041, vec![("clip.mp4".into(), "video/mp4", vec![2u8; 64])]);
+    let second = with_files(&mut a, 9042, vec![("clip.mp4".into(), "video/mp4", vec![3u8; 64])]);
+    assert_eq!(thumb_widths(&ctx, &mut a, &first, 1), vec![10]);
+    assert_eq!(thumb_widths(&ctx, &mut a, &second, 1), vec![11]);
+    // The same message (account, folder, uid) in another data folder, with another clip.
+    let (mut b, other) = app("video-names-other");
+    b.services = Box::new(OwnFrames);
+    frame(&ctx, &mut b, vec![]);
+    let there = with_files(&mut b, 9041, vec![("clip.mp4".into(), "video/mp4", vec![4u8; 64])]);
+    assert_eq!(there, first, "one key in both");
+    let ctx_b = egui::Context::default();
+    assert_eq!(thumb_widths(&ctx_b, &mut b, &there, 1), vec![12]);
+    let file = |x: &MailApp| x.ui.video_files.iter().find(|((k, _), _)| *k == first).map(|(_, p)| p.clone());
+    assert!(file(&a).is_some());
+    assert_ne!(file(&b), file(&a), "each data folder's own file");
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(other);
+}
+
 /// More videos in a message than video thumbnails are kept: those past them show their kind's
 /// icon, and no frame makes a texture once the others show (one past them was decoded again
 /// every frame).
