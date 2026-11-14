@@ -568,7 +568,7 @@ impl Session {
         }
         self.can_send(&c.account)?;
         let mut d = self.compose_draft(&c)?;
-        if d.recipients().is_empty() {
+        if sending::no_recipient(&d) {
             return Err(CmdError::Params("add at least one recipient".into()));
         }
         if d.subject.is_empty() && !allow_empty_subject {

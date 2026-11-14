@@ -329,7 +329,7 @@ pub struct UiState {
     /// The time the search running has spent on each kind of its work, all told.
     search_times: app::SearchTimes,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
-    pub compose_alert: Option<String>,
+    pub compose_alert: Option<reading::ComposeAlert>,
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
     /// previews attachments in the reading pane.
     pub attachment_view: Option<(MessageKey, usize)>,
@@ -719,13 +719,17 @@ impl MailApp {
                 if id == "compose.send"
                     && let Some(b) = self.session.compose_send_block() =>
             {
-                self.ui.compose_alert = Some(reading::send_block_text(b));
+                self.ui.compose_alert = Some(reading::ComposeAlert::Blocked(b));
             }
             Err(CmdError::Disabled(_)) => {}
             // What went wrong with the message being written is said over it, in its own
-            // window if it has one, as Outlook does (not in the main window's corner).
+            // window if it has one, as Outlook does (not in the main window's corner). Sent to
+            // no one: said in the window's own words (the engine's are for scripts).
+            Err(CmdError::Params(_)) if id == "compose.send" && self.session.compose_has_no_recipient() => {
+                self.ui.compose_alert = Some(reading::ComposeAlert::NoRecipient);
+            }
             Err(CmdError::Params(m) | CmdError::Failed(m)) if id.starts_with("compose.") && self.session.compose.is_some() => {
-                self.ui.compose_alert = Some(m);
+                self.ui.compose_alert = Some(reading::ComposeAlert::Other(m));
             }
             Err(CmdError::Params(m) | CmdError::Failed(m)) => self.session.notice(m, true),
             Err(e) => self.session.notice(e.to_string(), true),

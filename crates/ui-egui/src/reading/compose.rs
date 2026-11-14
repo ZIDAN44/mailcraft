@@ -144,6 +144,38 @@ pub(crate) fn send_block_text(b: SendBlock) -> String {
     .to_string()
 }
 
+/// Why the message being written couldn't be sent or saved, said over it until dismissed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ComposeAlert {
+    /// Sent to no one.
+    NoRecipient,
+    /// From an account that can't send.
+    Blocked(SendBlock),
+    /// Anything else, in the engine's words.
+    Other(String),
+}
+
+impl ComposeAlert {
+    /// What the alert says: the window's own sentence for what it knows, the engine's words as
+    /// a sentence for the rest.
+    pub(crate) fn text(&self) -> String {
+        match self {
+            ComposeAlert::NoRecipient => tl!("Add at least one name in To, Cc or Bcc before sending.").to_string(),
+            ComposeAlert::Blocked(b) => send_block_text(*b),
+            ComposeAlert::Other(msg) => {
+                let mut text = msg.clone();
+                if let Some(first) = text.get(..1) {
+                    text = first.to_uppercase() + text.get(1..).unwrap_or_default();
+                }
+                if !text.ends_with('.') {
+                    text.push('.');
+                }
+                text
+            }
+        }
+    }
+}
+
 /// Why the message can't be sent, over the form, with a way to add an account when one would
 /// send it.
 fn send_block_bar(ui: &mut Ui, t: &Tokens, b: SendBlock, acts: &mut Vec<Action>) {
@@ -416,7 +448,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     // The block of the quoted original with the cursor, while there is one: the ribbon works on it.
     let quote_cell = st.quote_focus.filter(|(id, _)| *id == c.id && c.quote.is_some()).map(|(_, n)| n);
     // Why it couldn't go: over the message, in its own window when it has one.
-    if let Some(msg) = st.compose_alert.clone() {
+    if let Some(alert) = st.compose_alert.clone() {
         let modal = egui::Modal::new(egui::Id::unique(("compose-alert", c.id))).frame(crate::dialogs::dialog_frame(&t)).show(ui.ctx(), |ui| {
             ui.set_width(380.0);
             ui.horizontal(|ui| {
@@ -425,26 +457,15 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                 ui.add_space(6.0);
                 ui.vertical(|ui| {
                     ui.label(RichText::new(tl!("MailCraft")).font(theme::bold(16.0)).color(t.text));
-                    let mut text = if msg == "add at least one recipient" {
-                        tl!("Add at least one name in To, Cc or Bcc before sending.").to_string()
-                    } else {
-                        msg.clone()
-                    };
-                    if let Some(first) = text.get(..1) {
-                        text = first.to_uppercase() + text.get(1..).unwrap_or_default();
-                    }
-                    if !text.ends_with('.') {
-                        text.push('.');
-                    }
-                    ui.add(egui::Label::new(RichText::new(text).color(t.text)).wrap());
+                    ui.add(egui::Label::new(RichText::new(alert.text()).color(t.text)).wrap());
                 });
             });
             ui.add_space(10.0);
             ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
                 // Enter is OK; not the Ctrl+Enter that tried to send and brought it up.
                 let ok = ui.button(tl!("OK")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.command);
-                // Not sent for want of an account: one can be added from here.
-                let add = blocked.is_some_and(|b| b != SendBlock::NoOutgoingServer && blocked_text.as_deref() == Some(msg.as_str()))
+                // Not sent for want of an account (still): one can be added from here.
+                let add = matches!(alert, ComposeAlert::Blocked(b) if b != SendBlock::NoOutgoingServer && blocked == Some(b))
                     && ui.button(tl!("Add an account")).clicked();
                 if add {
                     acts.push(Action::Dialog(crate::Dialog::add_account()));

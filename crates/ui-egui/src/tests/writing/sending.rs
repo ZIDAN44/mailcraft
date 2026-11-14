@@ -44,6 +44,7 @@ fn send_from_a_data_file_says_to_add_an_account() {
     let written = a.session.compose.clone().expect("a message is being written");
     assert_eq!(written.account, file);
     let why = crate::reading::send_block_text(mailcraft_engine::SendBlock::DataFile);
+    let blocked = crate::reading::ComposeAlert::Blocked(mailcraft_engine::SendBlock::DataFile);
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
     }
@@ -53,7 +54,7 @@ fn send_from_a_data_file_says_to_add_an_account() {
     assert!(send.3, "Send is off");
     // Clicked anyway: why, over the message; not sent, and the message stays as it was.
     click(&ctx, &mut a, send.2.center());
-    assert_eq!(a.ui.compose_alert.as_deref(), Some(why.as_str()));
+    assert_eq!(a.ui.compose_alert, Some(blocked.clone()));
     assert_eq!(a.session.compose.as_ref(), Some(&written));
     assert!(!a.session.notices.iter().any(|n| n.text.contains("sent")), "{:?}", a.session.notices);
     // Ctrl+Enter and Alt+S, the same.
@@ -61,7 +62,7 @@ fn send_from_a_data_file_says_to_add_an_account() {
         a.ui.compose_alert = None;
         frame(&ctx, &mut a, vec![Event::ModifiersChanged(m), key(k, m)]);
         frame(&ctx, &mut a, vec![Event::ModifiersChanged(Modifiers::NONE)]);
-        assert_eq!(a.ui.compose_alert.as_deref(), Some(why.as_str()), "{k:?}");
+        assert_eq!(a.ui.compose_alert, Some(blocked.clone()), "{k:?}");
         assert_eq!(a.session.compose.as_ref(), Some(&written));
     }
     // The alert offers to add an account.
@@ -110,6 +111,41 @@ fn send_from_an_account_that_can_shows_nothing_more() {
     let send = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "Send").expect("Send");
     assert!(!send.3);
     assert!(!nodes.iter().any(|(_, name, ..)| name.contains("Add an account")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Sent to no one: the alert says so in the window's words, whatever the engine's error says;
+/// any other reason it gives is said as it gives it, as a sentence. Neither offers an account.
+#[test]
+fn send_to_no_one_says_to_add_a_name() {
+    let (mut a, dir) = app("send-no-one");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"subject": "Plans", "body": "See you"}));
+    a.run("compose.send", json!({}));
+    assert_eq!(a.ui.compose_alert, Some(crate::reading::ComposeAlert::NoRecipient));
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let nodes = shown(&ctx, &mut a);
+    assert!(nodes.iter().any(|(_, name, ..)| name == "Add at least one name in To, Cc or Bcc before sending."), "{nodes:?}");
+    assert!(!nodes.iter().any(|(_, name, ..)| name == "Add an account"));
+    assert!(a.session.compose.is_some(), "still open");
+    // OK puts it away.
+    let ok = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "OK").map(|n| n.2.center()).expect("OK");
+    click(&ctx, &mut a, ok);
+    assert_eq!(a.ui.compose_alert, None);
+    // An address that isn't one: the engine's own words.
+    a.run("compose.update", json!({"to": "ann@"}));
+    a.run("compose.send", json!({}));
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let nodes = shown(&ctx, &mut a);
+    assert!(nodes.iter().any(|(_, name, ..)| name == "To: not an email address: ann@."), "{nodes:?}");
+    assert!(!nodes.iter().any(|(_, name, ..)| name == "Add an account"));
     let _ = std::fs::remove_dir_all(dir);
 }
 

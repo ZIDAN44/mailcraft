@@ -388,3 +388,23 @@ fn sending_says_where_the_message_went() {
     assert_eq!(said(&s), ["Saved in the Outbox: it will be sent when you're back online"]);
     done(s);
 }
+
+/// A message to no one is refused, and the session says that's why (the window says so in its
+/// own words); not for one with a bad address, or one that has a recipient.
+#[test]
+fn a_message_to_no_one_is_told_apart() {
+    let mut s = sample_session("send-no-one");
+    assert!(!s.compose_has_no_recipient(), "nothing being written");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"subject": "Plans", "body": "See you"})).unwrap();
+    assert!(s.compose_has_no_recipient());
+    assert!(matches!(s.run("compose.send", &json!({})), Err(CmdError::Params(_))));
+    s.run("compose.update", &json!({"bcc": "  ;  "})).unwrap();
+    assert!(s.compose_has_no_recipient(), "separators alone are no one");
+    s.run("compose.update", &json!({"to": "ann@"})).unwrap();
+    assert!(!s.compose_has_no_recipient(), "a bad address is another reason");
+    assert!(matches!(s.run("compose.send", &json!({})), Err(CmdError::Params(_))));
+    s.run("compose.update", &json!({"to": "ann@example.org"})).unwrap();
+    assert!(!s.compose_has_no_recipient());
+    done(s);
+}
