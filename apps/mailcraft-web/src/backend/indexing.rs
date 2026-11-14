@@ -4,30 +4,29 @@
 //! steps; [`Job::StopIndex`] stops it there, what it added kept. Summaries it finds to say
 //! otherwise than the index about a message's files are put right, as on the desktop.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-
 use mailcraft_engine::mime;
 use mailcraft_engine::model::{Event, Job};
 use mailcraft_engine::store::search::{self, Pass};
 use mailcraft_engine::store::{Result as StoreResult, Store, StoreError};
 
 use super::{Rcs, emit, now, sleep, store};
+use crate::index_queue::{Next, Queue};
 
 /// Messages read before the page is given back.
 const UNITS: usize = 16;
 /// Bytes of messages read before the page is given back.
 const BYTES: usize = 1 << 20;
 /// How long before an index held elsewhere is tried again.
-const RETRY_MS: i32 = 5_000;
+const RETRY_MS: f64 = 5_000.0;
+/// The longest the runner waits at once while every account asked for is put off, so one asked
+/// for meanwhile soon has its turn.
+const WAIT_MS: f64 = 250.0;
 
-/// What's asked of the indexer.
+/// What's asked of the indexer, and whether its runner is going.
 #[derive(Default)]
 pub(super) struct Indexing {
-    /// Each account asked for and its folders (`None`: every folder).
-    pending: BTreeMap<String, Option<BTreeSet<String>>>,
+    queue: Queue,
     running: bool,
-    /// Bumped by a stop: a pass that sees its account's change stops.
-    stops: HashMap<String, u64>,
 }
 
 /// [`Job::Index`] and [`Job::StopIndex`].
@@ -36,49 +35,44 @@ pub(super) fn job(sh: &Rcs, j: Job) {
         let mut s = sh.borrow_mut();
         let ix = &mut s.indexing;
         match j {
-            Job::Index { account, folders } => want(&mut ix.pending, account, folders),
-            Job::StopIndex { account } => {
-                ix.pending.remove(&account);
-                let n = ix.stops.entry(account).or_default();
-                *n = n.wrapping_add(1);
-            }
+            Job::Index { account, folders } => ix.queue.want(account, folders),
+            Job::StopIndex { account } => ix.queue.stop(&account),
             _ => {}
         }
-        !ix.pending.is_empty() && !std::mem::replace(&mut ix.running, true)
+        !ix.queue.is_empty() && !std::mem::replace(&mut ix.running, true)
     };
     if start {
         wasm_bindgen_futures::spawn_local(run(sh.clone()));
     }
 }
 
-/// Ask for `folders` of `account` (none: every folder) as well as what's asked of it already.
-fn want(pending: &mut BTreeMap<String, Option<BTreeSet<String>>>, account: String, folders: Vec<String>) {
-    let e = pending.entry(account).or_insert_with(|| Some(BTreeSet::new()));
-    match (e.as_mut(), folders.is_empty()) {
-        (_, true) => *e = None,
-        (Some(set), false) => set.extend(folders),
-        (None, false) => {}
-    }
-}
-
-/// Each account asked for, one pass at a time, until none is.
+/// Each account asked for, one pass at a time, until none is. One whose index is held elsewhere
+/// is put off ([`Queue::put_off`]) while the others go on: waited for in the loop, a stop that
+/// came meanwhile was lost (a removed account was indexed again), and every other account waited.
 async fn run(sh: Rcs) {
     loop {
         let next = {
             let mut s = sh.borrow_mut();
-            let next = s.indexing.pending.pop_first();
-            if next.is_none() {
+            let next = s.indexing.queue.next(js_sys::Date::now());
+            if next == Next::Idle {
                 s.indexing.running = false;
             }
             next
         };
-        let Some((account, folders)) = next else { return };
-        let folders: Vec<String> = folders.map(|f| f.into_iter().collect()).unwrap_or_default();
+        let (account, folders) = match next {
+            Next::Idle => return,
+            Next::Wait(ms) => {
+                sleep(ms.clamp(1.0, WAIT_MS) as i32).await;
+                continue;
+            }
+            Next::Run(account, folders) => (account, folders),
+        };
+        let seen = sh.borrow().indexing.queue.stops(&account);
         match pass(&sh, &account, &folders).await {
             Ok(()) => {}
             Err(StoreError::Busy { .. }) => {
-                sleep(RETRY_MS).await;
-                want(&mut sh.borrow_mut().indexing.pending, account, folders);
+                let at = js_sys::Date::now() + RETRY_MS;
+                sh.borrow_mut().indexing.queue.put_off(account, folders, at, seen);
             }
             Err(e) if search::is_damaged(&e) => {
                 log::warn!("{account}: the search index is made again: {e}");
@@ -129,7 +123,7 @@ fn settle_files(sh: &Rcs, store: &Store, account: &str, p: &mut Pass) {
 
 /// A pass's messages read and added, then written and merged, until a stop.
 async fn walk(sh: &Rcs, store: &Store, account: &str, p: &mut Pass) -> StoreResult<()> {
-    let stops = |sh: &Rcs| sh.borrow().indexing.stops.get(account).copied().unwrap_or(0);
+    let stops = |sh: &Rcs| sh.borrow().indexing.queue.stops(account);
     let began = stops(sh);
     let stopped = |sh: &Rcs| stops(sh) != began;
     let (mut units, mut bytes) = (0usize, 0usize);
