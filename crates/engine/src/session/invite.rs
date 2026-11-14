@@ -610,7 +610,7 @@ fn set_answer(e: &mut CalEvent, mine: &[String], me: &str, stat: &str) {
 
 /// Delete these parts of an event on the server: each item once. True when the server has
 /// something to learn.
-fn delete_items(p: &mut Pim, gone: &[StoredEvent]) -> bool {
+pub(super) fn delete_items(p: &mut Pim, gone: &[StoredEvent]) -> bool {
     let mut remote = false;
     for g in gone.iter().filter(|g| !g.href.is_empty()) {
         if !p.deleted.iter().any(|t| t.href == g.href) {
@@ -625,7 +625,7 @@ fn delete_items(p: &mut Pim, gone: &[StoredEvent]) -> bool {
 /// on the series, and a changed copy of it goes. On the server only that copy's own item is
 /// deleted; one it shares with the rest of the series (CalDAV keeps a series in one item) is
 /// written again without it. True when the server has something to learn.
-fn drop_occurrence(p: &mut Pim, uid: &str, at: i64) -> bool {
+pub(super) fn drop_occurrence(p: &mut Pim, uid: &str, at: i64) -> bool {
     let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid && e.event.recurrence_id == Some(at)).cloned().collect();
     p.events.retain(|e| !(e.event.uid == uid && e.event.recurrence_id == Some(at)));
     let mut remote = false;
@@ -647,6 +647,15 @@ fn drop_occurrence(p: &mut Pim, uid: &str, at: i64) -> bool {
         remote |= r;
     }
     remote
+}
+
+/// Whether a series keeps as many occurrences taken out as it can ([`MAX_EXDATES`]), `at` not
+/// among them: taking that one out ([`drop_occurrence`]) would leave it in.
+pub(super) fn exceptions_full(p: &Pim, uid: &str, at: i64) -> bool {
+    p.events
+        .iter()
+        .find(|e| e.event.uid == uid && e.event.recurrence_id.is_none())
+        .is_some_and(|m| m.event.exdates.len() >= MAX_EXDATES && !m.event.exdates.contains(&at))
 }
 
 /// Put one changed occurrence of a series in the calendar, replacing an earlier copy of it (and

@@ -383,29 +383,31 @@ impl Session {
         if p.calendars.iter().any(|c| c.id == calendar && c.read_only) {
             return Err(CmdError::Params("this calendar can't be changed".into()));
         }
-        let mut remote = false;
-        match occurrence {
-            Some(at) if p.events.iter().any(|e| e.event.uid == uid && e.event.rrule.is_some()) => {
-                // One occurrence: an exception on the rule, and any changed instance goes.
-                p.events.retain(|e| !(e.event.uid == uid && e.event.recurrence_id == Some(at)));
+        let series = p.events.iter().any(|e| e.event.uid == uid && e.event.rrule.is_some());
+        // A series that keeps as many occurrences taken out as it can: this one would stay, so
+        // it isn't said to be deleted (nor its guests told it's off).
+        if let Some(at) = occurrence
+            && series
+            && super::invite::exceptions_full(p, uid, at)
+        {
+            return Err(CmdError::Failed("too many occurrences of this series are deleted to delete another: delete the series".into()));
+        }
+        // As declining or a cancellation takes them out: a changed occurrence that's an item of
+        // its own on the server is deleted there, and each item once.
+        let remote = match occurrence {
+            Some(at) if series => {
+                let remote = super::invite::drop_occurrence(p, uid, at);
                 if let Some(m) = p.events.iter_mut().find(|e| e.event.uid == uid && e.event.recurrence_id.is_none()) {
-                    if !m.event.exdates.contains(&at) {
-                        m.event.exdates.push(at);
-                    }
                     m.event.sequence = m.event.sequence.saturating_add(1);
-                    remote = m.calendar != LOCAL;
-                    m.dirty |= remote;
                 }
+                remote
             }
             _ => {
                 let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).cloned().collect();
-                for g in gone.iter().filter(|g| !g.href.is_empty()) {
-                    remote = true;
-                    p.deleted.push(Tombstone { href: g.href.clone(), etag: g.etag.clone(), calendar: g.calendar.clone() });
-                }
                 p.events.retain(|e| e.event.uid != uid);
+                super::invite::delete_items(p, &gone)
             }
-        }
+        };
         self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"deleted": uid}))
     }

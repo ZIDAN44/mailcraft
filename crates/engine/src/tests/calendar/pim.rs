@@ -3,6 +3,7 @@
 use super::*;
 
 mod agenda;
+mod deleting;
 mod huge_times;
 mod people;
 mod server_cards;
