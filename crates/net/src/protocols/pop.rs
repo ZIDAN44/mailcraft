@@ -8,6 +8,7 @@
 //!
 //! Answers are hostile input: line lengths, message sizes and counts are capped.
 
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
 
 use mailcraft_mime as mime;
@@ -82,7 +83,7 @@ pub fn deleted_for_good(store: &Store, account: &str, keys: &[MessageKey]) -> Re
     if keys.is_empty() {
         return Ok(());
     }
-    let ids: Vec<String> = keys.iter().map(MessageKey::to_id).collect();
+    let ids: HashSet<String> = keys.iter().map(MessageKey::to_id).collect();
     let mut state: State = store.load_account_doc(account, STATE_DOC)?;
     let mut changed = false;
     for k in state.values_mut().filter(|k| k.key.as_ref().is_some_and(|id| ids.contains(id))) {
@@ -99,9 +100,10 @@ pub fn deleted_for_good(store: &Store, account: &str, keys: &[MessageKey]) -> Re
 fn moved(store: &Store, account: &str, pairs: &[(MessageKey, MessageKey)]) -> Result<()> {
     let mut state: State = store.load_account_doc(account, STATE_DOC)?;
     let mut changed = false;
-    for (old, new) in pairs {
-        let (old, new) = (old.to_id(), new.to_id());
-        for k in state.values_mut().filter(|k| k.key.as_deref() == Some(old.as_str())) {
+    // A new key is in the folder moved to, never one moved from: none moves twice.
+    let to: HashMap<String, String> = pairs.iter().map(|(old, new)| (old.to_id(), new.to_id())).collect();
+    for k in state.values_mut() {
+        if let Some(new) = k.key.as_ref().and_then(|id| to.get(id)) {
             k.key = Some(new.clone());
             changed = true;
         }
@@ -397,7 +399,8 @@ pub fn fetch_new_as<S: Read + Write>(
     }
     // Forget the ids the server no longer has (one removed now is still listed until QUIT, so it
     // goes from here next time).
-    state.retain(|id, _| listed.iter().any(|(_, l)| l == id));
+    let on_server: HashSet<&str> = listed.iter().map(|(_, id)| id.as_str()).collect();
+    state.retain(|id, _| on_server.contains(id.as_str()));
     if_kept(store, account, seen, || store.save_account_doc(account, STATE_DOC, &state))?;
     report.total = u32::try_from(fs.messages.len()).unwrap_or(u32::MAX);
     report.unread = fs.unread();
@@ -441,8 +444,8 @@ pub fn move_locally(store: &Store, account: &str, keys: &[MessageKey], to: &str)
     let mut pairs = Vec::new();
     let mut changed = Vec::new();
     for (folder, src) in &mut lists {
-        let (going, staying): (Vec<_>, Vec<_>) =
-            std::mem::take(&mut src.messages).into_iter().partition(|m| keys.iter().any(|k| k.folder == *folder && k.uid == m.key.uid));
+        let uids: HashSet<u32> = keys.iter().filter(|k| k.folder == *folder).map(|k| k.uid).collect();
+        let (going, staying): (Vec<_>, Vec<_>) = std::mem::take(&mut src.messages).into_iter().partition(|m| uids.contains(&m.key.uid));
         src.messages = staying;
         if going.is_empty() {
             continue;
