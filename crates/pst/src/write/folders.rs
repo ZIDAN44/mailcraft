@@ -308,14 +308,24 @@ impl Editor {
 }
 
 /// The folder at the path of names from the IPM subtree, made when missing: the last with
-/// `class`, any on the way `IPF.Note`. Each one made is its own change.
-pub(crate) fn ensure_path(path: &Path, names: &[&str], class: &str) -> io::Result<u32> {
+/// `class`, any on the way `IPF.Note`. Each one made is its own change. The file is opened to
+/// change once, and again only after a change is made: the opening that found the folder there
+/// comes back with it, unchanged, for what the caller changes next.
+fn ensure_path_in(path: &Path, names: &[&str], class: &str) -> io::Result<(u32, Option<Editor>)> {
     check_path(names)?;
-    let mut parent = Editor::open(path)?.store.ipm_subtree()?;
+    let first = Editor::open(path)?;
+    let mut parent = first.store.ipm_subtree()?;
+    let mut open = Some(first);
     for (i, name) in names.iter().enumerate() {
-        let mut ed = Editor::open(path)?;
+        let mut ed = match open.take() {
+            Some(ed) => ed,
+            None => Editor::open(path)?,
+        };
         match ed.find_child(parent, name)? {
-            Some(child) => parent = child,
+            Some(child) => {
+                parent = child;
+                open = Some(ed);
+            }
             None => {
                 let this_class = if i + 1 == names.len() { class } else { "IPF.Note" };
                 let made = ed.make_folder(parent, name, this_class)?;
@@ -324,7 +334,22 @@ pub(crate) fn ensure_path(path: &Path, names: &[&str], class: &str) -> io::Resul
             }
         }
     }
-    Ok(parent)
+    Ok((parent, open))
+}
+
+/// [`ensure_path_in`]'s folder.
+pub(crate) fn ensure_path(path: &Path, names: &[&str], class: &str) -> io::Result<u32> {
+    ensure_path_in(path, names, class).map(|(folder, _)| folder)
+}
+
+/// The file opened to change, the folder at `names` in it (made when missing).
+fn editor_at(path: &Path, names: &[&str], class: &str) -> io::Result<(u32, Editor)> {
+    let (folder, open) = ensure_path_in(path, names, class)?;
+    let ed = match open {
+        Some(ed) => ed,
+        None => Editor::open(path)?,
+    };
+    Ok((folder, ed))
 }
 
 /// Adds `batch` to the folder at the path `names`, made when missing.
@@ -336,8 +361,7 @@ pub(crate) fn append(path: &Path, names: &[&str], batch: &[BatchMessage<'_>]) ->
         check_message(&input.message)?;
         check_attachments(input.attachments, 0)?;
     }
-    let folder = ensure_path(path, names, "IPF.Note")?;
-    let mut ed = Editor::open(path)?;
+    let (folder, mut ed) = editor_at(path, names, "IPF.Note")?;
     ed.append_to(folder, batch)?;
     ed.commit()
 }
@@ -474,8 +498,7 @@ pub(crate) fn special_folder(path: &Path, role: SpecialFolder) -> io::Result<Opt
 
 /// Records the folder at `names`, made when missing, as `role`.
 pub(crate) fn set_special_folder(path: &Path, role: SpecialFolder, names: &[&str]) -> io::Result<()> {
-    let folder = ensure_path(path, names, role.container_class())?;
-    let mut ed = Editor::open(path)?;
+    let (folder, mut ed) = editor_at(path, names, role.container_class())?;
     let entry = ed.entry_id(folder)?;
     let (id, on_store) = role_property(role);
     let set = |props: &mut Vec<(u16, PropertyValue)>| {
