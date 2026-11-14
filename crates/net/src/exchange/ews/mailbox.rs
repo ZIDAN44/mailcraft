@@ -36,7 +36,10 @@ impl Client {
         // of the account's folders).
         let mut open = Vec::new();
         self.shared_roles.borrow_mut().clear();
-        for sm in self.shared_mailboxes() {
+        // Kept for the calendars and contacts read next.
+        let found = self.shared_mailboxes();
+        *self.shared_listed.borrow_mut() = Listed::now(found.clone());
+        for sm in found {
             let taken = |n: &str| out.iter().any(|m| m.parent.is_none() && m.name.eq_ignore_ascii_case(n));
             let top = if taken(&sm.name) { format!("{} ({})", sm.name, sm.address) } else { sm.name.clone() };
             match self.shared_folders(&sm, &top) {

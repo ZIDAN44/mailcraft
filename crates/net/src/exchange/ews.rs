@@ -326,6 +326,10 @@ pub struct Client {
     /// The folders of the shared mailboxes listed: the mailbox each is in (its address) and the
     /// role it has there (`Other` for its top folder and the folders that aren't special).
     shared_roles: RefCell<HashMap<String, (String, FolderRole)>>,
+    /// The public folders the last folder listing walked (the root's id and the tree), and the
+    /// shared mailboxes it found: the calendars and contacts read next take them ([`Listed`]).
+    pf_listed: RefCell<Option<Listed<(String, Vec<TreeFolder>)>>>,
+    shared_listed: RefCell<Option<Listed<Vec<SharedMailbox>>>>,
     /// The User-Agent every request names, instead of MailCraft's (issue #9: a server that lets
     /// in only the clients it knows).
     user_agent: Option<String>,
@@ -360,6 +364,30 @@ pub(crate) struct PublicFolder {
     pub total: u32,
     /// The GUID of the public folder mailbox holding its content (`PR_REPLICA_LIST`).
     pub replica: Option<String>,
+}
+
+/// What a folder listing found that is costly to ask again (the public folder tree: a request
+/// for each folder holding others; the shared mailboxes: one for each added by hand), kept for
+/// the calendars and contacts read after it: taken by the first, while it's fresh. Read later,
+/// or a second time, it's asked again, so a folder made on the server since still comes in.
+struct Listed<T> {
+    at: std::time::Instant,
+    found: T,
+}
+
+/// How long what a listing found serves the calendars and contacts read after it: a sync reads
+/// them right after its folders, a first sync of a big mailbox perhaps hours later.
+const LISTED_FOR: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
+impl<T> Listed<T> {
+    fn now(found: T) -> Option<Listed<T>> {
+        Some(Listed { at: std::time::Instant::now(), found })
+    }
+
+    /// What `kept` holds, taken out, while it's fresh.
+    fn take(kept: &RefCell<Option<Listed<T>>>) -> Option<T> {
+        kept.borrow_mut().take().filter(|l| l.at.elapsed() < LISTED_FOR).map(|l| l.found)
+    }
 }
 
 /// A folder found walking the public folders.
@@ -496,6 +524,8 @@ impl Client {
             shared_open: RefCell::new(Vec::new()),
             discovered: RefCell::new(None),
             shared_roles: RefCell::new(HashMap::new()),
+            pf_listed: RefCell::new(None),
+            shared_listed: RefCell::new(None),
             user_agent: None,
         })
     }

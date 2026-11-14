@@ -95,3 +95,119 @@ fn requests_go_where_their_folder_is_and_nowhere_else() {
     assert!(server.data.lock().unwrap().anchors.iter().any(|a| a == "sales@contoso.example"));
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// Public folders on Exchange 2013 and later: the hierarchy and the content each in a
+/// mailbox of their own.
+fn with_public_folders() -> Data {
+    let mut d =
+        Data { pf_mailbox: Some("PFContent@contoso.example".into()), pf_hierarchy: Some("PFHierarchy@contoso.example".into()), ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    d.folder("IPM_SUBTREE", None, Some("publicfoldersroot"), "IPF.Note");
+    d
+}
+
+fn public_root(d: &Data) -> String {
+    d.folders.iter().find(|f| f.known.as_deref() == Some("publicfoldersroot")).map(|f| f.id.clone()).unwrap()
+}
+
+/// The names of the calendars and address books a calendar and contacts sync read.
+fn read(sync: &mailcraft_model::pim::DavSync) -> (Vec<String>, Vec<String>) {
+    let calendars = sync.calendars.iter().flatten().map(|c| c.name.clone()).collect();
+    let books = sync.books.iter().flatten().map(|b| b.name.clone()).collect();
+    (calendars, books)
+}
+
+/// A sync lists the folders, then reads the calendars and contacts: the public folders were
+/// walked again for them (a FindFolder for each folder holding others) and each shared
+/// mailbox added by hand looked up again; the listing's are used. A folder made on the
+/// server since still comes in: the calendars read with no listing before walk them again.
+#[test]
+fn a_sync_walks_the_public_folders_once() {
+    let mut d = with_public_folders();
+    let root = public_root(&d);
+    let team = d.folder("Team", Some(&root), None, "IPF.Note");
+    d.folder("Rooms", Some(&team), None, "IPF.Appointment");
+    d.folder("Company contacts", Some(&root), None, "IPF.Contact");
+    d.shared_mailbox(SharedBox { address: "desk@contoso.example".into(), name: "Front desk".into(), automap: false, legacy: false, granted: true });
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    c.set_shared(&["desk@contoso.example".to_string()]);
+    let (mut st, pim) = (crate::jmap::State::default(), mailcraft_model::pim::Pim::default());
+    let paths =
+        |st: &mut crate::jmap::State| -> Vec<String> { crate::ews::list_folders(&c, st, "a1").unwrap().into_iter().map(|f| f.path).collect() };
+    assert!(paths(&mut st).contains(&"Front desk/Inbox".to_string()));
+    forget(&server);
+    let sync = crate::ews_pim::sync(&c, &pim, 0).unwrap();
+    assert_eq!((ops(&server, "FindFolder"), ops(&server, "ResolveNames")), (0, 0), "nothing asked again after the listing");
+    let (calendars, books) = read(&sync);
+    assert_eq!((calendars, books), (vec!["Calendar".to_string(), "Team › Rooms".into()], vec!["Contacts".to_string(), "Company contacts".into()]));
+    assert!(server.data.lock().unwrap().anchors.iter().any(|a| a == "desk@contoso.example"), "the shared mailbox's calendar is looked for");
+    // Made on the server since, then read without a listing before: walked again.
+    {
+        let mut d = server.data.lock().unwrap();
+        d.folder("Desks", Some(&root), None, "IPF.Appointment");
+        d.folder("Notices", Some(&root), None, "IPF.Note");
+    }
+    forget(&server);
+    let sync = crate::ews_pim::sync(&c, &pim, 0).unwrap();
+    assert!(ops(&server, "FindFolder") > 0 && ops(&server, "ResolveNames") > 0);
+    assert!(read(&sync).0.contains(&"Desks".to_string()));
+    // The next listing has it, and the calendars read after it.
+    assert!(paths(&mut st).iter().any(|p| p.ends_with("/Notices")));
+    forget(&server);
+    let sync = crate::ews_pim::sync(&c, &pim, 0).unwrap();
+    assert_eq!(ops(&server, "FindFolder"), 0);
+    assert!(read(&sync).0.contains(&"Desks".to_string()));
+}
+
+/// A sync (the folders listed, then the calendars and contacts read) with 420 public folders
+/// (40 of them calendars and address books) and three shared mailboxes added by hand, five
+/// times: how long, how many requests, and a digest of what was listed and read.
+/// Run: `cargo test --release -p mailcraft-net --lib measure_syncs_with_public_folders -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_syncs_with_public_folders() {
+    use std::hash::{Hash, Hasher};
+    let mut d = with_public_folders();
+    let root = public_root(&d);
+    for t in 0..20 {
+        let area = d.folder(&format!("Area {t}"), Some(&root), None, "IPF.Note");
+        for k in 0..20 {
+            let class = match k {
+                0 => "IPF.Appointment",
+                1 => "IPF.Contact",
+                _ => "IPF.Note",
+            };
+            d.folder(&format!("Folder {t}.{k}"), Some(&area), None, class);
+        }
+    }
+    let shared: Vec<String> = (0..3).map(|n| format!("box{n}@contoso.example")).collect();
+    for (n, address) in shared.iter().enumerate() {
+        d.shared_mailbox(SharedBox { address: address.clone(), name: format!("Box {n}"), automap: false, legacy: false, granted: true });
+    }
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    c.set_shared(&shared);
+    let (mut st, pim) = (crate::jmap::State::default(), mailcraft_model::pim::Pim::default());
+    forget(&server);
+    let mut digest = std::collections::hash_map::DefaultHasher::new();
+    let began = std::time::Instant::now();
+    for _ in 0..5 {
+        let folders = crate::ews::list_folders(&c, &mut st, "a1").unwrap();
+        folders.iter().map(|f| &f.path).collect::<Vec<_>>().hash(&mut digest);
+        let sync = crate::ews_pim::sync(&c, &pim, 0).unwrap();
+        read(&sync).hash(&mut digest);
+        sync.errors.hash(&mut digest);
+    }
+    let took = began.elapsed();
+    let total = server.data.lock().unwrap().calls.len();
+    println!(
+        "MEASURE 5 syncs, 420 public folders, 3 shared mailboxes: {} ms, {total} requests ({} FindFolder, {} ResolveNames), digest {:016x}",
+        took.as_millis(),
+        ops(&server, "FindFolder"),
+        ops(&server, "ResolveNames"),
+        digest.finish()
+    );
+}

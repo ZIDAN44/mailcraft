@@ -6,6 +6,12 @@ impl Client {
     /// The shared mailboxes added to the account by hand.
     pub fn set_shared(&self, addresses: &[String]) {
         *self.shared_added.borrow_mut() = addresses.iter().map(|a| a.trim().to_string()).filter(|a| a.contains('@')).take(MAX_SHARED).collect();
+        self.shared_listed.borrow_mut().take();
+    }
+
+    /// [`Client::shared_mailboxes`]: those the folder listing just found, else asked now.
+    pub(crate) fn listed_shared_mailboxes(&self) -> Vec<SharedMailbox> {
+        Listed::take(&self.shared_listed).unwrap_or_else(|| self.shared_mailboxes())
     }
 
     /// The account's Autodiscover answer, asked once.
@@ -224,22 +230,29 @@ impl Client {
 
     /// Exchange's public folders (the organization's shared folders): their mail folders, under
     /// a "Public Folders" folder. Public folders only list one level at a time, so the tree is
-    /// walked, a few levels deep and up to a few hundred folders.
+    /// walked, a few levels deep and up to a few hundred folders; it's kept for the calendars
+    /// and contacts read next ([`Listed`]).
     pub(super) fn public_folders(&self) -> Result<Vec<Mailbox>> {
+        // One that can't be walked now leaves none kept from before.
+        self.pf_listed.borrow_mut().take();
         let (root_id, all) = self.public_tree()?;
         // Calendars and contacts kept as public folders aren't mail; a folder holding others is
         // kept for them.
-        let mut out: Vec<Mailbox> = all.into_iter().filter(|t| is_mail_class(&t.class) || t.children).map(|t| t.mailbox).collect();
-        if out.is_empty() {
-            return Ok(out);
+        let mut out: Vec<Mailbox> = all.iter().filter(|t| is_mail_class(&t.class) || t.children).map(|t| t.mailbox.clone()).collect();
+        if !out.is_empty() {
+            out.insert(0, Mailbox { id: root_id.clone(), name: PUBLIC_FOLDERS.into(), parent: None, role: FolderRole::Other, total: 0, unread: 0 });
         }
-        out.insert(0, Mailbox { id: root_id, name: PUBLIC_FOLDERS.into(), parent: None, role: FolderRole::Other, total: 0, unread: 0 });
+        *self.pf_listed.borrow_mut() = Listed::now((root_id, all));
         Ok(out)
     }
 
-    /// Exchange's public contact folders and calendars (shared address books and calendars).
+    /// Exchange's public contact folders and calendars (shared address books and calendars):
+    /// from the tree the folder listing just walked, else walked now.
     pub(crate) fn public_pim_folders(&self) -> Result<Vec<PublicFolder>> {
-        let (_, all) = self.public_tree()?;
+        let (_, all) = match Listed::take(&self.pf_listed) {
+            Some(tree) => tree,
+            None => self.public_tree()?,
+        };
         let path = |m: &Mailbox| {
             let mut parts = vec![m.name.clone()];
             let mut up = m.parent.clone();

@@ -82,6 +82,7 @@ on GitHub.
 - The first download of a large POP mailbox is many times faster, and one stopped part-way never loses a message or brings one in twice.
 - A mail server sending a message date with an impossible year no longer crashes MailCraft; the date is ignored.
 - Large Exchange and calendar replies sent in small pieces are no longer refused as too big, and take less memory.
+- Exchange accounts with public folders sync faster: the public folder list is read once a sync instead of twice.
 
 ## 0.38.0 - 2026-11-13
 

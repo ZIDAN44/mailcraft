@@ -663,10 +663,11 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     // Other people's calendars opened here (Open shared calendar), then the calendars of the
     // shared mailboxes the account opens (Outlook lists a shared mailbox's calendar with its
     // mail): each their mailbox's calendar folder, the delegate permissions they gave deciding
-    // whether it can be read, and whether changed.
+    // whether it can be read, and whether changed. The shared mailboxes are those the folder
+    // listing before found (it's asked again when there was none).
     let opened: Vec<(String, String, bool)> = pim.shared.iter().map(|e| (e.clone(), e.clone(), true)).collect();
     let mailboxes: Vec<(String, String, bool)> = c
-        .shared_mailboxes()
+        .listed_shared_mailboxes()
         .into_iter()
         .filter(|m| !pim.shared.iter().any(|e| e.eq_ignore_ascii_case(&m.address)))
         .map(|m| (m.address, m.name, false))
@@ -734,7 +735,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut books = vec![BookInfo { id: CONTACTS.into(), name: own, read_only: false, ctag: String::new() }];
     // The organisation's shared contacts and calendars kept as public folders (on-premises
     // Exchange): read-only, as Outlook shows them under Public Folders. A server without public
-    // folders has none.
+    // folders has none. Found in the tree the folder listing before walked, when there was one.
     match c.public_pim_folders() {
         Ok(list) => {
             // Said in the log, found or not: what a "where are my shared contacts?" needs.
