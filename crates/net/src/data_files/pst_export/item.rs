@@ -219,9 +219,11 @@ pub(super) fn owned_in(
 
 /// A message's header block (up to its first blank line, whichever its line ends), as text.
 fn header_block(raw: &[u8]) -> String {
-    let crlf = raw.windows(4).position(|w| w == b"\r\n\r\n");
-    let lf = raw.windows(2).position(|w| w == b"\n\n");
-    let end = crlf.into_iter().chain(lf).min().unwrap_or(raw.len());
+    // A bare-LF blank line counts only before the first CRLF one: not a second search through
+    // the whole body, attachments and all, of a CRLF message, which has none.
+    let crlf = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(raw.len());
+    let lf = raw.get(..crlf).unwrap_or_default().windows(2).position(|w| w == b"\n\n");
+    let end = lf.unwrap_or(crlf);
     let head = String::from_utf8_lossy(raw.get(..end).unwrap_or_default()).into_owned();
     if head.is_empty() { head } else { format!("{head}\r\n") }
 }
@@ -334,6 +336,35 @@ mod tests {
         assert_eq!(header_block(raw), "Subject: x\nFrom: a@b\r\n");
         let m = owned(raw, 0, State::default(), &Default::default(), None).unwrap();
         assert_eq!((m.importance, m.sensitivity), (1, None));
+        // Mixed line ends; a CRLF header with a bare-LF blank line in its body.
+        assert_eq!(header_block(b"Subject: x\r\nFrom: a@b\n\nbody\r\n\r\n"), "Subject: x\r\nFrom: a@b\r\n");
+        assert_eq!(header_block(b"Subject: x\r\n\r\nbody\n\nmore"), "Subject: x\r\n");
+    }
+
+    /// Finding a 50 MB CRLF message's header block, which is near its start: the time it takes
+    /// (`cargo test --release -p mailcraft-net --lib header_block_of_a_big_message -- --ignored --nocapture`).
+    #[test]
+    #[ignore = "a measurement"]
+    fn header_block_of_a_big_message() {
+        let mut raw =
+            b"From: a@b.example\r\nSubject: big\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n\r\n".to_vec();
+        let line = [b"QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ejAxMjM0NTY3".as_slice(), b"\r\n"].concat();
+        while raw.len() < 50 * 1024 * 1024 {
+            raw.extend_from_slice(&line);
+        }
+        let runs = 20;
+        let start = std::time::Instant::now();
+        let mut len = 0;
+        for _ in 0..runs {
+            len += std::hint::black_box(header_block(std::hint::black_box(&raw))).len();
+        }
+        let each = start.elapsed() / runs;
+        assert_eq!(
+            len,
+            runs as usize
+                * "From: a@b.example\r\nSubject: big\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n".len()
+        );
+        println!("MEASURE header_block of a {} MB CRLF message: {each:?} each", raw.len() / (1024 * 1024));
     }
 
     /// A message without a `Date:` gets no submit time, not 1970-01-01.
