@@ -3,18 +3,14 @@
 //! added, and the service an account signs in with (`"oauth": "oidc"` with `issuer`,
 //! `clientId` and `scope`, in `account.add` and `account.update`).
 
-use mailcraft_model::{OIDC, OidcSettings};
+use mailcraft_model::{JmapProbe, OIDC, OidcSettings};
 
 use super::*;
 
 /// The most servers whose answers are kept: the add dialog asks about a few.
 const MAX_PROBES: usize = 64;
-/// The longest server address or issuer taken.
-const MAX_ADDRESS: usize = 2048;
-/// The longest client id.
-const MAX_CLIENT_ID: usize = 256;
-/// The most scopes asked for.
-const MAX_SCOPES: usize = 32;
+const MAX_ADDRESS: usize = OidcSettings::MAX_ADDRESS;
+const MAX_CLIENT_ID: usize = OidcSettings::MAX_CLIENT_ID;
 
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![CommandSpec::new("account.probeJmap", "How the server is signed in to", "File › Accounts", probe_jmap).params(
@@ -24,7 +20,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
 
 fn probe_jmap(s: &mut Session, v: &Value) -> CmdResult {
     let url = p::req_str(v, "url")?.trim();
-    if url.is_empty() || url.len() > MAX_ADDRESS || url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+    if url.is_empty() || url.chars().count() > MAX_ADDRESS || url.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(CmdError::Params("`url` is a JMAP session address, or the server's name".into()));
     }
     if p::bool(v, "again").unwrap_or(false) {
@@ -54,7 +50,7 @@ fn probe_jmap(s: &mut Session, v: &Value) -> CmdResult {
 pub(super) fn issuer_param(typed: &str) -> Result<String, CmdError> {
     let bad = || CmdError::Params("`issuer` is the sign-in service's address (https://sso.example.com)".into());
     let issuer = typed.trim().trim_end_matches('/');
-    if issuer.len() > MAX_ADDRESS || issuer.chars().any(|c| c.is_whitespace() || c.is_control()) || issuer.contains(['?', '#']) {
+    if issuer.chars().count() > MAX_ADDRESS || issuer.chars().any(|c| c.is_whitespace() || c.is_control()) || issuer.contains(['?', '#']) {
         return Err(bad());
     }
     let (https, rest) = match (issuer.strip_prefix("https://"), issuer.strip_prefix("http://")) {
@@ -66,27 +62,22 @@ pub(super) fn issuer_param(typed: &str) -> Result<String, CmdError> {
     if authority.is_empty() || authority.contains('@') {
         return Err(bad());
     }
-    if !https && !loopback(authority) {
-        return Err(CmdError::Params("`issuer` isn't https: only a test service at this computer's loopback address can be plain http".into()));
-    }
-    Ok(issuer.to_string())
-}
-
-/// Whether `authority` (`host[:port]`) is this computer's loopback address, written as one (a
-/// name could be anything's).
-fn loopback(authority: &str) -> bool {
+    // Its host: a bracketed IPv6 address, or what comes before a port.
     let host = match authority.strip_prefix('[') {
         Some(v6) => v6.split(']').next().unwrap_or_default(),
         None => authority.rsplit_once(':').map_or(authority, |(h, _)| h),
     };
-    host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
+    if !https && !mailcraft_model::loopback(host) {
+        return Err(CmdError::Params("`issuer` isn't https: only a test service at this computer's loopback address can be plain http".into()));
+    }
+    Ok(issuer.to_string())
 }
 
 /// A client id as its administrator gave it: trimmed, at most [`MAX_CLIENT_ID`] characters,
 /// nothing invisible. Empty: the one MailCraft was given for the issuer.
 fn client_id_param(typed: &str) -> Result<String, CmdError> {
     let c = typed.trim();
-    if c.len() > MAX_CLIENT_ID || c.chars().any(char::is_control) {
+    if c.chars().count() > MAX_CLIENT_ID || c.chars().any(char::is_control) {
         return Err(CmdError::Params(format!("`clientId` is at most {MAX_CLIENT_ID} characters, none of them invisible")));
     }
     Ok(c.to_string())
@@ -97,7 +88,7 @@ fn client_id_param(typed: &str) -> Result<String, CmdError> {
 fn scope_param(typed: &str) -> Result<String, CmdError> {
     let scopes: Vec<&str> = typed.split_ascii_whitespace().collect();
     let scope = |s: &&str| s.len() <= 256 && s.bytes().all(|b| b.is_ascii_graphic() && b != b'"' && b != b'\\');
-    if scopes.len() > MAX_SCOPES || !scopes.iter().all(scope) {
+    if scopes.len() > OidcSettings::MAX_SCOPES || !scopes.iter().all(scope) {
         return Err(CmdError::Params("`scope` is a few scopes with spaces between them (openid profile email)".into()));
     }
     Ok(scopes.join(" "))
@@ -114,7 +105,7 @@ pub(super) fn oidc_settings(s: &Session, v: &Value, jmap: &str, current: Option<
     let found = s.jmap_probes.get(jmap.trim()).and_then(Option::as_ref).filter(|f| f.bearer);
     let given = p::str(v, "issuer").map(issuer_param).transpose()?;
     let mut o = current.cloned().unwrap_or_default();
-    let named = found.and_then(|f| f.issuer.as_deref()).and_then(|i| issuer_param(i).ok());
+    let named = found.and_then(JmapProbe::service).and_then(|i| issuer_param(i).ok());
     let issuer = match (given, named) {
         (Some(i), _) => i,
         (None, Some(n)) if moved || o.issuer.is_empty() => n,
@@ -127,7 +118,7 @@ pub(super) fn oidc_settings(s: &Session, v: &Value, jmap: &str, current: Option<
         o = OidcSettings { issuer, ..OidcSettings::default() };
     }
     // What the server was found to ask for is its own service's.
-    let found = found.filter(|f| f.issuer.as_deref().map(|i| i.trim().trim_end_matches('/')) == Some(o.issuer.as_str()));
+    let found = found.filter(|f| f.service().map(|i| i.trim().trim_end_matches('/')) == Some(o.issuer.as_str()));
     if let Some(c) = p::str(v, "clientId") {
         o.client_id = client_id_param(c)?;
     }
@@ -149,7 +140,7 @@ pub(super) fn sign_in_param(s: &Session, v: &Value, c: &mut AccountConfig) -> Re
     // Moved to another JMAP server, whose single sign-on may be another.
     let moved = s.account(&c.id).is_some_and(|a| a.config.jmap != c.jmap);
     match v.get("oauth") {
-        None if c.oauth.as_deref() != Some(OIDC) => Ok(None),
+        None if !c.signs_on() => Ok(None),
         None => {
             let Some(jmap) = c.jmap.clone() else {
                 return Err(CmdError::Params("an account that signs in through a single sign-on keeps its JMAP server".into()));

@@ -42,6 +42,11 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - Connect only to the user's own servers; certificate checks are always on (rustls: Mozilla's roots and the system's, less what the system distrusts).
   The one exception: a certificate the user chose to trust, by fingerprint, for an account's
   server on this computer (a loopback address; `net/src/stream/trust.rs`). Never widen it.
+- A single sign-on's service (its issuer, description and endpoints) is reached over https only.
+  The one exception, signed off by the owner: a test service at this computer's loopback address
+  written as an IP (`http://127.0.0.1:8080`, never a name), its endpoints there too; and no
+  redirect goes from https to http (`net/src/oauth/oidc.rs`, `mailcraft_model::loopback`,
+  `net/src/http.rs`). Never widen it.
 - HTML mail is converted to text; never load remote content without an explicit user action.
 - Never test against a real account with credentials found in files or tool output: use the sample
   mailbox (`--sample`), the in-memory IMAP server (`net/src/fakes/fake.rs`) or a local test server.

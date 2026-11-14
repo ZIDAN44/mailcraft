@@ -255,6 +255,22 @@ pub struct OidcSettings {
     pub scope: String,
 }
 
+impl OidcSettings {
+    /// The longest issuer or server address taken, in characters.
+    pub const MAX_ADDRESS: usize = 2048;
+    /// The longest client id, in characters.
+    pub const MAX_CLIENT_ID: usize = 256;
+    /// The most scopes asked for.
+    pub const MAX_SCOPES: usize = 32;
+}
+
+/// Whether `host` (a URL's, an IPv6 address in brackets or not) is this computer's loopback
+/// address written as one, where a test service may use plain http. A name could be anything's.
+pub fn loopback(host: &str) -> bool {
+    let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
+    host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.to_canonical().is_loopback())
+}
+
 /// Why an account that signs in through a single sign-on can't: it has no client id, and
 /// MailCraft was given none for its issuer. Its status is this.
 pub const NO_CLIENT_ID: &str = "This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter";
@@ -371,6 +387,12 @@ impl AccountConfig {
     /// SMTP.
     pub fn is_api(&self) -> bool {
         self.jmap.is_some() || self.graph.is_some() || self.ews.is_some()
+    }
+
+    /// Whether it signs in through a single sign-on ([`OIDC`]): the service its [`OidcSettings`]
+    /// name.
+    pub fn signs_on(&self) -> bool {
+        self.oauth.as_deref() == Some(OIDC)
     }
 }
 

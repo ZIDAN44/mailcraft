@@ -10,6 +10,9 @@ pub use mailcraft_jmap::{FOUND_MAX, Mailbox, State, VALIDITY, block_on, folders,
 use crate::sync::{SyncOptions, SyncReport};
 use crate::{NetError, Result, http};
 
+mod probe;
+pub use probe::probe;
+
 impl From<mailcraft_jmap::Error> for NetError {
     fn from(e: mailcraft_jmap::Error) -> NetError {
         use mailcraft_jmap::Error as E;

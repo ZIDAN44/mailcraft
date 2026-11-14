@@ -29,3 +29,27 @@ pub struct JmapProbe {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
+
+impl JmapProbe {
+    /// The single sign-on service it signs in through, when it takes bearer tokens and its
+    /// service was found.
+    pub fn service(&self) -> Option<&str> {
+        self.issuer.as_deref().filter(|_| self.bearer)
+    }
+
+    /// Whether it takes no password at all: only a sign-in through the browser.
+    pub fn takes_no_password(&self) -> bool {
+        self.bearer && !self.password
+    }
+
+    /// Whether its service was found, but MailCraft has no client id for it: one is typed.
+    pub fn needs_client_id(&self) -> bool {
+        self.service().is_some() && self.client_id.is_none()
+    }
+
+    /// Whether an account can sign in through its service under the client id `typed` (empty:
+    /// the one MailCraft was given).
+    pub fn signs_in_with(&self, typed: &str) -> bool {
+        self.service().is_some() && (self.client_id.is_some() || !typed.trim().is_empty())
+    }
+}

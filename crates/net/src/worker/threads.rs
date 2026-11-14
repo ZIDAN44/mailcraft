@@ -6,48 +6,61 @@
 use super::*;
 
 impl Pool {
+    /// `work` on a thread of its own called `name`, the event it ends with sent on; when no thread
+    /// can be started, `failed` with why, so what waits for the event isn't left waiting.
+    fn on_thread(&self, name: &str, work: impl FnOnce() -> Event + Send + 'static, failed: impl FnOnce(String) -> Event) {
+        let sink = self.sink.clone();
+        if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(move || sink.emit(work())) {
+            log::warn!("{name}: {e}");
+            self.sink.emit(failed(e.to_string()));
+        }
+    }
+
     /// The releases published since this one (the update check).
     pub(super) fn check_updates(&mut self) {
-        let sink = self.sink.clone();
-        let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
-            let (releases, error) = match crate::updates::releases(&crate::updates::Feed::current()) {
-                Ok(r) => (r, None),
-                Err(e) => (Vec::new(), Some(e.to_string())),
-            };
-            sink.emit(Event::Releases { releases, error });
-        });
-        if let Err(e) = spawned {
-            self.sink.emit(Event::Releases { releases: Vec::new(), error: Some(e.to_string()) });
-        }
+        self.on_thread(
+            "mail-updates",
+            || match crate::updates::releases(&crate::updates::Feed::current()) {
+                Ok(releases) => Event::Releases { releases, error: None },
+                Err(e) => Event::Releases { releases: Vec::new(), error: Some(e.to_string()) },
+            },
+            |error| Event::Releases { releases: Vec::new(), error: Some(error) },
+        );
     }
 
     /// An address's servers, as its provider publishes them (autoconfiguration).
     pub(super) fn discover(&mut self, email: String) {
-        let sink = self.sink.clone();
-        let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
-            let found = crate::autoconfig::discover(&email);
-            let (config, source) = match found {
-                Some(f) => (Some(Box::new(f.config)), f.source),
-                None => (None, String::new()),
-            };
-            sink.emit(Event::Discovered { email, config, source });
-        });
-        if let Err(e) = spawned {
-            log::warn!("autoconfiguration: {e}");
-        }
+        let asked = email.clone();
+        self.on_thread(
+            "mail-discover",
+            move || {
+                let (config, source) = match crate::autoconfig::discover(&email) {
+                    Some(f) => (Some(Box::new(f.config)), f.source),
+                    None => (None, String::new()),
+                };
+                Event::Discovered { email, config, source }
+            },
+            // Nothing found: the add dialog asks for the servers.
+            move |_| Event::Discovered { email: asked, config: None, source: String::new() },
+        );
     }
 
     /// How a JMAP server is signed in to: with a password, or through the browser with the
     /// single sign-on its address names.
     pub(super) fn probe_jmap(&mut self, url: String) {
-        let sink = self.sink.clone();
-        let spawned = std::thread::Builder::new().name("mail-probe".into()).spawn(move || {
-            let probe = crate::oauth::oidc::probe(&url);
-            sink.emit(Event::JmapProbed { url, probe });
-        });
-        if let Err(e) = spawned {
-            log::warn!("asking the JMAP server how it's signed in to: {e}");
-        }
+        let asked = url.clone();
+        self.on_thread(
+            "mail-probe",
+            move || {
+                let probe = crate::jmap::probe(&url);
+                Event::JmapProbed { url, probe }
+            },
+            // As a server that couldn't be asked: a password, and why (the add dialog asks again).
+            move |error| Event::JmapProbed {
+                url: asked,
+                probe: mailcraft_model::JmapProbe { password: true, error: Some(error), ..mailcraft_model::JmapProbe::default() },
+            },
+        );
     }
 
     /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI

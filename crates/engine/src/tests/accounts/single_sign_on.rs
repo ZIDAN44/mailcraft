@@ -96,8 +96,13 @@ fn an_account_signs_in_through_the_single_sign_on_its_server_names() {
     let id = add(&mut s, json!({"clientId": " mc-desktop "})).unwrap()["account"].as_str().unwrap().to_string();
     assert_eq!(config(&s, &id).oidc.map(|o| o.client_id), Some("mc-desktop".into()));
     s.run("account.remove", &json!({"account": id})).unwrap();
+    // Its length counts characters, as the add dialog's box does.
+    let long = "é".repeat(256);
+    let id = add(&mut s, json!({"clientId": long})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(config(&s, &id).oidc.map(|o| o.client_id), Some(long));
+    s.run("account.remove", &json!({"account": id})).unwrap();
     // A test service on this computer, over plain http.
-    for local in ["http://127.0.0.1:8080", "http://[::1]:9000/realms/mail"] {
+    for local in ["http://127.0.0.1:8080", "http://127.0.0.1", "http://[::1]:9000/realms/mail", "http://[::ffff:127.0.0.1]:8080"] {
         let id = add(&mut s, json!({"issuer": local})).unwrap()["account"].as_str().unwrap().to_string();
         assert_eq!(config(&s, &id).oidc.map(|o| o.issuer), Some(local.to_string()));
         s.run("account.remove", &json!({"account": id})).unwrap();
@@ -107,6 +112,8 @@ fn an_account_signs_in_through_the_single_sign_on_its_server_names() {
     for (extra, why) in [
         (json!({"issuer": "http://sso.example.com"}), "isn't https"),
         (json!({"issuer": "http://localhost:8080"}), "isn't https"),
+        (json!({"issuer": "http://127.0.0.1.sso.example.com"}), "isn't https"),
+        (json!({"issuer": "http://[::2]:8080"}), "isn't https"),
         (json!({"issuer": "https://sso.example.com/?realm=mail"}), "issuer"),
         (json!({"issuer": "https://me@sso.example.com"}), "issuer"),
         (json!({"issuer": "https://sso example.com"}), "issuer"),

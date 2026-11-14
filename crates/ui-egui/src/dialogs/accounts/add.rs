@@ -24,7 +24,7 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
     // What the JMAP server said about how it's signed in to, once asked (below, as its address
     // is typed).
     let probe = if f.jmap { sign_on::answer(s, &f.jmap_url).cloned() } else { None };
-    let single_sign_on_only = probe.as_ref().is_some_and(|p| p.bearer && !p.password);
+    let single_sign_on_only = probe.as_ref().is_some_and(|p| p.takes_no_password());
     egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
         ui.label(tl!("Email address"));
         let r = ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(vec2(300.0, 26.0)).desired_width(300.0));
@@ -80,7 +80,7 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
             ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
             ui.end_row();
         }
-        if probe.as_ref().is_some_and(sign_on::needs_client_id) {
+        if probe.as_ref().is_some_and(|p| p.needs_client_id()) {
             sign_on::client_id_row(ui, f);
         }
     });

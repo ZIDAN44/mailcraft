@@ -10,7 +10,7 @@
 //! (`https://sso.example.com=mailcraft;https://kc.example.org/realms/mail=mc-desktop`), read at
 //! run time and baked in at build time, run time's first.
 
-use mailcraft_model::{JmapProbe, OidcSettings};
+use mailcraft_model::{OidcSettings, loopback};
 use serde_json::Value;
 
 use super::Provider;
@@ -30,9 +30,7 @@ pub const MAX_FIELD: usize = 2048;
 /// The most scopes kept from a description.
 pub const MAX_SUPPORTED: usize = 256;
 /// The most scopes asked for.
-pub const MAX_SCOPES: usize = 32;
-/// The longest client id.
-pub const MAX_CLIENT_ID: usize = 256;
+pub const MAX_SCOPES: usize = OidcSettings::MAX_SCOPES;
 
 /// What a sign-in service says of itself (OIDC Discovery §3), as far as signing in needs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -44,21 +42,9 @@ pub struct Description {
     pub scopes_supported: Vec<String>,
 }
 
-/// Whether `host` is this computer's loopback address, written as one (a name could be
-/// anything's).
-pub(crate) fn loopback(host: &str) -> bool {
-    host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
-}
-
 /// Https, or plain http to a test service at this computer's loopback address.
 fn secure(url: &Url) -> bool {
     url.https || loopback(&url.host)
-}
-
-/// Where the sign-in service of the mail server at `server` (a JMAP session address) describes
-/// itself: under the server's own origin, which sends on to the service's.
-pub fn description_url_for_server(server: &str) -> Result<String> {
-    Ok(format!("{}{WELL_KNOWN}", Url::parse(server)?.origin()))
 }
 
 /// Where `issuer` describes itself.
@@ -215,9 +201,9 @@ pub fn parse_clients(s: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// A client id as one can be sent: not empty, short, nothing invisible.
+/// A client id as one can be sent: not empty, as long as an account takes, nothing invisible.
 fn client_ok(c: &str) -> bool {
-    !c.is_empty() && c.len() <= MAX_CLIENT_ID && !c.chars().any(char::is_control)
+    !c.is_empty() && c.chars().count() <= OidcSettings::MAX_CLIENT_ID && !c.chars().any(char::is_control)
 }
 
 /// The client id MailCraft was given for `issuer`, compared as written but for a trailing `/`.
@@ -263,47 +249,5 @@ pub fn provider_from(d: &Description, client_id: String, scope: &str) -> Provide
     }
 }
 
-/// The most of a session's answer without a sign-in that's read.
-const MAX_REFUSAL: usize = 64 << 10;
-
-/// How the JMAP server at `server` (a session address, or the server's name) is signed in to:
-/// what it answers a request without a sign-in, and where it takes bearer tokens, the single
-/// sign-on service its address names (as [`describe`] finds it, from wherever the session
-/// address sent the request). Only advice for the add dialog: what can't be asked is a password,
-/// whose usual sign-in then says what's wrong, with why it couldn't be asked (it may be passing:
-/// a server that's down, a network that isn't up yet). A request to the server: only ever on a
-/// thread of its own.
-pub fn probe(server: &str) -> JmapProbe {
-    let password = JmapProbe { password: true, ..JmapProbe::default() };
-    let session = mailcraft_jmap::session_url(server);
-    let (resp, at) = match crate::http::send_where(&Request::get(&session, MAX_REFUSAL).header("Accept", "application/json")) {
-        Ok(r) => r,
-        Err(e) => return JmapProbe { error: Some(e.to_string()), ..password },
-    };
-    if resp.status >= 500 {
-        return JmapProbe { error: Some(format!("the server answered HTTP {}", resp.status)), ..password };
-    }
-    if resp.status != 401 {
-        return password;
-    }
-    let challenges = mailcraft_jmap::Response { status: resp.status, headers: resp.headers, body: Vec::new() }.challenges();
-    let offers = |scheme: &str| challenges.iter().find(|c| c.scheme == scheme);
-    let Some(bearer) = offers("bearer") else { return password };
-    let mut found = JmapProbe {
-        password: offers("basic").is_some(),
-        bearer: true,
-        scope: scopes(bearer.param("scope").unwrap_or_default()).join(" "),
-        ..JmapProbe::default()
-    };
-    match describe(&format!("{}{WELL_KNOWN}", at.origin())) {
-        Ok(d) => {
-            found.client_id = given_client(&d.issuer);
-            found.issuer = Some(d.issuer);
-        }
-        Err(e) => found.error = Some(e.to_string()),
-    }
-    found
-}
-
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

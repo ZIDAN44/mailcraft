@@ -34,7 +34,7 @@ fn a_single_sign_on_signs_in_through_the_browser_then_syncs_over_its_tokens() {
     let sso = fake_sso::serve(sd);
     jmap.data.lock().unwrap().issuer = Some(sso.base.clone());
     // The service, found from the mail server's address (which sends on to it).
-    let found = oidc::describe(&oidc::description_url_for_server(&format!("{}/jmap/session", jmap.base)).unwrap()).unwrap();
+    let found = oidc::describe(&oidc::description_url(&jmap.base)).unwrap();
     assert_eq!(found.issuer, sso.base);
 
     let store = Store::memory();

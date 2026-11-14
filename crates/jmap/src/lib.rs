@@ -127,8 +127,7 @@ pub struct Response {
 impl Response {
     /// How the server asks to be signed in to: every `WWW-Authenticate` header, read as one list.
     pub fn challenges(&self) -> Vec<challenge::Challenge> {
-        let all: Vec<&str> = self.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case("www-authenticate")).map(|(_, v)| v.as_str()).collect();
-        challenge::parse(&all.join(", "))
+        challenge::in_headers(&self.headers)
     }
 }
 
@@ -152,6 +151,8 @@ pub fn session_url(input: &str) -> String {
 pub struct Client<H> {
     http: H,
     auth: String,
+    /// `auth` is an OAuth bearer token, not a user name and password.
+    bearer: bool,
     api: String,
     download: String,
     upload: String,
@@ -172,12 +173,12 @@ fn json_body(resp: &Response) -> Result<Value> {
     serde_json::from_slice(&resp.body).map_err(|e| Error::Protocol(format!("JMAP: {e}")))
 }
 
-/// Turn an HTTP failure into the error the caller knows how to handle. `auth`: the
-/// `Authorization` the request carried.
-fn check(resp: &Response, auth: &str) -> Result<()> {
+/// Turn an HTTP failure into the error the caller knows how to handle. `bearer`: the request
+/// carried a bearer token rather than a user name and password.
+fn check(resp: &Response, bearer: bool) -> Result<()> {
     match resp.status {
         200..=299 => Ok(()),
-        401 => Err(Error::Auth(refusal(resp, auth))),
+        401 => Err(Error::Auth(refusal(resp, bearer))),
         403 => Err(Error::Auth("the server refused the user name or password".into())),
         // Busy or down: reconnect with back-off.
         429 | 500..=599 => Err(Error::Closed(format!("HTTP {}", resp.status))),
@@ -195,10 +196,10 @@ fn check(resp: &Response, auth: &str) -> Result<()> {
 /// Why the server said 401, from how it asks to be signed in to (RFC 9110 §11.6.1). A server
 /// that wants bearer tokens only (a sign-in through the browser) takes no password, however
 /// right it is: [`NO_PASSWORDS`](mailcraft_model::NO_PASSWORDS) says so.
-fn refusal(resp: &Response, auth: &str) -> String {
+fn refusal(resp: &Response, bearer: bool) -> String {
     let challenges = resp.challenges();
-    let offers = |scheme: &str| challenges.iter().find(|c| c.scheme == scheme);
-    if auth.starts_with("Bearer ") {
+    let offers = |scheme: &str| challenge::offered(&challenges, scheme);
+    if bearer {
         // RFC 6750 §3.1: what was wrong with the token.
         return match offers("bearer").and_then(|c| c.param("error")).filter(|e| e.len() <= 64) {
             Some(e) => format!("the server refused the sign-in ({e})"),
@@ -230,7 +231,7 @@ impl<H: Http> Client<H> {
         let auth = if bearer { format!("Bearer {secret}") } else { format!("Basic {}", base64(format!("{user}:{secret}").as_bytes())) };
         let session = session_url(url);
         let resp = http.send(Request::get(&session, 1 << 20).header("Authorization", &auth).header("Accept", "application/json")).await?;
-        check(&resp, &auth)?;
+        check(&resp, bearer)?;
         let v = json_body(&resp)?;
         let caps = v.get("capabilities").cloned().unwrap_or(Value::Null);
         if caps.get(MAIL).is_none() {
@@ -263,6 +264,7 @@ impl<H: Http> Client<H> {
             vacation: caps.get(VACATION).is_some(),
             max_get: usize::try_from(max_get).unwrap_or(500).clamp(1, 1000),
             auth,
+            bearer,
             http,
         })
     }
@@ -275,6 +277,7 @@ impl<H: Http> Client<H> {
     /// Carry a new OAuth access token from now on (the old one ran out).
     pub fn set_bearer(&mut self, token: &str) {
         self.auth = format!("Bearer {token}");
+        self.bearer = true;
     }
 
     /// The push address (RFC 8620 §7.3) for every type of change, when the server pushes.
@@ -295,7 +298,7 @@ impl<H: Http> Client<H> {
                     .header("Accept", "application/json"),
             )
             .await?;
-        check(&resp, &self.auth)?;
+        check(&resp, self.bearer)?;
         let v = json_body(&resp)?;
         let responses = v.get("methodResponses").and_then(Value::as_array).ok_or_else(|| Error::Protocol("JMAP: no methodResponses".into()))?;
         let mut out = Vec::with_capacity(calls.len());
@@ -397,14 +400,14 @@ impl<H: Http> Client<H> {
     pub async fn download(&self, blob: &str) -> Result<Vec<u8>> {
         let url = expand(&self.download, &[("accountId", &self.account), ("blobId", blob), ("type", "message/rfc822"), ("name", "message.eml")]);
         let resp = self.http.send(Request::get(&url, MAX_BLOB).header("Authorization", &self.auth)).await?;
-        check(&resp, &self.auth)?;
+        check(&resp, self.bearer)?;
         Ok(resp.body)
     }
 
     pub async fn upload(&self, raw: &[u8]) -> Result<String> {
         let url = expand(&self.upload, &[("accountId", &self.account)]);
         let resp = self.http.send(Request::post(&url, "message/rfc822", raw.to_vec(), 1 << 20).header("Authorization", &self.auth)).await?;
-        check(&resp, &self.auth)?;
+        check(&resp, self.bearer)?;
         let v = json_body(&resp)?;
         Ok(str_at(&v, "blobId")?.to_string())
     }

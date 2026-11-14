@@ -561,7 +561,7 @@ impl Session {
             || password.is_some();
         // Another single sign-on, or another client id: signed in again through the browser, its
         // refresh token taking the place of what was kept (never sent to the service as one).
-        let sign_in = config.oauth.as_deref() == Some(mailcraft_model::OIDC) && (a.config.oauth != config.oauth || a.config.oidc != config.oidc);
+        let sign_in = config.signs_on() && (a.config.oauth != config.oauth || a.config.oidc != config.oidc);
         if config.online_only && !config.can_be_online_only() {
             return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));
         }

@@ -7,11 +7,6 @@ use mailcraft_engine::model::{JmapProbe, NO_CLIENT_ID, OIDC, OidcSettings};
 use super::*;
 use crate::icons::Icon;
 
-/// The longest server address asked about, as `account.probeJmap` takes them.
-const MAX_ADDRESS: usize = 2048;
-/// The longest client ID typed, as `account.add` takes them.
-const MAX_CLIENT_ID: usize = 256;
-
 /// Whether this copy signs in through a single sign-on (the browser app doesn't).
 pub(crate) fn available(s: &Session) -> bool {
     s.oauth_available.iter().any(|p| p == OIDC)
@@ -31,7 +26,7 @@ pub(super) fn answer<'s>(s: &'s Session, url: &str) -> Option<&'s JmapProbe> {
 /// box has the focus), and once only: an address the command would refuse isn't asked about.
 pub(super) fn ask(s: &Session, url: &str, typing: bool, acts: &mut Vec<Action>) {
     let url = url.trim();
-    let address = !url.is_empty() && url.len() <= MAX_ADDRESS && !url.chars().any(|c| c.is_whitespace() || c.is_control());
+    let address = !url.is_empty() && url.chars().count() <= OidcSettings::MAX_ADDRESS && !url.chars().any(|c| c.is_whitespace() || c.is_control());
     if !typing && address && available(s) && !s.jmap_probes.contains_key(url) {
         acts.push(Action::Run("account.probeJmap", json!({"url": url})));
     }
@@ -71,7 +66,7 @@ pub(super) fn note(ui: &mut Ui, t: &Tokens, s: &Session, url: &str, acts: &mut V
             );
             again(ui, acts);
         }
-        Some(Some(p)) if p.bearer && !p.password => {
+        Some(Some(p)) if p.takes_no_password() => {
             say(ui, RichText::new(tl!("This server takes no passwords: you sign in through your browser, with its single sign-on.")).color(t.dim));
         }
         Some(Some(JmapProbe { error: Some(error), .. })) => {
@@ -82,14 +77,9 @@ pub(super) fn note(ui: &mut Ui, t: &Tokens, s: &Session, url: &str, acts: &mut V
     }
 }
 
-/// Whether MailCraft has no client ID for the single sign-on the server named: one is typed.
-pub(super) fn needs_client_id(p: &JmapProbe) -> bool {
-    p.bearer && p.issuer.is_some() && p.client_id.is_none()
-}
-
-/// The client ID box (`hint`: what it says when empty).
+/// The client ID box (`hint`: what it says when empty), as long as `account.add` takes.
 fn client_id_box(ui: &mut Ui, w: f32, client_id: &mut String, hint: &str) {
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(client_id).hint_text(hint).char_limit(MAX_CLIENT_ID));
+    ui.add_sized([w, 26.0], egui::TextEdit::singleline(client_id).hint_text(hint).char_limit(OidcSettings::MAX_CLIENT_ID));
 }
 
 /// The add dialog's row for the client ID, when MailCraft has none for the server's service.
@@ -102,13 +92,13 @@ pub(super) fn client_id_row(ui: &mut Ui, f: &mut AccountForm) {
 /// The add dialog's way in through the server's single sign-on: a button that adds the account
 /// to sign in in the browser, with no password, under the client ID typed when MailCraft has none.
 pub(super) fn add_button(ui: &mut Ui, t: &Tokens, f: &mut AccountForm, p: &JmapProbe, acts: &mut Vec<Action>) {
-    let Some(issuer) = p.issuer.as_deref().filter(|_| p.bearer) else { return };
+    let Some(issuer) = p.service() else { return };
     let client_id = f.client_id.trim().to_string();
-    if needs_client_id(p) && client_id.is_empty() {
+    if p.needs_client_id() && client_id.is_empty() {
         ui.add_space(6.0);
         ui.add(egui::Label::new(RichText::new(tl!(NO_CLIENT_ID)).color(t.warn).small()).wrap());
     }
-    let enabled = !f.email.trim().is_empty() && (p.client_id.is_some() || !client_id.is_empty());
+    let enabled = !f.email.trim().is_empty() && p.signs_in_with(&client_id);
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         if widgets::accent_button(ui, Icon::Person, "Sign in through the browser", t, enabled).clicked() {
@@ -145,13 +135,13 @@ pub struct SignOn {
     pub issuer: String,
     /// The password it signs in with again, going back to one.
     pub password: String,
-    /// It signs in with Google or Microsoft: nothing to choose.
-    pub other: bool,
+    /// It signs in with another provider (Google or Microsoft): nothing to choose.
+    pub other_provider: bool,
 }
 
 impl SignOn {
     pub(crate) fn of(c: &AccountConfig) -> SignOn {
-        let browser = c.oauth.as_deref() == Some(OIDC);
+        let browser = c.signs_on();
         let kept = c.oidc.clone().unwrap_or_default();
         SignOn {
             browser,
@@ -161,7 +151,7 @@ impl SignOn {
             kept,
             kept_url: c.jmap.as_deref().unwrap_or_default().trim().to_string(),
             password: String::new(),
-            other: c.oauth.is_some() && !browser,
+            other_provider: c.oauth.is_some() && !browser,
         }
     }
 
@@ -177,7 +167,7 @@ impl SignOn {
         if self.was_browser && !self.moved(url) {
             return Some(issuer_of(&self.kept.issuer));
         }
-        answer(s, url).filter(|p| p.bearer).and_then(|p| p.issuer.as_deref()).map(issuer_of)
+        answer(s, url).and_then(JmapProbe::service).map(issuer_of)
     }
 
     /// The client ID it has for the service the box is for: its own, kept for that service.
@@ -194,7 +184,7 @@ impl SignOn {
     /// Its choice in the server settings of the JMAP account at `url` (`typing`: its address is
     /// being typed), and what each way needs.
     pub(super) fn ui(&mut self, ui: &mut Ui, t: &Tokens, s: &Session, url: &str, typing: bool, acts: &mut Vec<Action>) {
-        if self.other || !(available(s) || self.was_browser) {
+        if self.other_provider || !(available(s) || self.was_browser) {
             return;
         }
         let w = ui.available_width();
@@ -222,7 +212,7 @@ impl SignOn {
             ui.label(RichText::new(tl!("Client ID")).strong().small());
             let hint = found.and_then(|p| p.client_id.as_deref()).unwrap_or(tl!("Given by your administrator"));
             client_id_box(ui, w, &mut self.client_id, hint);
-            if found.is_some_and(needs_client_id) && self.client_id.trim().is_empty() {
+            if found.is_some_and(JmapProbe::needs_client_id) && self.client_id.trim().is_empty() {
                 ui.add(egui::Label::new(RichText::new(tl!(NO_CLIENT_ID)).color(t.warn).small()).wrap());
             }
             if self.signs_in_again() {
@@ -244,14 +234,14 @@ impl SignOn {
         if self.was_browser && !self.moved(url) {
             return true;
         }
-        answer(s, url).is_some_and(|p| p.bearer && p.issuer.is_some() && (p.client_id.is_some() || !self.client_id.trim().is_empty()))
+        answer(s, url).is_some_and(|p| p.signs_in_with(&self.client_id))
     }
 
     /// `oauth`, with the service the server named (when it starts signing in through one, or
     /// moved to it) and the client ID typed (when it isn't the one it had for that service); or
     /// the password going back to one.
     pub(super) fn params(&self, p: &mut serde_json::Value, s: &Session, url: &str) {
-        let Some(o) = p.as_object_mut().filter(|_| !self.other) else { return };
+        let Some(o) = p.as_object_mut().filter(|_| !self.other_provider) else { return };
         if self.browser {
             o.insert("oauth".into(), json!(OIDC));
             if (!self.was_browser || self.moved(url))

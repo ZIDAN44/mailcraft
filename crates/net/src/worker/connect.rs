@@ -91,16 +91,10 @@ impl Worker {
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: format!("{MICROSOFT_NO_PASSWORDS} ({m})") });
             }
-            // A server that takes bearer tokens only (a single sign-on): asking for the password
-            // again only loops. Its server settings switch it to signing in through the browser.
-            NetError::Auth(m) if self.acc.oauth.is_none() && m == mailcraft_model::NO_PASSWORDS => {
-                self.conn = None;
-                self.auth_failed = true;
-                self.status(SyncStatus::Error { error: m });
-            }
-            // A single sign-on with no client id: signing in again can't help, the server
-            // settings can.
-            NetError::Auth(m) if m == mailcraft_model::NO_CLIENT_ID => {
+            // A server that takes bearer tokens only (a single sign-on) asked with a password, or
+            // a single sign-on with no client id: signing in again only loops. The server
+            // settings can: they switch it to the browser, or give it its client id.
+            NetError::Auth(m) if (self.acc.oauth.is_none() && m == mailcraft_model::NO_PASSWORDS) || m == mailcraft_model::NO_CLIENT_ID => {
                 self.conn = None;
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: m });

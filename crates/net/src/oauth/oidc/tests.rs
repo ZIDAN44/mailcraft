@@ -5,7 +5,7 @@ use super::*;
 
 /// A web server of the test's own on this computer: each request answered by
 /// `answer(its address, the request's first line)`.
-fn service(answer: impl Fn(&str, &str) -> Vec<u8> + Send + 'static) -> String {
+pub(crate) fn service(answer: impl Fn(&str, &str) -> Vec<u8> + Send + 'static) -> String {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
     let at = base.clone();
@@ -27,12 +27,12 @@ fn service(answer: impl Fn(&str, &str) -> Vec<u8> + Send + 'static) -> String {
     base
 }
 
-fn json(body: &str) -> Vec<u8> {
+pub(crate) fn json(body: &str) -> Vec<u8> {
     format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).into_bytes()
 }
 
 /// A description whose issuer is `issuer`, with endpoints under it.
-fn description(issuer: &str) -> String {
+pub(crate) fn description(issuer: &str) -> String {
     format!(
         r#"{{"issuer":"{issuer}","authorization_endpoint":"{issuer}/authorize","token_endpoint":"{issuer}/token","scopes_supported":["openid","profile","email","offline_access"],"code_challenge_methods_supported":["plain","S256"]}}"#
     )
@@ -48,7 +48,7 @@ fn a_description_names_the_service_at_its_own_address() {
             json(&description(&format!("{base}/realms/mail")))
         }
     });
-    let d = describe(&description_url_for_server(&format!("{base}/jmap/session")).unwrap()).unwrap();
+    let d = describe(&description_url(&base)).unwrap();
     assert_eq!(d.issuer, format!("{base}/realms/mail"));
     assert_eq!(
         (d.authorization_endpoint.as_str(), d.token_endpoint.as_str()),
@@ -159,64 +159,6 @@ proptest::proptest! {
     }
 }
 
-/// A JMAP session's refusal of a request without a sign-in, asking for `challenges`.
-fn refusal(challenges: &[&str]) -> Vec<u8> {
-    let asks: String = challenges.iter().map(|c| format!("WWW-Authenticate: {c}\r\n")).collect();
-    format!("HTTP/1.1 401 Unauthorized\r\n{asks}Content-Length: 0\r\nConnection: close\r\n\r\n").into_bytes()
-}
-
-#[test]
-fn a_server_says_how_it_is_signed_in_to() {
-    // Bearer tokens only (as a server behind a single sign-on asks), and the service its own
-    // address describes. Its other ways, unknown to MailCraft, aside.
-    let base = service(|base, line| {
-        if line.starts_with("GET /.well-known/openid-configuration ") {
-            json(&description(base))
-        } else {
-            refusal(&[r#"Bearer realm="mail", error="invalid_token", scope="openid  profile email \"x\"""#, r#"Ticket realm="mail""#])
-        }
-    });
-    let p = probe(&format!("{base}/jmap/session"));
-    assert!(p.bearer && !p.password, "{p:?}");
-    assert_eq!((p.issuer.as_deref(), p.scope.as_str(), p.error.as_deref()), (Some(base.as_str()), "openid profile email", None));
-    assert_eq!(p.client_id, None, "none given for a service on this computer");
-    // The session's address sends on to the server's own: its service is the one asked.
-    let server = base.clone();
-    let start = service(move |_, line| {
-        if line.starts_with("GET /.well-known/jmap ") {
-            format!("HTTP/1.1 307 Temporary Redirect\r\nLocation: {server}/jmap/session\r\nContent-Length: 0\r\n\r\n").into_bytes()
-        } else {
-            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec()
-        }
-    });
-    let p = probe(&start);
-    assert_eq!((p.bearer, p.issuer.as_deref()), (true, Some(base.as_str())), "{p:?}");
-
-    // Passwords too, or only: no service asked for.
-    let both = service(|_, _| refusal(&["Basic realm=\"mail\"", "Bearer"]));
-    let p = probe(&format!("{both}/jmap/session"));
-    assert!(p.password && p.bearer, "{p:?}");
-    for answer in [refusal(&["Basic realm=\"mail\""]), refusal(&[]), json("{}"), b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec()] {
-        let server = service(move |_, _| answer.clone());
-        let p = probe(&format!("{server}/jmap/session"));
-        assert_eq!(p, JmapProbe { password: true, ..JmapProbe::default() }, "{server}");
-    }
-    // No server there, or one that fails: a password, whose sign-in says what's wrong, and why it
-    // couldn't be asked, which may be passing (the add dialog asks again).
-    let gone = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
-    let p = probe(&format!("http://{gone}/jmap/session"));
-    assert!(p.password && !p.bearer && p.issuer.is_none() && p.error.is_some(), "{p:?}");
-    let failing = service(|_, _| b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n".to_vec());
-    let p = probe(&format!("{failing}/jmap/session"));
-    assert_eq!((p.password, p.bearer, p.error.as_deref()), (true, false, Some("the server answered HTTP 503")));
-    // Bearer tokens, and no service to be found: said why.
-    let lost = service(|_, line| {
-        if line.contains("openid-configuration") { b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec() } else { refusal(&["Bearer"]) }
-    });
-    let p = probe(&format!("{lost}/jmap/session"));
-    assert!(p.bearer && p.issuer.is_none() && p.error.as_deref().is_some_and(|e| e.contains("HTTP 404")), "{p:?}");
-}
-
 #[test]
 fn what_is_asked_for() {
     let supported = |s: &[&str]| s.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -252,7 +194,9 @@ fn client_ids_are_given_by_issuer() {
     let own = |c: &str| OidcSettings { issuer: "https://sso.invalid".into(), client_id: c.into(), ..Default::default() };
     assert_eq!(client_id(&own(" mine ")).as_deref(), Some("mine"));
     assert_eq!(client_id(&own("a\nb")), None);
-    assert_eq!(client_id(&own(&"x".repeat(MAX_CLIENT_ID + 1))), None);
+    assert_eq!(client_id(&own(&"x".repeat(OidcSettings::MAX_CLIENT_ID + 1))), None);
+    // Its length counts characters, as the add dialog and `account.add` do.
+    assert_eq!(client_id(&own(&"é".repeat(OidcSettings::MAX_CLIENT_ID))).map(|c| c.chars().count()), Some(OidcSettings::MAX_CLIENT_ID));
     // With none, the account is told to ask for one, and the service isn't asked anything.
     assert!(matches!(provider(&own("")), Err(NetError::Auth(m)) if m == mailcraft_model::NO_CLIENT_ID));
 }

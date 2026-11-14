@@ -516,7 +516,7 @@ impl MailApp {
             }
             let mut d = Dialog::edit_account(&config);
             if let Dialog::EditAccount(f) = &mut d {
-                f.sign_on.browser = f.jmap && !f.sign_on.other;
+                f.sign_on.browser = f.jmap && !f.sign_on.other_provider;
             }
             self.ui.dialog = Some(d);
             return;

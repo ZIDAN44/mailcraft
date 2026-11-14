@@ -28,6 +28,17 @@ impl Challenge {
     }
 }
 
+/// The challenges in a response's headers: every `WWW-Authenticate`, read as one list.
+pub fn in_headers(headers: &[(String, String)]) -> Vec<Challenge> {
+    let all: Vec<&str> = headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case("www-authenticate")).map(|(_, v)| v.as_str()).collect();
+    parse(&all.join(", "))
+}
+
+/// The challenge of `scheme` (lowercase) among `challenges`, when the server offers it.
+pub fn offered<'c>(challenges: &'c [Challenge], scheme: &str) -> Option<&'c Challenge> {
+    challenges.iter().find(|c| c.scheme == scheme)
+}
+
 /// The challenges in a `WWW-Authenticate` value. Several headers are one list (RFC 9110 §5.3):
 /// join them with commas first.
 pub fn parse(header: &str) -> Vec<Challenge> {

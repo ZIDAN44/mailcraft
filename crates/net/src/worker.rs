@@ -281,7 +281,7 @@ impl Pool {
             }
             Job::Start { account, password } if self.offline => {
                 // Working offline: remembered (and its password kept) for when that's turned off.
-                if let Some(p) = password.as_ref().filter(|_| !credentials::signs_on(&account))
+                if let Some(p) = password.as_ref().filter(|_| !account.signs_on())
                     && let Err(e) = credentials::keep_password(self.creds.as_ref(), &account, &p.0)
                 {
                     self.sink.emit(Event::Notice {

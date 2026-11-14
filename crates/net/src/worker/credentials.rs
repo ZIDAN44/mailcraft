@@ -68,16 +68,11 @@ impl Credentials for MemoryCredentials {
     }
 }
 
-/// Whether `account` signs in through a single sign-on, whose refresh token is kept apart from
-/// any password ([`SIGN_ON_SECRET`](super::SIGN_ON_SECRET)).
-pub(crate) fn signs_on(account: &AccountConfig) -> bool {
-    account.oauth.as_deref() == Some(mailcraft_model::OIDC)
-}
-
-/// What `account` signs in with, as kept: a single sign-on's refresh token, from its own entry;
-/// else the password, or Google's or Microsoft's refresh token, kept in its place.
+/// What `account` signs in with, as kept: a single sign-on's refresh token, from its own entry
+/// ([`SIGN_ON_SECRET`](super::SIGN_ON_SECRET)); else the password, or Google's or Microsoft's
+/// refresh token, kept in its place.
 pub(crate) fn kept(creds: &dyn Credentials, account: &AccountConfig) -> Option<String> {
-    if signs_on(account) { creds.get_secret(account, super::SIGN_ON_SECRET) } else { creds.get(account) }
+    if account.signs_on() { creds.get_secret(account, super::SIGN_ON_SECRET) } else { creds.get(account) }
 }
 
 /// Keep the refresh token `account` signed in with. A single sign-on's goes in its own entry, and
@@ -85,7 +80,7 @@ pub(crate) fn kept(creds: &dyn Credentials, account: &AccountConfig) -> Option<S
 /// service as a token (a sign-in given up leaves nothing to send). Google's and Microsoft's take
 /// the password's place.
 pub(crate) fn keep_token(creds: &dyn Credentials, account: &AccountConfig, token: &str) -> std::result::Result<(), String> {
-    if !signs_on(account) {
+    if !account.signs_on() {
         return creds.set(account, token);
     }
     creds.set_secret(account, super::SIGN_ON_SECRET, token)?;
@@ -111,7 +106,7 @@ impl super::Worker {
         let Some(given) = self.keychain.take() else { return true };
         let Some(creds) = self.creds.clone() else { return true };
         // A single sign-on signs in with its refresh token, never with a password.
-        let password = match given.filter(|_| !signs_on(&self.acc)) {
+        let password = match given.filter(|_| !self.acc.signs_on()) {
             Some(p) => {
                 if let Err(e) = keep_password(creds.as_ref(), &self.acc, &p) {
                     self.sink.emit(mailcraft_model::job::Event::Notice {
