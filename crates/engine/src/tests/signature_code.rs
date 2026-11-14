@@ -116,3 +116,51 @@ fn a_reply_has_the_card_then_the_quote() {
     assert!(html.contains("letter-spacing:2px"), "{html}");
     done(s);
 }
+
+/// Issue #90: the window draws the code, laid out, where the signature's text stands, so the
+/// engine says which characters those are: the signature's text after its `-- ` line, while it's
+/// there as it was put in; with the code as it goes and its pictures. Not for a message sent as
+/// plain text, a signature changed in the message, or one with no code. Text written before
+/// and after it moves the place and nothing else, and what's sent is what it was.
+#[test]
+fn the_code_stands_for_the_signatures_text_where_it_was_put() {
+    let mut s = sample_session("signature-card");
+    let png = crate::sample::sample_png();
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "", "code": card(&png)})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    let c = s.compose.clone().unwrap();
+    let chars: Vec<char> = c.body.chars().collect();
+    let range = c.signature_card().expect("the signature's text");
+    let stood_for: String = chars.get(range.clone()).unwrap().iter().collect();
+    assert_eq!(range.end, chars.len(), "to the end of a new message");
+    assert_eq!(format!("-- \n{stood_for}"), c.signature, "its text, after the line that starts it");
+    let before: String = chars.get(..range.start).unwrap().iter().collect();
+    assert!(before.ends_with("-- \n"), "{before:?}");
+    let (html, pictures) = c.signature_card_parts();
+    assert!(html.starts_with("<table") && pictures.len() == 1 && html.contains(&format!("cid:{}", pictures[0].cid)), "{html}");
+    let (_, sent_html, sent_pictures) = c.bodies_with(&c.signature_code);
+    assert!(sent_html.unwrap().contains(&html), "what's drawn is what goes");
+    assert_eq!(sent_pictures.iter().map(|p| &p.cid).collect::<Vec<_>>(), pictures.iter().map(|p| &p.cid).collect::<Vec<_>>());
+
+    // Text before and after it: the same text, further on.
+    let written = format!("Hello Ana,\n{}\nP.S. see you there", c.body);
+    s.run("compose.update", &json!({"body": written})).unwrap();
+    let c = s.compose.clone().unwrap();
+    let moved = c.signature_card().expect("still as it was put in");
+    assert_eq!(c.body.chars().skip(moved.start).take(moved.len()).collect::<String>(), stood_for);
+    assert_eq!(moved.start, range.start + "Hello Ana,\n".chars().count());
+    assert!(moved.end < c.body.chars().count());
+
+    // As plain text, changed in the message, or with no code: its text, like any other.
+    s.run("compose.format", &json!({"plain": true})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().signature_card(), None);
+    s.run("compose.format", &json!({"plain": false})).unwrap();
+    assert!(s.compose.as_ref().unwrap().signature_card().is_some());
+    s.run("compose.update", &json!({"body": c.body.replace("Producer", "Director")})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().signature_card(), None);
+    s.run("compose.discard", &json!({})).unwrap();
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley\nStudio"})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().signature_card(), None);
+    done(s);
+}

@@ -844,7 +844,8 @@ month	May	5月
 	Formatted	带格式
 	HTML code	HTML 代码
 	From a file…	从文件…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	粘贴在别处制作的签名的 HTML，或打开另存为网页的签名（Outlook 的 .htm）。它按原样发送；撰写时，邮件中显示它的文字。
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	粘贴在别处制作的签名的 HTML，或打开另存为网页的签名（Outlook 的 .htm）。它按原样发送，撰写时也按原样显示。
+	Your signature as it will be sent. To change it, pick Signature above the message.	签名将按此样式发送。要更改它，请选择邮件上方的“签名”。
 	{name} can't be read as a signature	无法将 {name} 读取为签名
 	All contacts	所有联系人
 	Always open with this address book	始终用此通讯簿打开

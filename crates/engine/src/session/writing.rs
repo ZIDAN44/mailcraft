@@ -227,8 +227,7 @@ impl Compose {
         // `-- ` stays text, as above every signature; the code is its next line.
         let (before, before_styles) = mime::rich::slice(&self.body, &styles, 0..start + "-- ".len());
         let (after, after_styles) = mime::rich::slice(&self.body, &styles, end..self.body.chars().count());
-        let tag = Some(self.signature_tag.clone()).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("{:012x}", self.id));
-        let (code_html, code_pictures) = mime::signature_code_parts(code, &tag);
+        let (code_html, code_pictures) = mime::signature_code_parts(code, &self.signature_code_tag());
         let mut out = mime::rich::to_html(&before, &before_styles);
         // Marked, so a saved draft opened again has the code back as it was.
         out.push_str(&format!("<div class=\"{}\">{code_html}</div>", mime::SIGNATURE_CLASS));

@@ -841,7 +841,8 @@
 	Formatted	С форматированием
 	HTML code	HTML-код
 	From a file…	Из файла…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Вставьте HTML подписи, созданной в другом месте, или откройте подпись, сохранённую как веб-страница (.htm из Outlook). Она отправляется в том виде, в каком написана; пока вы пишете, в письме виден её текст.
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	Вставьте HTML подписи, созданной в другом месте, или откройте подпись, сохранённую как веб-страница (.htm из Outlook). Она отправляется в том виде, в каком написана, и так же выглядит, пока вы пишете.
+	Your signature as it will be sent. To change it, pick Signature above the message.	Ваша подпись в том виде, в каком она будет отправлена. Чтобы изменить её, выберите «Подпись» над письмом.
 	{name} can't be read as a signature	{name} не удаётся прочитать как подпись
 	All contacts	Все контакты
 	Always open with this address book	Всегда открывать эту адресную книгу

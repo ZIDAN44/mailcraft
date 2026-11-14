@@ -22,6 +22,7 @@ mod pictures;
 mod quote;
 mod reactions;
 mod security;
+mod signature_card;
 pub(crate) mod text_selection;
 mod videos;
 pub(crate) use attachments::decode;
@@ -42,6 +43,7 @@ pub(crate) use pictures::{Got, Pictures, Want};
 pub(crate) use quote::QuoteEditors;
 #[cfg(test)]
 pub(crate) use quote::cell_id;
+pub(crate) use signature_card::SignatureCards;
 pub(crate) use text_selection::TextSelection;
 pub(crate) use videos::Videos;
 

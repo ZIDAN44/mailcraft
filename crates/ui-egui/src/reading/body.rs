@@ -673,6 +673,10 @@ pub(super) fn picture_texture(
     src: &str,
     allowed: bool,
 ) -> Pic {
+    // One of the signature drawn in the message being written (issue #90).
+    if let Some(own) = super::signature_card::own_picture(ctx, src) {
+        return Pic::Ready(own);
+    }
     // One sent with the message: by `cid:`, or by the name or address it was sent under.
     let lower = src.to_ascii_lowercase();
     if !(lower.starts_with("http://") || lower.starts_with("https://")) {

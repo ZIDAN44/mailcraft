@@ -841,7 +841,8 @@
 	Formatted	有格式
 	HTML code	HTML 程式碼
 	From a file…	從檔案…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	貼上在別處製作的簽名 HTML，或開啟另存為網頁的簽名（Outlook 的 .htm）。它會依原樣傳送；撰寫時，郵件中顯示它的文字。
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	貼上在別處製作的簽名 HTML，或開啟另存為網頁的簽名（Outlook 的 .htm）。它會依原樣傳送，撰寫時也依原樣顯示。
+	Your signature as it will be sent. To change it, pick Signature above the message.	簽名將依此樣式傳送。若要變更，請選擇郵件上方的「簽名」。
 	{name} can't be read as a signature	無法將 {name} 讀取為簽名
 	All contacts	所有連絡人
 	Always open with this address book	一律以此通訊錄開啟

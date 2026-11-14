@@ -233,3 +233,135 @@ fn the_first_signature_is_saved_with_the_defaults_chosen() {
     assert_eq!((config.signature_new.as_deref(), config.signature_reply.as_deref()), (Some("Signature"), None));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Issue #90: a signature written as HTML code shows in the message being written as it's sent,
+/// its columns side by side, where its text stands; the text itself stays in the message (what's
+/// sent is made from it) and isn't drawn. It was its text, one part under another. Sent as plain
+/// text, or changed in the message, it's its text again.
+#[test]
+fn a_signature_in_columns_is_drawn_in_columns_while_writing() {
+    const CODE: &str = r#"<table width="560" cellspacing="0" cellpadding="0" style="width:560px"><tr>
+<td width="120" style="width:120px">STUDIO</td>
+<td width="200" style="width:200px;padding:0 16px 0 12px"><b>Ms. Riley Moreno</b><br>riley@studio.example</td>
+<td style="padding:0 0 0 16px;border-left:1px solid #E30613;font-size:11px">12 Harbour Road<br>Portside</td></tr></table>"#;
+    let (mut a, dir) = app("signature-card");
+    let ctx = egui::Context::default();
+    a.run("account.setSignature", json!({"account": "sample", "name": "Card", "signature": "", "code": CODE}));
+    a.run("account.signatureDefaults", json!({"account": "sample", "new": "Card"}));
+    a.run("mail.new", json!({}));
+    let size = egui::vec2(1280.0, 800.0);
+    // Where a piece of text was drawn by itself (the editor's text is one piece, all of it).
+    let piece = |a: &mut MailApp, text: &str| {
+        // (Its room is its size from the frame after it's first drawn.)
+        for _ in 0..3 {
+            super::rtl::drawn_text(&ctx, a, size);
+        }
+        super::rtl::drawn_text(&ctx, a, size).into_iter().find(|(t, ..)| t.trim() == text).map(|(_, ink, _)| ink)
+    };
+    let body = a.session.compose.as_ref().unwrap().body.clone();
+    assert!(body.contains("Ms. Riley Moreno") && body.contains("12 Harbour Road"), "its text is in the message: {body:?}");
+    assert!(a.session.compose.as_ref().unwrap().signature_card().is_some());
+    let (name, address) = (piece(&mut a, "Ms. Riley Moreno").expect("the name, laid out"), piece(&mut a, "12 Harbour Road").expect("the address"));
+    assert!(address.left() > name.right() && (address.top() - name.top()).abs() < 12.0, "side by side: {name:?} {address:?}");
+    assert_eq!(a.session.compose.as_ref().unwrap().body, body, "drawing it changes nothing");
+    // The cursor doesn't stop in its unseen text: put there, it's after the signature.
+    let card = a.session.compose.as_ref().unwrap().signature_card().unwrap();
+    assert_eq!(card.end, body.chars().count());
+    // As plain text, the message goes with the signature's text: shown so.
+    a.run("compose.format", json!({"plain": true}));
+    assert!(a.session.compose.as_ref().unwrap().signature_card().is_none());
+    assert!(piece(&mut a, "12 Harbour Road").is_none(), "its text, in the editor");
+    a.run("compose.format", json!({"plain": false}));
+    assert!(piece(&mut a, "12 Harbour Road").is_some());
+    // Changed in the message, it's the writer's text from then on.
+    let changed = body.replace("Harbour", "Harbor");
+    a.run("compose.update", json!({"body": changed}));
+    assert!(a.session.compose.as_ref().unwrap().signature_card().is_none());
+    assert!(piece(&mut a, "12 Harbour Road").is_none());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The drawn signature is one thing in the text (issue #90): Backspace after it, or Delete
+/// before it, takes all of it, its `-- ` line too (letter by letter, the rest of its unseen
+/// text came back as text); Undo brings it back. In a reply it's above the original, and text
+/// under the signature stays under it. Pictures it names on the web are fetched only once
+/// asked for.
+#[test]
+fn the_drawn_signature_is_one_thing_in_the_text() {
+    const CODE: &str = r#"<table width="560" cellspacing="0" cellpadding="0" style="width:560px"><tr>
+<td width="120" style="width:120px"><img src="https://studio.example/logo.png" width="96" height="40" alt="Studio"></td>
+<td width="200" style="width:200px"><b>Ms. Riley Moreno</b><br>riley@studio.example</td>
+<td style="padding:0 0 0 16px;border-left:1px solid #E30613;font-size:11px">12 Harbour Road<br>Portside</td></tr></table>"#;
+    let (mut a, dir) = app("signature-card-keys");
+    // (Written beside the list, where one editor draws it: a window of its own draws it the same.)
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    a.run("account.setSignature", json!({"account": "sample", "name": "Card", "signature": "", "code": CODE}));
+    a.run("account.signatureDefaults", json!({"account": "sample", "new": "Card", "reply": "Card"}));
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"body": format!("Hello Ana,{}", a.session.compose.as_ref().unwrap().body)}));
+    let size = egui::vec2(1280.0, 800.0);
+    let draw = |a: &mut MailApp, events: Vec<egui::Event>| frame(&ctx, a, events);
+    let compose = |a: &MailApp| a.session.compose.clone().unwrap();
+    let whole = compose(&a).signature_place().expect("the signature, whole");
+    let with_it = compose(&a).body;
+    // The cursor after it, in the text box; then Backspace.
+    let put_cursor = |a: &mut MailApp, at: usize| {
+        draw(a, vec![]);
+        a.ui.editor.as_mut().unwrap().refocus = Some(at..at);
+        draw(a, vec![]);
+        draw(a, vec![]);
+    };
+    put_cursor(&mut a, whole.end);
+    draw(&mut a, vec![key(Key::Backspace, Modifiers::NONE)]);
+    let without = compose(&a).body;
+    assert_eq!(without, "Hello Ana,\n", "the signature and its line are gone, the text stays: {without:?}");
+    assert!(compose(&a).signature_card().is_none());
+    draw(&mut a, vec![key(Key::Z, Modifiers::COMMAND)]);
+    assert_eq!(compose(&a).body, with_it, "Undo brings it back");
+    assert!(compose(&a).signature_card().is_some());
+    // Delete before it does the same.
+    put_cursor(&mut a, whole.start - 1);
+    draw(&mut a, vec![key(Key::Delete, Modifiers::NONE)]);
+    assert_eq!(compose(&a).body, "Hello Ana,\n");
+    draw(&mut a, vec![key(Key::Z, Modifiers::COMMAND)]);
+    // The cursor doesn't rest in it: put in its unseen text, it's after it.
+    put_cursor(&mut a, whole.start + 6);
+    assert_eq!(a.ui.editor.as_ref().unwrap().sel, whole.end..whole.end);
+
+    // Its picture on the web: nothing is asked of the web until Show pictures.
+    let pieces = |a: &mut MailApp| {
+        for _ in 0..3 {
+            super::rtl::drawn_text(&ctx, a, size);
+        }
+        super::rtl::drawn_text(&ctx, a, size)
+    };
+    assert!(pieces(&mut a).iter().any(|(t, ..)| t == "Show pictures"));
+    assert!(!a.session.take_jobs().iter().any(|j| matches!(j, mailcraft_engine::model::Job::FetchUrl { .. })));
+    a.run("compose.signaturePictures", json!({}));
+    let jobs = a.session.take_jobs();
+    assert!(
+        matches!(jobs.as_slice(), [mailcraft_engine::model::Job::FetchUrl { url }] if url == "https://studio.example/logo.png"),
+        "its one picture, asked for: {jobs:?}"
+    );
+    a.run("compose.discard", json!({}));
+
+    // In a reply: the signature above the original, drawn in its columns.
+    let key_of = a.session.list.iter().find(|m| m.subject.contains("Storyboard")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": key_of.to_id()}));
+    a.run("mail.reply", json!({}));
+    assert!(compose(&a).signature_card().is_some(), "{:?}", compose(&a).body);
+    let drawn = pieces(&mut a);
+    let top = |text: &str| drawn.iter().find(|(t, ..)| t.trim() == text).map(|(_, ink, _)| ink.top());
+    let (name, address) = (top("Ms. Riley Moreno").expect("the name"), top("12 Harbour Road").expect("the address"));
+    assert!((name - address).abs() < 12.0, "side by side: {name} {address}");
+    // The original (plain text, quoted in the message's own text) is after it: the text box
+    // holds both, the signature's room between what's written and what's quoted.
+    let (card, body) = (compose(&a).signature_card().unwrap(), compose(&a).body);
+    let quoted = body.chars().skip(card.end).collect::<String>();
+    assert!(quoted.contains("Storyboard review"), "{quoted:?}");
+    let text_box = drawn.iter().find(|(t, ..)| t.contains("Storyboard review") && t.contains("Ms. Riley Moreno")).map(|(_, ink, _)| ink);
+    assert!(text_box.is_some_and(|ink| ink.top() < name && ink.bottom() > name + 40.0), "the signature inside the text: {text_box:?} {name}");
+    let _ = std::fs::remove_dir_all(dir);
+}

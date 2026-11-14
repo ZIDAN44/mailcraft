@@ -843,7 +843,8 @@ month	May	مايو
 	Formatted	منسّق
 	HTML code	شيفرة HTML
 	From a file…	من ملف…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	الصق HTML لتوقيع صُنع في مكان آخر، أو افتح توقيعًا محفوظًا كصفحة ويب (‎.htm من Outlook). يُرسل كما كُتب؛ وأثناء الكتابة تعرض الرسالة نصّه.
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	الصق HTML لتوقيع صُنع في مكان آخر، أو افتح توقيعًا محفوظًا كصفحة ويب (‎.htm من Outlook). يُرسل كما كُتب، ويظهر كذلك أثناء الكتابة.
+	Your signature as it will be sent. To change it, pick Signature above the message.	توقيعك كما سيُرسل. لتغييره، اختر «التوقيع» أعلى الرسالة.
 	{name} can't be read as a signature	لا يمكن قراءة {name} كتوقيع
 	All contacts	كل جهات الاتصال
 	Always open with this address book	الفتح دائمًا بدفتر العناوين هذا

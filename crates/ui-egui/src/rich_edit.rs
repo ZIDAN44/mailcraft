@@ -24,6 +24,7 @@ mod layout;
 mod links;
 mod pictures;
 mod toolbar;
+pub(crate) use layout::Card;
 use layout::*;
 pub(crate) use links::link_dialog;
 use links::*;
@@ -95,6 +96,10 @@ pub(crate) struct Editor {
     /// The text box this tall at least, when not the room there is (a block of the quoted
     /// original, as tall as its text).
     pub(crate) min_height: Option<f32>,
+    /// A part of the text drawn as something else, set for each frame by who draws it (a
+    /// signature's HTML code, laid out), and where its room was in the last frame.
+    pub(crate) card: Option<Card>,
+    pub(crate) card_rect: Option<Rect>,
 }
 
 #[derive(Clone)]
@@ -121,6 +126,8 @@ impl Editor {
             placed: Vec::new(),
             refocus: None,
             min_height: None,
+            card: None,
+            card_rect: None,
         }
     }
 
@@ -310,6 +317,28 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     let line_empty = c.body.split('\n').nth(line).is_some_and(str::is_empty);
     let at_start = ed.sel.is_empty() && ed.sel.start == line_start;
     let listed = para.list != List::None;
+    // A card is one thing: Backspace after it, or Delete before it, takes all of it (its
+    // unseen letters one at a time would leave the rest of them as text).
+    if let Some(card) = ed.card.clone().filter(|card| !c.sending && ed.sel.is_empty() && card.whole.end <= n) {
+        let first = card.before(&c.body);
+        let key = if ed.sel.start == card.whole.end {
+            Some(Key::Backspace)
+        } else if ed.sel.start == first {
+            Some(Key::Delete)
+        } else {
+            None
+        };
+        let pressed = key.is_some_and(|key| {
+            ui.input_mut(|i| [Modifiers::NONE, Modifiers::SHIFT, Modifiers::COMMAND, Modifiers::ALT].iter().any(|m| i.consume_key(*m, key)))
+        });
+        if pressed {
+            let style = typing_style(&c.body, &c.styles, first);
+            replace(ed, c, first..card.whole.end, "", style);
+            set_selection(&ctx, id, ed.sel.clone());
+            ed.card = None;
+            return;
+        }
+    }
     ui.input_mut(|i| {
         // With Shift first, so Ctrl+Shift+Z isn't taken as Ctrl+Z.
         for (m, k, op) in [
@@ -425,7 +454,8 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let plain = c.plain;
     let tokens = *t;
     let own = if plain { HashMap::new() } else { pictures::own_sizes(ui.ctx(), ed, c) };
-    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap, &own);
+    let card = ed.card.clone().filter(|_| !plain);
+    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout(ui, buf.as_str(), &styles, plain, &tokens, wrap, &own, card.as_ref());
     // As tall as the pane, or, above the original of a reply shown as it came, as its text.
     let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });
     // A right-click inside the selection keeps it (egui's text box moves the cursor on any
@@ -466,6 +496,34 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
             cursor = Some(kept.clone());
         }
     }
+    // A card is passed as one thing: the cursor doesn't stop among its unseen letters (on the
+    // way down it comes out after it, on the way up before it), and a selection that reaches
+    // into it takes all of it.
+    if let (Some(card), Some(r)) = (&card, cursor.as_mut())
+        && c.body == before
+    {
+        let (first, last) = (card.before(&before), card.whole.end);
+        let inside = |p: usize| p > first && p < last;
+        let moved = if r.start == r.end && inside(r.start) {
+            let p = if ed.sel.start >= last { first } else { last };
+            Some(p..p)
+        } else if r.start != r.end && (inside(r.start) || inside(r.end)) {
+            Some(if inside(r.start) { first } else { r.start }..r.end.max(last))
+        } else {
+            None
+        };
+        if let Some(to) = moved.filter(|to| to != r) {
+            set_selection(ui.ctx(), id, to.clone());
+            *r = to;
+            ui.ctx().request_repaint();
+        }
+    }
+    // Where its room is: its last line's row, the width of the text.
+    ed.card_rect = card.as_ref().filter(|card| card.range.end <= c.body.chars().count()).map(|card| {
+        let row = out.galley.pos_from_cursor(CCursor::new(card.last_line(&c.body)));
+        let top = out.galley_pos.y + row.min.y + 2.0;
+        Rect::from_min_size(egui::pos2(out.galley_pos.x, top), vec2(out.response.rect.width(), card.size.y))
+    });
     if c.body != before {
         // The look of what was typed: the ribbon's choice, else the text's at the cursor.
         let typing = ed.typing.take().unwrap_or_else(|| typing_style(&before, &styles, ed.sel.start));
@@ -605,8 +663,11 @@ fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, g: &Galle
     let right = ui.min_rect().right().max(origin.x + g.size().x);
     let mut pictures = Vec::new();
     ed.placed.clear();
+    // (Nothing is drawn over a card's unseen letters: what stands for them is drawn there.)
+    let card = ed.card.clone();
+    let in_card = |i: usize| card.as_ref().is_some_and(|c| c.range.contains(&i));
     for (n, line) in c.body.split('\n').enumerate() {
-        let p = c.styles.para(n);
+        let p = if in_card(i) { Default::default() } else { c.styles.para(n) };
         let r = at(i);
         if p.rule {
             let y = r.center().y;
@@ -641,6 +702,7 @@ fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, g: &Galle
         }
         for (k, ch) in line.chars().enumerate() {
             if ch == PICTURE
+                && !in_card(i + k)
                 && let Some(cid) = c.styles.style(i + k).picture
             {
                 pictures.push((i + k, cid));
@@ -693,7 +755,7 @@ English stays left.
         for plain in [false, true] {
             let mut rows = Vec::new();
             let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-                let g = layout::layout(ui, text, &Styles::plain(text), plain, &t, wrap, &HashMap::new());
+                let g = layout::layout(ui, text, &Styles::plain(text), plain, &t, wrap, &HashMap::new(), None);
                 rows = g
                     .rows
                     .iter()
@@ -743,7 +805,7 @@ English stays left.
                 }
             }
             let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-                let g = layout::layout(ui, body, &st, false, &t, wrap, &own);
+                let g = layout::layout(ui, body, &st, false, &t, wrap, &own, None);
                 let (a, b) = (g.pos_from_cursor(CCursor::new(at)), g.pos_from_cursor(CCursor::new(at + 1)));
                 let last = body.chars().nth(at + 1).is_none_or(|c| c == '\n');
                 let place = pictures::Place::of(&g, egui::Pos2::ZERO, at, last);

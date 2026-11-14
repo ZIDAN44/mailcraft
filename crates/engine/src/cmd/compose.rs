@@ -28,6 +28,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.resizePicture", "Picture size", "Message › Picture", resize_picture)
             .params(r#"{"cid": string, "width"?: number (CSS pixels; 0 or none: its own width)}"#)
             .when(has_compose),
+        CommandSpec::new("compose.signaturePictures", "Show the signature's pictures", "Message › Signature", |s, _| s.show_signature_pictures())
+            .when(has_compose),
         CommandSpec::new("compose.format", "Plain text / Formatted", "Message › Format", |s, v| {
             let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
             c.plain = p::bool(v, "plain").unwrap_or(!c.plain);

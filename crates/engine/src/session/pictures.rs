@@ -80,6 +80,37 @@ impl Session {
         Ok(serde_json::json!({ "pictures": self.remote_pictures().len(), "trusted": always.then_some(sender) }))
     }
 
+    /// The pictures on the web that the signature of the message being written names in its
+    /// HTML code: asked for, to show the signature as it's sent (issue #90). Nothing is asked
+    /// for until the user says so, here as for a message that's read; the signature is the
+    /// user's own, and the addresses are the ones they put in it.
+    pub fn show_signature_pictures(&mut self) -> CmdResult {
+        let c = self.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+        if c.signature_card().is_none() {
+            return Err(CmdError::Disabled("the message has no signature written as HTML code".into()));
+        }
+        let (html, _) = c.signature_card_parts();
+        let blocks = mime::layout::html_layout(&html);
+        let mut urls: Vec<String> = Vec::new();
+        for (lines, _) in mime::layout::text_blocks(&blocks) {
+            for src in lines.iter().flatten().filter_map(|span| span.image.as_deref()) {
+                if (src.starts_with("https://") || src.starts_with("http://")) && !urls.iter().any(|u| u == src) && urls.len() < MAX_PICTURES {
+                    urls.push(src.to_string());
+                }
+            }
+        }
+        if self.pictures.len() > 400 {
+            self.pictures.retain(|_, p| matches!(p, Picture::Loading));
+        }
+        for url in &urls {
+            if !self.pictures.contains_key(url) {
+                self.pictures.insert(url.clone(), Picture::Loading);
+                self.jobs.push(Job::FetchUrl { url: url.clone() });
+            }
+        }
+        Ok(serde_json::json!({ "pictures": urls.len() }))
+    }
+
     /// Stop loading pictures from the open message's sender automatically.
     pub fn block_pictures(&mut self) -> CmdResult {
         let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;

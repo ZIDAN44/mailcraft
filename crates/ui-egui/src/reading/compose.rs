@@ -773,7 +773,10 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                 }
                 egui::ScrollArea::vertical().auto_shrink(false).id_salt("compose-body").show(ui, |ui| {
                     // Replies start above the quoted text.
+                    // A signature written as HTML code is drawn laid out, where its text stands.
+                    super::signature_card::place(st, ui, c, &mut ed);
                     rich_edit::body(ui, &t, &mut ed, c, focus_body.then_some(0), acts);
+                    super::signature_card::show(s, st, ui, c, &mut ed, acts);
                     if ui.memory(|m| m.has_focus(rich_edit::body_id(c))) {
                         st.quote_focus = None;
                     }
@@ -787,6 +790,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     // Those of messages no longer being written go.
     quote_eds.retain(|(id, _), _| *id == taken.id || s.composes.iter().any(|c| c.id == *id));
     st.quote_editors = quote_eds;
+    st.signature_cards.retain(|id, _| *id == taken.id || s.composes.iter().any(|c| c.id == *id));
     s.compose = Some(taken);
 }
 

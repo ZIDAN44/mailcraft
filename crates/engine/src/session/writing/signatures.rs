@@ -8,6 +8,9 @@ use mailcraft_model::Signature;
 use super::*;
 
 /// A signature as it goes into a message: after the usual `-- ` line (RFC 3676's delimiter).
+/// The line a signature starts with ([`signature_block`]).
+const SIGNATURE_LINE: &str = "-- \n";
+
 pub fn signature_block(sig: &str) -> String {
     format!("-- \n{}", sig.trim_end())
 }
@@ -81,6 +84,39 @@ impl Compose {
         }
         let end = quote_line(self).and_then(|i| self.body.char_indices().nth(i).map(|(b, _)| b)).unwrap_or(self.body.len());
         self.body.get(..end)?.rfind(self.signature.as_str())
+    }
+
+    /// The characters of the text that the signature's HTML code takes the place of when the
+    /// message is sent ([`Compose::bodies_with`]): the signature's own text, after its `-- `
+    /// line, while it stands as it was put in. `None` for a signature with no code, one
+    /// changed since, or a message sent as plain text. The window draws the code there, laid
+    /// out, so what's written looks as it goes (issue #90).
+    pub fn signature_card(&self) -> Option<std::ops::Range<usize>> {
+        let whole = self.signature_place()?;
+        Some(whole.start + SIGNATURE_LINE.chars().count()..whole.end)
+    }
+
+    /// The characters of the whole signature where [`Compose::signature_card`] has its code
+    /// drawn: its `-- ` line and its text. One thing in the message: taken out whole, never
+    /// written in.
+    pub fn signature_place(&self) -> Option<std::ops::Range<usize>> {
+        if self.plain || self.signature_code.trim().is_empty() || !self.signature.starts_with(SIGNATURE_LINE) {
+            return None;
+        }
+        let at = self.body.get(..self.signature_at()?)?.chars().count();
+        let (line, end) = (SIGNATURE_LINE.chars().count(), self.signature.chars().count());
+        (line < end).then_some(at..at + end)
+    }
+
+    /// The signature's code as it goes into this message, with its pictures: what
+    /// [`Compose::signature_card`]'s characters stand for.
+    pub fn signature_card_parts(&self) -> (String, Vec<mime::InlinePicture>) {
+        mime::signature_code_parts(&self.signature_code, &self.signature_code_tag())
+    }
+
+    /// What tells this message's copies of the signature's pictures from another message's.
+    pub(crate) fn signature_code_tag(&self) -> String {
+        Some(self.signature_tag.clone()).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("{:012x}", self.id))
     }
 }
 

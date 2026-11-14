@@ -843,7 +843,8 @@ month	May	mei
 	Formatted	Opgemaakt
 	HTML code	HTML-code
 	From a file…	Uit een bestand…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Plak de HTML van een elders gemaakte handtekening, of open er een die als webpagina is opgeslagen (.htm van Outlook). Ze wordt verzonden zoals ze geschreven is; tijdens het schrijven toont een bericht haar tekst.
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	Plak de HTML van een elders gemaakte handtekening, of open er een die als webpagina is opgeslagen (.htm van Outlook). Ze wordt verzonden zoals ze geschreven is, en zo ook getoond terwijl u schrijft.
+	Your signature as it will be sent. To change it, pick Signature above the message.	Uw handtekening zoals ze wordt verzonden. Kies Handtekening boven het bericht om ze te wijzigen.
 	{name} can't be read as a signature	{name} kan niet als handtekening worden gelezen
 	All contacts	Alle contactpersonen
 	Always open with this address book	Altijd met dit adresboek openen

@@ -841,7 +841,8 @@
 	Formatted	서식 있음
 	HTML code	HTML 코드
 	From a file…	파일에서…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	다른 곳에서 만든 서명의 HTML을 붙여 넣거나, 웹 페이지로 저장한 서명(Outlook의 .htm)을 여세요. 작성된 그대로 보내지며, 메시지를 쓰는 동안에는 그 텍스트가 표시됩니다.
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	다른 곳에서 만든 서명의 HTML을 붙여 넣거나, 웹 페이지로 저장한 서명(Outlook의 .htm)을 여세요. 작성된 그대로 보내지며, 메시지를 쓰는 동안에도 그대로 표시됩니다.
+	Your signature as it will be sent. To change it, pick Signature above the message.	보내지는 그대로의 서명입니다. 바꾸려면 메시지 위의 서명을 선택하세요.
 	{name} can't be read as a signature	{name}을(를) 서명으로 읽을 수 없습니다
 	All contacts	모든 연락처
 	Always open with this address book	항상 이 주소록으로 열기

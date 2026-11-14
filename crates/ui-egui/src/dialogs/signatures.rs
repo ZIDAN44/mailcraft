@@ -355,7 +355,7 @@ fn signature_text(ui: &mut Ui, f: &mut SignatureForm, t: &Tokens, acts: &mut Vec
 /// The signature as HTML code: the code, from a file too, saved as written.
 fn signature_code(ui: &mut Ui, f: &mut SignatureForm, t: &Tokens, acts: &mut Vec<Action>) {
     ui.label(
-        RichText::new(tl!("Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text."))
+        RichText::new(tl!("Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write."))
             .color(t.dim)
             .small(),
     );

@@ -843,7 +843,8 @@ month	May	מאי
 	Formatted	מעוצב
 	HTML code	קוד HTML
 	From a file…	מקובץ…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	הדביקו את ה-HTML של חתימה שנוצרה במקום אחר, או פתחו חתימה ששמורה כדף אינטרנט (‎.htm של Outlook). היא נשלחת כפי שנכתבה; בזמן הכתיבה ההודעה מציגה את הטקסט שלה.
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	הדביקו את ה-HTML של חתימה שנוצרה במקום אחר, או פתחו חתימה ששמורה כדף אינטרנט (‎.htm של Outlook). היא נשלחת כפי שנכתבה, וכך היא מוצגת גם בזמן הכתיבה.
+	Your signature as it will be sent. To change it, pick Signature above the message.	החתימה שלכם כפי שתישלח. כדי לשנות אותה, בחרו 'חתימה' מעל ההודעה.
 	{name} can't be read as a signature	אי אפשר לקרוא את {name} כחתימה
 	All contacts	כל אנשי הקשר
 	Always open with this address book	לפתוח תמיד עם פנקס כתובות זה

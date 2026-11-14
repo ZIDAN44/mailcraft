@@ -395,6 +395,8 @@ pub struct UiState {
     /// the cursor (its message, its place).
     pub(crate) quote_editors: reading::QuoteEditors,
     pub(crate) quote_focus: Option<(u64, usize)>,
+    /// Signatures written as HTML code, laid out for the messages being written (issue #90).
+    pub(crate) signature_cards: reading::SignatureCards,
     /// The recipient box showing suggestions (`to`, `cc`, `bcc`), the highlighted one, and the
     /// text for which Escape hid them.
     pub(crate) suggest_field: Option<&'static str>,
@@ -577,6 +579,7 @@ impl MailApp {
                 editor: None,
                 quote_editors: Default::default(),
                 quote_focus: None,
+                signature_cards: Default::default(),
                 suggest_field: None,
                 suggest_index: 0,
                 suggest_dismissed: None,

@@ -842,7 +842,8 @@
 	Formatted	Mise en forme
 	HTML code	Code HTML
 	From a file…	Depuis un fichier…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Collez le HTML d'une signature faite ailleurs, ou ouvrez-en une enregistrée comme page web (.htm d'Outlook). Elle est envoyée telle qu'elle est écrite ; pendant la rédaction, le message affiche son texte.
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	Collez le HTML d'une signature faite ailleurs, ou ouvrez-en une enregistrée comme page web (.htm d'Outlook). Elle est envoyée telle qu'elle est écrite, et s'affiche ainsi pendant la rédaction.
+	Your signature as it will be sent. To change it, pick Signature above the message.	Votre signature telle qu'elle sera envoyée. Pour la modifier, choisissez Signature au-dessus du message.
 	{name} can't be read as a signature	{name} ne peut pas être lu comme signature
 	All contacts	Tous les contacts
 	Always open with this address book	Toujours ouvrir avec ce carnet d'adresses

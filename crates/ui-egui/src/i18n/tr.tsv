@@ -842,7 +842,8 @@
 	Formatted	Biçimli
 	HTML code	HTML kodu
 	From a file…	Dosyadan…
-	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written; while you write, a message shows its text.	Başka bir yerde hazırlanmış bir imzanın HTML'ini yapıştırın veya web sayfası olarak kaydedilmiş birini (Outlook'un .htm dosyası) açın. Yazıldığı gibi gönderilir; siz yazarken ileti onun metnini gösterir.
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	Başka bir yerde hazırlanmış bir imzanın HTML'ini yapıştırın veya web sayfası olarak kaydedilmiş birini (Outlook'un .htm dosyası) açın. Yazıldığı gibi gönderilir ve siz yazarken de öyle görünür.
+	Your signature as it will be sent. To change it, pick Signature above the message.	İmzanız gönderileceği biçimde. Değiştirmek için iletinin üstündeki İmza'yı seçin.
 	{name} can't be read as a signature	{name} imza olarak okunamıyor
 	All contacts	Tüm kişiler
 	Always open with this address book	Her zaman bu adres defteriyle aç
