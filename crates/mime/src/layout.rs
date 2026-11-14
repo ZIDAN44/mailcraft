@@ -376,14 +376,10 @@ fn block_tag(tag: &str) -> bool {
 /// heading, so the layout and the text converter both see them. Unchanged when it has no style
 /// sheet and no sizes.
 pub fn inline_css(html: &str) -> String {
-    let lower = html.to_ascii_lowercase();
-    if !(lower.contains("<style") || lower.contains("font-size") || lower.contains("<font")) {
+    if !sets_styles(&html.to_ascii_lowercase()) {
         return html.to_string();
     }
-    let capped = match html.char_indices().nth(crate::HTML_MAX) {
-        Some((i, _)) => html.get(..i).unwrap_or(html),
-        None => html,
-    };
+    let capped = crate::capped(html, crate::HTML_MAX);
     let done = std::panic::catch_unwind(|| {
         let mut root = parse(capped);
         let mut text = String::new();
@@ -398,21 +394,43 @@ pub fn inline_css(html: &str) -> String {
     done.unwrap_or_else(|_| html.to_string())
 }
 
-/// The text of every `<style>` element.
-fn style_text(n: &Node, out: &mut String, depth: usize) {
+/// Whether HTML (lower-cased) sets the size of its text (`font-size`, `<font>`).
+fn sets_sizes(lower: &str) -> bool {
+    lower.contains("font-size") || lower.contains("<font")
+}
+
+/// Whether HTML (lower-cased) has a style sheet or sets sizes: what writing styles in changes.
+fn sets_styles(lower: &str) -> bool {
+    lower.contains("<style") || sets_sizes(lower)
+}
+
+/// Each `<style>` element under `n` handed to `each` with what's gathered from them so far
+/// (`out`), until that's 256 KB.
+fn each_style(n: &Node, out: &mut String, depth: usize, each: &impl Fn(&Node, &mut String)) {
     if depth > MAX_DEPTH * 4 || out.len() > 256 * 1024 {
         return;
     }
+    if n.tag == "style" {
+        each(n, out);
+        return;
+    }
     for k in &n.kids {
-        match k {
-            Kid::Text(t) if n.tag == "style" => {
+        if let Kid::El(e) = k {
+            each_style(e, out, depth + 1, each);
+        }
+    }
+}
+
+/// The text of every `<style>` element, a line break after each piece.
+fn style_text(n: &Node, out: &mut String, depth: usize) {
+    each_style(n, out, depth, &|style, out| {
+        for k in &style.kids {
+            if let Kid::Text(t) = k {
                 out.push_str(t);
                 out.push('\n');
             }
-            Kid::El(e) => style_text(e, out, depth + 1),
-            Kid::Text(_) => {}
         }
-    }
+    });
 }
 
 /// The style sheet's rules written into each element under `n`, `chain` the elements around it
@@ -486,8 +504,7 @@ fn make_headings(n: &mut Node, depth: usize) {
     for k in &mut n.kids {
         let Kid::El(kid) = k else { continue };
         let level = kid.font_size().or_else(|| kid.wrapped_font_size(0)).map_or(0, heading_for);
-        let is_heading = kid.tag.len() == 2 && kid.tag.starts_with('h') && kid.tag != "hr";
-        if level == 0 || is_heading || !kid.has_text(0) || kid.has_block_inside(0) {
+        if level == 0 || kid.is_title() || !kid.has_text(0) || kid.has_block_inside(0) {
             continue;
         }
         let h = format!("h{level}");
@@ -637,25 +654,17 @@ fn find<'a>(n: &'a Node, tag: &str, depth: usize) -> Option<&'a Node> {
     n.kids.iter().find_map(|k| if let Kid::El(e) = k { find(e, tag, depth + 1) } else { None })
 }
 
+/// Every `<style>` element, written again (without a `</` that could end it early).
 fn collect_css(n: &Node, out: &mut String, depth: usize) {
-    if depth > MAX_DEPTH * 4 || out.len() > 256 * 1024 {
-        return;
-    }
-    if n.tag == "style" {
+    each_style(n, out, depth, &|style, out| {
         out.push_str("<style>");
-        for k in &n.kids {
+        for k in &style.kids {
             if let Kid::Text(t) = k {
                 out.push_str(&t.replace("</", ""));
             }
         }
         out.push_str("</style>");
-        return;
-    }
-    for k in &n.kids {
-        if let Kid::El(e) = k {
-            collect_css(e, out, depth + 1);
-        }
-    }
+    });
 }
 
 #[cfg(test)]

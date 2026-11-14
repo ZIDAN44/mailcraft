@@ -255,6 +255,10 @@ fn a_centred_title_in_a_column_stays_centred_and_big() {
     assert!(matches!(&cell[1], Block::Text(t) if t.iter().flatten().any(|s| s.text.contains("Hello") && s.heading == 0)), "{cell:?}");
     // Text that flows keeps flowing: no layout for paragraphs that line up nothing.
     assert!(html_layout(r#"<p style="text-align:left">Just text</p><p>More</p>"#).is_empty());
+    // A heading isn't made one again; a tag that only looks like one (`<h7>`, no HTML heading)
+    // sized as a title is, as any other element is.
+    assert_eq!(inline_css(r#"<td><h2 style="font-size:30px">Hi</h2></td>"#).matches("<h2").count(), 1);
+    assert!(inline_css(r#"<td><h7 style="font-size:30px">Hi</h7></td>"#).contains("<h1><h7"));
 }
 
 /// Issue #74: a logo and a title centred over a message that otherwise flows (`<center>`,

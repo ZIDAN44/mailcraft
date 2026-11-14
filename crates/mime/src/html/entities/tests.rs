@@ -149,3 +149,15 @@ fn every_pass_reads_an_address_alike() {
     let quoted = crate::quote_html(html, &[(src.to_string(), "logo@x".to_string())], &["https://t.example/o.gif?a=1&b=2".to_string()]);
     assert!(quoted.contains("src=\"cid:logo@x\"") && !quoted.contains("t.example"), "{quoted}");
 }
+
+proptest! {
+    /// The one escaper writes what each of its three copies wrote (the layout's replaced `"`
+    /// second, the others last: the same, as no replacement makes another's character).
+    #[test]
+    fn escaped_as_each_copy_was(s in "[&<>\"'a é;#]{0,24}") {
+        let markup = s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");
+        let layout = s.replace('&', "&amp;").replace('"', "&quot;").replace('<', "&lt;").replace('>', "&gt;");
+        prop_assert_eq!(escaped(&s), markup);
+        prop_assert_eq!(escaped(&s), layout);
+    }
+}

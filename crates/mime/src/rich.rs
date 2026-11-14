@@ -8,6 +8,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::css::hex;
+use crate::html::escaped;
 use crate::{RichText, Span};
 
 pub mod reply;
@@ -334,17 +336,10 @@ pub fn step_size(size: u8, up: bool) -> u8 {
     if up { SIZES.iter().copied().find(|s| *s > size).unwrap_or(size) } else { SIZES.iter().rev().copied().find(|s| *s < size).unwrap_or(size) }
 }
 
-fn esc(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
-}
-
-fn hex(c: [u8; 3]) -> String {
-    format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2])
-}
-
+/// Whether a link will do to write: a web or mail address ([`crate::markup::safe_scheme`]), with
+/// nothing in it that could end its attribute.
 fn safe_link(u: &str) -> bool {
-    let l = u.trim().to_ascii_lowercase();
-    (l.starts_with("https://") || l.starts_with("http://") || l.starts_with("mailto:")) && !u.contains(['"', '<', '>'])
+    crate::markup::safe_scheme(u.trim()) && !u.contains(['"', '<', '>'])
 }
 
 /// Paragraphs as (text, first char index).
@@ -373,12 +368,12 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
         if let Some(cid) = st.picture.as_ref().filter(|_| run.starts_with(PICTURE)) {
             let width = st.picture_width.map(|w| format!(" width=\"{w}\"")).unwrap_or_default();
             // One on the web (quoted from a message) by its address; the message's own by `cid:`.
-            let src = if web_picture(cid) { esc(cid) } else { format!("cid:{}", esc(cid)) };
+            let src = if web_picture(cid) { escaped(cid) } else { format!("cid:{}", escaped(cid)) };
             out.push_str(&format!("<img src=\"{src}\"{width} style=\"max-width:100%\">"));
             i = j;
             continue;
         }
-        let mut h = esc(&run.replace(PICTURE, ""));
+        let mut h = escaped(&run.replace(PICTURE, ""));
         if st.mono {
             h = format!("<code>{h}</code>");
         }
@@ -413,7 +408,7 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
             h = format!("<span style=\"{}\">{h}</span>", css.join("; "));
         }
         if let Some(l) = st.link.as_ref().filter(|l| safe_link(l)) {
-            h = format!("<a href=\"{}\">{h}</a>", esc(l.trim()));
+            h = format!("<a href=\"{}\">{h}</a>", escaped(l.trim()));
         }
         out.push_str(&h);
         i = j;

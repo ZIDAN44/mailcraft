@@ -595,7 +595,7 @@ impl Node {
             Kid::Text(_) => true,
             Kid::El(e) if !block_tag(&e.tag) => !e.has_block_inside(0),
             // A title may hold a box of its own (`<h2><div>`, as a template writes one).
-            Kid::El(e) => e.tag.len() == 2 && e.tag.starts_with('h') && e.tag != "hr" && !e.has_table(0),
+            Kid::El(e) => e.is_title() && !e.has_table(0),
         })
     }
 

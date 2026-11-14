@@ -50,6 +50,12 @@ pub(crate) fn decode_refs(s: &str, refs: Refs) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
+/// `s` written into HTML, as text or an attribute's value: its `&`, `<`, `>` and `"` as
+/// references. The one copy for every place that writes HTML from text.
+pub(crate) fn escaped(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
 /// The character the reference named `name` (between its `&` and `;`) stands for, as `refs`
 /// reads it; `None` to leave it as written.
 fn character(name: &str, refs: Refs) -> Option<char> {

@@ -153,7 +153,7 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
     // runs one table cell into the next: "BANNERFirst block", issue #41), from its start.
     let html_only = m.text_body().next().is_some_and(|p| is_html(&p));
     let text = match m.body_html(0).filter(|_| html_only) {
-        Some(h) => html::html_to_words(h.get(..h.char_indices().nth(PREVIEW_HTML).map_or(h.len(), |(i, _)| i)).unwrap_or(&h)),
+        Some(h) => html::html_to_words(capped(&h, PREVIEW_HTML)),
         None => m.body_text(0).map(|t| t.into_owned()).unwrap_or_default(),
     };
     let mut s = Summary {

@@ -119,6 +119,12 @@ pub(crate) fn style_value(style: &str, prop: &str) -> Option<String> {
     pick(&declarations(style), prop).map(str::to_string)
 }
 
+/// A colour as CSS and HTML write it (`#rrggbb`).
+pub(crate) fn hex(c: [u8; 3]) -> String {
+    let [r, g, b] = c;
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
 /// One selector (`table.report td`), or `None` when it uses what isn't supported.
 fn selector(text: &str) -> Option<Vec<Compound>> {
     let text = text.trim();

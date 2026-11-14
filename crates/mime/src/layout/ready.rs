@@ -59,7 +59,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
     let copy = outlook.is_some();
     let (outlooks, nests) = outlook.map_or((false, false), |c| (c.tables, c.nests));
     let lower = html.to_ascii_lowercase();
-    let styles = lower.contains("<style") || lower.contains("font-size") || lower.contains("<font");
+    let styles = sets_styles(&lower);
     if !(styles || outlooks || nests) {
         return Some(marked(html.to_string(), html, None, copy, hide));
     }
@@ -156,7 +156,7 @@ fn marked(styled: String, came: &str, text: Option<String>, copy: bool, hide: bo
 /// can be read; `None` to read it as it is.
 pub(crate) fn sized_html(html: &str) -> Option<String> {
     let lower = html.to_ascii_lowercase();
-    if !(lower.contains("font-size") || lower.contains("<font")) || html.len() > crate::WRITTEN_MAX {
+    if !sets_sizes(&lower) || html.len() > crate::WRITTEN_MAX {
         return None;
     }
     std::panic::catch_unwind(|| {

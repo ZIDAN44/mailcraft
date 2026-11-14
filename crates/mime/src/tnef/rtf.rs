@@ -405,8 +405,7 @@ fn hyperlink(inst: &str) -> Option<String> {
     let rest = inst.trim_start().strip_prefix("HYPERLINK")?;
     let start = rest.find('"')? + 1;
     let url = rest.get(start..)?.split('"').next()?.trim();
-    let lower = url.to_ascii_lowercase();
-    (lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:")).then(|| url.to_string())
+    crate::markup::safe_scheme(url).then(|| url.to_string())
 }
 
 fn read(rtf: &[u8], mode: Mode) -> String {

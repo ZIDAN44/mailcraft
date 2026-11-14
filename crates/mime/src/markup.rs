@@ -16,6 +16,8 @@
 //! Bare web addresses become links. Everything else is text: `<`, `&` and quotes are escaped, so
 //! nothing typed can turn into markup the recipient's client would run.
 
+use crate::html::escaped;
+
 /// The rule above the original in a reply or forward (as Outlook writes it in plain text).
 pub const RULE: &str = "________________________________";
 
@@ -121,7 +123,7 @@ const NOT_IN_URL: [char; 4] = ['"', '<', '>', ' '];
 
 /// Whether an address starts as a link's may: `https:`, `http:` or `mailto:`, in any case. Its
 /// start alone is lower-cased (all of a long one was, for each `[` before it).
-fn safe_scheme(u: &str) -> bool {
+pub(crate) fn safe_scheme(u: &str) -> bool {
     let head = u.char_indices().nth(8).map_or(u, |(at, _)| u.get(..at).unwrap_or(u)).to_ascii_lowercase();
     head.starts_with("https://") || head.starts_with("http://") || head.starts_with("mailto:")
 }
@@ -242,22 +244,18 @@ pub fn has_formatting(text: &str) -> bool {
     })
 }
 
-fn esc(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
-}
-
 fn inline_html(line: &str) -> String {
     let mut s = String::new();
     for p in inlines(line) {
         match p {
-            Inline::Text(t) => s.push_str(&esc(t)),
+            Inline::Text(t) => s.push_str(&escaped(t)),
             Inline::Bold(t) => s.push_str(&format!("<b>{}</b>", inline_html(t))),
             Inline::Italic(t) => s.push_str(&format!("<i>{}</i>", inline_html(t))),
             Inline::Strike(t) => s.push_str(&format!("<s>{}</s>", inline_html(t))),
-            Inline::Code(t) => s.push_str(&format!("<code>{}</code>", esc(t))),
-            Inline::Link { text, url } => s.push_str(&format!("<a href=\"{}\">{}</a>", esc(url), inline_html(text))),
-            Inline::Url(u) => s.push_str(&format!("<a href=\"{0}\">{0}</a>", esc(u))),
-            Inline::Picture { alt, src } => s.push_str(&format!("<img src=\"{}\" alt=\"{}\" style=\"max-width:100%\">", esc(src), esc(alt))),
+            Inline::Code(t) => s.push_str(&format!("<code>{}</code>", escaped(t))),
+            Inline::Link { text, url } => s.push_str(&format!("<a href=\"{}\">{}</a>", escaped(url), inline_html(text))),
+            Inline::Url(u) => s.push_str(&format!("<a href=\"{0}\">{0}</a>", escaped(u))),
+            Inline::Picture { alt, src } => s.push_str(&format!("<img src=\"{}\" alt=\"{}\" style=\"max-width:100%\">", escaped(src), escaped(alt))),
         }
     }
     s
@@ -323,7 +321,7 @@ pub fn to_html(text: &str) -> String {
                 let label = header.get(n).copied().unwrap_or(false).then(|| header_label(line)).flatten();
                 out.push_str(&match (b, label) {
                     (Block::SigDash, _) => "-- ".to_string(),
-                    (_, Some(l)) => format!("<b>{}</b>{}", esc(&line[..l]), inline_html(&line[l..])),
+                    (_, Some(l)) => format!("<b>{}</b>{}", escaped(&line[..l]), inline_html(&line[l..])),
                     _ => inline_html(content),
                 });
                 para_lines += 1;
@@ -378,6 +376,17 @@ mod tests {
     fn safe_url(u: &str) -> bool {
         let l = u.to_ascii_lowercase();
         (l.starts_with("https://") || l.starts_with("http://") || l.starts_with("mailto:")) && !u.contains(['"', '<', '>', ' '])
+    }
+
+    proptest::proptest! {
+        /// [`safe_scheme`], which the rich text's links and a `winmail.dat`'s take too, says
+        /// what their own copies said: the whole address lower-cased, its start compared.
+        #[test]
+        fn one_scheme_check_for_every_link(u in "(https?://|HTTP://|Mailto:|ftp://|java|)[a-zA-Z:/É ]{0,10}") {
+            let l = u.to_ascii_lowercase();
+            let theirs = l.starts_with("https://") || l.starts_with("http://") || l.starts_with("mailto:");
+            proptest::prop_assert_eq!(safe_scheme(&u), theirs);
+        }
     }
 
     /// [`inlines`] as it was, searching the line from every mark: what it reads, the new one

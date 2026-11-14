@@ -16,7 +16,7 @@ mod quote;
 mod scripts;
 mod signature;
 mod tags;
-pub(crate) use entities::{Refs, decode_refs};
+pub(crate) use entities::{Refs, decode_refs, escaped};
 pub(crate) use footers::footers_last;
 use lines::{bullet, heading_of, line_spans, table_rules};
 use mailcraft_model::work;

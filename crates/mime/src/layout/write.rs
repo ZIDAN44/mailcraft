@@ -3,6 +3,8 @@
 //! the caller writes (the original under a reply, its cells edited in place, as it goes out).
 
 use super::*;
+use crate::css::hex;
+use crate::html::escaped;
 
 /// `blocks` as HTML, the `n`th block of text ([`text_blocks`]' order) as `text(n)` writes it.
 pub fn to_html(blocks: &[Block], text: &mut dyn FnMut(usize) -> String) -> String {
@@ -10,14 +12,6 @@ pub fn to_html(blocks: &[Block], text: &mut dyn FnMut(usize) -> String) -> Strin
     let mut n = 0usize;
     write(blocks, text, &mut n, &mut out, 0);
     out
-}
-
-fn esc(s: &str) -> String {
-    s.replace('&', "&amp;").replace('"', "&quot;").replace('<', "&lt;").replace('>', "&gt;")
-}
-
-fn hex(c: [u8; 3]) -> String {
-    format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2])
 }
 
 fn width(w: Option<Width>) -> String {
@@ -53,7 +47,7 @@ fn write(blocks: &[Block], text: &mut dyn FnMut(usize) -> String, n: &mut usize,
                     width(t.width),
                     align(t.align),
                     t.background.map(|c| format!(" bgcolor=\"{}\"", hex(c))).unwrap_or_default(),
-                    t.background_image.as_deref().map(|s| format!(" background=\"{}\"", esc(s))).unwrap_or_default(),
+                    t.background_image.as_deref().map(|s| format!(" background=\"{}\"", escaped(s))).unwrap_or_default(),
                 ));
                 for row in &t.rows {
                     out.push_str("<tr>");
@@ -64,7 +58,7 @@ fn write(blocks: &[Block], text: &mut dyn FnMut(usize) -> String, n: &mut usize,
                             width(c.width),
                             c.background.map(|c| format!(" bgcolor=\"{}\"", hex(c))).unwrap_or_default(),
                             align(c.align),
-                            c.background_image.as_deref().map(|s| format!(" background=\"{}\"", esc(s))).unwrap_or_default(),
+                            c.background_image.as_deref().map(|s| format!(" background=\"{}\"", escaped(s))).unwrap_or_default(),
                             c.radius.map(|r| format!(";border-radius:{r}px")).unwrap_or_default(),
                         ));
                         // Boxes placed over the cell's content: in a box of its own they're placed in.
