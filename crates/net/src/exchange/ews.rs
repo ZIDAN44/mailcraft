@@ -17,14 +17,14 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use mailcraft_mime as mime;
-use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, SharedSummary, Summary, sort_newest_first, utf7};
-use mailcraft_store::{FolderState, Store};
+use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, Summary};
+use mailcraft_store::Store;
 use quick_xml::Reader;
 use quick_xml::events::Event as X;
 
 use crate::http::{self, Conn, Request, Response};
 use crate::jmap::{self, Mailbox, State, VALIDITY};
-use crate::sync::{SyncOptions, SyncReport, WordQuery, fill_from_source, if_kept};
+use crate::sync::{SyncOptions, SyncReport, WordQuery};
 use crate::{NetError, Result};
 
 /// The EWS address of an account whose server Autodiscover finds.
@@ -639,29 +639,23 @@ pub fn find_on_server(
     cap: usize,
 ) -> Result<(Vec<MessageKey>, usize)> {
     let id = st.mailbox(folder)?.to_string();
-    let mut fs = store.load_folder(account, folder)?;
+    let fs = store.load_folder(account, folder)?;
     if fs.validity != VALIDITY {
         return Ok((Vec::new(), 0));
     }
     let ids = c.find(&id, query, cap.min(jmap::FOUND_MAX))?;
     let numbers: Vec<u32> = ids.iter().map(|i| st.number(i)).collect();
-    let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| fs.find(**n).is_none()).map(|(i, _)| i.clone()).collect();
-    let mut new = 0;
+    let mut have = crate::exchange::window::kept_numbers(&fs);
+    let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| !have.contains(*n)).map(|(i, _)| i.clone()).collect();
+    let mut new = Vec::new();
     for it in c.headers(&missing)? {
         let Some(i) = it.child("ItemId").and_then(|i| i.attr("Id")) else { continue };
         let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(i) };
-        if fs.find(key.uid).is_none() {
-            fs.messages.push(item_summary(&it, key).into());
-            new += 1;
+        if have.insert(key.uid) {
+            new.push(item_summary(&it, key));
         }
     }
-    st.add_found(folder, &numbers);
-    if new > 0 {
-        sort_newest_first(&mut fs.messages);
-        fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
-        store.save_folder(account, folder, &fs)?;
-    }
-    Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
+    crate::exchange::window::found(st, store, (account, folder), fs, &numbers, new)
 }
 
 /// A `Restriction` for a search's read, flag and attachment conditions.
@@ -689,13 +683,7 @@ fn restriction(q: &WordQuery) -> String {
 
 /// Download one message's source (and cache it).
 pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
-    if let Some(raw) = store.read_body(key) {
-        return Ok((raw, None));
-    }
-    let id = st.id(key.uid).filter(|_| key.validity == VALIDITY).ok_or_else(|| NetError::No("the message is no longer on the server".into()))?;
-    let raw = c.download(id)?;
-    let filled = crate::sync::keep_source(store, key, &raw)?;
-    Ok((raw, filled))
+    crate::exchange::window::fetch_body(st, store, key, |id| c.download(id))
 }
 
 /// A message's text first, its files listed but not downloaded (issue #24), when it's big and
@@ -725,9 +713,7 @@ fn folder_ref(id: Option<&str>) -> String {
 
 /// Apply one change on the server.
 pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
-    let ids = |keys: &[MessageKey]| -> Vec<(String, String)> {
-        keys.iter().filter(|k| k.validity == VALIDITY).filter_map(|k| Some((st.id(k.uid)?.to_string(), k.folder.clone()))).collect()
-    };
+    let ids = |keys: &[MessageKey]| crate::exchange::window::server_ids(st, keys);
     let update = |keys: &[MessageKey], change: &str| -> Result<()> {
         for chunk in ids(keys).chunks(BATCH) {
             let changes: String = chunk
@@ -775,7 +761,7 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
             Ok(())
         }
         Op::CreateFolder { path } => {
-            let (parent, name) = split_path(st, path)?;
+            let (parent, name) = st.split_path(path)?;
             c.call_one(&format!(
                 "<m:CreateFolder><m:ParentFolderId>{}</m:ParentFolderId><m:Folders><t:Folder><t:FolderClass>IPF.Note</t:FolderClass>\
                  <t:DisplayName>{}</t:DisplayName></t:Folder></m:Folders></m:CreateFolder>",
@@ -786,8 +772,8 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
         }
         Op::RenameFolder { from, to } => {
             let mut id = st.mailbox(from)?.to_string();
-            let (old_parent, _) = split_path(st, from)?;
-            let (parent, name) = split_path(st, to)?;
+            let (old_parent, _) = st.split_path(from)?;
+            let (parent, name) = st.split_path(to)?;
             if parent != old_parent {
                 let m = c.call_one(&format!(
                     "<m:MoveFolder><m:ToFolderId>{}</m:ToFolderId><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:MoveFolder>",
@@ -826,14 +812,6 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
     }
 }
 
-/// The parent folder id (`None` at the top) and the leaf name of a folder path.
-fn split_path(st: &State, path: &str) -> Result<(Option<String>, String)> {
-    match path.rsplit_once('/') {
-        Some((parent, leaf)) => Ok((Some(st.mailbox(parent)?.to_string()), utf7::decode(leaf))),
-        None => Ok((None, utf7::decode(path))),
-    }
-}
-
 /// Store a draft in a folder.
 pub fn append(c: &Client, st: &State, folder: &str, raw: &[u8]) -> Result<String> {
     c.create(raw, st.mailbox(folder)?, true)
@@ -842,14 +820,10 @@ pub fn append(c: &Client, st: &State, folder: &str, raw: &[u8]) -> Result<String
 /// Send a message. Exchange reads the recipients from the MIME source, so anyone only on the
 /// envelope (Bcc) goes into a `Bcc:` header, which Exchange removes before delivery.
 pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
-    let shown: Vec<String> = mime::parse(raw).map(|p| p.to.iter().chain(&p.cc).map(|a| a.email.to_ascii_lowercase()).collect()).unwrap_or_default();
-    let bcc: Vec<&str> = recipients.iter().map(String::as_str).filter(|r| !shown.contains(&r.to_ascii_lowercase())).collect();
-    if bcc.is_empty() {
-        return c.send_mime(raw);
+    match crate::exchange::window::with_bcc(raw, recipients) {
+        Some(with) => c.send_mime(&with),
+        None => c.send_mime(raw),
     }
-    let mut with = format!("Bcc: {}\r\n", bcc.join(", ")).into_bytes();
-    with.extend_from_slice(raw);
-    c.send_mime(&with)
 }
 
 mod directory;

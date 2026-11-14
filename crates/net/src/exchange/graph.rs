@@ -13,13 +13,13 @@
 use std::collections::HashMap;
 
 use mailcraft_mime as mime;
-use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, SharedSummary, Summary, sort_newest_first, utf7};
-use mailcraft_store::{FolderState, Store};
+use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, Summary};
+use mailcraft_store::Store;
 use serde_json::{Value, json};
 
 use crate::http::{self, Request, Response};
 use crate::jmap::{self, Mailbox, State, VALIDITY};
-use crate::sync::{SyncOptions, SyncReport, WordQuery, fill_from_source, if_kept};
+use crate::sync::{SyncOptions, SyncReport, WordQuery};
 use crate::{NetError, Result};
 
 /// The Graph endpoint accounts use.
@@ -570,7 +570,7 @@ pub fn find_on_server(
     cap: usize,
 ) -> Result<(Vec<MessageKey>, usize)> {
     let id = st.mailbox(folder)?.to_string();
-    let mut fs = store.load_folder(account, folder)?;
+    let fs = store.load_folder(account, folder)?;
     if fs.validity != VALIDITY {
         return Ok((Vec::new(), 0));
     }
@@ -594,41 +594,27 @@ pub fn find_on_server(
     let found: Vec<&Value> =
         found.iter().filter(|m| query.admits(&flags(m), m.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false))).collect();
     let mut numbers = Vec::new();
-    let mut new = 0;
+    let mut have = crate::exchange::window::kept_numbers(&fs);
+    let mut new = Vec::new();
     for m in found {
         let Some(mid) = m.get("id").and_then(Value::as_str) else { continue };
         let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(mid) };
         numbers.push(key.uid);
-        if fs.find(key.uid).is_none() {
-            fs.messages.push(message_summary(m, key).into());
-            new += 1;
+        if have.insert(key.uid) {
+            new.push(message_summary(m, key));
         }
     }
-    st.add_found(folder, &numbers);
-    if new > 0 {
-        sort_newest_first(&mut fs.messages);
-        fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
-        store.save_folder(account, folder, &fs)?;
-    }
-    Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
+    crate::exchange::window::found(st, store, (account, folder), fs, &numbers, new)
 }
 
 /// Download one message's source (and cache it).
 pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
-    if let Some(raw) = store.read_body(key) {
-        return Ok((raw, None));
-    }
-    let id = st.id(key.uid).filter(|_| key.validity == VALIDITY).ok_or_else(|| NetError::No("the message is no longer on the server".into()))?;
-    let raw = c.download(id)?;
-    let filled = crate::sync::keep_source(store, key, &raw)?;
-    Ok((raw, filled))
+    crate::exchange::window::fetch_body(st, store, key, |id| c.download(id))
 }
 
 /// Apply one change on the server.
 pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
-    let ids = |keys: &[MessageKey]| -> Vec<(String, String)> {
-        keys.iter().filter(|k| k.validity == VALIDITY).filter_map(|k| Some((st.id(k.uid)?.to_string(), k.folder.clone()))).collect()
-    };
+    let ids = |keys: &[MessageKey]| crate::exchange::window::server_ids(st, keys);
     let patch_all = |keys: &[MessageKey], patch: Value| -> Result<()> {
         let reqs: Vec<(&str, String, Option<Value>)> =
             ids(keys).into_iter().map(|(id, _)| ("PATCH", format!("/me/messages/{}", seg(&id)), Some(patch.clone()))).collect();
@@ -655,14 +641,14 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
             c.batch_ok(&reqs)
         }
         Op::CreateFolder { path } => {
-            let (parent, name) = split_path(st, path)?;
+            let (parent, name) = st.split_path(path)?;
             let at = parent.map_or_else(|| "/me/mailFolders".to_string(), |p| format!("/me/mailFolders/{}/childFolders", seg(&p)));
             c.post(&at, &json!({"displayName": name})).map(|_| ())
         }
         Op::RenameFolder { from, to } => {
             let id = st.mailbox(from)?.to_string();
-            let (old_parent, _) = split_path(st, from)?;
-            let (parent, name) = split_path(st, to)?;
+            let (old_parent, _) = st.split_path(from)?;
+            let (parent, name) = st.split_path(to)?;
             let mut id = id;
             if parent != old_parent {
                 let dest = parent.clone().unwrap_or_else(|| "msgfolderroot".into());
@@ -680,14 +666,6 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
     }
 }
 
-/// The parent folder id (`None` at the top) and the leaf name of a folder path.
-fn split_path(st: &State, path: &str) -> Result<(Option<String>, String)> {
-    match path.rsplit_once('/') {
-        Some((parent, leaf)) => Ok((Some(st.mailbox(parent)?.to_string()), utf7::decode(leaf))),
-        None => Ok((None, utf7::decode(path))),
-    }
-}
-
 /// Store a draft in a folder.
 pub fn append(c: &Client, st: &State, folder: &str, raw: &[u8]) -> Result<String> {
     c.import(raw, Some(st.mailbox(folder)?))
@@ -696,14 +674,10 @@ pub fn append(c: &Client, st: &State, folder: &str, raw: &[u8]) -> Result<String
 /// Send a message. The MIME source names the recipients for Exchange, so anyone only on the
 /// envelope (Bcc) goes into a `Bcc:` header, which Exchange removes before delivery.
 pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
-    let shown: Vec<String> = mime::parse(raw).map(|p| p.to.iter().chain(&p.cc).map(|a| a.email.to_ascii_lowercase()).collect()).unwrap_or_default();
-    let bcc: Vec<&str> = recipients.iter().map(String::as_str).filter(|r| !shown.contains(&r.to_ascii_lowercase())).collect();
-    if bcc.is_empty() {
-        return c.send_mime(raw);
+    match crate::exchange::window::with_bcc(raw, recipients) {
+        Some(with) => c.send_mime(&with),
+        None => c.send_mime(raw),
     }
-    let mut with = format!("Bcc: {}\r\n", bcc.join(", ")).into_bytes();
-    with.extend_from_slice(raw);
-    c.send_mime(&with)
 }
 
 mod directory;

@@ -7,3 +7,4 @@ pub mod graph;
 pub mod graph_pim;
 pub mod kerberos;
 pub mod ntlm;
+pub(crate) mod window;

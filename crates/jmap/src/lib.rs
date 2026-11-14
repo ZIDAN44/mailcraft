@@ -832,12 +832,12 @@ pub async fn apply_remote<H: Http>(c: &Client<H>, st: &State, op: &Op) -> Result
         }
         Op::Expunge { keys } => c.set_emails(Map::new(), ids(keys).into_iter().map(|(id, _)| id).collect()).await,
         Op::CreateFolder { path } => {
-            let (parent, name) = split_path(st, path)?;
+            let (parent, name) = st.split_path(path)?;
             c.set_mailboxes(json!({"create": {"f": {"name": name, "parentId": parent}}})).await.map(|_| ())
         }
         Op::RenameFolder { from, to } => {
             let id = st.mailbox(from)?.to_string();
-            let (parent, name) = split_path(st, to)?;
+            let (parent, name) = st.split_path(to)?;
             c.set_mailboxes(json!({"update": {id: {"name": name, "parentId": parent}}})).await.map(|_| ())
         }
         Op::DeleteFolder { path } => {
@@ -845,14 +845,6 @@ pub async fn apply_remote<H: Http>(c: &Client<H>, st: &State, op: &Op) -> Result
             c.set_mailboxes(json!({"destroy": [id], "onDestroyRemoveEmails": true})).await.map(|_| ())
         }
         Op::EmptyFolder { path } => c.empty(st.mailbox(path)?).await,
-    }
-}
-
-/// The parent mailbox id (`None` at the top) and the leaf name of a folder path.
-fn split_path(st: &State, path: &str) -> Result<(Option<String>, String)> {
-    match path.rsplit_once('/') {
-        Some((parent, leaf)) => Ok((Some(st.mailbox(parent)?.to_string()), utf7::decode(leaf))),
-        None => Ok((None, utf7::decode(path))),
     }
 }
 

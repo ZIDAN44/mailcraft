@@ -57,6 +57,15 @@ impl State {
         self.mailboxes.get(path).map(String::as_str).ok_or_else(|| Error::No(format!("there is no folder {} on the server", utf7::decode(path))))
     }
 
+    /// The parent mailbox id (`None` at the top) and the leaf name of a folder path (JMAP's, and
+    /// the Exchange transports', which number their folders the same way).
+    pub fn split_path(&self, path: &str) -> Result<(Option<String>, String)> {
+        match path.rsplit_once('/') {
+            Some((parent, leaf)) => Ok((Some(self.mailbox(parent)?.to_string()), utf7::decode(leaf))),
+            None => Ok((None, utf7::decode(path))),
+        }
+    }
+
     /// Forget numbers no cached message uses any more.
     pub fn prune(&mut self, keep: &std::collections::HashSet<u32>) {
         self.ids.retain(|_, n| keep.contains(n));

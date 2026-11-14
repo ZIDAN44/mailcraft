@@ -1,6 +1,8 @@
-//! Bringing a folder's cache up to date from the Exchange server.
+//! Bringing a folder's cache up to date from the Exchange server: what EWS says, for the sync the
+//! Exchange transports share (`exchange::window`).
 
 use super::*;
+use crate::exchange::window::{self, Window};
 
 /// Bring one folder's cache up to date.
 pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions) -> Result<SyncReport> {
@@ -10,102 +12,43 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
 /// [`sync_folder`] for a worker that started when its account had been removed `seen` times: a
 /// removal since, while the sync talks to the server, has it write nothing of the account again.
 pub fn sync_folder_as(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions, seen: u64) -> Result<SyncReport> {
-    let id = st.mailbox(folder)?.to_string();
-    let newest = c.newest(&id, opts.window)?;
-    let (total, unread) = c.counts(&id)?;
-    let mut fs = store.load_folder(account, folder)?;
-    let mut report = SyncReport::default();
-    if fs.validity != VALIDITY && (fs.validity != 0 || !fs.messages.is_empty()) {
-        if_kept(store, account, seen, || store.clear_folder(account, folder))?;
-        fs = FolderState::default();
-        report.reset = true;
-    }
-    fs.validity = VALIDITY;
-    let mut wanted: HashMap<u32, Flags> = newest.iter().map(|(id, f)| (st.number(id), f.clone())).collect();
-    // Found by a search of the server past the window: kept while still in the folder.
-    let extra = st.found_outside(folder, &fs.messages, &wanted);
-    for (found, f) in c.still_in(&id, &extra)? {
-        wanted.insert(st.number(&found), f);
-    }
-    st.keep_found(folder, |n| wanted.contains_key(&n));
-    let (kept, gone): (Vec<SharedSummary>, Vec<SharedSummary>) =
-        std::mem::take(&mut fs.messages).into_iter().partition(|m| wanted.contains_key(&m.key.uid));
-    if_kept(store, account, seen, || {
-        gone.iter().for_each(|m| store.remove_body(&m.key));
-        Ok(())
-    })?;
-    report.removed = gone.len();
-    fs.messages = kept;
-    for m in &mut fs.messages {
-        if let Some(f) = wanted.get(&m.key.uid) {
-            let mut next = m.flags.clone();
-            next.seen = f.seen;
-            next.flagged = f.flagged;
-            next.draft = f.draft;
-            if next != m.flags {
-                SharedSummary::make_mut(m).flags = next;
-                report.changed += 1;
-            }
-        }
-    }
-    let missing: Vec<String> = newest.iter().filter(|(id, _)| fs.find(st.number(id)).is_none()).map(|(id, _)| id.clone()).collect();
-    for it in c.headers(&missing)? {
-        let Some(id) = it.child("ItemId").and_then(|i| i.attr("Id")) else { continue };
-        let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(id) };
-        if fs.find(key.uid).is_some() {
-            continue;
-        }
-        fs.messages.push(item_summary(&it, key).into());
-        report.new += 1;
-    }
-    sort_newest_first(&mut fs.messages);
-    fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
-    if_kept(store, account, seen, || store.save_folder(account, folder, &fs))?;
-    report.fetched = prefetch(c, st, store, (account, seen), folder, &mut fs, opts)?;
-    report.total = total;
-    report.unread = unread;
-    Ok(report)
+    window::sync_folder_as(c, st, store, account, folder, opts, seen)
 }
 
-/// The newest messages' sources brought into the cache, unless `account` was removed since it
-/// had been removed `seen` times ([`if_kept`]).
-fn prefetch(
-    c: &Client,
-    st: &State,
-    store: &Store,
-    (account, seen): (&str, u64),
-    folder: &str,
-    fs: &mut FolderState,
-    opts: &SyncOptions,
-) -> Result<usize> {
-    let wanted: Vec<(u32, String)> = fs
-        .messages
-        .iter()
-        .take(opts.prefetch)
-        .filter(|m| u64::from(m.size) <= u64::from(opts.prefetch_max_bytes) && !store.has_body(&m.key))
-        .filter_map(|m| Some((m.key.uid, st.id(m.key.uid)?.to_string())))
-        .collect();
-    if wanted.is_empty() {
-        return Ok(0);
+impl Window for Client {
+    type Item = El;
+
+    fn newest_in(&self, id: &str, window: usize) -> Result<(Vec<(String, Flags)>, (u32, u32), Vec<El>)> {
+        let newest = self.newest(id, window)?;
+        Ok((newest, self.counts(id)?, Vec::new()))
     }
-    let mut fetched = 0;
-    let mut failures = crate::sync::AheadFailures::new();
-    for (n, id) in &wanted {
-        let raw = match c.download(id) {
-            Ok(raw) => {
-                failures.ok();
-                raw
-            }
-            Err(e) => {
-                failures.failed(&format!("{account}/{folder}: message {n}"), e)?;
-                continue;
-            }
-        };
-        let Some(m) = fs.find_mut(*n) else { continue };
-        if_kept(store, account, seen, || store.write_body(&m.key, &raw))?;
-        fill_from_source(m, &raw);
-        fetched += 1;
+
+    fn still_in_folder(&self, id: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
+        self.still_in(id, ids)
     }
-    if_kept(store, account, seen, || store.save_folder(account, folder, fs))?;
-    Ok(fetched)
+
+    /// EWS says whether it's read, flagged or a draft; answered and categories stay as they are.
+    fn merged(&self, kept: &Flags, server: &Flags) -> Flags {
+        Flags { seen: server.seen, flagged: server.flagged, draft: server.draft, ..kept.clone() }
+    }
+
+    fn headers_of(&self, missing: &[String], _listed: Vec<El>) -> Result<Vec<El>> {
+        self.headers(missing)
+    }
+
+    fn id_of(item: &El) -> Option<&str> {
+        item.child("ItemId").and_then(|i| i.attr("Id"))
+    }
+
+    fn summary(item: &El, key: MessageKey) -> Summary {
+        item_summary(item, key)
+    }
+
+    fn ahead(&self, m: &Summary, opts: &SyncOptions) -> bool {
+        u64::from(m.size) <= u64::from(opts.prefetch_max_bytes)
+    }
+
+    fn source(&self, id: &str, _opts: &SyncOptions) -> Result<Option<Vec<u8>>> {
+        self.download(id).map(Some)
+    }
 }
