@@ -64,10 +64,16 @@ pub fn multistatus(xml: &str) -> Vec<Item> {
     let mut status = String::new();
     let mut text = String::new();
     let mut privileges: Vec<String> = Vec::new();
+    // Start tags past the depth cap not ended yet: left out with all they hold, their ends
+    // closing nothing read.
+    let mut skipped = 0usize;
     while let Ok(ev) = r.read_event() {
         // `<x/>` is a start and an end at once.
         let empty = matches!(ev, X::Empty(_));
         match ev {
+            X::Start(_) if skipped > 0 || stack.len() >= 64 => skipped += 1,
+            X::End(_) if skipped > 0 => skipped -= 1,
+            _ if skipped > 0 && !matches!(ev, X::Eof) => {}
             X::Start(e) | X::Empty(e) if stack.len() < 64 => {
                 let name = local(e.name().as_ref());
                 let parent = stack.last().cloned().unwrap_or_default();

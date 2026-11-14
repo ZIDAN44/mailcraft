@@ -97,11 +97,14 @@ fn unescape(v: &str) -> String {
     out
 }
 
-/// Read XML into elements (namespaces dropped: the local names are enough here).
+/// Read XML into elements (namespaces dropped: the local names are enough here). Past the caps
+/// on depth and count, elements are left out with all they hold, the rest kept where it was.
 pub fn parse(xml: &str) -> El {
     let mut r = Reader::from_str(xml);
     let mut stack: Vec<El> = vec![El { name: "#doc".into(), ..Default::default() }];
     let mut count = 0usize;
+    // Start tags left out and not ended yet: their ends close nothing kept.
+    let mut skipped = 0usize;
     let close = |stack: &mut Vec<El>| {
         if stack.len() > 1
             && let Some(done) = stack.pop()
@@ -113,6 +116,10 @@ pub fn parse(xml: &str) -> El {
     while let Ok(ev) = r.read_event() {
         let empty = matches!(ev, X::Empty(_));
         match ev {
+            X::Start(_) if skipped > 0 || stack.len() >= MAX_DEPTH || count >= MAX_ELEMENTS => skipped += 1,
+            X::End(_) if skipped > 0 => skipped -= 1,
+            // What a left-out element holds is left out with it.
+            _ if skipped > 0 && !matches!(ev, X::Eof) => {}
             X::Start(e) | X::Empty(e) if stack.len() < MAX_DEPTH && count < MAX_ELEMENTS => {
                 count += 1;
                 let el = El {
@@ -180,4 +187,42 @@ pub fn esc(s: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An element past the depth cap is left out with what it holds; its end doesn't close the
+    /// element it's in, so what comes after stays where it was.
+    #[test]
+    fn past_the_depth_cap_the_tree_keeps_its_shape() {
+        // `#doc` and `r` and 62 `a`s fill the 64 levels: `deep` is one too many.
+        let opens = "<a>".repeat(MAX_DEPTH - 2);
+        let closes = "</a>".repeat(MAX_DEPTH - 2);
+        let doc = parse(&format!("<r>{opens}<deep>lost<x/><y>gone</y></deep>{closes}<sibling/></r>"));
+        let r = doc.child("r").unwrap();
+        assert!(r.child("sibling").is_some(), "the sibling stays in r");
+        assert_eq!(doc.kids.len(), 1, "nothing climbs to the top");
+        let mut innermost = r;
+        while let Some(a) = innermost.child("a") {
+            innermost = a;
+        }
+        assert!(innermost.kids.is_empty() && innermost.text.is_empty(), "what's past the cap is left out: {innermost:?}");
+        assert!(doc.find("deep").is_none() && doc.find("x").is_none());
+    }
+
+    /// The same past the cap on how many elements are read: one too many is left out with what
+    /// it holds, and its end closes nothing, so the text after it is still its parent's.
+    #[test]
+    fn past_the_element_cap_the_tree_keeps_its_shape() {
+        // `r` and its items are all the elements read: `over` is one too many.
+        let items = "<i/>".repeat(MAX_ELEMENTS - 1);
+        let doc = parse(&format!("<r>{items}<over>lost<x/><y>gone</y></over>tail<late/></r>after"));
+        let r = doc.child("r").unwrap();
+        assert_eq!((doc.kids.len(), doc.text.as_str()), (1, "after"), "nothing climbs to the top");
+        assert_eq!(r.kids.len(), MAX_ELEMENTS - 1);
+        assert!(r.kids.iter().all(|k| k.name == "i"), "what's past the cap is left out");
+        assert_eq!(r.text, "tail", "r is still open after the element left out ends");
+    }
 }
