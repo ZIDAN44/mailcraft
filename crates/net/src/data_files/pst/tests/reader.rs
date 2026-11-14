@@ -344,7 +344,9 @@ fn with_nested_messages(dir: &Path) -> PathBuf {
 }
 
 /// Import the file into a cache of its own on a thread with a time limit: what the import did,
-/// and each message's source.
+/// and each message's source. The limit is there to fail an import that never ends (a message
+/// read again and again), so it's long: these imports take a fifth of a second alone, but 12 to
+/// 16 s with 6 runs of the net tests at once, and failed the old 20 s in most such runs.
 fn import_in_time(path: &Path, dir: &Path) -> (super::super::Imported, Vec<Vec<u8>>) {
     use mailcraft_model::MessageKey;
     use mailcraft_store::Store;
@@ -362,7 +364,7 @@ fn import_in_time(path: &Path, dir: &Path) -> (super::super::Imported, Vec<Vec<u
         }
         let _ = tx.send((done, sources));
     });
-    rx.recv_timeout(Duration::from_secs(20)).expect("the file was imported in time")
+    rx.recv_timeout(Duration::from_secs(120)).expect("the file was imported in time")
 }
 
 /// A message's subject and its attachments' names, an attached message's as its own tree:
