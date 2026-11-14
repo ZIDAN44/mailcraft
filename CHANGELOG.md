@@ -8,7 +8,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.38.0
+## 0.39.0
+
+*Signing in through your server's single sign-on.*
+
+### Added
+
+- A JMAP account can sign in through its server's single sign-on (OpenID Connect), in the browser, with no password kept: **Add account** asks a JMAP server how it signs you in and, for one behind a single sign-on, offers **Sign in through the browser**; **Server settings › Sign-in** moves an account to it and back. Its **Client ID** comes from the service's administrator, or with the copy of MailCraft you install (`MAILCRAFT_OIDC_CLIENTS`); an account that needs one says so. What the service's administrator sets up is in [Signing in through the browser](docs/oauth.md).
+
+### Fixed
+
+- A JMAP server that takes no passwords, only a sign-in through the browser (one behind a single sign-on), is said to: the right password was refused and asked for again each time.
+
+## 0.38.0 - 2026-11-13
 
 *Messages as they look, on paper and from a file.*
 
@@ -17,7 +29,6 @@ on GitHub.
 - An account can have other addresses to send from (#81): the aliases and identities a provider gives one mailbox (iCloud, Gmail's "Send mail as", Exchange, Fastmail). Add them under **File › Info › Other addresses**, each with the name shown on its mail, where replies to it go and one of the account's signatures; a JMAP account's are found on its server with **Find on the server**. **From** lists them when you write a message, mail sent to one is answered from it, and the mailbox is still read and kept once. A mail server that refuses the address is said so, with the address. Mail from another address is signed with the certificate or OpenPGP key that names it: import it with **Add another…** under Security, where it's kept beside the account's own and says which address it signs for; with none that names the address, the message isn't signed as someone else.
 - Mail can be moved or copied into a folder of another account (#82): from a mail server into an Outlook data file opened in MailCraft, from the file onto a server, or between two servers. Drag it there (hold Ctrl to copy), or pick the folder in **Move to** or the new **Copy to…**, which list every account's folders under the messages' own. It keeps its read mark, flag and categories. A message that isn't downloaded yet is downloaded first, and one that's moved is deleted where it was only once its copy is in the folder. Dropped on another account's folder, mail did nothing.
 - In the browser, everything MailCraft keeps can be saved to a backup file and brought back (#83): **File › Open & Export › Back up…** downloads the accounts and their settings, rules, signatures, calendars and contacts, and the downloaded mail when asked, as one file, locked with a password if you give one; **Restore…** (there, and on the welcome page of a browser that has nothing yet) brings it into this browser or another. The browser keeps all of it for the site only, so clearing its data lost it for good. Passwords are never in the file, and nothing goes through a server.
-- A JMAP account can sign in through its server's single sign-on (OpenID Connect), in the browser, with no password kept: **Add account** asks a JMAP server how it signs you in and, for one behind a single sign-on, offers **Sign in through the browser**; **Server settings › Sign-in** moves an account to it and back. Its **Client ID** comes from the service's administrator, or with the copy of MailCraft you install (`MAILCRAFT_OIDC_CLIENTS`); an account that needs one says so. What the service's administrator sets up is in [Signing in through the browser](docs/oauth.md).
 
 ### Fixed
 
@@ -53,7 +64,6 @@ on GitHub.
 - **Move to folder** names other accounts by their address (each had the same name: yours), and Tab leaves its search box. A rule's **Run it now** runs only once the rule is saved, and what the rule dialog asks for is said in your language.
 - File › Info no longer redraws without end with a renewed certificate or key listed, and doesn't offer an expired key for sending.
 - The status bar says "1 account disconnected" for one (it read "1 accounts").
-- A JMAP server that takes no passwords, only a sign-in through the browser (one behind a single sign-on), is said to: the right password was refused and asked for again each time.
 - In the browser, **File › Open & Export** offers what works there: **Open a data file** and **Export to Outlook data file** did nothing (a page reads and writes no data files), and are no longer shown. Rules and categories go to a file and back there too: **Export…** downloads the file and **Import…** takes one from the browser's picker, where both buttons did nothing.
 
 ## 0.37.0 - 2026-11-12
