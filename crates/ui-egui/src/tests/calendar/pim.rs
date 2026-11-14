@@ -452,3 +452,36 @@ fn local_events_are_offered_to_the_server() {
     a.ui.backstage = None;
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A contact with more postal addresses than the form has places for (two at home), and a number
+/// and an address of kinds it has no place for (a pager, a postal address), saved from the form
+/// as it opened keeps them all, each with its kind. The second home address was dropped, and the
+/// pager number and the postal address, put in the form's Other places, lost their kinds.
+#[test]
+fn a_contact_saved_from_the_form_keeps_its_extra_addresses_and_kinds() {
+    let (mut a, dir) = app("contact-extras");
+    let address = |kind: &str, city: &str| json!({"kind": kind, "street": "1 Quay", "city": city});
+    let made = a.session.run(
+        "contact.create",
+        &json!({
+            "name": "Ana Lima",
+            "phones": [{"value": "+1 555 0100", "kind": "pager"}, {"value": "+1 555 0101", "kind": "home"}],
+            "addresses": [address("home", "Gent"), address("home", "Brugge"), address("postal", "Antwerpen")],
+        }),
+    );
+    let uid = made.unwrap()["uid"].as_str().unwrap().to_string();
+    let before = a.session.find_person(&uid).unwrap().card.clone();
+    let form = crate::pim_dialogs::ContactForm::edit(&before);
+    a.act(crate::Action::Submit("contact.update", form.params()));
+    let after = a.session.find_person(&uid).unwrap().card.clone();
+    let kinds = |c: &mailcraft_engine::model::vcard::Card| {
+        let mut phones: Vec<(String, String)> = c.phones.iter().map(|p| (p.kind.clone(), p.value.clone())).collect();
+        let mut places: Vec<(String, String)> = c.addresses.iter().map(|x| (x.kind.clone(), x.city.clone())).collect();
+        phones.sort();
+        places.sort();
+        (phones, places)
+    };
+    assert_eq!(kinds(&after), kinds(&before));
+    assert_eq!(after.addresses.len(), 3);
+    let _ = std::fs::remove_dir_all(dir);
+}
