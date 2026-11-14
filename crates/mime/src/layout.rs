@@ -194,6 +194,18 @@ struct Node {
     tag: String,
     attrs: Vec<(String, String)>,
     kids: Vec<Kid>,
+    /// Its `style`'s declarations, read the first time one is asked for ([`Node::styles_as_written`]):
+    /// each property asked for split the whole of it again, and a layout asks dozens of each
+    /// element. Emptied when its `style` is written.
+    styles: std::cell::OnceCell<Vec<StyleDecl>>,
+}
+
+/// One declaration of an element's `style`: its property (lower case), its value as written
+/// (without `!important`), and whether it was marked so.
+struct StyleDecl {
+    prop: String,
+    value: String,
+    important: bool,
 }
 
 enum Kid {
@@ -450,6 +462,7 @@ fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<Ancestor>,
                     Some(a) => a.1 = written,
                     None => kid.attrs.push(("style".into(), written)),
                 }
+                kid.styles = std::cell::OnceCell::new();
             }
         }
         apply_css(kid, sheet, chain, depth + 1);
@@ -489,10 +502,10 @@ fn make_headings(n: &mut Node, depth: usize) {
         let h = format!("h{level}");
         if block_tag(&kid.tag) {
             let inner = std::mem::take(&mut kid.kids);
-            kid.kids = vec![Kid::El(Node { tag: h, attrs: Vec::new(), kids: inner })];
+            kid.kids = vec![Kid::El(Node { tag: h, attrs: Vec::new(), kids: inner, styles: Default::default() })];
         } else if only_child && parent_is_block {
             let inner = std::mem::take(kid);
-            *kid = Node { tag: h, attrs: Vec::new(), kids: vec![Kid::El(inner)] };
+            *kid = Node { tag: h, attrs: Vec::new(), kids: vec![Kid::El(inner)], styles: Default::default() };
         }
     }
 }
@@ -522,7 +535,9 @@ fn write_flat(k: &Kid, out: &mut String, size: u16, bold: bool) {
 fn copy(k: &Kid) -> Kid {
     match k {
         Kid::Text(t) => Kid::Text(t.clone()),
-        Kid::El(n) => Kid::El(Node { tag: n.tag.clone(), attrs: n.attrs.clone(), kids: n.kids.iter().map(copy).collect() }),
+        Kid::El(n) => {
+            Kid::El(Node { tag: n.tag.clone(), attrs: n.attrs.clone(), kids: n.kids.iter().map(copy).collect(), styles: Default::default() })
+        }
     }
 }
 
@@ -544,13 +559,13 @@ impl Node {
                 (k.clone(), kept.join(";"))
             })
             .collect();
-        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect() }
+        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect(), styles: Default::default() }
     }
 
     /// The element without its placement (to draw it inside the box placed over another).
     fn unplaced(&self) -> Node {
         let attrs = self.attrs.iter().filter(|(k, _)| k != "style").cloned().collect();
-        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect() }
+        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect(), styles: Default::default() }
     }
 }
 
@@ -590,7 +605,8 @@ pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
         let body = find(&root, "body", 0).unwrap_or(&root);
         // A body of a set width is a column of that width, as a box would be.
         let out = if body.tag == "body" && matches!(body.width(), Some(Width::Px(_))) {
-            let column = Node { tag: "div".into(), attrs: body.attrs.clone(), kids: body.kids.iter().map(copy).collect() };
+            let column =
+                Node { tag: "div".into(), attrs: body.attrs.clone(), kids: body.kids.iter().map(copy).collect(), styles: Default::default() };
             blocks(&[Kid::El(column)], &mut ctx, 0)
         } else {
             blocks(&body.kids, &mut ctx, 0)

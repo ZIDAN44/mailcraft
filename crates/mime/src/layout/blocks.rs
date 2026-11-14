@@ -176,7 +176,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     // `inline-block` notes under its products stacked one under another).
     let boxes = kids.iter().filter(|k| matches!(k, Kid::El(n) if !n.hidden())).count();
     if boxes >= 2 && depth < MAX_DEPTH {
-        let around = Node { tag: "div".into(), attrs: Vec::new(), kids: kids.iter().map(copy).collect() };
+        let around = Node { tag: "div".into(), attrs: Vec::new(), kids: kids.iter().map(copy).collect(), styles: Default::default() };
         if around.columns().is_some() {
             return blocks(&[Kid::El(around)], ctx, depth);
         }

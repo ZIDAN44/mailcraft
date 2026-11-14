@@ -124,7 +124,7 @@ impl TokenSink for Sink {
                         if outlooks {
                             attrs.push((crate::html::OUTLOOK_TABLE.to_string(), String::new()));
                         }
-                        let node = Node { tag: name.clone(), attrs, kids: Vec::new() };
+                        let node = Node { tag: name.clone(), attrs, kids: Vec::new(), styles: Default::default() };
                         if void(&name) || tag.self_closing {
                             if let Some(parent) = stack.last_mut() {
                                 parent.kids.push(Kid::El(node));

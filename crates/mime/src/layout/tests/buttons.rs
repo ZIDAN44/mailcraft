@@ -146,3 +146,27 @@ fn hostile_buttons_are_survived() {
         assert!(p.text.contains("Go"), "{vml}");
     }
 }
+
+/// A newsletter laid out in nested tables, its style sheet written into every element (long
+/// `style`s, as `inline_css` leaves them), timed. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-mime --lib measure_layout_newsletter -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_layout_newsletter() {
+    let style = "font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;color:#333333;padding:4px 8px;margin:0;border:0;text-align:left;vertical-align:top;background-color:#ffffff;mso-line-height-rule:exactly";
+    let cell = format!(
+        "<td style=\"{style}\"><div style=\"{style}\"><p style=\"{style}\">Some words of a story <a href=\"https://news.example/a\" style=\"{style};text-decoration:none\">read more</a></p></div></td>"
+    );
+    let row = format!("<tr>{cell}{cell}</tr>");
+    let mut html = format!("<table width=\"600\" style=\"{style}\">{}</table>", row.repeat(20));
+    for _ in 0..8 {
+        html = format!("<table width=\"600\" style=\"{style}\"><tr><td style=\"{style}\">{html}{html}</td></tr></table>");
+        if html.len() > 700_000 {
+            break;
+        }
+    }
+    let t = std::time::Instant::now();
+    let b = html_layout(&html);
+    println!("MEASURE layout of {} KB: {} ms", html.len() / 1024, t.elapsed().as_millis());
+    assert!(!b.is_empty());
+}

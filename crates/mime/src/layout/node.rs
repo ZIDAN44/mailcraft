@@ -72,17 +72,27 @@ impl Node {
     /// The rest follow, for a value a reader can't read (`width:600px;width:calc(…)`): a
     /// browser takes the last it can.
     pub(super) fn styles_as_written(&self, prop: &str) -> Vec<String> {
-        let Some(style) = self.attr("style") else { return Vec::new() };
+        let decls = self.styles.get_or_init(|| {
+            let Some(style) = self.attr("style") else { return Vec::new() };
+            style
+                .split(';')
+                .filter_map(|d| {
+                    let (k, v) = d.split_once(':')?;
+                    let v = v.trim();
+                    let (value, important) = match v.to_ascii_lowercase().find("!important") {
+                        Some(at) => (v.get(..at).unwrap_or(v).trim().to_string(), true),
+                        None => (v.to_string(), false),
+                    };
+                    Some(StyleDecl { prop: k.trim().to_ascii_lowercase(), value, important })
+                })
+                .collect()
+        });
         let (mut marked, mut plain) = (Vec::new(), Vec::new());
-        for d in style.split(';').rev() {
-            let Some((k, v)) = d.split_once(':') else { continue };
-            if !k.trim().eq_ignore_ascii_case(prop) {
-                continue;
-            }
-            let v = v.trim();
-            match v.to_ascii_lowercase().find("!important") {
-                Some(at) => marked.push(v.get(..at).unwrap_or(v).trim().to_string()),
-                None => plain.push(v.to_string()),
+        for d in decls.iter().rev().filter(|d| d.prop.eq_ignore_ascii_case(prop)) {
+            if d.important {
+                marked.push(d.value.clone());
+            } else {
+                plain.push(d.value.clone());
             }
         }
         marked.extend(plain);
@@ -219,7 +229,7 @@ impl Node {
                 }
             })
             .collect();
-        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect() }
+        Node { tag: self.tag.clone(), attrs, kids: self.kids.iter().map(copy).collect(), styles: Default::default() }
     }
 
     /// How what's in it lines up, when it says (`align`, `text-align`).
@@ -449,7 +459,7 @@ impl Node {
         if !style.is_empty() {
             attrs.push(("style".into(), style.join(";")));
         }
-        Node { tag: "a".into(), attrs, kids: self.kids.iter().map(copy).collect() }
+        Node { tag: "a".into(), attrs, kids: self.kids.iter().map(copy).collect(), styles: Default::default() }
     }
 
     /// A table's room between and around its cells (`cellspacing`; HTML's 2 when not said).
