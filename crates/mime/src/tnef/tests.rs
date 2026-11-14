@@ -697,3 +697,18 @@ fn a_winmail_dat_in_a_draft_is_a_file_when_it_holds_one() {
     attr(&mut a, 1, ATT_BODY, b"Only in the winmail.dat\0");
     crate::tests::index_text::assert_built_files(&dat(stream(&a)), false);
 }
+
+#[test]
+#[ignore = "a measurement: cargo test --release -p mailcraft-mime --lib rtf_cost -- --ignored --nocapture"]
+fn rtf_cost() {
+    // 4 MB of text, plain and inside a link, as Outlook's own RTF (no HTML in it).
+    let text = r"Some words, \'e9t\'e9 and {\b bold} ones. ".repeat(100_000);
+    let link = format!("https://studio.example/{}", "a".repeat(200));
+    let plain = format!(r"{{\rtf1\ansi\deff0 {text}}}");
+    let linked = format!(r#"{{\rtf1\ansi\deff0 {{\field{{\*\fldinst{{HYPERLINK "{link}"}}}}{{\fldrslt{{{text}}}}}}}}}"#);
+    for (what, rtf) in [("plain", &plain), ("linked", &linked)] {
+        let t = std::time::Instant::now();
+        let TnefBody::Html(h) = rtf_body(rtf.as_bytes()) else { panic!() };
+        println!("MEASURE RTF of {} KB, {what}: {} ms ({} KB of HTML)", rtf.len() / 1024, t.elapsed().as_millis(), h.len() / 1024);
+    }
+}

@@ -3,6 +3,7 @@
 //! italic, underline, struck-through text, links and line breaks).
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use super::{TnefBody, decode};
 
@@ -232,9 +233,10 @@ struct Group {
     /// Characters after `\uN` that stand in for it.
     uc: usize,
     fmt: Fmt,
-    /// The link a field's instruction named, and the one its result shows.
-    field_link: Option<String>,
-    link: Option<String>,
+    /// The link a field's instruction named, and the one its result shows (shared: every token
+    /// of text takes a copy of its group).
+    field_link: Option<Rc<str>>,
+    link: Option<Rc<str>>,
 }
 
 /// Destinations never shown.
@@ -301,7 +303,7 @@ struct Out {
     pending_cp: u32,
     /// What's open in the HTML ([`Mode::Rich`]).
     open: Fmt,
-    open_link: Option<String>,
+    open_link: Option<Rc<str>>,
 }
 
 impl Out {
@@ -356,7 +358,7 @@ impl Out {
     /// Close what's open and open `fmt` inside `link`, which is written again only when it
     /// changes. Nothing is written once the HTML has [`RTF_MAX`] bytes: a link can be thousands
     /// of bytes long, and RTF can change its formatting every few bytes.
-    fn format(&mut self, fmt: Fmt, link: &Option<String>) {
+    fn format(&mut self, fmt: Fmt, link: &Option<Rc<str>>) {
         if (fmt == self.open && *link == self.open_link) || self.s.len() >= RTF_MAX {
             return;
         }
@@ -408,168 +410,216 @@ fn hyperlink(inst: &str) -> Option<String> {
 }
 
 fn read(rtf: &[u8], mode: Mode) -> String {
-    let mut stack = vec![Group { uc: 1, ..Default::default() }];
-    let mut deeper = 0usize;
-    let mut fonts: HashMap<i32, u32> = HashMap::new();
-    let mut default_cp = 1252u32;
-    let mut out = Out { mode, s: String::new(), pending: Vec::new(), pending_cp: 1252, open: Fmt::default(), open_link: None };
-    // The first token of a group, and whether it was `\*`: what says the group's destination.
-    let mut fresh = false;
-    let mut starred = false;
-    let mut fallback = 0usize;
-    let mut high_surrogate: Option<u16> = None;
-    let mut inst = String::new();
+    let mut r = Reader {
+        mode,
+        stack: vec![Group { uc: 1, ..Default::default() }],
+        deeper: 0,
+        fonts: HashMap::new(),
+        default_cp: 1252,
+        out: Out { mode, s: String::new(), pending: Vec::new(), pending_cp: 1252, open: Fmt::default(), open_link: None },
+        fresh: false,
+        starred: false,
+        fallback: 0,
+        high_surrogate: None,
+        inst: String::new(),
+    };
     for t in (Lexer { s: rtf, i: 0 }) {
-        let Some(g) = stack.last().cloned() else { break };
-        if !matches!(t, Tok::Byte(_)) {
-            out.flush(&g);
+        if !r.token(t) {
+            break;
         }
-        let first = std::mem::take(&mut fresh);
+    }
+    if let Some(g) = r.stack.last().cloned() {
+        r.out.flush(&g);
+    }
+    if mode == Mode::Rich {
+        r.out.close();
+    }
+    r.out.s
+}
+
+/// What [`read`] keeps as it goes through the tokens.
+struct Reader {
+    mode: Mode,
+    stack: Vec<Group>,
+    /// Groups opened past [`MAX_GROUPS`] and not closed yet.
+    deeper: usize,
+    /// Each font's code page.
+    fonts: HashMap<i32, u32>,
+    default_cp: u32,
+    out: Out,
+    /// The first token of a group, and whether it was `\*`: what says the group's destination.
+    fresh: bool,
+    starred: bool,
+    /// Characters after a `\uN` that stand in for it, still to skip.
+    fallback: usize,
+    high_surrogate: Option<u16>,
+    /// A field's instruction, as far as it's read.
+    inst: String,
+}
+
+impl Reader {
+    /// One token; `false` once the document has ended.
+    fn token(&mut self, t: Tok) -> bool {
+        let Some(g) = self.stack.last().cloned() else { return false };
+        if !matches!(t, Tok::Byte(_)) {
+            self.out.flush(&g);
+        }
+        let first = std::mem::take(&mut self.fresh);
         let shows = match g.dest {
-            Dest::Body => mode != Mode::Html || g.tag || !g.htmlrtf,
+            Dest::Body => self.mode != Mode::Html || g.tag || !g.htmlrtf,
             _ => false,
-        };
-        let cp = match (g.tag, fonts.get(&g.font).copied().filter(|c| *c != 0)) {
-            (false, Some(c)) => c,
-            _ => default_cp,
         };
         match t {
             Tok::Open => {
-                if stack.len() < MAX_GROUPS {
-                    stack.push(g);
+                if self.stack.len() < MAX_GROUPS {
+                    self.stack.push(g);
                 } else {
-                    deeper += 1;
+                    self.deeper += 1;
                 }
-                fresh = true;
-                starred = false;
-                fallback = 0;
+                self.fresh = true;
+                self.starred = false;
+                self.fallback = 0;
             }
-            Tok::Close => {
-                if deeper > 0 {
-                    deeper -= 1;
-                } else if stack.len() > 1 {
-                    let closed = stack.pop();
-                    if let (Some(c), Some(parent)) = (closed, stack.last_mut())
-                        && c.dest == Dest::FieldInst
-                        && parent.dest != Dest::FieldInst
-                    {
-                        parent.field_link = hyperlink(&inst);
-                        inst.clear();
-                    }
-                    // The document ends with its group: Outlook leaves bytes of an older body after it.
-                    if stack.len() == 1 {
-                        break;
-                    }
-                }
-                fallback = 0;
-            }
+            Tok::Close => return self.close(),
             Tok::Word(b"*", _) if first => {
-                starred = true;
-                fresh = true;
+                self.starred = true;
+                self.fresh = true;
             }
-            Tok::Word(name, _) if first && (starred || SKIPPED.contains(&name) || matches!(name, b"fonttbl" | b"fldinst" | b"fldrslt")) => {
-                let Some(top) = stack.last_mut() else { break };
-                match name {
-                    b"htmltag" if mode == Mode::Html => top.tag = true,
-                    b"fonttbl" => top.dest = Dest::Fonts,
-                    b"fldinst" => {
-                        top.dest = Dest::FieldInst;
-                        inst.clear();
-                    }
-                    b"fldrslt" => top.link = top.field_link.clone(),
-                    _ => top.dest = Dest::Skip,
-                }
+            Tok::Word(name, _) if first && (self.starred || SKIPPED.contains(&name) || matches!(name, b"fonttbl" | b"fldinst" | b"fldrslt")) => {
+                self.destination(name);
             }
-            Tok::Word(name, n) => {
-                let Some(top) = stack.last_mut() else { break };
-                let on = n != Some(0);
-                match name {
-                    b"htmlrtf" => top.htmlrtf = on,
-                    b"f" => {
-                        top.font = n.unwrap_or(0);
-                    }
-                    b"fcharset" if top.dest == Dest::Fonts => {
-                        fonts.insert(top.font, charset_cp(n.unwrap_or(0)));
-                    }
-                    b"cpg" if top.dest == Dest::Fonts => {
-                        fonts.insert(top.font, n.unwrap_or(0).max(0) as u32);
-                    }
-                    b"ansicpg" => default_cp = n.unwrap_or(1252).max(0) as u32,
-                    b"mac" => default_cp = 10000,
-                    b"pc" => default_cp = 437,
-                    b"pca" => default_cp = 850,
-                    // The document's default font, until a group names another.
-                    b"deff" => top.font = n.unwrap_or(0),
-                    b"uc" => top.uc = n.unwrap_or(1).clamp(0, 8) as usize,
-                    b"u" => {
-                        let unit = n.unwrap_or(0) as i16 as u16;
-                        fallback = g.uc;
-                        let c = match (high_surrogate.take(), unit) {
-                            (_, 0xD800..=0xDBFF) => {
-                                high_surrogate = Some(unit);
-                                None
-                            }
-                            (Some(h), 0xDC00..=0xDFFF) => char::decode_utf16([h, unit]).next().and_then(Result::ok),
-                            (_, u) => char::from_u32(u32::from(u)),
-                        };
-                        if let Some(c) = c.filter(|_| shows) {
-                            out.char(c, &g);
-                        } else if g.dest == Dest::FieldInst
-                            && inst.len() < 4096
-                            && let Some(c) = c
-                        {
-                            inst.push(c);
-                        }
-                    }
-                    b"par" | b"line" if shows => out.raw(if mode == Mode::Rich { "<br>\n" } else { "\r\n" }, &g),
-                    b"tab" if shows => out.raw(if mode == Mode::Rich { "&nbsp;&nbsp;&nbsp;&nbsp;" } else { "\t" }, &g),
-                    b"emdash" if shows => out.char('\u{2014}', &g),
-                    b"endash" if shows => out.char('\u{2013}', &g),
-                    b"bullet" if shows => out.char('\u{2022}', &g),
-                    b"lquote" if shows => out.char('\u{2018}', &g),
-                    b"rquote" if shows => out.char('\u{2019}', &g),
-                    b"ldblquote" if shows => out.char('\u{201C}', &g),
-                    b"rdblquote" if shows => out.char('\u{201D}', &g),
-                    b"emspace" | b"enspace" | b"qmspace" if shows => out.char(' ', &g),
-                    b"b" => top.fmt.bold = on,
-                    b"i" => top.fmt.italic = on,
-                    b"ul" => top.fmt.underline = on,
-                    b"ulnone" => top.fmt.underline = false,
-                    b"strike" => top.fmt.strike = on,
-                    b"plain" => top.fmt = Fmt::default(),
-                    _ => {}
-                }
-                if name != b"u" {
-                    high_surrogate = None;
-                }
-            }
+            Tok::Word(name, n) => self.word(name, n, &g, shows),
             Tok::Byte(b) | Tok::Text(b) => {
-                if fallback > 0 {
-                    fallback -= 1;
-                    continue;
+                if self.fallback > 0 {
+                    self.fallback -= 1;
+                    return true;
                 }
-                high_surrogate = None;
+                self.high_surrogate = None;
                 if shows {
-                    out.byte(b, cp, &g);
-                } else if g.dest == Dest::FieldInst && inst.len() < 4096 {
-                    inst.push(char::from(b));
+                    let cp = match (g.tag, self.fonts.get(&g.font).copied().filter(|c| *c != 0)) {
+                        (false, Some(c)) => c,
+                        _ => self.default_cp,
+                    };
+                    self.out.byte(b, cp, &g);
+                } else if g.dest == Dest::FieldInst && self.inst.len() < 4096 {
+                    self.inst.push(char::from(b));
                 }
             }
             Tok::Char(c) => {
-                fallback = fallback.saturating_sub(1);
+                self.fallback = self.fallback.saturating_sub(1);
                 if shows {
-                    out.char(c, &g);
-                } else if g.dest == Dest::FieldInst && inst.len() < 4096 {
-                    inst.push(c);
+                    self.out.char(c, &g);
+                } else if g.dest == Dest::FieldInst && self.inst.len() < 4096 {
+                    self.inst.push(c);
                 }
             }
         }
+        true
     }
-    if let Some(g) = stack.last().cloned() {
-        out.flush(&g);
+
+    /// A group's end; `false` at the document's own.
+    fn close(&mut self) -> bool {
+        if self.deeper > 0 {
+            self.deeper -= 1;
+        } else if self.stack.len() > 1 {
+            let closed = self.stack.pop();
+            if let (Some(c), Some(parent)) = (closed, self.stack.last_mut())
+                && c.dest == Dest::FieldInst
+                && parent.dest != Dest::FieldInst
+            {
+                parent.field_link = hyperlink(&self.inst).map(Rc::from);
+                self.inst.clear();
+            }
+            // The document ends with its group: Outlook leaves bytes of an older body after it.
+            if self.stack.len() == 1 {
+                return false;
+            }
+        }
+        self.fallback = 0;
+        true
     }
-    if mode == Mode::Rich {
-        out.close();
+
+    /// The word that starts a group and says what it holds.
+    fn destination(&mut self, name: &[u8]) {
+        let Some(top) = self.stack.last_mut() else { return };
+        match name {
+            b"htmltag" if self.mode == Mode::Html => top.tag = true,
+            b"fonttbl" => top.dest = Dest::Fonts,
+            b"fldinst" => {
+                top.dest = Dest::FieldInst;
+                self.inst.clear();
+            }
+            b"fldrslt" => top.link = top.field_link.clone(),
+            _ => top.dest = Dest::Skip,
+        }
     }
-    out.s
+
+    /// A control word (`\b`, `\par`, `\u8364`…); `g` is its group as it was before it.
+    fn word(&mut self, name: &[u8], n: Option<i32>, g: &Group, shows: bool) {
+        let mode = self.mode;
+        let Some(top) = self.stack.last_mut() else { return };
+        let on = n != Some(0);
+        match name {
+            b"htmlrtf" => top.htmlrtf = on,
+            b"f" => {
+                top.font = n.unwrap_or(0);
+            }
+            b"fcharset" if top.dest == Dest::Fonts => {
+                self.fonts.insert(top.font, charset_cp(n.unwrap_or(0)));
+            }
+            b"cpg" if top.dest == Dest::Fonts => {
+                self.fonts.insert(top.font, n.unwrap_or(0).max(0) as u32);
+            }
+            b"ansicpg" => self.default_cp = n.unwrap_or(1252).max(0) as u32,
+            b"mac" => self.default_cp = 10000,
+            b"pc" => self.default_cp = 437,
+            b"pca" => self.default_cp = 850,
+            // The document's default font, until a group names another.
+            b"deff" => top.font = n.unwrap_or(0),
+            b"uc" => top.uc = n.unwrap_or(1).clamp(0, 8) as usize,
+            b"u" => self.unicode(n, g, shows),
+            b"par" | b"line" if shows => self.out.raw(if mode == Mode::Rich { "<br>\n" } else { "\r\n" }, g),
+            b"tab" if shows => self.out.raw(if mode == Mode::Rich { "&nbsp;&nbsp;&nbsp;&nbsp;" } else { "\t" }, g),
+            b"emdash" if shows => self.out.char('\u{2014}', g),
+            b"endash" if shows => self.out.char('\u{2013}', g),
+            b"bullet" if shows => self.out.char('\u{2022}', g),
+            b"lquote" if shows => self.out.char('\u{2018}', g),
+            b"rquote" if shows => self.out.char('\u{2019}', g),
+            b"ldblquote" if shows => self.out.char('\u{201C}', g),
+            b"rdblquote" if shows => self.out.char('\u{201D}', g),
+            b"emspace" | b"enspace" | b"qmspace" if shows => self.out.char(' ', g),
+            b"b" => top.fmt.bold = on,
+            b"i" => top.fmt.italic = on,
+            b"ul" => top.fmt.underline = on,
+            b"ulnone" => top.fmt.underline = false,
+            b"strike" => top.fmt.strike = on,
+            b"plain" => top.fmt = Fmt::default(),
+            _ => {}
+        }
+        if name != b"u" {
+            self.high_surrogate = None;
+        }
+    }
+
+    /// `\uN`: a UTF-16 unit (a surrogate pair takes two), then `\uc` characters standing in for it.
+    fn unicode(&mut self, n: Option<i32>, g: &Group, shows: bool) {
+        let unit = n.unwrap_or(0) as i16 as u16;
+        self.fallback = g.uc;
+        let c = match (self.high_surrogate.take(), unit) {
+            (_, 0xD800..=0xDBFF) => {
+                self.high_surrogate = Some(unit);
+                None
+            }
+            (Some(h), 0xDC00..=0xDFFF) => char::decode_utf16([h, unit]).next().and_then(Result::ok),
+            (_, u) => char::from_u32(u32::from(u)),
+        };
+        if let Some(c) = c.filter(|_| shows) {
+            self.out.char(c, g);
+        } else if g.dest == Dest::FieldInst
+            && self.inst.len() < 4096
+            && let Some(c) = c
+        {
+            self.inst.push(c);
+        }
+    }
 }
