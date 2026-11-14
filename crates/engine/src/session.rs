@@ -388,7 +388,7 @@ pub struct Session {
     /// decrypted and why others couldn't be, and messages waiting to be signed or encrypted.
     smime: HashMap<String, SmimeSettings>,
     trust_roots: Vec<Vec<u8>>,
-    opened: HashMap<MessageKey, (Vec<u8>, bool)>,
+    opened: security::Opened,
     opening: HashSet<MessageKey>,
     decrypt_errors: HashMap<MessageKey, String>,
     /// Answers still to come for messages asked to be decrypted before their keys came to
@@ -550,7 +550,7 @@ impl Session {
             senders: None,
             smime: HashMap::new(),
             trust_roots: Vec::new(),
-            opened: HashMap::new(),
+            opened: security::Opened::default(),
             opening: HashSet::new(),
             decrypt_errors: HashMap::new(),
             stale_decrypts: HashMap::new(),

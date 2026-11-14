@@ -113,6 +113,11 @@ impl PgpState {
         self.asked.retain(|k, _| k.folder != folder);
         self.signed.retain(|k, _| k.folder != folder);
     }
+
+    /// What a decrypted message's signature said goes with what was decrypted of it.
+    pub(super) fn forget_message(&mut self, key: &MessageKey) {
+        self.signed.remove(key);
+    }
 }
 
 impl Session {
@@ -421,11 +426,7 @@ impl Session {
                     let then = if self.smime_settings(&account).sign { "new messages are signed" } else { "it signs and decrypts from now on" };
                     self.notice(format!("Your OpenPGP key for {who} is ready: {then}"), false);
                 }
-                // Mail that couldn't be read for want of a key is tried again.
-                let failed: Vec<MessageKey> = self.decrypt_errors.drain().map(|(k, _)| k).collect();
-                for k in failed {
-                    self.show_again(&k);
-                }
+                self.retry_failed_decrypts();
             }
             Event::PgpDecrypted { key, content, signature, error } => {
                 // One no longer asked for (the Outbox's rows moved meanwhile) is another's now.
@@ -436,13 +437,7 @@ impl Session {
                 let (keys, from) = self.pgp.asked.remove(&key).unwrap_or_default();
                 match (content, error) {
                     (Some(Private(entity)), None) => {
-                        if self.opened.len() >= OPENED_MAX
-                            && let Some(k) = self.opened.keys().next().cloned()
-                        {
-                            self.opened.remove(&k);
-                            self.pgp.signed.remove(&k);
-                        }
-                        self.opened.insert(key.clone(), (entity, true));
+                        self.keep_opened(&key, entity, true);
                         if let Some(sig) = signature {
                             let by = self.pgp_signed_by(&sig, &keys, &from);
                             self.pgp.signed.insert(key.clone(), by);

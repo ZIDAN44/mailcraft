@@ -130,6 +130,39 @@ fn encrypted_mail_is_decrypted_and_kept_off_the_web() {
     s.run("compose.discard", &json!({})).unwrap();
 }
 
+/// Audit #265: with more messages decrypted than are held in memory (64), the oldest is let go
+/// first, but never one shown, which would ask for its key (a keychain or card prompt) again.
+#[test]
+fn the_oldest_decrypted_message_not_shown_is_let_go_first() {
+    let mut s = with_certificate("smime-opened-kept");
+    let raw = testdata("encrypted-gcm.eml");
+    let shown = open_raw(&mut s, 9315, &raw);
+    answer_decrypt(&mut s);
+    assert_eq!(security(&s).lock, Some(Lock::Open { authenticated: true }));
+    // 64 more decrypted while it stays shown: the oldest of them goes, the shown one stays
+    // though it's older still.
+    let entity = b"Content-Type: text/plain\r\n\r\nElsewhere.\r\n".to_vec();
+    let mut others = Vec::new();
+    for n in 0..64 {
+        let key = mailcraft_model::MessageKey { uid: 20_000 + n, ..next_key(&s, "sample", "INBOX") };
+        let summary = mailcraft_mime::summary_from_full(&raw, key, mailcraft_model::Flags::default(), 0, s.clock.now);
+        let key = file_in(&mut s, summary, Some(&raw));
+        s.apply(Event::Decrypted { key: key.clone(), content: Some(mailcraft_model::Private(entity.clone())), authenticated: true, error: None });
+        others.push(key);
+    }
+    assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), Some(shown.clone()), "still shown");
+    let asked = |s: &mut Session, key: &mailcraft_model::MessageKey| {
+        s.take_jobs();
+        s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+        s.take_jobs().iter().any(|j| matches!(j, Job::Decrypt { .. }))
+    };
+    assert!(!asked(&mut s, &others[1]), "the second oldest is held");
+    assert!(!asked(&mut s, &others[63]), "and the newest");
+    assert!(!asked(&mut s, &shown), "the one shown is held");
+    assert_eq!(security(&s).lock, Some(Lock::Open { authenticated: true }));
+    assert!(asked(&mut s, &others[0]), "the oldest not shown went");
+}
+
 #[test]
 fn without_a_certificate_encrypted_mail_says_why() {
     let mut s = sample_session("smime-nocert");

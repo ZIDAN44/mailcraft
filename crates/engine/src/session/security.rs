@@ -15,9 +15,11 @@ use super::*;
 
 mod addresses;
 mod cards;
+mod opened;
 mod pgp;
 mod revocation;
 pub use cards::CardSearch;
+pub(crate) use opened::Opened;
 pub(crate) use pgp::PgpState;
 pub use pgp::{KeySource, KnownKey, PGP_DOC, PgpSettings, Reach, Scheme};
 pub use revocation::RevocationCheck;
@@ -25,9 +27,6 @@ pub(crate) use revocation::Revocations;
 
 /// An account's S/MIME settings (the account document `smime.json`).
 pub const SMIME_DOC: &str = "smime.json";
-
-/// The most decrypted messages held in memory at once.
-const OPENED_MAX: usize = 64;
 
 /// An account's S/MIME: its certificate, what new messages do, whom it can encrypt to.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -512,7 +511,7 @@ impl Session {
         for k in self.opening.iter().filter(|k| k.folder == folder) {
             *self.stale_decrypts.entry(k.clone()).or_default() += 1;
         }
-        self.opened.retain(|k, _| k.folder != folder);
+        self.opened.retain(|k| k.folder != folder);
         self.opening.retain(|k| k.folder != folder);
         self.decrypt_errors.retain(|k, _| k.folder != folder);
         self.pgp.forget_folder(folder);
@@ -719,11 +718,7 @@ impl Session {
                     }
                     let signing = s.sign;
                     self.save_smime(&account);
-                    // Mail that couldn't be read for want of a key is tried again (the one shown at once).
-                    let failed: Vec<MessageKey> = self.decrypt_errors.drain().map(|(k, _)| k).collect();
-                    for k in failed {
-                        self.show_again(&k);
-                    }
+                    self.retry_failed_decrypts();
                     let who = |i: smime::CertInfo| i.emails.first().cloned().unwrap_or(i.name);
                     match reading.and_then(|c| smime::cert::info(&c).ok()) {
                         Some(old) => {
@@ -761,14 +756,7 @@ impl Session {
                     return;
                 }
                 match (content, error) {
-                    (Some(Private(entity)), None) => {
-                        if self.opened.len() >= OPENED_MAX
-                            && let Some(k) = self.opened.keys().next().cloned()
-                        {
-                            self.opened.remove(&k);
-                        }
-                        self.opened.insert(key.clone(), (entity, authenticated));
-                    }
+                    (Some(Private(entity)), None) => self.keep_opened(&key, entity, authenticated),
                     (_, e) => {
                         self.decrypt_errors.insert(key.clone(), e.unwrap_or_else(|| "it can't be decrypted".into()));
                     }
@@ -780,6 +768,27 @@ impl Session {
             Event::HeldKeys { keys, error } => self.heard_held_keys(keys, error),
             e @ (Event::PgpKeys { .. } | Event::PgpDecrypted { .. }) => self.apply_pgp(e),
             _ => {}
+        }
+    }
+
+    /// Keep what was decrypted of `key` (the MIME entity inside, and whether it was
+    /// authenticated) in memory. Past [`opened::OPENED_MAX`] the oldest goes, with what its
+    /// signature said: never one shown, which would ask for its key (a keychain or card prompt)
+    /// again.
+    fn keep_opened(&mut self, key: &MessageKey, entity: Vec<u8>, authenticated: bool) {
+        let (reading, windows) = (&self.reading, &self.windows);
+        let shown = |k: &MessageKey| reading.as_ref().is_some_and(|r| r.key == *k) || windows.iter().any(|w| w.key == *k);
+        if let Some(gone) = self.opened.keep(key, entity, authenticated, shown) {
+            self.pgp.forget_message(&gone);
+        }
+    }
+
+    /// Mail that couldn't be read for want of a key is tried again, now there's one (the one
+    /// shown at once).
+    fn retry_failed_decrypts(&mut self) {
+        let failed: Vec<MessageKey> = self.decrypt_errors.drain().map(|(k, _)| k).collect();
+        for k in failed {
+            self.show_again(&k);
         }
     }
 

@@ -142,6 +142,7 @@ on GitHub.
 - In the browser, turning off "Keep unlocked in this browser" while a password is being sealed no longer leaves it kept.
 - `mailcraft-cli --help` now lists `--jmap`, `--cc` and `--timeout`.
 - With many web pictures loaded, the pictures of the open message and of the signature being written no longer disappear when others are shown.
+- An encrypted message on screen no longer asks for its key again after many other encrypted messages have been opened.
 
 ## 0.38.0 - 2026-11-13
 
