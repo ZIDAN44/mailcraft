@@ -82,6 +82,7 @@ impl Session {
         self.seen_uid.retain(|(a, _), _| a != account);
         self.search_folders_changed(account);
         self.pim.remove(account);
+        self.pim_revision = self.pim_revision.wrapping_add(1);
         self.pim_unread.remove(account);
         self.contacts = None;
         self.queue_import(account, &path, false);

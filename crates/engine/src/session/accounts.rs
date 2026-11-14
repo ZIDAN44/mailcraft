@@ -331,6 +331,7 @@ impl Session {
         }
         self.held.remove(id);
         self.pim.remove(id);
+        self.pim_revision = self.pim_revision.wrapping_add(1);
         // An account added later under the same id has its own calendar and contacts to save.
         self.pim_unread.remove(id);
         let mut kept = None;

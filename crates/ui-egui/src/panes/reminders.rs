@@ -30,45 +30,20 @@ pub struct State {
     pub closed: std::collections::BTreeSet<String>,
     /// Told on the desktop already.
     pub notified: std::collections::BTreeSet<String>,
-    /// What the list was worked out from ([`signature`]): when it changes (a reminder answered,
-    /// an event changed), it's worked out again at once.
-    pub signature: u64,
-}
-
-/// A digest of what decides the due list: the answers given, the events and the tasks.
-fn signature(s: &Session) -> u64 {
-    // FNV-1a's constants, a number at a time (not kept: only compared within a run).
-    use mailcraft_engine::model::hash::{FNV_OFFSET, FNV_PRIME};
-    let mut h = FNV_OFFSET;
-    let mut mix = |v: u64| h = (h ^ v).wrapping_mul(FNV_PRIME);
-    mix(s.prefs.reminders.len() as u64);
-    for (k, v) in &s.prefs.reminders {
-        mix(k.len() as u64);
-        mix(*v as u64);
-    }
-    for p in s.pim.values() {
-        mix(p.events.len() as u64);
-        for e in &p.events {
-            mix(e.event.start as u64 ^ (e.event.extra.len() as u64).rotate_left(32) ^ (e.event.status.len() as u64).rotate_left(48));
-        }
-        // Tasks' reminders, and whether they're done.
-        mix(p.tasks.len() as u64);
-        for t in &p.tasks {
-            mix(t.task.reminder.unwrap_or(0) as u64 ^ u64::from(t.task.is_done()).rotate_left(63) ^ (t.task.due.unwrap_or(0) as u64).rotate_left(17));
-        }
-    }
-    h
+    /// The calendars' revision the list was worked out at ([`Session::pim_revision`], which every
+    /// change to an event or a task, and every reminder dismissed or snoozed, moves on): when it
+    /// moves, the list is worked out again on that frame; `None` until it first is.
+    pub revision: Option<u64>,
 }
 
 /// Work out what's due when it's time; the reminders newly come, to tell on the desktop.
 pub fn refresh(st: &mut State, s: &Session, force: bool) -> Vec<DueReminder> {
     let now = s.clock.now;
-    let sig = signature(s);
-    if !force && sig == st.signature && now - st.checked < EVERY_SECS && now >= st.checked {
+    if !force && st.revision == Some(s.pim_revision) && now - st.checked < EVERY_SECS && now >= st.checked {
         return Vec::new();
     }
     st.checked = now;
-    st.signature = sig;
+    st.revision = Some(s.pim_revision);
     st.due = s.due_reminders(now);
     let keys: std::collections::BTreeSet<String> = st.due.iter().map(|r| r.key.clone()).collect();
     st.closed.retain(|k| keys.contains(k));

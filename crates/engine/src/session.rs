@@ -340,7 +340,8 @@ pub struct Session {
     pub undo: Vec<Undo>,
     /// Bumped whenever `list` changes.
     pub revision: u64,
-    /// Bumped whenever a calendar or address book changes.
+    /// Bumped whenever a calendar, a task list or an address book changes (an account's go with
+    /// it), and when a reminder is dismissed or snoozed.
     pub pim_revision: u64,
     /// Messages waiting in the Outbox, per account (oldest first).
     pub outbox: Vec<(String, OutboxItem)>,

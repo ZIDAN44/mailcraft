@@ -92,6 +92,7 @@ impl Session {
             self.tell_server_reminder(k, None, now);
         }
         self.forget_old_reminders(now);
+        self.pim_revision = self.pim_revision.wrapping_add(1);
         keys.len()
     }
 
@@ -101,6 +102,7 @@ impl Session {
         self.prefs.reminders.insert(key.to_string(), until.max(1));
         self.tell_server_reminder(key, Some(until.max(1)), now);
         self.forget_old_reminders(now);
+        self.pim_revision = self.pim_revision.wrapping_add(1);
     }
 
     /// Tell the event's server a reminder was answered here, so the user's other programs

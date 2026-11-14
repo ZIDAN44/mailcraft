@@ -5,6 +5,7 @@ use super::*;
 mod dates;
 mod meetings;
 mod pim;
+mod reminders;
 mod repeat;
 mod search;
 mod tasks;
