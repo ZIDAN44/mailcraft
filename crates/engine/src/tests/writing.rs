@@ -136,6 +136,28 @@ fn attachments_preview_and_save_all() {
     assert_eq!(mailcraft_mime::text_preview_kind("message/rfc822", "fwd.eml"), Some("message"));
 }
 
+/// Save all attachments numbers a name that's taken up to (999); with all of those taken too,
+/// it's refused, and no file there is written over.
+#[test]
+fn saving_all_never_writes_over_a_file() {
+    let mut s = sample_session("save-all-full");
+    s.run("list.open", &key_of(&s, "Character turnarounds")).unwrap();
+    let name = s.reading.as_ref().and_then(|r| r.parsed.as_ref()).and_then(|p| p.attachments.iter().find(|a| !a.inline)).map(|a| a.name.clone());
+    let name = mailcraft_mime::sanitize_filename(&name.unwrap());
+    let (stem, ext) = name.rsplit_once('.').unwrap();
+    let dir = s.store.as_ref().unwrap().root().join("full");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(&name), b"mine").unwrap();
+    for n in 2..=999 {
+        std::fs::write(dir.join(format!("{stem} ({n}).{ext}")), b"mine").unwrap();
+    }
+    let r = s.run("attachment.saveAll", &json!({"dir": dir.to_string_lossy()}));
+    assert!(matches!(&r, Err(CmdError::Failed(m)) if m.contains("(999)")), "{r:?}");
+    assert_eq!(std::fs::read(dir.join(format!("{stem} (999).{ext}"))).unwrap(), b"mine");
+    let r = s.run("attachment.save", &json!({"index": 0, "path": dir.join("tool.exe").to_string_lossy(), "open": true}));
+    assert!(matches!(&r, Err(CmdError::Disabled(m)) if m.contains("could run a program")), "{r:?}");
+}
+
 /// A file picked in the browser, or a picture pasted, is handed over as it is and named by the
 /// command (a JSON list of its bytes made each byte a value of 24 bytes); each is taken once,
 /// and only the last few are kept.

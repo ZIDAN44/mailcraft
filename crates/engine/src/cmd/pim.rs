@@ -514,10 +514,7 @@ fn save_note_file(s: &mut Session, v: &Value) -> CmdResult {
     let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
     let path = p::req_str(v, "path")?;
     if p::bool(v, "open").unwrap_or(false) {
-        let name = std::path::Path::new(path).file_name().unwrap_or_default().to_string_lossy().into_owned();
-        if mailcraft_mime::runs_code(&name) {
-            return Err(CmdError::Disabled(format!("{name} could run a program, so it isn't opened from here; save it and check it first")));
-        }
+        super::compose::refuse_runnable(path)?;
     }
     let (_, data) = s.note_file(uid, index)?;
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;

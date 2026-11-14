@@ -409,18 +409,23 @@ impl Session {
 pub(super) fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let index = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
     let path = p::req_str(v, "path")?;
-    // Opened from a message, a program, script or shortcut would run: never handed on.
     if p::bool(v, "open").unwrap_or(false) {
-        let leaf = std::path::Path::new(path).file_name().unwrap_or_default();
-        let name = leaf.to_string_lossy().into_owned();
-        if mailcraft_mime::runs_code(&name) {
-            return Err(CmdError::Disabled(format!("{name} could run a program, so it isn't opened from here; save it and check it first")));
-        }
+        refuse_runnable(path)?;
     }
     let data = s.attachment_bytes(index)?;
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     mark_from_internet(std::path::Path::new(path), &data);
     Ok(json!({"saved": path, "bytes": data.len()}))
+}
+
+/// A file saved at `path` to be opened by another app: refused when it could run a program (a
+/// program, script or shortcut opened from a message would run), never handed on.
+pub(super) fn refuse_runnable(path: &str) -> Result<(), CmdError> {
+    let name = std::path::Path::new(path).file_name().unwrap_or_default().to_string_lossy().into_owned();
+    if mailcraft_mime::runs_code(&name) {
+        return Err(CmdError::Disabled(format!("{name} could run a program, so it isn't opened from here; save it and check it first")));
+    }
+    Ok(())
 }
 
 /// Windows' mark that a file came from the internet (its `Zone.Identifier` stream, zone 3), as
@@ -487,16 +492,18 @@ pub(super) fn save_all_attachments(s: &mut Session, v: &Value) -> CmdResult {
     }
 }
 
-/// `data` saved in `dir` as `name` (made safe), or with a number when that's taken.
+/// Highest number a saved file's name is given when the name is taken (`name (999).txt`).
+const NUMBERED_MAX: u32 = 999;
+
+/// `data` saved in `dir` as `name` (made safe), or with a number when that's taken; refused when
+/// every number is taken too, so that no file there is written over.
 fn save_beside(dir: &std::path::Path, name: &str, data: &[u8]) -> Result<String, CmdError> {
     let name = sanitize_filename(name);
     let (stem, ext) = name.rsplit_once('.').map_or((name.clone(), String::new()), |(s, e)| (s.to_string(), format!(".{e}")));
-    let mut path = dir.join(&name);
-    let mut n = 2;
-    while path.exists() && n < 1000 {
-        path = dir.join(format!("{stem} ({n}){ext}"));
-        n += 1;
-    }
+    let path = std::iter::once(dir.join(&name))
+        .chain((2..=NUMBERED_MAX).map(|n| dir.join(format!("{stem} ({n}){ext}"))))
+        .find(|p| !p.exists())
+        .ok_or_else(|| CmdError::Failed(format!("{}: {name} and every numbered copy up to ({NUMBERED_MAX}) are there already", dir.display())))?;
     std::fs::write(&path, data).map_err(|e| CmdError::Failed(format!("{}: {e}", path.display())))?;
     mark_from_internet(&path, data);
     Ok(path.to_string_lossy().to_string())
