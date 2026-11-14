@@ -75,34 +75,67 @@ fn drawn_list(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
         .collect()
 }
 
-/// A search typed a key a frame over twelve thousand messages: each frame spends at most its
-/// share of time on it (6 ms, and the unit it was in when the time ran out), the search is
-/// spread over frames rather than holding one, and it finds what a search that waits finds.
+/// "zanzibar" typed a key a frame into the box, then 192 frames more: for each frame that ran
+/// some of the search, the units it ran and the time it spent on them.
+fn typed_search(ctx: &egui::Context, a: &mut MailApp) -> Vec<(u64, std::time::Duration)> {
+    frame(ctx, a, vec![]);
+    frame(ctx, a, vec![key(Key::E, Modifiers::COMMAND)]);
+    frame(ctx, a, vec![]);
+    assert!(a.ui.search_focused);
+    let mut frames = Vec::new();
+    for f in 0..200 {
+        let typed = "zanzibar".chars().nth(f).map(|c| vec![Event::Text(c.to_string())]).unwrap_or_default();
+        let before = a.session.search_stats().units;
+        frame(ctx, a, typed);
+        let ran = a.session.search_stats().units.saturating_sub(before);
+        if ran > 0 {
+            frames.push((ran, a.ui.search_spent));
+        }
+    }
+    frames
+}
+
+/// A search typed a key a frame over twelve thousand messages is spread over frames rather than
+/// holding one: each frame stops at its share of time (6 ms; a frame that waited for the search
+/// ran all of it but the list put together, which a step begins with). The share is counted on
+/// a clock of the test's, 2 ms a look (one after each unit), so no frame runs more than three
+/// units whatever the machine and the build: on the machine's clock a quick one did the whole
+/// search inside one share (2.6–4.8 ms in a release build), and a busy one's frames ran fewer
+/// units. The times are in `a_typed_searchs_frames_measured`. It finds what a search that waits
+/// finds.
 #[test]
 fn a_search_typed_never_holds_a_frame() {
     let ctx = egui::Context::default();
     let mut a = generated(6, 2000);
-    frame(&ctx, &mut a, vec![]);
-    frame(&ctx, &mut a, vec![key(Key::E, Modifiers::COMMAND)]);
-    frame(&ctx, &mut a, vec![]);
-    assert!(a.ui.search_focused);
-    // A debug build's units are slower; a release build's frame keeps to 8 ms.
-    let most = if cfg!(debug_assertions) { std::time::Duration::from_millis(60) } else { std::time::Duration::from_millis(8) };
-    let (mut worst, mut working) = (std::time::Duration::ZERO, 0);
-    for f in 0..200 {
-        let typed = "zanzibar".chars().nth(f).map(|c| vec![Event::Text(c.to_string())]).unwrap_or_default();
-        frame(&ctx, &mut a, typed);
-        worst = worst.max(a.ui.search_spent);
-        working += usize::from(!a.ui.search_spent.is_zero());
-    }
-    assert!(worst <= most, "a frame spent {worst:?} on the search");
-    assert!(working >= 1, "the search was stepped by the frames");
+    a.ui.search_tick = Some(std::time::Duration::from_millis(2));
+    let units: Vec<u64> = typed_search(&ctx, &mut a).into_iter().map(|(u, _)| u).collect();
+    let (all, most) = (units.iter().sum::<u64>(), units.iter().max().copied().unwrap_or_default());
+    assert!(all > 0, "the frames stepped the search");
+    assert!(most <= 3, "each frame within its share: {units:?}");
+    assert!(most * 2 < all, "no frame ran half the search: {units:?}");
     assert!(a.session.search_progress().is_some_and(|p| p.done), "done within 200 frames");
     assert_eq!(a.session.search.as_ref().map(|(q, _)| q.as_str()), Some("zanzibar"), "searched once typing paused");
     let found = a.session.list.len();
     assert_eq!(found, 12_000 / 7);
     let waited = a.session.run_search_with("zanzibar", mailcraft_engine::SearchScope::All, false);
     assert_eq!(waited, found, "the same as a search that waits");
+}
+
+/// The time each frame of the typed search spent on it (a release build's keeps to 8 ms: 6 ms,
+/// and the unit it was in when the time ran out). Run by hand, in release, alone on the machine:
+/// `cargo test --release -p mailcraft-ui-egui --lib a_typed_searchs_frames_measured -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement: run by hand"]
+fn a_typed_searchs_frames_measured() {
+    let ctx = egui::Context::default();
+    let mut a = generated(6, 2000);
+    let frames = typed_search(&ctx, &mut a);
+    let units: Vec<u64> = frames.iter().map(|(u, _)| *u).collect();
+    let mut spent: Vec<std::time::Duration> = frames.iter().map(|(_, t)| *t).collect();
+    spent.sort();
+    let at = |pct: usize| spent.get(spent.len().saturating_sub(1) * pct / 100).copied().unwrap_or_default();
+    println!("MEASURE typed search: {} frames searching (units {units:?}), p50 {:?}, p99 {:?}, worst {:?}", spent.len(), at(50), at(99), at(100));
+    assert!(a.session.search_progress().is_some_and(|p| p.done), "done within 200 frames");
 }
 
 /// The command that starts a search takes none of it in the window: run after the frame was

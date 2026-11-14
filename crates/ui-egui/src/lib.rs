@@ -329,6 +329,10 @@ pub struct UiState {
     search_drop: SearchDrop,
     /// The time the last frame spent on the search's work.
     search_spent: web_time::Duration,
+    /// In a test, the time each look at the clock adds while a search is stepped, in place of
+    /// the clock: how much of a search a frame runs then doesn't hang on the machine's speed.
+    #[cfg(test)]
+    search_tick: Option<web_time::Duration>,
     /// The time the search running has spent on each kind of its work, all told.
     search_times: app::SearchTimes,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.

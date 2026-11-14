@@ -118,7 +118,19 @@ impl MailApp {
             }
             times.add(of.as_ref(), work, took);
         };
-        let p = self.session.search_step_within(SEARCH_UNITS, SEARCH_BUDGET, &mut || began.elapsed(), &mut timed);
+        #[cfg(not(test))]
+        let mut elapsed = || began.elapsed();
+        #[cfg(test)]
+        let (tick, mut looks) = (self.ui.search_tick, 0u32);
+        #[cfg(test)]
+        let mut elapsed = || match tick {
+            Some(tick) => {
+                looks = looks.saturating_add(1);
+                tick.saturating_mul(looks - 1)
+            }
+            None => began.elapsed(),
+        };
+        let p = self.session.search_step_within(SEARCH_UNITS, SEARCH_BUDGET, &mut elapsed, &mut timed);
         self.ui.search_spent = began.elapsed();
         self.ui.search_times.frame();
         if p.done {
