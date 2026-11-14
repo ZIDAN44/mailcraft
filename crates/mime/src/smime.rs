@@ -341,11 +341,13 @@ pub fn entity_of(raw: &[u8]) -> (Vec<u8>, Vec<u8>) {
     (outer_headers(&raw), entity)
 }
 
-/// A header field's value, decoded (`=?utf-8?…?=` words as text).
+/// A header field's value as unstructured text (RFC 5322 §3.2.5): unfolded, its encoded words
+/// (`=?utf-8?…?=`) decoded, trimmed; bytes that aren't UTF-8 read as the reading pane reads them.
 fn field_value(field: &[u8]) -> String {
-    let mut m = field.to_vec();
-    m.extend_from_slice(b"\r\n\r\n");
-    crate::parse(&m).map(|p| p.subject).unwrap_or_default()
+    let field = crate::html::readable_headers(field);
+    let Some(colon) = field.iter().position(|b| *b == b':') else { return String::new() };
+    let value = field.get(colon + 1..).unwrap_or_default();
+    mail_parser::HeaderForm::Text.parse(value).value().as_text().map(|t| t.trim().to_string()).unwrap_or_default()
 }
 
 /// Quoted-printable for a short text (RFC 2045 §6.7): 7-bit, lines under 76.

@@ -270,6 +270,19 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe plan.\r\
     assert!(String::from_utf8_lossy(&quoted_printable("a\u{e9}= ")).contains("a=C3=A9=3D=20"));
 }
 
+/// Any field's value reads as its text, not the Subject's alone: unfolded, encoded words
+/// decoded, trimmed, 8-bit bytes read as the reading pane reads them.
+#[test]
+fn a_fields_value_is_its_text() {
+    assert_eq!(field_value(b"Subject: =?utf-8?q?Caf=C3=A9_plans?="), "Caf\u{e9} plans");
+    assert_eq!(field_value(b"Comments: =?utf-8?q?caf=C3=A9?="), "caf\u{e9}");
+    assert_eq!(field_value(b"Keywords:  plans,\r\n secret "), "plans, secret");
+    assert_eq!(field_value(b"Subject: Re: =?utf-8?b?8J+YgA==?=\r\n =?utf-8?q?_more?="), "Re: \u{1f600} more");
+    assert_eq!(field_value(b"Subject: caf\xE9"), "caf\u{e9}");
+    assert_eq!(field_value(b"Subject:"), "");
+    assert_eq!(field_value(b"no colon"), "");
+}
+
 #[test]
 fn base64_is_standard() {
     assert_eq!(base64_lines(b""), b"");
