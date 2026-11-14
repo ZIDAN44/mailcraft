@@ -20,7 +20,7 @@ use mailcraft_store::{OutboxItem, Store};
 use crate::imap::{Client, uid_set};
 use crate::jmap;
 use crate::stream::Stream;
-use crate::sync::{SyncOptions, fetch_body, sync_folder_as};
+use crate::sync::{SyncOptions, sync_folder_as};
 use crate::{NetError, Result, smtp};
 
 /// Sends events and wakes the UI.

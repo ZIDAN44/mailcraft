@@ -3,6 +3,8 @@
 //! sync, on the second connection, so opening a message never waits behind a folder or the
 //! calendars.
 
+use mailcraft_model::Summary;
+
 use super::*;
 
 impl Worker {
@@ -24,20 +26,12 @@ impl Worker {
     /// when that's quicker, then the whole of it, both here. `true` when the whole is still to
     /// come (after any other message opened meanwhile).
     pub(super) fn fetch_opened(&mut self, key: MessageKey) -> bool {
-        if let Some(raw) = self.store.read_body(&key) {
-            self.sink.emit(Event::Body { key, raw });
+        if self.said_from_here(&key) {
             return false;
         }
-        if self.acc.is_api() {
-            self.jstate = jmap::State::load(&self.store, &self.acc.id);
-        }
+        self.ids_as_kept();
         let store = self.store.clone();
-        let text = (|| -> Result<Option<Vec<u8>>> {
-            if self.conn.is_none() {
-                self.connect()?;
-            }
-            self.text_first(&store, &key)
-        })();
+        let text = self.connect().and_then(|()| self.text_first(&store, &key));
         match text {
             Ok(Some(raw)) => {
                 log::info!("{}: message {}: its text first on the second connection ({} bytes)", self.acc.id, key.uid, raw.len());
@@ -51,54 +45,19 @@ impl Worker {
         false
     }
 
-    /// A message's text first, when the server gives it apart from its files and the message is
-    /// big enough for that to be quicker: `None` otherwise.
-    fn text_first(&mut self, store: &Store, key: &MessageKey) -> Result<Option<Vec<u8>>> {
-        match self.conn.as_mut() {
-            Some(Conn::Ews(c)) => crate::ews::fetch_text(c, &self.jstate, store, key),
-            Some(Conn::Graph(c)) => crate::graph::fetch_text(c, &self.jstate, store, key),
-            Some(Conn::Imap(c)) => crate::sync::fetch_text(c, store, key),
-            _ => Ok(None),
-        }
-    }
-
     /// On the second connection: the whole of a message, its text maybe given first (issue
     /// #24), with the message ids the main one keeps; one it can't get goes back there.
     pub(super) fn fetch_for_main(&mut self, key: MessageKey) {
-        if let Some(raw) = self.store.read_body(&key) {
-            self.sink.emit(Event::Body { key, raw });
+        if self.said_from_here(&key) {
             return;
         }
-        if self.acc.is_api() {
-            self.jstate = jmap::State::load(&self.store, &self.acc.id);
-        }
-        // Not kept once the account is removed (found in review: its files came back).
-        let (store, began, seen) = (self.store.clone(), Instant::now(), self.removals);
-        let r = (|| -> Result<(Vec<u8>, Option<mailcraft_model::Summary>)> {
-            if self.conn.is_none() {
-                self.connect()?;
-            }
-            match self.conn.as_mut() {
-                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key, seen),
-                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key, seen),
-                Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key, seen),
-                Some(Conn::Imap(c)) => fetch_body(c, &store, &key, seen),
-                Some(Conn::Pop) | None => Err(NetError::No("not a connection that downloads one message".into())),
-            }
-        })();
-        match r {
+        self.ids_as_kept();
+        let (store, began) = (self.store.clone(), Instant::now());
+        match self.download(&store, &key) {
             Ok((raw, filled)) => {
-                log::info!(
-                    "{}: message {} downloaded on the second connection ({} bytes) in {:.1} s",
-                    self.acc.id,
-                    key.uid,
-                    raw.len(),
-                    began.elapsed().as_secs_f32()
-                );
-                self.sink.emit(Event::Body { key, raw });
-                if let Some(summary) = filled {
-                    self.sink.emit(Event::Filled { summary: Box::new(summary) });
-                }
+                let (account, uid, took) = (&self.acc.id, key.uid, began.elapsed().as_secs_f32());
+                log::info!("{account}: message {uid} downloaded on the second connection ({} bytes) in {took:.1} s", raw.len());
+                self.said(key, raw, filled);
             }
             Err(e) => {
                 log::info!("{}: message {}: left to the main connection: {e}", self.acc.id, key.uid);
@@ -124,16 +83,13 @@ impl Worker {
     }
 
     fn fetch_as(&mut self, key: MessageKey, whole: bool) {
-        if let Some(raw) = self.store.read_body(&key) {
-            self.sink.emit(Event::Body { key, raw });
+        if self.said_from_here(&key) {
             return;
         }
-        let (store, seen) = (self.store.clone(), self.removals);
+        let store = self.store.clone();
         let began = Instant::now();
-        let r = (|| -> Result<Option<(Vec<u8>, Option<mailcraft_model::Summary>)>> {
-            if self.conn.is_none() {
-                self.connect()?;
-            }
+        let r = (|| -> Result<Option<(Vec<u8>, Option<Summary>)>> {
+            self.connect()?;
             // A big message's text first, to read while the rest comes (issue #24); the rest on
             // the second connection, or here once nothing else waits.
             if !whole {
@@ -148,17 +104,7 @@ impl Worker {
                     Err(e) => log::info!("{}: the text first: {e}", self.acc.id),
                 }
             }
-            let raw = match self.conn.as_mut() {
-                Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key, seen),
-                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key, seen),
-                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key, seen),
-                // POP mail is downloaded whole: what isn't here isn't anywhere.
-                Some(Conn::Pop) => {
-                    store.read_body(&key).map(|raw| (raw, None)).ok_or_else(|| NetError::No("this message isn't on this computer".into()))
-                }
-                _ => fetch_body(self.client()?, &store, &key, seen),
-            }?;
-            Ok(Some(raw))
+            self.download(&store, &key).map(Some)
         })();
         match r {
             // The rest on the second connection, or here once nothing else waits.
@@ -176,14 +122,9 @@ impl Worker {
                     }
                 }
             }
-            // Its summary filled from it, said as it is now: the window takes it into the folder
-            // it holds (it read all of the folder again for it, 24 ms on 10,941 messages).
             Ok(Some((raw, filled))) => {
                 log::info!("{}: message {} downloaded ({} bytes) in {:.1} s", self.acc.id, key.uid, raw.len(), began.elapsed().as_secs_f32());
-                self.sink.emit(Event::Body { key, raw });
-                if let Some(summary) = filled {
-                    self.sink.emit(Event::Filled { summary: Box::new(summary) });
-                }
+                self.said(key, raw, filled);
             }
             Err(e) => {
                 self.sink.emit(Event::BodyFailed { key, error: e.to_string() });
@@ -191,6 +132,50 @@ impl Worker {
                     self.failed(e);
                 }
             }
+        }
+    }
+
+    /// A message kept here already: said, and `true`.
+    fn said_from_here(&self, key: &MessageKey) -> bool {
+        let Some(raw) = self.store.read_body(key) else { return false };
+        self.sink.emit(Event::Body { key: key.clone(), raw });
+        true
+    }
+
+    /// On the second connection, the message ids as the main one keeps them now (JMAP, Graph,
+    /// Exchange): it gives them as it syncs.
+    fn ids_as_kept(&mut self) {
+        if self.acc.is_api() {
+            self.jstate = jmap::State::load(&self.store, &self.acc.id);
+        }
+    }
+
+    /// A message's text first, when the server gives it apart from its files and the message is
+    /// big enough for that to be quicker: `None` otherwise.
+    fn text_first(&mut self, store: &Store, key: &MessageKey) -> Result<Option<Vec<u8>>> {
+        match self.conn.as_mut() {
+            Some(c) => c.fetch_text(&self.jstate, store, key),
+            None => Ok(None),
+        }
+    }
+
+    /// The whole of a message from the server, connected first if need be. Not kept once the
+    /// account is removed (found in review: its files came back).
+    fn download(&mut self, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
+        self.connect()?;
+        match self.conn.as_mut() {
+            Some(c) => c.fetch_body(&self.jstate, store, key, self.removals),
+            None => Err(NetError::Closed("not connected".into())),
+        }
+    }
+
+    /// A message's source said, and its summary filled from it as it is now: the window takes it
+    /// into the folder it holds (it read all of the folder again for it, 24 ms on 10,941
+    /// messages).
+    fn said(&self, key: MessageKey, raw: Vec<u8>, filled: Option<Summary>) {
+        self.sink.emit(Event::Body { key, raw });
+        if let Some(summary) = filled {
+            self.sink.emit(Event::Filled { summary: Box::new(summary) });
         }
     }
 }

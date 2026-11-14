@@ -4,6 +4,7 @@
 use super::*;
 use crate::sync::{SearchArg, WordQuery};
 use mailcraft_model::Flags;
+use mailcraft_model::Summary;
 use mailcraft_model::job::Vacation;
 
 /// The connection to an account's server.
@@ -31,6 +32,31 @@ impl ServerQuery {
 }
 
 impl Conn {
+    /// The whole of one message from the server, kept, with its summary filled from it when the
+    /// cache's lacks what only the message says; not kept once the account was removed since it
+    /// had been removed `seen` times (an error then). POP mail is downloaded whole: what isn't
+    /// here isn't anywhere.
+    pub(super) fn fetch_body(&mut self, jstate: &jmap::State, store: &Store, key: &MessageKey, seen: u64) -> Result<(Vec<u8>, Option<Summary>)> {
+        match self {
+            Conn::Imap(c) => crate::sync::fetch_body(c, store, key, seen),
+            Conn::Jmap(c) => jmap::fetch_body(c, jstate, store, key, seen),
+            Conn::Graph(c) => crate::graph::fetch_body(c, jstate, store, key, seen),
+            Conn::Ews(c) => crate::ews::fetch_body(c, jstate, store, key, seen),
+            Conn::Pop => Err(NetError::No("this message isn't on this computer".into())),
+        }
+    }
+
+    /// A message's text first, when the server gives it apart from its files and the message is
+    /// big enough for that to be quicker (issue #24): `None` otherwise (JMAP and POP: never).
+    pub(super) fn fetch_text(&mut self, jstate: &jmap::State, store: &Store, key: &MessageKey) -> Result<Option<Vec<u8>>> {
+        match self {
+            Conn::Imap(c) => crate::sync::fetch_text(c, store, key),
+            Conn::Graph(c) => crate::graph::fetch_text(c, jstate, store, key),
+            Conn::Ews(c) => crate::ews::fetch_text(c, jstate, store, key),
+            Conn::Jmap(_) | Conn::Pop => Ok(None),
+        }
+    }
+
     /// Carry out one change on the server, with the account's Trash (permanent deletes on Gmail
     /// need it). POP: changes are made here only (the cache has them already).
     pub(super) fn apply_remote(&mut self, jstate: &jmap::State, op: &Op, trash: Option<&str>) -> Result<()> {

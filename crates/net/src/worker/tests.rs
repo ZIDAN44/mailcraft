@@ -16,6 +16,7 @@ mod index_damaged;
 mod kept_bench;
 mod kept_files;
 mod offline_answers;
+mod opening;
 mod outbox_once;
 mod pop_filed;
 mod read_errors;
