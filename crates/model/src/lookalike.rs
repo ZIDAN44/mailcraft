@@ -4,10 +4,9 @@
 //! sender's *name*, where most mail clients show it in place of the real one.
 //!
 //! [`imitates`] compares a domain with the ones the user really deals with (their own, and the
-//! people they write to) and names the one it imitates; [`check_sender`] does that for a message's
-//! sender and also catches an address hidden in the name. [`SenderCheck`] adds a known person's
-//! name worn on someone else's address ([`people`]); [`external`] tells senders from outside the
-//! organisation. All of it only compares text: nothing is looked up.
+//! people they write to) and names the one it imitates; [`SenderCheck::check`] does that for a
+//! message's sender, also catches an address hidden in the name, and a known person's name worn on
+//! someone else's address ([`people`]); [`external`] tells senders from outside the organisation. All of it only compares text: nothing is looked up.
 
 mod external;
 mod people;
@@ -118,11 +117,6 @@ fn imitates_shaped<'a, 'b>(domain: &str, known: &BTreeSet<String>, mut shaped: i
         .map(|(k, _)| k)
 }
 
-/// What's wrong with `from`, as a sender, given the domains the user deals with.
-pub fn check_sender(from: &EmailAddress, known: &BTreeSet<String>) -> Option<SenderWarning> {
-    check_sender_shaped(from, known, known.iter().map(|k| (k.as_str(), Cow::Owned(skeleton(k)))))
-}
-
 fn check_sender_shaped<'a, 'b>(
     from: &EmailAddress,
     known: &BTreeSet<String>,
@@ -169,10 +163,6 @@ impl SenderCheck {
     /// The domains the user deals with.
     pub fn domains(&self) -> &BTreeSet<String> {
         &self.known
-    }
-
-    pub fn people(&self) -> &KnownPeople {
-        &self.people
     }
 
     /// Whether `email` is one of the user's own addresses.
@@ -354,6 +344,12 @@ fn adapt(delta: u32, points: u32, first: bool) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What's wrong with `from`, as a sender, given the domains the user deals with: the domain
+    /// and name checks of [`SenderCheck::check`], with the skeletons worked out here.
+    fn check_sender(from: &EmailAddress, known: &BTreeSet<String>) -> Option<SenderWarning> {
+        check_sender_shaped(from, known, known.iter().map(|k| (k.as_str(), Cow::Owned(skeleton(k)))))
+    }
 
     fn known() -> BTreeSet<String> {
         ["paypal.com", "studio-lantern.example", "apple.com", "microsoft.com", "example.org"].into_iter().map(String::from).collect()

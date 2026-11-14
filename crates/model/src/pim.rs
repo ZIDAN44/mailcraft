@@ -515,11 +515,6 @@ impl Pim {
     pub fn default_book(&self) -> Option<&BookInfo> {
         self.books.iter().find(|b| !b.read_only)
     }
-
-    /// Every event and instance with this uid.
-    pub fn event_indices(&self, uid: &str) -> Vec<usize> {
-        self.events.iter().enumerate().filter(|(_, e)| e.event.uid == uid).map(|(i, _)| i).collect()
-    }
 }
 
 /// A calendar kept on the account's server (CalDAV, Exchange): not the one on this computer,

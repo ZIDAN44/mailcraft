@@ -247,12 +247,6 @@ impl KnownPeople {
         self.addresses.contains(&email.trim().to_lowercase())
     }
 
-    /// The addresses the person named `name` is known by (none for a name that doesn't say who
-    /// someone is).
-    pub fn addresses_of(&self, name: &str) -> Option<&BTreeSet<String>> {
-        self.by_name.get(&drawn_key(name)?).map(|(_, a)| a)
-    }
-
     /// `from` wears the name of someone known on an address that person isn't known by. Not
     /// when the address is known itself (someone with two names, or a contact under another
     /// name), when it's at the organisation domain of one of that person's addresses (another

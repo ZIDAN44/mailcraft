@@ -37,7 +37,6 @@ fuzz_target!(|data: &[u8]| {
     let _ = utf7::encode(&utf7::decode(&text));
     let (name, email) = text.split_once('\n').unwrap_or((&text, &text));
     let known = ["paypal.com".to_string(), "studio.example".to_string(), lookalike::domain_of(email)].into();
-    let _ = lookalike::check_sender(&mailcraft_model::EmailAddress::new(name, email), &known);
     let _ = lookalike::skeleton(email);
     let mut people = lookalike::KnownPeople::new();
     people.add(&mailcraft_model::EmailAddress::new("Jane Director", "jane@studio.example"));

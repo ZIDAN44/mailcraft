@@ -664,11 +664,6 @@ fn mailbox(prop: &str, a: &Attendee, client: bool) -> String {
     s
 }
 
-/// One `VEVENT`, folded; `now` is its `DTSTAMP`.
-pub fn write_event(e: &CalEvent, now: i64, out: &mut String) {
-    write_one(e, now, Purpose::Plain, out);
-}
-
 /// What a written event is for: what of the server's scheduling it carries.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Purpose {

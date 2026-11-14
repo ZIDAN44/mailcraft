@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::dates::{Clock, civil_from_days};
+use crate::dates::Clock;
 use crate::{FolderRole, Summary, keyword_for};
 
 pub mod keywords;
@@ -202,11 +202,6 @@ impl SnoozeUntil {
     }
 }
 
-/// The calendar date of a day number (for tests and labels).
-pub fn date_of(day: i64) -> (i64, u32, u32) {
-    civil_from_days(day)
-}
-
 /// The account document an import of an Outlook data file leaves the days its flagged messages
 /// are due in (local days, by [`Summary::follow_up_id`]), for the engine to take into the
 /// preferences' own as the import ends: IMAP has nowhere for them, so they're kept there.
@@ -255,6 +250,7 @@ pub struct FollowUpDays {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dates::civil_from_days;
     use crate::{EmailAddress, MessageKey};
 
     fn m(from: &str, subject: &str, bulk: bool) -> Summary {
@@ -306,7 +302,7 @@ mod tests {
     fn snooze_times_are_local() {
         // Wednesday 2026-10-14 15:20 UTC, in UTC+2 (17:20 local).
         let clock = Clock::new(1_791_991_200 + 20 * 60, 7200);
-        let local_day = |t: i64| date_of((t + 7200).div_euclid(86_400));
+        let local_day = |t: i64| civil_from_days((t + 7200).div_euclid(86_400));
         let local_hour = |t: i64| (t + 7200).rem_euclid(86_400) / 3600;
         let later = SnoozeUntil::LaterToday.at(&clock);
         assert!(later > clock.now + 3 * 3600 - 1 && later % 3600 == 0);
@@ -318,9 +314,9 @@ mod tests {
         assert_eq!((local_day(n), local_hour(n)), ((2026, 10, 19), 8), "Monday");
         // On a Sunday, "this weekend" is next Saturday and "next week" is tomorrow.
         let sunday = Clock::new(1_792_324_800, 0); // 2026-10-18 12:00 UTC
-        assert_eq!(date_of(sunday.now.div_euclid(86_400)), (2026, 10, 18));
-        assert_eq!(date_of(SnoozeUntil::NextWeek.at(&sunday).div_euclid(86_400)), (2026, 10, 19));
-        assert_eq!(date_of(SnoozeUntil::Weekend.at(&sunday).div_euclid(86_400)), (2026, 10, 24));
+        assert_eq!(civil_from_days(sunday.now.div_euclid(86_400)), (2026, 10, 18));
+        assert_eq!(civil_from_days(SnoozeUntil::NextWeek.at(&sunday).div_euclid(86_400)), (2026, 10, 19));
+        assert_eq!(civil_from_days(SnoozeUntil::Weekend.at(&sunday).div_euclid(86_400)), (2026, 10, 24));
         assert_eq!(SnoozeUntil::from_code("NEXTWEEK"), Some(SnoozeUntil::NextWeek));
     }
 

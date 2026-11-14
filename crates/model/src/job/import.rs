@@ -251,11 +251,6 @@ impl ImportReport {
         }
     }
 
-    /// Items left out for `reason`.
-    pub fn skipped_for(&self, reason: SkipReason) -> u64 {
-        self.skips.iter().filter(|s| s.reason == reason).fold(0, |n, s| n.saturating_add(s.count))
-    }
-
     /// Items left out for any reason.
     pub fn skipped(&self) -> u64 {
         self.skips.iter().fold(0, |n, s| n.saturating_add(s.count))
@@ -358,7 +353,7 @@ mod tests {
         r.skip(SkipReason::BodyNotConverted, u64::MAX);
         let reasons: Vec<SkipReason> = r.skips.iter().map(|s| s.reason).collect();
         assert_eq!(reasons, [SkipReason::MessageUnreadable, SkipReason::BodyNotConverted], "no zeros, in order");
-        assert_eq!(r.skipped_for(SkipReason::BodyNotConverted), u64::MAX, "saturated");
+        assert_eq!(r.skips.iter().find(|s| s.reason == SkipReason::BodyNotConverted).map(|s| s.count), Some(u64::MAX), "saturated");
         assert_eq!(r.skipped(), u64::MAX);
 
         // Read back from a file: repeated, zero and out of order, and a reason from a newer version.
