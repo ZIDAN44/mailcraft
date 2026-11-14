@@ -7,10 +7,7 @@ pub(super) const MAX_PEOPLE_SHOWN: usize = 50;
 
 /// The contact someone is saved as, if they are (by address).
 pub(super) fn known_contact<'a>(s: &'a Session, email: &str) -> Option<&'a mailcraft_engine::model::vcard::Card> {
-    if email.trim().is_empty() {
-        return None;
-    }
-    s.people(email).into_iter().find(|x| x.card.emails.iter().any(|e| e.value.eq_ignore_ascii_case(email))).map(|x| x.card)
+    s.contact_by_address(email)
 }
 
 /// Someone's name above a message, as a link: lit and underlined under the pointer.

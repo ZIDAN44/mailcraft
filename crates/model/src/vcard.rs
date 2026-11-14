@@ -142,12 +142,32 @@ impl Card {
 
     /// Whether the card matches a search (name, organisation or any address, case-insensitive).
     pub fn matches(&self, q: &str) -> bool {
-        let q = q.trim().to_lowercase();
-        q.is_empty()
-            || self.display().to_lowercase().contains(&q)
-            || self.org.to_lowercase().contains(&q)
-            || self.emails.iter().any(|e| e.value.to_lowercase().contains(&q))
-            || self.phones.iter().any(|p| p.value.replace(' ', "").contains(&q.replace(' ', "")))
+        self.matches_search(&CardSearch::new(q))
+    }
+
+    /// [`Card::matches`], the search made ready once for many cards.
+    pub fn matches_search(&self, q: &CardSearch) -> bool {
+        let lower = q.lower.as_str();
+        lower.is_empty()
+            || self.display().to_lowercase().contains(lower)
+            || self.org.to_lowercase().contains(lower)
+            || self.emails.iter().any(|e| e.value.to_lowercase().contains(lower))
+            || self.phones.iter().any(|p| p.value.replace(' ', "").contains(q.digits.as_str()))
+    }
+}
+
+/// A search of the address book, made ready once: lower-cased and trimmed, and without its
+/// spaces for phone numbers.
+pub struct CardSearch {
+    lower: String,
+    digits: String,
+}
+
+impl CardSearch {
+    pub fn new(q: &str) -> CardSearch {
+        let lower = q.trim().to_lowercase();
+        let digits = lower.replace(' ', "");
+        CardSearch { lower, digits }
     }
 }
 

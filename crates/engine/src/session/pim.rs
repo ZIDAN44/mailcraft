@@ -425,13 +425,28 @@ impl Session {
 
     /// Everyone in the address books matching a search, by name.
     pub fn people(&self, query: &str) -> Vec<Person<'_>> {
+        let q = mailcraft_model::vcard::CardSearch::new(query);
         let mut out: Vec<Person<'_>> = self
             .pim
             .iter()
-            .flat_map(|(a, p)| p.cards.iter().filter(|c| c.card.matches(query)).map(|c| Person { account: a, book: &c.book, card: &c.card }))
+            .flat_map(|(a, p)| p.cards.iter().filter(|c| c.card.matches_search(&q)).map(|c| Person { account: a, book: &c.book, card: &c.card }))
             .collect();
         out.sort_by_cached_key(|p| p.card.display().to_lowercase());
         out
+    }
+
+    /// The contact someone is saved as, by their address (of several, the first by name, as
+    /// [`Session::people`] lists them). The reading pane asks it of each name above a message
+    /// on every frame: searching the address book for each took milliseconds.
+    pub fn contact_by_address(&self, email: &str) -> Option<&Card> {
+        let email = email.trim();
+        if email.is_empty() {
+            return None;
+        }
+        let has = |c: &&Card| c.emails.iter().any(|e| e.value.eq_ignore_ascii_case(email));
+        let mut found = self.pim.values().flat_map(|p| p.cards.iter().map(|c| &c.card)).filter(has);
+        let first = found.next()?;
+        Some(found.fold(first, |best, c| if c.display().to_lowercase() < best.display().to_lowercase() { c } else { best }))
     }
 
     pub fn find_person(&self, uid: &str) -> Option<Person<'_>> {

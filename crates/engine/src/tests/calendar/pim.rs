@@ -4,6 +4,7 @@ use super::*;
 
 mod agenda;
 mod huge_times;
+mod people;
 mod server_cards;
 
 #[test]
