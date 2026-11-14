@@ -69,15 +69,10 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
             Ok(done) => {
                 waiting.insert(done.seq, done);
             }
+            // Nothing to write for a while (contacts read, or items left out): the checkpoint
+            // goes on its own.
             Err(RecvTimeoutError::Timeout) => {
-                out.flush();
-                out.publish(false);
-                // Nothing to write for a while (contacts read, or items left out): the
-                // checkpoint goes on its own.
-                if out.checkpoint_due() {
-                    out.checkpoint();
-                }
-                flushed = Instant::now();
+                second_passed(out, &mut flushed);
                 continue;
             }
             Err(RecvTimeoutError::Disconnected) => break,
@@ -102,12 +97,7 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
         }
         // Results coming without a pause: the second's flush all the same.
         if flushed.elapsed() >= FLUSH_EVERY {
-            out.flush();
-            out.publish(false);
-            if out.checkpoint_due() {
-                out.checkpoint();
-            }
-            flushed = Instant::now();
+            second_passed(out, &mut flushed);
         }
     }
     // Everyone is gone: the rest in order. A number never sent is an item lost with its lane.
@@ -121,6 +111,18 @@ pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) 
         apply(out, ctx, &mut paths, done);
         next = seq.saturating_add(1);
     }
+}
+
+/// What the writer does at least every [`FLUSH_EVERY`], between items (where a checkpoint's note
+/// is whole), and when it last did (`flushed`): what it holds written, the folders finished put
+/// in the folder list, then the checkpoint when one is due.
+fn second_passed(out: &mut Out<'_>, flushed: &mut Instant) {
+    out.flush();
+    out.publish(false);
+    if out.checkpoint_due() {
+        out.checkpoint();
+    }
+    *flushed = Instant::now();
 }
 
 fn apply(out: &mut Out<'_>, ctx: &Ctx<'_>, paths: &mut Vec<Option<String>>, done: Done) {
