@@ -596,7 +596,7 @@ fn index_asks_are_one_while_they_wait() {
     s.run("list.select", &k).unwrap();
     s.run("mail.move", &json!({"folder": "Archive"})).unwrap();
     assert_eq!(s.take_jobs(), [Job::Index { account: a.clone(), folders: vec!["Archive".into(), "INBOX".into()] }]);
-    s.run("mail.markRead", &json!({})).ok();
+    s.run("mail.markRead", &json!({})).unwrap();
     assert!(s.take_jobs().is_empty(), "a flag changes nothing indexed");
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     let folders = s.account(&a).unwrap().folders.clone();

@@ -270,10 +270,10 @@ fn list_and_view_commands_leave_the_body_waiting() {
     for id in ["list.filter", "list.focusTab", "search.run", "search.clear", "view.reverseSort", "view.arrange", "view.folderPane", "dataFile.idle"] {
         assert!(leaves(id), "{id}");
     }
-    let _ = s.run("view.reverseSort", &json!({}));
-    let _ = s.run("search.run", &json!({"query": "zzzz"}));
-    let _ = s.run("search.clear", &json!({}));
-    let _ = s.run("dataFile.idle", &json!({"seconds": 30}));
+    s.run("view.reverseSort", &json!({})).unwrap();
+    s.run("search.run", &json!({"query": "zzzz"})).unwrap();
+    s.run("search.clear", &json!({})).unwrap();
+    s.run("dataFile.idle", &json!({"seconds": 30})).unwrap();
     assert_eq!(s.bodies_parsed_here(), parsed, "nothing read on the session's thread");
     assert!(!leaves("mail.reply") && !leaves("view.html"));
 }

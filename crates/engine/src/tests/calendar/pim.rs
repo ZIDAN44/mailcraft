@@ -459,8 +459,8 @@ fn a_formatted_signature_keeps_its_look() {
     // Insert signature replaces it, keeping the look.
     s.run("compose.insertSignature", &json!({})).unwrap();
     check(&s);
-    s.run("compose.discard", &json!({})).ok();
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
+    assert!(s.compose.is_none());
     let k = s.list.first().map(|m| m.key.clone()).unwrap();
     s.run("list.open", &json!({"key": k.to_id()})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();

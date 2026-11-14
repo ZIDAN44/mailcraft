@@ -42,7 +42,7 @@ fn new_messages_and_replies_have_signatures_of_their_own() {
     assert!(body(&s).ends_with("-- \nRiley Moreno · Studio Lantern"), "{:?}", body(&s));
     assert_eq!(s.compose.as_ref().unwrap().signature_name, "Signature");
     assert!(!s.compose_written());
-    s.run("compose.discard", &json!({})).ok();
+    s.run("compose.discard", &json!({})).unwrap();
     let k = key_of(&s, "Your proof for the festival poster is ready");
     s.run("list.open", &k).unwrap();
     for cmd in ["mail.reply", "mail.forward", "mail.forwardAsAttachment"] {
@@ -50,7 +50,7 @@ fn new_messages_and_replies_have_signatures_of_their_own() {
         let b = body(&s);
         assert!(b.starts_with("\n\n-- \nRiley") && !b.contains("Studio Lantern\n\n"), "{cmd}: {b:?}");
         assert_eq!(s.compose.as_ref().unwrap().signature_name, "Short", "{cmd}");
-        s.run("compose.discard", &json!({})).ok();
+        s.run("compose.discard", &json!({})).unwrap();
     }
     s.run("account.signatureDefaults", &json!({"account": "sample", "reply": null})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
@@ -58,7 +58,7 @@ fn new_messages_and_replies_have_signatures_of_their_own() {
     // Insert signature still puts one in: the first, there being none for replies.
     s.run("compose.insertSignature", &json!({"at": 0})).unwrap();
     assert!(body(&s).starts_with("-- \nRiley Moreno"), "{:?}", body(&s));
-    s.run("compose.discard", &json!({})).ok();
+    s.run("compose.discard", &json!({})).unwrap();
 
     // Renamed, the defaults follow it; removed, none goes in.
     s.run("account.setSignature", &json!({"account": "sample", "was": "Signature", "name": "Full", "signature": "Riley Moreno"})).unwrap();
