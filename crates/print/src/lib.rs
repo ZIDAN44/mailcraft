@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 mod blocks;
+mod layout;
 mod objects;
 mod picture;
 mod rich;
@@ -280,261 +281,42 @@ fn info_string(s: &str) -> String {
     out
 }
 
+/// A stream object of `data` compressed; `extra`: more of its dictionary, after its length.
+fn flate_stream(extra: &str, data: &[u8]) -> Vec<u8> {
+    let packed = compress(data);
+    let mut s = format!("<< /Length {}{extra} /Filter /FlateDecode >>\nstream\n", packed.len()).into_bytes();
+    s.extend_from_slice(&packed);
+    s.extend_from_slice(b"\nendstream");
+    s
+}
+
+/// Add an object; its number.
+fn add(objects: &mut Vec<Vec<u8>>, body: Vec<u8>) -> usize {
+    objects.push(body);
+    objects.len()
+}
+
 /// The document as PDF bytes.
-pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
-    let mut faces: Vec<Face<'_>> = match fonts.and_then(|f| Face::parse(f.regular).map(|r| (r, f.bold))) {
-        Some((regular, bold)) => {
-            let bold = bold.and_then(Face::parse);
-            match bold {
-                Some(b) => vec![regular, b],
-                None => vec![regular, Face::Helvetica { bold: true }],
-            }
-        }
-        None => vec![Face::Helvetica { bold: false }, Face::Helvetica { bold: true }],
-    };
-    let width = PAGE_W - 2.0 * MARGIN;
-
-    // Lay out.
-    let mut pages: Vec<Vec<Placed>> = vec![Vec::new()];
-    let mut y = PAGE_H - MARGIN;
-    let mut truncated = false;
-    let place = |pages: &mut Vec<Vec<Placed>>, y: &mut f32, font: usize, size: f32, lead: f32, x: f32, text: String| -> bool {
-        if *y - lead < MARGIN + 20.0 {
-            if pages.len() >= MAX_PAGES {
-                return false;
-            }
-            pages.push(Vec::new());
-            *y = PAGE_H - MARGIN;
-        }
-        *y -= lead;
-        if let Some(p) = pages.last_mut() {
-            p.push(Placed { font, size, x, y: *y, text, ..Default::default() });
-        }
-        true
-    };
+pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Vec<u8> {
+    let mut faces = faces(fonts);
     let title = if doc.title.trim().is_empty() { "(no subject)".to_string() } else { doc.title.clone() };
-    for line in wrap(&faces[1], &title, 16.0, width) {
-        place(&mut pages, &mut y, 1, 16.0, 21.0, MARGIN, line);
-    }
-    y -= 6.0;
-    let label_w = doc.header.iter().map(|(k, _)| faces[1].text_width(&format!("{k}:"), 9.5)).fold(0.0f32, f32::max) + 6.0;
-    for (k, v) in &doc.header {
-        let lines = wrap(&faces[0], v, 9.5, width - label_w);
-        for (i, line) in lines.into_iter().enumerate() {
-            if i == 0 {
-                let ok = place(&mut pages, &mut y, 1, 9.5, 13.0, MARGIN, format!("{k}:"));
-                if ok && let Some(p) = pages.last_mut() {
-                    p.push(Placed { font: 0, size: 9.5, x: MARGIN + label_w, y, text: line, ..Default::default() });
-                }
-            } else {
-                place(&mut pages, &mut y, 0, 9.5, 13.0, MARGIN + label_w, line);
-            }
-        }
-    }
-    y -= 8.0;
-    let rule_page = pages.len() - 1;
-    let rule_y = y;
-    y -= 6.0;
-    // What each page holds beside its text (a laid-out message's boxes, pictures and links).
-    let mut extras: Vec<objects::Extra> = Vec::new();
-    if !doc.blocks.is_empty() {
-        // Laid out on one long sheet, then cut into pages between its lines.
-        let mut ops = Vec::new();
-        let mut down = 0.0f32;
-        blocks::Lay { faces: &faces }.blocks(&doc.blocks, 0.0, width, Align::Left, &mut down, &mut ops, 0);
-        truncated = ops.len() >= blocks::MAX_OPS;
-        let bottom = MARGIN + 20.0;
-        let (tops, more) = sheet::cuts(&ops, y - bottom, PAGE_H - MARGIN - bottom, MAX_PAGES.saturating_sub(pages.len() - 1));
-        truncated |= more;
-        for (k, on_page) in sheet::pages(ops, &tops).into_iter().enumerate() {
-            if k > 0 {
-                pages.push(Vec::new());
-            }
-            let top = if k == 0 { y } else { PAGE_H - MARGIN };
-            extras.resize_with(pages.len(), Default::default);
-            let (Some(page), Some(extra)) = (pages.last_mut(), extras.last_mut()) else { break };
-            let mut low = top;
-            for op in on_page {
-                match op {
-                    sheet::Op::Fill { x, y: from, w, h, color, radius } => {
-                        extra.fills.push(objects::Fill { x: MARGIN + x, y: top - from - h, w, h, color, radius });
-                    }
-                    sheet::Op::Text { bottom, mut piece, .. } => {
-                        piece.x += MARGIN;
-                        piece.y = top - piece.y;
-                        low = low.min(top - bottom);
-                        page.push(piece);
-                    }
-                    sheet::Op::Image { x, y: from, w, h, index } => {
-                        low = low.min(top - from - h);
-                        if doc.pictures.get(index).is_some() {
-                            extra.images.push(objects::Image { index, x: MARGIN + x, y: top - from - h, w, h });
-                        }
-                    }
-                    sheet::Op::Link { x, y: from, w, h, url } => extra.links.push(objects::Link { x: MARGIN + x, y: top - from - h, w, h, url }),
-                }
-            }
-            y = low;
-        }
-    } else if doc.rich.is_empty() {
-        for line in wrap(&faces[0], &doc.body, rich::SIZE, width) {
-            if !place(&mut pages, &mut y, 0, rich::SIZE, rich::LEAD, MARGIN, line) {
-                truncated = true;
-                break;
-            }
-        }
-    } else {
-        // A line of formatted pieces, on one baseline.
-        let fitted = rich::lay(&faces, &doc.rich, width, |lead, row| {
-            if y - lead < MARGIN + 20.0 {
-                if pages.len() >= MAX_PAGES {
-                    return false;
-                }
-                pages.push(Vec::new());
-                y = PAGE_H - MARGIN;
-            }
-            y -= lead;
-            if let Some(p) = pages.last_mut() {
-                p.extend(row.into_iter().map(|piece| Placed { x: MARGIN + piece.x, y, ..piece }));
-            }
-            true
-        });
-        truncated = !fitted;
-    }
-    if truncated {
-        place(&mut pages, &mut y, 1, 11.0, 18.0, MARGIN, "(The rest of the message didn't fit in this document.)".into());
-    }
+    let laid = layout::layout(doc, &title, &faces);
+    let n = laid.pages.len();
+    // Written before the fonts: a page's text names the glyphs a font embeds.
+    let contents: Vec<String> = laid
+        .pages
+        .iter()
+        .enumerate()
+        .map(|(i, page)| content_stream(&mut faces, page, laid.extras.get(i), (i == laid.rule.0).then_some(laid.rule.1), i + 1, n))
+        .collect();
 
-    // Content streams.
-    let n = pages.len();
-    let mut contents: Vec<String> = Vec::with_capacity(n);
-    for (i, page) in pages.iter().enumerate() {
-        let mut c = String::new();
-        if i == rule_page {
-            let _ = writeln!(c, "0.75 G 0.6 w {MARGIN:.2} {rule_y:.2} m {:.2} {rule_y:.2} l S 0 G", PAGE_W - MARGIN);
-        }
-        // A laid-out message's boxes, under everything; its pictures over them.
-        if let Some(e) = extras.get(i) {
-            e.fills_into(&mut c);
-            e.images_into(&mut c);
-        }
-        // Highlights under the text.
-        for p in page {
-            // (Not behind a space alone: it stuck out past the end of a button's words.)
-            if let Some(b) = p.background.filter(|_| !p.text.trim().is_empty()) {
-                let _ = writeln!(c, "{} rg {:.2} {:.2} {:.2} {:.2} re f 0 g", rgb(b), p.x, p.y - p.size * 0.25, p.width, p.size * 1.2);
-            }
-        }
-        c.push_str("BT\n");
-        for p in page {
-            let enc = faces.get_mut(p.font).map(|f| f.encode(&p.text)).unwrap_or_default();
-            if let Some(color) = p.color {
-                let _ = write!(c, "{} rg ", rgb(color));
-            }
-            // Italic: the upright font, leaning.
-            let lean = if p.slant { "0.21" } else { "0" };
-            let _ = write!(c, "/F{} {:.1} Tf 1 0 {lean} 1 {:.2} {:.2} Tm {enc} Tj", p.font + 1, p.size, p.x, p.y);
-            c.push_str(if p.color.is_some() { " 0 g\n" } else { "\n" });
-        }
-        let footer = format!("{} / {n}", i + 1);
-        let fw = faces[0].text_width(&footer, 8.0);
-        let enc = faces[0].encode(&footer);
-        let _ = writeln!(c, "0.45 g /F1 8.0 Tf 1 0 0 1 {:.2} {:.2} Tm {enc} Tj 0 g", (PAGE_W - fw) / 2.0, MARGIN / 2.0);
-        c.push_str("ET\n");
-        // Lines under and through the text, in its colour.
-        for p in page.iter().filter(|p| p.underline || p.strike) {
-            let ink = p.color.map_or_else(|| "0 0 0".to_string(), rgb);
-            for (on, at) in [(p.underline, p.y - p.size * 0.12), (p.strike, p.y + p.size * 0.28)] {
-                if on {
-                    let _ = writeln!(c, "{ink} RG {:.2} w {:.2} {at:.2} m {:.2} {at:.2} l S 0 G", p.size * 0.06, p.x, p.x + p.width);
-                }
-            }
-        }
-        contents.push(c);
-    }
-
-    // Objects: 1 catalog, 2 pages, 3 info, then fonts, then page + content pairs.
-    let mut objects: Vec<Vec<u8>> = Vec::new();
-    let add = |objects: &mut Vec<Vec<u8>>, body: Vec<u8>| -> usize {
-        objects.push(body);
-        objects.len()
-    };
-    add(&mut objects, Vec::new()); // catalog, filled in last
-    add(&mut objects, Vec::new()); // pages, filled in last
-    add(&mut objects, format!("<< /Producer (MailCraft {}) /Title {} >>", env!("CARGO_PKG_VERSION"), info_string(&title)).into_bytes());
-    let mut font_refs = Vec::new();
-    for (i, f) in faces.iter().enumerate() {
-        let r = match f {
-            Face::Helvetica { bold } => add(
-                &mut objects,
-                format!(
-                    "<< /Type /Font /Subtype /Type1 /BaseFont /{} /Encoding /WinAnsiEncoding >>",
-                    if *bold { "Helvetica-Bold" } else { "Helvetica" }
-                )
-                .into_bytes(),
-            ),
-            Face::Embedded { data, font, used } => {
-                let upem = font.units_per_em();
-                let scale = |v: f32| (v * 1000.0 / upem).round() as i32;
-                let file = compress(data);
-                let mut stream = format!("<< /Length {} /Length1 {} /Filter /FlateDecode >>\nstream\n", file.len(), data.len()).into_bytes();
-                stream.extend_from_slice(&file);
-                stream.extend_from_slice(b"\nendstream");
-                let file_ref = add(&mut objects, stream);
-                let m = &font.metrics;
-                let bbox = m.bounds.unwrap_or(skrifa::metrics::BoundingBox { x_min: 0.0, y_min: 0.0, x_max: 0.0, y_max: 0.0 });
-                let descriptor = format!(
-                    "<< /Type /FontDescriptor /FontName /MailCraftFont{i} /Flags 32 /FontBBox [{} {} {} {}] /ItalicAngle 0 /Ascent {} /Descent {} /CapHeight {} /StemV {} /FontFile2 {file_ref} 0 R >>",
-                    scale(bbox.x_min),
-                    scale(bbox.y_min),
-                    scale(bbox.x_max),
-                    scale(bbox.y_max),
-                    scale(m.ascent),
-                    scale(m.descent),
-                    scale(m.cap_height.unwrap_or(m.ascent)),
-                    if i == 1 { 140 } else { 80 }
-                );
-                let desc_ref = add(&mut objects, descriptor.into_bytes());
-                let mut w = String::from("[");
-                for gid in used.keys() {
-                    let _ = write!(w, " {gid} [{}]", scale(font.advance(*gid)));
-                }
-                w.push_str(" ]");
-                let cid = format!(
-                    "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MailCraftFont{i} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor {desc_ref} 0 R /DW 1000 /W {w} /CIDToGIDMap /Identity >>"
-                );
-                let cid_ref = add(&mut objects, cid.into_bytes());
-                let mut cmap = String::from(
-                    "/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def /CMapName /Adobe-Identity-UCS def /CMapType 2 def 1 begincodespacerange <0000> <FFFF> endcodespacerange\n",
-                );
-                let pairs: Vec<(&u16, &char)> = used.iter().collect();
-                for chunk in pairs.chunks(100) {
-                    let _ = writeln!(cmap, "{} beginbfchar", chunk.len());
-                    for (gid, c) in chunk {
-                        let mut units = [0u16; 2];
-                        let hex: String = c.encode_utf16(&mut units).iter().map(|u| format!("{u:04X}")).collect();
-                        let _ = writeln!(cmap, "<{gid:04X}> <{hex}>");
-                    }
-                    cmap.push_str("endbfchar\n");
-                }
-                cmap.push_str("endcmap CMapName currentdict /CMap defineresource pop end end");
-                let packed = compress(cmap.as_bytes());
-                let mut s = format!("<< /Length {} /Filter /FlateDecode >>\nstream\n", packed.len()).into_bytes();
-                s.extend_from_slice(&packed);
-                s.extend_from_slice(b"\nendstream");
-                let tu_ref = add(&mut objects, s);
-                add(
-                    &mut objects,
-                    format!("<< /Type /Font /Subtype /Type0 /BaseFont /MailCraftFont{i} /Encoding /Identity-H /DescendantFonts [{cid_ref} 0 R] /ToUnicode {tu_ref} 0 R >>")
-                        .into_bytes(),
-                )
-            }
-        };
-        font_refs.push(r);
-    }
+    // Objects: 1 catalog, 2 page tree, 3 info, then fonts, pictures, and page + content pairs.
+    let info = format!("<< /Producer (MailCraft {}) /Title {} >>", env!("CARGO_PKG_VERSION"), info_string(&title)).into_bytes();
+    let mut objects: Vec<Vec<u8>> = vec![b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(), Vec::new(), info];
+    let font_refs: Vec<usize> = faces.iter().enumerate().map(|(i, f)| font_objects(f, i, &mut objects)).collect();
     let fonts_dict: String = font_refs.iter().enumerate().map(|(i, r)| format!("/F{} {r} 0 R", i + 1)).collect::<Vec<_>>().join(" ");
     // The pictures the pages draw, each once.
-    let shown: std::collections::BTreeSet<usize> = extras.iter().flat_map(|e| e.images.iter().map(|i| i.index)).collect();
+    let shown: std::collections::BTreeSet<usize> = laid.extras.iter().flat_map(|e| e.images.iter().map(|i| i.index)).collect();
     let mut pictures_dict = String::new();
     for index in shown {
         if let Some(p) = doc.pictures.get(index) {
@@ -545,26 +327,137 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
     let pictures_dict = if pictures_dict.is_empty() { String::new() } else { format!(" /XObject << {pictures_dict}>>") };
     let mut kids = Vec::new();
     for (i, c) in contents.iter().enumerate() {
-        let packed = compress(c.as_bytes());
-        let mut s = format!("<< /Length {} /Filter /FlateDecode >>\nstream\n", packed.len()).into_bytes();
-        s.extend_from_slice(&packed);
-        s.extend_from_slice(b"\nendstream");
-        let content_ref = add(&mut objects, s);
-        let annots = extras.get(i).map(objects::Extra::annots).unwrap_or_default();
+        let content_ref = add(&mut objects, flate_stream("", c.as_bytes()));
+        let annots = laid.extras.get(i).map(objects::Extra::annots).unwrap_or_default();
         let page = format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.2} {PAGE_H:.2}] /Resources << /Font << {fonts_dict} >>{pictures_dict} >> /Contents {content_ref} 0 R{annots} >>"
         );
         kids.push(add(&mut objects, page.into_bytes()));
     }
-    if let Some(o) = objects.get_mut(0) {
-        *o = b"<< /Type /Catalog /Pages 2 0 R >>".to_vec();
-    }
     if let Some(o) = objects.get_mut(1) {
         let k: String = kids.iter().map(|r| format!("{r} 0 R")).collect::<Vec<_>>().join(" ");
         *o = format!("<< /Type /Pages /Kids [{k}] /Count {} >>", kids.len()).into_bytes();
     }
+    write_file(&objects)
+}
 
-    // The file: header, objects, cross-reference table, trailer.
+/// The regular and bold fonts: the ones given when they can be embedded, else Helvetica.
+fn faces(fonts: Option<Fonts<'_>>) -> [Face<'_>; 2] {
+    match fonts.and_then(|f| Face::parse(f.regular).map(|r| (r, f.bold))) {
+        Some((regular, bold)) => [regular, bold.and_then(Face::parse).unwrap_or(Face::Helvetica { bold: true })],
+        None => [Face::Helvetica { bold: false }, Face::Helvetica { bold: true }],
+    }
+}
+
+/// Page `number` of `of`'s content stream: the line under the header when it's on it (`rule`,
+/// how high), a laid-out message's boxes and pictures, highlights, the text, the page's number,
+/// and lines under and through the text.
+fn content_stream(faces: &mut [Face<'_>; 2], page: &[Placed], extra: Option<&objects::Extra>, rule: Option<f32>, number: usize, of: usize) -> String {
+    let mut c = String::new();
+    if let Some(rule_y) = rule {
+        let _ = writeln!(c, "0.75 G 0.6 w {MARGIN:.2} {rule_y:.2} m {:.2} {rule_y:.2} l S 0 G", PAGE_W - MARGIN);
+    }
+    // A laid-out message's boxes, under everything; its pictures over them.
+    if let Some(e) = extra {
+        e.fills_into(&mut c);
+        e.images_into(&mut c);
+    }
+    // Highlights under the text.
+    for p in page {
+        // (Not behind a space alone: it stuck out past the end of a button's words.)
+        if let Some(b) = p.background.filter(|_| !p.text.trim().is_empty()) {
+            let _ = writeln!(c, "{} rg {:.2} {:.2} {:.2} {:.2} re f 0 g", rgb(b), p.x, p.y - p.size * 0.25, p.width, p.size * 1.2);
+        }
+    }
+    c.push_str("BT\n");
+    for p in page {
+        let enc = faces.get_mut(p.font).map(|f| f.encode(&p.text)).unwrap_or_default();
+        if let Some(color) = p.color {
+            let _ = write!(c, "{} rg ", rgb(color));
+        }
+        // Italic: the upright font, leaning.
+        let lean = if p.slant { "0.21" } else { "0" };
+        let _ = write!(c, "/F{} {:.1} Tf 1 0 {lean} 1 {:.2} {:.2} Tm {enc} Tj", p.font + 1, p.size, p.x, p.y);
+        c.push_str(if p.color.is_some() { " 0 g\n" } else { "\n" });
+    }
+    let footer = format!("{number} / {of}");
+    let fw = faces[0].text_width(&footer, 8.0);
+    let enc = faces[0].encode(&footer);
+    let _ = writeln!(c, "0.45 g /F1 8.0 Tf 1 0 0 1 {:.2} {:.2} Tm {enc} Tj 0 g", (PAGE_W - fw) / 2.0, MARGIN / 2.0);
+    c.push_str("ET\n");
+    // Lines under and through the text, in its colour.
+    for p in page.iter().filter(|p| p.underline || p.strike) {
+        let ink = p.color.map_or_else(|| "0 0 0".to_string(), rgb);
+        for (on, at) in [(p.underline, p.y - p.size * 0.12), (p.strike, p.y + p.size * 0.28)] {
+            if on {
+                let _ = writeln!(c, "{ink} RG {:.2} w {:.2} {at:.2} m {:.2} {at:.2} l S 0 G", p.size * 0.06, p.x, p.x + p.width);
+            }
+        }
+    }
+    c
+}
+
+/// Write the `i`th font's objects into `objects`; the number of the one a page names. An
+/// embedded font is its file, its descriptor, a CID font of the glyphs used, and a map from
+/// them back to the characters they draw (so the text can be searched and copied).
+fn font_objects(face: &Face<'_>, i: usize, objects: &mut Vec<Vec<u8>>) -> usize {
+    let (data, font, used) = match face {
+        Face::Helvetica { bold } => {
+            let name = if *bold { "Helvetica-Bold" } else { "Helvetica" };
+            return add(objects, format!("<< /Type /Font /Subtype /Type1 /BaseFont /{name} /Encoding /WinAnsiEncoding >>").into_bytes());
+        }
+        Face::Embedded { data, font, used } => (data, font, used),
+    };
+    let upem = font.units_per_em();
+    let scale = |v: f32| (v * 1000.0 / upem).round() as i32;
+    let file_ref = add(objects, flate_stream(&format!(" /Length1 {}", data.len()), data));
+    let m = &font.metrics;
+    let bbox = m.bounds.unwrap_or(skrifa::metrics::BoundingBox { x_min: 0.0, y_min: 0.0, x_max: 0.0, y_max: 0.0 });
+    let descriptor = format!(
+        "<< /Type /FontDescriptor /FontName /MailCraftFont{i} /Flags 32 /FontBBox [{} {} {} {}] /ItalicAngle 0 /Ascent {} /Descent {} /CapHeight {} /StemV {} /FontFile2 {file_ref} 0 R >>",
+        scale(bbox.x_min),
+        scale(bbox.y_min),
+        scale(bbox.x_max),
+        scale(bbox.y_max),
+        scale(m.ascent),
+        scale(m.descent),
+        scale(m.cap_height.unwrap_or(m.ascent)),
+        if i == 1 { 140 } else { 80 }
+    );
+    let desc_ref = add(objects, descriptor.into_bytes());
+    let mut w = String::from("[");
+    for gid in used.keys() {
+        let _ = write!(w, " {gid} [{}]", scale(font.advance(*gid)));
+    }
+    w.push_str(" ]");
+    let cid = format!(
+        "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MailCraftFont{i} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor {desc_ref} 0 R /DW 1000 /W {w} /CIDToGIDMap /Identity >>"
+    );
+    let cid_ref = add(objects, cid.into_bytes());
+    let mut cmap = String::from(
+        "/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def /CMapName /Adobe-Identity-UCS def /CMapType 2 def 1 begincodespacerange <0000> <FFFF> endcodespacerange\n",
+    );
+    let pairs: Vec<(&u16, &char)> = used.iter().collect();
+    for chunk in pairs.chunks(100) {
+        let _ = writeln!(cmap, "{} beginbfchar", chunk.len());
+        for (gid, c) in chunk {
+            let mut units = [0u16; 2];
+            let hex: String = c.encode_utf16(&mut units).iter().map(|u| format!("{u:04X}")).collect();
+            let _ = writeln!(cmap, "<{gid:04X}> <{hex}>");
+        }
+        cmap.push_str("endbfchar\n");
+    }
+    cmap.push_str("endcmap CMapName currentdict /CMap defineresource pop end end");
+    let tu_ref = add(objects, flate_stream("", cmap.as_bytes()));
+    add(
+        objects,
+        format!("<< /Type /Font /Subtype /Type0 /BaseFont /MailCraftFont{i} /Encoding /Identity-H /DescendantFonts [{cid_ref} 0 R] /ToUnicode {tu_ref} 0 R >>")
+            .into_bytes(),
+    )
+}
+
+/// The file: header, `objects` (numbered from 1), cross-reference table, trailer.
+fn write_file(objects: &[Vec<u8>]) -> Vec<u8> {
     let mut out: Vec<u8> = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = Vec::with_capacity(objects.len());
     for (i, body) in objects.iter().enumerate() {
@@ -579,7 +472,7 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Result<Vec<u8>, String> {
         out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
     }
     out.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R /Info 3 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
-    Ok(out)
+    out
 }
 
 #[cfg(test)]
@@ -637,7 +530,7 @@ mod tests {
         let rows: Vec<Vec<Cell>> = (0..40).map(|_| vec![cell(vec![picture(0), picture(1)]), cell(vec![link.clone(), picture(7)])]).collect();
         let table = Table { rows, width: Some(Width::Percent(100.0)), spacing: 3.0, padding: 4.0, ..Default::default() };
         let d = Doc { blocks: vec![Block::Table(table)], pictures, ..doc("") };
-        let p = pdf(&d, None).unwrap();
+        let p = pdf(&d, None);
         objects_are_where_the_xref_says(&p);
         let text = String::from_utf8_lossy(&p);
         let count: usize = text.split("/Count ").nth(1).and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse().ok()).unwrap();
@@ -650,14 +543,14 @@ mod tests {
         assert!(dict.contains("/Im0 ") && dict.contains("/Im1 ") && !dict.contains("/Im2") && !dict.contains("/Im7"), "{dict}");
         assert_eq!(text.matches("/URI (https://shop.example/track?a=\\(1\\))").count(), 40);
         // Nothing but the header on a page of its own, and no blocks: as before.
-        let plain = pdf(&doc("Hello"), None).unwrap();
+        let plain = pdf(&doc("Hello"), None);
         assert!(!String::from_utf8_lossy(&plain).contains("/XObject"));
     }
 
     #[test]
     fn helvetica_pages() {
         let long = (0..400).map(|i| format!("Line {i}: the quick brown fox jumps over the lazy dog (café, “quotes”)")).collect::<Vec<_>>().join("\n");
-        let p = pdf(&doc(&long), None).unwrap();
+        let p = pdf(&doc(&long), None);
         assert!(p.starts_with(b"%PDF-1.7"));
         assert!(p.ends_with(b"%%EOF\n"));
         let text = String::from_utf8_lossy(&p);
@@ -685,13 +578,13 @@ mod tests {
 
     #[test]
     fn empty_and_hostile_input() {
-        let p = pdf(&Doc::default(), None).unwrap();
+        let p = pdf(&Doc::default(), None);
         objects_are_where_the_xref_says(&p);
         // Not a font: falls back to Helvetica rather than failing.
-        let p = pdf(&doc("x"), Some(Fonts { regular: b"not a font", bold: None })).unwrap();
+        let p = pdf(&doc("x"), Some(Fonts { regular: b"not a font", bold: None }));
         assert!(String::from_utf8_lossy(&p).contains("/Helvetica"));
         let huge = "y\n".repeat(200_000);
-        let p = pdf(&doc(&huge), None).unwrap();
+        let p = pdf(&doc(&huge), None);
         assert!(String::from_utf8_lossy(&p).contains(&format!("/Count {MAX_PAGES}")));
     }
 
@@ -704,7 +597,7 @@ mod tests {
             "/System/Library/Fonts/Supplemental/Arial.ttf",
         ];
         let Some(data) = candidates.iter().find_map(|p| std::fs::read(p).ok()) else { return };
-        let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, bold: None })).unwrap();
+        let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, bold: None }));
         let text = String::from_utf8_lossy(&p);
         assert!(text.contains("/Subtype /CIDFontType2") && text.contains("/FontFile2") && text.contains("/ToUnicode"));
         assert!(p.len() < data.len(), "the font file is compressed");

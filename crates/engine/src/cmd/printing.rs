@@ -55,7 +55,7 @@ impl Session {
         };
         let doc = print::Doc { title: m.subject.clone(), header, body: m.text.clone(), rich: Vec::new(), blocks, pictures: printing.pictures };
         let fonts = self.print_fonts.as_ref().map(|(r, b)| print::Fonts { regular: r, bold: b.as_deref() });
-        print::pdf(&doc, fonts).map_err(CmdError::Failed)
+        Ok(print::pdf(&doc, fonts))
     }
 }
 

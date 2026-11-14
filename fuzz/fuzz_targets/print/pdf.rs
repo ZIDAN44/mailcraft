@@ -95,7 +95,6 @@ fuzz_target!(|input: &[u8]| {
     let mut data = input;
     let blocks: Vec<print::Block> = (0..4).map(|_| block(&mut data, 0)).collect();
     let doc = print::Doc { title: "Fuzzed".into(), blocks, pictures, ..Default::default() };
-    if let Ok(pdf) = print::pdf(&doc, None) {
-        assert!(pdf.starts_with(b"%PDF-") && pdf.ends_with(b"%%EOF\n"));
-    }
+    let pdf = print::pdf(&doc, None);
+    assert!(pdf.starts_with(b"%PDF-") && pdf.ends_with(b"%%EOF\n"));
 });
