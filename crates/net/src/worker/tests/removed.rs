@@ -8,12 +8,13 @@ use super::*;
 #[test]
 fn a_folder_synced_as_its_account_is_removed_writes_nothing() {
     let st = crate::fake::State::new();
+    let (hold, holding) = crate::fake::Hold::on("SELECT \"INBOX\"");
     {
         let mut s = st.lock().unwrap();
         for n in 0..3 {
             s.add("INBOX", &format!("m{n}"), &[]);
         }
-        s.stall_on = Some(("SELECT \"INBOX\"".into(), Duration::from_millis(1000)));
+        s.hold_on = Some(hold);
     }
     let port = crate::fake::serve_tcp(&st);
     let store = crate::fake::tests_store("removed-mid-sync");
@@ -30,14 +31,10 @@ fn a_folder_synced_as_its_account_is_removed_writes_nothing() {
     tx.send(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() }).unwrap();
     let t = std::thread::spawn(move || w.run(rx));
     // Removed while the Inbox is being read, as `Job::Remove` does (its channel dropped).
-    let end = Instant::now() + Duration::from_secs(10);
-    while !st.lock().unwrap().log.iter().any(|c| c.starts_with("LOGIN")) {
-        assert!(Instant::now() < end, "never signed in");
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    std::thread::sleep(Duration::from_millis(400));
+    holding.came();
     store.remove_account("a1").unwrap();
     drop(tx);
+    holding.go(crate::fake::LetGo::Answer);
     let _ = t.join();
     assert!(st.lock().unwrap().log.iter().any(|c| c.starts_with("SELECT \"INBOX\"")), "the Inbox was read");
     assert_eq!(store.load_folder("a1", "INBOX").map(|f| f.messages.len()).unwrap_or(0), 0, "the Inbox cached again");
