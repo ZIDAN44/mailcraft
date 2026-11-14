@@ -7,9 +7,6 @@
 use super::*;
 use crate::pim::{Task, TaskPriority, TaskStatus};
 
-/// The most tasks read from one file, and categories of one (its lines kept: [`EXTRA_MAX`]).
-const MAX_TASKS: usize = 20_000;
-const MAX_CATEGORIES: usize = 20;
 /// Outlook's statuses iCalendar has no word for.
 pub const TASK_STATUS: &str = "X-MAILCRAFT-TASK-STATUS";
 
@@ -100,7 +97,7 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
                 }
                 if what() == "VTODO"
                     && let Some(r) = cur.take()
-                    && out.len() < MAX_TASKS
+                    && out.len() < MAX_ITEMS
                 {
                     out.push(finish(r, zones));
                 }
@@ -137,13 +134,7 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
             TASK_STATUS => r.own_status = TaskStatus::from_code(&l.value),
             "PERCENT-COMPLETE" => t.percent = l.value.trim().parse::<i64>().map_or(0, |p| u8::try_from(p.clamp(0, 100)).unwrap_or(0)),
             "PRIORITY" => t.priority = TaskPriority::from_ical(l.value.trim().parse().unwrap_or(0)),
-            "CATEGORIES" => {
-                for c in split_text_list(&l.value) {
-                    if !t.categories.contains(&c) && t.categories.len() < MAX_CATEGORIES {
-                        t.categories.push(c);
-                    }
-                }
-            }
+            "CATEGORIES" => add_categories(&mut t.categories, &l.value),
             "RRULE" => t.rrule = Some(l.value.trim().to_string()).filter(|r| !r.is_empty()),
             "LAST-MODIFIED" => t.modified = zones.time(l, "").map_or(0, |(t, _, _)| t),
             "DTSTAMP" | "CREATED" | "SEQUENCE" => {}

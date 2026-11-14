@@ -25,6 +25,7 @@ mod alarms;
 mod find;
 mod meeting;
 mod notes;
+mod reading;
 mod recurrence;
 mod scheduling;
 mod showing;
@@ -35,6 +36,7 @@ pub use find::*;
 pub use meeting::*;
 use notes::*;
 pub use notes::*;
+use reading::*;
 use recurrence::*;
 pub use recurrence::*;
 pub use scheduling::*;
@@ -389,6 +391,27 @@ const EXTRA_MAX: usize = 200;
 /// properties, where every reader of its alarms finds it.
 const EXTRA_ALARMS_MAX: usize = 400;
 
+/// The most events read from one file, and the most tasks.
+const MAX_ITEMS: usize = 20_000;
+/// The most categories an event or a task keeps.
+const MAX_CATEGORIES: usize = 20;
+/// The most of an event's excluded dates kept, and of its added ones (and the most lines giving
+/// them, and its changed instance, waiting for its zone).
+const MAX_DATES: usize = 1000;
+/// The most guests an event keeps.
+const MAX_ATTENDEES: usize = 500;
+/// The longest calendar name kept, in characters.
+const CALENDAR_NAME_MAX: usize = 200;
+
+/// Add the categories of a `CATEGORIES` value, each once, within [`MAX_CATEGORIES`].
+fn add_categories(to: &mut Vec<String>, value: &str) {
+    for c in split_text_list(value) {
+        if !to.contains(&c) && to.len() < MAX_CATEGORIES {
+            to.push(c);
+        }
+    }
+}
+
 /// Read a calendar file. `local_offset` (seconds east of UTC) places floating times; better,
 /// [`parse_in`] the viewer's zone.
 pub fn parse(text: &str, local_offset: i64) -> ICalendar {
@@ -404,178 +427,43 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
     let mut cal = ICalendar::default();
     // Zones first: events can come before the zones they use.
     let zones = FileZones::read(&all, local);
-    // An exception's times wait for the event's zone (DTSTART may come after them).
-    let mut pending: Vec<&Line> = Vec::new();
-    let mut ev: Option<(CalEvent, Option<i64>)> = None;
-    let mut depth_in_event = 0usize;
-    // The depth of the nested component being left out, with all it holds; the cap of the one
-    // being kept.
-    let mut dropped_from: Option<usize> = None;
-    let mut component_max = EXTRA_MAX;
-    // Which of the event's CLASS, TRANSP and busy status have come (kept past the cap).
-    let mut showing_seen = 0u8;
+    let mut event: Option<EventReading<'_>> = None;
     // The lines outside every event, where its to-dos are: an event's are its own, whatever they
     // begin and end, so a to-do it holds is never one of the file's too.
     let mut outside: Vec<&Line> = Vec::new();
     for l in &all {
-        let n = l.name.as_str();
-        if ev.is_none() && !(n == "BEGIN" && l.value.trim().eq_ignore_ascii_case("VEVENT")) {
-            outside.push(l);
-        }
-        if n == "BEGIN" {
-            let what = l.value.trim().to_ascii_uppercase();
-            if what == "VEVENT" && ev.is_none() {
-                ev = Some((CalEvent::default(), None));
-                depth_in_event = 0;
-                dropped_from = None;
-                showing_seen = 0;
-                pending.clear();
-                continue;
-            }
-            if let Some((e, _)) = ev.as_mut() {
-                // A nested component (VALARM): kept as written, within its cap ([`EXTRA_MAX`]),
-                // or left out whole, with what it holds.
-                depth_in_event = depth_in_event.saturating_add(1);
-                if dropped_from.is_none() {
-                    if depth_in_event == 1 {
-                        component_max = if what == "VALARM" { EXTRA_ALARMS_MAX } else { EXTRA_MAX };
-                    }
-                    if e.extra.len() < component_max {
-                        e.extra.push(l.raw.clone());
-                    } else {
-                        dropped_from = Some(depth_in_event);
-                    }
-                }
-            }
-            continue;
-        }
-        if n == "END" {
-            if let Some((e, _)) = ev.as_mut()
-                && depth_in_event > 0
-            {
-                match dropped_from {
-                    None => e.extra.push(l.raw.clone()),
-                    Some(d) if d == depth_in_event => dropped_from = None,
-                    Some(_) => {}
-                }
-                depth_in_event -= 1;
-                continue;
-            }
-            if l.value.trim().eq_ignore_ascii_case("VEVENT")
-                && let Some((mut e, dur)) = ev.take()
-            {
-                for x in pending.drain(..) {
-                    if x.name == "RECURRENCE-ID" {
-                        e.recurrence_id = zones.time(x, &e.tzid).map(|(t, _, _)| t);
-                        continue;
-                    }
-                    // At most 1,000 of each, from all their lines; a period (`RDATE;VALUE=PERIOD`)
-                    // by its start.
-                    let list = if x.name == "RDATE" { &mut e.rdates } else { &mut e.exdates };
-                    let room = 1000usize.saturating_sub(list.len());
-                    list.extend(zones.times(x, &e.tzid, room));
-                }
-                // The server's stand-in for a title it hid ("(Private event)") isn't the event's:
-                // it shows as a private appointment, in the user's language (issue #32).
-                if details_hidden(&e) {
-                    e.summary.clear();
-                }
-                if e.end <= e.start {
-                    e.end = match dur {
-                        Some(d) => e.start.saturating_add(d.max(0)),
-                        None if e.all_day => e.start + 86_400,
-                        None => e.start,
-                    };
-                }
-                if cal.events.len() < 20_000 {
-                    cal.events.push(e);
-                }
-            }
-            continue;
-        }
-        let Some((e, dur)) = ev.as_mut() else {
-            match n {
-                "METHOD" => cal.method = Some(l.value.trim().to_ascii_uppercase()),
-                "NAME" | "X-WR-CALNAME" if cal.name.is_none() => {
-                    let name: String = unescape(&l.value).chars().filter(|c| !c.is_control()).take(200).collect();
-                    cal.name = Some(name.trim().to_string()).filter(|s| !s.is_empty());
-                }
-                "REFRESH-INTERVAL" | "X-PUBLISHED-TTL" if cal.refresh.is_none() => cal.refresh = duration(l.value.trim()).filter(|d| *d > 0),
-                _ => {}
+        let Some(reading) = event.as_mut() else {
+            if l.name == "BEGIN" && l.value.trim().eq_ignore_ascii_case("VEVENT") {
+                event = Some(EventReading::new());
+            } else {
+                outside.push(l);
+                calendar_property(&mut cal, l);
             }
             continue;
         };
-        if depth_in_event > 0 {
-            if dropped_from.is_none() && e.extra.len() < component_max {
-                e.extra.push(l.raw.clone());
-            }
-            continue;
-        }
-        match n {
-            "UID" => e.uid = l.value.trim().to_string(),
-            "SUMMARY" => e.summary = unescape(&l.value),
-            "DESCRIPTION" => e.description = unescape(&l.value),
-            "LOCATION" => e.location = unescape(&l.value),
-            "CATEGORIES" => {
-                for c in split_text_list(&l.value) {
-                    if !c.is_empty() && !e.categories.contains(&c) && e.categories.len() < 20 {
-                        e.categories.push(c);
-                    }
-                }
-            }
-            "STATUS" => e.status = l.value.trim().to_ascii_uppercase(),
-            "SEQUENCE" => e.sequence = l.value.trim().parse().unwrap_or(0),
-            "DTSTART" => {
-                if let Some((t, all_day, tzid)) = zones.time(l, "") {
-                    e.start = t;
-                    e.all_day = all_day;
-                    e.vtimezone = zones.definition(&tzid);
-                    e.tzid = tzid;
-                }
-            }
-            "DTEND" => {
-                if let Some((t, _, _)) = zones.time(l, "") {
-                    e.end = t;
-                }
-            }
-            "DURATION" => *dur = duration(&l.value),
-            "RRULE" => e.rrule = Some(l.value.trim().to_string()),
-            "EXDATE" | "RDATE" | "RECURRENCE-ID" => {
-                if pending.len() < 1000 {
-                    pending.push(l);
-                }
-            }
-            "ORGANIZER" => {
-                e.organizer = Some(person(l));
-                e.client_scheduled = schedule_agent_client(l.param("SCHEDULE-AGENT"));
-            }
-            "ATTENDEE" => {
-                e.server_delivered |= server_delivered(l.param("SCHEDULE-STATUS"));
-                if e.attendees.len() < 500 {
-                    e.attendees.push(person(l));
-                }
-            }
-            "DTSTAMP" => e.dtstamp = zones.time(l, "").map_or(0, |(t, _, _)| t),
-            "CREATED" | "LAST-MODIFIED" => {}
-            _ => {
-                // Past the cap, an event's classification and Show as are still kept (once each):
-                // they're never dropped (issue #32).
-                let bit = match n {
-                    "CLASS" => 1u8,
-                    "TRANSP" => 2,
-                    "X-MICROSOFT-CDO-BUSYSTATUS" => 4,
-                    _ => 0,
-                };
-                let kept_anyway = bit != 0 && showing_seen & bit == 0;
-                showing_seen |= bit;
-                if e.extra.len() < EXTRA_MAX || kept_anyway {
-                    e.extra.push(l.raw.clone());
-                }
-            }
+        if reading.line(l, &zones)
+            && let Some(done) = event.take()
+            && cal.events.len() < MAX_ITEMS
+        {
+            cal.events.push(done.finish(&zones));
         }
     }
     cal.tasks = read_tasks(&outside, &zones);
     cal
+}
+
+/// A line outside every event that tells about the calendar: what it asks, its name, how often
+/// to read it again.
+fn calendar_property(cal: &mut ICalendar, l: &Line) {
+    match l.name.as_str() {
+        "METHOD" => cal.method = Some(l.value.trim().to_ascii_uppercase()),
+        "NAME" | "X-WR-CALNAME" if cal.name.is_none() => {
+            let name: String = unescape(&l.value).chars().filter(|c| !c.is_control()).take(CALENDAR_NAME_MAX).collect();
+            cal.name = Some(name.trim().to_string()).filter(|s| !s.is_empty());
+        }
+        "REFRESH-INTERVAL" | "X-PUBLISHED-TTL" if cal.refresh.is_none() => cal.refresh = duration(l.value.trim()).filter(|d| *d > 0),
+        _ => {}
+    }
 }
 
 // ----- writing -----
