@@ -103,6 +103,7 @@ on GitHub.
 - Select Names adds someone whose address is part of another address, or of a name, already in the field.
 - Two video attachments with the same name now each show their own thumbnail.
 - An import no longer stops on its own when its account is switched to or from keeping mail online only.
+- A Microsoft or Google sign-in service that is busy or failing no longer makes MailCraft ask you to sign in again; it tries again later.
 
 ## 0.38.0 - 2026-11-13
 

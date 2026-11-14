@@ -10,19 +10,6 @@ fn people(d: &mut Data) {
     }
 }
 
-/// HTTP answers from a token endpoint, one per connection, in order.
-fn token_answers(answers: &[(&str, &str)]) -> (String, std::thread::JoinHandle<Vec<String>>) {
-    let replies = answers
-        .iter()
-        .map(|(status, json)| {
-            let mut r = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nContent-Type: application/json\r\n\r\n", json.len()).into_bytes();
-            r.extend_from_slice(json.as_bytes());
-            r
-        })
-        .collect();
-    crate::http::tests::serve(replies)
-}
-
 /// The search: `/users` with the header Microsoft's directory wants for `$search`; refused
 /// there, `/me/people` with the directory's people asked for; nothing found is no one; a search
 /// with quotes, backslashes and controls sent safely; refused everywhere is a missing permission.

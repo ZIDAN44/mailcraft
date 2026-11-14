@@ -200,6 +200,12 @@ fn token_request(p: &Provider, mut fields: Vec<(&str, String)>, extra_scope: &st
         serde_json::from_slice(&r.body).map_err(|_| NetError::Protocol(format!("the sign-in service answered HTTP {} without JSON", r.status)))?;
     if !r.ok() || v.get("error").is_some() {
         let what = v.get("error_description").or_else(|| v.get("error")).and_then(Value::as_str).unwrap_or("refused");
+        // The service failing, busy or throttling refused nothing: the connection is dropped and
+        // tried again later (taken for a refusal, it asked to sign in again).
+        let code = v.get("error").and_then(Value::as_str).unwrap_or_default();
+        if r.status >= 500 || r.status == 429 || matches!(code, "server_error" | "temporarily_unavailable") {
+            return Err(NetError::Protocol(format!("{} couldn't answer now (HTTP {}): {what}", p.name, r.status)));
+        }
         // A revoked or expired grant means signing in again.
         return Err(NetError::Auth(format!("{}: {what}", p.name)));
     }
@@ -520,5 +526,34 @@ pub(crate) mod tests {
         let seen = seen.join().unwrap();
         assert!(seen[0].contains("code=the-code") && !seen[0].contains("stray-code"), "{}", seen[0]);
         drop(held);
+    }
+
+    /// Test hang, and what it brought to light: the sign-in service failing (HTTP 5xx or 429, or
+    /// RFC 6749's `server_error` and `temporarily_unavailable`) was taken for a refusal, which
+    /// asks to sign in again. It refused nothing: the connection is dropped and tried again
+    /// later. Its refusals (`invalid_grant`, `invalid_client`) still ask to sign in.
+    #[test]
+    fn a_failing_sign_in_service_refuses_nothing() {
+        let answers = [
+            ("503 Service Unavailable", r#"{"error":"temporarily_unavailable"}"#, false),
+            ("500 Internal Server Error", r#"{"error":"server_error","error_description":"oops"}"#, false),
+            ("502 Bad Gateway", "<html>down</html>", false),
+            ("429 Too Many Requests", r#"{"error":"throttled"}"#, false),
+            ("400 Bad Request", r#"{"error":"temporarily_unavailable"}"#, false),
+            ("200 OK", r#"{"error":"server_error"}"#, false),
+            ("400 Bad Request", r#"{"error":"invalid_grant","error_description":"revoked"}"#, true),
+            ("401 Unauthorized", r#"{"error":"invalid_client"}"#, true),
+        ];
+        let reply = |status: &str, body: &str| {
+            format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).into_bytes()
+        };
+        let (base, seen) = crate::http::tests::serve(answers.iter().map(|(status, body, _)| reply(status, body)).collect());
+        let p = local(&format!("{base}/token"));
+        for (status, body, refused) in answers {
+            let e = refresh(&p, "r1").unwrap_err();
+            assert_eq!(matches!(e, NetError::Auth(_)), refused, "{status} {body}: {e}");
+            assert!(refused || e.is_fatal(), "dropped and tried again: {status} {body}: {e}");
+        }
+        assert_eq!(seen.join().unwrap().len(), answers.len());
     }
 }

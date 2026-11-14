@@ -91,8 +91,9 @@ impl Worker {
             }
             // An OAuth token refused (expired early, revoked by a password change elsewhere, or
             // taken before the computer slept): a fresh one from the refresh token, then the
-            // connection again, once. Only a refused refresh, or a fresh token refused too,
-            // means signing in again.
+            // connection again, once. Only a refused refresh, or a fresh token refused too
+            // before the server took it for mail (its folders listed), means signing in again;
+            // a renewal the sign-in service fails is tried again later.
             NetError::Auth(m) if self.acc.oauth.is_some() && !self.token_retried => {
                 log::info!("{}: token refused ({m}); refreshing it", self.acc.id);
                 self.token_retried = true;

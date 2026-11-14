@@ -59,6 +59,9 @@ pub struct Data {
     pub throttle: u32,
     /// The one bearer token taken, when not [`TOKEN`] (a test renews it as tokens expire).
     pub token: Option<String>,
+    /// Once a request whose target holds the first is answered, the token taken becomes the
+    /// second: one running out, or revoked, in the middle of a sync.
+    pub token_after: Option<(String, String)>,
     /// The organisation's directory (issue #9): (name, address), searched through `/users` and
     /// `/me/people`.
     pub directory: Vec<(String, String)>,
@@ -694,7 +697,11 @@ pub fn serve(data: Data) -> Server {
                     d.asked_immutable |= !directory;
                     d.bearer = used;
                     d.headers = headers;
-                    d.route(&method, &target, &body, &b)
+                    let answer = d.route(&method, &target, &body, &b);
+                    if let Some((_, next)) = d.token_after.take_if(|(after, _)| target.contains(after.as_str())) {
+                        d.token = Some(next);
+                    }
+                    answer
                 }
             };
             respond(&mut s, status, &out, kind);

@@ -267,6 +267,13 @@ impl Worker {
         }
         match listed {
             Ok(mut list) => {
+                // The server took the token for mail (one renewed, say): a refusal from here on
+                // is a new one, and gets a fresh token again (found by a test hang: the token a
+                // renewal brought, refused before that sync was done, asked to sign in again with
+                // the refresh token never tried). POP's list is this computer's.
+                if !matches!(self.conn, Some(Conn::Pop)) {
+                    self.token_retried = false;
+                }
                 // JMAP lists the counts; IMAP's come from each folder's sync.
                 for f in list.iter_mut().filter(|_| !jmap) {
                     if let Some(old) = self.folders.iter().find(|o| o.path == f.path) {
