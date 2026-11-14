@@ -38,7 +38,7 @@ pub(crate) struct Digest {
 impl Digest {
     pub(crate) fn of(raw: &[u8]) -> Digest {
         let sha = ring::digest::digest(&ring::digest::SHA256, raw);
-        let sha256 = sha.as_ref().iter().map(|b| format!("{b:02x}")).collect();
+        let sha256 = crate::hex(sha.as_ref());
         Digest { sha256, len: raw.len() as u64 }
     }
 

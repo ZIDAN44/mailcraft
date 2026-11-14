@@ -28,7 +28,7 @@ struct FiledDraft {
 pub(super) fn new_mark() -> Option<String> {
     let mut bits = [0u8; 16];
     ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut bits).ok()?;
-    Some(bits.iter().map(|b| format!("{b:02x}")).collect())
+    Some(crate::hex(&bits))
 }
 
 /// `raw` with `mark` on it, first in its header.

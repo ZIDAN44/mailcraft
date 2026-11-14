@@ -41,26 +41,27 @@ impl Edits {
     /// Make `op` in the cache and queue it for the server, after the changes before it; on this
     /// thread when there's no other to make it on.
     pub(super) fn send(&mut self, store: &Store, sink: &Sink, account: String, op: Op, wake: Option<Sender<Job>>) {
-        if self.tx.is_none() {
-            self.start(store, sink);
-        }
         // The account's files go at once on the window's thread when it's removed, before the
         // pool hears of it: a change queued before that isn't made after.
         let seen = store.removals(&account);
-        let edit = Edit::Apply { account, op, wake, seen };
-        let edit = match self.tx.as_ref() {
-            Some(tx) => match tx.send(edit) {
-                Ok(()) => return,
-                // Ended (it never should): started again with the next one.
-                Err(mpsc::SendError(edit)) => {
-                    self.tx = None;
-                    edit
-                }
-            },
-            None => edit,
-        };
-        if let Edit::Apply { account, op, wake, seen } = edit {
+        if let Some(Edit::Apply { account, op, wake, seen }) = self.hand_over(store, sink, Edit::Apply { account, op, wake, seen }) {
             apply(store, sink, &account, op, wake, seen);
+        }
+    }
+
+    /// Hand `edit` to the thread, started if it isn't; given back when there's none to take it.
+    fn hand_over(&mut self, store: &Store, sink: &Sink, edit: Edit) -> Option<Edit> {
+        if self.tx.is_none() {
+            self.start(store, sink);
+        }
+        let Some(tx) = self.tx.as_ref() else { return Some(edit) };
+        match tx.send(edit) {
+            Ok(()) => None,
+            // Ended (it never should): started again with the next one.
+            Err(mpsc::SendError(edit)) => {
+                self.tx = None;
+                Some(edit)
+            }
         }
     }
 
@@ -100,21 +101,7 @@ impl Edits {
 
     /// Put message files into a folder of an account on this computer, after the changes before.
     pub(super) fn file(&mut self, store: &Store, sink: &Sink, account: String, folder: String, paths: Vec<String>) {
-        if self.tx.is_none() {
-            self.start(store, sink);
-        }
-        let edit = Edit::File { account, folder, paths };
-        let edit = match self.tx.as_ref() {
-            Some(tx) => match tx.send(edit) {
-                Ok(()) => return,
-                Err(mpsc::SendError(edit)) => {
-                    self.tx = None;
-                    edit
-                }
-            },
-            None => edit,
-        };
-        if let Edit::File { account, folder, paths } = edit {
+        if let Some(Edit::File { account, folder, paths }) = self.hand_over(store, sink, Edit::File { account, folder, paths }) {
             super::imports::filing::file_here(store, sink, &account, &folder, &paths);
         }
     }

@@ -2,6 +2,7 @@
 //! (sabre/dav), and DAViCal or Apache set up so. MD5 and SHA-256 (and their `-sess` forms), with
 //! `qop=auth`; a nonce the server says is stale is answered again with the new one.
 
+use crate::hex;
 use md5::{Digest, Md5};
 
 /// The longest `WWW-Authenticate` value read, and the most parameters kept from it: a server's
@@ -118,10 +119,6 @@ pub(crate) fn challenge(headers: &[(String, String)]) -> Option<Challenge> {
         }
     }
     found.iter().find(|c| c.sha256).or(found.first()).cloned()
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 pub(crate) fn hash(sha256: bool, s: &str) -> String {

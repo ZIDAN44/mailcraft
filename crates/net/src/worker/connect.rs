@@ -113,12 +113,17 @@ impl Worker {
             }
             e if e.is_fatal() => {
                 self.conn = None;
-                self.next_attempt = Instant::now() + self.backoff;
-                self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
+                self.back_off();
                 self.status(e.status());
             }
             e => self.notice(e.to_string()),
         }
+    }
+
+    /// Not connecting again for the wait, which doubles for the next time (five minutes at most).
+    fn back_off(&mut self) {
+        self.next_attempt = Instant::now() + self.backoff;
+        self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
     }
 
     pub(super) fn connect(&mut self) -> Result<()> {
@@ -135,7 +140,7 @@ impl Worker {
     fn open(&mut self) -> Result<()> {
         self.status(SyncStatus::Connecting);
         let secret = self.secret()?;
-        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
+        let user = self.acc.login_name().to_string();
         if let Some(url) = &self.acc.graph {
             self.conn = Some(Conn::Graph(crate::graph::Client::connect(url, &secret)?));
             self.signed_in();
@@ -234,8 +239,7 @@ impl Worker {
             e @ NetError::Later(_) => {
                 log::warn!("{}: {e}", self.acc.id);
                 self.conn = None;
-                self.next_attempt = Instant::now() + self.backoff;
-                self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
+                self.back_off();
                 self.status(e.status());
             }
             e => {

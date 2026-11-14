@@ -95,7 +95,7 @@ pub(crate) fn verifier(roots: RootCertStore, distrusted: Arc<Distrusted>) -> Res
 
 /// A certificate's SHA-256 fingerprint, in hex: what a certificate trusted by hand is known by.
 pub(crate) fn fingerprint(der: &[u8]) -> String {
-    ring::digest::digest(&ring::digest::SHA256, der).as_ref().iter().map(|b| format!("{b:02x}")).collect()
+    crate::hex(ring::digest::digest(&ring::digest::SHA256, der).as_ref())
 }
 
 /// The check for a server on this computer (issue #77: a bridge to a mail service, with a

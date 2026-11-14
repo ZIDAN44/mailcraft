@@ -42,17 +42,15 @@ impl Credentials for MemoryCredentials {
             m.remove(&account.id);
         }
     }
+    // The outgoing server's password: the secret named `smtp`.
     fn get_smtp(&self, account: &AccountConfig) -> Option<String> {
-        self.0.lock().ok().and_then(|m| m.get(&format!("{}|smtp", account.id)).cloned())
+        self.get_secret(account, "smtp")
     }
     fn set_smtp(&self, account: &AccountConfig, password: &str) -> std::result::Result<(), String> {
-        self.0.lock().map_err(|e| e.to_string())?.insert(format!("{}|smtp", account.id), password.to_string());
-        Ok(())
+        self.set_secret(account, "smtp", password)
     }
     fn delete_smtp(&self, account: &AccountConfig) {
-        if let Ok(mut m) = self.0.lock() {
-            m.remove(&format!("{}|smtp", account.id));
-        }
+        self.delete_secret(account, "smtp");
     }
     fn get_secret(&self, account: &AccountConfig, what: &str) -> Option<String> {
         self.0.lock().ok().and_then(|m| m.get(&format!("{}|{what}", account.id)).cloned())

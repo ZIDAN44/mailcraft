@@ -181,14 +181,11 @@ impl<S: Read + Write> Client<S> {
     }
 
     fn line(&mut self) -> Result<String> {
-        let mut buf = Vec::new();
-        let n = (&mut self.r).take(MAX_LINE as u64).read_until(b'\n', &mut buf)?;
-        if n == 0 {
-            return Err(NetError::Closed("the server closed the connection".into()));
-        }
-        if !buf.ends_with(b"\n") {
-            return Err(proto("a line too long"));
-        }
+        let mut buf = match super::capped_line(&mut self.r, MAX_LINE)? {
+            super::Capped::Line(buf) => buf,
+            super::Capped::Closed => return Err(NetError::Closed("the server closed the connection".into())),
+            super::Capped::TooLong => return Err(proto("a line too long")),
+        };
         while buf.last().is_some_and(|b| *b == b'\n' || *b == b'\r') {
             buf.pop();
         }
@@ -263,8 +260,7 @@ impl<S: Read + Write> Client<S> {
 
     /// Sign in with an OAuth token (`AUTH XOAUTH2`).
     pub fn login_xoauth2(&mut self, user: &str, token: &str) -> Result<()> {
-        let blob = mailcraft_model::base64::encode(format!("user={user}\x01auth=Bearer {token}\x01\x01").as_bytes());
-        self.ok(&format!("AUTH XOAUTH2 {blob}")).map(drop).map_err(|e| auth(&e))
+        self.ok(&format!("AUTH XOAUTH2 {}", crate::oauth::xoauth2(user, token))).map(drop).map_err(|e| auth(&e))
     }
 
     /// Message numbers and unique ids. Read a line at a time, the cap on their count: capped at
@@ -322,7 +318,7 @@ fn auth(e: &NetError) -> NetError {
 /// Sign in to an account's POP server.
 pub fn open(acc: &AccountConfig, secret: &str) -> Result<Client<Stream>> {
     let cfg = acc.pop.as_ref().ok_or_else(|| proto("not a POP account"))?;
-    let user = if acc.username.is_empty() { acc.email.as_str() } else { acc.username.as_str() };
+    let user = acc.login_name();
     let mut c = Client::connect_trusting(cfg, &acc.trusted_certificates)?;
     if acc.oauth.is_some() {
         c.login_xoauth2(user, secret)?;

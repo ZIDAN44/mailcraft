@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use mailcraft_model::job::Release;
 
-use super::{Feed, MAX_INSTALLER};
+use super::{Feed, MAX_INSTALLER, USER_AGENT};
 use crate::http::{Request, get_into};
 use crate::{NetError, Result};
 
@@ -86,7 +86,7 @@ pub fn sha256_file(path: &Path) -> std::io::Result<String> {
         }
         ctx.update(buf.get(..n).unwrap_or_default());
     }
-    Ok(ctx.finish().as_ref().iter().map(|b| format!("{b:02x}")).collect())
+    Ok(crate::hex(ctx.finish().as_ref()))
 }
 
 /// [`download_installer`] from any address (the tests' local server): `size` 0 when unknown;
@@ -173,7 +173,7 @@ fn attempt(url: &str, part: &Path, have: u64, size: u64, progress: &Progress, st
     // The whole file at most: a server may answer a range with all of it.
     let cap = usize::try_from(size).ok().filter(|n| *n > 0).map_or(MAX_INSTALLER, |n| n.min(MAX_INSTALLER));
     let mut req = Request::get(url, cap)
-        .header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION")))
+        .header("User-Agent", USER_AGENT)
         // The installer is compressed already: the bytes exactly as published.
         .header("Accept-Encoding", "identity");
     if have > 0 {

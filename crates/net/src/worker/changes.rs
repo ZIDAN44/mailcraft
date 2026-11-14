@@ -235,7 +235,7 @@ impl Worker {
         }
         // IMAP: a Sieve script, through ManageSieve on the IMAP host.
         let secret = self.secret()?;
-        let user = if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() };
+        let user = self.acc.login_name().to_string();
         let mut s = crate::sieve::Client::connect_trusting(&self.acc.imap, self.sieve_port, &self.acc.trusted_certificates).map_err(|e| match e {
             NetError::Io(_) => NetError::No("this server doesn't offer automatic replies (no ManageSieve)".into()),
             e => e,

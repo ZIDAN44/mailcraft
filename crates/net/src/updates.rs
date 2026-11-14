@@ -80,6 +80,8 @@ const MAX_ANSWER: usize = 8 << 20;
 const MAX_INSTALLER: usize = 400 << 20;
 /// The largest `SHA256SUMS.txt` read.
 const MAX_SUMS: usize = 256 << 10;
+/// What MailCraft calls itself to GitHub (which refuses a request without a User-Agent).
+const USER_AGENT: &str = concat!("MailCraft/", env!("CARGO_PKG_VERSION"));
 
 /// The most recent releases (drafts left out), newest first as GitHub gives them.
 pub fn releases(feed: &Feed) -> Result<Vec<Release>> {
@@ -104,7 +106,7 @@ pub fn releases_since(feed: &Feed, suffix: Option<&str>, etag: Option<&str>) -> 
     let mut req = Request::get(&feed.list, MAX_ANSWER)
         .header("Accept", "application/vnd.github+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
-        .header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION")));
+        .header("User-Agent", USER_AGENT);
     if let Some(tag) = etag.filter(|t| t.len() < 200 && t.is_ascii() && !t.contains(['\r', '\n'])) {
         req = req.header("If-None-Match", tag);
     }
@@ -155,7 +157,7 @@ fn is_sha256(h: &str) -> bool {
 
 /// The SHA-256 of `bytes`, in lowercase hex.
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    ring::digest::digest(&ring::digest::SHA256, bytes).as_ref().iter().map(|b| format!("{b:02x}")).collect()
+    crate::hex(ring::digest::digest(&ring::digest::SHA256, bytes).as_ref())
 }
 
 /// The checksum to hold `release`'s installer to: GitHub's own record, else its line in the
@@ -168,7 +170,7 @@ pub fn expected_sum(release: &Release) -> Result<String> {
     if release.sums.is_empty() || file.is_empty() {
         return Err(NetError::No(format!("{} lists no checksum for its installer", release.tag)));
     }
-    let resp = send(&Request::get(&release.sums, MAX_SUMS).header("User-Agent", concat!("MailCraft/", env!("CARGO_PKG_VERSION"))))?;
+    let resp = send(&Request::get(&release.sums, MAX_SUMS).header("User-Agent", USER_AGENT))?;
     if !resp.ok() {
         return Err(NetError::Protocol(format!("the checksums file answered HTTP {}", resp.status)));
     }

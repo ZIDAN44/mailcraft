@@ -35,17 +35,14 @@ pub enum Part<'a> {
 
 /// An IMAP `astring` argument: quoted when printable ASCII, else a literal (8-bit allowed).
 pub fn quoted(s: &str) -> Option<String> {
-    if s.chars().all(|c| (' '..='~').contains(&c)) { Some(format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))) } else { None }
+    s.chars().all(|c| (' '..='~').contains(&c)).then(|| super::quote(s))
 }
 
 /// Mailbox names are 7-bit (modified UTF-7) and go quoted. One a server listed in UTF-8 goes
 /// quoted too, whole: its letters outside ASCII were left out, which named another mailbox
 /// (`Büro` became `Bro`). Control characters never go: a line end would start a command.
 fn mailbox_arg(name: &str) -> String {
-    quoted(name).unwrap_or_else(|| {
-        let kept: String = name.chars().filter(|c| !c.is_control()).collect();
-        format!("\"{}\"", kept.replace('\\', "\\\\").replace('"', "\\\""))
-    })
+    quoted(name).unwrap_or_else(|| super::quote(&name.chars().filter(|c| !c.is_control()).collect::<String>()))
 }
 
 /// Compress UIDs into an IMAP sequence set (`1:4,7,9:12`).
@@ -125,12 +122,30 @@ pub fn parse_internal_date(s: &str) -> Option<i64> {
     Some(days * 86_400 + h * 3600 + m * 60 + sec - sign * (zh * 3600 + zm * 60))
 }
 
-fn auth_error(e: NetError) -> NetError {
+/// The UIDs a `UID SEARCH` found, in order, each once.
+fn searched(rs: Vec<Response<'static>>) -> Vec<u32> {
+    let mut out = Vec::new();
+    for r in rs {
+        if let Response::MailboxData(MailboxDatum::Search(v)) = r {
+            out.extend(v);
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// A sign-in the server refused (`NO`, `BAD`) as a refused sign-in, in the server's words, or in
+/// `unsaid` when it gave none.
+fn auth_error(e: NetError, unsaid: &str) -> NetError {
     match e {
-        NetError::No(m) | NetError::Bad(m) => NetError::Auth(if m.is_empty() { "the sign-in was refused".into() } else { m }),
+        NetError::No(m) | NetError::Bad(m) => NetError::Auth(if m.is_empty() { unsaid.into() } else { m }),
         other => other,
     }
 }
+
+/// An OAuth sign-in refused without a word.
+const TOKEN_REFUSED: &str = "the sign-in was refused";
 
 fn info(o: &imap_proto::Outcome<'_>) -> String {
     o.information.as_deref().unwrap_or("").to_string()
@@ -306,12 +321,6 @@ impl<S: Read + Write> Client<S> {
 
     /// Sign in: `AUTHENTICATE PLAIN` with SASL-IR when offered, else `LOGIN`.
     pub fn login(&mut self, user: &str, pass: &str) -> Result<()> {
-        let as_auth = |e: NetError| match e {
-            NetError::No(m) | NetError::Bad(m) => {
-                NetError::Auth(if m.is_empty() { "the server rejected the user name or password".into() } else { m })
-            }
-            other => other,
-        };
         let res = if self.has("AUTH=PLAIN") && self.has("SASL-IR") {
             let token = mailcraft_model::base64::encode(format!("\0{user}\0{pass}").as_bytes());
             self.cmd(&[Part::Text("AUTHENTICATE PLAIN "), Part::Text(&token)])
@@ -331,7 +340,7 @@ impl<S: Read + Write> Client<S> {
             }
             self.cmd(&parts)
         };
-        let rs = res.map_err(as_auth)?;
+        let rs = res.map_err(|e| auth_error(e, "the server rejected the user name or password"))?;
         self.after_login(&rs)
     }
 
@@ -344,7 +353,7 @@ impl<S: Read + Write> Client<S> {
             self.conn.send(format!("{tag} AUTHENTICATE XOAUTH2 {ir}\r\n").as_bytes())?;
         } else {
             self.conn.send(format!("{tag} AUTHENTICATE XOAUTH2\r\n").as_bytes())?;
-            self.conn.wait_continue(&tag, &mut collected).map_err(auth_error)?;
+            self.conn.wait_continue(&tag, &mut collected).map_err(|e| auth_error(e, TOKEN_REFUSED))?;
             self.conn.send(format!("{ir}\r\n").as_bytes())?;
         }
         // A refused token comes back as a challenge carrying the error: answer it empty, then
@@ -361,7 +370,7 @@ impl<S: Read + Write> Client<S> {
                 }
                 Ok(Response::Data { status: Status::Bye, outcome }) => return Err(NetError::Closed(info(&outcome))),
                 Ok(other) => collected.push(other),
-                Err(raw) => check_unknown(&tag, &raw).map_err(auth_error)?,
+                Err(raw) => check_unknown(&tag, &raw).map_err(|e| auth_error(e, TOKEN_REFUSED))?,
             }
         }
         self.after_login(&collected)
@@ -595,30 +604,12 @@ impl<S: Read + Write> Client<S> {
                 parts.push(Part::Literal(l));
             }
         }
-        let rs = self.cmd(&parts)?;
-        let mut out = Vec::new();
-        for r in rs {
-            if let Response::MailboxData(MailboxDatum::Search(v)) = r {
-                out.extend(v);
-            }
-        }
-        out.sort_unstable();
-        out.dedup();
-        Ok(out)
+        Ok(searched(self.cmd(&parts)?))
     }
 
     pub fn uid_search(&mut self, criteria: &str) -> Result<Vec<u32>> {
         let cmd = format!("UID SEARCH {criteria}");
-        let rs = self.cmd(&[Part::Text(&cmd)])?;
-        let mut out = Vec::new();
-        for r in rs {
-            if let Response::MailboxData(MailboxDatum::Search(v)) = r {
-                out.extend(v);
-            }
-        }
-        out.sort_unstable();
-        out.dedup();
-        Ok(out)
+        Ok(searched(self.cmd(&[Part::Text(&cmd)])?))
     }
 
     /// `UID FETCH set (items)` with an optional modifier (`(CHANGEDSINCE n)`).

@@ -9,7 +9,7 @@
 //!
 //! Server input is hostile: lines and literals are capped.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufReader, Read, Write};
 
 use mailcraft_model::job::{Vacation, is_day};
 use mailcraft_model::{Security, ServerConfig};
@@ -123,15 +123,11 @@ fn tokens<S: Read + Write>(io: &mut BufReader<S>, first: &str) -> Result<Vec<Tok
 }
 
 fn read_line<S: Read + Write>(io: &mut BufReader<S>) -> Result<String> {
-    let mut buf = Vec::new();
-    let n = io.by_ref().take(MAX_LINE as u64).read_until(b'\n', &mut buf)?;
-    if n == 0 {
-        return Err(NetError::Closed("the ManageSieve server closed the connection".into()));
+    match super::capped_line(io, MAX_LINE)? {
+        super::Capped::Line(buf) => Ok(String::from_utf8_lossy(&buf).into_owned()),
+        super::Capped::Closed => Err(NetError::Closed("the ManageSieve server closed the connection".into())),
+        super::Capped::TooLong => Err(NetError::Protocol("ManageSieve: line too long".into())),
     }
-    if !buf.ends_with(b"\n") {
-        return Err(NetError::Protocol("ManageSieve: line too long".into()));
-    }
-    Ok(String::from_utf8_lossy(&buf).into_owned())
 }
 
 fn reply<S: Read + Write>(io: &mut BufReader<S>) -> Result<Reply> {
@@ -163,10 +159,8 @@ fn reply<S: Read + Write>(io: &mut BufReader<S>) -> Result<Reply> {
     }
 }
 
-/// A ManageSieve quoted string.
-fn q(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
-}
+// A ManageSieve quoted string.
+use super::quote as q;
 
 impl<S: Read + Write> Client<S> {
     /// Read the greeting (the server's capabilities).
@@ -319,7 +313,7 @@ impl Client<Stream> {
 
 /// A Sieve string: quoted, with `\` and `"` escaped (line breaks are allowed inside).
 fn sieve_str(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"").replace('\r', ""))
+    q(&s.replace('\r', ""))
 }
 
 /// Our script for these settings. The settings themselves (and the user's own script, which it

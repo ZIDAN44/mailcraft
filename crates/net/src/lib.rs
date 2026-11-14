@@ -124,6 +124,24 @@ impl NetError {
 
 pub type Result<T> = std::result::Result<T, NetError>;
 
+/// Bytes in lowercase hex, two digits each (a digest, a random mark).
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(bytes.len().saturating_mul(2));
+    for b in bytes {
+        let _ = write!(out, "{b:02x}");
+    }
+    out
+}
+
+/// Every byte gives what each place that wrote its own hex gave.
+#[test]
+fn hex_is_each_bytes_two_lowercase_digits() {
+    let all: Vec<u8> = (0..=255).collect();
+    assert_eq!(hex(&all), all.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    assert_eq!(hex(&[]), "");
+}
+
 /// The smart cards' PKCS #11 modules installed here, the likeliest first (S/MIME with a card).
 pub fn card_modules() -> Vec<String> {
     mailcraft_keys::pkcs11::known_modules()

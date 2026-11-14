@@ -183,6 +183,11 @@ pub struct AccountConfig {
 }
 
 impl AccountConfig {
+    /// The name the account signs in with: its user name, or its address when it has none.
+    pub fn login_name(&self) -> &str {
+        if self.username.is_empty() { &self.email } else { &self.username }
+    }
+
     /// Whether `other` connects and signs in as this does: the same servers, sign-in names
     /// (the address is one, when there's no user name), mailboxes and how often it looks. Every
     /// field is named in [`Self::connection`], so one added to the account is decided on there
