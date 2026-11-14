@@ -25,26 +25,15 @@ const PREFIXES: [&str; 12] = ["re", "fw", "fwd", "aw", "sv", "vs", "wg", "rif", 
 pub fn base_subject(subject: &str) -> String {
     let mut s = subject.trim();
     loop {
-        let before = s;
+        // Each pass leaves a shorter end of the subject, or the same one when it took nothing.
+        let before = s.len();
         if s.starts_with('[')
             && let Some(end) = s.find(']')
         {
             s = s.get(end + 1..).unwrap_or_default().trim_start();
         }
-        // ASCII lowering keeps byte offsets equal to `s`'s.
-        let lower = s.to_ascii_lowercase();
-        for p in PREFIXES {
-            if let Some(rest) = lower.strip_prefix(p) {
-                // `Re:`, `RE[2]:`, `Re :`.
-                let rest_t = rest.trim_start_matches(|c: char| c.is_ascii_digit() || c == '[' || c == ']').trim_start();
-                if rest_t.starts_with(':') || rest_t.starts_with('：') {
-                    let consumed = lower.len() - rest_t.len() + rest_t.chars().next().map_or(0, char::len_utf8);
-                    s = s.get(consumed..).unwrap_or_default().trim_start();
-                    break;
-                }
-            }
-        }
-        if s == before {
+        s = base_subject_step(s);
+        if s.len() == before {
             break;
         }
     }
@@ -77,15 +66,12 @@ fn tags_and_rest(subject: &str) -> (Vec<&str>, &str, bool) {
 
 /// `s` without one leading `Re:`, `Fwd:`, `AW:`… (`RE[2]:`, `Re :`), or as it is.
 fn base_subject_step(s: &str) -> &str {
-    // ASCII lowering keeps byte offsets equal to `s`'s.
-    let lower = s.to_ascii_lowercase();
     for p in PREFIXES {
-        if let Some(rest) = lower.strip_prefix(p) {
-            let rest_t = rest.trim_start_matches(|c: char| c.is_ascii_digit() || c == '[' || c == ']').trim_start();
-            if rest_t.starts_with(':') || rest_t.starts_with('：') {
-                let consumed = lower.len() - rest_t.len() + rest_t.chars().next().map_or(0, char::len_utf8);
-                return s.get(consumed..).unwrap_or_default().trim_start();
-            }
+        // In any case (`RE:`): the subject's first bytes compared as they are, nothing copied.
+        let Some(rest) = s.get(..p.len()).filter(|head| head.eq_ignore_ascii_case(p)).and_then(|_| s.get(p.len()..)) else { continue };
+        let rest = rest.trim_start_matches(|c: char| c.is_ascii_digit() || c == '[' || c == ']').trim_start();
+        if let Some(after) = rest.strip_prefix([':', '：']) {
+            return after.trim_start();
         }
     }
     s
