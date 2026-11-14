@@ -28,6 +28,30 @@ fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A reply written in a message's own page (the browser) has the address book as the main
+/// window has: Select Names lists the people mail was exchanged with (it listed no one there,
+/// the page's frame never filling it in).
+#[test]
+fn a_message_page_s_reply_has_the_address_book() {
+    let (a, dir) = app("page-names");
+    let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let mut tab = MailApp::new(a.session, Box::new(NullBackend), Box::new(PageServices(opened)));
+    let ctx = egui::Context::default();
+    let k = tab.session.list[0].key.clone();
+    tab.show_message_page(&k.to_id());
+    frame(&ctx, &mut tab, vec![]);
+    tab.run("list.open", json!({"key": k.to_id()}));
+    tab.run("mail.reply", json!({}));
+    frame(&ctx, &mut tab, vec![]);
+    let c = tab.session.compose.clone().unwrap();
+    tab.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    frame(&ctx, &mut tab, vec![]);
+    assert_eq!(tab.ui.page_message.as_ref(), Some(&k), "still the page");
+    let Some(Dialog::SelectNames(f)) = &tab.ui.dialog else { panic!("no dialog") };
+    assert!(f.list.iter().any(|x| x.email == "zoe@studio.example"), "everyone mail was exchanged with: {:?}", f.list);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn double_clicked_mail_opens_in_its_own_window() {
     let (mut a, dir) = app("windows");

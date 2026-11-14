@@ -98,6 +98,7 @@ on GitHub.
 - An attachment opened while its message was still downloading now shows its preview once the file arrives, and previews no longer pile up in memory.
 - A POP account's Server settings now warn when its server doesn't use encryption, as adding the account already did.
 - When a dialog's OK is refused, MailCraft now says why, even in Select Names.
+- In the browser, a reply written in a message's own page now lists your contacts in Select Names.
 
 ## 0.38.0 - 2026-11-13
 

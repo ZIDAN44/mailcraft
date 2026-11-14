@@ -198,13 +198,32 @@ impl MailApp {
         }
     }
 
-    /// The whole window.
+    /// The whole window: the main window's bars and panes, or a message's own page (the
+    /// browser's), then what ends every frame.
     pub fn ui(&mut self, ui: &mut Ui) {
+        let Some(mut acts) = self.begin_frame(ui) else { return };
+        if let Some(key) = self.ui.page_message.clone() {
+            self.message_page(ui, &key, &mut acts);
+        } else {
+            self.chrome(ui, &mut acts);
+            self.panes(ui, &mut acts);
+            // The windows of their own the main window opens (a page shows its message alone).
+            let ctx = ui.ctx().clone();
+            self.message_windows(&ctx, &mut acts);
+            self.source_windows(&ctx, &mut acts);
+            self.compose_windows(&ctx, &mut acts);
+        }
+        self.end_frame(ui, acts);
+    }
+
+    /// What every frame starts with: the window kept, the fonts, the language and the theme,
+    /// what came from the network and the commands' work, the keys. `None` while the fonts load
+    /// (nothing is drawn); otherwise the actions so far (File's key tip, files dropped on it).
+    fn begin_frame(&mut self, ui: &mut Ui) -> Option<Vec<Action>> {
         let ctx = ui.ctx().clone();
         // The window draws its own title bar (Windows): kept borderless each frame (winit puts the
         // system's frame back when the window is maximized or restored).
-        let own_title_bar = self.services.own_title_bar();
-        if own_title_bar {
+        if self.services.own_title_bar() {
             self.services.keep_frame();
             super::caption::clear_scroll_bars(&ctx);
         }
@@ -218,7 +237,7 @@ impl MailApp {
             // Fonts take effect from the next frame; drawing now would miss the bold family.
             self.install_fonts(&ctx, None, None);
             ctx.request_repaint();
-            return;
+            return None;
         }
         self.apply_language(&ctx);
         motion::set_enabled(&ctx, self.session.prefs.animations);
@@ -275,25 +294,13 @@ impl MailApp {
             acts.push(Action::Backstage(backstage::Page::Info));
         }
         self.files_from_desktop(&ctx, &mut acts);
+        Some(acts)
+    }
+
+    /// The main window's bars: the top bar and the ribbon (and the bars under them), or the File
+    /// page's title bar; the status bar.
+    fn chrome(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
-        if let Some(key) = self.ui.page_message.clone() {
-            self.message_page(ui, &key, &mut acts);
-            if let Some(mut d) = self.ui.dialog.take() {
-                let keep = dialogs::show(&ctx, &mut d, &self.session, &mut self.ui.pictures, &t, &mut acts);
-                if keep && self.ui.dialog.is_none() {
-                    self.ui.dialog = Some(d);
-                }
-            }
-            self.toasts(&ctx);
-            self.pictures_drawn(&ctx);
-            for a in acts {
-                self.act(a);
-            }
-            self.send_body_work(&ctx);
-            self.flush_jobs();
-            self.tell_before_zooming(&ctx);
-            return;
-        }
         // The File page has the window to itself, under the window's own title bar (as Outlook's).
         if self.ui.backstage.is_none() {
             let height = if self.ui.bar_two_rows { TOP_BAR_H + super::bars::BAR_ROW_H + 6.0 } else { TOP_BAR_H };
@@ -301,7 +308,7 @@ impl MailApp {
                 .exact_size(height)
                 .frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(TOP_BAR_MARGIN.0, TOP_BAR_MARGIN.1)))
                 .show(ui, |ui| {
-                    self.top_bar(ui, &mut acts);
+                    self.top_bar(ui, acts);
                 });
             self.ui.top_bar_rect = Some(bar.response.rect);
             egui::Panel::top("ribbon")
@@ -332,7 +339,7 @@ impl MailApp {
                     let rtl = i18n::current().rtl();
                     let room = ui.max_rect();
                     ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| {
-                        crate::keytips::on_ribbon(ui, |ui| self.ribbon(ui, &mut acts))
+                        crate::keytips::on_ribbon(ui, |ui| self.ribbon(ui, acts))
                     });
                     super::ribbon::card_under_ribbon(ui, &t, room);
                     let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
@@ -347,7 +354,7 @@ impl MailApp {
             if self.update_bar_wanted() {
                 egui::Panel::top("update-bar")
                     .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
-                    .show(ui, |ui| self.update_bar(ui, &mut acts));
+                    .show(ui, |ui| self.update_bar(ui, acts));
             }
             // MailCraft's earlier Flatpak, whose mail came over at this start, still installed.
             if self.ui.old_flatpak.is_some() {
@@ -360,7 +367,7 @@ impl MailApp {
             self.ui.ribbon_rect = None;
             // The File page keeps the window's title bar when it's MailCraft's: its mark, the
             // window's buttons, and the space between to drag it by.
-            if own_title_bar {
+            if self.services.own_title_bar() {
                 egui::Panel::top("file-title-bar")
                     .exact_size(TOP_BAR_H)
                     .frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(TOP_BAR_MARGIN.0, TOP_BAR_MARGIN.1)))
@@ -386,13 +393,18 @@ impl MailApp {
             .show(ui, |ui| {
                 self.status_bar(ui);
             });
+    }
 
+    /// The main window's panes: the File page, the welcome with no account yet, or the module's
+    /// folders, list and reading pane (and the To-Do Bar beside the mail).
+    fn panes(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
+        let t = self.ui.tokens;
         if self.ui.backstage.is_some() {
-            backstage::show(&self.session, &mut self.ui, ui, &mut acts);
-            self.ui.backstage_typing = ctx.text_edit_focused();
+            backstage::show(&self.session, &mut self.ui, ui, acts);
+            self.ui.backstage_typing = ui.ctx().text_edit_focused();
         } else if self.session.accounts.is_empty() {
             egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
-                widgets::welcome(ui, &t, self.session.jmap_only, &mut acts);
+                widgets::welcome(ui, &t, self.session.jmap_only, acts);
             });
         } else {
             let module = self.session.module;
@@ -422,12 +434,12 @@ impl MailApp {
                             acts.push(Action::Run("view.folderPane", json!({"minimized": false})));
                         }
                         ui.add_space(10.0);
-                        module_switch_vertical(ui, &t, module, &mut acts);
+                        module_switch_vertical(ui, &t, module, acts);
                     });
                     return;
                 }
                 egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
-                    module_switch(ui, &t, module, &mut acts);
+                    module_switch(ui, &t, module, acts);
                 });
                 // Minimize, as Outlook's ‹ at the top of its folder pane.
                 ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
@@ -437,11 +449,11 @@ impl MailApp {
                     }
                 });
                 match module {
-                    Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
-                    Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
-                    Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
-                    Module::Tasks => tasks::nav(&self.session, &mut self.ui, ui, &mut acts),
-                    Module::Notes => notes::nav(&self.session, &mut self.ui, ui, &mut acts),
+                    Module::Mail => nav::show(&self.session, &t, ui, acts),
+                    Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, acts),
+                    Module::People => people::nav(&self.session, &mut self.ui, ui, acts),
+                    Module::Tasks => tasks::nav(&self.session, &mut self.ui, ui, acts),
+                    Module::Notes => notes::nav(&self.session, &mut self.ui, ui, acts),
                 }
             });
             // Dragged narrower than it goes: minimized, as the button does.
@@ -452,38 +464,38 @@ impl MailApp {
             if module == Module::Mail {
                 // Beside the mail, at the window's end, while what's read keeps its room.
                 let least = if pane == ReadingPane::Right { LIST_LEAST + READING_LEAST } else { LIST_LEAST };
-                todo_bar::panel(&mut self.session, &mut self.ui, ui, least, &mut acts);
+                todo_bar::panel(&mut self.session, &mut self.ui, ui, least, acts);
             }
             let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
             match (module, pane) {
                 (Module::Calendar, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        calendar::show(&self.session, &mut self.ui, ui, &mut acts);
+                        calendar::show(&self.session, &mut self.ui, ui, acts);
                     });
                 }
                 (Module::People, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        people::show(&self.session, &mut self.ui, ui, &mut acts);
+                        people::show(&self.session, &mut self.ui, ui, acts);
                     });
                 }
                 (Module::Tasks, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        tasks::show(&self.session, &mut self.ui, ui, &mut acts);
+                        tasks::show(&self.session, &mut self.ui, ui, acts);
                     });
                 }
                 (Module::Notes, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        notes::show(&self.session, &mut self.ui, ui, &mut acts);
+                        notes::show(&self.session, &mut self.ui, ui, acts);
                     });
                 }
                 (Module::Mail, pane) => match pane {
                     ReadingPane::Right => {
                         let most = (ui.available_width() - READING_LEAST).clamp(LIST_LEAST, 720.0);
                         start("list").resizable(true).default_size(390.0).size_range(LIST_LEAST..=most).frame(list_frame).show(ui, |ui| {
-                            list::show(&self.session, &mut self.ui, ui, &mut acts);
+                            list::show(&self.session, &mut self.ui, ui, acts);
                         });
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                            reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                            reading::show(&mut self.session, &mut self.ui, ui, acts);
                         });
                     }
                     ReadingPane::Bottom => {
@@ -494,30 +506,33 @@ impl MailApp {
                         egui::Panel::top("list-above").resizable(true).default_size(300.0).size_range(140.0..=most).frame(list_frame).show(
                             ui,
                             |ui| {
-                                list::show(&self.session, &mut self.ui, ui, &mut acts);
+                                list::show(&self.session, &mut self.ui, ui, acts);
                             },
                         );
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                            reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                            reading::show(&mut self.session, &mut self.ui, ui, acts);
                         });
                     }
                     ReadingPane::Off => {
                         egui::CentralPanel::default().frame(list_frame).show(ui, |ui| {
                             if self.session.compose.is_some() {
-                                reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
+                                reading::show(&mut self.session, &mut self.ui, ui, acts);
                             } else {
-                                list::show(&self.session, &mut self.ui, ui, &mut acts);
+                                list::show(&self.session, &mut self.ui, ui, acts);
                             }
                         });
                     }
                 },
             }
         }
+    }
 
-        self.message_windows(&ctx, &mut acts);
-        self.source_windows(&ctx, &mut acts);
-        self.compose_windows(&ctx, &mut acts);
-
+    /// What ends every frame, the main window's and a message page's alike: the dialog over it,
+    /// the notices, the pictures asked for, the actions run and the work they ask for sent. Only
+    /// the main window tells of calendar reminders.
+    fn end_frame(&mut self, ui: &mut Ui, mut acts: Vec<Action>) {
+        let ctx = ui.ctx().clone();
+        let t = self.ui.tokens;
         // The address book reads the session's people.
         if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
             && (f.stale || f.directory_rev != self.session.directory.rev)
@@ -555,19 +570,22 @@ impl MailApp {
         }
         // The window's resize edges, over everything, when it has no system frame to resize by;
         // its title bar over a dialog holding the window.
-        if own_title_bar {
+        if self.services.own_title_bar() {
             super::caption::over_a_modal(&ctx, &t);
             super::caption::resize_zones(ui);
         }
         self.toasts(&ctx);
-        // Calendar reminders: the window, and the desktop told of each as it comes.
-        for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
-            let when = if r.all_day { String::new() } else { crate::calendar::hm(r.start, &self.session) };
-            self.services.notify(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
-        }
-        reminders::show(&ctx, &mut self.ui.reminders, &self.session, &t, &mut acts);
-        if reminders::showing(&self.ui.reminders) {
-            ctx.request_repaint_after(std::time::Duration::from_secs(15));
+        // Calendar reminders: the window, and the desktop told of each as it comes. A message's
+        // own page leaves them to the main window's (each page would tell of them again).
+        if self.ui.page_message.is_none() {
+            for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
+                let when = if r.all_day { String::new() } else { crate::calendar::hm(r.start, &self.session) };
+                self.services.notify(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
+            }
+            reminders::show(&ctx, &mut self.ui.reminders, &self.session, &t, &mut acts);
+            if reminders::showing(&self.ui.reminders) {
+                ctx.request_repaint_after(std::time::Duration::from_secs(15));
+            }
         }
         // Video thumbnails the cards asked for.
         for (path, frame) in self.ui.video_frames.iter_mut().filter(|(_, f)| **f == VideoFrame::Pending) {
