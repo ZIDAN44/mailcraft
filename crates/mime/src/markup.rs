@@ -111,9 +111,14 @@ fn is_url_start(s: &str) -> bool {
     s.starts_with("https://") || s.starts_with("http://")
 }
 
-fn safe_url(u: &str) -> bool {
-    let l = u.to_ascii_lowercase();
-    (l.starts_with("https://") || l.starts_with("http://") || l.starts_with("mailto:")) && !u.contains(['"', '<', '>', ' '])
+/// What an address can't hold to be written as a link.
+const NOT_IN_URL: [char; 4] = ['"', '<', '>', ' '];
+
+/// Whether an address starts as a link's may: `https:`, `http:` or `mailto:`, in any case. Its
+/// start alone is lower-cased (all of a long one was, for each `[` before it).
+fn safe_scheme(u: &str) -> bool {
+    let head = u.char_indices().nth(8).map_or(u, |(at, _)| u.get(..at).unwrap_or(u)).to_ascii_lowercase();
+    head.starts_with("https://") || head.starts_with("http://") || head.starts_with("mailto:")
 }
 
 /// Where `needle` next is in `line` at or after `from`, by what an earlier search (`seen`: where
@@ -122,19 +127,26 @@ fn safe_url(u: &str) -> bool {
 /// the end of the line from every opening mark, and a line of `[` (or of unclosed `*`) took
 /// time in its length squared.
 fn next_of(line: &str, needle: &str, seen: &mut (usize, Option<usize>), from: usize) -> Option<usize> {
+    next_by(line, |r| r.find(needle), seen, from)
+}
+
+/// [`next_of`], what's looked for found by `find`.
+fn next_by(line: &str, find: impl Fn(&str) -> Option<usize>, seen: &mut (usize, Option<usize>), from: usize) -> Option<usize> {
     if from >= seen.0 && seen.1.is_none_or(|at| at >= from) {
         return seen.1;
     }
-    let at = line.get(from..).and_then(|r| crate::html::work::scanned(r, r.find(needle))).map(|a| from + a);
+    let at = line.get(from..).and_then(|r| crate::html::work::scanned(r, find(r))).map(|a| from + a);
     *seen = (from, at);
     at
 }
 
 /// Split a line into inline pieces. Unclosed marks stay as text.
 pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
-    // The closes looked for, and what was last found of each ([`next_of`]).
+    // The closes looked for, and what was last found of each ([`next_of`]); then, for links, a
+    // `]`, a `)` and what an address can't hold (found in review: a line of links whose address
+    // never ends, `[a](` again and again, looked for the `)` to the end of the line from each).
     const CLOSES: [&str; 5] = ["**", "~~", "`", "*", "]("];
-    let mut seen = [(usize::MAX, None); 5];
+    let mut seen = [(usize::MAX, None); 8];
     let mut out = Vec::new();
     let mut text_start = 0;
     let mut i = 0;
@@ -174,18 +186,21 @@ pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
             let from = i + open;
             let t = seen.get_mut(4).and_then(|s| next_of(line, "](", s, from)).map(|at| at - from);
             rest.get(open..).zip(t).and_then(|(r, t)| {
-                let text = &r[..t];
-                let after = &r[t + 2..];
-                let end = crate::html::work::scanned(after, after.find(')'))?;
-                let url = &after[..end];
-                let used = open + t + 2 + end + 1;
-                if text.contains(']') {
+                // Where its `](` is, and its address starts and ends, in the line.
+                let close = from + t;
+                let url_from = close + 2;
+                let url_end = next_of(line, ")", seen.get_mut(6)?, url_from)?;
+                // No `]` in its text: the first after its `[` is its `](`'s.
+                if next_of(line, "]", seen.get_mut(5)?, from)? < close {
                     return None;
                 }
+                let (text, url) = (r.get(..t)?, line.get(url_from..url_end)?);
+                let used = open + t + 2 + url.len() + 1;
                 if pic {
                     url.starts_with("cid:").then_some((Inline::Picture { alt: text, src: url }, used))
                 } else {
-                    safe_url(url).then_some((Inline::Link { text, url }, used))
+                    let clean = next_by(line, |r| r.find(NOT_IN_URL), seen.get_mut(7)?, url_from).is_none_or(|bad| bad >= url_end);
+                    (safe_scheme(url) && clean).then_some((Inline::Link { text, url }, used))
                 }
             })
         } else if is_url_start(rest) && (i == 0 || line[..i].ends_with([' ', '(', '\t'])) {
@@ -354,6 +369,12 @@ pub fn pictures(text: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
+    /// Whether an address will do for a link, as [`inlines`] read it before it was read once.
+    fn safe_url(u: &str) -> bool {
+        let l = u.to_ascii_lowercase();
+        (l.starts_with("https://") || l.starts_with("http://") || l.starts_with("mailto:")) && !u.contains(['"', '<', '>', ' '])
+    }
+
     /// [`inlines`] as it was, searching the line from every mark: what it reads, the new one
     /// must read too.
     fn by_search<'a>(line: &'a str) -> Vec<Inline<'a>> {
@@ -438,9 +459,20 @@ mod tests {
         }
     }
 
-    /// Long lines of opening marks that never close (pasted, or quoted in a reply).
-    fn open_marks() -> [String; 4] {
-        ["[".repeat(200_000), "[]".repeat(100_000), "*a".repeat(100_000), "`".to_string() + &"~~a".repeat(60_000)]
+    /// Long lines of opening marks that never close (pasted, or quoted in a reply): links and
+    /// pictures whose address never ends among them, and links that all end at one address that
+    /// won't do.
+    fn open_marks() -> [String; 8] {
+        [
+            "[".repeat(200_000),
+            "[]".repeat(100_000),
+            "*a".repeat(100_000),
+            "`".to_string() + &"~~a".repeat(60_000),
+            "[a](".repeat(50_000),
+            "![a](".repeat(40_000),
+            "[".repeat(200_000) + "](javascript:x)",
+            "[a](https://x y".repeat(12_000) + ")",
+        ]
     }
 
     /// A long line of opening marks that never close reads at once: each looked for its close to

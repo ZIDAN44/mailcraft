@@ -109,6 +109,7 @@ on GitHub.
 - In the task list and the To-Do Bar, due dates are written in the order chosen under Dates, with the weekday.
 - On Windows without ffmpeg, video attachments now show their frame on a busy or slow computer too.
 - On Windows, changes made while an account syncs no longer briefly disappear from the folder it just synced.
+- Text with many unfinished links (`[a](` over and over, pasted or quoted in a reply) no longer slows the message editor down.
 
 ## 0.38.0 - 2026-11-13
 
