@@ -506,6 +506,26 @@ fn attaching_reads_plain_files_only() {
     assert_eq!(s.compose.as_ref().map(|c| c.attachments.len()), Some(1));
 }
 
+/// A file over 25 MB is refused in the words of attaching, however it comes, and so is one that
+/// takes the message past 25 MB.
+#[test]
+fn attachments_over_25_mb_are_refused() {
+    let mut s = sample_session("attach-big");
+    s.run("mail.new", &json!({})).unwrap();
+    let dir = s.store.as_ref().unwrap().root().to_path_buf();
+    let big = dir.join("big.bin");
+    std::fs::File::create(&big).unwrap().set_len((25 << 20) + 1).unwrap();
+    let path = big.to_string_lossy().into_owned();
+    assert_eq!(s.run("compose.attach", &json!({ "path": path })), Err(CmdError::Failed(format!("{path} is larger than 25 MB"))));
+    let n = s.hand(vec![0; (25 << 20) + 1]);
+    assert_eq!(s.run("compose.attach", &json!({"name": "big.bin", "handed": n})), Err(CmdError::Failed("attachments are limited to 25 MB".into())));
+    let n = s.hand(vec![0; 25 << 20]);
+    s.run("compose.attach", &json!({"name": "full.bin", "handed": n})).unwrap();
+    let e = s.run("compose.attach", &json!({"name": "one.txt", "data": [1]}));
+    assert_eq!(e, Err(CmdError::Failed("attachments are limited to 25 MB in total".into())));
+    assert_eq!(s.compose.as_ref().map(|c| c.attachments.len()), Some(1));
+}
+
 /// Issue #11 (#16's test): a signature can hold pictures. Kept in its HTML with the account, they
 /// go into new messages (each under a name of the message's own) and are sent with them; a
 /// signature put in again doesn't add them twice.

@@ -139,20 +139,26 @@ fn key_param(s: &Session, v: &Value) -> Result<mailcraft_model::MessageKey, CmdE
 
 /// A file's bytes, refused when it's bigger than `max` (read no further than that).
 pub(crate) fn read_capped(path: &str, max: u64) -> Result<Vec<u8>, CmdError> {
+    read_within(path, max, || CmdError::Params(format!("{path} is too big")))
+}
+
+/// [`read_capped`], refused with `too_big` when the file is bigger than `max`: a caller says so
+/// in its own words without reading the words of another error.
+pub(crate) fn read_within(path: &str, max: u64, too_big: impl Fn() -> CmdError) -> Result<Vec<u8>, CmdError> {
     use std::io::Read;
     // Only a plain file: a device (`/dev/zero`) reads forever and a pipe blocks on opening,
     // whatever size they report.
     match std::fs::metadata(path) {
         Err(e) => return Err(CmdError::Failed(format!("{path}: {e}"))),
         Ok(m) if !m.is_file() => return Err(CmdError::Params(format!("{path} isn't a file"))),
-        Ok(m) if m.len() > max => return Err(CmdError::Params(format!("{path} is too big"))),
+        Ok(m) if m.len() > max => return Err(too_big()),
         Ok(_) => {}
     }
     let f = std::fs::File::open(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     let mut bytes = Vec::new();
     f.take(max.saturating_add(1)).read_to_end(&mut bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     if bytes.len() as u64 > max {
-        return Err(CmdError::Params(format!("{path} is too big")));
+        return Err(too_big());
     }
     Ok(bytes)
 }

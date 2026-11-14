@@ -165,6 +165,8 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
 
 /// Largest attachment accepted (most servers refuse messages over 25–35 MB).
 pub(super) const ATTACH_MAX: usize = 25 << 20;
+/// [`ATTACH_MAX`] in MB, as the messages say it.
+const ATTACH_MAX_MB: usize = ATTACH_MAX >> 20;
 
 /// Most files kept handed over at once ([`Session::hand`]): each command takes its own.
 const HANDED_KEPT: usize = 4;
@@ -203,29 +205,25 @@ impl Session {
 }
 
 /// A file from `path`, or `name` and the bytes handed over (`handed`) or given (`data`), at most
-/// 25 MB.
+/// [`ATTACH_MAX`].
 pub(super) fn file_param(s: &mut Session, v: &Value) -> Result<(String, Vec<u8>), CmdError> {
+    let too_big = || CmdError::Failed(format!("attachments are limited to {ATTACH_MAX_MB} MB"));
     let (name, data) = if let Some(path) = p::str(v, "path") {
         let pb = std::path::PathBuf::from(path);
-        let data = read_capped(path, ATTACH_MAX as u64).map_err(|e| match e {
-            CmdError::Params(m) if m.ends_with("too big") => CmdError::Failed(format!("{path} is larger than 25 MB")),
-            other => other,
-        })?;
+        let data = read_within(path, ATTACH_MAX as u64, || CmdError::Failed(format!("{path} is larger than {ATTACH_MAX_MB} MB")))?;
         (pb.file_name().and_then(|n| n.to_str()).unwrap_or("attachment").to_string(), data)
     } else if let Some(data) = s.take_handed(v)? {
         (p::req_str(v, "name")?.to_string(), data)
     } else {
         let name = p::req_str(v, "name")?.to_string();
-        let data = p::bytes(v, "data", ATTACH_MAX)
-            .map_err(|e| match e {
-                CmdError::Params(m) if m.ends_with("too big") => CmdError::Failed("attachments are limited to 25 MB".into()),
-                other => other,
-            })?
-            .ok_or_else(|| CmdError::Params("`path`, or `name` and `data`, are required".into()))?;
+        if v.get("data").and_then(Value::as_array).is_some_and(|list| list.len() > ATTACH_MAX) {
+            return Err(too_big());
+        }
+        let data = p::bytes(v, "data", ATTACH_MAX)?.ok_or_else(|| CmdError::Params("`path`, or `name` and `data`, are required".into()))?;
         (name, data)
     };
     if data.len() > ATTACH_MAX {
-        return Err(CmdError::Failed("attachments are limited to 25 MB".into()));
+        return Err(too_big());
     }
     Ok((name, data))
 }
@@ -240,7 +238,7 @@ pub(super) fn attach(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.composing_mut()?;
     let total: usize = compose_size(c) + data.len();
     if total > ATTACH_MAX {
-        return Err(CmdError::Failed("attachments are limited to 25 MB in total".into()));
+        return Err(CmdError::Failed(format!("attachments are limited to {ATTACH_MAX_MB} MB in total")));
     }
     let name = sanitize_filename(&name);
     let mime = mime_from_name(&name).to_string();
@@ -260,7 +258,7 @@ pub(super) fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
     let cid = s.new_cid();
     let c = s.composing_mut()?;
     if compose_size(c) + data.len() > ATTACH_MAX {
-        return Err(CmdError::Failed("pictures and attachments are limited to 25 MB in total".into()));
+        return Err(CmdError::Failed(format!("pictures and attachments are limited to {ATTACH_MAX_MB} MB in total")));
     }
     c.inline.push(mailcraft_mime::InlinePicture { cid: cid.clone(), name, mime, data });
     c.plain = false;
