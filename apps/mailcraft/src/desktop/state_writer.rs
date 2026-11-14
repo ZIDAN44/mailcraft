@@ -147,15 +147,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let path = dir.join("ui.json");
         let read = || std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok());
-        let mut w = StateWriter::new(path.clone());
+        let w = StateWriter::new(path.clone());
         // The thread kept from writing.
         let shared = w.shared.clone();
         let held = shared.pause.lock().unwrap_or_else(PoisonError::into_inner);
-        let began = std::time::Instant::now();
-        for n in 0..100 {
-            w.keep(json!({ "n": n }));
-        }
-        assert!(began.elapsed() < std::time::Duration::from_secs(1), "{:?}", began.elapsed());
+        // Handed over from another thread, as the window would: all of it while the writing is
+        // held, or never (a minute: a wait for the disk fails the test, not a busy computer).
+        let (handed, back) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut w = w;
+            for n in 0..100 {
+                w.keep(json!({ "n": n }));
+            }
+            let _ = handed.send(w);
+        });
+        let mut w = back.recv_timeout(std::time::Duration::from_secs(60)).expect("handing over waited for the disk");
         drop(held);
         w.settle();
         assert_eq!(read(), Some(json!({ "n": 99 })), "the latest");
