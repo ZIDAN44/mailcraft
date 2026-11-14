@@ -7,6 +7,7 @@ mod deep;
 mod entities;
 mod fonts;
 mod footers;
+pub(crate) mod marks;
 mod outlook;
 mod page;
 mod plain;
@@ -168,8 +169,8 @@ pub const SIGNATURE_PICTURE_MAX: usize = 1 << 20;
 /// The kinds of picture a signature can hold: those mail programs show (#16).
 pub const SIGNATURE_PICTURE_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
-/// Where a signature's picture stands while its HTML becomes text (a private-use character).
-const SIGNATURE_MARK: char = '\u{E002}';
+/// Where a signature's picture stands while its HTML becomes text.
+const SIGNATURE_MARK: char = marks::SIGNATURE;
 
 /// The pictures written into a signature's HTML (`<img src="data:image/png;base64,…">`, as a
 /// signature keeps them with it), each given a `cid:` of its own in their place: the HTML with
@@ -325,7 +326,8 @@ pub fn local_pictures(html: &str, mut read: impl FnMut(&str) -> Option<(String, 
 /// laid out as text, and pictures by reference. No scripts, styles or remote loads: what comes
 /// out is plain data. Never panics; empty when conversion fails.
 pub fn html_to_rich(html: &str) -> RichText {
-    html_to_rich_within(html, HTML_MAX, false)
+    // A size is marked before ([`crate::layout::sized_html`]): none the HTML writes itself.
+    html_to_rich_within(&marks::without(html, marks::is_size), HTML_MAX, false)
 }
 
 /// [`html_to_rich`], up to `max` characters of `html` (more for what MailCraft wrote from a
@@ -440,11 +442,11 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
 }
 
 /// Marks where a heading starts, so a paragraph that just begins with `#` isn't taken for one.
-pub(super) const HEADING_MARK: char = '\u{E000}';
+pub(super) const HEADING_MARK: char = marks::HEADING;
 
 /// The description given to pictures that have none (a report's charts, a logo), which the
 /// converter would otherwise leave out: removed again once they're pictures.
-pub(super) const PICTURE_MARK: char = '\u{E001}';
+pub(super) const PICTURE_MARK: char = marks::PICTURE;
 
 /// An attribute's value in a tag's text (`<img alt="x" …>`), as written; `Some("")` when it's
 /// there and empty.

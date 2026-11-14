@@ -660,7 +660,7 @@ fn a_signature_keeps_its_pictures() {
     // Not pictures, too big, or on the web: left out; the text stays.
     let big = "A".repeat(SIGNATURE_PICTURE_MAX / 3 * 4 + 400);
     let odd = format!(
-        "<p>Hi<img src=\"data:image/svg+xml;base64,PHN2Zz4=\"><img src=\"data:image/png;base64,{big}\"><img src=\"https://x.example/a.png\"><img src=\"data:image/png;base64,!!!\">\u{E002}</p>"
+        "<p>Hi<img src=\"data:image/svg+xml;base64,PHN2Zz4=\"><img src=\"data:image/png;base64,{big}\"><img src=\"https://x.example/a.png\"><img src=\"data:image/png;base64,!!!\">\u{E002}\u{E005}</p>"
     );
     let (t, _, pictures) = signature_html(&odd);
     assert_eq!((t.as_str(), pictures.len()), ("Hi", 0));

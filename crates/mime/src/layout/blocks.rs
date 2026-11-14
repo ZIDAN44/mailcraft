@@ -186,9 +186,11 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     let mut pending = String::new();
     let flush = |pending: &mut String, out: &mut Vec<Block>, ctx: &Ctx| {
         if pending.chars().any(|c| !c.is_whitespace()) || pending.contains("<img") {
+            // With the sizes the text was marked with as it was written ([`super::ready`]).
+            let rich = |html: &str| crate::html::html_to_rich_within(html, crate::HTML_MAX, false);
             let rich = match &ctx.color {
-                Some(c) => crate::html_to_rich(&format!("{}<div style=\"color:{c}\">{}</div>", ctx.css, pending)),
-                None => crate::html_to_rich(&format!("{}{}", ctx.css, pending)),
+                Some(c) => rich(&format!("{}<div style=\"color:{c}\">{}</div>", ctx.css, pending)),
+                None => rich(&format!("{}{}", ctx.css, pending)),
             };
             if !rich.is_empty() {
                 out.push(Block::Text(rich));

@@ -307,6 +307,8 @@ fn escaped(t: &str, out: &mut String, value: bool) {
             '&' if chars.peek().is_none_or(|n| n.is_ascii_alphanumeric() || *n == '#') => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '"' if value => out.push_str("&quot;"),
+            // A size is marked as the text is written ([`sized_html`]): none the message writes.
+            c if crate::html::marks::is_size(c) => {}
             c => out.push(c),
         }
     }

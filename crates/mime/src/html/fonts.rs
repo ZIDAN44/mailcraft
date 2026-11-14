@@ -5,13 +5,11 @@
 
 use crate::rich::{DEFAULT_SIZE, Style, Styles};
 
-/// Starts a marked element; the next character (from [`INDEX_BASE`]) says which.
-const START: char = '\u{E020}';
-/// Ends the innermost marked element.
-const END: char = '\u{E021}';
-const INDEX_BASE: u32 = 0xE100;
+// Where a marked element starts (the next character, from `INDEX_BASE`, says which) and where
+// the innermost ends ([`super::marks`]).
+use super::marks::{FONT_END as END, FONT_INDEX as INDEX_BASE, FONT_START as START};
 /// Most marked elements (the rest keep the size around them).
-const MAX_MARKS: usize = 3000;
+pub(super) const MAX_MARKS: usize = 3000;
 
 /// What a marked element sets: its size in points and its typeface.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -76,8 +74,11 @@ fn font_of(tag: &str, name: &str) -> Option<Font> {
     (f != Font::default()).then_some(f)
 }
 
-/// Mark where each element with a size or typeface starts and ends; the fonts, by mark.
+/// Mark where each element with a size or typeface starts and ends; the fonts, by mark. Any mark
+/// already in it is taken out first: pasted text that had one was read as a size or typeface.
 pub(crate) fn mark(html: &str) -> (String, Vec<Font>) {
+    let html = super::marks::without(html, |c| c == START || c == END);
+    let html = html.as_ref();
     let lower = html.to_ascii_lowercase();
     let mut out = String::with_capacity(html.len() + 64);
     let mut fonts: Vec<Font> = Vec::new();
@@ -238,5 +239,20 @@ mod tests {
         // Case and spacing as before.
         let (_, f) = mark("<FONT SIZE = 5 FACE='Tahoma'>x</FONT>");
         assert_eq!(f, vec![Font { size: Some(18), family: Some("Tahoma".into()) }]);
+    }
+
+    /// The marks MailCraft writes, written by the sender or in pasted text, are no marks: a
+    /// typeface's start and its index took the size of the first element marked; a size's mark
+    /// set its size; each was taken out of the text it was in.
+    #[test]
+    fn marks_written_in_the_html_are_no_marks() {
+        let (text, styles) = crate::pasted_html("<span style='font-size:20pt'>a</span>\u{E020}\u{E100}b\u{E021}c");
+        assert_eq!(text, "a\u{E100}bc");
+        assert_eq!(styles.style(0).size, Some(20));
+        assert!((1..4).all(|i| styles.style(i).size.is_none()), "{styles:?}");
+        let r = crate::html_to_rich("<p>a\u{F0018}b\u{F0100}c</p>");
+        assert_eq!(r.iter().flatten().map(|s| (s.text.as_str(), s.size)).collect::<Vec<_>>(), [("abc", None)]);
+        let p = crate::tests::util::message("<p style=\"font-size:10px\">a\u{F0018}b</p>");
+        assert!(p.rich.iter().flatten().all(|s| s.size == Some(10) && !s.text.contains('\u{F0018}')), "{:?}", p.rich);
     }
 }

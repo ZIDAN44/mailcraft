@@ -3,14 +3,10 @@
 
 use super::*;
 
-/// Where raised and lowered text start, and where they end ([`mark_scripts`]).
-const SUP_MARK: char = '\u{E002}';
-const SUB_MARK: char = '\u{E003}';
-const SCRIPT_END: char = '\u{E004}';
-/// Where text of a size starts (the first plus its size in pixels) and ends, in text written for
-/// the rich text: in a plane of private characters that mail doesn't use.
-const SIZE_MARKS: u32 = 0xF_0000;
-pub(crate) const SIZE_END: char = '\u{F_0100}';
+// Where raised and lowered text start and end, and where text of a size starts (the first plus
+// its size in pixels) and ends ([`super::marks`]).
+pub(crate) use super::marks::SIZE_END;
+use super::marks::{SCRIPT_END, SIZES as SIZE_MARKS, SUB as SUB_MARK, SUP as SUP_MARK};
 /// The sizes marked, in pixels.
 const SMALLEST: u16 = 9;
 const LARGEST: u16 = 96;
