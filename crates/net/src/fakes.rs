@@ -1,4 +1,5 @@
-//! Servers of the tests' own, in memory: IMAP, CalDAV/CardDAV, EWS, Graph and JMAP.
+//! Servers of the tests' own, in memory: IMAP, CalDAV/CardDAV, EWS, Graph and JMAP; and a proxy
+//! to put in front of one, for a link that misbehaves.
 
 mod exchange_e2e;
 pub(crate) mod fake;
@@ -6,6 +7,7 @@ pub(crate) mod fake_dav;
 pub(crate) mod fake_ews;
 pub(crate) mod fake_graph;
 pub(crate) mod fake_jmap;
+pub(crate) mod proxy;
 mod real_ews;
 mod real_layout;
 mod real_pgp;

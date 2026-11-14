@@ -1,6 +1,7 @@
 //! An account removed while its worker is at work: nothing of it is written again.
 
 use super::*;
+use crate::fakes::proxy::Proxy;
 
 /// Found in review: an account removed while its worker was syncing a folder had the folder's
 /// cache written back as the sync ended, and its files came back with the Inbox in them (an
@@ -44,37 +45,13 @@ fn a_folder_synced_as_its_account_is_removed_writes_nothing() {
     let _ = std::fs::remove_dir_all(store.root());
 }
 
-/// A proxy to the server at `port` that holds each answer `hold` before passing it on (a slow
-/// server: each HTTP request its own connection).
-fn slow_proxy(port: u16, hold: Duration) -> u16 {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let at = listener.local_addr().unwrap().port();
-    std::thread::spawn(move || {
-        for client in listener.incoming().flatten() {
-            let Ok(server) = std::net::TcpStream::connect(("127.0.0.1", port)) else { continue };
-            let (Ok(mut from_client), Ok(mut to_server)) = (client.try_clone(), server.try_clone()) else { continue };
-            let (mut from_server, mut to_client) = (server, client);
-            std::thread::spawn(move || {
-                let _ = std::io::copy(&mut from_client, &mut to_server);
-            });
-            std::thread::spawn(move || {
-                let mut answer = Vec::new();
-                let _ = std::io::Read::read_to_end(&mut from_server, &mut answer);
-                std::thread::sleep(hold);
-                let _ = std::io::Write::write_all(&mut to_client, &answer);
-                let _ = to_client.shutdown(std::net::Shutdown::Both);
-            });
-        }
-    });
-    at
-}
-
 /// `base`, a server's address on this computer (`http://127.0.0.1:port/path`), through a
-/// [`slow_proxy`] holding each answer 400 ms.
+/// proxy holding each answer 400 ms (a slow server: each HTTP request its own connection).
 fn slowed(base: &str) -> String {
     let rest = base.strip_prefix("http://127.0.0.1:").unwrap();
     let (port, path) = rest.split_once('/').map_or((rest, String::new()), |(p, path)| (p, format!("/{path}")));
-    format!("http://127.0.0.1:{}{path}", slow_proxy(port.parse().unwrap(), Duration::from_millis(400)))
+    let proxy = Proxy { hold: Some(Duration::from_millis(400)), ..Proxy::default() }.to(port.parse().unwrap());
+    format!("http://127.0.0.1:{}{path}", proxy.port)
 }
 
 /// Found in review: the same for a JMAP account (and from the code, Microsoft Graph, Exchange

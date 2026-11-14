@@ -1,6 +1,7 @@
 //! The worker's drafts: kept on this computer when it stops before saving them (#53).
 
 use super::*;
+use crate::fakes::proxy::{Cut, Proxy};
 
 /// A worker stopped (working offline, its settings or password changed, MailCraft closing) with
 /// a draft still to save keeps it on this computer and says so, so the message held for it goes
@@ -368,36 +369,8 @@ fn a_removed_accounts_saved_draft_writes_nothing() {
 /// A proxy to the server at `port` that drops the connection, both ways, when the client sends
 /// `marker` (as a proxy resetting on a message it won't pass), and how many connections it took.
 fn dropping_proxy(port: u16, marker: &'static [u8]) -> (u16, Arc<AtomicUsize>) {
-    use std::io::{Read, Write};
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let at = listener.local_addr().unwrap().port();
-    let taken = Arc::new(AtomicUsize::new(0));
-    let count = taken.clone();
-    std::thread::spawn(move || {
-        for client in listener.incoming().flatten() {
-            count.fetch_add(1, Ordering::Relaxed);
-            let Ok(server) = std::net::TcpStream::connect(("127.0.0.1", port)) else { continue };
-            let (Ok(mut from_client), Ok(mut to_server)) = (client.try_clone(), server.try_clone()) else { continue };
-            let (mut from_server, mut to_client) = (server, client);
-            std::thread::spawn(move || {
-                let _ = std::io::copy(&mut from_server, &mut to_client);
-                let _ = to_client.shutdown(std::net::Shutdown::Both);
-            });
-            std::thread::spawn(move || {
-                let (mut tail, mut buf) = (Vec::new(), [0u8; 8192]);
-                while let Ok(n @ 1..) = from_client.read(&mut buf) {
-                    tail.extend_from_slice(&buf[..n]);
-                    if tail.windows(marker.len()).any(|w| w == marker) || to_server.write_all(&buf[..n]).is_err() {
-                        break;
-                    }
-                    tail.drain(..tail.len().saturating_sub(marker.len()));
-                }
-                let _ = from_client.shutdown(std::net::Shutdown::Both);
-                let _ = to_server.shutdown(std::net::Shutdown::Both);
-            });
-        }
-    });
-    (at, taken)
+    let proxy = Proxy { client: Some((marker, Cut::Drop)), ..Proxy::default() }.to(port);
+    (proxy.port, proxy.taken)
 }
 
 /// Found in review: a draft kept on this computer whose filing dropped the connection (too big

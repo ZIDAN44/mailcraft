@@ -3,6 +3,7 @@
 
 use super::drafts::{kept_texts, on_the_server, wait_for, with_drafts};
 use super::*;
+use crate::fakes::proxy::{Cut, Hang, Proxy};
 
 /// Every event the pool says until `done`, thirty seconds at most (a guard against hanging).
 fn events_until(pool: &Pool, done: impl Fn() -> bool) -> Vec<Event> {
@@ -69,41 +70,6 @@ fn a_save_on_its_way_as_the_connection_starts_again_is_filed_once() {
     assert_eq!(said, 1, "{seen:?}");
 }
 
-/// A proxy to the server at `port` that drops the connection, both ways, the first time the
-/// server's answer has `marker` in it (the server has done what it answers).
-fn answer_dropping_proxy(port: u16, marker: &'static [u8]) -> u16 {
-    use std::io::{Read, Write};
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let at = listener.local_addr().unwrap().port();
-    let dropped = Arc::new(AtomicBool::new(false));
-    std::thread::spawn(move || {
-        for client in listener.incoming().flatten() {
-            let Ok(server) = std::net::TcpStream::connect(("127.0.0.1", port)) else { continue };
-            let (Ok(mut from_server), Ok(mut to_server)) = (server.try_clone(), server.try_clone()) else { continue };
-            let (Ok(mut from_client), mut to_client) = (client.try_clone(), client) else { continue };
-            let dropped = dropped.clone();
-            std::thread::spawn(move || {
-                let _ = std::io::copy(&mut from_client, &mut to_server);
-                let _ = to_server.shutdown(std::net::Shutdown::Both);
-            });
-            std::thread::spawn(move || {
-                let (mut tail, mut buf) = (Vec::new(), [0u8; 8192]);
-                while let Ok(n @ 1..) = from_server.read(&mut buf) {
-                    tail.extend_from_slice(&buf[..n]);
-                    let hit = tail.windows(marker.len()).any(|w| w == marker);
-                    if (hit && !dropped.swap(true, Ordering::Relaxed)) || to_client.write_all(&buf[..n]).is_err() {
-                        break;
-                    }
-                    tail.drain(..tail.len().saturating_sub(marker.len()));
-                }
-                let _ = to_client.shutdown(std::net::Shutdown::Both);
-                let _ = from_server.shutdown(std::net::Shutdown::Both);
-            });
-        }
-    });
-    at
-}
-
 /// Found in review: a draft was remembered as MailCraft's own copy only once the server answered
 /// its APPEND, so a copy the server kept without its answer getting here (the connection lost, or
 /// MailCraft closed meanwhile, the draft kept to be filed again) wasn't known as its own, and the
@@ -112,7 +78,8 @@ fn answer_dropping_proxy(port: u16, marker: &'static [u8]) -> u16 {
 #[test]
 fn a_draft_whose_answer_was_lost_is_filed_once() {
     let (st, store, mut account) = with_drafts("answer-lost-once");
-    account.imap.port = answer_dropping_proxy(account.imap.port, b"APPENDUID");
+    // The server's answer to the filing (it has done what it answers) drops the connection, once.
+    account.imap.port = Proxy { server: Some((b"APPENDUID", Cut::DropOnce)), ..Proxy::default() }.to(account.imap.port).port;
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let text = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <lost@studio.example>\r\n\r\nto finish\r\n";
@@ -126,61 +93,6 @@ fn a_draft_whose_answer_was_lost_is_filed_once() {
     assert_eq!(on_the_server(&st), [text]);
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
-}
-
-/// A link that hangs ([`hanging_proxy`]): whether it has, and, set by the test, that it's closed.
-#[derive(Default)]
-struct Hang {
-    hung: AtomicBool,
-    closed: AtomicBool,
-}
-
-/// The longest a hung link waits to be closed: longer than [`events_until`] waits, so a
-/// connection that waited for it is caught.
-const HANG_MOST: Duration = Duration::from_secs(60);
-
-/// A proxy to the server at `port` whose first connection goes silent, both ways, once the client
-/// sends `marker` (the link hangs), and is closed once the test says ([`Hang::closed`]); the others
-/// pass everything.
-fn hanging_proxy(port: u16, marker: &'static [u8]) -> (u16, Arc<Hang>) {
-    use std::io::{Read, Write};
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let at = listener.local_addr().unwrap().port();
-    let hang = Arc::new(Hang::default());
-    let first = hang.clone();
-    std::thread::spawn(move || {
-        for (n, client) in listener.incoming().flatten().enumerate() {
-            let Ok(server) = std::net::TcpStream::connect(("127.0.0.1", port)) else { continue };
-            let (Ok(mut from_client), Ok(mut to_server)) = (client.try_clone(), server.try_clone()) else { continue };
-            let (mut from_server, mut to_client) = (server, client);
-            std::thread::spawn(move || {
-                let _ = std::io::copy(&mut from_server, &mut to_client);
-                let _ = to_client.shutdown(std::net::Shutdown::Both);
-            });
-            let first = (n == 0).then(|| first.clone());
-            std::thread::spawn(move || {
-                let (mut tail, mut buf) = (Vec::new(), [0u8; 8192]);
-                while let Ok(n @ 1..) = from_client.read(&mut buf) {
-                    tail.extend_from_slice(&buf[..n]);
-                    if let Some(hang) = first.as_ref().filter(|_| tail.windows(marker.len()).any(|w| w == marker)) {
-                        hang.hung.store(true, Ordering::Relaxed);
-                        let end = Instant::now() + HANG_MOST;
-                        while !hang.closed.load(Ordering::Relaxed) && Instant::now() < end {
-                            std::thread::sleep(Duration::from_millis(20));
-                        }
-                        break;
-                    }
-                    if to_server.write_all(&buf[..n]).is_err() {
-                        break;
-                    }
-                    tail.drain(..tail.len().saturating_sub(marker.len()));
-                }
-                let _ = from_client.shutdown(std::net::Shutdown::Both);
-                let _ = to_server.shutdown(std::net::Shutdown::Both);
-            });
-        }
-    });
-    (at, hang)
 }
 
 /// A draft whose filing hangs, and another.
@@ -197,8 +109,9 @@ fn restarted_while_a_filing_hangs(name: &str, idle: bool, newer: Option<&str>) -
     if idle {
         st.lock().unwrap().caps = "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA IDLE";
     }
-    let (port, hang) = hanging_proxy(account.imap.port, b"APPEND");
-    account.imap.port = port;
+    // The link goes silent as the draft's filing is sent, until the test closes it.
+    let hang = Arc::new(Hang::default());
+    account.imap.port = Proxy { client: Some((b"APPEND", Cut::Hang(hang.clone()))), ..Proxy::default() }.to(account.imap.port).port;
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("pw".into())) });
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: HANGING.into(), folder: "Drafts".into(), replaces: None });
