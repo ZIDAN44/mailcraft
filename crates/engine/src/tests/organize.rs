@@ -625,6 +625,9 @@ fn quick_steps_mark_then_move_the_selection() {
     assert!(s.folder_state("sample", &archive).messages.iter().any(|m| m.subject == "Open call: winter group show"));
     // No such step; none selected.
     assert!(s.run("quickStep.9", &json!({})).is_err());
+    // A place past the end, the last one a number can name among them: refused, saying so.
+    let past = s.run("quickStep.run", &json!({"index": u64::MAX}));
+    assert!(matches!(&past, Err(CmdError::Disabled(m)) if m.starts_with("there's no Quick Step")), "{past:?}");
     s.selection.clear();
     assert!(s.run("quickStep.1", &json!({})).is_err());
     // Checked as made and edited.

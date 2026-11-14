@@ -94,7 +94,7 @@ impl Session {
         let at = match (name, index) {
             (Some(n), _) => self.quick_step_at(n).ok_or_else(|| CmdError::Params(format!("no Quick Step `{}`", n.trim())))?,
             (None, Some(i)) if i < self.prefs.quick_steps.len() => i,
-            (None, Some(i)) => return Err(CmdError::Disabled(format!("there's no Quick Step {}", i + 1))),
+            (None, Some(i)) => return Err(CmdError::Disabled(format!("there's no Quick Step {}", i.saturating_add(1)))),
             (None, None) => return Err(CmdError::Params("`name` or `index` is required".into())),
         };
         let q = self.prefs.quick_steps.get(at).cloned().ok_or_else(|| CmdError::Params("no such Quick Step".into()))?;
