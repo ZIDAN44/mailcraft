@@ -37,6 +37,10 @@ pub struct State {
     pub caps: &'static str,
     /// Every command received (tags stripped).
     pub log: Vec<String>,
+    /// Every command received, with how long its connection had been quiet when it came: since
+    /// the answer to the one before, or since the connection was made. Measured here, as the
+    /// client's waits are, and kept apart from `log` (which tests clear).
+    pub quiet: Vec<(String, std::time::Duration)>,
     /// Addresses whose good token is taken but whose mailbox then won't open, as Microsoft
     /// answers when IMAP is off or the token is another account's.
     pub not_connected: Vec<String>,
@@ -89,6 +93,7 @@ impl State {
             modseq: 10,
             caps: "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA",
             log: Vec::new(),
+            quiet: Vec::new(),
             not_connected: Vec::new(),
             refuse_passwords: None,
             search_delay: std::time::Duration::ZERO,
@@ -182,6 +187,8 @@ pub struct Fake {
     idling: Option<String>,
     /// The next command on this connection is dropped unanswered (see [`LetGo`]).
     hang_up_next: bool,
+    /// When the last command was answered, or the connection made (see `State::quiet`).
+    answered: std::time::Instant,
 }
 
 /// The only access token the fake accepts.
@@ -200,6 +207,7 @@ impl Fake {
             flood: None,
             idling: None,
             hang_up_next: false,
+            answered: std::time::Instant::now(),
         };
         f.say("* OK fake ready");
         f
@@ -223,6 +231,7 @@ impl Fake {
                 self.inbuf.drain(..n + end + 2);
                 self.literal = None;
                 self.command(&line, Some(data));
+                self.answered = std::time::Instant::now();
                 continue;
             }
             let Some(end) = self.inbuf.windows(2).position(|w| w == b"\r\n") else { return };
@@ -249,6 +258,7 @@ impl Fake {
                 continue;
             }
             self.command(&line, None);
+            self.answered = std::time::Instant::now();
         }
     }
 
@@ -272,6 +282,7 @@ impl Fake {
     }
 
     fn command(&mut self, line: &str, literal: Option<Vec<u8>>) {
+        let quiet = self.answered.elapsed();
         let upper_line = line.to_ascii_uppercase();
         if let Some(i) = upper_line.find(" AUTHENTICATE XOAUTH2") {
             let tag = line.get(..i).unwrap_or("").to_string();
@@ -304,6 +315,7 @@ impl Fake {
         let st = self.st.clone();
         let mut st = st.lock().unwrap();
         st.log.push(rest.to_string());
+        st.quiet.push((rest.to_string(), quiet));
         let upper = rest.to_ascii_uppercase();
         let ok = |s: &mut Fake, extra: &str| s.say(&format!("{tag} OK {extra}done"));
         if let Some((on, subject)) = st.deliver_on.clone()

@@ -83,17 +83,29 @@ fn using_the_account_does_not_put_the_time_off() {
 }
 
 /// Long between looks: nothing comes meanwhile, Send / Receive looks at once, and the connection
-/// is kept from going quiet for so long that the server drops it.
+/// is kept from going quiet for so long that the server drops it: every ten minutes (a second
+/// here), as the server measures it, so a busy computer slow to get there changes nothing.
 #[test]
 fn a_long_time_is_quiet_but_send_receive_still_looks() {
     let (st, mut pool, _store) = start("check-every-long", Some(60));
-    let log = |st: &std::sync::Arc<std::sync::Mutex<State>>| st.lock().unwrap().log.clone();
-    let before = log(&st).len();
+    let before = st.lock().unwrap().quiet.len();
     st.lock().unwrap().add("INBOX", "New one", &[]);
-    std::thread::sleep(Duration::from_millis(1600));
-    assert!(!pool.poll().iter().any(inbox_changed), "looked early");
-    let noops = log(&st)[before..].iter().filter(|c| c.eq_ignore_ascii_case("NOOP")).count();
-    assert_eq!(noops, 1, "kept alive every ten minutes (a second here): {:?}", &log(&st)[before..]);
+    let began = Instant::now();
+    let mut said = Vec::new();
+    let kept_alive = loop {
+        let noop = st.lock().unwrap().quiet[before..].iter().find(|(c, _)| c.eq_ignore_ascii_case("NOOP")).map(|(_, q)| *q);
+        if let Some(quiet) = noop {
+            break quiet;
+        }
+        assert!(began.elapsed() < Duration::from_secs(60), "never kept alive: {:?}", &st.lock().unwrap().quiet[before..]);
+        said.extend(pool.wait(Duration::from_millis(20)));
+    };
+    said.extend(pool.poll());
+    assert!(!said.iter().any(inbox_changed), "looked early");
+    let ahead = st.lock().unwrap().quiet[before..].to_vec();
+    assert!(ahead.first().is_some_and(|(c, _)| c.eq_ignore_ascii_case("NOOP")), "{ahead:?}");
+    assert!(kept_alive >= Duration::from_secs(1), "kept alive after {kept_alive:?}, not ten minutes (a second here)");
+    assert!(kept_alive < Duration::from_secs(6), "kept alive after {kept_alive:?}, the set time");
     pool.submit(Job::SyncAll { account: "a1".into() });
     until(&pool, "the mail, when asked for", inbox_changed);
     pool_done(pool);
