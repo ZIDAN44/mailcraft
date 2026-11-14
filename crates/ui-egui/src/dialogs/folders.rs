@@ -48,7 +48,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let folders: Vec<&Folder> = std::iter::once(account)
                 .chain(others)
                 .flat_map(|a| a.folders.iter())
-                .filter(|f| f.selectable && mailcraft_engine::model::utf7::decode(&f.path).to_lowercase().contains(&needle))
+                .filter(|f| f.selectable && folder_matches(f, &needle))
                 .collect();
             let mut chosen = None;
             egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
@@ -127,10 +127,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 if needle.is_empty() && ui.selectable_label(false, RichText::new(tl!("(Top level)")).italics()).clicked() {
                     chosen = Some(None);
                 }
-                for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d)) {
-                    if !mailcraft_engine::model::utf7::decode(&f.path).to_lowercase().contains(&needle) {
-                        continue;
-                    }
+                for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d) && folder_matches(f, &needle)) {
                     let indent = "    ".repeat(f.depth());
                     if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
                         chosen = Some(Some(f.path.clone()));
@@ -209,4 +206,12 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         // Every other kind is shown by its own group (`body`).
         _ => true,
     }
+}
+
+/// A folder the search box's text (lower case) is in: in the name the row shows (translated,
+/// or the server's own for a special folder), or in its path on the server.
+fn folder_matches(f: &Folder, needle: &str) -> bool {
+    needle.is_empty()
+        || crate::i18n::folder(f).to_lowercase().contains(needle)
+        || mailcraft_engine::model::utf7::decode(&f.path).to_lowercase().contains(needle)
 }

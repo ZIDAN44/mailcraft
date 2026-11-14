@@ -321,3 +321,45 @@ fn a_rule_shown_in_part_keeps_the_rest() {
     f.name = "Bare".into();
     assert_eq!(f.to_rule().unwrap(), Rule { name: "Bare".into(), ..bare });
 }
+
+/// The folder search in Move to and Move folder finds a folder by the name it shows
+/// ("Posteingang" in German), as well as by its path on the server ("INBOX").
+#[test]
+fn folder_search_finds_the_name_shown() {
+    let (mut a, dir) = app("move-search");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list[1].key.clone();
+    a.run("list.select", json!({"key": k.to_id()}));
+    // The folders the dialog lists: what it draws after the search box's text, before its buttons.
+    let rows = |a: &mut MailApp, dialog: Dialog, typed: &str| {
+        a.ui.dialog = Some(dialog);
+        frame(&ctx, a, vec![]);
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        let texts: Vec<String> = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.job.text.trim().to_string()),
+                _ => None,
+            })
+            .collect();
+        let from = texts.iter().rposition(|t| t == typed).map_or(texts.len(), |i| i + 1);
+        let buttons = texts.len().saturating_sub(2).max(from);
+        texts[from..buttons].to_vec()
+    };
+    a.ui.language = "de".into();
+    for typed in ["posteingang", "inbox"] {
+        assert_eq!(rows(&mut a, Dialog::MoveTo { filter: typed.into(), copy: false }, typed), ["Posteingang"], "Move to, {typed:?}");
+    }
+    assert_eq!(rows(&mut a, Dialog::MoveTo { filter: "entw".into(), copy: false }, "entw"), ["Entwürfe"]);
+    let moving = |filter: &str| Dialog::MoveFolder { account: "sample".into(), folder: "Projects".into(), filter: filter.into(), error: None };
+    for typed in ["posteingang", "inbox"] {
+        assert_eq!(rows(&mut a, moving(typed), typed), ["Posteingang"], "Move folder, {typed:?}");
+    }
+    assert_eq!(rows(&mut a, moving("gel"), "gel"), ["Gelöschte Elemente"]);
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    let _ = std::fs::remove_dir_all(dir);
+}
