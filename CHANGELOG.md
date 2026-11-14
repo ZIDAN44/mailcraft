@@ -65,6 +65,7 @@ on GitHub.
 - A picture written `<img`, a tab, `src=…`, or `src = …`, is blocked or shown with the rest, and an address inside another attribute's text isn't taken for one.
 - A recurring event begun long ago still shows: a daily one started more than about 55 years back, or an hourly one more than five, was missing from the calendar, and a calendar of years-old series is drawn much faster.
 - An event whose notes hold a long run of `<` brackets opens at once: the app froze for seconds on every frame it was open.
+- An event or task holding a huge part MailCraft doesn't read keeps only its first few hundred lines: all of it was saved with the calendar, and an event's read through each time the calendar was drawn. An event's reminder is still found after such a part.
 
 ## 0.38.0 - 2026-11-13
 

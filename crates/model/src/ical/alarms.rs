@@ -11,7 +11,7 @@ pub const REMINDER_MAX_MINUTES: i64 = 4 * 7 * 24 * 60;
 /// "at the start".
 pub fn reminder_minutes(e: &CalEvent) -> Option<i64> {
     let mut in_alarm = false;
-    for raw in e.extra.iter().take(400) {
+    for raw in &e.extra {
         let line = raw.trim();
         let upper = line.to_ascii_uppercase();
         if upper == "BEGIN:VALARM" {
@@ -82,7 +82,7 @@ pub fn set_reminder(e: &mut CalEvent, minutes: Option<i64>) {
 pub fn acknowledged(e: &CalEvent) -> Option<i64> {
     let mut in_alarm = false;
     let mut latest: Option<i64> = None;
-    for raw in e.extra.iter().take(400) {
+    for raw in &e.extra {
         let line = raw.trim();
         let upper = line.to_ascii_uppercase();
         match upper.as_str() {

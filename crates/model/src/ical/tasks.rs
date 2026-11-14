@@ -7,9 +7,8 @@
 use super::*;
 use crate::pim::{Task, TaskPriority, TaskStatus};
 
-/// The most tasks read from one file, lines kept of one, and categories.
+/// The most tasks read from one file, and categories of one (its lines kept: [`EXTRA_MAX`]).
 const MAX_TASKS: usize = 20_000;
-const MAX_EXTRA: usize = 200;
 const MAX_CATEGORIES: usize = 20;
 /// Outlook's statuses iCalendar has no word for.
 pub const TASK_STATUS: &str = "X-MAILCRAFT-TASK-STATUS";
@@ -42,11 +41,12 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
     // Components open around the line: outside a task, those besides the calendar itself; in
     // one, those nested in it, whether the outermost of them is an alarm, and whether it's kept
     // (one that begins once the task's kept lines are full is left out whole, so what's kept
-    // always ends what it begins).
+    // always ends what it begins), and the depth of one nested in a kept one and left out so.
     let mut outer = 0usize;
     let mut depth = 0usize;
     let mut in_alarm = false;
     let mut keep = false;
+    let mut dropped_from: Option<usize> = None;
     for &l in all {
         let what = || l.value.trim().to_ascii_uppercase();
         match l.name.as_str() {
@@ -58,6 +58,7 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
                             depth = 0;
                             in_alarm = false;
                             keep = false;
+                            dropped_from = None;
                         }
                         "VCALENDAR" => {}
                         _ => outer = outer.saturating_add(1),
@@ -67,9 +68,12 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
                 depth = depth.saturating_add(1);
                 if depth == 1 {
                     in_alarm = what() == "VALARM";
-                    keep = !in_alarm && r.task.extra.len() < MAX_EXTRA;
+                    keep = !in_alarm && r.task.extra.len() < EXTRA_MAX;
+                    dropped_from = None;
+                } else if keep && dropped_from.is_none() && r.task.extra.len() >= EXTRA_MAX {
+                    dropped_from = Some(depth);
                 }
-                if keep {
+                if keep && dropped_from.is_none() {
                     r.task.extra.push(l.raw.clone());
                 }
                 continue;
@@ -82,10 +86,12 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
                     continue;
                 };
                 if depth > 0 {
-                    depth -= 1;
-                    if keep {
-                        r.task.extra.push(l.raw.clone());
+                    match dropped_from {
+                        None if keep => r.task.extra.push(l.raw.clone()),
+                        Some(d) if d == depth => dropped_from = None,
+                        _ => {}
                     }
+                    depth -= 1;
                     if depth == 0 {
                         in_alarm = false;
                         keep = false;
@@ -106,7 +112,7 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
         if depth > 0 {
             if in_alarm && l.name == "TRIGGER" && r.trigger.is_none() {
                 r.trigger = Some(l);
-            } else if keep && r.task.extra.len() < MAX_EXTRA {
+            } else if keep && dropped_from.is_none() && r.task.extra.len() < EXTRA_MAX {
                 r.task.extra.push(l.raw.clone());
             }
             continue;
@@ -142,7 +148,7 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
             "LAST-MODIFIED" => t.modified = zones.time(l, "").map_or(0, |(t, _, _)| t),
             "DTSTAMP" | "CREATED" | "SEQUENCE" => {}
             _ => {
-                if t.extra.len() < MAX_EXTRA {
+                if t.extra.len() < EXTRA_MAX {
                     t.extra.push(l.raw.clone());
                 }
             }

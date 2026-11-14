@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{CalEvent, links_in, parse_line};
+use super::{CalEvent, EXTRA_MAX, links_in, parse_line};
 
 /// The longest room name, access code and link kept.
 const NAME_MAX: usize = 100;
@@ -350,7 +350,7 @@ impl CalEvent {
             let block = meeting_block(room, labels);
             self.description = if notes.is_empty() { block } else { format!("{notes}\n\n{block}") };
         }
-        if !self.conferences().iter().any(|c| c.uri == room.url) && self.extra.len() < 200 {
+        if !self.conferences().iter().any(|c| c.uri == room.url) && self.extra.len() < EXTRA_MAX {
             self.extra.push(conference_line(&room.url, &room.name));
         }
         let place = self.location.trim();

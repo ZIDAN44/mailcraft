@@ -111,3 +111,35 @@ fn real_series_and_occurrence_deleted() {
     http("DELETE", &format!("{calendar}{one}.ics"), &[("Authorization", &auth)], b"");
     eprintln!("a series deleted once, an occurrence taken out of another");
 }
+
+/// An event holding a component of 100,000 lines, then its alarm: synced, it keeps a few hundred
+/// of them, and its reminder.
+#[test]
+#[ignore]
+fn real_event_with_a_huge_component() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALENDAR") else {
+        eprintln!("MAILCRAFT_REAL_CALENDAR isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [imap, calendar] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALENDAR: imap calendar") };
+    let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
+    let uid = format!("big-{}@test.example", std::process::id());
+    let auth = basic(&format!("{USER}:pw"));
+    let ics = format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:20261101T090000Z\r\nDTSTART:20261102T090000Z\r\nDTEND:20261102T091500Z\r\nSUMMARY:Board\r\nBEGIN:X-BIG\r\n{}END:X-BIG\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Board\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+        "X-LINE:junk\r\n".repeat(100_000)
+    );
+    let put = http("PUT", &format!("{calendar}{uid}.ics"), &[("Authorization", &auth), ("Content-Type", "text/calendar")], ics.as_bytes());
+    assert!(put.status < 300, "PUT {}: {}", put.status, put.text());
+    let mut app = App::open("calendar-huge", "pw");
+    app.watch = watch;
+    let id = app.add_plain(imap, "127.0.0.1:1", json!({"email": USER, "password": "pw"}));
+    app.s.run("account.dav", &json!({"account": id, "caldav": home})).unwrap();
+    app.sync_dav(&id);
+    let e = &app.s.pim[&id].events.iter().find(|e| e.event.uid == uid).expect("synced").event;
+    eprintln!("kept {} lines; reminder {:?}", e.extra.len(), mailcraft_engine::model::ical::reminder_minutes(e));
+    assert!(e.extra.len() <= 400, "{}", e.extra.len());
+    assert_eq!(mailcraft_engine::model::ical::reminder_minutes(e), Some(15));
+    http("DELETE", &format!("{calendar}{uid}.ics"), &[("Authorization", &auth)], b"");
+}

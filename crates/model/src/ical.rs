@@ -381,6 +381,14 @@ fn person(l: &Line) -> Attendee {
     }
 }
 
+/// The most lines an event or a to-do keeps as written (`extra`): its properties MailCraft doesn't
+/// read, and the components it holds. One that begins past it is left out whole.
+const EXTRA_MAX: usize = 200;
+
+/// An event's alarms may go on to this many: its reminder is kept past a calendar's own
+/// properties, where every reader of its alarms finds it.
+const EXTRA_ALARMS_MAX: usize = 400;
+
 /// Read a calendar file. `local_offset` (seconds east of UTC) places floating times; better,
 /// [`parse_in`] the viewer's zone.
 pub fn parse(text: &str, local_offset: i64) -> ICalendar {
@@ -400,6 +408,10 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
     let mut pending: Vec<&Line> = Vec::new();
     let mut ev: Option<(CalEvent, Option<i64>)> = None;
     let mut depth_in_event = 0usize;
+    // The depth of the nested component being left out, with all it holds; the cap of the one
+    // being kept.
+    let mut dropped_from: Option<usize> = None;
+    let mut component_max = EXTRA_MAX;
     // Which of the event's CLASS, TRANSP and busy status have come (kept past the cap).
     let mut showing_seen = 0u8;
     // The lines outside every event, where its to-dos are: an event's are its own, whatever they
@@ -415,15 +427,24 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             if what == "VEVENT" && ev.is_none() {
                 ev = Some((CalEvent::default(), None));
                 depth_in_event = 0;
+                dropped_from = None;
                 showing_seen = 0;
                 pending.clear();
                 continue;
             }
-            if ev.is_some() {
-                // A nested component (VALARM): kept as written.
-                depth_in_event += 1;
-                if let Some((e, _)) = ev.as_mut() {
-                    e.extra.push(l.raw.clone());
+            if let Some((e, _)) = ev.as_mut() {
+                // A nested component (VALARM): kept as written, within its cap ([`EXTRA_MAX`]),
+                // or left out whole, with what it holds.
+                depth_in_event = depth_in_event.saturating_add(1);
+                if dropped_from.is_none() {
+                    if depth_in_event == 1 {
+                        component_max = if what == "VALARM" { EXTRA_ALARMS_MAX } else { EXTRA_MAX };
+                    }
+                    if e.extra.len() < component_max {
+                        e.extra.push(l.raw.clone());
+                    } else {
+                        dropped_from = Some(depth_in_event);
+                    }
                 }
             }
             continue;
@@ -432,8 +453,12 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             if let Some((e, _)) = ev.as_mut()
                 && depth_in_event > 0
             {
+                match dropped_from {
+                    None => e.extra.push(l.raw.clone()),
+                    Some(d) if d == depth_in_event => dropped_from = None,
+                    Some(_) => {}
+                }
                 depth_in_event -= 1;
-                e.extra.push(l.raw.clone());
                 continue;
             }
             if l.value.trim().eq_ignore_ascii_case("VEVENT")
@@ -481,7 +506,9 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
             continue;
         };
         if depth_in_event > 0 {
-            e.extra.push(l.raw.clone());
+            if dropped_from.is_none() && e.extra.len() < component_max {
+                e.extra.push(l.raw.clone());
+            }
             continue;
         }
         match n {
@@ -541,7 +568,7 @@ pub fn parse_in(text: &str, local: crate::zone::Zone) -> ICalendar {
                 };
                 let kept_anyway = bit != 0 && showing_seen & bit == 0;
                 showing_seen |= bit;
-                if e.extra.len() < 200 || kept_anyway {
+                if e.extra.len() < EXTRA_MAX || kept_anyway {
                     e.extra.push(l.raw.clone());
                 }
             }
