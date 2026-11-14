@@ -137,6 +137,7 @@ on GitHub.
 - Video attachments' thumbnails are made a couple at a time instead of all at once, and their frames no longer stay in memory for the whole session.
 - On Windows installed outside C:\Windows, the interface and PDFs use Segoe UI again, and Arabic and Hebrew text gets its font.
 - `--cmd` with bad JSON says so for the window's own commands too (ui.addAccount and others) instead of opening the dialog empty.
+- Started twice at the same moment, MailCraft no longer ends up opening a second window for every later launch.
 
 ## 0.38.0 - 2026-11-13
 
