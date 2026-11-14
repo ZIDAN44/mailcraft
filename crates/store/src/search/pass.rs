@@ -38,9 +38,12 @@ const PASS_IN_FLIGHT: usize = 16 << 20;
 
 impl Pass {
     /// Hold `account`'s index ([`StoreError::Busy`] while another holds it), plan what brings
-    /// `folders` up to the mail (none: every folder), and make the changes that read nothing.
+    /// `folders` up to the mail (none: every folder), and make the changes that read nothing. An
+    /// index begun anew as it opened (a damaged one set aside) is brought up over every folder:
+    /// asked for one, the rest were left out of it till the next ask for all (found in review).
     pub fn start(store: &Store, account: &str, folders: &[String]) -> Result<Pass> {
         let mut writer = Writer::open(store, account)?;
+        let folders: &[String] = if writer.remade() { &[] } else { folders };
         writer.hold_at_most(PASS_IN_FLIGHT);
         let mut plan = plan(store, &writer, account, folders)?;
         plan.apply(&mut writer)?;

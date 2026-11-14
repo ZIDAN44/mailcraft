@@ -14,6 +14,8 @@ pub struct Queue {
     not_before: HashMap<String, f64>,
     /// Bumped by a stop: a pass that sees its account's change stops.
     stops: HashMap<String, u64>,
+    /// Accounts whose index was found damaged and is being made again ([`Queue::remake`]).
+    remade: BTreeSet<String>,
 }
 
 /// What the indexer does next.
@@ -64,6 +66,21 @@ impl Queue {
         }
         self.not_before.insert(account.clone(), at);
         self.want(account, folders);
+    }
+
+    /// `account`'s pass found its index damaged, and it was set aside: made again over every
+    /// folder at once, not left empty till the next ask, which may name one folder (found in
+    /// review). Once in a row ([`Queue::ended_well`]): one damaged again as it's made again isn't
+    /// made again and again. Not when it was stopped since its pass began (`seen` stops then).
+    pub fn remake(&mut self, account: String, seen: u64) {
+        if self.stops(&account) == seen && self.remade.insert(account.clone()) {
+            self.want(account, Vec::new());
+        }
+    }
+
+    /// `account`'s pass ended well: one found damaged later is made again.
+    pub fn ended_well(&mut self, account: &str) {
+        self.remade.remove(account);
     }
 
     /// What to do at `now` (ms): the first account asked for that isn't put off, else how long
@@ -124,5 +141,25 @@ mod tests {
         q.stop("a1");
         q.put_off("a1".into(), vec!["INBOX".into()], 11_000.0, seen);
         assert_eq!(q.next(12_000.0), Next::Idle, "stopped while its pass ran");
+    }
+
+    /// Found in review: an index found damaged was set aside and nothing more asked. It's made
+    /// again over every folder at once; once in a row, till a pass ends well; not once stopped.
+    #[test]
+    fn a_damaged_index_is_made_again_once_in_a_row() {
+        let mut q = Queue::default();
+        q.want("a1".into(), vec!["INBOX".into()]);
+        assert_eq!(q.next(0.0), run("a1", &["INBOX"]));
+        q.remake("a1".into(), q.stops("a1"));
+        assert_eq!(q.next(0.0), run("a1", &[]), "every folder");
+        q.remake("a1".into(), q.stops("a1"));
+        assert_eq!(q.next(0.0), Next::Idle, "damaged again: not again and again");
+        q.ended_well("a1");
+        let seen = q.stops("a1");
+        q.stop("a1");
+        q.remake("a1".into(), seen);
+        assert_eq!(q.next(0.0), Next::Idle, "stopped while its pass ran");
+        q.remake("a1".into(), q.stops("a1"));
+        assert_eq!(q.next(0.0), run("a1", &[]));
     }
 }

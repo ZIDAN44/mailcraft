@@ -69,15 +69,16 @@ async fn run(sh: Rcs) {
         };
         let seen = sh.borrow().indexing.queue.stops(&account);
         match pass(&sh, &account, &folders).await {
-            Ok(()) => {}
+            Ok(()) => sh.borrow_mut().indexing.queue.ended_well(&account),
             Err(StoreError::Busy { .. }) => {
                 let at = js_sys::Date::now() + RETRY_MS;
                 sh.borrow_mut().indexing.queue.put_off(account, folders, at, seen);
             }
             Err(e) if search::is_damaged(&e) => {
                 log::warn!("{account}: the search index is made again: {e}");
-                if let Err(e) = search::set_aside(&store(&sh), &account) {
-                    log::warn!("{account}: {e}");
+                match search::set_aside(&store(&sh), &account) {
+                    Ok(()) => sh.borrow_mut().indexing.queue.remake(account, seen),
+                    Err(e) => log::warn!("{account}: {e}"),
                 }
             }
             Err(e) => log::warn!("{account}: the search index wasn't brought up to the mail: {e}"),

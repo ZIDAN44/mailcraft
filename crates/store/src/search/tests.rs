@@ -320,6 +320,7 @@ fn a_damaged_index_is_set_aside_and_made_again() {
 
     let mut w = Writer::open(&s, "a1").unwrap();
     assert_eq!(w.live(), 0, "made again");
+    assert!(w.remade(), "set aside by the reader, and begun anew by this writer: every folder is asked for");
     assert_eq!(s.files.list(&dir(&s, "a1").join("s")), Vec::new(), "the old files are gone");
     w.add(&mk("INBOX", 9), 1, 1, &text("fresh", &[], 0)).unwrap();
     w.flush(&s).unwrap();

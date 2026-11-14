@@ -12,6 +12,7 @@ mod counts;
 mod drafts;
 mod filed_once;
 mod index_bench;
+mod index_damaged;
 mod kept_bench;
 mod kept_files;
 mod offline_answers;

@@ -64,6 +64,8 @@ pub struct Writer {
     stamp: u64,
     /// A commit failed: files it wrote may be left to remove.
     orphans: bool,
+    /// Begun anew as it opened, what it had set aside as damaged ([`Writer::remade`]).
+    remade: bool,
     /// Stop a commit after its files, before its meta (a crash there).
     #[cfg(test)]
     pub(crate) stop_before_meta: bool,
@@ -145,11 +147,13 @@ impl Writer {
     pub fn open(store: &Store, account: &str) -> Result<Writer> {
         let held = Held::take(store, account)?;
         let base = dir(store, account);
-        let loaded = match load(store, account, &base) {
-            Ok(l) => l,
+        let (loaded, remade) = match load(store, account, &base) {
+            // None, beside one set aside: it was damaged, and hasn't been made again since.
+            Ok(None) => (None, store.files.is_file(&meta_path(store, account).with_extension("bin.bad"))),
+            Ok(l) => (l, false),
             Err(e) if is_damaged(&e) => {
                 set_aside_held(store, account)?;
-                None
+                (None, true)
             }
             Err(e) => return Err(e),
         };
@@ -158,6 +162,7 @@ impl Writer {
             None => (fresh(store, account), Vec::new()),
         };
         let mut w = Writer::with(store, account, base, meta, docs, held);
+        w.remade = remade;
         w.clean(store);
         if w.meta.tokenizer != TOKENIZER_VERSION {
             match w.rebuild(store) {
@@ -166,12 +171,19 @@ impl Writer {
                     set_aside_held(store, account)?;
                     let base = w.base.clone();
                     w = Writer::with(store, account, base, fresh(store, account), Vec::new(), w.held);
+                    w.remade = true;
                     w.clean(store);
                 }
                 Err(e) => return Err(e),
             }
         }
         Ok(w)
+    }
+
+    /// Whether it was begun anew as it opened, what it had set aside as damaged: it has none of
+    /// the account's folders, whichever were asked for.
+    pub fn remade(&self) -> bool {
+        self.remade
     }
 
     fn with(store: &Store, account: &str, base: PathBuf, meta: Meta, docs: Vec<DocRec>, held: Held) -> Writer {
@@ -204,6 +216,7 @@ impl Writer {
             marks_changed: false,
             stamp: 0,
             orphans: false,
+            remade: false,
             #[cfg(test)]
             stop_before_meta: false,
             #[cfg(test)]

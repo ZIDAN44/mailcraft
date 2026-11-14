@@ -219,6 +219,10 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
     // The accounts whose index another copy of MailCraft was writing at their last try: said
     // once, not at every retry.
     let mut elsewhere: HashSet<String> = HashSet::new();
+    // The accounts whose index was found damaged and is being made again.
+    let mut remade: HashSet<String> = HashSet::new();
+    // The accounts whose index was set aside and has no pass ended well since ([`remake`]).
+    let mut unmade: HashSet<String> = HashSet::new();
     loop {
         let now = Instant::now();
         let choosing = lock(&shared.importing);
@@ -246,7 +250,7 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
             }
             continue;
         };
-        let folders: Vec<String> = folders.map(|f| f.into_iter().collect()).unwrap_or_default();
+        let folders = asked(&unmade, &account, folders);
         let mut report = |e: Event| match e {
             // Each of these counts: never one in place of another.
             e @ Event::AttachmentsKnown { .. } => sink.emit(e),
@@ -260,6 +264,10 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
         if !matches!(result, Err(StoreError::Busy { .. })) {
             elsewhere.remove(&account);
         }
+        if result.is_ok() {
+            remade.remove(&account);
+            unmade.remove(&account);
+        }
         match result {
             Ok(()) => {}
             // Held by another writer: tried again in a while. Another process's (the lease's)
@@ -272,15 +280,55 @@ fn run(rx: &Receiver<Ask>, store: &Store, sink: &Sink, shared: &Shared) {
             }
             Err(e) if search::is_damaged(&e) => {
                 log::warn!("{account}: the search index is made again: {e}");
-                if let Err(e) = search::set_aside(store, &account) {
-                    log::warn!("{account}: {e}");
-                }
+                remake(store, account, stop.load(Ordering::Relaxed), &mut pending, &mut remade, &mut unmade);
             }
             // Stopped (the account removed, an import begun): what it couldn't write is no matter.
             Err(e) if stop.load(Ordering::Relaxed) => log::info!("{account}: an index pass stopped: {e}"),
             Err(e) => log::warn!("{account}: the search index wasn't brought up to the mail: {e}"),
         }
     }
+}
+
+/// A pass found `account`'s index damaged: set aside, and made again at once over every folder,
+/// not left empty till the next ask, which may name one folder (found in review). Once in a row
+/// (`remade`, till a pass ends well): one that comes back damaged as it's made again isn't made
+/// again and again. Not when the pass was `stopped` (the account removed, an import begun).
+///
+/// Set aside, the index has none of the account's folders, whether a pass was asked for here
+/// or not: the account is `unmade` until a pass of it ends well, and each pass till then is
+/// over every folder ([`asked`]). The next ask may name one folder, and the new index held
+/// that one alone.
+pub(super) fn remake(
+    store: &Store,
+    account: String,
+    stopped: bool,
+    pending: &mut Pending,
+    remade: &mut HashSet<String>,
+    unmade: &mut HashSet<String>,
+) {
+    match search::set_aside(store, &account) {
+        Ok(()) => {
+            unmade.insert(account.clone());
+            if stopped {
+                return;
+            }
+            if remade.insert(account.clone()) {
+                want(pending, account, Vec::new(), Instant::now());
+            } else {
+                log::warn!("{account}: the search index made again was damaged too: it's made again at the next ask");
+            }
+        }
+        Err(e) => log::warn!("{account}: {e}"),
+    }
+}
+
+/// The folders a pass of `account` is over (none: every folder): those asked for, unless its
+/// index was set aside and not made again since (`unmade`, [`remake`]): then all of them.
+pub(super) fn asked(unmade: &HashSet<String>, account: &str, folders: Option<BTreeSet<String>>) -> Vec<String> {
+    if unmade.contains(account) {
+        return Vec::new();
+    }
+    folders.map(|f| f.into_iter().collect()).unwrap_or_default()
 }
 
 /// Room for the sources being read at once ([`READING_BYTES`]).
