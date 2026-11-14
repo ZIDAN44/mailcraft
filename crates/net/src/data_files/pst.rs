@@ -82,7 +82,7 @@ pub(crate) enum LooseFile<'a> {
 
 /// The loose message as a standard one, as the import writes an item (`named`: the file's
 /// named properties).
-pub(crate) fn loose_message(m: &Loose<'_>, named: &crate::pst_pim::Named) -> Result<Vec<u8>, String> {
+pub(crate) fn loose_message(m: Loose<'_>, named: &crate::pst_pim::Named) -> Result<Vec<u8>, String> {
     let it = item::loose_item(m, named, 0);
     rebuild::to_raw(it, "msg@mailcraft.invalid")
 }

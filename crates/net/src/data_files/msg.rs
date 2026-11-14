@@ -247,17 +247,20 @@ fn vals(ps: &[Prop], cp: u32) -> Vec<(u16, Val<'_>)> {
     ps.iter().map(|p| (p.id, val(p, cp))).collect()
 }
 
-fn loose(m: &Read1) -> Loose<'_> {
-    let cp = code_page(&m.props);
+/// The message as the import reads one: its properties borrowed, its files' bytes moved (a file
+/// of tens of megabytes was copied here, and again on its way into the message built).
+fn loose(m: &mut Read1) -> Loose<'_> {
+    let Read1 { props, recipients, files } = m;
+    let (props, recipients): (&[Prop], &[Vec<Prop>]) = (props, recipients);
+    let cp = code_page(props);
     Loose {
-        props: vals(&m.props, cp),
-        recipients: m.recipients.iter().map(|r| vals(r, cp)).collect(),
-        files: m
-            .files
-            .iter()
+        props: vals(props, cp),
+        recipients: recipients.iter().map(|r| vals(r, cp)).collect(),
+        files: files
+            .iter_mut()
             .map(|f| match f {
                 ReadFile::Data { name, mime, cid, data } => {
-                    LooseFile::Data { name: name.clone(), mime: mime.clone(), cid: cid.clone(), data: data.clone() }
+                    LooseFile::Data { name: std::mem::take(name), mime: std::mem::take(mime), cid: std::mem::take(cid), data: std::mem::take(data) }
                 }
                 ReadFile::Message(inner) => LooseFile::Message(Box::new(loose(inner))),
             })
@@ -284,11 +287,11 @@ pub fn to_mime(bytes: &[u8]) -> Result<Vec<u8>, String> {
         let names = r.names();
         Ok((r.message("", TOP_HEADER, 0), names))
     });
-    let (m, named) = read.map_err(|_| "the file is damaged".to_string())??;
+    let (mut m, named) = read.map_err(|_| "the file is damaged".to_string())??;
     if m.props.is_empty() {
         return Err("the file holds no message".into());
     }
-    loose_message(&loose(&m), &named)
+    loose_message(loose(&mut m), &named)
 }
 
 #[cfg(test)]

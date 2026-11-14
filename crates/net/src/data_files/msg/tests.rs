@@ -255,3 +255,24 @@ fn write_msg_fuzz_seed() {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("outlook.msg"), sample()).unwrap();
 }
+
+/// A message file with a 60 MB file, read: its bytes were copied twice more on their way.
+/// `cargo test --release -p mailcraft-net --lib measure_msg_big_file -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_msg_big_file() {
+    let mut cf = CompoundFile::create(Cursor::new(Vec::new())).unwrap();
+    write_props(&mut cf, "", TOP_HEADER, &[(0x001A_001F, P::Text("IPM.Note")), (0x0037_001F, P::Text("Big")), (0x1000_001F, P::Text("Attached."))]);
+    let file = "/__attach_version1.0_#00000000";
+    cf.create_storage(file).unwrap();
+    let data: Vec<u8> = (0..60_000_000u32).map(|i| (i.wrapping_mul(2_654_435_761) >> 24) as u8).collect();
+    write_props(&mut cf, file, PART_HEADER, &[(0x3707_001F, P::Text("big.bin")), (0x3705_0003, P::Int(1)), (0x3701_0102, P::Bin(data))]);
+    cf.flush().unwrap();
+    let bytes = cf.into_inner().into_inner();
+    let n = to_mime(&bytes).unwrap().len();
+    let t = std::time::Instant::now();
+    for _ in 0..5 {
+        assert_eq!(to_mime(&bytes).unwrap().len(), n);
+    }
+    println!("MEASURE .msg with a 60 MB file read: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0 / 5.0);
+}
