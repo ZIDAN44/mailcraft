@@ -23,6 +23,7 @@ on GitHub.
 - A signature set out in columns keeps them (#90): a logo, a name and an address side by side went one under the other in a reading pane of the usual width, and the line between them was gone, unless the window was wide. Short lines now wrap a little beside columns that say how wide they are, as in a browser. A signature written as HTML code also shows that way in the message you're writing, where it was its text, one part under another: its columns, colours, lines and pictures, as it's sent. It's one thing in the text there: the cursor passes it, and Backspace after it takes all of it. Pictures it names on the web load when you ask (**Show pictures**, under it), as for a message you read. Change it under **Signature**.
 - **Sign in again** says which user name the account signs in with, when that isn't its address (#88): asked for "the password for" the address, it read as signing in with the address.
 - In the browser, a picture or subscribed calendar larger than MailCraft takes is no longer downloaded whole before it's refused: reading stops once it passes the limit, or before it starts when the server gives its size. One answering with gigabytes could take the page down.
+- In the browser, a backup the browser's storage won't take (full, say) is said to be refused, and the page goes on keeping what you do. It used to say nothing, and nothing done afterwards was kept: it was gone at the next visit.
 
 ## 0.38.0 - 2026-11-13
 
