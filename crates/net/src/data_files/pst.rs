@@ -509,11 +509,21 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     ctx.resume = skip;
     let lanes = ctx.lanes();
     out.lanes = u64::try_from(lanes).unwrap_or(u64::MAX);
+    let (planned, wrote) = run_threads(&mut out, &ctx, lanes);
+    conclude(out, &ctx, opts, path, planned, wrote)
+}
+
+/// What the planner came to (`None`: it couldn't start; `Err`: it panicked), and whether the
+/// writer went to its end.
+type Ran = (Option<std::thread::Result<io::Result<()>>>, std::thread::Result<()>);
+
+/// The planner, the readers (`lanes` of them) and the writer, run until the writer is done.
+fn run_threads(out: &mut Out<'_>, ctx: &lanes::Ctx<'_>, lanes: usize) -> Ran {
     let (job_tx, job_rx) = std::sync::mpsc::sync_channel(plan::JOBS);
     let jobs: lanes::Jobs = std::sync::Mutex::new(job_rx);
     let (tx, rx) = std::sync::mpsc::channel();
-    let (planned, wrote) = std::thread::scope(|s| {
-        let (ctx, jobs) = (&ctx, &jobs);
+    std::thread::scope(|s| {
+        let jobs = &jobs;
         // Whatever becomes of the writer (or of starting the threads), every other thread stops
         // when it does.
         struct StopAll<'c, 'a>(&'c lanes::Ctx<'a>);
@@ -549,11 +559,23 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
             lanes::gone(ctx, jobs, lanes - started);
         }
         drop(tx);
-        let wrote = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| order::write(&mut out, ctx, &rx)));
+        let wrote = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| order::write(out, ctx, &rx)));
         drop(stop_all);
         drop(rx);
         (planner.map(|p| p.join().unwrap_or_else(Err)), wrote)
-    });
+    })
+}
+
+/// How an import ended, from what its threads came to: blocked going on, stopped, short of
+/// what the file holds (said once for each reason), or failed; else what it brought in.
+fn conclude(
+    mut out: Out<'_>,
+    ctx: &lanes::Ctx<'_>,
+    opts: &ImportOptions,
+    path: &Path,
+    planned: Option<std::thread::Result<io::Result<()>>>,
+    wrote: std::thread::Result<()>,
+) -> Result<Imported, String> {
     let Some(planned) = planned else {
         out.seal();
         return Err("the import could not start: the computer is short of resources; try again".into());

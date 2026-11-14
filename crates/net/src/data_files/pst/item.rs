@@ -178,31 +178,7 @@ pub(super) fn item_of<'a>(
     it.from = EmailAddress::new(name(&[0x0C1A, 0x0042]), email(&[0x5D01, 0x0C1F, 0x5D02, 0x0065]));
     it.date = [0x0E06, 0x0039, 0x3007].iter().find_map(|id| p(*id).and_then(|v| v.time())).unwrap_or(0);
     it.received = p(0x0E06).and_then(|v| v.time()).unwrap_or(0);
-    it.body = s(0x1000);
-    it.html = p(0x1013).and_then(|v| match v {
-        Val::Bin(b) => {
-            // PidTagInternetCodepage.
-            let page = match p(0x3FDE) {
-                Some(Val::Int(n)) => u32::try_from(n).unwrap_or(0),
-                _ => 0,
-            };
-            let (html, lost) = read(b, page, true);
-            it.charset_unsupported |= lost;
-            Some(html)
-        }
-        other => other.into_text(),
-    });
-    if it.html.as_deref().is_none_or(|h| h.trim().is_empty())
-        && let Some(Val::Bin(rtf)) = p(0x1009)
-    {
-        // PidTagRtfInSync: false when the plain text was changed after the RTF.
-        let in_sync = !matches!(p(0x0E1F), Some(Val::Bool(false)));
-        rtf_into(&mut it, rtf, in_sync);
-    }
-    // A sharing invitation says what it shares, whatever its own text says.
-    if class == Class::Sharing {
-        crate::pst_pim::put_before(&crate::pst_pim::sharing_lines(p, named), &mut it.body, &mut it.html);
-    }
+    bodies_into(&mut it, p, class, named);
     it.message_id = message_ids(&s(0x1035)).into_iter().next().unwrap_or_default();
     it.in_reply_to = message_ids(&s(0x1042)).into_iter().next().unwrap_or_default();
     it.references = message_ids(&s(0x1039));
@@ -226,6 +202,44 @@ pub(super) fn item_of<'a>(
         Some(Val::Int(n @ 1..=3)) => u8::try_from(n).unwrap_or(0),
         _ => 0,
     };
+    flags_into(&mut it, p, named);
+    recipients_into(&mut it, recipients);
+    it
+}
+
+/// Its text: the plain text, the HTML (in its code page), or else the RTF's; a sharing
+/// invitation's lines before them.
+fn bodies_into<'a>(it: &mut Item, p: &dyn Fn(u16) -> Option<Val<'a>>, class: Class, named: &crate::pst_pim::Named) {
+    it.body = p(0x1000).and_then(Val::into_text).unwrap_or_default();
+    it.html = p(0x1013).and_then(|v| match v {
+        Val::Bin(b) => {
+            // PidTagInternetCodepage.
+            let page = match p(0x3FDE) {
+                Some(Val::Int(n)) => u32::try_from(n).unwrap_or(0),
+                _ => 0,
+            };
+            let (html, lost) = read(b, page, true);
+            it.charset_unsupported |= lost;
+            Some(html)
+        }
+        other => other.into_text(),
+    });
+    if it.html.as_deref().is_none_or(|h| h.trim().is_empty())
+        && let Some(Val::Bin(rtf)) = p(0x1009)
+    {
+        // PidTagRtfInSync: false when the plain text was changed after the RTF.
+        let in_sync = !matches!(p(0x0E1F), Some(Val::Bool(false)));
+        rtf_into(it, rtf, in_sync);
+    }
+    // A sharing invitation says what it shares, whatever its own text says.
+    if class == Class::Sharing {
+        crate::pst_pim::put_before(&crate::pst_pim::sharing_lines(p, named), &mut it.body, &mut it.html);
+    }
+}
+
+/// Its flags as the list shows them (read, a draft, flagged or done, answered, forwarded), its
+/// categories as keywords, its follow-up's days and its pin.
+fn flags_into<'a>(it: &mut Item, p: &dyn Fn(u16) -> Option<Val<'a>>, named: &crate::pst_pim::Named) {
     let flags = match p(0x0E07) {
         Some(Val::Int(n)) => n,
         _ => 0,
@@ -269,6 +283,11 @@ pub(super) fn item_of<'a>(
     if matches!(named.pinned().and_then(p), Some(Val::Bool(true))) {
         it.flags.set_keyword(mailcraft_model::PINNED, true);
     }
+}
+
+/// Its recipients, as To, Cc and Bcc; a meeting's organizer and each guest's answer go to its
+/// calendar properties.
+fn recipients_into<'a>(it: &mut Item, recipients: &[impl Fn(u16) -> Option<Val<'a>>]) {
     let headers = super::rebuild::usable_headers(&it.headers);
     for row in recipients {
         let get = |id: u16| row(id).and_then(Val::into_text).unwrap_or_default();
@@ -308,7 +327,6 @@ pub(super) fn item_of<'a>(
             _ => it.to.push(a),
         }
     }
-    it
 }
 
 /// A flag's due day from its time (100 ns since 1601, at the day's midnight as Outlook keeps
