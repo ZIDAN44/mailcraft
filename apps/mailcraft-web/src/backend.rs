@@ -34,7 +34,8 @@ enum Task {
     Connect,
     SyncAll,
     SyncFolder(String),
-    Job(Job),
+    /// Boxed: a job is far larger than the other tasks, and accounts queue many.
+    Job(Box<Job>),
 }
 
 struct Account {
@@ -175,7 +176,7 @@ async fn run(sh: Rcs, id: String) {
             Task::Connect => connect(&sh, &id).await,
             Task::SyncAll => sync_all(&sh, &id).await,
             Task::SyncFolder(f) => sync_one(&sh, &id, &f).await,
-            Task::Job(j) => jobs::job(&sh, &id, j).await,
+            Task::Job(j) => jobs::job(&sh, &id, *j).await,
         }
     }
 }
@@ -450,7 +451,7 @@ fn pgp(sh: &Rcs, id: &str, work: mailcraft_engine::model::PgpWork) {
         }
         PgpWork::SealDraft { raw, folder, replaces, .. } => {
             notice(sh, id, format!("the draft couldn't be encrypted, so it's saved as it is: {BROWSER_PGP}"));
-            enqueue(sh, id, Task::Job(Job::SaveDraft { account: id.to_string(), raw: raw.0, folder, replaces }));
+            enqueue(sh, id, Task::Job(Box::new(Job::SaveDraft { account: id.to_string(), raw: raw.0, folder, replaces })));
         }
         PgpWork::Import { .. } | PgpWork::Use { .. } | PgpWork::Forget { .. } => {
             emit(sh, Event::PgpKeys { account: id.to_string(), keys: Vec::new(), imported: None, error: Some(BROWSER_PGP.into()) })
@@ -667,7 +668,7 @@ impl Backend for WebBackend {
                 }
                 let id = other.account().to_string();
                 if sh.borrow().accounts.contains_key(&id) {
-                    enqueue(sh, &id, Task::Job(other));
+                    enqueue(sh, &id, Task::Job(Box::new(other)));
                 } else if let Job::FetchBody { key } = other {
                     // The sample mailbox and other accounts with no server: the cache has it or nobody does.
                     let raw = store(sh).read_body(&key);

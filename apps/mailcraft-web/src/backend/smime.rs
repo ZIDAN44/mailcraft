@@ -278,7 +278,7 @@ pub(super) fn job(sh: &Rcs, id: &str, j: Job) {
                     raw.0
                 }
             };
-            enqueue(sh, id, Task::Job(Job::SaveDraft { account: id.to_string(), raw, folder, replaces }));
+            enqueue(sh, id, Task::Job(Box::new(Job::SaveDraft { account: id.to_string(), raw, folder, replaces })));
         }
         _ => {}
     }
