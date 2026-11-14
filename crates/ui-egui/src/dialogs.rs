@@ -500,6 +500,7 @@ impl Dialog {
             stop: false,
             run_now: true,
             error: None,
+            original: None,
         }))
     }
 

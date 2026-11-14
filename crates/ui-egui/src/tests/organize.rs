@@ -284,3 +284,40 @@ fn a_completed_follow_up_shows_as_done() {
     assert!(!shown.iter().any(|l| l.contains("Completed")), "{shown:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A rule with more than the editor shows (two conditions, any of which will do, two actions,
+/// the one account it's for) keeps all of that when it's opened and saved with only its name
+/// changed, and keeps the rest when what the editor shows is changed. It was saved as the
+/// editor's one condition and one action, for every account, and its move to Junk came back as
+/// a move to Archive.
+#[test]
+fn a_rule_shown_in_part_keeps_the_rest() {
+    use crate::dialogs::{RuleDo, RuleForm, RuleTest};
+    use mailcraft_engine::model::FolderRole;
+    use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
+    let rule = Rule {
+        name: "Studio".into(),
+        enabled: true,
+        account: Some("sample".into()),
+        conditions: vec![Condition::From("zoe@".into()), Condition::Subject("cut".into())],
+        match_all: false,
+        actions: vec![RuleAction::Flag, RuleAction::MoveToRole(FolderRole::Junk)],
+        stop: true,
+    };
+    let mut f = RuleForm::from_rule(0, &rule);
+    f.name = "Studio mail".into();
+    assert_eq!(f.to_rule().unwrap(), Rule { name: "Studio mail".into(), ..rule.clone() });
+    // What it shows, changed: that changes, the rest stays.
+    let mut f = RuleForm::from_rule(0, &rule);
+    (f.test, f.text) = (RuleTest::To, "ana@".into());
+    (f.action, f.target) = (RuleDo::Categorize, "Work".into());
+    let saved = f.to_rule().unwrap();
+    assert_eq!(saved.conditions, [Condition::To("ana@".into()), Condition::Subject("cut".into())]);
+    assert_eq!(saved.actions, [RuleAction::Categorize("Work".into()), RuleAction::MoveToRole(FolderRole::Junk)]);
+    assert_eq!((saved.match_all, saved.account.as_deref(), saved.stop), (false, Some("sample"), true));
+    // One with nothing to show (no conditions, no actions) gets none it didn't have.
+    let bare = Rule { conditions: Vec::new(), actions: Vec::new(), ..rule.clone() };
+    let mut f = RuleForm::from_rule(0, &bare);
+    f.name = "Bare".into();
+    assert_eq!(f.to_rule().unwrap(), Rule { name: "Bare".into(), ..bare });
+}

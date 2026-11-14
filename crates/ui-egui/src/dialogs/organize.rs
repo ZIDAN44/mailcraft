@@ -587,10 +587,44 @@ pub struct RuleForm {
     /// Run it on the mail already in the Inbox once saved (Outlook's "run this rule now").
     pub run_now: bool,
     pub error: Option<String>,
+    /// The rule as it was when opened: what the editor doesn't show of it (more conditions or
+    /// actions, "any" of them, the account it's for) is kept, and of what it shows only what was
+    /// changed goes in.
+    pub original: Option<Rule>,
+}
+
+/// What the editor shows of a rule: its first condition and its first action.
+fn shown(r: &Rule) -> (RuleTest, String, RuleDo, String) {
+    let (test, text) = match r.conditions.first() {
+        Some(Condition::From(t)) => (RuleTest::From, t.clone()),
+        Some(Condition::To(t)) => (RuleTest::To, t.clone()),
+        Some(Condition::Subject(t)) => (RuleTest::Subject, t.clone()),
+        Some(Condition::AnyText(t)) => (RuleTest::AnyText, t.clone()),
+        Some(Condition::HasAttachment) => (RuleTest::HasAttachment, String::new()),
+        Some(Condition::Bulk) | None => (RuleTest::Bulk, String::new()),
+    };
+    let (action, target) = match r.actions.first() {
+        Some(RuleAction::MoveTo(f)) => (RuleDo::MoveTo, f.clone()),
+        Some(RuleAction::MoveToRole(FolderRole::Trash)) | Some(RuleAction::Delete) => (RuleDo::Delete, String::new()),
+        Some(RuleAction::MoveToRole(_)) => (RuleDo::Archive, String::new()),
+        Some(RuleAction::Categorize(c)) => (RuleDo::Categorize, c.clone()),
+        Some(RuleAction::MarkRead) => (RuleDo::MarkRead, String::new()),
+        Some(RuleAction::Flag) => (RuleDo::Flag, String::new()),
+        Some(RuleAction::Pin) | None => (RuleDo::Pin, String::new()),
+    };
+    (test, text, action, target)
+}
+
+/// `new` in the place of a list's first, or as its only one.
+fn put_first<T>(list: &mut Vec<T>, new: T) {
+    match list.first_mut() {
+        Some(first) => *first = new,
+        None => list.push(new),
+    }
 }
 
 impl RuleForm {
-    pub(super) fn to_rule(&self) -> Result<Rule, String> {
+    pub(crate) fn to_rule(&self) -> Result<Rule, String> {
         if self.name.trim().is_empty() {
             return Err(tl!("Give the rule a name").to_string());
         }
@@ -617,35 +651,35 @@ impl RuleForm {
             RuleDo::Flag => RuleAction::Flag,
             RuleDo::Pin => RuleAction::Pin,
         };
-        Ok(Rule {
-            name: self.name.trim().to_string(),
-            enabled: true,
-            account: if self.action == RuleDo::MoveTo { self.account.clone() } else { None },
-            conditions: vec![condition],
-            match_all: true,
-            actions: vec![action],
-            stop: self.stop,
-        })
+        let Some(original) = &self.original else {
+            return Ok(Rule {
+                name: self.name.trim().to_string(),
+                enabled: true,
+                account: if self.action == RuleDo::MoveTo { self.account.clone() } else { None },
+                conditions: vec![condition],
+                match_all: true,
+                actions: vec![action],
+                stop: self.stop,
+            });
+        };
+        let (test, text, act, target) = shown(original);
+        let mut rule = Rule { name: self.name.trim().to_string(), stop: self.stop, ..original.clone() };
+        if self.test != test || self.text.trim() != text.trim() {
+            put_first(&mut rule.conditions, condition);
+        }
+        let moved_elsewhere = self.action == RuleDo::MoveTo && self.account != original.account;
+        if self.action != act || self.target != target || moved_elsewhere {
+            put_first(&mut rule.actions, action);
+            // The account a move's folder is in is the one it's for; other actions keep theirs.
+            if self.action == RuleDo::MoveTo {
+                rule.account.clone_from(&self.account);
+            }
+        }
+        Ok(rule)
     }
 
-    pub(super) fn from_rule(index: usize, r: &Rule) -> RuleForm {
-        let (test, text) = match r.conditions.first() {
-            Some(Condition::From(t)) => (RuleTest::From, t.clone()),
-            Some(Condition::To(t)) => (RuleTest::To, t.clone()),
-            Some(Condition::Subject(t)) => (RuleTest::Subject, t.clone()),
-            Some(Condition::AnyText(t)) => (RuleTest::AnyText, t.clone()),
-            Some(Condition::HasAttachment) => (RuleTest::HasAttachment, String::new()),
-            Some(Condition::Bulk) | None => (RuleTest::Bulk, String::new()),
-        };
-        let (action, target) = match r.actions.first() {
-            Some(RuleAction::MoveTo(f)) => (RuleDo::MoveTo, f.clone()),
-            Some(RuleAction::MoveToRole(FolderRole::Trash)) | Some(RuleAction::Delete) => (RuleDo::Delete, String::new()),
-            Some(RuleAction::MoveToRole(_)) => (RuleDo::Archive, String::new()),
-            Some(RuleAction::Categorize(c)) => (RuleDo::Categorize, c.clone()),
-            Some(RuleAction::MarkRead) => (RuleDo::MarkRead, String::new()),
-            Some(RuleAction::Flag) => (RuleDo::Flag, String::new()),
-            Some(RuleAction::Pin) | None => (RuleDo::Pin, String::new()),
-        };
+    pub(crate) fn from_rule(index: usize, r: &Rule) -> RuleForm {
+        let (test, text, action, target) = shown(r);
         RuleForm {
             index: Some(index),
             name: r.name.clone(),
@@ -657,6 +691,7 @@ impl RuleForm {
             stop: r.stop,
             run_now: false,
             error: None,
+            original: Some(r.clone()),
         }
     }
 }
