@@ -11,6 +11,15 @@ impl Session {
         }
     }
 
+    /// Make the changes gathered for many messages: flags and categories first, so they're set
+    /// on the mail before it moves, then the moves.
+    pub(super) fn apply_changes(&mut self, batch: Batch) {
+        let (moves, marks): (Vec<_>, Vec<_>) = batch.0.into_iter().partition(|(_, op)| matches!(op, Op::Move { .. }));
+        for (account, op) in marks.into_iter().chain(moves) {
+            self.apply_op(&account, op);
+        }
+    }
+
     /// [`Session::apply_op`], saying when a local move didn't happen (the mail stays where it
     /// was) rather than putting it in a notice: a move command fails with it.
     pub(super) fn apply_op_checked(&mut self, account: &str, op: Op) -> Result<(), String> {
@@ -380,5 +389,43 @@ impl Session {
             Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
         }
         self.search_folders_changed(account);
+    }
+}
+
+/// Changes to many messages, gathered as they're worked out (rules, junk lists and ignored
+/// conversations on mail arriving) and made by [`Session::apply_changes`]: the same flag,
+/// category or destination in one account is one change for all its messages, as a selection's
+/// is, not one per message (each rebuilt the list and asked the server again).
+#[derive(Default)]
+pub(super) struct Batch(Vec<(String, Op)>);
+
+impl Batch {
+    /// `op` (a flag, category or move) for messages of `account`, joined to the same change
+    /// asked for already. Messages are added one at a time, all of one message's changes
+    /// together, so one named twice for a change (two rules flagging it) is that change's last.
+    pub(super) fn add(&mut self, account: &str, op: Op) {
+        let mut op = op;
+        for (a, have) in &mut self.0 {
+            if a != account {
+                continue;
+            }
+            op = match (have, op) {
+                (Op::SetFlag { keys, flag, on }, Op::SetFlag { keys: more, flag: f, on: o }) if *flag == f && *on == o => return join(keys, more),
+                (Op::SetKeyword { keys, keyword, on }, Op::SetKeyword { keys: more, keyword: k, on: o }) if *keyword == k && *on == o => {
+                    return join(keys, more);
+                }
+                (Op::Move { keys, to }, Op::Move { keys: more, to: t }) if *to == t => return join(keys, more),
+                (_, op) => op,
+            };
+        }
+        self.0.push((account.to_string(), op));
+    }
+}
+
+fn join(keys: &mut Vec<MessageKey>, more: Vec<MessageKey>) {
+    for k in more {
+        if keys.last() != Some(&k) {
+            keys.push(k);
+        }
     }
 }

@@ -24,6 +24,7 @@ on GitHub.
 - **Sign in again** says which user name the account signs in with, when that isn't its address (#88): asked for "the password for" the address, it read as signing in with the address.
 - In the browser, a picture or subscribed calendar larger than MailCraft takes is no longer downloaded whole before it's refused: reading stops once it passes the limit, or before it starts when the server gives its size. One answering with gigabytes could take the page down.
 - In the browser, a backup the browser's storage won't take (full, say) is said to be refused, and the page goes on keeping what you do. It used to say nothing, and nothing done afterwards was kept: it was gone at the next visit.
+- Rules, blocked senders and ignored conversations sort a lot of mail at once without holding up the window: **Run Rules Now** on a big Inbox, or the first sync after a long time away, changed each message on its own and asked the server once per message (20,000 messages filed by a rule took over two minutes). Mail they file together is now one change, as when you drag it.
 
 ## 0.38.0 - 2026-11-13
 

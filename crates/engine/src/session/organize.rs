@@ -458,19 +458,21 @@ impl Session {
             return Vec::new();
         }
         let mut gone = Vec::new();
+        let mut changes = Batch::default();
         for m in msgs {
             if !self.is_ignored(m) {
                 continue;
             }
             self.prefs.ignored.extend(Self::conversation_ids(m));
-            let a = m.key.account.clone();
-            if let Some(trash) = self.account(&a).and_then(|x| x.folder(FolderRole::Trash)).map(|f| f.path.clone())
+            let a = &m.key.account;
+            if let Some(trash) = self.account(a).and_then(|x| x.folder(FolderRole::Trash)).map(|f| f.path.clone())
                 && trash != m.key.folder
             {
-                self.apply_op(&a, Op::Move { keys: vec![m.key.clone()], to: trash });
+                changes.add(a, Op::Move { keys: vec![m.key.clone()], to: trash });
                 gone.push(m.key.clone());
             }
         }
+        self.apply_changes(changes);
         gone
     }
 
@@ -482,6 +484,7 @@ impl Session {
             return quiet;
         }
         let rules = self.rules.clone();
+        let mut changes = Batch::default();
         for m in msgs {
             let actions = actions_for(&rules, m);
             if actions.is_empty() {
@@ -493,14 +496,14 @@ impl Session {
             for act in actions {
                 match act {
                     RuleAction::MarkRead => {
-                        self.apply_op(&a, Op::SetFlag { keys: keys.clone(), flag: Flag::Seen, on: true });
+                        changes.add(&a, Op::SetFlag { keys: keys.clone(), flag: Flag::Seen, on: true });
                         quiet.push(m.key.clone());
                     }
-                    RuleAction::Flag => self.apply_op(&a, Op::SetFlag { keys: keys.clone(), flag: Flag::Flagged, on: true }),
-                    RuleAction::Pin => self.apply_op(&a, Op::SetKeyword { keys: keys.clone(), keyword: PINNED.into(), on: true }),
+                    RuleAction::Flag => changes.add(&a, Op::SetFlag { keys: keys.clone(), flag: Flag::Flagged, on: true }),
+                    RuleAction::Pin => changes.add(&a, Op::SetKeyword { keys: keys.clone(), keyword: PINNED.into(), on: true }),
                     RuleAction::Categorize(c) => {
                         if let Some(kw) = self.category(&c).map(|c| c.keyword.clone()) {
-                            self.apply_op(&a, Op::SetKeyword { keys: keys.clone(), keyword: kw, on: true });
+                            changes.add(&a, Op::SetKeyword { keys: keys.clone(), keyword: kw, on: true });
                         }
                     }
                     RuleAction::MoveTo(f) => dest = self.folder(&a, &f).map(|f| f.path.clone()).or(dest),
@@ -508,17 +511,18 @@ impl Session {
                     RuleAction::Delete => dest = self.account(&a).and_then(|x| x.folder(FolderRole::Trash)).map(|f| f.path.clone()).or(dest),
                 }
             }
-            // Moves last, so flags and categories are set on the message before it leaves. Mail
-            // filed in a folder is still new mail (announced, as Outlook does); mail a rule sends
-            // to Deleted Items or Junk isn't.
+            // Moves last (`apply_changes`), so flags and categories are set on the message before
+            // it leaves. Mail filed in a folder is still new mail (announced, as Outlook does);
+            // mail a rule sends to Deleted Items or Junk isn't.
             if let Some(to) = dest.filter(|to| *to != m.key.folder) {
                 let role = self.folder(&a, &to).map(|f| f.role);
                 if matches!(role, Some(FolderRole::Trash | FolderRole::Junk)) {
                     quiet.push(m.key.clone());
                 }
-                self.apply_op(&a, Op::Move { keys, to });
+                changes.add(&a, Op::Move { keys, to });
             }
         }
+        self.apply_changes(changes);
         quiet
     }
 

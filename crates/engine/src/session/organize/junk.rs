@@ -124,18 +124,20 @@ impl Session {
             return Vec::new();
         }
         let mut gone = Vec::new();
+        let mut changes = Batch::default();
         for m in msgs {
             if !self.sender_blocked(&m.from.email) {
                 continue;
             }
-            let a = m.key.account.clone();
-            if let Some(junk) = self.account(&a).and_then(|x| x.folder(FolderRole::Junk)).map(|f| f.path.clone())
+            let a = &m.key.account;
+            if let Some(junk) = self.account(a).and_then(|x| x.folder(FolderRole::Junk)).map(|f| f.path.clone())
                 && junk != m.key.folder
             {
-                self.apply_op(&a, Op::Move { keys: vec![m.key.clone()], to: junk });
+                changes.add(a, Op::Move { keys: vec![m.key.clone()], to: junk });
                 gone.push(m.key.clone());
             }
         }
+        self.apply_changes(changes);
         gone
     }
 
@@ -144,18 +146,24 @@ impl Session {
         if self.prefs.safe_senders.is_empty() {
             return;
         }
+        let mut changes = Batch::default();
+        let mut back = Vec::new();
         for m in msgs {
             if !self.sender_safe(&m.from.email) {
                 continue;
             }
-            let a = m.key.account.clone();
-            if let Some(inbox) = self.account(&a).and_then(|x| x.folder(FolderRole::Inbox)).map(|f| f.path.clone())
+            let a = &m.key.account;
+            if let Some(inbox) = self.account(a).and_then(|x| x.folder(FolderRole::Inbox)).map(|f| f.path.clone())
                 && inbox != m.key.folder
             {
-                self.apply_op(&a, Op::Move { keys: vec![m.key.clone()], to: inbox.clone() });
-                // Seen arriving in the Inbox: it's the server's filing that's put right.
-                self.moved_in.remove(&(a, inbox, m.message_id.clone()));
+                changes.add(a, Op::Move { keys: vec![m.key.clone()], to: inbox.clone() });
+                back.push((a.clone(), inbox, m.message_id.clone()));
             }
+        }
+        self.apply_changes(changes);
+        // Seen arriving in the Inbox: it's the server's filing that's put right.
+        for k in back {
+            self.moved_in.remove(&k);
         }
     }
 }
