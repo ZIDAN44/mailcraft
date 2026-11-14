@@ -3,17 +3,18 @@
 use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::path::Path;
+use std::rc::Rc;
 
-use super::edit::Editor;
+use super::edit::{ADD_MAX_VALUE_SIZE, Editor};
 use super::message::{contents_cell, is_unread, text_of};
 use super::table::{Cell, NewRow, ROW_ID, ROW_VERSION};
 use super::text::{Text, same_ansi_name};
 use super::types::*;
 use crate::ltp::{Bytes, PropertyType as P, PropertyValue, Table};
-use crate::messaging::{NID_MESSAGE_STORE, PstFolder, node_of_entry_id};
+use crate::messaging::{NID_MESSAGE_STORE, PstFolder, PstStore, node_of_entry_id};
 use crate::ndb::{
     NID_TYPE_ASSOC_CONTENTS_TABLE, NID_TYPE_CONTENTS_TABLE, NID_TYPE_HIERARCHY_TABLE, NID_TYPE_MASK, NID_TYPE_NORMAL_FOLDER, NID_TYPE_NORMAL_MESSAGE,
-    SubNodes,
+    PstFile, SubNodes,
 };
 use crate::util::{invalid, short};
 
@@ -358,15 +359,15 @@ fn role_property(role: SpecialFolder) -> (u16, bool) {
 
 /// The root folder, the IPM subtree and, when there is one, the Inbox: found by what it records
 /// (MS-OXOSFLD 2.2), else by its name.
-fn recording_folders(ed: &Editor) -> io::Result<Vec<u32>> {
-    let top = ed.store.ipm_subtree()?;
+fn recording_folders(store: &PstStore) -> io::Result<Vec<u32>> {
+    let top = store.ipm_subtree()?;
     let mut nodes = vec![NID_ROOT_FOLDER, top];
-    let parent = ed.store.open_folder(top)?;
+    let parent = store.open_folder(top)?;
     let mut named = None;
     let mut inbox = None;
     if let Some(table) = parent.hierarchy_table() {
         for row in table.rows_matrix() {
-            let Ok(f) = ed.store.open_folder(row.id()) else { continue };
+            let Ok(f) = store.open_folder(row.id()) else { continue };
             if INBOX_RECORDS.iter().any(|id| f.properties().get(*id).is_some()) {
                 inbox = Some(row.id());
                 break;
@@ -382,8 +383,8 @@ fn recording_folders(ed: &Editor) -> io::Result<Vec<u32>> {
 }
 
 /// The names from the IPM subtree down to `node`, each folder looked through once.
-fn folder_names(ed: &Editor, node: u32) -> io::Result<Option<Vec<String>>> {
-    let top = ed.store.ipm_subtree()?;
+fn folder_names(store: &PstStore, node: u32) -> io::Result<Option<Vec<String>>> {
+    let top = store.ipm_subtree()?;
     if node == top {
         return Ok(None);
     }
@@ -393,10 +394,10 @@ fn folder_names(ed: &Editor, node: u32) -> io::Result<Option<Vec<String>>> {
         if !seen.insert(at) || path.len() >= MAX_DEPTH {
             continue;
         }
-        let Ok(folder) = ed.store.open_folder(at) else { continue };
+        let Ok(folder) = store.open_folder(at) else { continue };
         let Some(table) = folder.hierarchy_table() else { continue };
         for row in table.rows_matrix() {
-            let Ok(child) = ed.store.open_folder(row.id()) else { continue };
+            let Ok(child) = store.open_folder(row.id()) else { continue };
             let mut names = path.clone();
             names.push(name_of(child.properties().get(DISPLAY_NAME)));
             if row.id() == node {
@@ -408,14 +409,17 @@ fn folder_names(ed: &Editor, node: u32) -> io::Result<Option<Vec<String>>> {
     Ok(None)
 }
 
-/// The folder the file records as `role`, as names from the IPM subtree.
+/// The folder the file records as `role`, as names from the IPM subtree. Only read: the file is
+/// opened as any file read is, not to be changed.
 pub(crate) fn special_folder(path: &Path, role: SpecialFolder) -> io::Result<Option<Vec<String>>> {
-    let ed = Editor::open(path)?;
+    let pst = PstFile::open(path)?;
+    pst.set_max_value_size(ADD_MAX_VALUE_SIZE);
+    let store = PstStore::read(Rc::new(pst))?;
     let (id, on_store) = role_property(role);
     let values: Vec<Option<PropertyValue>> = if on_store {
-        vec![ed.store.properties().get(id).cloned()]
+        vec![store.properties().get(id).cloned()]
     } else {
-        recording_folders(&ed)?.into_iter().map(|n| Ok(ed.store.open_folder(n)?.properties().get(id).cloned())).collect::<io::Result<_>>()?
+        recording_folders(&store)?.into_iter().map(|n| Ok(store.open_folder(n)?.properties().get(id).cloned())).collect::<io::Result<_>>()?
     };
     for value in values.into_iter().flatten() {
         let entry = match (&value, role) {
@@ -424,7 +428,7 @@ pub(crate) fn special_folder(path: &Path, role: SpecialFolder) -> io::Result<Opt
             _ => None,
         };
         let Some(node) = entry.and_then(|b| node_of_entry_id(&b).ok()) else { continue };
-        if let Some(names) = folder_names(&ed, node)? {
+        if let Some(names) = folder_names(&store, node)? {
             return Ok(Some(names));
         }
     }
@@ -460,7 +464,7 @@ pub(crate) fn set_special_folder(path: &Path, role: SpecialFolder, names: &[&str
         set(&mut props);
         ed.rewrite_props(NID_MESSAGE_STORE, props)?;
     } else {
-        for node in recording_folders(&ed)? {
+        for node in recording_folders(&ed.store)? {
             let mut props = writable(&*ed.store.open_folder(node)?);
             set(&mut props);
             ed.rewrite_props(node, props)?;

@@ -230,6 +230,24 @@ fn folders_get_their_class_and_special_folders_are_recorded() {
     assert_eq!(text(store.open_folder(t).unwrap().properties().get(0x3613)), "IPF.Task");
 }
 
+/// Looking up a special folder only reads: a file that can't be written to still says.
+#[test]
+fn a_special_folder_is_read_from_a_file_that_cant_be_written_to() {
+    let path = temp("special-read-only.pst");
+    write::create_empty(&path, Format::Unicode).unwrap();
+    write::set_special_folder(&path, SpecialFolder::SentItems, &["Archive", "Sent"]).unwrap();
+    let before = std::fs::read(&path).unwrap();
+    let mut perms = std::fs::metadata(&path).unwrap().permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(&path, perms.clone()).unwrap();
+    let found = write::special_folder(&path, SpecialFolder::SentItems);
+    #[allow(clippy::permissions_set_readonly_false)]
+    perms.set_readonly(false);
+    std::fs::set_permissions(&path, perms).unwrap();
+    assert_eq!(found.unwrap(), Some(vec!["Archive".to_string(), "Sent".to_string()]));
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+}
+
 #[test]
 fn the_store_can_be_renamed() {
     let path = temp("rename.pst");

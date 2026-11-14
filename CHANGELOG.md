@@ -104,6 +104,7 @@ on GitHub.
 - Two video attachments with the same name now each show their own thumbnail.
 - An import no longer stops on its own when its account is switched to or from keeping mail online only.
 - A Microsoft or Google sign-in service that is busy or failing no longer makes MailCraft ask you to sign in again; it tries again later.
+- Exporting into an existing data file that can't be written to no longer loses track of its own Sent Items, Deleted Items, Drafts and Junk folders.
 
 ## 0.38.0 - 2026-11-13
 
