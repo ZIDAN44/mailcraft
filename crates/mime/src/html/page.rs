@@ -89,40 +89,48 @@ fn page_rules_without_background(css: &str) -> String {
     out
 }
 
-/// A `<body>` or `<html>` tag without its `bgcolor` and its style's backgrounds.
+/// A `<body>` or `<html>` tag without its `bgcolor` and its style's backgrounds: its attributes
+/// read as every other pass reads them ([`crate::html::attributes`]), quoted or not. Each was
+/// looked for by its name anywhere in the tag, and `data-bgcolor` or a `style=` in another's
+/// value was cut instead.
 fn without_background_attrs(tag: &str) -> String {
-    let lower = tag.to_ascii_lowercase();
-    let mut out = tag.to_string();
-    // `bgcolor="#eef1f4"`, quoted or not.
-    if let Some(at) = lower.find("bgcolor") {
-        let value = lower.get(at + 7..).unwrap_or("").trim_start();
-        let skip = lower.len() - value.len();
-        let end = match value.strip_prefix('=').map(str::trim_start) {
-            Some(v) => {
-                let start = lower.len() - v.len();
-                match v.chars().next() {
-                    Some(q @ ('"' | '\'')) => v.get(1..).and_then(|r| r.find(q)).map_or(lower.len(), |e| start + e + 2),
-                    _ => v.find(|c: char| c.is_ascii_whitespace() || c == '>').map_or(lower.len(), |e| start + e),
-                }
+    let mut out = String::with_capacity(tag.len());
+    let mut last = 0;
+    for a in crate::html::attributes(tag).1 {
+        let (cut, kept) = match a.name.as_str() {
+            "bgcolor" => (a.span, String::new()),
+            "style" => {
+                let decls = tag.get(a.value.clone()).unwrap_or("");
+                let kept: Vec<&str> = decls.split(';').filter(|d| !d.trim().to_ascii_lowercase().starts_with("background")).collect();
+                (a.value, kept.join(";"))
             }
-            None => skip,
+            _ => continue,
         };
-        if out.is_char_boundary(at) && out.is_char_boundary(end) && at <= end {
-            out.replace_range(at..end, "");
-        }
+        let Some(before) = tag.get(last..cut.start) else { continue };
+        out.push_str(before);
+        out.push_str(&kept);
+        last = cut.end;
     }
-    // `style="…; background: …"`.
-    let lower = out.to_ascii_lowercase();
-    if let Some(s) = lower.find("style=") {
-        let quote = lower.as_bytes().get(s + 6).copied();
-        if let Some(q @ (b'"' | b'\'')) = quote
-            && let Some(len) = lower.get(s + 7..).and_then(|r| r.find(char::from(q)))
-        {
-            let decls = out.get(s + 7..s + 7 + len).unwrap_or("");
-            let kept: Vec<&str> = decls.split(';').filter(|d| !d.trim().to_ascii_lowercase().starts_with("background")).collect();
-            let kept = kept.join(";");
-            out.replace_range(s + 7..s + 7 + len, &kept);
-        }
-    }
+    out.push_str(tag.get(last..).unwrap_or(""));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The page's `bgcolor` and its style's backgrounds go, read as attributes: not a name inside
+    /// another (`data-bgcolor`) or in another's value, and an unquoted style too.
+    #[test]
+    fn the_pages_own_background_goes_and_nothing_else() {
+        let html = r##"<body data-bgcolor="#123" title="style=background:red" bgcolor="#eee" style="color:#111; background:#fff"><p>Hi</p>"##;
+        assert_eq!(no_page_background(html), r##"<body data-bgcolor="#123" title="style=background:red"  style="color:#111"><p>Hi</p>"##);
+        assert_eq!(no_page_background("<BODY BGCOLOR=#eee STYLE=background:#fff;color:red>x"), "<BODY  STYLE=color:red>x");
+        assert_eq!(no_page_background("<html bgcolor='x'><body>x"), "<html ><body>x");
+        // A box keeps its own.
+        assert_eq!(no_page_background(r##"<td bgcolor="#eee">x"##), r##"<td bgcolor="#eee">x"##);
+        for junk in ["<body bgcolor", "<body style=\"background", "<body bgcolor= >", "<body \"style=x\" é=é bgcolor=é>"] {
+            let _ = no_page_background(junk);
+        }
+    }
 }
