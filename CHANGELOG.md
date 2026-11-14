@@ -73,6 +73,7 @@ on GitHub.
 - Account setup still finds a provider's servers when the computer's first DNS resolver fails: the others weren't asked. Its lookups now carry a random id, so an answer can't be forged by guessing it.
 - Signing in with Google or Microsoft no longer fails when the browser opens an extra connection to MailCraft before the redirect.
 - Messages with unusual line endings (bare line feeds, or a mix) have their header read correctly when exported to or imported from an Outlook data file, or re-dated.
+- Exchange accounts with shared mailboxes or public folders no longer send a request again to every one of them when something isn't found: each folder's requests go where the folder is kept.
 
 ## 0.38.0 - 2026-11-13
 

@@ -316,16 +316,15 @@ pub struct Client {
     /// The account's public folder hierarchy mailbox (Autodiscover's PublicFolderInformation),
     /// once asked: `None` inside when there is none.
     pf_hierarchy: RefCell<Option<Option<String>>>,
-    /// The public folder mailboxes holding the public folders' content (their GUIDs, from the
-    /// folders' PR_REPLICA_LIST): a request one of their folders or items isn't found by is
-    /// tried there.
-    pf_replicas: RefCell<Vec<String>>,
+    /// The public folders listed: the public folder mailbox holding each one's content (its
+    /// GUID, from the folder's PR_REPLICA_LIST), where requests about it are routed.
+    pf_folders: RefCell<HashMap<String, String>>,
     /// The mailbox requests are routed to (`X-AnchorMailbox`) while working in a shared mailbox.
     anchor: RefCell<Option<String>>,
     /// Shared mailboxes added to the account by hand (their addresses).
     shared_added: RefCell<Vec<String>>,
-    /// The shared mailboxes whose folders were listed: a request not found in this one is
-    /// tried routed to them.
+    /// The shared mailboxes whose folders were listed: requests about their calendars are
+    /// routed to them.
     shared_open: RefCell<Vec<String>>,
     /// The account's Autodiscover answer, once asked (`None` inside when there was none).
     discovered: RefCell<Option<Option<String>>>,
@@ -487,7 +486,7 @@ impl Client {
             route: RefCell::new(None),
             pf_mailboxes: RefCell::new(HashMap::new()),
             pf_hierarchy: RefCell::new(None),
-            pf_replicas: RefCell::new(Vec::new()),
+            pf_folders: RefCell::new(HashMap::new()),
             anchor: RefCell::new(None),
             shared_added: RefCell::new(Vec::new()),
             shared_open: RefCell::new(Vec::new()),
@@ -643,12 +642,12 @@ pub fn find_on_server(
     if fs.validity != VALIDITY {
         return Ok((Vec::new(), 0));
     }
-    let ids = c.find(&id, query, cap.min(jmap::FOUND_MAX))?;
+    let ids = c.in_folder(&id, || c.find(&id, query, cap.min(jmap::FOUND_MAX)))?;
     let numbers: Vec<u32> = ids.iter().map(|i| st.number(i)).collect();
     let mut have = crate::exchange::window::kept_numbers(&fs);
     let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| !have.contains(*n)).map(|(i, _)| i.clone()).collect();
     let mut new = Vec::new();
-    for it in c.headers(&missing)? {
+    for it in c.in_folder(&id, || c.headers(&missing))? {
         let Some(i) = it.child("ItemId").and_then(|i| i.attr("Id")) else { continue };
         let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(i) };
         if have.insert(key.uid) {
@@ -683,7 +682,7 @@ fn restriction(q: &WordQuery) -> String {
 
 /// Download one message's source (and cache it).
 pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
-    crate::exchange::window::fetch_body(st, store, key, |id| c.download(id))
+    crate::exchange::window::fetch_body(st, store, key, |id| in_path(c, st, &key.folder, || c.download(id)))
 }
 
 /// A message's text first, its files listed but not downloaded (issue #24), when it's big and
@@ -695,8 +694,16 @@ pub fn fetch_text(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Re
     let fs = store.load_folder(&key.account, &key.folder)?;
     let big = fs.find(key.uid).is_some_and(|m| m.size >= text_first::TEXT_FIRST_OVER && m.has_attachments);
     match st.id(key.uid).filter(|_| big) {
-        Some(id) => c.download_text(id),
+        Some(id) => in_path(c, st, &key.folder, || c.download_text(id)),
         None => Ok(None),
+    }
+}
+
+/// Run `f` where the folder at `path` is kept on the server ([`Client::in_folder`]).
+fn in_path<T>(c: &Client, st: &State, path: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+    match st.mailbox(path) {
+        Ok(id) => c.in_folder(id, f),
+        Err(_) => f(),
     }
 }
 
@@ -711,20 +718,29 @@ fn folder_ref(id: Option<&str>) -> String {
     }
 }
 
-/// Apply one change on the server.
+/// Apply one change on the server, sent where the folder it's about is kept.
 pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
-    let ids = |keys: &[MessageKey]| crate::exchange::window::server_ids(st, keys);
+    // The messages' ids by the folder they're in (`skip`'s left out), a batch at a time.
+    let each_folder = |keys: &[MessageKey], skip: Option<&str>, send: &dyn Fn(&[String]) -> Result<()>| -> Result<()> {
+        let mut folders: Vec<(String, Vec<String>)> = Vec::new();
+        for (id, folder) in crate::exchange::window::server_ids(st, keys).into_iter().filter(|(_, f)| Some(f.as_str()) != skip) {
+            match folders.iter_mut().find(|(f, _)| *f == folder) {
+                Some((_, ids)) => ids.push(id),
+                None => folders.push((folder, vec![id])),
+            }
+        }
+        folders.iter().try_for_each(|(folder, ids)| in_path(c, st, folder, || ids.chunks(BATCH).try_for_each(send)))
+    };
     let update = |keys: &[MessageKey], change: &str| -> Result<()> {
-        for chunk in ids(keys).chunks(BATCH) {
+        each_folder(keys, None, &|chunk| {
             let changes: String = chunk
                 .iter()
-                .map(|(id, _)| format!("<t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{change}</t:Updates></t:ItemChange>", esc(id)))
+                .map(|id| format!("<t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{change}</t:Updates></t:ItemChange>", esc(id)))
                 .collect();
             c.call_all(&format!(
                 "<m:UpdateItem MessageDisposition=\"SaveOnly\" ConflictResolution=\"AlwaysOverwrite\"><m:ItemChanges>{changes}</m:ItemChanges></m:UpdateItem>"
-            ))?;
-        }
-        Ok(())
+            ))
+        })
     };
     match op {
         Op::SetFlag { keys, flag: Flag::Seen, on } => update(
@@ -743,34 +759,34 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
         Op::SetFlag { .. } | Op::SetKeyword { .. } => Ok(()),
         Op::Move { keys, to } => {
             let dest = st.mailbox(to)?.to_string();
-            let moving: Vec<String> = ids(keys).into_iter().filter(|(_, from)| from != to).map(|(id, _)| id).collect();
-            for chunk in moving.chunks(BATCH) {
+            each_folder(keys, Some(to), &|chunk| {
                 c.call_all(&format!(
                     "<m:MoveItem><m:ToFolderId>{}</m:ToFolderId><m:ItemIds>{}</m:ItemIds></m:MoveItem>",
                     folder_ref(Some(&dest)),
                     item_ids(chunk)
-                ))?;
-            }
-            Ok(())
+                ))
+            })
         }
-        Op::Expunge { keys } => {
-            let gone: Vec<String> = ids(keys).into_iter().map(|(id, _)| id).collect();
-            for chunk in gone.chunks(BATCH) {
-                c.call_all(&format!("<m:DeleteItem DeleteType=\"HardDelete\"><m:ItemIds>{}</m:ItemIds></m:DeleteItem>", item_ids(chunk)))?;
-            }
-            Ok(())
-        }
+        Op::Expunge { keys } => each_folder(keys, None, &|chunk| {
+            c.call_all(&format!("<m:DeleteItem DeleteType=\"HardDelete\"><m:ItemIds>{}</m:ItemIds></m:DeleteItem>", item_ids(chunk)))
+        }),
         Op::CreateFolder { path } => {
             let (parent, name) = st.split_path(path)?;
-            c.call_one(&format!(
-                "<m:CreateFolder><m:ParentFolderId>{}</m:ParentFolderId><m:Folders><t:Folder><t:FolderClass>IPF.Note</t:FolderClass>\
-                 <t:DisplayName>{}</t:DisplayName></t:Folder></m:Folders></m:CreateFolder>",
-                folder_ref(parent.as_deref()),
-                esc(&name)
-            ))
+            let create = || {
+                c.call_one(&format!(
+                    "<m:CreateFolder><m:ParentFolderId>{}</m:ParentFolderId><m:Folders><t:Folder><t:FolderClass>IPF.Note</t:FolderClass>\
+                     <t:DisplayName>{}</t:DisplayName></t:Folder></m:Folders></m:CreateFolder>",
+                    folder_ref(parent.as_deref()),
+                    esc(&name)
+                ))
+            };
+            match parent.as_deref() {
+                Some(p) => c.in_folder(p, create),
+                None => create(),
+            }
             .map(drop)
         }
-        Op::RenameFolder { from, to } => {
+        Op::RenameFolder { from, to } => in_path(c, st, from, || {
             let mut id = st.mailbox(from)?.to_string();
             let (old_parent, _) = st.split_path(from)?;
             let (parent, name) = st.split_path(to)?;
@@ -792,21 +808,25 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
                 esc(&name)
             ))
             .map(drop)
-        }
+        }),
         Op::DeleteFolder { path } => {
             let id = st.mailbox(path)?.to_string();
-            c.call_one(&format!(
-                "<m:DeleteFolder DeleteType=\"MoveToDeletedItems\"><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:DeleteFolder>",
-                esc(&id)
-            ))
+            c.in_folder(&id, || {
+                c.call_one(&format!(
+                    "<m:DeleteFolder DeleteType=\"MoveToDeletedItems\"><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:DeleteFolder>",
+                    esc(&id)
+                ))
+            })
             .map(drop)
         }
         Op::EmptyFolder { path } => {
             let id = st.mailbox(path)?.to_string();
-            c.call_one(&format!(
-                "<m:EmptyFolder DeleteType=\"HardDelete\" DeleteSubFolders=\"false\"><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:EmptyFolder>",
-                esc(&id)
-            ))
+            c.in_folder(&id, || {
+                c.call_one(&format!(
+                    "<m:EmptyFolder DeleteType=\"HardDelete\" DeleteSubFolders=\"false\"><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:EmptyFolder>",
+                    esc(&id)
+                ))
+            })
             .map(drop)
         }
     }

@@ -588,8 +588,8 @@ impl Data {
                 let folder = op.child("SavedItemFolderId").and_then(|s| s.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
                 for m in op.child("Items").map(|i| i.kids.clone()).unwrap_or_default() {
                     let sticky = m.text_of("ItemClass").is_some_and(|c| c.starts_with("IPM.StickyNote"));
-                    if folder.strip_prefix("mailbox:").is_some_and(|who| !self.editors.iter().any(|e| e == who)) {
-                        out.push(err("ErrorAccessDenied"));
+                    if folder.strip_prefix("mailbox:").is_some_and(|who| !self.editors.iter().any(|e| e == who)) || self.unrouted(&folder) {
+                        out.push(err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" }));
                         continue;
                     }
                     if m.name == "CalendarItem" || m.name == "Contact" || sticky {

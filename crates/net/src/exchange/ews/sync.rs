@@ -12,7 +12,8 @@ pub fn sync_folder(c: &Client, st: &mut State, store: &Store, account: &str, fol
 /// [`sync_folder`] for a worker that started when its account had been removed `seen` times: a
 /// removal since, while the sync talks to the server, has it write nothing of the account again.
 pub fn sync_folder_as(c: &Client, st: &mut State, store: &Store, account: &str, folder: &str, opts: &SyncOptions, seen: u64) -> Result<SyncReport> {
-    window::sync_folder_as(c, st, store, account, folder, opts, seen)
+    let id = st.mailbox(folder)?.to_string();
+    c.in_folder(&id, || window::sync_folder_as(c, st, store, account, folder, opts, seen))
 }
 
 impl Window for Client {

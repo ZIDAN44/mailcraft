@@ -74,6 +74,35 @@ impl Client {
         r
     }
 
+    /// Run `f` with its requests sent where folder `id` (its EWS id) is kept: to the shared
+    /// mailbox it was listed in, or to the public folder mailbox holding its content (Exchange
+    /// 2013 and later answer only there); as they are for the account's own folders. Nothing
+    /// is asked again elsewhere when it isn't found.
+    pub(crate) fn in_folder<T>(&self, id: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+        if self.route.borrow().is_some() || self.anchor.borrow().is_some() {
+            return f();
+        }
+        let shared = self.shared_roles.borrow().get(id).map(|(address, _)| address.clone());
+        if let Some(address) = shared {
+            return self.anchored_to(&address, f);
+        }
+        let replica = self.pf_folders.borrow().get(id).cloned();
+        if let Some(guid) = replica {
+            match self.public_folder_mailbox(&guid) {
+                Ok(mailbox) => return self.routed_to(&mailbox, f),
+                Err(e) => log::info!("public folder mailbox {guid}: {e}"),
+            }
+        }
+        f()
+    }
+
+    /// Run `f` with its requests sent to the mailbox of `address` when it's a shared mailbox
+    /// whose folders were listed (its calendar, say); as they are otherwise.
+    pub(crate) fn in_mailbox<T>(&self, address: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+        let open = self.shared_open.borrow().iter().any(|a| a.eq_ignore_ascii_case(address));
+        if open && self.route.borrow().is_none() && self.anchor.borrow().is_none() { self.anchored_to(address, f) } else { f() }
+    }
+
     /// A shared mailbox's mail folders, under a folder named for it (`top`): asked for in that
     /// mailbox (its root named with the `Mailbox` element), routed there. Its special folders'
     /// roles there are noted (`shared_roles`), for their icons and places.
@@ -334,9 +363,9 @@ impl Client {
                     .and_then(|p| p.text_of("Value"))
                     .and_then(replica_guid);
                 if let Some(g) = &replica {
-                    let mut known = self.pf_replicas.borrow_mut();
-                    if !known.contains(g) && known.len() < 20 {
-                        known.push(g.clone());
+                    let mut known = self.pf_folders.borrow_mut();
+                    if known.len() < MAX_PUBLIC * 2 || known.contains_key(&id) {
+                        known.insert(id.clone(), g.clone());
                     }
                 }
                 out.push(TreeFolder {

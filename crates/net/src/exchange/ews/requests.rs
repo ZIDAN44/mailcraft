@@ -130,36 +130,9 @@ impl Client {
         Err(NetError::Auth("the server refused the user name or password".into()))
     }
 
-    /// Run one operation; the answer's elements (a SOAP fault is an error). Something not found
-    /// while the account has public folders is asked for again in the public folder mailboxes
-    /// holding their content (Exchange 2013 and later answer only there).
+    /// Run one operation; the answer's elements (a SOAP fault is an error). It goes to the
+    /// account's own mailbox, or where [`Client::in_folder`] sends it.
     pub fn call(&self, body: &str) -> Result<El> {
-        let doc = self.call_here(body)?;
-        let missing = |doc: &El| messages(doc).iter().any(|m| matches!(m.text_of("ResponseCode"), Some("ErrorFolderNotFound" | "ErrorItemNotFound")));
-        if self.route.borrow().is_some() || self.anchor.borrow().is_some() || !missing(&doc) {
-            return Ok(doc);
-        }
-        for mailbox in self.shared_open.borrow().clone() {
-            if let Ok(there) = self.anchored_to(&mailbox, || self.call_here(body))
-                && !missing(&there)
-            {
-                return Ok(there);
-            }
-        }
-        let guids = self.pf_replicas.borrow().clone();
-        for guid in guids {
-            let Ok(mailbox) = self.public_folder_mailbox(&guid) else { continue };
-            if let Ok(there) = self.routed_to(&mailbox, || self.call_here(body))
-                && !missing(&there)
-            {
-                return Ok(there);
-            }
-        }
-        Ok(doc)
-    }
-
-    /// [`Client::call`] where the request is sent, without looking elsewhere.
-    pub(super) fn call_here(&self, body: &str) -> Result<El> {
         self.call_raw(envelope(body))
     }
 

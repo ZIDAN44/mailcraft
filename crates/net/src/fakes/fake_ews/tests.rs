@@ -10,6 +10,7 @@ use super::*;
 
 mod calendars;
 mod directory;
+mod elsewhere;
 mod pim;
 
 fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {

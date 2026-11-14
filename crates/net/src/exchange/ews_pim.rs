@@ -513,6 +513,15 @@ fn folder_name(c: &Client, distinguished: &str) -> Option<String> {
     (!name.is_empty()).then_some(name)
 }
 
+/// Run `f` in the mailbox whose calendar `calendar` is, when it's someone else's
+/// ([`Client::in_mailbox`]).
+fn in_calendar<T>(c: &Client, calendar: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+    match mailcraft_model::pim::shared_calendar_owner(calendar) {
+        Some(owner) => c.in_mailbox(owner, f),
+        None => f(),
+    }
+}
+
 fn calendar_folder(owner: Option<&str>) -> String {
     match owner {
         Some(email) => format!(
@@ -544,7 +553,7 @@ fn item_may_change(it: &El) -> bool {
 pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut out = DavSync { caldav_home: Some("ews".into()), carddav_home: Some("ews".into()), checked: now, ..Default::default() };
     for t in &pim.deleted {
-        match delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:")) {
+        match in_calendar(c, &t.calendar, || delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:"))) {
             Ok(()) => out.deleted.push(t.href.clone()),
             Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
             Err(e) => out.errors.push(e.to_string()),
@@ -553,39 +562,42 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     for e in pim.events.iter().filter(|e| e.dirty) {
         let fields = event_fields(&e.event);
         let owner = mailcraft_model::pim::shared_calendar_owner(&e.calendar);
-        let r = if e.href.is_empty() {
-            let body: String = fields.iter().map(|(_, x)| x.as_str()).collect();
-            c.call_one(&format!(
-                "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId>{}</m:SavedItemFolderId>\
-                 <m:Items><t:CalendarItem>{body}</t:CalendarItem></m:Items></m:CreateItem>",
-                calendar_folder(owner)
-            ))
-            .map(|m| new_id(&m))
-        } else {
-            let mut updates: String = fields
-                .iter()
-                .map(|(name, x)| {
-                    let uri = if matches!(*name, "Subject" | "Sensitivity" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
-                        format!("item:{name}")
-                    } else {
-                        format!("calendar:{name}")
-                    };
-                    format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
+        let r = in_calendar(c, &e.calendar, || {
+            if e.href.is_empty() {
+                let body: String = fields.iter().map(|(_, x)| x.as_str()).collect();
+                c.call_one(&format!(
+                    "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId>{}</m:SavedItemFolderId>\
+                     <m:Items><t:CalendarItem>{body}</t:CalendarItem></m:Items></m:CreateItem>",
+                    calendar_folder(owner)
+                ))
+                .map(|m| new_id(&m))
+            } else {
+                let mut updates: String = fields
+                    .iter()
+                    .map(|(name, x)| {
+                        let uri =
+                            if matches!(*name, "Subject" | "Sensitivity" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
+                                format!("item:{name}")
+                            } else {
+                                format!("calendar:{name}")
+                            };
+                        format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
+                    })
+                    .collect();
+                if e.event.rrule.is_none() {
+                    updates.push_str("<t:DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:DeleteItemField>");
+                }
+                c.call_one(&format!(
+                    "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
+                     <t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{updates}</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>",
+                    esc(&e.href)
+                ))
+                .map(|m| {
+                    let (id, key) = new_id(&m);
+                    (if id.is_empty() { e.href.clone() } else { id }, key)
                 })
-                .collect();
-            if e.event.rrule.is_none() {
-                updates.push_str("<t:DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:DeleteItemField>");
             }
-            c.call_one(&format!(
-                "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
-                 <t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{updates}</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>",
-                esc(&e.href)
-            ))
-            .map(|m| {
-                let (id, key) = new_id(&m);
-                (if id.is_empty() { e.href.clone() } else { id }, key)
-            })
-        };
+        });
         match r {
             // Someone else's event stays in their calendar.
             Ok((href, etag)) => out.pushed_events.push(StoredEvent {
@@ -664,9 +676,9 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         let parent = calendar_folder(Some(&email));
         // Editable when the folder's rights say so, or (some servers say nothing useful about
         // another mailbox's folder) when its events do, as Outlook finds by trying.
-        let folder_rights = may_edit(c, &parent);
+        let folder_rights = c.in_mailbox(&email, || may_edit(c, &parent));
         let mut can_edit = *folder_rights.as_ref().unwrap_or(&false);
-        match items_in(c, &parent, RECURRENCE) {
+        match c.in_mailbox(&email, || items_in(c, &parent, RECURRENCE)) {
             Ok(read) => {
                 read.say(&mut out, &name);
                 let list = read.items;
