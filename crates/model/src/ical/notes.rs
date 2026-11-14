@@ -11,16 +11,26 @@ pub fn links_in(text: &str) -> Vec<String> {
     let lower = text.to_ascii_lowercase();
     let mut at = 0;
     while out.len() < MAX_LINKS {
-        let next = [lower.get(at..).and_then(|r| r.find("https://")), lower.get(at..).and_then(|r| r.find("http://"))].into_iter().flatten().min();
-        let Some(rel) = next else { break };
-        let start = at + rel;
+        // Each `http` found once, left to right: a link where `://` or `s://` follows. (Both
+        // schemes searched for from each went over the rest of the text again for every address
+        // not kept.)
+        let Some(start) = lower.get(at..).and_then(|r| r.find("http")).map(|i| at + i) else { break };
+        let scheme = lower.get(start + 4..).unwrap_or("");
+        if !scheme.starts_with("://") && !scheme.starts_with("s://") {
+            at = start + 4;
+            continue;
+        }
         let rest = text.get(start..).unwrap_or("");
         let len = rest.find(|c: char| c.is_whitespace() || matches!(c, '<' | '>' | '"' | '\'' | '[' | ']' | '{' | '}' | '|')).unwrap_or(rest.len());
         let mut link = rest.get(..len).unwrap_or("");
-        // Closing punctuation, and a closing bracket the link didn't open.
+        // Closing punctuation, and closing brackets the link didn't open (its brackets counted
+        // once: counted again for each one, a run of them was quadratic).
+        let opened = link.matches('(').count();
+        let mut closed = link.matches(')').count();
         loop {
             let trimmed = link.trim_end_matches(['.', ',', ';', ':', '!', '?']);
-            let trimmed = if trimmed.ends_with(')') && trimmed.matches('(').count() < trimmed.matches(')').count() {
+            let trimmed = if trimmed.ends_with(')') && opened < closed {
+                closed -= 1;
                 trimmed.get(..trimmed.len() - 1).unwrap_or(trimmed)
             } else {
                 trimmed

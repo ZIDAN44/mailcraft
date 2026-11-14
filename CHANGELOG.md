@@ -30,6 +30,7 @@ on GitHub.
 - Replying to or forwarding a message with a link stuffed with `javascript:` no longer hangs MailCraft: each one was taken out by going over the whole link again (a megabyte of them took five minutes).
 - A big folder of a JMAP account (Fastmail, say) syncs without looking each message up in the whole folder: in a folder of 40,000 that was nearly two seconds of every sync, even when nothing had changed, and it grew with the square of the folder's size.
 - A calendar invitation or subscribed calendar with a very long list of skipped dates (`EXDATE`) is read at once: each date copied the whole list, so 100,000 of them took 40 seconds.
+- An event whose notes are full of web addresses, or of brackets after one, is opened and its meeting link found at once; a crafted invitation's notes could hold MailCraft up for minutes.
 
 ## 0.38.0 - 2026-11-13
 

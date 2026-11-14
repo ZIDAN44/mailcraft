@@ -461,3 +461,17 @@ fn a_calendar_is_read_to_its_limit_at_a_character_s_start() {
     let uids: Vec<String> = parse(&text, 0).events.into_iter().map(|e| e.uid).collect();
     assert_eq!(uids, ["a"]);
 }
+
+/// Notes full of addresses that aren't kept (no dot in the host), or of closing brackets after
+/// one, are read in one pass: each address not kept had both schemes searched for again over the
+/// rest of the text, and each bracket had the link's brackets counted again.
+#[test]
+fn notes_full_of_addresses_are_read_at_once() {
+    let mut notes = "https://a ".repeat(100_000);
+    notes.push_str("then https://studio.example/plan");
+    let took = std::time::Instant::now();
+    assert_eq!(links_in(&notes), ["https://studio.example/plan"]);
+    let brackets = format!("See https://studio.example/x{}", ")".repeat(200_000));
+    assert_eq!(links_in(&brackets), ["https://studio.example/x"]);
+    assert!(took.elapsed() < std::time::Duration::from_secs(10), "{:?}", took.elapsed());
+}
