@@ -107,6 +107,7 @@ on GitHub.
 - Exporting into an existing data file that can't be written to no longer loses track of its own Sent Items, Deleted Items, Drafts and Junk folders.
 - Exporting to a large Outlook data file is faster.
 - In the task list and the To-Do Bar, due dates are written in the order chosen under Dates, with the weekday.
+- On Windows without ffmpeg, video attachments now show their frame on a busy or slow computer too.
 
 ## 0.38.0 - 2026-11-13
 

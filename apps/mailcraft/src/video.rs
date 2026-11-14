@@ -8,8 +8,11 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-/// How long a tool gets for one frame.
-const TIMEOUT: Duration = Duration::from_secs(20);
+/// How long a tool gets for one frame: only to stop one caught on a damaged file (it runs off the
+/// window, so waiting costs nothing). A busy or slow computer takes its time: the Windows Shell's
+/// way starts PowerShell and compiles a few lines of C# first, under a second alone and several
+/// beside other work, and a frame cut off is none for the rest of the session.
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(60);
 /// The frame's width (or largest side).
 const SIZE: u32 = 480;
 
@@ -96,6 +99,9 @@ pub(crate) fn frame(source: &Source, video: &Path) -> Option<Vec<u8>> {
 
 /// The Windows Shell's thumbnail of a file (`IShellItemImageFactory`, thumbnails only, never the
 /// file type's icon), saved as PNG. Runs inside PowerShell, so MailCraft itself stays safe Rust.
+/// Asked up to four times, a moment apart: on a busy computer the Shell's extraction fails now
+/// and then (`WTS_E_FAILEDEXTRACTION`) and makes the thumbnail when asked again. A file it can't
+/// read fails each time at once (the same error), so it costs that file a few seconds more.
 const SHELL_SCRIPT: &str = r#"$ErrorActionPreference = 'Stop'
 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;
@@ -111,8 +117,12 @@ public static class MailCraftThumbnail {
   public static void Save(string path, string png, int px) {
     IShellItemImageFactory f;
     SHCreateItemFromParsingName(path, IntPtr.Zero, typeof(IShellItemImageFactory).GUID, out f);
-    IntPtr h;
-    int hr = f.GetImage(new Size(px, px), 0x8, out h);
+    IntPtr h = IntPtr.Zero;
+    int hr = 1;
+    for (int tries = 0; tries < 4 && hr != 0; tries++) {
+      if (tries > 0) System.Threading.Thread.Sleep(1500);
+      hr = f.GetImage(new Size(px, px), 0x8, out h);
+    }
     if (hr != 0) throw new Exception("no thumbnail");
     try { using (var b = Image.FromHbitmap(h)) b.Save(png, ImageFormat.Png); } finally { DeleteObject(h); }
   }
