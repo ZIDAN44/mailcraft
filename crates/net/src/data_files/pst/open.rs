@@ -44,10 +44,10 @@ pub(crate) fn locked_by_another(e: &io::Error) -> bool {
     }
 }
 
-/// `path` opened to read through a cache of its own, in the chunks `opts` say (`chunk_kb`), its
-/// reads failing once the import is asked to stop.
+/// `path` opened to read through a cache of its own, in the chunks `opts` say (a test's
+/// `chunk_kb`), its reads failing once the import is asked to stop.
 pub(super) fn source(path: &Path, opts: &ImportOptions) -> io::Result<Shared> {
-    Source::new(open_read(path)?, opts.chunk_kb, opts.stop.clone())
+    Source::new(open_read(path)?, opts.tuning().chunk_kb, opts.stop.clone())
 }
 
 /// A handle on `source`, new, at its start.

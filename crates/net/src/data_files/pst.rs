@@ -392,19 +392,20 @@ pub struct ImportOptions {
     /// stops itself, as if paused, when there's less than [`LOW_SPACE`] where it writes.
     #[doc(hidden)]
     pub space: Option<Arc<dyn Space>>,
-    /// The reader's chunk of the file, in KiB (0: its own): for tests and measuring.
-    #[doc(hidden)]
-    pub chunk_kb: usize,
-    /// The data file's cache while the import writes to it, and the most a batch of sources
-    /// holds, in bytes (0: their own): for measuring.
-    #[doc(hidden)]
-    pub cache_bytes: usize,
-    #[doc(hidden)]
-    pub batch_bytes: usize,
-    /// Leave the account's search index alone (it's brought up to the mail afterwards, by
-    /// reading every message again): for measuring what indexing as it imports costs.
+    /// Leave the account's search index alone: the mail is indexed afterwards, by reading every
+    /// message again. For a file read into a store of its own before it's added to an account
+    /// (`worker/imports/rereading.rs`), and for measuring what indexing as it imports costs.
     #[doc(hidden)]
     pub no_index: bool,
+    /// The reader's chunk of the file, in KiB, the data file's cache while the import writes to
+    /// it, and the most a batch of sources holds, in bytes, as a test or a measurement sets them
+    /// (0: the import's own), read through `ImportOptions::tuning`.
+    #[cfg(test)]
+    pub(crate) chunk_kb: usize,
+    #[cfg(test)]
+    pub(crate) cache_bytes: usize,
+    #[cfg(test)]
+    pub(crate) batch_bytes: usize,
     /// A fault for a test to put in the import's threads.
     #[cfg(test)]
     pub(crate) fault: Option<lanes::tests::Fault>,
@@ -414,6 +415,28 @@ pub struct ImportOptions {
     /// The folder a test's import takes for the file's Sent Items, by its name.
     #[cfg(test)]
     pub(crate) sent_folder: Option<&'static str>,
+}
+
+/// How an import reads and writes, as a test or a measurement sets it (0: the import's own,
+/// which the app always has).
+#[derive(Clone, Copy, Debug, Default)]
+struct Tuning {
+    /// The reader's chunk of the file, in KiB.
+    chunk_kb: usize,
+    /// The data file's cache while the import writes to it, and the most a batch of sources
+    /// holds, in bytes.
+    cache_bytes: usize,
+    batch_bytes: usize,
+}
+
+impl ImportOptions {
+    /// How the import reads and writes: as a test sets it, else its own.
+    fn tuning(&self) -> Tuning {
+        #[cfg(test)]
+        return Tuning { chunk_kb: self.chunk_kb, cache_bytes: self.cache_bytes, batch_bytes: self.batch_bytes };
+        #[cfg(not(test))]
+        Tuning::default()
+    }
 }
 
 /// How far an import is asked to stop. It's raised from any thread and never lowered: paused,
@@ -452,13 +475,14 @@ impl Stop {
 /// another program, has it open.
 const LOCKED: &str = "Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again";
 
-/// Import the data file at `path` into `account`'s cache (an account with no server), as the app
-/// does. Calls `progress` with how far it has got, every so often.
-pub fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(Progress)) -> Result<Imported, String> {
+/// [`import_with`] as the app runs it: for tests.
+#[cfg(test)]
+pub(crate) fn import(path: &Path, store: &Store, account: &str, progress: &mut dyn FnMut(Progress)) -> Result<Imported, String> {
     import_with(path, store, account, &ImportOptions::default(), progress)
 }
 
-/// [`import`], run as `opts` say.
+/// Import the data file at `path` into `account`'s cache (an account with no server), run as
+/// `opts` say. Calls `progress` with how far it has got, every so often.
 pub fn import_with(path: &Path, store: &Store, account: &str, opts: &ImportOptions, progress: &mut dyn FnMut(Progress)) -> Result<Imported, String> {
     import_into(path, store, account, opts, &mut |p| progress(p))
 }
@@ -491,7 +515,10 @@ pub fn import_into(path: &Path, store: &Store, account: &str, opts: &ImportOptio
     }
     // The account's data file has a bigger cache while the import writes, and lets go of it
     // however the import ends.
-    let cache = if opts.cache_bytes > 0 { opts.cache_bytes } else { mailcraft_store::BULK_CACHE };
+    let cache = match opts.tuning().cache_bytes {
+        0 => mailcraft_store::BULK_CACHE,
+        n => n,
+    };
     let _bulk = Bulk::begin(store, account, cache);
     // Kept from writers from here until the import is done, whichever handles are reading it
     // meanwhile (they all go before the writer is). A file this can't open, the planner can't

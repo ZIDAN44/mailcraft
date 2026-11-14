@@ -132,7 +132,10 @@ impl<'a> Out<'a> {
             lanes: 1,
             finished: Vec::new(),
             published: None,
-            batch_bytes: if opts.batch_bytes > 0 { opts.batch_bytes } else { BATCH_BYTES },
+            batch_bytes: match opts.tuning().batch_bytes {
+                0 => BATCH_BYTES,
+                n => n,
+            },
             index: None,
             indexed: 0,
             note: super::resume::Note::every(checkpoint_every(opts)),
