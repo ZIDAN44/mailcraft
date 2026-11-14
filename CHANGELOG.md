@@ -132,6 +132,8 @@ on GitHub.
 - A picture whose address is written with `&#38;` now loads when pictures are shown.
 - A file whose name appears in a picture's description no longer loses its paperclip.
 - Pictures and buttons in newsletters' Outlook layouts take the size their style finally sets.
+- A page's background is taken out of a quoted message when its style isn't quoted, and `data-bgcolor` is left alone.
+- Pictures in pasted HTML are read from `file:` links on this computer only: one naming another computer was read as a path here.
 
 ## 0.38.0 - 2026-11-13
 

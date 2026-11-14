@@ -455,31 +455,13 @@ fn office_pictures_in(html: String, temp: &Path) -> String {
     })
 }
 
-/// The file a `file:` address names (`file:///C:/Users/…/clip_image001.png`, with `%20` and
-/// the like decoded); `None` for any other address.
+/// The file on this computer a `file:` address names (`file:///C:/Users/…/clip_image001.png`,
+/// with `%20` and the like decoded), read as a `file:` link MailCraft is started with is;
+/// `None` for any other address, or one to another computer.
 fn office_file(src: &str) -> Option<PathBuf> {
     let src = src.trim();
-    let rest = src.get(..5).filter(|s| s.eq_ignore_ascii_case("file:")).and_then(|_| src.get(5..))?;
-    let rest = rest.trim_start_matches('/');
-    let mut bytes = Vec::with_capacity(rest.len());
-    let raw = rest.as_bytes();
-    let mut i = 0;
-    while let Some(&b) = raw.get(i) {
-        let hex = |k: usize| raw.get(k).and_then(|h| (*h as char).to_digit(16));
-        match (b, hex(i + 1), hex(i + 2)) {
-            (b'%', Some(a), Some(b2)) => {
-                bytes.push(u8::try_from(a * 16 + b2).ok()?);
-                i += 3;
-            }
-            _ => {
-                bytes.push(b);
-                i += 1;
-            }
-        }
-    }
-    let path = String::from_utf8(bytes).ok()?;
-    // `C:/…` on Windows; `/tmp/…` elsewhere.
-    Some(if cfg!(windows) { PathBuf::from(path) } else { PathBuf::from(format!("/{path}")) })
+    src.get(..5).filter(|s| s.eq_ignore_ascii_case("file:"))?;
+    crate::args::from_file_link(src).map(PathBuf::from)
 }
 
 #[cfg(test)]
@@ -552,5 +534,26 @@ mod tests {
         );
         assert_eq!(office_file("http://x/a.png"), None);
         std::fs::remove_dir_all(&temp).unwrap();
+    }
+
+    /// Found in audit (#225): a picture's `file:` address is read as the `file:` links MailCraft
+    /// is started with are. One to another computer was taken as a path from the folder
+    /// MailCraft runs in (`server.example/share/x.png`).
+    #[test]
+    fn office_pictures_are_read_from_this_computer_only() {
+        assert_eq!(office_file("file://server.example/share/x.png"), None);
+        assert_eq!(office_file("FILE://Server/msohtmlclip1/01/a.png"), None);
+        let (link, path) = if cfg!(windows) {
+            (
+                "file:///C:/Users/Zoe/AppData/Local/Temp/msohtmlclip1/01/clip%20image001.png",
+                "C:/Users/Zoe/AppData/Local/Temp/msohtmlclip1/01/clip image001.png",
+            )
+        } else {
+            ("file:///tmp/msohtmlclip1/01/clip%20image001.png", "/tmp/msohtmlclip1/01/clip image001.png")
+        };
+        assert_eq!(office_file(link), Some(PathBuf::from(path)));
+        assert_eq!(office_file(&link.replace("file:///", "  File://localhost/")), Some(PathBuf::from(path)));
+        assert_eq!(office_file("file:"), None);
+        assert_eq!(office_file("files:///tmp/a.png"), None);
     }
 }
