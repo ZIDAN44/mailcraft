@@ -597,10 +597,14 @@ impl Pool {
             // The thread notices the closed channel within half a second (IDLE slices); don't
             // block the UI waiting for a slow network call to finish.
             // The second connection's thread ends as its queue closes (it was started by this one).
-            if let Some(t) = h.thread.take() {
-                std::thread::spawn(move || {
+            // Without a thread to wait on it (the system short of resources), it's left to end on
+            // its own: `std::thread::spawn` panicked here.
+            if let Some(t) = h.thread.take()
+                && let Err(e) = std::thread::Builder::new().name("worker-end".into()).spawn(move || {
                     let _ = t.join();
-                });
+                })
+            {
+                log::warn!("{account}: {e}");
             }
         }
     }

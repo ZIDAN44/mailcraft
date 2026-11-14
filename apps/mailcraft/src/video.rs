@@ -163,11 +163,17 @@ fn run(mut cmd: Command) -> Option<Vec<u8>> {
     }
     let mut child = cmd.spawn().ok()?;
     let mut out = child.stdout.take()?;
-    let reader = std::thread::spawn(move || {
+    // A thread the system won't start is no picture (`std::thread::spawn` panicked).
+    let reader = std::thread::Builder::new().name("video-tool-output".into()).spawn(move || {
         let mut buf = Vec::new();
         let _ = out.by_ref().take(20 << 20).read_to_end(&mut buf);
         buf
     });
+    let Ok(reader) = reader else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    };
     let end = Instant::now() + TIMEOUT;
     let status = loop {
         match child.try_wait() {

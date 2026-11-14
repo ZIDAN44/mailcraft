@@ -377,7 +377,7 @@ impl Services for Desktop {
         #[cfg(windows)]
         let portable = self.portable;
         // Off the UI thread: the notification service can be slow, or missing.
-        std::thread::spawn(move || {
+        off_thread(std::thread::Builder::new().name("notify".into()), "notification", move || {
             let mut n = notify_rust::Notification::new();
             n.summary(&title).body(&body).appname("MailCraft");
             // Windows names a toast after its app id (PowerShell's when none is given). A
@@ -390,6 +390,19 @@ impl Services for Desktop {
                 log::warn!("notification: {e}");
             }
         });
+    }
+}
+
+/// Run `f` on a thread of its own made by `builder`: false, and `what` logged, when the system
+/// won't start one (short of resources), where `std::thread::spawn` panicked on the window's
+/// thread.
+fn off_thread(builder: std::thread::Builder, what: &str, f: impl FnOnce() + Send + 'static) -> bool {
+    match builder.spawn(f) {
+        Ok(_) => true,
+        Err(e) => {
+            log::warn!("{what}: no thread to run it on ({e})");
+            false
+        }
     }
 }
 
@@ -472,6 +485,17 @@ fn office_file(src: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A thread the system won't start (here a stack no system gives) is said, not a panic on
+    /// the window's thread, as `std::thread::spawn` made it for each new-mail notification.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn a_thread_that_cant_start_isnt_a_panic() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        assert!(off_thread(std::thread::Builder::new(), "test", move || tx.send(()).unwrap_or_default()));
+        assert!(rx.recv_timeout(std::time::Duration::from_secs(10)).is_ok(), "ran");
+        assert!(!off_thread(std::thread::Builder::new().stack_size(1 << 50), "test", || {}));
+    }
 
     /// The next dialog opens where the last answer was: a file's folder, or the folder picked;
     /// a cancelled dialog leaves it, and a folder that's gone isn't offered.
