@@ -41,6 +41,9 @@ pub struct Merged {
     pub events: usize,
     pub notes: usize,
     pub tasks: usize,
+    /// Messages left out because their source couldn't be read in the file read again: not
+    /// noted as come in, so the next read tries them again.
+    pub unreadable: usize,
 }
 
 /// A message's identity across two reads of a file: its Message-ID, else when it was sent, by
@@ -142,8 +145,10 @@ impl Store {
     /// before, into the folder of the same path (made when there's none), and each contact,
     /// calendar item, note and task the same way. Nothing in `account` changes but by being
     /// added to; its messages keep their numbers, and what's marked while this runs stays (each
-    /// list is read and written under the lists' lock). An account with no note of what came in
-    /// before is refused ([`Store::has_seen`]).
+    /// list is read and written under the lists' lock). A message whose source `from` hasn't (or
+    /// has damaged) is left out and not noted, so the next read tries it again
+    /// ([`Merged::unreadable`]). An account with no note of what came in before is refused
+    /// ([`Store::has_seen`]).
     pub fn merge_from(&self, account: &str, from: &Store, from_account: &str) -> Result<Merged> {
         let seen = self.seen_of(account)?;
         let (mut seen_messages, mut seen_items): (HashSet<u64>, HashSet<u64>) =
@@ -164,7 +169,7 @@ impl Store {
             for m in &list.messages {
                 let id = message_id(m);
                 if seen_messages.insert(id) && have.insert(id) {
-                    new.push(m);
+                    new.push((id, m));
                 }
             }
             if new.is_empty() {
@@ -173,10 +178,18 @@ impl Store {
             let n = u32::try_from(new.len()).map_err(|_| no_uids_left(account, &f.path))?;
             let (validity, mut uid) = self.reserve(account, &f.path, list.validity.max(1), n)?;
             let mut added = Vec::with_capacity(new.len());
+            let mut unreadable = 0usize;
             for chunk in new.chunks(BATCH) {
                 let mut bodies = Vec::with_capacity(chunk.len());
-                for m in chunk {
-                    let Some(raw) = from.load_body(&m.key)? else { continue };
+                for &(id, m) in chunk {
+                    let Some(raw) = from.load_body(&m.key)? else {
+                        // Not come in: not noted as come in either, so the next read tries it
+                        // again (and another copy of it in the file may come in now).
+                        seen_messages.remove(&id);
+                        have.remove(&id);
+                        unreadable += 1;
+                        continue;
+                    };
                     let key = MessageKey {
                         account: account.to_string(),
                         folder: f.path.clone(),
@@ -193,6 +206,10 @@ impl Store {
                 }
                 // The sources first: a list never names one that isn't there.
                 self.write_bodies(&bodies)?;
+            }
+            if unreadable > 0 {
+                log::warn!("{account}/{}: {unreadable} message(s) of the file read again couldn't be read, left for the next read", f.path);
+                merged.unreadable += unreadable;
             }
             merged.messages += added.len();
             self.append(account, &f, validity, added)?;

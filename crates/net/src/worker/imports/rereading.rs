@@ -176,6 +176,8 @@ fn added(told: &Told<'_>, path: &str, merged: &Merged, skips: &[(SkipReason, usi
     for (reason, n) in skips {
         report.skip(*reason, count(*n));
     }
+    // Left for the next read of the file.
+    report.skip(SkipReason::MessageUnreadable, count(merged.unreadable));
     sink.emit(Event::Imported {
         account: account.to_string(),
         messages: merged.messages,

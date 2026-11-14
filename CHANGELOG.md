@@ -93,6 +93,7 @@ on GitHub.
 - A message whose source starts with bytes MailCraft uses inside its data file now reads back correctly, and no longer stops the data file from being compacted.
 - A signed message whose certificate is encoded in an unusual but valid way is now trusted when its issuer is, and shows the same fingerprint as other mail programs; one changed after it was signed is no longer accepted.
 - Signed mail sends your certificate exactly as your certificate authority issued it, so recipients can check it even when it's encoded unusually.
+- A message an Outlook file read again couldn't give is tried again on the next read, instead of being left out for good.
 
 ## 0.38.0 - 2026-11-13
 
