@@ -491,6 +491,37 @@ fn the_first_message_of_an_empty_inbox_is_new() {
     assert_eq!(s.take_new_mail().into_iter().map(|m| m.subject).collect::<Vec<_>>(), ["first"]);
 }
 
+/// A server that numbers an Inbox again (a new UIDVALIDITY: the cache is dropped and synced
+/// again) brings the same mail under new numbers: none of it arrived, whatever its number, and
+/// what comes after it did.
+#[test]
+fn an_inbox_numbered_again_brings_no_new_mail() {
+    let store = temp("notify-renumbered");
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let state = |validity: u32, uids: std::ops::RangeInclusive<u32>| {
+        let messages = uids
+            .map(|uid| {
+                let key = mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity, uid };
+                mailcraft_model::Summary { key, subject: format!("{validity}/{uid}"), date: NOW, ..Default::default() }.into()
+            })
+            .collect();
+        mailcraft_store::FolderState { validity, uid_next: 0, highest_modseq: 0, messages, window: 0 }
+    };
+    store.save_folder(&id, "INBOX", &state(9, 1..=3)).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert!(s.take_new_mail().is_empty(), "the first look is the backlog");
+    store.save_folder(&id, "INBOX", &state(10, 1..=20)).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert!(s.take_new_mail().is_empty(), "numbered again, nothing arrived");
+    store.save_folder(&id, "INBOX", &state(10, 1..=21)).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    assert_eq!(s.take_new_mail().into_iter().map(|m| m.subject).collect::<Vec<_>>(), ["10/21"]);
+}
+
 #[test]
 fn recipients_are_suggested_from_mail_seen() {
     let mut s = sample_session("contacts");

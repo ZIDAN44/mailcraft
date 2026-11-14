@@ -293,20 +293,19 @@ impl Session {
         // A data file's mail coming in (or its import waiting to go on) isn't new: no rules,
         // nothing announced; what it brought is the backlog from then on.
         if self.importing.held(account) {
-            self.seen_uid.insert(k, max);
+            self.seen_uid.insert(k, (validity, max));
             return;
         }
+        // A folder the server numbered again (another UIDVALIDITY: the cache dropped and synced
+        // again) is looked at as for the first time: its numbers say nothing of what's new. One
+        // marked before anything was kept (0: an Inbox empty at the first sync) has had none.
         let arrived: Vec<Summary> = match self.seen_uid.get(&k) {
-            Some(&seen) => self
-                .folder_state(account, folder)
-                .messages
-                .iter()
-                .filter(|m| m.key.uid > seen && m.key.validity == validity)
-                .map(|m| Summary::clone(m))
-                .collect(),
-            None => Vec::new(),
+            Some(&(was, seen)) if was == validity || was == 0 => {
+                self.folder_state(account, folder).messages.iter().filter(|m| m.key.uid > seen).map(|m| Summary::clone(m)).collect()
+            }
+            _ => Vec::new(),
         };
-        self.seen_uid.insert(k, max);
+        self.seen_uid.insert(k, (validity, max));
         // What the user put here didn't arrive: no rules, nothing announced.
         let arrived: Vec<Summary> =
             arrived.into_iter().filter(|m| !self.moved_in.remove(&(account.to_string(), folder.to_string(), m.message_id.clone()))).collect();

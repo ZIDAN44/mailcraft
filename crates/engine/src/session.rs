@@ -399,8 +399,9 @@ pub struct Session {
     cards: security::CardSearch,
     /// OpenPGP: each account's keys and its correspondents', signatures found in decrypted mail.
     pgp: security::PgpState,
-    /// The highest UID seen per Inbox, so only mail that arrives later is announced.
-    pub(crate) seen_uid: HashMap<(String, String), u32>,
+    /// The highest UID seen per Inbox (and Junk), with the UIDVALIDITY it's of, so only mail that
+    /// arrives later is announced.
+    pub(crate) seen_uid: HashMap<(String, String), (u32, u32)>,
     /// Mail the user put in a server account's Inbox or Junk, not mail arriving there.
     pub(crate) moved_in: changing::MovedIn,
     /// When mail was last moved (Unix seconds): its Undo waits for a server to have moved it.
