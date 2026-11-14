@@ -203,10 +203,9 @@ pub fn remove_recipient(field: &str, cursor: usize) -> Option<(String, usize)> {
     if last == '>' && !entry.contains('<') {
         return None;
     }
-    let keep_to = if start == 0 { 0 } else { start };
-    let before: String = chars.get(..keep_to).unwrap_or(&[]).iter().collect();
+    let before: String = chars.get(..start).unwrap_or(&[]).iter().collect();
     let after: String = chars.get(cursor..).unwrap_or(&[]).iter().collect();
-    let before = if after.trim().is_empty() && keep_to > 0 { format!("{} ", before.trim_end()) } else { before };
+    let before = if after.trim().is_empty() && start > 0 { format!("{} ", before.trim_end()) } else { before };
     let at = before.chars().count();
     Some((format!("{before}{}", after.trim_start()), at))
 }
