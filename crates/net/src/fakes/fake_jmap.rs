@@ -5,7 +5,6 @@
 //! `serve_for_the_browser`).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
@@ -161,178 +160,37 @@ impl Data {
         })
     }
 
+    /// One method call: (the response's name, its result).
     fn method(&mut self, name: &str, args: &Value, earlier: &BTreeMap<String, Value>) -> (String, Value) {
         self.calls.push(name.to_string());
         if name.ends_with("/set") || name.ends_with("/import") {
             self.notify();
         }
-        let ids = |args: &Value| -> Option<Vec<String>> {
-            if let Some(r) = args.get("#ids") {
-                let of = r.get("resultOf")?.as_str()?;
-                return Some(earlier.get(of)?.get("ids")?.as_array()?.iter().filter_map(|v| v.as_str().map(str::to_string)).collect());
-            }
-            args.get("ids")?.as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
-        };
         match name {
-            "Mailbox/get" if self.fail_mailbox_get > 0 => {
-                self.fail_mailbox_get -= 1;
-                ("error".into(), json!({"type": "serverUnavailable"}))
-            }
-            "Mailbox/get" => {
-                let want = ids(args);
-                let list: Vec<Value> =
-                    self.mailboxes.iter().filter(|m| want.as_ref().is_none_or(|w| w.contains(&m.id))).map(|m| self.mailbox_json(m)).collect();
-                (name.into(), json!({"accountId": ACCOUNT, "state": "s", "list": list, "notFound": []}))
-            }
-            "Mailbox/set" => {
-                let mut created = Map::new();
-                for (k, v) in args.get("create").and_then(Value::as_object).cloned().unwrap_or_default() {
-                    let id = self.mailbox(v["name"].as_str().unwrap_or("?"), v["parentId"].as_str(), None);
-                    created.insert(k, json!({"id": id}));
-                }
-                let mut not_updated = Map::new();
-                for (id, v) in args.get("update").and_then(Value::as_object).cloned().unwrap_or_default() {
-                    match self.mailboxes.iter_mut().find(|m| m.id == id) {
-                        Some(m) => {
-                            m.name = v["name"].as_str().unwrap_or(&m.name).to_string();
-                            m.parent = v["parentId"].as_str().map(str::to_string);
-                        }
-                        None => {
-                            not_updated.insert(id, json!({"type": "notFound"}));
-                        }
-                    }
-                }
-                for id in args.get("destroy").and_then(Value::as_array).cloned().unwrap_or_default() {
-                    let id = id.as_str().unwrap_or_default().to_string();
-                    self.mailboxes.retain(|m| m.id != id);
-                    for e in &mut self.emails {
-                        e.mailboxes.remove(&id);
-                    }
-                    self.emails.retain(|e| !e.mailboxes.is_empty());
-                }
-                (name.into(), json!({"accountId": ACCOUNT, "created": created, "notUpdated": not_updated}))
-            }
-            "Email/query" => {
-                let mut found: Vec<&Em> = self.emails.iter().filter(|e| self.matches(e, &args["filter"])).collect();
-                found.sort_by(|a, b| b.received.cmp(&a.received));
-                let limit = args["limit"].as_u64().unwrap_or(1000) as usize;
-                let position = args["position"].as_u64().unwrap_or(0) as usize;
-                let ids: Vec<&str> = found.iter().skip(position).take(limit).map(|e| e.id.as_str()).collect();
-                let mut answer = json!({"accountId": ACCOUNT, "queryState": "q", "ids": ids, "position": position});
-                if args["calculateTotal"] == Value::Bool(true) {
-                    answer["total"] = json!(found.len());
-                }
-                (name.into(), answer)
-            }
-            "Email/get" => {
-                let want = ids(args).unwrap_or_default();
-                // As a server refuses more than its maxObjectsInGet (RFC 8620 §5.1).
-                if want.len() > MAX_GET {
-                    return ("error".into(), json!({"type": "requestTooLarge"}));
-                }
-                let list: Vec<Value> = want.iter().filter_map(|id| self.email(id)).map(|e| self.email_json(e)).collect();
-                (name.into(), json!({"accountId": ACCOUNT, "state": "s", "list": list}))
-            }
-            "Email/set" => {
-                let mut not_updated = Map::new();
-                for (id, patch) in args.get("update").and_then(Value::as_object).cloned().unwrap_or_default() {
-                    let Some(e) = self.emails.iter_mut().find(|e| e.id == id) else {
-                        not_updated.insert(id, json!({"type": "notFound"}));
-                        continue;
-                    };
-                    for (path, v) in patch.as_object().cloned().unwrap_or_default() {
-                        let (field, key) = path.split_once('/').unwrap_or((&path, ""));
-                        let set = if field == "keywords" { &mut e.keywords } else { &mut e.mailboxes };
-                        if v == Value::Bool(true) {
-                            set.insert(key.to_string());
-                        } else {
-                            set.remove(key);
-                        }
-                    }
-                }
-                let destroy: Vec<String> = args
-                    .get("destroy")
-                    .and_then(Value::as_array)
-                    .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
-                    .unwrap_or_default();
-                self.emails.retain(|e| !destroy.contains(&e.id));
-                (name.into(), json!({"accountId": ACCOUNT, "notUpdated": not_updated, "destroyed": destroy}))
-            }
-            "Email/import" => {
-                let mut created = Map::new();
-                for (k, v) in args.get("emails").and_then(Value::as_object).cloned().unwrap_or_default() {
-                    let blob = v["blobId"].as_str().unwrap_or_default().to_string();
-                    let id = self.id("E");
-                    let keys = |f: &str| v[f].as_object().map(|m| m.keys().cloned().collect()).unwrap_or_default();
-                    self.emails.push(Em {
-                        id: id.clone(),
-                        blob: blob.clone(),
-                        mailboxes: keys("mailboxIds"),
-                        keywords: keys("keywords"),
-                        received: "2030-01-01T00:00:00Z".into(),
-                    });
-                    created.insert(k, json!({"id": id, "blobId": blob}));
-                }
-                (name.into(), json!({"accountId": ACCOUNT, "created": created}))
-            }
-            "Quota/get" => (
-                name.into(),
-                json!({"accountId": ACCOUNT, "list": [
-                    {"id": "q1", "resourceType": "count", "used": self.emails.len(), "hardLimit": 1000, "scope": "account"},
-                    {"id": "q2", "resourceType": "octets", "used": self.blobs.values().map(Vec::len).sum::<usize>(), "hardLimit": 1_000_000, "scope": "account"},
-                ]}),
-            ),
-            "VacationResponse/get" => {
-                let mut v = if self.vacation.is_object() { self.vacation.clone() } else { json!({"isEnabled": false}) };
-                v["id"] = json!("singleton");
-                (name.into(), json!({"accountId": ACCOUNT, "list": [v]}))
-            }
-            "VacationResponse/set" => {
-                let patch = args["update"]["singleton"].clone();
-                if patch["textBody"].as_str().is_some_and(|t| t.contains("refuse")) {
-                    return (
-                        name.into(),
-                        json!({"accountId": ACCOUNT, "notUpdated": {"singleton": {"type": "invalidProperties", "description": "not allowed"}}}),
-                    );
-                }
-                self.vacation = patch;
-                (name.into(), json!({"accountId": ACCOUNT, "updated": {"singleton": null}}))
-            }
-            "Identity/get" => {
-                let mut list: Vec<Value> = if self.no_identity { Vec::new() } else { vec![json!({"id": "I1", "email": USER, "name": "Me"})] };
-                list.extend(self.made_identities.iter().enumerate().map(|(i, e)| json!({"id": format!("M{i}"), "email": e, "name": ""})));
-                (name.into(), json!({"accountId": ACCOUNT, "list": list}))
-            }
-            "Identity/set" => {
-                let mut created = Map::new();
-                for (k, v) in args.get("create").and_then(Value::as_object).cloned().unwrap_or_default() {
-                    let email = v["email"].as_str().unwrap_or_default().to_string();
-                    created.insert(k, json!({"id": format!("M{}", self.made_identities.len())}));
-                    self.made_identities.push(email);
-                }
-                (name.into(), json!({"accountId": ACCOUNT, "created": created}))
-            }
-            "EmailSubmission/set" => {
-                let mut created = Map::new();
-                let mut not_created = Map::new();
-                for (k, v) in args.get("create").and_then(Value::as_object).cloned().unwrap_or_default() {
-                    let rcpt: Vec<String> = v["envelope"]["rcptTo"]
-                        .as_array()
-                        .map(|a| a.iter().filter_map(|r| r["email"].as_str().map(str::to_string)).collect())
-                        .unwrap_or_default();
-                    if rcpt.iter().any(|r| r.starts_with("nobody@")) {
-                        not_created.insert(k, json!({"type": "forbiddenToSend", "description": "no such recipient"}));
-                        continue;
-                    }
-                    let from = v["envelope"]["mailFrom"]["email"].as_str().unwrap_or_default().to_string();
-                    self.submissions.push((v["emailId"].as_str().unwrap_or_default().to_string(), from, rcpt));
-                    created.insert(k, json!({"id": "S1"}));
-                }
-                (name.into(), json!({"accountId": ACCOUNT, "created": created, "notCreated": not_created}))
-            }
+            "Mailbox/get" => self.mailbox_get(name, ids(args, earlier)),
+            "Mailbox/set" => self.mailbox_set(name, args),
+            "Email/query" => self.email_query(name, args),
+            "Email/get" => self.email_get(name, ids(args, earlier)),
+            "Email/set" => self.email_set(name, args),
+            "Email/import" => self.email_import(name, args),
+            "Quota/get" => self.quota_get(name),
+            "VacationResponse/get" => self.vacation_get(name),
+            "VacationResponse/set" => self.vacation_set(name, args),
+            "Identity/get" => self.identity_get(name),
+            "Identity/set" => self.identity_set(name, args),
+            "EmailSubmission/set" => self.submission_set(name, args),
             _ => ("error".into(), json!({"type": "unknownMethod"})),
         }
     }
+}
+
+/// The ids a method's arguments name: given, or (`#ids`) an earlier call's result's.
+fn ids(args: &Value, earlier: &BTreeMap<String, Value>) -> Option<Vec<String>> {
+    if let Some(r) = args.get("#ids") {
+        let of = r.get("resultOf")?.as_str()?;
+        return Some(earlier.get(of)?.get("ids")?.as_array()?.iter().filter_map(|v| v.as_str().map(str::to_string)).collect());
+    }
+    args.get("ids")?.as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
 }
 
 pub struct Server {
@@ -351,15 +209,6 @@ impl Drop for Server {
     }
 }
 
-fn respond(s: &mut impl Write, status: u16, body: &[u8], kind: &str) {
-    let head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n{CORS}Connection: close\r\n\r\n", body.len());
-    let _ = s.write_all(head.as_bytes());
-    let _ = s.write_all(body);
-}
-
-/// Any web page may call (a test server on this computer).
-const CORS: &str = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Accept\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
-
 /// Start the server; it runs until the test process ends.
 pub fn serve(data: Data) -> Server {
     serve_at(data, 0)
@@ -375,116 +224,14 @@ pub fn serve_at(data: Data, port: u16) -> Server {
         for conn in l.incoming() {
             let Ok(s) = conn else { continue };
             let (shared, auth) = (shared.clone(), auth.clone());
-            std::thread::spawn(move || handle(s, &shared, &auth));
+            std::thread::spawn(move || serving::handle(s, &shared, &auth));
         }
     });
     Server { base, data }
 }
 
-/// One connection: one request (`Connection: close`), or an event stream held open.
-fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
-    {
-        {
-            let mut reader = BufReader::new(s.try_clone().unwrap());
-            let mut first = String::new();
-            if reader.read_line(&mut first).unwrap_or(0) == 0 {
-                return;
-            }
-            let (mut len, mut authorized) = (0usize, false);
-            loop {
-                let mut line = String::new();
-                if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-                    break;
-                }
-                let lower = line.to_ascii_lowercase();
-                if let Some(v) = lower.strip_prefix("content-length:") {
-                    len = v.trim().parse().unwrap_or(0);
-                }
-                if line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == auth) {
-                    authorized = true;
-                }
-            }
-            let mut body = vec![0u8; len];
-            let _ = reader.read_exact(&mut body);
-            // A browser's CORS preflight carries no credentials.
-            if first.starts_with("OPTIONS ") {
-                respond(&mut s, 204, b"", "text/plain");
-                return;
-            }
-            if !authorized {
-                respond(&mut s, 401, b"{}", "application/json");
-                return;
-            }
-            let path = first.split(' ').nth(1).unwrap_or("/").to_string();
-            let mut d = shared.lock().unwrap();
-            if path.starts_with("/events/") {
-                // Kept for the test to fail on, and refused: not asserted here, which would
-                // poison the data's lock and leave every request after it unanswered.
-                if !path.contains("types=%2A") && !path.contains("types=*") {
-                    d.violations.push(format!("an event stream not asked for every type: {path}"));
-                    drop(d);
-                    respond(&mut s, 400, br#"{"type": "urn:ietf:params:jmap:error:notRequest"}"#, "application/json");
-                    return;
-                }
-                let (tx, rx) = std::sync::mpsc::channel::<String>();
-                d.listeners.push(tx);
-                drop(d);
-                let _ =
-                    s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n{CORS}Transfer-Encoding: chunked\r\n\r\n").as_bytes());
-                loop {
-                    let msg = match rx.recv_timeout(std::time::Duration::from_secs(1)) {
-                        Ok(m) => format!("event: state\r\ndata: {m}\r\n\r\n"),
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ": keep-alive\n\nevent: ping\ndata: {\"interval\":1}\n\n".to_string(),
-                        Err(_) => break,
-                    };
-                    if s.write_all(format!("{:x}\r\n{msg}\r\n", msg.len()).as_bytes()).is_err() {
-                        break;
-                    }
-                }
-                return;
-            }
-            if path == "/.well-known/jmap" {
-                let session = json!({
-                    "capabilities": {"urn:ietf:params:jmap:core": {"maxObjectsInGet": MAX_GET}, "urn:ietf:params:jmap:mail": {}, "urn:ietf:params:jmap:submission": {}, "urn:ietf:params:jmap:quota": {}, "urn:ietf:params:jmap:vacationresponse": {}},
-                    "accounts": {ACCOUNT: {"name": USER}},
-                    "primaryAccounts": {"urn:ietf:params:jmap:mail": ACCOUNT, "urn:ietf:params:jmap:submission": ACCOUNT},
-                    "username": USER,
-                    "apiUrl": "/api/",
-                    "downloadUrl": "/download/{accountId}/{blobId}/{name}?accept={type}",
-                    "uploadUrl": "/upload/{accountId}/",
-                    "eventSourceUrl": "/events/?types={types}&closeafter={closeafter}&ping={ping}",
-                    "state": "1",
-                });
-                respond(&mut s, 200, session.to_string().as_bytes(), "application/json");
-            } else if path == "/api/" {
-                let req: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
-                let mut earlier = BTreeMap::new();
-                let mut out = Vec::new();
-                for call in req["methodCalls"].as_array().cloned().unwrap_or_default() {
-                    let (name, args, id) =
-                        (call[0].as_str().unwrap_or_default().to_string(), call[1].clone(), call[2].as_str().unwrap_or_default().to_string());
-                    let (rname, result) = d.method(&name, &args, &earlier);
-                    earlier.insert(id.clone(), result.clone());
-                    out.push(json!([rname, result, id]));
-                }
-                respond(&mut s, 200, json!({"methodResponses": out, "sessionState": "1"}).to_string().as_bytes(), "application/json");
-            } else if let Some(rest) = path.strip_prefix(&format!("/download/{ACCOUNT}/")) {
-                let blob = rest.split('/').next().unwrap_or_default();
-                match d.blobs.get(blob) {
-                    Some(raw) => respond(&mut s, 200, &raw.clone(), "message/rfc822"),
-                    None => respond(&mut s, 404, b"", "text/plain"),
-                }
-            } else if path == format!("/upload/{ACCOUNT}/") {
-                let blob = d.id("B");
-                d.blobs.insert(blob.clone(), body.clone());
-                let r = json!({"accountId": ACCOUNT, "blobId": blob, "type": "message/rfc822", "size": body.len()});
-                respond(&mut s, 201, r.to_string().as_bytes(), "application/json");
-            } else {
-                respond(&mut s, 404, b"", "text/plain");
-            }
-        }
-    }
-}
-
+mod account;
+mod mail;
+mod serving;
 #[cfg(test)]
 mod tests;

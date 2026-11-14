@@ -1,0 +1,237 @@
+//! The fake server's items: messages and calendar, contacts and notes items found, read, made,
+//! changed, moved and deleted.
+
+use super::*;
+
+impl Data {
+    /// `FindItem`: a calendar, contacts or notes folder's items, or a mail folder's messages.
+    pub(super) fn find_item(&self, op: &El) -> Vec<String> {
+        let parent = op.child("ParentFolderIds").and_then(|p| p.kids.first());
+        if self.pim_folder(parent) {
+            let folder = parent.and_then(|f| self.folder_id(f)).unwrap_or_default();
+            if self.unrouted(&folder) || self.refuses_folder(&folder) {
+                return vec![err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" })];
+            }
+            let items: String =
+                self.pim.iter().filter(|(_, f, _)| *f == folder).map(|(id, _, _)| format!("<t:Item><t:ItemId Id=\"{id}\"/></t:Item>")).collect();
+            return vec![ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>"))];
+        }
+        // A folder the mailbox hasn't (a Notes folder, say): as Exchange answers.
+        let Some(folder) = parent.and_then(|f| self.folder_id(f)) else {
+            return vec![err("ErrorFolderNotFound")];
+        };
+        if self.unrouted(&folder) {
+            return vec![err("ErrorFolderNotFound")];
+        }
+        let view = op.child("IndexedPageItemView");
+        let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000);
+        // Pages by offset, as Exchange does (up to 1000 at a time).
+        let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
+        let max = max.min(1000);
+        let mut list: Vec<&It> = self.items.iter().filter(|i| i.folder == folder).collect();
+        list.sort_by(|a, b| b.received.cmp(&a.received));
+        // A search: AQS words, or a restriction on the read and flag state.
+        if let Some(q) = op.child("QueryString") {
+            list.retain(|i| crate::fake_graph::words_match(&q.text, &i.raw));
+        }
+        if let Some(r) = op.child("Restriction") {
+            let mut all = Vec::new();
+            r.all("IsEqualTo", &mut all);
+            for cond in all {
+                let value = cond.find("Constant").and_then(|c| c.attr("Value")).unwrap_or("");
+                if cond.find("FieldURI").and_then(|f| f.attr("FieldURI")) == Some("message:IsRead") {
+                    let want = value == "true";
+                    list.retain(|i| i.read == want);
+                } else if cond.find("ExtendedFieldURI").is_some() {
+                    let negated = r.find("Not").is_some();
+                    list.retain(|i| i.flagged != negated);
+                }
+            }
+        }
+        let last = offset + max >= list.len();
+        let items: String = list
+            .iter()
+            .skip(offset)
+            .take(max)
+            .map(|i| {
+                format!(
+                    "<t:Message><t:ItemId Id=\"{}\" ChangeKey=\"ck\"/><t:IsRead>{}</t:IsRead>{}</t:Message>",
+                    i.id,
+                    i.read,
+                    if i.flagged {
+                        "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/><t:Value>2</t:Value></t:ExtendedProperty>"
+                    } else {
+                        ""
+                    }
+                )
+            })
+            .collect();
+        vec![ok(format!(
+            "<m:RootFolder TotalItemsInView=\"{}\" IncludesLastItemInRange=\"{last}\"><t:Items>{items}</t:Items></m:RootFolder>",
+            list.len()
+        ))]
+    }
+
+    /// `GetItem`: each item asked for, a message with its MIME source when asked; a calendar or
+    /// contacts item as it was made, with its own rights when asked.
+    pub(super) fn get_item(&self, op: &El) -> Vec<String> {
+        let mime = op.find("IncludeMimeContent").is_some_and(|m| m.text == "true");
+        let mut out = Vec::new();
+        for id in ids(op.child("ItemIds")) {
+            if self.pim.iter().any(|(i, f, _)| *i == id && self.unrouted(f)) {
+                out.push(err("ErrorItemNotFound"));
+                continue;
+            }
+            if let Some((_, _, el)) = self.pim.iter().find(|(i, _, _)| *i == id) {
+                if let Some(code) = self.refuses_item(op, &id, el) {
+                    out.push(err(code));
+                    continue;
+                }
+                let mut el = el.clone();
+                el.kids.insert(
+                    0,
+                    El { name: "ItemId".into(), attrs: vec![("Id".into(), id.clone()), ("ChangeKey".into(), "ck".into())], ..Default::default() },
+                );
+                // Each item's own rights (`item:EffectiveRights`), when asked for.
+                let mut fields = Vec::new();
+                op.all("FieldURI", &mut fields);
+                if fields.iter().any(|f| f.attr("FieldURI") == Some("item:EffectiveRights")) {
+                    let edit = self.may_change(&id);
+                    let rights = parse(&format!(
+                        "<t:EffectiveRights><t:CreateAssociated>false</t:CreateAssociated><t:CreateContents>false</t:CreateContents>\
+                         <t:CreateHierarchy>false</t:CreateHierarchy><t:Delete>{edit}</t:Delete><t:Modify>{edit}</t:Modify><t:Read>true</t:Read></t:EffectiveRights>"
+                    ));
+                    el.kids.extend(rights.kids);
+                }
+                out.push(ok(format!("<m:Items>{}</m:Items>", xml(&el))));
+                continue;
+            }
+            match self.items.iter().find(|i| i.id == id) {
+                Some(i) if self.unrouted(&i.folder) => out.push(err("ErrorItemNotFound")),
+                Some(i) if mime && self.unreadable.contains(&i.id) => out.push(err("ErrorInternalServerError")),
+                Some(i) => out.push(ok(format!("<m:Items>{}</m:Items>", self.item_xml(i, mime)))),
+                None => out.push(err("ErrorItemNotFound")),
+            }
+        }
+        out
+    }
+
+    /// `CreateItem`: a calendar, contacts or notes item kept as made; a message from its MIME
+    /// source, saved (a draft) or sent and saved.
+    pub(super) fn create_item(&mut self, op: &El) -> Vec<String> {
+        let send = op.attr("MessageDisposition") == Some("SendAndSaveCopy");
+        let folder = op.child("SavedItemFolderId").and_then(|s| s.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
+        let mut out = Vec::new();
+        for m in op.child("Items").map(|i| i.kids.clone()).unwrap_or_default() {
+            let sticky = m.text_of("ItemClass").is_some_and(|c| c.starts_with("IPM.StickyNote"));
+            if folder.strip_prefix("mailbox:").is_some_and(|who| !self.editors.iter().any(|e| e == who)) || self.unrouted(&folder) {
+                out.push(err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" }));
+                continue;
+            }
+            if m.name == "CalendarItem" || m.name == "Contact" || sticky {
+                let id = self.id("P");
+                out.push(ok(format!("<m:Items><t:{0}><t:ItemId Id=\"{id}\" ChangeKey=\"ck\"/></t:{0}></m:Items>", m.name)));
+                self.pim.push((id, folder.clone(), m));
+                continue;
+            }
+            let raw = m.child("MimeContent").and_then(|c| unb64(&c.text)).unwrap_or_default();
+            if send && String::from_utf8_lossy(&raw).contains("nobody@") {
+                out.push(err("ErrorInvalidRecipients"));
+                continue;
+            }
+            let draft = m.children("ExtendedProperty").any(|p| p.text_of("Value") == Some("8"));
+            let id = self.id("I");
+            if send {
+                self.sent.push(raw.clone());
+            }
+            self.items.push(It {
+                id: id.clone(),
+                folder: folder.clone(),
+                raw,
+                read: true,
+                flagged: false,
+                draft,
+                received: "2026-10-15T12:00:00Z".into(),
+            });
+            out.push(ok(if send { String::new() } else { format!("<m:Items><t:Message><t:ItemId Id=\"{id}\"/></t:Message></m:Items>") }));
+        }
+        out
+    }
+
+    /// `UpdateItem`: a calendar or contacts item's fields set or taken off; a message's read and
+    /// flag state.
+    pub(super) fn update_item(&mut self, op: &El) -> Vec<String> {
+        let mut out = Vec::new();
+        for ch in op.child("ItemChanges").map(|c| c.kids.clone()).unwrap_or_default() {
+            let id = ch.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string();
+            if !self.may_change(&id) {
+                out.push(err("ErrorAccessDenied"));
+                continue;
+            }
+            if let Some((_, _, el)) = self.pim.iter_mut().find(|(i, _, _)| *i == id) {
+                for u in ch.child("Updates").map(|u| u.kids.clone()).unwrap_or_default() {
+                    let field = u.find("FieldURI").and_then(|f| f.attr("FieldURI")).and_then(|f| f.split(':').nth(1)).unwrap_or("").to_string();
+                    el.kids.retain(|k| k.name != field);
+                    if u.name == "SetItemField"
+                        && let Some(new) = u.kids.iter().find(|k| k.name != "FieldURI").and_then(|w| w.kids.first())
+                    {
+                        el.kids.push(new.clone());
+                    }
+                }
+                out.push(ok(format!("<m:Items><t:CalendarItem><t:ItemId Id=\"{id}\" ChangeKey=\"ck2\"/></t:CalendarItem></m:Items>")));
+                continue;
+            }
+            let Some(it) = self.items.iter_mut().find(|i| i.id == id) else {
+                out.push(err("ErrorItemNotFound"));
+                continue;
+            };
+            for u in ch.child("Updates").map(|u| u.kids.clone()).unwrap_or_default() {
+                if let Some(r) = u.find("IsRead") {
+                    it.read = r.text == "true";
+                }
+                if u.find("ExtendedFieldURI").and_then(|e| e.attr("PropertyTag")) == Some("0x1090") {
+                    it.flagged = u.name == "SetItemField";
+                }
+            }
+            out.push(ok(String::new()));
+        }
+        out
+    }
+
+    /// `MoveItem`: each message into the folder, said by its new id.
+    pub(super) fn move_item(&mut self, op: &El) -> Vec<String> {
+        let to = op.child("ToFolderId").and_then(|t| t.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
+        let mut out = Vec::new();
+        for id in ids(op.child("ItemIds")) {
+            let new = self.id("I");
+            match self.items.iter_mut().find(|i| i.id == id) {
+                Some(it) => {
+                    // Exchange gives a moved item a new id.
+                    it.id = new.clone();
+                    it.folder = to.clone();
+                    out.push(ok(format!("<m:Items><t:Message><t:ItemId Id=\"{new}\"/></t:Message></m:Items>")));
+                }
+                None => out.push(err("ErrorItemNotFound")),
+            }
+        }
+        out
+    }
+
+    pub(super) fn delete_item(&mut self, op: &El) -> Vec<String> {
+        let mut out = Vec::new();
+        for id in ids(op.child("ItemIds")) {
+            if !self.may_change(&id) {
+                out.push(err("ErrorAccessDenied"));
+                continue;
+            }
+            if !self.items.iter().any(|i| i.id == id) && !self.pim.iter().any(|(i, _, _)| *i == id) {
+                out.push(err("ErrorItemNotFound"));
+                continue;
+            }
+            self.items.retain(|i| i.id != id);
+            self.pim.retain(|(i, _, _)| *i != id);
+            out.push(ok(String::new()));
+        }
+        out
+    }
+}

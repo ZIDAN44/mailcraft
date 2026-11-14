@@ -3,11 +3,10 @@
 //! delete), creating from MIME (drafts and sending), folder changes and automatic replies, signed
 //! in with NTLM on a kept-open connection (or Basic, when set to).
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
 use crate::ews::{El, esc, parse, unb64};
+use serving::serve_at;
 
 pub const USER: &str = "riley";
 pub const DOMAIN: &str = "CONTOSO";
@@ -372,393 +371,47 @@ impl Data {
 
     /// Answer one operation: (response element name, response messages).
     fn route(&mut self, op: &El) -> (String, Vec<String>) {
-        let ok = |inner: String| format!("<m:R ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>{inner}</m:R>");
-        let err =
-            |code: &str| format!("<m:R ResponseClass=\"Error\"><m:MessageText>{code}</m:MessageText><m:ResponseCode>{code}</m:ResponseCode></m:R>");
-        let ids = |el: Option<&El>| -> Vec<String> {
-            el.map(|e| e.kids.iter().filter_map(|k| k.attr("Id").map(str::to_string)).collect()).unwrap_or_default()
-        };
-        let mut out = Vec::new();
-        match op.name.as_str() {
-            "GetFolder" => {
-                for f in op.child("FolderIds").map(|f| f.kids.clone()).unwrap_or_default() {
-                    // Someone else's calendar: what this account may do there.
-                    if let Some(who) = self.folder_id(&f).and_then(|id| id.strip_prefix("mailbox:").map(str::to_string)) {
-                        let edit = self.editors.contains(&who) && !self.item_rights_only;
-                        out.push(ok(format!(
-                            "<m:Folders><t:CalendarFolder><t:FolderId Id=\"mailbox:{who}\"/><t:EffectiveRights><t:CreateAssociated>false</t:CreateAssociated>\
-                             <t:CreateContents>{edit}</t:CreateContents><t:CreateHierarchy>false</t:CreateHierarchy><t:Delete>{edit}</t:Delete>\
-                             <t:Modify>false</t:Modify><t:Read>true</t:Read></t:EffectiveRights></t:CalendarFolder></m:Folders>"
-                        )));
-                        continue;
-                    }
-                    if matches!(self.shared_of(&f), Some(Err(()))) {
-                        out.push(err("ErrorAccessDenied"));
-                        continue;
-                    }
-                    let root = f.attr("Id") == Some("publicfoldersroot");
-                    match self.folder_id(&f).and_then(|id| self.folders.iter().find(|x| x.id == id).cloned()) {
-                        // The root is the hierarchy's; any other public folder, its content's.
-                        Some(fo) if root && self.unrouted_hierarchy(&fo.id) => out.push(err("ErrorFolderNotFound")),
-                        Some(fo) if !root && self.unrouted(&fo.id) => out.push(err("ErrorFolderNotFound")),
-                        Some(fo) => out.push(ok(format!("<m:Folders>{}</m:Folders>", self.folder_xml(&fo)))),
-                        None => out.push(err("ErrorFolderNotFound")),
-                    }
-                }
-            }
-            // Shallow (public folders): the folders right under the one asked for.
+        let out = match op.name.as_str() {
+            "GetFolder" => self.get_folder(op),
+            "GetReminders" | "PerformReminderAction" => vec![self.reminders_answer(op)],
             // The directory: every name or address with a word starting with the search, up to
             // 100, as Exchange's ambiguous name resolution; several are a warning.
-            "GetReminders" | "PerformReminderAction" => out.push(self.reminders_answer(op)),
-            "ResolveNames" if op.attr("SearchScope") == Some("ActiveDirectory") => {
-                out.push(self.directory_answer(op));
-            }
-            "ResolveNames" => {
-                let entry = op.text_of("UnresolvedEntry").unwrap_or("").to_ascii_lowercase();
-                match self.shared.iter().find(|b| legacy_dn(&b.address).eq_ignore_ascii_case(&entry) || b.address.eq_ignore_ascii_case(&entry)) {
-                    Some(b) => out.push(ok(format!(
-                        "<m:ResolutionSet TotalItemsInView=\"1\" IncludesLastItemInRange=\"true\"><t:Resolution><t:Mailbox><t:Name>{}</t:Name>\
-                         <t:EmailAddress>{}</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:Resolution></m:ResolutionSet>",
-                        esc(&b.name),
-                        esc(&b.address)
-                    ))),
-                    None => out.push(err("ErrorNameResolutionNoResults")),
-                }
-            }
-            "FindFolder" if op.attr("Traversal") == Some("Shallow") => {
-                let parent = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
-                if self.unrouted_hierarchy(&parent) {
-                    out.push(err("ErrorFolderNotFound"));
-                    return ("FindFolderResponse".into(), out);
-                }
-                let kids: Vec<String> = self
-                    .folders
-                    .iter()
-                    .filter(|f| f.parent == parent)
-                    .map(|f| {
-                        let n = self.folders.iter().filter(|x| x.parent == f.id).count();
-                        self.folder_xml(f)
-                            .replace("<t:ChildFolderCount>0</t:ChildFolderCount>", &format!("<t:ChildFolderCount>{n}</t:ChildFolderCount>"))
-                    })
-                    .collect();
-                out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Folders>{}</t:Folders></m:RootFolder>", kids.concat())));
-            }
-            "FindFolder" if op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.shared_of(f)).is_some() => {
-                // Deep, in a shared mailbox: refused without access to it.
-                let Some(Ok(owner)) = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.shared_of(f)) else {
-                    out.push(err("ErrorAccessDenied"));
-                    return ("FindFolderResponse".into(), out);
-                };
-                // In pages, as the account's own.
-                let view = op.child("IndexedPageFolderView");
-                let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
-                let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000).min(3);
-                let all: Vec<&Fo> = self.folders.iter().filter(|f| f.owner == owner && f.known.as_deref() != Some("msgfolderroot")).collect();
-                let page: String = all.iter().skip(offset).take(max).map(|f| self.folder_xml(f)).collect();
-                let last = offset + max >= all.len();
-                out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"{last}\"><t:Folders>{page}</t:Folders></m:RootFolder>")));
-            }
-            "FindFolder" => {
-                // Deep: everything under the root (the mailbox's, not the public folders), in pages.
-                let view = op.child("IndexedPageFolderView");
-                let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
-                let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000).min(3);
-                let public = self.public_ids();
-                let all: Vec<Fo> = self.folders.iter().filter(|f| f.id != "ROOT" && f.owner.is_empty() && !public.contains(&f.id)).cloned().collect();
-                let page: Vec<String> = all.iter().skip(offset).take(max).map(|f| self.folder_xml(f)).collect();
-                let last = offset + max >= all.len();
-                out.push(ok(format!(
-                    "<m:RootFolder TotalItemsInView=\"{}\" IncludesLastItemInRange=\"{last}\"><t:Folders>{}</t:Folders></m:RootFolder>",
-                    all.len(),
-                    page.concat()
-                )));
-            }
-            "FindItem" if self.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())) => {
-                let folder = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
-                if self.unrouted(&folder) || self.refuses_folder(&folder) {
-                    out.push(err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" }));
-                    return ("FindItemResponse".into(), out);
-                }
-                let items: String =
-                    self.pim.iter().filter(|(_, f, _)| *f == folder).map(|(id, _, _)| format!("<t:Item><t:ItemId Id=\"{id}\"/></t:Item>")).collect();
-                out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>")));
-            }
-            "FindItem" => {
-                // A folder the mailbox hasn't (a Notes folder, say): as Exchange answers.
-                let Some(folder) = op.child("ParentFolderIds").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)) else {
-                    out.push(err("ErrorFolderNotFound"));
-                    return ("FindItemResponse".into(), out);
-                };
-                if self.unrouted(&folder) {
-                    out.push(err("ErrorFolderNotFound"));
-                    return ("FindItemResponse".into(), out);
-                }
-                let view = op.child("IndexedPageItemView");
-                let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000);
-                // Pages by offset, as Exchange does (up to 1000 at a time).
-                let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
-                let max = max.min(1000);
-                let mut list: Vec<&It> = self.items.iter().filter(|i| i.folder == folder).collect();
-                list.sort_by(|a, b| b.received.cmp(&a.received));
-                // A search: AQS words, or a restriction on the read and flag state.
-                if let Some(q) = op.child("QueryString") {
-                    list.retain(|i| crate::fake_graph::words_match(&q.text, &i.raw));
-                }
-                if let Some(r) = op.child("Restriction") {
-                    let mut all = Vec::new();
-                    r.all("IsEqualTo", &mut all);
-                    for cond in all {
-                        let value = cond.find("Constant").and_then(|c| c.attr("Value")).unwrap_or("");
-                        if cond.find("FieldURI").and_then(|f| f.attr("FieldURI")) == Some("message:IsRead") {
-                            let want = value == "true";
-                            list.retain(|i| i.read == want);
-                        } else if cond.find("ExtendedFieldURI").is_some() {
-                            let negated = r.find("Not").is_some();
-                            list.retain(|i| i.flagged != negated);
-                        }
-                    }
-                }
-                let last = offset + max >= list.len();
-                let items: String = list
-                    .iter()
-                    .skip(offset)
-                    .take(max)
-                    .map(|i| {
-                        format!(
-                            "<t:Message><t:ItemId Id=\"{}\" ChangeKey=\"ck\"/><t:IsRead>{}</t:IsRead>{}</t:Message>",
-                            i.id,
-                            i.read,
-                            if i.flagged {
-                                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/><t:Value>2</t:Value></t:ExtendedProperty>"
-                            } else {
-                                ""
-                            }
-                        )
-                    })
-                    .collect();
-                out.push(ok(format!(
-                    "<m:RootFolder TotalItemsInView=\"{}\" IncludesLastItemInRange=\"{last}\"><t:Items>{items}</t:Items></m:RootFolder>",
-                    list.len()
-                )));
-            }
-            "GetItem" => {
-                let mime = op.find("IncludeMimeContent").is_some_and(|m| m.text == "true");
-                for id in ids(op.child("ItemIds")) {
-                    if self.pim.iter().any(|(i, f, _)| *i == id && self.unrouted(f)) {
-                        out.push(err("ErrorItemNotFound"));
-                        continue;
-                    }
-                    if let Some((_, _, el)) = self.pim.iter().find(|(i, _, _)| *i == id) {
-                        if let Some(code) = self.refuses_item(op, &id, el) {
-                            out.push(err(code));
-                            continue;
-                        }
-                        let mut el = el.clone();
-                        el.kids.insert(
-                            0,
-                            El {
-                                name: "ItemId".into(),
-                                attrs: vec![("Id".into(), id.clone()), ("ChangeKey".into(), "ck".into())],
-                                ..Default::default()
-                            },
-                        );
-                        // Each item's own rights (`item:EffectiveRights`), when asked for.
-                        let mut fields = Vec::new();
-                        op.all("FieldURI", &mut fields);
-                        if fields.iter().any(|f| f.attr("FieldURI") == Some("item:EffectiveRights")) {
-                            let edit = self.may_change(&id);
-                            let rights = parse(&format!(
-                                "<t:EffectiveRights><t:CreateAssociated>false</t:CreateAssociated><t:CreateContents>false</t:CreateContents>\
-                                 <t:CreateHierarchy>false</t:CreateHierarchy><t:Delete>{edit}</t:Delete><t:Modify>{edit}</t:Modify><t:Read>true</t:Read></t:EffectiveRights>"
-                            ));
-                            el.kids.extend(rights.kids);
-                        }
-                        out.push(ok(format!("<m:Items>{}</m:Items>", xml(&el))));
-                        continue;
-                    }
-                    match self.items.iter().find(|i| i.id == id) {
-                        Some(i) if self.unrouted(&i.folder) => out.push(err("ErrorItemNotFound")),
-                        Some(i) if mime && self.unreadable.contains(&i.id) => out.push(err("ErrorInternalServerError")),
-                        Some(i) => out.push(ok(format!("<m:Items>{}</m:Items>", self.item_xml(i, mime)))),
-                        None => out.push(err("ErrorItemNotFound")),
-                    }
-                }
-            }
-            "CreateItem" => {
-                let send = op.attr("MessageDisposition") == Some("SendAndSaveCopy");
-                let folder = op.child("SavedItemFolderId").and_then(|s| s.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
-                for m in op.child("Items").map(|i| i.kids.clone()).unwrap_or_default() {
-                    let sticky = m.text_of("ItemClass").is_some_and(|c| c.starts_with("IPM.StickyNote"));
-                    if folder.strip_prefix("mailbox:").is_some_and(|who| !self.editors.iter().any(|e| e == who)) || self.unrouted(&folder) {
-                        out.push(err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" }));
-                        continue;
-                    }
-                    if m.name == "CalendarItem" || m.name == "Contact" || sticky {
-                        let id = self.id("P");
-                        out.push(ok(format!("<m:Items><t:{0}><t:ItemId Id=\"{id}\" ChangeKey=\"ck\"/></t:{0}></m:Items>", m.name)));
-                        self.pim.push((id, folder.clone(), m));
-                        continue;
-                    }
-                    let raw = m.child("MimeContent").and_then(|c| unb64(&c.text)).unwrap_or_default();
-                    if send && String::from_utf8_lossy(&raw).contains("nobody@") {
-                        out.push(err("ErrorInvalidRecipients"));
-                        continue;
-                    }
-                    let draft = m.children("ExtendedProperty").any(|p| p.text_of("Value") == Some("8"));
-                    let id = self.id("I");
-                    if send {
-                        self.sent.push(raw.clone());
-                    }
-                    self.items.push(It {
-                        id: id.clone(),
-                        folder: folder.clone(),
-                        raw,
-                        read: true,
-                        flagged: false,
-                        draft,
-                        received: "2026-10-15T12:00:00Z".into(),
-                    });
-                    out.push(ok(if send { String::new() } else { format!("<m:Items><t:Message><t:ItemId Id=\"{id}\"/></t:Message></m:Items>") }));
-                }
-            }
-            "UpdateItem" => {
-                for ch in op.child("ItemChanges").map(|c| c.kids.clone()).unwrap_or_default() {
-                    let id = ch.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string();
-                    if !self.may_change(&id) {
-                        out.push(err("ErrorAccessDenied"));
-                        continue;
-                    }
-                    if let Some((_, _, el)) = self.pim.iter_mut().find(|(i, _, _)| *i == id) {
-                        for u in ch.child("Updates").map(|u| u.kids.clone()).unwrap_or_default() {
-                            let field =
-                                u.find("FieldURI").and_then(|f| f.attr("FieldURI")).and_then(|f| f.split(':').nth(1)).unwrap_or("").to_string();
-                            el.kids.retain(|k| k.name != field);
-                            if u.name == "SetItemField"
-                                && let Some(new) = u.kids.iter().find(|k| k.name != "FieldURI").and_then(|w| w.kids.first())
-                            {
-                                el.kids.push(new.clone());
-                            }
-                        }
-                        out.push(ok(format!("<m:Items><t:CalendarItem><t:ItemId Id=\"{id}\" ChangeKey=\"ck2\"/></t:CalendarItem></m:Items>")));
-                        continue;
-                    }
-                    let Some(it) = self.items.iter_mut().find(|i| i.id == id) else {
-                        out.push(err("ErrorItemNotFound"));
-                        continue;
-                    };
-                    for u in ch.child("Updates").map(|u| u.kids.clone()).unwrap_or_default() {
-                        if let Some(r) = u.find("IsRead") {
-                            it.read = r.text == "true";
-                        }
-                        if u.find("ExtendedFieldURI").and_then(|e| e.attr("PropertyTag")) == Some("0x1090") {
-                            it.flagged = u.name == "SetItemField";
-                        }
-                    }
-                    out.push(ok(String::new()));
-                }
-            }
-            "MoveItem" => {
-                let to = op.child("ToFolderId").and_then(|t| t.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_default();
-                for id in ids(op.child("ItemIds")) {
-                    let new = self.id("I");
-                    match self.items.iter_mut().find(|i| i.id == id) {
-                        Some(it) => {
-                            // Exchange gives a moved item a new id.
-                            it.id = new.clone();
-                            it.folder = to.clone();
-                            out.push(ok(format!("<m:Items><t:Message><t:ItemId Id=\"{new}\"/></t:Message></m:Items>")));
-                        }
-                        None => out.push(err("ErrorItemNotFound")),
-                    }
-                }
-            }
-            "DeleteItem" => {
-                for id in ids(op.child("ItemIds")) {
-                    if !self.may_change(&id) {
-                        out.push(err("ErrorAccessDenied"));
-                        continue;
-                    }
-                    if !self.items.iter().any(|i| i.id == id) && !self.pim.iter().any(|(i, _, _)| *i == id) {
-                        out.push(err("ErrorItemNotFound"));
-                        continue;
-                    }
-                    self.items.retain(|i| i.id != id);
-                    self.pim.retain(|(i, _, _)| *i != id);
-                    out.push(ok(String::new()));
-                }
-            }
-            "CreateFolder" => {
-                let parent = op.child("ParentFolderId").and_then(|p| p.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_else(|| "ROOT".into());
-                let name = op.find("DisplayName").map(|d| d.text.clone()).unwrap_or_default();
-                let id = self.folder(&name, Some(&parent), None, "IPF.Note");
-                out.push(ok(format!("<m:Folders><t:Folder><t:FolderId Id=\"{id}\"/></t:Folder></m:Folders>")));
-            }
-            "MoveFolder" => {
-                let to = op.child("ToFolderId").and_then(|t| t.kids.first()).and_then(|f| self.folder_id(f)).unwrap_or_else(|| "ROOT".into());
-                for id in ids(op.child("FolderIds")) {
-                    if let Some(f) = self.folders.iter_mut().find(|f| f.id == id) {
-                        f.parent = to.clone();
-                    }
-                    out.push(ok(format!("<m:Folders><t:Folder><t:FolderId Id=\"{id}\"/></t:Folder></m:Folders>")));
-                }
-            }
-            "UpdateFolder" => {
-                for ch in op.child("FolderChanges").map(|c| c.kids.clone()).unwrap_or_default() {
-                    let id = ch.child("FolderId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string();
-                    let name = ch.find("DisplayName").map(|d| d.text.clone()).unwrap_or_default();
-                    if let Some(f) = self.folders.iter_mut().find(|f| f.id == id) {
-                        f.name = name;
-                    }
-                    out.push(ok(String::new()));
-                }
-            }
-            "DeleteFolder" => {
-                for id in ids(op.child("FolderIds")) {
-                    self.folders.retain(|f| f.id != id);
-                    out.push(ok(String::new()));
-                }
-            }
-            "EmptyFolder" => {
-                for id in ids(op.child("FolderIds")) {
-                    self.items.retain(|i| i.folder != id);
-                    out.push(ok(String::new()));
-                }
-            }
-            "GetUserOofSettingsRequest" => {
-                let (state, start, end, msg, outside, audience) = self.oof.clone();
-                return (
-                    "GetUserOofSettingsResponse".into(),
-                    vec![format!(
-                        "<ResponseMessage ResponseClass=\"Success\"><ResponseCode>NoError</ResponseCode></ResponseMessage>\
-                         <OofSettings><OofState>{state}</OofState><ExternalAudience>{audience}</ExternalAudience>\
-                         <Duration><StartTime>{start}</StartTime><EndTime>{end}</EndTime></Duration>\
-                         <InternalReply><Message>{}</Message></InternalReply><ExternalReply><Message>{}</Message></ExternalReply></OofSettings>",
-                        esc(&msg),
-                        esc(&outside)
-                    )],
-                );
-            }
-            "SetUserOofSettingsRequest" => {
-                let s = op.child("UserOofSettings");
-                let get = |n: &str| s.and_then(|s| s.find(n)).map(|e| e.text.clone()).unwrap_or_default();
-                let msg = s.and_then(|s| s.find("InternalReply")).and_then(|r| r.child("Message")).map(|m| m.text.clone()).unwrap_or_default();
-                if msg == "refuse" {
-                    let refused = "<ResponseMessage ResponseClass=\"Error\"><MessageText>refused</MessageText><ResponseCode>ErrorInvalidParameter</ResponseCode></ResponseMessage>";
-                    return ("SetUserOofSettingsResponse".into(), vec![refused.into()]);
-                }
-                let outside = s.and_then(|s| s.find("ExternalReply")).and_then(|r| r.child("Message")).map(|m| m.text.clone()).unwrap_or_default();
-                self.oof = (get("OofState"), get("StartTime"), get("EndTime"), msg, outside, get("ExternalAudience"));
-                return (
-                    "SetUserOofSettingsResponse".into(),
-                    vec!["<ResponseMessage ResponseClass=\"Success\"><ResponseCode>NoError</ResponseCode></ResponseMessage>".into()],
-                );
-            }
-            other => {
-                out.push(err(&format!("ErrorInvalidOperation:{other}")));
-            }
-        }
+            "ResolveNames" if op.attr("SearchScope") == Some("ActiveDirectory") => vec![self.directory_answer(op)],
+            "ResolveNames" => vec![self.resolve_mailbox(op)],
+            "FindFolder" => self.find_folder(op),
+            "FindItem" => self.find_item(op),
+            "GetItem" => self.get_item(op),
+            "CreateItem" => self.create_item(op),
+            "UpdateItem" => self.update_item(op),
+            "MoveItem" => self.move_item(op),
+            "DeleteItem" => self.delete_item(op),
+            "CreateFolder" => vec![self.create_folder(op)],
+            "MoveFolder" => self.move_folder(op),
+            "UpdateFolder" => self.update_folder(op),
+            "DeleteFolder" => self.delete_folder(op),
+            "EmptyFolder" => self.empty_folder(op),
+            "GetUserOofSettingsRequest" => return ("GetUserOofSettingsResponse".into(), vec![self.oof_answer()]),
+            "SetUserOofSettingsRequest" => return ("SetUserOofSettingsResponse".into(), vec![self.set_oof(op)]),
+            other => vec![err(&format!("ErrorInvalidOperation:{other}"))],
+        };
         (format!("{}Response", op.name), out)
     }
+}
+
+/// A response message that succeeded, with what's inside it (`<m:R>`, renamed for the
+/// operation as the envelope is made).
+fn ok(inner: String) -> String {
+    format!("<m:R ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>{inner}</m:R>")
+}
+
+/// A response message that failed, with its code.
+fn err(code: &str) -> String {
+    format!("<m:R ResponseClass=\"Error\"><m:MessageText>{code}</m:MessageText><m:ResponseCode>{code}</m:ResponseCode></m:R>")
+}
+
+/// The ids an element lists (`ItemIds`, `FolderIds`).
+fn ids(el: Option<&El>) -> Vec<String> {
+    el.map(|e| e.kids.iter().filter_map(|k| k.attr("Id").map(str::to_string)).collect()).unwrap_or_default()
 }
 
 pub struct Server {
@@ -766,219 +419,9 @@ pub struct Server {
     pub data: Arc<Mutex<Data>>,
 }
 
-fn respond(s: &mut impl Write, status: u16, headers: &[(&str, String)], body: &[u8]) {
-    let mut head = format!("HTTP/1.1 {status} X\r\nContent-Type: text/xml; charset=utf-8\r\nContent-Length: {}\r\n", body.len());
-    for (k, v) in headers {
-        head.push_str(&format!("{k}: {v}\r\n"));
-    }
-    head.push_str("\r\n");
-    let _ = s.write_all(head.as_bytes());
-    let _ = s.write_all(body);
-}
-
 /// Start the server; it runs until the test process ends.
 pub fn serve(data: Data) -> Server {
     serve_at(data, "127.0.0.1:0")
-}
-
-/// Start the server on an address of its own.
-fn serve_at(data: Data, at: &str) -> Server {
-    let l = TcpListener::bind(at).unwrap();
-    let url = format!("http://127.0.0.1:{}/EWS/Exchange.asmx", l.local_addr().unwrap().port());
-    let mut data = data;
-    data.url = url.clone();
-    let data = Arc::new(Mutex::new(data));
-    let shared = data.clone();
-    std::thread::spawn(move || {
-        for conn in l.incoming() {
-            let Ok(s) = conn else { continue };
-            let shared = shared.clone();
-            std::thread::spawn(move || serve_connection(s, &shared));
-        }
-    });
-    Server { url, data }
-}
-
-/// Requests on one kept-open connection: NTLM signs it in once.
-fn serve_connection(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>) {
-    let mut reader = BufReader::new(s.try_clone().unwrap());
-    let mut signed_in = false;
-    let mut challenge: Option<crate::ntlm::Challenge> = None;
-    loop {
-        let mut first = String::new();
-        if reader.read_line(&mut first).unwrap_or(0) == 0 {
-            return;
-        }
-        let (mut len, mut auth, mut routed, mut anchor, mut agent) = (0usize, String::new(), String::new(), String::new(), String::new());
-        loop {
-            let mut line = String::new();
-            if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-                break;
-            }
-            if let Some((k, v)) = line.split_once(':') {
-                if k.eq_ignore_ascii_case("content-length") {
-                    len = v.trim().parse().unwrap_or(0);
-                }
-                if k.eq_ignore_ascii_case("authorization") {
-                    auth = v.trim().to_string();
-                }
-                if k.eq_ignore_ascii_case("x-publicfoldermailbox") {
-                    routed = v.trim().to_string();
-                }
-                if k.eq_ignore_ascii_case("x-anchormailbox") {
-                    anchor = v.trim().to_string();
-                }
-                if k.eq_ignore_ascii_case("user-agent") {
-                    agent = v.trim().to_string();
-                }
-            }
-        }
-        let mut body = vec![0u8; len];
-        let _ = reader.read_exact(&mut body);
-        let only = {
-            let mut d = shared.lock().unwrap();
-            d.agents.push(agent.clone());
-            d.only_agent.clone()
-        };
-        if only.is_some_and(|o| o != agent) {
-            respond(&mut s, 403, &[], b"Forbidden");
-            continue;
-        }
-        let (basic, open) = {
-            let d = shared.lock().unwrap();
-            (d.basic, d.open)
-        };
-        if basic && !open {
-            let expected = format!("Basic {}", mailcraft_model::base64::encode(format!("{DOMAIN}\\{USER}:{PASSWORD}").as_bytes()));
-            if auth != expected {
-                respond(&mut s, 401, &[("WWW-Authenticate", "Basic realm=\"x\"".into())], b"");
-                continue;
-            }
-        } else if !signed_in && !open {
-            match auth.strip_prefix("NTLM ").and_then(unb64) {
-                Some(m) if m.get(8) == Some(&1) => {
-                    let c = crate::ntlm::make_challenge([9; 8], &[]);
-                    challenge = crate::ntlm::challenge(&c).ok();
-                    respond(&mut s, 401, &[("WWW-Authenticate", format!("NTLM {}", mailcraft_model::base64::encode(&c)))], b"");
-                    continue;
-                }
-                Some(m) if m.get(8) == Some(&3) => {
-                    let ok = challenge.as_ref().is_some_and(|c| crate::ntlm::verify(c, &m, USER, DOMAIN, PASSWORD));
-                    if !ok {
-                        respond(&mut s, 401, &[("WWW-Authenticate", "NTLM".into()), ("WWW-Authenticate", "Negotiate".into())], b"");
-                        continue;
-                    }
-                    signed_in = true;
-                    shared.lock().unwrap().handshakes += 1;
-                }
-                _ => {
-                    respond(&mut s, 401, &[("WWW-Authenticate", "Negotiate".into()), ("WWW-Authenticate", "NTLM".into())], b"");
-                    continue;
-                }
-            }
-        }
-        let doc = parse(&String::from_utf8_lossy(&body));
-        // Autodiscover: this server's own address.
-        if doc.find("Autodiscover").is_some_and(|a| a.find("EMailAddress").is_some()) {
-            let (url, pf, hierarchy) = {
-                let d = shared.lock().unwrap();
-                (d.url.clone(), d.pf_mailbox.clone(), d.pf_hierarchy.clone())
-            };
-            // The public folder mailbox, asked for by its GUID: its address.
-            let asked = doc.find("EMailAddress").map(|e| e.text.clone()).unwrap_or_default();
-            if let Some(pf) = pf.filter(|_| asked.starts_with(PF_GUID)) {
-                let answer = format!(
-                    "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Public folders</DisplayName>\
-                     <AutoDiscoverSMTPAddress>{pf}</AutoDiscoverSMTPAddress></User><Account><AccountType>email</AccountType><Action>settings</Action>\
-                     <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol></Account></Response></Autodiscover>"
-                );
-                respond(&mut s, 200, &[], answer.as_bytes());
-                continue;
-            }
-            // The account's: its server, and its public folder hierarchy mailbox.
-            let public =
-                hierarchy.map(|h| format!("<PublicFolderInformation><SmtpAddress>{h}</SmtpAddress></PublicFolderInformation>")).unwrap_or_default();
-            // Mailboxes mapped to the account (full access, automapped), as Outlook is told.
-            let mapped: String = shared
-                .lock()
-                .unwrap()
-                .shared
-                .iter()
-                .filter(|b| b.automap)
-                .map(|b| {
-                    let id = if b.legacy {
-                        format!("<LegacyDN>{}</LegacyDN><Server>mbx.contoso.example</Server>", legacy_dn(&b.address))
-                    } else {
-                        format!("<SmtpAddress>{}</SmtpAddress><OwnerSmtpAddress>{}</OwnerSmtpAddress>", b.address, b.address)
-                    };
-                    format!("<AlternativeMailbox><Type>Delegate</Type><DisplayName>{}</DisplayName>{id}</AlternativeMailbox>", esc(&b.name))
-                })
-                .collect();
-            let public = format!(
-                "{public}{mapped}<AlternativeMailbox><Type>Archive</Type><DisplayName>Online Archive</DisplayName><SmtpAddress>archive@contoso.example</SmtpAddress></AlternativeMailbox>"
-            );
-            let answer = format!(
-                "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Riley</DisplayName></User><Account><AccountType>email</AccountType><Action>settings</Action>\
-                 <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol>{public}</Account></Response></Autodiscover>"
-            );
-            respond(&mut s, 200, &[], answer.as_bytes());
-            continue;
-        }
-        let Some(op) = doc.find("Body").and_then(|b| b.kids.first()).cloned() else {
-            respond(
-                &mut s,
-                500,
-                &[],
-                b"<soap:Envelope><soap:Body><soap:Fault><faultstring>no operation</faultstring></soap:Fault></soap:Body></soap:Envelope>",
-            );
-            continue;
-        };
-        // A slow server: listing a mail folder takes its time (without holding up the others).
-        let hold = {
-            let d = shared.lock().unwrap();
-            d.hold.filter(|_| op.name == "FindItem" && !d.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())))
-        };
-        if let Some(h) = hold {
-            std::thread::sleep(h);
-        }
-        let mut d = shared.lock().unwrap();
-        d.calls.push(op.name.clone());
-        let version = doc.find("RequestServerVersion").and_then(|v| v.attr("Version")).unwrap_or_default().to_string();
-        if d.refuses_version(&op.name, &version) {
-            drop(d);
-            let fault = "<soap:Envelope><soap:Body><soap:Fault><faultcode>a:ErrorInvalidServerVersion</faultcode>\
-                         <faultstring>The specified server version is invalid.</faultstring></soap:Fault></soap:Body></soap:Envelope>";
-            respond(&mut s, 500, &[], fault.as_bytes());
-            continue;
-        }
-        d.routed = routed;
-        if !anchor.is_empty() && d.anchors.len() < 1000 {
-            d.anchors.push(anchor);
-        }
-        let (name, parts) = d.route(&op);
-        drop(d);
-        let reminders = name.starts_with("GetReminders") || name.starts_with("PerformReminderAction");
-        let class = if !reminders {
-            String::new()
-        } else if parts.concat().contains(">NoError<") {
-            " ResponseClass=\"Success\"".to_string()
-        } else {
-            " ResponseClass=\"Error\"".to_string()
-        };
-        let inner = if name.starts_with("GetUserOof") || name.starts_with("SetUserOof") || reminders {
-            parts.concat()
-        } else {
-            let tag = name.trim_end_matches("Response").to_string() + "ResponseMessage";
-            format!(
-                "<m:ResponseMessages>{}</m:ResponseMessages>",
-                parts.concat().replace("<m:R ", &format!("<m:{tag} ")).replace("</m:R>", &format!("</m:{tag}>"))
-            )
-        };
-        let xml = format!(
-            "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><m:{name}{class} xmlns:m=\"m\" xmlns:t=\"t\">{inner}</m:{name}></s:Body></s:Envelope>"
-        );
-        respond(&mut s, 200, &[], xml.as_bytes());
-    }
 }
 
 /// An element as XML again (for items kept as they were created).
@@ -989,7 +432,11 @@ fn xml(e: &El) -> String {
 }
 
 mod directory;
+mod folders;
+mod items;
+mod oof;
 mod refusing;
 mod reminders;
+mod serving;
 #[cfg(test)]
 mod tests;

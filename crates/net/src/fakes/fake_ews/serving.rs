@@ -1,0 +1,260 @@
+//! The fake server's connections: each request read, signed in (NTLM once a connection, or
+//! Basic), and answered: Autodiscover, or one EWS operation in its SOAP envelope.
+
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream};
+
+use super::*;
+
+fn respond(s: &mut impl Write, status: u16, headers: &[(&str, String)], body: &[u8]) {
+    let mut head = format!("HTTP/1.1 {status} X\r\nContent-Type: text/xml; charset=utf-8\r\nContent-Length: {}\r\n", body.len());
+    for (k, v) in headers {
+        head.push_str(&format!("{k}: {v}\r\n"));
+    }
+    head.push_str("\r\n");
+    let _ = s.write_all(head.as_bytes());
+    let _ = s.write_all(body);
+}
+
+/// Start the server on an address of its own.
+pub(super) fn serve_at(data: Data, at: &str) -> Server {
+    let l = TcpListener::bind(at).unwrap();
+    let url = format!("http://127.0.0.1:{}/EWS/Exchange.asmx", l.local_addr().unwrap().port());
+    let mut data = data;
+    data.url = url.clone();
+    let data = Arc::new(Mutex::new(data));
+    let shared = data.clone();
+    std::thread::spawn(move || {
+        for conn in l.incoming() {
+            let Ok(s) = conn else { continue };
+            let shared = shared.clone();
+            std::thread::spawn(move || serve_connection(s, &shared));
+        }
+    });
+    Server { url, data }
+}
+
+/// A request: the headers the server heeds, and its body.
+#[derive(Default)]
+struct Request {
+    auth: String,
+    /// `X-PublicFolderMailbox`.
+    routed: String,
+    /// `X-AnchorMailbox`.
+    anchor: String,
+    agent: String,
+    body: Vec<u8>,
+}
+
+/// The next request on a connection; `None` once it's closed.
+fn read_request(reader: &mut BufReader<TcpStream>) -> Option<Request> {
+    let mut first = String::new();
+    if reader.read_line(&mut first).unwrap_or(0) == 0 {
+        return None;
+    }
+    let (mut len, mut r) = (0usize, Request::default());
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+            break;
+        }
+        if let Some((k, v)) = line.split_once(':') {
+            if k.eq_ignore_ascii_case("content-length") {
+                len = v.trim().parse().unwrap_or(0);
+            }
+            if k.eq_ignore_ascii_case("authorization") {
+                r.auth = v.trim().to_string();
+            }
+            if k.eq_ignore_ascii_case("x-publicfoldermailbox") {
+                r.routed = v.trim().to_string();
+            }
+            if k.eq_ignore_ascii_case("x-anchormailbox") {
+                r.anchor = v.trim().to_string();
+            }
+            if k.eq_ignore_ascii_case("user-agent") {
+                r.agent = v.trim().to_string();
+            }
+        }
+    }
+    let mut body = vec![0u8; len];
+    let _ = reader.read_exact(&mut body);
+    r.body = body;
+    Some(r)
+}
+
+/// One connection's sign-in: NTLM's handshake, once (or Basic on every request, when set to).
+#[derive(Default)]
+struct SignIn {
+    signed_in: bool,
+    challenge: Option<crate::ntlm::Challenge>,
+}
+
+impl SignIn {
+    /// Whether the request may be answered; when not, its 401 (with a challenge) is sent.
+    fn admits(&mut self, s: &mut impl Write, shared: &Arc<Mutex<Data>>, auth: &str) -> bool {
+        let (basic, open) = {
+            let d = shared.lock().unwrap();
+            (d.basic, d.open)
+        };
+        if basic && !open {
+            let expected = format!("Basic {}", mailcraft_model::base64::encode(format!("{DOMAIN}\\{USER}:{PASSWORD}").as_bytes()));
+            if auth != expected {
+                respond(s, 401, &[("WWW-Authenticate", "Basic realm=\"x\"".into())], b"");
+                return false;
+            }
+        } else if !self.signed_in && !open {
+            match auth.strip_prefix("NTLM ").and_then(unb64) {
+                Some(m) if m.get(8) == Some(&1) => {
+                    let c = crate::ntlm::make_challenge([9; 8], &[]);
+                    self.challenge = crate::ntlm::challenge(&c).ok();
+                    respond(s, 401, &[("WWW-Authenticate", format!("NTLM {}", mailcraft_model::base64::encode(&c)))], b"");
+                    return false;
+                }
+                Some(m) if m.get(8) == Some(&3) => {
+                    let ok = self.challenge.as_ref().is_some_and(|c| crate::ntlm::verify(c, &m, USER, DOMAIN, PASSWORD));
+                    if !ok {
+                        respond(s, 401, &[("WWW-Authenticate", "NTLM".into()), ("WWW-Authenticate", "Negotiate".into())], b"");
+                        return false;
+                    }
+                    self.signed_in = true;
+                    shared.lock().unwrap().handshakes += 1;
+                }
+                _ => {
+                    respond(s, 401, &[("WWW-Authenticate", "Negotiate".into()), ("WWW-Authenticate", "NTLM".into())], b"");
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
+
+/// Requests on one kept-open connection: NTLM signs it in once.
+fn serve_connection(mut s: TcpStream, shared: &Arc<Mutex<Data>>) {
+    let mut reader = BufReader::new(s.try_clone().unwrap());
+    let mut sign_in = SignIn::default();
+    while let Some(r) = read_request(&mut reader) {
+        let only = {
+            let mut d = shared.lock().unwrap();
+            d.agents.push(r.agent.clone());
+            d.only_agent.clone()
+        };
+        if only.is_some_and(|o| o != r.agent) {
+            respond(&mut s, 403, &[], b"Forbidden");
+            continue;
+        }
+        if !sign_in.admits(&mut s, shared, &r.auth) {
+            continue;
+        }
+        let doc = parse(&String::from_utf8_lossy(&r.body));
+        let (status, answer) = if doc.find("Autodiscover").is_some_and(|a| a.find("EMailAddress").is_some()) {
+            (200, autodiscover(shared, &doc))
+        } else {
+            operation(shared, &doc, r.routed, r.anchor)
+        };
+        respond(&mut s, status, &[], answer.as_bytes());
+    }
+}
+
+/// Autodiscover: this server's own address; for the public folder mailbox (asked for by its
+/// GUID), its address.
+fn autodiscover(shared: &Arc<Mutex<Data>>, doc: &El) -> String {
+    let (url, pf, hierarchy) = {
+        let d = shared.lock().unwrap();
+        (d.url.clone(), d.pf_mailbox.clone(), d.pf_hierarchy.clone())
+    };
+    // The public folder mailbox, asked for by its GUID: its address.
+    let asked = doc.find("EMailAddress").map(|e| e.text.clone()).unwrap_or_default();
+    if let Some(pf) = pf.filter(|_| asked.starts_with(PF_GUID)) {
+        return format!(
+            "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Public folders</DisplayName>\
+             <AutoDiscoverSMTPAddress>{pf}</AutoDiscoverSMTPAddress></User><Account><AccountType>email</AccountType><Action>settings</Action>\
+             <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol></Account></Response></Autodiscover>"
+        );
+    }
+    // The account's: its server, and its public folder hierarchy mailbox.
+    let public = hierarchy.map(|h| format!("<PublicFolderInformation><SmtpAddress>{h}</SmtpAddress></PublicFolderInformation>")).unwrap_or_default();
+    // Mailboxes mapped to the account (full access, automapped), as Outlook is told.
+    let mapped: String = shared
+        .lock()
+        .unwrap()
+        .shared
+        .iter()
+        .filter(|b| b.automap)
+        .map(|b| {
+            let id = if b.legacy {
+                format!("<LegacyDN>{}</LegacyDN><Server>mbx.contoso.example</Server>", legacy_dn(&b.address))
+            } else {
+                format!("<SmtpAddress>{}</SmtpAddress><OwnerSmtpAddress>{}</OwnerSmtpAddress>", b.address, b.address)
+            };
+            format!("<AlternativeMailbox><Type>Delegate</Type><DisplayName>{}</DisplayName>{id}</AlternativeMailbox>", esc(&b.name))
+        })
+        .collect();
+    let public = format!(
+        "{public}{mapped}<AlternativeMailbox><Type>Archive</Type><DisplayName>Online Archive</DisplayName><SmtpAddress>archive@contoso.example</SmtpAddress></AlternativeMailbox>"
+    );
+    format!(
+        "<?xml version=\"1.0\"?><Autodiscover><Response><User><DisplayName>Riley</DisplayName></User><Account><AccountType>email</AccountType><Action>settings</Action>\
+         <Protocol><Type>EXCH</Type><EwsUrl>{url}</EwsUrl></Protocol>{public}</Account></Response></Autodiscover>"
+    )
+}
+
+/// One EWS operation, in its SOAP envelope: (status, the answer). A slow server holds a mail
+/// folder's listing; an operation the version asked for doesn't have is a fault.
+fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String) -> (u16, String) {
+    let Some(op) = doc.find("Body").and_then(|b| b.kids.first()).cloned() else {
+        return (
+            500,
+            "<soap:Envelope><soap:Body><soap:Fault><faultstring>no operation</faultstring></soap:Fault></soap:Body></soap:Envelope>".into(),
+        );
+    };
+    // A slow server: listing a mail folder takes its time (without holding up the others).
+    let hold = {
+        let d = shared.lock().unwrap();
+        d.hold.filter(|_| op.name == "FindItem" && !d.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())))
+    };
+    if let Some(h) = hold {
+        std::thread::sleep(h);
+    }
+    let mut d = shared.lock().unwrap();
+    d.calls.push(op.name.clone());
+    let version = doc.find("RequestServerVersion").and_then(|v| v.attr("Version")).unwrap_or_default().to_string();
+    if d.refuses_version(&op.name, &version) {
+        drop(d);
+        let fault = "<soap:Envelope><soap:Body><soap:Fault><faultcode>a:ErrorInvalidServerVersion</faultcode>\
+                     <faultstring>The specified server version is invalid.</faultstring></soap:Fault></soap:Body></soap:Envelope>";
+        return (500, fault.into());
+    }
+    d.routed = routed;
+    if !anchor.is_empty() && d.anchors.len() < 1000 {
+        d.anchors.push(anchor);
+    }
+    let (name, parts) = d.route(&op);
+    drop(d);
+    (200, envelope(&name, &parts))
+}
+
+/// An operation's response element in its envelope: its response messages (each named for the
+/// operation), or, for automatic replies and reminders, its parts as they are.
+fn envelope(name: &str, parts: &[String]) -> String {
+    let reminders = name.starts_with("GetReminders") || name.starts_with("PerformReminderAction");
+    let class = if !reminders {
+        String::new()
+    } else if parts.concat().contains(">NoError<") {
+        " ResponseClass=\"Success\"".to_string()
+    } else {
+        " ResponseClass=\"Error\"".to_string()
+    };
+    let inner = if name.starts_with("GetUserOof") || name.starts_with("SetUserOof") || reminders {
+        parts.concat()
+    } else {
+        let tag = name.trim_end_matches("Response").to_string() + "ResponseMessage";
+        format!(
+            "<m:ResponseMessages>{}</m:ResponseMessages>",
+            parts.concat().replace("<m:R ", &format!("<m:{tag} ")).replace("</m:R>", &format!("</m:{tag}>"))
+        )
+    };
+    format!(
+        "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><m:{name}{class} xmlns:m=\"m\" xmlns:t=\"t\">{inner}</m:{name}></s:Body></s:Envelope>"
+    )
+}
