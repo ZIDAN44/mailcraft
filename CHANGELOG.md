@@ -128,6 +128,7 @@ on GitHub.
 - A directory search that failed is tried again after 30 seconds, not 5 minutes.
 - Flagging a whole folder at once no longer stalls the window when the To-Do Bar is open.
 - Push notifications from a JMAP server that ends its lines with a lone CR are understood.
+- Two JMAP folders whose names come out the same no longer swap their mail when the server lists them in another order.
 
 ## 0.38.0 - 2026-11-13
 
