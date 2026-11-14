@@ -148,7 +148,7 @@ fn hostile_buttons_are_survived() {
 }
 
 /// A newsletter laid out in nested tables, its style sheet written into every element (long
-/// `style`s, as `inline_css` leaves them), timed. Run under the heavy lock:
+/// `style`s, as `inline_css` leaves them), and boxes of two boxes nested deep, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-mime --lib measure_layout_newsletter -- --ignored --nocapture`.
 #[test]
 #[ignore]
@@ -168,5 +168,14 @@ fn measure_layout_newsletter() {
     let t = std::time::Instant::now();
     let b = html_layout(&html);
     println!("MEASURE layout of {} KB: {} ms", html.len() / 1024, t.elapsed().as_millis());
+    assert!(!b.is_empty());
+    // Boxes of two boxes, twelve deep (4,096 at the bottom).
+    let mut boxes = "<p>A few words.</p>".to_string();
+    for _ in 0..12 {
+        boxes = format!("<div style=\"{style}\">{boxes}</div><div style=\"{style}\">{boxes}</div>");
+    }
+    let t = std::time::Instant::now();
+    let b = html_layout(&boxes);
+    println!("MEASURE layout of boxes in boxes, {} KB: {} ms", boxes.len() / 1024, t.elapsed().as_millis());
     assert!(!b.is_empty());
 }

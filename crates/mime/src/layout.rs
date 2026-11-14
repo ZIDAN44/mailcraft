@@ -531,7 +531,7 @@ fn write_flat(k: &Kid, out: &mut String, size: u16, bold: bool) {
     write_as(k, out, How { leave_hidden: true, blocks: true, styles: true, in_values: false, flat: true, sizing: true, size, bold }, false);
 }
 
-/// A shallow copy of a part of the tree (its children too).
+/// A copy of a part of the tree, all of what's under it too (a deep copy).
 fn copy(k: &Kid) -> Kid {
     match k {
         Kid::Text(t) => Kid::Text(t.clone()),
