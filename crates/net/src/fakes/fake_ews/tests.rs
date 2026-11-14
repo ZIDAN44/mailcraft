@@ -327,13 +327,15 @@ fn folder_edits_queued_together_each_find_their_folder() {
     ] {
         pool.submit(Job::Apply { account: "a1".into(), op });
     }
+    // The changes waiting read as the worker writes them: on Windows a read while it replaces or
+    // removes the file can be refused for a moment, which is not yet, not a failure.
     eventually("all made on the server", || {
         let d = data.lock().unwrap();
         let clients = d.by_name("Clients").map(|f| f.id.clone());
         clients.is_some_and(|c| d.items.iter().any(|i| i.folder == c))
             && d.by_name("Drafts 2").is_none()
             && d.by_name("Old").is_none()
-            && store.load_ops("a1").unwrap().is_empty()
+            && store.load_ops("a1").is_ok_and(|ops| ops.is_empty())
     });
     drop(pool);
 }
