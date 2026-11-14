@@ -82,11 +82,7 @@ pub fn registry() -> Registry {
 
 /// `account` from the params, else the account of the folder on screen.
 fn account_param(s: &Session, v: &Value) -> Result<String, CmdError> {
-    match p::str(v, "account") {
-        Some(a) if s.account(a).is_some() => Ok(a.to_string()),
-        Some(a) => Err(CmdError::Params(format!("no account `{a}`"))),
-        None => s.current_account().map(|a| a.config.id.clone()).ok_or_else(|| CmdError::Disabled("add an account first".into())),
-    }
+    s.account_or_shown(p::str(v, "account"))
 }
 
 /// The `categories` of an event or a task (a text split at `,` and `;`, or a list): trimmed,

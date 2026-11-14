@@ -21,7 +21,7 @@ impl Session {
     /// Subscribe to the calendar at `url` (iCal, `webcal://`) in an account (else the one on
     /// screen), named `name` (else the calendar's own name, else the link's host); read at once.
     pub fn subscribe_calendar(&mut self, account: Option<&str>, url: &str, name: Option<&str>) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         let link = calendar_link(url)
             .ok_or_else(|| CmdError::Params(format!("not a calendar link: {}", url.trim().chars().take(80).collect::<String>())))?;
         let id = web_calendar_id(&link);

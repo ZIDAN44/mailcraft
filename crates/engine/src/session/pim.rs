@@ -156,8 +156,10 @@ impl Session {
         })
     }
 
-    /// The account new events and people go to: the one on screen, else the first.
-    fn pim_account(&self, wanted: Option<&str>) -> Result<String, CmdError> {
+    /// The account a command acts on: the one it names (`wanted`), which must be one, else the
+    /// one on screen, else the first. The rule each command taking an `account` follows (copies
+    /// of it took any name, or refused with other words).
+    pub(crate) fn account_or_shown(&self, wanted: Option<&str>) -> Result<String, CmdError> {
         match wanted {
             Some(a) if self.account(a).is_some() => Ok(a.to_string()),
             Some(a) => Err(CmdError::Params(format!("no account `{a}`"))),
@@ -326,7 +328,7 @@ impl Session {
 
     /// Add an event; returns its uid. Events in a server calendar are sent there.
     pub fn create_event(&mut self, account: Option<&str>, calendar: Option<&str>, mut e: CalEvent) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         check_event(&e)?;
         if e.uid.trim().is_empty() {
             e.uid = self.new_uid();
@@ -444,7 +446,7 @@ impl Session {
 
     /// Add someone; returns their uid.
     pub fn create_card(&mut self, account: Option<&str>, mut card: Card) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         check_card(&card)?;
         if card.uid.trim().is_empty() {
             card.uid = self.new_uid();
@@ -512,7 +514,7 @@ impl Session {
     /// Address Book): read with the account's own, read-only, once the server shows it.
     pub fn open_shared_calendar(&mut self, account: Option<&str>, email: &str) -> CmdResult {
         let account = match account {
-            Some(a) => self.pim_account(Some(a))?,
+            Some(a) => self.account_or_shown(Some(a))?,
             None => self
                 .accounts
                 .iter()
@@ -595,7 +597,7 @@ impl Session {
 
     /// A new note; returns its uid.
     pub fn create_note(&mut self, account: Option<&str>, text: &str, color: Option<u8>) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         let note = mailcraft_model::pim::Note {
             uid: self.new_uid(),
             text: cap_note(text),

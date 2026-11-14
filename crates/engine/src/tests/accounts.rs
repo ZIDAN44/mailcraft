@@ -9,6 +9,7 @@ mod data_files;
 mod importing;
 mod reconnecting;
 mod trusting;
+mod which_account;
 
 #[test]
 fn jmap_accounts_need_no_imap_servers() {

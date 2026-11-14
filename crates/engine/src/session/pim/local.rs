@@ -38,7 +38,7 @@ impl Session {
     /// server (the default one unless told), to be stored there at the next sync. One the server
     /// has already (the same uid) stays here, not to be doubled.
     pub fn move_local_events(&mut self, account: Option<&str>, calendar: Option<&str>) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         if self.account(&account).is_some_and(AccountState::is_local) {
             return Err(CmdError::Disabled("this account's calendar is on this computer only".into()));
         }
@@ -80,7 +80,7 @@ impl Session {
     /// Keep an account's calendar on this computer as it is: moving its events isn't offered
     /// again.
     pub fn keep_local_events(&mut self, account: Option<&str>) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         self.pim_mut(&account).keep_here = true;
         self.save_pim(&account);
         Ok(serde_json::json!({"account": account}))
@@ -89,7 +89,7 @@ impl Session {
     /// The calendar an account's new events and invitations go to (Default calendar); empty
     /// for the one MailCraft picks (the account's own on its server).
     pub fn set_default_calendar(&mut self, account: Option<&str>, calendar: &str) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         let calendar = calendar.trim();
         let p = self.pim_mut(&account);
         if calendar.is_empty() {

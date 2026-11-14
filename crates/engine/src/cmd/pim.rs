@@ -86,10 +86,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("event.create", "New event", "Calendar › New event", |s, v| {
             let mut e = event_from(s, v, mailcraft_model::ical::CalEvent::default())?;
             super::meetings::for_all(s, v, &mut e);
-            let account = match p::str(v, "account") {
-                Some(a) => a.to_string(),
-                None => s.current_account().map(|a| a.config.id.clone()).ok_or_else(|| CmdError::Disabled("add an account first".into()))?,
-            };
+            let account = account_param(s, v)?;
             // With guests, the user organizes it.
             if !e.attendees.is_empty() && e.organizer.is_none() {
                 let me = s.account(&account).map(|a| (a.config.name.clone(), a.config.email.clone())).unwrap_or_default();

@@ -183,7 +183,7 @@ impl Session {
     /// Add a task as it is. `from_file`: it replaces the account's task with its uid and keeps
     /// its own changed time (else a taken uid gets a new one, and the task is changed now).
     fn add_task(&mut self, account: Option<&str>, mut t: Task, from_file: bool) -> CmdResult {
-        let account = self.pim_account(account)?;
+        let account = self.account_or_shown(account)?;
         let taken = self.find_task(&t.uid).map(|r| r.account);
         let replaces = from_file && !t.uid.trim().is_empty() && taken.as_deref() == Some(account.as_str());
         if t.uid.trim().is_empty() || (taken.is_some() && !replaces) {
