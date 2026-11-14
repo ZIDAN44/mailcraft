@@ -409,7 +409,7 @@
 	Mark messages as read when opened	تعليم الرسائل كمقروءة عند فتحها
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	لا مرسلين بعد.
-	Not available: the sample mailbox has no server.	غير متاح: صندوق البريد التجريبي بلا خادم.
+	Not available: this mailbox has no server.	غير متاح: صندوق البريد هذا بلا خادم.
 	Not available: {error}	غير متاح: {error}
 	On	تشغيل
 	On from {from}	تعمل من {from}

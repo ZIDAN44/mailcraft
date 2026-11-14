@@ -409,7 +409,7 @@
 	Mark messages as read when opened	סמן הודעות כנקראו כשהן נפתחות
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	אין עדיין שולחים.
-	Not available: the sample mailbox has no server.	לא זמין: לתיבת הדואר לדוגמה אין שרת.
+	Not available: this mailbox has no server.	לא זמין: לתיבת דואר זו אין שרת.
 	Not available: {error}	לא זמין: {error}
 	On	פועל
 	On from {from}	פועל מ-{from}

@@ -359,3 +359,23 @@ fn measure_copy_many() {
     drop(s);
     drop(store);
 }
+
+/// A folder named in modified UTF-7 on the server (`Entw&APw-rfe`) is named as the user knows it
+/// when mail couldn't go there, as when it went.
+#[test]
+fn a_failed_copy_names_the_folder_as_shown() {
+    let (mut s, _, server, [first, _]) = two_accounts("across-folder-name");
+    let folders = vec![
+        folder(&server, "INBOX", FolderRole::Inbox),
+        folder(&server, "Trash", FolderRole::Trash),
+        folder(&server, "Entw&APw-rfe", FolderRole::default()),
+    ];
+    s.apply(Event::Folders { account: server.clone(), folders });
+    s.run("list.select", &json!({"key": first.to_id()})).unwrap();
+    assert_eq!(s.run("mail.copy", &json!({"folder": "Entw&APw-rfe", "account": server})).unwrap()["sending"], 1);
+    s.take_jobs();
+    let failed = vec![(first, "the mailbox is full".into())];
+    s.apply(Event::CopiesFiled { account: server.clone(), folder: "Entw&APw-rfe".into(), done: vec![], failed, moved: false });
+    let said = s.notices.last().map(|n| n.text.clone()).unwrap_or_default();
+    assert!(said.contains("copied to Entwürfe") && !said.contains("&APw-"), "{said}");
+}

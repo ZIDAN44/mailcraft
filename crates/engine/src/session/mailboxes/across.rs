@@ -19,7 +19,7 @@ const WAIT: i64 = 30 * 60;
 
 /// The error of mail that couldn't be filed in `folder`.
 fn not_kept(folder: &str) -> impl Fn(mailcraft_store::StoreError) -> CmdError + '_ {
-    move |e| CmdError::Failed(format!("The mail couldn't be kept in {folder}, so it stays where it was: {e}"))
+    move |e| CmdError::Failed(format!("The mail couldn't be kept in {}, so it stays where it was: {e}", mailcraft_model::utf7::decode(folder)))
 }
 
 /// A message on its way to where it was moved or copied to.
@@ -195,7 +195,10 @@ impl Session {
         for (a, keys) in keys_by_account(keys) {
             // Its copy is there already: one that can't be deleted here stays, in both.
             if let Err(e) = self.apply_op_checked(&a, Op::Expunge { keys }) {
-                self.notice(format!("The mail was copied to {folder}, but couldn't be deleted where it was: {e}"), true);
+                self.notice(
+                    format!("The mail was copied to {}, but couldn't be deleted where it was: {e}", mailcraft_model::utf7::decode(folder)),
+                    true,
+                );
                 all = false;
             }
         }
@@ -284,7 +287,8 @@ impl Session {
         if let Some((_, why)) = failed.first() {
             let did = if moved { "moved" } else { "copied" };
             let n = failed.len();
-            self.notice(format!("{n} {} couldn't be {did} to {folder}: {why}", if n == 1 { "message" } else { "messages" }), true);
+            let to = mailcraft_model::utf7::decode(folder);
+            self.notice(format!("{n} {} couldn't be {did} to {to}: {why}", if n == 1 { "message" } else { "messages" }), true);
         }
     }
 

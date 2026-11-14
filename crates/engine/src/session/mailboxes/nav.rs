@@ -45,6 +45,7 @@ pub(crate) struct ListNav {
     /// them out for each message opened cost a pass over the list every Down.
     kept: OnceLock<(Vec<Thread>, Vec<u32>)>,
     /// How many times the list's conversations were worked out (for tests).
+    #[cfg(test)]
     threadings: AtomicU64,
     /// Summaries copied out of the list ([`Session::selected`]): what's drawn each frame should
     /// copy none (a select-all copied every message, three times a frame).
@@ -168,8 +169,9 @@ impl ListNav {
         self.kept = OnceLock::new();
     }
 
-    /// The list's conversations were worked out once more.
+    /// The list's conversations were worked out once more (counted for tests).
     pub(super) fn threaded(&self) {
+        #[cfg(test)]
         self.threadings.fetch_add(1, Ordering::Relaxed);
     }
 

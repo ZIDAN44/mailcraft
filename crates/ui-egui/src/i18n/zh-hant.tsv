@@ -409,7 +409,7 @@
 	Mark messages as read when opened	開啟郵件時標示為已讀
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	還沒有寄件者。
-	Not available: the sample mailbox has no server.	無法使用: 範例信箱沒有伺服器。
+	Not available: this mailbox has no server.	無法使用: 此信箱沒有伺服器。
 	Not available: {error}	無法使用: {error}
 	On	已開啟
 	On from {from}	從 {from} 起開啟

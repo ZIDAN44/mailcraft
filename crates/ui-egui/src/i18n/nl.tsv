@@ -409,7 +409,7 @@
 	Mark messages as read when opened	Berichten als gelezen markeren bij openen
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	Nog geen afzenders.
-	Not available: the sample mailbox has no server.	Niet beschikbaar: het voorbeeldpostvak heeft geen server.
+	Not available: this mailbox has no server.	Niet beschikbaar: dit postvak heeft geen server.
 	Not available: {error}	Niet beschikbaar: {error}
 	On	Aan
 	On from {from}	Aan vanaf {from}

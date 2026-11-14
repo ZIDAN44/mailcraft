@@ -409,7 +409,7 @@
 	Mark messages as read when opened	Segna i messaggi come letti quando si aprono
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	Ancora nessun mittente.
-	Not available: the sample mailbox has no server.	Non disponibile: la casella di esempio non ha un server.
+	Not available: this mailbox has no server.	Non disponibile: questa casella non ha un server.
 	Not available: {error}	Non disponibile: {error}
 	On	Attive
 	On from {from}	Attive dal {from}

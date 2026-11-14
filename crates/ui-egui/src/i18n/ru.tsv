@@ -409,7 +409,7 @@
 	Mark messages as read when opened	Отмечать письма прочитанными при открытии
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	Отправителей пока нет.
-	Not available: the sample mailbox has no server.	Недоступно: у примера почтового ящика нет сервера.
+	Not available: this mailbox has no server.	Недоступно: у этого почтового ящика нет сервера.
 	Not available: {error}	Недоступно: {error}
 	On	Включены
 	On from {from}	Включены с {from}

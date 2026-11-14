@@ -409,7 +409,7 @@
 	Mark messages as read when opened	開いたメッセージを既読にする
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	送信者はまだいません。
-	Not available: the sample mailbox has no server.	利用できません: サンプル メールボックスにはサーバーがありません。
+	Not available: this mailbox has no server.	利用できません: このメールボックスにはサーバーがありません。
 	Not available: {error}	利用できません: {error}
 	On	オン
 	On from {from}	{from} からオン

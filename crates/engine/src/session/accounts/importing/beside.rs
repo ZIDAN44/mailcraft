@@ -127,7 +127,14 @@ impl Session {
             let _ = self.drop_account(id, Leaves::DataFile);
             return Err(CmdError::Failed(format!("MailCraft's copy of this file couldn't be opened: {e}")));
         }
-        let mut folders = store.load_folders(id).unwrap_or_default();
+        // Its folder list not read, it would open with no folders, saying nothing: it goes again.
+        let mut folders = match store.load_folders(id) {
+            Ok(f) => f,
+            Err(e) => {
+                let _ = self.drop_account(id, Leaves::DataFile);
+                return Err(CmdError::Failed(format!("MailCraft's copy of this file couldn't be opened: {e}")));
+            }
+        };
         sort_folders(&mut folders);
         if let Some(a) = self.account_mut(id) {
             a.folders = folders;
@@ -256,3 +263,6 @@ impl Session {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -34,7 +34,7 @@ impl Session {
     pub fn load_vacation(&mut self, account: &str) -> CmdResult {
         let a = self.account_mut(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
         if a.is_local() {
-            a.vacation = VacationState::Failed("the sample mailbox has no server".into());
+            a.vacation = VacationState::Failed("this account has no mail server".into());
         } else {
             a.vacation = VacationState::Loading;
             self.jobs.push(Job::GetVacation { account: account.to_string() });
@@ -59,7 +59,7 @@ impl Session {
         }
         let a = self.account_mut(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
         if a.is_local() {
-            return Err(CmdError::Params("the sample mailbox has no server".into()));
+            return Err(CmdError::Params("this account has no mail server".into()));
         }
         a.vacation = VacationState::Loading;
         self.jobs.push(Job::SetVacation { account: account.to_string(), vacation: v });

@@ -123,8 +123,13 @@ impl Session {
     /// Try to send everything in the Outbox now (what's held for an account that can't send
     /// stays: [`SendBlock`]).
     pub fn send_outbox(&mut self) -> CmdResult {
-        let mut accounts: Vec<String> = self.outbox.iter().map(|(a, _)| a.clone()).filter(|a| self.send_block(a).is_none()).collect();
-        accounts.dedup();
+        // Each account once, wherever its mail is in the Outbox.
+        let mut accounts: Vec<String> = Vec::new();
+        for (a, _) in &self.outbox {
+            if !accounts.contains(a) && self.send_block(a).is_none() {
+                accounts.push(a.clone());
+            }
+        }
         if accounts.is_empty()
             && let Some(b) = self.outbox.first().and_then(|(a, _)| self.send_block(a))
         {

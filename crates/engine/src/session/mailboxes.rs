@@ -439,7 +439,7 @@ impl Session {
         }
         if !more.is_empty() {
             list.extend(more);
-            list.sort_by_key(|a| (if a.name.is_empty() { a.email.to_lowercase() } else { a.name.to_lowercase() }, a.email.to_lowercase()));
+            list.sort_by_cached_key(|a| (if a.name.is_empty() { a.email.to_lowercase() } else { a.name.to_lowercase() }, a.email.to_lowercase()));
             list.truncate(MAX);
         }
         list

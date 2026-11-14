@@ -217,7 +217,7 @@ fn automatic_replies(t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut Vec<A
     let (color, status) = match &a.vacation {
         _ if a.is_data_file() => (t.faint, tl!("Not available: a data file has no server.").to_string()),
         _ if a.config.is_calendar_only() => (t.faint, tl!("Not available: this account has no mail server.").to_string()),
-        _ if a.is_local() => (t.faint, tl!("Not available: the sample mailbox has no server.").to_string()),
+        _ if a.is_local() => (t.faint, tl!("Not available: this mailbox has no server.").to_string()),
         VacationState::Unknown | VacationState::Loading => (t.faint, tl!("Checking with the server…").to_string()),
         VacationState::Loaded(v) if v.enabled => (
             t.ok,

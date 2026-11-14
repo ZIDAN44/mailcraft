@@ -350,8 +350,7 @@ impl Session {
 
     /// Change an event (all of its occurrences).
     pub fn update_event(&mut self, uid: &str, change: impl FnOnce(&mut CalEvent)) -> CmdResult {
-        let (account, _) =
-            self.find_event(uid).map(|(a, e)| (a.to_string(), e.calendar.clone())).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
+        let account = self.find_event(uid).map(|(a, _)| a.to_string()).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
         let p = self.pim_mut(&account);
         let Some(stored) = p.events.iter_mut().find(|e| e.event.uid == uid && e.event.recurrence_id.is_none()) else {
             return Err(CmdError::Params(format!("no event `{uid}`")));
@@ -730,8 +729,8 @@ fn check_card(c: &Card) -> Result<(), CmdError> {
 pub(crate) const MAX_SECONDS: i64 = 400_000_000_000;
 
 /// A local date (`YYYY-MM-DD`, all day) or date and time (`YYYY-MM-DDTHH:MM`, seconds after it
-/// or not, a space for the `T` or not), or Unix seconds, as (Unix seconds, all day). `offset` is
-/// the local UTC offset; all-day dates come back at UTC midnight (as events keep them).
+/// or not, a space for the `T` or not), or Unix seconds, as (Unix seconds, all day), read in
+/// `clock`'s time zone; all-day dates come back at UTC midnight (as events keep them).
 pub fn parse_local(s: &str, clock: &Clock) -> Option<(i64, bool)> {
     let s = s.trim();
     if let Ok(n) = s.parse::<i64>() {

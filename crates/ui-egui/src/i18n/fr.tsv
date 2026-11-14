@@ -410,7 +410,7 @@
 	Mark messages as read when opened	Marquer les messages comme lus à l’ouverture
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	Aucun expéditeur pour l’instant.
-	Not available: the sample mailbox has no server.	Non disponible : la boîte aux lettres d’exemple n’a pas de serveur.
+	Not available: this mailbox has no server.	Non disponible : cette boîte aux lettres n’a pas de serveur.
 	Not available: {error}	Non disponible : {error}
 	On	Activées
 	On from {from}	Activées à partir du {from}

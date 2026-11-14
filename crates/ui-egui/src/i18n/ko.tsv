@@ -409,7 +409,7 @@
 	Mark messages as read when opened	메시지를 열면 읽음으로 표시
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	아직 보낸 사람이 없습니다.
-	Not available: the sample mailbox has no server.	사용할 수 없음: 예제 사서함에는 서버가 없습니다.
+	Not available: this mailbox has no server.	사용할 수 없음: 이 사서함에는 서버가 없습니다.
 	Not available: {error}	사용할 수 없음: {error}
 	On	켜짐
 	On from {from}	{from}부터 켜짐

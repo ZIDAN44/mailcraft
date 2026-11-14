@@ -363,3 +363,23 @@ fn options_gives_each_account_its_time_to_look_for_mail() {
     assert!(has(&texts, "Every 30 minutes"), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// File › Info for a mailbox kept on this computer that isn't the sample: its automatic replies
+/// aren't available, and it isn't called the sample mailbox.
+#[test]
+fn a_local_mailbox_isnt_called_the_sample() {
+    let (mut a, dir) = app("local-no-server");
+    let ctx = egui::Context::default();
+    a.act(crate::Action::Submit("account.add", json!({"email": "me@home.example", "local": true})));
+    let id = a.session.accounts.iter().find(|x| x.config.email == "me@home.example").map(|x| x.config.id.clone()).unwrap();
+    a.act(crate::Action::Backstage(crate::backstage::Page::Info));
+    if let Some(page) = a.ui.backstage.as_mut() {
+        page.account = Some(id);
+    }
+    let tall = egui::vec2(1280.0, 3000.0);
+    drawn_text(&ctx, &mut a, tall);
+    let texts = drawn_strings(&ctx, &mut a, tall);
+    assert!(texts.iter().any(|t| t == "Not available: this mailbox has no server."), "{texts:?}");
+    assert!(!texts.iter().any(|t| t.contains("sample mailbox")), "{texts:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}

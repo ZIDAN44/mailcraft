@@ -410,7 +410,7 @@
 	Mark messages as read when opened	Açılan iletileri okundu olarak işaretle
 	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
 	No senders yet.	Henüz gönderici yok.
-	Not available: the sample mailbox has no server.	Kullanılamıyor: örnek posta kutusunun sunucusu yok.
+	Not available: this mailbox has no server.	Kullanılamıyor: bu posta kutusunun sunucusu yok.
 	Not available: {error}	Kullanılamıyor: {error}
 	On	Açık
 	On from {from}	{from} tarihinden itibaren açık
