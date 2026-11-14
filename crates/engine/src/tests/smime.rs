@@ -467,3 +467,40 @@ fn a_withdrawn_certificate_reaches_no_one_at_once() {
     s.apply(Event::Revocation { cert, status: mailcraft_model::Revocation::Revoked { at: LATER - 60 } });
     assert_eq!(s.encryption_reach(), Some(crate::Reach::Missing { scheme: crate::Scheme::Smime, who: vec!["ana@posteo.example".into()] }));
 }
+
+/// The settings of an account that has none kept (or of no account) read as the defaults.
+#[test]
+fn settings_never_kept_are_the_defaults() {
+    let s = sample_session("smime-none-kept");
+    for account in ["sample", "nobody"] {
+        assert_eq!(*s.smime_settings(account), crate::SmimeSettings::default(), "{account}");
+        assert_eq!(*s.pgp_settings(account), crate::PgpSettings::default(), "{account}");
+    }
+}
+
+/// Audit #264: what a message being written and sent reads of the account's settings (whether
+/// it signs, sends its key) costs the same with 5000 people's certificates and keys known as
+/// with none. Run in release: `cargo test --release -p mailcraft-engine --lib
+/// settings_read_with_many_known -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement"]
+fn settings_read_with_many_known() {
+    let s = sample_session("smime-many-known");
+    let store = s.store.clone().unwrap();
+    let blob: Vec<u8> = (0..1500u32).map(|i| (i % 251) as u8).collect();
+    let known =
+        |kind: &str| -> serde_json::Map<String, Value> { (0..5000).map(|n| (format!("person{n}@far.example"), json!({ kind: blob }))).collect() };
+    store.save_account_doc("sample", crate::session::SMIME_DOC, &json!({"sign": true, "known": known("cert")})).unwrap();
+    store.save_account_doc("sample", crate::session::PGP_DOC, &json!({"known": known("key")})).unwrap();
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    assert_eq!((s.smime_settings("sample").known.len(), s.pgp_settings("sample").known.len()), (5000, 5000));
+    s.run("mail.new", &json!({})).unwrap();
+    let raw = b"From: Riley <riley@studio.example>\r\nTo: ana@posteo.example\r\nSubject: Hi\r\n\r\nHello\r\n".to_vec();
+    const ROUNDS: u32 = 200;
+    let t = std::time::Instant::now();
+    for _ in 0..ROUNDS {
+        let _ = s.with_autocrypt("sample", raw.clone());
+        s.signing_follows_from("sample", "riley@studio.example");
+    }
+    println!("MEASURE a send's and a From change's settings read, 5000 known: {:.3} ms", t.elapsed().as_secs_f64() * 1000.0 / f64::from(ROUNDS));
+}

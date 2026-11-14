@@ -60,6 +60,18 @@ pub struct SmimeSettings {
     pub known: BTreeMap<String, KnownCert>,
 }
 
+/// The S/MIME settings of an account with none kept: [`SmimeSettings::default`].
+static NO_SMIME: SmimeSettings = SmimeSettings {
+    chain: Vec::new(),
+    older: Vec::new(),
+    sign: false,
+    encrypt: false,
+    keep_subject: false,
+    auto_encrypt: false,
+    keep_unlocked: false,
+    known: BTreeMap::new(),
+};
+
 /// Someone's certificate, from a signed message of theirs.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -185,9 +197,10 @@ impl Session {
         }
     }
 
-    /// An account's S/MIME settings.
-    pub fn smime_settings(&self, account: &str) -> SmimeSettings {
-        self.smime.get(account).cloned().unwrap_or_default()
+    /// An account's S/MIME settings, as kept (the defaults for one with none), borrowed: they
+    /// hold up to 5000 people's certificates, and most ask only whether it signs.
+    pub fn smime_settings(&self, account: &str) -> &SmimeSettings {
+        self.smime.get(account).unwrap_or(&NO_SMIME)
     }
 
     /// The account's certificate, when it has one.

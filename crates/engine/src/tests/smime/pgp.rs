@@ -114,7 +114,7 @@ fn pgp_mime_signatures_say_who_signed() {
     let signed = security(&s).signed.unwrap();
     assert_eq!(signed.seal, Seal::Trusted);
     assert_eq!(signed.key.unwrap().emails, ["ana@posteo.example"]);
-    let known = s.pgp_settings("sample").known;
+    let known = &s.pgp_settings("sample").known;
     assert!(known.get("ana@posteo.example").is_some_and(|k| k.mutual && k.from == crate::KeySource::Autocrypt));
     // Changed after it was signed.
     let changed = String::from_utf8(signed_by_ana(false, &part)).unwrap().replace("is approved", "is rejected");

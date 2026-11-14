@@ -39,6 +39,9 @@ pub struct PgpSettings {
     pub no_autocrypt: bool,
 }
 
+/// The OpenPGP settings of an account with none kept: [`PgpSettings::default`].
+static NO_PGP: PgpSettings = PgpSettings { keys: Vec::new(), known: BTreeMap::new(), no_autocrypt: false };
+
 /// Someone's key.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -148,9 +151,10 @@ impl Session {
         }
     }
 
-    /// An account's OpenPGP settings.
-    pub fn pgp_settings(&self, account: &str) -> PgpSettings {
-        self.pgp.settings.get(account).cloned().unwrap_or_default()
+    /// An account's OpenPGP settings, as kept (the defaults for one with none), borrowed: they
+    /// hold up to [`KNOWN_MAX`] people's keys, and most ask only one thing of them.
+    pub fn pgp_settings(&self, account: &str) -> &PgpSettings {
+        self.pgp.settings.get(account).unwrap_or(&NO_PGP)
     }
 
     /// The account's key in use, when it has one.
