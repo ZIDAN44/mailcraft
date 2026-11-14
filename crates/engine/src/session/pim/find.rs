@@ -115,9 +115,11 @@ impl Session {
                     // The series when it matches (its changed occurrences with it); else each
                     // changed occurrence that does, on its own.
                     let master = list.iter().find(|e| e.recurrence_id.is_none()).copied();
-                    let groups: Vec<Vec<CalEvent>> = match master {
-                        Some(m) if q.matches(m) => vec![list.iter().map(|e| (*e).clone()).collect()],
-                        _ => list.iter().filter(|e| e.recurrence_id.is_some() && q.matches(e)).map(|e| vec![(*e).clone()]).collect(),
+                    // Borrowed: a copy of each found (its text, attendees and rules) was made for
+                    // nothing.
+                    let groups: Vec<Vec<&CalEvent>> = match master {
+                        Some(m) if q.matches(m) => vec![list],
+                        _ => list.into_iter().filter(|e| e.recurrence_id.is_some() && q.matches(e)).map(|e| vec![e]).collect(),
                     };
                     for events in groups {
                         let Some(Shown { event: o, named, start, end }) = self.shown_occurrence(&events, when, now, lo, hi) else { continue };
@@ -157,7 +159,7 @@ impl Session {
     /// The occurrence of a series a search shows: which event of it, and when. Its next one that
     /// hasn't ended (unless past ones are asked for), else its last; each starting from `lo`
     /// and before `hi`.
-    fn shown_occurrence(&self, events: &[CalEvent], when: EventWhen, now: i64, lo: Option<i64>, hi: Option<i64>) -> Option<Shown> {
+    fn shown_occurrence(&self, events: &[&CalEvent], when: EventWhen, now: i64, lo: Option<i64>, hi: Option<i64>) -> Option<Shown> {
         let fits = |s: i64| lo.is_none_or(|l| s >= l) && hi.is_none_or(|h| s < h);
         // Every occurrence overlapping [from, to), all-day ones placed on the user's days.
         let within = |from: i64, to: i64| -> Vec<Shown> {
