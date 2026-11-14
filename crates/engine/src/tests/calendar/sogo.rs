@@ -67,13 +67,18 @@ fn meeting(uid: &str, calendar: &str, partstat: &str) -> StoredEvent {
 
 /// bob's calendars as SOGo lists them: ann's (subscribed to, read-only) first, then his own.
 fn synced(s: &mut Session, id: &str, synced: &[&str], events: Vec<StoredEvent>) {
+    synced_as(s, id, synced, events, true);
+}
+
+/// [`synced`], ann's calendar listed as someone else's (`foreign`) or only as one he may read.
+fn synced_as(s: &mut Session, id: &str, synced: &[&str], events: Vec<StoredEvent>, foreign: bool) {
     let sync = DavSync {
         caldav_home: Some("https://mail.mc31.test/SOGo/dav/bob@mc31.test/Calendar/".into()),
         calendars: Some(vec![
             CalendarInfo {
                 id: ANNS.into(),
                 name: "Personal Calendar (Ann)".into(),
-                foreign: true,
+                foreign,
                 read_only: true,
                 ctag: "1".into(),
                 ..Default::default()
@@ -130,6 +135,29 @@ fn an_invitation_already_in_a_colleagues_calendar_goes_in_the_users_own() {
     // ann's copy read again afterwards doesn't come back beside it.
     synced(&mut s, &id, &[ANNS], vec![meeting("m2", ANNS, "ACCEPTED")]);
     assert_eq!(super::invite_placing::parts(&s, &id, "m2").len(), 1);
+}
+
+/// The same, for a weekly meeting with one occurrence moved, ann's calendar one bob may only
+/// read but not listed as someone else's (a server that doesn't say whose it is): none of her
+/// copy stays beside his once the invitation is in his own calendar. Her moved occurrence did,
+/// shown beside his series.
+#[test]
+fn an_invitation_already_in_a_read_only_calendar_is_shown_once() {
+    let (mut s, id) = super::invite_placing::imap_session("read-only-invited-too");
+    let mut series = meeting("m3", ANNS, "ACCEPTED");
+    series.event.rrule = Some("FREQ=WEEKLY".into());
+    let mut moved = series.clone();
+    moved.event.rrule = None;
+    moved.event.recurrence_id = Some(series.event.start + 7 * 86_400);
+    moved.event.start += 7 * 86_400 + 3600;
+    moved.event.end += 7 * 86_400 + 3600;
+    synced_as(&mut s, &id, &[ANNS, OWN], vec![series.clone(), moved], false);
+    assert_eq!(super::invite_placing::parts(&s, &id, "m3").len(), 2);
+    let mut inv = series.event;
+    inv.organizer = Some(ical::Attendee { email: "zoe@studio.example".into(), name: "Zoe".into(), ..Default::default() });
+    super::invite_placing::arrive(&mut s, &id, 1, "REQUEST", &[inv]);
+    let parts = super::invite_placing::parts(&s, &id, "m3");
+    assert_eq!(parts.iter().map(|e| e.calendar.as_str()).collect::<Vec<_>>(), [OWN]);
 }
 
 /// A change the server refused for good (SOGo's roles let bob change ann's public events, not

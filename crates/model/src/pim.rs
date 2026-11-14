@@ -395,6 +395,18 @@ pub struct DavSync {
 }
 
 impl Pim {
+    /// Whether a calendar is someone else's: listed as theirs (a colleague's the user subscribed
+    /// to), or one the user may only read. A meeting there is their copy, not the user's to
+    /// answer in or keep beside their own.
+    pub fn is_theirs(&self, calendar: &str) -> bool {
+        self.calendars.iter().any(|c| c.id == calendar && (c.foreign || c.read_only))
+    }
+
+    /// The calendars that are someone else's ([`Pim::is_theirs`]).
+    pub fn theirs(&self) -> Vec<String> {
+        self.calendars.iter().filter(|c| c.foreign || c.read_only).map(|c| c.id.clone()).collect()
+    }
+
     /// Whether it holds anything: contacts, events, notes or tasks.
     pub fn has_items(&self) -> bool {
         !self.cards.is_empty() || !self.events.is_empty() || !self.notes.is_empty() || !self.tasks.is_empty()

@@ -82,6 +82,13 @@ fn same_address(one: &str, other: &str) -> bool {
     one.eq_ignore_ascii_case(without_mailto(other))
 }
 
+/// Whether an attendee or organizer value is one of the user's addresses (`mine`, as
+/// [`Session::my_addresses`] gives them): `mailto:` and case aside.
+pub(crate) fn is_mine(value: &str, mine: &[String]) -> bool {
+    let value = without_mailto(value);
+    mine.iter().any(|m| m.eq_ignore_ascii_case(value))
+}
+
 /// An attendee or organizer value as a plain address: trimmed, any `mailto:` (in any case) taken
 /// off the front.
 fn without_mailto(value: &str) -> &str {
@@ -186,8 +193,7 @@ impl Session {
         self.pim.iter().find_map(|(a, p)| {
             // Not a colleague's copy of the meeting (a calendar of theirs the user subscribed
             // to in SOGo, or one they may only read): the user's own is answered and updated.
-            let theirs = |e: &StoredEvent| p.calendars.iter().any(|c| c.id == e.calendar && (c.foreign || c.read_only));
-            let parts: Vec<&StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid && !theirs(e)).collect();
+            let parts: Vec<&StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid && !p.is_theirs(&e.calendar)).collect();
             (!parts.is_empty()).then_some((a.as_str(), parts))
         })
     }
@@ -234,12 +240,8 @@ impl Session {
     /// given, still `NEEDS-ACTION`.
     fn tentative_copy(&self, parts: &[&StoredEvent]) -> bool {
         let mine = self.my_addresses();
-        let answers: Vec<&str> = parts
-            .iter()
-            .flat_map(|p| p.event.attendees.iter())
-            .filter(|a| mine.contains(&a.email.to_ascii_lowercase()))
-            .map(|a| a.partstat.as_str())
-            .collect();
+        let answers: Vec<&str> =
+            parts.iter().flat_map(|p| p.event.attendees.iter()).filter(|a| is_mine(&a.email, &mine)).map(|a| a.partstat.as_str()).collect();
         !answers.is_empty() && answers.iter().all(|a| a.eq_ignore_ascii_case("NEEDS-ACTION"))
     }
 
@@ -265,7 +267,7 @@ impl Session {
             .unwrap_or(&event)
             .attendees
             .iter()
-            .find(|a| mine.contains(&a.email.to_ascii_lowercase()))
+            .find(|a| is_mine(&a.email, &mine))
             .map(|a| a.partstat.clone())
             .unwrap_or_else(|| "NEEDS-ACTION".into());
         // The guest the answer is from: the one its sender is, in the event that's taken in.
@@ -291,6 +293,7 @@ impl Session {
         }
         let account = key.account.clone();
         let me = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
+        let mine = self.my_addresses();
         let uid = cal.events.first().map(|e| e.uid.clone()).unwrap_or_default();
         // The user's own copy (not a colleague's of the same meeting, in a calendar of theirs).
         let existing: Vec<StoredEvent> = self.stored_parts(&uid).map(|(_, parts)| parts.into_iter().cloned().collect()).unwrap_or_default();
@@ -300,7 +303,7 @@ impl Session {
             if let Some(kept) = existing.iter().find(|x| x.event.recurrence_id == e.recurrence_id && older(e, &x.event)) {
                 *e = kept.event.clone();
             }
-            set_answer(e, &self.my_addresses(), &me, stat);
+            set_answer(e, &mine, &me, stat);
         }
         let whole = events.iter().any(|e| e.recurrence_id.is_none());
         let p = self.pim_mut(&account);
@@ -365,7 +368,7 @@ impl Session {
         let p = self.pim_mut(&account);
         // In the user's own calendar: a colleague's copy (one the user may only read) isn't
         // theirs to answer in, and the server would refuse it.
-        let theirs: Vec<String> = p.calendars.iter().filter(|c| c.foreign || c.read_only).map(|c| c.id.clone()).collect();
+        let theirs = p.theirs();
         if !p.events.iter().any(|e| e.event.uid == uid && !theirs.contains(&e.calendar)) {
             return Err(CmdError::Params("this calendar can't be changed".into()));
         }
@@ -387,7 +390,7 @@ impl Session {
             self.answer_organizer(&account, &calendar, &copy, &m, stat)?;
             // Answered from the calendar: its invitations in the Inbox out of the way too (issue
             // #31), unless it's the user's own meeting.
-            let theirs = m.organizer.as_ref().is_some_and(|o| !mine.contains(&without_mailto(&o.email).to_ascii_lowercase()));
+            let theirs = m.organizer.as_ref().is_some_and(|o| !is_mine(&o.email, &mine));
             if theirs {
                 moved = self.tidy_meeting_mail(&account, uid, &["REQUEST"], None, &answered, None);
             }
@@ -426,17 +429,7 @@ impl Session {
                 // Cancelled by the organizer: no answer is sent. The whole series, or the
                 // occurrences it names.
                 let cancelled: Vec<Option<i64>> = cal.events.iter().filter(|e| e.uid == uid).map(|e| e.recurrence_id).collect();
-                let p = self.pim_mut(&account);
-                let mut remote = false;
-                if cancelled.iter().any(Option::is_none) {
-                    let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).cloned().collect();
-                    remote |= delete_items(p, &gone);
-                    p.events.retain(|e| e.event.uid != uid);
-                } else {
-                    for at in cancelled.into_iter().flatten() {
-                        remote |= drop_occurrence(p, &uid, at);
-                    }
-                }
+                let remote = cancel_parts(self.pim_mut(&account), &uid, &cancelled);
                 self.forget_held(&key.account, &uid, &taken);
                 self.after_pim_change(&account, remote);
                 // The cancellation, and the meeting's invitations, out of the way (issue #31).
@@ -468,7 +461,7 @@ impl Session {
     /// meeting).
     fn cancelled_only(&self, cal: &ICalendar, uid: &str) -> Option<Vec<i64>> {
         let parts: Vec<Option<i64>> = cal.events.iter().filter(|e| e.uid == uid).map(|e| e.recurrence_id).collect();
-        (!parts.iter().any(Option::is_none)).then(|| parts.into_iter().flatten().collect())
+        occurrences_only(&parts)
     }
 
     /// Send the organizer the user's answer.
@@ -489,7 +482,7 @@ impl Session {
         let me = (sender.name.clone(), sender.email.clone());
         let mine = self.my_addresses();
         let mut reply = event.clone();
-        reply.attendees.retain(|a| mine.contains(&a.email.to_ascii_lowercase()));
+        reply.attendees.retain(|a| is_mine(&a.email, &mine));
         if reply.attendees.is_empty() {
             reply.attendees.push(Attendee { email: me.1.clone(), name: me.0.clone(), partstat: stat.into(), rsvp: false });
         }
@@ -595,7 +588,7 @@ impl Session {
 /// list or an alias).
 fn set_answer(e: &mut CalEvent, mine: &[String], me: &str, stat: &str) {
     let mut found = false;
-    for a in e.attendees.iter_mut().filter(|a| mine.contains(&a.email.to_ascii_lowercase())) {
+    for a in e.attendees.iter_mut().filter(|a| is_mine(&a.email, mine)) {
         a.partstat = stat.to_string();
         a.rsvp = false;
         found = true;
@@ -606,6 +599,25 @@ fn set_answer(e: &mut CalEvent, mine: &[String], me: &str, stat: &str) {
     // Issue #32: Outlook sends the guest's copy as tentative; accepted, it shows as busy (or as
     // the organizer meant it to), not tentative for good.
     ical::show_as_answered(e, stat);
+}
+
+/// The occurrences `parts` (each a part's `RECURRENCE-ID`) name, when they name occurrences
+/// only (`None`: one is the series, so all of it).
+pub(super) fn occurrences_only(parts: &[Option<i64>]) -> Option<Vec<i64>> {
+    (!parts.iter().any(Option::is_none)).then(|| parts.iter().flatten().copied().collect())
+}
+
+/// Take a cancelled meeting out of the calendar: the whole of it, or the occurrences `parts`
+/// name ([`occurrences_only`]). True when the server has something to learn.
+pub(super) fn cancel_parts(p: &mut Pim, uid: &str, parts: &[Option<i64>]) -> bool {
+    match occurrences_only(parts) {
+        None => {
+            let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).cloned().collect();
+            p.events.retain(|e| e.event.uid != uid);
+            delete_items(p, &gone)
+        }
+        Some(at) => at.into_iter().fold(false, |remote, at| drop_occurrence(p, uid, at) | remote),
+    }
 }
 
 /// Delete these parts of an event on the server: each item once. True when the server has
@@ -663,8 +675,7 @@ pub(super) fn exceptions_full(p: &Pim, uid: &str, at: i64) -> bool {
 fn put_occurrence(p: &mut Pim, calendar: &str, e: CalEvent) -> bool {
     let at = e.recurrence_id;
     // Not a colleague's copy of the meeting (one they may only read): that one only goes.
-    let theirs = |x: &StoredEvent| p.calendars.iter().any(|c| c.id == x.calendar && (c.foreign || c.read_only));
-    let old = p.events.iter().find(|x| x.event.uid == e.uid && x.event.recurrence_id == at && !theirs(x)).cloned();
+    let old = p.events.iter().find(|x| x.event.uid == e.uid && x.event.recurrence_id == at && !p.is_theirs(&x.calendar)).cloned();
     p.events.retain(|x| !(x.event.uid == e.uid && x.event.recurrence_id == at));
     if let Some(at) = at
         && let Some(m) = p.events.iter_mut().find(|x| x.event.uid == e.uid && x.event.recurrence_id.is_none())

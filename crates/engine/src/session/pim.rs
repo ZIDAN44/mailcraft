@@ -272,8 +272,7 @@ impl Session {
                     if start >= to || end.max(start.saturating_add(1)) <= from {
                         continue;
                     }
-                    let needs_reply =
-                        e.attendees.iter().any(|a| a.partstat == "NEEDS-ACTION" && mine.iter().any(|m| m.eq_ignore_ascii_case(a.email.trim())));
+                    let needs_reply = e.attendees.iter().any(|a| a.partstat == "NEEDS-ACTION" && super::invite::is_mine(&a.email, &mine));
                     out.push(AgendaItem {
                         account: account.clone(),
                         calendar: cal.id.clone(),

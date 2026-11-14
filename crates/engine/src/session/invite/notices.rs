@@ -33,8 +33,7 @@ impl Session {
     /// How the messages of the user's meeting `uid` in `account` go (its copy as it is now).
     pub fn meeting_route(&self, account: &str, uid: &str) -> Route {
         let Some(p) = self.pim.get(account) else { return Route::Now };
-        let theirs = |id: &str| p.calendars.iter().any(|c| c.id == id && (c.foreign || c.read_only));
-        let mut calendars = p.events.iter().filter(|e| e.event.uid == uid && !theirs(&e.calendar)).map(|e| e.calendar.as_str());
+        let mut calendars = p.events.iter().filter(|e| e.event.uid == uid && !p.is_theirs(&e.calendar)).map(|e| e.calendar.as_str());
         let Some(calendar) = calendars.next() else { return Route::Now };
         if self.account(account).is_some_and(|a| a.config.graph.is_some()) && calendar != LOCAL {
             return Route::Server;
@@ -140,7 +139,7 @@ impl Session {
         if p.notices.is_empty() {
             return;
         }
-        let theirs: Vec<String> = p.calendars.iter().filter(|c| c.foreign || c.read_only).map(|c| c.id.clone()).collect();
+        let theirs = p.theirs();
         let mut ready: Vec<(Notice, Option<CalEvent>)> = Vec::new();
         let mut waiting: Vec<Notice> = Vec::new();
         for n in std::mem::take(&mut p.notices) {
