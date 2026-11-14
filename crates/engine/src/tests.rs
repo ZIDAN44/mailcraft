@@ -153,6 +153,20 @@ fn sent_calendar(s: &Session, folder: &str, subject: &str) -> (String, String) {
     (cal.method.unwrap_or_default(), raw)
 }
 
+/// `--version` of both programs: the release build's commit, shortened, and date; a build
+/// without them, the version alone.
+#[test]
+fn the_version_line_names_the_program_and_its_build() {
+    assert_eq!(
+        crate::build_line("mailcraft-cli", "1.2.3", Some("0123456789abcdef"), Some("2026-11-15")),
+        "mailcraft-cli 1.2.3 (012345678, 2026-11-15)"
+    );
+    assert_eq!(crate::build_line("mailcraft", "1.2.3", Some("abc"), Some("2026-11-15")), "mailcraft 1.2.3 (abc, 2026-11-15)");
+    assert_eq!(crate::build_line("mailcraft", "1.2.3", Some(""), Some("2026-11-15")), "mailcraft 1.2.3");
+    assert_eq!(crate::build_line("mailcraft", "1.2.3", Some("abc"), None), "mailcraft 1.2.3");
+    assert!(crate::version_line("mailcraft").starts_with(&format!("mailcraft {}", env!("CARGO_PKG_VERSION"))));
+}
+
 /// The start of 2026-10-16, local, as the sample's clock has it.
 fn mailcraft_engine_day(s: &Session) -> i64 {
     crate::parse_local("2026-10-16", &s.clock).map(|(t, _)| t).unwrap()

@@ -178,15 +178,6 @@ fn print(v: &Value) {
     outln!("{}", serde_json::to_string_pretty(v).unwrap_or_default());
 }
 
-/// `--version`: the version, plus the commit and date of release builds (packaging/common.sh).
-fn version_line() -> String {
-    let v = format!("mailcraft-cli {}", env!("CARGO_PKG_VERSION"));
-    match (option_env!("MAILCRAFT_BUILD_SHA"), option_env!("MAILCRAFT_BUILD_DATE")) {
-        (Some(sha), Some(date)) if !sha.is_empty() => format!("{v} ({}, {date})", sha.get(..9).unwrap_or(sha)),
-        _ => v,
-    }
-}
-
 /// The data files sealed as the command ends ([`Store::seal_all`]), so they reopen at once.
 struct SealOnExit(Store);
 
@@ -222,7 +213,8 @@ fn run() -> Result<(), String> {
     // `args()` panics on an argument that isn't Unicode (a file name in another encoding).
     let raw: Vec<String> = std::env::args_os().skip(1).map(|a| a.to_string_lossy().into_owned()).collect();
     if raw.iter().any(|a| a == "--version" || a == "-V") {
-        outln!("{}", version_line());
+        // The version, plus the commit and date of release builds (packaging/common.sh).
+        outln!("{}", mailcraft_engine::version_line("mailcraft-cli"));
         return Ok(());
     }
     let args = Args { rest: raw };

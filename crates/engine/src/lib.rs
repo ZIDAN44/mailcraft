@@ -43,6 +43,21 @@ pub use session::{
     signature_parts,
 };
 
+/// What `--version` prints for the program `name` (`mailcraft`, `mailcraft-cli`): its version,
+/// plus the commit and date of release builds (packaging/common.sh).
+pub fn version_line(name: &str) -> String {
+    build_line(name, env!("CARGO_PKG_VERSION"), option_env!("MAILCRAFT_BUILD_SHA"), option_env!("MAILCRAFT_BUILD_DATE"))
+}
+
+/// [`version_line`] of a build: the commit shortened to 9 characters.
+fn build_line(name: &str, version: &str, sha: Option<&str>, date: Option<&str>) -> String {
+    let v = format!("{name} {version}");
+    match (sha, date) {
+        (Some(sha), Some(date)) if !sha.is_empty() => format!("{v} ({}, {date})", sha.get(..9).unwrap_or(sha)),
+        _ => v,
+    }
+}
+
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum CmdError {
     #[error("unknown command `{0}`")]
