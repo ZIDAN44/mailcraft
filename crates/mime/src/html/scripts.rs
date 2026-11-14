@@ -37,7 +37,7 @@ pub(crate) fn mark_scripts(html: &str) -> String {
     let mut out = String::with_capacity(html.len() + 64);
     let mut last = 0;
     let mut from = 0;
-    while let Some(i) = lower.get(from..).and_then(|r| r.find('<')) {
+    while let Some(i) = lower.get(from..).and_then(|r| work::scanned(r, r.find('<'))) {
         let start = from + i;
         let Some((closing, mark)) = script_tag(lower.get(start..).unwrap_or("")) else {
             from = start + 1;
@@ -125,15 +125,15 @@ pub(crate) fn plain_scripts(html: &str) -> std::borrow::Cow<'_, str> {
     let mut out = String::with_capacity(html.len());
     let mut last = 0;
     let mut from = 0;
-    while let Some(i) = lower.get(from..).and_then(|r| r.find("<sup")) {
+    while let Some(i) = lower.get(from..).and_then(|r| work::scanned(r, r.find("<sup"))) {
         let start = from + i;
         let Some((false, _)) = script_tag(lower.get(start..).unwrap_or("")) else {
             from = start + 4;
             continue;
         };
         let Some(open_end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
-        let Some(close) = lower.get(open_end..).and_then(|r| r.find("</sup")).map(|e| open_end + e) else { break };
-        let Some(close_end) = lower.get(close..).and_then(|r| r.find('>')).map(|e| close + e) else { break };
+        let Some(close) = lower.get(open_end..).and_then(|r| work::scanned(r, r.find("</sup"))).map(|e| open_end + e) else { break };
+        let Some(close_end) = lower.get(close..).and_then(|r| work::scanned(r, r.find('>'))).map(|e| close + e) else { break };
         let inner = html.get(open_end + 1..close).unwrap_or("").trim();
         if !inner.is_empty() && inner.chars().all(|c| c.is_ascii_digit()) {
             out.push_str(html.get(last..=close_end).unwrap_or(""));

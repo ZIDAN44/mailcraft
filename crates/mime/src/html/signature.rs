@@ -36,11 +36,11 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
     let mut out = String::with_capacity(inner.len());
     let lower = inner.to_ascii_lowercase();
     let mut at = 0;
-    while let Some(i) = lower.get(at..).and_then(|r| r.find('<')).map(|i| at + i) {
+    while let Some(i) = lower.get(at..).and_then(|r| work::scanned(r, r.find('<'))).map(|i| at + i) {
         out.push_str(inner.get(at..i).unwrap_or(""));
         // A comment (Outlook's conditional ones among them) goes whole.
         if lower.get(i..).is_some_and(|r| r.starts_with("<!--")) {
-            at = lower.get(i..).and_then(|r| r.find("-->")).map_or(inner.len(), |e| i + e + 3);
+            at = lower.get(i..).and_then(|r| work::scanned(r, r.find("-->"))).map_or(inner.len(), |e| i + e + 3);
             continue;
         }
         // Its end as a browser finds it: a `>` in a quoted value isn't it (`<img alt="a>b"
@@ -64,8 +64,8 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
                 let close = format!("</{name}");
                 at = lower
                     .get(end..)
-                    .and_then(|r| r.find(&close))
-                    .and_then(|c| lower.get(end + c..)?.find('>').map(|e| end + c + e + 1))
+                    .and_then(|r| work::scanned(r, r.find(&close)))
+                    .and_then(|c| lower.get(end + c..).and_then(|r| work::scanned(r, r.find('>'))).map(|e| end + c + e + 1))
                     .unwrap_or(inner.len());
             }
             continue;
@@ -107,9 +107,10 @@ fn harmless_tag(tag: &str) -> String {
     // moving its tail for each one was quadratic in a tag full of them.
     const JS: &str = "javascript:";
     let lower = out.to_ascii_lowercase();
+    work::steps(out.len());
     let mut emptied = String::with_capacity(out.len());
     let mut at = 0;
-    while let Some(j) = lower.get(at..).and_then(|r| r.find(JS)).map(|j| at + j) {
+    while let Some(j) = lower.get(at..).and_then(|r| work::scanned(r, r.find(JS))).map(|j| at + j) {
         emptied.push_str(out.get(at..j).unwrap_or(""));
         emptied.push('#');
         at = j + JS.len();

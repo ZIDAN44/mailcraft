@@ -3,6 +3,8 @@
 //! whose time grows with each table nested (a megabyte took over ten minutes). Mail as written,
 //! newsletters with a dozen tables one in another included, is nowhere near the limits.
 
+use super::work::scanned;
+
 /// Tables open one in another past which HTML is read flat.
 const MAX_TABLES: usize = 48;
 /// Boxes (`div`, `blockquote`) open one in another past which HTML is read flat.
@@ -15,9 +17,9 @@ fn tags(html: &str, mut each: impl FnMut(&str, bool, std::ops::Range<usize>) -> 
     let bytes = html.as_bytes();
     let mut at = 0;
     let mut raw: Option<&'static str> = None;
-    while let Some(lt) = bytes.get(at..).and_then(|b| b.iter().position(|&c| c == b'<')).map(|p| p + at) {
+    while let Some(lt) = bytes.get(at..).and_then(|b| scanned(b, b.iter().position(|&c| c == b'<'))).map(|p| p + at) {
         if bytes.get(lt..lt + 4) == Some(b"<!--") {
-            at = html.get(lt + 4..).and_then(|s| s.find("-->")).map_or(bytes.len(), |e| lt + 4 + e + 3);
+            at = html.get(lt + 4..).and_then(|s| scanned(s, s.find("-->"))).map_or(bytes.len(), |e| lt + 4 + e + 3);
             continue;
         }
         let end = bytes.get(lt + 1).is_some_and(|&c| c == b'/');
@@ -97,19 +99,47 @@ pub(crate) fn flattened(html: &str) -> String {
 mod tests {
     use super::*;
 
+    /// A megabyte of tables left open one in another, each with a box and a link.
+    fn tables_left_open() -> String {
+        let unit = r#"<table><tr><td><div><a href="https://x.example/a">link</a>"#;
+        unit.repeat(1_000_000 / unit.len())
+    }
+
+    /// A megabyte of `<` with no name after it, or of `<a` in a `style` left open, after enough
+    /// tables to be looked through.
+    fn stray_angle_brackets() -> impl Iterator<Item = String> {
+        let tables = "<table></table>".repeat(MAX_TABLES + 1);
+        ["<".repeat(1 << 20), "< ".repeat(1 << 19), format!("<style>{}", "<a ".repeat(1 << 18)), "<\"".repeat(1 << 19)]
+            .into_iter()
+            .map(move |junk| format!("{tables}{junk}"))
+    }
+
+    /// How long those take: `cargo test --release -p mailcraft-mime --lib how_long_deep_html_takes -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn how_long_deep_html_takes() {
+        let raw = format!("Content-Type: text/html\r\n\r\n{}", tables_left_open());
+        let started = std::time::Instant::now();
+        let _ = crate::parse(raw.as_bytes());
+        println!("MEASURE a megabyte of tables left open: {} ms", started.elapsed().as_millis());
+        for html in stray_angle_brackets() {
+            let started = std::time::Instant::now();
+            let _ = (too_deep(&html), flattened(&html));
+            println!("MEASURE a megabyte of {:?}: {} ms", &html[735..745], started.elapsed().as_millis());
+        }
+    }
+
     /// Found in review: tables left open one in another (a cell, a box, a link, again and
     /// again) took seconds to read at 64 KB, and over ten minutes at a megabyte, in the text
     /// converter and the layout. Read flat, they take no time, their words and links kept; mail
     /// that nests as mail does is read as before.
     #[test]
     fn tables_left_open_by_the_thousand_are_read_flat_and_quick() {
-        let unit = r#"<table><tr><td><div><a href="https://x.example/a">link</a>"#;
-        let html = unit.repeat(1_000_000 / unit.len());
+        let html = tables_left_open();
         assert!(too_deep(&html));
-        let started = std::time::Instant::now();
-        let p = crate::parse(format!("Content-Type: text/html\r\n\r\n{html}").as_bytes());
-        assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
-        let p = p.unwrap();
+        // The work counted: the bytes looked through, held in proportion to the message.
+        let raw = format!("Content-Type: text/html\r\n\r\n{html}");
+        let p = crate::html::work::linear(raw.len(), || crate::parse(raw.as_bytes())).unwrap();
         assert!(p.text.contains("link") && p.text.contains("https://x.example/a"), "{:?}", &p.text[..p.text.len().min(200)]);
         assert!(p.rich.iter().flatten().any(|s| s.link.as_deref() == Some("https://x.example/a")));
         // As mail nests: as before.
@@ -126,14 +156,13 @@ mod tests {
     /// each read to the end of the message, a megabyte of them for minutes.
     #[test]
     fn a_megabyte_of_stray_angle_brackets_is_read_once() {
-        let tables = "<table></table>".repeat(MAX_TABLES + 1);
-        let started = std::time::Instant::now();
-        for junk in ["<".repeat(1 << 20), "< ".repeat(1 << 19), format!("<style>{}", "<a ".repeat(1 << 18)), "<\"".repeat(1 << 19)] {
-            let html = format!("{tables}{junk}");
-            assert!(!too_deep(&html));
-            let _ = flattened(&html);
+        // The work counted: the bytes looked through, held in proportion to the message.
+        for html in stray_angle_brackets() {
+            crate::html::work::linear(html.len(), || {
+                assert!(!too_deep(&html));
+                let _ = flattened(&html);
+            });
         }
-        assert!(started.elapsed() < std::time::Duration::from_secs(20), "{:?}", started.elapsed());
         // What the tags are is as before.
         let mut seen = Vec::new();
         tags("<p>a < b <i>c</i><style>x<y</style><script>if (a</b>) {}</script><b>", |name, end, _| {

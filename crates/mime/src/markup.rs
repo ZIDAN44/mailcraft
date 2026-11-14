@@ -125,7 +125,7 @@ fn next_of(line: &str, needle: &str, seen: &mut (usize, Option<usize>), from: us
     if from >= seen.0 && seen.1.is_none_or(|at| at >= from) {
         return seen.1;
     }
-    let at = line.get(from..).and_then(|r| r.find(needle)).map(|a| from + a);
+    let at = line.get(from..).and_then(|r| crate::html::work::scanned(r, r.find(needle))).map(|a| from + a);
     *seen = (from, at);
     at
 }
@@ -176,7 +176,7 @@ pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
             rest.get(open..).zip(t).and_then(|(r, t)| {
                 let text = &r[..t];
                 let after = &r[t + 2..];
-                let end = after.find(')')?;
+                let end = crate::html::work::scanned(after, after.find(')'))?;
                 let url = &after[..end];
                 let used = open + t + 2 + end + 1;
                 if text.contains(']') {
@@ -189,7 +189,8 @@ pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
                 }
             })
         } else if is_url_start(rest) && (i == 0 || line[..i].ends_with([' ', '(', '\t'])) {
-            let end = rest.find(|c: char| c.is_whitespace() || c == '<' || c == '>' || c == '"').unwrap_or(rest.len());
+            let end =
+                crate::html::work::scanned(rest, rest.find(|c: char| c.is_whitespace() || c == '<' || c == '>' || c == '"')).unwrap_or(rest.len());
             let url = rest[..end].trim_end_matches(['.', ',', ';', ':', '!', '?', ')']);
             (url.len() > 8).then_some((Inline::Url(url), url.len()))
         } else {
@@ -437,19 +438,34 @@ mod tests {
         }
     }
 
-    /// A long line of opening marks that never close (pasted, or quoted in a reply) reads at once:
-    /// each looked for its close to the end of the line, in time its length squared.
+    /// Long lines of opening marks that never close (pasted, or quoted in a reply).
+    fn open_marks() -> [String; 4] {
+        ["[".repeat(200_000), "[]".repeat(100_000), "*a".repeat(100_000), "`".to_string() + &"~~a".repeat(60_000)]
+    }
+
+    /// A long line of opening marks that never close reads at once: each looked for its close to
+    /// the end of the line, in time its length squared. The bytes looked through are counted,
+    /// held in proportion to the line whatever the machine's load.
     #[test]
     fn a_line_of_open_marks_reads_at_once() {
-        for line in ["[".repeat(200_000), "[]".repeat(100_000), "*a".repeat(100_000), "`".to_string() + &"~~a".repeat(60_000)] {
-            let took = std::time::Instant::now();
-            let pieces = inlines(&line);
-            assert!(took.elapsed() < std::time::Duration::from_secs(5), "{:?} for {}", took.elapsed(), &line[..4]);
+        for line in open_marks() {
+            let pieces = crate::html::work::linear(line.len(), || inlines(&line));
             assert!(!pieces.is_empty());
         }
         // What does close reads as it did.
         assert_eq!(inlines("[[a](https://x.example)"), vec![Inline::Link { text: "[a", url: "https://x.example" }]);
         assert_eq!(inlines("*a **b** c*"), vec![Inline::Italic("a "), Inline::Italic("b"), Inline::Text("* c*")]);
+    }
+
+    /// How long those lines take: `cargo test --release -p mailcraft-mime --lib how_long_open_marks_take -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn how_long_open_marks_take() {
+        for line in open_marks() {
+            let started = std::time::Instant::now();
+            let _ = inlines(&line);
+            println!("MEASURE a line of {} KB of {:?}: {} ms", line.len() / 1024, &line[..4], started.elapsed().as_millis());
+        }
     }
 
     #[test]

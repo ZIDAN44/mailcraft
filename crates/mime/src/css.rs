@@ -11,6 +11,8 @@
 
 use std::collections::HashMap;
 
+use crate::html::work::scanned;
+
 /// CSS read at most, in bytes.
 const MAX_CSS: usize = 256 * 1024;
 /// Rules kept at most.
@@ -218,7 +220,7 @@ impl Sheet {
         let sheet = self;
         let mut rest = css;
         while sheet.rules.len() < MAX_RULES {
-            let Some(open) = rest.find('{') else { break };
+            let Some(open) = scanned(rest, rest.find('{')) else { break };
             let before = rest.get(..open).unwrap_or("");
             let head = before.trim();
             // `@import …;` before a block: drop it, and read on from after it (where it ends
@@ -231,20 +233,21 @@ impl Sheet {
             // The block, to its matching `}` (at-rules nest).
             let mut depth = 0usize;
             let mut close = None;
-            for (i, ch) in rest.get(open..).unwrap_or("").char_indices() {
+            let block = rest.get(open..).unwrap_or("");
+            for (i, ch) in block.char_indices() {
                 match ch {
                     '{' => depth += 1,
                     '}' => {
                         depth = depth.saturating_sub(1);
                         if depth == 0 {
-                            close = Some(open + i);
+                            close = Some(i);
                             break;
                         }
                     }
                     _ => {}
                 }
             }
-            let Some(close) = close else { break };
+            let Some(close) = scanned(block, close).map(|i| open + i) else { break };
             let body = rest.get(open + 1..close).unwrap_or("");
             rest = rest.get(close + 1..).unwrap_or("");
             if head.starts_with('@') && nested < 2 && wide_screen(head) {

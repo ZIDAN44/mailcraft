@@ -17,6 +17,7 @@
 
 use std::borrow::Cow;
 
+use super::work;
 use reading::{Comments, RAW_TEXT, TABLE_END, closed, has_text, raw_text_end, shows_something};
 
 /// The version of Office desktop Outlook reports (2016, 2019, 2021 and Microsoft 365).
@@ -130,8 +131,9 @@ fn conditions(html: &str, lower: &str, mark: bool) -> Read {
     // Where each comment's end is, found once: looking for it from each comment again would take
     // as long as the mail for each of thousands.
     let endifs: Vec<usize> = lower.match_indices(ENDIF).map(|(at, _)| at).collect();
+    work::steps(lower.len());
     let mut i = 0;
-    while let Some(off) = lower.get(i..).and_then(|rest| rest.find("<!")) {
+    while let Some(off) = lower.get(i..).and_then(|rest| work::scanned(rest, rest.find("<!"))) {
         let at = i + off;
         out.push_str(html.get(i..at).unwrap_or(""));
         match conditional(lower, at, &endifs) {
@@ -210,7 +212,8 @@ fn conditional(lower: &str, at: usize, endifs: &[usize]) -> Option<Conditional> 
     // (`<!--[if !supportLists]-->`, a list's number after it) are comments, as in a browser.
     let head = rest.get(open.len()..)?;
     let limit = (0..=head.len().min(MAX_CONDITION + 8)).rev().find(|n| head.is_char_boundary(*n)).unwrap_or(0);
-    let close = head.get(..limit)?.find(']')? + open.len();
+    let condition_head = head.get(..limit)?;
+    let close = work::scanned(condition_head, condition_head.find(']'))? + open.len();
     if rest.as_bytes().get(close + 1) != Some(&b'>') {
         return None;
     }
@@ -385,17 +388,23 @@ fn tag(rest: &str) -> Option<(String, usize, bool)> {
     }
     // The end of the tag, past quoted values (not looked for past MAX_TAG).
     let mut quote = None;
+    let (mut looked, mut end) = (0, None);
     for (n, c) in rest.char_indices().skip(1).take_while(|(n, _)| *n < MAX_TAG) {
+        looked = n;
         match (quote, c) {
             (Some(q), c) if c == q => quote = None,
             (Some(_), _) => {}
             (None, '"' | '\'') => quote = Some(c),
-            (None, '>') => return Some((name, n + 1, closing)),
-            (None, '<') => return None,
+            (None, '>') => {
+                end = Some(n + 1);
+                break;
+            }
+            (None, '<') => break,
             _ => {}
         }
     }
-    None
+    work::steps(looked + 1);
+    end.map(|end| (name, end, closing))
 }
 
 /// A tag's attributes, read as a browser reads them: names lowercased, values quoted or not, a
@@ -575,7 +584,7 @@ fn vml(html: &str, kept: &[std::ops::Range<usize>]) -> (String, bool) {
     let mut xml = 0;
     let mut shown = false;
     let mut i = 0;
-    while let Some(off) = lower.get(i..).and_then(|rest| rest.find('<')) {
+    while let Some(off) = lower.get(i..).and_then(|rest| work::scanned(rest, rest.find('<'))) {
         let at = i + off;
         out.push_str(html.get(i..at).unwrap_or(""));
         if lower.get(at..).is_some_and(|r| r.starts_with("<!--")) {
@@ -601,10 +610,10 @@ fn vml(html: &str, kept: &[std::ops::Range<usize>]) -> (String, bool) {
         // by a browser, though (found in review: text hidden in one went unseen).
         if name == "xml" && !closing && xml < MAX_XML {
             xml += 1;
-            if let Some(end) = lower.get(i..).and_then(|r| r.find("</xml")).map(|e| i + e) {
+            if let Some(end) = lower.get(i..).and_then(|r| work::scanned(r, r.find("</xml"))).map(|e| i + e) {
                 let outlooks = kept.get(kept.partition_point(|r| r.end <= at)).is_some_and(|r| r.start <= at);
                 shown = shown || (!outlooks && lower.get(i..end).is_some_and(has_text));
-                i = lower.get(end..).and_then(|r| r.find('>')).map_or(end, |g| end + g + 1);
+                i = lower.get(end..).and_then(|r| work::scanned(r, r.find('>'))).map_or(end, |g| end + g + 1);
             }
             continue;
         }
@@ -724,6 +733,7 @@ fn with_fills(out: String, mut fills: Vec<(usize, String)>) -> String {
         return out;
     }
     fills.sort_by_key(|(at, _)| *at);
+    work::steps(out.len());
     let mut done = String::with_capacity(out.len() + fills.iter().map(|(_, f)| f.len()).sum::<usize>());
     let mut last = 0;
     for (at, fill) in fills {

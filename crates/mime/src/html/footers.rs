@@ -7,6 +7,8 @@
 
 use std::borrow::Cow;
 
+use super::work::scanned;
+
 /// Tables open one in another that are followed, at most; their footers past it are rows where
 /// they're written.
 const MAX_TABLES: usize = 256;
@@ -44,7 +46,7 @@ pub(crate) fn footers_last(html: &str) -> Cow<'_, str> {
     // Each table's first footer, and where it goes (its end tag).
     let mut moves: Vec<((usize, usize), usize)> = Vec::new();
     let mut i = 0;
-    while let Some(at) = b.get(i..).and_then(|r| r.iter().position(|&c| c == b'<')).map(|o| i + o) {
+    while let Some(at) = b.get(i..).and_then(|r| scanned(r, r.iter().position(|&c| c == b'<'))).map(|o| i + o) {
         let rest = b.get(at..).unwrap_or_default();
         if rest.starts_with(b"<!--") {
             i = find(b, at + 4, b"-->").map_or(b.len(), |e| e + 3);
@@ -166,12 +168,14 @@ fn tag_end(b: &[u8], from: usize) -> usize {
 
 /// Where `what` is in `b` from `from`.
 fn find(b: &[u8], from: usize, what: &[u8]) -> Option<usize> {
-    b.get(from..)?.windows(what.len()).position(|w| w == what).map(|o| from + o)
+    let rest = b.get(from..)?;
+    scanned(rest, rest.windows(what.len()).position(|w| w == what)).map(|o| from + o)
 }
 
 /// [`find`], whatever the letters' case.
 fn find_ignoring_case(b: &[u8], from: usize, what: &[u8]) -> Option<usize> {
-    b.get(from..)?.windows(what.len()).position(|w| w.eq_ignore_ascii_case(what)).map(|o| from + o)
+    let rest = b.get(from..)?;
+    scanned(rest, rest.windows(what.len()).position(|w| w.eq_ignore_ascii_case(what))).map(|o| from + o)
 }
 
 #[cfg(test)]

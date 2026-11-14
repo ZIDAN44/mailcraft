@@ -1,5 +1,7 @@
 //! A page's own background left to the page: not a highlight behind each run of its text.
 
+use super::work::scanned;
+
 /// `html` without its page's own background (`<body bgcolor>`, a `body { background }` rule): a
 /// page's colour is the page's, behind everything, not a highlight behind each run of its text,
 /// which is how it came out (a newsletter's light grey behind every word of its white columns,
@@ -12,7 +14,7 @@ pub(super) fn no_page_background(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut at = 0;
     let mut from = 0;
-    while let Some(off) = lower.get(from..).and_then(|r| r.find('<')) {
+    while let Some(off) = lower.get(from..).and_then(|r| scanned(r, r.find('<'))) {
         let start = from + off;
         let rest = lower.get(start..).unwrap_or("");
         let page =
@@ -20,7 +22,7 @@ pub(super) fn no_page_background(html: &str) -> String {
         if rest.starts_with("<style") {
             let Some(open) = crate::html::tag_end(rest.as_bytes(), 1) else { break };
             let body = start + open + 1;
-            let end = lower.get(body..).and_then(|r| r.find("</style")).map_or(html.len(), |e| body + e);
+            let end = lower.get(body..).and_then(|r| scanned(r, r.find("</style"))).map_or(html.len(), |e| body + e);
             out.push_str(html.get(at..body).unwrap_or(""));
             out.push_str(&page_rules_without_background(html.get(body..end).unwrap_or("")));
             at = end;
@@ -48,6 +50,7 @@ fn page_rules_without_background(css: &str) -> String {
     // The blocks of page rules, their declarations without backgrounds.
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     let mut boundary = 0;
+    super::work::steps(css.len());
     for (i, c) in css.char_indices() {
         match c {
             '{' => {

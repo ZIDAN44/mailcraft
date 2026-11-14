@@ -13,6 +13,7 @@ mod quote;
 mod scripts;
 mod signature;
 mod tags;
+pub(crate) mod work;
 pub(crate) use footers::footers_last;
 #[doc(hidden)]
 pub use outlook::as_outlook_reads;
@@ -531,9 +532,9 @@ pub(super) fn close_css_rules(html: &str) -> String {
     let lower = html.to_ascii_lowercase();
     let mut out = String::with_capacity(html.len() + 64);
     let mut at = 0;
-    while let Some(start) = lower.get(at..).and_then(|r| r.find("<style")).map(|i| i + at) {
+    while let Some(start) = lower.get(at..).and_then(|r| work::scanned(r, r.find("<style"))).map(|i| i + at) {
         // An unclosed `<style>` runs to the end of the document.
-        let end = lower.get(start..).and_then(|r| r.find("</style")).map_or(html.len(), |i| i + start);
+        let end = lower.get(start..).and_then(|r| work::scanned(r, r.find("</style"))).map_or(html.len(), |i| i + start);
         out.push_str(html.get(at..start).unwrap_or(""));
         out.push_str(&html.get(start..end).unwrap_or("").replace('}', ";}"));
         out.push_str("\n*{}");
@@ -553,7 +554,7 @@ pub(super) fn mark_headings(html: &str) -> String {
     let mut out = String::with_capacity(html.len() + 64);
     let mut last = 0;
     let mut from = 0;
-    while let Some(i) = lower.get(from..).and_then(|r| r.find("<h")) {
+    while let Some(i) = lower.get(from..).and_then(|r| work::scanned(r, r.find("<h"))) {
         let start = from + i;
         let is_heading = lower.as_bytes().get(start + 2).is_some_and(|b| (b'1'..=b'6').contains(b))
             && lower.as_bytes().get(start + 3).is_some_and(|b| *b == b'>' || b.is_ascii_whitespace());
@@ -566,12 +567,12 @@ pub(super) fn mark_headings(html: &str) -> String {
         let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         from = end + 1;
         let closing = format!("</{}", lower.get(start + 1..start + 3).unwrap_or("h1"));
-        let stop = lower.get(end + 1..).and_then(|r| r.find(&closing)).map_or(lower.len(), |e| end + 1 + e);
+        let stop = lower.get(end + 1..).and_then(|r| work::scanned(r, r.find(&closing))).map_or(lower.len(), |e| end + 1 + e);
         // Each run of text in it; `from` goes on past it, so that each part is looked through once.
         let mut marked = false;
         let mut at = end + 1;
         while at < stop {
-            let run_end = lower.get(at..stop).and_then(|r| r.find('<')).map_or(stop, |l| at + l);
+            let run_end = lower.get(at..stop).and_then(|r| work::scanned(r, r.find('<'))).map_or(stop, |l| at + l);
             let run = html.get(at..run_end).unwrap_or("");
             if let Some(word) = run.find(|c: char| !c.is_whitespace()) {
                 out.push_str(html.get(last..at + word).unwrap_or(""));
@@ -579,7 +580,7 @@ pub(super) fn mark_headings(html: &str) -> String {
                 last = at + word;
                 marked = true;
             }
-            at = lower.get(run_end..stop).and_then(|r| r.find('>')).map_or(stop, |g| run_end + g + 1);
+            at = lower.get(run_end..stop).and_then(|r| work::scanned(r, r.find('>'))).map_or(stop, |g| run_end + g + 1);
         }
         if !marked {
             out.push_str(html.get(last..=end).unwrap_or(""));

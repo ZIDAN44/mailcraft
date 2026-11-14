@@ -3,6 +3,7 @@
 //! hide what follows, and whether the comment shows something of its own.
 
 use super::*;
+use crate::html::work::scanned;
 
 /// Elements whose content is text up to their own closing tag, as a browser reads them: one left
 /// open hides all after it.
@@ -63,7 +64,7 @@ pub(super) fn closed(content: &str) -> Closed<'_> {
     let mut deepest = 0usize;
     let mut comments = Comments::new(&lower);
     let mut i = 0;
-    while let Some(off) = lower.get(i..).and_then(|r| r.find('<')) {
+    while let Some(off) = lower.get(i..).and_then(|r| scanned(r, r.find('<'))) {
         let at = i + off;
         let rest = lower.get(at..).unwrap_or("");
         if rest.starts_with("<!--") {
@@ -83,7 +84,7 @@ pub(super) fn closed(content: &str) -> Closed<'_> {
             // A declaration, `<?…>` or `</` without a name: a comment up to its `>`. Else `<`
             // in text.
             if rest.starts_with("<!") || rest.starts_with("<?") || closing {
-                match rest.find('>') {
+                match scanned(rest, rest.find('>')) {
                     Some(g) => i = at + g + 1,
                     None => {
                         end = at;
@@ -183,7 +184,7 @@ fn tag_name(lower: &str, at: usize) -> &str {
     if !rest.starts_with(|c: char| c.is_ascii_alphabetic()) {
         return "";
     }
-    let len = rest.find(|c: char| c.is_ascii_whitespace() || c == '/' || c == '>').unwrap_or(rest.len());
+    let len = scanned(rest, rest.find(|c: char| c.is_ascii_whitespace() || c == '/' || c == '>')).unwrap_or(rest.len());
     rest.get(..len).unwrap_or("")
 }
 
@@ -247,7 +248,7 @@ impl Next {
         {
             return found;
         }
-        let found = hay.get(from..).and_then(|r| r.windows(self.needle.len()).position(|w| w == self.needle)).map(|n| from + n);
+        let found = hay.get(from..).and_then(|r| scanned(r, r.windows(self.needle.len()).position(|w| w == self.needle))).map(|n| from + n);
         self.last = Some((from, found));
         found
     }
@@ -264,7 +265,8 @@ fn raw_text_close(lower: &str, from: usize, name: &str) -> Option<(usize, usize)
     let closing = format!("</{name}");
     let mut i = from;
     loop {
-        let at = i + lower.get(i..)?.find(&closing)?;
+        let rest = lower.get(i..)?;
+        let at = i + scanned(rest, rest.find(&closing))?;
         let after = at + closing.len();
         match lower.as_bytes().get(after) {
             Some(c) if c.is_ascii_whitespace() || *c == b'/' || *c == b'>' => return tag_end_at(lower.as_bytes(), after).map(|g| (at, g + 1)),
@@ -317,7 +319,7 @@ fn shows(content: &str, outlook: bool) -> bool {
                 // A declaration, `<?…>` or `</` without a name: a comment up to its `>`, and all
                 // the rest when it has none, as [`closed`] reads it. Else `<` in text.
                 if rest.starts_with("<!") || rest.starts_with("<?") || closing {
-                    let Some(g) = rest.find('>') else { return false };
+                    let Some(g) = scanned(rest, rest.find('>')) else { return false };
                     i += g + 1;
                 } else {
                     i += 1;

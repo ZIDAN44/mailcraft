@@ -3,6 +3,39 @@
 
 use super::*;
 
+/// 100 KB of tables left open in Outlook's copy: in one comment; one in each comment (ghost
+/// tables), or two; two with a style sheet left open; and after a first comment thirty deep.
+fn tables_left_open() -> [String; 5] {
+    let sized = |unit: &str| unit.repeat(100_000 / unit.len());
+    let ghost = sized("<!--[if mso]><table><tr><td><![endif]--><div>c</div>");
+    [
+        format!("<!--[if mso]>{}Deep<![endif]-->Tail", sized("<table><tr><td>")),
+        format!("<!--[if mso]>{}<![endif]-->{ghost}", "<table><tr><td>".repeat(30)),
+        sized("<!--[if mso]><table><tr><td><table><tr><td><![endif]--><div>c</div>"),
+        sized("<!--[if mso]><table><tr><td><table><tr><td><style><![endif]--><div>c</div>"),
+        ghost,
+    ]
+}
+
+/// A box left open in a comment only Outlook reads, then a paragraph: 400 KB of them.
+const BOX_LEFT_OPEN: &str = "<!--[if mso]><div><![endif]--><p>c</p>";
+
+fn boxes_left_open() -> String {
+    BOX_LEFT_OPEN.repeat(400_000 / BOX_LEFT_OPEN.len())
+}
+
+/// How long those take to read: `cargo test --release -p mailcraft-mime --lib
+/// how_long_deep_copies_take -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn how_long_deep_copies_take() {
+    for html in tables_left_open().iter().chain([&boxes_left_open()]) {
+        let started = std::time::Instant::now();
+        let _ = message(html);
+        println!("MEASURE {} KB of {:?}: {} ms", html.len() / 1024, &html[..60], started.elapsed().as_millis());
+    }
+}
+
 /// Found in review: tables left open in Outlook's copy, past the depth to which they're opened,
 /// gave each new cell in place of the deepest one open, thousands of cells two hundred
 /// elements deep, and a megabyte took twenty seconds to read; ghost tables left open each in a
@@ -12,18 +45,11 @@ use super::*;
 /// came, without Outlook's copy.
 #[test]
 fn tables_left_open_are_read_in_time() {
-    let sized = |unit: &str| unit.repeat(100_000 / unit.len());
-    let one_comment = format!("<!--[if mso]>{}Deep<![endif]-->Tail", sized("<table><tr><td>"));
-    let ghost = sized("<!--[if mso]><table><tr><td><![endif]--><div>c</div>");
-    let ghosts = sized("<!--[if mso]><table><tr><td><table><tr><td><![endif]--><div>c</div>");
-    let styled = sized("<!--[if mso]><table><tr><td><table><tr><td><style><![endif]--><div>c</div>");
-    let first_deep = format!("<!--[if mso]>{}<![endif]-->{ghost}", "<table><tr><td>".repeat(30));
-    let started = std::time::Instant::now();
-    for html in [&one_comment, &ghost, &ghosts, &styled, &first_deep] {
-        let copy = outlook_copy(html);
-        assert!(!crate::layout::ready(html, &copy).copy, "{}", &html[..60]);
+    // The work counted: the bytes looked through, held in proportion to the message.
+    for html in &tables_left_open() {
+        let (ready, p) = work::linear(html.len(), || (crate::layout::ready(html, &outlook_copy(html)).copy, message(html)));
+        assert!(!ready, "{}", &html[..60]);
         let last = if html.ends_with("Tail") { "Tail" } else { "c" };
-        let p = message(html);
         let (shown, text) = (shown(&p), p.text);
         assert!(shown.ends_with(last) && text.trim_end().ends_with(last), "{}: {:?}", &html[..60], &text[text.len().saturating_sub(40)..]);
         assert!(!shown.contains("Deep"), "{shown:?}");
@@ -37,10 +63,9 @@ fn tables_left_open_are_read_in_time() {
     );
     let ready = crate::layout::ready(&html, &outlook_copy(&html));
     assert!(!ready.copy, "{}", ready.shown);
-    let p = message(&html);
+    let p = work::linear(html.len(), || message(&html));
     assert!(shown(&p).split('|').any(|l| l.contains("One") && l.contains("Three")), "{:?}", shown(&p));
     assert!(p.text.lines().any(|l| l.contains("One") && l.contains("Three")), "{:?}", p.text);
-    assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
 }
 
 /// Found in review: past four of Outlook's tables, each in the last one's cell, the next was read
@@ -136,15 +161,13 @@ fn tables_nested_as_newsletters_nest_them_stay_tables() {
 /// elements open past what's read is read as the message came, without Outlook's copy.
 #[test]
 fn boxes_left_open_are_read_in_time() {
-    let unit = "<!--[if mso]><div><![endif]--><p>c</p>";
-    let html = unit.repeat(400_000 / unit.len());
+    let html = boxes_left_open();
     let copy = outlook_copy(&html);
     assert!(copy.nests && !copy.tables);
     assert!(!crate::layout::ready(&html, &copy).copy);
-    let started = std::time::Instant::now();
-    let p = message(&html);
-    assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
-    assert_eq!(p.text.lines().filter(|l| *l == "c").count(), html.len() / unit.len(), "{:?}", &p.text[..40]);
+    // The work counted: the bytes looked through, held in proportion to the message.
+    let p = work::linear(html.len(), || message(&html));
+    assert_eq!(p.text.lines().filter(|l| *l == "c").count(), html.len() / BOX_LEFT_OPEN.len(), "{:?}", &p.text[..40]);
     // Comments that leave nothing open, nest nothing deep, are read as they came.
     for html in ["<!--[if mso]><div><p>x</p></div><![endif]-->", "<!--[if mso]>&amp; x<![endif]-->", "<!--[if mso]><br><img src=a><![endif]-->"] {
         assert!(!outlook_copy(html).nests, "{html}");

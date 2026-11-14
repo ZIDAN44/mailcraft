@@ -82,16 +82,21 @@ fn an_outlook_signature_file_reads() {
 
 /// A tag full of `javascript:` (in a received message, quoted in a reply or forward) is emptied
 /// in one pass: each one was found by lowering the whole tag again and moving its tail, so a
-/// megabyte of them hung the reply.
+/// megabyte of them hung the reply. The bytes looked through are counted, held in proportion to
+/// the message whatever the machine's load.
 #[test]
 fn a_tag_full_of_javascript_is_emptied_at_once() {
-    let n = 90_000;
-    let html = format!("<p><a href=\"{}\">x</a></p>", "JavaScript:".repeat(n));
-    let took = std::time::Instant::now();
-    let quoted = quote_html(&html, &[], &[]);
-    let took = took.elapsed();
-    assert!(quoted.contains(&format!("<a href=\"{}\">x</a>", "#".repeat(n))), "{}", quoted.chars().take(200).collect::<String>());
-    assert!(took < std::time::Duration::from_secs(10), "{took:?}");
+    let html = tag_full_of_javascript();
+    let quoted = crate::html::work::linear(html.len(), || quote_html(&html, &[], &[]));
+    assert!(quoted.contains(&format!("<a href=\"{}\">x</a>", "#".repeat(JAVASCRIPTS))), "{}", quoted.chars().take(200).collect::<String>());
+}
+
+/// How many `javascript:` [`tag_full_of_javascript`] holds.
+const JAVASCRIPTS: usize = 90_000;
+
+/// A link whose address is a megabyte of `javascript:`.
+fn tag_full_of_javascript() -> String {
+    format!("<p><a href=\"{}\">x</a></p>", "JavaScript:".repeat(JAVASCRIPTS))
 }
 
 /// Handlers and scripts as a browser reads a tag, not only as written with a space before them:
@@ -126,8 +131,9 @@ fn handlers_and_scripts_are_found_as_a_browser_reads_them() {
     }
 }
 
-/// A 2 MB newsletter quoted with 100 pictures behind its boxes, and a signature with ten
-/// pictures of 1 MB made ready to send, timed. Run under the heavy lock:
+/// A 2 MB newsletter quoted with 100 pictures behind its boxes, a signature with ten pictures
+/// of 1 MB made ready to send, and the tag full of `javascript:` quoted, timed. Run under the
+/// heavy lock:
 /// `cargo test --release -p mailcraft-mime --lib measure_pictures_written_in -- --ignored --nocapture`.
 #[test]
 #[ignore]
@@ -147,6 +153,10 @@ fn measure_pictures_written_in() {
     println!("MEASURE a signature of ten 1 MB pictures: {} ms", t.elapsed().as_millis());
     assert_eq!(pictures.len(), 10);
     assert!(sent.len() < 2000, "{}", sent.len());
+    let html = tag_full_of_javascript();
+    let t = std::time::Instant::now();
+    let _ = quote_html(&html, &[], &[]);
+    println!("MEASURE quote a tag of {JAVASCRIPTS} javascript: {} ms", t.elapsed().as_millis());
 }
 
 /// Pictures behind a quoted message's boxes take the `cid:` they're sent under, however their

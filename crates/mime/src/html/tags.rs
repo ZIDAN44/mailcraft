@@ -7,6 +7,13 @@
 /// quote anywhere else being part of a name or value (`<p title=it's>`). `None` when it doesn't
 /// end.
 pub(crate) fn tag_end(b: &[u8], from: usize) -> Option<usize> {
+    let end = end_of_tag(b, from);
+    super::work::steps(end.map_or(b.len(), |e| e.saturating_add(1)).saturating_sub(from));
+    end
+}
+
+/// [`tag_end`], uncounted.
+fn end_of_tag(b: &[u8], from: usize) -> Option<usize> {
     let mut j = from;
     // Just past an attribute's `=`, its value still to come.
     let mut value = false;

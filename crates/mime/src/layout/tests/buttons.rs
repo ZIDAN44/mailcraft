@@ -124,15 +124,19 @@ fn a_css_button_has_its_room_and_round_corners() {
     }
 }
 
-/// Hostile buttons: thousands of them stay quick, past the most drawn as their words on their
-/// colour; sizes and corners that would be huge are held to what's drawn.
+/// Five thousand buttons of sizes and corners that would be huge, in a table.
+fn hostile_buttons() -> String {
+    let one = r##"<a href="https://x.example/" style="display:inline-block;padding:9999px;background:#06c;border-radius:1e30px;width:99999px;height:1e9px;line-height:-4px">Go</a><br>"##;
+    format!("<table width=600><tr><td>{}</td></tr></table>", one.repeat(5_000))
+}
+
+/// Hostile buttons: thousands of them stay quick (the work counted, held in proportion to the
+/// message), past the most drawn as their words on their colour; sizes and corners that would be
+/// huge are held to what's drawn.
 #[test]
 fn hostile_buttons_are_survived() {
-    let one = r##"<a href="https://x.example/" style="display:inline-block;padding:9999px;background:#06c;border-radius:1e30px;width:99999px;height:1e9px;line-height:-4px">Go</a><br>"##;
-    let html = format!("<table width=600><tr><td>{}</td></tr></table>", one.repeat(5_000));
-    let t = std::time::Instant::now();
-    let b = html_layout(&html);
-    assert!(t.elapsed().as_secs() < 5, "{:?}", t.elapsed());
+    let html = hostile_buttons();
+    let b = crate::html::work::linear(html.len(), || html_layout(&html));
     let found = buttons(&b);
     assert!(!found.is_empty() && found.len() <= MAX_BUTTONS, "{}", found.len());
     let c = &found[0].rows[0][0];
@@ -148,7 +152,8 @@ fn hostile_buttons_are_survived() {
 }
 
 /// A newsletter laid out in nested tables, its style sheet written into every element (long
-/// `style`s, as `inline_css` leaves them), and boxes of two boxes nested deep, timed. Run under the heavy lock:
+/// `style`s, as `inline_css` leaves them), boxes of two boxes nested deep, and the hostile buttons
+/// above, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-mime --lib measure_layout_newsletter -- --ignored --nocapture`.
 #[test]
 #[ignore]
@@ -177,6 +182,11 @@ fn measure_layout_newsletter() {
     let t = std::time::Instant::now();
     let b = html_layout(&boxes);
     println!("MEASURE layout of boxes in boxes, {} KB: {} ms", boxes.len() / 1024, t.elapsed().as_millis());
+    assert!(!b.is_empty());
+    let buttons = hostile_buttons();
+    let t = std::time::Instant::now();
+    let b = html_layout(&buttons);
+    println!("MEASURE layout of 5,000 hostile buttons, {} KB: {} ms", buttons.len() / 1024, t.elapsed().as_millis());
     assert!(!b.is_empty());
 }
 

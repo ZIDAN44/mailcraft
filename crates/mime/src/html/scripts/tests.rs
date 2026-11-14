@@ -59,16 +59,34 @@ fn raised_text_is_raised_and_not_written_out() {
     assert!(r.last().unwrap().iter().all(|s| s.rise == Rise::Normal));
 }
 
+/// A megabyte of each of the marks the scans look for, none of them ended.
+fn hostile_scans() -> impl Iterator<Item = String> {
+    ["<h ", "<h1 ", "<h1>", "<sup ", "<sup>", "</sup", "<sub>x"].into_iter().map(|unit| format!("{}>", unit.repeat(1_000_000 / unit.len())))
+}
+
 /// Hostile: these scans stay linear (found in review of the same kind of scan: a million `<h`
-/// each looked through to the end of the message took minutes).
+/// each looked through to the end of the message took minutes): the bytes they look through
+/// are counted, held in proportion to the message whatever the machine's load.
 #[test]
 fn the_scans_stay_quick() {
-    for unit in ["<h ", "<h1 ", "<h1>", "<sup ", "<sup>", "</sup", "<sub>x"] {
-        let html = format!("{}>", unit.repeat(1_000_000 / unit.len()));
+    for html in hostile_scans() {
+        work::linear(html.len(), || {
+            let _ = mark_headings(&html);
+            let _ = mark_scripts(&html);
+            let _ = plain_scripts(&html);
+        });
+    }
+}
+
+/// How long those scans take: `cargo test --release -p mailcraft-mime --lib how_long_the_scans_take -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn how_long_the_scans_take() {
+    for html in hostile_scans() {
         let started = std::time::Instant::now();
         let _ = mark_headings(&html);
         let _ = mark_scripts(&html);
         let _ = plain_scripts(&html);
-        assert!(started.elapsed() < std::time::Duration::from_secs(2), "{unit}: {:?}", started.elapsed());
+        println!("MEASURE scans of a megabyte of {:?}: {} ms", &html[..5], started.elapsed().as_millis());
     }
 }
