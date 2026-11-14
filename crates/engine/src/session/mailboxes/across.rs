@@ -197,21 +197,25 @@ impl Session {
         Ok(())
     }
 
-    /// Delete, where they were, messages whose copies are in `folder` now.
-    fn remove_moved(&mut self, keys: Vec<MessageKey>, folder: &str) {
+    /// Delete, where they were, messages whose copies are in `folder` now. Whether all of them
+    /// went.
+    fn remove_moved(&mut self, keys: Vec<MessageKey>, folder: &str) -> bool {
         let mut from: HashMap<String, Vec<MessageKey>> = HashMap::new();
         for k in keys {
             from.entry(k.account.clone()).or_default().push(k);
         }
         let mut accounts: Vec<String> = from.keys().cloned().collect();
         accounts.sort();
+        let mut all = true;
         for a in accounts {
             let keys = from.remove(&a).unwrap_or_default();
             // Its copy is there already: one that can't be deleted here stays, in both.
             if let Err(e) = self.apply_op_checked(&a, Op::Expunge { keys }) {
                 self.notice(format!("The mail was copied to {folder}, but couldn't be deleted where it was: {e}"), true);
+                all = false;
             }
         }
+        all
     }
 
     /// A message's source came: it goes where it was moved or copied to while it wasn't here.
@@ -264,19 +268,21 @@ impl Session {
         let answered = |k: &MessageKey| done.contains(k) || failed.iter().any(|(f, _)| f == k);
         let done_count = done.len();
         self.transfers.retain(|t| !(t.sent && t.account == account && t.folder == folder && answered(&t.key)));
+        // Copies that couldn't be taken out where they were said so already: not "moved".
+        let mut said = false;
         if moved && !done.is_empty() {
             // The message open, if it's one of them, gives way to the next as in any move.
             let next = self.successor(&done);
             let open = self.selection.iter().any(|k| done.contains(k));
-            self.remove_moved(done, folder);
-            if open {
+            said = !self.remove_moved(done, folder);
+            if open && !said {
                 self.after_removal(next);
             } else {
                 self.refresh_list();
             }
         }
         let arrived = done_count;
-        if arrived > 0 {
+        if arrived > 0 && !said {
             let did = if moved { "moved" } else { "copied" };
             let what = if arrived == 1 { "1 message".to_string() } else { format!("{arrived} messages") };
             self.notice(format!("{what} {did} to {}", mailcraft_model::utf7::decode(folder)), false);

@@ -20,8 +20,9 @@ impl Session {
         }
     }
 
-    /// [`Session::apply_op`], saying when a local move didn't happen (the mail stays where it
-    /// was) rather than putting it in a notice: a move command fails with it.
+    /// [`Session::apply_op`], saying when a local change didn't happen (a move's mail stays where
+    /// it was, or is in both folders when only its copies were filed) rather than putting it in a
+    /// notice: a move command fails with it.
     pub(super) fn apply_op_checked(&mut self, account: &str, op: Op) -> Result<(), String> {
         // Outbox entries aren't on a server: mail commands leave them alone.
         let op = match op {
@@ -163,7 +164,7 @@ impl Session {
     }
 
     /// Local accounts: change the cache directly, including filing moved messages in their
-    /// destination with new UIDs.
+    /// destination with new UIDs. An error says what the cache couldn't do.
     pub(super) fn apply_op_local(&mut self, account: &str, op: &Op) -> Result<(), String> {
         let Some(store) = self.store.clone() else { return Ok(()) };
         // The folders it touches (counted again after; all of them for a folder change).
@@ -219,14 +220,28 @@ impl Session {
         } else {
             None
         };
-        match store.apply_op(account, op) {
+        // Not done (a move's sources not taken out after its copies were filed): the lists in
+        // memory are read again, and the caller is told (`apply_op` says it in a notice).
+        let failed = match store.apply_op(account, op) {
             Ok(changed) => {
                 for f in changed {
                     self.reload_folder(account, &f);
                 }
+                None
             }
-            Err(e) => self.notice(e.to_string(), true),
-        }
+            Err(e) => {
+                for f in &touched {
+                    self.reload_folder(account, f);
+                }
+                Some(match op {
+                    // The folder as its name reads (its path is kept in modified UTF-7).
+                    Op::Move { to, .. } => {
+                        format!("Your mail was copied to {}, but couldn't be taken out of where it was: {e}", mailcraft_model::utf7::decode(to))
+                    }
+                    _ => e.to_string(),
+                })
+            }
+        };
         if op.is_folder_op()
             && let Ok(mut folders) = store.load_folders(account)
         {
@@ -245,7 +260,7 @@ impl Session {
                 self.want_index(account, Some(f));
             }
         }
-        Ok(())
+        failed.map_or(Ok(()), Err)
     }
 
     /// A local move's first half: the messages filed in `to` with new numbers, their sources with

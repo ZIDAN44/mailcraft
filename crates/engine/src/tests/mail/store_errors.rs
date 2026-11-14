@@ -66,6 +66,77 @@ fn a_local_move_that_cant_read_or_write_leaves_the_mail_where_it_was() {
     assert!(all_kept(&s, &folder(&s, SHORT_FILM)));
 }
 
+/// The path a folder's list is written to ends with this.
+fn list_of(folder: &str) -> String {
+    format!("f{:016x}/state.json", mailcraft_store::fnv64(folder))
+}
+
+/// A local move whose copies are filed but whose sources can't be taken out (their list can't be
+/// written) failed: the mail is in both folders, and there's nothing to undo. It said it was
+/// moved, with an Undo that couldn't put it back.
+#[test]
+fn a_local_move_that_cant_take_the_mail_out_says_so() {
+    let mut s = failing_session();
+    let inbox = folder(&s, "INBOX");
+    let film = folder(&s, SHORT_FILM);
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    let undo = s.undo.len();
+    store(&s).fail(None, Some(&list_of("INBOX")));
+    let r = s.run("mail.move", &json!({"folder": SHORT_FILM}));
+    store(&s).fail(None, None);
+    assert!(matches!(&r, Err(CmdError::Failed(e)) if e.contains(SHORT_FILM)), "{r:?}");
+    assert_eq!(s.undo.len(), undo, "nothing to undo");
+    assert_eq!(subjects(&folder(&s, "INBOX")), subjects(&inbox), "still where it was");
+    assert_eq!(folder(&s, SHORT_FILM).messages.len(), film.messages.len() + 1, "and copied");
+    assert!(s.list.iter().any(|m| m.subject == "Character turnarounds"), "shown where it still is");
+}
+
+/// The same into a folder whose name isn't ASCII: named as it reads, not as its path is kept
+/// (`Caf&AOk-`).
+#[test]
+fn a_local_move_that_cant_take_the_mail_out_names_the_folder_as_it_reads() {
+    let mut s = failing_session();
+    s.run("folder.create", &json!({"name": "Café"})).unwrap();
+    let to = mailcraft_model::utf7::encode("Café");
+    assert_ne!(to, "Café");
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let k = key_of(&s, "Character turnarounds");
+    s.run("list.select", &k).unwrap();
+    store(&s).fail(None, Some(&list_of("INBOX")));
+    let r = s.run("mail.move", &json!({"folder": to}));
+    store(&s).fail(None, None);
+    assert!(matches!(&r, Err(CmdError::Failed(e)) if e.contains("copied to Café,") && !e.contains(&to)), "{r:?}");
+}
+
+/// Mail moved to a server whose copy is there, but that can't be deleted here, is said to be in
+/// both places.
+#[test]
+fn mail_moved_to_a_server_that_cant_be_deleted_here_says_so() {
+    let mut s = failing_session();
+    let server = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let trash =
+        mailcraft_model::Folder { account: server.clone(), path: "Trash".into(), role: FolderRole::Trash, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: server.clone(), folders: vec![trash] });
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let inbox = folder(&s, "INBOX");
+    let k = key_of(&s, "Character turnarounds");
+    let key: mailcraft_model::MessageKey = s.list.iter().find(|m| m.subject == "Character turnarounds").unwrap().key.clone();
+    s.run("list.select", &k).unwrap();
+    s.run("mail.move", &json!({"folder": "Trash", "account": server})).unwrap();
+    s.take_jobs();
+    store(&s).fail(None, Some(&list_of("INBOX")));
+    s.apply(Event::CopiesFiled { account: server.clone(), folder: "Trash".into(), done: vec![key], failed: vec![], moved: true });
+    store(&s).fail(None, None);
+    assert!(
+        s.notices.iter().any(|n| n.error && n.text.starts_with("The mail was copied to Trash, but couldn't be deleted where it was")),
+        "{:?}",
+        s.notices
+    );
+    assert!(!s.notices.iter().any(|n| n.text.contains("moved to Trash")), "not said to be moved: {:?}", s.notices);
+    assert_eq!(subjects(&folder(&s, "INBOX")), subjects(&inbox), "still here");
+}
+
 #[test]
 fn filing_locally_that_cant_read_or_write_keeps_the_draft_and_the_message() {
     let mut s = failing_session();
