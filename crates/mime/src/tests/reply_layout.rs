@@ -66,7 +66,7 @@ fn quoted_pictures_reach_the_layout() {
     );
     let mut p = parse(raw.as_bytes()).unwrap();
     assert!(!p.layout.is_empty());
-    let (pictures, _) = quoted_pictures(&mut p, raw.as_bytes());
+    let (pictures, _, _) = quoted_pictures_given(&mut p, raw.as_bytes());
     let cid = pictures.first().map(|q| q.cid.clone()).unwrap_or_default();
     assert!(!cid.is_empty(), "{pictures:?}");
     let (d, styles) = reply_doc(&p, ReplyMode::Forward, &[], &Clock::default(), "");

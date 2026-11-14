@@ -11,8 +11,7 @@ use mailcraft_mime::{self as mime, markup, rich};
 fuzz_target!(|input: &[u8]| {
     let page = String::from_utf8_lossy(input);
     // The ways MailCraft reads a received HTML body.
-    let formatted = mime::html_to_rich(&page);
-    let _ = mime::remote_images(&formatted);
+    let _ = mime::html_to_rich(&page);
     let _ = mime::html_to_text(&page);
     let _ = mime::html_links(&page);
     let _ = mime::html_images(&page);

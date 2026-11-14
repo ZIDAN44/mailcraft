@@ -384,14 +384,8 @@ const QUOTED_PICTURE_MAX: usize = 25 << 20;
 /// "[picture]"): each one in the message (by `cid:`, by its `Content-Location` or name, or written
 /// into the HTML as `data:`) given by `cid:`, with its bytes for the reply to send; one on the web
 /// kept by its address, as Outlook keeps it (never loaded here); tracking pictures left out.
-/// Also the indexes of the attachments the quote shows.
-pub fn quoted_pictures(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>, Vec<usize>) {
-    let (out, used, _) = quoted_pictures_given(p, raw);
-    (out, used)
-}
-
-/// [`quoted_pictures`], with each picture's address in the message and the `cid:` it was given
-/// (for [`quote_html`]).
+/// Also the indexes of the attachments the quote shows, and each picture's address in the
+/// message with the `cid:` it was given (for [`quote_html`]).
 pub fn quoted_pictures_given(p: &mut Parsed, raw: &[u8]) -> (Vec<InlinePicture>, Vec<usize>, Vec<(String, String)>) {
     let mut out: Vec<InlinePicture> = Vec::new();
     let mut used: Vec<usize> = Vec::new();
@@ -482,17 +476,10 @@ pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     attachments_data(raw, &[index], usize::MAX, usize::MAX).pop().map(|(_, d)| d)
 }
 
-/// [`attachment_data`] for a big file: a file's bytes are decoded once and handed over, not
-/// copied again, so the message and the file are held once each, not the file twice.
-pub fn attachment_data_moved(raw: &[u8], index: usize) -> Option<Vec<u8>> {
-    let mut out = None;
-    attachments_moved(raw, &[index], &mut |_, data| out = Some(data));
-    out
-}
-
-/// [`attachment_data_moved`] for several files from one parse: `each` is handed each of `wanted`
-/// the message has (each once, in no set order), one at a time, so a message with 30 big files
-/// is parsed once, not 30 times, and holds no file twice.
+/// [`attachment_data`] for big files, from one parse: `each` is handed each of `wanted` the
+/// message has (each once, in no set order), one at a time, its bytes decoded once and handed
+/// over, not copied again, so a message with 30 big files is parsed once, not 30 times, and
+/// holds no file twice.
 pub fn attachments_moved(raw: &[u8], wanted: &[usize], each: &mut dyn FnMut(usize, Vec<u8>)) {
     let mut wanted = wanted.to_vec();
     wanted.sort_unstable();

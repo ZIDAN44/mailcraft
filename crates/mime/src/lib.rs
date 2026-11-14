@@ -38,9 +38,9 @@ pub use smime::pgp;
 mod tnef;
 mod trackers;
 pub use attachments::{
-    AttachmentInfo, AttachmentKind, HtmlRefs, MAX_WANTED, PendingFile, TEXT_FIRST, attachment_data, attachment_data_moved, attachment_out,
-    attachment_text, attachments_data, attachments_moved, attachments_out, craft_app_for, draft_carries_files, index_doc, is_text_first, kind_of,
-    part_name, quoted_pictures, quoted_pictures_given, text_first, text_preview_kind,
+    AttachmentInfo, AttachmentKind, HtmlRefs, MAX_WANTED, PendingFile, TEXT_FIRST, attachment_data, attachment_out, attachment_text,
+    attachments_data, attachments_moved, attachments_out, craft_app_for, draft_carries_files, index_doc, is_text_first, kind_of, part_name,
+    quoted_pictures_given, text_first, text_preview_kind,
 };
 #[doc(hidden)]
 pub use attachments::{IndexStats, index_doc_stats};

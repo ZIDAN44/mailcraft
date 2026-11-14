@@ -173,7 +173,7 @@ fn other_text_files_are_what_they_were() {
     assert_eq!(attachment_data(&raw, 2).as_deref(), Some(&b"@@not base64@@"[..]));
 }
 
-/// A file moved out of its parse ([`attachment_data_moved`], for big files) is what
+/// A file moved out of its parse ([`attachments_moved`], for big files) is what
 /// [`attachment_data`] copies out: a decoded file, a file sent as it is, a text file, an attached
 /// message, an empty file; and nothing for an attachment the message doesn't have.
 #[test]
@@ -189,11 +189,16 @@ fn a_file_moved_out_of_its_parse_is_the_file() {
     ]);
     let p = parse(&raw).unwrap();
     assert_eq!(p.attachments.len(), 5, "{:?}", p.attachments);
+    let moved = |index: usize| {
+        let mut out = None;
+        attachments_moved(&raw, &[index], &mut |_, data| out = Some(data));
+        out
+    };
     for a in &p.attachments {
-        assert_eq!(attachment_data_moved(&raw, a.index), attachment_data(&raw, a.index), "{}", a.name);
+        assert_eq!(moved(a.index), attachment_data(&raw, a.index), "{}", a.name);
     }
-    assert_eq!(attachment_data_moved(&raw, 0).as_deref(), Some(&bin[..]));
-    assert_eq!(attachment_data_moved(&raw, 9), None);
+    assert_eq!(moved(0).as_deref(), Some(&bin[..]));
+    assert_eq!(moved(9), None);
     // All of them from one parse, each once: an index asked twice, and one it doesn't have.
     let mut all = Vec::new();
     attachments_moved(&raw, &[4, 0, 3, 1, 2, 0, 9], &mut |index, data| all.push((index, data)));

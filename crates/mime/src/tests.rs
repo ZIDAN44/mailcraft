@@ -257,7 +257,10 @@ fn rich_html_keeps_formatting_links_and_pictures() {
     assert_eq!((h[0][0].text.as_str(), h[0][0].heading), ("Big news", 2));
     assert!(h.iter().flatten().any(|s| s.heading == 0 && s.text.starts_with('#')), "{h:?}");
     // A picture without a description keeps its place (shown once the web is allowed).
-    assert_eq!(remote_images(&r), ["https://t.example/p.gif"]);
+    assert_eq!(
+        r.iter().flatten().filter_map(|s| s.image.as_deref()).filter(|i| i.starts_with("https://")).collect::<Vec<_>>(),
+        ["https://t.example/p.gif"]
+    );
     assert!(all.iter().filter(|s| s.image.is_some()).all(|s| !s.text.contains(PICTURE_MARK)));
     assert!(html_to_rich("").is_empty());
     let p = parse(MULTI).unwrap();
@@ -267,7 +270,8 @@ fn rich_html_keeps_formatting_links_and_pictures() {
         html_images("<IMG alt=x SRC='https://a.example/1.png?x=1&amp;y=2'><img src=cid:k@x><img src=\"cid:k@x\"><img>"),
         vec!["https://a.example/1.png?x=1&y=2".to_string(), "cid:k@x".to_string()]
     );
-    assert_eq!(remote_images(&html_to_rich("<img src=\"https://a.example/x.png\" alt=\"Map\">")), vec!["https://a.example/x.png".to_string()]);
+    let map = html_to_rich("<img src=\"https://a.example/x.png\" alt=\"Map\">");
+    assert_eq!(map.iter().flatten().filter_map(|s| s.image.as_deref()).collect::<Vec<_>>(), ["https://a.example/x.png"]);
     assert!(parse(SIMPLE).unwrap().rich.is_empty(), "plain mail has no rich body");
 }
 
@@ -730,7 +734,7 @@ fn a_reply_quotes_every_picture() {
 --R\r\nContent-Type: image/png\r\nContent-Location: frame2.png\r\nContent-Transfer-Encoding: base64\r\n\r\n{png}\r\n--R--\r\n"
     );
     let mut p = parse(raw.as_bytes()).unwrap();
-    let (pictures, used) = quoted_pictures(&mut p, raw.as_bytes());
+    let (pictures, used, _) = quoted_pictures_given(&mut p, raw.as_bytes());
     assert_eq!(used, [0, 1]);
     assert_eq!(pictures.len(), 3, "{pictures:?}");
     assert_eq!(pictures[0].cid, "a@x");
@@ -746,5 +750,5 @@ fn a_reply_quotes_every_picture() {
     // Twice the same picture: one copy.
     let twice = raw.replace("<img src=\"frame2.png\">", "<img src=\"cid:a@x\">");
     let mut p = parse(twice.as_bytes()).unwrap();
-    assert_eq!(quoted_pictures(&mut p, twice.as_bytes()).0.len(), 2);
+    assert_eq!(quoted_pictures_given(&mut p, twice.as_bytes()).0.len(), 2);
 }

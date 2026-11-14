@@ -591,20 +591,6 @@ pub(super) fn mark_headings(html: &str) -> String {
     out
 }
 
-/// Web pictures a rich message refers to (`http:`/`https:` only), in order, without repeats.
-pub fn remote_images(rich: &RichText) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for sp in rich.iter().flatten() {
-        if let Some(src) = &sp.image
-            && (src.starts_with("https://") || src.starts_with("http://"))
-            && !out.contains(src)
-        {
-            out.push(src.clone());
-        }
-    }
-    out
-}
-
 /// Every `<img src>` of an HTML body, in order, without repeats (at most 200). Pictures without
 /// a description (tracking pixels, mostly) leave no trace in the formatted text, so they are
 /// found here, to be blocked or shown like the rest.
