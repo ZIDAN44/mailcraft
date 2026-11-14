@@ -3,6 +3,7 @@
 use super::*;
 
 mod measure;
+mod stopped;
 
 fn mail(subject: &str, extra: &str) -> Vec<u8> {
     format!("From: Ana <ana@pop.example>\r\nTo: me@pop.example\r\nSubject: {subject}\r\nMessage-ID: <{subject}@x>\r\n\r\nHello.\r\n{extra}")

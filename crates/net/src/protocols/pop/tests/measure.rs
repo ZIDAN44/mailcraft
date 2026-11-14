@@ -16,6 +16,45 @@ fn ms(t: Instant) -> f64 {
     t.elapsed().as_secs_f64() * 1000.0
 }
 
+/// A message of about 1 KB, sent `i` seconds into the day.
+fn letter(i: usize) -> Vec<u8> {
+    let (h, m, s) = (i / 3600, i / 60 % 60, i % 60);
+    let body = "Some words of a letter, as many as an ordinary one has. ".repeat(16);
+    format!(
+        "From: Ana <ana@pop.example>\r\nTo: me@pop.example\r\nSubject: Message {i}\r\nDate: Mon, 1 Jan 2024 {h:02}:{m:02}:{s:02} +0000\r\nMessage-ID: <m{i}@pop.example>\r\n\r\n{body}\r\n"
+    )
+    .into_bytes()
+}
+
+/// A first download of a maildrop into an empty Inbox: the whole list was sorted and saved, and
+/// the record of every message, once for each message downloaded. In memory, what the saving
+/// itself costs; on disk, with each source written as a file of its own.
+#[test]
+#[ignore]
+fn measure_first_download() {
+    for on_disk in [false, true] {
+        for count in [5_000, 10_000] {
+            let server = fake::serve((0..count).map(|i| (format!("id{i}"), letter(i))).collect());
+            let dir = std::env::temp_dir().join(format!("mailcraft-pop-first-{}-{count}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            let store = if on_disk { Store::open(&dir).unwrap() } else { Store::memory() };
+            let cfg = ServerConfig { host: "127.0.0.1".into(), port: server.port, security: Security::None };
+            let acc = AccountConfig { id: "p1".into(), email: "me@pop.example".into(), pop: Some(cfg), ..Default::default() };
+            folders(&store, "p1").unwrap();
+            let t = Instant::now();
+            let mut c = open(&acc, "pw").unwrap();
+            let r = fetch_new(&mut c, &store, "p1", "INBOX", &Keep::default(), 1_000).unwrap();
+            c.quit().unwrap();
+            let place = if on_disk { "on disk" } else { "in memory" };
+            println!("MEASURE POP first download of {count} messages, {place}: {:.0} ms", ms(t));
+            assert_eq!((r.new, r.total as usize), (count, count));
+            let inbox = store.load_folder("p1", "INBOX").unwrap();
+            assert_eq!(inbox.messages.first().map(|m| m.subject.as_str()), Some(format!("Message {}", count - 1).as_str()), "newest first");
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+}
+
 /// A check of a maildrop of `N` messages all downloaded before, then `GONE` of them moved to
 /// Deleted Items and deleted there for good: each looked up the server's record of every message
 /// in a list of the others.
@@ -34,7 +73,7 @@ fn measure_bookkeeping() {
     let mut state = State::new();
     for (i, id) in ids.iter().enumerate() {
         let key = MessageKey { account: "p1".into(), folder: "INBOX".into(), validity: 1, uid: i as u32 + 1 };
-        state.insert(id.clone(), Kept { at: 0, key: Some(key.to_id()), gone: false });
+        state.insert(id.clone(), Kept { at: 0, key: Some(key.to_id()), ..Default::default() });
         inbox.messages.push(Summary { key, subject: format!("Message {i}"), date: i as i64, ..Default::default() }.into());
     }
     sort_newest_first(&mut inbox.messages);
