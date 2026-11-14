@@ -68,6 +68,36 @@ fn measure_replaying_queued_changes() {
     }
 }
 
+/// A move into a folder the server hasn't (deleted elsewhere, say) is refused there, as a real
+/// server refuses it (`NO [TRYCREATE]`): the refusal is said, and the mail is back where it was,
+/// on the server and here. Found in review: the in-memory server took such a move and lost the
+/// mail, so nothing proved this.
+#[test]
+fn a_move_into_a_folder_not_there_is_said_and_the_mail_stays() {
+    let st = State::new();
+    for i in 0..2 {
+        st.lock().unwrap().add("INBOX", &format!("m{i}"), &[]);
+    }
+    let port = serve_tcp(&st);
+    let store = store("replay-move-nowhere");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+    pool.submit(Job::Start { account: account(port), password: Some(Secret("pw".into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let cached = || store.load_folder("a1", "INBOX").map(|f| f.messages.len()).unwrap_or(0);
+    assert_eq!(cached(), 2);
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::Move { keys: keys(2), to: "Gone".into() } });
+    until(&pool, "the move refused", |e| matches!(e, Event::OpFailed { op: Op::Move { .. }, .. }));
+    assert_eq!(st.lock().unwrap().mailbox("INBOX").map(|b| b.msgs.len()), Some(2), "on the server");
+    let end = Instant::now() + Duration::from_secs(20);
+    while cached() != 2 {
+        assert!(Instant::now() < end, "back here: {}", cached());
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    pool.submit(Job::Remove { account: "a1".into() });
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
 /// `n` changes made offline: keyword `$k0`, `$k1`… put on the Inbox's first message.
 fn keyworded(n: usize) -> Vec<Op> {
     (0..n).map(|i| Op::SetKeyword { keys: keys(1), keyword: format!("$k{i}"), on: true }).collect()

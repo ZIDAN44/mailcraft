@@ -483,6 +483,17 @@ impl Fake {
             let labels = st.caps.contains("X-GM-EXT-1");
             let mut copied_from = 0;
             let mut copyuid = String::new();
+            // A move or copy into a mailbox that isn't there is refused, and nothing moves (RFC
+            // 3501 §6.4.7, RFC 6851 §3.3), as APPEND's is.
+            let verb = rest.split_whitespace().nth(1).map(str::to_ascii_uppercase).unwrap_or_default();
+            if upper.starts_with("UID ")
+                && (verb == "MOVE" || verb == "COPY")
+                && st.boxes.iter().any(|b| b.name == sel)
+                && st.mailbox(&quoted_arg(rest)).is_none()
+            {
+                self.say(&format!("{tag} NO [TRYCREATE] no such mailbox"));
+                return;
+            }
             {
                 let Some(b) = st.boxes.iter_mut().find(|b| b.name == sel) else {
                     if upper == "NOOP" || upper == "LOGOUT" {

@@ -245,6 +245,29 @@ fn a_move_says_the_new_uids() {
     assert_eq!(st.lock().unwrap().mailbox("INBOX").map(|b| b.msgs.len()), Some(0));
 }
 
+/// A move into a folder the server hasn't is refused as a real server refuses it (`NO
+/// [TRYCREATE]`, RFC 3501 §6.4.7, RFC 6851), with MOVE and without: nothing moved, copied or
+/// marked deleted. Found in review: the in-memory server took it and lost the mail.
+#[test]
+fn a_move_into_a_folder_not_there_is_refused_and_moves_nothing() {
+    for caps in ["IMAP4rev1 UIDPLUS MOVE", "IMAP4rev1 UIDPLUS"] {
+        let st = State::new();
+        st.lock().unwrap().caps = caps;
+        for s in ["a", "b"] {
+            st.lock().unwrap().add("INBOX", s, &[]);
+        }
+        let mut c = login(&st);
+        let key = |uid| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 100, uid };
+        let r = apply_remote(&mut c, &Op::Move { keys: vec![key(1), key(2)], to: "Gone".into() });
+        assert!(matches!(r, Err(crate::NetError::NoFolder(_))), "{caps}: {r:?}");
+        let mut s = st.lock().unwrap();
+        let inbox = s.mailbox("INBOX").unwrap();
+        assert_eq!(inbox.msgs.len(), 2, "{caps}");
+        assert!(inbox.msgs.iter().all(|m| m.flags.is_empty()), "{caps}: marked deleted");
+        assert!(s.boxes.iter().filter(|b| b.name != "INBOX").all(|b| b.msgs.is_empty()), "{caps}: copied");
+    }
+}
+
 #[test]
 fn remote_changes_flags_moves_deletes_and_appends() {
     let st = State::new();
