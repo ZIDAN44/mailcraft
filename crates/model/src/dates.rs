@@ -166,15 +166,18 @@ pub fn civil_from_days(z: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
-/// (year, month, day) → days since 1970-01-01.
+/// (year, month, day) → days since 1970-01-01. A year too far out for an `i64` of days gives the
+/// nearest end (`i64::MIN` or `i64::MAX`), never a wrapped day: callers that read a year from
+/// a server or a file bound it themselves.
 pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
+    let y = if m <= 2 { y.saturating_sub(1) } else { y };
     let era = y.div_euclid(400);
     let yoe = y.rem_euclid(400);
     let m = i64::from(m.clamp(1, 12));
     let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + i64::from(d.clamp(1, 31)) - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146_097 + doe - 719_468
+    let far = if era < 0 { i64::MIN } else { i64::MAX };
+    era.checked_mul(146_097).and_then(|e| e.checked_add(doe - 719_468)).unwrap_or(far)
 }
 
 /// Split a time into local calendar parts.
@@ -450,6 +453,10 @@ mod tests {
             assert_eq!(days_from_civil(y, m, dd), d);
         }
         assert_eq!(civil_from_days(0), (1970, 1, 1));
+        // A year no calendar has (from a hostile server or file): the nearest end, no overflow.
+        assert_eq!(days_from_civil(i64::MAX, 12, 31), i64::MAX);
+        assert_eq!(days_from_civil(i64::MIN, 1, 1), i64::MIN);
+        assert_eq!(days_from_civil(9_000_000_000_000_000_000, 1, 1), i64::MAX);
         let c = civil(NOW, &Clock::new(NOW, 0));
         assert_eq!((c.year, c.month, c.day, c.hour, c.weekday), (2026, 10, 14, 12, 2));
     }

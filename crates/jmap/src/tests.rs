@@ -8,7 +8,8 @@ fn session_urls_dates_and_keywords() {
     assert_eq!(utc_date("1970-01-02T00:00:00Z"), Some(86_400));
     assert_eq!(utc_date("2024-05-01T09:30:00.123Z"), utc_date("2024-05-01T09:30:00Z"));
     assert_eq!(utc_date("2024-05-01T11:30:00+02:00"), utc_date("2024-05-01T09:30:00Z"));
-    for bad in ["", "2024-13-01T00:00:00Z", "yesterday", "2024-05-01"] {
+    // A sign in a number is not a date (a negative hour or year was taken).
+    for bad in ["", "2024-13-01T00:00:00Z", "yesterday", "2024-05-01", "2024-05-01T-1:30:00Z", "-999-05-01T09:30:00Z", "2024-05-01T09:30:00+-1:00"] {
         assert_eq!(utc_date(bad), None, "{bad}");
     }
     let f = keywords(Some(&json!({"$seen": true, "$Flagged": true, "$label1": true, "$draft": false, "bad word": true})));

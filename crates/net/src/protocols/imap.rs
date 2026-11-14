@@ -92,14 +92,17 @@ pub fn internal_date(t: i64) -> Option<String> {
     Some(format!("{d:02}-{month}-{y:04} {:02}:{:02}:{:02} +0000", secs / 3600, secs / 60 % 60, secs % 60))
 }
 
-/// Parse an INTERNALDATE (`14-Oct-2026 09:30:00 +0200`) to Unix seconds.
+/// Parse an INTERNALDATE (`14-Oct-2026 09:30:00 +0200`) to Unix seconds. The server's numbers
+/// are digits only, the year from 1 to 9999 (RFC 3501 gives it four digits).
 pub fn parse_internal_date(s: &str) -> Option<i64> {
+    // Digits only: `parse` alone takes a sign, and an unbounded year overflowed the day count.
+    let num = |x: &str| -> Option<i64> { (!x.is_empty() && x.len() <= 4 && x.bytes().all(|b| b.is_ascii_digit())).then(|| x.parse().ok())? };
     let s = s.trim();
     let (date, rest) = s.split_once(' ')?;
     let mut d = date.trim().split('-');
-    let day: u32 = d.next()?.trim().parse().ok()?;
+    let day = num(d.next()?.trim())?;
     let mon = d.next()?;
-    let year: i64 = d.next()?.parse().ok()?;
+    let year = num(d.next()?)?;
     let month =
         ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].iter().position(|m| m.eq_ignore_ascii_case(mon))? as u32
             + 1;
@@ -107,16 +110,17 @@ pub fn parse_internal_date(s: &str) -> Option<i64> {
     let time = parts.next()?;
     let zone = parts.next().unwrap_or("+0000");
     let mut t = time.split(':');
-    let h: i64 = t.next()?.parse().ok()?;
-    let m: i64 = t.next()?.parse().ok()?;
-    let sec: i64 = t.next().unwrap_or("0").parse().ok()?;
+    let h = num(t.next()?)?;
+    let m = num(t.next()?)?;
+    let sec = num(t.next().unwrap_or("0"))?;
     let sign = if zone.starts_with('-') { -1 } else { 1 };
     let z = zone.trim_start_matches(['+', '-']);
-    let zh: i64 = z.get(..2)?.parse().ok()?;
-    let zm: i64 = z.get(2..4)?.parse().ok()?;
-    if !(1..=31).contains(&day) || h > 23 || m > 59 || sec > 60 {
+    let zh = num(z.get(..2)?)?;
+    let zm = num(z.get(2..4)?)?;
+    if !(1..=31).contains(&day) || year < 1 || h > 23 || m > 59 || sec > 60 {
         return None;
     }
+    let day = u32::try_from(day).ok()?;
     let days = mailcraft_model::dates::days_from_civil(year, month, day);
     Some(days * 86_400 + h * 3600 + m * 60 + sec - sign * (zh * 3600 + zm * 60))
 }

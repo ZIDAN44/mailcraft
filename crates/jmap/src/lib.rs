@@ -610,7 +610,8 @@ fn flag_keyword(f: Flag) -> Option<&'static str> {
 /// `2024-05-01T09:30:00Z` (RFC 3339, as JMAP's UTCDate) in Unix seconds.
 pub fn utc_date(s: &str) -> Option<i64> {
     let s = s.trim();
-    let num = |a: usize, b: usize| s.get(a..b).and_then(|x| x.parse::<i64>().ok());
+    let digits = |x: &str| x.bytes().all(|b| b.is_ascii_digit());
+    let num = |a: usize, b: usize| s.get(a..b).filter(|x| digits(x)).and_then(|x| x.parse::<i64>().ok());
     let (y, mo, d, h, mi, se) = (num(0, 4)?, num(5, 7)?, num(8, 10)?, num(11, 13)?, num(14, 16)?, num(17, 19)?);
     if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 23 || mi > 59 || se > 60 {
         return None;
@@ -620,8 +621,8 @@ pub fn utc_date(s: &str) -> Option<i64> {
     let tail = s.get(19..)?.trim_start_matches(|c: char| c == '.' || c.is_ascii_digit());
     if let Some(off) = tail.strip_prefix('+').map(|o| (1, o)).or_else(|| tail.strip_prefix('-').map(|o| (-1, o))) {
         let (sign, o) = off;
-        let oh = o.get(0..2).and_then(|x| x.parse::<i64>().ok())?;
-        let om = o.get(3..5).and_then(|x| x.parse::<i64>().ok())?;
+        let oh = o.get(0..2).filter(|x| digits(x)).and_then(|x| x.parse::<i64>().ok())?;
+        let om = o.get(3..5).filter(|x| digits(x)).and_then(|x| x.parse::<i64>().ok())?;
         t -= sign * (oh * 3600 + om * 60);
     }
     Some(t)

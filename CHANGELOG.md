@@ -80,6 +80,7 @@ on GitHub.
 - A POP account with more than about 130,000 messages left on the server downloads its mail instead of failing every check.
 - Checking a POP account that leaves many messages on the server, and moving or deleting many of them, is much faster.
 - The first download of a large POP mailbox is many times faster, and one stopped part-way never loses a message or brings one in twice.
+- A mail server sending a message date with an impossible year no longer crashes MailCraft; the date is ignored.
 
 ## 0.38.0 - 2026-11-13
 
