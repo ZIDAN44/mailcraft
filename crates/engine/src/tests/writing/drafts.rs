@@ -295,7 +295,7 @@ fn a_draft_saved_twice_on_the_way_stays_one_draft() {
             Job::SaveDraft { raw, .. } | Job::KeepDraft { raw, .. } => Some(raw),
             _ => None,
         });
-        mailcraft_model::thread::written_message_id(&raw.expect("a draft saved"))
+        mailcraft_mime::written_message_id(&raw.expect("a draft saved"))
     };
     s.run("mail.new", &json!({"account": id})).unwrap();
     s.run("compose.update", &json!({"to": "ann@example.org", "subject": "Plans", "body": "One"})).unwrap();
@@ -353,7 +353,7 @@ fn a_message_is_held_until_its_draft_is_kept() {
     s.take_jobs();
     let saved_id = |s: &mut Session| {
         let raw = s.take_jobs().into_iter().find_map(|j| if let Job::SaveDraft { raw, .. } = j { Some(raw) } else { None });
-        mailcraft_model::thread::written_message_id(&raw.expect("a draft saved"))
+        mailcraft_mime::written_message_id(&raw.expect("a draft saved"))
     };
     let write = |s: &mut Session, body: &str| {
         s.run("mail.new", &json!({"account": id})).unwrap();
@@ -379,7 +379,7 @@ fn a_message_is_held_until_its_draft_is_kept() {
     assert_eq!(s.keep_drafts(), 1);
     let kept = s.take_jobs().into_iter().find_map(|j| if let Job::KeepDraft { raw, replaces, .. } = j { Some((raw, replaces)) } else { None });
     let (kept, kept_replaces) = kept.expect("kept");
-    assert_eq!(mailcraft_model::thread::written_message_id(&kept), mailcraft_model::thread::written_message_id(&sent));
+    assert_eq!(mailcraft_mime::written_message_id(&kept), mailcraft_mime::written_message_id(&sent));
     assert_eq!(kept_replaces, replaces);
     s.compose = None;
 
@@ -414,7 +414,7 @@ fn a_message_is_held_until_its_draft_is_kept() {
     s.run("list.open", &json!({"key": keys[1].to_id()})).unwrap();
     let on_its_way = s.take_jobs().into_iter().find_map(|j| if let Job::SaveDraft { raw, replaces, .. } = j { Some((raw, replaces)) } else { None });
     let on_its_way = on_its_way.expect("a draft saved");
-    let third = mailcraft_model::thread::written_message_id(&on_its_way.0);
+    let third = mailcraft_mime::written_message_id(&on_its_way.0);
     assert!(s.compose.is_none() && s.saving.len() == 1);
     assert_eq!(s.keep_drafts(), 1);
     assert!(s.saving.is_empty(), "kept: let go of");

@@ -206,7 +206,7 @@ async fn file_copies(sh: &Rcs, id: &str, folder: String, mail: Vec<(MessageKey, 
 /// A draft filed in `folder` on the server, the one it `replaces` taken away; said either way
 /// (by its `Message-ID`, for the session holding the message until it's saved: #53).
 async fn save_draft(sh: &Rcs, id: &str, raw: Vec<u8>, folder: String, replaces: Option<MessageKey>) {
-    let message_id = mailcraft_engine::model::thread::written_message_id(&raw);
+    let message_id = mailcraft_engine::mime::written_message_id(&raw);
     let Some(c) = client(sh, id) else {
         let error = Some(format!("the draft wasn't saved on the server: {OFFLINE}"));
         return emit(sh, Event::DraftSaved { account: id.to_string(), message_id, error });

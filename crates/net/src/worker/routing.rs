@@ -174,7 +174,7 @@ impl Pool {
     /// A draft saved while the account isn't connected: kept on this computer, and filed on the
     /// server at the next connection.
     fn save_draft_offline(&mut self, account: String, raw: Vec<u8>, folder: String, replaces: Option<MessageKey>) {
-        let message_id = mailcraft_model::thread::written_message_id(&raw);
+        let message_id = mailcraft_mime::written_message_id(&raw);
         // Handed out now, as one handed to a worker is: newer than a save of the draft a
         // stopped worker is still filing, which, filed, leaves it kept (found in review:
         // taken for older, it was taken off this computer, and never got to the server).

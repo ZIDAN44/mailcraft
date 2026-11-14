@@ -333,23 +333,10 @@ fn parse_head(head: &[u8]) -> Option<mail_parser::Message<'_>> {
 /// An entity's header block (with its last line end) and body, split at the first empty line;
 /// with none it's all header. One that starts with an empty line has no headers.
 pub(super) fn split(raw: &[u8]) -> (&[u8], &[u8]) {
-    if let [b'\n', rest @ ..] | [b'\r', b'\n', rest @ ..] = raw {
-        return (&[], rest);
+    match crate::header_end(raw) {
+        Some(blank) => (raw.get(..blank.start).unwrap_or_default(), raw.get(blank.end..).unwrap_or_default()),
+        None => (raw, &[]),
     }
-    let mut from = 0;
-    while let Some(at) = memchr::memchr(b'\n', raw.get(from..).unwrap_or_default()).map(|i| i + from) {
-        let next = at + 1;
-        let blank = match raw.get(next..) {
-            Some([b'\n', ..]) => Some(1),
-            Some([b'\r', b'\n', ..]) => Some(2),
-            _ => None,
-        };
-        if let Some(len) = blank {
-            return (raw.get(..next).unwrap_or_default(), raw.get(next + len..).unwrap_or_default());
-        }
-        from = next;
-    }
-    (raw, &[])
 }
 
 /// A multipart body's parts, by its boundary (RFC 2046 §5.1.1): a delimiter is `--boundary` at
@@ -424,4 +411,41 @@ fn line_start(body: &[u8], at: usize) -> usize {
         }
     }
     end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// [`split`] as it was, before it read the header's end with [`crate::header_end`].
+    fn old_split(raw: &[u8]) -> (&[u8], &[u8]) {
+        if let [b'\n', rest @ ..] | [b'\r', b'\n', rest @ ..] = raw {
+            return (&[], rest);
+        }
+        let mut from = 0;
+        while let Some(at) = memchr::memchr(b'\n', raw.get(from..).unwrap_or_default()).map(|i| i + from) {
+            let next = at + 1;
+            let blank = match raw.get(next..) {
+                Some([b'\n', ..]) => Some(1),
+                Some([b'\r', b'\n', ..]) => Some(2),
+                _ => None,
+            };
+            if let Some(len) = blank {
+                return (raw.get(..next).unwrap_or_default(), raw.get(next + len..).unwrap_or_default());
+            }
+            from = next;
+        }
+        (raw, &[])
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(4000))]
+
+        /// The header's end read as everywhere else gives the split this read gave.
+        #[test]
+        fn splits_where_it_did(raw in proptest::collection::vec(prop_oneof![Just(b'\r'), Just(b'\n'), Just(b'a'), Just(b':'), Just(b' ')], 0..40)) {
+            prop_assert_eq!(split(&raw), old_split(&raw));
+        }
+    }
 }

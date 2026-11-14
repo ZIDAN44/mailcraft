@@ -130,7 +130,7 @@ fn an_account_offline_is_answered_by_the_pool() {
     assert_eq!(
         said(&mut pool, Job::SaveDraft { account: "a1".into(), raw: draft.clone(), folder: "Drafts".into(), replaces: None }),
         [
-            Event::DraftSaved { account: "a1".into(), message_id: mailcraft_model::thread::written_message_id(&draft), error: None },
+            Event::DraftSaved { account: "a1".into(), message_id: mailcraft_mime::written_message_id(&draft), error: None },
             notice("the draft is kept on this computer; it goes to Drafts when you're back online"),
         ]
     );

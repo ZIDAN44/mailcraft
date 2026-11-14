@@ -87,6 +87,18 @@ pub fn header_field(head: &[u8], name: &str) -> Option<String> {
     header_fields(head, name).next()
 }
 
+/// How much of a source is read for its `Message-ID` ([`written_message_id`]).
+const MAX_ID_HEAD: usize = 64 * 1024;
+
+/// The `Message-ID` a message was written with, from its header (never its body), without its
+/// brackets: what says which draft a save was of. Empty when it has none. Its lines may end in
+/// CRLF or a bare LF ([`header_end`], [`header_field`]): only CRLF was read, and with bare LFs
+/// the body counted as header.
+pub fn written_message_id(raw: &[u8]) -> String {
+    let end = header_end(raw).map_or(raw.len(), |blank| blank.start).min(MAX_ID_HEAD);
+    header_field(raw.get(..end).unwrap_or(raw), "message-id").map(|v| mailcraft_model::thread::norm_id(&v)).unwrap_or_default()
+}
+
 /// A `multipart/report` Content-Type's `report-type` (RFC 6522): lower case, its quotes off, when
 /// it is a token of at most 64 characters; `None` for any other type, or a report without one.
 pub fn report_type(content_type: &str) -> Option<String> {
@@ -188,5 +200,18 @@ mod tests {
             }
             let _ = header_fields(head, "a").count();
         }
+    }
+
+    /// A draft's Message-ID from its header: any case, folded, without brackets; never one its
+    /// body quotes, nor a header whose name only starts the same; its lines ending in CRLF or a
+    /// bare LF (a bare-LF message's was never found: its whole source was read as one line).
+    #[test]
+    fn a_messages_written_id_is_read_from_its_header() {
+        assert_eq!(written_message_id(b"Subject: x\r\nMessage-ID: <a1@studio.example>\r\n\r\nbody"), "a1@studio.example");
+        assert_eq!(written_message_id(b"message-id:\r\n <b2@studio.example>\r\nTo: z\r\n\r\n"), "b2@studio.example");
+        assert_eq!(written_message_id(b"Message-IDs: <no@x>\r\nSubject: x\r\n\r\nMessage-ID: <quoted@x>\r\n"), "");
+        assert_eq!(written_message_id(b""), "");
+        assert_eq!(written_message_id(b"Subject: x\nMessage-ID: <c3@studio.example>\n\nbody"), "c3@studio.example");
+        assert_eq!(written_message_id(b"Subject: x\n\nMessage-ID: <quoted@x>\n"), "");
     }
 }

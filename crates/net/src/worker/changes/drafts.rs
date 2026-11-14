@@ -6,8 +6,8 @@
 
 use super::*;
 
+use mailcraft_mime::written_message_id;
 use mailcraft_model::MessageKey;
-use mailcraft_model::thread::written_message_id;
 
 mod copies;
 mod kept;

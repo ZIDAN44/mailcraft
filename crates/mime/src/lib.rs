@@ -14,7 +14,7 @@
 
 mod css;
 mod header;
-pub use header::{field_span, header_end, header_field, header_fields, report_type, without_line_end};
+pub use header::{field_span, header_end, header_field, header_fields, report_type, without_line_end, written_message_id};
 pub mod layout;
 pub mod markup;
 pub mod office;
