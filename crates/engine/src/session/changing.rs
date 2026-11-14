@@ -264,24 +264,12 @@ impl Session {
     }
 
     /// A local move's first half: the messages filed in `to` with new numbers, their sources with
-    /// them. Every list is read before anything is written, and any error but a source that
-    /// isn't here stops it (a list read as empty was saved over the destination's mail).
-    ///
-    /// A move of more than a batch of sources is a long write ([`Store::long_write`], returned to
-    /// last until the rest of the move is saved): its batches don't wait for the disk, and the
-    /// last, which the destination's list counts on, is a sealed commit that waits for it, refused
-    /// if the data file lost what didn't (opened again after a failed write) meanwhile. Each
-    /// batch waiting for the disk unsealed, a crash part-way checked the whole file as it opened
-    /// again (105 s for 37 GB); the batches before the last are lost to a crash, but no list names
-    /// them yet.
+    /// them ([`Filing`]: a long write past a batch of them, returned to last until the rest of the
+    /// move is saved). Every list is read before anything is written, and any error but a source
+    /// that isn't here stops it (a list read as empty was saved over the destination's mail).
     fn file_moved<'s>(store: &'s Store, account: &str, keys: &[MessageKey], to: &str) -> Result<Option<LongWrite<'s>>, mailcraft_store::StoreError> {
-        let mut dest = store.load_folder(account, to)?;
-        if dest.validity == 0 {
-            dest.validity = 1;
-        }
-        // Each source folder read once, its messages found by number; the bodies written
-        // together (a folder's every message may go at once: per message, all of this was
-        // read again, and each body was a write of its own).
+        let mut filing = Filing::new(store, account, to)?;
+        // Each source folder read once, its messages found by number.
         let mut sources: HashMap<String, HashMap<u32, SharedSummary>> = HashMap::new();
         for k in keys.iter().filter(|k| k.folder != to) {
             if !sources.contains_key(&k.folder) {
@@ -289,49 +277,27 @@ impl Session {
                 sources.insert(k.folder.clone(), st.messages.into_iter().map(|m| (m.key.uid, m)).collect());
             }
         }
-        let mut uid = dest.free_uid(account, to)?;
-        let mut bodies: Vec<(MessageKey, Vec<u8>)> = Vec::new();
-        let mut pending = 0usize;
-        let packs = store.packs(account);
-        let prepare = |bodies: Vec<(MessageKey, Vec<u8>)>| bodies.into_iter().map(|(k, raw)| (k, Store::prepare(packs, raw))).collect();
-        // The long write, and how often its data file had been let go of after a failed write
-        // as it began.
-        let mut long: Option<(LongWrite<'s>, u64)> = None;
         for k in keys.iter().filter(|k| k.folder != to) {
             let Some(m) = sources.get(&k.folder).and_then(|src| src.get(&k.uid)) else { continue };
             let mut moved = Summary::clone(m);
-            moved.key = MessageKey {
-                account: account.to_string(),
-                folder: to.to_string(),
-                validity: dest.validity,
-                uid: FolderState::take_uid(&mut uid, account, to)?,
-            };
+            moved.key = filing.key()?;
             // One never downloaded moves without it.
-            if let Some(raw) = store.load_body(k)? {
-                // A full batch goes before this one, so the last batch is never empty.
-                if !bodies.is_empty() && (bodies.len() >= 1000 || pending.saturating_add(raw.len()) > 16 << 20) {
-                    if long.is_none() {
-                        let began = store.long_write(account);
-                        long = Some((began, store.data_file_reopened(account)));
-                    }
-                    store.write_prepared(prepare(std::mem::take(&mut bodies)), false)?;
-                    pending = 0;
-                }
-                pending = pending.saturating_add(raw.len());
-                bodies.push((moved.key.clone(), raw));
-            }
-            dest.messages.push(moved.into());
+            filing.add(moved, store.load_body(k)?)?;
         }
-        if !bodies.is_empty() {
-            match &long {
-                Some((_, reopened)) => store.write_batch(account, prepare(bodies), Vec::new(), *reopened)?,
-                None => store.write_prepared(prepare(bodies), true)?,
-            }
-        }
-        dest.uid_next = uid;
-        sort_newest_first(&mut dest.messages);
-        store.save_folder(account, to, &dest)?;
-        Ok(long.map(|(l, _)| l))
+        filing.finish()
+    }
+
+    /// File a message whose source is `raw`, marked `flags`, arrived at `date`; its key.
+    pub(crate) fn file_raw(
+        filing: &mut Filing,
+        raw: Vec<u8>,
+        flags: mailcraft_model::Flags,
+        date: i64,
+    ) -> Result<MessageKey, mailcraft_store::StoreError> {
+        let key = filing.key()?;
+        let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
+        filing.add(mime::summary_from_full(&raw, key.clone(), flags, size, date), Some(raw))?;
+        Ok(key)
     }
 
     /// A folder-list change, in memory: the account's folders, the open view, cached folder

@@ -12,7 +12,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 
 use mailcraft_mime as mime;
 use mailcraft_model::{AccountConfig, Flags, Folder, FolderRole, MessageKey, Security, ServerConfig, sort_newest_first};
-use mailcraft_store::{FolderState, Store};
+use mailcraft_store::{Filing, FolderState, Store};
 
 use crate::stream::{self, Stream};
 use crate::sync::{SyncReport, if_kept};
@@ -381,19 +381,11 @@ pub fn local_counts(store: &Store, account: &str, folder: &str) -> Result<SyncRe
 
 /// Put a message in a folder on this computer (a draft, or the copy of one sent); its key.
 pub fn file_locally(store: &Store, account: &str, folder: &str, raw: &[u8], flags: Flags, now: i64) -> Result<MessageKey> {
-    let mut fs = store.load_folder(account, folder)?;
-    if fs.validity == 0 {
-        fs.validity = 1;
-    }
-    let mut next = fs.free_uid(account, folder)?;
-    let uid = FolderState::take_uid(&mut next, account, folder)?;
-    let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: fs.validity, uid };
-    store.write_body(&key, raw)?;
+    let mut filing = Filing::new(store, account, folder)?;
+    let key = filing.key()?;
     let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-    fs.messages.push(mime::summary_from_full(raw, key.clone(), flags, size, now).into());
-    fs.uid_next = next;
-    sort_newest_first(&mut fs.messages);
-    store.save_folder(account, folder, &fs)?;
+    filing.add(mime::summary_from_full(raw, key.clone(), flags, size, now), Some(raw.to_vec()))?;
+    filing.finish()?;
     Ok(key)
 }
 

@@ -54,6 +54,7 @@ on GitHub.
 - `account.add` with a data file whose path is refused no longer leaves the account added.
 - In All Inboxes, one Undo puts back what was done to mail of several accounts at once (marked read, flagged, categorised, moved or deleted): it took one Undo per account, in no set order.
 - Archive or Move on mail of several accounts (All Inboxes) moves nothing when one of them has no such folder, instead of moving some and failing.
+- Copying a lot of mail, or moving it from another account, into a folder of a data file or a local account no longer holds up the window: each message was read twice and written on its own, and 5,000 of them took over ten seconds.
 
 ## 0.38.0 - 2026-11-13
 

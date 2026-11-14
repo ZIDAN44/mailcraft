@@ -17,6 +17,11 @@ const WAITING_MAX: usize = 500;
 /// moves it.
 const WAIT: i64 = 30 * 60;
 
+/// The error of mail that couldn't be filed in `folder`.
+fn not_kept(folder: &str) -> impl Fn(mailcraft_store::StoreError) -> CmdError + '_ {
+    move |e| CmdError::Failed(format!("The mail couldn't be kept in {folder}, so it stays where it was: {e}"))
+}
+
 /// A message on its way to where it was moved or copied to.
 #[derive(Clone, Debug)]
 pub(crate) struct Transfer {
@@ -80,6 +85,10 @@ impl Session {
         }
         let (mut ready, mut waiting): (Vec<Transfer>, Vec<Transfer>) = (Vec::new(), Vec::new());
         let mut missing = 0usize;
+        // Into a folder kept here, each is filed as its source is read (read once, written with
+        // others), and the folder's list naming them saved once nothing refuses the rest.
+        let store = self.store.clone();
+        let (mut filing, mut filed): (Option<Filing>, Vec<MessageKey>) = (None, Vec::new());
         for m in &sel {
             let t = Transfer {
                 key: m.key.clone(),
@@ -94,11 +103,21 @@ impl Session {
                 message_id: m.message_id.clone(),
             };
             // Exchange's text first is MailCraft's, not the message's: its source is asked for.
-            match self.body_raw(&m.key).is_some_and(|raw| !mime::is_text_first(&raw)) {
-                true => ready.push(t),
+            match self.body_raw(&m.key).filter(|raw| !mime::is_text_first(raw)) {
+                Some(raw) if here => {
+                    if filing.is_none() {
+                        let store = store.as_ref().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
+                        filing = Some(Filing::new(store, account, folder).map_err(not_kept(folder))?);
+                    }
+                    if let Some(f) = filing.as_mut() {
+                        Self::file_raw(f, raw, t.flags, t.date).map_err(not_kept(folder))?;
+                        filed.push(t.key);
+                    }
+                }
+                Some(_) => ready.push(t),
                 // Kept on this computer and not here: there's nowhere to ask for it.
-                false if self.takes_mail(&m.key.account) => missing += 1,
-                false => waiting.push(t),
+                None if self.takes_mail(&m.key.account) => missing += 1,
+                None => waiting.push(t),
             }
         }
         if self.transfers.iter().filter(|t| !t.sent).count().saturating_add(waiting.len()) > WAITING_MAX {
@@ -107,14 +126,11 @@ impl Session {
             )));
         }
         let next = if moved && here { self.successor(&self.selection.clone()) } else { None };
-        let (mut done, mut sending) = (0, 0);
-        if here {
-            done = ready.len();
-            self.file_and_remove(account, folder, ready, moved, None)?;
-        } else {
-            sending = ready.len();
-            self.send_copies(ready);
+        let (done, sending) = (filed.len(), ready.len());
+        if let Some(f) = filing {
+            self.file_and_remove(account, folder, f, filed, moved)?;
         }
+        self.send_copies(ready);
         for t in &waiting {
             // Asked for already (for this, or by the reading pane): it comes all the same.
             self.jobs.push(Job::FetchBody { key: t.key.clone() });
@@ -159,35 +175,12 @@ impl Session {
         self.transfers.extend(mail.into_iter().map(|t| Transfer { sent: true, ..t }));
     }
 
-    /// File `mail`, whose sources are here (or `given`, one's that just came), in `folder` of the
-    /// local `account`, then, `moved`, delete each where it was. Filing that fails deletes
-    /// nothing.
-    fn file_and_remove(&mut self, account: &str, folder: &str, mail: Vec<Transfer>, moved: bool, given: Option<&[u8]>) -> Result<(), CmdError> {
-        if mail.is_empty() {
-            return Ok(());
-        }
-        let store = self.store.clone().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
-        let failed =
-            |e: mailcraft_store::StoreError| CmdError::Failed(format!("The mail couldn't be kept in {folder}, so it stays where it was: {e}"));
-        let mut st = store.load_folder(account, folder).map_err(failed)?;
-        if st.validity == 0 {
-            st.validity = 1;
-        }
-        let mut next = st.free_uid(account, folder).map_err(failed)?;
-        let mut from: Vec<MessageKey> = Vec::new();
-        for t in mail {
-            let Some(raw) = given.map(<[u8]>::to_vec).or_else(|| self.body_raw(&t.key)) else { continue };
-            let uid = mailcraft_store::FolderState::take_uid(&mut next, account, folder).map_err(failed)?;
-            let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: st.validity, uid };
-            let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-            let s = mime::summary_from_full(&raw, key.clone(), t.flags, size, t.date);
-            store.write_body(&key, &raw).map_err(failed)?;
-            st.messages.push(s.into());
-            from.push(t.key);
-        }
-        st.uid_next = next;
-        sort_newest_first(&mut st.messages);
-        store.save_folder(account, folder, &st).map_err(failed)?;
+    /// Keep what was filed in `filing`, in `folder` of the local `account`: the folder's list
+    /// saved naming it, then, `moved`, each of `from` deleted where it was. Filing that fails
+    /// deletes nothing (and takes away the sources it wrote).
+    fn file_and_remove(&mut self, account: &str, folder: &str, filing: Filing, from: Vec<MessageKey>, moved: bool) -> Result<(), CmdError> {
+        // A long write is kept until what was moved is deleted.
+        let _long = filing.finish().map_err(not_kept(folder))?;
         self.reload_folder(account, folder);
         self.recount_local(account, Some(&[folder.to_string()]));
         if moved {
@@ -238,7 +231,13 @@ impl Session {
             }
             let held = self.import_holds(&t.account).and_then(|()| if t.moved { self.import_holds(&t.key.account) } else { Ok(()) });
             let (account, folder, moved) = (t.account.clone(), t.folder.clone(), t.moved);
-            if let Err(e) = held.and_then(|()| self.file_and_remove(&account, &folder, vec![t], moved, Some(raw))) {
+            let kept = held.and_then(|()| {
+                let store = self.store.clone().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
+                let mut filing = Filing::new(&store, &account, &folder).map_err(not_kept(&folder))?;
+                Self::file_raw(&mut filing, raw.to_vec(), t.flags, t.date).map_err(not_kept(&folder))?;
+                self.file_and_remove(&account, &folder, filing, vec![t.key], moved)
+            });
+            if let Err(e) = kept {
                 self.notice(e.to_string(), true);
             }
         }

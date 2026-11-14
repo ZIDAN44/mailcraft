@@ -1,5 +1,5 @@
 //! Engine tests: a long local move in a data file seals the file as it goes, so a crash part-way
-//! reopens it at once; a short one doesn't.
+//! reopens it at once; a short one doesn't. A long copy is written in batches too.
 
 use mailcraft_model::{Flags, MessageKey, Summary};
 
@@ -67,6 +67,34 @@ fn a_long_move_leaves_its_data_file_sealed() {
     let before = store.commit_times();
     s.run("mail.move", &json!({"folder": "Projects"})).unwrap();
     assert!(store.commit_times().plain.count > before.plain.count, "a short move sealed");
+    drop(s);
+    drop(store);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A copy of 1,200 messages within a data file is written in batches: a handful of commits that
+/// wait for the disk, every one sealed, where each message was one (unsealed) of its own. Each
+/// copy has its source, read once.
+#[test]
+fn a_long_copy_is_written_in_batches() {
+    let root = std::env::temp_dir().join(format!("mailcraft-engine-long-copy-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let (store, mut s) = projects(&root, 1200);
+    assert!(store.flush_marks());
+    let paused = store.pause_marks();
+    s.run("list.selectAll", &json!({})).unwrap();
+    let before = store.commit_times();
+    assert_eq!(s.run("mail.copy", &json!({"folder": "INBOX"})).unwrap()["copied"], 1200);
+    let after = store.commit_times();
+    assert_eq!(after.plain.count, before.plain.count, "a commit that waited for the disk wasn't sealed");
+    let waited = after.sealed.count.saturating_sub(before.sealed.count);
+    assert!((1..10).contains(&waited), "{waited} commits waited for the disk");
+    let inbox = store.load_folder("sample", "INBOX").unwrap();
+    let copies: Vec<&Summary> = inbox.messages.iter().filter(|m| m.subject.starts_with("Report ")).map(|m| &**m).collect();
+    assert_eq!(copies.len(), 1200);
+    assert!(copies.iter().all(|m| store.read_body(&m.key).is_some_and(|b| b.starts_with(format!("Subject: {}", m.subject).as_bytes()))));
+    assert_eq!(store.load_folder("sample", "Projects").unwrap().messages.len(), 1200, "still where they were");
+    drop(paused);
     drop(s);
     drop(store);
     let _ = std::fs::remove_dir_all(&root);

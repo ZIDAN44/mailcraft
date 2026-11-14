@@ -2,6 +2,9 @@
 
 use crate::*;
 
+mod filing;
+pub use filing::Filing;
+
 /// The data files' commits that waited for the disk, timed: sealed ones and the others. For
 /// measuring what sealing costs; nothing for other stores.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

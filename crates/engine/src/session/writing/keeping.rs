@@ -302,21 +302,10 @@ impl Session {
     pub(crate) fn file_locally(&mut self, account: &str, folder: &str, raw: &[u8], seen: bool) -> Result<MessageKey, CmdError> {
         let store = self.store.clone().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
         let failed = |e: mailcraft_store::StoreError| CmdError::Failed(format!("The message couldn't be kept in {folder}: {e}"));
-        let mut st = store.load_folder(account, folder).map_err(failed)?;
-        if st.validity == 0 {
-            st.validity = 1;
-        }
-        let mut next = st.free_uid(account, folder).map_err(failed)?;
-        let uid = mailcraft_store::FolderState::take_uid(&mut next, account, folder).map_err(failed)?;
-        st.uid_next = next;
-        let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: st.validity, uid };
         let flags = mailcraft_model::Flags { seen, draft: !seen, ..Default::default() };
-        let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);
-        let s = mime::summary_from_full(raw, key.clone(), flags, size, self.clock.now);
-        store.write_body(&key, raw).map_err(failed)?;
-        st.messages.push(s.into());
-        sort_newest_first(&mut st.messages);
-        store.save_folder(account, folder, &st).map_err(failed)?;
+        let mut filing = Filing::new(&store, account, folder).map_err(failed)?;
+        let key = Self::file_raw(&mut filing, raw.to_vec(), flags, self.clock.now).map_err(failed)?;
+        filing.finish().map_err(failed)?;
         self.reload_folder(account, folder);
         self.recount_local(account, Some(&[folder.to_string()]));
         self.refresh_list();

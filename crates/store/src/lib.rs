@@ -789,7 +789,7 @@ pub use accounts::Recompressed;
 use atomic::private_dir;
 pub use atomic::write_atomic;
 pub use beside::{Beside, Found, stamp as file_stamp};
-pub use bodies::{CommitTimes, LongWrite, Prepared, Timed};
+pub use bodies::{CommitTimes, Filing, LongWrite, Prepared, Timed};
 pub use compacting::Shrunk;
 use files::{Files, Routed};
 pub use folders::FolderLoad;

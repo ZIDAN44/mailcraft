@@ -129,6 +129,25 @@ fn mail_copies_into_a_data_file_and_stays_where_it_was() {
     done(s);
 }
 
+/// More than can wait for their downloads at once, with more than a batch that are here:
+/// refused, and the sources of those here, written as they were read, taken away again (no list
+/// names them).
+#[test]
+fn a_copy_refused_leaves_no_source_behind() {
+    let (dir, store, mut s, local) = data_files_to_copy("across-refused", 1001, 501, "Hi.");
+    let e = s.run("mail.copy", &json!({"account": local, "folder": "INBOX"})).unwrap_err();
+    assert!(e.to_string().contains("pick fewer"), "{e}");
+    assert!(held(&s, &local, "INBOX").is_empty());
+    let left: Vec<u32> =
+        (1..=1001).filter(|&uid| store.has_body(&MessageKey { account: local.clone(), folder: "INBOX".into(), validity: 1, uid })).collect();
+    assert!(left.is_empty(), "{} sources no list names", left.len());
+    let jobs = s.take_jobs();
+    assert!(s.transfers.is_empty() && jobs.is_empty(), "nothing asked for: {jobs:?}");
+    drop(s);
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Into a folder on a server: the network layer is asked to upload a copy, and what was moved
 /// is deleted where it was only when it says the copy is there. One it couldn't upload stays,
 /// and why is said. A folder or an account that isn't there: nothing moves.
@@ -293,4 +312,58 @@ fn nothing_moved_leaves_the_message_open_and_an_undo_that_cant_be_done_is_droppe
     assert_ne!(undone["undone"], json!("move"), "{undone}");
     let _ = server;
     done(s);
+}
+
+/// Data files as the app keeps them: an account kept on this computer with an empty Inbox, and
+/// a server account whose Inbox, open and all selected, has `here` messages with their sources
+/// (`text` each) and `listed` more not downloaded. Returns the folder they're in, the store, the
+/// session and the local account.
+fn data_files_to_copy(name: &str, here: u32, listed: u32, text: &str) -> (std::path::PathBuf, Store, Session, String) {
+    let dir = std::env::temp_dir().join(format!("mailcraft-engine-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open_packed(dir.join("cache"), dir.join("files")).unwrap();
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let local = s.run("account.add", &json!({"email": "ben@example.org", "local": true})).unwrap()["account"].as_str().unwrap().to_string();
+    s.apply(Event::Folders { account: local.clone(), folders: vec![folder(&local, "INBOX", FolderRole::Inbox)] });
+    let server = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.apply(Event::Folders { account: server.clone(), folders: vec![folder(&server, "INBOX", FolderRole::Inbox)] });
+    let (mut messages, mut bodies) = (Vec::new(), Vec::new());
+    for uid in 1..=here.saturating_add(listed) {
+        let key = MessageKey { account: server.clone(), folder: "INBOX".into(), validity: 9, uid };
+        let raw =
+            format!("From: Ana <ana@x.example>\r\nTo: zoe@example.org\r\nSubject: Note {uid}\r\nMessage-ID: <{uid}@x.example>\r\n\r\n{text}\r\n");
+        if uid <= here {
+            messages.push(mailcraft_mime::summary_from_full(raw.as_bytes(), key.clone(), Flags::default(), 0, NOW).into());
+            bodies.push((key, Store::prepare(store.packs(&server), raw.into_bytes())));
+        } else {
+            messages.push(mailcraft_mime::summary_from_header(raw.as_bytes(), key, Flags::default(), 0, NOW).into());
+        }
+    }
+    store.write_prepared(bodies, true).unwrap();
+    let st =
+        mailcraft_store::FolderState { validity: 9, uid_next: here.saturating_add(listed).saturating_add(1), highest_modseq: 0, messages, window: 0 };
+    store.save_folder(&server, "INBOX", &st).unwrap();
+    s.apply(Event::FolderChanged { account: server.clone(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": server, "folder": "INBOX"})).unwrap();
+    s.run("list.selectAll", &json!({})).unwrap();
+    assert_eq!(s.selection.len(), (here + listed) as usize);
+    s.take_jobs();
+    (dir, store, s, local)
+}
+
+/// 5,000 messages of about 4 KB copied from a server account into a folder of an account kept on
+/// this computer, in data files as the app keeps them, timed. Run under the heavy lock:
+/// `cargo test -p mailcraft-engine --lib measure_copy_many -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_copy_many() {
+    let filler = "Some words of a long note, kept to see a copy's cost. ".repeat(70);
+    let (dir, store, mut s, local) = data_files_to_copy("measure-copy", 5000, 0, &filler);
+    let t = std::time::Instant::now();
+    let r = s.run("mail.copy", &json!({"account": local, "folder": "INBOX"})).unwrap();
+    println!("MEASURE copy 5000 into a data file: {} ms ({r})", t.elapsed().as_millis());
+    assert_eq!(held(&s, &local, "INBOX").len(), 5000);
+    drop(s);
+    drop(store);
+    let _ = std::fs::remove_dir_all(&dir);
 }
