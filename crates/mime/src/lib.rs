@@ -375,6 +375,16 @@ fn is_zero(v: &u8) -> bool {
 /// Lines of a rich message, each a list of spans.
 pub type RichText = Vec<Vec<Span>>;
 
+/// The HTML a message's text is read from in [`parse`].
+#[derive(Clone, Copy)]
+enum TextFrom<'h> {
+    /// Its HTML body (its own, or its `winmail.dat`'s), read as it's shown.
+    Body(&'h str),
+    /// What stands in for one in a message without (text parts mail-parser lists among the HTML
+    /// bodies), read as it came.
+    StandingIn(&'h str),
+}
+
 /// Parse a full message for display. `None` only for input that isn't a message at all.
 pub fn parse(raw: &[u8]) -> Option<Parsed> {
     let raw = &*readable_headers(raw);
@@ -387,7 +397,12 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         TnefBody::Html(h) if !real_html => Some(h.as_str()),
         _ => None,
     };
-    let html = html_whole(&m).filter(|_| real_html).or(tnef_html.map(std::borrow::Cow::Borrowed));
+    // The HTML body, built once: the message's own, else the one in its `winmail.dat`. Without
+    // real HTML, what mail-parser lists among the HTML bodies stands for one (its text parts).
+    let (html, standing_in) = match html_whole(&m) {
+        Some(h) if real_html => (Some(h), None),
+        whole => (tnef_html.map(std::borrow::Cow::Borrowed), whole),
+    };
     // Read once as desktop Outlook reads it (issue #47): the copy a newsletter gives Outlook, in
     // tables, rather than the columns of floats it gives the others, and its VML made HTML. Cut
     // at the cap first: what's written from it is read up to a multiple of it ([`WRITTEN_MAX`]).
@@ -428,18 +443,19 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
         _ => (Vec::new(), Vec::new(), Vec::new()),
     };
     // The HTML body's text as it's shown (Outlook's copy, without what's hidden from Outlook);
-    // other HTML as it came.
-    let as_text = |h: &str| match &ready {
-        Some(r) if html.as_deref() == Some(h) => html::html_to_text_within(&r.text, WRITTEN_MAX, r.hidden),
-        _ => html_to_text(h),
+    // HTML standing in for one as it came.
+    let as_text = |from: TextFrom<'_>| match (from, &ready) {
+        (TextFrom::Body(_), Some(r)) => html::html_to_text_within(&r.text, WRITTEN_MAX, r.hidden),
+        (TextFrom::Body(h) | TextFrom::StandingIn(h), _) => html_to_text(h),
     };
-    let (text, had_html) = match (m.text_body().len() > 0, m.body_text(0), html_whole(&m)) {
-        _ if let Some(h) = tnef_html => (as_text(h), true),
+    let from = html.as_deref().map(TextFrom::Body).or(standing_in.as_deref().map(TextFrom::StandingIn));
+    let (text, had_html) = match (m.text_body().len() > 0, m.body_text(0), from) {
+        _ if let Some(h) = tnef_html => (as_text(TextFrom::Body(h)), true),
         // Prefer the HTML version when the text part is an auto-generated stub.
-        (_, Some(t), Some(h)) if t.trim().is_empty() => (as_text(&h), true),
+        (_, Some(t), Some(from)) if t.trim().is_empty() => (as_text(from), true),
         // Every text part (one after an attachment too), soft-wrapped lines whole again.
         (true, Some(t), _) if !m.text_body().next().is_some_and(|p| is_html(&p)) => (tidy_text(&plain_body(&m).unwrap_or(t.into_owned())), real_html),
-        (_, _, Some(h)) => (as_text(&h), true),
+        (_, _, Some(from)) => (as_text(from), true),
         (_, Some(t), None) => (tidy_text(&plain_body(&m).unwrap_or(t.into_owned())), false),
         _ => (String::new(), false),
     };
