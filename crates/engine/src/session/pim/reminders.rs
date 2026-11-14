@@ -7,6 +7,33 @@ use super::*;
 pub(super) const REMINDER_KEPT_AFTER_END: i64 = 86_400;
 /// Most reminders listed at once.
 const REMINDERS_MAX: usize = 200;
+/// Most answers to reminders kept (the oldest reminders' go first).
+const ANSWERS_MAX: usize = 5000;
+
+/// What names a reminder, as [`DueReminder::key`] and the answers kept with the preferences
+/// have it: `<account>|<uid>|<time>` (an occurrence's start, or a task's reminder time). The
+/// account is up to the first `|` (an account's id has none), the time after the last; the uid,
+/// a server's, may have `|` in it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ReminderKey<'a> {
+    pub(crate) account: &'a str,
+    pub(crate) uid: &'a str,
+    pub(crate) at: i64,
+}
+
+impl<'a> ReminderKey<'a> {
+    pub(crate) fn parse(key: &'a str) -> Option<ReminderKey<'a>> {
+        let (account, rest) = key.split_once('|')?;
+        let (uid, at) = rest.rsplit_once('|')?;
+        Some(ReminderKey { account, uid, at: at.parse().ok()? })
+    }
+}
+
+impl std::fmt::Display for ReminderKey<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}|{}|{}", self.account, self.uid, self.at)
+    }
+}
 
 impl Session {
     /// The reminders due at `now`, soonest event first: occurrences of the user's own calendars
@@ -44,7 +71,7 @@ impl Session {
                     }
                     let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
                     let occurrence = e.recurrence_id.unwrap_or(o.start);
-                    let key = format!("{account}|{}|{occurrence}", e.uid);
+                    let key = ReminderKey { account, uid: &e.uid, at: occurrence }.to_string();
                     // Dismissed in another calendar program, which wrote so into the event
                     // (RFC 9074's `ACKNOWLEDGED`).
                     if ical::acknowledged(e).is_some_and(|at| at >= start - minutes * 60) && !self.prefs.reminders.contains_key(&key) {
@@ -110,10 +137,12 @@ impl Session {
     /// the next sync ([`ReminderAnswer`]); a CalDAV server by the event's alarm acknowledged at
     /// `now` (RFC 9074), which every client reads. A snooze stays here on a CalDAV server.
     fn tell_server_reminder(&mut self, key: &str, snooze_until: Option<i64>, now: i64) {
-        let mut parts = key.rsplitn(3, '|');
-        let (Some(occurrence), Some(uid), Some(account)) = (parts.next().and_then(|o| o.parse::<i64>().ok()), parts.next(), parts.next()) else {
+        let Some(ReminderKey { account, uid, at: occurrence }) = ReminderKey::parse(key) else { return };
+        // A task's reminder is answered here alone: the task with this uid that reminds at this
+        // time, not an event that happens to have a task's uid (its server was told nothing).
+        if self.pim.get(account).is_some_and(|p| p.tasks.iter().any(|t| t.task.uid == uid && t.task.reminder == Some(occurrence))) {
             return;
-        };
+        }
         let Some(config) = self.account(account).map(|a| a.config.clone()) else { return };
         if !config.has_server() {
             return;
@@ -159,17 +188,24 @@ impl Session {
     }
 
     /// Answers whose reminder can't be listed any more go ([`Session::reminder_may_be_listed`]),
-    /// and the list is kept small. They went by the occurrence's start, a month on: a dismissed
-    /// reminder of an event that went on longer, or of a task due later than it reminded, came
-    /// back (at once, when a snooze took its end for "now").
+    /// and the list is kept small, the oldest reminders' going first. They went by the
+    /// occurrence's start, a month on: a dismissed reminder of an event that went on longer, or of
+    /// a task due later than it reminded, came back (at once, when a snooze took its end for
+    /// "now").
     fn forget_old_reminders(&mut self, now: i64) {
         let gone: Vec<String> = self.prefs.reminders.keys().filter(|k| !self.reminder_may_be_listed(k, now)).cloned().collect();
         for k in gone {
             self.prefs.reminders.remove(&k);
         }
-        while self.prefs.reminders.len() > 5000 {
-            let Some(first) = self.prefs.reminders.keys().next().cloned() else { break };
-            self.prefs.reminders.remove(&first);
+        let over = self.prefs.reminders.len().saturating_sub(ANSWERS_MAX);
+        if over > 0 {
+            let mut by_time: Vec<(i64, &String)> =
+                self.prefs.reminders.keys().map(|k| (ReminderKey::parse(k).map_or(i64::MIN, |r| r.at), k)).collect();
+            by_time.sort_unstable();
+            let oldest: Vec<String> = by_time.into_iter().take(over).map(|(_, k)| k.clone()).collect();
+            for k in oldest {
+                self.prefs.reminders.remove(&k);
+            }
         }
     }
 
@@ -178,10 +214,7 @@ impl Session {
     /// occurrence hasn't ended more than [`REMINDER_KEPT_AFTER_END`] ago (and a day to spare),
     /// the task isn't done and still reminds at that time.
     fn reminder_may_be_listed(&self, key: &str, now: i64) -> bool {
-        let mut parts = key.rsplitn(3, '|');
-        let (Some(at), Some(uid), Some(account)) = (parts.next().and_then(|t| t.parse::<i64>().ok()), parts.next(), parts.next()) else {
-            return false;
-        };
+        let Some(ReminderKey { account, uid, at }) = ReminderKey::parse(key) else { return false };
         let Some(p) = self.pim.get(account) else { return false };
         let since = now.saturating_sub(REMINDER_KEPT_AFTER_END).saturating_sub(86_400);
         if let Some(t) = p.tasks.iter().map(|t| &t.task).find(|t| t.uid == uid) {

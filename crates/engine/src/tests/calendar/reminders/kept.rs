@@ -61,3 +61,34 @@ fn answers_go_once_their_reminder_cant_be_listed() {
     let kept: Vec<&String> = s.prefs.reminders.keys().collect();
     assert_eq!(kept, [&key("soon", NOW + 600)]);
 }
+
+/// An event whose uid has a `|` in it (a server's uid can): its reminder dismissed stays
+/// dismissed. Its answer was read back as another account's, of no event, and forgotten as it
+/// was given: due again at once.
+#[test]
+fn a_uid_with_a_bar_is_dismissed_for_good() {
+    let mut s = sample_session("reminders-bar");
+    event(&mut s, "040000|abc|", NOW + 600, NOW + 4200);
+    let k = s.due_reminders(NOW).into_iter().find(|r| r.uid == "040000|abc|").map(|r| r.key).unwrap();
+    s.run("reminders.dismiss", &json!({"key": k})).unwrap();
+    assert!(!due(&s).contains(&"040000|abc|".to_string()), "{:?}", due(&s));
+    assert!(s.prefs.reminders.contains_key(&k));
+}
+
+/// Over 5,000 answers kept, the oldest reminders' go first: those of one event went before
+/// those of another by its account's and uid's names.
+#[test]
+fn the_oldest_answers_go_first() {
+    let mut s = sample_session("reminders-many");
+    let (day, hour) = (86_400, 3600);
+    event(&mut s, "zed", NOW + 600, NOW + 4200);
+    event(&mut s, "ann", NOW + 600, NOW + 4200);
+    for i in 0..2600 {
+        s.prefs.reminders.insert(key("zed", NOW + i * hour), 0);
+        s.prefs.reminders.insert(key("ann", NOW + 400 * day + i * hour), 0);
+    }
+    s.snooze_reminder(&key("zed", NOW + 600), NOW + 1200);
+    assert_eq!(s.prefs.reminders.len(), 5000);
+    assert_eq!(s.prefs.reminders.keys().filter(|k| k.starts_with("sample|ann|")).count(), 2600, "the latest kept");
+    assert!(!s.prefs.reminders.contains_key(&key("zed", NOW)) && s.prefs.reminders.contains_key(&key("zed", NOW + 2599 * hour)));
+}

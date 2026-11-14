@@ -7,7 +7,7 @@
 use mailcraft_model::pim::{StoredTask, TASK_NOTES_KEPT, Task, task_day};
 use mailcraft_model::search::{fold_all, folded_has_phrase};
 
-use super::reminders::REMINDER_KEPT_AFTER_END;
+use super::reminders::{REMINDER_KEPT_AFTER_END, ReminderKey};
 use super::*;
 
 /// Most tasks an account keeps, and most characters in a title and in the notes.
@@ -293,7 +293,7 @@ impl Session {
             }
             for t in p.tasks.iter().map(|t| &t.task).filter(|t| !t.is_done()) {
                 let Some(at) = t.reminder else { continue };
-                let key = format!("{account}|{}|{at}", t.uid);
+                let key = ReminderKey { account, uid: &t.uid, at }.to_string();
                 let due = match self.prefs.reminders.get(&key) {
                     Some(0) => continue,
                     Some(until) => *until,
