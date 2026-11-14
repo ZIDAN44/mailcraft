@@ -22,16 +22,25 @@ fn both((added, copied, _): (usize, usize, Vec<Event>)) -> (usize, usize) {
 
 /// Account `account` started on `pool`, then the message files and a copy of a message kept here
 /// put into `folder`: what was said of each (messages added, copies filed), and everything said.
-fn file_both(pool: &mut Pool, store: &Store, account: AccountConfig, secret: &str, folder: &str, name: &str) -> (usize, usize, Vec<Event>) {
+/// A wait that times out says what `server` tells of where its side stood.
+fn file_both(
+    pool: &mut Pool,
+    store: &Store,
+    account: AccountConfig,
+    secret: &str,
+    folder: &str,
+    name: &str,
+    server: &dyn Fn() -> String,
+) -> (usize, usize, Vec<Event>) {
     let id = account.id.clone();
     pool.submit(Job::Start { account, password: Some(Secret(secret.into())) });
-    let mut said = until(pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let mut said = until_telling(pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }), server);
     let (dir, paths) = files(name);
     pool.submit(Job::FileMessages { account: id.clone(), folder: folder.into(), paths });
-    said.extend(until(pool, "filed", |e| matches!(e, Event::MessagesFiled { .. })));
+    said.extend(until_telling(pool, "filed", |e| matches!(e, Event::MessagesFiled { .. }), server));
     let Some(Event::MessagesFiled { added, .. }) = said.last().cloned() else { panic!() };
     pool.submit(Job::FileCopies { account: id.clone(), folder: folder.into(), mail: vec![(kept_here(store), marked())], moved: false });
-    said.extend(until(pool, "copied", |e| matches!(e, Event::CopiesFiled { .. })));
+    said.extend(until_telling(pool, "copied", |e| matches!(e, Event::CopiesFiled { .. }), server));
     let Some(Event::CopiesFiled { done, failed, .. }) = said.last().cloned() else { panic!() };
     assert!(failed.is_empty(), "{failed:?}");
     pool.submit(Job::Remove { account: id });
@@ -57,7 +66,7 @@ fn every_kind_of_server_takes_message_files_and_copies() {
         jmap: Some(server.base.clone()),
         ..Default::default()
     };
-    assert_eq!(both(file_both(&mut pool, &store, account, fake_jmap::PASSWORD, "INBOX", "kinds-jmap")), (2, 1));
+    assert_eq!(both(file_both(&mut pool, &store, account, fake_jmap::PASSWORD, "INBOX", "kinds-jmap", &String::new)), (2, 1));
     {
         let data = server.data.lock().unwrap();
         let mut keywords: Vec<Vec<&str>> = data.emails.iter().map(|e| e.keywords.iter().map(String::as_str).collect()).collect();
@@ -73,7 +82,7 @@ fn every_kind_of_server_takes_message_files_and_copies() {
     let store = crate::fake::store("filing-kinds-graph");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     let account = AccountConfig { id: "g1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
-    assert_eq!(both(file_both(&mut pool, &store, account, fake_graph::TOKEN, "INBOX", "kinds-graph")), (2, 1));
+    assert_eq!(both(file_both(&mut pool, &store, account, fake_graph::TOKEN, "INBOX", "kinds-graph", &String::new)), (2, 1));
     assert_eq!(server.data.lock().unwrap().messages.len(), 3);
 
     // Exchange.
@@ -89,7 +98,14 @@ fn every_kind_of_server_takes_message_files_and_copies() {
         ews: Some(server.url.clone()),
         ..Default::default()
     };
-    assert_eq!(both(file_both(&mut pool, &store, account, fake_ews::PASSWORD, "INBOX", "kinds-ews")), (2, 1));
+    assert_eq!(
+        both(file_both(&mut pool, &store, account, fake_ews::PASSWORD, "INBOX", "kinds-ews", &|| server
+            .data
+            .lock()
+            .map(|d| d.where_it_stopped())
+            .unwrap_or_default())),
+        (2, 1)
+    );
     assert_eq!(server.data.lock().unwrap().items.iter().filter(|i| i.folder == inbox).count(), 3);
 
     // POP: its folders are on this computer, said to have changed.
@@ -105,7 +121,7 @@ fn every_kind_of_server_takes_message_files_and_copies() {
         smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
         ..Default::default()
     };
-    let (added, copied, said) = file_both(&mut pool, &store, account, "pw", "Archive", "kinds-pop");
+    let (added, copied, said) = file_both(&mut pool, &store, account, "pw", "Archive", "kinds-pop", &String::new);
     assert_eq!((added, copied), (2, 1));
     let changed = said.iter().filter(|e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Archive")).count();
     assert_eq!(changed, 2, "once for the files, once for the copy");

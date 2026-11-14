@@ -6,6 +6,56 @@ use std::net::{TcpListener, TcpStream};
 
 use super::*;
 
+/// What came to the server and went out: connections made, and each request, when it came (since
+/// the first), what it asked for, and whether it was answered.
+#[derive(Default)]
+pub(super) struct Traffic {
+    began: Option<std::time::Instant>,
+    connections: usize,
+    requests: Vec<(std::time::Duration, String, bool)>,
+}
+
+impl Data {
+    /// Where the server's side stood (a test's wait that timed out says it): the connections, the
+    /// requests answered and the one still being answered, and the last few, each with when it
+    /// came. A request that came and was never answered is the server's to explain; none
+    /// waiting, the client never sent the next.
+    pub fn where_it_stopped(&self) -> String {
+        let t = &self.traffic;
+        let answered = t.requests.iter().filter(|(_, _, done)| *done).count();
+        let last: Vec<String> = t
+            .requests
+            .iter()
+            .rev()
+            .take(8)
+            .rev()
+            .map(|(at, what, done)| format!("{} at {:.2} s{}", what, at.as_secs_f64(), if *done { "" } else { " (not answered)" }))
+            .collect();
+        format!("{} connections, {} requests, {answered} answered; the last: {}", t.connections, t.requests.len(), last.join(", "))
+    }
+
+    /// A request came: what it asks for (its SOAP operation, or what it is), and its number.
+    fn came(&mut self, body: &[u8]) -> usize {
+        let text = String::from_utf8_lossy(body);
+        let what = match text.find("<m:") {
+            Some(at) => text[at + 3..].split(|c: char| !c.is_ascii_alphanumeric()).next().unwrap_or("?").to_string(),
+            None if text.contains("Autodiscover") => "Autodiscover".to_string(),
+            None if body.is_empty() => "(no body)".to_string(),
+            None => "?".to_string(),
+        };
+        let began = *self.traffic.began.get_or_insert_with(std::time::Instant::now);
+        self.traffic.requests.push((began.elapsed(), what, false));
+        self.traffic.requests.len() - 1
+    }
+
+    /// Request `n` answered.
+    fn answered(&mut self, n: usize) {
+        if let Some(r) = self.traffic.requests.get_mut(n) {
+            r.2 = true;
+        }
+    }
+}
+
 fn respond(s: &mut impl Write, status: u16, headers: &[(&str, String)], body: &[u8]) {
     let mut head = format!("HTTP/1.1 {status} X\r\nContent-Type: text/xml; charset=utf-8\r\nContent-Length: {}\r\n", body.len());
     for (k, v) in headers {
@@ -28,6 +78,9 @@ pub(super) fn serve_at(data: Data, at: &str) -> Server {
         for conn in l.incoming() {
             let Ok(s) = conn else { continue };
             let shared = shared.clone();
+            if let Ok(mut d) = shared.lock() {
+                d.traffic.connections += 1;
+            }
             std::thread::spawn(move || serve_connection(s, &shared));
         }
     });
@@ -133,10 +186,18 @@ impl SignIn {
 fn serve_connection(mut s: TcpStream, shared: &Arc<Mutex<Data>>) {
     let mut reader = BufReader::new(s.try_clone().unwrap());
     let mut sign_in = SignIn::default();
-    while let Some(r) = read_request(&mut reader) {
+    // The request in hand, answered by the time the loop comes round again (every way through
+    // it answers), and marked so before the next is waited for.
+    let mut in_hand: Option<usize> = None;
+    loop {
+        if let Some(n) = in_hand.take() {
+            shared.lock().unwrap().answered(n);
+        }
+        let Some(r) = read_request(&mut reader) else { return };
         let only = {
             let mut d = shared.lock().unwrap();
             d.agents.push(r.agent.clone());
+            in_hand = Some(d.came(&r.body));
             d.only_agent.clone()
         };
         if only.is_some_and(|o| o != r.agent) {

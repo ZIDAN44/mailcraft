@@ -11,7 +11,12 @@ use crate::fake::{State, serve_tcp};
 
 mod kinds;
 
-fn until(pool: &Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
+fn until(pool: &Pool, what: &str, f: impl FnMut(&Event) -> bool) -> Vec<Event> {
+    until_telling(pool, what, f, &String::new)
+}
+
+/// [`until`], and on timing out, what `server` says of where its side stood.
+fn until_telling(pool: &Pool, what: &str, mut f: impl FnMut(&Event) -> bool, server: &dyn Fn() -> String) -> Vec<Event> {
     let end = Instant::now() + Duration::from_secs(20);
     let mut seen = Vec::new();
     while Instant::now() < end {
@@ -23,7 +28,7 @@ fn until(pool: &Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Even
             }
         }
     }
-    panic!("timed out waiting for {what}; saw {seen:?}");
+    panic!("timed out waiting for {what}; saw {seen:?}; the server: {}", server());
 }
 
 /// The files to drop: an Outlook `.msg`, an `.eml`, and a picture that isn't a message.

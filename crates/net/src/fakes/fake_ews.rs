@@ -104,6 +104,9 @@ pub struct Data {
     pub open: bool,
     /// Its reminders (issue #40).
     pub reminders: reminders::Reminders,
+    /// What came to it and went out, for a test's wait to tell where it stopped
+    /// ([`Data::where_it_stopped`]).
+    traffic: serving::Traffic,
     next: u32,
 }
 
@@ -143,6 +146,7 @@ impl Default for Data {
             only_agent: None,
             open: false,
             reminders: Default::default(),
+            traffic: Default::default(),
             next: 0,
         };
         d.folders.push(Fo {
