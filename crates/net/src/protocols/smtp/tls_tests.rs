@@ -62,7 +62,8 @@ fn converse(s: &mut (impl Read + Write), log: &mut String) {
 }
 
 /// An SMTP server on 127.0.0.1 presenting `identity`, over implicit TLS or STARTTLS, for one
-/// connection. What the client said, once it's gone.
+/// connection. What the client said, once it's gone, or once it hasn't come, or said nothing,
+/// for [`crate::http::tests::TEST_SERVER_WAIT`].
 fn serve(identity: Identity, starttls: bool) -> (u16, JoinHandle<String>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -76,7 +77,7 @@ fn serve(identity: Identity, starttls: bool) -> (u16, JoinHandle<String>) {
         .unwrap();
     let handle = std::thread::spawn(move || {
         let mut log = String::new();
-        let Ok((mut tcp, _)) = listener.accept() else { return log };
+        let Some(mut tcp) = crate::http::tests::accept_within(&listener, crate::http::tests::TEST_SERVER_WAIT) else { return log };
         if starttls {
             if tcp.write_all(b"220 test ESMTP\r\n").is_err() {
                 return log;

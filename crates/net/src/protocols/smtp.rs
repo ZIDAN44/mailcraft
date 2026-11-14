@@ -266,11 +266,13 @@ pub(crate) mod tests {
         serve_once_on(TcpListener::bind("127.0.0.1:0").unwrap())
     }
 
-    /// The same, on a given listener.
+    /// The same, on a given listener. A client that doesn't come, or goes quiet, within
+    /// [`crate::http::tests::TEST_SERVER_WAIT`] fails the thread rather than hanging its joiner.
     pub(crate) fn serve_once_on(l: TcpListener) -> (u16, std::thread::JoinHandle<String>) {
         let port = l.local_addr().unwrap().port();
         let h = std::thread::spawn(move || {
-            let (s, _) = l.accept().unwrap();
+            let wait = crate::http::tests::TEST_SERVER_WAIT;
+            let s = crate::http::tests::accept_within(&l, wait).expect("no client came to the test SMTP server");
             let mut w = s.try_clone().unwrap();
             let mut r = BufReader::new(s);
             let mut log = String::new();

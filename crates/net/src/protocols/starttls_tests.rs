@@ -119,7 +119,8 @@ fn converse(s: &mut (impl Read + Write), p: Protocol, up: Upgrade, tls: bool, lo
 }
 
 /// A server for `p` on 127.0.0.1 presenting the test certificate, for one connection. What the
-/// client said, once it's gone.
+/// client said, once it's gone, or once it hasn't come, or said nothing, for
+/// [`crate::http::tests::TEST_SERVER_WAIT`].
 fn serve(p: Protocol, up: Upgrade) -> (u16, JoinHandle<String>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -133,7 +134,7 @@ fn serve(p: Protocol, up: Upgrade) -> (u16, JoinHandle<String>) {
         .unwrap();
     let handle = std::thread::spawn(move || {
         let mut log = String::new();
-        let Ok((mut tcp, _)) = listener.accept() else { return log };
+        let Some(mut tcp) = crate::http::tests::accept_within(&listener, crate::http::tests::TEST_SERVER_WAIT) else { return log };
         if !converse(&mut tcp, p, up, false, &mut log) {
             return log;
         }

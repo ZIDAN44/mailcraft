@@ -1,5 +1,6 @@
-use std::io::{BufRead, BufReader};
-use std::net::TcpListener;
+use std::io::{BufRead, BufReader, ErrorKind};
+use std::net::{TcpListener, TcpStream};
+use std::time::{Duration, Instant};
 
 use super::*;
 
@@ -37,15 +38,49 @@ fn a_sign_in_doesnt_follow_a_redirect_to_another_site() {
     assert!(redirected(&bare, &at("https://example.com/a"), &at("https://elsewhere.example/b")).is_none());
 }
 
+/// How long a test's server waits for its next connection, and for each read or write on one,
+/// before it gives up: a client that never comes fails the test that waits on the server, where
+/// it hung the whole run (a test waited for a token request that wasn't coming, for an hour).
+pub(crate) const TEST_SERVER_WAIT: Duration = Duration::from_secs(60);
+
+/// The next connection to `l` within `wait`, its reads and writes timing out after as long;
+/// `None` when none came in that time.
+pub(crate) fn accept_within(l: &TcpListener, wait: Duration) -> Option<TcpStream> {
+    l.set_nonblocking(true).ok()?;
+    let end = Instant::now() + wait;
+    loop {
+        match l.accept() {
+            Ok((s, _)) => {
+                // Taken from a listener that doesn't block, it wouldn't either (on Windows).
+                s.set_nonblocking(false).ok()?;
+                s.set_read_timeout(Some(wait)).ok()?;
+                s.set_write_timeout(Some(wait)).ok()?;
+                return Some(s);
+            }
+            Err(e) if e.kind() == ErrorKind::WouldBlock && Instant::now() < end => std::thread::sleep(Duration::from_millis(5)),
+            Err(_) => return None,
+        }
+    }
+}
+
 /// Serve `responses` (one per connection, in order) on localhost; returns the base URL and
-/// the requests received.
+/// the requests received. A request that doesn't come within [`TEST_SERVER_WAIT`] fails the
+/// server's thread, and so whoever joins it, saying how many came.
 pub(crate) fn serve(responses: Vec<Vec<u8>>) -> (String, std::thread::JoinHandle<Vec<String>>) {
+    serve_within(responses, TEST_SERVER_WAIT)
+}
+
+/// [`serve`], waiting `wait` for each request.
+fn serve_within(responses: Vec<Vec<u8>>, wait: Duration) -> (String, std::thread::JoinHandle<Vec<String>>) {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://127.0.0.1:{}", l.local_addr().unwrap().port());
     let h = std::thread::spawn(move || {
         let mut seen = Vec::new();
+        let all = responses.len();
         for r in responses {
-            let (mut s, _) = l.accept().unwrap();
+            let Some(mut s) = accept_within(&l, wait) else {
+                panic!("the test server was sent {} of its {all} requests: no other came in {wait:?}", seen.len());
+            };
             let mut reader = BufReader::new(s.try_clone().unwrap());
             let mut req = String::new();
             let mut len = 0usize;
@@ -68,6 +103,27 @@ pub(crate) fn serve(responses: Vec<Vec<u8>>) -> (String, std::thread::JoinHandle
         seen
     });
     (base, h)
+}
+
+/// Test hang: a test joined the token server once asked to sign in again, and the token request
+/// the server still waited for never came; the server waited for it, and the test with it, for an
+/// hour. A request that doesn't come in time fails the server's thread, saying how many did.
+#[test]
+fn a_test_server_waits_for_its_requests_only_so_long() {
+    let ok = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok".to_vec();
+    let (base, h) = serve_within(vec![ok.clone(), ok], Duration::from_millis(300));
+    assert_eq!(get(&base, 100).unwrap().body, b"ok");
+    let began = Instant::now();
+    let why = h.join().expect_err("the second request never came");
+    assert!(began.elapsed() < Duration::from_secs(10), "{:?}", began.elapsed());
+    let why = why.downcast_ref::<String>().cloned().unwrap_or_default();
+    assert!(why.contains("1 of its 2 requests"), "{why}");
+    // A client that connects and says nothing is let go as soon.
+    let (base, h) = serve_within(vec![b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec()], Duration::from_millis(300));
+    let quiet = TcpStream::connect(base.trim_start_matches("http://")).unwrap();
+    let seen = h.join();
+    drop(quiet);
+    assert!(seen.is_ok_and(|s| s == [""]), "an empty request served, not waited on");
 }
 
 #[test]
