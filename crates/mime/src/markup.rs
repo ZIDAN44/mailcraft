@@ -116,8 +116,25 @@ fn safe_url(u: &str) -> bool {
     (l.starts_with("https://") || l.starts_with("http://") || l.starts_with("mailto:")) && !u.contains(['"', '<', '>', ' '])
 }
 
+/// Where `needle` next is in `line` at or after `from`, by what an earlier search (`seen`: where
+/// it searched from, what it found) already knows: what it found still holds from any place
+/// before it, and nothing found holds from any later place. Each mark's close was looked for to
+/// the end of the line from every opening mark, and a line of `[` (or of unclosed `*`) took
+/// time in its length squared.
+fn next_of(line: &str, needle: &str, seen: &mut (usize, Option<usize>), from: usize) -> Option<usize> {
+    if from >= seen.0 && seen.1.is_none_or(|at| at >= from) {
+        return seen.1;
+    }
+    let at = line.get(from..).and_then(|r| r.find(needle)).map(|a| from + a);
+    *seen = (from, at);
+    at
+}
+
 /// Split a line into inline pieces. Unclosed marks stay as text.
 pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
+    // The closes looked for, and what was last found of each ([`next_of`]).
+    const CLOSES: [&str; 5] = ["**", "~~", "`", "*", "]("];
+    let mut seen = [(usize::MAX, None); 5];
     let mut out = Vec::new();
     let mut text_start = 0;
     let mut i = 0;
@@ -132,28 +149,31 @@ pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
     while i < bytes.len() {
         let rest = line.get(i..).unwrap_or("");
         // Delimited spans: (open, close, constructor).
-        let pair = |open: &str, close: &str| -> Option<(usize, usize)> {
+        let mut pair = |open: &str, close: usize| -> Option<(usize, usize)> {
             let body = rest.strip_prefix(open)?;
             if body.starts_with(' ') || body.is_empty() {
                 return None;
             }
-            let end = body.find(close)?;
+            let from = i + open.len();
+            let end = next_of(line, CLOSES.get(close)?, seen.get_mut(close)?, from)? - from;
             (end > 0).then_some((open.len(), end))
         };
-        let matched: Option<(Inline<'a>, usize)> = if let Some((o, e)) = pair("**", "**") {
+        let matched: Option<(Inline<'a>, usize)> = if let Some((o, e)) = pair("**", 0) {
             Some((Inline::Bold(&rest[o..o + e]), o + e + 2))
-        } else if let Some((o, e)) = pair("~~", "~~") {
+        } else if let Some((o, e)) = pair("~~", 1) {
             Some((Inline::Strike(&rest[o..o + e]), o + e + 2))
-        } else if let Some((o, e)) = pair("`", "`") {
+        } else if let Some((o, e)) = pair("`", 2) {
             Some((Inline::Code(&rest[o..o + e]), o + e + 1))
-        } else if let Some((o, e)) = pair("*", "*").filter(|_| !rest.starts_with("**")) {
+        } else if let Some((o, e)) = pair("*", 3).filter(|_| !rest.starts_with("**")) {
             // Not inside a word (`a*b*c` stays text).
             let before_ok = i == 0 || line[..i].chars().last().is_some_and(|c| !c.is_alphanumeric());
             before_ok.then(|| (Inline::Italic(&rest[o..o + e]), o + e + 1))
         } else if rest.starts_with("![") || rest.starts_with('[') {
             let pic = rest.starts_with("![");
             let open = if pic { 2 } else { 1 };
-            rest.get(open..).and_then(|r| r.find("](").map(|t| (r, t))).and_then(|(r, t)| {
+            let from = i + open;
+            let t = seen.get_mut(4).and_then(|s| next_of(line, "](", s, from)).map(|at| at - from);
+            rest.get(open..).zip(t).and_then(|(r, t)| {
                 let text = &r[..t];
                 let after = &r[t + 2..];
                 let end = after.find(')')?;
@@ -332,6 +352,105 @@ pub fn pictures(text: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`inlines`] as it was, searching the line from every mark: what it reads, the new one
+    /// must read too.
+    fn by_search<'a>(line: &'a str) -> Vec<Inline<'a>> {
+        let mut out = Vec::new();
+        let mut text_start = 0;
+        let mut i = 0;
+        let bytes = line.as_bytes();
+        let flush = |out: &mut Vec<Inline<'a>>, from: usize, to: usize| {
+            if to > from
+                && let Some(t) = line.get(from..to)
+            {
+                out.push(Inline::Text(t));
+            }
+        };
+        while i < bytes.len() {
+            let rest = line.get(i..).unwrap_or("");
+            // Delimited spans: (open, close, constructor).
+            let pair = |open: &str, close: &str| -> Option<(usize, usize)> {
+                let body = rest.strip_prefix(open)?;
+                if body.starts_with(' ') || body.is_empty() {
+                    return None;
+                }
+                let end = body.find(close)?;
+                (end > 0).then_some((open.len(), end))
+            };
+            let matched: Option<(Inline<'a>, usize)> = if let Some((o, e)) = pair("**", "**") {
+                Some((Inline::Bold(&rest[o..o + e]), o + e + 2))
+            } else if let Some((o, e)) = pair("~~", "~~") {
+                Some((Inline::Strike(&rest[o..o + e]), o + e + 2))
+            } else if let Some((o, e)) = pair("`", "`") {
+                Some((Inline::Code(&rest[o..o + e]), o + e + 1))
+            } else if let Some((o, e)) = pair("*", "*").filter(|_| !rest.starts_with("**")) {
+                // Not inside a word (`a*b*c` stays text).
+                let before_ok = i == 0 || line[..i].chars().last().is_some_and(|c| !c.is_alphanumeric());
+                before_ok.then(|| (Inline::Italic(&rest[o..o + e]), o + e + 1))
+            } else if rest.starts_with("![") || rest.starts_with('[') {
+                let pic = rest.starts_with("![");
+                let open = if pic { 2 } else { 1 };
+                rest.get(open..).and_then(|r| r.find("](").map(|t| (r, t))).and_then(|(r, t)| {
+                    let text = &r[..t];
+                    let after = &r[t + 2..];
+                    let end = after.find(')')?;
+                    let url = &after[..end];
+                    let used = open + t + 2 + end + 1;
+                    if text.contains(']') {
+                        return None;
+                    }
+                    if pic {
+                        url.starts_with("cid:").then_some((Inline::Picture { alt: text, src: url }, used))
+                    } else {
+                        safe_url(url).then_some((Inline::Link { text, url }, used))
+                    }
+                })
+            } else if is_url_start(rest) && (i == 0 || line[..i].ends_with([' ', '(', '\t'])) {
+                let end = rest.find(|c: char| c.is_whitespace() || c == '<' || c == '>' || c == '"').unwrap_or(rest.len());
+                let url = rest[..end].trim_end_matches(['.', ',', ';', ':', '!', '?', ')']);
+                (url.len() > 8).then_some((Inline::Url(url), url.len()))
+            } else {
+                None
+            };
+            match matched {
+                Some((piece, used)) => {
+                    flush(&mut out, text_start, i);
+                    out.push(piece);
+                    i += used;
+                    text_start = i;
+                }
+                None => {
+                    // Next character (UTF-8 safe).
+                    i += rest.chars().next().map_or(1, char::len_utf8);
+                }
+            }
+        }
+        flush(&mut out, text_start, bytes.len());
+        out
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn marks_read_as_they_did(line in r"[\[\]()*~`abhtps :/.!]{0,40}") {
+            proptest::prop_assert_eq!(inlines(&line), by_search(&line));
+        }
+    }
+
+    /// A long line of opening marks that never close (pasted, or quoted in a reply) reads at once:
+    /// each looked for its close to the end of the line, in time its length squared.
+    #[test]
+    fn a_line_of_open_marks_reads_at_once() {
+        for line in ["[".repeat(200_000), "[]".repeat(100_000), "*a".repeat(100_000), "`".to_string() + &"~~a".repeat(60_000)] {
+            let took = std::time::Instant::now();
+            let pieces = inlines(&line);
+            assert!(took.elapsed() < std::time::Duration::from_secs(5), "{:?} for {}", took.elapsed(), &line[..4]);
+            assert!(!pieces.is_empty());
+        }
+        // What does close reads as it did.
+        assert_eq!(inlines("[[a](https://x.example)"), vec![Inline::Link { text: "[a", url: "https://x.example" }]);
+        assert_eq!(inlines("*a **b** c*"), vec![Inline::Italic("a "), Inline::Italic("b"), Inline::Text("* c*")]);
+    }
 
     #[test]
     fn inline_marks() {
