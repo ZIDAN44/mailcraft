@@ -293,9 +293,13 @@ fn keys_are_listed_kept_and_forgotten() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Pgp { work: PgpWork::Forget { .. }, .. })));
     assert!(s.pgp_key("sample").is_none());
     assert!(!s.smime_settings("sample").sign);
-    // Nothing secret in what MailCraft keeps.
-    let doc = std::fs::read_to_string(s.store.as_ref().unwrap().root().join("accounts").join("sample").join(crate::PGP_DOC)).unwrap_or_default();
-    assert!(!doc.contains("PRIVATE"));
+    // Nothing secret in what MailCraft keeps, read where the store keeps it, which must be there
+    // (a path with a folder the store doesn't have read nothing, and found nothing secret
+    // whatever was written).
+    let doc = s.store.as_ref().unwrap().load_account_doc_bytes("sample", crate::PGP_DOC).unwrap().expect("the account's OpenPGP settings are kept");
+    let doc = String::from_utf8_lossy(&doc);
+    assert!(doc.contains("ana@posteo.example"), "the keys known are in it: {doc}");
+    assert!(!doc.contains("PRIVATE"), "{doc}");
     done(s);
 }
 
