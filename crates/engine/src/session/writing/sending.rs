@@ -55,7 +55,7 @@ impl Session {
     /// Bcc. Send refuses it for that (a `Params` error, its words for scripts); the window
     /// asks this to say so in its own.
     pub fn compose_has_no_recipient(&self) -> bool {
-        self.compose.as_ref().and_then(|c| self.compose_draft(c).ok()).is_some_and(|d| no_recipient(&d))
+        self.compose.as_ref().and_then(|c| self.draft_of(c, false).ok()).is_some_and(|d| no_recipient(&d))
     }
 
     /// `account` when mail can be sent from it; else the first account that can send, as Outlook

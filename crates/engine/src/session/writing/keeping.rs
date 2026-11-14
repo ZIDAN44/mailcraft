@@ -255,31 +255,8 @@ impl Session {
 
     /// A message as a draft's source, the Drafts folder it goes in, and its Message-ID.
     pub(crate) fn draft_bytes(&mut self, c: &Compose) -> Result<(Vec<u8>, String, String), CmdError> {
-        // Drafts may hold unfinished addresses: keep only the valid ones.
-        let lenient = addr::parse_valid;
-        let (body, html, inline) = c.bodies_with(&c.signature_code);
-        let d = mime::Draft {
-            reply_to: lenient(&c.reply_to),
-            to: lenient(&c.to),
-            cc: lenient(&c.cc),
-            bcc: lenient(&c.bcc),
-            subject: c.subject.clone(),
-            body,
-            in_reply_to: c.in_reply_to.clone(),
-            references: c.references.clone(),
-            attachments: c.attachments.clone(),
-            html,
-            inline,
-            importance: c.importance,
-            read_receipt: c.read_receipt,
-            seven_bit: false,
-            keep_bcc: true,
-            source: match (&c.source, c.mode) {
-                (Some(k), Some(ReplyMode::Forward)) => format!("forward {}", k.to_id()),
-                (Some(k), Some(_)) => format!("reply {}", k.to_id()),
-                _ => String::new(),
-            },
-        };
+        // Drafts may hold unfinished addresses: only the valid ones are kept.
+        let d = self.draft_of(c, true)?;
         // A server account without one gets Drafts made where it's filed, as Outlook makes it.
         let account = self.account(&c.account);
         let folder = match account.and_then(|a| a.folder(FolderRole::Drafts)) {

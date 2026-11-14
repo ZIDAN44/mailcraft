@@ -498,17 +498,32 @@ impl Session {
         Ok(serde_json::json!({ "compose": id }))
     }
 
-    pub(super) fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
-        let parse = |field: &str, s: &str| addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")));
+    /// `c` as it's written out: to be sent, or (`kept`) kept as a draft. Sent, every address must
+    /// read (else it's refused, saying which), its subject is trimmed and replies go where its
+    /// address has them go unless it says; kept, it may be unfinished: only the addresses that
+    /// read go, its subject as written, with its Bcc and the message it answers or forwards.
+    pub(super) fn draft_of(&self, c: &Compose, kept: bool) -> Result<mime::Draft, CmdError> {
+        let parse = |field: &str, s: &str| {
+            if kept {
+                Ok(addr::parse_valid(s))
+            } else {
+                addr::parse_list(s).map_err(|bad| CmdError::Params(format!("{field}: not an email address: {bad}")))
+            }
+        };
         let (body, html, inline) = c.bodies_with(&c.signature_code);
         // Where replies to the address it's from go, unless the message says where.
-        let replies = self.account(&c.account).and_then(|a| a.config.identity(&c.from)).map(|i| i.reply_to.as_str()).unwrap_or_default();
+        let replies = self.account(&c.account).and_then(|a| a.config.identity(&c.from)).map(|i| i.reply_to.as_str()).filter(|_| !kept);
+        let source = match (&c.source, c.mode) {
+            (Some(k), Some(ReplyMode::Forward)) if kept => format!("forward {}", k.to_id()),
+            (Some(k), Some(_)) if kept => format!("reply {}", k.to_id()),
+            _ => String::new(),
+        };
         Ok(mime::Draft {
-            reply_to: parse("Replies to", if c.reply_to.trim().is_empty() { replies } else { &c.reply_to })?,
+            reply_to: parse("Replies to", if c.reply_to.trim().is_empty() { replies.unwrap_or_default() } else { &c.reply_to })?,
             to: parse("To", &c.to)?,
             cc: parse("Cc", &c.cc)?,
             bcc: parse("Bcc", &c.bcc)?,
-            subject: c.subject.trim().to_string(),
+            subject: if kept { c.subject.clone() } else { c.subject.trim().to_string() },
             body,
             in_reply_to: c.in_reply_to.clone(),
             references: c.references.clone(),
@@ -518,8 +533,8 @@ impl Session {
             importance: c.importance,
             read_receipt: c.read_receipt,
             seven_bit: false,
-            keep_bcc: false,
-            source: String::new(),
+            keep_bcc: kept,
+            source,
         })
     }
 
@@ -600,7 +615,7 @@ impl Session {
             return Err(CmdError::Disabled("already sending".into()));
         }
         self.can_send(&c.account)?;
-        let mut d = self.compose_draft(&c)?;
+        let mut d = self.draft_of(&c, false)?;
         if sending::no_recipient(&d) {
             return Err(CmdError::Params("add at least one recipient".into()));
         }
