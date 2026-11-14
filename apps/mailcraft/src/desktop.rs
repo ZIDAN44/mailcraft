@@ -6,6 +6,7 @@ use super::*;
 
 pub(crate) mod boot;
 mod lanes;
+pub(crate) mod launch;
 pub(crate) mod start;
 pub(crate) mod state_writer;
 pub(crate) mod tray;

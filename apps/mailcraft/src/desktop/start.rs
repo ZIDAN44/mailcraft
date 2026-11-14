@@ -5,12 +5,18 @@ use mailcraft_ui_egui::backstage::{Backstage, Page};
 
 use super::*;
 
-/// What a session is made with, besides its store: the clock, whether MailCraft is portable, and
-/// the build's commit.
-pub(crate) type Made = (Clock, bool, Option<String>);
+/// What a session is made with, besides its store.
+#[derive(Clone)]
+pub(crate) struct Made {
+    pub(crate) clock: Clock,
+    /// MailCraft is portable (`portable.rs`): passwords and sign-ins are kept in memory only.
+    pub(crate) portable: bool,
+    /// A release build's commit, so File › About can tell its test build from a later one.
+    pub(crate) build_sha: Option<String>,
+}
 
 /// The session over `store`, as MailCraft opens with it (made on the `data-open` thread).
-pub(crate) fn session(store: Option<Store>, (clock, portable, build_sha): Made) -> Session {
+pub(crate) fn session(store: Option<Store>, Made { clock, portable, build_sha }: Made) -> Session {
     let mut session = Session::open(store, clock);
     session.oauth_available = mailcraft_net::oauth::available();
     // S/MIME signers are trusted through the roots this computer trusts.
