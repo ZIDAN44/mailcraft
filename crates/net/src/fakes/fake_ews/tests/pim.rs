@@ -665,3 +665,40 @@ fn a_refused_delete_is_said_and_kept() {
     assert!(second.errors.iter().any(|e| e.contains("ErrorAccessDenied")), "{:?}", second.errors);
     assert!(server.data.lock().unwrap().pim.iter().any(|(id, _, _)| id == "B1"), "still on the server");
 }
+
+/// A contact changed here is made again in place of the old one; a contacts folder the server
+/// won't list, and public folders it won't, are said, and the calendar is read all the same.
+#[test]
+fn a_changed_contact_is_made_again_and_refusals_are_said() {
+    use mailcraft_model::pim::{Pim, StoredCard};
+    use mailcraft_model::vcard::Card;
+    let mut d = Data { pf_hierarchy: Some("PFHierarchy@contoso.example".into()), ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let cal = d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    let contacts = d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    let ben = parse("<t:Contact><t:DisplayName>Ben</t:DisplayName></t:Contact>");
+    d.pim.push(("K1".into(), contacts.clone(), ben.kids[0].clone()));
+    let review = parse(
+        "<t:CalendarItem><t:Subject>Review</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
+         <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>review-1</t:UID></t:CalendarItem>",
+    );
+    d.pim.push(("E1".into(), cal, review.kids[0].clone()));
+    d.unreadable.push(contacts.clone());
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let card = Card { uid: "K1".into(), name: "Ben Ito".into(), ..Default::default() };
+    let pim = Pim {
+        cards: vec![StoredCard { book: crate::ews_pim::CONTACTS.into(), href: "contact:K1".into(), card, dirty: true, ..Default::default() }],
+        ..Default::default()
+    };
+    let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    let made = &sync.pushed_cards;
+    assert!(made.len() == 1 && made[0].href.starts_with("contact:") && made[0].href != "contact:K1" && made[0].card.name == "Ben Ito", "{made:?}");
+    let d = server.data.lock().unwrap();
+    let names: Vec<&str> = d.pim.iter().filter(|(_, f, _)| *f == contacts).filter_map(|(_, _, el)| el.text_of("DisplayName")).collect();
+    assert_eq!(names, ["Ben Ito"], "the old one deleted");
+    assert_eq!(sync.errors.len(), 2, "{:?}", sync.errors);
+    assert!(sync.errors[0] == "Contacts: ErrorAccessDenied" && sync.errors[1].starts_with("Public folders: "), "{:?}", sync.errors);
+    assert!(sync.events.iter().any(|e| e.event.summary == "Review"));
+    assert_eq!((sync.synced_calendars.len(), sync.synced_books.len()), (1, 0));
+}

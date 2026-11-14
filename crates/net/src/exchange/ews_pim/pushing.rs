@@ -1,0 +1,129 @@
+//! Sending what changed here: deletions, appointments made or changed, contacts and notes
+//! (those two made again whole). What the server refuses is said with the sync's errors.
+
+use super::*;
+
+fn delete(c: &Client, id: &str) -> Result<()> {
+    c.call_one(&format!(
+        "<m:DeleteItem DeleteType=\"MoveToDeletedItems\" SendMeetingCancellations=\"SendToNone\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
+        esc(id)
+    ))
+    .map(drop)
+}
+
+/// What was deleted here, deleted there (in someone else's calendar when it was in theirs): one
+/// the server hasn't any more is deleted too.
+pub(super) fn push_deletions(c: &Client, pim: &Pim, out: &mut DavSync) {
+    for t in &pim.deleted {
+        match in_calendar(c, &t.calendar, || delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:"))) {
+            Ok(()) => out.deleted.push(t.href.clone()),
+            Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
+            Err(e) => out.errors.push(e.to_string()),
+        }
+    }
+}
+
+/// The events made or changed here: made in their calendar, or changed field by field (no
+/// meeting mail sent).
+pub(super) fn push_events(c: &Client, pim: &Pim, out: &mut DavSync) {
+    for e in pim.events.iter().filter(|e| e.dirty) {
+        let fields = event_fields(&e.event);
+        let owner = mailcraft_model::pim::shared_calendar_owner(&e.calendar);
+        let r = in_calendar(c, &e.calendar, || {
+            if e.href.is_empty() {
+                let body: String = fields.iter().map(|(_, x)| x.as_str()).collect();
+                c.call_one(&format!(
+                    "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId>{}</m:SavedItemFolderId>\
+                     <m:Items><t:CalendarItem>{body}</t:CalendarItem></m:Items></m:CreateItem>",
+                    calendar_folder(owner)
+                ))
+                .map(|m| id_and_key(m.find("ItemId")))
+            } else {
+                let mut updates: String = fields
+                    .iter()
+                    .map(|(name, x)| {
+                        let uri =
+                            if matches!(*name, "Subject" | "Sensitivity" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
+                                format!("item:{name}")
+                            } else {
+                                format!("calendar:{name}")
+                            };
+                        format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
+                    })
+                    .collect();
+                if e.event.rrule.is_none() {
+                    updates.push_str("<t:DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:DeleteItemField>");
+                }
+                c.call_one(&format!(
+                    "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
+                     <t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{updates}</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>",
+                    esc(&e.href)
+                ))
+                .map(|m| {
+                    let (id, key) = id_and_key(m.find("ItemId"));
+                    (if id.is_empty() { e.href.clone() } else { id }, key)
+                })
+            }
+        });
+        match r {
+            // Someone else's event stays in their calendar.
+            Ok((href, etag)) => out.pushed_events.push(StoredEvent {
+                calendar: if owner.is_some() { e.calendar.clone() } else { CALENDAR.into() },
+                href,
+                etag,
+                event: e.event.clone(),
+                dirty: false,
+            }),
+            Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
+        }
+    }
+}
+
+/// The contacts made or changed here, made again: a contact's addresses and numbers are
+/// simplest replaced whole.
+pub(super) fn push_cards(c: &Client, pim: &Pim, out: &mut DavSync) {
+    for k in pim.cards.iter().filter(|k| k.dirty) {
+        if let Some(old) = k.href.strip_prefix("contact:")
+            && let Err(e) = delete(c, old)
+            && !crate::ews::gone(&e)
+        {
+            out.errors.push(format!("{}: {e}", k.card.display()));
+            continue;
+        }
+        let r = c.call_one(&format!(
+            "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"contacts\"/></m:SavedItemFolderId><m:Items>{}</m:Items></m:CreateItem>",
+            contact_xml(&k.card)
+        ));
+        match r {
+            Ok(m) => {
+                let (id, etag) = id_and_key(m.find("ItemId"));
+                out.pushed_cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{id}"), etag, card: k.card.clone(), dirty: false });
+            }
+            Err(x) => out.errors.push(format!("{}: {x}", k.card.display())),
+        }
+    }
+}
+
+/// The notes made or changed here, made again in the Notes folder, as contacts are.
+pub(super) fn push_notes(c: &Client, pim: &Pim, out: &mut DavSync) {
+    for n in pim.notes.iter().filter(|n| n.dirty) {
+        if let Some(old) = n.href.strip_prefix("note:")
+            && let Err(e) = delete(c, old)
+            && !crate::ews::gone(&e)
+        {
+            out.errors.push(format!("{}: {e}", n.note.title()));
+            continue;
+        }
+        let r = c.call_one(&format!(
+            "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"notes\"/></m:SavedItemFolderId><m:Items>{}</m:Items></m:CreateItem>",
+            note_xml(&n.note)
+        ));
+        match r {
+            Ok(m) => {
+                let (id, etag) = id_and_key(m.find("ItemId"));
+                out.pushed_notes.push(StoredNote { href: format!("note:{id}"), etag, note: n.note.clone(), dirty: false });
+            }
+            Err(x) => out.errors.push(format!("{}: {x}", n.note.title())),
+        }
+    }
+}

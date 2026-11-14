@@ -485,20 +485,22 @@ fn note_xml(n: &Note) -> String {
 /// Public contact folders and calendars read, at most.
 const MAX_PUBLIC_PIM: usize = 20;
 
-fn new_id(m: &El) -> (String, String) {
-    let id = m.find("ItemId");
-    (id.and_then(|i| i.attr("Id")).unwrap_or("").to_string(), id.and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string())
+/// An item's id and change key (its href and etag here), from its `ItemId`: empty when it has
+/// none.
+fn id_and_key(id: Option<&El>) -> (String, String) {
+    let attr = |name: &str| id.and_then(|i| i.attr(name)).unwrap_or("").to_string();
+    (attr("Id"), attr("ChangeKey"))
 }
 
-fn delete(c: &Client, id: &str) -> Result<()> {
-    c.call_one(&format!(
-        "<m:DeleteItem DeleteType=\"MoveToDeletedItems\" SendMeetingCancellations=\"SendToNone\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
-        esc(id)
-    ))
-    .map(drop)
+/// The events among a calendar's items, as kept in `calendar`.
+fn stored_events(items: Vec<El>, calendar: &str) -> impl Iterator<Item = StoredEvent> + '_ {
+    items.into_iter().filter_map(move |it| {
+        let event = event_of(&it)?;
+        let (href, etag) = id_and_key(it.child("ItemId"));
+        Some(StoredEvent { calendar: calendar.to_string(), href, etag, event, dirty: false })
+    })
 }
 
-/// The calendar folder: this mailbox's, or someone else's by their address.
 /// The name the server gives one of the account's own special folders (`calendar`, `contacts`):
 /// the mailbox's language's ("Agenda", "Contactpersonen"). `None` when it doesn't say.
 fn folder_name(c: &Client, distinguished: &str) -> Option<String> {
@@ -522,6 +524,7 @@ fn in_calendar<T>(c: &Client, calendar: &str, f: impl FnOnce() -> Result<T>) -> 
     }
 }
 
+/// The calendar folder: this mailbox's, or someone else's by their address.
 fn calendar_folder(owner: Option<&str>) -> String {
     match owner {
         Some(email) => format!(
@@ -552,282 +555,33 @@ fn item_may_change(it: &El) -> bool {
 /// Send what changed here, then read the calendar and contacts again.
 pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut out = DavSync { caldav_home: Some("ews".into()), carddav_home: Some("ews".into()), checked: now, ..Default::default() };
-    for t in &pim.deleted {
-        match in_calendar(c, &t.calendar, || delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:"))) {
-            Ok(()) => out.deleted.push(t.href.clone()),
-            Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
-            Err(e) => out.errors.push(e.to_string()),
-        }
-    }
-    for e in pim.events.iter().filter(|e| e.dirty) {
-        let fields = event_fields(&e.event);
-        let owner = mailcraft_model::pim::shared_calendar_owner(&e.calendar);
-        let r = in_calendar(c, &e.calendar, || {
-            if e.href.is_empty() {
-                let body: String = fields.iter().map(|(_, x)| x.as_str()).collect();
-                c.call_one(&format!(
-                    "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId>{}</m:SavedItemFolderId>\
-                     <m:Items><t:CalendarItem>{body}</t:CalendarItem></m:Items></m:CreateItem>",
-                    calendar_folder(owner)
-                ))
-                .map(|m| new_id(&m))
-            } else {
-                let mut updates: String = fields
-                    .iter()
-                    .map(|(name, x)| {
-                        let uri =
-                            if matches!(*name, "Subject" | "Sensitivity" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
-                                format!("item:{name}")
-                            } else {
-                                format!("calendar:{name}")
-                            };
-                        format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
-                    })
-                    .collect();
-                if e.event.rrule.is_none() {
-                    updates.push_str("<t:DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:DeleteItemField>");
-                }
-                c.call_one(&format!(
-                    "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
-                     <t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{updates}</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>",
-                    esc(&e.href)
-                ))
-                .map(|m| {
-                    let (id, key) = new_id(&m);
-                    (if id.is_empty() { e.href.clone() } else { id }, key)
-                })
-            }
-        });
-        match r {
-            // Someone else's event stays in their calendar.
-            Ok((href, etag)) => out.pushed_events.push(StoredEvent {
-                calendar: if owner.is_some() { e.calendar.clone() } else { CALENDAR.into() },
-                href,
-                etag,
-                event: e.event.clone(),
-                dirty: false,
-            }),
-            Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
-        }
-    }
+    push_deletions(c, pim, &mut out);
+    push_events(c, pim, &mut out);
     // Reminders dismissed or snoozed here (issue #40).
     reminders::answer_all(c, pim, &mut out);
-    for k in pim.cards.iter().filter(|k| k.dirty) {
-        // Made again: a contact's addresses and numbers are simplest replaced whole.
-        if let Some(old) = k.href.strip_prefix("contact:")
-            && let Err(e) = delete(c, old)
-            && !crate::ews::gone(&e)
-        {
-            out.errors.push(format!("{}: {e}", k.card.display()));
-            continue;
-        }
-        let r = c.call_one(&format!(
-            "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"contacts\"/></m:SavedItemFolderId><m:Items>{}</m:Items></m:CreateItem>",
-            contact_xml(&k.card)
-        ));
-        match r {
-            Ok(m) => {
-                let (id, etag) = new_id(&m);
-                out.pushed_cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{id}"), etag, card: k.card.clone(), dirty: false });
-            }
-            Err(x) => out.errors.push(format!("{}: {x}", k.card.display())),
-        }
-    }
-    // Then both folders, read again. One the server refuses keeps what was read of it before,
-    // and doesn't hold up the other (issue #9: the address books stayed as they were whenever
+    push_cards(c, pim, &mut out);
+    // Then the folders, read again. One the server refuses keeps what was read of it before,
+    // and doesn't hold up the others (issue #9: the address books stayed as they were whenever
     // the calendar failed). A server that can't be reached stops the pass, so nothing read
     // before is dropped for want of an answer.
-    match items(c, "calendar") {
-        Ok(read) => {
-            read.say(&mut out, "Calendar");
-            for it in read.items {
-                if let Some(event) = event_of(&it) {
-                    let (href, etag) = it
-                        .child("ItemId")
-                        .map(|i| (i.attr("Id").unwrap_or("").to_string(), i.attr("ChangeKey").unwrap_or("").to_string()))
-                        .unwrap_or_default();
-                    out.events.push(StoredEvent { calendar: CALENDAR.into(), href, etag, event, dirty: false });
-                }
-            }
-            out.synced_calendars.push(CALENDAR.into());
-        }
-        // A mailbox without the folder has no calendar. One the server won't give is said, not
-        // only logged: a calendar that stays empty says why (issue #80).
-        Err(NetError::No(e)) if e.starts_with(crate::ews::GONE) => log::info!("calendar: {e}"),
-        Err(NetError::No(e)) => out.errors.push(format!("Calendar: {e}")),
-        Err(e) => return Err(e),
-    }
-    // Named as the server names it, in the mailbox's language ("Agenda"), as Outlook shows it.
-    let own = folder_name(c, "calendar").unwrap_or_else(|| "Calendar".into());
-    let mut calendars = vec![CalendarInfo { id: CALENDAR.into(), name: own, color: 0, read_only: false, ctag: String::new(), ..Default::default() }];
-    // Other people's calendars opened here (Open shared calendar), then the calendars of the
-    // shared mailboxes the account opens (Outlook lists a shared mailbox's calendar with its
-    // mail): each their mailbox's calendar folder, the delegate permissions they gave deciding
-    // whether it can be read, and whether changed. The shared mailboxes are those the folder
-    // listing before found (it's asked again when there was none).
-    let opened: Vec<(String, String, bool)> = pim.shared.iter().map(|e| (e.clone(), e.clone(), true)).collect();
-    let mailboxes: Vec<(String, String, bool)> = c
-        .listed_shared_mailboxes()
-        .into_iter()
-        .filter(|m| !pim.shared.iter().any(|e| e.eq_ignore_ascii_case(&m.address)))
-        .map(|m| (m.address, m.name, false))
-        .collect();
-    for (n, (email, name, asked)) in opened.into_iter().chain(mailboxes).enumerate() {
-        let id = mailcraft_model::pim::shared_calendar_id(&email);
-        let parent = calendar_folder(Some(&email));
-        // Editable when the folder's rights say so, or (some servers say nothing useful about
-        // another mailbox's folder) when its events do, as Outlook finds by trying.
-        let folder_rights = c.in_mailbox(&email, || may_edit(c, &parent));
-        let mut can_edit = *folder_rights.as_ref().unwrap_or(&false);
-        match c.in_mailbox(&email, || items_in(c, &parent, RECURRENCE)) {
-            Ok(read) => {
-                read.say(&mut out, &name);
-                let list = read.items;
-                can_edit |= list.iter().any(item_may_change);
-                if !can_edit && let Err(e) = &folder_rights {
-                    log::info!("{email}'s calendar rights: {e}");
-                }
-                for it in list {
-                    if let Some(event) = event_of(&it) {
-                        let (href, etag) = it
-                            .child("ItemId")
-                            .map(|i| (i.attr("Id").unwrap_or("").to_string(), i.attr("ChangeKey").unwrap_or("").to_string()))
-                            .unwrap_or_default();
-                        out.events.push(StoredEvent { calendar: id.clone(), href, etag, event, dirty: false });
-                    }
-                }
-                out.synced_calendars.push(id.clone());
-            }
-            // One asked for by hand says why it's missing; a shared mailbox whose calendar
-            // isn't shared with the account just has none here.
-            Err(e) if asked => out.errors.push(format!("{email}'s calendar: {e}")),
-            Err(e) => {
-                log::info!("shared mailbox {email}: no calendar ({e})");
-                continue;
-            }
-        }
-        calendars.push(CalendarInfo {
-            id,
-            name,
-            color: u8::try_from((n + 1) % 8).unwrap_or(0),
-            read_only: !can_edit,
-            ctag: String::new(),
-            ..Default::default()
-        });
-    }
+    let mut calendars = vec![read_calendar(c, &mut out)?];
+    read_shared_calendars(c, pim, &mut out, &mut calendars);
+    let mut books = vec![read_contacts(c, &mut out)?];
+    read_public(c, &mut out, &mut calendars, &mut books);
     out.calendars = Some(calendars);
-    match items(c, "contacts") {
-        Ok(read) => {
-            read.say(&mut out, "Contacts");
-            for it in read.items {
-                if let Some(card) = card_of(&it) {
-                    let etag = it.child("ItemId").and_then(|i| i.attr("ChangeKey")).unwrap_or("").to_string();
-                    out.cards.push(StoredCard { book: CONTACTS.into(), href: format!("contact:{}", card.uid), etag, card, dirty: false });
-                }
-            }
-            out.synced_books.push(CONTACTS.into());
-        }
-        Err(NetError::No(e)) if e.starts_with(crate::ews::GONE) => log::info!("contacts: {e}"),
-        Err(NetError::No(e)) => out.errors.push(format!("Contacts: {e}")),
-        Err(e) => return Err(e),
-    }
-    let own = folder_name(c, "contacts").unwrap_or_else(|| "Contacts".into());
-    let mut books = vec![BookInfo { id: CONTACTS.into(), name: own, read_only: false, ctag: String::new() }];
-    // The organisation's shared contacts and calendars kept as public folders (on-premises
-    // Exchange): read-only, as Outlook shows them under Public Folders. A server without public
-    // folders has none. Found in the tree the folder listing before walked, when there was one.
-    match c.public_pim_folders() {
-        Ok(list) => {
-            // Said in the log, found or not: what a "where are my shared contacts?" needs.
-            let contacts = list.iter().filter(|f| f.class.starts_with("IPF.Contact")).count();
-            log::info!("public folders: {contacts} address books, {} calendars", list.len() - contacts);
-            for (n, f) in list.into_iter().take(MAX_PUBLIC_PIM).enumerate() {
-                let (id, name, class) = (f.id, f.path, f.class);
-                let key = format!("public:{id}");
-                let extra = if class.starts_with("IPF.Contact") { "" } else { RECURRENCE };
-                let found = match public_items(c, &id, f.replica.as_deref(), f.total, extra) {
-                    Ok(read) => {
-                        read.say(&mut out, &name);
-                        read.items
-                    }
-                    Err(e) => {
-                        out.errors.push(format!("{name}: {e}"));
-                        continue;
-                    }
-                };
-                if class.starts_with("IPF.Contact") {
-                    for it in found {
-                        if let Some(card) = card_of(&it) {
-                            out.cards.push(StoredCard {
-                                book: key.clone(),
-                                href: format!("public:{}", card.uid),
-                                etag: String::new(),
-                                card,
-                                dirty: false,
-                            });
-                        }
-                    }
-                    books.push(BookInfo { id: key.clone(), name, read_only: true, ctag: String::new() });
-                    out.synced_books.push(key);
-                } else {
-                    for it in found {
-                        if let Some(event) = event_of(&it) {
-                            let href = it.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or("").to_string();
-                            out.events.push(StoredEvent { calendar: key.clone(), href, etag: String::new(), event, dirty: false });
-                        }
-                    }
-                    if let Some(cals) = out.calendars.as_mut() {
-                        cals.push(CalendarInfo {
-                            id: key.clone(),
-                            name,
-                            color: u8::try_from((n + 3) % 8).unwrap_or(0),
-                            read_only: true,
-                            ctag: String::new(),
-                            foreign: false,
-                        });
-                    }
-                    out.synced_calendars.push(key);
-                }
-            }
-        }
-        // A server with public folders that won't list them says why; one without has none.
-        Err(e) if c.public_hierarchy_mailbox().is_some() => out.errors.push(format!("Public folders: {e}")),
-        Err(e) => log::info!("no public contacts or calendars: {e}"),
-    }
     out.books = Some(books);
-    // Notes (Outlook's sticky notes): what changed here goes up (made again, as contacts are),
-    // then the folder is read again. A mailbox without one keeps notes on this computer.
-    for n in pim.notes.iter().filter(|n| n.dirty) {
-        if let Some(old) = n.href.strip_prefix("note:")
-            && let Err(e) = delete(c, old)
-            && !crate::ews::gone(&e)
-        {
-            out.errors.push(format!("{}: {e}", n.note.title()));
-            continue;
-        }
-        let r = c.call_one(&format!(
-            "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"notes\"/></m:SavedItemFolderId><m:Items>{}</m:Items></m:CreateItem>",
-            note_xml(&n.note)
-        ));
-        match r {
-            Ok(m) => {
-                let (id, etag) = new_id(&m);
-                out.pushed_notes.push(StoredNote { href: format!("note:{id}"), etag, note: n.note.clone(), dirty: false });
-            }
-            Err(x) => out.errors.push(format!("{}: {x}", n.note.title())),
-        }
-    }
-    match items(c, "notes") {
-        Ok(read) => out.notes = Some(read.items.iter().filter_map(note_of).collect()),
-        Err(e) => log::info!("no Notes folder: {e}"),
-    }
+    // Notes (Outlook's sticky notes): what changed here goes up, then the folder is read again.
+    push_notes(c, pim, &mut out);
+    read_notes(c, &mut out);
     mailcraft_model::pim::separate_shared_uids(&mut out.events);
     Ok(out)
 }
 
+mod pushing;
 mod reading;
 mod reminders;
-use reading::{RECURRENCE, items, items_in, public_items};
+use pushing::{push_cards, push_deletions, push_events, push_notes};
+use reading::{read_calendar, read_contacts, read_notes, read_public, read_shared_calendars};
 
 #[cfg(test)]
 mod tests;
