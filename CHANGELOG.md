@@ -127,6 +127,7 @@ on GitHub.
 - Dismissing a reminder for an event whose ID contains a "|" now sticks and reaches the server.
 - A directory search that failed is tried again after 30 seconds, not 5 minutes.
 - Flagging a whole folder at once no longer stalls the window when the To-Do Bar is open.
+- Push notifications from a JMAP server that ends its lines with a lone CR are understood.
 
 ## 0.38.0 - 2026-11-13
 
