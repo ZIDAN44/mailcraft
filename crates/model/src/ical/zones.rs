@@ -186,21 +186,47 @@ impl FileZones {
     /// A DATE or DATE-TIME property as (Unix seconds, all day, the zone it was in). A local time
     /// is in its `TZID`, else in `fallback` (an exception's event's zone), else the viewer's.
     pub(super) fn time(&self, l: &Line, fallback: &str) -> Option<(i64, bool, String)> {
-        let (t, all_day, utc) = date_time(&l.value)?;
-        if all_day || l.param("VALUE").is_some_and(|v| v.eq_ignore_ascii_case("DATE")) {
+        LineTimes::of(self, l, fallback).read(&l.value)
+    }
+
+    /// The first `max` of a list's values (`EXDATE`, `RDATE`; a period by its start) that read as
+    /// [`FileZones::time`] reads one, the line's zone found once: per value, the whole line was
+    /// copied and its zone looked up (and a file's copied) again.
+    pub(super) fn times(&self, l: &Line, fallback: &str, max: usize) -> Vec<i64> {
+        let mut times = LineTimes::of(self, l, fallback);
+        l.value.split(',').filter_map(|v| times.read(v.split('/').next().unwrap_or(v)).map(|(t, _, _)| t)).take(max).collect()
+    }
+}
+
+/// How one property's values are read: as dates, or in its zone (found once one needs it).
+struct LineTimes<'a> {
+    zones: &'a FileZones,
+    date_only: bool,
+    id: &'a str,
+    zone: Option<Option<EventZone>>,
+}
+
+impl<'a> LineTimes<'a> {
+    fn of(zones: &'a FileZones, l: &'a Line, fallback: &'a str) -> LineTimes<'a> {
+        let date_only = l.param("VALUE").is_some_and(|v| v.eq_ignore_ascii_case("DATE"));
+        let id = l.param("TZID").map(|z| z.trim_matches('"').trim()).filter(|z| !z.is_empty()).unwrap_or(fallback);
+        LineTimes { zones, date_only, id, zone: None }
+    }
+
+    fn read(&mut self, value: &str) -> Option<(i64, bool, String)> {
+        let (t, all_day, utc) = date_time(value)?;
+        if all_day || self.date_only {
             return Some((t - t.rem_euclid(86_400), true, String::new()));
         }
         if utc {
             return Some((t, false, String::new()));
         }
-        let id = l.param("TZID").map(|z| z.trim_matches('"').trim()).filter(|z| !z.is_empty()).unwrap_or(fallback);
-        if !id.is_empty()
-            && let Some(z) = self.resolve(id)
-        {
+        let (zones, id) = (self.zones, self.id);
+        if let Some(z) = self.zone.get_or_insert_with(|| if id.is_empty() { None } else { zones.resolve(id) }) {
             return Some((z.to_utc(t), false, id.to_string()));
         }
         // Floating, or a zone nobody defines: the viewer's.
-        Some((self.local.to_utc(t), false, self.local.name().unwrap_or_default().to_string()))
+        Some((zones.local.to_utc(t), false, zones.local.name().unwrap_or_default().to_string()))
     }
 }
 

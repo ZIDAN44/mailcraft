@@ -29,6 +29,7 @@ on GitHub.
 - With **Focused Inbox** on, mail arriving in the Inbox on screen no longer has every folder of every account read again to sort it: the people you write to, as counted in the last ten minutes, sort it, as they do for the sender check.
 - Replying to or forwarding a message with a link stuffed with `javascript:` no longer hangs MailCraft: each one was taken out by going over the whole link again (a megabyte of them took five minutes).
 - A big folder of a JMAP account (Fastmail, say) syncs without looking each message up in the whole folder: in a folder of 40,000 that was nearly two seconds of every sync, even when nothing had changed, and it grew with the square of the folder's size.
+- A calendar invitation or subscribed calendar with a very long list of skipped dates (`EXDATE`) is read at once: each date copied the whole list, so 100,000 of them took 40 seconds.
 
 ## 0.38.0 - 2026-11-13
 
