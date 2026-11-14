@@ -289,30 +289,47 @@ pub(super) fn tzid_param(id: &str) -> String {
     if id.contains([':', ';', ',']) { format!("\"{id}\"") } else { id }
 }
 
-/// A `VTIMEZONE` for a zone of the database, as its clocks change in `year`: yearly rules when
-/// they change twice (summer time), else the offsets as they are.
-pub(super) fn zone_definition(id: &str, zone: Zone, year: i64) -> Vec<String> {
-    let year = year.clamp(1971, 9998);
+/// How a zone's offset (`offset`: seconds east of UTC at an instant) changes in `year` (1971 to
+/// 9998), up to four times: each change's first second with the new offset, the offset before
+/// and the offset after. Looked for a day at a time, each found to the second.
+fn changes_in_year(offset: impl Fn(i64) -> i64, year: i64) -> Vec<(i64, i64, i64)> {
     let (from, to) = (days_from_civil(year, 1, 1) * 86_400, days_from_civil(year + 1, 1, 1) * 86_400);
-    // Each change: (the instant, the offset before, the offset after).
-    let mut changes: Vec<(i64, i64, i64)> = Vec::new();
-    let mut before = zone.offset_at(from);
+    let mut changes = Vec::new();
+    let mut before = offset(from);
     let mut t = from;
     while t < to && changes.len() < 4 {
         let next = t + 86_400;
-        let after = zone.offset_at(next);
+        let after = offset(next);
         if after != before {
-            // The first second with the new offset.
             let (mut lo, mut hi) = (t, next);
             while hi - lo > 1 {
                 let mid = lo + (hi - lo) / 2;
-                if zone.offset_at(mid) == after { hi = mid } else { lo = mid }
+                if offset(mid) == after { hi = mid } else { lo = mid }
             }
             changes.push((hi, before, after));
             before = after;
         }
         t = next;
     }
+    changes
+}
+
+/// The day a change happens on, by the clock before it (`local`): its month, which of the
+/// month's weekdays it is (1 to 4; `None`, the last) and that weekday (0 Monday).
+fn change_day(local: i64) -> (u32, Option<i64>, u32) {
+    let day = local.div_euclid(86_400);
+    let (y, m, d) = civil_from_days(day);
+    let month_len = month_day(y, m, -1).map_or(31, |last| last - days_from_civil(y, m, 1) + 1);
+    let nth = (i64::from(d) + 7 <= month_len).then(|| (i64::from(d) - 1) / 7 + 1);
+    (m, nth, u32::try_from((day + 3).rem_euclid(7)).unwrap_or(0))
+}
+
+/// A `VTIMEZONE` for a zone of the database, as its clocks change in `year`: yearly rules when
+/// they change twice (summer time), else the offsets as they are.
+pub(super) fn zone_definition(id: &str, zone: Zone, year: i64) -> Vec<String> {
+    let year = year.clamp(1971, 9998);
+    let from = days_from_civil(year, 1, 1) * 86_400;
+    let changes = changes_in_year(|t| zone.offset_at(t), year);
     let mut out = vec!["BEGIN:VTIMEZONE".to_string(), format!("TZID:{}", id.replace(['\r', '\n'], ""))];
     let part = |out: &mut Vec<String>, dst: bool, from: i64, to: i64, start: String, rule: Option<String>| {
         let kind = if dst { "DAYLIGHT" } else { "STANDARD" };
@@ -327,14 +344,11 @@ pub(super) fn zone_definition(id: &str, zone: Zone, year: i64) -> Vec<String> {
         for (at, from, to) in &changes {
             // The local time it happens at, on the clock before the change.
             let local = at + from;
-            let day = local.div_euclid(86_400);
-            let (_, m, d) = civil_from_days(day);
-            let month_len = month_day(year, m, -1).map_or(31, |last| last - days_from_civil(year, m, 1) + 1);
-            let nth: i32 = if i64::from(d) + 7 > month_len { -1 } else { i32::try_from((d - 1) / 7 + 1).unwrap_or(1) };
-            let wd = (day + 3).rem_euclid(7) as u32;
+            let (m, nth, wd) = change_day(local);
+            let nth = nth.and_then(|n| i32::try_from(n).ok()).unwrap_or(-1);
             let code = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"].get(wd as usize).copied().unwrap_or("SU");
             // The rule's first year, as calendars write it.
-            let first = nth_weekday(1970, m, nth, wd).unwrap_or(day);
+            let first = nth_weekday(1970, m, nth, wd).unwrap_or(local.div_euclid(86_400));
             let start = local_stamp(first * 86_400 + local.rem_euclid(86_400));
             part(&mut out, zone.is_dst(*at), *from, *to, start, Some(format!("RRULE:FREQ=YEARLY;BYMONTH={m};BYDAY={nth}{code}")));
         }
@@ -377,33 +391,13 @@ pub struct ZoneRule {
 pub fn zone_rule(e: &CalEvent, year: i64) -> Option<ZoneRule> {
     let zone = zone_of(e)?;
     let offset = |t: i64| zone.local(t).saturating_sub(t);
-    let year = year.clamp(1971, 9998);
-    let (from, to) = (days_from_civil(year, 1, 1) * 86_400, days_from_civil(year + 1, 1, 1) * 86_400);
-    let mut changes: Vec<(i64, i64, i64)> = Vec::new();
-    let mut before = offset(from);
-    let mut t = from;
-    while t < to && changes.len() < 4 {
-        let next = t + 86_400;
-        let after = offset(next);
-        if after != before {
-            let (mut lo, mut hi) = (t, next);
-            while hi - lo > 1 {
-                let mid = lo + (hi - lo) / 2;
-                if offset(mid) == after { hi = mid } else { lo = mid }
-            }
-            changes.push((hi, before, after));
-            before = after;
-        }
-        t = next;
-    }
+    let changes = changes_in_year(offset, year.clamp(1971, 9998));
     let change = |(at, from, _): (i64, i64, i64)| {
         let local = at.saturating_add(from);
-        let day = local.div_euclid(86_400);
-        let (y, m, d) = civil_from_days(day);
-        let month_len = month_day(y, m, -1).map_or(31, |last| last - days_from_civil(y, m, 1) + 1);
-        let nth = if i64::from(d) + 7 > month_len { 5 } else { (d - 1) / 7 + 1 };
-        let weekday = u32::try_from((day + 4).rem_euclid(7)).unwrap_or(0);
-        ZoneChange { month: m, nth, weekday, time: local.rem_euclid(86_400) }
+        let (month, nth, monday_first) = change_day(local);
+        // Outlook's: the last is the fifth, and weeks start on Sunday.
+        let nth = nth.and_then(|n| u32::try_from(n).ok()).unwrap_or(5);
+        ZoneChange { month, nth, weekday: (monday_first + 1) % 7, time: local.rem_euclid(86_400) }
     };
     match changes[..] {
         [a, b] => {
