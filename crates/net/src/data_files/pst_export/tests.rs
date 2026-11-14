@@ -581,6 +581,7 @@ mod ansi;
 mod big;
 mod calendar;
 mod kinds;
+mod loops;
 mod pim;
 mod pinned;
 mod replace;

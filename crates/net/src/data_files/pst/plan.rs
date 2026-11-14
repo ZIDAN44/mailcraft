@@ -23,7 +23,7 @@ pub(super) const MAX_FOLDERS: usize = 100_000;
 /// Items handed out, at most.
 const MAX_ITEMS: u64 = 10_000_000;
 /// Items read of one folder, at most.
-pub(super) const MAX_ROWS: usize = 1_000_000;
+pub(in crate::data_files) const MAX_ROWS: usize = 1_000_000;
 /// PidTagMessageSize: an item's size as the file gives it.
 const MESSAGE_SIZE: u16 = 0x0E08;
 
@@ -67,15 +67,22 @@ pub(super) struct Plan {
     pub(super) sent: Option<u32>,
 }
 
-/// The folders a plan has taken, against the file going round in circles or on for ever.
-#[derive(Default)]
-pub(super) struct Guard {
+/// The folders a plan has taken, against the file going round in circles or on for ever: none
+/// as deep as `depth` below the top (the import's [`MAX_DEPTH`]).
+pub(in crate::data_files) struct Guard {
     seen: HashSet<u32>,
+    depth: usize,
+}
+
+impl Default for Guard {
+    fn default() -> Guard {
+        Guard::to_depth(MAX_DEPTH)
+    }
 }
 
 /// Why a folder isn't read.
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Refused {
+pub(in crate::data_files) enum Refused {
     /// Seen already: a folder listed twice, or under itself.
     Again,
     TooDeep,
@@ -84,9 +91,14 @@ pub(super) enum Refused {
 }
 
 impl Guard {
+    /// A guard taking folders less than `depth` below the top.
+    pub(in crate::data_files) fn to_depth(depth: usize) -> Guard {
+        Guard { seen: HashSet::new(), depth }
+    }
+
     /// Whether the folder at `node`, `depth` below the top, is read.
-    pub(super) fn admit(&mut self, node: u32, depth: usize) -> Result<(), Refused> {
-        if depth >= MAX_DEPTH {
+    pub(in crate::data_files) fn admit(&mut self, node: u32, depth: usize) -> Result<(), Refused> {
+        if depth >= self.depth {
             return Err(Refused::TooDeep);
         }
         if self.seen.len() >= MAX_FOLDERS {

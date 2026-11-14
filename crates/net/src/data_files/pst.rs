@@ -41,6 +41,7 @@ mod open;
 mod order;
 mod out;
 mod plan;
+pub(in crate::data_files) use plan::{Guard, MAX_ROWS};
 mod props;
 mod protected;
 mod rebuild;
