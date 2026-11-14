@@ -4041,6 +4041,7 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-store",
+ "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

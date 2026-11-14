@@ -259,6 +259,11 @@ pub fn microsoft_consumer(email: &str) -> bool {
 /// Why a Microsoft account signing in with a password can't connect (its status starts with this).
 pub const MICROSOFT_NO_PASSWORDS: &str = "Microsoft doesn't accept passwords from mail apps for this account: it needs Sign in with Microsoft";
 
+/// Why an account signing in with a password can't connect to a server that asks for bearer
+/// tokens only (`WWW-Authenticate: Bearer`, RFC 6750), as one behind a single sign-on does: it
+/// signs in through the browser (OIDC) instead. Its status is this.
+pub const NO_PASSWORDS: &str = "This mail server doesn't accept passwords: it needs you to sign in through the browser";
+
 /// Why an account signed in with Microsoft can't open its mailbox over IMAP: Microsoft took the
 /// sign-in, then its server said "User is authenticated but not connected". The status starts
 /// with this, so the UI can offer what helps (signing in again, or Microsoft Graph).

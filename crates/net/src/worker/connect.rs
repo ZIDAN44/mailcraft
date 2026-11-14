@@ -89,6 +89,13 @@ impl Worker {
                 self.auth_failed = true;
                 self.status(SyncStatus::Error { error: format!("{MICROSOFT_NO_PASSWORDS} ({m})") });
             }
+            // A server that takes bearer tokens only (a single sign-on): asking for the password
+            // again only loops. Its server settings switch it to signing in through the browser.
+            NetError::Auth(m) if self.acc.oauth.is_none() && m == mailcraft_model::NO_PASSWORDS => {
+                self.conn = None;
+                self.auth_failed = true;
+                self.status(SyncStatus::Error { error: m });
+            }
             // An OAuth token refused (expired early, revoked by a password change elsewhere, or
             // taken before the computer slept): a fresh one from the refresh token, then the
             // connection again, once. Only a refused refresh, or a fresh token refused too,

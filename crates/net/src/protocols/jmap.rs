@@ -52,7 +52,7 @@ impl mailcraft_jmap::Http for Blocking {
     async fn send(&self, req: mailcraft_jmap::Request) -> mailcraft_jmap::Result<mailcraft_jmap::Response> {
         let r = http::Request { method: req.method, url: req.url, headers: req.headers, body: req.body, max: req.max };
         let resp = http::send(&r)?;
-        Ok(mailcraft_jmap::Response { status: resp.status, body: resp.body })
+        Ok(mailcraft_jmap::Response { status: resp.status, headers: resp.headers, body: resp.body })
     }
 }
 

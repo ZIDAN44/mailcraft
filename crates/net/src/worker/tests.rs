@@ -12,6 +12,7 @@ mod counts;
 mod drafts;
 mod filed_once;
 mod index_bench;
+mod oidc;
 mod pop_filed;
 mod removed;
 

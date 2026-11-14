@@ -19,6 +19,7 @@
 //! a search of the server found it ([`find_on_server`]): that stays while the mailbox has it.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod challenge;
 pub mod sse;
 pub mod url;
 
@@ -114,11 +115,21 @@ impl Request {
     }
 }
 
-/// An HTTP response.
+/// An HTTP response. `headers`: what the client could read of them (a browser shows a page only
+/// those the server lets it).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Response {
     pub status: u16,
+    pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
+}
+
+impl Response {
+    /// How the server asks to be signed in to: every `WWW-Authenticate` header, read as one list.
+    pub fn challenges(&self) -> Vec<challenge::Challenge> {
+        let all: Vec<&str> = self.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case("www-authenticate")).map(|(_, v)| v.as_str()).collect();
+        challenge::parse(&all.join(", "))
+    }
 }
 
 /// The HTTP client JMAP runs over. Implementations follow redirects for GET, never from https
@@ -161,11 +172,13 @@ fn json_body(resp: &Response) -> Result<Value> {
     serde_json::from_slice(&resp.body).map_err(|e| Error::Protocol(format!("JMAP: {e}")))
 }
 
-/// Turn an HTTP failure into the error the caller knows how to handle.
-fn check(resp: &Response) -> Result<()> {
+/// Turn an HTTP failure into the error the caller knows how to handle. `auth`: the
+/// `Authorization` the request carried.
+fn check(resp: &Response, auth: &str) -> Result<()> {
     match resp.status {
         200..=299 => Ok(()),
-        401 | 403 => Err(Error::Auth("the server refused the user name or password".into())),
+        401 => Err(Error::Auth(refusal(resp, auth))),
+        403 => Err(Error::Auth("the server refused the user name or password".into())),
         // Busy or down: reconnect with back-off.
         429 | 500..=599 => Err(Error::Closed(format!("HTTP {}", resp.status))),
         s => {
@@ -177,6 +190,29 @@ fn check(resp: &Response) -> Result<()> {
             Err(Error::Bad(format!("HTTP {s} {detail}").trim().to_string()))
         }
     }
+}
+
+/// Why the server said 401, from how it asks to be signed in to (RFC 9110 §11.6.1). A server
+/// that wants bearer tokens only (a sign-in through the browser) takes no password, however
+/// right it is: [`NO_PASSWORDS`](mailcraft_model::NO_PASSWORDS) says so.
+fn refusal(resp: &Response, auth: &str) -> String {
+    let challenges = resp.challenges();
+    let offers = |scheme: &str| challenges.iter().find(|c| c.scheme == scheme);
+    if auth.starts_with("Bearer ") {
+        // RFC 6750 §3.1: what was wrong with the token.
+        return match offers("bearer").and_then(|c| c.param("error")).filter(|e| e.len() <= 64) {
+            Some(e) => format!("the server refused the sign-in ({e})"),
+            None => "the server refused the sign-in".into(),
+        };
+    }
+    if challenges.is_empty() || offers("basic").is_some() {
+        return "the server refused the user name or password".into();
+    }
+    if offers("bearer").is_some() {
+        return mailcraft_model::NO_PASSWORDS.into();
+    }
+    let schemes: Vec<&str> = challenges.iter().map(|c| c.scheme.as_str()).take(4).collect();
+    format!("the server takes no passwords, nor any sign-in MailCraft knows ({})", schemes.join(", "))
 }
 
 /// `{accountId}`-style template variables (RFC 6570 level 1), percent-encoded.
@@ -194,7 +230,7 @@ impl<H: Http> Client<H> {
         let auth = if bearer { format!("Bearer {secret}") } else { format!("Basic {}", base64(format!("{user}:{secret}").as_bytes())) };
         let session = session_url(url);
         let resp = http.send(Request::get(&session, 1 << 20).header("Authorization", &auth).header("Accept", "application/json")).await?;
-        check(&resp)?;
+        check(&resp, &auth)?;
         let v = json_body(&resp)?;
         let caps = v.get("capabilities").cloned().unwrap_or(Value::Null);
         if caps.get(MAIL).is_none() {
@@ -259,7 +295,7 @@ impl<H: Http> Client<H> {
                     .header("Accept", "application/json"),
             )
             .await?;
-        check(&resp)?;
+        check(&resp, &self.auth)?;
         let v = json_body(&resp)?;
         let responses = v.get("methodResponses").and_then(Value::as_array).ok_or_else(|| Error::Protocol("JMAP: no methodResponses".into()))?;
         let mut out = Vec::with_capacity(calls.len());
@@ -361,14 +397,14 @@ impl<H: Http> Client<H> {
     pub async fn download(&self, blob: &str) -> Result<Vec<u8>> {
         let url = expand(&self.download, &[("accountId", &self.account), ("blobId", blob), ("type", "message/rfc822"), ("name", "message.eml")]);
         let resp = self.http.send(Request::get(&url, MAX_BLOB).header("Authorization", &self.auth)).await?;
-        check(&resp)?;
+        check(&resp, &self.auth)?;
         Ok(resp.body)
     }
 
     pub async fn upload(&self, raw: &[u8]) -> Result<String> {
         let url = expand(&self.upload, &[("accountId", &self.account)]);
         let resp = self.http.send(Request::post(&url, "message/rfc822", raw.to_vec(), 1 << 20).header("Authorization", &self.auth)).await?;
-        check(&resp)?;
+        check(&resp, &self.auth)?;
         let v = json_body(&resp)?;
         Ok(str_at(&v, "blobId")?.to_string())
     }

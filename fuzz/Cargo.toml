@@ -31,6 +31,7 @@ bin = [
     { name = "pst_pim_text", bench = false, test = false, doc = false, path = "fuzz_targets/pim/pst_pim_text.rs" }, # what an export keeps in a contact's and a task's text, and a task's rule as a pattern
     { name = "search", bench = false, test = false, doc = false, path = "fuzz_targets/search.rs" }, # the search box and its filters
     { name = "search_index", bench = false, test = false, doc = false, path = "fuzz_targets/store/search_index.rs" }, # the search index's files read back
+    { name = "sign_in", bench = false, test = false, doc = false, path = "fuzz_targets/auth/sign_in.rs" }, # how a server asks to be signed in to, and a JMAP server's refusal
     { name = "signature", bench = false, test = false, doc = false, path = "fuzz_targets/signature.rs" }, # signatures as HTML code and saved web pages
     { name = "smime", bench = false, test = false, doc = false, path = "fuzz_targets/smime.rs" }, # signatures, encrypted mail, certificates, .p12
     { name = "tnef", bench = false, test = false, doc = false, path = "fuzz_targets/tnef.rs" }, # Outlook's winmail.dat and compressed RTF

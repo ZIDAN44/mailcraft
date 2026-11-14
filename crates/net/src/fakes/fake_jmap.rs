@@ -52,6 +52,11 @@ pub struct Data {
     /// with `Identity/set` are listed (their addresses).
     pub no_identity: bool,
     pub made_identities: Vec<String>,
+    /// Signs in with these OAuth access tokens only, not the password: a refusal asks for a
+    /// bearer token (`WWW-Authenticate: Bearer`), as a server behind a single sign-on does.
+    pub tokens: Option<Vec<String>>,
+    /// Where its OIDC provider is: `/.well-known/openid-configuration` redirects there.
+    pub issuer: Option<String>,
     next: u32,
 }
 
@@ -344,7 +349,18 @@ fn respond(s: &mut impl Write, status: u16, body: &[u8], kind: &str) {
 }
 
 /// Any web page may call (a test server on this computer).
-const CORS: &str = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Accept\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
+const CORS: &str = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Accept\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Expose-Headers: WWW-Authenticate\r\n";
+
+/// A 401 that says how to sign in.
+fn refuse(s: &mut impl Write, challenge: &str) {
+    let body = b"{}";
+    let head = format!(
+        "HTTP/1.1 401 X\r\nWWW-Authenticate: {challenge}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{CORS}Connection: close\r\n\r\n",
+        body.len()
+    );
+    let _ = s.write_all(head.as_bytes());
+    let _ = s.write_all(body);
+}
 
 /// Start the server; it runs until the test process ends.
 pub fn serve(data: Data) -> Server {
@@ -376,7 +392,7 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
             if reader.read_line(&mut first).unwrap_or(0) == 0 {
                 return;
             }
-            let (mut len, mut authorized) = (0usize, false);
+            let (mut len, mut given) = (0usize, None);
             loop {
                 let mut line = String::new();
                 if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
@@ -386,8 +402,10 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
                 if let Some(v) = lower.strip_prefix("content-length:") {
                     len = v.trim().parse().unwrap_or(0);
                 }
-                if line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == auth) {
-                    authorized = true;
+                if let Some((k, v)) = line.split_once(':')
+                    && k.eq_ignore_ascii_case("authorization")
+                {
+                    given = Some(v.trim().to_string());
                 }
             }
             let mut body = vec![0u8; len];
@@ -397,12 +415,35 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
                 respond(&mut s, 204, b"", "text/plain");
                 return;
             }
-            if !authorized {
-                respond(&mut s, 401, b"{}", "application/json");
-                return;
-            }
             let path = first.split(' ').nth(1).unwrap_or("/").to_string();
             let mut d = shared.lock().unwrap();
+            // Where its sign-in is, for anyone who asks (RFC 8414 §3: the provider's own address).
+            if path == "/.well-known/openid-configuration"
+                && let Some(issuer) = d.issuer.clone()
+            {
+                drop(d);
+                let head = format!(
+                    "HTTP/1.1 302 Found\r\nLocation: {issuer}/.well-known/openid-configuration\r\nContent-Length: 0\r\n{CORS}Connection: close\r\n\r\n"
+                );
+                let _ = s.write_all(head.as_bytes());
+                return;
+            }
+            let authorized = match (&d.tokens, given.as_deref()) {
+                (Some(tokens), Some(g)) => g.strip_prefix("Bearer ").is_some_and(|t| tokens.iter().any(|ok| ok == t)),
+                (None, Some(g)) => g == auth,
+                (_, None) => false,
+            };
+            if !authorized {
+                // RFC 6750 §3: an `error` only when a token was sent.
+                let challenge = match (&d.tokens, given.as_deref()) {
+                    (Some(_), Some(g)) if g.starts_with("Bearer ") => r#"Bearer realm="fake", error="invalid_token", scope="openid profile email""#,
+                    (Some(_), _) => r#"Bearer realm="fake", scope="openid profile email""#,
+                    (None, _) => r#"Basic realm="fake""#,
+                };
+                drop(d);
+                refuse(&mut s, challenge);
+                return;
+            }
             if path.starts_with("/events/") {
                 assert!(path.contains("types=%2A") || path.contains("types=*"), "{path}");
                 let (tx, rx) = std::sync::mpsc::channel::<String>();

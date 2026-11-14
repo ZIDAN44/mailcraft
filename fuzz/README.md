@@ -64,6 +64,7 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
 | `http` | HTTP answers, whole and streamed; `Content-Range`; release data and `SHA256SUMS.txt` |
 | `imap` | A whole IMAP session, including a folder sync |
 | `jmap` | JMAP sign-in, sync, push events and URLs |
+| `sign_in` | How a server asks to be signed in to (`WWW-Authenticate`), and a JMAP server's refusal |
 | `search` | The query language, dates, the **Advanced** form, JMAP filters, modified UTF-7 |
 | `data_file` | A damaged account data file |
 | `data_folder` | A damaged data folder's own files |
