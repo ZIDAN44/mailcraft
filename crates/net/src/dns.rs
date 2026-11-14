@@ -143,32 +143,70 @@ pub fn system_resolvers() -> Vec<IpAddr> {
             }
         }
     }
-    // Link-local IPv6 resolvers need a scope id we don't track.
-    v.retain(|ip| !matches!(ip, IpAddr::V6(a) if (a.segments()[0] & 0xffc0) == 0xfe80));
-    v.dedup();
+    kept(v)
+}
+
+/// The resolvers asked, of those listed: each once (the same one listed for two adapters took
+/// two places; only neighbours were told apart), the first four, link-local IPv6 ones left out
+/// (they need a scope id we don't track).
+fn kept(mut v: Vec<IpAddr>) -> Vec<IpAddr> {
+    let mut seen = std::collections::HashSet::new();
+    v.retain(|ip| !matches!(ip, IpAddr::V6(a) if (a.segments()[0] & 0xffc0) == 0xfe80) && seen.insert(*ip));
     v.truncate(4);
     v
 }
 
+/// A query's id: random, so an answer can't be forged by guessing it (it was the same for every
+/// lookup of a name in a process). Without randomness, the clock's.
+fn new_id() -> u16 {
+    let mut b = [0u8; 2];
+    match ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut b) {
+        Ok(()) => u16::from_le_bytes(b),
+        Err(_) => {
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| u16::try_from(d.subsec_nanos() & 0xFFFF).unwrap_or(0))
+        }
+    }
+}
+
+/// An answer's response code (RFC 1035 §4.1.1) when it answers query `id`.
+fn rcode(m: &[u8], id: u16) -> Option<u8> {
+    let answer = u16_at(m, 0)? == id && m.get(2)? & 0x80 != 0;
+    answer.then_some(m.get(3)? & 0x0F)
+}
+
 /// Ask the system's resolvers for `name`'s records of type `qtype`.
 pub fn lookup(name: &str, qtype: u16) -> Vec<Record> {
-    let id = (std::process::id() as u16) ^ (name.len() as u16).rotate_left(7) ^ qtype;
-    let Some(q) = query(id, name, qtype) else { return Vec::new() };
-    for server in system_resolvers() {
+    let servers: Vec<SocketAddr> = system_resolvers().into_iter().map(|ip| SocketAddr::new(ip, 53)).collect();
+    lookup_at(&servers, name, qtype)
+}
+
+/// [`lookup`] of the resolvers at `servers`, in turn: one that answers (the records, or that the
+/// name doesn't exist) is the answer; one that fails (SERVFAIL, REFUSED…) or says nothing passes
+/// to the next.
+fn lookup_at(servers: &[SocketAddr], name: &str, qtype: u16) -> Vec<Record> {
+    for server in servers {
+        let id = new_id();
+        let Some(q) = query(id, name, qtype) else { return Vec::new() };
         let bind: SocketAddr = if server.is_ipv4() { ([0, 0, 0, 0], 0).into() } else { (std::net::Ipv6Addr::UNSPECIFIED, 0).into() };
         let Ok(sock) = UdpSocket::bind(bind) else { continue };
         let _ = sock.set_read_timeout(Some(Duration::from_secs(3)));
-        if sock.send_to(&q, (server, 53)).is_err() {
+        if sock.send_to(&q, server).is_err() {
             continue;
         }
         let mut buf = [0u8; 1500];
         for _ in 0..3 {
             let Ok((n, from)) = sock.recv_from(&mut buf) else { break };
-            if from.ip() != server {
-                continue;
-            }
-            if let Some(records) = buf.get(..n).and_then(|m| parse(m, id)) {
-                return records;
+            let Some(m) = buf.get(..n).filter(|_| from == *server) else { continue };
+            match rcode(m, id) {
+                // Another query's, or not an answer.
+                None => continue,
+                // The records, or none: the name doesn't exist.
+                Some(0 | 3) => {
+                    if let Some(records) = parse(m, id) {
+                        return records;
+                    }
+                }
+                Some(_) => break,
             }
         }
     }
@@ -305,6 +343,54 @@ mod tests {
         for bad in ["path=relative", "path=//evil.example/", "path=/a b", "path=/x?y", "nopath", "path="] {
             assert_eq!(p(&[bad]), None, "{bad}");
         }
+    }
+
+    /// A resolver on this computer that answers one query with `rcode` (an MX record when 0).
+    fn resolver(rcode: u8) -> (SocketAddr, std::thread::JoinHandle<bool>) {
+        let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let _ = sock.set_read_timeout(Some(Duration::from_secs(10)));
+        let at = sock.local_addr().unwrap();
+        let serve = std::thread::spawn(move || {
+            let mut buf = [0u8; 512];
+            let Ok((n, from)) = sock.recv_from(&mut buf) else { return false };
+            let q = &buf[..n];
+            let mut m = q[..2].to_vec();
+            m.extend([0x81, 0x80 | rcode, 0, 1, 0, u8::from(rcode == 0), 0, 0, 0, 0]);
+            m.extend_from_slice(&q[12..]);
+            if rcode == 0 {
+                m.extend([0xC0, 12, 0, 15, 0, 1, 0, 0, 1, 0, 0, 9, 0, 10]);
+                m.extend(b"\x04mail\xC0\x0C");
+            }
+            sock.send_to(&m, from).is_ok()
+        });
+        (at, serve)
+    }
+
+    /// A resolver that fails (SERVFAIL, REFUSED) passes to the next: it was taken for the name
+    /// having no records, and the others weren't asked. One that says the name doesn't exist is
+    /// the answer.
+    #[test]
+    fn a_failing_resolver_passes_to_the_next() {
+        let mail = vec![Record::Mx { preference: 10, host: "mail.example.org".into() }];
+        for failure in [2, 5] {
+            let ((failing, a), (working, b)) = (resolver(failure), resolver(0));
+            assert_eq!(lookup_at(&[failing, working], "example.org", MX), mail, "rcode {failure}");
+            assert!(a.join().unwrap() && b.join().unwrap());
+        }
+        let ((missing, a), (other, _)) = (resolver(3), resolver(0));
+        assert_eq!(lookup_at(&[missing, other], "example.org", MX), []);
+        assert!(a.join().unwrap());
+    }
+
+    /// Each query has an id of its own, not one made from the process and the name: with the
+    /// source port, all that tells a forged answer from the resolver's. A resolver two adapters
+    /// list is asked once.
+    #[test]
+    fn queries_are_told_apart_and_resolvers_asked_once() {
+        let ids: std::collections::HashSet<u16> = (0..32).map(|_| new_id()).collect();
+        assert!(ids.len() > 16, "{ids:?}");
+        let ip = |n: u8| IpAddr::from([10, 0, 0, n]);
+        assert_eq!(kept(vec![ip(1), ip(2), ip(1), ip(3), ip(2), ip(4), ip(5)]), [ip(1), ip(2), ip(3), ip(4)]);
     }
 
     /// Posteo's published CalDAV service, from the system's resolvers: run by hand with the internet.
