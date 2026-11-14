@@ -562,24 +562,7 @@ impl Session {
         config.migrate_signature();
         let id = config.id.clone();
         let Some(a) = self.account_mut(&id) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
-        let reconnect = a.config.imap != config.imap
-            || a.config.smtp != config.smtp
-            || a.config.jmap != config.jmap
-            || a.config.graph != config.graph
-            || a.config.ews != config.ews
-            || a.config.pop != config.pop
-            || a.config.pop_delete != config.pop_delete
-            || a.config.pop_keep_days != config.pop_keep_days
-            || a.config.pop_delete_with_trash != config.pop_delete_with_trash
-            || a.config.username != config.username
-            || a.config.smtp_username != config.smtp_username
-            || a.config.shared_mailboxes != config.shared_mailboxes
-            || a.config.online_only != config.online_only
-            || a.config.check_every != config.check_every
-            || a.config.dav != config.dav
-            || a.config.user_agent != config.user_agent
-            || a.config.trusted_certificates != config.trusted_certificates
-            || password.is_some();
+        let reconnect = !a.config.same_connection(&config) || password.is_some();
         if config.online_only && !config.can_be_online_only() {
             return Err(CmdError::Params("a POP account keeps its mail on this computer: it can't be online only".into()));
         }

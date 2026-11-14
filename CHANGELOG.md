@@ -50,6 +50,7 @@ on GitHub.
 - `mailcraft-cli` takes `--headers` and `--checked` anywhere on the line, says which option was given no value, and says when `--limit` or `--timeout` isn't a number. `source --headers KEY` lost its KEY, an option without its value took the next option for it, and a bad number was quietly replaced by the default.
 - In the browser, a file attached or a picture put into a message no longer takes many times its size in memory on the way in: a 25 MB file took about 600 MB.
 - A category given twice to an event or task is kept once.
+- An account's address changed in its settings, when it signs in with its address, is used at once: the account went on signing in with the old one until MailCraft was started again.
 
 ## 0.38.0 - 2026-11-13
 

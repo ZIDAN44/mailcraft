@@ -177,6 +177,59 @@ pub struct AccountConfig {
     pub trusted_certificates: Vec<String>,
 }
 
+impl AccountConfig {
+    /// Whether `other` connects and signs in as this does: the same servers, sign-in names
+    /// (the address is one, when there's no user name), mailboxes and how often it looks. Every
+    /// field is named in [`Self::connection`], so one added to the account is decided on there
+    /// (a list of comparisons kept apart missed the address and who OAuth signed in as).
+    pub fn same_connection(&self, other: &AccountConfig) -> bool {
+        self.connection() == other.connection()
+    }
+
+    /// What the connection is made from.
+    fn connection(&self) -> impl PartialEq + '_ {
+        let AccountConfig {
+            // What shows the account, or goes into what it writes: not how it connects.
+            id: _,
+            name: _,
+            color: _,
+            signatures: _,
+            signature_new: _,
+            signature_reply: _,
+            signature: _,
+            signature_html: _,
+            signature_code: _,
+            identities: _,
+            email,
+            username,
+            imap,
+            smtp,
+            smtp_username,
+            oauth,
+            jmap,
+            graph,
+            ews,
+            pop,
+            pop_delete,
+            pop_keep_days,
+            pop_delete_with_trash,
+            oauth_user,
+            shared_mailboxes,
+            online_only,
+            check_every,
+            dav,
+            user_agent,
+            trusted_certificates,
+        } = self;
+        (
+            (email, username, imap, smtp, pop),
+            (jmap, graph, ews, smtp_username, oauth, oauth_user),
+            (pop_delete, pop_keep_days, pop_delete_with_trash, shared_mailboxes, online_only, check_every),
+            (dav, user_agent, trusted_certificates),
+        )
+    }
+}
+
 /// The most certificates an account trusts by hand.
 pub const MAX_TRUSTED_CERTIFICATES: usize = 8;
 
