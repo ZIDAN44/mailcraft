@@ -1,6 +1,7 @@
 //! Issue #58: an account that looks for new mail at a set time looks then, and only then. In
 //! tests a minute of it is a tenth of a second.
 
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use mailcraft_model::job::Secret;
@@ -9,13 +10,13 @@ use mailcraft_model::{AccountConfig, Security, ServerConfig, SyncStatus};
 use super::*;
 use crate::fake::{State, serve_tcp};
 
-fn until(pool: &Pool, what: &str, f: impl Fn(&Event) -> bool) -> Duration {
+fn until(pool: &Pool, what: &str, f: impl Fn(&Event) -> bool) {
     let began = Instant::now();
     let mut seen = Vec::new();
-    while began.elapsed() < Duration::from_secs(20) {
+    while began.elapsed() < Duration::from_secs(60) {
         if let Some(e) = pool.wait(Duration::from_millis(20)) {
             if f(&e) {
-                return began.elapsed();
+                return;
             }
             seen.push(e);
         }
@@ -51,15 +52,31 @@ fn start(name: &str, minutes: Option<u32>) -> (std::sync::Arc<std::sync::Mutex<S
     (st, pool, store)
 }
 
+/// Whether the server's log from `from` on has the Inbox looked at before any folder was listed:
+/// a look at the Inbox at its time, not every folder's turn, which lists them first.
+fn inbox_looked_at_alone(st: &Arc<Mutex<State>>, from: usize) -> bool {
+    let st = st.lock().unwrap();
+    let ahead = st.log.get(from..).unwrap_or_default();
+    let listed = ahead.iter().position(|c| c.to_ascii_uppercase().starts_with("LIST"));
+    let inbox = ahead.iter().position(|c| c.contains("INBOX"));
+    inbox.is_some_and(|i| listed.is_none_or(|l| i < l))
+}
+
 /// The server can say at once (it has IDLE), but a set time was asked for: no IDLE, and the mail
-/// comes when the time does.
+/// comes when the time does. Timed as the server sees it: the connection left quiet that long
+/// first, however long a busy computer then took.
 #[test]
 fn a_set_time_is_kept_instead_of_waiting_on_the_server() {
     let (st, pool, _store) = start("check-every-idle", Some(3));
-    st.lock().unwrap().add("INBOX", "New one", &[]);
-    let took = until(&pool, "the mail", inbox_changed);
-    assert!(took >= Duration::from_millis(150), "came early, after {took:?}");
-    assert!(took < Duration::from_secs(5), "{took:?}");
+    let (logged, before) = {
+        let mut st = st.lock().unwrap();
+        st.add("INBOX", "New one", &[]);
+        (st.log.len(), st.quiet.len())
+    };
+    until(&pool, "the mail", inbox_changed);
+    let ahead = st.lock().unwrap().quiet[before..].to_vec();
+    assert!(ahead.first().is_some_and(|(_, quiet)| *quiet >= Duration::from_millis(300)), "came early: {ahead:?}");
+    assert!(inbox_looked_at_alone(&st, logged), "came with every folder's turn: {ahead:?}");
     assert!(!st.lock().unwrap().log.iter().any(|c| c.eq_ignore_ascii_case("IDLE")), "{:?}", st.lock().unwrap().log);
     pool_done(pool);
 }
