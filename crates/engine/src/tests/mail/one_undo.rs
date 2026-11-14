@@ -56,3 +56,25 @@ fn one_action_over_several_accounts_is_one_undo() {
     assert!(s.undo.is_empty());
     done(s);
 }
+
+/// Archived over two accounts, one of which has no Archive folder: refused before anything
+/// moves. The first account's mail was archived (and the selection left on it), then the second
+/// refused.
+#[test]
+fn a_move_one_account_cant_make_moves_nothing() {
+    let (mut s, ids) = all_inboxes("move-checked-first");
+    let folder = |path: &str, role| Folder { account: ids[0].clone(), path: path.into(), role, selectable: true, ..Default::default() };
+    s.apply(Event::Folders {
+        account: ids[0].clone(),
+        folders: vec![folder("INBOX", FolderRole::Inbox), folder("Trash", FolderRole::Trash), folder("Archive", FolderRole::Archive)],
+    });
+    s.run("folder.unified", &json!({"role": "inbox"})).unwrap();
+    s.run("list.selectAll", &json!({})).unwrap();
+    let e = s.run("mail.archive", &json!({})).unwrap_err().to_string();
+    assert!(e.contains("Archive"), "{e}");
+    for id in &ids {
+        assert_eq!(s.store.as_ref().unwrap().load_folder(id, "INBOX").unwrap().messages.len(), 1, "{id}: still in its Inbox");
+    }
+    assert!(s.undo.is_empty() && s.selection.len() == 2, "nothing done");
+    done(s);
+}

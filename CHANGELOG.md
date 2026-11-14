@@ -53,6 +53,7 @@ on GitHub.
 - An account's address changed in its settings, when it signs in with its address, is used at once: the account went on signing in with the old one until MailCraft was started again.
 - `account.add` with a data file whose path is refused no longer leaves the account added.
 - In All Inboxes, one Undo puts back what was done to mail of several accounts at once (marked read, flagged, categorised, moved or deleted): it took one Undo per account, in no set order.
+- Archive or Move on mail of several accounts (All Inboxes) moves nothing when one of them has no such folder, instead of moving some and failing.
 
 ## 0.38.0 - 2026-11-13
 

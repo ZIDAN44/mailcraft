@@ -310,24 +310,30 @@ impl Session {
         let mut moved = 0usize;
         let mut accounts: Vec<String> = by_account.keys().cloned().collect();
         accounts.sort();
+        // Each account's destination, checked for all of them before anything moves (the first
+        // account's mail was moved, and the selection left on it, when the second's was refused).
+        let mut plan: Vec<(String, String, Vec<MessageKey>)> = Vec::new();
+        for a in accounts {
+            let keys = by_account.remove(&a).unwrap_or_default();
+            let dest = match &target {
+                MoveTarget::Folder(f) => Some(f.clone()),
+                MoveTarget::Role(r) => self.account(&a).and_then(|acc| acc.folder(*r)).map(|f| f.path.clone()),
+            };
+            let Some(dest) = dest else {
+                let what = match target {
+                    MoveTarget::Role(r) => r.label().unwrap_or("that folder"),
+                    MoveTarget::Folder(_) => "that folder",
+                };
+                return Err(CmdError::Failed(format!("this account has no {what} folder")));
+            };
+            if self.folder(&a, &dest).is_none() {
+                return Err(CmdError::Params(format!("no folder `{dest}`")));
+            }
+            plan.push((a, dest, keys));
+        }
         let mut moves: Vec<(String, String, Vec<(String, String)>)> = Vec::new();
         let done = (|| -> Result<(), CmdError> {
-            for a in accounts {
-                let keys = by_account.remove(&a).unwrap_or_default();
-                let dest = match &target {
-                    MoveTarget::Folder(f) => Some(f.clone()),
-                    MoveTarget::Role(r) => self.account(&a).and_then(|acc| acc.folder(*r)).map(|f| f.path.clone()),
-                };
-                let Some(dest) = dest else {
-                    let what = match target {
-                        MoveTarget::Role(r) => r.label().unwrap_or("that folder"),
-                        MoveTarget::Folder(_) => "that folder",
-                    };
-                    return Err(CmdError::Failed(format!("this account has no {what} folder")));
-                };
-                if self.folder(&a, &dest).is_none() {
-                    return Err(CmdError::Params(format!("no folder `{dest}`")));
-                }
+            for (a, dest, keys) in plan {
                 let keys: Vec<MessageKey> = keys.into_iter().filter(|k| k.folder != dest).collect();
                 moved += keys.len();
                 if !keys.is_empty() {
@@ -347,7 +353,7 @@ impl Session {
             Ok(())
         })();
         // One Undo for all of it (All Inboxes: one per account took a Ctrl+Z each), kept even
-        // when an account after these couldn't move.
+        // when a later account's move failed in the store.
         if !moves.is_empty() {
             self.moved_at = self.clock.now;
             self.remember(Undo::Move { moves });
