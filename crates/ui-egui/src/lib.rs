@@ -333,6 +333,8 @@ pub struct UiState {
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
     /// previews attachments in the reading pane.
     pub attachment_view: Option<(MessageKey, usize)>,
+    /// The attachment previewed, as it was read to show it.
+    pub(crate) attachment_shown: Option<reading::ShownAttachment>,
     /// The messages shown formatted or as plain text for themselves, not by the setting.
     shown_as: reading::body::ShownAs,
     /// The preview a plain click on a chip waits to show, and when: once the double-click time
@@ -551,6 +553,7 @@ impl MailApp {
                 search_times: app::SearchTimes::default(),
                 compose_alert: None,
                 attachment_view: None,
+                attachment_shown: None,
                 shown_as: Default::default(),
                 attachment_click: None,
                 attachment_selected: None,

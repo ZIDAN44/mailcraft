@@ -95,6 +95,7 @@ on GitHub.
 - Signed mail sends your certificate exactly as your certificate authority issued it, so recipients can check it even when it's encoded unusually.
 - A message an Outlook file read again couldn't give is tried again on the next read, instead of being left out for good.
 - Flagging or categorising a message in a very large folder no longer rewrites megabytes of the folder's list.
+- An attachment opened while its message was still downloading now shows its preview once the file arrives, and previews no longer pile up in memory.
 
 ## 0.38.0 - 2026-11-13
 

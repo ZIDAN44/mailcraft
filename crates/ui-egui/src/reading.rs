@@ -25,6 +25,9 @@ mod security;
 mod signature_card;
 pub(crate) mod text_selection;
 mod videos;
+#[cfg(test)]
+pub(crate) use attachments::Shown;
+pub(crate) use attachments::ShownAttachment;
 pub(crate) use attachments::decode;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;
@@ -496,7 +499,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 let sep = ui.available_rect_before_wrap();
                 ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
                 ui.add_space(12.0);
-                attachment_preview(s, st, ui, &r.key, a, acts);
+                attachment_preview(s, st, ui, &r.key, p, a, acts);
                 return;
             }
             if p.hidden_words > 0 {

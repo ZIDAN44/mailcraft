@@ -1,5 +1,7 @@
 //! The reading pane: attachments, their cards and their previews (pictures, PDF, video, Office files).
 
+use std::sync::Arc;
+
 use super::*;
 
 pub(super) fn kind_icon(k: AttachmentKind) -> Icon {
@@ -297,6 +299,7 @@ pub(super) fn settle_attachment_click(st: &mut UiState, ui: &Ui) {
 /// selected either.
 pub(super) fn close_attachment_view(st: &mut UiState) {
     st.attachment_view = None;
+    st.attachment_shown = None;
     st.attachment_click = None;
     st.attachment_selected = None;
     st.attachments_active = false;
@@ -334,7 +337,7 @@ pub(super) fn preview_header(t: &Tokens, ui: &mut Ui, a: &mime::AttachmentInfo, 
 
 /// What an attachment is read as, kept while it's shown.
 #[derive(Clone)]
-pub(super) enum Shown {
+pub(crate) enum Shown {
     Text { header: Vec<(String, String)>, text: String },
     Office(mime::office::Preview),
     Pdf,
@@ -342,23 +345,43 @@ pub(super) enum Shown {
     Nothing,
 }
 
+/// The attachment previewed, as it was read for that ([`read_shown`]): one at a time, let go of
+/// when the preview closes ([`close_attachment_view`]) or another is previewed.
+pub(crate) struct ShownAttachment {
+    key: MessageKey,
+    index: usize,
+    /// The message as it was shown when the file was read: another (the whole message after
+    /// its text came first, issue #24, or the message downloaded again) is read from again.
+    parsed: Arc<mime::Parsed>,
+    shown: Arc<Shown>,
+}
+
 /// The attachment, as the reading pane previews it: a picture at the pane's width, a PDF's
 /// pages, text, an attached email, a Word document, an Excel workbook or a PowerPoint
-/// presentation's slides; other files say there's no preview, with Open and Save As.
-pub(super) fn attachment_preview(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mime::AttachmentInfo, acts: &mut Vec<Action>) {
+/// presentation's slides; other files say there's no preview, with Open and Save As. `parsed`
+/// is the message shown, which the attachment is part of.
+pub(super) fn attachment_preview(
+    s: &Session,
+    st: &mut UiState,
+    ui: &mut Ui,
+    key: &MessageKey,
+    parsed: &Arc<mime::Parsed>,
+    a: &mime::AttachmentInfo,
+    acts: &mut Vec<Action>,
+) {
     let t = st.tokens;
-    let id = egui::Id::unique(("attachment-shown", key.to_id(), a.index));
-    let shown = match ui.ctx().data(|d| d.get_temp::<std::sync::Arc<Shown>>(id)) {
-        Some(x) => x,
+    let kept = st.attachment_shown.as_ref().filter(|k| k.key == *key && k.index == a.index && Arc::ptr_eq(&k.parsed, parsed));
+    let shown = match kept {
+        Some(k) => k.shown.clone(),
         None => {
             // A picture or a PDF is read with the message's others (`Pictures`), not here.
             let data = match a.kind() {
                 AttachmentKind::Image | AttachmentKind::Pdf => None,
                 _ => s.store.as_ref().and_then(|st| st.read_body(key)).and_then(|raw| shown_data(&raw, a)),
             };
-            let x = std::sync::Arc::new(read_shown(a, data.as_deref()));
-            ui.ctx().data_mut(|d| d.insert_temp(id, x.clone()));
-            x
+            let shown = Arc::new(read_shown(a, data.as_deref()));
+            st.attachment_shown = Some(ShownAttachment { key: key.clone(), index: a.index, parsed: parsed.clone(), shown: shown.clone() });
+            shown
         }
     };
     let width = ui.available_width();
