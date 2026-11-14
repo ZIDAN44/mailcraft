@@ -696,13 +696,17 @@ fn check_card(c: &Card) -> Result<(), CmdError> {
     Ok(())
 }
 
+/// Unix seconds a time given to a command must stay within, either side of 1970 (about 12,000
+/// years): a calendar's sums with times past it overflow.
+pub(crate) const MAX_SECONDS: i64 = 400_000_000_000;
+
 /// A local date (`YYYY-MM-DD`, all day) or date and time (`YYYY-MM-DDTHH:MM`, seconds after it
 /// or not, a space for the `T` or not), or Unix seconds, as (Unix seconds, all day). `offset` is
 /// the local UTC offset; all-day dates come back at UTC midnight (as events keep them).
 pub fn parse_local(s: &str, clock: &Clock) -> Option<(i64, bool)> {
     let s = s.trim();
     if let Ok(n) = s.parse::<i64>() {
-        return (n.abs() < 400_000_000_000).then_some((n, false));
+        return (-MAX_SECONDS..MAX_SECONDS).contains(&n).then_some((n, false));
     }
     let num = |a: usize, b: usize| s.get(a..b).filter(|x| x.bytes().all(|c| c.is_ascii_digit())).and_then(|x| x.parse::<i64>().ok());
     let (y, m, d) = (num(0, 4)?, num(5, 7)?, num(8, 10)?);

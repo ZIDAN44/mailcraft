@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod huge_times;
 mod server_cards;
 
 #[test]
