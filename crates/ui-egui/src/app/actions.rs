@@ -321,9 +321,16 @@ impl MailApp {
                         self.run("rules.run", json!({"index": at, "inbox": true}));
                     }
                 }
+                // Said on the dialog's own error line, or as a notice when it has none (or
+                // none is open): never dropped.
                 Err(e) => {
-                    if let Some(d) = self.ui.dialog.as_mut() {
-                        d.set_error(e.to_string().trim_start_matches("bad parameters: ").to_string());
+                    let said = e.to_string().trim_start_matches("bad parameters: ").to_string();
+                    let shown = match self.ui.dialog.as_mut() {
+                        Some(d) => d.set_error(said.clone()),
+                        None => false,
+                    };
+                    if !shown {
+                        self.session.notice(said, true);
                     }
                 }
             },

@@ -462,8 +462,9 @@ impl Dialog {
         Dialog::Password { account: a.id.clone(), email: a.email.clone(), user, password: String::new() }
     }
 
-    /// Set the error shown in the add-account form.
-    pub fn set_error(&mut self, e: String) {
+    /// Show a refused submit's error on the dialog's own error line. False when it has none
+    /// (Select Names, a question): the caller says it some other way.
+    pub fn set_error(&mut self, e: String) -> bool {
         match self {
             Dialog::AddAccount(f) => f.error = Some(e),
             Dialog::FolderName { error, .. }
@@ -483,8 +484,9 @@ impl Dialog {
             Dialog::OpenSharedCalendar { error, .. } | Dialog::SubscribeCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => {
                 *error = Some(e)
             }
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
     /// A new rule for mail like this (from its sender, into Archive).
