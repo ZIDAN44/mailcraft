@@ -73,11 +73,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.compact_data_file(&account, mode)
         }).leaves_body()
         .params(r#"{"account"?: string, "mode"?: "manual" (as long as it takes; the default) | "close" (MailCraft closing: only when that's short)} (makes the account's data file smaller: in place, or by a copy when it's big and kept raw by an earlier build)"#),
-        CommandSpec::new("dataFile.compactOnClose", "Compact data files on close", "File › Options › Data files", |s, v| {
-            s.prefs.compact_on_close = p::bool(v, "on").unwrap_or(!s.prefs.compact_on_close);
-            Ok(json!({ "on": s.prefs.compact_on_close }))
-        }).leaves_body()
-        .params(r#"{"on"?: bool (none: switch; on, a data file with room to give back is compacted as MailCraft closes when that's short)}"#),
+        toggle!("dataFile.compactOnClose", "Compact data files on close", "File › Options › Data files", compact_on_close, r#"{"on"?: bool (none: switch; on, a data file with room to give back is compacted as MailCraft closes when that's short)}"#).leaves_body(),
         CommandSpec::new("dataFile.cancelCompact", "Stop compacting", "Status bar", |s, v| {
             let account = account_param(s, v)?;
             s.cancel_compact(&account)

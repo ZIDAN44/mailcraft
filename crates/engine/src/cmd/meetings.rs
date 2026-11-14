@@ -175,10 +175,6 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(listing(s))
         })
         .params(r#"{"host": string}"#),
-        CommandSpec::new("meetings.forAll", "Add an online meeting to all meetings with guests", "File › Options › Online meetings", |s, v| {
-            s.prefs.meeting_for_all = p::bool(v, "on").unwrap_or(!s.prefs.meeting_for_all);
-            Ok(json!({"on": s.prefs.meeting_for_all}))
-        })
-        .params(r#"{"on"?: bool}"#),
+        toggle!("meetings.forAll", "Add an online meeting to all meetings with guests", "File › Options › Online meetings", meeting_for_all),
     ]
 }

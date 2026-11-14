@@ -8,7 +8,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         // Calendar and People
         CommandSpec::new("view.module", "Mail, Calendar, People, Tasks or Notes", "Navigation", |s, v| {
-            s.module = match p::req_str(v, "name")? {
+            let module = match p::req_str(v, "name")? {
                 "mail" => crate::Module::Mail,
                 "calendar" => crate::Module::Calendar,
                 "people" => crate::Module::People,
@@ -16,31 +16,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 "tasks" => crate::Module::Tasks,
                 other => return Err(CmdError::Params(format!("unknown module `{other}`"))),
             };
-            Ok(json!({"module": s.module}))
+            set_module(s, module)
         })
         .params(r#"{"name": "mail"|"calendar"|"people"|"tasks"|"notes"}"#),
         // Outlook's keys for its modules: Ctrl+1 Mail, Ctrl+2 Calendar, Ctrl+3 People, Ctrl+5 Notes
         // (Ctrl+4, Tasks: `cmd/tasks.rs`).
-        CommandSpec::new("view.mail", "Mail", "Navigation", |s, _| {
-            s.module = crate::Module::Mail;
-            Ok(json!({"module": s.module}))
-        })
-        .key("Mod+1"),
-        CommandSpec::new("view.calendar", "Calendar", "Navigation", |s, _| {
-            s.module = crate::Module::Calendar;
-            Ok(json!({"module": s.module}))
-        })
-        .key("Mod+2"),
-        CommandSpec::new("view.people", "People", "Navigation", |s, _| {
-            s.module = crate::Module::People;
-            Ok(json!({"module": s.module}))
-        })
-        .key("Mod+3"),
-        CommandSpec::new("view.notes", "Notes", "Navigation", |s, _| {
-            s.module = crate::Module::Notes;
-            Ok(json!({"module": s.module}))
-        })
-        .key("Mod+5"),
+        CommandSpec::new("view.mail", "Mail", "Navigation", |s, _| set_module(s, crate::Module::Mail)).key("Mod+1"),
+        CommandSpec::new("view.calendar", "Calendar", "Navigation", |s, _| set_module(s, crate::Module::Calendar)).key("Mod+2"),
+        CommandSpec::new("view.people", "People", "Navigation", |s, _| set_module(s, crate::Module::People)).key("Mod+3"),
+        CommandSpec::new("view.notes", "Notes", "Navigation", |s, _| set_module(s, crate::Module::Notes)).key("Mod+5"),
         CommandSpec::new("calendar.view", "Day, week or month", "Calendar › View", |s, v| {
             s.cal_mode = match p::req_str(v, "mode")? {
                 "day" => crate::CalMode::Day,

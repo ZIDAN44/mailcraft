@@ -13,21 +13,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"on": s.prefs.conversations}))
         })
         .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.preview", "Message preview", "View › Messages", |s, v| {
-            s.prefs.show_preview = p::bool(v, "on").unwrap_or(!s.prefs.show_preview);
-            Ok(json!({"on": s.prefs.show_preview}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.compact", "Compact list", "View › Layout", |s, v| {
-            s.prefs.compact = p::bool(v, "on").unwrap_or(!s.prefs.compact);
-            Ok(json!({"on": s.prefs.compact}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.classicRibbon", "Classic ribbon", "View › Layout", |s, v| {
-            s.prefs.classic_ribbon = p::bool(v, "on").unwrap_or(!s.prefs.classic_ribbon);
-            Ok(json!({"on": s.prefs.classic_ribbon}))
-        })
-        .params(r#"{"on"?: bool}"#),
+        toggle!("view.preview", "Message preview", "View › Messages", show_preview),
+        toggle!("view.compact", "Compact list", "View › Layout", compact),
+        toggle!("view.classicRibbon", "Classic ribbon", "View › Layout", classic_ribbon),
         CommandSpec::new("view.accent", "Accent colour", "File › Options › Personalize", |s, v| {
             let given = p::req_str(v, "color")?;
             s.prefs.accent = crate::session::accent_code(given)
@@ -35,11 +23,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"color": s.prefs.accent}))
         })
         .params(r##"{"color": "teal"|"blue"|"indigo"|"violet"|"rose"|"red"|"orange"|"green"|"#rrggbb" ("" or "teal": MailCraft's own)}"##),
-        CommandSpec::new("view.plainTopBar", "Plain top bar", "File › Options › Personalize", |s, v| {
-            s.prefs.plain_top_bar = p::bool(v, "on").unwrap_or(!s.prefs.plain_top_bar);
-            Ok(json!({"on": s.prefs.plain_top_bar}))
-        })
-        .params(r#"{"on"?: bool}"#),
+        toggle!("view.plainTopBar", "Plain top bar", "File › Options › Personalize", plain_top_bar),
         CommandSpec::new("view.dateFormat", "Dates and times", "File › Options › General", |s, v| {
             let mut style = s.prefs.date_style;
             if let Some(code) = p::str(v, "order") {
@@ -117,36 +101,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"messages": s.list.len()}))
         }).leaves_body()
         .params(r#"{"value": "focused"|"other"}"#),
-        CommandSpec::new("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", |s, v| {
-            s.prefs.confirm_permanent_delete = p::bool(v, "on").unwrap_or(!s.prefs.confirm_permanent_delete);
-            Ok(json!({"on": s.prefs.confirm_permanent_delete}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.notifications", "Desktop notifications", "File › Options › Mail", |s, v| {
-            s.prefs.notify = p::bool(v, "on").unwrap_or(!s.prefs.notify);
-            Ok(json!({"on": s.prefs.notify}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", |s, v| {
-            s.prefs.close_to_tray = p::bool(v, "on").unwrap_or(!s.prefs.close_to_tray);
-            Ok(json!({"on": s.prefs.close_to_tray}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.newMailWindow", "New messages in their own window", "File › Options › Mail", |s, v| {
-            s.prefs.new_mail_window = p::bool(v, "on").unwrap_or(!s.prefs.new_mail_window);
-            Ok(json!({"on": s.prefs.new_mail_window}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.replyWindow", "Replies and forwards in their own window", "File › Options › Mail", |s, v| {
-            s.prefs.reply_window = p::bool(v, "on").unwrap_or(!s.prefs.reply_window);
-            Ok(json!({"on": s.prefs.reply_window}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("calendar.tentativeInvites", "Invitations into the calendar as tentative", "File › Options › Calendar", |s, v| {
-            s.prefs.tentative_invites = p::bool(v, "on").unwrap_or(!s.prefs.tentative_invites);
-            Ok(json!({"on": s.prefs.tentative_invites}))
-        })
-        .params(r#"{"on"?: bool}"#),
+        toggle!("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", confirm_permanent_delete),
+        toggle!("view.notifications", "Desktop notifications", "File › Options › Mail", notify),
+        toggle!("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", close_to_tray),
+        toggle!("view.newMailWindow", "New messages in their own window", "File › Options › Mail", new_mail_window),
+        toggle!("view.replyWindow", "Replies and forwards in their own window", "File › Options › Mail", reply_window),
+        toggle!("calendar.tentativeInvites", "Invitations into the calendar as tentative", "File › Options › Calendar", tentative_invites),
         CommandSpec::new("options.answeredInvites", "After answering a meeting invitation", "File › Options › Mail", |s, v| {
             if let Some(after) = p::str(v, "after") {
                 s.prefs.answered_invites = match after {
@@ -206,16 +166,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.pop_out(&key)
         })
         .params(r#"{"key": string (a flagged message of the To-Do Bar's task list: opened in a window of its own)}"#),
-        CommandSpec::new("view.favorites", "Show Favorites", "View › Layout", |s, v| {
-            s.prefs.show_favorites = p::bool(v, "on").unwrap_or(!s.prefs.show_favorites);
-            Ok(json!({"on": s.prefs.show_favorites}))
-        })
-        .params(r#"{"on"?: bool}"#),
-        CommandSpec::new("view.markReadOnOpen", "Mark as read when opened", "File › Options › Mail", |s, v| {
-            s.prefs.mark_read_on_open = p::bool(v, "on").unwrap_or(!s.prefs.mark_read_on_open);
-            Ok(json!({"on": s.prefs.mark_read_on_open}))
-        })
-        .params(r#"{"on"?: bool}"#),
+        toggle!("view.favorites", "Show Favorites", "View › Layout", show_favorites),
+        toggle!("view.markReadOnOpen", "Mark as read when opened", "File › Options › Mail", mark_read_on_open),
         CommandSpec::new("calendar.show", "Show or hide a calendar", "Calendar › Calendars", |s, v| {
             let account = p::req_str(v, "account")?.to_string();
             let calendar = p::req_str(v, "calendar")?.to_string();
@@ -233,11 +185,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"account": account, "calendar": calendar, "shown": shown}))
         })
         .params(r#"{"account": string, "calendar": string, "shown"?: bool (default: the other way)}"#),
-        CommandSpec::new("calendar.sideBySide", "Side by side", "Calendar › View", |s, v| {
-            s.prefs.calendars_side_by_side = p::bool(v, "on").unwrap_or(!s.prefs.calendars_side_by_side);
-            Ok(json!({"on": s.prefs.calendars_side_by_side}))
-        })
-        .params(r#"{"on"?: bool (each calendar in a column of its own in day and week)}"#),
+        toggle!("calendar.sideBySide", "Side by side", "Calendar › View", calendars_side_by_side, r#"{"on"?: bool (each calendar in a column of its own in day and week)}"#),
         CommandSpec::new("calendar.months", "Months in the side pane", "Calendar › Side pane", |s, v| {
             let n = p::u64(v, "count").ok_or_else(|| CmdError::Params("`count` is required (1 to 6)".into()))?;
             s.prefs.calendar_months = u8::try_from(n.clamp(1, 6)).unwrap_or(1);
@@ -310,31 +258,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"markRead": s.prefs.mark_read_on_open, "when": when, "after": s.prefs.read_after_secs}))
         })
         .params(r#"{"markRead"?: bool (in the reading pane at all; opening a message in its own window always does), "when"?: "shown"|"left" (when it's shown, or once another is chosen), "after"?: number (seconds shown first, with "shown")}"#),
-        CommandSpec::new("view.animations", "Play animations", "File › Options › General", |s, v| {
-            s.prefs.animations = p::bool(v, "on").unwrap_or(!s.prefs.animations);
-            Ok(json!({ "on": s.prefs.animations }))
-        })
-        .params(r#"{"on"?: bool (none: switch)}"#),
-        CommandSpec::new("view.photoLocation", "Send where photos were taken", "File › Options › Safety", |s, v| {
-            s.prefs.keep_photo_location = p::bool(v, "on").unwrap_or(!s.prefs.keep_photo_location);
-            Ok(json!({ "on": s.prefs.keep_photo_location }))
-        })
-        .params(r#"{"on"?: bool (none: switch; off, the place is taken out of attached photos as they're sent)}"#),
-        CommandSpec::new("view.cleanLinks", "Open links without their tracking", "File › Options › Safety", |s, v| {
-            s.prefs.clean_links = p::bool(v, "on").unwrap_or(!s.prefs.clean_links);
-            Ok(json!({ "on": s.prefs.clean_links }))
-        })
-        .params(r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
-        CommandSpec::new("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", |s, v| {
-            s.prefs.auto_pictures = p::bool(v, "on").unwrap_or(!s.prefs.auto_pictures);
-            Ok(json!({ "on": s.prefs.auto_pictures }))
-        })
-        .params(r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#),
-        CommandSpec::new("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", |s, v| {
-            s.prefs.check_revocation = p::bool(v, "on").unwrap_or(!s.prefs.check_revocation);
-            Ok(json!({ "on": s.prefs.check_revocation }))
-        })
-        .params(r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#),
+        toggle!("view.animations", "Play animations", "File › Options › General", animations, r#"{"on"?: bool (none: switch)}"#),
+        toggle!("view.photoLocation", "Send where photos were taken", "File › Options › Safety", keep_photo_location, r#"{"on"?: bool (none: switch; off, the place is taken out of attached photos as they're sent)}"#),
+        toggle!("view.cleanLinks", "Open links without their tracking", "File › Options › Safety", clean_links, r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
+        toggle!("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", auto_pictures, r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#),
+        toggle!("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", check_revocation, r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#),
         CommandSpec::new("view.senderAddresses", "Show sender addresses in the message list", "File › Options › Safety", |s, v| {
             let show = p::req_str(v, "show")?;
             s.prefs.sender_addresses = crate::session::SenderAddresses::from_code(show)

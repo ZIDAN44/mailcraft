@@ -139,11 +139,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_reading),
         CommandSpec::new("message.blockPictures", "Don't show pictures from this sender", "Reading pane", |s, _| s.block_pictures())
             .when(has_reading),
-        CommandSpec::new("view.html", "Show HTML formatted", "View › Messages", |s, v| {
-            s.prefs.show_html = p::bool(v, "on").unwrap_or(!s.prefs.show_html);
-            Ok(json!({"on": s.prefs.show_html}))
-        })
-        .params(r#"{"on"?: bool}"#),
+        toggle!("view.html", "Show HTML formatted", "View › Messages", show_html),
         // Search
         CommandSpec::new("search.run", "Search", "Search box", search).leaves_body().key("Mod+E").params(
             r#"{"query": string, "scope"?: "current"|"subfolders"|"mailbox"|"all" (kept for the next searches; default: the last one), "remember"?: bool (among the recent searches), "background"?: bool (found as the window steps it, `pending` until done; default: as searches run, settled for the CLI and scripts)}"#,
@@ -178,33 +174,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"name"?: string, "index"?: number (from 0)}"#)
         .when(has_selection),
-        CommandSpec::new("quickStep.1", "Quick Step 1", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(0)))
-            .key("Mod+Shift+1")
-            .when(has_selection),
-        CommandSpec::new("quickStep.2", "Quick Step 2", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(1)))
-            .key("Mod+Shift+2")
-            .when(has_selection),
-        CommandSpec::new("quickStep.3", "Quick Step 3", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(2)))
-            .key("Mod+Shift+3")
-            .when(has_selection),
-        CommandSpec::new("quickStep.4", "Quick Step 4", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(3)))
-            .key("Mod+Shift+4")
-            .when(has_selection),
-        CommandSpec::new("quickStep.5", "Quick Step 5", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(4)))
-            .key("Mod+Shift+5")
-            .when(has_selection),
-        CommandSpec::new("quickStep.6", "Quick Step 6", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(5)))
-            .key("Mod+Shift+6")
-            .when(has_selection),
-        CommandSpec::new("quickStep.7", "Quick Step 7", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(6)))
-            .key("Mod+Shift+7")
-            .when(has_selection),
-        CommandSpec::new("quickStep.8", "Quick Step 8", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(7)))
-            .key("Mod+Shift+8")
-            .when(has_selection),
-        CommandSpec::new("quickStep.9", "Quick Step 9", "Home › Quick Steps", |s, _| s.run_quick_step(None, Some(8)))
-            .key("Mod+Shift+9")
-            .when(has_selection),
+        quick_step!(1),
+        quick_step!(2),
+        quick_step!(3),
+        quick_step!(4),
+        quick_step!(5),
+        quick_step!(6),
+        quick_step!(7),
+        quick_step!(8),
+        quick_step!(9),
         // Search Folders
         CommandSpec::new("searchFolder.list", "Search Folders", "Folder pane › Search Folders", |s, _| Ok(json!(s.prefs.search_folders))),
         CommandSpec::new("searchFolder.create", "New Search Folder", "Folder pane › Search Folders", |s, v| {

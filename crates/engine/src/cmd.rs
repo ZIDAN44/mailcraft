@@ -58,6 +58,36 @@ fn can_connect(s: &Session) -> Option<&'static str> {
     has_account(s).or(if s.prefs.work_offline { Some("working offline") } else { None })
 }
 
+/// A command switching one of [`crate::session::Prefs`]' settings on or off: `"on"` says which,
+/// none switches it; it answers `{"on": bool}`. `params` when it says more than `{"on"?: bool}`.
+macro_rules! toggle {
+    ($id:literal, $label:literal, $location:literal, $field:ident) => {
+        toggle!($id, $label, $location, $field, r#"{"on"?: bool}"#)
+    };
+    ($id:literal, $label:literal, $location:literal, $field:ident, $params:literal) => {
+        CommandSpec::new($id, $label, $location, |s, v| {
+            s.prefs.$field = p::bool(v, "on").unwrap_or(!s.prefs.$field);
+            Ok(json!({"on": s.prefs.$field}))
+        })
+        .params($params)
+    };
+}
+
+/// Do a Quick Step to the selection, by its number (from 1): Ctrl+Shift+1 to 9.
+macro_rules! quick_step {
+    ($n:literal) => {
+        CommandSpec::new(concat!("quickStep.", $n), concat!("Quick Step ", $n), "Home › Quick Steps", |s, _| s.run_quick_step(None, Some($n - 1)))
+            .key(concat!("Mod+Shift+", $n))
+            .when(has_selection)
+    };
+}
+
+/// Show one of Mail, Calendar, People, Tasks and Notes.
+fn set_module(s: &mut Session, module: crate::Module) -> CmdResult {
+    s.module = module;
+    Ok(json!({"module": s.module}))
+}
+
 mod accounts;
 mod compose;
 pub use compose::insert_picture_at;
