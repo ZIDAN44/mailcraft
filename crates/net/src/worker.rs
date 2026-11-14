@@ -281,8 +281,8 @@ impl Pool {
             }
             Job::Start { account, password } if self.offline => {
                 // Working offline: remembered (and its password kept) for when that's turned off.
-                if let Some(p) = &password
-                    && let Err(e) = self.creds.set(&account, &p.0)
+                if let Some(p) = password.as_ref().filter(|_| !credentials::signs_on(&account))
+                    && let Err(e) = credentials::keep_password(self.creds.as_ref(), &account, &p.0)
                 {
                     self.sink.emit(Event::Notice {
                         account: account.id.clone(),
@@ -320,11 +320,13 @@ impl Pool {
                 if let Some(c) = self.configs.remove(&account) {
                     self.creds.delete(&c);
                     self.creds.delete_smtp(&c);
-                    // Its certificates' keys and its calendar server's password go with it.
+                    // Its certificates' keys, its calendar server's password and its sign-ins go
+                    // with it.
                     smime::forget_all(self.creds.as_ref(), &c);
                     pgp::forget_all(self.creds.as_ref(), &c);
                     self.creds.delete_secret(&c, DAV_SECRET);
                     self.creds.delete_secret(&c, DIRECTORY_SECRET);
+                    self.creds.delete_secret(&c, SIGN_ON_SECRET);
                 }
             }
             Job::FetchBody { key } if self.mail_offline(&key.account) => {
@@ -608,6 +610,8 @@ mod smime;
 pub(crate) const DAV_SECRET: &str = "dav";
 /// Where an Exchange Online account's directory sign-in (its refresh token) is kept (issue #9).
 pub(crate) const DIRECTORY_SECRET: &str = "directory";
+/// Where a single sign-on's refresh token is kept, apart from any password (`credentials.rs`).
+pub(crate) const SIGN_ON_SECRET: &str = "oidc";
 mod sync;
 mod threads;
 

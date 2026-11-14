@@ -50,6 +50,8 @@ fn a_single_sign_on_signs_in_through_the_browser_then_syncs_over_its_tokens() {
         oidc: Some(settings),
         ..Default::default()
     };
+    // It signed in with a password before: that goes once it's signed in through the browser.
+    creds.set(&account, PASSWORD).unwrap();
     pool.submit(Job::SignIn { account: account.clone() });
     // The browser: the sign-in page sends it back to MailCraft with a code.
     let seen = until(&pool, |e| matches!(e, Event::OpenUrl { .. } | Event::Status { .. }));
@@ -59,8 +61,9 @@ fn a_single_sign_on_signs_in_through_the_browser_then_syncs_over_its_tokens() {
     std::thread::spawn(move || crate::http::get(&url, 10_000));
     let seen = until(&pool, |e| matches!(e, Event::SignedIn { .. } | Event::Status { .. }));
     assert!(matches!(seen.last(), Some(Event::SignedIn { user: Some(u), .. }) if u == USER), "{seen:?}");
-    let kept = creds.get(&account).unwrap_or_default();
+    let kept = creds.get_secret(&account, SIGN_ON_SECRET).unwrap_or_default();
     assert!(kept.starts_with("rt"), "the refresh token is what's kept: {kept}");
+    assert_eq!(creds.get(&account), None, "no password is kept");
 
     // The account starts: an access token from the refresh token, then its mail over it.
     pool.submit(Job::Start { account: account.clone(), password: None });
@@ -104,4 +107,61 @@ fn a_password_to_a_server_that_takes_none_says_to_sign_in_through_the_browser() 
     });
     assert_eq!(said, Some(mailcraft_model::NO_PASSWORDS), "{seen:?}");
     assert!(seen.iter().all(|e| !matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. })), "{seen:?}");
+}
+
+/// An account moved from its password to its server's single sign-on, whose sign-in in the
+/// browser was given up: the password still in the keychain is never sent to the service as a
+/// refresh token, nor is one given for it. It asks to be signed in.
+#[test]
+fn a_password_is_never_sent_to_a_single_sign_on_as_its_token() {
+    let mut d = Data::default();
+    d.tokens = Some(Vec::new());
+    d.mailbox("Inbox", None, Some("inbox"));
+    let jmap = serve(d);
+    let mut sd = fake_sso::Data::default();
+    sd.jmap = Some(jmap.data.clone());
+    let sso = fake_sso::serve(sd);
+    let creds = Arc::new(MemoryCredentials::default());
+    let mut pool = Pool::new(Store::memory(), creds.clone());
+    let settings = OidcSettings { issuer: sso.base.clone(), client_id: fake_sso::CLIENT_ID.into(), scope: oidc::DEFAULT_SCOPE.into() };
+    let account = AccountConfig {
+        id: "j1".into(),
+        email: USER.into(),
+        username: USER.into(),
+        jmap: Some(jmap.base.clone()),
+        oauth: Some(OIDC.into()),
+        oidc: Some(settings),
+        ..Default::default()
+    };
+    creds.set(&account, PASSWORD).unwrap();
+    for password in [None, Some(Secret(PASSWORD.into()))] {
+        pool.submit(Job::Start { account: account.clone(), password });
+        let seen = until(&pool, |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. } | SyncStatus::Error { .. }, .. }));
+        assert!(matches!(seen.last(), Some(Event::Status { status: SyncStatus::NeedsPassword { .. }, .. })), "{seen:?}");
+    }
+    assert_eq!(sso.data.lock().unwrap().forms, Vec::<String>::new(), "nothing was sent to the service");
+    assert_eq!(creds.get_secret(&account, SIGN_ON_SECRET), None);
+}
+
+/// Back to a password: the single sign-on's refresh token goes, the password is kept; and an
+/// account removed takes its sign-in with it.
+#[test]
+fn a_single_sign_ons_token_goes_with_the_password_back_and_the_account() {
+    let mut d = Data::default();
+    d.mailbox("Inbox", None, Some("inbox"));
+    let jmap = serve(d);
+    let creds = Arc::new(MemoryCredentials::default());
+    let mut pool = Pool::new(Store::memory(), creds.clone());
+    let account = AccountConfig { id: "j1".into(), email: USER.into(), username: USER.into(), jmap: Some(jmap.base.clone()), ..Default::default() };
+    creds.set_secret(&account, SIGN_ON_SECRET, "rt-old").unwrap();
+    pool.submit(Job::Start { account: account.clone(), password: Some(Secret(PASSWORD.into())) });
+    let seen = until(&pool, |e| matches!(e, Event::Status { status: SyncStatus::Online { .. } | SyncStatus::NeedsPassword { .. }, .. }));
+    assert!(matches!(seen.last(), Some(Event::Status { status: SyncStatus::Online { .. }, .. })), "{seen:?}");
+    assert_eq!(creds.get(&account).as_deref(), Some(PASSWORD));
+    assert_eq!(creds.get_secret(&account, SIGN_ON_SECRET), None, "the refresh token went");
+
+    creds.set_secret(&account, SIGN_ON_SECRET, "rt-old").unwrap();
+    pool.submit(Job::Remove { account: account.id.clone() });
+    assert_eq!(creds.get_secret(&account, SIGN_ON_SECRET), None, "removed with its account");
+    assert_eq!(creds.get(&account), None);
 }

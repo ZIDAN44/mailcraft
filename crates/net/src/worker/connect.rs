@@ -29,7 +29,7 @@ impl Worker {
         if let Some(r) = t.refresh.clone().filter(|r| *r != auth.secret) {
             auth.secret = r.clone();
             if let Some(c) = &self.creds
-                && let Err(e) = c.set(&self.acc, &r)
+                && let Err(e) = credentials::keep_token(c.as_ref(), &self.acc, &r)
             {
                 self.sink
                     .emit(Event::Notice { account: self.acc.id.clone(), message: format!("the new sign-in couldn't be saved in the keychain: {e}") });

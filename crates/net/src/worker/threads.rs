@@ -76,7 +76,7 @@ impl Pool {
             };
             match crate::oauth::authorize(&p, &account.email, &mut open, Duration::from_secs(5 * 60)) {
                 Ok(t) => match t.refresh {
-                    Some(r) => match creds.set(&account, &r) {
+                    Some(r) => match credentials::keep_token(creds.as_ref(), &account, &r) {
                         Ok(()) => sink.emit(Event::SignedIn { account: account.id, user: t.user }),
                         Err(e) => sink.emit(Event::Status {
                             account: account.id,
