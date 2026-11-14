@@ -138,6 +138,10 @@ fn a_release_build_updates_to_the_next_release_from_end_to_end() {
     assert_eq!(u.state(), UpdateState::Ready { version: "0.33.0".into(), asks: InstallAsks::Nothing }, "the release, not the test build");
     assert!(u.install_after(false, ended()).unwrap());
     wait_for("the install", 90, || std::fs::read(&installed).is_ok_and(|b| b == new));
+    wait_for("the download to go once installed", 30, || !data.join(DOWNLOADS).join(&name).exists());
+    // The new build isn't offered it again for a while; the one that installed it would be.
+    assert!(just_installed(&data, "v0.33.0", now(), "0.33.0 -"));
+    assert!(!just_installed(&data, "v0.33.0", now(), &u.build()));
     let kept = if cfg!(windows) { app.join("MailCraftData").join("accounts.json") } else { app.join("data").join("accounts.json") };
     assert_eq!(std::fs::read(&kept).unwrap(), b"[]", "what MailCraft keeps beside it stays");
     u.closing();

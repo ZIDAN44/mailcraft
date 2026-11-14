@@ -76,14 +76,18 @@ pub(super) fn msi_step(file: &Path) -> String {
 }
 
 /// The PowerShell step unzipping the portable zip over `dir` (its one top folder's contents).
+/// The zip goes only once it's copied in, as the MSI goes only once installed: one that can't
+/// be unpacked or copied stays, to be tried again rather than downloaded again.
 pub(super) fn portable_step(zip: &Path, dir: &Path) -> String {
     let tmp = dir.join(".mailcraft-update");
     format!(
-        "$t = {t}; Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue; \
-         Expand-Archive -LiteralPath {z} -DestinationPath $t -Force; \
+        "$t = {t}; $ok = $false; Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue; \
+         try {{ Expand-Archive -LiteralPath {z} -DestinationPath $t -Force -ErrorAction Stop; \
          $top = Get-ChildItem -LiteralPath $t -Directory | Select-Object -First 1; \
-         if ($top) {{ Copy-Item -Path (Join-Path $top.FullName '*') -Destination {d} -Recurse -Force }}; \
-         Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath {z} -ErrorAction SilentlyContinue",
+         if ($top) {{ Copy-Item -Path (Join-Path $top.FullName '*') -Destination {d} -Recurse -Force -ErrorAction Stop; $ok = $true }} }} \
+         catch {{ Write-Output $_ }}; \
+         Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue; \
+         if ($ok) {{ Remove-Item -LiteralPath {z} -ErrorAction SilentlyContinue }}",
         t = ps_quote(&tmp.display().to_string()),
         z = ps_quote(&zip.display().to_string()),
         d = ps_quote(&dir.display().to_string()),
@@ -94,15 +98,16 @@ pub(super) fn portable_step(zip: &Path, dir: &Path) -> String {
 /// takes its place (a failed or partial one, or one left by an earlier try, never does), and if
 /// the new one can't be moved in, the old one goes back. A disk image the system is still busy
 /// with (checking it, indexing it) is attached again for about a minute before the update gives
-/// up (craft-libs' updater found that one refusal threw the download away).
+/// up (craft-libs' updater found that one refusal threw the download away). The disk image goes
+/// only once the new app is in place: one that never attached stays, to be tried again.
 pub(super) fn mac_step(dmg: &Path, bundle: &Path) -> String {
     let (b, d) = (sh_quote(bundle), sh_quote(dmg));
     format!(
-        "rm -rf {b}.new; att() {{ for w in 1 2 4 8 16 32 0; do hdiutil attach -nobrowse -readonly -mountpoint \"$1\" {d} >/dev/null && return 0; \
+        "rm -rf {b}.new; put=0; att() {{ for w in 1 2 4 8 16 32 0; do hdiutil attach -nobrowse -readonly -mountpoint \"$1\" {d} >/dev/null && return 0; \
          [ $w -eq 0 ] && return 1; sleep $w; done; }}; m=$(mktemp -d) && att \"$m\" && \
          {{ ditto \"$m/MailCraft.app\" {b}.new; ok=$?; hdiutil detach \"$m\" >/dev/null 2>&1; \
-         [ $ok -eq 0 ] && rm -rf {b}.old && mv {b} {b}.old && {{ mv {b}.new {b} || mv {b}.old {b}; }}; }}; \
-         rm -rf {b}.new {b}.old; rm -f {d}"
+         [ $ok -eq 0 ] && rm -rf {b}.old && mv {b} {b}.old && {{ mv {b}.new {b} && put=1 || mv {b}.old {b}; }}; }}; \
+         rm -rf {b}.new {b}.old; [ $put -eq 1 ] && rm -f {d}"
     )
 }
 

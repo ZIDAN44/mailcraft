@@ -281,6 +281,8 @@ pub struct Updater {
     /// The version this build counts as, and whether it follows releases only.
     version: String,
     stable: bool,
+    /// The commit this build was made from, when known.
+    build_sha: Option<String>,
     shared: Arc<Shared>,
 }
 
@@ -302,12 +304,13 @@ impl Updater {
     /// An updater for a copy installed as `kind`, counting as `version` (following releases only
     /// when `stable`), its downloads in `data`, its releases from `feed`; not started.
     fn new(kind: Kind, data: PathBuf, feed: updates::Feed, version: String, stable: bool) -> Updater {
-        Updater { kind, data, feed, version, stable, shared: Arc::default() }
+        Updater { kind, data, feed, version, stable, build_sha: None, shared: Arc::default() }
     }
 
     /// Start its thread: the first check after `first` (by default a minute, or ten seconds when
     /// a download was left part way).
-    fn launch(self, build_sha: Option<String>, first: Option<Duration>) -> Option<Updater> {
+    fn launch(mut self, build_sha: Option<String>, first: Option<Duration>) -> Option<Updater> {
+        self.build_sha.clone_from(&build_sha);
         let worker = self.clone();
         let spawned = std::thread::Builder::new().name("updates".into()).spawn(move || worker.run(build_sha.as_deref(), first));
         if let Err(e) = spawned {
@@ -441,7 +444,7 @@ impl Updater {
         if release.download.is_empty() {
             return Err(format!("{} has no {} to update with", release.tag, self.kind.suffix().trim_start_matches('-')));
         }
-        if just_installed(&self.data, &release.tag, now()) {
+        if just_installed(&self.data, &release.tag, now(), &self.build()) {
             return Ok(());
         }
         if let Status::Ready { tag, .. } = self.status()
@@ -494,6 +497,11 @@ impl Updater {
         }
     }
 
+    /// This build, as the marker names it: its version and commit.
+    fn build(&self) -> String {
+        format!("{} {}", self.version, self.build_sha.as_deref().unwrap_or("-"))
+    }
+
     /// Install what's waiting once this process has ended; `restart` opens the new version then.
     /// Nothing waiting, or started already: nothing to do.
     pub fn install(&self, restart: bool) -> Result<bool, String> {
@@ -506,7 +514,10 @@ impl Updater {
         if self.shared.started.swap(true, Ordering::SeqCst) {
             return Ok(false);
         }
-        if let Err(e) = mailcraft_engine::store::write_atomic(&self.data.join(MARKER), format!("{tag}\n{}\n", now()).as_bytes()) {
+        // With the build that wrote it: that build, still running later (the install refused,
+        // failed, or put off while MailCraft still ran), isn't held back by it.
+        let marker = format!("{tag}\n{}\n{}\n", now(), self.build());
+        if let Err(e) = mailcraft_engine::store::write_atomic(&self.data.join(MARKER), marker.as_bytes()) {
             log::warn!("updates: couldn't note the update: {e}");
         }
         let log = self.data.join(DOWNLOADS).join("install.log");
@@ -536,12 +547,16 @@ fn has_part(dir: &Path) -> bool {
     std::fs::read_dir(dir).is_ok_and(|l| l.flatten().any(|e| e.file_name().to_string_lossy().ends_with(".part")))
 }
 
-/// Whether `tag` was installed by the updater within [`JUST_INSTALLED_FOR`] of `now`.
-fn just_installed(data: &Path, tag: &str, now: u64) -> bool {
+/// Whether `tag` was installed by the updater within [`JUST_INSTALLED_FOR`] of `now`, as build
+/// `me` ([`Updater::build`]) sees it. The marker is written as the install starts: when the
+/// build that wrote it is the one running, the install didn't take, and `tag` is offered again
+/// (its download, kept, is taken as it is) rather than a day later.
+fn just_installed(data: &Path, tag: &str, now: u64, me: &str) -> bool {
     let Ok(text) = std::fs::read_to_string(data.join(MARKER)) else { return false };
     let mut lines = text.lines();
     let (Some(done), Some(at)) = (lines.next(), lines.next().and_then(|a| a.trim().parse::<u64>().ok())) else { return false };
-    done.trim() == tag && now.checked_sub(at).is_some_and(|age| age < JUST_INSTALLED_FOR)
+    let by = lines.next().map(str::trim).filter(|b| !b.is_empty());
+    done.trim() == tag && by != Some(me) && now.checked_sub(at).is_some_and(|age| age < JUST_INSTALLED_FOR)
 }
 
 fn now() -> u64 {

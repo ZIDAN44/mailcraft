@@ -46,6 +46,7 @@ on GitHub.
 - **Email** on a contact's card writes to that one person when the name has a comma, as Outlook's "Last, First" names do: the name was split into two recipients there, the first of them not an address, and the message couldn't be sent until it was put right.
 - In the browser, a change made while the account is signed out (a flag, a move, a delete) waits with the mail kept in the browser, so it reaches the server once you sign in again even after the page was reloaded or closed. It waited in the page only, and was lost with it: the next sync put the message back as the server still had it.
 - In the browser, a message popped out of a folder whose name has "sample" or "webgl" in it (`Samples`, say) opens in your own mailbox: its window opened the sample mailbox instead, and couldn't find the message.
+- An update that couldn't be installed (a portable zip that wouldn't unpack, a Mac disk image that wouldn't open, an administrator prompt declined, or MailCraft still running) is offered again at the next check, from the download already made. The download was thrown away, and that version wasn't offered again for a day.
 
 ## 0.38.0 - 2026-11-13
 

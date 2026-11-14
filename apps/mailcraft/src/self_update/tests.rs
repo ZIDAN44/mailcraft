@@ -34,14 +34,22 @@ fn failed_checks_back_off_up_to_the_hour() {
 #[test]
 fn the_version_just_installed_isnt_offered_again_for_a_day() {
     let dir = scratch("marker");
-    assert!(!just_installed(&dir, "v0.21.0-test.19", 1_000_000));
+    let (old, new) = ("0.21.0 1111111", "0.21.0 2222222");
+    assert!(!just_installed(&dir, "v0.21.0-test.19", 1_000_000, new));
+    // Written by the build that installed it; read by the new one.
+    std::fs::write(dir.join(MARKER), format!("v0.21.0-test.19\n1000000\n{old}\n")).unwrap();
+    assert!(just_installed(&dir, "v0.21.0-test.19", 1_000_000 + 3600, new));
+    assert!(!just_installed(&dir, "v0.21.0-test.20", 1_000_000 + 3600, new), "another version is offered");
+    assert!(!just_installed(&dir, "v0.21.0-test.19", 1_000_000 + JUST_INSTALLED_FOR, new), "a day later it may be again");
+    assert!(!just_installed(&dir, "v0.21.0-test.19", 999_000, new), "a clock gone back proves nothing");
+    // Read by the build that wrote it, still running: the install didn't take (refused, failed,
+    // or put off while MailCraft still ran), and the version is offered again.
+    assert!(!just_installed(&dir, "v0.21.0-test.19", 1_000_000 + 3600, old));
+    // A marker from before it named its build holds as it did.
     std::fs::write(dir.join(MARKER), "v0.21.0-test.19\n1000000\n").unwrap();
-    assert!(just_installed(&dir, "v0.21.0-test.19", 1_000_000 + 3600));
-    assert!(!just_installed(&dir, "v0.21.0-test.20", 1_000_000 + 3600), "another version is offered");
-    assert!(!just_installed(&dir, "v0.21.0-test.19", 1_000_000 + JUST_INSTALLED_FOR), "a day later it may be again");
-    assert!(!just_installed(&dir, "v0.21.0-test.19", 999_000), "a clock gone back proves nothing");
+    assert!(just_installed(&dir, "v0.21.0-test.19", 1_000_000 + 3600, old));
     std::fs::write(dir.join(MARKER), "junk").unwrap();
-    assert!(!just_installed(&dir, "junk", 1_000_000));
+    assert!(!just_installed(&dir, "junk", 1_000_000, new));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -150,6 +158,7 @@ fn a_busy_disk_image_is_attached_again() {
         let path = format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default());
         std::process::Command::new("sh").arg("-c").arg(mac_step(&dmg, &app)).env("PATH", path).env("REFUSE", refuse).status().unwrap();
         assert_eq!(std::fs::read_to_string(app.join("v")).unwrap().trim(), want, "refused {refuse} times");
+        assert_eq!(dmg.exists(), want == "old", "refused {refuse} times: the download is kept only when it wasn't used");
         let attempts = std::fs::read_to_string(&tries).unwrap().lines().count();
         assert_eq!(attempts, if refuse == "2" { 3 } else { 7 }, "refused {refuse} times");
     }
@@ -228,5 +237,35 @@ fn the_window_sees_where_the_update_is() {
     u.keep_for_later();
     u.closing();
     assert!(!u.shared.started.load(Ordering::SeqCst) && u.shared.stop.load(Ordering::SeqCst));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A portable zip that can't be unpacked changes nothing and stays, to be tried again from (the
+/// check takes a file already there and right as it is, rather than downloading it again); one
+/// that unpacks is put in place and goes.
+#[cfg(windows)]
+#[test]
+fn a_damaged_portable_zip_is_kept() {
+    let dir = scratch("zip-damaged");
+    let app = dir.join("MailCraft");
+    std::fs::create_dir_all(&app).unwrap();
+    std::fs::write(app.join("mailcraft.exe"), b"old").unwrap();
+    let ps =
+        |script: &str| std::process::Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", script]).status().unwrap();
+    let bad = dir.join("bad.zip");
+    std::fs::write(&bad, b"not a zip").unwrap();
+    ps(&portable_step(&bad, &app));
+    assert_eq!(std::fs::read(app.join("mailcraft.exe")).unwrap(), b"old");
+    assert!(bad.is_file(), "kept, to be tried again");
+    assert!(!app.join(".mailcraft-update").exists());
+    let top = dir.join("pack").join("mailcraft-0.40.0-windows-x64");
+    std::fs::create_dir_all(&top).unwrap();
+    std::fs::write(top.join("mailcraft.exe"), b"new").unwrap();
+    let good = dir.join("good.zip");
+    let q = |p: &Path| ps_quote(&p.display().to_string());
+    assert!(ps(&format!("Compress-Archive -Path {} -DestinationPath {}", q(&top), q(&good))).success());
+    ps(&portable_step(&good, &app));
+    assert_eq!(std::fs::read(app.join("mailcraft.exe")).unwrap(), b"new");
+    assert!(!good.exists(), "installed: the download goes");
     let _ = std::fs::remove_dir_all(&dir);
 }
