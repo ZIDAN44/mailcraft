@@ -76,6 +76,9 @@ pub struct Data {
     /// Reminders answered (issue #40): (`dismissReminder` or `snoozeReminder`, the event's or
     /// occurrence's id, the request's body).
     pub reminders: Vec<(String, String, Value)>,
+    /// What the client did that the fake checks it never does, each answered 400: the test
+    /// fails on any left here when the server is dropped (see [`Server`]'s `Drop`).
+    pub violations: Vec<String>,
     /// The bearer token and headers of the request being answered.
     bearer: String,
     headers: Vec<(String, String)>,
@@ -297,8 +300,10 @@ impl Data {
             ("GET", ["me", "mailFolders", id, "messages"]) => {
                 let Some(id) = self.resolve(id) else { return not_found() };
                 let mut list: Vec<&Msg> = self.messages.iter().filter(|m| m.folder == id).collect();
-                if let Some(o) = q("$orderby") {
-                    assert_eq!(o, "receivedDateTime%20desc");
+                if let Some(o) = q("$orderby")
+                    && o != "receivedDateTime%20desc"
+                {
+                    return self.refuse(format!("messages asked for in another order than the newest first: {o}"));
                 }
                 // A search: its words (KQL, the whole in quotes), or read and flag conditions.
                 if let Some(s) = q("$search") {
@@ -533,6 +538,14 @@ impl Data {
         }
     }
 
+    /// A request breaking what the fake checks of the client: kept for the test to fail on, and
+    /// answered 400 with why (not asserted here: that would kill the server, not fail the test).
+    fn refuse(&mut self, why: String) -> (u16, Vec<u8>, &'static str) {
+        let body = json!({"error": {"code": "BadRequest", "message": format!("the fake refuses it: {why}")}}).to_string().into_bytes();
+        self.violations.push(why);
+        (400, body, "application/json")
+    }
+
     /// A listing two items a page, with `@odata.nextLink` for the rest.
     fn page(&self, list: Vec<Value>, path: &str, query: &str, base: &str) -> (u16, Vec<u8>, &'static str) {
         let skip: usize = query.split('&').find_map(|kv| kv.strip_prefix("$skip=")).and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -620,6 +633,17 @@ pub struct Server {
     pub data: Arc<Mutex<Data>>,
 }
 
+impl Drop for Server {
+    /// A test whose client broke what the fake checks fails, even where it took the refusal.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
+        let left = self.data.lock().map(|d| d.violations.clone()).unwrap_or_default();
+        assert!(left.is_empty(), "the client broke what the fake checks: {left:?}");
+    }
+}
+
 /// Prefix that turns a stored id into its non-immutable spelling.
 const REGULAR: &str = "AAMk-";
 
@@ -684,7 +708,11 @@ pub fn serve(data: Data) -> Server {
                 continue;
             }
             let directory = first.contains(" /v1.0/users?") || first.contains(" /v1.0/me/people?");
-            assert!(immutable || directory, "ids are asked for in their immutable form");
+            if !immutable && !directory {
+                let (status, out, kind) = shared.lock().unwrap().refuse(format!("ids not asked for in their immutable form: {}", first.trim_end()));
+                respond(&mut s, status, &out, kind);
+                continue;
+            }
             let mut words = first.split(' ');
             let (method, target) = (words.next().unwrap_or("GET").to_string(), words.next().unwrap_or("/").to_string());
             let target = target.strip_prefix("/v1.0").unwrap_or(&target).to_string();

@@ -8,6 +8,7 @@ use mailcraft_model::{AccountConfig, Event, Job, SyncStatus};
 use super::*;
 use crate::fakes::exchange_e2e::{Exchange, OnServer, an_exchange_account_end_to_end};
 
+mod checks;
 mod directory;
 mod large_folder;
 mod renewal;

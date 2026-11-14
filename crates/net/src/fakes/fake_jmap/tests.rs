@@ -394,3 +394,38 @@ fn jmap_number(store: &Store, id: &str) -> Option<u32> {
     let known = st.id(1).is_some() || st.id(2).is_some();
     known.then(|| st.number(id))
 }
+
+/// One request to the fake, by hand: the status it's answered with (0: none).
+fn status_of(server: &Server, target: &str) -> u16 {
+    use std::io::{Read, Write};
+    let mut s = std::net::TcpStream::connect(server.base.trim_start_matches("http://")).unwrap();
+    s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    let auth = mailcraft_model::base64::encode(format!("{USER}:{PASSWORD}").as_bytes());
+    write!(s, "GET {target} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {auth}\r\n\r\n").unwrap();
+    // The status line alone: an event stream stays open.
+    let mut head = [0u8; 12];
+    let _ = s.read_exact(&mut head);
+    String::from_utf8_lossy(&head).split(' ').nth(1).and_then(|c| c.parse().ok()).unwrap_or(0)
+}
+
+/// Found in review: the fake asserted what it checks of the client on its connection's thread,
+/// with its data locked, so a request breaking it poisoned the lock and every request after
+/// failed. An event stream not asked for every type is refused (400) and kept; the next request
+/// is answered.
+#[test]
+fn a_request_the_fake_forbids_is_refused_and_kept() {
+    let server = serve(Data::default());
+    assert_eq!(status_of(&server, "/events/?types=Email&closeafter=no&ping=1"), 400);
+    assert_eq!(status_of(&server, "/.well-known/jmap"), 200);
+    assert_eq!(status_of(&server, "/events/?types=*&closeafter=no&ping=1"), 200);
+    let kept = std::mem::take(&mut server.data.lock().unwrap().violations);
+    assert_eq!(kept.len(), 1, "{kept:?}");
+}
+
+/// A refusal no one looked at fails the test when its server goes.
+#[test]
+#[should_panic(expected = "the client broke what the fake checks")]
+fn a_refusal_left_unseen_fails_the_test() {
+    let server = serve(Data::default());
+    assert_eq!(status_of(&server, "/events/?types=Email&closeafter=no&ping=1"), 400);
+}

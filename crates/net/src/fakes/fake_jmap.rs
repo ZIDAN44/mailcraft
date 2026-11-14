@@ -52,6 +52,9 @@ pub struct Data {
     /// with `Identity/set` are listed (their addresses).
     pub no_identity: bool,
     pub made_identities: Vec<String>,
+    /// What the client did that the fake checks it never does, each answered 400: the test
+    /// fails on any left here when the server is dropped (see [`Server`]'s `Drop`).
+    pub violations: Vec<String>,
     next: u32,
 }
 
@@ -337,6 +340,17 @@ pub struct Server {
     pub data: Arc<Mutex<Data>>,
 }
 
+impl Drop for Server {
+    /// A test whose client broke what the fake checks fails, even where it took the refusal.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
+        let left = self.data.lock().map(|d| d.violations.clone()).unwrap_or_default();
+        assert!(left.is_empty(), "the client broke what the fake checks: {left:?}");
+    }
+}
+
 fn respond(s: &mut impl Write, status: u16, body: &[u8], kind: &str) {
     let head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n{CORS}Connection: close\r\n\r\n", body.len());
     let _ = s.write_all(head.as_bytes());
@@ -404,7 +418,14 @@ fn handle(mut s: std::net::TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
             let path = first.split(' ').nth(1).unwrap_or("/").to_string();
             let mut d = shared.lock().unwrap();
             if path.starts_with("/events/") {
-                assert!(path.contains("types=%2A") || path.contains("types=*"), "{path}");
+                // Kept for the test to fail on, and refused: not asserted here, which would
+                // poison the data's lock and leave every request after it unanswered.
+                if !path.contains("types=%2A") && !path.contains("types=*") {
+                    d.violations.push(format!("an event stream not asked for every type: {path}"));
+                    drop(d);
+                    respond(&mut s, 400, br#"{"type": "urn:ietf:params:jmap:error:notRequest"}"#, "application/json");
+                    return;
+                }
                 let (tx, rx) = std::sync::mpsc::channel::<String>();
                 d.listeners.push(tx);
                 drop(d);
