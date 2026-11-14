@@ -86,12 +86,13 @@ impl Conn {
 
     /// Search one folder on the server (issue #4): what's found goes to `sent` with how many came
     /// into the folder's list, as it's found (IMAP, a range at a time) or at the end. `None` when
-    /// this kind of server has nothing to ask ([`Conn::asks`]).
+    /// this kind of server has nothing to ask ([`Conn::asks`]). Nothing found is kept once the
+    /// account was removed since it had been removed `seen` times.
     pub(super) fn find_on_server(
         &mut self,
         jstate: &mut jmap::State,
         store: &Store,
-        account: &str,
+        (account, seen): (&str, u64),
         folder: &str,
         q: &ServerQuery,
         sent: &mut dyn FnMut(Vec<MessageKey>, usize) -> bool,
@@ -102,10 +103,10 @@ impl Conn {
             })
         };
         let r = match (self, &q.imap, &q.filter, &q.words) {
-            (Conn::Imap(c), Some(q), _, _) => crate::sync::find_on_server(c, store, account, folder, q, FOUND_MAX, sent).map(|_| ()),
-            (Conn::Jmap(c), _, Some(q), _) => found(jmap::find_on_server(c, jstate, store, account, folder, q, FOUND_MAX)),
-            (Conn::Graph(c), _, _, Some(q)) => found(crate::graph::find_on_server(c, jstate, store, account, folder, q, FOUND_MAX)),
-            (Conn::Ews(c), _, _, Some(q)) => found(crate::ews::find_on_server(c, jstate, store, account, folder, q, FOUND_MAX)),
+            (Conn::Imap(c), Some(q), _, _) => crate::sync::find_on_server(c, store, (account, seen), folder, q, FOUND_MAX, sent).map(|_| ()),
+            (Conn::Jmap(c), _, Some(q), _) => found(jmap::find_on_server(c, jstate, store, (account, seen), folder, q, FOUND_MAX)),
+            (Conn::Graph(c), _, _, Some(q)) => found(crate::graph::find_on_server(c, jstate, store, (account, seen), folder, q, FOUND_MAX)),
+            (Conn::Ews(c), _, _, Some(q)) => found(crate::ews::find_on_server(c, jstate, store, (account, seen), folder, q, FOUND_MAX)),
             _ => return None,
         };
         Some(r)

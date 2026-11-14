@@ -559,12 +559,13 @@ fn message_summary(m: &Value, key: MessageKey) -> Summary {
 /// The messages of `folder` the server finds for a search (issue #4), the newest `cap` of them:
 /// its words through `$search` (KQL), or, with none, its read and flag conditions through
 /// `$filter`. Those not kept yet come into its list and stay there past the window while the
-/// folder has them. Their keys, and how many came in.
+/// folder has them. Their keys, and how many came in. Nothing written once the account was
+/// removed since it had been removed `seen` times: an error then.
 pub fn find_on_server(
     c: &Client,
     st: &mut State,
     store: &Store,
-    account: &str,
+    (account, seen): (&str, u64),
     folder: &str,
     query: &WordQuery,
     cap: usize,
@@ -604,12 +605,13 @@ pub fn find_on_server(
             new.push(message_summary(m, key));
         }
     }
-    crate::exchange::window::found(st, store, (account, folder), fs, &numbers, new)
+    crate::exchange::window::found(st, store, (account, seen), folder, fs, &numbers, new)
 }
 
-/// Download one message's source (and cache it).
-pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
-    crate::exchange::window::fetch_body(st, store, key, |id| c.download(id))
+/// Download one message's source (and cache it, unless the account was removed since it had been
+/// removed `seen` times).
+pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey, seen: u64) -> Result<(Vec<u8>, Option<Summary>)> {
+    crate::exchange::window::fetch_body(st, store, key, seen, |id| c.download(id))
 }
 
 /// Apply one change on the server.

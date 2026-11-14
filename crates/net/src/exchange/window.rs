@@ -157,11 +157,13 @@ pub(crate) fn kept_numbers(fs: &FolderState) -> HashSet<u32> {
 
 /// What a search of the server found in `folder` brought into its list `fs`: `numbers`, all it
 /// found, are kept there past the window while the folder has them, and `new`, the summaries of
-/// those not kept yet, go in. Their keys, and how many came in.
+/// those not kept yet, go in. Their keys, and how many came in. Nothing written once `account`
+/// was removed since it had been removed `seen` times ([`if_kept`]): an error then.
 pub(crate) fn found(
     st: &mut State,
     store: &Store,
-    (account, folder): (&str, &str),
+    (account, seen): (&str, u64),
+    folder: &str,
     mut fs: FolderState,
     numbers: &[u32],
     new: Vec<Summary>,
@@ -172,7 +174,7 @@ pub(crate) fn found(
         fs.messages.extend(new.into_iter().map(Into::into));
         sort_newest_first(&mut fs.messages);
         fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
-        store.save_folder(account, folder, &fs)?;
+        if_kept(store, account, seen, || store.save_folder(account, folder, &fs))?;
     }
     // (The first kept under a number, as a search of the list found it.)
     let keys: HashMap<u32, &MessageKey> = fs.messages.iter().rev().map(|m| (m.key.uid, &m.key)).collect();
@@ -185,11 +187,13 @@ pub(crate) fn server_ids(st: &State, keys: &[MessageKey]) -> Vec<(String, String
 }
 
 /// A message's source, from the cache or else downloaded and kept, with its summary as its
-/// folder now has it when it was downloaded.
+/// folder now has it when it was downloaded. Not kept once the account was removed since it had
+/// been removed `seen` times ([`if_kept`]): an error then.
 pub(crate) fn fetch_body(
     st: &State,
     store: &Store,
     key: &MessageKey,
+    seen: u64,
     download: impl FnOnce(&str) -> Result<Vec<u8>>,
 ) -> Result<(Vec<u8>, Option<Summary>)> {
     if let Some(raw) = store.read_body(key) {
@@ -197,7 +201,7 @@ pub(crate) fn fetch_body(
     }
     let id = st.id(key.uid).filter(|_| key.validity == VALIDITY).ok_or_else(|| NetError::No("the message is no longer on the server".into()))?;
     let raw = download(id)?;
-    let filled = crate::sync::keep_source(store, key, &raw)?;
+    let filled = if_kept(store, &key.account, seen, || crate::sync::keep_source(store, key, &raw))?;
     Ok((raw, filled))
 }
 

@@ -140,7 +140,7 @@ fn mail_past_whats_kept_is_found_and_shown_more() {
 
     let find = |c: &mut Client<Fake>, criteria: &[crate::sync::SearchArg]| {
         let (mut keys, mut new) = (Vec::new(), 0);
-        crate::sync::find_on_server(c, &store, "a1", "INBOX", criteria, 500, &mut |k, n| {
+        crate::sync::find_on_server(c, &store, ("a1", 0), "INBOX", criteria, 500, &mut |k, n| {
             keys.extend(k);
             new += n;
             true
@@ -195,7 +195,7 @@ fn a_large_folder_is_searched_a_range_at_a_time_and_can_stop() {
     };
 
     let mut batches: Vec<Vec<u32>> = Vec::new();
-    let total = crate::sync::find_on_server(&mut c, &store, "a1", "INBOX", &criteria, 500, &mut |k, _| {
+    let total = crate::sync::find_on_server(&mut c, &store, ("a1", 0), "INBOX", &criteria, 500, &mut |k, _| {
         batches.push(k.iter().map(|k| k.uid).collect());
         true
     })
@@ -210,7 +210,7 @@ fn a_large_folder_is_searched_a_range_at_a_time_and_can_stop() {
     // Stopped after the first range: nothing more is asked.
     st.lock().unwrap().log.clear();
     let mut calls = 0;
-    crate::sync::find_on_server(&mut c, &store, "a1", "INBOX", &criteria, 500, &mut |_, _| {
+    crate::sync::find_on_server(&mut c, &store, ("a1", 0), "INBOX", &criteria, 500, &mut |_, _| {
         calls += 1;
         false
     })
@@ -219,7 +219,7 @@ fn a_large_folder_is_searched_a_range_at_a_time_and_can_stop() {
     // The cap: the newest 12 only, and no range asked past it.
     st.lock().unwrap().log.clear();
     let mut uids = Vec::new();
-    crate::sync::find_on_server(&mut c, &store, "a1", "INBOX", &criteria, 12, &mut |k, _| {
+    crate::sync::find_on_server(&mut c, &store, ("a1", 0), "INBOX", &criteria, 12, &mut |k, _| {
         uids.extend(k.iter().map(|k| k.uid));
         true
     })
@@ -355,5 +355,48 @@ fn show_more_and_search(caps: &'static str) {
     // Offline: answered at once.
     pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "x".into(), search: 2 });
     until(&pool, "offline answer", |e| matches!(e, Event::ServerSearched { error: Some(_), .. }));
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
+/// Found in review: a server search, and a message downloaded, wrote the account's cache with
+/// no thought of its removal (as a sync once did): an account removed while its worker searched
+/// the server or downloaded a message had its files back, with the folder's list or the message
+/// in them. Neither writes anything of it once it's removed.
+#[test]
+fn a_search_or_a_download_writes_nothing_for_an_account_removed_meanwhile() {
+    let st = State::new();
+    {
+        let mut s = st.lock().unwrap();
+        for n in 1..=3000 {
+            let body = if n % 100 == 0 { format!("needle {n}") } else { format!("body {n}") };
+            s.add_raw("INBOX", format!("Subject: Message {n}\r\nMessage-ID: <g{n}@x>\r\n\r\n{body}\r\n").into_bytes());
+        }
+    }
+    let store = store("search-removed");
+    let mut c = login(&st);
+    sync_folder(&mut c, &store, "a1", "INBOX", &SyncOptions { window: 10, prefetch: 0, ..Default::default() }).unwrap();
+    let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
+    let gone = || !store.root().join("a1").exists();
+    // As the worker started.
+    let seen = store.removals("a1");
+
+    // Removed once the first range's finds are in: the next ones are written nowhere.
+    let criteria = crate::sync::imap_criteria("needle").unwrap();
+    let mut ranges = 0;
+    let searched = crate::sync::find_on_server(&mut c, &store, ("a1", seen), "INBOX", &criteria, 500, &mut |_, _| {
+        ranges += 1;
+        if ranges == 1 {
+            store.remove_account("a1").unwrap();
+        }
+        true
+    });
+    assert!(gone(), "the folder's list written again (after {ranges} ranges)");
+    assert_eq!(ranges, 1, "the search went on for an account removed");
+    assert!(searched.is_err());
+
+    // A message coming down: it isn't kept.
+    let fetched = crate::sync::fetch_body(&mut c, &store, &key, seen);
+    assert!(!store.has_body(&key) && gone(), "the message kept for an account removed");
+    assert!(fetched.is_err());
     let _ = std::fs::remove_dir_all(store.root());
 }

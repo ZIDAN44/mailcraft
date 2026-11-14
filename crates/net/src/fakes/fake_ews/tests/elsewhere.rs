@@ -54,7 +54,7 @@ fn requests_go_where_their_folder_is_and_nowhere_else() {
         let fs = store.load_folder("a1", path).unwrap();
         assert_eq!(fs.messages.len(), 1, "{path}");
         store.remove_body(&fs.messages[0].key);
-        assert_eq!(&crate::ews::fetch_body(&c, &st, &store, &fs.messages[0].key).unwrap().0, raw, "{path}");
+        assert_eq!(&crate::ews::fetch_body(&c, &st, &store, &fs.messages[0].key, 0).unwrap().0, raw, "{path}");
         let (calls, anchors) = {
             let d = server.data.lock().unwrap();
             (d.calls.clone(), d.anchors.clone())

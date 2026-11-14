@@ -747,12 +747,13 @@ impl<H: Http> Client<H> {
 /// The messages of `folder` the server finds for `filter` ([`search_filter`]), the newest `cap`
 /// of them: those not kept yet come into its list, and stay there past the window while the
 /// server has them there (issue #4). Their keys, and how many came in. A folder never synced is
-/// left to its sync.
+/// left to its sync. Nothing written once the account was removed since it had been removed
+/// `seen` times ([`Store::while_kept`]): an error then.
 pub async fn find_on_server<H: Http>(
     c: &Client<H>,
     st: &mut State,
     store: &Store,
-    account: &str,
+    (account, seen): (&str, u64),
     folder: &str,
     filter: &Value,
     cap: usize,
@@ -780,7 +781,7 @@ pub async fn find_on_server<H: Http>(
     if new > 0 {
         sort_newest_first(&mut fs.messages);
         fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
-        store.save_folder(account, folder, &fs)?;
+        sync::if_kept(store, account, seen, || store.save_folder(account, folder, &fs))?;
     }
     // (The first kept under a number, as a search of the list found it.)
     let keys: HashMap<u32, &MessageKey> = fs.messages.iter().rev().map(|m| (m.key.uid, &m.key)).collect();
@@ -788,8 +789,9 @@ pub async fn find_on_server<H: Http>(
 }
 
 /// Download one message's source (and cache it), with its summary as its folder now has it, filled
-/// from it ([`keep_source`]); one cached already comes as it is, with no summary.
-pub async fn fetch_body<H: Http>(c: &Client<H>, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
+/// from it ([`keep_source`]); one cached already comes as it is, with no summary. Not kept once
+/// the account was removed since it had been removed `seen` times: an error then.
+pub async fn fetch_body<H: Http>(c: &Client<H>, st: &State, store: &Store, key: &MessageKey, seen: u64) -> Result<(Vec<u8>, Option<Summary>)> {
     if let Some(raw) = store.read_body(key) {
         return Ok((raw, None));
     }
@@ -797,7 +799,7 @@ pub async fn fetch_body<H: Http>(c: &Client<H>, st: &State, store: &Store, key: 
     let id = st.id(key.uid).filter(|_| key.validity == VALIDITY).ok_or_else(gone)?.to_string();
     let blob = c.blobs(std::slice::from_ref(&id)).await?.remove(&id).ok_or_else(gone)?;
     let raw = c.download(&blob).await?;
-    let filled = keep_source(store, key, &raw)?;
+    let filled = sync::if_kept(store, &key.account, seen, || keep_source(store, key, &raw))?;
     Ok((raw, filled))
 }
 

@@ -576,6 +576,8 @@ impl Worker {
             return;
         }
         let (mut any, mut failed) = (false, None);
+        // Nothing found is kept once the account is removed (found in review: its files came back).
+        let seen = self.removals;
         for f in folders.iter().take(200) {
             if !still() {
                 break;
@@ -591,7 +593,7 @@ impl Worker {
                 }
                 still()
             };
-            let Some(found) = self.conn.as_mut().and_then(|c| c.find_on_server(&mut self.jstate, &store, &id, f, &asked, &mut sent)) else {
+            let Some(found) = self.conn.as_mut().and_then(|c| c.find_on_server(&mut self.jstate, &store, (&id, seen), f, &asked, &mut sent)) else {
                 break;
             };
             if let Err(e) = found {

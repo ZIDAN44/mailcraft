@@ -16,7 +16,7 @@ pub async fn sync_folder<H: Http>(
 
 /// A change to `account`'s cache, unless the account was removed since [`Store::removals`] said
 /// `seen` ([`Store::while_kept`]): an error then, which ends the sync.
-fn if_kept<T>(store: &Store, account: &str, seen: u64, write: impl FnOnce() -> mailcraft_store::Result<T>) -> Result<T> {
+pub(crate) fn if_kept<T>(store: &Store, account: &str, seen: u64, write: impl FnOnce() -> mailcraft_store::Result<T>) -> Result<T> {
     Ok(store.while_kept(account, seen, write).ok_or_else(|| Error::Closed("the account was removed".into()))??)
 }
 

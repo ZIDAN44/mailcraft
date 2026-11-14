@@ -324,12 +324,12 @@ async fn search_server(sh: &Rcs, id: &str, folders: &[String], query: String, se
     };
     let store = store(sh);
     let mut st = state(sh, id);
-    let (mut any, mut failed) = (false, None);
+    let (mut any, mut failed, seen) = (false, None, store.removals(id));
     for f in folders.iter().take(200) {
         if sh.borrow().search != search {
             break;
         }
-        match mailcraft_jmap::find_on_server(&c, &mut st, &store, id, f, &filter, mailcraft_jmap::FOUND_MAX).await {
+        match mailcraft_jmap::find_on_server(&c, &mut st, &store, (id, seen), f, &filter, mailcraft_jmap::FOUND_MAX).await {
             Ok((found, new)) => {
                 if new > 0 {
                     emit(sh, Event::FolderChanged { account: id.to_string(), folder: f.clone() });

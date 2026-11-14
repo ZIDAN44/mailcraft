@@ -108,22 +108,24 @@ pub fn sync_folder_as(c: &Client, st: &mut State, store: &Store, account: &str, 
     Ok(block_on(mailcraft_jmap::sync_folder_as(&c.0, st, store, account, folder, opts, seen))?)
 }
 
-/// What the server finds in a folder for a search (issue #4), brought into its list.
+/// What the server finds in a folder for a search (issue #4), brought into its list (unless the
+/// account was removed since it had been removed `seen` times).
 pub fn find_on_server(
     c: &Client,
     st: &mut State,
     store: &Store,
-    account: &str,
+    (account, seen): (&str, u64),
     folder: &str,
     filter: &serde_json::Value,
     cap: usize,
 ) -> Result<(Vec<MessageKey>, usize)> {
-    Ok(block_on(mailcraft_jmap::find_on_server(&c.0, st, store, account, folder, filter, cap))?)
+    Ok(block_on(mailcraft_jmap::find_on_server(&c.0, st, store, (account, seen), folder, filter, cap))?)
 }
 
-/// Download one message's source (and cache it).
-pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
-    Ok(block_on(mailcraft_jmap::fetch_body(&c.0, st, store, key))?)
+/// Download one message's source (and cache it, unless the account was removed since it had been
+/// removed `seen` times).
+pub fn fetch_body(c: &Client, st: &State, store: &Store, key: &MessageKey, seen: u64) -> Result<(Vec<u8>, Option<Summary>)> {
+    Ok(block_on(mailcraft_jmap::fetch_body(&c.0, st, store, key, seen))?)
 }
 
 /// Apply one change on the server.

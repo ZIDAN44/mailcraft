@@ -370,11 +370,12 @@ const SEARCH_STEP_MAX: u32 = 20_000;
 /// message numbers at a time (`UID SEARCH 9501:10000 TEXT …`), and what each range finds goes to
 /// `found` with how many came into the list, as it's found; `found` answers whether to go on
 /// (the search can be stopped between two ranges). How many were found in all. A folder never
-/// synced (or whose UIDVALIDITY changed) is left to its sync.
+/// synced (or whose UIDVALIDITY changed) is left to its sync. Nothing written once the account
+/// was removed since it had been removed `seen` times ([`if_kept`]): an error then, which ends it.
 pub fn find_on_server<S: Read + Write>(
     c: &mut Client<S>,
     store: &Store,
-    account: &str,
+    (account, seen): (&str, u64),
     folder: &str,
     criteria: &[SearchArg],
     cap: usize,
@@ -403,7 +404,7 @@ pub fn find_on_server<S: Read + Write>(
         fetch_headers(c, &mut st, account, folder, &missing, &mut report)?;
         if report.new > 0 {
             sort_newest_first(&mut st.messages);
-            store.save_folder(account, folder, &st)?;
+            if_kept(store, account, seen, || store.save_folder(account, folder, &st))?;
         }
         let keys = uids.iter().filter_map(|u| st.find(*u).map(|m| m.key.clone())).collect();
         if !found(keys, report.new) {
@@ -556,8 +557,9 @@ fn body_chunks(wanted: &[(u32, u32)]) -> Vec<Vec<u32>> {
 }
 
 /// Download one message's source (and cache it), with its summary as its folder now has it, filled
-/// from it ([`keep_source`]); one cached already comes as it is, with no summary.
-pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
+/// from it ([`keep_source`]); one cached already comes as it is, with no summary. Not kept once
+/// the account was removed since it had been removed `seen` times ([`if_kept`]): an error then.
+pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &MessageKey, seen: u64) -> Result<(Vec<u8>, Option<Summary>)> {
     if let Some(raw) = store.read_body(key) {
         return Ok((raw, None));
     }
@@ -573,7 +575,7 @@ pub fn fetch_body<S: Read + Write>(c: &mut Client<S>, store: &Store, key: &Messa
         .find(|f| f.uid == key.uid)
         .and_then(|f| f.body)
         .ok_or_else(|| crate::NetError::No("the message is no longer on the server".into()))?;
-    let filled = keep_source(store, key, &raw)?;
+    let filled = if_kept(store, &key.account, seen, || keep_source(store, key, &raw))?;
     Ok((raw, filled))
 }
 

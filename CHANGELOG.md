@@ -85,6 +85,7 @@ on GitHub.
 - Exchange accounts with public folders sync faster: the public folder list is read once a sync instead of twice.
 - Turning an account's Work online only setting on or off no longer needs twice the account's size in memory.
 - Printing or saving as PDF a message with deeply nested tables is faster.
+- Removing an account while it searched the server or downloaded a message no longer brings its files back.
 
 ## 0.38.0 - 2026-11-13
 

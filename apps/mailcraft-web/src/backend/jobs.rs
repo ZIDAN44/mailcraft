@@ -23,7 +23,7 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
         Job::SyncFolder { folder, .. } => sync_one(sh, id, &folder).await,
         Job::FetchBody { key } => {
             let r = match client(sh, id) {
-                Some(c) => mailcraft_jmap::fetch_body(&c, &state(sh, id), &store, &key).await,
+                Some(c) => mailcraft_jmap::fetch_body(&c, &state(sh, id), &store, &key, store.removals(id)).await,
                 None => store.read_body(&key).map(|raw| (raw, None)).ok_or_else(|| Error::No(format!("not downloaded yet, and {OFFLINE}"))),
             };
             match r {

@@ -70,6 +70,43 @@ fn graph_is_searched_past_the_window() {
     assert!(calls.iter().any(|c| c.contains("$filter=isRead%20eq%20false")), "{calls:?}");
 }
 
+/// Found in review: a search of the server, and a message downloaded, wrote the cache of an
+/// account removed meanwhile, and its files came back. Over Graph (and EWS, whose code it shares)
+/// neither writes anything of it.
+#[test]
+fn a_search_or_a_download_writes_nothing_for_an_account_removed_meanwhile() {
+    let mut d = Data::default();
+    let inbox = d.folder("Inbox", None, Some("inbox"));
+    for n in 1..=6 {
+        d.deliver(&inbox, &mail(&format!("Message {n}"), &format!("r{n}")), n > 3, &format!("2024-05-{n:02}T09:00:00Z"));
+    }
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    let store = crate::fake::tests_store("graph-removed");
+    let mut st = crate::jmap::State::default();
+    crate::graph::list_folders(&c, &mut st, "a1").unwrap();
+    crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions { window: 2, prefetch: 0, ..Default::default() })
+        .unwrap();
+    let fs = store.load_folder("a1", "INBOX").unwrap();
+    let key = fs.messages[0].key.clone();
+    // As the worker started, and as a search read the folder; then removed, the server asked.
+    let seen = store.removals("a1");
+    store.remove_account("a1").unwrap();
+    let mut came = (*fs.messages[1]).clone();
+    came.key.uid = 999;
+    assert!(crate::exchange::window::found(&mut st, &store, ("a1", seen), "INBOX", fs, &[999], vec![came]).is_err());
+    assert!(crate::graph::fetch_body(&c, &st, &store, &key, seen).is_err());
+    assert!(!store.has_body(&key) && !store.root().join("a1").exists(), "the account's files came back");
+    // Not removed since: kept.
+    let seen = store.removals("a1");
+    crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions { window: 2, prefetch: 0, ..Default::default() })
+        .unwrap();
+    let unread = crate::sync::word_query("is:unread").unwrap();
+    assert_eq!(crate::graph::find_on_server(&c, &mut st, &store, ("a1", seen), "INBOX", &unread, 500).unwrap().1, 3);
+    assert!(crate::graph::fetch_body(&c, &st, &store, &key, seen).is_ok() && store.has_body(&key));
+    let _ = std::fs::remove_dir_all(store.root());
+}
+
 fn mail(subject: &str, id: &str) -> Vec<u8> {
     format!("From: Zoe Park <zoe@contoso.example>\r\nTo: me@contoso.example\r\nSubject: {subject}\r\nMessage-ID: <{id}@x>\r\n\r\nHello about {subject}.\r\n")
         .into_bytes()

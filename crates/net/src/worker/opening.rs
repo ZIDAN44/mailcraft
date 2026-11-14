@@ -72,16 +72,17 @@ impl Worker {
         if self.acc.is_api() {
             self.jstate = jmap::State::load(&self.store, &self.acc.id);
         }
-        let (store, began) = (self.store.clone(), Instant::now());
+        // Not kept once the account is removed (found in review: its files came back).
+        let (store, began, seen) = (self.store.clone(), Instant::now(), self.removals);
         let r = (|| -> Result<(Vec<u8>, Option<mailcraft_model::Summary>)> {
             if self.conn.is_none() {
                 self.connect()?;
             }
             match self.conn.as_mut() {
-                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key),
-                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
-                Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key),
-                Some(Conn::Imap(c)) => fetch_body(c, &store, &key),
+                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key, seen),
+                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key, seen),
+                Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key, seen),
+                Some(Conn::Imap(c)) => fetch_body(c, &store, &key, seen),
                 Some(Conn::Pop) | None => Err(NetError::No("not a connection that downloads one message".into())),
             }
         })();
@@ -127,7 +128,7 @@ impl Worker {
             self.sink.emit(Event::Body { key, raw });
             return;
         }
-        let store = self.store.clone();
+        let (store, seen) = (self.store.clone(), self.removals);
         let began = Instant::now();
         let r = (|| -> Result<Option<(Vec<u8>, Option<mailcraft_model::Summary>)>> {
             if self.conn.is_none() {
@@ -148,14 +149,14 @@ impl Worker {
                 }
             }
             let raw = match self.conn.as_mut() {
-                Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key),
-                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key),
-                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key),
+                Some(Conn::Jmap(c)) => jmap::fetch_body(c, &self.jstate, &store, &key, seen),
+                Some(Conn::Graph(c)) => crate::graph::fetch_body(c, &self.jstate, &store, &key, seen),
+                Some(Conn::Ews(c)) => crate::ews::fetch_body(c, &self.jstate, &store, &key, seen),
                 // POP mail is downloaded whole: what isn't here isn't anywhere.
                 Some(Conn::Pop) => {
                     store.read_body(&key).map(|raw| (raw, None)).ok_or_else(|| NetError::No("this message isn't on this computer".into()))
                 }
-                _ => fetch_body(self.client()?, &store, &key),
+                _ => fetch_body(self.client()?, &store, &key, seen),
             }?;
             Ok(Some(raw))
         })();
