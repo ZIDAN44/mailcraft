@@ -22,7 +22,7 @@
 pub mod sse;
 pub mod url;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mailcraft_mime as mime;
 use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, SharedSummary, Summary, sort_newest_first, utf7};
@@ -759,12 +759,14 @@ pub async fn find_on_server<H: Http>(
     }
     let ids = c.search(&mailbox, filter, cap.min(FOUND_MAX)).await?;
     let numbers: Vec<u32> = ids.iter().map(|id| st.number(id)).collect();
-    let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| fs.find(**n).is_none()).map(|(id, _)| id.clone()).collect();
+    // The numbers kept, in a set (looked up in the list, each found was a pass over the folder).
+    let mut kept: HashSet<u32> = fs.messages.iter().map(|m| m.key.uid).collect();
+    let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| !kept.contains(*n)).map(|(id, _)| id.clone()).collect();
     let mut new = 0;
     for e in c.headers(&missing).await? {
         let Some(id) = e.get("id").and_then(Value::as_str) else { continue };
         let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(id) };
-        if fs.find(key.uid).is_none() {
+        if kept.insert(key.uid) {
             fs.messages.push(email_summary(&e, key).into());
             new += 1;
         }
@@ -775,7 +777,9 @@ pub async fn find_on_server<H: Http>(
         fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
         store.save_folder(account, folder, &fs)?;
     }
-    Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
+    // (The first kept under a number, as a search of the list found it.)
+    let keys: HashMap<u32, &MessageKey> = fs.messages.iter().rev().map(|m| (m.key.uid, &m.key)).collect();
+    Ok((numbers.iter().filter_map(|n| keys.get(n).map(|k| (*k).clone())).collect(), new))
 }
 
 /// Download one message's source (and cache it), with its summary as its folder now has it, filled

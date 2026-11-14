@@ -28,6 +28,7 @@ on GitHub.
 - Mail moved out of a data file or local folder whose copy was filed but which couldn't then be taken out where it was (the disk refused the write) is said to be in both places. It was said to be moved, with an **Undo** that couldn't put it back, or, moved to a server, a bare disk error followed by "moved".
 - With **Focused Inbox** on, mail arriving in the Inbox on screen no longer has every folder of every account read again to sort it: the people you write to, as counted in the last ten minutes, sort it, as they do for the sender check.
 - Replying to or forwarding a message with a link stuffed with `javascript:` no longer hangs MailCraft: each one was taken out by going over the whole link again (a megabyte of them took five minutes).
+- A big folder of a JMAP account (Fastmail, say) syncs without looking each message up in the whole folder: in a folder of 40,000 that was nearly two seconds of every sync, even when nothing had changed, and it grew with the square of the folder's size.
 
 ## 0.38.0 - 2026-11-13
 
