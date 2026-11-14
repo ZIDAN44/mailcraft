@@ -89,8 +89,7 @@ impl Pool {
             if resume {
                 never_began(&self.sink, &account, &path, StopHow::Pause);
             } else {
-                let error = Some("its data file is being compacted; import once that's done".to_string());
-                self.sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error, report: None });
+                self.sink.emit(failed(&account, "its data file is being compacted; import once that's done".to_string()));
             }
             return;
         }
@@ -120,7 +119,7 @@ impl Pool {
         }
         if let Err(e) = self.spawn_import(&account, Next::Import { path, resume }) {
             // No thread, no import: it ends here, as a failed one (the account isn't left importing).
-            self.sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(format!("import: {e}")), report: None });
+            self.sink.emit(failed(&account, format!("import: {e}")));
         }
     }
 
@@ -143,7 +142,7 @@ impl Pool {
                 Err(e) => format!("import: {e}"),
             },
         };
-        self.sink.emit(Event::Imported { account, messages: 0, skipped: 0, done: true, error: Some(error), report: None });
+        self.sink.emit(failed(&account, error));
     }
 
     /// Start an account's import thread on `first`, then on what's queued behind it.
@@ -194,14 +193,7 @@ impl Pool {
             Some(ctl) => ctl.stop.raise(how),
             None => {
                 let report = ImportReport { stopped: Some(StopHow::Discard), ..ImportReport::default() };
-                self.sink.emit(Event::Imported {
-                    account: account.to_string(),
-                    messages: 0,
-                    skipped: 0,
-                    done: true,
-                    error: None,
-                    report: Some(Box::new(report)),
-                });
+                self.sink.emit(ended(account, 0, 0, None, Some(report)));
             }
         }
     }
@@ -309,7 +301,6 @@ impl Drop for Pool {
 /// An import, start to end, on its thread. Returns the data file of one thrown away that
 /// couldn't be removed yet.
 fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, planned: Option<Arc<Planned>>, resume: bool) -> Option<PathBuf> {
-    let began = Instant::now();
     // Stopped while it waited behind an import thrown away: it never began.
     if let Some(how) = stop.how() {
         return never_began(sink, account, path, how);
@@ -318,8 +309,7 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
     // a discard), else the one the import makes, noted once it's there.
     let file = store.data_file(account).filter(|f| f.exists());
     let own = file.is_none();
-    let mut told =
-        Told { sink, store, account, stop, began, last: Progress::default(), folders_done: 0, folders_said: None, listed: HashSet::new(), file, own };
+    let mut told = Told::new(sink, store, account, stop, file, own);
     told.say(ImportPhase::Planning);
     if path.to_ascii_lowercase().ends_with(".mailcraft") {
         return copy_in(&mut told, path);
@@ -359,7 +349,7 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
             // What came in is noted, for the file read again later (`rereading.rs`): whole, or
             // stopped part-way, so what's deleted here before it goes on stays noted.
             noted(store, account);
-            let mut report = report_of(&done, path, store, account, began);
+            let mut report = report_of(&done, path, store, account, told.began);
             report.stopped = done.stopped;
             report.stopped_in.clone_from(&done.stopped_in);
             let paths: Vec<String> = done.folders.iter().map(|f| f.path.clone()).collect();
@@ -369,9 +359,9 @@ fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop, plann
             }
             // A last save that failed is said with what came in (the account stays).
             let (messages, skipped, error) = (done.messages, done.skipped, done.last_save);
-            sink.emit(Event::Imported { account: account.to_string(), messages, skipped, done: true, error, report: Some(Box::new(report)) });
+            sink.emit(ended(account, messages, skipped, error, Some(report)));
         }
-        Err(e) => sink.emit(Event::Imported { account: account.to_string(), messages: 0, skipped: 0, done: true, error: Some(e), report: None }),
+        Err(e) => sink.emit(failed(account, e)),
     }
     None
 }
@@ -414,7 +404,7 @@ fn never_began(sink: &Sink, account: &str, path: &str, how: StopHow) -> Option<P
         sink.emit(Event::ImportProgress { account: account.to_string(), progress });
     } else {
         let report = ImportReport { file: path.to_string(), stopped: Some(how), runs: 1, ..ImportReport::default() };
-        sink.emit(Event::Imported { account: account.to_string(), messages: 0, skipped: 0, done: true, error: None, report: Some(Box::new(report)) });
+        sink.emit(ended(account, 0, 0, None, Some(report)));
     }
     None
 }
@@ -478,14 +468,7 @@ fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
         }
         // Any other error is said, whatever was asked meanwhile.
         Err(e) => {
-            sink.emit(Event::Imported {
-                account: account.to_string(),
-                messages: 0,
-                skipped: 0,
-                done: true,
-                error: Some(e.to_string()),
-                report: None,
-            });
+            sink.emit(failed(account, e.to_string()));
             return None;
         }
     };
@@ -505,25 +488,15 @@ fn said_copied(store: &Store, sink: &Sink, account: &str, path: &str, messages: 
     let paths: Vec<String> = folders.iter().flatten().map(|f| f.path.clone()).collect();
     // Its contacts, calendar and notes came with it.
     let pim = store.load_account_doc::<Pim>(account, PIM_DOC).unwrap_or_default();
-    let report = ImportReport {
-        file: path.to_string(),
-        data_file: data_file(store, account),
-        messages: count(messages),
-        folders: u32::try_from(paths.len()).unwrap_or(u32::MAX),
-        contacts: count(pim.cards.len()),
-        events: count(pim.events.len()),
-        notes: count(pim.notes.len()),
-        runs: 1,
-        elapsed_ms: ms(began),
-        ..Default::default()
-    };
+    let brought = Brought { messages, folders: paths.len(), contacts: pim.cards.len(), events: pim.events.len(), notes: pim.notes.len(), tasks: 0 };
+    let report = brought.report(store, account, path, began);
     if let Some(folders) = folders {
         sink.emit(Event::Folders { account: account.to_string(), folders });
     }
     for folder in paths {
         sink.emit(Event::FolderChanged { account: account.to_string(), folder });
     }
-    sink.emit(Event::Imported { account: account.to_string(), messages, skipped: 0, done: true, error, report: Some(Box::new(report)) });
+    sink.emit(ended(account, messages, 0, error, Some(report)));
 }
 
 /// A copy that can't go on for want of room (`free` left): it waits on the user, saying why.
@@ -547,7 +520,7 @@ fn stopped_copy(told: &Told<'_>, path: &str) -> Option<PathBuf> {
     let stopped = "it was stopped before all of it was copied, and none of it was kept";
     let error = Some(error.map_or_else(|| stopped.to_string(), |e| format!("{stopped} ({e})")));
     let report = ImportReport { file: path.to_string(), stopped: told.stop.how(), runs: 1, elapsed_ms: ms(told.began), ..ImportReport::default() };
-    told.sink.emit(Event::Imported { account: told.account.to_string(), messages: 0, skipped: 0, done: true, error, report: Some(Box::new(report)) });
+    told.sink.emit(ended(told.account, 0, 0, error, Some(report)));
     left
 }
 
@@ -556,7 +529,7 @@ fn stopped_copy(told: &Told<'_>, path: &str) -> Option<PathBuf> {
 fn thrown_away(told: &Told<'_>, path: &str, messages: usize, skipped: usize) -> Option<PathBuf> {
     let (error, left) = remove_written(told, true);
     let report = ImportReport { file: path.to_string(), stopped: Some(StopHow::Discard), runs: 1, ..ImportReport::default() };
-    told.sink.emit(Event::Imported { account: told.account.to_string(), messages, skipped, done: true, error, report: Some(Box::new(report)) });
+    told.sink.emit(ended(told.account, messages, skipped, error, Some(report)));
     left
 }
 
@@ -599,23 +572,63 @@ fn remove(file: &Path) -> std::io::Result<()> {
 
 /// What an import came to, as the report says it.
 fn report_of(done: &Imported, path: &str, store: &Store, account: &str, began: Instant) -> ImportReport {
-    let mut report = ImportReport {
-        file: path.to_string(),
-        data_file: data_file(store, account),
-        messages: count(done.messages),
-        folders: u32::try_from(done.folders.len()).unwrap_or(u32::MAX),
-        contacts: count(done.contacts),
-        events: count(done.events),
-        notes: count(done.notes),
-        tasks: count(done.tasks),
-        elapsed_ms: ms(began).saturating_add(done.earlier_ms),
-        runs: done.runs.max(1),
-        ..ImportReport::default()
+    let brought = Brought {
+        messages: done.messages,
+        folders: done.folders.len(),
+        contacts: done.contacts,
+        events: done.events,
+        notes: done.notes,
+        tasks: done.tasks,
     };
+    let mut report = brought.report(store, account, path, began);
+    // Gone on with from where it stopped: the earlier runs count too.
+    report.elapsed_ms = report.elapsed_ms.saturating_add(done.earlier_ms);
+    report.runs = done.runs.max(1);
     for (reason, n) in &done.skips {
         report.skip(*reason, count(*n));
     }
     report
+}
+
+/// What an import brought into the account, as its report counts it.
+struct Brought {
+    messages: usize,
+    folders: usize,
+    contacts: usize,
+    events: usize,
+    notes: usize,
+    tasks: usize,
+}
+
+impl Brought {
+    /// The report of one run, begun at `began`, that read `path` into the account and brought
+    /// this in: nothing left out, as far as it says.
+    fn report(&self, store: &Store, account: &str, path: &str, began: Instant) -> ImportReport {
+        ImportReport {
+            file: path.to_string(),
+            data_file: data_file(store, account),
+            messages: count(self.messages),
+            folders: u32::try_from(self.folders).unwrap_or(u32::MAX),
+            contacts: count(self.contacts),
+            events: count(self.events),
+            notes: count(self.notes),
+            tasks: count(self.tasks),
+            runs: 1,
+            elapsed_ms: ms(began),
+            ..ImportReport::default()
+        }
+    }
+}
+
+/// An import's end, as the window is told it: `messages` brought in and `skipped` left out, why
+/// it failed when it did, and its report.
+fn ended(account: &str, messages: usize, skipped: usize, error: Option<String>, report: Option<ImportReport>) -> Event {
+    Event::Imported { account: account.to_string(), messages, skipped, done: true, error, report: report.map(Box::new) }
+}
+
+/// An import that failed with `error`, nothing brought in and no report.
+fn failed(account: &str, error: String) -> Event {
+    ended(account, 0, 0, Some(error), None)
 }
 
 /// The file the account's mail was copied into ("" for a cache that isn't kept in one).
@@ -644,7 +657,13 @@ struct Told<'a> {
     own: bool,
 }
 
-impl Told<'_> {
+impl<'a> Told<'a> {
+    /// Telling the window of an import beginning now into `file` (`own`: one it makes itself).
+    fn new(sink: &'a Sink, store: &'a Store, account: &'a str, stop: &'a Stop, file: Option<PathBuf>, own: bool) -> Told<'a> {
+        let began = Instant::now();
+        Told { sink, store, account, stop, began, last: Progress::default(), folders_done: 0, folders_said: None, listed: HashSet::new(), file, own }
+    }
+
     fn say(&self, phase: ImportPhase) {
         if self.thrown_away() {
             return;

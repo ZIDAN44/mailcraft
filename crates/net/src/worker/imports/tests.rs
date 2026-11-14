@@ -166,19 +166,7 @@ fn a_folder_said_just_after_the_list_was_sent_is_listed() {
     let store = Store::memory();
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let stop = Stop::default();
-    let mut told = Told {
-        sink: &pool.sink,
-        store: &store,
-        account: "a1",
-        stop: &stop,
-        began: Instant::now(),
-        last: Progress::default(),
-        folders_done: 0,
-        folders_said: None,
-        listed: HashSet::new(),
-        file: None,
-        own: false,
-    };
+    let mut told = Told::new(&pool.sink, &store, "a1", &stop, None, false);
     let folder = |path: &str| Folder { account: "a1".into(), path: path.into(), selectable: true, ..Default::default() };
     store.upsert_folders("a1", &[folder("Deleted Items")]).unwrap();
     told.folder(&folder("Deleted Items"));

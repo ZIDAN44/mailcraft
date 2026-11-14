@@ -35,25 +35,11 @@ impl ImportSink for Relay<'_, '_> {
 /// Read the data file at `path` again into `account`'s copy of it, on the account's import
 /// thread. Nothing is left over to remove later: the copy is never removed.
 pub(super) fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &Stop) -> Vec<PathBuf> {
-    let began = Instant::now();
     if let Some(how) = stop.how() {
         never_began(sink, account, path, how);
         return Vec::new();
     }
-    let file = store.data_file(account);
-    let mut told = Told {
-        sink,
-        store,
-        account,
-        stop,
-        began,
-        last: Progress::default(),
-        folders_done: 0,
-        folders_said: None,
-        listed: HashSet::new(),
-        file,
-        own: false,
-    };
+    let mut told = Told::new(sink, store, account, stop, store.data_file(account), false);
     told.say(ImportPhase::Planning);
     let dir = store.data_files_dir().unwrap_or_else(|| store.root().to_path_buf()).join(format!(".reread-{}", safe(account)));
     // One left by a read cut off (MailCraft closed, the computer turned off) goes first.
@@ -69,7 +55,7 @@ pub(super) fn run(store: &Store, sink: &Sink, account: &str, path: &str, stop: &
         Ok(None) => return Vec::new(),
         Err(e) => e,
     };
-    sink.emit(Event::Imported { account: account.to_string(), messages: 0, skipped: 0, done: true, error: Some(error), report: None });
+    sink.emit(failed(account, error));
     Vec::new()
 }
 
@@ -96,14 +82,7 @@ fn read_and_add(
         // The account removed meanwhile: nothing more is said but the end.
         (Some(StopHow::Discard), ..) => {
             let report = ImportReport { file: path.to_string(), stopped: Some(StopHow::Discard), runs: 1, ..ImportReport::default() };
-            sink.emit(Event::Imported {
-                account: account.to_string(),
-                messages: 0,
-                skipped: 0,
-                done: true,
-                error: None,
-                report: Some(Box::new(report)),
-            });
+            sink.emit(ended(account, 0, 0, None, Some(report)));
             return Ok(None);
         }
         (_, Some(blocked), _) => {
@@ -117,14 +96,7 @@ fn read_and_add(
         }
         (_, _, Some(how)) => {
             let report = ImportReport { file: path.to_string(), stopped: Some(how), runs: 1, elapsed_ms: ms(told.began), ..ImportReport::default() };
-            sink.emit(Event::Imported {
-                account: account.to_string(),
-                messages: 0,
-                skipped: 0,
-                done: true,
-                error: None,
-                report: Some(Box::new(report)),
-            });
+            sink.emit(ended(account, 0, 0, None, Some(report)));
             return Ok(None);
         }
         _ => {}
@@ -160,31 +132,20 @@ fn added(told: &Told<'_>, path: &str, merged: &Merged, skips: &[(SkipReason, usi
     for folder in &merged.folders {
         sink.emit(Event::FolderChanged { account: account.to_string(), folder: folder.clone() });
     }
-    let mut report = ImportReport {
-        file: path.to_string(),
-        data_file: data_file(store, account),
-        messages: count(merged.messages),
-        folders: u32::try_from(merged.folders.len()).unwrap_or(u32::MAX),
-        contacts: count(merged.cards),
-        events: count(merged.events),
-        notes: count(merged.notes),
-        tasks: count(merged.tasks),
-        runs: 1,
-        elapsed_ms: ms(told.began),
-        ..ImportReport::default()
+    let brought = Brought {
+        messages: merged.messages,
+        folders: merged.folders.len(),
+        contacts: merged.cards,
+        events: merged.events,
+        notes: merged.notes,
+        tasks: merged.tasks,
     };
+    let mut report = brought.report(store, account, path, told.began);
     for (reason, n) in skips {
         report.skip(*reason, count(*n));
     }
     // Left for the next read of the file.
     report.skip(SkipReason::MessageUnreadable, count(merged.unreadable));
-    sink.emit(Event::Imported {
-        account: account.to_string(),
-        messages: merged.messages,
-        skipped: 0,
-        done: true,
-        error: None,
-        report: Some(Box::new(report)),
-    });
+    sink.emit(ended(account, merged.messages, 0, None, Some(report)));
     Vec::new()
 }
