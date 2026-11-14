@@ -13,7 +13,6 @@ use mailcraft_model::{lookalike, utf7};
 fuzz_target!(|data: &[u8]| {
     let text = String::from_utf8_lossy(data);
     let mut q = Query::parse(&text);
-    let _ = q.index_words();
     let _ = q.text_words();
     let _ = q.needs_text();
     // A clock read from the input too, so dates are placed at the ends of time.

@@ -80,12 +80,6 @@ pub(super) fn all_words(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
     text.unicode_words().map(fold_word).filter(|w| !w.is_empty())
 }
 
-/// A text's [`tokens`], each followed by its [`parts`]: the words search indexes, so `word` finds
-/// "site.word".
-pub fn index_tokens(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
-    with_parts(all_words(text)).filter(|w| w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS)
-}
-
 /// A word search indexes, with its place: which of the text's words (as a phrase reads them, long
 /// ones too, counted from 0) it is, or is a part of.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -99,8 +93,9 @@ pub enum Placed<'a> {
     Long(u32),
 }
 
-/// A text's [`index_tokens`], each with its place, and the places of its words too long to index:
-/// what a phrase is told from without the text.
+/// The words search indexes a text by (its [`tokens`], each followed by its [`parts`], so `word`
+/// finds "site.word"), each with its place, and the places of its words too long to index: what a
+/// phrase is told from without the text.
 pub fn placed_tokens(text: &str) -> impl Iterator<Item = Placed<'_>> {
     let fits = |w: &str| w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS;
     all_words(text).enumerate().flat_map(move |(i, w)| {
@@ -159,11 +154,6 @@ pub fn parts(w: &str) -> impl Iterator<Item = &str> {
 /// none.
 pub(super) fn has_joins(text: &str) -> bool {
     text.bytes().any(|b| matches!(b, b'.' | b':' | b'\'' | b'_') || !b.is_ascii()) && text.contains(joins)
-}
-
-/// A text's [`tokens`] joined by spaces, added to `out`.
-pub fn fold_text(text: &str, out: &mut String) {
-    join(tokens(text), out);
 }
 
 /// Words joined by spaces, added to `out` (a space first when `out` has something).

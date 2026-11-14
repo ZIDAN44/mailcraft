@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use super::*;
 use crate::dates::Clock;
 use crate::dates::zone::Zone;
@@ -250,35 +248,10 @@ fn a_truncated_doc_is_unknown_when_a_word_is_missing() {
     assert_eq!(indexed(false, TextField::Body, true, false), Tri::Unknown);
 }
 
-#[test]
-fn index_narrows_without_missing() {
-    let a = sample();
-    let mut b = sample();
-    b.subject = "Invoice October".into();
-    b.preview = "Payment due".into();
-    let mut ix = Index::new();
-    ix.add(0, &summary_text(&a));
-    ix.add(1, &summary_text(&b));
-    assert_eq!(ix.candidates(&Query::parse("invo")), BTreeSet::from([1]));
-    assert_eq!(ix.candidates(&Query::parse("zoe proj")), BTreeSet::from([0]));
-    assert_eq!(ix.candidates(&Query::parse("is:unread")).len(), 2);
-    assert!(ix.candidates(&Query::parse("nothing-here")).is_empty());
-    ix.add(1, "late body text");
-    assert_eq!(ix.candidates(&Query::parse("late")), BTreeSet::from([1]));
-}
-
-/// The index keeps each word's documents sorted and once, whatever order they come in; plain
-/// words it found are settled, the summary alone doesn't have them.
+/// Plain words the index found are settled: the summary alone doesn't have them.
 #[test]
 fn the_index_settles_plain_words() {
-    let mut ix = Index::new();
-    ix.add(5, "storyboard review");
-    ix.add(2, "storyboard storyboard");
-    ix.add(9, "budget");
-    ix.add(5, "storyboard again");
-    assert_eq!(ix.prefix("story").into_iter().collect::<Vec<_>>(), [2, 5]);
     let query = Query::parse("storyboard review");
-    assert_eq!(ix.candidates(&query).into_iter().collect::<Vec<_>>(), [5]);
     assert!(query.needs_text());
     let m = Summary { subject: "Weekly".into(), ..Default::default() };
     assert_eq!(eval(&query, &m, &Found), Tri::Yes, "the index found both words");
@@ -306,7 +279,6 @@ fn text_words_are_folded_and_placed() {
             (TextField::Names, "plan".to_string(), false),
         ]
     );
-    assert_eq!(Query::parse("Ürün \"Ünlü kişi\" -x").index_words(), ["urun", "unlu", "kisi"]);
 }
 
 /// The phrases asked of the text, each where it's looked for, with its folded words (a negated
@@ -341,7 +313,11 @@ fn placed_words_are_the_index_words_in_place() {
             Placed::Long(_) => None,
         })
         .collect();
-    assert_eq!(words, index_tokens(&text).map(|w| w.into_owned()).collect::<Vec<_>>());
+    // The text's words, each followed by its parts, those too long left out.
+    let fits = |w: &String| w.chars().count() <= MAX_TOKEN_CHARS;
+    let indexed: Vec<String> =
+        fold_all(&text).split(' ').flat_map(|w| std::iter::once(w.to_string()).chain(parts(w).map(String::from))).filter(fits).collect();
+    assert_eq!(words, indexed);
     let all: Vec<String> = fold_all(&text).split(' ').map(String::from).collect();
     let mut at = 0;
     for p in &placed {
@@ -360,20 +336,11 @@ fn placed_words_are_the_index_words_in_place() {
     assert_eq!(at as usize, all.len());
 }
 
-/// An address is split into the words the index holds of it: with another word it finds
-/// what it finds alone, as the summaries do.
+/// An address is split into the words the index holds of it, and found in a summary as written.
 #[test]
 fn addresses_narrow_by_the_words_the_index_holds() {
     assert_eq!(Query::parse("from:zoe@studio.example").clauses[0].term, Term::Words(Field::From, vec!["zoe".into(), "studio.example".into()]));
     let m = sample();
-    let mut ix = Index::new();
-    ix.add(0, &summary_text(&m));
-    ix.add(0, "the storyboard draft");
-    ix.add(1, "budget from someone@else.example");
-    for q in ["from:zoe@studio.example", "from:zoe@studio.example storyboard", "zoe@studio.example"] {
-        assert_eq!(ix.candidates(&Query::parse(q)), BTreeSet::from([0]), "{q}");
-    }
-    assert!(ix.candidates(&Query::parse("from:zoe@studio.example budget")).is_empty());
     assert!(q("from:zoe@studio.example", &m));
     assert!(q("from:dio.example", &m) && q("to:udio.example", &m), "inside the address as written");
     assert!(!q("from:dio.exampel", &m));
@@ -414,9 +381,7 @@ fn folding_reads_accents_and_letters() {
     m.subject = "resume".into();
     assert!(q("résumé", &m), "an accent typed finds the word written without");
     assert_eq!(tokens("a\u{301}bc ").collect::<Vec<_>>(), ["abc"]);
-    let mut out = String::new();
-    fold_text("Grüße, Ana! 東京", &mut out);
-    assert_eq!(out, "grusse ana 東 京");
+    assert_eq!(tokens("Grüße, Ana! 東京").collect::<Vec<_>>(), ["grusse", "ana", "東", "京"]);
     assert_eq!(tokens(&"x".repeat(41)).count(), 0, "base64 debris isn't a word");
 }
 
@@ -567,39 +532,37 @@ fn junk_dates_are_problems() {
 /// index for nothing: as an empty prefix it offered every message, and matched them all.
 #[test]
 fn a_word_folding_to_nothing_is_no_word() {
-    let mut index = Index::new();
-    index.add(1, "alpha");
-    index.add(2, "beta");
     for typed in ["\u{345}", "\u{301}\u{345}", "body:\u{345}", "from:\u{345},\u{301}"] {
         let query = Query::parse(typed);
-        assert!(query.index_words().iter().all(|w| !w.is_empty()), "{typed}");
+        assert_eq!(query.text_words(), [], "{typed}: no word, not an empty one");
         let m = Summary { subject: "x".into(), ..Default::default() };
         assert_ne!(eval(&query, &m, &"anything"), Tri::Yes, "{typed}");
     }
     // Beside other words it's no word at all: they alone narrow and decide.
     let query = Query::parse("beta \u{345}");
-    assert_eq!((query.index_words(), index.candidates(&query)), (vec!["beta".to_string()], BTreeSet::from([2])));
+    assert_eq!(query.text_words(), [(TextField::Body, "beta".to_string(), false), (TextField::Names, "beta".to_string(), false)]);
     let m = Summary { subject: "Beta\u{345} notes".into(), ..Default::default() };
     assert_eq!(eval(&Query::parse("beta\u{345}"), &m, &""), Tri::Yes);
 }
 
 /// UAX #29 keeps "site.word" one word: its parts are indexed and found too (`word` and `site`),
-/// in the index, in a whole text and in a summary, and the whole as typed still finds it. A
-/// phrase isn't found across the parts kept after a summary's words, and one letter isn't a part.
+/// in a whole text and in a summary, and the whole as typed still finds it (the store's index:
+/// its own tests). A phrase isn't found across the parts kept after a summary's words, and one
+/// letter isn't a part.
 #[test]
 fn the_parts_of_a_dotted_word_are_words() {
-    let words: Vec<String> = index_tokens("See xx.word and l'avion, snake_case. Don't").map(std::borrow::Cow::into_owned).collect();
+    let words: Vec<String> = placed_tokens("See xx.word and l'avion, snake_case. Don't")
+        .filter_map(|p| match p {
+            Placed::Word(_, w) => Some(w.into_owned()),
+            Placed::Part(_, w) => Some(w),
+            Placed::Long(_) => None,
+        })
+        .collect();
     for w in ["xx", "word", "xx.word", "avion", "l'avion", "snake", "case", "snake_case", "don't"] {
         assert!(words.iter().any(|x| x == w), "{w} in {words:?}");
     }
     assert!(!words.iter().any(|x| x == "l" || x == "t"), "{words:?}");
     assert_eq!(parts("plain").count(), 0);
-    let mut ix = Index::new();
-    ix.add(1, "the site.word kept");
-    ix.add(2, "the site kept");
-    assert_eq!(ix.prefix("word").into_iter().collect::<Vec<_>>(), [1]);
-    assert_eq!(ix.prefix("site").into_iter().collect::<Vec<_>>(), [1, 2]);
-    assert_eq!(ix.prefix("site.word").into_iter().collect::<Vec<_>>(), [1]);
     let m = sample();
     let doc = IndexDoc { text: "Report at site.word today".into(), has_text: true, ..Default::default() };
     let t = |q: &str| eval(&Query::parse(q), &m, &doc);

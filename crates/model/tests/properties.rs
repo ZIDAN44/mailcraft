@@ -146,8 +146,8 @@ proptest! {
         // Only the parts the query looks in, folded: the same answer.
         let some = SummaryText::for_query(&m, &query);
         prop_assert_eq!(query.eval(&Doc { summary: &m, summary_text: &some, awaiting: false, files: None, text: &q.as_str() }), whole);
-        let _ = (query.text_words(), query.index_words(), query.needs_text());
-        prop_assert!(query.index_words().iter().all(|w| !w.is_empty()));
+        let _ = (query.text_words(), query.needs_text());
+        prop_assert!(query.text_words().iter().all(|(_, w, _)| !w.is_empty()));
     }
 
     /// Accents typed alone, a field's value or not, ask the index for no empty word (which would
@@ -155,7 +155,6 @@ proptest! {
     #[test]
     fn marks_alone_are_no_words(marks in r"[\u{300}-\u{36f}\u{345}]{1,6}", field in "|from:|to:|subject:|body:|attachment:", subject in "[a-zA-Zà-ÿ ]{0,30}") {
         let query = Query::parse(&format!("{field}{marks}"));
-        prop_assert!(query.index_words().iter().all(|w| !w.is_empty()));
         prop_assert!(query.text_words().iter().all(|(_, w, _)| !w.is_empty()));
         let m = mailcraft_model::Summary { subject, ..Default::default() };
         let st = SummaryText::of(&m);

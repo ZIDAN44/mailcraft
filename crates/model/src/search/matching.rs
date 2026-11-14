@@ -401,20 +401,6 @@ impl Query {
         }
         out
     }
-
-    /// The folded words an index can narrow by: the words of positive text clauses.
-    pub fn index_words(&self) -> Vec<String> {
-        let mut v = Vec::new();
-        for c in self.clauses.iter().filter(|c| !c.negated) {
-            match &c.term {
-                // An empty word would be a prefix of every one: the index would offer everything.
-                Term::Words(_, w) => v.extend(w.iter().map(|w| fold_word(w).into_owned()).filter(|w| !w.is_empty())),
-                Term::Phrase(_, p) => v.extend(tokens(p).map(Cow::into_owned)),
-                _ => {}
-            }
-        }
-        v
-    }
 }
 
 fn term_needs_text(t: &Term) -> bool {
