@@ -28,3 +28,21 @@ fn times_past_any_calendar_are_refused_as_params() {
     s.run("event.create", &json!({"summary": "y", "start": NOW, "end": NOW + 3600})).unwrap();
     done(s);
 }
+
+/// Times read back from the calendar's own file past any calendar's: an invitation held since
+/// `i64::MIN` goes to the calendar here (it panicked on every tick), and an event kept ending at
+/// `i64::MAX` is refused as too long when it's changed (its length wrapped round and passed).
+#[test]
+fn times_kept_past_any_calendar_dont_overflow() {
+    let mut s = sample_session("huge-kept-times");
+    let key = s.list[0].key.clone();
+    s.pim_mut("sample").held.push(mailcraft_model::pim::HeldInvite { key, since: i64::MIN, ics: String::new(), from: String::new() });
+    s.tick();
+    assert!(s.pim["sample"].held.is_empty(), "long held: let go");
+    let uid = s.run("event.create", &json!({"summary": "Long", "start": "2026-11-20T10:00"})).unwrap()["uid"].as_str().unwrap().to_string();
+    let e = s.pim_mut("sample").events.iter_mut().find(|e| e.event.uid == uid).unwrap();
+    (e.event.start, e.event.end) = (-1000, i64::MAX);
+    let r = s.run("event.update", &json!({"uid": uid, "summary": "Longer"}));
+    assert!(matches!(&r, Err(CmdError::Params(m)) if m.contains("a year at most")), "{r:?}");
+    done(s);
+}

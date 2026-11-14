@@ -680,7 +680,7 @@ fn check_event(e: &CalEvent) -> Result<(), CmdError> {
     if e.end < e.start {
         return Err(CmdError::Params("the event ends before it starts".into()));
     }
-    if e.end - e.start > 366 * 86_400 {
+    if e.end.saturating_sub(e.start) > 366 * 86_400 {
         return Err(CmdError::Params("an event can last a year at most".into()));
     }
     Ok(())

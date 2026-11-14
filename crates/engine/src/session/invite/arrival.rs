@@ -102,7 +102,7 @@ impl Session {
             return;
         }
         let (due, kept): (Vec<HeldInvite>, Vec<HeldInvite>) =
-            std::mem::take(&mut p.held).into_iter().partition(|h| all || now - h.since >= HOLD_SECS);
+            std::mem::take(&mut p.held).into_iter().partition(|h| all || now.saturating_sub(h.since) >= HOLD_SECS);
         p.held = kept;
         if due.is_empty() {
             return;
@@ -140,7 +140,8 @@ impl Session {
     /// this computer (called from [`Session::tick`]; cheap when nothing waits).
     pub(crate) fn held_invitations_due(&mut self) {
         let now = self.clock.now;
-        let due: Vec<String> = self.pim.iter().filter(|(_, p)| p.held.iter().any(|h| now - h.since >= HOLD_SECS)).map(|(a, _)| a.clone()).collect();
+        let due: Vec<String> =
+            self.pim.iter().filter(|(_, p)| p.held.iter().any(|h| now.saturating_sub(h.since) >= HOLD_SECS)).map(|(a, _)| a.clone()).collect();
         for a in due {
             self.release_held(&a, false);
         }

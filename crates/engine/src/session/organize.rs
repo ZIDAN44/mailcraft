@@ -188,7 +188,7 @@ impl Session {
                     changed = true;
                 }
                 // Not synced into the Snoozed folder yet; give up after a week.
-                None if now > s.until + 7 * 86_400 => {
+                None if now > s.until.saturating_add(7 * 86_400) => {
                     self.snoozes.retain(|x| x != &s);
                     changed = true;
                 }
