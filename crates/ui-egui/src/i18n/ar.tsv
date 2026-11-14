@@ -1441,6 +1441,7 @@ month	May	مايو
 	Calendar and contacts couldn't be read: changes to them won't be saved	تعذّرت قراءة التقويم وجهات الاتصال: لن تُحفظ التغييرات عليها
 	Your rules couldn't be read: changes to them won't be saved	تعذّرت قراءة القواعد: لن تُحفظ التغييرات عليها
 	Snoozed mail couldn't be read: changes to it won't be saved	تعذّرت قراءة البريد المؤجَّل: لن تُحفظ التغييرات عليه
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	تعذّرت قراءة ما تردّ عليه الردود المنتظرة في علبة الصادر: قد لا يُعلَّم ذلك البريد على أنه مُجاب عليه
 	Checking your data file	جارٍ فحص ملف البيانات
 	Opening your mail…	جارٍ فتح البريد…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	لم يُغلق {file} بشكل صحيح في المرة السابقة. يفحصه MailCraft الآن؛ وقد يستغرق الملف الكبير دقيقة أو اثنتين.

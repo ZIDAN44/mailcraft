@@ -1441,6 +1441,7 @@ month	May	מאי
 	Calendar and contacts couldn't be read: changes to them won't be saved	לא ניתן היה לקרוא את לוח השנה ואנשי הקשר: שינויים בהם לא יישמרו
 	Your rules couldn't be read: changes to them won't be saved	לא ניתן היה לקרוא את הכללים שלך: שינויים בהם לא יישמרו
 	Snoozed mail couldn't be read: changes to it won't be saved	לא ניתן היה לקרוא את הדואר שנדחה: שינויים בו לא יישמרו
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	לא ניתן היה לקרוא לאילו הודעות עונות התשובות הממתינות בדואר היוצא: ייתכן שהדואר הזה לא יסומן כנענה
 	Checking your data file	בודק את קובץ הנתונים
 	Opening your mail…	פותח את הדואר…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} לא נסגר כראוי בפעם הקודמת. MailCraft בודק אותו; בקובץ גדול זה עשוי להימשך דקה או שתיים.

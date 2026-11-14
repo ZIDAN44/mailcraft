@@ -1441,6 +1441,7 @@ month	May	mei
 	Calendar and contacts couldn't be read: changes to them won't be saved	Agenda en contactpersonen konden niet worden gelezen: wijzigingen daarin worden niet opgeslagen
 	Your rules couldn't be read: changes to them won't be saved	Je regels konden niet worden gelezen: wijzigingen daarin worden niet opgeslagen
 	Snoozed mail couldn't be read: changes to it won't be saved	Uitgestelde e-mail kon niet worden gelezen: wijzigingen daarin worden niet opgeslagen
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	Waarop de antwoorden in Postvak UIT antwoorden, kon niet worden gelezen: die e-mail wordt mogelijk niet als beantwoord gemarkeerd
 	Checking your data file	Uw gegevensbestand wordt gecontroleerd
 	Opening your mail…	Uw e-mail wordt geopend…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} is de vorige keer niet goed afgesloten. MailCraft controleert het bestand; bij een groot bestand kan dat een minuut of twee duren.

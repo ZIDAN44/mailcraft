@@ -641,6 +641,9 @@ impl Session {
     }
 
     pub(super) fn save_pending_marks(&self) {
+        if self.docs_unread.contains(PENDING_MARKS) {
+            return;
+        }
         let list: Vec<(u64, &MessageKey, &Flag)> = self.pending_marks.iter().map(|(id, (k, f))| (*id, k, f)).collect();
         if let Some(store) = &self.store
             && let Err(e) = store.save_doc(PENDING_MARKS, &list)

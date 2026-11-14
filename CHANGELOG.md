@@ -118,6 +118,7 @@ on GitHub.
 - The message editor stays quick with a long selection while the ribbon or a menu is in use.
 - Writing a long message is smoother: the editor does much less work on each frame.
 - In the browser, a password-locked backup is refused, rather than locked with weak randomness, when the browser can't supply secure random numbers.
+- Replied and Forwarded marks owed by replies waiting in the Outbox are no longer lost when their file can't be read at start. MailCraft says when it couldn't be read.
 
 ## 0.38.0 - 2026-11-13
 

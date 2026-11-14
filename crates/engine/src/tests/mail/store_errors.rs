@@ -257,6 +257,47 @@ fn rules_and_snoozes_that_cant_be_read_arent_written_over() {
     }
 }
 
+/// The Replied and Forwarded flags owed by replies waiting in the Outbox (`pending-marks.json`),
+/// when they can't be read at start, aren't saved over by the next reply queued.
+#[test]
+fn owed_flags_that_cant_be_read_arent_written_over() {
+    let cache = Store::failing();
+    let mut s = Session::open(Some(cache.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    let key = mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 9, uid: 1 };
+    let hello = mailcraft_model::Summary { key: key.clone(), subject: "Hello".into(), date: NOW - 60, ..Default::default() };
+    cache.save_folder(&id, "INBOX", &FolderState { validity: 9, uid_next: 2, messages: vec![hello.into()], ..Default::default() }).unwrap();
+    // A reply the network layer couldn't send: in the Outbox, its Replied flag owed (the
+    // account's folders as its sync finds them).
+    let queue_reply = |s: &mut Session| {
+        s.apply(Event::Folders { account: id.clone(), folders: vec![inbox.clone()] });
+        s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+        s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+        s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+        s.apply(Event::Body { key: key.clone(), raw: b"From: a@b.example\r\nSubject: Hello\r\nMessage-ID: <h@b>\r\n\r\nHi\r\n".to_vec() });
+        s.run("mail.reply", &json!({})).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        let Some(Job::Send { id: send_id, .. }) = s.take_jobs().into_iter().find(|j| matches!(j, Job::Send { .. })) else { panic!("not sent") };
+        s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into(), kind: Default::default() });
+    };
+    queue_reply(&mut s);
+    let owed = || cache.load_doc::<Value>("pending-marks.json").unwrap();
+    let before = owed();
+    assert_eq!(before.as_array().map(Vec::len), Some(1), "{before}");
+    drop(s);
+    cache.fail(Some("pending-marks.json"), None);
+    // (Later, so the reply has an id of its own.)
+    let mut s = Session::open(Some(cache.clone()), mailcraft_model::dates::Clock::new(NOW + 60, 0));
+    cache.fail(None, None);
+    // Said, as rules and snoozed mail that couldn't be read are (it was only logged).
+    assert!(s.notices.iter().any(|n| n.error && n.text.contains("Outbox")), "{:?}", s.notices);
+    s.take_jobs();
+    queue_reply(&mut s);
+    assert_eq!(owed(), before, "the owed flags aren't saved over");
+}
+
 /// An Outbox message whose files can't be taken out stays, and that's said: deleted, it went all
 /// the same; taken back to be changed, it went twice (as it was, and as changed).
 #[test]

@@ -1442,6 +1442,7 @@ month	May	5月
 	Calendar and contacts couldn't be read: changes to them won't be saved	无法读取日历和联系人：对它们的更改不会保存
 	Your rules couldn't be read: changes to them won't be saved	无法读取你的规则：对它们的更改不会保存
 	Snoozed mail couldn't be read: changes to it won't be saved	无法读取已暂停提醒的邮件：对它们的更改不会保存
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	无法读取发件箱中待发回复所答复的邮件：这些邮件可能不会标记为已答复
 	Checking your data file	正在检查数据文件
 	Opening your mail…	正在打开邮件…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} 上次未正常关闭。MailCraft 正在检查它；大文件可能需要一两分钟。

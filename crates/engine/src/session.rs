@@ -449,8 +449,8 @@ pub struct Session {
     pub(crate) pim_unread: HashSet<String>,
     /// The flagged mail of every folder, for the To-Do Bar's task list.
     pub(crate) todo: pim::TodoMail,
-    /// The documents (`rules.json`, `snoozes.json`) that couldn't be read at start: never saved
-    /// over with what's shown in their place.
+    /// The documents (`rules.json`, `snoozes.json`, `pending-marks.json`) that couldn't be read
+    /// at start: never saved over with what's shown or kept in their place.
     pub(crate) docs_unread: HashSet<&'static str>,
     /// Mail, Calendar, People, Tasks or Notes.
     pub module: pim::Module,
@@ -621,12 +621,18 @@ impl Session {
                     s.notice("Snoozed mail couldn't be read: changes to it won't be saved", true);
                 }
             }
-            s.pending_marks = store
-                .load_doc::<Vec<(u64, MessageKey, Flag)>>(PENDING_MARKS)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|(id, k, f)| (id, (k, f)))
-                .collect();
+            match store.load_doc::<Vec<(u64, MessageKey, Flag)>>(PENDING_MARKS) {
+                Ok(marks) => s.pending_marks = marks.into_iter().map(|(id, k, f)| (id, (k, f))).collect(),
+                Err(e) => {
+                    // The Replied and Forwarded flags replies in the Outbox owe: ones owed from
+                    // now on are set if they go before MailCraft closes, but never saved over it.
+                    // Said, as for the rules and the snoozed mail: what they answer may never show
+                    // as answered.
+                    log::warn!("the flags owed by replies in the Outbox couldn't be read: {e}");
+                    s.docs_unread.insert(PENDING_MARKS);
+                    s.notice("What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered", true);
+                }
+            }
         }
         s.load_accounts();
         for id in s.accounts.iter().map(|a| a.config.id.clone()).collect::<Vec<_>>() {

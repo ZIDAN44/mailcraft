@@ -1446,6 +1446,7 @@ month	May	Mai
 	Calendar and contacts couldn't be read: changes to them won't be saved	Kalender und Kontakte konnten nicht gelesen werden: Änderungen daran werden nicht gespeichert
 	Your rules couldn't be read: changes to them won't be saved	Deine Regeln konnten nicht gelesen werden: Änderungen daran werden nicht gespeichert
 	Snoozed mail couldn't be read: changes to it won't be saved	Zurückgestellte E-Mails konnten nicht gelesen werden: Änderungen daran werden nicht gespeichert
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	Worauf die Antworten im Postausgang antworten, konnte nicht gelesen werden: Diese E-Mails werden möglicherweise nicht als beantwortet markiert
 	Checking your data file	Ihre Datendatei wird geprüft
 	Opening your mail…	Ihre E-Mails werden geöffnet…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} wurde beim letzten Mal nicht richtig geschlossen. MailCraft prüft die Datei; bei einer großen Datei kann das ein, zwei Minuten dauern.

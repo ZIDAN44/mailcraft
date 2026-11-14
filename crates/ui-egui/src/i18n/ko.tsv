@@ -1445,6 +1445,7 @@ month	May	5월
 	Calendar and contacts couldn't be read: changes to them won't be saved	일정과 연락처를 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
 	Your rules couldn't be read: changes to them won't be saved	규칙을 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
 	Snoozed mail couldn't be read: changes to it won't be saved	다시 알림으로 미룬 메일을 읽을 수 없습니다. 변경 내용은 저장되지 않습니다
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	보낼 편지함에서 대기 중인 답장이 어떤 메일에 대한 것인지 읽을 수 없습니다. 해당 메일이 회신함으로 표시되지 않을 수 있습니다
 	Checking your data file	데이터 파일을 확인하는 중
 	Opening your mail…	메일을 여는 중…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file}이(가) 지난번에 제대로 닫히지 않았습니다. MailCraft에서 확인하고 있습니다. 큰 파일은 1~2분 정도 걸릴 수 있습니다.

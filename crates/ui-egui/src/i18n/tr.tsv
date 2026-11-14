@@ -1446,6 +1446,7 @@ month	May	Mayıs
 	Calendar and contacts couldn't be read: changes to them won't be saved	Takvim ve kişiler okunamadı: bunlarda yapılan değişiklikler kaydedilmeyecek
 	Your rules couldn't be read: changes to them won't be saved	Kurallarınız okunamadı: bunlarda yapılan değişiklikler kaydedilmeyecek
 	Snoozed mail couldn't be read: changes to it won't be saved	Ertelenen postalar okunamadı: bunlarda yapılan değişiklikler kaydedilmeyecek
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	Giden Kutusunda bekleyen yanıtların hangi postaları yanıtladığı okunamadı: bu postalar yanıtlandı olarak işaretlenmeyebilir
 	Checking your data file	Veri dosyanız denetleniyor
 	Opening your mail…	Postanız açılıyor…
 	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} geçen sefer düzgün kapatılmadı. MailCraft onu denetliyor; büyük bir dosya bir iki dakika sürebilir.
