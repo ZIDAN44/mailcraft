@@ -3,6 +3,7 @@
 use super::*;
 
 mod focused;
+mod junk;
 mod many;
 
 #[test]
