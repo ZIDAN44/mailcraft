@@ -30,6 +30,34 @@ fn done(s: Session) {
     }
 }
 
+/// How many waits the store has logged on this thread. A wait for the read marks, or for the
+/// lock every change of a list is made under, is logged (by `mailcraft_store::marking`, on the
+/// thread that waited) once it took over 50 ms or was given up. While a test holds the marks, a
+/// wait can't end sooner, so this count not moving shows the window's thread waited for none of
+/// them, without timing it on a busy machine.
+fn waits_logged() -> usize {
+    use std::cell::Cell;
+    thread_local!(static WAITED: Cell<usize> = const { Cell::new(0) });
+    struct Waits;
+    impl log::Log for Waits {
+        fn enabled(&self, m: &log::Metadata<'_>) -> bool {
+            m.level() <= log::Level::Warn && m.target() == "mailcraft_store::marking"
+        }
+        fn log(&self, r: &log::Record<'_>) {
+            if self.enabled(r.metadata()) {
+                WAITED.with(|w| w.set(w.get() + 1));
+            }
+        }
+        fn flush(&self) {}
+    }
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        assert!(log::set_logger(&Waits).is_ok(), "the only logger of the engine's tests");
+        log::set_max_level(log::LevelFilter::Warn);
+    });
+    WAITED.with(Cell::get)
+}
+
 fn key_of(s: &Session, subject: &str) -> Value {
     let m = s.list.iter().find(|m| m.subject == subject).unwrap_or_else(|| panic!("no {subject}"));
     json!({"key": m.key.to_id()})

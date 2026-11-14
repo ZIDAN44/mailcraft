@@ -677,7 +677,8 @@ fn a_step_tells_its_work_and_never_waits_for_marks() {
     assert!(store.marks_waiting());
     // No folder's list in memory: a search reads them.
     s.cache.clear();
-    let began = std::time::Instant::now();
+    // Paused by this thread: a wait for them could only be given up, and is logged.
+    let waits = waits_logged();
     s.start_search("zanzibar", SearchScope::All, false);
     let mut kinds = HashSet::new();
     for _ in 0..50 {
@@ -685,7 +686,7 @@ fn a_step_tells_its_work_and_never_waits_for_marks() {
             kinds.insert(w);
         });
     }
-    assert!(began.elapsed() < std::time::Duration::from_secs(5), "waited {:?}", began.elapsed());
+    assert_eq!(waits_logged(), waits, "waited for the marks");
     assert!(!s.search_progress().unwrap().done, "the Inbox not read yet");
     let read: HashSet<&str> = s.cache.keys().map(|(_, f)| f.as_str()).collect();
     assert!(read.len() >= 3 && !read.contains("INBOX"), "the others read: {read:?}");

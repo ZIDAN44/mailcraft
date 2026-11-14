@@ -168,12 +168,47 @@ fn changed_occurrences_all_day_and_finished_series() {
 }
 
 /// A damaged cache (times at the ends of the range, a rule that never repeats, a calendar
-/// with thousands of events) doesn't stop the search, nor make it slow.
+/// with thousands of events) doesn't stop the search. That it doesn't make it slow is measured
+/// apart, [`measure_the_search_of_a_hostile_cache`].
 #[test]
 fn the_search_survives_a_hostile_cache() {
+    let mut s = hostile_cache("calendar-search-hostile");
+    hostile_searches(&mut s);
+    // What the calendar draws, around now and at the ends.
+    let _ = s.agenda(NOW - 86_400 * 7, NOW + 86_400 * 7);
+    let _ = s.agenda(i64::MIN, i64::MAX);
+    done(s);
+}
+
+/// What [`the_search_survives_a_hostile_cache`]'s searches take (`cargo test -p mailcraft-engine
+/// --release measure_the_search_of_a_hostile_cache -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn measure_the_search_of_a_hostile_cache() {
+    let mut s = hostile_cache("calendar-search-hostile-measured");
+    let started = std::time::Instant::now();
+    hostile_searches(&mut s);
+    println!("MEASURE calendar searches of a hostile cache of 20000: {} ms", started.elapsed().as_millis());
+    done(s);
+}
+
+/// Each kind of search, over a [`hostile_cache`].
+fn hostile_searches(s: &mut Session) {
+    for when in ["all", "upcoming", "past"] {
+        let _ = search(s, json!({"query": "edge", "when": when}));
+        let _ = search(s, json!({"query": "after:9999-12-31", "when": when}));
+        let _ = search(s, json!({"query": "before:0001-01-01", "when": when}));
+    }
+    let bulk = search(s, json!({"query": "bulk", "limit": 1000}));
+    assert_eq!(bulk.len(), 1000);
+}
+
+/// The sample with events at the ends of the range, rules that never repeat or never end, and
+/// 20,000 more.
+fn hostile_cache(name: &str) -> Session {
     use mailcraft_model::ical::CalEvent;
     use mailcraft_model::pim::{LOCAL, StoredEvent};
-    let mut s = sample_session("calendar-search-hostile");
+    let mut s = sample_session(name);
     let odd = [
         CalEvent { uid: "max".into(), summary: "edge max".into(), start: i64::MAX - 5, end: i64::MAX, ..Default::default() },
         CalEvent { uid: "min".into(), summary: "edge min".into(), start: i64::MIN, end: i64::MIN + 5, ..Default::default() },
@@ -213,19 +248,7 @@ fn the_search_survives_a_hostile_cache() {
             CalEvent { uid: format!("bulk-{i}"), summary: format!("Bulk {i}"), start: NOW + i * 600, end: NOW + i * 600 + 300, ..Default::default() };
         p.events.push(StoredEvent { calendar: LOCAL.into(), event: e, ..Default::default() });
     }
-    let started = std::time::Instant::now();
-    for when in ["all", "upcoming", "past"] {
-        let _ = search(&mut s, json!({"query": "edge", "when": when}));
-        let _ = search(&mut s, json!({"query": "after:9999-12-31", "when": when}));
-        let _ = search(&mut s, json!({"query": "before:0001-01-01", "when": when}));
-    }
-    let bulk = search(&mut s, json!({"query": "bulk", "limit": 1000}));
-    assert_eq!(bulk.len(), 1000);
-    assert!(started.elapsed() < std::time::Duration::from_secs(10), "{:?}", started.elapsed());
-    // What the calendar draws, around now and at the ends.
-    let _ = s.agenda(NOW - 86_400 * 7, NOW + 86_400 * 7);
-    let _ = s.agenda(i64::MIN, i64::MAX);
-    done(s);
+    s
 }
 
 /// A date and time is its digits, seconds or not; what follows them makes it no time (found

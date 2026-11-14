@@ -83,14 +83,14 @@ fn a_message_marked_read_and_moved_at_once_keeps_its_mark() {
 /// disk. A hold of Down once had frames of 0.5 and 1.8 s while a mark's commit took 3 s.
 #[test]
 fn the_window_never_waits_for_marks_being_written() {
-    use std::time::{Duration, Instant};
     let store = Store::memory();
     let mut s = big_projects(&store, 2000);
     let first = s.row_keys()[0].to_id();
     s.run("list.open", &json!({"key": first})).unwrap();
     assert!(store.flush_marks());
     let paused = store.pause_marks();
-    let began = Instant::now();
+    // Paused by this thread: a wait for them could only be given up, and is logged.
+    let waits = waits_logged();
     for _ in 0..5 {
         s.run("list.next", &json!({})).unwrap();
     }
@@ -101,7 +101,7 @@ fn the_window_never_waits_for_marks_being_written() {
     s.run("compose.saveDraft", &json!({})).unwrap();
     let drafts = s.folder("sample", "Drafts").map(|f| f.total);
     s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
-    assert!(began.elapsed() < Duration::from_secs(5), "the window waited {:?}", began.elapsed());
+    assert_eq!(waits_logged(), waits, "the window waited for the marks");
     assert!(store.marks_waiting(), "nothing written yet");
     drop(paused);
     assert!(store.flush_marks());
@@ -123,7 +123,7 @@ fn the_window_never_waits_for_marks_being_written() {
 /// the disk its file is still written, and flushed, on the window's thread; docs/gaps.md.)
 #[test]
 fn the_window_never_waits_while_a_mark_is_committed() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let store = Store::memory();
     let mut s = big_projects(&store, 2000);
     s.set_cache_limit(100);
@@ -143,7 +143,8 @@ fn the_window_never_waits_while_a_mark_is_committed() {
         })
     };
     held.1.recv().unwrap();
-    let began = Instant::now();
+    // Held until it's let go of below (or 20 s): a wait for it can't end sooner, and is logged.
+    let waits = waits_logged();
     for _ in 0..5 {
         s.run("list.next", &json!({})).unwrap();
     }
@@ -154,8 +155,7 @@ fn the_window_never_waits_while_a_mark_is_committed() {
     assert!(!s.cache.contains_key(&("sample".to_string(), "Projects".to_string())), "let go of by the cache");
     s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
     s.tick();
-    let took = began.elapsed();
-    assert!(took < Duration::from_secs(2), "the window waited {took:?}");
+    assert_eq!(waits_logged(), waits, "the window waited for the marks or the lists' lock");
     assert!(s.list.is_empty(), "not read while its marks wait");
     release.0.send(()).unwrap();
     holder.join().unwrap();

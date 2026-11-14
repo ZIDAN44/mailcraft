@@ -497,10 +497,19 @@ fn attaching_reads_plain_files_only() {
     let dir = s.store.as_ref().unwrap().root().to_path_buf();
     let e = s.run("compose.attach", &json!({"path": dir.to_string_lossy()})).unwrap_err().to_string();
     assert!(e.contains("isn't a file"), "{e}");
-    let device = if cfg!(windows) { r"\.\NUL" } else { "/dev/zero" };
-    let started = std::time::Instant::now();
-    assert!(s.run("compose.attach", &json!({"path": device})).is_err());
-    assert!(started.elapsed() < std::time::Duration::from_secs(5), "refused, not read");
+    let device = if cfg!(windows) { r"\\.\NUL" } else { "/dev/zero" };
+    // Refused for what it is, before any of it is read: read, `/dev/zero` is too big and `NUL`
+    // is attached empty. Windows gives no facts about `NUL` at all ("Incorrect function"): then
+    // the refusal is that, which a missing file's isn't.
+    let e = s.run("compose.attach", &json!({"path": device})).unwrap_err().to_string();
+    match std::fs::metadata(device) {
+        Ok(_) => assert!(e.contains("isn't a file"), "{e}"),
+        Err(why) => {
+            assert_ne!(why.kind(), std::io::ErrorKind::NotFound, "{device} is there");
+            assert!(e.contains(&why.to_string()), "{e}");
+        }
+    }
+    assert_eq!(s.compose.as_ref().map(|c| c.attachments.len()), Some(0));
     let file = dir.join("ok.txt");
     std::fs::write(&file, b"hi").unwrap();
     s.run("compose.attach", &json!({"path": file.to_string_lossy()})).unwrap();
