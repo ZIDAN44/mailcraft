@@ -296,11 +296,8 @@ fn people_navigation_and_table_follow_interface_direction() {
                     assert_eq!(x(&format!("{full_name} ↑")) > x(company), rtl, "{lang}: first table column must be at reading side");
                     assert_eq!(x("Zoe Park") > x("Studio Lantern"), rtl, "{lang}: table cells must follow header order");
                     // Clicking a mirrored header must still sort the intended column.
-                    let click = texts.iter().find(|d| d.text == company).unwrap().ink.center();
-                    let button =
-                        |pressed| Event::PointerButton { pos: click, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-                    frame(&ctx, &mut a, vec![Event::PointerMoved(click), button(true)]);
-                    frame(&ctx, &mut a, vec![button(false)]);
+                    let header = texts.iter().find(|d| d.text == company).unwrap().ink.center();
+                    click(&ctx, &mut a, header);
                     assert_eq!(a.ui.people_list.sort, Some(crate::people::Column::Company), "{lang}: Company header click sorts Company");
                 }
                 // The cards aren't looked at here.

@@ -189,11 +189,8 @@ fn favorites_can_be_hidden() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let headings = |a: &mut MailApp| {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let nodes = out.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default();
-        nodes.iter().filter(|(_, n)| n.label().is_some_and(|l| l.contains("Favorites"))).count()
+        let nodes = named(&ctx, a, egui::vec2(1280.0, 800.0));
+        nodes.iter().filter(|n| n.label.as_ref().is_some_and(|l| l.contains("Favorites"))).count()
     };
     headings(&mut a);
     assert!(headings(&mut a) > 0, "shown at first");
@@ -254,11 +251,7 @@ fn a_completed_follow_up_shows_as_done() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-        tree.nodes.iter().filter_map(|(_, n)| n.label().or(n.value()).map(str::to_string)).collect()
+        named(ctx, a, egui::vec2(1280.0, 800.0)).iter().filter_map(Named::name).map(str::to_string).collect()
     };
     frame(&ctx, &mut a, vec![]);
     let m = a.session.list[1].clone();
@@ -408,25 +401,10 @@ fn the_rules_dialog_describes_finds_and_switches() {
     assert!(texts.iter().any(|t| t == "No rule matches."), "{texts:?}");
     // The second rule's switch, clicked: it alone goes off.
     let _ = rules_drawn(&ctx, &mut a, "");
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let mut boxes: Vec<egui::Pos2> = out
-        .platform_output
-        .accesskit_update
-        .expect("AccessKit is on")
-        .nodes
-        .iter()
-        .filter(|(_, n)| n.role() == egui::accesskit::Role::CheckBox)
-        .filter_map(|(_, n)| n.bounds())
-        .map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
-        .collect();
+    let nodes = named(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    let mut boxes: Vec<egui::Pos2> = nodes.iter().filter(|n| n.role == egui::accesskit::Role::CheckBox).filter_map(Named::centre).collect();
     boxes.sort_by(|p, q| p.y.total_cmp(&q.y));
-    let at = boxes[1];
-    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    frame(&ctx, &mut a, vec![Event::PointerMoved(at)]);
-    frame(&ctx, &mut a, vec![button(true)]);
-    frame(&ctx, &mut a, vec![button(false)]);
+    click(&ctx, &mut a, boxes[1]);
     let mut expected = many_rules(8);
     expected[1].enabled = false;
     assert_eq!(a.session.rules, expected);

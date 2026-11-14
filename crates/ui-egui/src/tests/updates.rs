@@ -222,19 +222,8 @@ impl crate::Services for CarriedOver {
 }
 
 /// The texts drawn in a frame (AccessKit on) and where each is: `(label, centre)`.
-fn drawn(ctx: &egui::Context, a: &mut MailApp, events: Vec<egui::Event>) -> Vec<(String, egui::Pos2)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-    tree.nodes
-        .iter()
-        .filter_map(|(_, n)| {
-            let b = n.bounds()?;
-            let label = n.label().or(n.value())?.to_string();
-            Some((label, egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)))
-        })
-        .collect()
+fn drawn(ctx: &egui::Context, a: &mut MailApp) -> Vec<(String, egui::Pos2)> {
+    named(ctx, a, egui::vec2(1280.0, 800.0)).into_iter().filter_map(|n| Some((n.name()?.to_string(), n.centre()?))).collect()
 }
 
 /// A bar says the mail came over from the old Flatpak and how to remove that one, until it's
@@ -244,14 +233,16 @@ fn the_old_flatpak_is_named_once_its_mail_came_over() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let mut a = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(CarriedOver));
-    drawn(&ctx, &mut a, vec![]);
-    let texts = drawn(&ctx, &mut a, vec![]);
+    // Settled: the bar's button finds its place over the first frames (clicked from the
+    // second's, the press missed it).
+    for _ in 0..3 {
+        drawn(&ctx, &mut a);
+    }
+    let texts = drawn(&ctx, &mut a);
     assert!(texts.iter().any(|(t, _)| t.contains("flatpak uninstall --delete-data ai.storyteller.mailcraft")), "the bar says how to remove it");
     let at = texts.iter().find(|(t, _)| t == "Dismiss").map(|(_, p)| *p).expect("a Dismiss button");
-    let press = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    drawn(&ctx, &mut a, vec![egui::Event::PointerMoved(at), press(true)]);
-    drawn(&ctx, &mut a, vec![press(false)]);
-    let texts = drawn(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, at);
+    let texts = drawn(&ctx, &mut a);
     assert_eq!(a.ui.old_flatpak, None);
     assert!(!texts.iter().any(|(t, _)| t.contains("flatpak uninstall")));
     let b = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(NullServices(NOW)));

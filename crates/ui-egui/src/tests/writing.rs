@@ -29,11 +29,7 @@ fn recipient_boxes_suggest_people() {
     let list =
         ctx.memory(|m| m.areas().visible_layer_ids().into_iter().filter(|l| l.order == egui::Order::Foreground).find_map(|l| m.area_rect(l.id)));
     let row = list.map(|r| r.left_top() + egui::vec2(20.0, 16.0)).expect("the suggestions show");
-    let button = |pressed| Event::PointerButton { pos: row, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    frame(&ctx, &mut a, vec![Event::PointerMoved(row)]);
-    frame(&ctx, &mut a, vec![button(true)]);
-    frame(&ctx, &mut a, vec![button(false)]);
-    frame(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, row);
     frame(&ctx, &mut a, vec![Event::Text("x".into())]);
     let to = a.session.compose.as_ref().unwrap().to.clone();
     assert!(to.starts_with("Zoe Park <zoe@studio.example>, ") && to.ends_with(">, x") && to.matches('@').count() == 2, "{to}");
@@ -715,21 +711,9 @@ fn a_signature_keeps_a_picture_pasted_into_it() {
     let c = form(&a).unwrap();
     assert_eq!((c.body.matches('\u{FFFC}').count(), c.inline.len()), (1, 1), "{:?}", c.body);
     // Saved with the button a screen reader names Save.
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
-    let save = nodes
-        .iter()
-        .find(|(_, n)| n.role() == egui::accesskit::Role::Button && n.label() == Some("Save"))
-        .and_then(|(_, n)| n.bounds())
-        .map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
-        .expect("a Save button");
-    let button = |pressed| Event::PointerButton { pos: save, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    frame(&ctx, &mut a, vec![Event::PointerMoved(save)]);
-    frame(&ctx, &mut a, vec![button(true)]);
-    frame(&ctx, &mut a, vec![button(false)]);
-    frame(&ctx, &mut a, vec![]);
+    let nodes = named(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    let save = nodes.iter().find(|n| n.role == egui::accesskit::Role::Button && n.label.as_deref() == Some("Save")).and_then(Named::centre);
+    click(&ctx, &mut a, save.expect("a Save button"));
     assert!(form(&a).is_none(), "saved and closed");
     let html = a.session.default_signature("sample", false).unwrap().html;
     assert!(html.contains("src=\"data:image/png;base64,"), "{html}");

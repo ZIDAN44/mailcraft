@@ -148,6 +148,77 @@ pub(crate) fn has(texts: &[String], what: &str) -> bool {
     texts.iter().any(|t| t.contains(what))
 }
 
+/// A node a screen reader is told of.
+#[derive(Clone, Debug)]
+pub(crate) struct Named {
+    pub(crate) role: egui::accesskit::Role,
+    pub(crate) label: Option<String>,
+    pub(crate) value: Option<String>,
+    /// Where it is, if it's on screen.
+    pub(crate) rect: Option<egui::Rect>,
+    pub(crate) disabled: bool,
+}
+
+impl Named {
+    /// What it's called: its label, else its value.
+    pub(crate) fn name(&self) -> Option<&str> {
+        self.label.as_deref().or(self.value.as_deref())
+    }
+
+    /// Where a click on it lands: its middle.
+    pub(crate) fn centre(&self) -> Option<egui::Pos2> {
+        self.rect.map(|r| r.center())
+    }
+}
+
+/// The nodes a frame told a screen reader of (the context's AccessKit on).
+pub(crate) fn named_in(out: &egui::FullOutput) -> Vec<Named> {
+    let tree = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
+    tree.nodes
+        .iter()
+        .map(|(_, n)| Named {
+            role: n.role(),
+            label: n.label().map(str::to_string),
+            value: n.value().map(str::to_string),
+            rect: n.bounds().map(|b| egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32))),
+            disabled: n.is_disabled(),
+        })
+        .collect()
+}
+
+/// The nodes a frame in a window of `size` tells a screen reader of (the context's AccessKit on).
+pub(crate) fn named(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<Named> {
+    named_in(&sized_frame(ctx, a, size, vec![]))
+}
+
+/// A click of `button` at `at` with `modifiers` held for the whole of it, as the input's
+/// modifiers say and not only the pointer's events: a frame each for the pointer coming, the
+/// button going down and coming up, and one letting go of the keys, if any were held. What it
+/// did shows in the frame after, the caller's.
+pub(crate) fn click_at(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2, button: egui::PointerButton, modifiers: Modifiers) {
+    let press = |pressed| Event::PointerButton { pos: at, button, pressed, modifiers };
+    frame(ctx, a, vec![Event::ModifiersChanged(modifiers), Event::PointerMoved(at)]);
+    frame(ctx, a, vec![press(true)]);
+    frame(ctx, a, vec![press(false)]);
+    if modifiers != Modifiers::NONE {
+        frame(ctx, a, vec![Event::ModifiersChanged(Modifiers::NONE)]);
+    }
+}
+
+/// A click of the primary button at `at`, no keys held ([`click_at`]).
+pub(crate) fn click(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
+    click_at(ctx, a, at, egui::PointerButton::Primary, Modifiers::NONE);
+}
+
+/// A click on the control a screen reader names `label` (the first that's on and on screen).
+pub(crate) fn click_named(ctx: &egui::Context, a: &mut MailApp, label: &str) {
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let all = named(ctx, a, size);
+    let at = all.iter().filter(|n| n.label.as_deref() == Some(label) && !n.disabled).find_map(Named::centre);
+    let at = at.unwrap_or_else(|| panic!("no {label} to click: {:?}", all.iter().filter_map(Named::name).collect::<Vec<_>>()));
+    click(ctx, a, at);
+}
+
 /// Every pane layout, state and dialog, in light and dark (also run in the pseudo-language by
 /// the translation tests).
 pub(crate) fn tour() {
@@ -634,110 +705,3 @@ mod typing;
 mod updates;
 mod windows;
 mod writing;
-
-/// Issue #8: the classic ribbon on every tab and module, light and dark, in a wide window and
-/// a narrow one (it scrolls rather than dropping labels): drawn without trouble and taller than
-/// the simplified one; switched off, the simplified ribbon comes back.
-#[test]
-fn the_classic_ribbon_draws_every_tab() {
-    let (mut a, dir) = app("classic-ribbon");
-    let ctx = egui::Context::default();
-    let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-    };
-    for _ in 0..3 {
-        frame(&ctx, &mut a, vec![]);
-    }
-    let simplified = a.ui.ribbon_rect.expect("the ribbon is drawn").height();
-    a.run("view.classicRibbon", json!({"on": true}));
-    assert!(a.session.prefs.classic_ribbon);
-    for dark in [Some(false), Some(true)] {
-        a.ui.dark = dark;
-        for w in [1280.0, 520.0] {
-            for module in ["mail", "calendar", "people", "tasks", "notes"] {
-                a.run("view.module", json!({"name": module}));
-                for tab in [crate::RibbonTab::Home, crate::RibbonTab::SendReceive, crate::RibbonTab::View] {
-                    a.ui.tab = tab;
-                    for _ in 0..3 {
-                        sized(&ctx, &mut a, w);
-                    }
-                }
-            }
-            a.run("view.module", json!({"name": "mail"}));
-            a.ui.tab = crate::RibbonTab::Home;
-            sized(&ctx, &mut a, w);
-            assert!(a.ui.ribbon_rect.unwrap().height() > simplified + 30.0, "{} vs {simplified}", a.ui.ribbon_rect.unwrap().height());
-        }
-    }
-    a.run("view.classicRibbon", json!({}));
-    frame(&ctx, &mut a, vec![]);
-    frame(&ctx, &mut a, vec![]);
-    assert!((a.ui.ribbon_rect.unwrap().height() - simplified).abs() < 1.0);
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-/// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
-/// two, with the ribbon's buttons right under it, as tall on every tab and in every module, in a
-/// wide window, the narrowest and a narrow one; the File page has the window to itself.
-#[test]
-fn the_tabs_and_search_share_one_bar() {
-    let (mut a, dir) = app("one-bar");
-    let ctx = egui::Context::default();
-    let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-    };
-    for _ in 0..3 {
-        frame(&ctx, &mut a, vec![]);
-    }
-    let bar = a.ui.top_bar_rect.expect("the top bar is drawn");
-    let ribbon = a.ui.ribbon_rect.expect("the ribbon is drawn");
-    assert_eq!(bar.top(), 0.0);
-    assert!((bar.height() - crate::app::frame::TOP_BAR_H).abs() < 0.5, "{bar:?}");
-    assert!(ribbon.top() >= bar.bottom() && ribbon.top() - bar.bottom() < 8.0, "{bar:?} {ribbon:?}");
-    // The bar and the ribbon together: 40 points less than the bar, the tabs and the buttons were.
-    assert!(ribbon.bottom() < 82.0, "{ribbon:?}");
-    let height = ribbon.height();
-    for dark in [Some(false), Some(true)] {
-        a.ui.dark = dark;
-        for plain in [false, true] {
-            a.session.prefs.plain_top_bar = plain;
-            for w in [2560.0, 1280.0, 760.0, 520.0] {
-                for module in ["mail", "calendar", "people", "tasks", "notes"] {
-                    a.run("view.module", json!({"name": module}));
-                    for tab in [crate::RibbonTab::Home, crate::RibbonTab::SendReceive, crate::RibbonTab::View] {
-                        a.ui.tab = tab;
-                        for _ in 0..2 {
-                            sized(&ctx, &mut a, w);
-                        }
-                        let r = a.ui.ribbon_rect.unwrap();
-                        assert!((r.height() - height).abs() < 1.0, "{module} {tab:?} at {w}: {} vs {height}", r.height());
-                        // Nothing pushed past the window's edge: the narrow one has the box on a
-                        // row of its own.
-                        assert!((a.ui.top_bar_rect.unwrap().width() - w).abs() < 1.0, "{module} {tab:?} at {w}: {:?}", a.ui.top_bar_rect);
-                        assert_eq!(a.ui.bar_two_rows, w < 700.0, "{module} {tab:?} at {w}");
-                    }
-                }
-            }
-        }
-    }
-    a.session.prefs.plain_top_bar = false;
-    a.run("view.module", json!({"name": "mail"}));
-    // Searching: the Search tab joins the others on the bar (and stays while the search does),
-    // the ribbon as tall.
-    a.run("search.run", json!({"query": "storyboard"}));
-    a.ui.tab = crate::RibbonTab::Search;
-    for _ in 0..3 {
-        frame(&ctx, &mut a, vec![]);
-    }
-    assert_eq!(a.ui.tab, crate::RibbonTab::Search);
-    assert!((a.ui.ribbon_rect.unwrap().height() - height).abs() < 1.0);
-    a.run("search.clear", json!({}));
-    a.act(crate::Action::Backstage(crate::backstage::Page::Info));
-    frame(&ctx, &mut a, vec![]);
-    assert!(a.ui.top_bar_rect.is_none() && a.ui.ribbon_rect.is_none(), "the File page has no bar");
-    let _ = std::fs::remove_dir_all(dir);
-}

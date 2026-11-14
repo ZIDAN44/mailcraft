@@ -64,13 +64,8 @@ impl Clocked {
         };
         let mut out = ctx.run_ui(input, |ui| a.ui(ui));
         out.textures_delta.clear();
-        let nodes = out.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default();
-        let mut mores: Vec<egui::Rect> = nodes
-            .iter()
-            .filter(|(_, n)| n.label() == Some("More options"))
-            .filter_map(|(_, n)| n.bounds())
-            .map(|b| egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32)))
-            .collect();
+        let mut mores: Vec<egui::Rect> =
+            named_in(&out).into_iter().filter(|n| n.label.as_deref() == Some("More options")).filter_map(|n| n.rect).collect();
         mores.sort_by(|p, q| p.top().total_cmp(&q.top()).then(p.left().total_cmp(&q.left())));
         mores
     }
@@ -177,11 +172,7 @@ fn a_double_clicked_attachment_only_opens_in_a_message_window() {
 
 /// The text read out of a frame (AccessKit's labels and values).
 fn read_out(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let nodes = out.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default();
-    nodes.iter().filter_map(|(_, n)| n.label().or(n.value()).map(str::to_string)).collect()
+    named(ctx, a, egui::vec2(1280.0, 800.0)).iter().filter_map(Named::name).map(str::to_string).collect()
 }
 
 /// How many attachments' previews are kept, read and waiting to be shown again.

@@ -1,6 +1,5 @@
 //! UI tests: the people above a message, by the contacts they're saved as.
 
-use egui::accesskit::Role;
 use mailcraft_engine::model::EmailAddress;
 use mailcraft_engine::model::pim::StoredCard;
 use mailcraft_engine::model::vcard::{Card, Typed};
@@ -38,29 +37,21 @@ fn open_message(a: &mut MailApp, from: &EmailAddress, to: Vec<EmailAddress>) {
     a.run("list.open", json!({"key": key.to_id()}));
 }
 
-/// What the frame shows, as a screen reader is told it: each node's role, name and place.
-fn shown(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<(Role, String, egui::Rect)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-    tree.nodes
-        .iter()
-        .filter_map(|(_, n)| {
-            let b = n.bounds()?;
-            let rect = egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32));
-            Some((n.role(), n.label().or(n.value())?.to_string(), rect))
-        })
-        .collect()
+/// What the frame shows, as a screen reader is told it: the named nodes on screen.
+fn shown(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<Named> {
+    let nodes = named_in(&sized_frame(ctx, a, egui::vec2(1280.0, 800.0), events));
+    nodes.into_iter().filter(|n| n.rect.is_some() && n.name().is_some()).collect()
 }
 
-/// A click with `button` on `at`, and the frame after it.
-fn click_with(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2, button: egui::PointerButton) -> Vec<(Role, String, egui::Rect)> {
-    let press = |pressed| Event::PointerButton { pos: at, button, pressed, modifiers: Modifiers::NONE };
-    shown(ctx, a, vec![Event::PointerMoved(at)]);
-    shown(ctx, a, vec![press(true)]);
-    shown(ctx, a, vec![press(false)]);
+/// A click with `button` on `at`, and what the frame after it shows.
+fn click_with(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2, button: egui::PointerButton) -> Vec<Named> {
+    click_at(ctx, a, at, button, Modifiers::NONE);
     shown(ctx, a, vec![])
+}
+
+/// Whether one of `nodes` is named `name`.
+fn says(nodes: &[Named], name: &str) -> bool {
+    nodes.iter().any(|n| n.name() == Some(name))
 }
 
 /// Someone saved as a contact gets "Edit contact…" and their card shows their saved name; someone
@@ -76,23 +67,23 @@ fn people_above_a_message_are_found_among_the_contacts() {
         shown(&ctx, &mut a, vec![]);
     }
     let nodes = shown(&ctx, &mut a, vec![]);
-    assert!(!nodes.iter().any(|(_, name, _)| name == "Add to contacts"), "Pat is saved: {nodes:?}");
-    let at = |nodes: &[(Role, String, egui::Rect)], who: &str| nodes.iter().find(|(_, name, _)| name == who).map(|n| n.2.center()).expect(who);
+    assert!(!says(&nodes, "Add to contacts"), "Pat is saved: {nodes:?}");
+    let at = |nodes: &[Named], who: &str| nodes.iter().find(|n| n.name() == Some(who)).and_then(Named::centre).expect(who);
     // Right-clicked: what can be done with each.
     let pat = at(&nodes, "Pat");
     let menu = click_with(&ctx, &mut a, pat, egui::PointerButton::Secondary);
-    assert!(menu.iter().any(|(_, n, _)| n == "Edit contact…") && !menu.iter().any(|(_, n, _)| n == "Add to contacts…"), "{menu:?}");
+    assert!(says(&menu, "Edit contact…") && !says(&menu, "Add to contacts…"), "{menu:?}");
     shown(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     let nodes = shown(&ctx, &mut a, vec![]);
     let quinn = at(&nodes, "Quinn");
     let menu = click_with(&ctx, &mut a, quinn, egui::PointerButton::Secondary);
-    assert!(menu.iter().any(|(_, n, _)| n == "Add to contacts…") && !menu.iter().any(|(_, n, _)| n == "Edit contact…"), "{menu:?}");
+    assert!(says(&menu, "Add to contacts…") && !says(&menu, "Edit contact…"), "{menu:?}");
     shown(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     // Clicked: the card, with the name Pat is saved as.
     let nodes = shown(&ctx, &mut a, vec![]);
     let card = click_with(&ctx, &mut a, at(&nodes, "Pat"), egui::PointerButton::Primary);
-    assert!(card.iter().any(|(_, n, _)| n == "Person 1"), "{card:?}");
-    assert!(card.iter().any(|(_, n, _)| n == "Edit contact…"), "{card:?}");
+    assert!(says(&card, "Person 1"), "{card:?}");
+    assert!(says(&card, "Edit contact…"), "{card:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
 

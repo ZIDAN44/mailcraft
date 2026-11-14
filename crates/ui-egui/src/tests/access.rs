@@ -167,34 +167,20 @@ fn esc_leaves_a_file_page_field_before_the_page() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    let tall = egui::vec2(1280.0, 2400.0);
+    let _tall = windows::layout::Dressed::new(tall, "");
     let mut field = None;
     for _ in 0..4 {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 2400.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
-        field = nodes.iter().find(|(_, n)| n.role() == Role::TextInput && !n.is_disabled()).and_then(|(_, n)| n.bounds());
+        let nodes = named(&ctx, &mut a, tall);
+        field = nodes.into_iter().find(|n| n.role == Role::TextInput && !n.disabled).and_then(|n| n.centre());
     }
-    let r = field.expect("the Options page has a text field");
-    let at = egui::pos2(((r.x0 + r.x1) / 2.0) as f32, ((r.y0 + r.y1) / 2.0) as f32);
-    let tall = |events: Vec<Event>| RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 2400.0))),
-        events,
-        ..Default::default()
-    };
-    let press = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    for events in [vec![Event::PointerMoved(at)], vec![press(true)], vec![press(false)], vec![]] {
-        let mut out = ctx.run_ui(tall(events), |ui| a.ui(ui));
-        out.textures_delta.clear();
-    }
+    click(&ctx, &mut a, field.expect("the Options page has a text field"));
     assert!(ctx.text_edit_focused(), "the field has the keyboard");
-    let mut out = ctx.run_ui(tall(vec![key(Key::Escape, Modifiers::NONE)]), |ui| a.ui(ui));
-    out.textures_delta.clear();
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     assert!(!ctx.text_edit_focused(), "Esc left the field");
     assert!(a.ui.backstage.is_some(), "and the File page is still open");
     for events in [vec![], vec![key(Key::Escape, Modifiers::NONE)]] {
-        let mut out = ctx.run_ui(tall(events), |ui| a.ui(ui));
-        out.textures_delta.clear();
+        frame(&ctx, &mut a, events);
     }
     assert!(a.ui.backstage.is_none(), "the next Esc leaves the File page");
     let _ = std::fs::remove_dir_all(dir);
@@ -207,13 +193,7 @@ fn a_reply_left_in_drafts_is_said() {
     let (mut a, dir) = app("access-drafts");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
-    let labels = |a: &mut MailApp| {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-        tree.nodes.iter().filter_map(|(_, n)| n.label().map(str::to_string)).collect::<Vec<_>>()
-    };
+    let labels = |a: &mut MailApp| named(&ctx, a, egui::vec2(1280.0, 800.0)).into_iter().filter_map(|n| n.label).collect::<Vec<_>>();
     let m = a.session.list[0].clone();
     a.run("list.open", json!({"key": m.key.to_id()}));
     a.run("mail.reply", json!({}));

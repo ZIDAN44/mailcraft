@@ -8,58 +8,30 @@ use super::*;
 /// A screen tall enough for File › Options' Reading group without scrolling.
 const SCREEN: egui::Vec2 = egui::vec2(1280.0, 1400.0);
 
-fn tall(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SCREEN)), events, ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-}
-
-/// What a screen reader is told is on screen: each node's name and where it is.
-fn nodes(ctx: &egui::Context, a: &mut MailApp) -> Vec<(String, Option<egui::Pos2>)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SCREEN)), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-    tree.nodes
-        .iter()
-        .filter_map(|(_, n)| {
-            let name = n.label().or(n.value())?.to_string();
-            let at = n.bounds().map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32));
-            Some((name, at))
-        })
-        .collect()
-}
-
 fn shows(ctx: &egui::Context, a: &mut MailApp, label: &str) -> bool {
-    nodes(ctx, a).iter().any(|(n, _)| n == label)
+    named(ctx, a, SCREEN).iter().any(|n| n.name() == Some(label))
 }
 
 /// Click what a screen reader names `label` (the last of that name: the reading pane's, below
 /// the ribbon's).
-fn click_named(ctx: &egui::Context, a: &mut MailApp, label: &str) {
-    let all = nodes(ctx, a);
-    let at = all.iter().filter(|(n, _)| n == label).filter_map(|(_, at)| *at).next_back();
-    let at = at.unwrap_or_else(|| panic!("no {label} to click: {:?}", all.iter().map(|(n, _)| n).collect::<Vec<_>>()));
-    press(ctx, a, at);
-}
-
-fn press(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
-    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    tall(ctx, a, vec![Event::PointerMoved(at)]);
-    tall(ctx, a, vec![button(true)]);
-    tall(ctx, a, vec![button(false)]);
+fn click_last(ctx: &egui::Context, a: &mut MailApp, label: &str) {
+    let all = named(ctx, a, SCREEN);
+    let at = all.iter().filter(|n| n.name() == Some(label)).filter_map(Named::centre).next_back();
+    let at = at.unwrap_or_else(|| panic!("no {label} to click: {:?}", all.iter().filter_map(Named::name).collect::<Vec<_>>()));
+    click(ctx, a, at);
 }
 
 #[test]
 fn plain_text_is_in_more_actions_the_view_ribbon_and_options() {
+    let _tall = windows::layout::Dressed::new(SCREEN, "");
     let (mut a, dir) = app("plain-text");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
-    tall(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
     let key = a.session.list.iter().find(|m| m.subject == "Open call: winter group show").map(|m| m.key.clone()).unwrap();
     a.run("list.open", json!({"key": key.to_id()}));
     for _ in 0..3 {
-        tall(&ctx, &mut a, vec![]);
+        frame(&ctx, &mut a, vec![]);
     }
     // Formatted, with nothing over its text to turn it plain.
     assert!(a.session.prefs.show_html);
@@ -68,49 +40,49 @@ fn plain_text_is_in_more_actions_the_view_ribbon_and_options() {
     assert!(!shows(&ctx, &mut a, "Show formatted"));
 
     // The message's More actions (⋯) has it, for that message: the setting stays.
-    click_named(&ctx, &mut a, "More actions");
+    click_last(&ctx, &mut a, "More actions");
     assert!(shows(&ctx, &mut a, "Show as plain text"), "in More actions");
-    click_named(&ctx, &mut a, "Show as plain text");
-    tall(&ctx, &mut a, vec![]);
+    click_last(&ctx, &mut a, "Show as plain text");
+    frame(&ctx, &mut a, vec![]);
     assert!(a.session.prefs.show_html, "one message's More actions left the setting for all mail");
     // Shown as text, said, with the way back above the text.
     assert!(shows(&ctx, &mut a, "Shown as text."), "More actions turned it plain");
-    click_named(&ctx, &mut a, "Show formatted");
-    tall(&ctx, &mut a, vec![]);
+    click_last(&ctx, &mut a, "Show formatted");
+    frame(&ctx, &mut a, vec![]);
     assert!(a.session.prefs.show_html);
     assert!(!shows(&ctx, &mut a, "Shown as text."), "Show formatted went back");
 
     // View › Plain text, both ways.
     a.ui.tab = crate::RibbonTab::View;
-    tall(&ctx, &mut a, vec![]);
-    click_named(&ctx, &mut a, "Plain text");
+    frame(&ctx, &mut a, vec![]);
+    click_last(&ctx, &mut a, "Plain text");
     assert!(!a.session.prefs.show_html, "View › Plain text");
-    click_named(&ctx, &mut a, "Plain text");
+    click_last(&ctx, &mut a, "Plain text");
     assert!(a.session.prefs.show_html, "View › Plain text, again");
 
     // File › Options: read all mail as plain text.
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
     for _ in 0..2 {
-        tall(&ctx, &mut a, vec![]);
+        frame(&ctx, &mut a, vec![]);
     }
     // Its switch: right of its label.
-    let at = nodes(&ctx, &mut a)
-        .into_iter()
-        .filter(|(n, _)| n == "Read all mail as plain text")
-        .filter_map(|(_, at)| at)
+    let at = named(&ctx, &mut a, SCREEN)
+        .iter()
+        .filter(|n| n.name() == Some("Read all mail as plain text"))
+        .filter_map(Named::centre)
         .max_by(|p, q| p.x.total_cmp(&q.x));
-    press(&ctx, &mut a, at.expect("the Options switch is shown"));
+    click(&ctx, &mut a, at.expect("the Options switch is shown"));
     assert!(!a.session.prefs.show_html, "the Options switch");
 
     // All mail as plain text: Show formatted above one message shows that one formatted, and
     // the setting stays on (as Outlook's Display as HTML does).
     a.ui.backstage = None;
     for _ in 0..2 {
-        tall(&ctx, &mut a, vec![]);
+        frame(&ctx, &mut a, vec![]);
     }
     assert!(shows(&ctx, &mut a, "Shown as text."), "read as plain text");
-    click_named(&ctx, &mut a, "Show formatted");
-    tall(&ctx, &mut a, vec![]);
+    click_last(&ctx, &mut a, "Show formatted");
+    frame(&ctx, &mut a, vec![]);
     assert!(!shows(&ctx, &mut a, "Shown as text."), "this message formatted");
     assert!(!a.session.prefs.show_html, "Show formatted left the setting for all mail on");
     // Another message is still read as plain text.
@@ -127,6 +99,7 @@ fn plain_text_is_in_more_actions_the_view_ribbon_and_options() {
 /// (⋯) has it (the reading pane's buttons aren't drawn there).
 #[test]
 fn a_message_window_can_be_shown_as_plain_text() {
+    let _tall = windows::layout::Dressed::new(SCREEN, "");
     let (a, dir) = app("plain-text-window");
     let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(PageServices(opened)));
@@ -135,17 +108,17 @@ fn a_message_window_can_be_shown_as_plain_text() {
     let key = a.session.list.iter().find(|m| m.subject == "Open call: winter group show").map(|m| m.key.clone()).unwrap();
     a.show_message_page(&key.to_id());
     for _ in 0..3 {
-        tall(&ctx, &mut a, vec![]);
+        frame(&ctx, &mut a, vec![]);
     }
     assert!(!shows(&ctx, &mut a, "Shown as text."));
-    click_named(&ctx, &mut a, "More actions");
+    click_last(&ctx, &mut a, "More actions");
     assert!(shows(&ctx, &mut a, "View message source"), "the window's More actions");
-    click_named(&ctx, &mut a, "Show as plain text");
-    tall(&ctx, &mut a, vec![]);
+    click_last(&ctx, &mut a, "Show as plain text");
+    frame(&ctx, &mut a, vec![]);
     assert!(shows(&ctx, &mut a, "Shown as text."), "the window's message as plain text");
     assert!(a.session.prefs.show_html, "for that message alone");
-    click_named(&ctx, &mut a, "Show formatted");
-    tall(&ctx, &mut a, vec![]);
+    click_last(&ctx, &mut a, "Show formatted");
+    frame(&ctx, &mut a, vec![]);
     assert!(!shows(&ctx, &mut a, "Shown as text."), "and back");
     let _ = std::fs::remove_dir_all(dir);
 }

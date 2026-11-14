@@ -17,14 +17,6 @@ fn settle(ctx: &egui::Context, a: &mut MailApp) {
     }
 }
 
-fn click_at(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
-    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    frame(ctx, a, vec![Event::PointerMoved(at)]);
-    frame(ctx, a, vec![button(true)]);
-    frame(ctx, a, vec![button(false)]);
-    frame(ctx, a, vec![]);
-}
-
 /// Where the piece of text `what` is drawn in the bar (past `from` across the window).
 fn in_bar(ctx: &egui::Context, a: &mut MailApp, what: &str, from: f32) -> egui::Rect {
     let all = drawn(ctx, a, SIZE);
@@ -105,7 +97,7 @@ fn clicks_in_the_bar_go_where_outlooks_do() {
 
     // A task typed and entered.
     let field = in_bar(&ctx, &mut a, "Type a new task", edge);
-    click_at(&ctx, &mut a, field.center());
+    click(&ctx, &mut a, field.center());
     frame(&ctx, &mut a, vec![Event::Text("Send the invoice".into())]);
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     settle(&ctx, &mut a);
@@ -118,7 +110,7 @@ fn clicks_in_the_bar_go_where_outlooks_do() {
 
     // A flagged message opens in a window of its own (it's in a folder that isn't on screen).
     let row = in_bar(&ctx, &mut a, "Shot list v2", edge);
-    click_at(&ctx, &mut a, row.center());
+    click(&ctx, &mut a, row.center());
     assert_eq!(a.session.windows.len(), 1);
     assert_eq!(a.session.windows[0].parsed.as_ref().map(|p| p.subject.as_str()), Some("Shot list v2"));
     let key_open = a.session.windows[0].key.clone();
@@ -127,7 +119,7 @@ fn clicks_in_the_bar_go_where_outlooks_do() {
 
     // Its flag, at the row's end, marks it complete: off the list.
     let row = in_bar(&ctx, &mut a, "Shot list v2", edge);
-    click_at(&ctx, &mut a, egui::pos2(SIZE.x - 8.0 - 13.0, row.center().y));
+    click(&ctx, &mut a, egui::pos2(SIZE.x - 8.0 - 13.0, row.center().y));
     settle(&ctx, &mut a);
     let shown: Vec<String> = drawn(&ctx, &mut a, SIZE).into_iter().map(|(s, _)| s).collect();
     assert!(!shown.iter().any(|s| s == "Shot list v2"), "marked complete, it's off the list");
@@ -135,7 +127,7 @@ fn clicks_in_the_bar_go_where_outlooks_do() {
 
     // The 15th of the month shown: the calendar, on that day.
     let day = in_bar(&ctx, &mut a, "15", edge);
-    click_at(&ctx, &mut a, day.center());
+    click(&ctx, &mut a, day.center());
     assert_eq!(a.session.module, mailcraft_engine::Module::Calendar);
     assert_eq!(a.session.cal_mode, mailcraft_engine::CalMode::Day);
     let (_, _, d) = mailcraft_engine::model::dates::civil_from_days(a.session.cal_day());
@@ -202,25 +194,25 @@ fn the_view_tab_turns_its_parts_on_and_off() {
         all.iter().find(|(s, r)| s == what && r.top() > under).map(|(_, r)| *r).unwrap_or_else(|| panic!("no {what:?} under {under}"))
     };
     let button = find(&ctx, &mut a, "To-Do Bar", 0.0);
-    click_at(&ctx, &mut a, button.center());
+    click(&ctx, &mut a, button.center());
     // The menu, under the ribbon: its three parts and Off.
     let under = button.bottom();
     for part in ["Calendar", "Appointments", "Tasks", "Off"] {
         find(&ctx, &mut a, part, under);
     }
     let tasks = find(&ctx, &mut a, "Tasks", under);
-    click_at(&ctx, &mut a, tasks.center());
+    click(&ctx, &mut a, tasks.center());
     let bar = a.session.prefs.todo_bar;
     assert_eq!((bar.calendar, bar.appointments, bar.tasks), (false, false, true));
     // Still open: another part ticked, then Off.
     let calendar = find(&ctx, &mut a, "Calendar", under);
-    click_at(&ctx, &mut a, calendar.center());
+    click(&ctx, &mut a, calendar.center());
     let bar = a.session.prefs.todo_bar;
     assert_eq!((bar.calendar, bar.appointments, bar.tasks), (true, false, true));
     settle(&ctx, &mut a);
     in_bar(&ctx, &mut a, "Type a new task", SIZE.x - f32::from(bar.width));
     let off = find(&ctx, &mut a, "Off", under);
-    click_at(&ctx, &mut a, off.center());
+    click(&ctx, &mut a, off.center());
     assert!(!a.session.prefs.todo_bar.shown());
     let _ = std::fs::remove_dir_all(dir);
 }

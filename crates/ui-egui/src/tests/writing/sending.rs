@@ -5,29 +5,14 @@ use egui::accesskit::Role;
 
 use super::*;
 
-/// What the frame shows, as a screen reader is told it: each node's role, name and place.
-fn shown(ctx: &egui::Context, a: &mut MailApp) -> Vec<(Role, String, egui::Rect, bool)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-    tree.nodes
-        .iter()
-        .filter_map(|(_, n)| {
-            let name = n.label().or(n.value())?.to_string();
-            let b = n.bounds()?;
-            let rect = egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32));
-            Some((n.role(), name, rect, n.is_disabled()))
-        })
-        .collect()
+/// What the frame shows, as a screen reader is told it: the nodes on screen.
+fn shown(ctx: &egui::Context, a: &mut MailApp) -> Vec<Named> {
+    named(ctx, a, egui::vec2(1280.0, 800.0)).into_iter().filter(|n| n.rect.is_some()).collect()
 }
 
-fn click(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
-    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    frame(ctx, a, vec![Event::PointerMoved(at)]);
-    frame(ctx, a, vec![button(true)]);
-    frame(ctx, a, vec![button(false)]);
-    frame(ctx, a, vec![]);
+/// The button a screen reader names `name`, of `nodes`.
+fn button<'n>(nodes: &'n [Named], name: &str) -> Option<&'n Named> {
+    nodes.iter().find(|n| n.role == Role::Button && n.name() == Some(name))
 }
 
 #[test]
@@ -49,11 +34,11 @@ fn send_from_a_data_file_says_to_add_an_account() {
         frame(&ctx, &mut a, vec![]);
     }
     let nodes = shown(&ctx, &mut a);
-    assert!(nodes.iter().any(|(_, name, ..)| *name == why), "the message says why it can't be sent");
-    let send = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "Send").expect("Send");
-    assert!(send.3, "Send is off");
+    assert!(nodes.iter().any(|n| n.name() == Some(why.as_str())), "the message says why it can't be sent");
+    let send = button(&nodes, "Send").expect("Send");
+    assert!(send.disabled, "Send is off");
     // Clicked anyway: why, over the message; not sent, and the message stays as it was.
-    click(&ctx, &mut a, send.2.center());
+    click(&ctx, &mut a, send.centre().expect("Send is on screen"));
     assert_eq!(a.ui.compose_alert, Some(blocked.clone()));
     assert_eq!(a.session.compose.as_ref(), Some(&written));
     assert!(!a.session.notices.iter().any(|n| n.text.contains("sent")), "{:?}", a.session.notices);
@@ -70,12 +55,12 @@ fn send_from_a_data_file_says_to_add_an_account() {
         frame(&ctx, &mut a, vec![]);
     }
     let nodes = shown(&ctx, &mut a);
-    let add = nodes.iter().filter(|(role, name, ..)| *role == Role::Button && name == "Add an account").count();
+    let add = nodes.iter().filter(|n| n.role == Role::Button && n.name() == Some("Add an account")).count();
     assert_eq!(add, 2, "in the bar and in the alert");
     a.ui.compose_alert = None;
     frame(&ctx, &mut a, vec![]);
     let nodes = shown(&ctx, &mut a);
-    let add = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "Add an account").map(|n| n.2.center()).unwrap();
+    let add = button(&nodes, "Add an account").and_then(Named::centre).unwrap();
     click(&ctx, &mut a, add);
     assert!(matches!(a.ui.dialog, Some(Dialog::AddAccount(_))), "the account form opens");
     assert!(a.session.compose.is_some(), "still open");
@@ -90,9 +75,9 @@ fn send_from_a_data_file_says_to_add_an_account() {
     let zoe = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
     assert_eq!(a.session.compose.as_ref().map(|c| c.account.as_str()), Some(zoe.as_str()));
     let nodes = shown(&ctx, &mut a);
-    assert!(!nodes.iter().any(|(_, name, ..)| *name == why || name == "Add an account"), "the bar is gone");
-    let send = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "Send").expect("Send");
-    assert!(!send.3, "Send is on");
+    assert!(!nodes.iter().any(|n| n.name() == Some(why.as_str()) || n.name() == Some("Add an account")), "the bar is gone");
+    let send = button(&nodes, "Send").expect("Send");
+    assert!(!send.disabled, "Send is on");
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -108,9 +93,9 @@ fn send_from_an_account_that_can_shows_nothing_more() {
         frame(&ctx, &mut a, vec![]);
     }
     let nodes = shown(&ctx, &mut a);
-    let send = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "Send").expect("Send");
-    assert!(!send.3);
-    assert!(!nodes.iter().any(|(_, name, ..)| name.contains("Add an account")));
+    let send = button(&nodes, "Send").expect("Send");
+    assert!(!send.disabled);
+    assert!(!nodes.iter().filter_map(Named::name).any(|name| name.contains("Add an account")));
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -130,11 +115,11 @@ fn send_to_no_one_says_to_add_a_name() {
         frame(&ctx, &mut a, vec![]);
     }
     let nodes = shown(&ctx, &mut a);
-    assert!(nodes.iter().any(|(_, name, ..)| name == "Add at least one name in To, Cc or Bcc before sending."), "{nodes:?}");
-    assert!(!nodes.iter().any(|(_, name, ..)| name == "Add an account"));
+    assert!(nodes.iter().any(|n| n.name() == Some("Add at least one name in To, Cc or Bcc before sending.")), "{nodes:?}");
+    assert!(!nodes.iter().any(|n| n.name() == Some("Add an account")));
     assert!(a.session.compose.is_some(), "still open");
     // OK puts it away.
-    let ok = nodes.iter().find(|(role, name, ..)| *role == Role::Button && name == "OK").map(|n| n.2.center()).expect("OK");
+    let ok = button(&nodes, "OK").and_then(Named::centre).expect("OK");
     click(&ctx, &mut a, ok);
     assert_eq!(a.ui.compose_alert, None);
     // An address that isn't one: the engine's own words.
@@ -144,8 +129,8 @@ fn send_to_no_one_says_to_add_a_name() {
         frame(&ctx, &mut a, vec![]);
     }
     let nodes = shown(&ctx, &mut a);
-    assert!(nodes.iter().any(|(_, name, ..)| name == "To: not an email address: ann@."), "{nodes:?}");
-    assert!(!nodes.iter().any(|(_, name, ..)| name == "Add an account"));
+    assert!(nodes.iter().any(|n| n.name() == Some("To: not an email address: ann@.")), "{nodes:?}");
+    assert!(!nodes.iter().any(|n| n.name() == Some("Add an account")));
     let _ = std::fs::remove_dir_all(dir);
 }
 

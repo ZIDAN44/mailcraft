@@ -54,7 +54,7 @@ fn ctrl_a_selects_the_whole_message_and_copies_it_in_order() {
     let (mut a, dir) = app("select-all-blocks");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
-    click(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert!(a.ui.text_selection.all());
     assert_eq!(a.session.selection.len(), 1, "the list's selection is as it was");
@@ -82,14 +82,12 @@ fn ctrl_a_in_the_message_list_still_selects_its_messages() {
     let (mut a, dir) = app("select-all-list");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
-    click(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert_eq!(a.session.selection.len(), 1);
     // A press on the list's empty end (below its rows) gives it the keyboard back.
     let list = egui::pos2(area.left() - 150.0, 790.0);
-    let button = |pressed| Event::PointerButton { pos: list, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    frame(&ctx, &mut a, vec![Event::PointerMoved(list), button(true)]);
-    frame(&ctx, &mut a, vec![button(false)]);
+    click(&ctx, &mut a, list);
     assert!(!a.ui.text_selection.all(), "the text lets go");
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     frame(&ctx, &mut a, vec![]);
@@ -105,7 +103,7 @@ fn shift_and_the_arrows_select_across_lines() {
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(40));
     let open_key = a.session.reading.as_ref().map(|r| r.key.clone());
-    click(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     let shift = |k| key(k, Modifiers::SHIFT);
     frame(&ctx, &mut a, vec![shift(Key::ArrowDown), shift(Key::ArrowDown), shift(Key::End)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
@@ -136,11 +134,11 @@ fn shift_up_and_shift_click_move_the_end() {
     let area = open(&mut a, &ctx, lines(20));
     let row = area.height() / 20.0;
     // At the start of the fourth line, then Shift+Up twice: the second and third lines.
-    click(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 3.0 * row + 6.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 3.0 * row + 6.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::SHIFT), key(Key::ArrowUp, Modifiers::SHIFT)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "Line 001 of the message.\nLine 002 of the message.\n");
-    click(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 6.0 * row + 6.0), Modifiers::SHIFT);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 6.0 * row + 6.0), egui::PointerButton::Primary, Modifiers::SHIFT);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "Line 003 of the message.\nLine 004 of the message.\nLine 005 of the message.\n");
     let _ = std::fs::remove_dir_all(dir);
@@ -204,7 +202,7 @@ fn a_message_window_selects_its_text_the_same_way() {
     }
     // Without a native backend the window is drawn inside the main one, over it.
     let area = text_area(&a, egui::Order::Middle);
-    click(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::SHIFT), key(Key::End, Modifiers::SHIFT)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "Line 000 of the message.\nLine 001 of the message.");
@@ -227,7 +225,7 @@ fn ctrl_a_takes_a_plain_message_whole_in_either_direction() {
         let from = mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example");
         let area = open(&mut a, &ctx, mailcraft_engine::mime::build(&d, &from, NOW, "<plain@x>").unwrap());
         let text = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.text.clone()).unwrap();
-        click(&ctx, &mut a, area.center_top() + egui::vec2(0.0, 6.0), Modifiers::NONE);
+        click_at(&ctx, &mut a, area.center_top() + egui::vec2(0.0, 6.0), egui::PointerButton::Primary, Modifiers::NONE);
         frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
         let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
         assert_eq!(got, text);
@@ -278,7 +276,7 @@ fn the_scroll_bar_scrolls_and_leaves_the_selection() {
     let (mut a, dir) = app("select-scroll-bar");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(200));
-    click(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::SHIFT), key(Key::End, Modifiers::SHIFT)]);
     let selected = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     // Hovered first, the bar widens to where it can be grabbed.
@@ -305,12 +303,12 @@ fn shift_end_and_home_take_a_line_of_several_runs() {
     let (mut a, dir) = app("select-shift-end");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
-    click(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::End, Modifiers::SHIFT)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "First paragraph with bold words in it.");
     // From the line's end, Shift+Home: all of it again, the other way round.
-    click(&ctx, &mut a, area.left_top() + egui::vec2(area.width() - 2.0, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(area.width() - 2.0, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::SHIFT)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "First paragraph with bold words in it.");
@@ -402,7 +400,7 @@ fn a_message_shown_again_starts_unselected() {
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
     let first = a.session.reading.as_ref().map(|r| r.key.clone()).unwrap();
-    click(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert!(a.ui.text_selection.all());
     frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
@@ -455,7 +453,7 @@ fn the_shading_has_no_seam_between_runs_on_a_line() {
     let ctx = egui::Context::default();
     ctx.set_pixels_per_point(1.25);
     let area = open(&mut a, &ctx, mixed());
-    click(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
     let mut out = ctx.run_ui(input, |ui| a.ui(ui));

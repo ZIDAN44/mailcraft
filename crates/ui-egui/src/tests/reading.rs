@@ -249,8 +249,7 @@ fn ctrl_a_selects_attachments_when_they_have_the_keyboard() {
     // Elsewhere (a press off the attachments), Ctrl+A selects the mail again.
     let off = egui::pos2(5.0, 400.0);
     frame(&ctx, &mut a, vec![Event::PointerMoved(off)]);
-    frame(&ctx, &mut a, vec![Event::PointerButton { pos: off, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
-    frame(&ctx, &mut a, vec![Event::PointerButton { pos: off, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
+    click(&ctx, &mut a, off);
     assert!(!a.ui.attachments_active);
     assert!(a.ui.attachment_selected.is_none(), "a click elsewhere lets go of them");
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
@@ -344,11 +343,8 @@ fn the_reading_pane_shows_below_the_list() {
     let reply_all = |a: &mut MailApp| {
         let mut lowest = None;
         for _ in 0..3 {
-            let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-            let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-            out.textures_delta.clear();
-            let nodes = out.platform_output.accesskit_update.map(|u| u.nodes).unwrap_or_default();
-            lowest = nodes.iter().filter(|(_, n)| n.label() == Some("Reply all")).filter_map(|(_, n)| n.bounds()).map(|b| b.y0).reduce(f64::max);
+            let nodes = named(&ctx, a, egui::vec2(1280.0, 800.0));
+            lowest = nodes.iter().filter(|n| n.label.as_deref() == Some("Reply all")).filter_map(|n| n.rect).map(|r| r.min.y).reduce(f32::max);
         }
         lowest
     };
@@ -375,11 +371,7 @@ fn a_message_text_first_says_its_files_are_coming() {
     let raw = mailcraft_engine::mime::text_first(&d, &from, NOW, "<r@x>", &[file]).unwrap();
     a.session.apply(mailcraft_engine::model::Event::Body { key: key.clone(), raw });
     let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-        tree.nodes.iter().filter_map(|(_, n)| n.label().or(n.value()).map(str::to_string)).collect()
+        named(ctx, a, egui::vec2(1280.0, 800.0)).iter().filter_map(Named::name).map(str::to_string).collect()
     };
     frame(&ctx, &mut a, vec![]);
     let shown = labels(&ctx, &mut a);
@@ -414,11 +406,7 @@ fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
     a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
     a.run("view.externalTag", json!({"on": true}));
     let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let tree = out.platform_output.accesskit_update.expect("AccessKit is on");
-        tree.nodes.iter().filter_map(|(_, n)| n.label().or(n.value()).map(str::to_string)).collect()
+        named(ctx, a, egui::vec2(1280.0, 800.0)).iter().filter_map(Named::name).map(str::to_string).collect()
     };
     frame(&ctx, &mut a, vec![]);
     let shown = labels(&ctx, &mut a);
@@ -569,14 +557,6 @@ fn copied(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Option<St
         .next_back()
 }
 
-/// A click at `at`, with `modifiers` held.
-fn click(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2, modifiers: Modifiers) {
-    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers };
-    frame(ctx, a, vec![Event::PointerMoved(at), Event::ModifiersChanged(modifiers)]);
-    frame(ctx, a, vec![button(true)]);
-    frame(ctx, a, vec![button(false), Event::ModifiersChanged(Modifiers::NONE)]);
-}
-
 fn scroll_to_end(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
     for _ in 0..60 {
         let wheel = Event::MouseWheel {
@@ -625,19 +605,19 @@ fn a_selection_over_chunks_passed_over_copies_them() {
     let (text, _) = open_long(&mut a, &ctx, long_message(4400));
     let ranges = crate::reading::chunks(&text, crate::reading::CHUNK);
     let first = long_state(&a).shown.first().map(|(_, r)| *r).unwrap();
-    click(&ctx, &mut a, first.left_top() + egui::vec2(2.0, 10.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, first.left_top() + egui::vec2(2.0, 10.0), egui::PointerButton::Primary, Modifiers::NONE);
     scroll_to_end(&ctx, &mut a, egui::pos2(first.left() + 20.0, 400.0));
     let (last, rect) = long_state(&a).shown.last().copied().unwrap();
     assert!(last > 10);
     let at = egui::pos2(rect.left() + 2.0, rect.center().y.clamp(300.0, 700.0));
     assert!(rect.contains(at));
-    click(&ctx, &mut a, at, Modifiers::SHIFT);
+    click_at(&ctx, &mut a, at, egui::PointerButton::Primary, Modifiers::SHIFT);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     let before = ranges.get(last - 1).map(|r| r.end).unwrap();
     assert!(got.len() > before, "from the start into the chunk clicked: {} of {before}", got.len());
     assert!(text.starts_with(&got), "the text as it is");
     // Ctrl+A, then a copy: the whole text, and the mail selection is left alone.
-    click(&ctx, &mut a, at, Modifiers::NONE);
+    click_at(&ctx, &mut a, at, egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert!(a.ui.text_selection.all());
     assert_eq!(a.session.selection.len(), 1);
@@ -677,7 +657,7 @@ fn ctrl_a_in_the_search_box_after_a_long_message_does_not_copy_it_whole() {
     let ctx = egui::Context::default();
     let (text, _) = open_long(&mut a, &ctx, long_message(4400));
     let first = long_state(&a).shown.first().map(|(_, r)| *r).unwrap();
-    click(&ctx, &mut a, first.left_top() + egui::vec2(2.0, 10.0), Modifiers::NONE);
+    click_at(&ctx, &mut a, first.left_top() + egui::vec2(2.0, 10.0), egui::PointerButton::Primary, Modifiers::NONE);
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert!(a.ui.text_selection.all());
     frame(&ctx, &mut a, vec![key(Key::E, Modifiers::COMMAND)]);

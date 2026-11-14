@@ -113,10 +113,7 @@ fn long_lists_scroll_in_order_and_follow_changes() {
     a_run_of(&shown, &all, 0, false);
     // A letter of the index clicked: the list goes to its heading, the first name under it next.
     let Some(g) = texts.iter().find(|(t, p)| t == "g" && p.x < 300.0).map(|(_, p)| *p + egui::vec2(2.0, 4.0)) else { panic!("{texts:?}") };
-    let click = |pressed| Event::PointerButton { pos: g, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    let _ = drawn(&ctx, &mut a, vec![Event::PointerMoved(g)]);
-    let _ = drawn(&ctx, &mut a, vec![click(true)]);
-    let _ = drawn(&ctx, &mut a, vec![click(false)]);
+    click(&ctx, &mut a, g);
     for _ in 0..60 {
         let _ = drawn(&ctx, &mut a, vec![]);
     }
@@ -170,11 +167,7 @@ fn long_lists_scroll_in_order_and_follow_changes() {
     let Some(first) = texts.iter().find(|(t, _)| t.lines().next() == Some(all[0].as_str())).map(|(_, p)| *p + egui::vec2(10.0, 30.0)) else {
         panic!("{texts:?}")
     };
-    let click = |pressed| Event::PointerButton { pos: first, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    let _ = drawn(&ctx, &mut a, vec![Event::PointerMoved(first)]);
-    let _ = drawn(&ctx, &mut a, vec![click(true)]);
-    let _ = drawn(&ctx, &mut a, vec![click(false)]);
-    let _ = drawn(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, first);
     assert!(a.ui.note_edit.as_ref().is_some_and(|(u, _)| u == "note-0"), "{:?}", a.ui.note_edit);
     scroll(&ctx, &mut a, is_note, false, 8_000.0);
     let texts = drawn(&ctx, &mut a, vec![]);

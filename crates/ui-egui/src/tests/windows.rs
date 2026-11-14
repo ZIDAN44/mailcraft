@@ -444,16 +444,8 @@ fn the_window_is_told_before_its_own_title_bar_zooms_it() {
         run(&mut a, vec![], false);
     }
     let out = run(&mut a, vec![], false);
-    let tree = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
-    let at = |label: &str| {
-        tree.nodes
-            .iter()
-            .find_map(|(_, n)| {
-                let b = n.bounds()?;
-                (n.label()? == label).then(|| egui::pos2((b.x0 + b.x1) as f32 / 2.0, (b.y0 + b.y1) as f32 / 2.0))
-            })
-            .unwrap_or_else(|| panic!("{label}"))
-    };
+    let nodes = named_in(&out);
+    let at = |label: &str| nodes.iter().filter(|n| n.label.as_deref() == Some(label)).find_map(Named::centre).unwrap_or_else(|| panic!("{label}"));
     let (max, min) = (at("Maximize"), at("Minimize"));
     let free = egui::pos2(at("Send / Receive all folders (F9)").x - 20.0, 20.0);
     run(&mut a, click(min), false);
@@ -496,16 +488,8 @@ fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
         out.textures_delta.clear();
         out
     };
-    let named = |out: &egui::FullOutput| -> Vec<(String, egui::Rect)> {
-        let tree = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
-        tree.nodes
-            .iter()
-            .filter_map(|(_, n)| {
-                let b = n.bounds()?;
-                Some((n.label()?.to_string(), egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32))))
-            })
-            .collect()
-    };
+    let named =
+        |out: &egui::FullOutput| -> Vec<(String, egui::Rect)> { named_in(out).into_iter().filter_map(|n| Some((n.label?, n.rect?))).collect() };
     let sent = |out: &egui::FullOutput| out.viewport_output.values().flat_map(|v| v.commands.clone()).collect::<Vec<_>>();
     let click = |at: egui::Pos2| {
         vec![

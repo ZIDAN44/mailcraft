@@ -69,10 +69,7 @@ fn a_long_address_book_scrolls_and_selects() {
     // The third row drawn, clicked.
     let (name, at) = texts.iter().filter(|(t, _)| t.starts_with("Person ")).nth(2).cloned().expect("three people drawn");
     let at = at + egui::vec2(10.0, 6.0);
-    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    let _ = drawn(&ctx, &mut a, vec![Event::PointerMoved(at)]);
-    let _ = drawn(&ctx, &mut a, vec![button(true)]);
-    let _ = drawn(&ctx, &mut a, vec![button(false)]);
+    click(&ctx, &mut a, at);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
     assert_eq!(f.selected.and_then(|i| f.list.get(i)).map(|p| p.name.clone()), Some(name));
     // Scrolled to the end: the last person is the last row, all of it in view.

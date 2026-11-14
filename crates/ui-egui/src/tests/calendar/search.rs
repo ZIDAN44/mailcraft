@@ -133,16 +133,7 @@ fn many_results_are_listed_and_scrolled() {
     assert!(!last.upcoming);
     let (_, at) = drawn.iter().find(|(t, _)| *t == last.summary).unwrap_or_else(|| panic!("{} in view: {drawn:?}", last.summary));
     // Clicked, it goes to its day and opens.
-    frame(
-        &ctx,
-        &mut a,
-        vec![
-            Event::PointerMoved(*at),
-            Event::PointerButton { pos: *at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
-        ],
-    );
-    frame(&ctx, &mut a, vec![Event::PointerButton { pos: *at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
-    frame(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, *at);
     assert!(matches!(&a.ui.dialog, Some(Dialog::Event(f)) if f.summary == last.summary), "{} opened", last.summary);
     assert_eq!(a.session.cal_day(), a.session.clock.local_day(last.start));
     let _ = std::fs::remove_dir_all(dir);

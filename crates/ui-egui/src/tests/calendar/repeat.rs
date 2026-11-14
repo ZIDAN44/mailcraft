@@ -10,13 +10,6 @@ fn drawn(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<(Strin
     drawn_with(ctx, a, SIZE, events).into_iter().map(|d| (d.text, d.rect)).collect()
 }
 
-fn click(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
-    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-    drawn(ctx, a, vec![Event::PointerMoved(at)]);
-    drawn(ctx, a, vec![button(true)]);
-    drawn(ctx, a, vec![button(false)]);
-}
-
 /// What the Repeat list shows, beside its label.
 fn shown(ctx: &egui::Context, a: &mut MailApp) -> (String, egui::Rect) {
     let all = drawn(ctx, a, vec![]);
