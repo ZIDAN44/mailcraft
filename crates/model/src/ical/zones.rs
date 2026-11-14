@@ -194,7 +194,12 @@ impl FileZones {
     /// copied and its zone looked up (and a file's copied) again.
     pub(super) fn times(&self, l: &Line, fallback: &str, max: usize) -> Vec<i64> {
         let mut times = LineTimes::of(self, l, fallback);
-        l.value.split(',').filter_map(|v| times.read(v.split('/').next().unwrap_or(v)).map(|(t, _, _)| t)).take(max).collect()
+        l.value
+            .split(',')
+            .inspect(|v| crate::work::steps(v.len() + 1))
+            .filter_map(|v| times.read(v.split('/').next().unwrap_or(v)).map(|(t, _, _)| t))
+            .take(max)
+            .collect()
     }
 }
 

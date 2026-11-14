@@ -85,7 +85,7 @@ fn an_outlook_signature_file_reads() {
 #[test]
 fn a_tag_full_of_javascript_is_emptied_at_once() {
     let html = tag_full_of_javascript();
-    let quoted = crate::html::work::linear(html.len(), || quote_html(&html, &[], &[]));
+    let quoted = mailcraft_model::work::linear(html.len(), || quote_html(&html, &[], &[]));
     assert!(quoted.contains(&format!("<a href=\"{}\">x</a>", "#".repeat(JAVASCRIPTS))), "{}", quoted.chars().take(200).collect::<String>());
 }
 

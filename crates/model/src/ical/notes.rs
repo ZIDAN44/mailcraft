@@ -1,5 +1,7 @@
 //! An event's notes as they read: links under their words, addresses as links (Exchange's and Google's invitations).
 
+use crate::work::scanned;
+
 /// Most web addresses taken from an event's notes.
 pub(super) const MAX_LINKS: usize = 20;
 
@@ -14,20 +16,22 @@ pub fn links_in(text: &str) -> Vec<String> {
         // Each `http` found once, left to right: a link where `://` or `s://` follows. (Both
         // schemes searched for from each went over the rest of the text again for every address
         // not kept.)
-        let Some(start) = lower.get(at..).and_then(|r| r.find("http")).map(|i| at + i) else { break };
+        let Some(start) = lower.get(at..).and_then(|r| scanned(r, r.find("http"))).map(|i| at + i) else { break };
         let scheme = lower.get(start + 4..).unwrap_or("");
         if !scheme.starts_with("://") && !scheme.starts_with("s://") {
             at = start + 4;
             continue;
         }
         let rest = text.get(start..).unwrap_or("");
-        let len = rest.find(|c: char| c.is_whitespace() || matches!(c, '<' | '>' | '"' | '\'' | '[' | ']' | '{' | '}' | '|')).unwrap_or(rest.len());
+        let end = rest.find(|c: char| c.is_whitespace() || matches!(c, '<' | '>' | '"' | '\'' | '[' | ']' | '{' | '}' | '|'));
+        let len = scanned(rest, end).unwrap_or(rest.len());
         let mut link = rest.get(..len).unwrap_or("");
         // Closing punctuation, and closing brackets the link didn't open (its brackets counted
         // once: counted again for each one, a run of them was quadratic).
-        let opened = link.matches('(').count();
-        let mut closed = link.matches(')').count();
+        let opened = count_of(link, '(');
+        let mut closed = count_of(link, ')');
         loop {
+            crate::work::steps(1);
             let trimmed = link.trim_end_matches(['.', ',', ';', ':', '!', '?']);
             let trimmed = if trimmed.ends_with(')') && opened < closed {
                 closed -= 1;
@@ -47,6 +51,12 @@ pub fn links_in(text: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// How many `c` are in `s`, the bytes looked through counted.
+fn count_of(s: &str, c: char) -> usize {
+    crate::work::steps(s.len());
+    s.matches(c).count()
 }
 
 /// A piece of an event's notes as they're shown ([`note_lines`]).
@@ -134,15 +144,19 @@ pub(super) fn bracketed_link(line: &str) -> Option<(&str, &str, &str)> {
     // The `>` after the last `<` looked at: every `<` before it ends there too.
     let mut close = 0;
     loop {
-        let open = from + line.get(from..)?.find('<')?;
+        let rest = line.get(from..)?;
+        let open = from + scanned(rest, rest.find('<'))?;
         if close <= open {
             // None after this `<` is none after any later one either.
-            close = open + 1 + line.get(open + 1..)?.find('>')?;
+            let after = line.get(open + 1..)?;
+            close = open + 1 + scanned(after, after.find('>'))?;
         }
         let url = line.get(open + 1..close)?;
         let scheme = SCHEMES.iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s)));
         if scheme && url.len() > 7 {
-            match url.char_indices().find(|(_, c)| c.is_whitespace()) {
+            let space = url.char_indices().find(|(_, c)| c.is_whitespace());
+            crate::work::steps(space.map_or(url.len(), |(at, _)| at + 1));
+            match space {
                 None => return Some((line.get(..open)?, url, line.get(close + 1..)?)),
                 // Every `<` before the space ends at the same `>`, past it: none of them is one.
                 Some((at, c)) => from = open + 1 + at + c.len_utf8(),
@@ -176,7 +190,7 @@ pub(super) fn push_text(out: &mut Vec<NotePart>, s: &str) {
 pub(super) fn bare_links(text: &str, out: &mut Vec<NotePart>) {
     let mut rest = text;
     for link in links_in(text) {
-        let Some(at) = rest.find(&link) else { continue };
+        let Some(at) = scanned(rest, rest.find(&link)) else { continue };
         push_text(out, rest.get(..at).unwrap_or(""));
         out.push(NotePart::Link { label: link.clone(), url: link.clone() });
         rest = rest.get(at + link.len()..).unwrap_or("");

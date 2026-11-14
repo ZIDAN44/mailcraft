@@ -8,7 +8,7 @@
 /// end.
 pub(crate) fn tag_end(b: &[u8], from: usize) -> Option<usize> {
     let end = end_of_tag(b, from);
-    super::work::steps(end.map_or(b.len(), |e| e.saturating_add(1)).saturating_sub(from));
+    mailcraft_model::work::steps(end.map_or(b.len(), |e| e.saturating_add(1)).saturating_sub(from));
     end
 }
 

@@ -3,7 +3,7 @@
 //! whose time grows with each table nested (a megabyte took over ten minutes). Mail as written,
 //! newsletters with a dozen tables one in another included, is nowhere near the limits.
 
-use super::work::scanned;
+use mailcraft_model::work::scanned;
 
 /// Tables open one in another past which HTML is read flat.
 const MAX_TABLES: usize = 48;
@@ -139,7 +139,7 @@ mod tests {
         assert!(too_deep(&html));
         // The work counted: the bytes looked through, held in proportion to the message.
         let raw = format!("Content-Type: text/html\r\n\r\n{html}");
-        let p = crate::html::work::linear(raw.len(), || crate::parse(raw.as_bytes())).unwrap();
+        let p = mailcraft_model::work::linear(raw.len(), || crate::parse(raw.as_bytes())).unwrap();
         assert!(p.text.contains("link") && p.text.contains("https://x.example/a"), "{:?}", &p.text[..p.text.len().min(200)]);
         assert!(p.rich.iter().flatten().any(|s| s.link.as_deref() == Some("https://x.example/a")));
         // As mail nests: as before.
@@ -158,7 +158,7 @@ mod tests {
     fn a_megabyte_of_stray_angle_brackets_is_read_once() {
         // The work counted: the bytes looked through, held in proportion to the message.
         for html in stray_angle_brackets() {
-            crate::html::work::linear(html.len(), || {
+            mailcraft_model::work::linear(html.len(), || {
                 assert!(!too_deep(&html));
                 let _ = flattened(&html);
             });

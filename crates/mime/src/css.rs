@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 
-use crate::html::work::scanned;
+use mailcraft_model::work::scanned;
 
 /// CSS read at most, in bytes.
 const MAX_CSS: usize = 256 * 1024;

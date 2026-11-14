@@ -19,6 +19,11 @@ chrono-tz = { workspace = true }
 # Thunderbird-style keywords for long category names (organize/keywords.rs).
 sha2 = { version = "0.11", default-features = false }
 
+[features]
+# The work passes over hostile text do, counted (`work`): for the tests of the crates that read
+# it, which turn it on.
+count-work = []
+
 [dev-dependencies]
 # Property tests of the round trips (tests/properties.rs).
 proptest = "1"

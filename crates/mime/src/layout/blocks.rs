@@ -171,7 +171,7 @@ fn parted(n: &Node, pending: &str) -> bool {
 }
 
 pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
-    crate::html::work::steps(kids.len());
+    mailcraft_model::work::steps(kids.len());
     // Boxes side by side (`inline-block`, floated) straight in a cell or the body, with no box
     // around them: columns as they are in any box (issue #47: a newsletter's three
     // `inline-block` notes under its products stacked one under another).

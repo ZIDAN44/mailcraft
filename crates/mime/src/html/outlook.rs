@@ -17,7 +17,7 @@
 
 use std::borrow::Cow;
 
-use super::work;
+use mailcraft_model::work;
 use reading::{Comments, RAW_TEXT, TABLE_END, closed, has_text, raw_text_end, shows_something};
 
 /// The version of Office desktop Outlook reports (2016, 2019, 2021 and Microsoft 365).

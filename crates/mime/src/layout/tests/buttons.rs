@@ -131,7 +131,7 @@ fn hostile_buttons() -> String {
 #[test]
 fn hostile_buttons_are_survived() {
     let html = hostile_buttons();
-    let b = crate::html::work::linear(html.len(), || html_layout(&html));
+    let b = mailcraft_model::work::linear(html.len(), || html_layout(&html));
     let found = buttons(&b);
     assert!(!found.is_empty() && found.len() <= MAX_BUTTONS, "{}", found.len());
     let c = &found[0].rows[0][0];

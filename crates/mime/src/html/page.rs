@@ -1,6 +1,6 @@
 //! A page's own background left to the page: not a highlight behind each run of its text.
 
-use super::work::scanned;
+use mailcraft_model::work::scanned;
 
 /// `html` without its page's own background (`<body bgcolor>`, a `body { background }` rule): a
 /// page's colour is the page's, behind everything, not a highlight behind each run of its text,
@@ -50,7 +50,7 @@ fn page_rules_without_background(css: &str) -> String {
     // The blocks of page rules, their declarations without backgrounds.
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     let mut boundary = 0;
-    super::work::steps(css.len());
+    mailcraft_model::work::steps(css.len());
     for (i, c) in css.char_indices() {
         match c {
             '{' => {

@@ -58,15 +58,30 @@ proptest! {
 
 /// Lines a bracket at a time: each `<` looked for its `>` and lower-cased what was before it,
 /// over the rest of the line: 100,000 of them without one took seconds, every frame the event
-/// was open.
+/// was open. The bytes looked through are counted, held in proportion to the line.
 #[test]
 fn many_brackets_are_read_at_once() {
-    for l in ["<".repeat(100_000), format!("{}>", "<".repeat(100_000)), format!("{} >", "<https://".repeat(20_000))] {
-        let t = std::time::Instant::now();
-        let parts = note_line(&l);
+    for l in many_brackets() {
+        let parts = crate::work::linear(l.len(), || note_line(&l));
         let text: usize = parts.iter().map(|p| if let NotePart::Text(s) = p { s.len() } else { 0 }).sum();
         assert_eq!(text, l.len(), "{}", l.get(..20).unwrap_or(""));
-        assert!(t.elapsed().as_secs_f64() < 0.5, "{:?} for {}", t.elapsed(), l.get(..20).unwrap_or(""));
+    }
+}
+
+/// Lines of 100,000 brackets: none closed, all closed by one, or addresses closed past a space.
+fn many_brackets() -> [String; 3] {
+    ["<".repeat(100_000), format!("{}>", "<".repeat(100_000)), format!("{} >", "<https://".repeat(20_000))]
+}
+
+/// How long those lines take: `cargo test --release -p mailcraft-model --lib
+/// how_long_many_brackets_take -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn how_long_many_brackets_take() {
+    for l in many_brackets() {
+        let t = std::time::Instant::now();
+        let _ = note_line(&l);
+        println!("MEASURE a line of {:?}: {:.2} ms", l.get(..10).unwrap_or(""), t.elapsed().as_secs_f64() * 1000.0);
     }
 }
 

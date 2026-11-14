@@ -9,7 +9,7 @@ use std::borrow::Cow;
 
 use super::reading::{Comments, RAW_TEXT, raw_text_end, tag_end_at};
 use super::{decoded, mso_hidden};
-use crate::html::work::scanned;
+use mailcraft_model::work::scanned;
 
 /// The attribute what's hidden from Outlook is marked with ([`marked_hidden`]).
 pub(crate) const HIDDEN_MARK: &str = "data-mailcraft-hidden";
@@ -76,7 +76,7 @@ pub(super) fn hidden_in_place(html: &str, how: Hide) -> Cow<'_, str> {
         }
         // A start tag: its name up to a space, `/` or `>`, as a browser reads it.
         let name_end = (at + 1..lower.len()).find(|&n| b.get(n).is_some_and(|c| c.is_ascii_whitespace() || *c == b'/' || *c == b'>'));
-        crate::html::work::steps(name_end.unwrap_or(lower.len()).saturating_sub(at));
+        mailcraft_model::work::steps(name_end.unwrap_or(lower.len()).saturating_sub(at));
         let name_end = name_end.unwrap_or(lower.len());
         // One not ended is no tag: a browser drops it, and all after it with it.
         let Some(end) = tag_end_at(b, name_end).map(|g| g + 1) else { break };

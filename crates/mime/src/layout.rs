@@ -533,7 +533,7 @@ fn write_flat(k: &Kid, out: &mut String, size: u16, bold: bool) {
 
 /// A copy of a part of the tree, all of what's under it too (a deep copy).
 fn copy(k: &Kid) -> Kid {
-    crate::html::work::steps(1);
+    mailcraft_model::work::steps(1);
     match k {
         Kid::Text(t) => Kid::Text(t.clone()),
         Kid::El(n) => {

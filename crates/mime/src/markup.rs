@@ -135,7 +135,7 @@ fn next_by(line: &str, find: impl Fn(&str) -> Option<usize>, seen: &mut (usize, 
     if from >= seen.0 && seen.1.is_none_or(|at| at >= from) {
         return seen.1;
     }
-    let at = line.get(from..).and_then(|r| crate::html::work::scanned(r, find(r))).map(|a| from + a);
+    let at = line.get(from..).and_then(|r| mailcraft_model::work::scanned(r, find(r))).map(|a| from + a);
     *seen = (from, at);
     at
 }
@@ -204,8 +204,8 @@ pub fn inlines<'a>(line: &'a str) -> Vec<Inline<'a>> {
                 }
             })
         } else if is_url_start(rest) && (i == 0 || line[..i].ends_with([' ', '(', '\t'])) {
-            let end =
-                crate::html::work::scanned(rest, rest.find(|c: char| c.is_whitespace() || c == '<' || c == '>' || c == '"')).unwrap_or(rest.len());
+            let end = mailcraft_model::work::scanned(rest, rest.find(|c: char| c.is_whitespace() || c == '<' || c == '>' || c == '"'))
+                .unwrap_or(rest.len());
             let url = rest[..end].trim_end_matches(['.', ',', ';', ':', '!', '?', ')']);
             (url.len() > 8).then_some((Inline::Url(url), url.len()))
         } else {
@@ -481,7 +481,7 @@ mod tests {
     #[test]
     fn a_line_of_open_marks_reads_at_once() {
         for line in open_marks() {
-            let pieces = crate::html::work::linear(line.len(), || inlines(&line));
+            let pieces = mailcraft_model::work::linear(line.len(), || inlines(&line));
             assert!(!pieces.is_empty());
         }
         // What does close reads as it did.

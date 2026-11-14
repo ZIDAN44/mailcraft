@@ -219,7 +219,9 @@ fn split_line(raw: &str) -> Option<(&str, &str)> {
             quoted = !quoted;
         }
         *c == ':' && !quoted
-    })?;
+    });
+    crate::work::steps(colon.map_or(raw.len(), |(at, _)| at + 1));
+    let colon = colon?;
     Some((raw.get(..colon.0).unwrap_or(""), raw.get(colon.0 + 1..).unwrap_or("")))
 }
 
@@ -305,6 +307,7 @@ fn reread_head(line: &str, qp: bool, open: bool) -> (bool, bool) {
         end = end.saturating_sub(1);
     }
     let head = line.get(..end).unwrap_or_default();
+    crate::work::steps(head.len());
     (quoted_printable_line(head), !head.contains(':') && line.len() < MAX_HEAD)
 }
 
@@ -375,6 +378,7 @@ pub fn parse(text: &str) -> Vec<Card> {
     // continuations isn't rescanned at each one (16 MiB of `=` lines would take minutes).
     let (mut qp, mut head_open) = (false, false);
     for l in text.split('\n') {
+        crate::work::steps(l.len() + 1);
         let l = l.strip_suffix('\r').unwrap_or(l);
         match (l.strip_prefix(' ').or_else(|| l.strip_prefix('\t')), unfolded.last_mut()) {
             // 2.1's quoted-printable values break lines with a trailing `=`, the next line as it is.
@@ -650,16 +654,32 @@ TITLE:Price=5 not encoded\r\nEND:VCARD\r\n";
 
     /// A quoted-printable line with no colon that goes on for 16 MiB of `=` breaks is read in
     /// one pass (its head was read again at each break: about 15 minutes), and a head folded
-    /// before its encoding still reads.
+    /// before its encoding still reads. The bytes looked through are counted, held in proportion
+    /// to the card.
     #[test]
     fn endless_quoted_printable_breaks_read_quickly() {
-        let mut text = "BEGIN:VCARD\nX;ENCODING=QUOTED-PRINTABLE;Y=".to_string();
-        text.push_str(&"\nz=".repeat((MAX_INPUT - text.len()) / 3));
-        let started = std::time::Instant::now();
-        assert!(parse(&text).is_empty());
-        assert!(started.elapsed() < std::time::Duration::from_secs(30), "took {:?}", started.elapsed());
+        let text = endless_quoted_printable_breaks();
+        assert!(crate::work::linear(text.len(), || parse(&text)).is_empty());
         let folded = parse("BEGIN:VCARD\nNOTE;ENCODING=QUOTED-\n PRINTABLE:caf=\n=C3=A9\nEND:VCARD");
         assert_eq!(folded[0].note, "café");
+    }
+
+    /// A quoted-printable line with no colon, its `=` breaks as long as is read.
+    fn endless_quoted_printable_breaks() -> String {
+        let mut text = "BEGIN:VCARD\nX;ENCODING=QUOTED-PRINTABLE;Y=".to_string();
+        text.push_str(&"\nz=".repeat((MAX_INPUT - text.len()) / 3));
+        text
+    }
+
+    /// How long that card takes: `cargo test --release -p mailcraft-model --lib
+    /// how_long_endless_breaks_take -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn how_long_endless_breaks_take() {
+        let text = endless_quoted_printable_breaks();
+        let started = std::time::Instant::now();
+        let _ = parse(&text);
+        println!("MEASURE {} MiB of quoted-printable breaks: {} ms", text.len() >> 20, started.elapsed().as_millis());
     }
 
     #[test]

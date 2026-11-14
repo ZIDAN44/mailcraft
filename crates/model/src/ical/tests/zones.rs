@@ -281,9 +281,21 @@ RDATE;TZID=America/New_York:20261105T140000,20261110T090000\r\nRDATE;VALUE=PERIO
 
 /// A long `EXDATE` line is read in one pass: each of its values copied the whole line and looked
 /// its zone up again (a file's zone copied each time): a line of 100,000 took 40 seconds. The
-/// first 1,000 are kept, each in the line's zone, and a line after them adds none.
+/// first 1,000 are kept, each in the line's zone, and a line after them adds none. The values
+/// looked through are counted, held in proportion to the calendar.
 #[test]
 fn a_long_exdate_line_is_read_once() {
+    let text = long_exdate_line();
+    let e = crate::work::linear(text.len(), || parse(&text, 0).events);
+    let ex = &e[0].exdates;
+    assert_eq!(ex.len(), 1000);
+    assert_eq!(ex[..2], [at(2026, 1, 12, 14, 0), at(2026, 1, 5, 14, 0)], "09:00 Studio Eastern (EST)");
+    assert!(!ex.contains(&at(2026, 1, 19, 14, 0)), "none past the 1,000");
+}
+
+/// A calendar whose event has an `EXDATE` line of 100,001 values in a zone it defines, then one
+/// more.
+fn long_exdate_line() -> String {
     let mut values = vec!["20260112T090000"];
     values.extend(std::iter::repeat_n("20260105T090000", 100_000));
     let lines = [
@@ -293,11 +305,16 @@ fn a_long_exdate_line_is_read_once() {
         "EXDATE:20260119T140000Z".to_string(),
     ];
     let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
-    let took = std::time::Instant::now();
-    let e = parse(&cal(&format!("{STUDIO_EASTERN}{}", event(&lines))), 0).events;
-    assert!(took.elapsed() < std::time::Duration::from_secs(10), "{:?}", took.elapsed());
-    let ex = &e[0].exdates;
-    assert_eq!(ex.len(), 1000);
-    assert_eq!(ex[..2], [at(2026, 1, 12, 14, 0), at(2026, 1, 5, 14, 0)], "09:00 Studio Eastern (EST)");
-    assert!(!ex.contains(&at(2026, 1, 19, 14, 0)), "none past the 1,000");
+    cal(&format!("{STUDIO_EASTERN}{}", event(&lines)))
+}
+
+/// How long that calendar takes to read: `cargo test --release -p mailcraft-model --lib
+/// how_long_a_long_exdate_line_takes -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn how_long_a_long_exdate_line_takes() {
+    let text = long_exdate_line();
+    let started = std::time::Instant::now();
+    let _ = parse(&text, 0);
+    println!("MEASURE an EXDATE line of 100,001 values: {} ms", started.elapsed().as_millis());
 }

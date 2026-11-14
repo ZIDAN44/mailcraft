@@ -33,6 +33,8 @@ pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSum
 // Clean Up is a part of conversations, kept under its old path.
 pub use job::{Event, FailureKind, HeldKey, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
 pub use thread::cleanup;
+// The work passes over hostile text do, counted for the tests.
+pub use job::work;
 // FNV-1a, for keys and fingerprints (with the message keys it mostly makes).
 pub use summary::hash;
 

@@ -26,5 +26,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 memchr = "2"
 
 [dev-dependencies]
+# The work of the passes over hostile mail counted, held in proportion to it (`work::linear`).
+mailcraft-model = { workspace = true, features = ["count-work"] }
 # Property tests: several attachments from one parse are each one's own (tests/one_parse.rs).
 proptest = "1"

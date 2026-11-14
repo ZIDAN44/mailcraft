@@ -17,6 +17,7 @@ mod op;
 pub mod progress;
 mod status;
 mod vacation;
+pub mod work;
 pub use compact::*;
 pub use eta::Eta;
 pub use import::*;

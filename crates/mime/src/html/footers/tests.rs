@@ -95,7 +95,7 @@ fn hostile_footers() -> impl Iterator<Item = String> {
 #[test]
 fn hostile_footers_are_read_in_time() {
     for html in hostile_footers() {
-        let out = crate::html::work::linear(html.len(), || footers_last(&html));
+        let out = mailcraft_model::work::linear(html.len(), || footers_last(&html));
         assert!(out.len() <= html.len(), "{}", &html[..20]);
     }
 }

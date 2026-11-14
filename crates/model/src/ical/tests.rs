@@ -183,19 +183,25 @@ fn reads_an_invitation() {
     assert_eq!(parse(&winter, 0).events[0].start, at(2026, 12, 15, 13, 0));
 }
 
-/// A big calendar expands in one pass: the moved occurrences are gathered once, not looked
-/// for again for every event.
-#[test]
-fn a_big_calendar_expands_quickly() {
+/// Thirty thousand events, and a daily series with one occurrence moved.
+fn big_calendar() -> Vec<CalEvent> {
     let day = 86_400;
     let mut events: Vec<CalEvent> = (0..30_000)
         .map(|n| CalEvent { uid: format!("e{n}"), summary: format!("{n}"), start: n * 3600, end: n * 3600 + 1800, ..Default::default() })
         .collect();
     events.push(CalEvent { uid: "s".into(), start: 0, end: 600, rrule: Some("FREQ=DAILY".into()), ..Default::default() });
     events.push(CalEvent { uid: "s".into(), recurrence_id: Some(2 * day), start: 2 * day + 60, end: 2 * day + 660, ..Default::default() });
-    let took = std::time::Instant::now();
-    let got = occurrences(&events, 0, 4 * day);
-    assert!(took.elapsed() < std::time::Duration::from_secs(5), "{:?}", took.elapsed());
+    events
+}
+
+/// A big calendar expands in one pass: the moved occurrences are gathered once, not looked
+/// for again for every event. The events looked at are counted, held in proportion to the
+/// calendar whatever the machine's load.
+#[test]
+fn a_big_calendar_expands_quickly() {
+    let day = 86_400;
+    let events = big_calendar();
+    let got = crate::work::linear(events.len(), || occurrences(&events, 0, 4 * day));
     let series: Vec<i64> = got.iter().filter(|o| events[o.event].uid == "s").map(|o| o.start).collect();
     assert_eq!(series, [0, day, 2 * day + 60, 3 * day]);
     assert_eq!(got.len(), 96 + 4);
@@ -468,13 +474,35 @@ fn a_calendar_is_read_to_its_limit_at_a_character_s_start() {
 /// Notes full of addresses that aren't kept (no dot in the host), or of closing brackets after
 /// one, are read in one pass: each address not kept had both schemes searched for again over the
 /// rest of the text, and each bracket had the link's brackets counted again.
+/// The bytes looked through are counted, held in proportion to the notes.
 #[test]
 fn notes_full_of_addresses_are_read_at_once() {
+    let (notes, brackets) = notes_full_of_addresses();
+    assert_eq!(crate::work::linear(notes.len(), || links_in(&notes)), ["https://studio.example/plan"]);
+    assert_eq!(crate::work::linear(brackets.len(), || links_in(&brackets)), ["https://studio.example/x"]);
+}
+
+/// Notes of addresses that aren't kept, then one that is; and a link followed by closing
+/// brackets.
+fn notes_full_of_addresses() -> (String, String) {
     let mut notes = "https://a ".repeat(100_000);
     notes.push_str("then https://studio.example/plan");
-    let took = std::time::Instant::now();
-    assert_eq!(links_in(&notes), ["https://studio.example/plan"]);
-    let brackets = format!("See https://studio.example/x{}", ")".repeat(200_000));
-    assert_eq!(links_in(&brackets), ["https://studio.example/x"]);
-    assert!(took.elapsed() < std::time::Duration::from_secs(10), "{:?}", took.elapsed());
+    (notes, format!("See https://studio.example/x{}", ")".repeat(200_000)))
+}
+
+/// How long a big calendar and those notes take: `cargo test --release -p mailcraft-model --lib
+/// how_long_big_calendars_take -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn how_long_big_calendars_take() {
+    let took = |what: &str, f: &dyn Fn()| {
+        let started = std::time::Instant::now();
+        f();
+        println!("MEASURE {what}: {} ms", started.elapsed().as_millis());
+    };
+    let events = big_calendar();
+    took("30,000 events expanded", &|| drop(occurrences(&events, 0, 4 * 86_400)));
+    let (notes, brackets) = notes_full_of_addresses();
+    took("100,000 addresses not kept", &|| drop(links_in(&notes)));
+    took("200,000 closing brackets", &|| drop(links_in(&brackets)));
 }

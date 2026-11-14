@@ -428,12 +428,14 @@ pub fn occurrences<E: std::borrow::Borrow<CalEvent>>(events: &[E], from: i64, to
     // calendar would make that quadratic).
     let mut moved: std::collections::BTreeMap<&str, Vec<i64>> = std::collections::BTreeMap::new();
     for e in events.clone() {
+        crate::work::steps(1);
         if let Some(r) = e.recurrence_id {
             moved.entry(e.uid.as_str()).or_default().push(r);
         }
     }
     let none = Vec::new();
     for (i, e) in events.clone().enumerate() {
+        crate::work::steps(1);
         if e.recurrence_id.is_some() || e.status == "CANCELLED" {
             continue;
         }
@@ -450,6 +452,7 @@ pub fn occurrences<E: std::borrow::Borrow<CalEvent>>(events: &[E], from: i64, to
         }
         let mut n = 0;
         for s in starts_from(e, from.saturating_sub(len), to) {
+            crate::work::steps(1);
             if s >= to {
                 break;
             }
@@ -464,6 +467,7 @@ pub fn occurrences<E: std::borrow::Borrow<CalEvent>>(events: &[E], from: i64, to
         }
     }
     for (i, e) in events.enumerate() {
+        crate::work::steps(1);
         if e.recurrence_id.is_some() && e.status != "CANCELLED" && e.start < to && e.end.max(e.start.saturating_add(1)) > from {
             out.push(Occurrence { event: i, start: e.start, end: e.end });
         }

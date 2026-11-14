@@ -7,7 +7,7 @@
 
 use std::borrow::Cow;
 
-use super::work::scanned;
+use mailcraft_model::work::scanned;
 
 /// Tables open one in another that are followed, at most; their footers past it are rows where
 /// they're written.

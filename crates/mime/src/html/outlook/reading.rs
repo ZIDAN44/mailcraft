@@ -3,7 +3,7 @@
 //! hide what follows, and whether the comment shows something of its own.
 
 use super::*;
-use crate::html::work::scanned;
+use mailcraft_model::work::scanned;
 
 /// Elements whose content is text up to their own closing tag, as a browser reads them: one left
 /// open hides all after it.
