@@ -9,7 +9,7 @@ use crate::session::{SearchStats, SearchWork};
 /// A mailbox of `folders` folders of `per` messages each (the first `big` more), in memory: every
 /// message's text holds common words, every seventh "zanzibar" and every eleventh the phrase
 /// "quarterly budget review". Indexed when `index`.
-fn generated(folders: usize, per: u32, big: u32, index: bool) -> Session {
+pub(super) fn generated(folders: usize, per: u32, big: u32, index: bool) -> Session {
     let store = Store::memory();
     store.save_accounts(&[mailcraft_model::AccountConfig { id: "a1".into(), email: "me@studio.example".into(), ..Default::default() }]).unwrap();
     let list: Vec<mailcraft_model::Folder> = (0..folders)

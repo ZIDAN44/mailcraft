@@ -139,17 +139,16 @@ impl Session {
             done(SearchWork::Show);
         }));
         if went.is_err() {
-            // The search goes. What it was reading may be what's wrong: each index it read is
-            // left unread (damaged) until its writer writes it again.
+            // The search goes. What it was reading may be what's wrong: the index of each of its
+            // accounts (one it was opening among them) is left unread (damaged) until its writer
+            // writes it again. Other accounts' stay open.
             log::error!("a search stopped: something it read couldn't be searched");
             PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let accounts: HashSet<&String> = run.folders.iter().map(|(a, _)| a).collect();
-            for (account, slot) in &mut self.search_state.readers {
-                if accounts.contains(account) {
-                    *slot = ReaderSlot { reader: None, checked: self.clock.now, behind: false, damaged: true };
-                }
+            for account in accounts {
+                let damaged = ReaderSlot { reader: None, checked: self.clock.now, behind: false, damaged: true };
+                self.search_state.readers.insert(account.clone(), damaged);
             }
-            self.search_state.readers.retain(|_, slot| slot.damaged);
             self.search_state.pinned.clear();
             return SearchProgress { done: true, ..Default::default() };
         }

@@ -685,3 +685,49 @@ fn clearing_a_search_shows_the_list_kept_while_its_still_right() {
     }
     assert_eq!(s.letting_go(), 0);
 }
+
+/// A search that stops part-way (a bug) leaves unread the indexes of the accounts it reads, and
+/// those alone: another account's index stays open (it was closed, to be opened again cold).
+/// One of its accounts whose index it hadn't opened yet is left unread too (it may have been
+/// opening it).
+#[test]
+fn a_search_that_fails_leaves_other_accounts_indexes_open() {
+    let s = run::generated(2, 50, 0, true);
+    let store = s.store.clone().unwrap();
+    let mut accounts = store.load_accounts().unwrap();
+    accounts.push(mailcraft_model::AccountConfig { id: "a2".into(), email: "you@studio.example".into(), ..Default::default() });
+    store.save_accounts(&accounts).unwrap();
+    let inbox =
+        mailcraft_model::Folder { account: "a2".into(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    store.save_folders("a2", &[inbox]).unwrap();
+    let key = mailcraft_model::MessageKey { account: "a2".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    store.write_body(&key, b"From: a@x.example\r\nSubject: Hi\r\n\r\nShip it to zanzibar.\r\n").unwrap();
+    let m = mailcraft_model::Summary { key, subject: "Hi".into(), date: NOW, size: 60, ..Default::default() };
+    store.save_folder("a2", "INBOX", &mailcraft_store::FolderState { validity: 1, messages: vec![m.into()], ..Default::default() }).unwrap();
+    index_now(&s, "a2");
+    drop(s);
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.take_jobs();
+    s.set_background_search(true);
+    s.start_search("zanzibar", SearchScope::All, false);
+    while !s.search_step(8).done {}
+    assert_eq!(s.list.len(), 100 / 7 + 1);
+    assert!(s.search_index_open("a1") && s.search_index_open("a2"));
+    // A search of a1's mailbox alone stops.
+    s.run("folder.open", &json!({"account": "a1", "folder": "INBOX"})).unwrap();
+    s.start_search("zanzibar", SearchScope::Mailbox, false);
+    s.fail_next_search_step();
+    assert!(s.search_step(8).done);
+    assert!(!s.search_index_open("a1"), "its own left unread");
+    assert!(s.search_index_open("a2"), "another account's kept open");
+
+    // Stopped before it opened its account's index: that one is left unread too.
+    let mut s = run::generated(2, 50, 0, true);
+    s.start_search("zanzibar", SearchScope::All, false);
+    s.fail_next_search_step();
+    assert!(s.search_step(8).done);
+    s.start_search("zanzibar", SearchScope::All, false);
+    while !s.search_step(8).done {}
+    let p = s.search_progress().unwrap();
+    assert_eq!((p.found, p.missing), (0, 100), "the index isn't read");
+}
