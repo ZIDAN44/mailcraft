@@ -120,6 +120,20 @@ fn lengths_chunks_redirects_and_limits() {
     assert!(send(&Request::get(&base, 10).header("X", "a\r\nEvil: 1")).is_err());
 }
 
+/// A chunked answer whose connection ends before its trailer does is whole, but nothing more
+/// goes on that connection: the next request would be read from the middle of nothing.
+#[test]
+fn a_connection_cut_in_the_trailer_isnt_used_again() {
+    let head = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n";
+    for (end, usable) in [("0\r\n", false), ("0\r\nX-Sum: 1\r\n", false), ("0\r\n\r\n", true)] {
+        let (base, h) = serve(vec![format!("{head}{end}").into_bytes()]);
+        let mut conn = Conn::open(&base).unwrap();
+        assert_eq!(conn.send(&Request::get(&base, 100)).unwrap().body, b"abc", "{end:?}");
+        assert_eq!(conn.usable(), usable, "{end:?}");
+        h.join().unwrap();
+    }
+}
+
 /// A chunked answer carrying `n` bytes of `x`, in chunks of `size`.
 fn chunked(n: usize, size: usize) -> Vec<u8> {
     let mut v = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec();
@@ -306,4 +320,45 @@ fn event_streams() {
     let endless = vec![b'x'; MAX_EVENT + 10];
     let mut es = EventStream::new(Drip(endless, 1 << 16), false);
     assert!((0..100).any(|_| es.next(std::time::Duration::ZERO).is_err()), "an event without an end is refused");
+    // The chunk decoders became one (from the code audit): the stream checks the CRLF after a
+    // chunk, and takes a size line as answers do.
+    let mut es = EventStream::new(Drip(b"9\r\ndata: a\n\nXY5\r\n".to_vec(), 4), true);
+    assert!((0..20).any(|_| matches!(es.next(std::time::Duration::ZERO), Err(NetError::Protocol(m)) if m.contains("chunk end"))));
+    for bad in [&b"+7\r\n"[..], b" 7\r\n", &[b'0'; 1100]] {
+        assert!(EventStream::new(Drip(bad.to_vec(), 2000), true).next(std::time::Duration::ZERO).is_err());
+    }
+}
+
+/// The redirect loops became one (from the code audit): up to five redirects are followed,
+/// never from https down to http, and only for a GET or a HEAD.
+#[test]
+fn redirects() {
+    let at = |u: &str| Url::parse(u).unwrap();
+    let answer = |status: u16, location: Option<&str>| Response {
+        status,
+        headers: location.map(|l| ("Location".to_string(), l.to_string())).into_iter().collect(),
+        body: Vec::new(),
+    };
+    let from = at("https://example.com/a/b");
+    assert_eq!(next_hop(&from, &answer(302, Some("c"))).unwrap(), Some(at("https://example.com/a/c")));
+    assert_eq!(next_hop(&from, &answer(308, Some("https://other.example/"))).unwrap(), Some(at("https://other.example/")));
+    assert_eq!(next_hop(&from, &answer(302, None)).unwrap(), None);
+    assert_eq!(next_hop(&from, &answer(200, Some("/x"))).unwrap(), None);
+    assert!(matches!(next_hop(&from, &answer(301, Some("http://example.com/"))), Err(NetError::Tls(_))));
+    let hop = b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n".to_vec();
+    let done = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok".to_vec();
+    let (base, h) = serve([vec![hop.clone(); 5], vec![done.clone()]].concat());
+    assert_eq!(get(&base, 100).unwrap().body, b"ok", "five redirects");
+    h.join().unwrap();
+    let (base, h) = serve(vec![hop.clone(); 6]);
+    assert!(matches!(get(&base, 100), Err(NetError::Protocol(m)) if m.contains("too many redirects")));
+    h.join().unwrap();
+    let (base, h) = serve(vec![hop.clone(); 6]);
+    let mut got = Vec::new();
+    assert!(get_into(&Request::get(&base, 100), |_| Ok(Some(&mut got))).is_err(), "downloads too");
+    h.join().unwrap();
+    // A POST's redirect is its answer.
+    let (base, h) = serve(vec![hop]);
+    assert_eq!(send(&Request::post(&base, "text/plain", b"x".to_vec(), 100)).unwrap().status, 302);
+    h.join().unwrap();
 }

@@ -11,28 +11,8 @@ use super::*;
 /// unread. At most `req.max` bytes of body are accepted. The answer comes back without its body;
 /// a body cut short is an error, after what came of it was written.
 pub fn get_into<W: Write>(req: &Request, open: impl FnOnce(&Response) -> Result<Option<W>>) -> Result<Response> {
-    let mut url = Url::parse(&req.url)?;
     let mut open = Some(open);
-    let mut bare: Option<Request> = None;
-    for _ in 0..=MAX_REDIRECTS {
-        let sock = stream::tcp(&url.host, url.port)?;
-        let mut s = if url.https { stream::tls(sock, &url.host)? } else { Stream::Plain(sock) };
-        let head = exchange_into(&mut s, bare.as_ref().unwrap_or(req), &url, |head| open.take().map_or(Ok(None), |open| open(head)))?;
-        match redirect(&head) {
-            Some(loc) => {
-                let next = url.join(loc)?;
-                if url.https && !next.https {
-                    return Err(NetError::Tls("redirected from https to http".into()));
-                }
-                if let Some(without) = super::redirected(bare.as_ref().unwrap_or(req), &url, &next) {
-                    bare = Some(without);
-                }
-                url = next;
-            }
-            None => return Ok(head),
-        }
-    }
-    Err(NetError::Protocol("too many redirects".into()))
+    follow(req, |req, url| exchange_into(&mut connect(url, false)?, req, url, |head| open.take().map_or(Ok(None), |open| open(head))))
 }
 
 /// Write the request on an open connection and read the answer's head; its body goes to the
@@ -55,11 +35,6 @@ pub fn exchange_into<S: Read + Write, W: Write>(
         out.flush()?;
     }
     Ok(head)
-}
-
-/// Where a redirect sends a GET, if `head` is one.
-fn redirect(head: &Response) -> Option<&str> {
-    head.header("Location").filter(|_| matches!(head.status, 301 | 302 | 303 | 307 | 308))
 }
 
 #[cfg(test)]

@@ -1,12 +1,14 @@
 //! What a web server sends: an HTTP answer read whole and read as it streams (lengths, chunks, to
-//! the end of the connection), a download's `Content-Range`; and what the updater reads from
-//! GitHub: the release list, a `SHA256SUMS.txt`, the quota header and release tags.
+//! the end of the connection), an event stream (JMAP push), a download's `Content-Range`; and
+//! what the updater reads from GitHub: the release list, a `SHA256SUMS.txt`, the quota header
+//! and release tags.
 #![no_main]
 
 use std::io::{Read, Write};
 
 use libfuzzer_sys::fuzz_target;
 use mailcraft_net::http::{self, Request, Url};
+use mailcraft_net::stream::Timeouts;
 use mailcraft_net::updates;
 
 /// The server's side of a connection: the input, a few bytes at a time; what's sent is dropped.
@@ -34,6 +36,12 @@ impl Write for Server<'_> {
     }
 }
 
+impl Timeouts for Server<'_> {
+    fn set_read_timeout(&mut self, _: Option<std::time::Duration>) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
     let Ok(url) = Url::parse("https://github.com/ZIDAN44/mailcraft/releases/download/v1/m.msi") else { return };
     let req = Request::get(&url.path, 4096);
@@ -44,6 +52,11 @@ fuzz_target!(|data: &[u8]| {
     let mut got = Vec::new();
     let _ = http::exchange_into(&mut Server { data: body, step }, &req, &url, |_| Ok(Some(&mut got)));
     assert!(got.len() <= 4096, "a body past the cap was written");
+    // A JMAP push stream, chunked and not: events until the input ends or is refused.
+    for chunked in [true, false] {
+        let mut events = http::EventStream::new(Server { data: body, step }, chunked);
+        while let Ok(Some(_)) = events.next(std::time::Duration::ZERO) {}
+    }
     if let Ok(text) = std::str::from_utf8(body) {
         let _ = updates::content_range(text);
         let _ = updates::parse(text, Some("-windows-x64.msi"));

@@ -17,7 +17,7 @@ pub use streamed::{exchange_into, get_into};
 
 /// Longest header block accepted.
 const MAX_HEAD: usize = 64 << 10;
-const MAX_REDIRECTS: usize = 5;
+pub(crate) const MAX_REDIRECTS: usize = 5;
 
 /// A parsed `http(s)://host[:port]/path?query` URL.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -239,38 +239,53 @@ fn secret_header(name: &str) -> bool {
     ["authorization", "cookie", "proxy-authorization"].iter().any(|h| name.eq_ignore_ascii_case(h))
 }
 
-fn send_to(req: &Request, public_only: bool) -> Result<Response> {
+/// Where a redirect sends a request, if `resp` is one.
+fn redirect(resp: &Response) -> Option<&str> {
+    resp.header("Location").filter(|_| matches!(resp.status, 301 | 302 | 303 | 307 | 308))
+}
+
+/// Where the redirect `resp` (an answer from `url`) leads: `None` when it isn't one. Never from
+/// HTTPS down to plain HTTP.
+pub(crate) fn next_hop(url: &Url, resp: &Response) -> Result<Option<Url>> {
+    let Some(loc) = redirect(resp) else { return Ok(None) };
+    let next = url.join(loc)?;
+    if url.https && !next.https {
+        return Err(NetError::Tls("redirected from https to http".into()));
+    }
+    Ok(Some(next))
+}
+
+/// `req` sent by `once` (a connection of its own each time), then, for a GET or HEAD, on to
+/// where up to [`MAX_REDIRECTS`] redirects lead, without its sign-in once that's another site.
+fn follow(req: &Request, mut once: impl FnMut(&Request, &Url) -> Result<Response>) -> Result<Response> {
     let mut url = Url::parse(&req.url)?;
     let mut bare: Option<Request> = None;
+    let follows = req.method == "GET" || req.method == "HEAD";
     for _ in 0..=MAX_REDIRECTS {
-        let resp = once(bare.as_ref().unwrap_or(req), &url, public_only)?;
-        let follow = matches!(resp.status, 301 | 302 | 303 | 307 | 308) && (req.method == "GET" || req.method == "HEAD");
-        match resp.header("Location").filter(|_| follow) {
-            Some(loc) => {
-                let next = url.join(loc)?;
-                // Never from HTTPS down to plain HTTP.
-                if url.https && !next.https {
-                    return Err(NetError::Tls("redirected from https to http".into()));
-                }
-                if let Some(without) = redirected(bare.as_ref().unwrap_or(req), &url, &next) {
-                    bare = Some(without);
-                }
-                url = next;
-            }
-            None => return Ok(resp),
+        let now = bare.as_ref().unwrap_or(req);
+        let resp = once(now, &url)?;
+        let Some(next) = (if follows { next_hop(&url, &resp)? } else { None }) else { return Ok(resp) };
+        if let Some(without) = redirected(now, &url, &next) {
+            bare = Some(without);
         }
+        url = next;
     }
     Err(NetError::Protocol("too many redirects".into()))
+}
+
+fn send_to(req: &Request, public_only: bool) -> Result<Response> {
+    follow(req, |req, url| exchange(&mut connect(url, public_only)?, req, url))
 }
 
 pub fn get(url: &str, max: usize) -> Result<Response> {
     send(&Request::get(url, max))
 }
 
-fn once(req: &Request, url: &Url, public_only: bool) -> Result<Response> {
+/// A connection to `url`'s server: to the internet only when `public_only`
+/// ([`stream::tcp_public`]), and through TLS for `https`.
+fn connect(url: &Url, public_only: bool) -> Result<Stream> {
     let sock = if public_only { stream::tcp_public(&url.host, url.port)? } else { stream::tcp(&url.host, url.port)? };
-    let mut s = if url.https { stream::tls(sock, &url.host)? } else { Stream::Plain(sock) };
-    exchange(&mut s, req, url)
+    if url.https { stream::tls(sock, &url.host) } else { Ok(Stream::Plain(sock)) }
 }
 
 /// Write the request and read the response on an open connection.
@@ -290,9 +305,7 @@ pub struct Conn {
 impl Conn {
     pub fn open(url: &str) -> Result<Conn> {
         let url = Url::parse(url)?;
-        let sock = stream::tcp(&url.host, url.port)?;
-        let s = if url.https { stream::tls(sock, &url.host)? } else { Stream::Plain(sock) };
-        Ok(Conn { s, url, closing: false })
+        Ok(Conn { s: connect(&url, false)?, url, closing: false })
     }
 
     /// Whether this connection reaches `url`'s server.
@@ -318,8 +331,9 @@ impl Conn {
         // stream position is unknown.
         self.closing = true;
         write_request(&mut self.s, req, &url, true)?;
-        let resp = read_response(&mut self.s, req.max, req.method == "HEAD")?;
-        self.closing = resp.header("Connection").is_some_and(|c| c.eq_ignore_ascii_case("close"))
+        let (resp, cut) = read_answer(&mut self.s, req.max, req.method == "HEAD")?;
+        self.closing = cut
+            || resp.header("Connection").is_some_and(|c| c.eq_ignore_ascii_case("close"))
             || (resp.header("Content-Length").is_none() && resp.header("Transfer-Encoding").is_none() && resp.status != 204 && resp.status != 304);
         Ok(resp)
     }
@@ -388,50 +402,25 @@ fn read_head<S: Read>(s: &mut S) -> Result<(u16, Vec<(String, String)>, Vec<u8>)
     Ok((status, headers, std::mem::take(&mut rest)))
 }
 
+/// The answer and its body (at most `max` bytes), read whole: as a download is
+/// ([`body::copy_body`]), into memory.
 fn read_response<S: Read>(s: &mut S, max: usize, head_only: bool) -> Result<Response> {
-    let mut tmp = [0u8; 16 << 10];
-    let (status, headers, mut rest) = read_head(s)?;
-    let resp = |body| Response { status, headers: headers.clone(), body };
-    let get = |n: &str| headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(n)).map(|(_, v)| v.to_ascii_lowercase());
+    read_answer(s, max, head_only).map(|(resp, _)| resp)
+}
+
+/// [`read_response`], and whether the connection can carry no other answer though this one's
+/// body came whole ([`body::Ahead::cut`]).
+fn read_answer<S: Read>(s: &mut S, max: usize, head_only: bool) -> Result<(Response, bool)> {
+    let (status, headers, rest) = read_head(s)?;
+    let mut resp = Response { status, headers, body: Vec::new() };
     if head_only || status == 204 || status == 304 || (100..200).contains(&status) {
-        return Ok(resp(Vec::new()));
+        return Ok((resp, false));
     }
-    let too_big = || NetError::Protocol(format!("the response is larger than {}", body::size_text(u64::try_from(max).unwrap_or(u64::MAX))));
-    if get("transfer-encoding").is_some_and(|t| t.contains("chunked")) {
-        let mut body = Vec::new();
-        body::copy_chunks(&mut body::Ahead::new(s, rest), u64::try_from(max).unwrap_or(u64::MAX), &mut body, "response")?;
-        return Ok(resp(body));
-    }
-    let mut fill = |rest: &mut Vec<u8>, want: usize| -> Result<bool> {
-        while rest.len() < want {
-            let n = s.read(&mut tmp)?;
-            if n == 0 {
-                return Ok(false);
-            }
-            rest.extend_from_slice(tmp.get(..n).unwrap_or_default());
-            if rest.len() > max.saturating_add(MAX_HEAD) {
-                return Err(too_big());
-            }
-        }
-        Ok(true)
-    };
-    if let Some(len) = get("content-length") {
-        let len: usize = len.trim().parse().map_err(|_| NetError::Protocol("bad Content-Length".into()))?;
-        if len > max {
-            return Err(too_big());
-        }
-        if !fill(&mut rest, len)? {
-            return Err(NetError::Closed("the response ended early".into()));
-        }
-        rest.truncate(len);
-        return Ok(resp(rest));
-    }
-    // No length: the body runs to the end of the connection.
-    fill(&mut rest, usize::MAX)?;
-    if rest.len() > max {
-        return Err(too_big());
-    }
-    Ok(resp(rest))
+    let mut body = Vec::new();
+    let mut ahead = body::Ahead::new(s, rest);
+    body::copy_body(&mut ahead, &resp, u64::try_from(max).unwrap_or(u64::MAX), &mut body, "response")?;
+    resp.body = body;
+    Ok((resp, ahead.cut()))
 }
 
 /// Longest event accepted from an event stream.
@@ -461,8 +450,7 @@ pub struct EventStream<S> {
 /// Open an event stream: a GET that must answer 200 with `text/event-stream`.
 pub fn open_events(url: &str, headers: &[(&str, &str)]) -> Result<EventStream<Stream>> {
     let u = Url::parse(url)?;
-    let sock = stream::tcp(&u.host, u.port)?;
-    let mut s = if u.https { stream::tls(sock, &u.host)? } else { Stream::Plain(sock) };
+    let mut s = connect(&u, false)?;
     let mut req = Request::get(url, MAX_EVENT).header("Accept", "text/event-stream").header("Cache-Control", "no-cache");
     for (k, v) in headers {
         req = req.header(k, v);
@@ -529,28 +517,23 @@ impl<S: Read + stream::Timeouts> EventStream<S> {
                 continue;
             }
             if self.crlf {
-                if self.raw.len() < 2 {
-                    return Ok(());
+                match self.raw.get(..2) {
+                    None => return Ok(()),
+                    Some(b"\r\n") => {}
+                    Some(_) => return Err(NetError::Protocol("bad chunk end".into())),
                 }
                 self.raw.drain(..2);
                 self.crlf = false;
             }
-            let Some(end) = self.raw.windows(2).position(|w| w == b"\r\n") else {
-                if self.raw.len() > 1024 {
-                    return Err(NetError::Protocol("bad chunk size line".into()));
-                }
-                return Ok(());
-            };
-            let line = String::from_utf8_lossy(self.raw.get(..end).unwrap_or_default()).to_string();
-            let size =
-                usize::from_str_radix(line.split(';').next().unwrap_or("").trim(), 16).map_err(|_| NetError::Protocol("bad chunk size".into()))?;
+            let Some(end) = body::line_end(&self.raw)? else { return Ok(()) };
+            let size = body::chunk_size(self.raw.get(..end).unwrap_or_default())?;
             self.raw.drain(..end + 2);
             if size == 0 {
                 return Err(NetError::Closed("the event stream ended".into()));
             }
-            if size > MAX_EVENT {
+            let Some(size) = usize::try_from(size).ok().filter(|s| *s <= MAX_EVENT) else {
                 return Err(NetError::Protocol("an event is too long".into()));
-            }
+            };
             self.left = size;
         }
     }

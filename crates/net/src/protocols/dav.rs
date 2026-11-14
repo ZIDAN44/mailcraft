@@ -360,7 +360,7 @@ impl Dav {
     /// One request, following redirects (WebDAV methods keep their method and body).
     fn request(&self, method: &str, url: &str, depth: Option<&str>, body: &str, extra: &[(&str, &str)]) -> Result<(Response, String)> {
         let mut url = url.to_string();
-        for _ in 0..6 {
+        for _ in 0..=http::MAX_REDIRECTS {
             // Plain http only to this computer (a test server): the password never crosses the
             // network in the clear, wherever a redirect or a server's href points.
             if Url::parse(&url).is_ok_and(|u| !u.https && !local_host(&u.host)) {
@@ -384,14 +384,7 @@ impl Dav {
                 req = req.header(k, v);
             }
             let resp = self.send(&req)?;
-            if matches!(resp.status, 301 | 302 | 303 | 307 | 308)
-                && let Some(loc) = resp.header("Location")
-            {
-                let from = Url::parse(&url)?;
-                let next = from.join(loc)?;
-                if from.https && !next.https {
-                    return Err(NetError::Tls("redirected from https to http".into()));
-                }
+            if let Some(next) = http::next_hop(&Url::parse(&url)?, &resp)? {
                 url = format!("{}{}", next.origin(), next.path);
                 continue;
             }
