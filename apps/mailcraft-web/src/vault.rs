@@ -6,9 +6,10 @@
 
 use wasm_bindgen::JsCast as _;
 use wasm_bindgen::JsValue;
-use wasm_bindgen::closure::Closure;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{CryptoKey, IdbDatabase, IdbTransactionMode};
+
+use crate::js;
 
 const DB: &str = "mailcraft-vault";
 const KEYS: &str = "keys";
@@ -16,28 +17,12 @@ const KEY: &str = "seal";
 /// AES-GCM's nonce, before the sealed bytes.
 const IV: usize = 12;
 
-fn js(e: &JsValue) -> String {
-    e.as_string().or_else(|| e.dyn_ref::<js_sys::Error>().map(|e| String::from(e.message()))).unwrap_or_else(|| format!("{e:?}"))
-}
-
 fn crypto() -> Result<web_sys::Crypto, String> {
     web_sys::window().ok_or("no window")?.crypto().map_err(|e| js(&e))
 }
 
 async fn open_db() -> Result<IdbDatabase, String> {
-    let factory = web_sys::window().ok_or("no window")?.indexed_db().map_err(|e| js(&e))?.ok_or("no IndexedDB")?;
-    let req = factory.open_with_u32(DB, 1).map_err(|e| js(&e))?;
-    let upgrade_req = req.clone();
-    let upgrade = Closure::once_into_js(move |_: web_sys::Event| {
-        if let Some(db) = upgrade_req.result().ok().and_then(|r| r.dyn_into::<IdbDatabase>().ok())
-            && !db.object_store_names().contains(KEYS)
-            && let Err(e) = db.create_object_store(KEYS)
-        {
-            log::error!("IndexedDB: {}", js(&e));
-        }
-    });
-    req.set_onupgradeneeded(Some(upgrade.unchecked_ref()));
-    crate::idb::done(&req).await?.dyn_into::<IdbDatabase>().map_err(|_| "not a database".to_string())
+    crate::idb::open_named(DB, KEYS).await
 }
 
 /// The sealing key, made the first time (`create`) and kept as it is.

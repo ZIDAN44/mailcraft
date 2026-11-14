@@ -4,30 +4,43 @@ use mailcraft_jmap::{Error, Request, Response, Result};
 use wasm_bindgen::JsCast as _;
 use wasm_bindgen_futures::JsFuture;
 
+use crate::js;
+
 /// The browser's HTTP client.
 #[derive(Clone, Copy, Default)]
 pub struct Fetch;
 
-fn js(e: &wasm_bindgen::JsValue) -> String {
-    e.as_string().or_else(|| e.dyn_ref::<js_sys::Error>().map(|e| String::from(e.message()))).unwrap_or_else(|| format!("{e:?}"))
+/// A request as the JMAP transport and the event stream send it: CORS, and no cookies to other
+/// sites (credentials go in the `Authorization` header only); `cache` when it's not the default.
+fn request<'a>(
+    method: &str,
+    url: &str,
+    headers: impl IntoIterator<Item = (&'a str, &'a str)>,
+    body: &[u8],
+    cache: Option<web_sys::RequestCache>,
+) -> Result<web_sys::Request> {
+    let init = web_sys::RequestInit::new();
+    init.set_method(method);
+    init.set_credentials(web_sys::RequestCredentials::Omit);
+    init.set_mode(web_sys::RequestMode::Cors);
+    if let Some(cache) = cache {
+        init.set_cache(cache);
+    }
+    let h = web_sys::Headers::new().map_err(|e| Error::Io(js(&e)))?;
+    for (k, v) in headers {
+        h.set(k, v).map_err(|e| Error::Protocol(js(&e)))?;
+    }
+    init.set_headers(&h);
+    if !body.is_empty() {
+        init.set_body(&js_sys::Uint8Array::from(body));
+    }
+    web_sys::Request::new_with_str_and_init(url, &init).map_err(|e| Error::Protocol(js(&e)))
 }
 
 impl mailcraft_jmap::Http for Fetch {
     async fn send(&self, req: Request) -> Result<Response> {
-        let init = web_sys::RequestInit::new();
-        init.set_method(&req.method);
-        // Credentials go in the Authorization header only: no cookies to other sites.
-        init.set_credentials(web_sys::RequestCredentials::Omit);
-        init.set_mode(web_sys::RequestMode::Cors);
-        let headers = web_sys::Headers::new().map_err(|e| Error::Io(js(&e)))?;
-        for (k, v) in &req.headers {
-            headers.set(k, v).map_err(|e| Error::Protocol(js(&e)))?;
-        }
-        init.set_headers(&headers);
-        if !req.body.is_empty() {
-            init.set_body(&js_sys::Uint8Array::from(req.body.as_slice()));
-        }
-        let request = web_sys::Request::new_with_str_and_init(&req.url, &init).map_err(|e| Error::Protocol(js(&e)))?;
+        let headers = req.headers.iter().map(|(k, v)| (k.as_str(), v.as_str()));
+        let request = request(&req.method, &req.url, headers, &req.body, None)?;
         let window = web_sys::window().ok_or_else(|| Error::Io("no window".into()))?;
         let answer = JsFuture::from(window.fetch_with_request(&request)).await.map_err(|e| {
             // The browser says no more than this when the server doesn't allow this page (CORS).
@@ -84,18 +97,9 @@ async fn next_chunk(reader: &web_sys::ReadableStreamDefaultReader) -> Result<Opt
 /// (first an `open` one, once the server has answered) until it says stop (`false`) or the
 /// stream ends.
 pub async fn events(url: &str, auth: &str, each: &mut dyn FnMut(mailcraft_jmap::sse::Sse) -> bool) -> Result<()> {
-    let init = web_sys::RequestInit::new();
-    init.set_method("GET");
-    init.set_credentials(web_sys::RequestCredentials::Omit);
-    init.set_mode(web_sys::RequestMode::Cors);
+    let headers = [("Authorization", auth), ("Accept", "text/event-stream")];
     // Not a `Cache-Control` header: servers that allow pages often don't allow that one.
-    init.set_cache(web_sys::RequestCache::NoStore);
-    let headers = web_sys::Headers::new().map_err(|e| Error::Io(js(&e)))?;
-    for (k, v) in [("Authorization", auth), ("Accept", "text/event-stream")] {
-        headers.set(k, v).map_err(|e| Error::Protocol(js(&e)))?;
-    }
-    init.set_headers(&headers);
-    let request = web_sys::Request::new_with_str_and_init(url, &init).map_err(|e| Error::Protocol(js(&e)))?;
+    let request = request("GET", url, headers, &[], Some(web_sys::RequestCache::NoStore))?;
     let window = web_sys::window().ok_or_else(|| Error::Io("no window".into()))?;
     let resp: web_sys::Response =
         JsFuture::from(window.fetch_with_request(&request)).await.map_err(|e| Error::Io(js(&e)))?.dyn_into().map_err(|e| Error::Protocol(js(&e)))?;
