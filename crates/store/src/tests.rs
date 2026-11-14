@@ -743,3 +743,21 @@ fn a_list_of_shared_summaries_is_kept_as_it_was_before() {
     assert_eq!(serde_json::to_vec(&st.messages).unwrap(), serde_json::to_vec(&plain).unwrap());
     let _ = fs::remove_dir_all(dir);
 }
+
+/// Turning online-only on with one of the account's files unreadable leaves it all where it was,
+/// and says so. That file was left behind unread and its only copy removed with the rest (its
+/// changes waiting for the server among what could go).
+#[test]
+fn online_only_with_a_file_that_cant_be_read_keeps_it() {
+    let s = Store::failing();
+    s.save_folder("a1", "INBOX", &FolderState { validity: 3, uid_next: 2, messages: vec![msg(1, false).into()], ..Default::default() }).unwrap();
+    s.save_ops("a1", &[Op::SetFlag { keys: vec![msg(1, false).key], flag: Flag::Seen, on: true }]).unwrap();
+    s.fail(Some("ops.json"), None);
+    assert!(s.set_online_only("a1", true).is_err());
+    s.fail(None, None);
+    assert!(!s.is_online_only("a1"));
+    assert_eq!((s.load_ops("a1").unwrap().len(), s.load_folder("a1", "INBOX").unwrap().messages.len()), (1, 1), "still there");
+    // Readable again, all of it goes over.
+    s.set_online_only("a1", true).unwrap();
+    assert_eq!((s.load_ops("a1").unwrap().len(), s.load_folder("a1", "INBOX").unwrap().messages.len()), (1, 1));
+}

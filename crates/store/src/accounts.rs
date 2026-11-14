@@ -104,8 +104,12 @@ impl Store {
         let (from, to) = if on { (&self.files.main, &self.files.held) } else { (&self.files.held, &self.files.main) };
         let mut items = Vec::new();
         for p in from.walk(&dir) {
-            if let Ok(bytes) = from.read(&p) {
-                items.push((p, bytes));
+            match from.read(&p) {
+                Ok(bytes) => items.push((p, bytes)),
+                // Gone since the folder was listed: nothing of it to carry over.
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                // Left behind, its only copy would go with the rest below: nothing is switched.
+                Err(e) => return Err(io_err(&p)(e)),
             }
         }
         #[cfg(not(target_arch = "wasm32"))]
