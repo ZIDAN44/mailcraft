@@ -1,0 +1,1 @@
+Bearer realm="mail", error="invalid_token", scope="openid profile email", Ticket realm="https://jmap.example.com"

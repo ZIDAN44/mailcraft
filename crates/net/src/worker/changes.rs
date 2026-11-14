@@ -152,6 +152,7 @@ impl Worker {
             Job::FetchUrl { .. }
             | Job::FetchCalendar { .. }
             | Job::Discover { .. }
+            | Job::ProbeJmap { .. }
             | Job::SignIn { .. }
             | Job::AllowDirectory { .. }
             | Job::ImportPst { .. }

@@ -1703,3 +1703,18 @@ month	May	5월
 	Nothing to do	할 일이 없습니다
 	Nothing in the next 7 days	앞으로 7일 동안 일정이 없습니다
 	Show the calendar, what's coming up and your tasks beside the mail	메일 옆에 일정, 다가오는 약속, 작업을 표시합니다
+	Asking the server how it signs you in…	서버의 로그인 방식을 확인하는 중…
+	Client ID	클라이언트 ID
+	Client ID needed	클라이언트 ID 필요
+	Given by your administrator	관리자에게 받은 값
+	In the browser	브라우저에서
+	Saving opens the sign-in page in your browser.	저장하면 브라우저에서 로그인 페이지가 열립니다.
+	Sign in through the browser	브라우저에서 로그인
+	Sign-in	로그인
+	The server couldn't be asked how it signs you in: {error}	서버의 로그인 방식을 확인할 수 없습니다: {error}
+	This mail server doesn't accept passwords: it needs you to sign in through the browser	이 메일 서버는 암호를 받지 않습니다: 브라우저에서 로그인해야 합니다
+	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	이 메일 서버는 브라우저에서 로그인해야 합니다: 입력할 클라이언트 ID를 관리자에게 문의하세요
+	This server signs you in through your browser, but its sign-in service wasn't found: {error}	이 서버는 브라우저에서 로그인하지만, 로그인 서비스를 찾지 못했습니다: {error}
+	This server takes no passwords: you sign in through your browser, with its single sign-on.	이 서버는 암호를 받지 않습니다: 브라우저에서 싱글 사인온으로 로그인합니다.
+	with {service}: no password stored	{service}(으)로: 암호를 저장하지 않음
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email}은(는) 싱글 사인온으로 로그인하며, 이는 MailCraft 데스크톱 앱에서만 할 수 있습니다

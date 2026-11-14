@@ -2,7 +2,7 @@
 
 mod actions;
 mod alt_code;
-mod bars;
+pub(crate) mod bars;
 mod bodies;
 pub(crate) mod boot;
 pub(crate) mod caption;

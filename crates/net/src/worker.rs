@@ -205,35 +205,11 @@ impl Pool {
             Job::StopSearch => self.search.store(0, Ordering::Relaxed),
             Job::Index { account, folders } => self.indexer.ask(&self.store, &self.sink, account, folders),
             Job::StopIndex { account } => self.indexer.stop(&account),
-            Job::CheckUpdates => {
-                let sink = self.sink.clone();
-                let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
-                    let (releases, error) = match crate::updates::releases(&crate::updates::Feed::current()) {
-                        Ok(r) => (r, None),
-                        Err(e) => (Vec::new(), Some(e.to_string())),
-                    };
-                    sink.emit(Event::Releases { releases, error });
-                });
-                if let Err(e) = spawned {
-                    self.sink.emit(Event::Releases { releases: Vec::new(), error: Some(e.to_string()) });
-                }
-            }
+            Job::CheckUpdates => self.check_updates(),
             Job::SignIn { account } => self.sign_in(account),
             Job::AllowDirectory { account } => self.allow_directory(account),
-            Job::Discover { email } => {
-                let sink = self.sink.clone();
-                let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
-                    let found = crate::autoconfig::discover(&email);
-                    let (config, source) = match found {
-                        Some(f) => (Some(Box::new(f.config)), f.source),
-                        None => (None, String::new()),
-                    };
-                    sink.emit(Event::Discovered { email, config, source });
-                });
-                if let Err(e) = spawned {
-                    log::warn!("autoconfiguration: {e}");
-                }
-            }
+            Job::Discover { email } => self.discover(email),
+            Job::ProbeJmap { url } => self.probe_jmap(url),
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
             Job::RereadDataFile { account, path } => self.reread_data_file(account, path),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
@@ -305,8 +281,8 @@ impl Pool {
             }
             Job::Start { account, password } if self.offline => {
                 // Working offline: remembered (and its password kept) for when that's turned off.
-                if let Some(p) = &password
-                    && let Err(e) = self.creds.set(&account, &p.0)
+                if let Some(p) = password.as_ref().filter(|_| !account.signs_on())
+                    && let Err(e) = credentials::keep_password(self.creds.as_ref(), &account, &p.0)
                 {
                     self.sink.emit(Event::Notice {
                         account: account.id.clone(),
@@ -344,11 +320,13 @@ impl Pool {
                 if let Some(c) = self.configs.remove(&account) {
                     self.creds.delete(&c);
                     self.creds.delete_smtp(&c);
-                    // Its certificates' keys and its calendar server's password go with it.
+                    // Its certificates' keys, its calendar server's password and its sign-ins go
+                    // with it.
                     smime::forget_all(self.creds.as_ref(), &c);
                     pgp::forget_all(self.creds.as_ref(), &c);
                     self.creds.delete_secret(&c, DAV_SECRET);
                     self.creds.delete_secret(&c, DIRECTORY_SECRET);
+                    self.creds.delete_secret(&c, SIGN_ON_SECRET);
                 }
             }
             Job::FetchBody { key } if self.mail_offline(&key.account) => {
@@ -632,6 +610,8 @@ mod smime;
 pub(crate) const DAV_SECRET: &str = "dav";
 /// Where an Exchange Online account's directory sign-in (its refresh token) is kept (issue #9).
 pub(crate) const DIRECTORY_SECRET: &str = "directory";
+/// Where a single sign-on's refresh token is kept, apart from any password (`credentials.rs`).
+pub(crate) const SIGN_ON_SECRET: &str = "oidc";
 mod sync;
 mod threads;
 

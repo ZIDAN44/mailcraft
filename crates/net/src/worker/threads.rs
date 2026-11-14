@@ -1,26 +1,95 @@
 //! What the pool runs on threads of its own, so it never waits behind a sync: browser sign-in,
-//! a message's pictures, calendars read from their links, and Outlook data files written
+//! looking up an address's servers, asking a JMAP server how it's signed in to, the release
+//! check, a message's pictures, calendars read from their links, and Outlook data files written
 //! (`imports.rs` reads them).
 
 use super::*;
 
 impl Pool {
+    /// `work` on a thread of its own called `name`, the event it ends with sent on; when no thread
+    /// can be started, `failed` with why, so what waits for the event isn't left waiting.
+    fn on_thread(&self, name: &str, work: impl FnOnce() -> Event + Send + 'static, failed: impl FnOnce(String) -> Event) {
+        let sink = self.sink.clone();
+        if let Err(e) = std::thread::Builder::new().name(name.into()).spawn(move || sink.emit(work())) {
+            log::warn!("{name}: {e}");
+            self.sink.emit(failed(e.to_string()));
+        }
+    }
+
+    /// The releases published since this one (the update check).
+    pub(super) fn check_updates(&mut self) {
+        self.on_thread(
+            "mail-updates",
+            || match crate::updates::releases(&crate::updates::Feed::current()) {
+                Ok(releases) => Event::Releases { releases, error: None },
+                Err(e) => Event::Releases { releases: Vec::new(), error: Some(e.to_string()) },
+            },
+            |error| Event::Releases { releases: Vec::new(), error: Some(error) },
+        );
+    }
+
+    /// An address's servers, as its provider publishes them (autoconfiguration).
+    pub(super) fn discover(&mut self, email: String) {
+        let asked = email.clone();
+        self.on_thread(
+            "mail-discover",
+            move || {
+                let (config, source) = match crate::autoconfig::discover(&email) {
+                    Some(f) => (Some(Box::new(f.config)), f.source),
+                    None => (None, String::new()),
+                };
+                Event::Discovered { email, config, source }
+            },
+            // Nothing found: the add dialog asks for the servers.
+            move |_| Event::Discovered { email: asked, config: None, source: String::new() },
+        );
+    }
+
+    /// How a JMAP server is signed in to: with a password, or through the browser with the
+    /// single sign-on its address names.
+    pub(super) fn probe_jmap(&mut self, url: String) {
+        let asked = url.clone();
+        self.on_thread(
+            "mail-probe",
+            move || {
+                let probe = crate::jmap::probe(&url);
+                Event::JmapProbed { url, probe }
+            },
+            // As a server that couldn't be asked: a password, and why (the add dialog asks again).
+            move |error| Event::JmapProbed {
+                url: asked,
+                probe: mailcraft_model::JmapProbe { password: true, error: Some(error), ..mailcraft_model::JmapProbe::default() },
+            },
+        );
+    }
+
     /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI
-    /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts.
+    /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts. A
+    /// single sign-on's service is asked where its pages are first.
     pub(super) fn sign_in(&mut self, account: AccountConfig) {
-        let Some(p) = crate::oauth::provider_for_account(&account) else {
-            let error = format!("signing in with {} isn't set up in this copy of MailCraft", account.oauth.as_deref().unwrap_or("that provider"));
-            return self.sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
-        };
         let (sink, creds) = (self.sink.clone(), self.creds.clone());
         let spawned = std::thread::Builder::new().name("mail-sign-in".into()).spawn(move || {
+            let p = match crate::oauth::sign_in_provider(&account) {
+                Ok(p) => p,
+                // Without a client id, signing in again can't help: the server settings can.
+                Err(NetError::Auth(error)) if error == mailcraft_model::NO_CLIENT_ID => {
+                    return sink.emit(Event::Status { account: account.id, status: SyncStatus::Error { error } });
+                }
+                Err(e) => {
+                    let error = match e {
+                        NetError::Auth(m) => m,
+                        e => e.to_string(),
+                    };
+                    return sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
+                }
+            };
             let mut open = |url: &str| -> std::result::Result<(), String> {
                 sink.emit(Event::OpenUrl { url: url.to_string() });
                 Ok(())
             };
             match crate::oauth::authorize(&p, &account.email, &mut open, Duration::from_secs(5 * 60)) {
                 Ok(t) => match t.refresh {
-                    Some(r) => match creds.set(&account, &r) {
+                    Some(r) => match credentials::keep_token(creds.as_ref(), &account, &r) {
                         Ok(()) => sink.emit(Event::SignedIn { account: account.id, user: t.user }),
                         Err(e) => sink.emit(Event::Status {
                             account: account.id,

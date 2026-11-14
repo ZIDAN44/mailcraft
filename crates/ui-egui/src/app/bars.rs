@@ -355,8 +355,9 @@ impl MailApp {
     }
 }
 
-/// An account that waits for you to do something: sign in (again, or with Microsoft rather than
-/// a password), or choose what to do about a mailbox Microsoft won't open over IMAP.
+/// An account that waits for you to do something: sign in (again, or with Microsoft or its
+/// server's single sign-on rather than a password, or under a client ID), or choose what to do
+/// about a mailbox Microsoft won't open over IMAP.
 pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
     match &a.status {
         SyncStatus::NeedsPassword { .. } => true,
@@ -364,9 +365,17 @@ pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
             error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)
                 || error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS)
                 || error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE)
+                || single_sign_on_needed(error)
         }
         _ => false,
     }
+}
+
+/// Why an account can't sign in that its server settings put right: its server takes no
+/// passwords (it signs in through the browser), or MailCraft has no client ID for its single
+/// sign-on.
+pub(crate) fn single_sign_on_needed(error: &str) -> bool {
+    error.starts_with(mailcraft_engine::model::NO_PASSWORDS) || error.starts_with(mailcraft_engine::model::NO_CLIENT_ID)
 }
 
 /// The long work going on in the background the status bar shows when no data file is being
@@ -412,6 +421,10 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
         SyncStatus::Error { error } if error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE) => {
             (t.danger, tl!("Certificate not trusted yet").to_string())
         }
+        SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::NO_PASSWORDS) => {
+            (t.danger, tl!("Sign in through the browser").to_string())
+        }
+        SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::NO_CLIENT_ID) => (t.danger, tl!("Client ID needed").to_string()),
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
         SyncStatus::Syncing { folder } => {
             (t.accent, tf!("Updating {folder}…", folder = s.folder(&a.config.id, folder).map(i18n::folder).unwrap_or_default()))

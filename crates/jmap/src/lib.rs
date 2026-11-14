@@ -19,6 +19,7 @@
 //! a search of the server found it ([`find_on_server`]): that stays while the mailbox has it.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod challenge;
 pub mod sse;
 pub mod url;
 
@@ -32,9 +33,13 @@ use serde_json::{Map, Value, json};
 
 pub use url::{Url, base64, pct};
 
+mod mailboxes;
+mod remote;
 mod search;
 mod state;
 mod sync;
+pub use mailboxes::{Mailbox, folders, list_folders, name_special};
+pub use remote::{append, apply_remote, fetch_body, send};
 use search::*;
 pub use search::*;
 use state::*;
@@ -110,11 +115,20 @@ impl Request {
     }
 }
 
-/// An HTTP response.
+/// An HTTP response. `headers`: what the client could read of them (a browser shows a page only
+/// those the server lets it).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Response {
     pub status: u16,
+    pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
+}
+
+impl Response {
+    /// How the server asks to be signed in to: every `WWW-Authenticate` header, read as one list.
+    pub fn challenges(&self) -> Vec<challenge::Challenge> {
+        challenge::in_headers(&self.headers)
+    }
 }
 
 /// The HTTP client JMAP runs over. Implementations follow redirects for GET, never from https
@@ -137,6 +151,8 @@ pub fn session_url(input: &str) -> String {
 pub struct Client<H> {
     http: H,
     auth: String,
+    /// `auth` is an OAuth bearer token, not a user name and password.
+    bearer: bool,
     api: String,
     download: String,
     upload: String,
@@ -157,11 +173,13 @@ fn json_body(resp: &Response) -> Result<Value> {
     serde_json::from_slice(&resp.body).map_err(|e| Error::Protocol(format!("JMAP: {e}")))
 }
 
-/// Turn an HTTP failure into the error the caller knows how to handle.
-fn check(resp: &Response) -> Result<()> {
+/// Turn an HTTP failure into the error the caller knows how to handle. `bearer`: the request
+/// carried a bearer token rather than a user name and password.
+fn check(resp: &Response, bearer: bool) -> Result<()> {
     match resp.status {
         200..=299 => Ok(()),
-        401 | 403 => Err(Error::Auth("the server refused the user name or password".into())),
+        401 => Err(Error::Auth(refusal(resp, bearer))),
+        403 => Err(Error::Auth("the server refused the user name or password".into())),
         // Busy or down: reconnect with back-off.
         429 | 500..=599 => Err(Error::Closed(format!("HTTP {}", resp.status))),
         s => {
@@ -173,6 +191,29 @@ fn check(resp: &Response) -> Result<()> {
             Err(Error::Bad(format!("HTTP {s} {detail}").trim().to_string()))
         }
     }
+}
+
+/// Why the server said 401, from how it asks to be signed in to (RFC 9110 §11.6.1). A server
+/// that wants bearer tokens only (a sign-in through the browser) takes no password, however
+/// right it is: [`NO_PASSWORDS`](mailcraft_model::NO_PASSWORDS) says so.
+fn refusal(resp: &Response, bearer: bool) -> String {
+    let challenges = resp.challenges();
+    let offers = |scheme: &str| challenge::offered(&challenges, scheme);
+    if bearer {
+        // RFC 6750 §3.1: what was wrong with the token.
+        return match offers("bearer").and_then(|c| c.param("error")).filter(|e| e.len() <= 64) {
+            Some(e) => format!("the server refused the sign-in ({e})"),
+            None => "the server refused the sign-in".into(),
+        };
+    }
+    if challenges.is_empty() || offers("basic").is_some() {
+        return "the server refused the user name or password".into();
+    }
+    if offers("bearer").is_some() {
+        return mailcraft_model::NO_PASSWORDS.into();
+    }
+    let schemes: Vec<&str> = challenges.iter().map(|c| c.scheme.as_str()).take(4).collect();
+    format!("the server takes no passwords, nor any sign-in MailCraft knows ({})", schemes.join(", "))
 }
 
 /// `{accountId}`-style template variables (RFC 6570 level 1), percent-encoded.
@@ -190,7 +231,7 @@ impl<H: Http> Client<H> {
         let auth = if bearer { format!("Bearer {secret}") } else { format!("Basic {}", base64(format!("{user}:{secret}").as_bytes())) };
         let session = session_url(url);
         let resp = http.send(Request::get(&session, 1 << 20).header("Authorization", &auth).header("Accept", "application/json")).await?;
-        check(&resp)?;
+        check(&resp, bearer)?;
         let v = json_body(&resp)?;
         let caps = v.get("capabilities").cloned().unwrap_or(Value::Null);
         if caps.get(MAIL).is_none() {
@@ -223,6 +264,7 @@ impl<H: Http> Client<H> {
             vacation: caps.get(VACATION).is_some(),
             max_get: usize::try_from(max_get).unwrap_or(500).clamp(1, 1000),
             auth,
+            bearer,
             http,
         })
     }
@@ -235,6 +277,7 @@ impl<H: Http> Client<H> {
     /// Carry a new OAuth access token from now on (the old one ran out).
     pub fn set_bearer(&mut self, token: &str) {
         self.auth = format!("Bearer {token}");
+        self.bearer = true;
     }
 
     /// The push address (RFC 8620 §7.3) for every type of change, when the server pushes.
@@ -255,7 +298,7 @@ impl<H: Http> Client<H> {
                     .header("Accept", "application/json"),
             )
             .await?;
-        check(&resp)?;
+        check(&resp, self.bearer)?;
         let v = json_body(&resp)?;
         let responses = v.get("methodResponses").and_then(Value::as_array).ok_or_else(|| Error::Protocol("JMAP: no methodResponses".into()))?;
         let mut out = Vec::with_capacity(calls.len());
@@ -357,14 +400,14 @@ impl<H: Http> Client<H> {
     pub async fn download(&self, blob: &str) -> Result<Vec<u8>> {
         let url = expand(&self.download, &[("accountId", &self.account), ("blobId", blob), ("type", "message/rfc822"), ("name", "message.eml")]);
         let resp = self.http.send(Request::get(&url, MAX_BLOB).header("Authorization", &self.auth)).await?;
-        check(&resp)?;
+        check(&resp, self.bearer)?;
         Ok(resp.body)
     }
 
     pub async fn upload(&self, raw: &[u8]) -> Result<String> {
         let url = expand(&self.upload, &[("accountId", &self.account)]);
         let resp = self.http.send(Request::post(&url, "message/rfc822", raw.to_vec(), 1 << 20).header("Authorization", &self.auth)).await?;
-        check(&resp)?;
+        check(&resp, self.bearer)?;
         let v = json_body(&resp)?;
         Ok(str_at(&v, "blobId")?.to_string())
     }
@@ -625,251 +668,6 @@ pub fn utc_date(s: &str) -> Option<i64> {
         t -= sign * (oh * 3600 + om * 60);
     }
     Some(t)
-}
-
-/// A mailbox as the server describes it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Mailbox {
-    pub id: String,
-    pub name: String,
-    pub parent: Option<String>,
-    pub role: FolderRole,
-    pub total: u32,
-    pub unread: u32,
-}
-
-impl Mailbox {
-    fn from_json(v: &Value) -> Option<Mailbox> {
-        Some(Mailbox {
-            id: v.get("id")?.as_str()?.to_string(),
-            name: v.get("name").and_then(Value::as_str).unwrap_or_default().chars().take(255).collect(),
-            parent: v.get("parentId").and_then(Value::as_str).map(str::to_string),
-            role: v.get("role").and_then(Value::as_str).and_then(FolderRole::from_code).unwrap_or(FolderRole::Other),
-            total: count(v, "totalEmails"),
-            unread: count(v, "unreadEmails"),
-        })
-    }
-}
-
-/// Folders for mailboxes, each with its mailbox id. Paths are the names from the top joined by
-/// `/` (in modified UTF-7, as IMAP names are kept); the Inbox is `INBOX`.
-pub fn folders(account: &str, boxes: &[Mailbox]) -> Vec<(Folder, String)> {
-    let by_id: HashMap<&str, &Mailbox> = boxes.iter().map(|b| (b.id.as_str(), b)).collect();
-    let mut out: Vec<(Folder, String)> = Vec::new();
-    for b in boxes {
-        let mut parts: Vec<String> = Vec::new();
-        let mut cur = Some(b);
-        while let Some(m) = cur {
-            if parts.len() >= MAX_DEPTH {
-                break;
-            }
-            parts.push(if m.role == FolderRole::Inbox { INBOX.to_string() } else { utf7::encode(&m.name.replace('/', "∕")) });
-            cur = m.parent.as_deref().and_then(|p| by_id.get(p).copied()).filter(|p| p.id != b.id);
-        }
-        parts.reverse();
-        let mut path = parts.join("/");
-        // Two mailboxes with one path (or an unnamed one) stay apart.
-        if path.is_empty() || out.iter().any(|(f, _)| f.path == path) {
-            path = format!("{path}~{}", b.id.chars().filter(char::is_ascii_alphanumeric).take(16).collect::<String>());
-        }
-        let folder = Folder {
-            account: account.to_string(),
-            path,
-            delimiter: Some('/'),
-            role: b.role,
-            selectable: true,
-            unread: b.unread,
-            total: b.total,
-            ..Default::default()
-        };
-        out.push((folder, b.id.clone()));
-    }
-    out
-}
-
-/// Special folders keep the names their mailbox gives them (Exchange names them in the
-/// language the mailbox was made in: "Postvak IN", "Verzonden items"), shown as Outlook shows
-/// them rather than in MailCraft's own words.
-pub fn name_special(found: &mut [(Folder, String)], boxes: &[Mailbox]) {
-    let names: HashMap<&str, &str> = boxes.iter().map(|b| (b.id.as_str(), b.name.trim())).collect();
-    for (f, id) in found {
-        if f.role != FolderRole::Other
-            && let Some(name) = names.get(id.as_str()).filter(|n| !n.is_empty())
-        {
-            f.name = Some((*name).to_string());
-        }
-    }
-}
-
-/// Refresh the folder list (and the mailbox ids behind it).
-pub async fn list_folders<H: Http>(c: &Client<H>, st: &mut State, account: &str) -> Result<Vec<Folder>> {
-    let found = folders(account, &c.mailboxes().await?);
-    st.mailboxes = found.iter().map(|(f, id)| (f.path.clone(), id.clone())).collect();
-    Ok(found.into_iter().map(|(f, _)| f).collect())
-}
-
-impl<H: Http> Client<H> {
-    /// The newest `limit` ids in a mailbox that `filter` matches.
-    async fn search(&self, mailbox: &str, filter: &Value, limit: usize) -> Result<Vec<String>> {
-        let filter = json!({"operator": "AND", "conditions": [{"inMailbox": mailbox}, filter]});
-        let r = self
-            .mail(vec![(
-                "Email/query",
-                json!({"accountId": self.account, "filter": filter, "sort": [{"property": "receivedAt", "isAscending": false}], "limit": limit.min(FOUND_MAX)}),
-            )])
-            .await?;
-        Ok(list(r.first(), "ids").iter().filter_map(Value::as_str).map(str::to_string).take(limit).collect())
-    }
-
-    /// Of these messages, those still in a mailbox, with their keywords.
-    async fn still_in(&self, mailbox: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
-        let mut out = Vec::new();
-        for chunk in ids.chunks(self.max_get.clamp(1, 200)) {
-            let r = self
-                .mail(vec![("Email/get", json!({"accountId": self.account, "ids": chunk, "properties": ["id", "keywords", "mailboxIds"]}))])
-                .await?;
-            out.extend(
-                list(r.first(), "list")
-                    .iter()
-                    .filter(|e| e.get("mailboxIds").and_then(|m| m.get(mailbox)) == Some(&Value::Bool(true)))
-                    .filter_map(|e| Some((e.get("id")?.as_str()?.to_string(), keywords(e.get("keywords"))))),
-            );
-        }
-        Ok(out)
-    }
-}
-
-/// The messages of `folder` the server finds for `filter` ([`search_filter`]), the newest `cap`
-/// of them: those not kept yet come into its list, and stay there past the window while the
-/// server has them there (issue #4). Their keys, and how many came in. A folder never synced is
-/// left to its sync.
-pub async fn find_on_server<H: Http>(
-    c: &Client<H>,
-    st: &mut State,
-    store: &Store,
-    account: &str,
-    folder: &str,
-    filter: &Value,
-    cap: usize,
-) -> Result<(Vec<MessageKey>, usize)> {
-    let mailbox = st.mailbox(folder)?.to_string();
-    let mut fs = store.load_folder(account, folder)?;
-    if fs.validity != VALIDITY {
-        return Ok((Vec::new(), 0));
-    }
-    let ids = c.search(&mailbox, filter, cap.min(FOUND_MAX)).await?;
-    let numbers: Vec<u32> = ids.iter().map(|id| st.number(id)).collect();
-    let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| fs.find(**n).is_none()).map(|(id, _)| id.clone()).collect();
-    let mut new = 0;
-    for e in c.headers(&missing).await? {
-        let Some(id) = e.get("id").and_then(Value::as_str) else { continue };
-        let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(id) };
-        if fs.find(key.uid).is_none() {
-            fs.messages.push(email_summary(&e, key).into());
-            new += 1;
-        }
-    }
-    st.add_found(folder, &numbers);
-    if new > 0 {
-        sort_newest_first(&mut fs.messages);
-        fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
-        store.save_folder(account, folder, &fs)?;
-    }
-    Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
-}
-
-/// Download one message's source (and cache it), with its summary as its folder now has it, filled
-/// from it ([`keep_source`]); one cached already comes as it is, with no summary.
-pub async fn fetch_body<H: Http>(c: &Client<H>, st: &State, store: &Store, key: &MessageKey) -> Result<(Vec<u8>, Option<Summary>)> {
-    if let Some(raw) = store.read_body(key) {
-        return Ok((raw, None));
-    }
-    let gone = || Error::No("the message is no longer on the server".into());
-    let id = st.id(key.uid).filter(|_| key.validity == VALIDITY).ok_or_else(gone)?.to_string();
-    let blob = c.blobs(std::slice::from_ref(&id)).await?.remove(&id).ok_or_else(gone)?;
-    let raw = c.download(&blob).await?;
-    let filled = keep_source(store, key, &raw)?;
-    Ok((raw, filled))
-}
-
-/// Apply one change on the server.
-pub async fn apply_remote<H: Http>(c: &Client<H>, st: &State, op: &Op) -> Result<()> {
-    let ids = |keys: &[MessageKey]| -> Vec<(String, String)> {
-        keys.iter().filter(|k| k.validity == VALIDITY).filter_map(|k| Some((st.id(k.uid)?.to_string(), k.folder.clone()))).collect()
-    };
-    let patch_all = |keys: &[MessageKey], field: &str, on: bool| -> Map<String, Value> {
-        let value = if on { Value::Bool(true) } else { Value::Null };
-        ids(keys).into_iter().map(|(id, _)| (id, json!({ field: value.clone() }))).collect()
-    };
-    match op {
-        Op::SetFlag { keys, flag, on } => match flag_keyword(*flag) {
-            Some(k) => c.set_emails(patch_all(keys, &format!("keywords/{k}"), *on), Vec::new()).await,
-            None => Ok(()),
-        },
-        Op::SetKeyword { keys, keyword, on } if mailcraft_model::is_keyword(keyword) => {
-            c.set_emails(patch_all(keys, &format!("keywords/{}", keyword.to_ascii_lowercase()), *on), Vec::new()).await
-        }
-        Op::SetKeyword { .. } => Ok(()),
-        Op::Move { keys, to } => {
-            let to_box = st.mailbox(to)?.to_string();
-            let mut update = Map::new();
-            for (id, from) in ids(keys) {
-                if from == *to {
-                    continue;
-                }
-                let mut p = Map::new();
-                if let Ok(b) = st.mailbox(&from) {
-                    p.insert(format!("mailboxIds/{b}"), Value::Null);
-                }
-                p.insert(format!("mailboxIds/{to_box}"), Value::Bool(true));
-                update.insert(id, Value::Object(p));
-            }
-            c.set_emails(update, Vec::new()).await
-        }
-        Op::Expunge { keys } => c.set_emails(Map::new(), ids(keys).into_iter().map(|(id, _)| id).collect()).await,
-        Op::CreateFolder { path } => {
-            let (parent, name) = split_path(st, path)?;
-            c.set_mailboxes(json!({"create": {"f": {"name": name, "parentId": parent}}})).await.map(|_| ())
-        }
-        Op::RenameFolder { from, to } => {
-            let id = st.mailbox(from)?.to_string();
-            let (parent, name) = split_path(st, to)?;
-            c.set_mailboxes(json!({"update": {id: {"name": name, "parentId": parent}}})).await.map(|_| ())
-        }
-        Op::DeleteFolder { path } => {
-            let id = st.mailbox(path)?.to_string();
-            c.set_mailboxes(json!({"destroy": [id], "onDestroyRemoveEmails": true})).await.map(|_| ())
-        }
-        Op::EmptyFolder { path } => c.empty(st.mailbox(path)?).await,
-    }
-}
-
-/// The parent mailbox id (`None` at the top) and the leaf name of a folder path.
-fn split_path(st: &State, path: &str) -> Result<(Option<String>, String)> {
-    match path.rsplit_once('/') {
-        Some((parent, leaf)) => Ok((Some(st.mailbox(parent)?.to_string()), utf7::decode(leaf))),
-        None => Ok((None, utf7::decode(path))),
-    }
-}
-
-/// Store a message in a folder (a draft, or the copy of a sent message).
-pub async fn append<H: Http>(c: &Client<H>, st: &State, folder: &str, raw: &[u8], keywords: &[&str]) -> Result<String> {
-    c.import(raw, st.mailbox(folder)?, keywords).await
-}
-
-/// Send a message: stored in the Sent folder, then submitted for the server to deliver (so the
-/// copy in Sent needs no second upload).
-pub async fn send<H: Http>(c: &Client<H>, st: &State, sent: Option<&str>, raw: &[u8], from: &str, recipients: &[String]) -> Result<()> {
-    let folder = sent.filter(|f| st.mailboxes.contains_key(*f)).ok_or_else(|| Error::Send("the account has no Sent folder to send from".into()))?;
-    let id = append(c, st, folder, raw, &["$seen"]).await?;
-    match c.submit(&id, from, recipients).await {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            // Not sent: don't leave a copy that looks sent.
-            let _ = c.set_emails(Map::new(), vec![id]).await;
-            Err(e)
-        }
-    }
 }
 
 /// Run a future whose every wait is already over, as the desktop's blocking HTTP client's are:

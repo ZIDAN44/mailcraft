@@ -68,18 +68,47 @@ impl Credentials for MemoryCredentials {
     }
 }
 
+/// What `account` signs in with, as kept: a single sign-on's refresh token, from its own entry
+/// ([`SIGN_ON_SECRET`](super::SIGN_ON_SECRET)); else the password, or Google's or Microsoft's
+/// refresh token, kept in its place.
+pub(crate) fn kept(creds: &dyn Credentials, account: &AccountConfig) -> Option<String> {
+    if account.signs_on() { creds.get_secret(account, super::SIGN_ON_SECRET) } else { creds.get(account) }
+}
+
+/// Keep the refresh token `account` signed in with. A single sign-on's goes in its own entry, and
+/// the password the account had goes: none is kept, and none left behind is ever sent to the
+/// service as a token (a sign-in given up leaves nothing to send). Google's and Microsoft's take
+/// the password's place.
+pub(crate) fn keep_token(creds: &dyn Credentials, account: &AccountConfig, token: &str) -> std::result::Result<(), String> {
+    if !account.signs_on() {
+        return creds.set(account, token);
+    }
+    creds.set_secret(account, super::SIGN_ON_SECRET, token)?;
+    creds.delete(account);
+    Ok(())
+}
+
+/// Keep the password given for `account`, which signs in with one: the refresh token of a single
+/// sign-on it signed in through before goes.
+pub(crate) fn keep_password(creds: &dyn Credentials, account: &AccountConfig, password: &str) -> std::result::Result<(), String> {
+    creds.set(account, password)?;
+    creds.delete_secret(account, super::SIGN_ON_SECRET);
+    Ok(())
+}
+
 impl super::Worker {
     /// Before the account's thread first connects, on that thread: the password just given kept
-    /// in the keychain, or the one kept there read. The keychain may ask the user first (macOS
-    /// does after an update, for a build signed ad hoc), so it isn't done on the window's
-    /// thread, which would stop drawing till it's answered. `false` when the keychain has no
-    /// password: the account asks for one, and the pool forgets this thread.
+    /// in the keychain, or what's kept there read ([`kept`]). The keychain may ask the user first
+    /// (macOS does after an update, for a build signed ad hoc), so it isn't done on the window's
+    /// thread, which would stop drawing till it's answered. `false` when the keychain has
+    /// nothing: the account asks to be signed in, and the pool forgets this thread.
     pub(super) fn settle_password(&mut self) -> bool {
         let Some(given) = self.keychain.take() else { return true };
         let Some(creds) = self.creds.clone() else { return true };
-        let password = match given {
+        // A single sign-on signs in with its refresh token, never with a password.
+        let password = match given.filter(|_| !self.acc.signs_on()) {
             Some(p) => {
-                if let Err(e) = creds.set(&self.acc, &p) {
+                if let Err(e) = keep_password(creds.as_ref(), &self.acc, &p) {
                     self.sink.emit(mailcraft_model::job::Event::Notice {
                         account: self.acc.id.clone(),
                         message: format!("the password could not be saved in the keychain: {e}"),
@@ -87,7 +116,7 @@ impl super::Worker {
                 }
                 p
             }
-            None => match creds.get(&self.acc) {
+            None => match kept(creds.as_ref(), &self.acc) {
                 Some(p) => p,
                 None => {
                     self.no_password.store(true, std::sync::atomic::Ordering::Relaxed);

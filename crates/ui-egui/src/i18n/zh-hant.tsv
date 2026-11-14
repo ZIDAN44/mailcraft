@@ -1703,3 +1703,18 @@ month	May	5月
 	Nothing to do	沒有待辦事項
 	Nothing in the next 7 days	未來 7 天沒有安排
 	Show the calendar, what's coming up and your tasks beside the mail	在郵件旁顯示行事曆、即將到來的約會和工作
+	Asking the server how it signs you in…	正在詢問伺服器的登入方式…
+	Client ID	用戶端 ID
+	Client ID needed	需要用戶端 ID
+	Given by your administrator	由管理員提供
+	In the browser	在瀏覽器中
+	Saving opens the sign-in page in your browser.	儲存後會在瀏覽器中開啟登入頁面。
+	Sign in through the browser	在瀏覽器中登入
+	Sign-in	登入方式
+	The server couldn't be asked how it signs you in: {error}	無法詢問伺服器的登入方式: {error}
+	This mail server doesn't accept passwords: it needs you to sign in through the browser	此郵件伺服器不接受密碼: 需要在瀏覽器中登入
+	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	此郵件伺服器需要在瀏覽器中登入: 請向管理員索取要輸入的用戶端 ID
+	This server signs you in through your browser, but its sign-in service wasn't found: {error}	此伺服器透過瀏覽器登入，但找不到其登入服務: {error}
+	This server takes no passwords: you sign in through your browser, with its single sign-on.	此伺服器不接受密碼: 你需要透過其單一登入在瀏覽器中登入。
+	with {service}: no password stored	使用 {service}: 不儲存密碼
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} 透過單一登入進行登入，只有 MailCraft 的桌面應用程式可以做到

@@ -23,7 +23,7 @@ impl Http for Server<'_> {
             [b'!', s, rest @ ..] => (u16::from(*s) * 3, rest.to_vec()),
             _ => (200, a.to_vec()),
         };
-        Ok(Response { status, body })
+        Ok(Response { status, headers: Vec::new(), body })
     }
 }
 

@@ -94,6 +94,7 @@ mod pgp;
 mod pim;
 mod printing;
 mod security;
+mod sign_on;
 mod signatures;
 mod tasks;
 mod view;
@@ -112,6 +113,7 @@ pub fn registry() -> Registry {
     all.extend(security::commands());
     all.extend(pgp::commands());
     all.extend(accounts::commands());
+    all.extend(sign_on::commands());
     all.extend(data_files::commands());
     all.extend(signatures::commands());
     Registry::new(all)

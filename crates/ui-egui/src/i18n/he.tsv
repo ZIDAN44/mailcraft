@@ -1699,3 +1699,18 @@ month	May	מאי
 	Nothing to do	אין מה לעשות
 	Nothing in the next 7 days	אין דבר ב-7 הימים הקרובים
 	Show the calendar, what's coming up and your tasks beside the mail	הצג את לוח השנה, את מה שמתקרב ואת המשימות שלך לצד הדואר
+	Asking the server how it signs you in…	שואל את השרת איך הוא מחבר אותך…
+	Client ID	מזהה לקוח
+	Client ID needed	נדרש מזהה לקוח
+	Given by your administrator	מתקבל ממנהל המערכת שלך
+	In the browser	בדפדפן
+	Saving opens the sign-in page in your browser.	השמירה פותחת את דף הכניסה בדפדפן שלך.
+	Sign in through the browser	היכנס דרך הדפדפן
+	Sign-in	כניסה
+	The server couldn't be asked how it signs you in: {error}	לא ניתן היה לשאול את השרת איך הוא מחבר אותך: {error}
+	This mail server doesn't accept passwords: it needs you to sign in through the browser	שרת הדואר הזה לא מקבל סיסמאות: עליך להיכנס דרך הדפדפן
+	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	שרת הדואר הזה דורש כניסה דרך הדפדפן: בקש ממנהל המערכת את מזהה הלקוח שיש להזין
+	This server signs you in through your browser, but its sign-in service wasn't found: {error}	השרת הזה מחבר אותך דרך הדפדפן, אך שירות הכניסה שלו לא נמצא: {error}
+	This server takes no passwords: you sign in through your browser, with its single sign-on.	השרת הזה לא מקבל סיסמאות: הכניסה נעשית בדפדפן שלך, עם הכניסה האחידה שלו.
+	with {service}: no password stored	עם {service}: לא נשמרת סיסמה
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} מתחבר דרך הכניסה האחידה, ורק האפליקציה לשולחן העבודה של MailCraft יכולה לעשות זאת

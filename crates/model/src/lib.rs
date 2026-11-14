@@ -30,7 +30,7 @@ pub use dates::zone;
 pub use signature::Signature;
 pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
 // Clean Up is a part of conversations, kept under its old path.
-pub use job::{Event, HeldKey, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
+pub use job::{Event, HeldKey, JmapProbe, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
 pub use thread::cleanup;
 
 /// How a connection to a server is secured.
@@ -110,10 +110,15 @@ pub struct AccountConfig {
     /// The colour index the UI uses for this account's marker.
     #[serde(default)]
     pub color: u8,
-    /// Signs in with OAuth through this provider (`google`, `microsoft`) instead of a password;
-    /// the keychain then holds the refresh token.
+    /// Signs in with OAuth through this provider (`google`, `microsoft`, or [`OIDC`]: a single
+    /// sign-on, which `oidc` names) instead of a password; the keychain then holds the refresh
+    /// token.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth: Option<String>,
+    /// The single sign-on it signs in through when `oauth` is [`OIDC`] (OpenID Connect), as a
+    /// JMAP server that takes bearer tokens only asks for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oidc: Option<OidcSettings>,
     /// Syncs and sends over JMAP (RFC 8620/8621) through this session URL instead of IMAP and
     /// SMTP.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -230,6 +235,47 @@ pub struct DavSettings {
     pub username: Option<String>,
 }
 
+/// What `oauth` names for a sign-in through any OpenID Connect provider (a single sign-on)
+/// rather than one MailCraft knows: [`OidcSettings`] say which.
+pub const OIDC: &str = "oidc";
+
+/// The single sign-on an account signs in through (OpenID Connect, in the browser with PKCE):
+/// who issues its tokens, the client id its administrator registered MailCraft under, and what
+/// it asks for.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OidcSettings {
+    /// The issuer (`https://sso.example.com`), whose `/.well-known/openid-configuration` names
+    /// its endpoints.
+    pub issuer: String,
+    /// Empty: the one MailCraft was given for the issuer (`MAILCRAFT_OIDC_CLIENTS`).
+    pub client_id: String,
+    /// The scopes asked for, space-separated, with `offline_access` always; empty: `openid
+    /// profile email`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub scope: String,
+}
+
+impl OidcSettings {
+    /// The longest issuer or server address taken, in characters.
+    pub const MAX_ADDRESS: usize = 2048;
+    /// The longest client id, in characters.
+    pub const MAX_CLIENT_ID: usize = 256;
+    /// The most scopes asked for.
+    pub const MAX_SCOPES: usize = 32;
+}
+
+/// Whether `host` (a URL's, an IPv6 address in brackets or not) is this computer's loopback
+/// address written as one, where a test service may use plain http. A name could be anything's.
+pub fn loopback(host: &str) -> bool {
+    let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
+    host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.to_canonical().is_loopback())
+}
+
+/// Why an account that signs in through a single sign-on can't: it has no client id, and
+/// MailCraft was given none for its issuer. Its status is this.
+pub const NO_CLIENT_ID: &str = "This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter";
+
 /// The EWS address of an account whose Exchange server Autodiscover finds when it connects.
 pub const EWS_AUTODISCOVER: &str = "autodiscover";
 
@@ -258,6 +304,11 @@ pub fn microsoft_consumer(email: &str) -> bool {
 
 /// Why a Microsoft account signing in with a password can't connect (its status starts with this).
 pub const MICROSOFT_NO_PASSWORDS: &str = "Microsoft doesn't accept passwords from mail apps for this account: it needs Sign in with Microsoft";
+
+/// Why an account signing in with a password can't connect to a server that asks for bearer
+/// tokens only (`WWW-Authenticate: Bearer`, RFC 6750), as one behind a single sign-on does: it
+/// signs in through the browser (OIDC) instead. Its status is this.
+pub const NO_PASSWORDS: &str = "This mail server doesn't accept passwords: it needs you to sign in through the browser";
 
 /// Why an account signed in with Microsoft can't open its mailbox over IMAP: Microsoft took the
 /// sign-in, then its server said "User is authenticated but not connected". The status starts
@@ -337,6 +388,12 @@ impl AccountConfig {
     /// SMTP.
     pub fn is_api(&self) -> bool {
         self.jmap.is_some() || self.graph.is_some() || self.ews.is_some()
+    }
+
+    /// Whether it signs in through a single sign-on ([`OIDC`]): the service its [`OidcSettings`]
+    /// name.
+    pub fn signs_on(&self) -> bool {
+        self.oauth.as_deref() == Some(OIDC)
     }
 }
 

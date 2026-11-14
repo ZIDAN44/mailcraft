@@ -1704,3 +1704,18 @@ month	May	mai
 	Nothing to do	Rien à faire
 	Nothing in the next 7 days	Rien dans les 7 prochains jours
 	Show the calendar, what's coming up and your tasks beside the mail	Afficher le calendrier, ce qui arrive et vos tâches à côté du courrier
+	Asking the server how it signs you in…	Recherche de la méthode de connexion du serveur…
+	Client ID	Identifiant de client
+	Client ID needed	Identifiant de client requis
+	Given by your administrator	Fourni par votre administrateur
+	In the browser	Dans le navigateur
+	Saving opens the sign-in page in your browser.	L'enregistrement ouvre la page de connexion dans votre navigateur.
+	Sign in through the browser	Se connecter dans le navigateur
+	Sign-in	Connexion
+	The server couldn't be asked how it signs you in: {error}	Impossible de demander au serveur sa méthode de connexion : {error}
+	This mail server doesn't accept passwords: it needs you to sign in through the browser	Ce serveur de messagerie n'accepte pas les mots de passe : il demande une connexion par le navigateur
+	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Ce serveur demande une connexion par le navigateur ; demandez à votre administrateur l'identifiant de client à saisir
+	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Ce serveur vous connecte par votre navigateur, mais son service de connexion est introuvable : {error}
+	This server takes no passwords: you sign in through your browser, with its single sign-on.	Ce serveur n'accepte pas les mots de passe : vous vous connectez dans votre navigateur, avec son authentification unique.
+	with {service}: no password stored	avec {service} : aucun mot de passe enregistré
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} se connecte par authentification unique, ce que seule l'application de bureau de MailCraft sait faire

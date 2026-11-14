@@ -8,7 +8,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.38.0
+## 0.39.0
+
+*Signing in through your server's single sign-on.*
+
+### Added
+
+- In the desktop app, a JMAP account can sign in through its server's single sign-on (OpenID Connect), in your browser, with no password kept: **Add account** asks a JMAP server how it signs you in (**Try again** asks again when it couldn't) and, for one behind a single sign-on, offers **Sign in through the browser**; **Server settings › Sign-in** moves an account to it and back. Its **Client ID** comes from the service's administrator, or with the copy of MailCraft you install (`MAILCRAFT_OIDC_CLIENTS`); an account that needs one says so. What the service's administrator sets up is in [Signing in through the browser](docs/oauth.md).
+
+### Fixed
+
+- A JMAP server that takes no passwords, only a sign-in through the browser (one behind a single sign-on), is said to: the right password was refused and asked for again each time.
+
+## 0.38.0 - 2026-11-13
 
 *Messages as they look, on paper and from a file.*
 

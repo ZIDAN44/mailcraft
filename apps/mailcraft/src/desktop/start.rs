@@ -38,6 +38,10 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
                     f.graph = p.get("graph").and_then(|v| v.as_bool()).unwrap_or(false);
                     f.pop = p.get("pop").and_then(|v| v.as_bool()).unwrap_or(false);
                     f.calendar_only = p.get("calendarOnly").and_then(|v| v.as_bool()).unwrap_or(false);
+                    // A JMAP server, at its session address.
+                    if let Some(url) = p.get("jmap").and_then(|v| v.as_str()) {
+                        (f.jmap, f.jmap_url, f.advanced) = (true, url.trim().to_string(), true);
+                    }
                 }
                 app.ui.dialog = Some(d);
             }

@@ -1700,3 +1700,18 @@ month	May	5月
 	Nothing to do	することはありません
 	Nothing in the next 7 days	今後 7 日間の予定はありません
 	Show the calendar, what's coming up and your tasks beside the mail	メールの横に予定表、今後の予定、タスクを表示します
+	Asking the server how it signs you in…	サーバーのサインイン方法を確認しています…
+	Client ID	クライアント ID
+	Client ID needed	クライアント ID が必要
+	Given by your administrator	管理者から提供されます
+	In the browser	ブラウザーで
+	Saving opens the sign-in page in your browser.	保存すると、ブラウザーでサインイン ページが開きます。
+	Sign in through the browser	ブラウザーでサインイン
+	Sign-in	サインイン
+	The server couldn't be asked how it signs you in: {error}	サーバーのサインイン方法を確認できませんでした: {error}
+	This mail server doesn't accept passwords: it needs you to sign in through the browser	このメール サーバーはパスワードを受け付けません: ブラウザーでサインインする必要があります
+	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	このメール サーバーではブラウザーでのサインインが必要です: 入力するクライアント ID を管理者に問い合わせてください
+	This server signs you in through your browser, but its sign-in service wasn't found: {error}	このサーバーはブラウザーでサインインしますが、サインイン サービスが見つかりませんでした: {error}
+	This server takes no passwords: you sign in through your browser, with its single sign-on.	このサーバーはパスワードを受け付けません: シングル サインオンでブラウザーからサインインします。
+	with {service}: no password stored	{service} で: パスワードは保存されません
+	{email} signs in through a single sign-on, which only MailCraft's desktop app can do	{email} はシングル サインオンでサインインします。これができるのは MailCraft のデスクトップ版だけです

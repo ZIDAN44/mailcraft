@@ -35,12 +35,14 @@ impl mailcraft_jmap::Http for Fetch {
         })?;
         let resp: web_sys::Response = answer.dyn_into().map_err(|e| Error::Protocol(js(&e)))?;
         let status = resp.status();
+        // How the server asks to be signed in to, when it lets the page see that.
+        let headers = resp.headers().get("WWW-Authenticate").ok().flatten().map(|v| ("WWW-Authenticate".to_string(), v)).into_iter().collect();
         let buf = JsFuture::from(resp.array_buffer().map_err(|e| Error::Io(js(&e)))?).await.map_err(|e| Error::Io(js(&e)))?;
         let body = js_sys::Uint8Array::new(&buf);
         if usize::try_from(body.length()).unwrap_or(usize::MAX) > req.max {
             return Err(Error::Protocol(format!("the answer is larger than {} bytes", req.max)));
         }
-        Ok(Response { status, body: body.to_vec() })
+        Ok(Response { status, headers, body: body.to_vec() })
     }
 }
 

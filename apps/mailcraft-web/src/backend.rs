@@ -1,7 +1,6 @@
 //! The browser's network side: the engine's jobs run over JMAP and `fetch`, one account's at a
 //! time in order (as the desktop's worker threads do), and their events wait for the next frame.
-//! New mail comes by push: the session's event stream, read through `fetch` (an `EventSource`
-//! can't send the `Authorization` header), with polling as the fallback.
+//! New mail comes by push, with polling as the fallback ([`new_mail`]).
 
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -13,20 +12,12 @@ use mailcraft_engine::store::Store;
 use mailcraft_jmap::{Client, Error, State, SyncOptions};
 use mailcraft_ui_egui::Backend;
 
-use crate::fetch::{Fetch, events, sleep};
+use crate::fetch::{Fetch, sleep};
 
+mod downloads;
 mod indexing;
+mod new_mail;
 mod smime;
-
-/// How often the Inbox is checked for new mail, and every how many checks everything is.
-const POLL_MS: i32 = 120_000;
-const FULL_EVERY: u32 = 8;
-/// How long before a push stream that ended is opened again (and how often a stream waits for
-/// its account to connect).
-const PUSH_RETRY_MS: i32 = 30_000;
-const PUSH_WAIT_MS: i32 = 3_000;
-/// Largest picture downloaded for a message.
-const MAX_PICTURE: usize = 8 << 20;
 
 /// What an account's runner does next.
 enum Task {
@@ -621,6 +612,7 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::FetchUrl { .. }
         | Job::FetchCalendar { .. }
         | Job::Discover { .. }
+        | Job::ProbeJmap { .. }
         | Job::SignIn { .. }
         | Job::ImportPst { .. }
         | Job::RereadDataFile { .. }
@@ -640,113 +632,6 @@ async fn job(sh: &Rcs, id: &str, j: Job) {
     }
 }
 
-/// Check the Inbox every few minutes (and everything now and then), reconnecting when needed.
-async fn poll(sh: Rcs, id: String, generation: u32) {
-    let mut tick = 0u32;
-    loop {
-        sleep(POLL_MS).await;
-        let state = sh.borrow().accounts.get(&id).map(|a| (a.generation, a.client.is_some(), a.password.is_some()));
-        let Some((g, connected, password)) = state else { return };
-        if g != generation {
-            return;
-        }
-        tick = tick.wrapping_add(1);
-        let inbox = sh.borrow().accounts.get(&id).and_then(|a| a.folders.iter().find(|f| f.role == FolderRole::Inbox).map(|f| f.path.clone()));
-        let pushing = sh.borrow().accounts.get(&id).is_some_and(|a| a.pushing);
-        match (connected, inbox) {
-            (false, _) if password => enqueue(&sh, &id, Task::Connect),
-            (false, _) => {}
-            (true, _) if tick.is_multiple_of(FULL_EVERY) => enqueue(&sh, &id, Task::SyncAll),
-            (true, Some(f)) if !pushing => enqueue(&sh, &id, Task::SyncFolder(f)),
-            (true, _) => {}
-        }
-    }
-}
-
-fn inbox(sh: &Rcs, id: &str) -> Option<String> {
-    sh.borrow().accounts.get(id).and_then(|a| a.folders.iter().find(|f| f.role == FolderRole::Inbox).map(|f| f.path.clone()))
-}
-
-fn current(sh: &Rcs, id: &str, generation: u32) -> bool {
-    sh.borrow().accounts.get(id).is_some_and(|a| a.generation == generation)
-}
-
-fn set_pushing(sh: &Rcs, id: &str, on: bool) {
-    if let Some(a) = sh.borrow_mut().accounts.get_mut(id) {
-        a.pushing = on;
-    }
-}
-
-/// Hold the account's push stream open while the account is (RFC 8620 §7.3): a `state` event
-/// means something changed, and the Inbox syncs.
-async fn push(sh: Rcs, id: String, generation: u32) {
-    let mut wait = 0;
-    loop {
-        if wait > 0 {
-            sleep(wait).await;
-        }
-        if !current(&sh, &id, generation) {
-            return;
-        }
-        let Some(c) = client(&sh, &id) else {
-            wait = PUSH_WAIT_MS;
-            continue;
-        };
-        // No push from this server: polling it is.
-        let Some(url) = c.events_url() else { return };
-        let mut opened = false;
-        let mut on_event = |e: mailcraft_jmap::sse::Sse| {
-            if !current(&sh, &id, generation) {
-                return false;
-            }
-            if !std::mem::replace(&mut opened, true) {
-                set_pushing(&sh, &id, true);
-            }
-            // Mail that came while the stream was closed sends no event: catch up once it's open.
-            if (e.event == "state" || e.event == "open")
-                && let Some(f) = inbox(&sh, &id)
-            {
-                enqueue(&sh, &id, Task::SyncFolder(f));
-            }
-            true
-        };
-        let r = events(&url, c.authorization(), &mut on_event).await;
-        set_pushing(&sh, &id, false);
-        if let Err(e) = r {
-            log::info!("{id}: push: {e}");
-        }
-        wait = PUSH_RETRY_MS;
-    }
-}
-
-/// Download a picture a message links to (once the user asked to see pictures).
-async fn fetch_url(sh: Rcs, url: String) {
-    use mailcraft_jmap::Http as _;
-    let r = Fetch.send(mailcraft_jmap::Request::get(&url, MAX_PICTURE)).await;
-    let e = match r {
-        Ok(resp) if (200..300).contains(&resp.status) => Event::Fetched { url, data: Some(resp.body), error: None },
-        Ok(resp) => Event::Fetched { url, data: None, error: Some(format!("HTTP {}", resp.status)) },
-        Err(e) => Event::Fetched { url, data: None, error: Some(e.to_string()) },
-    };
-    emit(&sh, e);
-}
-
-/// A calendar subscribed to by its link (issue #7), read by the page: only from servers that
-/// let web pages read their calendars (CORS); the desktop app reads any.
-async fn fetch_calendar(sh: Rcs, account: String, calendar: String, url: String) {
-    use mailcraft_jmap::Http as _;
-    let r = Fetch.send(mailcraft_jmap::Request::get(&url, MAX_CALENDAR)).await;
-    let (ics, error) = match r {
-        Ok(resp) if (200..300).contains(&resp.status) => (Some(String::from_utf8_lossy(&resp.body).into_owned()), None),
-        Ok(resp) => (None, Some(format!("the calendar's server answered HTTP {}", resp.status))),
-        Err(_) => (None, Some("the calendar's server doesn't let web pages read it; the desktop app can".to_string())),
-    };
-    let e = Event::CalendarFetched { account, calendar, ics, etag: String::new(), modified: String::new(), unchanged: false, error };
-    emit(&sh, e);
-}
-
-/// Largest calendar read in the browser.
-const MAX_CALENDAR: usize = 20 << 20;
 /// Why an Outlook data file isn't opened here.
 const DESKTOP_PST: &str = "opening Outlook data files needs the desktop app";
 /// Why message files aren't read here.
@@ -756,12 +641,16 @@ impl Backend for WebBackend {
     fn submit(&mut self, job: Job) {
         let sh = &self.shared;
         match job {
-            Job::FetchUrl { url } => wasm_bindgen_futures::spawn_local(fetch_url(sh.clone(), url)),
+            Job::FetchUrl { url } => wasm_bindgen_futures::spawn_local(downloads::fetch_url(sh.clone(), url)),
             Job::FetchCalendar { account, calendar, url, .. } => {
-                wasm_bindgen_futures::spawn_local(fetch_calendar(sh.clone(), account, calendar, url))
+                wasm_bindgen_futures::spawn_local(downloads::fetch_calendar(sh.clone(), account, calendar, url))
             }
             // No autoconfiguration in the browser: the user gives the JMAP address.
             Job::Discover { email } => emit(sh, Event::Discovered { email, config: None, source: String::new() }),
+            // A single sign-on's sign-in needs the desktop app: here, a server takes a password.
+            Job::ProbeJmap { url } => {
+                emit(sh, Event::JmapProbed { url, probe: mailcraft_engine::model::JmapProbe { password: true, ..Default::default() } })
+            }
             Job::SignIn { account } => {
                 status(sh, &account.id, SyncStatus::NeedsPassword { error: "signing in through Google or Microsoft needs the desktop app".into() })
             }
@@ -834,8 +723,8 @@ impl Backend for WebBackend {
                 // Kept unlocked between visits: its certificates opened again.
                 smime::restore(sh, &id);
                 enqueue(sh, &id, Task::Connect);
-                wasm_bindgen_futures::spawn_local(poll(sh.clone(), id.clone(), generation));
-                wasm_bindgen_futures::spawn_local(push(sh.clone(), id, generation));
+                wasm_bindgen_futures::spawn_local(new_mail::poll(sh.clone(), id.clone(), generation));
+                wasm_bindgen_futures::spawn_local(new_mail::push(sh.clone(), id, generation));
             }
             Job::Remove { account } => {
                 sh.borrow_mut().accounts.remove(&account);

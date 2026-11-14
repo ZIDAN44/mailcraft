@@ -7,6 +7,7 @@ mod calendar_only;
 mod compacting;
 mod data_files;
 mod importing;
+mod single_sign_on;
 mod trusting;
 
 #[test]

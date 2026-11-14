@@ -75,17 +75,37 @@ fn connect_checks_the_session() {
         "primaryAccounts": {"urn:ietf:params:jmap:mail": "A1"},
         "apiUrl": "/api/", "downloadUrl": "/d/{accountId}/{blobId}", "uploadUrl": "/u/{accountId}/",
     });
-    let ok = |v: &Value| Response { status: 200, body: v.to_string().into_bytes() };
+    let ok = |v: &Value| Response { status: 200, body: v.to_string().into_bytes(), ..Response::default() };
     let c = block_on(Client::connect(Canned(vec![ok(&session)].into()), "jmap.example.com", "me", "pw", false)).unwrap();
     assert_eq!(c.api, "https://jmap.example.com/api/");
     assert_eq!(c.authorization(), "Basic bWU6cHc=");
     assert_eq!(c.events_url(), None);
-    let refused = block_on(Client::connect(Canned(vec![Response { status: 401, body: Vec::new() }].into()), "h", "me", "x", false));
-    assert!(matches!(refused, Err(Error::Auth(_))));
+    let refused = block_on(Client::connect(Canned(vec![Response { status: 401, ..Response::default() }].into()), "h", "me", "x", false));
+    assert!(matches!(refused, Err(Error::Auth(m)) if m == "the server refused the user name or password"));
     let no_mail = json!({"capabilities": {}, "apiUrl": "/a"});
     assert!(matches!(block_on(Client::connect(Canned(vec![ok(&no_mail)].into()), "h", "me", "x", true)), Err(Error::Protocol(_))));
     let downgrade = json!({"capabilities": {"urn:ietf:params:jmap:mail": {}}, "primaryAccounts": {"urn:ietf:params:jmap:mail": "A"}, "apiUrl": "http://h/api", "downloadUrl": "/d", "uploadUrl": "/u"});
     assert!(matches!(block_on(Client::connect(Canned(vec![ok(&downgrade)].into()), "h", "me", "x", true)), Err(Error::Tls(_))));
+}
+
+/// A server behind a single sign-on takes bearer tokens only: a password, however right, is
+/// refused, and the refusal says the sign-in is through the browser instead.
+#[test]
+fn a_refusal_says_what_the_server_takes() {
+    let refused = |challenge: &str, bearer: bool| {
+        let r = Response { status: 401, headers: vec![("www-authenticate".into(), challenge.into())], body: b"{}".to_vec() };
+        match block_on(Client::connect(Canned(vec![r].into()), "h", "me", "x", bearer)) {
+            Err(Error::Auth(m)) => m,
+            other => panic!("{challenge}: {:?}", other.err()),
+        }
+    };
+    let bearer_only = r#"Bearer realm="mail", scope="openid profile email", Ticket realm="https://jmap.example.com""#;
+    assert_eq!(refused(bearer_only, false), mailcraft_model::NO_PASSWORDS);
+    assert_eq!(refused(r#"Basic realm="mail", Bearer realm="mail""#, false), "the server refused the user name or password");
+    assert_eq!(refused("Negotiate", false), "the server takes no passwords, nor any sign-in MailCraft knows (negotiate)");
+    // A token refused: what the server says was wrong with it (RFC 6750 §3.1).
+    assert_eq!(refused(r#"Bearer realm="mail", error="invalid_token""#, true), "the server refused the sign-in (invalid_token)");
+    assert_eq!(refused(r#"Basic realm="mail""#, true), "the server refused the sign-in");
 }
 
 /// Gap 8: a draft of a forward names the message it forwards in its own header, which JMAP

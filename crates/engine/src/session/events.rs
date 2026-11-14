@@ -35,7 +35,14 @@ impl Session {
                 }
                 // Refusals that need something done say so once, as they come.
                 if let SyncStatus::Error { error } = &status
-                    && (error.starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_model::MICROSOFT_NO_PASSWORDS))
+                    && [
+                        mailcraft_model::MICROSOFT_IMAP_CLOSED,
+                        mailcraft_model::MICROSOFT_NO_PASSWORDS,
+                        mailcraft_model::NO_PASSWORDS,
+                        mailcraft_model::NO_CLIENT_ID,
+                    ]
+                    .iter()
+                    .any(|why| error.starts_with(why))
                     && self.account(&account).is_some_and(|a| a.status != status)
                 {
                     let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
@@ -316,6 +323,12 @@ impl Session {
             }
             Event::Discovered { email, config, source } => {
                 self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config.map(|c| *c), source)));
+            }
+            // Kept for an address asked about only.
+            Event::JmapProbed { url, probe } => {
+                if let Some(p) = self.jmap_probes.get_mut(&url) {
+                    *p = Some(probe);
+                }
             }
             Event::Releases { releases, error } => {
                 self.update = match error {
