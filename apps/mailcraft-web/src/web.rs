@@ -38,7 +38,7 @@ pub fn start() {
             log::error!("missing <canvas id=\"{CANVAS_ID}\">");
             return;
         };
-        let sample = query().contains("sample");
+        let sample = flag("sample");
         // The cache from the last visit.
         let (db, kept) = if sample {
             (None, Vec::new())
@@ -58,7 +58,7 @@ pub fn start() {
             }
         };
         let mut options = eframe::WebOptions::default();
-        if query().contains("webgl")
+        if flag("webgl")
             && let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup
         {
             create.instance_descriptor.backends = eframe::wgpu::Backends::GL;
@@ -142,8 +142,13 @@ fn query() -> String {
 /// A `?name=value` parameter of the page's address, decoded.
 fn param(name: &str) -> Option<String> {
     let q = query();
-    let raw = q.trim_start_matches('?').split('&').find_map(|kv| kv.strip_prefix(&format!("{name}=")))?;
+    let raw = crate::query::value(&q, name)?;
     js_sys::decode_uri_component(raw).ok().map(String::from)
+}
+
+/// Whether the page's address has `?name` (`?sample`, `?webgl`) as a parameter of its own.
+fn flag(name: &str) -> bool {
+    crate::query::has(&query(), name)
 }
 
 /// Unix seconds and the local UTC offset in seconds.
@@ -339,7 +344,7 @@ impl Services for WebServices {
         let path = w.location().pathname().unwrap_or_else(|_| "/".into());
         // The same mailbox (the sample stays the sample) in a window of its own, message-sized and
         // a little in from this one's corner, as web mail opens one (not a tab, not maximised).
-        let sample = if query().contains("sample") { "sample&" } else { "" };
+        let sample = if flag("sample") { "sample&" } else { "" };
         let url = format!("{path}?{sample}open={}", String::from(js_sys::encode_uri_component(key)));
         let at = |v: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>| v.ok().and_then(|x| x.as_f64()).unwrap_or(0.0) as i32 + 60;
         let features = format!("popup=yes,width=940,height=740,left={},top={}", at(w.screen_x()), at(w.screen_y()));

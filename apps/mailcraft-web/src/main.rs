@@ -19,6 +19,7 @@ mod backend;
 mod fetch;
 #[cfg(target_arch = "wasm32")]
 mod idb;
+mod query;
 #[cfg(target_arch = "wasm32")]
 mod vault;
 #[cfg(target_arch = "wasm32")]
