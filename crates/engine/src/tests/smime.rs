@@ -467,3 +467,19 @@ fn certificates_are_kept_unlocked_in_the_browser_when_asked() {
     assert!(matches!(s.take_jobs().as_slice(), [Job::KeepUnlocked { on: false, .. }]));
     done(s);
 }
+
+/// A recipient's certificate withdrawn (its authority says so): the message bar says at once
+/// that they can't receive it encrypted. What reached them was kept for up to an hour.
+#[test]
+fn a_withdrawn_certificate_reaches_no_one_at_once() {
+    let mut s = with_certificate("smime-reach-withdrawn");
+    s.set_trust_roots(vec![ca()]);
+    open_raw(&mut s, 9361, &testdata("signed-clear.eml"));
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ana@posteo.example", "subject": "Plan"})).unwrap();
+    assert_eq!(s.encryption_reach(), Some(crate::Reach::Everyone(crate::Scheme::Smime)));
+    let cert = s.smime_settings("sample").known.get("ana@posteo.example").map(|k| k.cert.clone()).unwrap();
+    s.apply(Event::Revocation { cert, status: mailcraft_model::Revocation::Revoked { at: LATER - 60 } });
+    assert_eq!(s.encryption_reach(), Some(crate::Reach::Missing { scheme: crate::Scheme::Smime, who: vec!["ana@posteo.example".into()] }));
+    done(s);
+}

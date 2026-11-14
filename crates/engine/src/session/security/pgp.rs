@@ -133,8 +133,14 @@ impl Session {
         self.pgp.own.insert(account.to_string(), own);
     }
 
-    fn save_pgp(&mut self, account: &str) {
+    /// What reaches the recipients is worked out again (the certificates or keys it was worked
+    /// out from changed).
+    pub(super) fn forget_reach(&mut self) {
         self.pgp.reach = None;
+    }
+
+    fn save_pgp(&mut self, account: &str) {
+        self.forget_reach();
         self.read_own(account);
         let (Some(store), Some(s)) = (&self.store, self.pgp.settings.get(account)) else { return };
         if let Err(e) = store.save_account_doc(account, PGP_DOC, s) {

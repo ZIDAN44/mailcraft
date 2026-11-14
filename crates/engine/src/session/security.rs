@@ -177,6 +177,8 @@ impl Session {
     }
 
     fn save_smime(&mut self, account: &str) {
+        // A certificate replaced keeps their count, which the reach shown was told apart by.
+        self.forget_reach();
         let (Some(store), Some(s)) = (&self.store, self.smime.get(account)) else { return };
         if let Err(e) = store.save_account_doc(account, SMIME_DOC, s) {
             self.notice(format!("the S/MIME settings could not be saved: {e}"), true);

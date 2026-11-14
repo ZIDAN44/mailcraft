@@ -59,6 +59,7 @@ on GitHub.
 - Moving more than 2,000 messages into an Inbox or Junk on a server no longer has some of them announced as new mail, or filed again by rules, when the server shows them there.
 - A dismissed reminder stays dismissed: one for an event that runs for weeks, or for a task whose reminder came long before its due day, came back at once, and snoozing another reminder for days could bring back those dismissed in the last month.
 - With a damaged key among your own OpenPGP keys, mail is no longer signed with another key than its address's.
+- Writing from another address of an account that has only an OpenPGP key for it, the message bar says whether OpenPGP reaches the recipients: it went by the account's certificate, turned encryption on by itself, and sending then failed. A recipient's certificate withdrawn is taken into account at once, not up to an hour later.
 
 ## 0.38.0 - 2026-11-13
 

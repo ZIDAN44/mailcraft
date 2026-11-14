@@ -74,6 +74,8 @@ impl Session {
     /// An authority's answer: kept, and the messages waiting for it shown again.
     pub(super) fn heard_revocation(&mut self, cert: Vec<u8>, status: Revocation) {
         self.revocation.asking.remove(&cert);
+        // A certificate withdrawn reaches no one.
+        self.forget_reach();
         // Withdrawn stays withdrawn, whatever a later answer (or the lack of one) says.
         if matches!(self.revocation.heard.get(&cert), Some((Revocation::Revoked { .. }, _))) {
             return self.show_waiting();

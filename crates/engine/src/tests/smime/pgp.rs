@@ -416,3 +416,24 @@ fn a_key_that_cant_be_read_leaves_the_others_their_own() {
     assert_eq!(s.pgp_older_keys("sample").len(), 1);
     done(s);
 }
+
+/// Writing from an address only an OpenPGP key names, on an account that has a certificate too:
+/// what the message bar says reaches the recipients is OpenPGP's, the protection it's sent with.
+/// It was worked out from the account's (S/MIME reached Ana, whose certificate came with her
+/// signed mail), turned encryption on by itself, and sending with OpenPGP then failed.
+#[test]
+fn the_reach_shown_is_what_the_message_is_sent_with() {
+    let mut s = super::with_certificate("pgp-reach-from");
+    s.clock.now = PGP_NOW;
+    s.set_trust_roots(vec![super::ca()]);
+    super::open_raw(&mut s, 9331, &super::testdata("signed-clear.eml"));
+    s.run("account.setAddress", &json!({"account": "sample", "address": "ana@posteo.example"})).unwrap();
+    s.apply(Event::PgpKeys { account: "sample".into(), keys: vec![ana_public()], imported: None, error: None });
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"from": "ana@posteo.example", "to": "ana@posteo.example", "subject": "Hello"})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!(s.scheme_for(&c, &["ana@posteo.example".to_string()]), crate::Scheme::Pgp);
+    let reach = s.encryption_reach().unwrap();
+    assert!(matches!(reach, crate::Reach::Everyone(crate::Scheme::Pgp) | crate::Reach::Missing { scheme: crate::Scheme::Pgp, .. }), "{reach:?}");
+    done(s);
+}

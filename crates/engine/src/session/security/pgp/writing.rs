@@ -50,22 +50,25 @@ impl Session {
         out
     }
 
-    /// Which protection `c` gets: the one chosen, else the one the account has, else (it has
-    /// both) the one every recipient can receive, S/MIME when both or neither reach them all.
-    pub(crate) fn scheme_for(&self, c: &Compose, recipients: &[String]) -> Scheme {
-        // What the address it's from has (issue #81); an address with neither, what the
-        // account has.
+    /// Whether `c` can go with S/MIME and with OpenPGP: what the address it's from has (issue
+    /// #81); an address with neither, what the account has. What sending uses and what the
+    /// message bar says reaches the recipients are both worked out from it (the bar went by the
+    /// account's, and said S/MIME for mail sent from an address only an OpenPGP key names).
+    fn schemes_of(&self, c: &Compose) -> (bool, bool) {
         let (smime, pgp) = (self.identity_for(&c.account, &c.from).is_some(), self.pgp_key_from(&c.account, &c.from).is_some());
-        let (smime, pgp) = if smime || pgp { (smime, pgp) } else { (self.identity(&c.account).is_some(), self.pgp_key(&c.account).is_some()) };
-        match (c.scheme, smime, pgp) {
-            (Some(Scheme::Pgp), _, true) | (_, false, true) => Scheme::Pgp,
-            (Some(Scheme::Smime), true, _) | (_, true, false) | (_, false, false) => Scheme::Smime,
-            (_, true, true) => {
-                let s = self.unreachable(&c.account, recipients, Scheme::Smime).len();
-                let p = self.unreachable(&c.account, recipients, Scheme::Pgp).len();
-                if s > 0 && p < s { Scheme::Pgp } else { Scheme::Smime }
-            }
-        }
+        if smime || pgp { (smime, pgp) } else { (self.identity(&c.account).is_some(), self.pgp_key(&c.account).is_some()) }
+    }
+
+    /// Which protection `c` gets: the one chosen, else the one the address it's from has, else
+    /// (it has both) the one every recipient can receive, S/MIME when both or neither reach
+    /// them all.
+    pub(crate) fn scheme_for(&self, c: &Compose, recipients: &[String]) -> Scheme {
+        let (smime, pgp) = self.schemes_of(c);
+        only_scheme(c.scheme, smime, pgp).unwrap_or_else(|| {
+            let s = self.unreachable(&c.account, recipients, Scheme::Smime).len();
+            let p = self.unreachable(&c.account, recipients, Scheme::Pgp).len();
+            if s > 0 && p < s { Scheme::Pgp } else { Scheme::Smime }
+        })
     }
 
     /// Before `c` goes with OpenPGP: the job to sign and/or encrypt `raw`.
@@ -166,17 +169,18 @@ impl Session {
             self.pgp.settings.get(&c.account).map_or(0, |s| s.known.len() + s.keys.len()),
         );
         let scheme = format!("{:?}", c.scheme);
-        let day = self.clock.now.div_euclid(3600).to_le_bytes();
+        let hour = self.clock.now.div_euclid(3600).to_le_bytes();
         let d = digest(&[
             &c.id.to_le_bytes(),
             c.account.as_bytes(),
+            c.from.as_bytes(),
             c.to.as_bytes(),
             c.cc.as_bytes(),
             c.bcc.as_bytes(),
             scheme.as_bytes(),
             &known(smime_known),
             &known(pgp_known),
-            &day,
+            &hour,
         ]);
         let reach = match &self.pgp.reach {
             Some((was, r)) if *was == d => r.clone(),
@@ -195,7 +199,7 @@ impl Session {
     }
 
     fn work_out_reach(&self, c: &Compose) -> Reach {
-        let (smime, pgp) = (self.identity(&c.account).is_some(), self.pgp_key(&c.account).is_some());
+        let (smime, pgp) = self.schemes_of(c);
         if !smime && !pgp {
             return Reach::NotSetUp;
         }
@@ -204,11 +208,7 @@ impl Session {
             return Reach::NoOne;
         }
         let missing = |scheme: Scheme| self.unreachable(&c.account, &recipients, scheme);
-        let only = match (c.scheme, smime, pgp) {
-            (Some(Scheme::Pgp), _, true) | (_, false, true) => Some(Scheme::Pgp),
-            (Some(Scheme::Smime), true, _) | (_, true, false) => Some(Scheme::Smime),
-            _ => None,
-        };
+        let only = only_scheme(c.scheme, smime, pgp);
         let one = |scheme: Scheme| {
             let who = missing(scheme);
             if who.is_empty() { Reach::Everyone(scheme) } else { Reach::Missing { scheme, who } }
@@ -227,5 +227,15 @@ impl Session {
                 (r, _) => r,
             },
         }
+    }
+}
+
+/// The protection that must be used, when there's only one: the one chosen that can be, or the
+/// one there is (S/MIME with neither, which then says what's missing). `None`: both can.
+fn only_scheme(chosen: Option<Scheme>, smime: bool, pgp: bool) -> Option<Scheme> {
+    match (chosen, smime, pgp) {
+        (Some(Scheme::Pgp), _, true) | (_, false, true) => Some(Scheme::Pgp),
+        (Some(Scheme::Smime), true, _) | (_, true, false) | (_, false, false) => Some(Scheme::Smime),
+        (_, true, true) => None,
     }
 }
