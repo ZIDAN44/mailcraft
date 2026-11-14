@@ -12,6 +12,8 @@ use mailcraft_model::MessageKey;
 mod copies;
 mod kept;
 mod stored;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use kept::KeptDrafts;
 use stored::{Digest, Kept};
@@ -290,6 +292,52 @@ enum Saving {
     Elsewhere,
 }
 
+/// What's done once a save handed to a worker went as it went ([`Worker::save_draft`]): one way
+/// each, whatever the order they're looked at in ([`Outcome::of`]).
+enum Outcome {
+    /// The pool kept it as it stopped this worker, and said so: left to it. With why this
+    /// worker's own filing failed, when it did.
+    LeftToPool(Option<NetError>),
+    /// Its account removed meanwhile: nothing of it written again, nor said. With why it wasn't
+    /// filed, when it wasn't.
+    Removed(Option<NetError>),
+    /// Filed: where, and whether that folder was made for it; being filed until it's kept on this
+    /// computer no more.
+    Filed((String, bool), Filed),
+    /// Another worker is filing a version of it: kept on this computer meanwhile.
+    KeepMeanwhile,
+    /// Not filed, and this worker's to say: kept on this computer, filed when the account
+    /// connects.
+    Failed(NetError),
+}
+
+impl Outcome {
+    /// How a save went (`r`), given whether it's this worker's to say done (`ours`: the pool
+    /// didn't say it first) and whether its account was removed meanwhile (asked only of a save
+    /// filed, or failed and ours).
+    fn of(r: Result<Saving>, ours: bool, removed: impl FnOnce() -> bool) -> Outcome {
+        match (r, ours) {
+            (Ok(Saving::LeftToPool), _) | (Ok(Saving::Elsewhere), false) => Outcome::LeftToPool(None),
+            (Ok(Saving::Elsewhere), true) => Outcome::KeepMeanwhile,
+            (Err(e), false) => Outcome::LeftToPool(Some(e)),
+            (Ok(Saving::Filed(filed, being_filed)), _) => {
+                if removed() {
+                    Outcome::Removed(None)
+                } else {
+                    Outcome::Filed(filed, being_filed)
+                }
+            }
+            (Err(e), true) => {
+                if removed() {
+                    Outcome::Removed(Some(e))
+                } else {
+                    Outcome::Failed(e)
+                }
+            }
+        }
+    }
+}
+
 impl Worker {
     /// Save a draft handed to this worker on the server ([`Job::SaveDraft`]), and say how that
     /// went (#53): saved; or kept on this computer, to be saved when the account connects; or,
@@ -303,7 +351,7 @@ impl Worker {
         // each connection, every save connected again at once, 605 sign-ins in 6 s).
         if self.conn.is_none() && (self.auth_failed || Instant::now() < self.next_attempt) {
             if !self.says_done(hash) {
-                log::info!("{}: a draft the pool kept as it stopped this connection is left to it", self.acc.id);
+                self.left_to_pool();
                 return;
             }
             let Some(kept) = self.keep_here(&folder, replaces, raw) else {
@@ -343,27 +391,23 @@ impl Worker {
         // This worker's to say done from here, unless the pool said it first, as it stopped this
         // worker; taken before the draft is kept, or kept no more, so the pool never keeps it after.
         let ours = self.says_done(hash);
-        match r {
-            Ok(Saving::LeftToPool) => log::info!("{}: a draft the pool kept as it stopped this connection is left to it", self.acc.id),
-            Ok(Saving::Elsewhere) if !ours => {
-                log::info!("{}: a draft the pool kept as it stopped this connection is left to it", self.acc.id);
-            }
-            Ok(Saving::Elsewhere) => self.keep_meanwhile(&folder, replaces, raw, message_id, hash),
+        match Outcome::of(r, ours, || self.removed()) {
+            Outcome::LeftToPool(None) => self.left_to_pool(),
             // Failed once the pool had kept it: kept already, and said so.
-            Err(e) if !ours => log::info!("{}: a draft the pool kept wasn't saved here: {e}", self.acc.id),
-            // Its account removed meanwhile: nothing of it written again, nor said.
-            Ok(Saving::Filed(..)) if self.removed() => log::info!("{}: a draft of an account removed was saved", self.acc.id),
+            Outcome::LeftToPool(Some(e)) => log::info!("{}: a draft the pool kept wasn't saved here: {e}", self.acc.id),
+            Outcome::Removed(None) => log::info!("{}: a draft of an account removed was saved", self.acc.id),
+            // Nothing to keep it for.
+            Outcome::Removed(Some(e)) => log::info!("{}: a draft of an account removed isn't kept: {e}", self.acc.id),
+            Outcome::KeepMeanwhile => self.keep_meanwhile(&folder, replaces, raw, message_id, hash),
             // Filed: said done, unless the pool kept it and said so as it stopped this worker; kept
             // on this computer no more either way (the next worker set it aside, and leaves it).
-            Ok(Saving::Filed(filed, being_filed)) => {
+            Outcome::Filed(filed, being_filed) => {
                 if ours {
                     self.sink.emit(Event::DraftSaved { account: self.id(), message_id: message_id.clone(), error: None });
                 }
                 self.draft_filed(&source, replaces.as_ref(), &message_id, filed, being_filed);
             }
-            // Its account removed meanwhile: nothing to keep it for.
-            Err(e) if self.removed() => log::info!("{}: a draft of an account removed isn't kept: {e}", self.acc.id),
-            Err(e) => {
+            Outcome::Failed(e) => {
                 // Not lost: kept on this computer and saved when the account connects.
                 // Neither kept: the session gives the message back to be written, saying
                 // both reasons (#53). One notice either way: the connection's own trouble
@@ -398,6 +442,11 @@ impl Worker {
                 }
             }
         }
+    }
+
+    /// A save the pool said done as it stopped this worker, keeping it on this computer: its own.
+    fn left_to_pool(&self) {
+        log::info!("{}: a draft the pool kept as it stopped this connection is left to it", self.acc.id);
     }
 
     /// A save of a draft another worker is filing a version of (the account's connection started
