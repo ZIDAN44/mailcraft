@@ -37,6 +37,7 @@ on GitHub.
 - With an Exchange account (EWS or Microsoft 365), a calendar item, contact or note the server refuses to delete (access denied, say) is said not to be deleted and is asked again at the next sync; it was taken for already gone. A contact or note changed here whose old copy the server wouldn't delete is no longer made again beside it, twice over.
 - A big folder of an Exchange account (EWS or Microsoft 365) syncs, and is searched on the server, without looking each message up in the whole folder, as a JMAP account's now does.
 - Automatic replies can be read and set for an account that signs in with OAuth on a server with ManageSieve: its sign-in there was encoded twice, and always refused.
+- A message with a line longer than 64 KB comes whole from a POP account: the line was broken in two, and a piece of it that was a lone `.` cut the message short there.
 
 ## 0.38.0 - 2026-11-13
 
