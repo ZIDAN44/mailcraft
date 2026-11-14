@@ -1,5 +1,7 @@
 //! An item as read from the file: its properties, recipients and attachments.
 
+use mailcraft_model::thread;
+
 use super::props::{Val, clean_name, code_page, is_address, one_off_address, read, val};
 use super::*;
 
@@ -190,11 +192,11 @@ pub(super) fn item_of<'a>(
         _ => 0,
     };
     // A conversation index is a 22-byte header and 5-byte blocks (MS-OXOMSG 2.2.1.3): kept
-    // whole blocks only, at most MAX_THREAD_BLOCKS of them.
+    // whole blocks only, at most as many as threading reads (one with more it reads as none).
     if let Some(Val::Bin(b)) = p(0x0071)
         && b.len() >= 22
     {
-        let blocks = ((b.len() - 22) / 5).min(MAX_THREAD_BLOCKS);
+        let blocks = ((b.len() - 22) / 5).min(thread::MAX_INDEX_BLOCKS);
         it.thread_index = b.get(..22 + blocks * 5).unwrap_or_default().to_vec();
     }
     it.thread_topic = s(0x0070);
@@ -375,8 +377,8 @@ fn rtf_into(it: &mut Item, compressed: &[u8], in_sync: bool) {
 
 /// The message ids in a References or In-Reply-To value as the file keeps it: every `<…>` when
 /// there is one (`<a><b>`, `<a>,<b>`, `<a> , <b>`), else the words between spaces and commas;
-/// without their brackets, each at most [`MAX_ID`] bytes; the last [`MAX_IDS`], as threading
-/// keeps them.
+/// without their brackets, each at most [`MAX_ID`] bytes; the last
+/// [`MAX_REFERENCES`](thread::MAX_REFERENCES), as threading keeps them.
 pub(super) fn message_ids(s: &str) -> Vec<String> {
     let words: Vec<&str> = if s.contains('<') {
         s.split('<').skip(1).filter_map(|w| w.split_once('>').map(|(id, _)| id)).collect()
@@ -388,8 +390,8 @@ pub(super) fn message_ids(s: &str) -> Vec<String> {
         id.truncate(end);
         id
     };
-    let mut ids: Vec<String> = words.into_iter().map(|w| cap(mailcraft_model::thread::norm_id(w))).filter(|id| !id.is_empty()).collect();
-    ids.drain(..ids.len().saturating_sub(MAX_IDS));
+    let mut ids: Vec<String> = words.into_iter().map(|w| cap(thread::norm_id(w))).filter(|id| !id.is_empty()).collect();
+    ids.drain(..ids.len().saturating_sub(thread::MAX_REFERENCES));
     ids
 }
 

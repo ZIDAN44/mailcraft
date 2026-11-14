@@ -106,6 +106,10 @@ pub fn norm_id(id: &str) -> String {
 /// The most 5-byte blocks a conversation index is read with (a reply adds one).
 pub const MAX_INDEX_BLOCKS: usize = 50;
 
+/// The most message ids of a message's References (with its In-Reply-To) threading reads: the
+/// last ones, nearest the message (a hostile header can name any number).
+pub const MAX_REFERENCES: usize = 256;
+
 /// A conversation index as threading keeps it: hashes of the whole index, of the index of the
 /// message it answers (the whole less its last block) and of the conversation's (its 22-byte
 /// header). 0 is none.
@@ -319,8 +323,8 @@ fn threads_of(msgs: &[&Summary]) -> Vec<Thread> {
             refs.push(irt);
         }
         // Cap absurd chains (hostile headers).
-        if refs.len() > 256 {
-            refs.drain(..refs.len() - 256);
+        if refs.len() > MAX_REFERENCES {
+            refs.drain(..refs.len() - MAX_REFERENCES);
         }
         let mut prev: Option<usize> = None;
         for r in &refs {

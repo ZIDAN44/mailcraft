@@ -109,10 +109,6 @@ const MAX_NESTING: usize = 32;
 /// The files of one item, its attached messages' included, come to at most this; files past it
 /// are left out.
 pub(crate) const MAX_ITEM_BYTES: usize = 128 * 1024 * 1024;
-/// Message ids kept from an item's References (as many as threading reads).
-const MAX_IDS: usize = 256;
-/// Child blocks kept of an item's conversation index.
-const MAX_THREAD_BLOCKS: usize = 50;
 /// Categories kept on an item.
 const MAX_KEYWORDS: usize = 64;
 /// A meeting's guests' answers kept (one per recipient row).

@@ -485,8 +485,9 @@ fn a_headerless_item_gets_thread_and_sensitivity_headers() {
     assert!(!lines.iter().any(|l| l.to_ascii_lowercase().starts_with("bcc")), "{lines:#?}");
     let index_line = lines.iter().find(|l| l.starts_with("Thread-Index: ")).unwrap();
     let kept = crate::ews::unb64(&index_line["Thread-Index: ".len()..]).unwrap();
-    assert_eq!(kept.len(), 22 + 5 * 50, "whole blocks, at most 50");
+    assert_eq!(kept.len(), 22 + 5 * mailcraft_model::thread::MAX_INDEX_BLOCKS, "whole blocks, as many as threading reads");
     assert_eq!(kept[..], index[..kept.len()]);
+    assert_ne!(mailcraft_model::thread::index_keys(&kept), Default::default(), "threading reads what's kept");
     assert!(lines.contains(&"Sensitivity: Company-Confidential".to_string()), "{lines:#?}");
     let m = mailparse_header(&raw, "Thread-Topic");
     assert_eq!(m, "Plan Bcc: evil@example.com for the café");
@@ -497,6 +498,16 @@ fn a_headerless_item_gets_thread_and_sensitivity_headers() {
     // Nothing but spaces: no header.
     let (raw, _) = rebuilt(&[(0x0070, Val::Text("\r\n \t".into())), (0x0036, Val::Int(9))], &[]).unwrap();
     assert!(!clean_header(&raw).iter().any(|l| l.starts_with("Thread-Topic") || l.starts_with("Sensitivity")));
+}
+
+/// An item's References keep as many ids as threading reads, the last ones (nearest the item).
+#[test]
+fn references_keep_the_ids_threading_reads() {
+    let cap = mailcraft_model::thread::MAX_REFERENCES;
+    let all: String = (0..cap + 40).map(|n| format!("<r{n}@x> ")).collect();
+    let ids = super::item::message_ids(&all);
+    assert_eq!(ids.len(), cap);
+    assert_eq!((ids[0].as_str(), ids[cap - 1].as_str()), ("r40@x", &*format!("r{}@x", cap + 39)));
 }
 
 /// Names, addresses and ids from a header-less item stay inside their own header lines: a Bcc
