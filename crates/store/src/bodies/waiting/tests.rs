@@ -120,3 +120,47 @@ fn a_queue_that_cant_be_written_keeps_the_change() {
     let waiting = s.waiting_ops("a1").unwrap();
     assert!(waiting.is_empty() && s.load_ops("a1").unwrap().is_empty());
 }
+
+/// Read as another thread writes it, the queue is always read: on Windows a read just as the
+/// file is replaced or removed was refused for a moment ("access denied", found under load in
+/// the net tests), and a refused read was taken for a disk that fails (the worker's changes not
+/// put back on a folder it had just synced, the changes waiting counted as none). Two seconds of
+/// reads beside a thread replacing and removing the file as the store does (a new file renamed
+/// over it, then removed), without the flush to the disk the store's writes wait for: some
+/// thousands of times rather than a few dozen.
+#[test]
+fn the_queue_is_read_while_another_thread_writes_it() {
+    let s = crate::tests::temp_store("queue-read-as-written");
+    s.save_ops("a1", &[seen(1, true)]).unwrap();
+    let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let writer = {
+        let (path, done) = (s.root().join("a1").join("ops.json"), done.clone());
+        let bytes = serde_json::to_vec(&[seen(1, true)]).unwrap();
+        std::thread::spawn(move || {
+            let mut n = 0u32;
+            while !done.load(std::sync::atomic::Ordering::Relaxed) {
+                let new = path.with_extension(format!("new{n}"));
+                fs::write(&new, &bytes).unwrap();
+                fs::rename(&new, &path).unwrap();
+                if n.is_multiple_of(3) {
+                    fs::remove_file(&path).unwrap();
+                }
+                n = n.wrapping_add(1);
+            }
+            n
+        })
+    };
+    let began = std::time::Instant::now();
+    let (mut reads, mut refused) = (0u32, Vec::new());
+    while began.elapsed() < std::time::Duration::from_secs(2) {
+        reads += 1;
+        if let Err(e) = s.load_ops("a1") {
+            refused.push(e.to_string());
+        }
+    }
+    done.store(true, std::sync::atomic::Ordering::Relaxed);
+    let writes = writer.join().unwrap();
+    assert!(writes > 0 && reads > 0);
+    assert!(refused.is_empty(), "{} of {reads} reads refused ({writes} writes): {:?}", refused.len(), refused.first());
+    let _ = fs::remove_dir_all(s.root());
+}

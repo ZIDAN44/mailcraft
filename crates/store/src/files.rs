@@ -52,6 +52,36 @@ fn not_found() -> io::Error {
     io::Error::from(io::ErrorKind::NotFound)
 }
 
+/// How long a read refused as its file is replaced or removed is tried again, at most.
+#[cfg(not(target_arch = "wasm32"))]
+const REFUSED_FOR: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// A file read from the disk. On Windows a read that comes as another thread replaces the file
+/// (a new one renamed over it, as every write here does) or removes it is refused for a moment,
+/// "access denied" (os error 5; for up to a tenth of a second, measured): callers took that for
+/// a disk that fails (the changes waiting read by the worker as none, and not put back on a
+/// folder it had just synced). It's read again, a few milliseconds apart, for half a second at
+/// most: a file that stays refused (its permissions) is still an error.
+#[cfg(not(target_arch = "wasm32"))]
+fn read_settled(p: &Path) -> io::Result<Vec<u8>> {
+    let began = std::time::Instant::now();
+    loop {
+        match fs::read(p) {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied && began.elapsed() < REFUSED_FOR => {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            read => return read,
+        }
+    }
+}
+
+/// A file read from the disk, in the browser: read once (no clock there to wait by, and no
+/// other thread replacing the file).
+#[cfg(target_arch = "wasm32")]
+fn read_settled(p: &Path) -> io::Result<Vec<u8>> {
+    fs::read(p)
+}
+
 /// The paths at or under `dir` in memory, from where they start in the map (paths sort by
 /// component, so everything under a folder is together): an online-only account's listing doesn't
 /// pass over every other file.
@@ -78,7 +108,7 @@ impl Files {
 
     pub(super) fn read(&self, p: &Path) -> io::Result<Vec<u8>> {
         match self {
-            Files::Disk => fs::read(p),
+            Files::Disk => read_settled(p),
             #[cfg(not(target_arch = "wasm32"))]
             Files::Packed(x) => x.read(p),
             Files::Memory(m, _) => Files::with(m, |m| m.get(p).cloned().ok_or_else(not_found)),

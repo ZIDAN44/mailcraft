@@ -108,6 +108,7 @@ on GitHub.
 - Exporting to a large Outlook data file is faster.
 - In the task list and the To-Do Bar, due dates are written in the order chosen under Dates, with the weekday.
 - On Windows without ffmpeg, video attachments now show their frame on a busy or slow computer too.
+- On Windows, changes made while an account syncs no longer briefly disappear from the folder it just synced.
 
 ## 0.38.0 - 2026-11-13
 
