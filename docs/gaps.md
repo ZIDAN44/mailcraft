@@ -105,9 +105,10 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 ### 9. Calendars and contacts of a single sign-on account
 
 - **Impact:** A JMAP account that signs in through its server's single sign-on gets its mail
-  only: its calendars and contacts aren't synced, and nothing says so.
-- **Workaround:** In **Calendar and contacts server**, tick **The calendar server has its own user
-  name and password** and give them, if that server takes a password.
+  only: its calendars and contacts aren't synced. On the File page, **Calendars and contacts**
+  says to give their server's address and sign-in.
+- **Workaround:** On the File page, choose **Calendar server…**, tick **The calendar server has
+  its own user name and password** and give them, if that server takes a password.
 - **Cause:** MailCraft signs in to a CalDAV or CardDAV server with a password only (Basic or
   Digest), not with a bearer token, and an account's tokens are kept for its mail.
 
