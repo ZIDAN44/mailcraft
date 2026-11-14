@@ -677,6 +677,10 @@ impl Data {
                         out.push(err("ErrorAccessDenied"));
                         continue;
                     }
+                    if !self.items.iter().any(|i| i.id == id) && !self.pim.iter().any(|(i, _, _)| *i == id) {
+                        out.push(err("ErrorItemNotFound"));
+                        continue;
+                    }
                     self.items.retain(|i| i.id != id);
                     self.pim.retain(|(i, _, _)| *i != id);
                     out.push(ok(String::new()));

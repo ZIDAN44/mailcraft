@@ -425,7 +425,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
             format!("{}/events/{}", owner_path(&t.calendar), seg(&t.href))
         };
         match c.send_raw("DELETE", &path, "application/json", Vec::new()) {
-            Ok(_) | Err(NetError::No(_)) => out.deleted.push(t.href.clone()),
+            Ok(_) => out.deleted.push(t.href.clone()),
+            Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
             Err(e) => out.errors.push(e.to_string()),
         }
     }

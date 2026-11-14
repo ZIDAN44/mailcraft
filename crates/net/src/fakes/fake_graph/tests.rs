@@ -671,3 +671,31 @@ fn reminders_answered_here_are_answered_on_graph() {
     assert_eq!(done, [("dismissReminder", "EV-one"), ("snoozeReminder", "EV-series-4")]);
     assert_eq!(d.reminders[1].2["newReminderTime"], serde_json::json!({"dateTime": "2026-11-04T08:55:00", "timeZone": "UTC"}));
 }
+
+/// A delete Graph refuses (an event in someone's calendar this account may only read: 403) isn't
+/// taken for done: it's said, and its tombstone stays to be asked again. It was dropped as if
+/// the event were gone. One for something no longer there (404) is done.
+#[test]
+fn a_refused_delete_is_said_and_kept() {
+    use mailcraft_model::pim::{Pim, Tombstone, shared_calendar_id};
+    let mut d = Data { others: vec![("ben@contoso.example".into(), false)], ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"));
+    d.calendars.push(("CAL1".into(), "Calendar".into()));
+    let at = |h: u32| json!({"dateTime": format!("2026-10-20T{h:02}:00:00.0000000")});
+    d.events
+        .push(json!({"id": "B1", "calendar": "user:ben@contoso.example", "iCalUId": "b1", "subject": "Ben's call", "start": at(9), "end": at(10)}));
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    let ben = shared_calendar_id("ben@contoso.example");
+    let mut pim = Pim { shared: vec!["ben@contoso.example".into()], ..Default::default() };
+    let first = crate::graph_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    let href = first.events.iter().find(|e| e.event.summary == "Ben's call").map(|e| e.href.clone()).unwrap();
+    pim.deleted = vec![
+        Tombstone { href: href.clone(), etag: String::new(), calendar: ben.clone() },
+        Tombstone { href: "contact:NOT-THERE".into(), etag: String::new(), ..Default::default() },
+    ];
+    let second = crate::graph_pim::sync(&c, &pim, 1_792_000_100).unwrap();
+    assert_eq!(second.deleted, ["contact:NOT-THERE"], "only the one that's gone");
+    assert!(second.errors.iter().any(|e| e.contains("403")), "{:?}", second.errors);
+    assert!(server.data.lock().unwrap().events.iter().any(|e| e["id"] == "B1"), "still on the server");
+}

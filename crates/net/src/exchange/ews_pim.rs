@@ -545,7 +545,8 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut out = DavSync { caldav_home: Some("ews".into()), carddav_home: Some("ews".into()), checked: now, ..Default::default() };
     for t in &pim.deleted {
         match delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:")) {
-            Ok(()) | Err(NetError::No(_)) => out.deleted.push(t.href.clone()),
+            Ok(()) => out.deleted.push(t.href.clone()),
+            Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
             Err(e) => out.errors.push(e.to_string()),
         }
     }
@@ -603,7 +604,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         // Made again: a contact's addresses and numbers are simplest replaced whole.
         if let Some(old) = k.href.strip_prefix("contact:")
             && let Err(e) = delete(c, old)
-            && !matches!(e, NetError::No(_))
+            && !crate::ews::gone(&e)
         {
             out.errors.push(format!("{}: {e}", k.card.display()));
             continue;
@@ -786,7 +787,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     for n in pim.notes.iter().filter(|n| n.dirty) {
         if let Some(old) = n.href.strip_prefix("note:")
             && let Err(e) = delete(c, old)
-            && !matches!(e, NetError::No(_))
+            && !crate::ews::gone(&e)
         {
             out.errors.push(format!("{}: {e}", n.note.title()));
             continue;

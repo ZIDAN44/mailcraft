@@ -81,6 +81,7 @@ fn status_error(status: u16, body: &[u8]) -> Result<()> {
         200..=299 => Ok(()),
         401 => Err(NetError::Auth("Microsoft refused the sign-in; sign in again".into())),
         429 | 500..=599 => Err(NetError::Closed(format!("HTTP {status}"))),
+        404 => Err(NetError::No(format!("{} ({})", crate::ews::GONE, format!("HTTP 404 {}", detail()).trim()))),
         s => Err(NetError::No(format!("HTTP {s} {}", detail()).trim().to_string())),
     }
 }

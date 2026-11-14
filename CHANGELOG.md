@@ -34,6 +34,7 @@ on GitHub.
 - A contact from a CardDAV server that you edit goes back with what MailCraft doesn't show: saving it from **Edit contact**, even with nothing but its job title changed, cleared its last and first names (and dropped a middle name, title and suffix), took the type off its email addresses, and dropped its numbers' other types, which one is preferred and the label beside them (iPhone's "Studio fax", say).
 - Exporting into an Outlook data file that's damaged so that a folder is listed inside itself no longer hangs before it starts: each folder is looked through once, as an import does.
 - An export to an Outlook data file says so when a folder couldn't be read and its mail isn't in the file; it was left out with nothing said.
+- With an Exchange account (EWS or Microsoft 365), a calendar item, contact or note the server refuses to delete (access denied, say) is said not to be deleted and is asked again at the next sync; it was taken for already gone. A contact or note changed here whose old copy the server wouldn't delete is no longer made again beside it, twice over.
 
 ## 0.38.0 - 2026-11-13
 

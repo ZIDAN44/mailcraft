@@ -500,6 +500,9 @@ impl Data {
                 (201, c.to_string().into_bytes(), "application/json")
             }
             ("DELETE", ["me", "contacts", id]) => {
+                if !self.contacts.iter().any(|c| c["id"] == *id) {
+                    return not_found();
+                }
                 self.contacts.retain(|c| c["id"] != *id);
                 (204, Vec::new(), "text/plain")
             }

@@ -634,3 +634,34 @@ fn reminders_answered_here_are_answered_on_exchange() {
     let item = &d.pim.iter().find(|(id, _, _)| id == "E-one").unwrap().2;
     assert_eq!(item.text_of("ReminderIsSet"), Some("false"));
 }
+
+/// A delete the server refuses (an event in someone's calendar this account may only read) isn't
+/// taken for done: it's said, and its tombstone stays to be asked again. It was dropped as if
+/// the event were gone. One for something no longer there is done.
+#[test]
+fn a_refused_delete_is_said_and_kept() {
+    use mailcraft_model::pim::{Pim, Tombstone, shared_calendar_id};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    let call = parse(
+        "<t:CalendarItem><t:Subject>Ben's call</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
+         <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>call-1</t:UID></t:CalendarItem>",
+    );
+    d.pim.push(("B1".into(), "mailbox:ben@contoso.example".into(), call.kids[0].clone()));
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let ben = shared_calendar_id("ben@contoso.example");
+    let mut pim = Pim { shared: vec!["ben@contoso.example".into()], ..Default::default() };
+    let first = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    let href = first.events.iter().find(|e| e.event.summary == "Ben's call").map(|e| e.href.clone()).unwrap();
+    pim.deleted = vec![
+        Tombstone { href: href.clone(), etag: String::new(), calendar: ben.clone() },
+        Tombstone { href: "NOT-THERE".into(), etag: String::new(), ..Default::default() },
+    ];
+    let second = crate::ews_pim::sync(&c, &pim, 1_792_000_100).unwrap();
+    assert_eq!(second.deleted, ["NOT-THERE"], "only the one that's gone");
+    assert!(second.errors.iter().any(|e| e.contains("ErrorAccessDenied")), "{:?}", second.errors);
+    assert!(server.data.lock().unwrap().pim.iter().any(|(id, _, _)| id == "B1"), "still on the server");
+}

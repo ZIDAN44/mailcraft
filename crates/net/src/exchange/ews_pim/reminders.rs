@@ -42,7 +42,7 @@ fn reminder_item(c: &Client, a: &ReminderAnswer) -> Result<(String, String)> {
         .filter(|(start, _, _)| start.abs_diff(a.occurrence) <= AROUND.unsigned_abs())
         .min_by_key(|(start, _, _)| start.abs_diff(a.occurrence))
         .map(|(_, id, key)| (id, key))
-        .ok_or_else(|| NetError::No("that reminder isn't on the server any more".into()))
+        .ok_or_else(|| NetError::No(format!("{} (that reminder)", crate::ews::GONE)))
 }
 
 /// Tell Exchange one answer.
@@ -50,9 +50,13 @@ pub(super) fn answer(c: &Client, a: &ReminderAnswer) -> Result<()> {
     let (id, key) = match reminder_item(c, a) {
         Ok(item) => item,
         // An Exchange older than 2013 doesn't know the operation: a single event's reminder is
-        // turned off, as dismissing it in Outlook does; a series' waits for nothing.
+        // turned off, as dismissing it in Outlook does; a series' can't be answered there, and
+        // isn't asked again.
         Err(NetError::Protocol(_)) if !a.series && a.snooze_until.is_none() => return reminder_off(c, &a.href),
-        Err(NetError::Protocol(why)) => return Err(NetError::No(why)),
+        Err(NetError::Protocol(why)) => {
+            log::info!("a reminder this Exchange can't answer: {why}");
+            return Ok(());
+        }
         Err(e) => return Err(e),
     };
     let (action, time) = match a.snooze_until {
@@ -88,7 +92,8 @@ fn reminder_off(c: &Client, href: &str) -> Result<()> {
 pub(super) fn answer_all(c: &Client, pim: &Pim, out: &mut DavSync) {
     for a in pim.reminder_answers.iter().take(mailcraft_model::pim::MAX_REMINDER_ANSWERS) {
         match answer(c, a) {
-            Ok(()) | Err(NetError::No(_)) => out.answered.push((a.uid.clone(), a.occurrence)),
+            Ok(()) => out.answered.push((a.uid.clone(), a.occurrence)),
+            Err(e) if crate::ews::gone(&e) => out.answered.push((a.uid.clone(), a.occurrence)),
             Err(e) => out.errors.push(format!("a reminder: {e}")),
         }
     }

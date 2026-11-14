@@ -430,8 +430,14 @@ fn alternative_mailboxes(xml: &str) -> Vec<Alternative> {
         .collect()
 }
 
-/// How a refusal for something that isn't on the server begins.
+/// How a refusal for something that isn't on the server begins (EWS's and Graph's).
 pub(crate) const GONE: &str = "not on the server any more";
+
+/// Whether a refusal says the thing isn't on the server any more ([`GONE`]): a delete or an
+/// answer then has nothing left to do. Any other (access denied, the server busy) didn't happen.
+pub(crate) fn gone(e: &NetError) -> bool {
+    matches!(e, NetError::No(m) if m.starts_with(GONE))
+}
 
 /// What a `…ResponseMessage` said.
 pub(crate) fn check_message(m: &El) -> Result<()> {

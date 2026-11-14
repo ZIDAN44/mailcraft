@@ -35,7 +35,7 @@ fn item(c: &Client, a: &ReminderAnswer) -> Result<String> {
         .filter(|(_, id)| !id.is_empty())
         .min_by_key(|(start, _)| start.abs_diff(a.occurrence))
         .map(|(_, id)| id)
-        .ok_or_else(|| NetError::No("that occurrence isn't in the calendar any more".into()))
+        .ok_or_else(|| NetError::No(format!("{} (that occurrence)", crate::ews::GONE)))
 }
 
 /// Tell Graph one answer.
@@ -53,7 +53,8 @@ pub(super) fn answer(c: &Client, a: &ReminderAnswer) -> Result<()> {
 pub(super) fn answer_all(c: &Client, pim: &Pim, out: &mut DavSync) {
     for a in pim.reminder_answers.iter().take(mailcraft_model::pim::MAX_REMINDER_ANSWERS) {
         match answer(c, a) {
-            Ok(()) | Err(NetError::No(_)) => out.answered.push((a.uid.clone(), a.occurrence)),
+            Ok(()) => out.answered.push((a.uid.clone(), a.occurrence)),
+            Err(e) if crate::ews::gone(&e) => out.answered.push((a.uid.clone(), a.occurrence)),
             Err(e) => out.errors.push(format!("a reminder: {e}")),
         }
     }
