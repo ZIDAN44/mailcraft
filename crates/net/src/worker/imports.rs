@@ -160,6 +160,8 @@ impl Pool {
         let importing = self.indexer.importing(account);
         let thread = std::thread::Builder::new().name("mail-import".into()).spawn(move || {
             let _importing = importing;
+            #[cfg(test)]
+            let _ending = tests::Ending(id.clone());
             let (mut work, mut stop, mut left) = (first, asked, Vec::new());
             loop {
                 match &work {
@@ -270,6 +272,8 @@ impl Pool {
             self.imports.running.clear();
             return;
         };
+        #[cfg(test)]
+        tests::waited_for(self.imports.running.keys());
         let end = Instant::now() + wait;
         while self.imports.running.values().any(|c| !c.thread.is_finished()) && Instant::now() < end {
             std::thread::sleep(Duration::from_millis(10));

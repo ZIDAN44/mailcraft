@@ -1,7 +1,7 @@
 //! An account removed while its worker is at work: nothing of it is written again.
 
 use super::*;
-use crate::fakes::proxy::Proxy;
+use crate::fakes::proxy::{Cut, Hang, Proxy};
 
 /// Found in review: an account removed while its worker was syncing a folder had the folder's
 /// cache written back as the sync ended, and its files came back with the Inbox in them (an
@@ -46,11 +46,12 @@ fn a_folder_synced_as_its_account_is_removed_writes_nothing() {
 }
 
 /// `base`, a server's address on this computer (`http://127.0.0.1:port/path`), through a
-/// proxy holding each answer 400 ms (a slow server: each HTTP request its own connection).
-fn slowed(base: &str) -> String {
+/// proxy holding the first request with `marker` in it (the Inbox's listing) until `hold` lets
+/// it go.
+fn held(base: &str, marker: &'static [u8], hold: &Arc<Hang>) -> String {
     let rest = base.strip_prefix("http://127.0.0.1:").unwrap();
     let (port, path) = rest.split_once('/').map_or((rest, String::new()), |(p, path)| (p, format!("/{path}")));
-    let proxy = Proxy { hold: Some(Duration::from_millis(400)), ..Proxy::default() }.to(port.parse().unwrap());
+    let proxy = Proxy { client: Some((marker, Cut::Hold(hold.clone()))), ..Proxy::default() }.to(port.parse().unwrap());
     format!("http://127.0.0.1:{}{path}", proxy.port)
 }
 
@@ -67,8 +68,10 @@ fn a_jmap_folder_synced_as_its_account_is_removed_writes_nothing() {
         d.deliver(&inbox, raw.as_bytes(), &[], &format!("2026-05-0{n}T09:00:00Z"));
     }
     let server = serve(d);
-    let acc = AccountConfig { id: "j1".into(), email: USER.into(), username: USER.into(), jmap: Some(slowed(&server.base)), ..Default::default() };
-    removed_mid_sync("removed-mid-jmap-sync", acc, PASSWORD);
+    let hold = Arc::new(Hang::default());
+    let jmap = Some(held(&server.base, b"Email/query", &hold));
+    let acc = AccountConfig { id: "j1".into(), email: USER.into(), username: USER.into(), jmap, ..Default::default() };
+    removed_mid_sync("removed-mid-jmap-sync", acc, PASSWORD, &hold);
 }
 
 /// The same for a Microsoft Graph account.
@@ -82,12 +85,15 @@ fn a_graph_folder_synced_as_its_account_is_removed_writes_nothing() {
         d.deliver(&inbox, raw.as_bytes(), false, &format!("2026-05-0{n}T09:00:00Z"));
     }
     let server = serve(d);
-    let acc = AccountConfig { id: "j1".into(), email: "me@contoso.example".into(), graph: Some(slowed(&server.base)), ..Default::default() };
-    removed_mid_sync("removed-mid-graph-sync", acc, TOKEN);
+    let hold = Arc::new(Hang::default());
+    let graph = Some(held(&server.base, b"/messages", &hold));
+    let acc = AccountConfig { id: "j1".into(), email: "me@contoso.example".into(), graph, ..Default::default() };
+    removed_mid_sync("removed-mid-graph-sync", acc, TOKEN, &hold);
 }
 
-/// An account (`j1`) removed while its worker syncs the Inbox: nothing of it is on disk after.
-fn removed_mid_sync(name: &str, acc: AccountConfig, secret: &str) {
+/// An account (`j1`) removed while its worker syncs the Inbox, its listing held by `hold`: nothing
+/// of it is on disk after.
+fn removed_mid_sync(name: &str, acc: AccountConfig, secret: &str, hold: &Hang) {
     let store = crate::fake::tests_store(name);
     let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let w = Worker::new(acc, Auth::shared(secret), store.clone(), pool.sink.clone(), SyncOptions::default());
@@ -95,9 +101,10 @@ fn removed_mid_sync(name: &str, acc: AccountConfig, secret: &str) {
     let t = std::thread::spawn(move || w.run(rx));
     until(&pool, "the Inbox's sync", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder == "INBOX"));
     // Removed while the Inbox is being read, as `Job::Remove` does (its channel dropped).
-    std::thread::sleep(Duration::from_millis(200));
+    eventually("the Inbox's listing held", || hold.hung.load(std::sync::atomic::Ordering::Relaxed));
     store.remove_account("j1").unwrap();
     drop(tx);
+    hold.closed.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = t.join();
     assert_eq!(store.load_folder("j1", "INBOX").map(|f| f.messages.len()).unwrap_or(0), 0, "the Inbox cached again");
     assert!(!store.root().join("j1").exists(), "the account's files came back");

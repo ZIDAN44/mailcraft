@@ -37,6 +37,41 @@ pub(super) fn fault_for(account: &str) -> Option<Fault> {
     faults().lock().ok()?.get(account).copied()
 }
 
+/// Accounts whose imports closing waited for, once each time, and accounts whose import threads
+/// have ended: counted, not timed.
+fn noted() -> &'static Mutex<(Vec<String>, Vec<String>)> {
+    static NOTED: OnceLock<Mutex<(Vec<String>, Vec<String>)>> = OnceLock::new();
+    NOTED.get_or_init(Mutex::default)
+}
+
+/// Closing is waiting for these accounts' imports to pause.
+pub(super) fn waited_for<'a>(accounts: impl Iterator<Item = &'a String>) {
+    if let Ok(mut n) = noted().lock() {
+        n.0.extend(accounts.cloned());
+    }
+}
+
+/// Said as an account's import thread ends, by being dropped.
+pub(super) struct Ending(pub(super) String);
+
+impl Drop for Ending {
+    fn drop(&mut self) {
+        if let Ok(mut n) = noted().lock() {
+            n.1.push(std::mem::take(&mut self.0));
+        }
+    }
+}
+
+/// How many times closing waited for `account`'s import.
+fn waits_for(account: &str) -> usize {
+    noted().lock().unwrap().0.iter().filter(|a| *a == account).count()
+}
+
+/// Whether an import thread of `account`'s has ended.
+fn thread_ended(account: &str) -> bool {
+    noted().lock().unwrap().1.iter().any(|a| a == account)
+}
+
 /// Drives a test gave an account's import (by the account) or a look at a data file (by its path).
 fn spaces() -> &'static Mutex<HashMap<String, Arc<Filling>>> {
     static SPACES: OnceLock<Mutex<HashMap<String, Arc<Filling>>>> = OnceLock::new();
@@ -197,18 +232,18 @@ fn a_cancel_keeps_finished_and_partial_folders() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// The account removed while its import runs: the import stops within two seconds, and its data
-/// file goes (issue P6: it was written on, and kept, after the account was gone).
+/// The account removed while its import runs: the import stops, and its data file goes (issue P6:
+/// it was written on, and kept, after the account was gone). Held part-way until it's asked to
+/// stop, it ends only if the removal asks.
 #[test]
 fn removing_an_account_mid_import_stops_it_and_leaves_no_file() {
-    let (dir, pst, store, mut p) = setup("remove", 2000, 0, "r1", 10);
+    let (dir, pst, store, mut p) = setup("remove", 2000, 0, "r1", 0);
+    hold("r1", 50);
     p.submit(Job::ImportPst { account: "r1".into(), path: pst, resume: false });
-    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    eventually("some of the Inbox in", || !store.cached_bodies("r1", "INBOX", 1).is_empty());
     assert!(store.data_file("r1").is_some(), "the import is writing its data file");
-    let asked = Instant::now();
     p.submit(Job::Remove { account: "r1".into() });
-    let seen = until(&p, "the import to end", ended);
-    assert!(asked.elapsed() < Duration::from_secs(2), "{:?}", asked.elapsed());
+    let seen = until(&p, "the import to end, stopped by the removal", ended);
     let end = seen.last().unwrap();
     assert_eq!(stopped_as(end), Some(StopHow::Discard), "{end:?}");
     assert!(matches!(end, Event::Imported { error: None, .. }), "{end:?}");
@@ -348,25 +383,25 @@ fn a_second_import_into_an_account_is_refused() {
 }
 
 /// Closing waits for an import to pause (what it read is written), but a pool let go of never
-/// waits: its import is paused and left to end on its own.
+/// waits: its import is paused and left to end on its own. Each import is held part-way until
+/// it's asked to stop, so it ends only if it's asked; the waits are counted, not timed.
 #[test]
 fn closing_pauses_imports_and_dropping_never_waits() {
-    let (dir, pst, _store, mut p) = setup("close", 2000, 0, "s1", 10);
+    let (dir, pst, store, mut p) = setup("close", 2000, 0, "s1", 0);
+    hold("s1", 50);
     p.submit(Job::ImportPst { account: "s1".into(), path: pst.clone(), resume: false });
-    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
-    let asked = Instant::now();
+    eventually("some of the Inbox in", || !store.cached_bodies("s1", "INBOX", 1).is_empty());
     p.shutdown();
-    assert!(asked.elapsed() < IMPORT_STOP_WAIT, "{:?}", asked.elapsed());
-    assert!(!p.importing("s1"));
+    assert_eq!(waits_for("s1"), 1, "closing waited for the import");
+    assert!(!p.importing("s1"), "paused within the wait");
     assert!(p.poll().iter().any(|e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused)));
 
-    slow("s2", 50);
+    hold("s2", 0);
     p.submit(Job::ImportPst { account: "s2".into(), path: pst, resume: false });
-    let asked = Instant::now();
     drop(p);
-    assert!(asked.elapsed() < Duration::from_secs(1), "{:?}", asked.elapsed());
-    // Its thread ends by itself; give it the time before the folder goes.
-    std::thread::sleep(Duration::from_secs(2));
+    assert_eq!(waits_for("s2"), 0, "dropping the pool waited for the import");
+    // Asked to pause, its thread ends by itself; waited for before the folder goes.
+    eventually("s2's import thread to end", || thread_ended("s2"));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

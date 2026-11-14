@@ -313,17 +313,22 @@ fn a_copy_is_put_in_place_while_something_holds_the_file_a_moment() {
 
 /// A read from the window's thread ([`crate::no_waiting`]) of a file a compaction has to itself
 /// fails at once ("being compacted") rather than waiting; a write from it waits its turn, and
-/// another thread's read waits too.
+/// another thread's read waits too. The compaction is held until the read has come back: one
+/// that waited for it would come back only once the hold gave up, a minute on.
 #[test]
 fn the_windows_thread_isnt_kept_waiting_by_a_compaction() {
     let t = temp("shrink-no-waiting");
     let (s, kept) = with_deleted_mail(&t);
     let p = packs(&s);
     let (started, start) = mpsc::channel();
-    let started = std::sync::Mutex::new(started);
+    let (go, held) = mpsc::channel::<()>();
+    let let_go = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let (hold, was_let_go) = (std::sync::Mutex::new((started, held)), let_go.clone());
     *crate::packed::Packs::lock(&p.compact_hook) = Some(Box::new(move || {
-        let _ = started.lock().unwrap().send(());
-        std::thread::sleep(Duration::from_millis(400));
+        let hold = hold.lock().unwrap();
+        if hold.0.send(()).is_ok() && hold.1.recv_timeout(Duration::from_secs(60)).is_ok() {
+            was_let_go.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
         Ok(())
     }));
     std::thread::scope(|scope| {
@@ -334,19 +339,18 @@ fn the_windows_thread_isnt_kept_waiting_by_a_compaction() {
         start.recv().unwrap();
         let window = scope.spawn(|| {
             crate::no_waiting();
-            let asked = Instant::now();
             let e = p.read(&s.body_path(&kept[0]));
-            let refused_in = asked.elapsed();
+            let _ = go.send(());
             // A write waits its turn.
             s.write_body(&kept[1], b"Subject: w\r\n\r\nx").unwrap();
-            (e, refused_in, Instant::now())
+            (e, Instant::now())
         });
-        let (e, refused_in, wrote_at) = window.join().unwrap();
+        let (e, wrote_at) = window.join().unwrap();
         let done_at = compacting.join().unwrap();
+        assert!(let_go.load(std::sync::atomic::Ordering::SeqCst), "the read waited for the compaction");
         let e = e.unwrap_err();
         assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock, "{e}");
         assert!(e.to_string().contains("being compacted"), "{e}");
-        assert!(refused_in < Duration::from_millis(200), "at once: {refused_in:?}");
         assert!(wrote_at >= done_at, "the write waited for it");
     });
     *crate::packed::Packs::lock(&p.compact_hook) = None;

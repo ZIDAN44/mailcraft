@@ -1,5 +1,5 @@
 //! A proxy between MailCraft and a server on this computer, for tests of a link that misbehaves:
-//! one that drops the connection, hangs, or is slow.
+//! one that drops the connection, hangs, or holds a request until the test lets it go.
 
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 /// What a [`Proxy`] does once what it looks for has gone through it. The bytes that hold it are
-/// not passed on.
+/// not passed on, but by [`Cut::Hold`].
 #[derive(Clone)]
 pub(crate) enum Cut {
     /// The connection is dropped, both ways, each time.
@@ -18,9 +18,14 @@ pub(crate) enum Cut {
     /// The first time only (on any connection): the connection goes silent, both ways, until
     /// the test closes it ([`Hang::closed`]; [`HANG_MOST`] at most), then is dropped.
     Hang(Arc<Hang>),
+    /// The first time only (on any connection): what holds it waits, with all after it, until
+    /// the test lets it go ([`Hang::closed`]; [`HANG_MOST`] at most); then it goes on, the link
+    /// as before. A slow server, as slow as the test likes.
+    Hold(Arc<Hang>),
 }
 
-/// A link that hangs ([`Cut::Hang`]): whether it has, and, set by the test, that it's closed.
+/// A link that hangs ([`Cut::Hang`]) or holds ([`Cut::Hold`]): whether it has, and, set by the
+/// test, that it's closed (let go).
 #[derive(Default)]
 pub(crate) struct Hang {
     pub hung: AtomicBool,
@@ -38,9 +43,6 @@ pub(crate) struct Proxy {
     pub client: Option<(&'static [u8], Cut)>,
     /// Looked for in what the server answers, and what's done once it's there.
     pub server: Option<(&'static [u8], Cut)>,
-    /// Each answer held this long, whole, before it's passed on: a slow server whose answers each
-    /// end with their connection (HTTP).
-    pub hold: Option<Duration>,
 }
 
 /// A proxy started: its port, and how many connections it has taken.
@@ -65,12 +67,8 @@ impl Proxy {
                 let (Ok(from_client), Ok(from_server)) = (client.try_clone(), server.try_clone()) else { continue };
                 let (rule, once_here) = (self.client.clone(), once.clone());
                 std::thread::spawn(move || pass(from_client, server, rule, &once_here));
-                if let Some(hold) = self.hold {
-                    std::thread::spawn(move || held(from_server, client, hold));
-                } else {
-                    let (rule, once) = (self.server.clone(), once.clone());
-                    std::thread::spawn(move || pass(from_server, client, rule, &once));
-                }
+                let (rule, once) = (self.server.clone(), once.clone());
+                std::thread::spawn(move || pass(from_server, client, rule, &once));
             }
         });
         Running { port: at, taken }
@@ -99,12 +97,12 @@ fn pass(mut from: TcpStream, mut to: TcpStream, rule: Option<(&'static [u8], Cut
     let _ = to.shutdown(Shutdown::Both);
 }
 
-/// Whether `cut` is made now; a hang is waited out here.
+/// Whether `cut` is made now; a hang or a hold is waited out here.
 fn cuts(cut: &Cut, once: &AtomicBool) -> bool {
     match cut {
         Cut::Drop => true,
         Cut::DropOnce => !once.swap(true, Ordering::Relaxed),
-        Cut::Hang(hang) => {
+        Cut::Hang(hang) | Cut::Hold(hang) => {
             if once.swap(true, Ordering::Relaxed) {
                 return false;
             }
@@ -113,16 +111,7 @@ fn cuts(cut: &Cut, once: &AtomicBool) -> bool {
             while !hang.closed.load(Ordering::Relaxed) && Instant::now() < end {
                 std::thread::sleep(Duration::from_millis(20));
             }
-            true
+            matches!(cut, Cut::Hang(_))
         }
     }
-}
-
-/// The server's whole answer, up to its connection's end, passed on `hold` later.
-fn held(mut from: TcpStream, mut to: TcpStream, hold: Duration) {
-    let mut answer = Vec::new();
-    let _ = from.read_to_end(&mut answer);
-    std::thread::sleep(hold);
-    let _ = to.write_all(&answer);
-    let _ = to.shutdown(Shutdown::Both);
 }
