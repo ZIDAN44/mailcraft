@@ -166,6 +166,62 @@ fn an_ole_object_isnt_an_attached_message() {
     assert!(p.attachments.iter().all(|a| a.mime != "message/rfc822"), "{:?}", p.attachments);
 }
 
+/// A message saved in a code page (8-bit strings, not Unicode) names its files in it too: a
+/// file's name was read as UTF-8, its letters lost, while the subject beside it read right. An
+/// attached message names its own in its own code page.
+#[test]
+fn eight_bit_file_names_are_read_in_the_messages_code_page() {
+    let mut cf = CompoundFile::create(Cursor::new(Vec::new())).unwrap();
+    write_props(
+        &mut cf,
+        "",
+        TOP_HEADER,
+        &[
+            (0x001A_001E, P::Bin(b"IPM.Note".to_vec())),
+            (0x0037_001E, P::Bin(b"Gr\xfc\xdfe".to_vec())),
+            (0x1000_001E, P::Bin(b"Anbei.".to_vec())),
+            (0x3FFD_0003, P::Int(1252)),
+        ],
+    );
+    let file = "/__attach_version1.0_#00000000";
+    cf.create_storage(file).unwrap();
+    write_props(
+        &mut cf,
+        file,
+        PART_HEADER,
+        &[(0x3707_001E, P::Bin(b"R\xe4der.csv".to_vec())), (0x3705_0003, P::Int(1)), (0x3701_0102, P::Bin(b"a,b\n".to_vec()))],
+    );
+    let attached = "/__attach_version1.0_#00000001";
+    cf.create_storage(attached).unwrap();
+    write_props(&mut cf, attached, PART_HEADER, &[(0x3705_0003, P::Int(5))]);
+    let inner = format!("{attached}/__substg1.0_3701000D");
+    cf.create_storage(&inner).unwrap();
+    write_props(
+        &mut cf,
+        &inner,
+        EMBEDDED_HEADER,
+        &[(0x001A_001E, P::Bin(b"IPM.Note".to_vec())), (0x0037_001E, P::Bin(b"\xce\xf2\xf7\xe5\xf2".to_vec())), (0x3FFD_0003, P::Int(1251))],
+    );
+    let inner_file = format!("{inner}/__attach_version1.0_#00000000");
+    cf.create_storage(&inner_file).unwrap();
+    write_props(
+        &mut cf,
+        &inner_file,
+        PART_HEADER,
+        &[(0x3707_001E, P::Bin(b"\xce\xf2\xf7\xe5\xf2.txt".to_vec())), (0x3705_0003, P::Int(1)), (0x3701_0102, P::Bin(b"x".to_vec()))],
+    );
+    cf.flush().unwrap();
+    let raw = to_mime(&cf.into_inner().into_inner()).unwrap();
+    let p = mailcraft_mime::parse(&raw).unwrap();
+    assert_eq!(p.subject, "Grüße");
+    assert!(p.attachments.iter().any(|a| a.name == "Räder.csv"), "{:?}", p.attachments);
+    let msg = p.attachments.iter().position(|a| a.mime == "message/rfc822").unwrap();
+    let files = mailcraft_mime::attachments_data(&raw, &[msg], 1 << 20, 1 << 20);
+    let ip = mailcraft_mime::parse(&files[0].1).unwrap();
+    assert_eq!(ip.subject, "Отчет");
+    assert!(ip.attachments.iter().any(|a| a.name == "Отчет.txt"), "{:?}", ip.attachments);
+}
+
 /// What isn't a message file is an error, never a panic: other files, a compound file that
 /// holds no message, one cut short, one damaged byte by byte, and one too big.
 #[test]

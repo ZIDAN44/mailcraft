@@ -125,13 +125,15 @@ impl Reader<'_> {
     /// The message in storage `dir` (`""`: the file's own), its attached messages read in turn.
     fn message(&mut self, dir: &str, header: usize, depth: usize) -> Read1 {
         let props = self.props(dir, header);
+        // Its files' 8-bit names, types and ids are in the message's code page, as its own are.
+        let cp = code_page(&props);
         let recipients =
             self.storages(dir, "__recip_version1.0_#", MAX_RECIPIENTS).into_iter().map(|r| self.props(&format!("{dir}/{r}"), PART_HEADER)).collect();
         let mut files = Vec::new();
         for a in self.storages(dir, "__attach_version1.0_#", MAX_ATTACHMENTS) {
             let at = format!("{dir}/{a}");
             let p = self.props(&at, PART_HEADER);
-            let text = |id: u16| p.iter().find(|x| x.id == id).and_then(|x| text_value(x, 0));
+            let text = |id: u16| p.iter().find(|x| x.id == id).and_then(|x| text_value(x, cp));
             let name = text(0x3707).or_else(|| text(0x3704)).or_else(|| text(0x3001)).unwrap_or_default();
             let mime = text(0x370E).unwrap_or_default();
             let cid = text(0x3712).unwrap_or_default();

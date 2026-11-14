@@ -66,6 +66,7 @@ on GitHub.
 - A recurring event begun long ago still shows: a daily one started more than about 55 years back, or an hourly one more than five, was missing from the calendar, and a calendar of years-old series is drawn much faster.
 - An event whose notes hold a long run of `<` brackets opens at once: the app froze for seconds on every frame it was open.
 - An event or task holding a huge part MailCraft doesn't read keeps only its first few hundred lines: all of it was saved with the calendar, and an event's read through each time the calendar was drawn. An event's reminder is still found after such a part.
+- An Outlook message file saved in a code page rather than Unicode keeps the accents and letters of its attachments' names: they were read as UTF-8 and lost, while its subject read right.
 
 ## 0.38.0 - 2026-11-13
 
