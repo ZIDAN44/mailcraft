@@ -81,21 +81,23 @@ fn a_set_time_is_kept_instead_of_waiting_on_the_server() {
     pool_done(pool);
 }
 
-/// One in use still looks: what it's asked to do in between doesn't put the time off.
+/// One in use still looks: what it's asked to do in between doesn't put the time off. Set for
+/// every 0.2 s, it looks at the Inbox before every folder's turn (1.5 s), which would find the
+/// mail whatever the Inbox's time did.
 #[test]
 fn using_the_account_does_not_put_the_time_off() {
-    let (st, pool, _store) = start("check-every-busy", Some(2));
+    let (st, mut pool, _store) = start("check-every-busy", Some(2));
+    let before = st.lock().unwrap().log.len();
     st.lock().unwrap().add("INBOX", "New one", &[]);
     let began = Instant::now();
-    let mut pool = pool;
     let mut came = false;
-    // Sooner than every folder is read (1.5 s), which would find it whatever the Inbox's time did.
-    while began.elapsed() < Duration::from_millis(1300) && !came {
+    while !came {
+        assert!(began.elapsed() < Duration::from_secs(60), "the mail never came");
         pool.submit(Job::SyncDav { account: "a1".into() });
         std::thread::sleep(Duration::from_millis(40));
         came = pool.poll().iter().any(inbox_changed);
     }
-    assert!(came, "set for every 0.2 s, and not looked in {:?}", began.elapsed());
+    assert!(inbox_looked_at_alone(&st, before), "not looked at before every folder's turn: {:?}", &st.lock().unwrap().log[before..]);
     pool_done(pool);
 }
 
