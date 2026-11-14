@@ -1,4 +1,5 @@
 use super::*;
+use std::borrow::Cow;
 
 /// A zip of these parts, stored (no compression), as a test archive.
 pub(crate) fn zip(parts: &[(&str, &str)]) -> Vec<u8> {
@@ -158,4 +159,93 @@ fn junk_is_no_preview() {
         format!("<worksheet><sheetData><row r=\"{top}\"><c><v>1</v></c></row><row><c><v>2</v></c><c r=\"XFD1\"/><c/></row></sheetData></worksheet>");
     let wb = r#"<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"#;
     let _ = preview("x.xlsx", "", &zip(&[("xl/workbook.xml", wb), ("xl/worksheets/sheet1.xml", &s1)]));
+}
+
+/// The pieces of `xml` as they were read before they were read one at a time: all of them into
+/// a list first, each text its own copy.
+fn tokens_as_they_were(xml: &str) -> Vec<Tok<'_>> {
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while !rest.is_empty() && out.len() < 2_000_000 {
+        match rest.find('<') {
+            Some(0) => {
+                let Some(close) = rest.find('>') else { break };
+                let tag = rest.get(1..close).unwrap_or_default();
+                rest = rest.get(close + 1..).unwrap_or_default();
+                if tag.starts_with('?') || tag.starts_with('!') {
+                    continue;
+                }
+                if let Some(name) = tag.strip_prefix('/') {
+                    out.push(Tok::End(name.trim()));
+                    continue;
+                }
+                let empty = tag.ends_with('/');
+                let tag = tag.trim_end_matches('/');
+                let (name, attrs) = tag.split_once(|c: char| c.is_whitespace()).unwrap_or((tag, ""));
+                out.push(Tok::Start { name, attrs, empty });
+            }
+            Some(i) => {
+                out.push(Tok::Text(Cow::Owned(unescape(rest.get(..i).unwrap_or_default()).into_owned())));
+                rest = rest.get(i..).unwrap_or_default();
+            }
+            None => {
+                out.push(Tok::Text(Cow::Owned(unescape(rest).into_owned())));
+                break;
+            }
+        }
+    }
+    out
+}
+
+/// What XML (or not) is made of, for [`pieces_are_those_read_all_at_once`].
+const XML_BITS: &[&str] = &[
+    "<", ">", "</", "/>", "/", "?", "!", " ", "\t", "\"", "=", "w:t", "a", "&", ";", "&amp;", "&#65;", "&#x42;", "&bad;", "<!--", "-->", "<?x?>", "é",
+];
+
+proptest::proptest! {
+    /// Read a piece at a time, any XML (or not) gives the pieces it gave read all at once.
+    #[test]
+    fn pieces_are_those_read_all_at_once(pieces in proptest::collection::vec(proptest::sample::select(XML_BITS), 0..60)) {
+        let xml = pieces.concat();
+        proptest::prop_assert_eq!(tokens(&xml).collect::<Vec<_>>(), tokens_as_they_were(&xml));
+    }
+}
+
+/// A sheet longer than is shown: its rows up to the last shown, the rest not read (rows come in
+/// order).
+#[test]
+fn a_long_sheet_shows_its_first_rows() {
+    let mut s1 = String::from("<worksheet><sheetData>");
+    for r in 1..=MAX_ROWS + 50 {
+        s1.push_str(&format!("<row r=\"{r}\"><c r=\"A{r}\"><v>{r}</v></c></row>"));
+    }
+    s1.push_str("</sheetData></worksheet>");
+    let grid = sheet(&s1, &[]);
+    assert_eq!(grid.len(), MAX_ROWS);
+    assert_eq!(grid.last().map(|r| r[0].as_str()), Some("500"));
+}
+
+/// What a large part costs to preview: a document of many more paragraphs than are shown, and a
+/// sheet of many more rows.
+#[test]
+#[ignore = "a measurement: run in release"]
+fn measure_large_parts() {
+    let para = "<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>A paragraph of a long report &amp; more</w:t></w:r></w:p>";
+    let doc = para.repeat((30 << 20) / para.len());
+    let file = zip(&[("word/document.xml", &doc)]);
+    let started = std::time::Instant::now();
+    let Some(Preview::Document(b)) = preview("a.docx", "", &file) else { panic!("unreadable") };
+    println!("MEASURE a {} MB document, {} paragraphs shown: {} ms", doc.len() >> 20, b.len(), started.elapsed().as_millis());
+    let mut s1 = String::from("<worksheet><sheetData>");
+    let mut r = 0usize;
+    while s1.len() < 30 << 20 {
+        r += 1;
+        s1.push_str(&format!("<row r=\"{r}\"><c r=\"A{r}\"><v>{r}</v></c><c r=\"B{r}\" t=\"inlineStr\"><is><t>row {r}</t></is></c></row>"));
+    }
+    s1.push_str("</sheetData></worksheet>");
+    let wb = r#"<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"#;
+    let file = zip(&[("xl/workbook.xml", wb), ("xl/worksheets/sheet1.xml", &s1)]);
+    let started = std::time::Instant::now();
+    let Some(Preview::Workbook(sheets)) = preview("x.xlsx", "", &file) else { panic!("unreadable") };
+    println!("MEASURE a {} MB sheet of {r} rows, {} shown: {} ms", s1.len() >> 20, sheets[0].1.len(), started.elapsed().as_millis());
 }

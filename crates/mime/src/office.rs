@@ -6,6 +6,7 @@
 //! deflated entries) and a tag scanner read just the parts a preview needs. Everything here comes
 //! from mail, so sizes, counts and nesting are capped and nothing can panic.
 
+use std::borrow::Cow;
 use std::io::Read;
 
 /// Largest archive read, and largest part unpacked from it.
@@ -17,6 +18,8 @@ const MAX_ROWS: usize = 500;
 const MAX_COLS: usize = 40;
 const MAX_SHEETS: usize = 20;
 const MAX_SLIDES: usize = 200;
+/// Most paragraphs read from one slide.
+const MAX_SLIDE_PARAS: usize = 400;
 
 /// A preview of an Office file.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,53 +160,74 @@ impl<'a> Zip<'a> {
 // ----- XML -----
 
 /// An XML piece: a start tag (its name, attributes and whether it closes itself), an end tag, or
-/// text (entities decoded).
+/// text (entities decoded; borrowed when it has none).
 #[derive(Debug, PartialEq, Eq)]
 enum Tok<'a> {
     Start { name: &'a str, attrs: &'a str, empty: bool },
     End(&'a str),
-    Text(String),
+    Text(Cow<'a, str>),
 }
 
-/// The XML split into tags and text; comments, declarations and processing instructions left
-/// out.
-fn tokens(xml: &str) -> Vec<Tok<'_>> {
-    let mut out = Vec::new();
-    let mut rest = xml;
-    while !rest.is_empty() && out.len() < 2_000_000 {
-        match rest.find('<') {
-            Some(0) => {
-                let Some(close) = rest.find('>') else { break };
-                let tag = rest.get(1..close).unwrap_or_default();
-                rest = rest.get(close + 1..).unwrap_or_default();
-                if tag.starts_with('?') || tag.starts_with('!') {
-                    continue;
+/// Most pieces read from one part.
+const MAX_TOKENS: usize = 2_000_000;
+
+/// The XML split into tags and text, a piece at a time, so that a reader that has what it shows
+/// stops there; comments, declarations and processing instructions left out.
+struct Tokens<'a> {
+    rest: &'a str,
+    given: usize,
+}
+
+fn tokens(xml: &str) -> Tokens<'_> {
+    Tokens { rest: xml, given: 0 }
+}
+
+impl<'a> Iterator for Tokens<'a> {
+    type Item = Tok<'a>;
+
+    fn next(&mut self) -> Option<Tok<'a>> {
+        while !self.rest.is_empty() && self.given < MAX_TOKENS {
+            let rest = self.rest;
+            let tok = match rest.find('<') {
+                Some(0) => {
+                    let Some(close) = rest.find('>') else {
+                        self.rest = "";
+                        return None;
+                    };
+                    let tag = rest.get(1..close).unwrap_or_default();
+                    self.rest = rest.get(close + 1..).unwrap_or_default();
+                    if tag.starts_with('?') || tag.starts_with('!') {
+                        continue;
+                    }
+                    match tag.strip_prefix('/') {
+                        Some(name) => Tok::End(name.trim()),
+                        None => {
+                            let empty = tag.ends_with('/');
+                            let tag = tag.trim_end_matches('/');
+                            let (name, attrs) = tag.split_once(|c: char| c.is_whitespace()).unwrap_or((tag, ""));
+                            Tok::Start { name, attrs, empty }
+                        }
+                    }
                 }
-                if let Some(name) = tag.strip_prefix('/') {
-                    out.push(Tok::End(name.trim()));
-                    continue;
+                Some(i) => {
+                    self.rest = rest.get(i..).unwrap_or_default();
+                    Tok::Text(unescape(rest.get(..i).unwrap_or_default()))
                 }
-                let empty = tag.ends_with('/');
-                let tag = tag.trim_end_matches('/');
-                let (name, attrs) = tag.split_once(|c: char| c.is_whitespace()).unwrap_or((tag, ""));
-                out.push(Tok::Start { name, attrs, empty });
-            }
-            Some(i) => {
-                out.push(Tok::Text(unescape(rest.get(..i).unwrap_or_default())));
-                rest = rest.get(i..).unwrap_or_default();
-            }
-            None => {
-                out.push(Tok::Text(unescape(rest)));
-                break;
-            }
+                None => {
+                    self.rest = "";
+                    Tok::Text(unescape(rest))
+                }
+            };
+            self.given += 1;
+            return Some(tok);
         }
+        None
     }
-    out
 }
 
-fn unescape(s: &str) -> String {
+fn unescape(s: &str) -> Cow<'_, str> {
     if !s.contains('&') {
-        return s.to_string();
+        return Cow::Borrowed(s);
     }
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
@@ -240,7 +264,7 @@ fn unescape(s: &str) -> String {
         }
     }
     out.push_str(rest);
-    out
+    Cow::Owned(out)
 }
 
 /// An attribute's value (`name="value"`), by its name without a prefix.
@@ -292,7 +316,7 @@ fn in_order(zip: &Zip<'_>, main: &str, rels: &str, element: &str, dir: &str) -> 
             && let Some(id) = prefixed_attr(attrs, "id")
             && let Some((_, part)) = targets.iter().find(|(i, _)| i == id)
         {
-            out.push((attr(attrs, "name").map(unescape), part.clone()));
+            out.push((attr(attrs, "name").map(|n| unescape(n).into_owned()), part.clone()));
         }
     }
     out
@@ -499,7 +523,7 @@ fn workbook(zip: &Zip<'_>) -> Option<Preview> {
             if let Tok::Start { name, attrs, .. } = t
                 && local(name) == "sheet"
             {
-                names.push(attr(attrs, "name").map(unescape).unwrap_or_default());
+                names.push(attr(attrs, "name").map(|n| unescape(n).into_owned()).unwrap_or_default());
             }
         }
     }
@@ -540,6 +564,11 @@ fn sheet(xml: &str, shared: &[String]) -> Vec<Vec<String>> {
             Tok::Start { name, attrs, empty } => match local(name) {
                 "row" => {
                     row_no = attr(attrs, "r").and_then(|r| r.parse::<usize>().ok()).unwrap_or_else(|| row_no.saturating_add(1));
+                    // Rows come in order (Excel takes a sheet whose rows don't for damaged): the rest are
+                    // past what's shown.
+                    if row_no > MAX_ROWS {
+                        break;
+                    }
                     next_col = 0;
                 }
                 "c" => {
@@ -631,10 +660,11 @@ fn slides(zip: &Zip<'_>) -> Option<Preview> {
                 Tok::End(name) => match local(name) {
                     "t" => in_t = false,
                     "p" => {
-                        if let Some(c) = cur.take().filter(|c| !c.trim().is_empty())
-                            && paras.len() < 400
-                        {
+                        if let Some(c) = cur.take().filter(|c| !c.trim().is_empty()) {
                             paras.push(c);
+                            if paras.len() >= MAX_SLIDE_PARAS {
+                                break;
+                            }
                         }
                     }
                     _ => {}
