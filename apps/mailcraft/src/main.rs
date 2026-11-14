@@ -720,7 +720,7 @@ mod tests {
             return;
         }
         // The system's thumbnailer, as when ffmpeg isn't installed.
-        let mut d = Desktop { frame_source: Some(video::system()), ..Default::default() };
+        let mut d = Desktop { frames: desktop::video_frames::VideoFrames::with_source(video::system()), ..Default::default() };
         // Longer than the tool is given: a frame that never comes is the tool's to give up on.
         let end = std::time::Instant::now() + video::TIMEOUT.saturating_mul(2);
         loop {

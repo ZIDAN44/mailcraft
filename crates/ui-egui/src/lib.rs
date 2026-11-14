@@ -439,9 +439,12 @@ pub struct UiState {
     pub(crate) title_shown: String,
     /// Raise the main window on the next frame.
     focus_main: bool,
-    /// Video attachments written out for the platform to take a frame from, and the frames.
+    /// Video attachments written out for the platform to take a frame from, and the frames, with
+    /// the frame each was last asked for in: a frame made into its thumbnail isn't kept, and of
+    /// those waiting to be (their message left before they came) only a few
+    /// (`reading::bound_video_frames`).
     pub(crate) video_files: HashMap<(MessageKey, usize), PathBuf>,
-    pub(crate) video_frames: HashMap<PathBuf, VideoFrame>,
+    pub(crate) video_frames: HashMap<PathBuf, (VideoFrame, u64)>,
     /// Video frames made thumbnails, kept apart from the pictures (a few, by attachment), and
     /// the frame each was last shown in.
     pub(crate) video_thumbs: HashMap<(MessageKey, usize), (Option<egui::TextureHandle>, u64)>,

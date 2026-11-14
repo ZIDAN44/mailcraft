@@ -195,3 +195,34 @@ fn a_video_is_written_and_decoded_off_the_window() {
     assert!(take().is_empty(), "nothing asked again");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Found in audit (#228): the platform's frame of every video looked at was kept for the
+/// session. A frame made into its thumbnail goes; of those its message left before they came,
+/// a few are kept, those asked for least recently going first, never one asked for in this
+/// frame.
+#[test]
+fn video_frames_are_not_kept_for_the_session() {
+    let ctx = egui::Context::default();
+    let (mut a, dir) = app("video-frames-kept");
+    a.services = Box::new(OwnFrames);
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9050, vec![("one.mp4".into(), "video/mp4", vec![1u8; 64]), ("two.mp4".into(), "video/mp4", vec![2u8; 64])]);
+    assert_eq!(thumb_widths(&ctx, &mut a, &k, 2), vec![9, 10]);
+    pump(&ctx, &mut a, WINDOW, 3, |_| false);
+    assert!(a.ui.video_frames.values().all(|(f, _)| !matches!(f, crate::VideoFrame::Ready(_))), "made into thumbnails: not kept");
+    assert_eq!(thumb_widths(&ctx, &mut a, &k, 2), vec![9, 10], "the thumbnails stay");
+    // Frames that came for messages left: no more than so many.
+    let now = a.ui.pictures.frame();
+    for i in 0..40u64 {
+        a.ui.video_frames.insert(std::path::PathBuf::from(format!("left-{i}.mp4")), (crate::VideoFrame::Ready(png(8, 8)), i % now.max(1)));
+    }
+    a.ui.video_frames.insert("shown.mp4".into(), (crate::VideoFrame::Ready(png(8, 8)), now));
+    a.ui.video_frames.insert("none.mp4".into(), (crate::VideoFrame::Unavailable, 0));
+    crate::reading::bound_video_frames(&mut a.ui);
+    let ready: Vec<&std::path::PathBuf> =
+        a.ui.video_frames.iter().filter(|(_, (f, _))| matches!(f, crate::VideoFrame::Ready(_))).map(|(p, _)| p).collect();
+    assert_eq!(ready.len(), 16, "{ready:?}");
+    assert!(a.ui.video_frames.contains_key(std::path::Path::new("shown.mp4")), "asked for in this frame: kept");
+    assert!(a.ui.video_frames.contains_key(std::path::Path::new("none.mp4")), "one that can't be made stays noted");
+    let _ = std::fs::remove_dir_all(dir);
+}

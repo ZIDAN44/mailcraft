@@ -588,9 +588,10 @@ impl MailApp {
             }
         }
         // Video thumbnails the cards asked for.
-        for (path, frame) in self.ui.video_frames.iter_mut().filter(|(_, f)| **f == VideoFrame::Pending) {
+        for (path, (frame, _)) in self.ui.video_frames.iter_mut().filter(|(_, (f, _))| *f == VideoFrame::Pending) {
             *frame = self.services.video_frame(path);
         }
+        crate::reading::bound_video_frames(&mut self.ui);
         self.pictures_drawn(&ctx);
 
         // A search a command started here (the box's, once the typing pauses) runs after the

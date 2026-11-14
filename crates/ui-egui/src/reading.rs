@@ -29,6 +29,7 @@ mod videos;
 #[cfg(test)]
 pub(crate) use attachments::Shown;
 pub(crate) use attachments::ShownAttachment;
+pub(crate) use attachments::bound_video_frames;
 pub(crate) use attachments::decode;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;

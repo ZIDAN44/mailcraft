@@ -52,7 +52,9 @@ pub(super) fn video_preview(
     };
     // The platform's frame, its pixels decoded on the pictures lane too.
     let limit = ctx.input(|i| i.max_texture_side).try_into().unwrap_or(u32::MAX);
-    let pixels = match st.video_frames.entry(path).or_insert(crate::VideoFrame::Pending) {
+    let (frame, used) = st.video_frames.entry(path.clone()).or_insert((crate::VideoFrame::Pending, now));
+    *used = now;
+    let pixels = match frame {
         crate::VideoFrame::Pending => None,
         crate::VideoFrame::Ready(png) => st.videos.frame(key, a.index, png, limit),
         crate::VideoFrame::Unavailable => Some(None),
@@ -62,7 +64,11 @@ pub(super) fn video_preview(
         return None;
     };
     let tex = pixels.map(|(image, options)| ctx.load_texture(format!("video-{}-{}", key.to_id(), a.index), image, options));
-    keep_video_thumb(st, id, tex.clone());
+    // Made into its thumbnail: the platform's frame isn't needed while that's kept (one that
+    // couldn't be made stays noted, so it isn't asked for again).
+    if keep_video_thumb(st, id, tex.clone()) && st.video_frames.get(&path).is_some_and(|(f, _)| matches!(f, crate::VideoFrame::Ready(_))) {
+        st.video_frames.remove(&path);
+    }
     tex
 }
 
@@ -70,7 +76,12 @@ pub(super) fn video_preview(
 /// frame).
 const VIDEO_THUMBS: usize = 64;
 
-fn keep_video_thumb(st: &mut UiState, id: (MessageKey, usize), tex: Option<egui::TextureHandle>) {
+/// Most frames kept that the platform made and no thumbnail was made of yet (their message
+/// left before they came): those asked for least recently go first.
+const VIDEO_FRAMES_WAITING: usize = 16;
+
+/// Whether the thumbnail was kept.
+fn keep_video_thumb(st: &mut UiState, id: (MessageKey, usize), tex: Option<egui::TextureHandle>) -> bool {
     let now = st.pictures.frame();
     while st.video_thumbs.len() >= VIDEO_THUMBS {
         let Some(oldest) = st.video_thumbs.iter().filter(|(_, (_, used))| *used < now).min_by_key(|(_, (_, used))| *used).map(|(k, _)| k.clone())
@@ -81,6 +92,24 @@ fn keep_video_thumb(st: &mut UiState, id: (MessageKey, usize), tex: Option<egui:
     }
     if st.video_thumbs.len() < VIDEO_THUMBS {
         st.video_thumbs.insert(id, (tex, now));
+        return true;
+    }
+    false
+}
+
+/// Once a frame: of the platform's frames waiting to be made thumbnails, no more than
+/// [`VIDEO_FRAMES_WAITING`], those asked for least recently let go of (asked again, the
+/// platform makes them again). Found in audit (#228): every video's frame was kept for the
+/// session.
+pub(crate) fn bound_video_frames(st: &mut UiState) {
+    let now = st.pictures.frame();
+    let ready = |f: &crate::VideoFrame| matches!(f, crate::VideoFrame::Ready(_));
+    let mut waiting: Vec<(u64, std::path::PathBuf)> =
+        st.video_frames.iter().filter(|(_, (f, used))| ready(f) && *used < now).map(|(p, (_, used))| (*used, p.clone())).collect();
+    let over = st.video_frames.values().filter(|(f, _)| ready(f)).count().saturating_sub(VIDEO_FRAMES_WAITING);
+    waiting.sort_unstable();
+    for (_, path) in waiting.into_iter().take(over) {
+        st.video_frames.remove(&path);
     }
 }
 

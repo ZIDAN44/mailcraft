@@ -10,6 +10,7 @@ pub(crate) mod launch;
 pub(crate) mod start;
 pub(crate) mod state_writer;
 pub(crate) mod tray;
+pub(crate) mod video_frames;
 pub(crate) mod window_frame;
 
 pub(crate) struct PoolBackend(pub(crate) Pool);
@@ -28,10 +29,8 @@ impl Backend for PoolBackend {
 
 #[derive(Default)]
 pub(crate) struct Desktop {
-    /// Where video frames come from (looked up once).
-    pub(crate) frame_source: Option<Option<video::Source>>,
-    /// Video frames being made or made, by file.
-    pub(crate) frames: std::collections::HashMap<PathBuf, Arc<std::sync::Mutex<Option<VideoFrame>>>>,
+    /// Video frames being made, a few at a time.
+    pub(crate) frames: video_frames::VideoFrames,
     /// The data files' folder in use, and the app folder whose data files can be moved (`None`
     /// when the place was chosen at start: `--data`, `--sample`, `MAILCRAFT_DATA`).
     pub(crate) data: Option<PathBuf>,
@@ -278,24 +277,7 @@ impl Services for Desktop {
             || (std::env::var_os("DISPLAY").is_some() && std::env::var_os("WAYLAND_DISPLAY").is_none())
     }
     fn video_frame(&mut self, path: &Path) -> VideoFrame {
-        if let Some(slot) = self.frames.get(path) {
-            return slot.lock().map(|g| g.clone().unwrap_or(VideoFrame::Pending)).unwrap_or(VideoFrame::Unavailable);
-        }
-        let source = self.frame_source.get_or_insert_with(video::source).clone();
-        let Some(source) = source else { return VideoFrame::Unavailable };
-        let slot = Arc::new(std::sync::Mutex::new(None));
-        self.frames.insert(path.to_path_buf(), slot.clone());
-        let video = path.to_path_buf();
-        let spawned = std::thread::Builder::new().name("video-thumbnail".into()).spawn(move || {
-            let png = video::frame(&source, &video);
-            if let Ok(mut g) = slot.lock() {
-                *g = Some(png.map_or(VideoFrame::Unavailable, VideoFrame::Ready));
-            }
-        });
-        if spawned.is_err() {
-            return VideoFrame::Unavailable;
-        }
-        VideoFrame::Pending
+        self.frames.frame(path)
     }
     fn background(&mut self, lane: mailcraft_ui_egui::Lane, work: mailcraft_ui_egui::Work) -> Result<(), mailcraft_ui_egui::Work> {
         self.lanes.submit(lane, work)
