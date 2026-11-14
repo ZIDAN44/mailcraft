@@ -314,7 +314,7 @@ fn recurrences() {
     let e = mk("FREQ=DAILY", mon);
     assert_eq!(starts(&e, mon + 10 * 86_400).len(), 10);
     // An endless secondly rule stops at the cap of occurrences.
-    assert_eq!(starts(&mk("FREQ=SECONDLY", mon), i64::MAX).len(), MAX_OCCURRENCES * 10);
+    assert_eq!(starts(&mk("FREQ=SECONDLY", mon), i64::MAX).len(), MAX_STARTS);
     assert!(starts(&mk("FREQ=DAILY;BYMONTH=13", mon), mon + 400 * 86_400).len() <= 400);
     // RFC 5545's own: every other week on Tuesday and Sunday from Tuesday 5 August 1997, weeks
     // starting on Sunday, then on Monday (the day when none is said).

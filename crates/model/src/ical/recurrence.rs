@@ -1,6 +1,51 @@
 //! Recurring events: RRULE read, and a series' occurrences worked out over a window.
 
+use std::ops::ControlFlow;
+
 use super::*;
+
+/// The most starts a rule is followed to: its `COUNT` is capped there, and a walk through its
+/// starts stops there (ten times [`MAX_OCCURRENCES`]: some are skipped, moved or before the
+/// window).
+pub(super) const MAX_STARTS: usize = MAX_OCCURRENCES * 10;
+
+/// How often a rule repeats (`FREQ`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Freq {
+    Secondly,
+    Minutely,
+    Hourly,
+    Daily,
+    Weekly,
+    Monthly,
+    Yearly,
+}
+
+impl Freq {
+    /// `FREQ`'s value; `None` for one RFC 5545 doesn't have.
+    fn parse(s: &str) -> Option<Freq> {
+        Some(match s.trim().to_ascii_uppercase().as_str() {
+            "SECONDLY" => Freq::Secondly,
+            "MINUTELY" => Freq::Minutely,
+            "HOURLY" => Freq::Hourly,
+            "DAILY" => Freq::Daily,
+            "WEEKLY" => Freq::Weekly,
+            "MONTHLY" => Freq::Monthly,
+            "YEARLY" => Freq::Yearly,
+            _ => return None,
+        })
+    }
+
+    /// The step of a rule finer than a day, in seconds; `None` for one by days.
+    fn step(self) -> Option<i64> {
+        match self {
+            Freq::Hourly => Some(3600),
+            Freq::Minutely => Some(60),
+            Freq::Secondly => Some(1),
+            Freq::Daily | Freq::Weekly | Freq::Monthly | Freq::Yearly => None,
+        }
+    }
+}
 
 /// When a rule stops: an instant (`UNTIL` in UTC), or a local time where the event is (a date,
 /// to the end of that day, or a floating time).
@@ -12,7 +57,8 @@ pub(super) enum Until {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Rule {
-    pub(super) freq: String,
+    /// `None`: no rule (none said, or one RFC 5545 doesn't have).
+    pub(super) freq: Option<Freq>,
     pub(super) interval: i64,
     pub(super) count: Option<usize>,
     pub(super) until: Option<Until>,
@@ -37,9 +83,9 @@ impl Rule {
         for part in s.split(';') {
             let Some((k, v)) = part.split_once('=') else { continue };
             match k.trim().to_ascii_uppercase().as_str() {
-                "FREQ" => r.freq = v.trim().to_ascii_uppercase(),
+                "FREQ" => r.freq = Freq::parse(v),
                 "INTERVAL" => r.interval = v.trim().parse::<i64>().unwrap_or(1).clamp(1, 10_000),
-                "COUNT" => r.count = v.trim().parse::<usize>().ok().map(|c| c.min(MAX_OCCURRENCES * 10)),
+                "COUNT" => r.count = v.trim().parse::<usize>().ok().map(|c| c.min(MAX_STARTS)),
                 "UNTIL" => {
                     r.until = date_time(v).map(|(t, all_day, utc)| match (utc, all_day) {
                         (true, _) => Until::Utc(t),
@@ -140,10 +186,10 @@ impl Rule {
         let (y, m, _) = civil_from_days(day);
         let (_, sm, sd) = civil_from_days(start_day);
         let wd = crate::dates::weekday_index;
-        let mut v: Vec<i64> = match self.freq.as_str() {
-            "DAILY" => [day].into_iter().filter(|d| self.weekday_ok(*d) && self.month_day_ok(*d)).collect(),
-            "WEEKLY" if self.by_day.is_empty() => vec![day],
-            "WEEKLY" => {
+        let mut v: Vec<i64> = match self.freq {
+            Some(Freq::Daily) => [day].into_iter().filter(|d| self.weekday_ok(*d) && self.month_day_ok(*d)).collect(),
+            Some(Freq::Weekly) if self.by_day.is_empty() => vec![day],
+            Some(Freq::Weekly) => {
                 // The week containing `day`, from the day weeks start on: a rule for every other
                 // week on Saturday and Sunday, weeks starting on Sunday (as Outlook has them in
                 // much of the world), had its Sundays a week off with Monday taken for it.
@@ -151,12 +197,13 @@ impl Rule {
                 let first = day - (i64::from(wd(day)) - start).rem_euclid(7);
                 self.by_day.iter().map(|(_, w)| first + (i64::from(*w) - start).rem_euclid(7)).filter(|d| self.month_day_ok(*d)).collect()
             }
-            "MONTHLY" => self.days_in_month(y, m, sd),
-            "YEARLY" => {
+            Some(Freq::Monthly) => self.days_in_month(y, m, sd),
+            Some(Freq::Yearly) => {
                 let months: Vec<u32> = if self.by_month.is_empty() { vec![sm] } else { self.by_month.clone() };
                 months.into_iter().flat_map(|mo| self.days_in_month(y, mo, sd)).collect()
             }
-            _ => vec![],
+            // Finer than a day: walked in steps ([`within_days`]), not by periods.
+            Some(Freq::Hourly | Freq::Minutely | Freq::Secondly) | None => vec![],
         };
         if !self.by_month.is_empty() {
             v.retain(|d| self.by_month.contains(&civil_from_days(*d).1));
@@ -193,12 +240,12 @@ impl Rule {
         let (sy, sm, _) = civil_from_days(start_day);
         let (y, m, _) = civil_from_days(day);
         let interval = self.interval.max(1);
-        let periods = match self.freq.as_str() {
-            "DAILY" => day.saturating_sub(start_day) / interval,
-            "WEEKLY" => day.saturating_sub(start_day) / interval.saturating_mul(7),
-            "MONTHLY" => y.saturating_sub(sy).saturating_mul(12).saturating_add(i64::from(m) - i64::from(sm)) / interval,
-            "YEARLY" => y.saturating_sub(sy) / interval,
-            _ => 0,
+        let periods = match self.freq {
+            Some(Freq::Daily) => day.saturating_sub(start_day) / interval,
+            Some(Freq::Weekly) => day.saturating_sub(start_day) / interval.saturating_mul(7),
+            Some(Freq::Monthly) => y.saturating_sub(sy).saturating_mul(12).saturating_add(i64::from(m) - i64::from(sm)) / interval,
+            Some(Freq::Yearly) => y.saturating_sub(sy) / interval,
+            Some(Freq::Hourly | Freq::Minutely | Freq::Secondly) | None => 0,
         };
         periods.saturating_sub(2).max(0)
     }
@@ -207,19 +254,19 @@ impl Rule {
     pub(super) fn period(&self, start_day: i64, k: i64) -> Option<i64> {
         let (y, m, _) = civil_from_days(start_day);
         let step = k.checked_mul(self.interval)?;
-        match self.freq.as_str() {
-            "DAILY" => start_day.checked_add(step),
-            "WEEKLY" => start_day.checked_add(step.checked_mul(7)?),
-            "MONTHLY" => {
+        match self.freq? {
+            Freq::Daily => start_day.checked_add(step),
+            Freq::Weekly => start_day.checked_add(step.checked_mul(7)?),
+            Freq::Monthly => {
                 let total = i64::from(m) - 1 + step;
                 let yy = y.checked_add(total.div_euclid(12))?;
                 (yy <= 9999).then(|| days_from_civil(yy, u32::try_from(total.rem_euclid(12) + 1).unwrap_or(1), 1))
             }
-            "YEARLY" => {
+            Freq::Yearly => {
                 let yy = y.checked_add(step)?;
                 (yy <= 9999).then(|| days_from_civil(yy, 1, 1))
             }
-            _ => None,
+            Freq::Hourly | Freq::Minutely | Freq::Secondly => None,
         }
     }
 }
@@ -266,35 +313,72 @@ fn starts_from(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
         out.extend(e.rdates.iter().copied().filter(|t| *t < before));
         out.sort_unstable();
         out.dedup();
-        out.truncate(MAX_OCCURRENCES * 10);
+        out.truncate(MAX_STARTS);
     }
     out
+}
+
+/// A walk through a series' starts ([`by_rule`], [`within_days`]): those taken, and when it
+/// ends.
+struct Walk<'a> {
+    rule: &'a Rule,
+    before: i64,
+    out: Vec<i64>,
+    /// Starts the rule made: `COUNT` counts them.
+    produced: usize,
+    /// Candidates looked at: at most [`MAX_STEPS`] (a rule that rarely matches).
+    steps: usize,
+}
+
+impl<'a> Walk<'a> {
+    fn new(rule: &'a Rule, before: i64) -> Walk<'a> {
+        Walk { rule, before, out: Vec::new(), produced: 0, steps: 0 }
+    }
+
+    /// One more candidate looked at: `Break` past [`MAX_STEPS`].
+    fn step(&mut self) -> ControlFlow<()> {
+        self.steps += 1;
+        if self.steps > MAX_STEPS { ControlFlow::Break(()) } else { ControlFlow::Continue(()) }
+    }
+
+    /// Whether a start at the local time `local` (`at` in UTC) is past the rule's `UNTIL` or the
+    /// window: the walk ends there.
+    fn ended(&self, local: i64, at: i64) -> bool {
+        let past_until = match self.rule.until {
+            Some(Until::Utc(u)) => at > u,
+            Some(Until::Local(u)) => local > u,
+            None => false,
+        };
+        past_until || at >= self.before
+    }
+
+    /// `at` made by the rule: kept, unless `COUNT` has been made already. `Break` once the
+    /// series or [`MAX_STARTS`] is done.
+    fn take(&mut self, at: i64) -> ControlFlow<()> {
+        self.produced += 1;
+        if self.rule.count.is_some_and(|c| self.produced > c) {
+            return ControlFlow::Break(());
+        }
+        self.out.push(at);
+        if self.out.len() >= MAX_STARTS { ControlFlow::Break(()) } else { ControlFlow::Continue(()) }
+    }
 }
 
 /// The starts the event's rule makes (its own start without one), from near `from` (see
 /// [`starts_from`]).
 fn by_rule(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
     // A frequency RFC 5545 doesn't have is no rule, as none is: the event occurs at its start.
-    let known = |r: &Rule| matches!(r.freq.as_str(), "SECONDLY" | "MINUTELY" | "HOURLY" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY");
-    let Some(rule) = e.rrule.as_deref().map(Rule::parse).filter(known) else {
+    let Some(rule) = e.rrule.as_deref().map(Rule::parse).filter(|r| r.freq.is_some()) else {
         return vec![e.start];
     };
     let zone = zone_of(e);
-    let step = match rule.freq.as_str() {
-        "HOURLY" => Some(3600i64),
-        "MINUTELY" => Some(60),
-        "SECONDLY" => Some(1),
-        _ => None,
-    };
-    if let Some(step) = step {
+    if let Some(step) = rule.freq.and_then(Freq::step) {
         return within_days(e, &rule, step.saturating_mul(rule.interval), zone.as_ref(), from, before);
     }
     let local_start = zone.as_ref().map_or(e.start, |z| z.local(e.start));
     let start_day = local_start.div_euclid(86_400);
     let times = rule.times_of_day(local_start.rem_euclid(86_400));
-    let mut out = Vec::new();
-    let mut produced = 0usize;
-    let mut steps = 0usize;
+    let mut walk = Walk::new(&rule, before);
     // A count is told from the first start; without one, the periods before the window are
     // skipped (the day before `from`'s, for a zone ahead of UTC).
     let first = if rule.count.is_some() { 0 } else { rule.periods_before(start_day, from.div_euclid(86_400).saturating_sub(1)) };
@@ -311,12 +395,11 @@ fn by_rule(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
             break;
         }
         let moments = rule.moments_in_period(if k == 1 { start_day } else { p }, start_day, &times);
-        if moments.is_empty() {
-            steps += 1;
+        if moments.is_empty() && walk.step().is_break() {
+            break;
         }
         for local in moments {
-            steps += 1;
-            if steps > MAX_STEPS {
+            if walk.step().is_break() {
                 break 'periods;
             }
             if local < local_start {
@@ -324,28 +407,12 @@ fn by_rule(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
             }
             // The first is the event's own start, whatever its zone makes of it.
             let t = if local == local_start { e.start } else { zone.as_ref().map_or(local, |z| z.to_utc(local)) };
-            let past_until = match rule.until {
-                Some(Until::Utc(u)) => t > u,
-                Some(Until::Local(u)) => local > u,
-                None => false,
-            };
-            if past_until || t >= before {
+            if walk.ended(local, t) || walk.take(t).is_break() {
                 break 'periods;
             }
-            produced += 1;
-            if rule.count.is_some_and(|c| produced > c) {
-                break 'periods;
-            }
-            out.push(t);
-            if out.len() >= MAX_OCCURRENCES * 10 {
-                break 'periods;
-            }
-        }
-        if steps > MAX_STEPS {
-            break;
         }
     }
-    out
+    walk.out
 }
 
 /// The starts of an hourly, minutely or secondly series `e` (its `rule`), `step` seconds apart,
@@ -354,9 +421,7 @@ fn by_rule(e: &CalEvent, from: i64, before: i64) -> Vec<i64> {
 /// of a finer step, limit them. Without `COUNT`, the steps more than two days before `from` are
 /// skipped, as [`by_rule`] skips periods.
 fn within_days(e: &CalEvent, rule: &Rule, step: i64, zone: Option<&EventZone>, from: i64, before: i64) -> Vec<i64> {
-    let mut out = Vec::new();
-    let mut produced = 0usize;
-    let mut steps = 0usize;
+    let mut walk = Walk::new(rule, before);
     let first = zone.map_or(e.start, |z| z.local(e.start));
     let skipped = if rule.count.is_some() { 0 } else { from.saturating_sub(2 * 86_400).saturating_sub(e.start).max(0) / step.max(1) };
     'steps: for k in 0..MAX_STEPS {
@@ -367,34 +432,28 @@ fn within_days(e: &CalEvent, rule: &Rule, step: i64, zone: Option<&EventZone>, f
         };
         let local = zone.map_or(t, |z| z.local(t));
         // The step's own time, or those the rule gives within its hour or minute.
-        let moments: Vec<i64> = match rule.freq.as_str() {
-            "HOURLY" if !rule.by_minute.is_empty() || !rule.by_second.is_empty() => {
+        let moments: Vec<i64> = match rule.freq {
+            Some(Freq::Hourly) if !rule.by_minute.is_empty() || !rule.by_second.is_empty() => {
                 let hour = local.saturating_sub(local.rem_euclid(3600));
                 let minutes = if rule.by_minute.is_empty() { vec![local.rem_euclid(3600) / 60] } else { rule.by_minute.clone() };
                 let seconds = if rule.by_second.is_empty() { vec![local.rem_euclid(60)] } else { rule.by_second.clone() };
                 minutes.iter().flat_map(|m| seconds.iter().map(move |s| hour.saturating_add(m * 60 + s))).collect()
             }
-            "MINUTELY" if !rule.by_second.is_empty() => {
+            Some(Freq::Minutely) if !rule.by_second.is_empty() => {
                 let minute = local.saturating_sub(local.rem_euclid(60));
                 rule.by_second.iter().map(|s| minute.saturating_add(*s)).collect()
             }
             _ => vec![local],
         };
         for m in moments {
-            steps += 1;
-            if steps > MAX_STEPS {
+            if walk.step().is_break() {
                 break 'steps;
             }
             if m < first {
                 continue;
             }
             let at = if m == local { t } else { zone.map_or(m, |z| z.to_utc(m)) };
-            let past_until = match rule.until {
-                Some(Until::Utc(u)) => at > u,
-                Some(Until::Local(u)) => m > u,
-                None => false,
-            };
-            if past_until || at >= before {
+            if walk.ended(m, at) {
                 break 'steps;
             }
             let day = m.div_euclid(86_400);
@@ -409,14 +468,12 @@ fn within_days(e: &CalEvent, rule: &Rule, step: i64, zone: Option<&EventZone>, f
             {
                 continue;
             }
-            produced += 1;
-            if rule.count.is_some_and(|c| produced > c) || out.len() >= MAX_OCCURRENCES * 10 {
+            if walk.take(at).is_break() {
                 break 'steps;
             }
-            out.push(at);
         }
     }
-    out
+    walk.out
 }
 
 /// The occurrences of `events` overlapping `[from, to)`, by start. Instances with a
