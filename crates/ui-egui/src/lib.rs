@@ -69,8 +69,6 @@ use icons::Icon;
 pub use services::{Backend, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Services, UpdateState, Work};
 use theme::Tokens;
 
-/// Whether the message being written shows in the reading pane: when it isn't popped out, or
-/// where windows of its own can't open (the browser).
 /// How the app reads HTML from the clipboard, set once at start (the clipboard is the
 /// platform's; a build without one has none).
 static CLIPBOARD_HTML: std::sync::OnceLock<fn() -> Option<String>> = std::sync::OnceLock::new();
@@ -96,6 +94,8 @@ pub(crate) fn clipboard_html() -> Option<String> {
     CLIPBOARD_HTML.get().and_then(|read| read())
 }
 
+/// Whether the message being written shows in the reading pane: when it isn't popped out, or
+/// where windows of its own can't open (the browser).
 pub(crate) fn compose_inline(c: &mailcraft_engine::Compose, ctx: &egui::Context) -> bool {
     !c.window || ctx.embed_viewports()
 }
@@ -111,8 +111,9 @@ pub(crate) fn use_editor(st: &mut UiState, id: u64) {
     st.editor = st.editors.remove(&id);
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RibbonTab {
+    #[default]
     Home,
     SendReceive,
     View,
@@ -263,7 +264,9 @@ pub enum Action {
     CancelDataMove,
 }
 
-/// UI-only state.
+/// UI-only state. Its `Default` is a blank one: [`MailApp::new`] starts it with what the
+/// platform says and the few values that aren't their type's default.
+#[derive(Default)]
 pub struct UiState {
     /// Where the main window, the last message window and the last compose window were.
     pub places: std::collections::BTreeMap<String, WindowPlace>,
@@ -390,7 +393,6 @@ pub struct UiState {
     pub(crate) editors: HashMap<u64, rich_edit::Editor>,
     /// The message whose window a dialog for messages belongs to (Save changes, Address Book).
     pub(crate) dialog_for: Option<u64>,
-    /// The body's cursor (characters), where pictures go.
     /// The message editor's state (selection, undo, what's typed next).
     pub(crate) editor: Option<rich_edit::Editor>,
     /// The editors of the blocks of text of the quoted originals being changed, and the one with
@@ -446,7 +448,6 @@ pub struct UiState {
     /// The month the calendar's small month shows (`year * 12 + month - 1`; `None`: the day on
     /// screen's).
     pub(crate) mini_month: Option<i64>,
-    /// The hours were scrolled to the working day once.
     /// The day and week views have been scrolled to the working day once (each has its own scroll).
     pub(crate) cal_scrolled: [bool; 2],
     pub(crate) people_query: String,
@@ -520,124 +521,23 @@ impl MailApp {
             .into_iter()
             .filter_map(|c| services.craft_app(c).map(|p| (c, p)))
             .collect();
-        let mut app = MailApp {
-            session,
-            backend,
-            services,
-            ui: UiState {
-                tokens: Tokens::light(),
-                closing_anyway: false,
-                graphics_lost: false,
-                close_now: false,
-                close_checked: None,
-                update: UpdateState::None,
-                update_later: None,
-                update_told: None,
-                old_flatpak,
-                update_answered: false,
-                restart_wanted: false,
-                close_asked: false,
-                compact: Default::default(),
-                reminders: reminders::State::default(),
-                has_files,
-                keeps_running,
-                in_tray: false,
-                quit_wanted: false,
-                data_folder,
-                pending_move,
-                dark: None,
-                tab: RibbonTab::Home,
-                search_text: String::new(),
-                focus_search: false,
-                keytips: keytips::KeyTips::default(),
-                search_focused: false,
-                search_cursor_end: false,
-                search_due: None,
-                search_drop: SearchDrop::None,
-                search_spent: web_time::Duration::ZERO,
-                search_times: app::SearchTimes::default(),
-                compose_alert: None,
-                attachment_view: None,
-                attachment_shown: None,
-                shown_as: Default::default(),
-                attachment_click: None,
-                attachment_selected: None,
-                attachments_active: false,
-                attachment_hovered: false,
-                ribbon_rect: None,
-                top_bar_rect: None,
-                bar_two_rows: false,
-                ribbon_icons_from: usize::MAX,
-                dialog: None,
-                pictures: reading::Pictures::default(),
-                bodies: app::Bodies::default(),
-                web_pictures: HashMap::new(),
-                toast: None,
-                seen_notices: seen,
-                scroll_to_focus: false,
-                backstage_typing: false,
-                list_page: 10,
-                raise_source: None,
-                source_headers: Default::default(),
-                fonts_ready: false,
-                compose_shown: Default::default(),
-                compose_area: None,
-                editors: HashMap::new(),
-                dialog_for: None,
-                editor: None,
-                quote_editors: Default::default(),
-                quote_focus: None,
-                signature_cards: Default::default(),
-                suggest_field: None,
-                suggest_index: 0,
-                suggest_dismissed: None,
-                suggest_refocus: None,
-                suggested: None,
-                craft_apps: Vec::new(),
-                language: i18n::AUTO.into(),
-                fonts: (None, None),
-                rtl_font: None,
-                cjk_loaded: None,
-                han_missing: false,
-                long_text: HashMap::new(),
-                text_selection: Default::default(),
-                title_base: "MailCraft".into(),
-                places: Default::default(),
-                page_message: None,
-                title_shown: String::new(),
-                focus_main: false,
-                video_files: HashMap::new(),
-                video_frames: HashMap::new(),
-                video_thumbs: HashMap::new(),
-                videos: reading::Videos::default(),
-                backstage: None,
-                mini_month: None,
-                cal_scrolled: [false; 2],
-                people_query: String::new(),
-                people_book: None,
-                list_rows: None,
-                people_view: people::PeopleView::default(),
-                people_list: people::ListSettings::default(),
-                notes_query: String::new(),
-                cal_search: calendar::CalSearch::default(),
-                months_drag: 0.0,
-                note_edit: None,
-                note_focus: false,
-                tasks_query: String::new(),
-                todo_month: None,
-                todo_new: String::new(),
-                task: None,
-                person: None,
-                shown: shown::Shown::default(),
-                invite: None,
-                drag_out: None,
-                can_drag_out: false,
-                import_details: None,
-            },
+        let ui = UiState {
+            has_files,
+            keeps_running,
+            data_folder,
+            pending_move,
+            old_flatpak,
+            seen_notices: seen,
+            craft_apps,
+            can_drag_out: services.can_drag_out(),
+            // Until the ribbon and the list are first drawn: every button labelled, a page of ten.
+            ribbon_icons_from: usize::MAX,
+            list_page: 10,
+            language: i18n::AUTO.into(),
+            title_base: "MailCraft".into(),
+            ..UiState::default()
         };
-        app.ui.craft_apps = craft_apps;
-        app.ui.can_drag_out = app.services.can_drag_out();
-        app
+        MailApp { session, backend, services, ui }
     }
 
     /// A file the user started dragging out of the window, for the app to hand to the system's

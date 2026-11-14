@@ -40,6 +40,13 @@ pub struct Tokens {
     pub on_bar: Color32,
 }
 
+/// The light theme's, which the window starts with.
+impl Default for Tokens {
+    fn default() -> Tokens {
+        Tokens::light()
+    }
+}
+
 impl Tokens {
     pub fn light() -> Tokens {
         Tokens {
