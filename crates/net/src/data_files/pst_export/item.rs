@@ -178,7 +178,7 @@ pub(super) fn owned_in(
             (p.text.clone(), html, files, kind, meeting)
         }
     };
-    let field = |name: &str| header_value(&headers, name).unwrap_or_default();
+    let field = |name: &str| mime::header_field(headers.as_bytes(), name).unwrap_or_default();
     let importance = match field("Importance").to_ascii_lowercase().as_str() {
         "high" => 2,
         "low" => 0,
@@ -219,31 +219,9 @@ pub(super) fn owned_in(
 
 /// A message's header block (up to its first blank line, whichever its line ends), as text.
 fn header_block(raw: &[u8]) -> String {
-    // A bare-LF blank line counts only before the first CRLF one: not a second search through
-    // the whole body, attachments and all, of a CRLF message, which has none.
-    let crlf = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(raw.len());
-    let lf = raw.get(..crlf).unwrap_or_default().windows(2).position(|w| w == b"\n\n");
-    let end = lf.unwrap_or(crlf);
-    let head = String::from_utf8_lossy(raw.get(..end).unwrap_or_default()).into_owned();
+    let end = mime::header_end(raw).map_or(raw.len(), |blank| blank.start);
+    let head = String::from_utf8_lossy(mime::without_line_end(raw.get(..end).unwrap_or_default())).into_owned();
     if head.is_empty() { head } else { format!("{head}\r\n") }
-}
-
-/// A header field's value in a header block, its folded lines unfolded.
-pub(super) fn header_value(head: &str, name: &str) -> Option<String> {
-    let mut lines = head.lines();
-    while let Some(line) = lines.next() {
-        let Some((n, value)) = line.split_once(':') else { continue };
-        if line.starts_with([' ', '\t']) || !n.trim_end().eq_ignore_ascii_case(name) {
-            continue;
-        }
-        let mut value = value.trim().to_string();
-        for more in lines.by_ref().take_while(|l| l.starts_with([' ', '\t'])) {
-            value.push(' ');
-            value.push_str(more.trim());
-        }
-        return Some(value);
-    }
-    None
 }
 
 /// What the message is beyond the writer's own list: its read, draft and follow-up state, its
@@ -326,9 +304,10 @@ mod tests {
     fn header_fields() {
         let head = header_block(b"Subject: x\r\nImportance: High\r\nX-Long: a\r\n b\r\n\r\nbody");
         assert_eq!(head, "Subject: x\r\nImportance: High\r\nX-Long: a\r\n b\r\n");
-        assert_eq!(header_value(&head, "importance").as_deref(), Some("High"));
-        assert_eq!(header_value(&head, "X-Long").as_deref(), Some("a b"));
-        assert_eq!(header_value(&head, "Missing"), None);
+        let header_value = |name: &str| mime::header_field(head.as_bytes(), name);
+        assert_eq!(header_value("importance").as_deref(), Some("High"));
+        assert_eq!(header_value("X-Long").as_deref(), Some("a b"));
+        assert_eq!(header_value("Missing"), None);
         assert_eq!(header_block(b"no header end"), "no header end\r\n");
         // A header with LF line ends, and a CRLF blank line further on, in the body: the body's
         // lines aren't header fields.
@@ -339,6 +318,10 @@ mod tests {
         // Mixed line ends; a CRLF header with a bare-LF blank line in its body.
         assert_eq!(header_block(b"Subject: x\r\nFrom: a@b\n\nbody\r\n\r\n"), "Subject: x\r\nFrom: a@b\r\n");
         assert_eq!(header_block(b"Subject: x\r\n\r\nbody\n\nmore"), "Subject: x\r\n");
+        // A CRLF blank line after a bare-LF line, and the other way: the header ends there too,
+        // without a stray CR.
+        assert_eq!(header_block(b"Subject: x\nFrom: a@b\r\n\nbody"), "Subject: x\nFrom: a@b\r\n");
+        assert_eq!(header_block(b"Subject: x\n\r\nImportance: high\r\n\r\nbody"), "Subject: x\r\n");
     }
 
     /// Finding a 50 MB CRLF message's header block, which is near its start: the time it takes

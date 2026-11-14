@@ -181,7 +181,7 @@ pub(super) fn header_text(s: &str, cap: usize) -> String {
 
 /// Whether a header block has a line named `name` (a folded line's continuation names nothing).
 pub(super) fn has_header(head: &str, name: &str) -> bool {
-    head.lines().filter(|l| !l.starts_with([' ', '\t'])).any(|l| l.split_once(':').is_some_and(|(n, _)| n.trim_end().eq_ignore_ascii_case(name)))
+    mime::field_span(head.as_bytes(), name).is_some()
 }
 
 /// Whether an item's own header (`0x007D`) is one the rebuilt message keeps.
@@ -195,8 +195,9 @@ pub(super) fn usable_headers(original: &str) -> bool {
 /// takes the built one's place in `built` itself: the body (attachments and all) is moved along
 /// in place, not copied into a second message.
 fn with_headers(mut built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra: &[(&str, String)]) -> Vec<u8> {
-    let Some(split) = built.windows(4).position(|w| w == b"\r\n\r\n") else { return built };
-    let head = String::from_utf8_lossy(built.get(..split).unwrap_or_default()).into_owned();
+    let Some(blank) = mime::header_end(&built) else { return built };
+    // The built header, without its last line's end.
+    let head = String::from_utf8_lossy(mime::without_line_end(built.get(..blank.start).unwrap_or_default())).into_owned();
     let mime_header = |line: &str| {
         let l = line.to_ascii_lowercase();
         l.starts_with("content-") || l.starts_with("mime-version:")
@@ -241,7 +242,7 @@ fn with_headers(mut built: Vec<u8>, original: &str, bcc: &[EmailAddress], extra:
         out.push_str("\r\n");
     }
     // The built header and the line end after it go; the blank line ending the header stays.
-    let end = split.saturating_add(2).min(built.len());
+    let end = blank.start;
     // Room made exactly first: splice would grow the buffer to twice its size for a header longer
     // than the built one (most received mail's), and the message waits in its batch in it.
     built.reserve_exact(out.len().saturating_sub(end));
@@ -272,7 +273,7 @@ fn bcc_line(bcc: &[EmailAddress]) -> String {
 /// reading it). The list places it by that time, as Outlook does; the reading pane shows its
 /// `Date:`.
 pub(super) fn summary_of(raw: &[u8], glance: Glance, key: MessageKey, size: u32) -> mailcraft_model::Summary {
-    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").map_or(raw.len(), |i| i + 4);
+    let end = mime::header_end(raw).map_or(raw.len(), |blank| blank.end);
     let mut s = mime::summary_from_header(raw.get(..end).unwrap_or(raw), key, glance.flags, size, glance.date);
     s.has_attachments = glance.has_files;
     s.preview = glance.preview;

@@ -61,13 +61,7 @@ pub(super) fn protected(raw: &[u8], p: &mime::Parsed) -> Option<Protected> {
 /// The class of a report (`raw`, parsed as `p`, `headers` its header block), when it is a
 /// delivery report or a read receipt Outlook has one for.
 pub(super) fn report(headers: &str, raw: &[u8], p: &mime::Parsed) -> Option<&'static str> {
-    let content_type = item::header_value(headers, "Content-Type")?;
-    let mut params = content_type.split(';');
-    if !params.next()?.trim().eq_ignore_ascii_case("multipart/report") {
-        return None;
-    }
-    let kind = params.filter_map(|x| x.split_once('=')).find(|(k, _)| k.trim().eq_ignore_ascii_case("report-type"))?.1;
-    let kind = kind.trim().trim_matches('"').to_ascii_lowercase();
+    let kind = mime::report_type(&mime::header_field(headers.as_bytes(), "Content-Type")?)?;
     let status_type = match kind.as_str() {
         "delivery-status" => "message/delivery-status",
         "disposition-notification" => "message/disposition-notification",
@@ -84,7 +78,7 @@ fn class_of(kind: &str, status: &str) -> Option<&'static str> {
     let values = |name: &str| {
         let mut out = Vec::new();
         for block in status.replace("\r\n", "\n").split("\n\n") {
-            if let Some(v) = item::header_value(block, name) {
+            if let Some(v) = mime::header_field(block.as_bytes(), name) {
                 out.push(v.to_ascii_lowercase());
             }
         }

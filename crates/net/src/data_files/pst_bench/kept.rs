@@ -87,9 +87,8 @@ impl Kept {
 
 /// Whether the source's own header says it is a report (the type may be folded onto a second line).
 fn is_report(raw: &[u8]) -> bool {
-    let head = raw.windows(4).position(|w| w == b"\r\n\r\n").map_or(raw, |end| raw.get(..end).unwrap_or(raw));
-    let head = String::from_utf8_lossy(head).to_ascii_lowercase().replace("\r\n ", " ").replace("\r\n\t", " ");
-    head.lines().any(|l| l.strip_prefix("content-type:").is_some_and(|v| v.trim_start().starts_with("multipart/report")))
+    let head = raw.get(..mailcraft_mime::header_end(raw).map_or(raw.len(), |blank| blank.start)).unwrap_or(raw);
+    mailcraft_mime::header_fields(head, "Content-Type").any(|v| v.to_ascii_lowercase().starts_with("multipart/report"))
 }
 
 /// Every count from sources made by hand: files, pictures with and without names, attached

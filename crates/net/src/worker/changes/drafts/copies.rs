@@ -42,11 +42,8 @@ pub(super) fn marked(raw: &[u8], mark: &str) -> Vec<u8> {
 
 /// Whether a copy's header (`head`) carries one of `marks`.
 fn has_mark(head: &[u8], marks: &[String]) -> bool {
-    let end = head.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(head.len()).min(MAX_HEADER);
-    let head = String::from_utf8_lossy(head.get(..end).unwrap_or_default()).replace("\r\n ", " ").replace("\r\n\t", " ");
-    head.split("\r\n")
-        .filter_map(|line| line.split_once(':'))
-        .any(|(name, value)| name.trim().eq_ignore_ascii_case(COPY_HEADER) && marks.iter().any(|m| !m.is_empty() && m == value.trim()))
+    let end = mailcraft_mime::header_end(head).map_or(head.len(), |blank| blank.start).min(MAX_HEADER);
+    mailcraft_mime::header_fields(head.get(..end).unwrap_or_default(), COPY_HEADER).any(|value| marks.iter().any(|m| !m.is_empty() && *m == value))
 }
 
 impl Worker {

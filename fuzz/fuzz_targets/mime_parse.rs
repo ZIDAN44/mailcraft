@@ -21,6 +21,14 @@ fuzz_target!(|raw: &[u8]| {
         let _ = mime::attachments_data(raw, &[0, 1, 5, usize::MAX], 1 << 20, 4 << 20);
         let _ = mime::with_date(raw, 0);
     }
+    // Its header block as the places that read one without a parse do: where it ends, a field,
+    // and a report's type.
+    let head = raw.get(..mime::header_end(raw).map_or(raw.len(), |blank| blank.start)).unwrap_or(raw);
+    let _ = mime::field_span(head, "Message-ID");
+    if let Some(content_type) = mime::header_field(head, "Content-Type") {
+        let _ = mime::report_type(&content_type);
+    }
+    let _ = mime::is_text_first(raw);
     // As an export to a data file reads it: S/MIME, a report's status, attached messages.
     let _ = mailcraft_net::pst_export::message_class(raw);
 });

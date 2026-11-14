@@ -4,6 +4,7 @@ use super::*;
 use std::collections::{HashMap, VecDeque};
 
 mod deep;
+mod fonts;
 mod footers;
 mod outlook;
 mod page;

@@ -90,10 +90,8 @@ pub fn part_name(disposition: &[(String, String)], type_params: &[(String, Strin
 /// Whether a message is its text first, its files still to come ([`text_first`]).
 pub fn is_text_first(raw: &[u8]) -> bool {
     // The header block only (a body could quote the name).
-    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(raw.len().min(64 * 1024));
-    let head = raw.get(..end).unwrap_or(raw);
-    let needle = format!("\n{TEXT_FIRST}:").to_ascii_lowercase();
-    String::from_utf8_lossy(head).to_ascii_lowercase().contains(&needle)
+    let end = crate::header_end(raw).map_or(raw.len().min(64 * 1024), |blank| blank.start);
+    crate::field_span(raw.get(..end).unwrap_or(raw), TEXT_FIRST).is_some()
 }
 
 #[cfg(test)]
@@ -126,5 +124,7 @@ mod tests {
         assert!(p.text.contains("reel 2"));
         // An ordinary message isn't; nor one whose text names the header.
         assert!(!is_text_first(b"Subject: x\r\n\r\nX-MailCraft-Text-First: no\r\n"));
+        // Its first field, in another case, with bare LFs.
+        assert!(is_text_first(b"x-mailcraft-text-first: yes\nSubject: x\n\nbody"));
     }
 }

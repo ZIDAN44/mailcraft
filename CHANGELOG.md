@@ -72,6 +72,7 @@ on GitHub.
 - Exporting into an existing data file part of which can't be read back stops and leaves the file as it was, instead of adding contacts, calendar items, notes and tasks a second time.
 - Account setup still finds a provider's servers when the computer's first DNS resolver fails: the others weren't asked. Its lookups now carry a random id, so an answer can't be forged by guessing it.
 - Signing in with Google or Microsoft no longer fails when the browser opens an extra connection to MailCraft before the redirect.
+- Messages with unusual line endings (bare line feeds, or a mix) have their header read correctly when exported to or imported from an Outlook data file, or re-dated.
 
 ## 0.38.0 - 2026-11-13
 

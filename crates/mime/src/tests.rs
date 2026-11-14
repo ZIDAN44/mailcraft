@@ -357,6 +357,10 @@ fn build_round_trips() {
     assert_eq!((p2.date, p2.subject.as_str(), p2.text.trim()), (1_792_000_000, d.subject.as_str(), "Hi Ann,\nhere it is."));
     assert_eq!(String::from_utf8_lossy(&later).matches("Date:").count(), 1);
     assert_eq!(with_date(b"no header block", 5), b"no header block".to_vec());
+    // A folded `date :` in a header of bare LFs: replaced whole, its line end kept; one in the
+    // body isn't touched.
+    let lf = with_date(b"Subject: x\ndate :Mon,\n 1 Jan 2024 00:00:00 +0000\nTo: a@b\n\nDate: body", 0);
+    assert_eq!(String::from_utf8_lossy(&lf), "Subject: x\nDate: Thu, 1 Jan 1970 00:00:00 +0000\nTo: a@b\n\nDate: body");
     let rich = Draft {
         html: Some("<p>Hi <b>Ann</b><img src=\"cid:pic@x\"></p>".into()),
         inline: vec![InlinePicture { cid: "pic@x".into(), name: "pic.png".into(), mime: "image/png".into(), data: vec![9, 9] }],

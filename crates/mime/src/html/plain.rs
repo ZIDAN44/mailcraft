@@ -112,7 +112,7 @@ fn unflow(text: &str, delsp: bool) -> String {
 /// Latin-1, unencoded), with those lines read in the character set the message names for its
 /// text, or else Windows-1252: they showed as `caf�`. Any other message is returned as it is.
 pub(crate) fn readable_headers(raw: &[u8]) -> Cow<'_, [u8]> {
-    let end = header_end(raw);
+    let end = crate::header_end(raw).map_or(raw.len(), |blank| blank.start);
     let head = raw.get(..end).unwrap_or(raw);
     if head.is_ascii() || std::str::from_utf8(head).is_ok() {
         return Cow::Borrowed(raw);
@@ -134,18 +134,6 @@ pub(crate) fn readable_headers(raw: &[u8]) -> Cow<'_, [u8]> {
     }
     out.extend_from_slice(raw.get(end..).unwrap_or_default());
     Cow::Owned(out)
-}
-
-/// Where the header ends: after its last line, before the empty one.
-fn header_end(raw: &[u8]) -> usize {
-    let mut at = 0;
-    for line in raw.split_inclusive(|b| *b == b'\n') {
-        if line == b"\n" || line == b"\r\n" {
-            break;
-        }
-        at += line.len();
-    }
-    at
 }
 
 /// The character set a header names (`charset=iso-8859-2`), when it's one whose letters and

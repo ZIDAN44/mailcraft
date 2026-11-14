@@ -13,7 +13,8 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod css;
-mod fonts;
+mod header;
+pub use header::{field_span, header_end, header_field, header_fields, report_type, without_line_end};
 pub mod layout;
 pub mod markup;
 pub mod office;
@@ -643,26 +644,11 @@ pub fn new_message_id(from_email: &str, time: i64, seed: u64) -> String {
 /// when it goes, as Outlook dates delayed mail). Messages without a header block come back as
 /// they were.
 pub fn with_date(raw: &[u8], date: i64) -> Vec<u8> {
-    let Some(end) = raw.windows(4).position(|w| w == b"\r\n\r\n") else { return raw.to_vec() };
-    let head = &raw[..end + 2];
-    let mut out = Vec::with_capacity(raw.len() + 40);
-    let mut skipping = false;
-    let mut replaced = false;
-    for line in head.split_inclusive(|b| *b == b'\n') {
-        let folded = line.first().is_some_and(|b| *b == b' ' || *b == b'\t');
-        if skipping && folded {
-            continue;
-        }
-        skipping = false;
-        if !replaced && !folded && line.len() >= 5 && line[..5].eq_ignore_ascii_case(b"date:") {
-            out.extend_from_slice(format!("Date: {}\r\n", mail_builder::headers::date::Date::new(date.max(0)).to_rfc822()).as_bytes());
-            skipping = true;
-            replaced = true;
-            continue;
-        }
-        out.extend_from_slice(line);
+    let Some(blank) = header_end(raw) else { return raw.to_vec() };
+    let mut out = raw.to_vec();
+    if let Some(field) = field_span(raw.get(..blank.start).unwrap_or_default(), "Date") {
+        out.splice(field, format!("Date: {}", mail_builder::headers::date::Date::new(date.max(0)).to_rfc822()).into_bytes());
     }
-    out.extend_from_slice(&raw[end + 2..]);
     out
 }
 

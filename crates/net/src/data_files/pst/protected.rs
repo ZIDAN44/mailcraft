@@ -49,7 +49,7 @@ pub(super) fn message(built: &[u8], kind: Kind, content: &[u8]) -> Option<Vec<u8
     let mut out = smime::outer_headers(built);
     match kind {
         Kind::Signed => {
-            let head = content.get(..content.windows(4).position(|w| w == b"\r\n\r\n")?)?;
+            let head = mailcraft_mime::without_line_end(content.get(..mailcraft_mime::header_end(content)?.start)?);
             let lines: Vec<&[u8]> = head.split(|b| *b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l)).collect();
             let clean = |l: &&[u8]| l.len() <= MAX_LINE && l.iter().all(|b| *b == b'\t' || !b.is_ascii_control());
             let own = |l: &&[u8]| {

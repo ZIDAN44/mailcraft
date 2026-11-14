@@ -162,7 +162,7 @@ fn find(hay: &[u8], needle: &[u8], from: usize) -> Option<usize> {
 /// (a message stored with bare LFs was signed with CRLF).
 fn first_part(raw: &[u8], boundary: &str) -> Option<Vec<u8>> {
     let raw = crlf(raw);
-    let body_at = find(&raw, b"\r\n\r\n", 0)? + 4;
+    let body_at = crate::header_end(&raw)?.end;
     let delimiter = format!("--{boundary}");
     let d = delimiter.as_bytes();
     // The first delimiter at the start of a line (or of the body).
@@ -175,13 +175,10 @@ fn first_part(raw: &[u8], boundary: &str) -> Option<Vec<u8>> {
 
 /// The header block and body of a message (line ends as they are).
 fn split(raw: &[u8]) -> (&[u8], &[u8]) {
-    let (head, sep) = match (find(raw, b"\r\n\r\n", 0), find(raw, b"\n\n", 0)) {
-        (Some(a), Some(b)) if b < a => (b, 2),
-        (Some(a), _) => (a, 4),
-        (None, Some(b)) => (b, 2),
-        (None, None) => (raw.len(), 0),
-    };
-    (raw.get(..head).unwrap_or(raw), raw.get(head + sep..).unwrap_or_default())
+    match crate::header_end(raw) {
+        Some(blank) => (crate::without_line_end(raw.get(..blank.start).unwrap_or(raw)), raw.get(blank.end..).unwrap_or_default()),
+        None => (raw, &[]),
+    }
 }
 
 /// Header fields, each with its folded lines, as (name, whole field).
