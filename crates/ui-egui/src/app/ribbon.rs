@@ -2,6 +2,9 @@
 
 use crate::*;
 
+mod mail_tabs;
+mod modules;
+
 impl MailApp {
     /// The ribbon's tabs: File, Home, Send / Receive, View, and Search while searching. They sit
     /// on the top bar beside the search box (issue #22), one row where there were two, the
@@ -50,162 +53,30 @@ impl MailApp {
         }
     }
 
+    /// The ribbon's buttons: those of the module shown (`ribbon/modules.rs`), or in Mail the tab
+    /// chosen's (`ribbon/mail_tabs.rs`).
     pub(crate) fn ribbon(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
-        let s = &self.session;
         // The buttons sit on a card with an edge, as Outlook's (issue #8): its place is kept here
         // and drawn under them once they're laid out (`card_under_ribbon`).
         let slot = ui.painter().add(egui::Shape::Noop);
         let top = ui.cursor().top();
         ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(RIBBON_CARD), Some((slot, top))));
         ui.add_space(3.0);
-        let enabled = |id: &str| s.registry().get(id).is_some_and(|c| (c.enabled)(s).is_none());
-        if s.module != Module::Mail {
+        if self.session.module != Module::Mail {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                if s.module == Module::Calendar {
-                    if widgets::accent_button(ui, Icon::Calendar, "New event", &t, !s.accounts.is_empty()).clicked() {
-                        acts.push(Action::Dialog(Dialog::new_event(s, None)));
-                    }
-                    widgets::group_sep(ui, &t);
-                    if widgets::tool_button(ui, Icon::Clock, "Today", &t, true).clicked() {
-                        acts.push(Action::Run("calendar.goto", json!({"date": "today"})));
-                    }
-                    widgets::group_sep(ui, &t);
-                    for (mode, label, code) in [
-                        (CalMode::Day, "Day", "day"),
-                        (CalMode::WorkWeek, "Work week", "workWeek"),
-                        (CalMode::Week, "Week", "week"),
-                        (CalMode::Month, "Month", "month"),
-                    ] {
-                        let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
-                        if r.clicked() {
-                            acts.push(Action::Run("calendar.view", json!({"mode": code})));
-                        }
-                    }
-                    // Each calendar in a column of its own (Outlook's side by side), or together.
-                    if s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1 {
-                        widgets::group_sep(ui, &t);
-                        if widgets::tool_toggle(ui, Icon::Calendar, "Side by side", &t, s.prefs.calendars_side_by_side).clicked() {
-                            acts.push(Action::Run("calendar.sideBySide", json!({})));
-                        }
-                    }
-                } else if s.module == Module::Tasks {
-                    if widgets::accent_button(ui, Icon::Task, "New task", &t, !s.accounts.is_empty()).clicked() {
-                        acts.push(Action::Dialog(Dialog::new_task(s, None)));
-                    }
-                    widgets::group_sep(ui, &t);
-                    // The task picked in the list.
-                    let picked = self.ui.task.as_deref().and_then(|u| s.find_task(u));
-                    let done = picked.as_ref().is_some_and(|r| r.task.is_done());
-                    if widgets::tool_button(ui, Icon::Drafts, "Open", &t, picked.is_some()).clicked()
-                        && let Some(d) = picked.as_ref().and_then(|r| Dialog::open_task(s, &r.task.uid))
-                    {
-                        acts.push(Action::Dialog(d));
-                    }
-                    let mark = if done { "Mark not complete" } else { "Mark complete" };
-                    if widgets::tool_button(ui, Icon::Task, mark, &t, picked.is_some()).clicked()
-                        && let Some(r) = &picked
-                    {
-                        acts.push(Action::Run("task.complete", json!({"uid": r.task.uid, "done": !done})));
-                    }
-                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, picked.is_some()).clicked()
-                        && let Some(r) = &picked
-                    {
-                        acts.push(Action::Run("task.delete", json!({"uid": r.task.uid})));
-                    }
-                    // How they're listed, and whether the done ones are.
-                    widgets::group_sep(ui, &t);
-                    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
-                    egui::Popup::menu(&r).show(|ui| {
-                        use mailcraft_engine::TasksOrder as O;
-                        for (order, label) in
-                            [(O::Due, "Due date"), (O::Priority, "Priority"), (O::Title, "Title (A to Z)"), (O::Modified, "Last changed")]
-                        {
-                            if ui.radio(s.prefs.tasks_order == order, tl!(label)).clicked() {
-                                acts.push(Action::Run("task.arrange", json!({"by": order.code()})));
-                                ui.close();
-                            }
-                        }
-                    });
-                    if widgets::tool_toggle(ui, Icon::Funnel, "Hide completed", &t, s.prefs.tasks_hide_done).clicked() {
-                        acts.push(Action::Run("task.hideDone", json!({})));
-                    }
-                } else if s.module == Module::Notes {
-                    if widgets::accent_button(ui, Icon::Note, "New note", &t, !s.accounts.is_empty()).clicked() {
-                        notes::new_note(&mut self.ui, acts);
-                    }
-                    widgets::group_sep(ui, &t);
-                    let editing = self.ui.note_edit.as_ref().map(|(u, _)| u.clone());
-                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, editing.is_some()).clicked()
-                        && let Some(uid) = editing.clone()
-                    {
-                        self.ui.note_edit = None;
-                        acts.push(Action::Run("note.delete", json!({"uid": uid})));
-                    }
-                    // The note's colour, as Outlook's Categorize on a note.
-                    let r = widgets::tool_button(ui, Icon::Tag, "Color", &t, editing.is_some());
-                    egui::Popup::menu(&r).show(|ui| {
-                        for (i, name) in notes::NAMES.iter().enumerate() {
-                            if ui.button(tl!(name)).clicked()
-                                && let Some(uid) = &editing
-                            {
-                                acts.push(Action::Run("note.update", json!({"uid": uid, "color": i})));
-                                ui.close();
-                            }
-                        }
-                    });
-                    // How they're listed: the last changed first, A to Z, or by colour.
-                    widgets::group_sep(ui, &t);
-                    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
-                    egui::Popup::menu(&r).show(|ui| {
-                        use mailcraft_engine::NotesOrder as O;
-                        for (order, label, code) in
-                            [(O::Modified, "Last changed", "modified"), (O::Title, "Title (A to Z)", "title"), (O::Color, "Color", "color")]
-                        {
-                            if ui.radio(s.prefs.notes_order == order, tl!(label)).clicked() {
-                                acts.push(Action::Run("note.arrange", json!({"by": code})));
-                                ui.close();
-                            }
-                        }
-                    });
-                } else {
-                    if widgets::accent_button(ui, Icon::Person, "New contact", &t, !s.accounts.is_empty()).clicked() {
-                        acts.push(Action::Dialog(Dialog::new_contact()));
-                    }
-                    widgets::group_sep(ui, &t);
-                    let picked = self.ui.person.as_deref().and_then(|u| s.find_person(u));
-                    // Someone in a shared (read-only) address book can't be changed here.
-                    let picked = picked.filter(|p| !s.person_read_only(&p.card.uid));
-                    if widgets::tool_button(ui, Icon::Drafts, "Edit", &t, picked.is_some()).clicked()
-                        && let Some(p) = &picked
-                    {
-                        acts.push(Action::Dialog(Dialog::edit_contact(p.card)));
-                    }
-                    if widgets::tool_button(ui, Icon::Delete, "Delete", &t, picked.is_some()).clicked()
-                        && let Some(p) = &picked
-                    {
-                        acts.push(Action::Dialog(Dialog::ConfirmDeleteContact { uid: p.card.uid.clone(), name: p.card.display() }));
-                    }
-                    // Outlook's Change View: the list with a card, business cards, a phone list.
-                    widgets::group_sep(ui, &t);
-                    for v in people::PeopleView::ALL {
-                        if widgets::tool_toggle(ui, v.icon(), v.label(), &t, self.ui.people_view == v).clicked() {
-                            self.ui.people_view = v;
-                        }
-                    }
-                    // The list's columns (also from its header's right-click).
-                    if self.ui.people_view == people::PeopleView::Phone {
-                        let r = widgets::tool_button(ui, Icon::Layout, "Columns", &t, true);
-                        egui::Popup::menu(&r)
-                            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                            .show(|ui| people::column_menu(ui, &mut self.ui.people_list));
-                    }
+                match self.session.module {
+                    Module::Calendar => self.ribbon_calendar(ui, acts),
+                    Module::Tasks => self.ribbon_tasks(ui, acts),
+                    Module::Notes => self.ribbon_notes(ui, acts),
+                    _ => self.ribbon_people(ui, acts),
                 }
             });
             return;
         }
         let confirm_delete = self.needs_delete_confirm();
+        let s = &self.session;
         let ust = &mut self.ui;
         // A narrow window scrolls the ribbon sideways rather than cutting buttons off; each tab
         // keeps its own place (one shared place opened View scrolled as far as Home was, which
@@ -217,318 +88,10 @@ impl MailApp {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 widgets::start_group(ui);
                 match ust.tab {
-                    RibbonTab::Home => {
-                        if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled("mail.new"))
-                            .on_hover_text(tl!("New mail (Ctrl+N)"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("mail.new", json!({})));
-                        }
-                        // New items of other kinds, as Outlook's New Email drop-down.
-                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "New items", &t);
-                        egui::Popup::menu(&r).show(|ui| {
-                            if ui.button(tl!("Email message")).clicked() {
-                                acts.push(Action::Run("mail.new", json!({})));
-                                ui.close();
-                            }
-                            if ui.button(tl!("Event")).clicked() {
-                                acts.push(Action::Dialog(Dialog::new_event(s, None)));
-                                ui.close();
-                            }
-                            if ui.button(tl!("Contact")).clicked() {
-                                acts.push(Action::Dialog(Dialog::new_contact()));
-                                ui.close();
-                            }
-                        });
-                        widgets::group(ui, &t, "New", false);
-                        if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled("mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
-                            if confirm_delete {
-                                acts.push(Action::Dialog(Dialog::ConfirmDelete { count: s.selection.len() }));
-                            } else {
-                                acts.push(Action::Run("mail.delete", json!({})));
-                            }
-                        }
-                        // Ignore the conversation, as Outlook's Delete drop-down.
-                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More delete options", &t);
-                        egui::Popup::menu(&r).show(|ui| {
-                            let ignoring = !s.selection.is_empty() && s.selected_iter().all(|m| s.is_ignored(m));
-                            let label = if ignoring { "Stop ignoring the conversation" } else { "Ignore the conversation" };
-                            if ui
-                                .add_enabled(enabled("mail.ignore"), egui::Button::new(tl!(label)))
-                                .on_hover_text(tl!("Its messages, and replies that arrive later, go to Deleted Items"))
-                                .clicked()
-                            {
-                                acts.push(Action::Run("mail.ignore", json!({})));
-                                ui.close();
-                            }
-                            // Clean Up: what a later reply quotes in full goes to Deleted Items.
-                            ui.separator();
-                            let tip = tl!("Messages quoted in full by a later reply go to Deleted Items");
-                            if ui.add_enabled(enabled("mail.cleanUp"), egui::Button::new(tl!("Clean up conversation"))).on_hover_text(tip).clicked() {
-                                acts.push(Action::Run("mail.cleanUp", json!({})));
-                                ui.close();
-                            }
-                            if ui.add_enabled(enabled("folder.cleanUp"), egui::Button::new(tl!("Clean up folder"))).on_hover_text(tip).clicked() {
-                                acts.push(Action::Run("folder.cleanUp", json!({})));
-                                ui.close();
-                            }
-                        });
-                        if widgets::tool_button(ui, Icon::Archive, "Archive", &t, enabled("mail.archive"))
-                            .on_hover_text(tl!("Archive (Backspace)"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("mail.archive", json!({})));
-                        }
-                        let in_junk = s.view_role() == Some(mailcraft_engine::model::FolderRole::Junk);
-                        let (jid, jl) = if in_junk { ("mail.notJunk", "Not junk") } else { ("mail.junk", "Report junk") };
-                        if widgets::tool_button(ui, Icon::Junk, jl, &t, enabled(jid)).clicked() {
-                            acts.push(Action::Run(jid, json!({})));
-                        }
-                        // The Junk drop-down: the sender's lists, as Outlook's.
-                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Junk options", &t);
-                        egui::Popup::menu(&r).show(|ui| junk_menu(ui, s, acts));
-                        widgets::group(ui, &t, "Delete", false);
-                        if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled("mail.move"))
-                            .on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)"))
-                            .clicked()
-                        {
-                            acts.push(Action::Dialog(Dialog::move_to()));
-                        }
-                        // Quick Steps: each done to the selection in one click (Ctrl+Shift+1…9).
-                        let r = widgets::tool_button(ui, Icon::Steps, "Quick steps", &t, true);
-                        egui::Popup::menu(&r).show(|ui| quick_steps_menu(ui, s, acts));
-                        widgets::group(ui, &t, "Move", false);
-                        for (id, icon, label, tip) in [
-                            ("mail.reply", Icon::Reply, "Reply", "Reply (Ctrl+R)"),
-                            ("mail.replyAll", Icon::ReplyAll, "Reply all", "Reply all (Ctrl+Shift+R)"),
-                            ("mail.forward", Icon::Forward, "Forward", "Forward (Ctrl+F)"),
-                        ] {
-                            if widgets::tool_button(ui, icon, label, &t, enabled(id)).on_hover_text(tl!(tip)).clicked() {
-                                acts.push(Action::Run(id, json!({})));
-                            }
-                        }
-                        widgets::group(ui, &t, "Respond", false);
-                        let first = s.first_selected();
-                        let first_unread = first.is_some_and(|m| !m.flags.seen);
-                        let (ricon, rlabel) = if first_unread { (Icon::Read, "Mark read") } else { (Icon::Unread, "Mark unread") };
-                        if widgets::tool_button(ui, ricon, rlabel, &t, enabled("mail.toggleRead"))
-                            .on_hover_text("Read / Unread (Ctrl+Q / Ctrl+U)")
-                            .clicked()
-                        {
-                            acts.push(Action::Run("mail.toggleRead", json!({})));
-                        }
-                        if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled("mail.flag"))
-                            .on_hover_text(tl!("Flag / Unflag (Insert)"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("mail.flag", json!({})));
-                        }
-                        // Follow Up: when it's due, as Outlook's flag drop-down.
-                        let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Follow up", &t);
-                        egui::Popup::menu(&r).show(|ui| organize::follow_up_menu(ui, s, &t, acts));
-                        let sel = !s.selection.is_empty();
-                        let r = widgets::tool_button(ui, Icon::Tag, "Categorize", &t, sel);
-                        egui::Popup::menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));
-                        let pinned = first.is_some_and(|m| m.flags.pinned());
-                        if widgets::tool_button(ui, Icon::Pin, if pinned { "Unpin" } else { "Pin" }, &t, sel).clicked() {
-                            acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
-                        }
-                        let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
-                        egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
-                        widgets::group(ui, &t, "Tags", false);
-                        // Show only some mail, as Outlook's Filter Email.
-                        let r = widgets::tool_button(ui, Icon::Funnel, "Filter", &t, true);
-                        egui::Popup::menu(&r).show(|ui| {
-                            for f in mailcraft_engine::ListFilter::EVERY {
-                                if ui.selectable_label(s.filter == f, tl!(f.label())).clicked() {
-                                    acts.push(Action::Run("list.filter", json!({"value": f.code()})));
-                                    ui.close();
-                                }
-                            }
-                        });
-                        widgets::group(ui, &t, "Find", true);
-                    }
-                    RibbonTab::SendReceive => {
-                        if widgets::tool_button(ui, Icon::Sync, "Send / Receive all folders", &t, enabled("mail.sync")).on_hover_text("F9").clicked()
-                        {
-                            acts.push(Action::Run("mail.sync", json!({})));
-                        }
-                        if widgets::tool_button(ui, Icon::Folder, "Update folder", &t, enabled("folder.sync")).on_hover_text("Shift+F9").clicked() {
-                            acts.push(Action::Run("folder.sync", json!({})));
-                        }
-                        if widgets::tool_button(ui, Icon::Send, "Send all", &t, enabled("outbox.send") && !s.prefs.work_offline)
-                            .on_hover_text(tl!("Send what's waiting in the Outbox"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("outbox.send", json!({})));
-                        }
-                        widgets::group(ui, &t, "Send & Receive", !ust.has_files);
-                        // Working offline: no connections; mail you send waits in the Outbox.
-                        if ust.has_files {
-                            let off = s.prefs.work_offline;
-                            let mut r = ui
-                                .selectable_label(off, tl!("Work offline"))
-                                .on_hover_text(tl!("Close every connection: changes, mail you send and drafts wait on this computer"));
-                            crate::keytips::apply(ui, "Work offline", &mut r, true, &t);
-                            if r.clicked() {
-                                acts.push(Action::Run("mail.workOffline", json!({"on": !off})));
-                            }
-                            widgets::group(ui, &t, "Preferences", true);
-                        }
-                    }
-                    RibbonTab::Search => {
-                        let query = s.search.as_ref().map(|(q, _)| q.clone()).unwrap_or_else(|| ust.search_text.clone());
-                        let current = s.search.as_ref().map_or(s.prefs.search_scope, |(_, scope)| *scope);
-                        ui.label(RichText::new(tl!("Look in")).color(t.dim));
-                        for scope in SearchScope::ALL {
-                            if ui.selectable_label(scope == current, scope_label(scope)).clicked() && scope != current {
-                                acts.push(Action::Run("search.run", json!({"query": query, "scope": scope.code()})));
-                            }
-                        }
-                        widgets::group(ui, &t, "Scope", false);
-                        // Terms to type a name after: put in the box, ready for it.
-                        for (icon, label, term) in
-                            [(Icon::Person, "From", "from:"), (Icon::Send, "Sent To", "to:"), (Icon::Read, "Subject", "subject:")]
-                        {
-                            if widgets::tool_button(ui, icon, label, &t, true).clicked() {
-                                let text = &mut ust.search_text;
-                                if !text.is_empty() && !text.ends_with(' ') {
-                                    text.push(' ');
-                                }
-                                text.push_str(term);
-                                ust.focus_search = true;
-                                ust.search_cursor_end = true;
-                            }
-                        }
-                        // Terms that narrow at once: on, or off again.
-                        for (icon, label, term) in [
-                            (Icon::Attach, "Has Attachments", "has:attachment"),
-                            (Icon::Unread, "Unread", "is:unread"),
-                            (Icon::Tag, "Categorized", "is:categorized"),
-                            (Icon::Flag, "Flagged", "is:flagged"),
-                            (Icon::Warning, "Important", "is:important"),
-                            (Icon::Send, "Awaiting reply", "is:awaiting"),
-                        ] {
-                            let words: Vec<&str> = query.split_whitespace().collect();
-                            let on = words.iter().any(|w| w.eq_ignore_ascii_case(term));
-                            if widgets::tool_toggle(ui, icon, label, &t, on).clicked() {
-                                let q = if on {
-                                    words.iter().filter(|w| !w.eq_ignore_ascii_case(term)).copied().collect::<Vec<_>>().join(" ")
-                                } else if query.trim().is_empty() {
-                                    term.to_string()
-                                } else {
-                                    format!("{} {term}", query.trim_end())
-                                };
-                                ust.search_text = q.clone();
-                                if q.trim().is_empty() {
-                                    acts.push(Action::Run("search.clear", json!({})));
-                                } else {
-                                    acts.push(Action::Run("search.run", json!({"query": q, "scope": current.code()})));
-                                }
-                            }
-                        }
-                        widgets::group(ui, &t, "Refine", false);
-                        if widgets::tool_button(ui, Icon::Close, "Close Search", &t, true).clicked() {
-                            acts.push(Action::Run("search.clear", json!({})));
-                            ust.search_text.clear();
-                            ust.tab = RibbonTab::Home;
-                        }
-                        widgets::group(ui, &t, "Close", true);
-                    }
-                    RibbonTab::View => {
-                        // Buttons as Home's are, so the row folds as Home's does in a narrow
-                        // window (labels go from the end) instead of scrolling: the reading pane's
-                        // place and the theme in a menu each, the rest turned on or off.
-                        let r = widgets::tool_button(ui, Icon::Layout, "Reading pane", &t, true);
-                        egui::Popup::menu(&r).show(|ui| {
-                            for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
-                                if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
-                                    acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
-                                    ui.close();
-                                }
-                            }
-                        });
-                        widgets::group(ui, &t, "Reading pane", false);
-                        for (on, icon, label, tip, id) in [
-                            (s.prefs.focused_inbox, Icon::Inbox, "Focused Inbox", "Put newsletters and automatic mail in Other", "view.focused"),
-                            (s.prefs.conversations, Icon::Conversation, "Conversations", "Group messages by conversation", "view.conversations"),
-                            (s.prefs.show_preview, Icon::Preview, "Message preview", "", "view.preview"),
-                            (s.prefs.compact, Icon::Compact, "Compact", "", "view.compact"),
-                            (!s.prefs.folder_pane_minimized, Icon::Folder, "Folder pane", "", "view.folderPane"),
-                            (s.prefs.show_favorites, Icon::Star, "Favorites", "Show Favorites at the top of the folder pane", "view.favorites"),
-                        ] {
-                            let r = widgets::tool_toggle(ui, icon, label, &t, on);
-                            let r = if tip.is_empty() { r } else { r.on_hover_text(tl!(tip)) };
-                            if r.clicked() {
-                                acts.push(Action::Run(id, json!({})));
-                            }
-                        }
-                        // The To-Do Bar beside the mail: its parts, each on or off, as Outlook's menu.
-                        let bar = s.prefs.todo_bar;
-                        let r = widgets::tool_button(ui, Icon::Task, "To-Do Bar", &t, true)
-                            .on_hover_text(tl!("Show the calendar, what's coming up and your tasks beside the mail"));
-                        egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
-                            for (on, label, part) in [
-                                (bar.calendar, "Calendar", "calendar"),
-                                (bar.appointments, "Appointments", "appointments"),
-                                (bar.tasks, "Tasks", "tasks"),
-                            ] {
-                                let mut now = on;
-                                if ui.checkbox(&mut now, tl!(label)).changed() {
-                                    acts.push(Action::Run("view.todoBar", json!({"part": part, "on": now})));
-                                }
-                            }
-                            ui.separator();
-                            if ui.selectable_label(!bar.shown(), tl!("Off")).clicked() {
-                                acts.push(Action::Run("view.todoBar", json!({"off": true})));
-                                ui.close();
-                            }
-                        });
-                        widgets::group(ui, &t, "Layout", false);
-                        let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
-                        let mut r = widgets::tool_button(ui, Icon::ListBullet, &arrange, &t, true);
-                        crate::keytips::apply(ui, "Arrange by", &mut r, true, &t);
-                        egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
-                        if widgets::tool_toggle(ui, Icon::Sort, "Reverse sort", &t, s.prefs.reverse_sort).clicked() {
-                            acts.push(Action::Run("view.reverseSort", json!({})));
-                        }
-                        widgets::group(ui, &t, "Arrangement", false);
-                        // The message's source, headers and all, in a window of its own (issue #27).
-                        let one = s.reading.is_some() || s.focus.is_some() || !s.selection.is_empty();
-                        if widgets::tool_button(ui, Icon::Source, "Message source", &t, one)
-                            .on_hover_text(tl!("View the message as it came, headers and all"))
-                            .clicked()
-                            && one
-                        {
-                            acts.push(Action::Run("message.source", json!({})));
-                        }
-                        if widgets::tool_toggle(ui, Icon::ClearFormat, "Plain text", &t, !s.prefs.show_html)
-                            .on_hover_text(tl!("Show mail without its formatting"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("view.html", json!({})));
-                        }
-                        widgets::group(ui, &t, "Message", false);
-                        let theme_icon = if ust.dark == Some(true) { Icon::Moon } else { Icon::Sun };
-                        let r = widgets::tool_button(ui, theme_icon, "Theme", &t, true);
-                        egui::Popup::menu(&r).show(|ui| {
-                            for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
-                                if ui.selectable_label(ust.dark == v, tl!(label)).clicked() {
-                                    acts.push(Action::SetDark(v));
-                                    ui.close();
-                                }
-                            }
-                        });
-                        // Big icons over their labels, in named groups (Outlook's classic
-                        // ribbon), or one row of small ones.
-                        if widgets::tool_toggle(ui, Icon::Ribbon, "Classic ribbon", &t, s.prefs.classic_ribbon)
-                            .on_hover_text(tl!("Big buttons with their names under them, in named groups"))
-                            .clicked()
-                        {
-                            acts.push(Action::Run("view.classicRibbon", json!({})));
-                        }
-                        widgets::group(ui, &t, "Appearance", true);
-                    }
+                    RibbonTab::Home => mail_tabs::ribbon_home(ui, s, t, confirm_delete, acts),
+                    RibbonTab::SendReceive => mail_tabs::ribbon_send_receive(ui, s, t, ust.has_files, acts),
+                    RibbonTab::Search => mail_tabs::ribbon_search(ui, s, ust, t, acts),
+                    RibbonTab::View => mail_tabs::ribbon_view(ui, s, t, ust.dark, acts),
                 }
             });
         });
