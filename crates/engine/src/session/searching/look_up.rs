@@ -234,11 +234,15 @@ impl Session {
         let (Some(store), Some(reader)) = (self.store.clone(), self.search_state.readers.get_mut(account).and_then(|s| s.reader.as_mut())) else {
             return;
         };
-        #[cfg(test)]
-        let phrases = if self.search_state.places_off { Vec::new() } else { run.phrases.clone() };
-        #[cfg(not(test))]
-        let phrases = run.phrases.clone();
-        let terms = run.terms.entry(account.to_string()).or_insert_with(|| Terms::new(run.words.clone(), phrases));
+        // Made once a run and account (its words and phrases copied then, not at every unit).
+        if !run.terms.contains_key(account) {
+            #[cfg(test)]
+            let phrases = if self.search_state.places_off { Vec::new() } else { run.phrases.clone() };
+            #[cfg(not(test))]
+            let phrases = run.phrases.clone();
+            run.terms.insert(account.to_string(), Terms::new(run.words.clone(), phrases));
+        }
+        let Some(terms) = run.terms.get_mut(account) else { return };
         let of = (reader.epoch(), reader.generation());
         while terms.scanning.is_none()
             && let Some((field, word)) = terms.todo.first().cloned()
