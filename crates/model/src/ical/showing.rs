@@ -106,38 +106,69 @@ const TRANSP: &str = "TRANSP";
 const BUSY_STATUS: &str = "X-MICROSOFT-CDO-BUSYSTATUS";
 const SECURE: &str = "X-SOGO-SECURE";
 
-/// The event's own lines (not its alarms') named `name`: where each is, and its value.
-fn own(e: &CalEvent, name: &str) -> Vec<(usize, String)> {
-    let mut out = Vec::new();
+/// The event's own lines (not its alarms'): where each is, and the line.
+fn own(e: &CalEvent) -> impl Iterator<Item = (usize, &str)> {
     let mut depth = 0usize;
-    for (i, raw) in e.extra.iter().enumerate() {
+    e.extra.iter().enumerate().filter_map(move |(i, raw)| {
         let head = raw.trim_start();
         if head.get(..6).is_some_and(|b| b.eq_ignore_ascii_case("BEGIN:")) {
             depth += 1;
-            continue;
+            return None;
         }
         if head.get(..4).is_some_and(|b| b.eq_ignore_ascii_case("END:")) {
             depth = depth.saturating_sub(1);
-            continue;
+            return None;
         }
-        // Only the line named so, not one that starts the same (`CLASSIFICATION`).
-        let named =
-            head.get(..name.len()).is_some_and(|n| n.eq_ignore_ascii_case(name)) && matches!(head.as_bytes().get(name.len()), Some(b':' | b';'));
-        if depth == 0
-            && named
-            && let Some(l) = parse_line(head)
-        {
-            out.push((i, l.value.trim().to_ascii_uppercase()));
+        (depth == 0).then_some((i, head))
+    })
+}
+
+/// Whether a line is named `name`: not one that starts the same (`CLASSIFICATION`).
+fn named(head: &str, name: &str) -> bool {
+    head.get(..name.len()).is_some_and(|n| n.eq_ignore_ascii_case(name)) && matches!(head.as_bytes().get(name.len()), Some(b':' | b';'))
+}
+
+/// A line's value: what follows its first `:` outside double quotes (as [`parse_line`] reads it).
+fn value_of(head: &str) -> Option<&str> {
+    let mut quoted = false;
+    for (i, b) in head.bytes().enumerate() {
+        match b {
+            b'"' => quoted = !quoted,
+            b':' if !quoted => return head.get(i + 1..),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The value of the event's first own line named each of `names`, trimmed, from one pass over
+/// its kept lines, borrowed. (Each name was looked for alone, every line of it read into a new
+/// line and its value upper-cased into another: an event's classification and Show as did that
+/// four times for every item drawn: most of the time a calendar's items took to gather.)
+fn first_own<'a, const N: usize>(e: &'a CalEvent, names: [&str; N]) -> [Option<&'a str>; N] {
+    let mut out = [None; N];
+    for (_, head) in own(e) {
+        for (name, value) in names.iter().zip(out.iter_mut()) {
+            if value.is_none() && named(head, name) {
+                *value = value_of(head).map(str::trim);
+            }
+        }
+        if out.iter().all(Option::is_some) {
+            break;
         }
     }
     out
 }
 
+/// Whether a value is `word`, in any case.
+fn is(value: Option<&str>, word: &str) -> bool {
+    value.is_some_and(|v| v.eq_ignore_ascii_case(word))
+}
+
 /// Take the event's own lines named any of `names` out, and put `add` where its own lines are
 /// (before its first alarm).
 fn replace(e: &mut CalEvent, names: &[&str], add: Vec<String>) {
-    let mut gone: Vec<usize> = names.iter().flat_map(|n| own(e, n)).map(|(i, _)| i).collect();
-    gone.sort_unstable();
+    let gone: Vec<usize> = own(e).filter(|(_, head)| names.iter().any(|n| named(head, n) && value_of(head).is_some())).map(|(i, _)| i).collect();
     for i in gone.into_iter().rev() {
         if i < e.extra.len() {
             e.extra.remove(i);
@@ -154,16 +185,31 @@ fn replace(e: &mut CalEvent, names: &[&str], add: Vec<String>) {
 /// user may see the date and time of only. Such a copy has SOGo's own words for a title
 /// (`(Private event)`, in the owner's language), no `CLASS`, and a uid made up for it.
 pub fn details_hidden(e: &CalEvent) -> bool {
-    own(e, SECURE).first().is_some_and(|(_, v)| v == "YES")
+    let [secure] = first_own(e, [SECURE]);
+    is(secure, "YES")
 }
 
 /// An event's classification. One a calendar doesn't know (an `x-name`) counts as private, as
 /// RFC 5545 asks; one whose details the server hid is private, though it says no `CLASS`.
 pub fn privacy(e: &CalEvent) -> Privacy {
-    match own(e, CLASS).first().map(|(_, v)| v.as_str()) {
-        None if details_hidden(e) => Privacy::Private,
-        None | Some("PUBLIC" | "") => Privacy::Public,
-        Some("CONFIDENTIAL") => Privacy::Confidential,
+    let [class, secure] = first_own(e, [CLASS, SECURE]);
+    privacy_of(class, secure)
+}
+
+/// An event's [`privacy`] and [`show_as`], from one pass over its kept lines: what a calendar
+/// asks of every item it draws.
+pub fn showing(e: &CalEvent) -> (Privacy, ShowAs) {
+    let [class, secure, transp, status] = first_own(e, [CLASS, SECURE, TRANSP, BUSY_STATUS]);
+    (privacy_of(class, secure), show_as_of(transp, status))
+}
+
+/// [`privacy`] from the event's first `CLASS` and `X-SOGO-SECURE`.
+fn privacy_of(class: Option<&str>, secure: Option<&str>) -> Privacy {
+    match class {
+        None if is(secure, "YES") => Privacy::Private,
+        None => Privacy::Public,
+        Some(c) if c.is_empty() || c.eq_ignore_ascii_case("PUBLIC") => Privacy::Public,
+        Some(c) if c.eq_ignore_ascii_case("CONFIDENTIAL") => Privacy::Confidential,
         Some(_) => Privacy::Private,
     }
 }
@@ -189,21 +235,27 @@ pub fn set_privacy(e: &mut CalEvent, p: Privacy) {
 /// the standard one, and a calendar that changes only it (Thunderbird's Show Time As) leaves
 /// the other as it was.
 pub fn show_as(e: &CalEvent) -> ShowAs {
-    let transp = own(e, TRANSP).first().map(|(_, v)| v.clone());
-    let status = own(e, BUSY_STATUS).first().and_then(|(_, v)| match v.as_str() {
-        "FREE" => Some(ShowAs::Free),
-        "WORKINGELSEWHERE" => Some(ShowAs::WorkingElsewhere),
-        "TENTATIVE" => Some(ShowAs::Tentative),
-        "BUSY" => Some(ShowAs::Busy),
-        "OOF" => Some(ShowAs::OutOfOffice),
-        _ => None,
-    });
-    match (status, transp.as_deref()) {
-        (Some(ShowAs::Free), Some("OPAQUE")) => ShowAs::Busy,
-        (Some(s), Some("TRANSPARENT")) if s != ShowAs::Free => ShowAs::Free,
-        (Some(s), _) => s,
-        (None, Some("TRANSPARENT")) => ShowAs::Free,
-        _ => ShowAs::Busy,
+    let [transp, status] = first_own(e, [TRANSP, BUSY_STATUS]);
+    show_as_of(transp, status)
+}
+
+/// [`show_as`] from the event's first `TRANSP` and busy status.
+fn show_as_of(transp: Option<&str>, status: Option<&str>) -> ShowAs {
+    const STATUSES: [(&str, ShowAs); 5] = [
+        ("FREE", ShowAs::Free),
+        ("WORKINGELSEWHERE", ShowAs::WorkingElsewhere),
+        ("TENTATIVE", ShowAs::Tentative),
+        ("BUSY", ShowAs::Busy),
+        ("OOF", ShowAs::OutOfOffice),
+    ];
+    let status = status.and_then(|v| STATUSES.iter().find(|(w, _)| v.eq_ignore_ascii_case(w)).map(|(_, s)| *s));
+    let (opaque, transparent) = (is(transp, "OPAQUE"), is(transp, "TRANSPARENT"));
+    match status {
+        Some(ShowAs::Free) if opaque => ShowAs::Busy,
+        Some(s) if transparent && s != ShowAs::Free => ShowAs::Free,
+        Some(s) => s,
+        None if transparent => ShowAs::Free,
+        None => ShowAs::Busy,
     }
 }
 
@@ -221,7 +273,8 @@ pub fn set_show_as(e: &mut CalEvent, s: ShowAs) {
 /// guest's copy as tentative (`X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE`) and says this beside it
 /// (`X-MICROSOFT-CDO-INTENDEDSTATUS`, usually busy).
 pub fn intended_show_as(e: &CalEvent) -> Option<ShowAs> {
-    own(e, INTENDED_STATUS).first().and_then(|(_, v)| ShowAs::from_code(v))
+    let [intended] = first_own(e, [INTENDED_STATUS]);
+    intended.and_then(ShowAs::from_code)
 }
 
 const INTENDED_STATUS: &str = "X-MICROSOFT-CDO-INTENDEDSTATUS";
@@ -250,7 +303,8 @@ const PERSONAL: &str = "X-PERSONAL";
 
 /// Whether an event is Exchange's Personal ([`set_personal`]).
 pub fn personal(e: &CalEvent) -> bool {
-    own(e, CLASS).first().is_some_and(|(_, v)| v == PERSONAL)
+    let [class] = first_own(e, [CLASS]);
+    is(class, PERSONAL)
 }
 
 /// Mark an event as Exchange's Personal.

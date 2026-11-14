@@ -1,6 +1,8 @@
 //! Issue #32: an event's classification and Show as, read from what other calendars write,
 //! set, and written back without losing what was there.
 
+use proptest::prelude::*;
+
 use super::*;
 
 fn one(lines: &str) -> CalEvent {
@@ -188,4 +190,157 @@ fn an_event_sogo_hid_the_details_of_is_a_private_appointment() {
     }
     // A classification the copy does say counts.
     assert_eq!(privacy(&one("X-SOGO-SECURE:YES\r\nCLASS:CONFIDENTIAL\r\n")), Privacy::Confidential);
+}
+
+/// Each name's lines as they were looked for: one name at a time, all of them gathered.
+fn own_as_it_was(e: &CalEvent, name: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    for (i, raw) in e.extra.iter().enumerate() {
+        let head = raw.trim_start();
+        if head.get(..6).is_some_and(|b| b.eq_ignore_ascii_case("BEGIN:")) {
+            depth += 1;
+            continue;
+        }
+        if head.get(..4).is_some_and(|b| b.eq_ignore_ascii_case("END:")) {
+            depth = depth.saturating_sub(1);
+            continue;
+        }
+        let named =
+            head.get(..name.len()).is_some_and(|n| n.eq_ignore_ascii_case(name)) && matches!(head.as_bytes().get(name.len()), Some(b':' | b';'));
+        if depth == 0
+            && named
+            && let Some(l) = parse_line(head)
+        {
+            out.push((i, l.value.trim().to_ascii_uppercase()));
+        }
+    }
+    out
+}
+
+fn first_as_it_was(e: &CalEvent, name: &str) -> Option<String> {
+    own_as_it_was(e, name).into_iter().next().map(|(_, v)| v)
+}
+
+/// The lines once `names` are taken out and `add` put before the first component, as they were.
+fn replaced_as_it_was(e: &CalEvent, names: &[&str], add: &[&str]) -> Vec<String> {
+    let mut gone: Vec<usize> = names.iter().flat_map(|n| own_as_it_was(e, n)).map(|(i, _)| i).collect();
+    gone.sort_unstable();
+    let mut left: Vec<String> = e.extra.iter().enumerate().filter(|(i, _)| gone.binary_search(i).is_err()).map(|(_, l)| l.clone()).collect();
+    let at = left.iter().position(|l| l.trim_start().get(..6).is_some_and(|b| b.eq_ignore_ascii_case("BEGIN:"))).unwrap_or(left.len());
+    for (k, line) in add.iter().enumerate() {
+        left.insert(at + k, line.to_string());
+    }
+    left
+}
+
+fn kept_lines() -> impl proptest::strategy::Strategy<Value = Vec<String>> {
+    let line = proptest::sample::select(vec![
+        "CLASS:PRIVATE",
+        "class;X-A=1:confidential",
+        "CLASS:X-PERSONAL",
+        "CLASS;X-NOTE=\"a:b\":CONFIDENTIAL",
+        "CLASS;X-NOTE=\"a:b",
+        "x-microsoft-cdo-busystatus: workingelsewhere ",
+        "CLASS:",
+        " CLASS:PUBLIC",
+        "CLASSIFICATION:SECRET",
+        "CLASS",
+        "TRANSP:TRANSPARENT",
+        "transp:opaque",
+        "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
+        "X-MICROSOFT-CDO-BUSYSTATUS:FREE",
+        "X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE",
+        "X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY",
+        "X-SOGO-SECURE:YES",
+        "X-SOGO-SECURE:NO",
+        "BEGIN:VALARM",
+        "END:VALARM",
+        "PRIORITY:5",
+    ]);
+    proptest::collection::vec(line.prop_map(String::from), 0..12)
+}
+
+proptest! {
+    /// Read in one pass, an event's classification and Show as are what each name looked for
+    /// alone gave; and what the setters take out is what they took out.
+    #[test]
+    fn showing_reads_as_each_name_did(extra in kept_lines()) {
+        let e = CalEvent { extra, ..Default::default() };
+        let secure = first_as_it_was(&e, "X-SOGO-SECURE").as_deref() == Some("YES");
+        let p = match first_as_it_was(&e, "CLASS").as_deref() {
+            None if secure => Privacy::Private,
+            None | Some("PUBLIC" | "") => Privacy::Public,
+            Some("CONFIDENTIAL") => Privacy::Confidential,
+            Some(_) => Privacy::Private,
+        };
+        prop_assert_eq!(privacy(&e), p);
+        prop_assert_eq!(details_hidden(&e), secure);
+        prop_assert_eq!(showing(&e), (privacy(&e), show_as(&e)));
+        prop_assert_eq!(personal(&e), first_as_it_was(&e, "CLASS").as_deref() == Some("X-PERSONAL"));
+        prop_assert_eq!(intended_show_as(&e), first_as_it_was(&e, "X-MICROSOFT-CDO-INTENDEDSTATUS").as_deref().and_then(ShowAs::from_code));
+        for (to, add) in [(Privacy::Public, &[][..]), (Privacy::Private, &["CLASS:PRIVATE"][..]), (Privacy::Confidential, &["CLASS:CONFIDENTIAL"][..])] {
+            let mut set = e.clone();
+            set_privacy(&mut set, to);
+            let want = if p == to { e.extra.clone() } else { replaced_as_it_was(&e, &["CLASS"], add) };
+            prop_assert_eq!(set.extra, want);
+        }
+        let mut set = e.clone();
+        set_show_as(&mut set, ShowAs::OutOfOffice);
+        let want = if show_as(&e) == ShowAs::OutOfOffice {
+            e.extra.clone()
+        } else {
+            replaced_as_it_was(&e, &["TRANSP", "X-MICROSOFT-CDO-BUSYSTATUS"], &["TRANSP:OPAQUE", "X-MICROSOFT-CDO-BUSYSTATUS:OOF"])
+        };
+        prop_assert_eq!(set.extra, want);
+    }
+}
+
+/// An event as Outlook writes it (18 lines kept as written), its classification and Show as read
+/// as each name was looked for alone, then in one pass.
+/// `cargo test --release -p mailcraft-model --lib measure_showing -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_showing() {
+    let extra: Vec<String> = [
+        "X-MICROSOFT-CDO-APPT-SEQUENCE:0",
+        "X-MICROSOFT-CDO-OWNERAPPTID:2120000000",
+        "X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY",
+        "X-MICROSOFT-CDO-ALLDAYEVENT:FALSE",
+        "X-MICROSOFT-CDO-IMPORTANCE:1",
+        "X-MICROSOFT-CDO-INSTTYPE:0",
+        "X-MICROSOFT-DONOTFORWARDMEETING:FALSE",
+        "X-MICROSOFT-DISALLOW-COUNTER:FALSE",
+        "X-MICROSOFT-LOCATIONS:[]",
+        "PRIORITY:5",
+        "X-ALT-DESC;FMTTYPE=text/html:<html><body><p>Agenda</p></body></html>",
+        "TRANSP:OPAQUE",
+        "X-MICROSOFT-CDO-BUSYSTATUS:BUSY",
+        "BEGIN:VALARM",
+        "DESCRIPTION:REMINDER",
+        "TRIGGER;RELATED=START:-PT15M",
+        "ACTION:DISPLAY",
+        "END:VALARM",
+    ]
+    .map(String::from)
+    .to_vec();
+    let e = CalEvent { extra, ..Default::default() };
+    let n = 300_000;
+    let t = std::time::Instant::now();
+    let mut busy = 0;
+    for _ in 0..n {
+        let e = std::hint::black_box(&e);
+        let secure = first_as_it_was(e, "X-SOGO-SECURE").as_deref() == Some("YES");
+        let class = first_as_it_was(e, "CLASS");
+        let transp = first_as_it_was(e, "TRANSP");
+        let status = first_as_it_was(e, "X-MICROSOFT-CDO-BUSYSTATUS");
+        busy += usize::from(secure || class.is_some() || transp.is_some() && status.is_some());
+    }
+    let before = t.elapsed().as_secs_f64() * 1e9 / f64::from(n);
+    let t = std::time::Instant::now();
+    for _ in 0..n {
+        busy += usize::from(showing(std::hint::black_box(&e)).1 == ShowAs::Busy);
+    }
+    let after = t.elapsed().as_secs_f64() * 1e9 / f64::from(n);
+    println!("MEASURE showing of an Outlook event: each name alone {before:.0} ns, one pass {after:.0} ns ({busy})");
 }

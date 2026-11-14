@@ -74,3 +74,51 @@ fn measure_old_series_frame() {
     println!("MEASURE old series per frame ({n} items): {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
     done(s);
 }
+
+/// Six weeks of 3,000 events as Outlook writes them (some 18 lines kept as written each): each
+/// one's classification and Show as read for every item drawn.
+/// `cargo test --release -p mailcraft-engine --lib measure_outlook_events_frame -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_outlook_events_frame() {
+    use mailcraft_model::ical::CalEvent;
+    use mailcraft_model::pim::{LOCAL, StoredEvent};
+    let mut s = sample_session("measure-outlook-events");
+    let extra: Vec<String> = [
+        "X-MICROSOFT-CDO-APPT-SEQUENCE:0",
+        "X-MICROSOFT-CDO-OWNERAPPTID:2120000000",
+        "X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY",
+        "X-MICROSOFT-CDO-ALLDAYEVENT:FALSE",
+        "X-MICROSOFT-CDO-IMPORTANCE:1",
+        "X-MICROSOFT-CDO-INSTTYPE:0",
+        "X-MICROSOFT-DONOTFORWARDMEETING:FALSE",
+        "X-MICROSOFT-DISALLOW-COUNTER:FALSE",
+        "X-MICROSOFT-LOCATIONS:[]",
+        "PRIORITY:5",
+        "X-ALT-DESC;FMTTYPE=text/html:<html><body><p>Agenda</p></body></html>",
+        "TRANSP:OPAQUE",
+        "X-MICROSOFT-CDO-BUSYSTATUS:BUSY",
+        "BEGIN:VALARM",
+        "DESCRIPTION:REMINDER",
+        "TRIGGER;RELATED=START:-PT15M",
+        "ACTION:DISPLAY",
+        "END:VALARM",
+    ]
+    .map(String::from)
+    .to_vec();
+    let day = 86_400;
+    let from = NOW - NOW.rem_euclid(day) - 3 * day;
+    let p = s.pim_mut("sample");
+    for i in 0..3000_i64 {
+        let start = from + (i % 42) * day + 8 * 3600 + (i / 42) * 300;
+        let e = CalEvent { uid: format!("o{i}"), summary: format!("Sync {i}"), start, end: start + 1800, extra: extra.clone(), ..Default::default() };
+        p.events.push(StoredEvent { calendar: LOCAL.into(), event: e, ..Default::default() });
+    }
+    let n = s.agenda(from, from + 42 * day).len();
+    let t = std::time::Instant::now();
+    for _ in 0..50 {
+        assert_eq!(s.agenda(from, from + 42 * day).len(), n);
+    }
+    println!("MEASURE outlook events per frame ({n} items): {:.3} ms", t.elapsed().as_secs_f64() * 1000.0 / 50.0);
+    done(s);
+}

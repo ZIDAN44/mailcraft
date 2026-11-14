@@ -122,6 +122,7 @@ impl Session {
                     for events in groups {
                         let Some(Shown { event: o, named, start, end }) = self.shown_occurrence(&events, when, now, lo, hi) else { continue };
                         let Some(e) = events.get(o) else { continue };
+                        let (privacy, show_as) = ical::showing(e);
                         hits.push(EventHit {
                             account: id.clone(),
                             calendar: cal.id.clone(),
@@ -137,8 +138,8 @@ impl Session {
                             categories: e.categories.clone(),
                             color: Session::calendar_color(a, cal),
                             category: e.categories.first().map(|c| self.category_color_of(c)),
-                            privacy: ical::privacy(e),
-                            show_as: ical::show_as(e),
+                            privacy,
+                            show_as,
                         });
                     }
                 }

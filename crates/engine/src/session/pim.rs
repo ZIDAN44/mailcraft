@@ -273,6 +273,7 @@ impl Session {
                         continue;
                     }
                     let needs_reply = e.attendees.iter().any(|a| a.partstat == "NEEDS-ACTION" && super::invite::is_mine(&a.email, &mine));
+                    let (privacy, show_as) = ical::showing(e);
                     out.push(AgendaItem {
                         account: account.clone(),
                         calendar: cal.id.clone(),
@@ -288,8 +289,8 @@ impl Session {
                         category: e.categories.first().map(|c| self.category_color_of(c)),
                         status: e.status.clone(),
                         needs_reply,
-                        privacy: ical::privacy(e),
-                        show_as: ical::show_as(e),
+                        privacy,
+                        show_as,
                         task: false,
                     });
                 }
