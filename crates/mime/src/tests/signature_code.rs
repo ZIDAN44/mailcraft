@@ -2,11 +2,9 @@
 
 use super::*;
 
-const PNG: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-
 fn card() -> String {
     format!(
-        "<table cellpadding=\"0\"><tr><td style=\"padding-right:12px\"><img src=\"data:image/png;base64,{PNG}\" width=\"80\"></td>\
+        "<table cellpadding=\"0\"><tr><td style=\"padding-right:12px\"><img src=\"data:image/png;base64,{PNG_1X1}\" width=\"80\"></td>\
          <td style=\"border-left:2px solid #c03\"><b>Riley Moreno</b><br>Producer<br><a href=\"https://studio.example\">studio.example</a></td></tr></table>"
     )
 }

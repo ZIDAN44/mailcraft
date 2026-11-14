@@ -41,10 +41,6 @@ fn wrapped(n: usize, inner: &str) -> String {
     format!("{}{inner}{}", open.repeat(n), "</td></tr></tbody></table>".repeat(n))
 }
 
-fn page(inner: &str) -> String {
-    format!(r#"<table width="600" align="center" cellpadding="0" cellspacing="0"><tr><td>{inner}</td></tr></table>"#)
-}
-
 const TOTAL: &str =
     r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td>Total</td><td align="right">$15.98</td></tr></table>"#;
 

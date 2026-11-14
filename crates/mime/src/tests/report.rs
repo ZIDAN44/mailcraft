@@ -1,7 +1,7 @@
 use super::*;
 
 pub(crate) fn report() -> Vec<u8> {
-    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let png = PNG_1X1;
     format!("From: Reports <reports@fw.example>\r\nTo: me@studio.example\r\nSubject: Reports: Daily\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"M\"\r\n\r\n\
 --M\r\nContent-Type: multipart/alternative; boundary=\"A\"\r\n\r\n\
 --A\r\nContent-Type: text/plain\r\n\r\nHTML Report enclosed.\r\n\

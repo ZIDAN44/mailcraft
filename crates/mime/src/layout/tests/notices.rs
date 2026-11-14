@@ -3,18 +3,6 @@
 
 use super::*;
 
-/// Every table in `blocks`, those in their cells too, outermost first.
-fn tables(blocks: &[Block]) -> Vec<&Table> {
-    let mut out = Vec::new();
-    for b in blocks {
-        if let Block::Table(t) = b {
-            out.push(t);
-            t.rows.iter().flatten().for_each(|c| out.extend(tables(&c.blocks)));
-        }
-    }
-    out
-}
-
 /// The spans of `blocks` whose text is `words`.
 fn spans(blocks: &[Block], words: &str) -> Vec<crate::Span> {
     let mut all = blocks.to_vec();
@@ -25,10 +13,6 @@ fn spans(blocks: &[Block], words: &str) -> Vec<crate::Span> {
         }
     });
     out
-}
-
-fn page(inner: &str) -> String {
-    format!(r#"<table width="600" align="center" cellpadding="0" cellspacing="0"><tr><td>{inner}</td></tr></table>"#)
 }
 
 /// The steps an order goes through, drawn with cells that hold nothing: a dot as wide and tall

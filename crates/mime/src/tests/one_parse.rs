@@ -80,7 +80,6 @@ fn tables_read_as_text_without_rules() {
 <table><tr><td>BANNER</td></tr></table><table><tr><td><p><b>First</b> block</p></td></tr></table>\r\n";
     let p = parse(raw).unwrap();
     assert!(!p.text.chars().any(|c| ('\u{2500}'..='\u{257F}').contains(&c)), "{:?}", p.text);
-    let key = MessageKey { account: "a".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
-    let s = summary_from_header(raw, key, Flags::default(), 0, 0);
+    let s = summary_from_header(raw, key(), Flags::default(), 0, 0);
     assert_eq!(s.preview, "BANNER First block");
 }

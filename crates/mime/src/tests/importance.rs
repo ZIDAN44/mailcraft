@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn importance_and_read_receipts_round_trip() {
     let from = EmailAddress::new("Riley", "riley@studio.example");
-    let k = MessageKey { account: "a".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let k = key();
     for (importance, header, priority) in [(1, "Importance: high", "X-Priority: 1"), (-1, "Importance: low", "X-Priority: 5")] {
         let d = Draft { subject: "Hi".into(), body: "x".into(), importance, read_receipt: true, ..Default::default() };
         let raw = build(&d, &from, 1_700_000_000, "m@x").unwrap();

@@ -25,14 +25,7 @@ fn a_tables_footer_is_read_last() {
 #[test]
 fn a_footer_is_last_in_the_layout_too() {
     let html = r#"<table width="600"><thead><tr><th>ITEM</th><th>PRICE</th></tr></thead><tfoot><tr><td>TOTAL</td><td>$24.50</td></tr></tfoot><tbody><tr><td>MUG</td><td>$18.00</td></tr></tbody></table>"#;
-    let raw = format!(
-        "From: a@shop.example
-Subject: s
-Content-Type: text/html
-
-{html}"
-    );
-    let p = crate::parse(raw.as_bytes()).expect("the message parses");
+    let p = crate::tests::util::message(html);
     assert!(!p.layout.is_empty(), "laid out");
     let order = |s: &str| (s.find("MUG"), s.find("TOTAL"));
     for (view, said) in [("layout", format!("{:?}", p.layout)), ("rich", format!("{:?}", p.rich)), ("text", p.text.clone())] {

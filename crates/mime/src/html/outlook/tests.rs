@@ -1,24 +1,11 @@
 use super::*;
-use crate::layout::{Block, Table, Width, html_layout, inline_css};
+use crate::layout::{Width, html_layout, inline_css};
+use crate::tests::util::{message, shown, tables};
 
 mod cap;
 mod deep;
 mod marks;
 mod written;
-
-/// Every table in `blocks`, those inside cells too.
-fn tables(blocks: &[Block]) -> Vec<&Table> {
-    let mut out = Vec::new();
-    for b in blocks {
-        if let Block::Table(t) = b {
-            out.push(t);
-            for c in t.rows.iter().flatten() {
-                out.extend(tables(&c.blocks));
-            }
-        }
-    }
-    out
-}
 
 /// What Outlook answers: Office is 16, it isn't Internet Explorer, VML is false (Word's own copy
 /// of a pasted picture, the picture given beside it); what can't be made out is false.
@@ -166,12 +153,6 @@ fn outlooks_pictures_are_held_back_as_any() {
                <h1>Autumn</h1><!--[if gte mso 9]></v:textbox></v:rect><![endif]--></td><td>b</td></tr></table>";
     let p = crate::parse(raw.as_bytes()).expect("the message parses");
     assert!(p.images.iter().any(|i| i == "https://img.example/banner.jpg"), "{:?}", p.images);
-}
-
-/// A message of `html`, as received.
-fn message(html: &str) -> crate::Parsed {
-    let raw = format!("From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n{html}");
-    crate::parse(raw.as_bytes()).expect("the message parses")
 }
 
 /// Found in review: a picture pasted from Word or Outlook comes with Word's VML copy of it
@@ -342,11 +323,6 @@ fn the_text_is_what_is_shown() {
         r#"<!--[if mso]><p>For Outlook</p><![endif]--><!--[if !mso]><!--><p>For the others</p><!--<![endif]--><a href="https://x.example/" style="mso-hide:all">Hidden copy</a>"#,
     );
     assert!(p.text.contains("For Outlook") && !p.text.contains("For the others") && !p.text.contains("Hidden copy"), "{:?}", p.text);
-}
-
-/// The words a message shows, its lines joined by `|`.
-fn shown(p: &crate::Parsed) -> String {
-    p.rich.iter().map(|l| l.iter().map(|s| s.text.as_str()).collect::<String>()).collect::<Vec<_>>().join("|")
 }
 
 /// Found in review: a comment left open in Outlook's copy was cut at its last `<!--`, wherever

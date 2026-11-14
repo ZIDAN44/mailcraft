@@ -50,10 +50,6 @@ fn doc(raw: &[u8]) -> IndexDoc {
     d
 }
 
-fn key() -> MessageKey {
-    MessageKey { account: "a".into(), folder: "INBOX".into(), validity: 1, uid: 1 }
-}
-
 #[test]
 fn an_alternative_gives_its_plain_text_once() {
     let raw = message(

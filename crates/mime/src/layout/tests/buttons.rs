@@ -3,11 +3,6 @@
 
 use super::*;
 
-fn message(html: &str) -> crate::Parsed {
-    let raw = format!("From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n{html}");
-    crate::parse(raw.as_bytes()).expect("the message parses")
-}
-
 /// Every one-cell table of a colour in `b`, at any depth: the buttons.
 fn buttons(b: &[Block]) -> Vec<&Table> {
     fn walk<'a>(b: &'a [Block], out: &mut Vec<&'a Table>) {

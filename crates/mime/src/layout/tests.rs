@@ -1,4 +1,5 @@
 use super::*;
+use crate::tests::util::{message, page, shown, tables};
 
 fn text(b: &Block) -> String {
     match b {
@@ -372,11 +373,6 @@ fn a_pages_background_is_no_highlight() {
 /// the text; too deep to read, the message is read as it came.
 #[test]
 fn blocks_nested_deep_stay_apart() {
-    let message = |html: &str| {
-        let raw = format!("From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n{html}");
-        crate::parse(raw.as_bytes()).expect("the message parses")
-    };
-    let shown = |p: &crate::Parsed| p.rich.iter().map(|l| l.iter().map(|s| s.text.as_str()).collect::<String>()).collect::<Vec<_>>().join("|");
     let body = "<p>First paragraph.</p><p>Second paragraph.</p><h2>Heading</h2><p>Last words</p>";
     for n in [24, 28, 32, 80] {
         let nest = format!("{}{body}{}", r#"<table role="presentation"><tbody><tr><td>"#.repeat(n), "</td></tr></tbody></table>".repeat(n));

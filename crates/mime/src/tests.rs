@@ -33,6 +33,7 @@ fn a_teams_invitations_join_link_survives_as_text() {
 
 use super::*;
 use mailcraft_model::dates::Clock;
+use util::{PNG_1X1, key};
 
 mod draft_source;
 mod importance;
@@ -46,6 +47,7 @@ mod report;
 mod report_status;
 mod signature_code;
 mod text_attach;
+pub(crate) mod util;
 
 /// Issue #11 (#16's test): a signature's pictures are written into the HTML kept with the account, and come
 /// back from it as pictures of its text, with its look; pictures from the web, kinds a signature
@@ -168,10 +170,6 @@ Content-Transfer-Encoding: base64\r\n\
 \r\n\
 iVBORw0KGgo=\r\n\
 --B--\r\n";
-
-fn key() -> MessageKey {
-    MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 9 }
-}
 
 #[test]
 fn summary_fields() {
@@ -729,7 +727,7 @@ fn east_asian_mail_reads() {
 /// with it; one on the web by its address (never loaded); a tracking picture left out.
 #[test]
 fn a_reply_quotes_every_picture() {
-    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let png = PNG_1X1;
     let raw = format!(
         "From: Zoe <zoe@studio.example>\r\nTo: riley@studio.example\r\nSubject: Frames\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"R\"\r\n\r\n\
 --R\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\

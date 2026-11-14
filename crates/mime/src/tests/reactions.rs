@@ -24,8 +24,7 @@ fn a_reaction_is_a_reply_marked_so() {
     assert_eq!(p.references, ["kickoff@studio.test", "plan-1@studio.test"]);
     assert_eq!(p.to.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["sam@studio.test"]);
     assert_eq!(p.cc.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["ben@studio.test", "kim@studio.test"]);
-    let key = MessageKey { account: "a".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
-    let s = summary_from_full(&raw, key, Flags::default(), 100, 0);
+    let s = summary_from_full(&raw, key(), Flags::default(), 100, 0);
     assert_eq!((s.reaction.as_str(), s.in_reply_to.as_str()), ("👍", "plan-1@studio.test"));
     // On one's own message: to the others.
     let mine = parse(b"From: Ana <ana@studio.test>\r\nTo: Sam <sam@studio.test>\r\nSubject: Re: x\r\nMessage-ID: <m@x>\r\n\r\nhi\r\n").unwrap();
