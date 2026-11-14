@@ -7,6 +7,16 @@ use mailcraft_model::job::progress::Work;
 use crate::*;
 
 impl Store {
+    /// A document kept with an account's cache ([`Store::save_account_doc`]) removed; one not there
+    /// is no matter.
+    pub fn remove_account_doc(&self, account: &str, name: &str) -> Result<()> {
+        let path = self.account_dir(account).join(safe_doc(name));
+        match self.files.remove_file(&path) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&path)(e)),
+            _ => Ok(()),
+        }
+    }
+
     /// The data file an account is kept in, when the cache keeps them so.
     pub fn data_file(&self, account: &str) -> Option<PathBuf> {
         if self.is_online_only(account) {

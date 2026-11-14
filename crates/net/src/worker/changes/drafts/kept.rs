@@ -11,8 +11,9 @@ use super::*;
 pub(crate) struct KeptDrafts {
     /// Connected, with the kept drafts still to read ([`Worker::queue_kept_drafts`]).
     pub(crate) due: bool,
-    /// Those read for this connection, filed ahead of anything queued.
-    pub(super) queued: VecDeque<PendingDraft>,
+    /// Those read for this connection, filed ahead of anything queued (each source read as it's
+    /// filed).
+    pub(super) queued: VecDeque<Kept>,
     /// Those that failed on this run's connections (by their source's hash): each tried again
     /// once a wait of its own is over, after the others (found in review: one that dropped the
     /// connection was read again ahead of everything at each connection, and nothing else got
@@ -60,9 +61,7 @@ impl KeptDrafts {
     /// drafts read for this connection: once one has failed in this run (it may drop each
     /// connection), unless one of them is a version of the same draft, older, which goes first.
     pub(super) fn goes_ahead(&self, message_id: &str, replaces: Option<&MessageKey>) -> bool {
-        let same = |d: &PendingDraft| {
-            (replaces.is_some() && d.replaces.as_ref() == replaces) || (!message_id.is_empty() && written_message_id(&d.raw) == message_id)
-        };
+        let same = |d: &Kept| (replaces.is_some() && d.replaces.as_ref() == replaces) || (!message_id.is_empty() && d.message_id == message_id);
         self.queued.is_empty() || (!self.failed.is_empty() && !self.queued.iter().any(same))
     }
 
@@ -117,11 +116,20 @@ impl Worker {
         }
         // Each is set aside again as it comes, if still filed elsewhere.
         self.kept.aside.clear();
-        let kept: Vec<PendingDraft> = {
-            let _one_at_a_time = pending_file();
-            self.store.load_account_doc(&self.acc.id, PENDING_DRAFTS).unwrap_or_default()
-        };
-        let hashes: Vec<u64> = kept.iter().map(|d| hash_of(&d.raw)).collect();
+        // The list only: each source is read as it's filed. Sources it doesn't name are removed
+        // once a connection. The account, then the file, as a draft is kept.
+        let (store, account) = (&self.store, &self.acc.id);
+        let kept: Vec<Kept> = store
+            .while_kept(account, self.removals, || {
+                let _one_at_a_time = pending_file();
+                let kept = stored::load(store, account);
+                if let Ok(list) = &kept {
+                    stored::sweep(store, account, list);
+                }
+                kept.unwrap_or_default()
+            })
+            .unwrap_or_default();
+        let hashes: Vec<u64> = kept.iter().map(|d| d.source.hash()).collect();
         // Those kept no more (filed, or replaced by a newer version) are forgotten.
         self.kept.failed.retain(|h, _| hashes.contains(h));
         self.kept.waiting.retain(|h| hashes.contains(h));
@@ -167,7 +175,7 @@ impl Worker {
             return true;
         }
         let Some(d) = self.kept.queued.pop_front() else { return false };
-        let (message_id, hash) = (written_message_id(&d.raw), hash_of(&d.raw));
+        let (message_id, hash) = (d.message_id.clone(), d.source.hash());
         // Never waited for (found in review: the new connection waited for the old one's filing
         // to end, a minute on a link that hung, and the whole account with it).
         let Some(being_filed) = Filing::begin(&self.filing, &self.acc.id, hash, &message_id) else {
@@ -175,12 +183,10 @@ impl Worker {
             return true;
         };
         // Filed since it was read, or replaced by a newer version: not filed again.
-        if !self.still_kept(&d.raw) {
-            return true;
-        }
-        match self.file_draft(&d.folder, d.replaces.clone(), &d.raw, &message_id, true) {
+        let Some(raw) = stored::still_kept(&self.store, &self.acc.id, self.removals, &d) else { return true };
+        match self.file_draft(&d.folder, d.replaces.clone(), &raw, &message_id, true) {
             Ok(_) if self.removed() => log::info!("{}: a draft of an account removed was saved", self.acc.id),
-            Ok(filed) => self.draft_filed(&d.raw, d.replaces.as_ref(), &message_id, filed, being_filed),
+            Ok(filed) => self.draft_filed(&d.source, d.replaces.as_ref(), &message_id, filed, being_filed),
             Err(e) if self.removed() => log::info!("{}: a draft of an account removed wasn't saved: {e}", self.acc.id),
             Err(e) => {
                 if self.kept.note_failed(hash) {
@@ -211,12 +217,5 @@ impl Worker {
             self.next_attempt = Instant::now();
             self.backoff = backoff;
         }
-    }
-
-    /// Whether the kept drafts' file still has `raw` (not filed since, nor replaced by a newer
-    /// version).
-    fn still_kept(&self, raw: &[u8]) -> bool {
-        let _one_at_a_time = pending_file();
-        self.store.load_account_doc::<Vec<PendingDraft>>(&self.acc.id, PENDING_DRAFTS).is_ok_and(|l| l.iter().any(|d| d.raw == raw))
     }
 }

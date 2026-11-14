@@ -1,4 +1,5 @@
-//! The store: message bodies, changes waiting for the server, and the Outbox.
+//! The store: message bodies, changes waiting for the server, the Outbox, and the drafts kept
+//! until their account connects.
 
 use crate::*;
 
@@ -419,6 +420,40 @@ impl Store {
         let dir = self.outbox_dir(account);
         let _ = self.files.remove_file(&dir.join(format!("{id}.json")));
         let _ = self.files.remove_file(&dir.join(format!("{id}.eml")));
+    }
+
+    fn kept_drafts_dir(&self, account: &str) -> PathBuf {
+        self.account_dir(account).join("drafts-kept")
+    }
+
+    /// Keep a draft's source on this computer until its account connects (`<id>.eml`, as the
+    /// Outbox keeps its messages); which drafts are kept, and where each goes, is the caller's.
+    pub fn kept_draft_add(&self, account: &str, id: u64, raw: &[u8]) -> Result<()> {
+        self.files.write(&self.kept_drafts_dir(account).join(format!("{id}.eml")), raw)
+    }
+
+    /// A kept draft's source; `None` when there's none.
+    pub fn kept_draft_raw(&self, account: &str, id: u64) -> Result<Option<Vec<u8>>> {
+        let path = self.kept_drafts_dir(account).join(format!("{id}.eml"));
+        match self.files.read(&path) {
+            Ok(raw) => Ok(Some(raw)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(io_err(&path)(e)),
+        }
+    }
+
+    /// A kept draft's source removed (one not there is no matter).
+    pub fn kept_draft_remove(&self, account: &str, id: u64) -> Result<()> {
+        let path = self.kept_drafts_dir(account).join(format!("{id}.eml"));
+        match self.files.remove_file(&path) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(io_err(&path)(e)),
+            _ => Ok(()),
+        }
+    }
+
+    /// The ids of the kept drafts' sources there are.
+    pub fn kept_draft_ids(&self, account: &str) -> Vec<u64> {
+        self.files.list(&self.kept_drafts_dir(account)).into_iter().filter_map(|(n, _)| n.strip_suffix(".eml").and_then(|n| n.parse().ok())).collect()
     }
 
     /// Cached sources across all folders of an account, as (key, path) pairs, for indexing.

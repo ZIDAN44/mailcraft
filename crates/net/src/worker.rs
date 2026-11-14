@@ -141,7 +141,7 @@ pub struct Pool {
 
 use changes::{DraftOrder, keep_draft};
 #[cfg(test)]
-use changes::{Order, PENDING_DRAFTS, PendingDraft};
+use changes::{KEPT_DRAFTS, Order, PENDING_DRAFTS, PendingDraft, kept_raws, sweep_kept};
 pub use mailcraft_model::MICROSOFT_NO_PASSWORDS;
 
 /// What a mailbox Microsoft won't open over IMAP needs: IMAP switched on (Outlook.com's own

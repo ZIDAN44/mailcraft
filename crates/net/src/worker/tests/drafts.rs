@@ -19,12 +19,11 @@ fn a_worker_stopped_keeps_the_drafts_it_had_still_to_save() {
     let saved =
         pool.poll().into_iter().any(|e| matches!(e, Event::DraftSaved { message_id, error: None, .. } if message_id == "plans@studio.example"));
     assert!(saved, "said kept");
-    let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap();
-    assert_eq!(kept.iter().map(|d| d.raw.as_slice()).collect::<Vec<_>>(), [draft.as_slice()]);
+    assert_eq!(kept_raws(&store, "a1").unwrap(), std::slice::from_ref(&draft));
     // Kept again (MailCraft closing kept it too): once.
     keep_draft(&store, "a1", "Drafts", None, draft, true, &Order::default()).unwrap();
-    let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap();
-    assert_eq!(kept.len(), 1);
+    assert_eq!(kept_raws(&store, "a1").unwrap().len(), 1);
+    assert_eq!(store.kept_draft_ids("a1").len(), 1, "the one it replaced has no source left");
     let _ = std::fs::remove_dir_all(store.root());
 }
 
@@ -43,8 +42,8 @@ fn a_removed_accounts_drafts_are_not_kept_again() {
     drop(tx);
     store.remove_account("a1").unwrap();
     w.run(rx);
-    let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap_or_default();
-    assert!(kept.is_empty(), "kept again");
+    assert!(kept_raws(&store, "a1").unwrap_or_default().is_empty(), "kept again");
+    assert!(store.kept_draft_ids("a1").is_empty(), "its source kept again");
     assert!(!pool.poll().into_iter().any(|e| matches!(e, Event::DraftSaved { .. })), "nothing said of it");
     let _ = std::fs::remove_dir_all(store.root());
 }
@@ -76,8 +75,7 @@ fn a_restart_keeps_the_drafts_on_their_way_first() {
     let draft = b"Subject: Plans\r\nMessage-ID: <restart@studio.example>\r\n\r\nto finish\r\n".to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft.clone(), folder: "Drafts".into(), replaces: None });
     pool.submit(Job::Start { account, password: None });
-    let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap();
-    assert_eq!(kept.iter().map(|d| d.raw.as_slice()).collect::<Vec<_>>(), [draft.as_slice()], "kept before the new worker reads it");
+    assert_eq!(kept_raws(&store, "a1").unwrap(), [draft], "kept before the new worker reads it");
     let saved =
         pool.poll().into_iter().any(|e| matches!(e, Event::DraftSaved { message_id, error: None, .. } if message_id == "restart@studio.example"));
     assert!(saved, "said kept");
@@ -113,12 +111,10 @@ fn what_was_written_after_a_save_is_kept_on_close() {
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: saved.clone(), folder: "Drafts".into(), replaces: None });
     pool.submit(Job::KeepDraft { account: "a1".into(), raw: written.clone(), folder: "Drafts".into(), replaces: None });
     pool.shutdown();
-    let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap();
-    assert_eq!(kept.iter().map(|d| d.raw.as_slice()).collect::<Vec<_>>(), [written.as_slice()], "the draft as it was written last");
+    assert_eq!(kept_raws(&store, "a1").unwrap(), std::slice::from_ref(&written), "the draft as it was written last");
     // The save failing on its way after that (the worker's own end) changes nothing.
     keep_draft(&store, "a1", "Drafts", None, saved, false, &pool.order).unwrap();
-    let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap();
-    assert_eq!(kept.iter().map(|d| d.raw.as_slice()).collect::<Vec<_>>(), [written.as_slice()]);
+    assert_eq!(kept_raws(&store, "a1").unwrap(), [written]);
     drop(pool);
     let _ = std::fs::remove_dir_all(store.root());
 }
@@ -196,8 +192,7 @@ fn kept_drafts_stay_kept_until_each_is_filed() {
 
 /// The drafts kept on this computer, by their text.
 pub(super) fn kept_texts(store: &Store) -> Vec<String> {
-    let kept: Vec<PendingDraft> = store.load_account_doc("a1", PENDING_DRAFTS).unwrap_or_default();
-    kept.iter().map(|d| String::from_utf8_lossy(&d.raw).into_owned()).collect()
+    kept_raws(store, "a1").unwrap_or_default().iter().map(|raw| String::from_utf8_lossy(raw).into_owned()).collect()
 }
 
 /// A draft kept as MailCraft closed, in a pool's files that the next run reads.

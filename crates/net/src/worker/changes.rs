@@ -7,7 +7,7 @@ mod filing;
 
 pub(super) use drafts::{DraftOrder, KeptDrafts, Order, Stopped, keep_draft};
 #[cfg(test)]
-pub(super) use drafts::{PENDING_DRAFTS, PendingDraft};
+pub(super) use drafts::{KEPT_DRAFTS, PENDING_DRAFTS, PendingDraft, kept_raws, sweep_kept};
 pub(super) use filing::{Filed, Filing, LOOK_ASIDE_EVERY, SetAside};
 
 impl Worker {
