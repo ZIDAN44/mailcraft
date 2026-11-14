@@ -3,7 +3,9 @@
 use crate::*;
 
 mod filing;
+mod waiting;
 pub use filing::Filing;
+pub use waiting::Waiting;
 
 /// The data files' commits that waited for the disk, timed: sealed ones and the others. For
 /// measuring what sealing costs; nothing for other stores.

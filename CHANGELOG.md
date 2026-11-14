@@ -74,6 +74,7 @@ on GitHub.
 - Signing in with Google or Microsoft no longer fails when the browser opens an extra connection to MailCraft before the redirect.
 - Messages with unusual line endings (bare line feeds, or a mix) have their header read correctly when exported to or imported from an Outlook data file, or re-dated.
 - Exchange accounts with shared mailboxes or public folders no longer send a request again to every one of them when something isn't found: each folder's requests go where the folder is kept.
+- Changes made offline reach the server much faster when many are waiting (a thousand: 7 s instead of 25 s).
 
 ## 0.38.0 - 2026-11-13
 

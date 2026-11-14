@@ -311,9 +311,12 @@ impl Worker {
         let trash = self.folders.iter().find(|f| f.role == FolderRole::Trash).map(|f| f.path.clone());
         // A change refused once is tried again after the folders are listed anew (see below).
         let mut retried = false;
+        // Read once, then kept in step with ops.json as each change comes off it (one queued
+        // meanwhile, by the window, is read in then): not read whole again for every change.
+        let mut waiting = self.store.waiting_ops(&self.acc.id).unwrap_or_default();
         // Cap the loop in case removal keeps failing.
         for _ in 0..100_000 {
-            let Some(op) = self.store.load_ops(&self.acc.id).unwrap_or_default().into_iter().next() else { break };
+            let Some(op) = waiting.first().cloned() else { break };
             let r = match self.conn.as_mut() {
                 Some(Conn::Imap(c)) => apply_remote_with(c, &op, trash.as_deref()),
                 Some(Conn::Jmap(c)) => jmap::apply_remote(c, &self.jstate, &op),
@@ -336,7 +339,7 @@ impl Worker {
                         Op::EmptyFolder { path } => destinations.push(path.clone()),
                         Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
                     }
-                    if let Err(e) = self.store.remove_op(&self.acc.id, &op) {
+                    if let Err(e) = self.store.op_made(&self.acc.id, &mut waiting) {
                         self.notice(e.to_string());
                         break;
                     }
@@ -346,7 +349,7 @@ impl Worker {
                     // it's made too: the folder list on disk has it already (found in review: a
                     // folder made after another was renamed was shown gone between the two).
                     if op.is_folder_op() && relist {
-                        let more = self.store.load_ops(&self.acc.id).unwrap_or_default().iter().any(Op::is_folder_op);
+                        let more = waiting.iter().any(Op::is_folder_op);
                         let listed = self.relist_with(false, !more);
                         relist = more || !listed;
                     }
@@ -363,7 +366,7 @@ impl Worker {
                     retried = false;
                     // The server refused: drop the change and resync so the cache matches the
                     // server again (forcing a full flag check).
-                    if let Err(e) = self.store.remove_op(&self.acc.id, &op) {
+                    if let Err(e) = self.store.op_made(&self.acc.id, &mut waiting) {
                         self.notice(e.to_string());
                         break;
                     }
