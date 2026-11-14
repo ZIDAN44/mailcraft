@@ -102,6 +102,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   a web page can't listen on. The browser app would need a way back of its own (a page of its
   own, registered with each service) and a safe place in the browser for the tokens.
 
+### 9. Calendars and contacts of a single sign-on account
+
+- **Impact:** A JMAP account that signs in through its server's single sign-on gets its mail
+  only: its calendars and contacts aren't synced, and nothing says so.
+- **Workaround:** In **Calendar and contacts server**, tick **The calendar server has its own user
+  name and password** and give them, if that server takes a password.
+- **Cause:** MailCraft signs in to a CalDAV or CardDAV server with a password only (Basic or
+  Digest), not with a bearer token, and an account's tokens are kept for its mail.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.
