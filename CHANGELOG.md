@@ -71,6 +71,7 @@ on GitHub.
 - The search box says when part of a search was left out: a size or a yes-or-no it can't read (`larger:abc`, `isread:x`), or words past the 64th and names past a list's 50th. These were dropped without a word, and the search found more than was asked.
 - Exporting into an existing data file part of which can't be read back stops and leaves the file as it was, instead of adding contacts, calendar items, notes and tasks a second time.
 - Account setup still finds a provider's servers when the computer's first DNS resolver fails: the others weren't asked. Its lookups now carry a random id, so an answer can't be forged by guessing it.
+- Signing in with Google or Microsoft no longer fails when the browser opens an extra connection to MailCraft before the redirect.
 
 ## 0.38.0 - 2026-11-13
 
