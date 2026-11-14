@@ -3,6 +3,7 @@
 //! (a partial file continued, or started again), then its bytes. Hostile input as every answer
 //! is: the head and the body are capped, and chunk sizes checked.
 
+use super::body::{Ahead, copy_body};
 use super::*;
 
 /// Send `req` (a GET, following redirects as [`send`] does) and hand the final answer's status
@@ -50,8 +51,7 @@ pub fn exchange_into<S: Read + Write, W: Write>(
         return Ok(head);
     }
     if let Some(mut out) = open(&head)? {
-        let mut body = Ahead { s, buf: rest, pos: 0 };
-        copy_body(&mut body, &head, u64::try_from(req.max).unwrap_or(u64::MAX), &mut out)?;
+        copy_body(&mut Ahead::new(s, rest), &head, u64::try_from(req.max).unwrap_or(u64::MAX), &mut out, "download")?;
         out.flush()?;
     }
     Ok(head)
@@ -60,98 +60,6 @@ pub fn exchange_into<S: Read + Write, W: Write>(
 /// Where a redirect sends a GET, if `head` is one.
 fn redirect(head: &Response) -> Option<&str> {
     head.header("Location").filter(|_| matches!(head.status, 301 | 302 | 303 | 307 | 308))
-}
-
-/// The body of `head`'s answer, at most `max` bytes, into `out`: by its length, its chunks, or
-/// to the end of the connection.
-fn copy_body<S: Read, W: Write>(body: &mut Ahead<'_, S>, head: &Response, max: u64, out: &mut W) -> Result<u64> {
-    let too_big = || NetError::Protocol(format!("the download is larger than {} MB", max >> 20));
-    let ended = || NetError::Closed("the download ended early".into());
-    if head.header("Transfer-Encoding").is_some_and(|t| t.to_ascii_lowercase().contains("chunked")) {
-        let mut done = 0u64;
-        loop {
-            let line = body.line()?;
-            let size =
-                u64::from_str_radix(line.split(';').next().unwrap_or("").trim(), 16).map_err(|_| NetError::Protocol("bad chunk size".into()))?;
-            if size == 0 {
-                return Ok(done);
-            }
-            if done.saturating_add(size) > max {
-                return Err(too_big());
-            }
-            if body.copy(size, out)? < size {
-                return Err(ended());
-            }
-            done += size;
-            if !body.line()?.is_empty() {
-                return Err(NetError::Protocol("bad chunk end".into()));
-            }
-        }
-    }
-    if let Some(len) = head.header("Content-Length") {
-        let len: u64 = len.trim().parse().map_err(|_| NetError::Protocol("bad Content-Length".into()))?;
-        if len > max {
-            return Err(too_big());
-        }
-        return if body.copy(len, out)? == len { Ok(len) } else { Err(ended()) };
-    }
-    // No length: the body runs to the end of the connection.
-    let done = body.copy(max.saturating_add(1), out)?;
-    if done > max { Err(too_big()) } else { Ok(done) }
-}
-
-/// What came with the head, then the connection.
-struct Ahead<'a, S> {
-    s: &'a mut S,
-    buf: Vec<u8>,
-    pos: usize,
-}
-
-impl<S: Read> Ahead<'_, S> {
-    /// More bytes from the connection; false at its end.
-    fn more(&mut self) -> Result<bool> {
-        if self.pos >= self.buf.len() {
-            self.buf.clear();
-            self.pos = 0;
-        }
-        let mut tmp = [0u8; 16 << 10];
-        let n = self.s.read(&mut tmp)?;
-        self.buf.extend_from_slice(tmp.get(..n).unwrap_or_default());
-        Ok(n > 0)
-    }
-
-    /// Up to `n` bytes (fewer when the connection ends first) into `out`: how many.
-    fn copy<W: Write>(&mut self, n: u64, out: &mut W) -> Result<u64> {
-        let mut done = 0u64;
-        while done < n {
-            if self.pos >= self.buf.len() && !self.more()? {
-                break;
-            }
-            let have = self.buf.len().saturating_sub(self.pos);
-            let take = usize::try_from(n - done).map_or(have, |left| left.min(have));
-            out.write_all(self.buf.get(self.pos..self.pos + take).unwrap_or_default())?;
-            self.pos += take;
-            done += take as u64;
-        }
-        Ok(done)
-    }
-
-    /// A line ended by CRLF (at most 1 KB), without its end.
-    fn line(&mut self) -> Result<String> {
-        loop {
-            if let Some(p) = self.buf.get(self.pos..).and_then(|r| r.windows(2).position(|w| w == b"\r\n")) {
-                let line = String::from_utf8_lossy(self.buf.get(self.pos..self.pos + p).unwrap_or_default()).into_owned();
-                self.pos += p + 2;
-                return Ok(line);
-            }
-            if self.buf.len().saturating_sub(self.pos) > 1024 {
-                return Err(NetError::Protocol("bad chunk size line".into()));
-            }
-            if !self.more()? {
-                return Err(NetError::Closed("the download ended early".into()));
-            }
-        }
-    }
 }
 
 #[cfg(test)]
