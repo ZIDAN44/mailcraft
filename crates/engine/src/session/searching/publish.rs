@@ -48,20 +48,39 @@ impl Session {
             }
         }
         found.extend(self.server_found(run).into_iter().map(SharedSummary::new));
-        // A Search Folder leaves out Deleted Items and Junk, as Outlook's.
-        if self.open_search_folder_name().is_some() {
-            found.retain(|m| self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk)));
-        }
         sort_newest_first(&mut found);
         found
     }
 
+    /// The folders a search over `scope` reads: a Search Folder's leaves out Deleted Items and
+    /// Junk, as Outlook's: they aren't searched (their mail was, and was then left out of the
+    /// list, each message's folder looked up).
+    pub(crate) fn search_run_folders(&self, scope: SearchScope) -> Vec<(String, String)> {
+        let mut folders = self.scope_folders(scope);
+        if self.open_search_folder_name().is_some() {
+            folders.retain(|(a, f)| !self.left_out_of_search_folders(a, f));
+        }
+        folders
+    }
+
+    /// Whether a Search Folder leaves out `folder` (Deleted Items and Junk).
+    fn left_out_of_search_folders(&self, account: &str, folder: &str) -> bool {
+        self.folder(account, folder).is_some_and(|f| matches!(f.role, FolderRole::Trash | FolderRole::Junk))
+    }
+
     /// What the servers found for the run's query that it didn't find here: its words may be in
-    /// mail not downloaded here.
+    /// mail not downloaded here (a Search Folder's, in the folders it reads).
     pub(super) fn server_found(&mut self, run: &SearchRun) -> Vec<Summary> {
         let q = run.q.clone();
-        let hits: Vec<MessageKey> =
-            self.server_search.iter().filter(|ss| ss.query == q).flat_map(|ss| ss.found.iter()).filter(|k| !run.has_found(k)).cloned().collect();
+        let search_folder = self.open_search_folder_name().is_some();
+        let hits: Vec<MessageKey> = self
+            .server_search
+            .iter()
+            .filter(|ss| ss.query == q)
+            .flat_map(|ss| ss.found.iter())
+            .filter(|k| !run.has_found(k) && !(search_folder && self.left_out_of_search_folders(&k.account, &k.folder)))
+            .cloned()
+            .collect();
         // The servers can't tell dates or what's waiting for a reply: checked here.
         self.server_hits(&q, &hits, run.awaited())
     }
@@ -101,11 +120,6 @@ impl Session {
             .filter(|f| self.filter_keeps(filter, &f.m) && !self.listed_hashed(&f.m.key, f.hash))
             .map(|f| (f.m.when(), f.hash, f.m))
             .collect();
-        if self.open_search_folder_name().is_some() {
-            fresh.retain(|(_, _, m)| {
-                self.folder(&m.key.account, &m.key.folder).is_none_or(|f| !matches!(f.role, FolderRole::Trash | FolderRole::Junk))
-            });
-        }
         if gone.is_empty() && fresh.is_empty() {
             return;
         }
@@ -223,7 +237,7 @@ impl Session {
         let Some((q, scope, wait, folders)) = self.search_state.run.as_ref().map(|r| (r.q.clone(), r.scope, r.wait, r.folders.clone())) else {
             return;
         };
-        let now = self.scope_folders(scope);
+        let now = self.search_run_folders(scope);
         let (a, b): (HashSet<_>, HashSet<_>) = (now.iter().collect(), folders.iter().collect());
         if a != b {
             self.start_search(&q, scope, wait);

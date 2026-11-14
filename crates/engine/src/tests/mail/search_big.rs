@@ -613,3 +613,37 @@ fn how_long_searches_take() {
     }
     eprintln!("its index held {} KiB after the queries", s.search_index_bytes(big::ACCOUNT) / 1024);
 }
+
+/// What a Search Folder finding most of the mailbox (`is:read`) takes over a plain search of the
+/// same, waiting (the list put together at its end) and stepped as the window steps it (what's
+/// found streamed into the list), each the median of 7 (`cargo test --release -p
+/// mailcraft-engine --lib a_search_folder_of_most -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn a_search_folder_of_most_of_the_mailbox_takes() {
+    let (mut s, t) = cold();
+    s.create_search_folder("Read", "is:read").unwrap();
+    let median = |mut took: Vec<Duration>| {
+        took.sort();
+        took[took.len() / 2]
+    };
+    for background in [false, true] {
+        let by = |s: &mut Session, folder: bool| {
+            s.set_background_search(background);
+            let t = Instant::now();
+            if folder {
+                s.open_search_folder("Read").unwrap();
+            } else {
+                s.run_search("is:read", SearchScope::All);
+            }
+            while !s.search_step(8).done {}
+            t.elapsed()
+        };
+        let plain = median((0..7).map(|_| by(&mut s, false)).collect());
+        assert_eq!(s.list.len(), t.read);
+        let folder = median((0..7).map(|_| by(&mut s, true)).collect());
+        assert_eq!(s.list.len(), t.read);
+        let how = if background { "stepped" } else { "waiting" };
+        println!("MEASURE {} found, {how}: a search {plain:?}, the Search Folder {folder:?}", t.read);
+    }
+}

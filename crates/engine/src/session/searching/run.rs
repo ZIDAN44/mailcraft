@@ -399,7 +399,7 @@ impl Session {
     /// `wait`: settled in full before it's shown, what isn't indexed read from its source.
     pub fn start_search(&mut self, q: &str, scope: SearchScope, wait: bool) {
         let query = self.query_of(q);
-        let mut folders = self.scope_folders(scope);
+        let mut folders = self.search_run_folders(scope);
         // The folders on view first: what's on screen is found first.
         let shown = self.view_folders();
         folders.sort_by_key(|k| !shown.contains(k));
