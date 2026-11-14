@@ -14,11 +14,13 @@ pub fn flatten(blocks: &[Block]) -> (String, Styles) {
         if t.trim().is_empty() && !t.contains(rich::PICTURE) {
             continue;
         }
+        // Each piece to styles that fit what's gathered (it's they that are built here).
         if !text.is_empty() {
-            rich::append(&mut text, &mut styles, "\n", &Styles::plain("\n"));
+            rich::append_to_fitted(&mut text, &mut styles, "\n", &Styles::plain("\n"));
         }
-        rich::append(&mut text, &mut styles, &t, &st);
+        rich::append_to_fitted(&mut text, &mut styles, &t, &st);
     }
+    styles.fit(&text);
     (text, styles)
 }
 

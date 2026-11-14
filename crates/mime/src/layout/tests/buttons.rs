@@ -179,3 +179,41 @@ fn measure_layout_newsletter() {
     println!("MEASURE layout of boxes in boxes, {} KB: {} ms", boxes.len() / 1024, t.elapsed().as_millis());
     assert!(!b.is_empty());
 }
+
+/// A newsletter of 1,500 cells of about 130 characters laid out, then made the text to edit under
+/// a reply ([`flatten`]), timed. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-mime --lib measure_flatten -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_flatten() {
+    let cell = "<td><b>A heading</b> and some words of a long newsletter, kept to see what quoting it under a reply costs.</td>";
+    let rows: String = (0..750).map(|_| format!("<tr>{cell}{cell}</tr>")).collect();
+    let b = html_layout(&format!("<table width=\"600\">{rows}</table>"));
+    let t = std::time::Instant::now();
+    let (text, styles) = flatten(&b);
+    println!("MEASURE flatten 1500 cells ({} KB): {} ms", text.len() / 1024, t.elapsed().as_millis());
+    assert_eq!(styles.chars.len(), text.chars().count());
+}
+
+/// A laid-out message made the text to edit under a reply reads as appending each of its pieces
+/// with [`crate::rich::append`] does (it's built without fitting all of it for each piece).
+#[test]
+fn flattened_as_appended_piece_by_piece() {
+    let html = r##"<table width="600"><tr><td style="color:#c00"><b>Sale</b> on <i>everything</i></td><td align="right"><a href="https://shop.example/">Shop</a></td></tr>
+        <tr><td colspan="2"><p>Two lines</p><p style="text-align:center">centred</p></td></tr></table><p>After the table <u>under</u> it.</p>"##;
+    let b = html_layout(html);
+    let (text, styles) = flatten(&b);
+    let (mut want, mut want_styles) = (String::new(), crate::rich::Styles::plain(""));
+    for (lines, align) in text_blocks(&b) {
+        let (t, st) = cell_text(lines, align);
+        if t.trim().is_empty() && !t.contains(crate::rich::PICTURE) {
+            continue;
+        }
+        if !want.is_empty() {
+            crate::rich::append(&mut want, &mut want_styles, "\n", &crate::rich::Styles::plain("\n"));
+        }
+        crate::rich::append(&mut want, &mut want_styles, &t, &st);
+    }
+    assert!(!text.is_empty());
+    assert_eq!((text, styles), (want, want_styles));
+}
