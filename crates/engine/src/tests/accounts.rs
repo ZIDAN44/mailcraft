@@ -475,12 +475,16 @@ fn the_folder_cache_lets_go_of_folders_past_its_limit() {
     s.set_cache_limit(3);
     let inbox = s.list.len();
     assert!(inbox > 3, "the sample's Inbox is bigger than the limit");
+    // Someone the rest of the sample never mentions, in a folder not in memory.
+    let key = next_key(&s, "sample", "Archive");
+    file_whole(&mut s, key, b"From: Kai Moana <kai@archive.example>\r\nSubject: Old notes\r\n\r\nHi.\r\n");
+    assert!(!s.cache.contains_key(&("sample".to_string(), "Archive".to_string())));
     // A change: the address book is built again, reading every folder.
     s.run("list.selectAll", &json!({})).unwrap();
     s.run("mail.markRead", &json!({})).unwrap();
-    let loads = s.cache_order.len();
-    let _ = s.address_book("all", "");
-    assert!(s.cache_order.len() >= loads, "every folder was read");
+    // Every folder was read: someone whose mail is only in one let go of is in the book.
+    let book = s.address_book("all", "");
+    assert!(book.iter().any(|a| a.email == "kai@archive.example"), "every folder was read: {book:?}");
     let cached: usize = s.cache.values().map(|st| st.messages.len()).sum();
     assert!(s.cache.contains_key(&("sample".to_string(), "INBOX".to_string())), "the folder on screen stays");
     // The one on screen, and the one just read (kept even past the limit: it's being used).

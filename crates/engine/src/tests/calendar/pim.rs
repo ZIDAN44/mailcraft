@@ -153,7 +153,8 @@ fn invitations_are_answered_and_sent() {
     assert_eq!(method, "REPLY");
     assert!(raw.contains("PARTSTAT=ACCEPTED") && raw.contains("mailto:riley@studio.example"), "{raw}");
     assert!(raw.to_ascii_lowercase().contains("text/calendar"), "sent as a calendar part");
-    assert!(raw.contains("To: \"Ana Lima\" <ana@soundlab.example>") || raw.contains("ana@soundlab.example"));
+    let to = mailcraft_mime::parse(raw.as_bytes()).unwrap().to;
+    assert_eq!(to, [mailcraft_model::EmailAddress::new("Ana Lima", "ana@soundlab.example")], "to the organizer");
 
     // Declining takes it out of the calendar.
     s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
@@ -638,6 +639,9 @@ fn reminders_come_snooze_and_go() {
     assert_eq!(due(&s), ["Stand-up"]);
     let key = s.due_reminders(s.clock.now)[0].key.clone();
     assert!(key.starts_with("local|") || key.contains(&standup), "{key}");
+    let listed = s.run("reminders.list", &json!({})).unwrap();
+    let listed: Vec<(&str, &str)> = listed.as_array().unwrap().iter().map(|r| (r["key"].as_str().unwrap(), r["summary"].as_str().unwrap())).collect();
+    assert_eq!(listed, [(key.as_str(), "Stand-up")], "the reminders listed are those due");
     // Snoozed five minutes: gone, then back.
     s.run("reminders.snooze", &json!({"key": key, "minutes": 5})).unwrap();
     assert!(due(&s).is_empty());
@@ -684,7 +688,6 @@ fn reminders_come_snooze_and_go() {
     for bad in [json!(-1), json!(999_999), json!("soon"), json!(true)] {
         assert!(s.run("event.update", &json!({"uid": quiet, "reminder": bad})).is_err(), "{bad}");
     }
-    assert!(s.run("reminders.list", &json!({})).unwrap().is_array());
 }
 
 /// The work week: Monday to Friday of the week the day is in, moving a week at a time.
@@ -699,8 +702,16 @@ fn the_work_week_is_monday_to_friday() {
     assert_eq!((mailcraft_model::dates::day_string(d0), d1 - d0), ("2026-10-19".to_string(), 5));
     s.run("calendar.goto", &json!({"step": 1})).unwrap();
     assert_eq!(mailcraft_model::dates::day_string(s.cal_days().0), "2026-10-26");
+    // What the calendar shows is that week's: the sample's stand-up, Monday, Wednesday and Friday.
     let events = s.run("calendar.events", &json!({})).unwrap();
-    assert!(events.as_array().is_some());
+    let shown: Vec<(String, String)> = events
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| (e["summary"].as_str().unwrap().to_string(), mailcraft_model::dates::day_string(e["start"].as_i64().unwrap().div_euclid(86_400))))
+        .collect();
+    let standup = |day: &str| ("Team stand-up".to_string(), day.to_string());
+    assert_eq!(shown, [standup("2026-10-26"), standup("2026-10-28"), standup("2026-10-30")]);
     assert!(s.run("calendar.view", &json!({"mode": "fortnight"})).is_err());
 }
 

@@ -96,7 +96,7 @@ fn search_finds_bodies_fields_and_attachment_names() {
     assert_eq!(s.run("search.run", &json!({"query": "shot list"})).unwrap()["results"], 2, "other folders are searched too");
     assert_eq!(s.run("search.run", &json!({"query": "shot list", "scope": "current"})).unwrap()["results"], 0);
     assert_eq!(s.run("search.run", &json!({"query": "has:attachment from:jun"})).unwrap()["results"], 1);
-    assert!(s.view_title().contains("turnaround") || s.view_title().contains("jun"));
+    assert_eq!(s.view_title(), "Results for “has:attachment from:jun”", "the search now, not one before");
     s.run("search.clear", &json!({})).unwrap();
     assert!(s.search.is_none());
     assert_eq!(s.list.len(), 7);
