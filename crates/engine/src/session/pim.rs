@@ -2,7 +2,7 @@
 //! its notes and tasks. Accounts whose server offers CalDAV / CardDAV sync them (see `net::dav`);
 //! the others, and the sample mailbox, keep a calendar and an address book on this computer.
 
-use mailcraft_model::dates::{civil_from_days, days_from_civil};
+use mailcraft_model::dates::{civil_from_days, day_string, days_from_civil, weekday_index};
 use mailcraft_model::ical::{self, CalEvent};
 use mailcraft_model::pim::{LOCAL, Pim, StoredCard, StoredEvent, Tombstone};
 use mailcraft_model::vcard::Card;
@@ -178,7 +178,7 @@ impl Session {
     /// or the weeks of the month.
     pub fn cal_days(&self) -> (i64, i64) {
         let d = self.cal_day();
-        let monday = |x: i64| x - (x + 3).rem_euclid(7);
+        let monday = |x: i64| x - i64::from(weekday_index(x));
         match self.cal_mode {
             CalMode::Day => (d, d + 1),
             CalMode::WorkWeek => (monday(d), monday(d) + 5),
@@ -220,8 +220,7 @@ impl Session {
             }
         };
         self.cal_day = Some(d);
-        let (y, m, dd) = civil_from_days(d);
-        Ok(serde_json::json!({"date": format!("{y:04}-{m:02}-{dd:02}"), "mode": self.cal_mode}))
+        Ok(serde_json::json!({"date": day_string(d), "mode": self.cal_mode}))
     }
 
     /// The key a calendar is shown or hidden under (`Prefs::hidden_calendars`).

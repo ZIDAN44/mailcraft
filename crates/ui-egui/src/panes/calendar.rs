@@ -23,9 +23,24 @@ pub use side::nav;
 
 /// Height of an hour in the day and week views.
 const HOUR: f32 = 46.0;
-pub(crate) const MONTHS: [&str; 12] =
-    ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const DAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/// A month's name (1 = January) in the interface's language; nothing for a month no calendar has.
+pub(crate) fn month_name(m: u32) -> &'static str {
+    crate::i18n::tc("month", m.checked_sub(1).and_then(|i| MONTHS.get(i as usize)).copied().unwrap_or(""))
+}
+
+/// The calendar on a day (`calendar.goto`).
+pub(crate) fn goto(day: i64) -> Action {
+    Action::Run("calendar.goto", json!({"date": dates::day_string(day)}))
+}
+
+/// The Calendar opened on a day, in the day view: from the To-Do Bar's month, an invitation.
+pub(crate) fn show_day(day: i64, acts: &mut Vec<Action>) {
+    acts.push(Action::Run("view.module", json!({"name": "calendar"})));
+    acts.push(Action::Run("calendar.view", json!({"mode": "day"})));
+    acts.push(goto(day));
+}
 
 /// A calendar's colour: an account's own calendar in the account's colour, others in the
 /// calendar palette (`Session::calendar_color`).
@@ -58,18 +73,17 @@ fn day_of(t: i64, s: &Session) -> i64 {
 /// `October 2026`, `12 – 18 October 2026`, `Monday, 12 October 2026`.
 pub fn title(s: &Session) -> String {
     let (d0, d1) = s.cal_days();
-    let month = |m: u32| crate::i18n::tc("month", MONTHS.get(m as usize - 1).copied().unwrap_or("")).to_string();
     match s.cal_mode {
         CalMode::Month => {
             let (y, m, _) = civil_from_days(s.cal_day());
-            tf!("{month} {year}", month = month(m), year = y)
+            tf!("{month} {year}", month = month_name(m), year = y)
         }
         CalMode::WorkWeek | CalMode::Week => {
             let ((y0, m0, a), (y1, m1, b)) = (civil_from_days(d0), civil_from_days(d1 - 1));
             if (y0, m0) == (y1, m1) {
-                tf!("{from} – {to} {month} {year}", from = a, to = b, month = month(m1), year = y1)
+                tf!("{from} – {to} {month} {year}", from = a, to = b, month = month_name(m1), year = y1)
             } else {
-                tf!("{from} {month_from} – {to} {month} {year}", from = a, month_from = month(m0), to = b, month = month(m1), year = y1)
+                tf!("{from} {month_from} – {to} {month} {year}", from = a, month_from = month_name(m0), to = b, month = month_name(m1), year = y1)
             }
         }
         CalMode::Day => long_date(d0),
@@ -79,10 +93,7 @@ pub fn title(s: &Session) -> String {
 /// A day written out: `Thursday, 22 October 2026`, in the interface's language.
 pub fn long_date(day: i64) -> String {
     let (y, m, d) = civil_from_days(day);
-    let month = crate::i18n::tc("month", MONTHS.get(m as usize - 1).copied().unwrap_or("")).to_string();
-    let wd = (day + 3).rem_euclid(7) as usize;
-    let day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].get(wd).copied().unwrap_or("");
-    tf!("{weekday}, {day} {month} {year}", weekday = tl!(day_name), day = d, month = month, year = y)
+    tf!("{weekday}, {day} {month} {year}", weekday = tl!(dates::weekday_long(day)), day = d, month = month_name(m), year = y)
 }
 
 /// The months of the side pane, one under another (Outlook's date navigator, pulled down for
@@ -147,7 +158,7 @@ pub(crate) fn bar_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut V
 /// before its first.
 fn grid_start(month: i64) -> i64 {
     let first = days_from_civil(month.div_euclid(12), u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1), 1);
-    first - (first + 3).rem_euclid(7)
+    first - i64::from(dates::weekday_index(first))
 }
 
 /// The days from `from` up to `to` that have an event on them (Outlook's bold days).
@@ -180,11 +191,7 @@ fn mini_month(
     let t = st.tokens;
     let (y, m) = (month.div_euclid(12), u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1));
     ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(tf!("{month} {year}", month = crate::i18n::tc("month", MONTHS.get(m as usize - 1).copied().unwrap_or("")), year = y))
-                .font(theme::bold(13.0))
-                .color(t.text),
-        );
+        ui.label(RichText::new(tf!("{month} {year}", month = month_name(m), year = y)).font(theme::bold(13.0)).color(t.text));
         if !arrows {
             return;
         }
@@ -201,7 +208,7 @@ fn mini_month(
     let w = ((ui.available_width() - 4.0) / 7.0).clamp(20.0, 34.0);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
-        for d in DAYS {
+        for d in dates::WEEKDAYS {
             let (r, _) = ui.allocate_exact_size(vec2(w, 18.0), Sense::hover());
             ui.painter().text(
                 r.center(),
@@ -240,15 +247,13 @@ fn mini_month(
                 let font = if busy.contains(&d) { theme::bold(12.0) } else { theme::regular(12.0) };
                 ui.painter().text(r.center(), Align2::CENTER_CENTER, dd.to_string(), font, c);
                 if resp.clicked() {
-                    let (yy, mm, ddd) = civil_from_days(d);
                     if bar {
-                        acts.push(Action::Run("view.module", json!({"name": "calendar"})));
-                        acts.push(Action::Run("calendar.view", json!({"mode": "day"})));
+                        show_day(d, acts);
                         st.todo_month = None;
                     } else {
+                        acts.push(goto(d));
                         st.mini_month = None;
                     }
-                    acts.push(Action::Run("calendar.goto", json!({"date": format!("{yy:04}-{mm:02}-{ddd:02}")})));
                 }
             }
         });
@@ -387,7 +392,7 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
     let head = 22.0;
     let cw = area.width() / 7.0;
     let rh = ((area.height() - head) / 6.0).max(60.0);
-    for (i, d) in DAYS.iter().enumerate() {
+    for (i, d) in dates::WEEKDAYS.iter().enumerate() {
         ui.painter().text(pos2(area.min.x + cw * (i as f32 + 0.5), area.min.y + 10.0), Align2::CENTER_CENTER, tl!(d), theme::regular(12.0), t.dim);
     }
     for w in 0..6 {
@@ -436,9 +441,8 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
                     egui::Link::new(RichText::new(tf!("{n} more", n = todays.len() - shown)).small()),
                 );
                 if more.clicked() {
-                    let (y, mm, ddd) = civil_from_days(d);
                     acts.push(Action::Run("calendar.view", json!({"mode": "day"})));
-                    acts.push(Action::Run("calendar.goto", json!({"date": format!("{y:04}-{mm:02}-{ddd:02}")})));
+                    acts.push(goto(d));
                 }
             }
             if bg.double_clicked() {
@@ -524,7 +528,7 @@ fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i6
             let d = d0 + i;
             let x = head.min.x + day_x(i, j);
             let (_, _, dd) = civil_from_days(d);
-            let wd = DAYS.get(((d + 3).rem_euclid(7)) as usize).copied().unwrap_or("");
+            let wd = dates::weekday_short(d);
             ui.painter().text(
                 pos2(x + cw / 2.0, head.min.y + 10.0),
                 Align2::CENTER_CENTER,

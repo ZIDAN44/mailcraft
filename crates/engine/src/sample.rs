@@ -644,7 +644,7 @@ pub fn sample_pim(now: i64, offset: i64) -> mailcraft_model::pim::Pim {
     use mailcraft_model::pim::{LOCAL, Pim, StoredCard, StoredEvent};
     use mailcraft_model::vcard::{Card, Typed};
     let today = (now + offset).div_euclid(86_400);
-    let monday = today - (today + 3).rem_euclid(7);
+    let monday = today - i64::from(mailcraft_model::dates::weekday_index(today));
     let at = |day: i64, h: i64, m: i64| day * 86_400 + h * 3600 + m * 60 - offset;
     let who = |name: &str, email: &str, partstat: &str| Attendee { email: email.into(), name: name.into(), partstat: partstat.into(), rsvp: false };
     let ev = |uid: &str, summary: &str, start: i64, end: i64| CalEvent {

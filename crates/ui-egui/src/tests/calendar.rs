@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod dates;
 mod meetings;
 mod pim;
 mod repeat;

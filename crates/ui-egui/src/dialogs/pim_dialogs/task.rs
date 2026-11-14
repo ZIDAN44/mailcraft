@@ -37,11 +37,7 @@ pub struct TaskForm {
 
 /// A task's day (UTC midnight) as the form shows it.
 fn day_text(day: Option<i64>) -> String {
-    day.map(|d| {
-        let (y, m, dd) = dates::civil_from_days(d.div_euclid(86_400));
-        format!("{y:04}-{m:02}-{dd:02}")
-    })
-    .unwrap_or_default()
+    day.map(|d| dates::day_string(d.div_euclid(86_400))).unwrap_or_default()
 }
 
 /// What Status is called.

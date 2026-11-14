@@ -176,9 +176,9 @@ const INDEX_W: f32 = 18.0;
 fn birthday_shown(b: &str) -> String {
     let Some(b) = mailcraft_engine::model::vcard::birthday_of(b) else { return b.to_string() };
     let Some((mm, dd)) = b.strip_prefix("--").and_then(|md| md.split_once('-')) else { return b };
-    let month_name = mm.parse::<usize>().ok().and_then(|m| m.checked_sub(1)).and_then(|i| crate::calendar::MONTHS.get(i).copied());
+    let month_name = mm.parse::<u32>().ok().filter(|m| (1..=12).contains(m)).map(crate::calendar::month_name);
     match (month_name, dd.parse::<u32>()) {
-        (Some(name), Ok(day)) => tf!("{day} {month}", day = day, month = crate::i18n::tc("month", name)),
+        (Some(name), Ok(day)) => tf!("{day} {month}", day = day, month = name),
         _ => b.clone(),
     }
 }

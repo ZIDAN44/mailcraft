@@ -188,8 +188,8 @@ impl SnoozeUntil {
     pub fn at(self, clock: &Clock) -> i64 {
         let day = clock.local(clock.now).div_euclid(86_400);
         let morning = |d: i64| clock.utc(d * 86_400 + 8 * 3600);
-        // 1970-01-01 was a Thursday: 0 = Monday … 6 = Sunday.
-        let weekday = (day + 3).rem_euclid(7);
+        // 0 = Monday … 6 = Sunday.
+        let weekday = i64::from(crate::dates::weekday_index(day));
         match self {
             SnoozeUntil::LaterToday => {
                 let t = clock.now + 3 * 3600;

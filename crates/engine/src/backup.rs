@@ -243,8 +243,8 @@ impl crate::Session {
         let now = self.clock.now;
         let backup = Backup { files: store.snapshot(|path| keeps(path, mail)), state, made: now };
         let file = write(&backup, password, random).map_err(|e| crate::CmdError::Failed(e.to_string()))?;
-        let (y, m, d) = mailcraft_model::dates::civil_from_days(now.saturating_add(i64::from(self.clock.offset)).div_euclid(86_400));
-        Ok((format!("MailCraft backup {y:04}-{m:02}-{d:02}.mailcraft-backup"), file))
+        let day = now.saturating_add(i64::from(self.clock.offset)).div_euclid(86_400);
+        Ok((format!("MailCraft backup {}.mailcraft-backup", mailcraft_model::dates::day_string(day)), file))
     }
 }
 

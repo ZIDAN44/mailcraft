@@ -238,7 +238,7 @@ pub(super) fn nth_weekday(year: i64, month: u32, nth: i32, weekday: u32) -> Opti
     }
     let first = days_from_civil(year, month, 1);
     let next = if month == 12 { days_from_civil(year + 1, 1, 1) } else { days_from_civil(year, month + 1, 1) };
-    let wd = |d: i64| (d + 3).rem_euclid(7) as u32;
+    let wd = crate::dates::weekday_index;
     if nth > 0 {
         let offset = (i64::from(weekday) - i64::from(wd(first))).rem_euclid(7);
         let d = first + offset + 7 * i64::from(nth - 1);
@@ -321,7 +321,7 @@ fn change_day(local: i64) -> (u32, Option<i64>, u32) {
     let (y, m, d) = civil_from_days(day);
     let month_len = month_day(y, m, -1).map_or(31, |last| last - days_from_civil(y, m, 1) + 1);
     let nth = (i64::from(d) + 7 <= month_len).then(|| (i64::from(d) - 1) / 7 + 1);
-    (m, nth, u32::try_from((day + 3).rem_euclid(7)).unwrap_or(0))
+    (m, nth, crate::dates::weekday_index(day))
 }
 
 /// A `VTIMEZONE` for a zone of the database, as its clocks change in `year`: yearly rules when

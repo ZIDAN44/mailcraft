@@ -61,7 +61,7 @@ impl TodoGroup {
     /// Monday.
     pub fn of(day: Option<i64>, today: i64) -> TodoGroup {
         let Some(day) = day else { return TodoGroup::NoDate };
-        let week_end = today.saturating_sub((today.rem_euclid(7) + 3) % 7).saturating_add(7);
+        let week_end = today.saturating_sub(i64::from(mailcraft_model::dates::weekday_index(today))).saturating_add(7);
         match day.saturating_sub(today) {
             i64::MIN..=-1 => TodoGroup::Overdue,
             0 => TodoGroup::Today,

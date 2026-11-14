@@ -117,8 +117,7 @@ pub struct EventForm {
 }
 
 fn local_date(t: i64, s: &Session) -> String {
-    let c = dates::civil(t, &s.clock);
-    format!("{:04}-{:02}-{:02}", c.year, c.month, c.day)
+    dates::day_string(s.clock.local_day(t))
 }
 
 /// A local time as its box shows it, on the clock File › Options sets (gap 9).

@@ -151,8 +151,7 @@ fn tasks(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         egui::TextEdit::singleline(&mut st.todo_new).hint_text(tl!("Type a new task")).desired_width(f32::INFINITY).font(theme::regular(13.0)),
     );
     if typed.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !st.todo_new.trim().is_empty() {
-        let (y, m, d) = dates::civil_from_days(dates::today(&s.clock));
-        acts.push(Action::Run("task.create", json!({"title": st.todo_new.trim(), "due": format!("{y:04}-{m:02}-{d:02}")})));
+        acts.push(Action::Run("task.create", json!({"title": st.todo_new.trim(), "due": dates::day_string(dates::today(&s.clock))})));
         st.todo_new.clear();
         typed.request_focus();
     }

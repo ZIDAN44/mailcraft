@@ -125,7 +125,7 @@ fn sign_and_encrypt(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, 
 fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, clock: &dates::Clock) {
     let today = dates::today(clock);
     let at = |day: i64, minutes: i64| clock.utc(day.saturating_mul(86_400).saturating_add(minutes * 60));
-    let weekday = (today + 3).rem_euclid(7);
+    let weekday = i64::from(dates::weekday_index(today));
     let presets = [
         ("In 1 hour", (clock.now + 3600) / 60 * 60),
         ("Tomorrow morning", at(today + 1, 8 * 60)),
@@ -148,8 +148,9 @@ fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, clock:
     // A day and time of one's own (local), kept while the menu is open.
     let id = egui::Id::unique(("delay-custom", c.id));
     let (mut day, mut time) = ui.data(|d| d.get_temp::<(String, String)>(id)).unwrap_or_else(|| {
-        let c0 = dates::civil(c.send_after.unwrap_or(clock.now + 3600), clock);
-        (format!("{:04}-{:02}-{:02}", c0.year, c0.month, c0.day), crate::i18n::time_box(c0.hour, c0.minute, clock.style))
+        let at = c.send_after.unwrap_or(clock.now + 3600);
+        let c0 = dates::civil(at, clock);
+        (dates::day_string(clock.local_day(at)), crate::i18n::time_box(c0.hour, c0.minute, clock.style))
     });
     ui.label(RichText::new(tl!("Don't send before")).color(t.dim).small());
     let mut chosen = None;

@@ -186,21 +186,42 @@ pub fn civil(t: i64, clock: &Clock) -> Civil {
     let days = local.div_euclid(86_400);
     let secs = local.rem_euclid(86_400);
     let (year, month, day) = civil_from_days(days);
-    // 1970-01-01 was a Thursday (weekday 3 when Monday is 0).
-    let weekday = (days + 3).rem_euclid(7) as u32;
-    Civil { year, month, day, hour: (secs / 3600) as u32, minute: ((secs % 3600) / 60) as u32, weekday }
+    Civil { year, month, day, hour: (secs / 3600) as u32, minute: ((secs % 3600) / 60) as u32, weekday: weekday_index(days) }
 }
 
-const WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const WEEKDAYS_LONG: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+/// The weekdays' short English names, Monday first (the interface translates them).
+pub const WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/// The weekdays' whole English names, Monday first.
+pub const WEEKDAYS_LONG: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/// The weekday of a day (days since 1970-01-01): 0 = Monday … 6 = Sunday. 1970-01-01 was a
+/// Thursday; any day, however far off (it may come from disk), has one.
+pub fn weekday_index(day: i64) -> u32 {
+    (day.rem_euclid(7) + 3).rem_euclid(7) as u32
+}
+
+/// A day's weekday, short and in English: `Mon`.
+pub fn weekday_short(day: i64) -> &'static str {
+    WEEKDAYS.get(weekday_index(day) as usize).copied().unwrap_or("")
+}
+
+/// A day's weekday, whole and in English: `Monday`.
+pub fn weekday_long(day: i64) -> &'static str {
+    WEEKDAYS_LONG.get(weekday_index(day) as usize).copied().unwrap_or("")
+}
+
+/// A month's short English name (1 = `Jan`); nothing for a month no calendar has.
+pub fn month_short(month: u32) -> &'static str {
+    month.checked_sub(1).and_then(|i| MONTHS.get(i as usize)).copied().unwrap_or("")
+}
 
 fn weekday_name(c: &Civil) -> &'static str {
     WEEKDAYS.get(c.weekday as usize).copied().unwrap_or("")
 }
 
 fn month_name(c: &Civil) -> &'static str {
-    MONTHS.get(c.month.saturating_sub(1) as usize).copied().unwrap_or("")
+    month_short(c.month)
 }
 
 /// The headings the message list groups by, newest first.
@@ -238,10 +259,9 @@ impl DateGroup {
         if diff == 1 {
             return DateGroup::Yesterday;
         }
-        let today_wd = (today + 3).rem_euclid(7);
-        let week_start = today - today_wd;
+        let week_start = today - i64::from(weekday_index(today));
         if day >= week_start {
-            return DateGroup::ThisWeek((day + 3).rem_euclid(7) as u32);
+            return DateGroup::ThisWeek(weekday_index(day));
         }
         if day >= week_start - 7 {
             return DateGroup::LastWeek;
@@ -383,7 +403,7 @@ impl FollowUp {
     pub fn due(self, clock: &Clock) -> i64 {
         let today = clock.local_day(clock.now);
         // 0 = Monday … 6 = Sunday; Friday is 4.
-        let weekday = (today + 3).rem_euclid(7);
+        let weekday = i64::from(weekday_index(today));
         match self {
             FollowUp::Today => today,
             FollowUp::Tomorrow => today + 1,
@@ -408,8 +428,7 @@ pub fn day_string(day: i64) -> String {
 /// `Fri 2026-10-16`, `Fri 16/10/2026`…
 pub fn day_text(day: i64, clock: &Clock) -> String {
     let (y, m, d) = civil_from_days(day);
-    let weekday = WEEKDAYS.get((day.rem_euclid(7) + 3).rem_euclid(7) as usize).copied().unwrap_or("");
-    format!("{weekday} {}", clock.style.order.day(y, m, d))
+    format!("{} {}", weekday_short(day), clock.style.order.day(y, m, d))
 }
 
 /// A local day as the lists name one: `Mon Oct 26` in the viewer's year (`Mon 26 Oct` with the
@@ -419,17 +438,13 @@ pub fn day_short(day: i64, clock: &Clock) -> String {
     if y != civil_from_days(today(clock)).0 {
         return day_text(day, clock);
     }
-    let weekday = WEEKDAYS.get((day.rem_euclid(7) + 3).rem_euclid(7) as usize).copied().unwrap_or("");
-    let month = MONTHS.get(m.saturating_sub(1) as usize).copied().unwrap_or("");
+    let (weekday, month) = (weekday_short(day), month_short(m));
     if clock.style.order.day_first() { format!("{weekday} {d} {month}") } else { format!("{weekday} {month} {d}") }
 }
 
 /// A local day as the reading pane shows it: `Fri 2026-10-16`.
 pub fn day_label(day: i64) -> String {
-    let (y, m, d) = civil_from_days(day);
-    // 1970-01-01 was a Thursday; any day, however far off (it may come from disk).
-    let weekday = WEEKDAYS.get((day.rem_euclid(7) + 3).rem_euclid(7) as usize).copied().unwrap_or("");
-    format!("{weekday} {y:04}-{m:02}-{d:02}")
+    format!("{} {}", weekday_short(day), day_string(day))
 }
 
 #[cfg(test)]
@@ -544,6 +559,49 @@ mod tests {
         assert_eq!(day_short(days_from_civil(2026, 12, 20), &eve), "Sun 2026-12-20");
         for far in [i64::MIN, i64::MAX] {
             assert!(!day_short(far, &clock).is_empty());
+        }
+    }
+
+    /// The weekday, the day string and the names, as every copy wrote them by hand before: the
+    /// same for every day from year 0 to 10000, before 1970 and long after, and for days far off
+    /// either way (where `day + 3` would overflow, the weekday is still the week's).
+    #[test]
+    fn weekdays_and_day_strings_as_written_by_hand() {
+        const DAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const LONG: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const SHORT: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        let (first, last) = (days_from_civil(0, 1, 1), days_from_civil(10_000, 12, 31));
+        assert_eq!((day_string(days_from_civil(1, 1, 1)), day_string(days_from_civil(9999, 12, 31))), ("0001-01-01".into(), "9999-12-31".into()));
+        let far = [i64::MIN, i64::MIN + 1, i64::MIN / 86_400, -1_000_000_000, i64::MAX / 86_400, i64::MAX - 3, i64::MAX];
+        let mut strings = 0;
+        for day in (first..=last).chain(far) {
+            let wd = weekday_index(day);
+            // `(day + 3).rem_euclid(7)` (calendar, tasks, follow-ups, recurrences) and the To-Do
+            // Bar's `(day.rem_euclid(7) + 3) % 7`.
+            if let Some(d3) = day.checked_add(3) {
+                assert_eq!(i64::from(wd), d3.rem_euclid(7), "{day}");
+            }
+            assert_eq!(i64::from(wd), (day.rem_euclid(7) + 3) % 7, "{day}");
+            assert_eq!((weekday_short(day), weekday_long(day)), (DAYS[wd as usize], LONG[wd as usize]));
+            // Every day of years 0 to 2, 1969 to 1971 and 9998 to 10000; a day in eleven between.
+            let (y, m, d) = civil_from_days(day);
+            if matches!(y, 0..=2 | 1969..=1971 | 9998..) || y < 0 || day.rem_euclid(11) == 0 {
+                strings += 1;
+                assert_eq!(day_string(day), format!("{y:04}-{m:02}-{d:02}"));
+                assert_eq!(day_label(day), format!("{} {y:04}-{m:02}-{d:02}", DAYS[wd as usize]));
+                assert_eq!(month_short(m), SHORT[m as usize - 1]);
+            }
+        }
+        assert!(strings > 300_000, "{strings}");
+        assert_eq!((month_short(0), month_short(13)), ("", ""));
+        // A time's local day, as the reading pane and the forms wrote it from `civil`.
+        for zone in
+            [Clock::new(NOW, 0), Clock::new(NOW, -14 * 3600), Clock::new(NOW, 14 * 3600), Clock::new(NOW, 0).in_zone(Zone::named("America/New_York"))]
+        {
+            for t in (-200_000_000_000i64..300_000_000_000).step_by(7_777_777) {
+                let c = civil(t, &zone);
+                assert_eq!(day_string(zone.local_day(t)), format!("{:04}-{:02}-{:02}", c.year, c.month, c.day), "{t}");
+            }
         }
     }
 

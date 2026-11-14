@@ -204,8 +204,7 @@ impl DatePoint {
             DatePoint::Year { y } => year(y),
             DatePoint::Rel(r) => {
                 let today = clock.local(clock.now).div_euclid(DAY);
-                // 1970-01-01 was a Thursday: Monday is 0.
-                let monday = today.saturating_sub(today.saturating_add(3).rem_euclid(7));
+                let monday = today.saturating_sub(i64::from(crate::dates::weekday_index(today)));
                 let (y, m, _) = civil_from_days(today);
                 match r {
                     Relative::Today => (today, today.saturating_add(1)),

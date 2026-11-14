@@ -6,7 +6,6 @@
 use egui::{Align2, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::ical::Privacy;
 use mailcraft_engine::{EventHit, EventWhen, Session};
-use serde_json::json;
 
 use super::{color, event_title, hm, long_date, time_strip};
 use crate::icons::{self, Icon};
@@ -133,9 +132,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
 /// A result clicked: its day in the view the calendar was in (the search box emptied), and the
 /// event open at that occurrence.
 pub(crate) fn open_hit(s: &Session, st: &mut UiState, h: &EventHit, acts: &mut Vec<Action>) {
-    let day = s.clock.local(h.start).div_euclid(86_400);
-    let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(day);
-    acts.push(Action::Run("calendar.goto", json!({"date": format!("{y:04}-{m:02}-{d:02}")})));
+    acts.push(super::goto(s.clock.local_day(h.start)));
     if let Some(dialog) = Dialog::open_event(s, &h.uid, h.occurrence) {
         acts.push(Action::Dialog(dialog));
     }

@@ -710,10 +710,7 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
 
 /// Show the calendar on the day of a time.
 fn show_day(t: i64, s: &Session, acts: &mut Vec<Action>) {
-    let c = dates::civil(t, &s.clock);
-    acts.push(Action::Run("view.module", json!({"name": "calendar"})));
-    acts.push(Action::Run("calendar.view", json!({"mode": "day"})));
-    acts.push(Action::Run("calendar.goto", json!({"date": format!("{:04}-{:02}-{:02}", c.year, c.month, c.day)})));
+    crate::calendar::show_day(s.clock.local_day(t), acts);
 }
 
 fn empty(ui: &mut Ui, t: &Tokens, msg: &str) {

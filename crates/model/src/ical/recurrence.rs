@@ -79,7 +79,7 @@ impl Rule {
 
     /// Whether a day is one of `BYDAY`'s weekdays (any ordinal), when it limits.
     fn weekday_ok(&self, day: i64) -> bool {
-        let wd = (day + 3).rem_euclid(7) as u32;
+        let wd = crate::dates::weekday_index(day);
         self.by_day.is_empty() || self.by_day.iter().any(|(_, w)| *w == wd)
     }
 
@@ -139,7 +139,7 @@ impl Rule {
     fn candidate_days(&self, day: i64, start_day: i64) -> Vec<i64> {
         let (y, m, _) = civil_from_days(day);
         let (_, sm, sd) = civil_from_days(start_day);
-        let wd = |x: i64| (x + 3).rem_euclid(7) as u32;
+        let wd = crate::dates::weekday_index;
         let mut v: Vec<i64> = match self.freq.as_str() {
             "DAILY" => [day].into_iter().filter(|d| self.weekday_ok(*d) && self.month_day_ok(*d)).collect(),
             "WEEKLY" if self.by_day.is_empty() => vec![day],
