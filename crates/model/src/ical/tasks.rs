@@ -234,13 +234,7 @@ pub(super) fn write_task(t: &Task, now: i64, out: &mut String) {
     }
     lines.extend(whole(&t.extra, &["VEVENT"]));
     if let Some(at) = t.reminder {
-        lines.extend([
-            "BEGIN:VALARM".to_string(),
-            "ACTION:DISPLAY".to_string(),
-            "DESCRIPTION:Reminder".to_string(),
-            format!("TRIGGER;VALUE=DATE-TIME:{}", stamp(at)),
-            "END:VALARM".to_string(),
-        ]);
+        lines.extend(display_alarm(format!("TRIGGER;VALUE=DATE-TIME:{}", stamp(at))));
     }
     lines.push("END:VTODO".into());
     for l in lines {

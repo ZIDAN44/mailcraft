@@ -254,6 +254,46 @@ fn reminders_from_and_to_alarms() {
     assert_eq!(back.first().and_then(reminder_minutes), Some(45));
 }
 
+/// An event's alarms are the ones reading takes for its own: however their `BEGIN` and `END` are
+/// written, with their lines read whole (a quoted parameter may hold a colon), and not one
+/// nested in another component the event holds.
+#[test]
+fn alarms_are_found_as_reading_finds_them() {
+    let with = |lines: &[&str]| CalEvent { start: 1_800_000_000, extra: lines.iter().map(|s| s.to_string()).collect(), ..Default::default() };
+    let spaced = ["X-KEEP:1", "BEGIN: valarm", "TRIGGER:-PT20M", "end:valarm"];
+    assert_eq!(reminder_minutes(&with(&spaced)), Some(20));
+    let mut e = with(&spaced);
+    set_reminder(&mut e, None);
+    assert_eq!(e.extra, ["X-KEEP:1"]);
+    let mut e = with(&spaced);
+    acknowledge(&mut e, 1_800_000_000);
+    assert_eq!(acknowledged(&e), Some(1_800_000_000));
+    // A colon in a quoted parameter.
+    assert_eq!(reminder_minutes(&with(&["BEGIN:VALARM", "TRIGGER;X-NOTE=\"a:b\":-PT15M", "END:VALARM"])), Some(15));
+    assert_eq!(acknowledged(&with(&["BEGIN:VALARM", "ACKNOWLEDGED;X-BY=\"app:1\":20261101T000000Z", "END:VALARM"])), Some(at(2026, 11, 1, 0, 0)));
+    // An alarm in another component isn't the event's.
+    let nested = ["BEGIN:X-PART", "BEGIN:VALARM", "TRIGGER:-PT5M", "END:VALARM", "END:X-PART"];
+    assert_eq!(reminder_minutes(&with(&nested)), None);
+    let mut e = with(&nested);
+    set_reminder(&mut e, Some(10));
+    assert_eq!(e.extra.get(..5), Some(&with(&nested).extra[..]), "kept: {:?}", e.extra);
+    assert_eq!(reminder_minutes(&e), Some(10));
+    // A snooze alarm goes on acknowledging, its acknowledgement replaced; one left open stays.
+    let mut e = with(&[
+        "BEGIN:VALARM",
+        "TRIGGER:-PT5M",
+        "ACKNOWLEDGED:20261101T000000Z",
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "RELATED-TO;RELTYPE=snooze:x",
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT1M",
+    ]);
+    acknowledge(&mut e, at(2026, 11, 2, 0, 0));
+    assert_eq!(e.extra, ["BEGIN:VALARM", "TRIGGER:-PT5M", "ACKNOWLEDGED:20261102T000000Z", "END:VALARM", "BEGIN:VALARM", "TRIGGER:-PT1M"]);
+}
+
 #[test]
 fn writes_what_it_reads() {
     let cal = parse(INVITE, 0);
