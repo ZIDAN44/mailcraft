@@ -178,8 +178,8 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     let size = egui::vec2(1280.0, 800.0);
     let page = |a: &mut MailApp| -> Vec<String> {
         a.act(crate::Action::Backstage(crate::backstage::Page::Open));
-        super::rtl::drawn_text(&ctx, a, size);
-        super::rtl::drawn_text(&ctx, a, size).into_iter().map(|(text, ..)| text).collect()
+        drawn_text(&ctx, a, size);
+        drawn_strings(&ctx, a, size)
     };
     let there = page(&mut a);
     for card in ["Backup", "Rules"] {

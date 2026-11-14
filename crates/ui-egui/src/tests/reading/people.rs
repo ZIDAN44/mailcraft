@@ -109,17 +109,10 @@ fn measure_people_above_a_message() {
     let to: Vec<EmailAddress> = (0..50).map(|i| EmailAddress::new(format!("Reader {i}"), format!("person{}@example.org", i * 197))).collect();
     open_message(&mut a, &EmailAddress::new("Pat", "pat@example.org"), to);
     let timed = |a: &mut MailApp, label: &str| {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let texts: Vec<(String, egui::Pos2)> = out
-            .shapes
-            .iter()
-            .filter_map(|s| if let egui::Shape::Text(t) = &s.shape { Some((t.galley.job.text.clone(), t.pos)) } else { None })
-            .collect();
+        let texts = drawn_text(&ctx, a, egui::vec2(1280.0, 800.0));
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        for (t, p) in &texts {
-            (t, p.x.to_bits(), p.y.to_bits()).hash(&mut h);
+        for d in &texts {
+            (&d.text, d.rect.min.x.to_bits(), d.rect.min.y.to_bits()).hash(&mut h);
         }
         let t = std::time::Instant::now();
         for _ in 0..100 {

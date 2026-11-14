@@ -337,17 +337,7 @@ fn folder_search_finds_the_name_shown() {
     let rows = |a: &mut MailApp, dialog: Dialog, typed: &str| {
         a.ui.dialog = Some(dialog);
         frame(&ctx, a, vec![]);
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        let texts: Vec<String> = out
-            .shapes
-            .iter()
-            .filter_map(|s| match &s.shape {
-                egui::Shape::Text(t) => Some(t.galley.job.text.trim().to_string()),
-                _ => None,
-            })
-            .collect();
+        let texts: Vec<String> = drawn_strings(&ctx, a, egui::vec2(1280.0, 800.0)).iter().map(|t| t.trim().to_string()).collect();
         let from = texts.iter().rposition(|t| t == typed).map_or(texts.len(), |i| i + 1);
         let buttons = texts.len().saturating_sub(2).max(from);
         texts[from..buttons].to_vec()
@@ -390,18 +380,7 @@ fn rules_drawn(ctx: &egui::Context, a: &mut MailApp, find: &str) -> Vec<(String,
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("rules-find"), find.to_string()));
     a.ui.dialog = Some(Dialog::Rules);
     frame(ctx, a, vec![]);
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) if s.clip_rect.intersects(egui::Rect::from_min_size(t.pos, t.galley.size())) => {
-                Some((t.galley.job.text.clone(), t.pos))
-            }
-            _ => None,
-        })
-        .collect()
+    drawn_text(ctx, a, egui::vec2(1280.0, 800.0)).into_iter().filter(Drawn::seen).map(|d| (d.text, d.rect.min)).collect()
 }
 
 /// The Rules dialog: each rule's line says what it does (a folder by the names the folder pane

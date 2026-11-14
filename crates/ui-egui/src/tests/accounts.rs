@@ -95,8 +95,8 @@ fn the_account_form_adds_calendar_only_accounts() {
     a.run("view.module", json!({"name": "mail"}));
     let ctx = egui::Context::default();
     let size = egui::vec2(1280.0, 800.0);
-    super::rtl::drawn_text(&ctx, &mut a, size);
-    let pane: Vec<String> = super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(text, ..)| text).collect();
+    drawn_text(&ctx, &mut a, size);
+    let pane: Vec<String> = drawn_strings(&ctx, &mut a, size);
     assert!(pane.iter().any(|t| t.contains("(sample)")), "{pane:?}");
     assert!(!pane.iter().any(|t| t.contains("zoe@example.org") || t == "Calendars and contacts"), "{pane:?}");
     assert!(!pane.iter().any(|t| t == "All Inboxes"), "one mailbox: nothing to gather, {pane:?}");
@@ -105,14 +105,14 @@ fn the_account_form_adds_calendar_only_accounts() {
     if let Some(page) = a.ui.backstage.as_mut() {
         page.account = Some(id);
     }
-    super::rtl::drawn_text(&ctx, &mut a, size);
-    let info: Vec<String> = super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(text, ..)| text).collect();
+    drawn_text(&ctx, &mut a, size);
+    let info: Vec<String> = drawn_strings(&ctx, &mut a, size);
     assert!(info.iter().any(|t| t.contains("zoe@example.org")), "{info:?}");
     // With no mailbox at all, the pane says where what there is can be found.
     a.ui.backstage = None;
     a.session.accounts.retain(|x| x.config.is_calendar_only());
-    super::rtl::drawn_text(&ctx, &mut a, size);
-    let pane: Vec<String> = super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(text, ..)| text).collect();
+    drawn_text(&ctx, &mut a, size);
+    let pane: Vec<String> = drawn_strings(&ctx, &mut a, size);
     assert!(pane.iter().any(|t| t == "Calendars and contacts") && !pane.iter().any(|t| t.contains("zoe@example.org")), "{pane:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -280,22 +280,13 @@ fn many_accounts_waiting_dont_cover_the_counts() {
     }
     let ids: Vec<String> = a.session.accounts.iter().filter(|x| x.config.email.starts_with("waiting")).map(|x| x.config.id.clone()).collect();
     assert_eq!(ids.len(), 12);
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 700.0))), ..Default::default() };
     let mut texts = Vec::new();
     for _ in 0..3 {
         for id in &ids {
             a.session.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
         }
-        let mut out = ctx.run_ui(input.clone(), |ui| a.ui(ui));
-        out.textures_delta.clear();
-        texts = out
-            .shapes
-            .iter()
-            .filter_map(|s| match &s.shape {
-                egui::Shape::Text(t) if t.pos.y > 675.0 => Some((t.galley.job.text.clone(), t.pos.x, t.pos.x + t.galley.size().x)),
-                _ => None,
-            })
-            .collect();
+        let drawn = drawn_text(&ctx, &mut a, egui::vec2(1000.0, 700.0));
+        texts = drawn.into_iter().filter(|d| d.rect.min.y > 675.0).map(|d| (d.text, d.rect.min.x, d.rect.max.x)).collect();
     }
     let counts_end = texts.iter().filter(|(s, ..)| s.starts_with("Items") || s.starts_with("Unread")).map(|(_, _, r)| *r).fold(0.0, f32::max);
     let waiting: Vec<_> = texts.iter().filter(|(s, ..)| s.contains("waiting") && s.contains(':') || s.starts_with('+')).collect();
@@ -334,8 +325,8 @@ fn an_account_s_trouble_is_said_and_offers_what_helps() {
     for (status, said) in cases {
         a.session.apply(MailEvent::Status { account: id.clone(), status });
         a.ui.dialog = None;
-        crate::tests::rtl::drawn_text(&ctx, &mut a, size);
-        let texts: Vec<String> = crate::tests::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(t, ..)| t).collect();
+        drawn_text(&ctx, &mut a, size);
+        let texts = drawn_strings(&ctx, &mut a, size);
         let link = said.map(|w| format!("zoe@example.org: {w}"));
         // Waiting for you: a link saying what. Otherwise counted among the disconnected.
         assert_eq!(texts.iter().any(|t| Some(t) == link.as_ref()), said.is_some(), "{said:?}: {texts:?}");
@@ -363,13 +354,12 @@ fn options_gives_each_account_its_time_to_look_for_mail() {
     let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
     let tall = egui::vec2(1280.0, 3000.0);
-    let has = |texts: &[(String, egui::Rect, egui::Rect)], what: &str| texts.iter().any(|(t, ..)| t.contains(what));
-    crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
-    let texts = crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
+    drawn_text(&ctx, &mut a, tall);
+    let texts = drawn_strings(&ctx, &mut a, tall);
     assert!(has(&texts, "Checking for new mail") && has(&texts, "zoe@example.org") && has(&texts, "Automatically"), "{texts:?}");
     a.act(crate::Action::Run("account.checkEvery", json!({"account": id, "minutes": 30})));
-    crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
-    let texts = crate::tests::rtl::drawn_text(&ctx, &mut a, tall);
+    drawn_text(&ctx, &mut a, tall);
+    let texts = drawn_strings(&ctx, &mut a, tall);
     assert!(has(&texts, "Every 30 minutes"), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }

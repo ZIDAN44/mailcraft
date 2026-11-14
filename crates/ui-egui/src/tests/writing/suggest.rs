@@ -7,10 +7,7 @@ use super::*;
 
 /// Each text the frame draws, where.
 fn drawn(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<(String, egui::Pos2)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes.iter().filter_map(|s| if let egui::Shape::Text(t) = &s.shape { Some((t.galley.job.text.clone(), t.pos)) } else { None }).collect()
+    drawn_with(ctx, a, egui::vec2(1280.0, 800.0), events).into_iter().map(|d| (d.text, d.rect.min)).collect()
 }
 
 /// A new message in the reading pane, its To box with the focus and `typed` in it.

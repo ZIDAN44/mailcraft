@@ -32,15 +32,7 @@ fn pane(ctx: &egui::Context, a: &mut MailApp, height: f32, events: Vec<Event>) -
     for act in acts {
         a.act(act);
     }
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) if s.clip_rect.intersects(egui::Rect::from_min_size(t.pos, t.galley.size())) => {
-                Some((t.galley.job.text.clone(), t.pos))
-            }
-            _ => None,
-        })
-        .collect()
+    texts_in(&out.shapes).into_iter().filter(Drawn::seen).map(|d| (d.text, d.rect.min)).collect()
 }
 
 /// A collapsed folder hides what's inside it, and the account collapsed hides every folder; a

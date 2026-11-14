@@ -46,18 +46,7 @@ fn big_lists(a: &mut MailApp, people: usize, tasks: usize, notes: usize) {
 
 /// Each text the frame draws that can be seen (not wholly outside its clip), where.
 fn drawn(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<(String, egui::Pos2)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) if s.clip_rect.intersects(egui::Rect::from_min_size(t.pos, t.galley.size())) => {
-                Some((t.galley.job.text.clone(), t.pos))
-            }
-            _ => None,
-        })
-        .collect()
+    drawn_with(ctx, a, egui::vec2(1280.0, 800.0), events).into_iter().filter(Drawn::seen).map(|d| (d.text, d.rect.min)).collect()
 }
 
 /// The texts drawn that `is` picks (their first lines), left of x = 300 or right of it, top to

@@ -245,7 +245,7 @@ fn a_mail_files_own_pictures_are_shown() {
     let ctx = egui::Context::default();
     let mut got = false;
     for _ in 0..40 {
-        super::rtl::drawn_text(&ctx, &mut a, egui::vec2(1600.0, 1000.0));
+        drawn_text(&ctx, &mut a, egui::vec2(1600.0, 1000.0));
         if matches!(a.ui.pictures.get(&w.key, index, crate::reading::Want::Body), crate::reading::Got::Ready(_)) {
             got = true;
             break;
@@ -302,11 +302,10 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     let ctx = egui::Context::default();
     let size = egui::vec2(1600.0, 1000.0);
     for _ in 0..3 {
-        super::rtl::drawn_text(&ctx, &mut a, size);
+        drawn_text(&ctx, &mut a, size);
     }
     // What the window draws: from its title on.
-    let drawn: Vec<String> =
-        super::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(t, ..)| t).skip_while(|t| t != "Invoice – Message").collect();
+    let drawn: Vec<String> = drawn_strings(&ctx, &mut a, size).into_iter().skip_while(|t| t != "Invoice – Message").collect();
     let has = |want: &str| drawn.iter().any(|t| t.contains(want));
     // Its pictures from the web are there to ask for, this once: not to always show its sender's,
     // who may be anyone.
@@ -332,13 +331,13 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     // didn't, and widened the whole message past the window's edge.
     let narrow = egui::vec2(640.0, 1000.0);
     for _ in 0..3 {
-        super::rtl::drawn_text(&ctx, &mut a, narrow);
+        drawn_text(&ctx, &mut a, narrow);
     }
-    let past: Vec<(String, egui::Rect)> = super::rtl::drawn_text(&ctx, &mut a, narrow)
+    let past: Vec<(String, egui::Rect)> = drawn_text(&ctx, &mut a, narrow)
         .into_iter()
-        .skip_while(|(t, ..)| t != "Invoice – Message")
-        .filter(|(_, r, _)| r.max.x > narrow.x + 1.0)
-        .map(|(t, r, _)| (t, r))
+        .skip_while(|d| d.text != "Invoice – Message")
+        .filter(|d| d.ink.max.x > narrow.x + 1.0)
+        .map(|d| (d.text, d.ink))
         .collect();
     assert!(past.is_empty(), "drawn past the window: {past:?}");
     // Its buttons act on it: saved as a PDF, it's this message.

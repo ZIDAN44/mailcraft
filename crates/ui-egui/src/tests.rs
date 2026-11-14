@@ -79,6 +79,75 @@ pub(crate) fn close(ctx: &egui::Context, a: &mut MailApp) -> egui::FullOutput {
     out
 }
 
+/// A frame in a window of `size` given `events` (not dressed or looked at, as [`frame`]'s are):
+/// what it put out.
+pub(crate) fn sized_frame(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2, events: Vec<Event>) -> egui::FullOutput {
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    out
+}
+
+/// A text a frame draws.
+#[derive(Clone, Debug)]
+pub(crate) struct Drawn {
+    pub(crate) text: String,
+    /// Where it's laid out: its place, as wide and tall as its lines.
+    pub(crate) rect: egui::Rect,
+    /// Where its letters are, left to right on the screen, as tall as its lines.
+    pub(crate) ink: egui::Rect,
+    /// The room it's cut to.
+    pub(crate) clip: egui::Rect,
+}
+
+impl Drawn {
+    /// Whether some of it can be seen (it isn't wholly outside its room).
+    pub(crate) fn seen(&self) -> bool {
+        self.clip.intersects(self.rect)
+    }
+}
+
+/// The texts among a frame's shapes.
+pub(crate) fn texts_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<Drawn> {
+    shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::Shape::Text(t) => {
+                let ink = t.galley.rows.iter().flat_map(|r| r.row.glyphs.iter().map(move |g| (r.pos.x + g.pos.x, r.pos.x + g.max_x())));
+                let (l, r) = ink.fold((f32::INFINITY, f32::NEG_INFINITY), |(l, r), (a, b)| (l.min(a), r.max(b)));
+                let size = t.galley.size();
+                Some(Drawn {
+                    text: t.galley.job.text.clone(),
+                    rect: egui::Rect::from_min_size(t.pos, size),
+                    ink: egui::Rect::from_x_y_ranges(t.pos.x + l..=t.pos.x + r, t.pos.y..=t.pos.y + size.y),
+                    clip: s.clip_rect,
+                })
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The texts a frame in a window of `size` given `events` draws.
+pub(crate) fn drawn_with(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2, events: Vec<Event>) -> Vec<Drawn> {
+    texts_in(&sized_frame(ctx, a, size, events).shapes)
+}
+
+/// The texts a frame in a window of `size` draws.
+pub(crate) fn drawn_text(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<Drawn> {
+    drawn_with(ctx, a, size, vec![])
+}
+
+/// The texts a frame in a window of `size` draws, the words alone.
+pub(crate) fn drawn_strings(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<String> {
+    drawn_text(ctx, a, size).into_iter().map(|d| d.text).collect()
+}
+
+/// Whether one of `texts` says `what`.
+pub(crate) fn has(texts: &[String], what: &str) -> bool {
+    texts.iter().any(|t| t.contains(what))
+}
+
 /// Every pane layout, state and dialog, in light and dark (also run in the pseudo-language by
 /// the translation tests).
 pub(crate) fn tour() {

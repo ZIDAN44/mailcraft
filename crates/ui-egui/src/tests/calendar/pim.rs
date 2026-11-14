@@ -403,16 +403,7 @@ fn the_calendar_search_box_lists_and_opens_events() {
 
 /// The text drawn in a frame.
 fn texts(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 1600.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) => Some(t.galley.job.text.clone()),
-            _ => None,
-        })
-        .collect()
+    drawn_strings(ctx, a, egui::vec2(1280.0, 1600.0))
 }
 
 /// Issue #30: events kept on this computer before the account's calendars on its server were

@@ -466,19 +466,10 @@ fn a_narrow_row_keeps_the_senders_name_readable() {
     a.run("folder.unified", json!({"role": "inbox"}));
     a.run("view.senderAddresses", json!({"show": "always"}));
     a.run("view.externalTag", json!({"on": true}));
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(700.0, 700.0))), ..Default::default() };
     let mut widths = Vec::new();
     for _ in 0..2 {
-        let mut out = ctx.run_ui(input.clone(), |ui| a.ui(ui));
-        out.textures_delta.clear();
-        widths = out
-            .shapes
-            .iter()
-            .filter_map(|s| match &s.shape {
-                egui::Shape::Text(t) if t.galley.job.text == name => Some(t.galley.size().x),
-                _ => None,
-            })
-            .collect();
+        let drawn = drawn_text(&ctx, &mut a, egui::vec2(700.0, 700.0));
+        widths = drawn.into_iter().filter(|d| d.text == name).map(|d| d.rect.width()).collect();
     }
     let full = ctx.fonts_mut(|f| f.layout_no_wrap(name.into(), crate::theme::regular(14.0), egui::Color32::WHITE).size().x);
     assert!(widths.iter().any(|w| *w >= full * 0.6), "the name drawn {widths:?} wide of {full}");

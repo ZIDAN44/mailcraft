@@ -101,20 +101,7 @@ fn ended(id: &str, r: ImportReport) -> MailEvent {
 /// The text a frame draws (after one more: a dialog or a popup just opened is measured first).
 fn drawn(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
     frame(ctx, a, vec![]);
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) => Some(t.galley.job.text.clone()),
-            _ => None,
-        })
-        .collect()
-}
-
-fn has(texts: &[String], what: &str) -> bool {
-    texts.iter().any(|t| t.contains(what))
+    drawn_strings(ctx, a, egui::vec2(1280.0, 800.0))
 }
 
 /// The frames of an import in each state and each of its questions, for the tour (light and

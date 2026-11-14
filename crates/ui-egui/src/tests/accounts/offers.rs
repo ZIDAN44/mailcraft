@@ -50,13 +50,7 @@ fn look(s: &Session, path: &str, at: Option<Pos2>) -> (Vec<(String, egui::Rect)>
             open &= crate::dialogs::show(ui.ctx(), &mut d, s, &mut pics, &t, acts);
         });
         out.textures_delta.clear();
-        out.shapes
-            .iter()
-            .filter_map(|c| match &c.shape {
-                egui::Shape::Text(x) => Some((x.galley.job.text.clone(), egui::Rect::from_min_size(x.pos, x.galley.size()))),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
+        texts_in(&out.shapes).into_iter().map(|d| (d.text, d.rect)).collect::<Vec<_>>()
     };
     let mut acts = Vec::new();
     run(vec![], &mut acts);

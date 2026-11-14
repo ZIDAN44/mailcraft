@@ -31,25 +31,6 @@ fn deleting_a_word_after_hebrew_takes_one_word() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// The text drawn in a frame: each piece with where its letters are, left to right on the screen.
-pub(super) fn drawn_text(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<(String, egui::Rect, egui::Rect)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) => {
-                let ink = t.galley.rows.iter().flat_map(|r| r.row.glyphs.iter().map(move |g| (r.pos.x + g.pos.x, r.pos.x + g.max_x())));
-                let (l, r) = ink.fold((f32::INFINITY, f32::NEG_INFINITY), |(l, r), (a, b)| (l.min(a), r.max(b)));
-                let rect = egui::Rect::from_x_y_ranges(t.pos.x + l..=t.pos.x + r, t.pos.y..=t.pos.y + t.galley.size().y);
-                Some((t.galley.job.text.clone(), rect, s.clip_rect))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
 /// A Hebrew subject too long for the list keeps its start, on the right, and loses its end ("…"
 /// on the left): it was laid against the left and cut on the right, its first words gone.
 #[test]
@@ -75,9 +56,9 @@ fn a_long_hebrew_subject_keeps_its_start() {
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
-    let shown: Vec<_> = texts.iter().filter(|(s, ..)| s == subject).collect();
+    let shown: Vec<_> = texts.iter().filter(|d| d.text == subject).collect();
     assert_eq!(shown.len(), 1, "{texts:?}");
-    let (_, ink, clip) = shown[0];
+    let (ink, clip) = (shown[0].ink, shown[0].clip);
     // Within the list (nothing cut by the clip), its start against the right of the room.
     assert!(clip.min.x <= ink.min.x && ink.max.x <= clip.max.x, "{ink:?} in {clip:?}");
     let _ = std::fs::remove_dir_all(dir);
@@ -119,22 +100,21 @@ fn a_right_to_left_interface_is_mirrored() {
             frame(&ctx, &mut a, vec![]);
         }
         let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
-        let at =
-            |name: &str| texts.iter().find(|(s, ..)| s == name).map(|(_, r, _)| *r).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
+        let at = |name: &str| texts.iter().find(|d| d.text == name).map(|d| d.ink).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
         let rtl = lang == "ar";
         assert_eq!(at(file).center().x > at(view).center().x, rtl, "{lang}: File and View");
         // The Inbox among the favourites: its unread count beside it.
         let name = at(inbox);
         let number = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit());
-        let count = texts.iter().filter(|(s, r, _)| number(s) && (r.center().y - name.center().y).abs() < 4.0).map(|(_, r, _)| *r).next();
+        let count = texts.iter().filter(|d| number(&d.text) && (d.ink.center().y - name.center().y).abs() < 4.0).map(|d| d.ink).next();
         let count = count.unwrap_or_else(|| panic!("{lang}: no count by the Inbox"));
         assert_eq!(count.center().x < name.center().x, rtl, "{lang}: the count's side");
         // The first message: its sender and its time on one line.
         let who = at("Sam Okafor");
         let time = texts
             .iter()
-            .filter(|(s, r, _)| s.contains(':') && s.len() <= 12 && (r.center().y - who.center().y).abs() < 4.0)
-            .map(|(_, r, _)| *r)
+            .filter(|d| d.text.contains(':') && d.text.len() <= 12 && (d.ink.center().y - who.center().y).abs() < 4.0)
+            .map(|d| d.ink)
             .next();
         let time = time.unwrap_or_else(|| panic!("{lang}: no time by the sender"));
         assert_eq!(time.center().x < who.center().x, rtl, "{lang}: the time's side");
@@ -165,9 +145,9 @@ fn top_search_query_follows_interface_direction() {
                 drawn_text(&ctx, &mut a, size);
             }
             let texts = drawn_text(&ctx, &mut a, size);
-            let field: Vec<_> = texts.iter().filter(|(s, ..)| s == QUERY).collect();
+            let field: Vec<_> = texts.iter().filter(|d| d.text == QUERY).collect();
             assert_eq!(field.len(), 1, "{module} {lang}: search input missing or duplicated: {texts:?}");
-            let (_, ink, _) = field[0];
+            let ink = field[0].ink;
             let rect = ctx
                 .data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("mailcraft-top-search-input-rect")))
                 .expect("top search TextEdit rect recorded by the app");
@@ -193,12 +173,12 @@ fn a_narrow_right_to_left_ribbon_scrolls() {
         drawn_text(&ctx, &mut a, size);
     }
     let texts = drawn_text(&ctx, &mut a, size);
-    let new_mail = texts.iter().find(|(s, ..)| s == "بريد جديد").map(|(_, r, _)| *r);
+    let new_mail = texts.iter().find(|d| d.text == "بريد جديد").map(|d| d.ink);
     let new_mail = new_mail.unwrap_or_else(|| panic!("no New mail in {texts:?}"));
     assert!(new_mail.max.x <= size.x && new_mail.min.x > size.x / 2.0, "New mail at the right, in view: {new_mail:?}");
     // The ribbon's content starts within reach: nothing laid out left of the window.
     let ribbon_y = new_mail.center().y;
-    let left_of_window = texts.iter().filter(|(_, r, _)| (r.center().y - ribbon_y).abs() < 12.0 && r.min.x < -1.0).count();
+    let left_of_window = texts.iter().filter(|d| (d.ink.center().y - ribbon_y).abs() < 12.0 && d.ink.min.x < -1.0).count();
     assert_eq!(left_of_window, 0, "{texts:?}");
     crate::i18n::set_current(crate::i18n::Lang::EN);
     let _ = std::fs::remove_dir_all(dir);
@@ -262,12 +242,11 @@ fn calendar_results_and_the_source_bar_are_mirrored() {
             frame(&ctx, &mut a, vec![]);
         }
         let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
-        let at =
-            |name: &str| texts.iter().find(|(s, ..)| s == name).map(|(_, r, _)| *r).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
+        let at = |name: &str| texts.iter().find(|d| d.text == name).map(|d| d.ink).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
         let rtl = lang == "ar";
         assert_eq!(at(all).center().x > at(past).center().x, rtl, "{lang}: the switches");
         let title = at("Team stand-up");
-        let date = texts.iter().filter(|(s, r, _)| s.contains("2026") && (r.center().y - title.center().y).abs() < 6.0).map(|(_, r, _)| *r).next();
+        let date = texts.iter().filter(|d| d.text.contains("2026") && (d.ink.center().y - title.center().y).abs() < 6.0).map(|d| d.ink).next();
         let date = date.unwrap_or_else(|| panic!("{lang}: no date by the result in {texts:?}"));
         assert_eq!(date.center().x > title.center().x, rtl, "{lang}: the date's side");
         // A message's source: its bar from the interface's start.
@@ -279,8 +258,7 @@ fn calendar_results_and_the_source_bar_are_mirrored() {
             frame(&ctx, &mut a, vec![]);
         }
         let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
-        let at =
-            |name: &str| texts.iter().find(|(s, ..)| s == name).map(|(_, r, _)| *r).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
+        let at = |name: &str| texts.iter().find(|d| d.text == name).map(|d| d.ink).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
         assert_eq!(at(whole).center().x > at(header).center().x, rtl, "{lang}: the source's bar");
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -306,8 +284,8 @@ fn people_navigation_and_table_follow_interface_direction() {
             }
             let texts = drawn_text(&ctx, &mut a, size);
             let x = |label: &str| {
-                texts.iter().find(|(s, ..)| s == label).map(|(_, rect, _)| rect.center().x).unwrap_or_else(|| {
-                    panic!("{lang} {view:?}: missing {label:?}; shapes: {:?}", texts.iter().map(|(s, ..)| s.as_str()).collect::<Vec<_>>())
+                texts.iter().find(|d| d.text == label).map(|d| d.ink.center().x).unwrap_or_else(|| {
+                    panic!("{lang} {view:?}: missing {label:?}; shapes: {:?}", texts.iter().map(|d| d.text.as_str()).collect::<Vec<_>>())
                 })
             };
             match view {
@@ -318,7 +296,7 @@ fn people_navigation_and_table_follow_interface_direction() {
                     assert_eq!(x(&format!("{full_name} ↑")) > x(company), rtl, "{lang}: first table column must be at reading side");
                     assert_eq!(x("Zoe Park") > x("Studio Lantern"), rtl, "{lang}: table cells must follow header order");
                     // Clicking a mirrored header must still sort the intended column.
-                    let click = texts.iter().find(|(s, ..)| s == company).unwrap().1.center();
+                    let click = texts.iter().find(|d| d.text == company).unwrap().ink.center();
                     let button =
                         |pressed| Event::PointerButton { pos: click, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
                     frame(&ctx, &mut a, vec![Event::PointerMoved(click), button(true)]);
@@ -357,8 +335,8 @@ fn long_latin_contact_details_stay_inside_rtl_navigation() {
         }
         let texts = drawn_text(&ctx, &mut a, size);
         for label in [NAME, EMAIL] {
-            let found = texts.iter().find(|(s, _, clip)| s == label && clip.width() < 400.0);
-            let (_, ink, clip) = found.unwrap_or_else(|| panic!("{lang}: no nav shape for {label:?}"));
+            let found = texts.iter().find(|d| d.text == label && d.clip.width() < 400.0);
+            let (ink, clip) = found.map(|d| (d.ink, d.clip)).unwrap_or_else(|| panic!("{lang}: no nav shape for {label:?}"));
             assert!(
                 ink.min.x >= clip.min.x - 1.0 && ink.max.x <= clip.max.x + 1.0,
                 "{lang}: long Latin contact text extends beyond nav clip: {ink:?} in {clip:?}"

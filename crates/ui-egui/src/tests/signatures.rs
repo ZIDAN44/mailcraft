@@ -254,9 +254,9 @@ fn a_signature_in_columns_is_drawn_in_columns_while_writing() {
     let piece = |a: &mut MailApp, text: &str| {
         // (Its room is its size from the frame after it's first drawn.)
         for _ in 0..3 {
-            super::rtl::drawn_text(&ctx, a, size);
+            drawn_text(&ctx, a, size);
         }
-        super::rtl::drawn_text(&ctx, a, size).into_iter().find(|(t, ..)| t.trim() == text).map(|(_, ink, _)| ink)
+        drawn_text(&ctx, a, size).into_iter().find(|d| d.text.trim() == text).map(|d| d.ink)
     };
     let body = a.session.compose.as_ref().unwrap().body.clone();
     assert!(body.contains("Ms. Riley Moreno") && body.contains("12 Harbour Road"), "its text is in the message: {body:?}");
@@ -333,11 +333,11 @@ fn the_drawn_signature_is_one_thing_in_the_text() {
     // Its picture on the web: nothing is asked of the web until Show pictures.
     let pieces = |a: &mut MailApp| {
         for _ in 0..3 {
-            super::rtl::drawn_text(&ctx, a, size);
+            drawn_text(&ctx, a, size);
         }
-        super::rtl::drawn_text(&ctx, a, size)
+        drawn_text(&ctx, a, size)
     };
-    assert!(pieces(&mut a).iter().any(|(t, ..)| t == "Show pictures"));
+    assert!(pieces(&mut a).iter().any(|d| d.text == "Show pictures"));
     assert!(!a.session.take_jobs().iter().any(|j| matches!(j, mailcraft_engine::model::Job::FetchUrl { .. })));
     a.run("compose.signaturePictures", json!({}));
     let jobs = a.session.take_jobs();
@@ -353,7 +353,7 @@ fn the_drawn_signature_is_one_thing_in_the_text() {
     a.run("mail.reply", json!({}));
     assert!(compose(&a).signature_card().is_some(), "{:?}", compose(&a).body);
     let drawn = pieces(&mut a);
-    let top = |text: &str| drawn.iter().find(|(t, ..)| t.trim() == text).map(|(_, ink, _)| ink.top());
+    let top = |text: &str| drawn.iter().find(|d| d.text.trim() == text).map(|d| d.ink.top());
     let (name, address) = (top("Ms. Riley Moreno").expect("the name"), top("12 Harbour Road").expect("the address"));
     assert!((name - address).abs() < 12.0, "side by side: {name} {address}");
     // The original (plain text, quoted in the message's own text) is after it: the text box
@@ -361,7 +361,7 @@ fn the_drawn_signature_is_one_thing_in_the_text() {
     let (card, body) = (compose(&a).signature_card().unwrap(), compose(&a).body);
     let quoted = body.chars().skip(card.end).collect::<String>();
     assert!(quoted.contains("Storyboard review"), "{quoted:?}");
-    let text_box = drawn.iter().find(|(t, ..)| t.contains("Storyboard review") && t.contains("Ms. Riley Moreno")).map(|(_, ink, _)| ink);
+    let text_box = drawn.iter().find(|d| d.text.contains("Storyboard review") && d.text.contains("Ms. Riley Moreno")).map(|d| d.ink);
     assert!(text_box.is_some_and(|ink| ink.top() < name && ink.bottom() > name + 40.0), "the signature inside the text: {text_box:?} {name}");
     let _ = std::fs::remove_dir_all(dir);
 }

@@ -27,18 +27,7 @@ fn with_found_events(n: i64) -> (MailApp, std::path::PathBuf) {
 
 /// The text drawn where it can be seen, and where.
 fn seen(ctx: &egui::Context, a: &mut MailApp) -> Vec<(String, egui::Pos2)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) if s.clip_rect.intersects(egui::Rect::from_min_size(t.pos, t.galley.size())) => {
-                Some((t.galley.job.text.clone(), t.pos))
-            }
-            _ => None,
-        })
-        .collect()
+    drawn_text(ctx, a, egui::vec2(1280.0, 800.0)).into_iter().filter(Drawn::seen).map(|d| (d.text, d.rect.min)).collect()
 }
 
 /// The results scrolled down by `by` points with the mouse wheel over them, and settled.

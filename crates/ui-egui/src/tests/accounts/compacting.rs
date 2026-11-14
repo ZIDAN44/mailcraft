@@ -63,22 +63,8 @@ fn frame_at(ctx: &egui::Context, a: &mut MailApp, time: f64, events: Vec<Event>)
 /// The text a frame draws (after one more: a dialog just opened is measured first), in a window
 /// tall enough for the whole File page.
 fn drawn(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
-    let input = || RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, TALL)), ..Default::default() };
-    let mut out = ctx.run_ui(input(), |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let mut out = ctx.run_ui(input(), |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) => Some(t.galley.job.text.clone()),
-            _ => None,
-        })
-        .collect()
-}
-
-fn has(texts: &[String], what: &str) -> bool {
-    texts.iter().any(|t| t.contains(what))
+    drawn_text(ctx, a, TALL);
+    drawn_strings(ctx, a, TALL)
 }
 
 /// 2 GiB of a 4 GiB file to give back: worth compacting, quickly.

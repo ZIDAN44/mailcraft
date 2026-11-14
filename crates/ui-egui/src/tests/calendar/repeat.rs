@@ -7,16 +7,7 @@ const SIZE: egui::Vec2 = egui::vec2(1280.0, 800.0);
 
 /// The text drawn in a frame given `events`: each piece with where it is.
 fn drawn(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<(String, egui::Rect)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SIZE)), events, ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) => Some((t.galley.job.text.clone(), egui::Rect::from_min_size(t.pos, t.galley.size()))),
-            _ => None,
-        })
-        .collect()
+    drawn_with(ctx, a, SIZE, events).into_iter().map(|d| (d.text, d.rect)).collect()
 }
 
 fn click(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {

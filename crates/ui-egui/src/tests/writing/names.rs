@@ -18,18 +18,7 @@ fn names_of(ctx: &egui::Context, a: &mut MailApp, n: usize) {
 
 /// Each text the frame draws that can be seen (not wholly outside its clip), where.
 fn drawn(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<(String, egui::Pos2)> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) if s.clip_rect.intersects(egui::Rect::from_min_size(t.pos, t.galley.size())) => {
-                Some((t.galley.job.text.clone(), t.pos))
-            }
-            _ => None,
-        })
-        .collect()
+    drawn_with(ctx, a, egui::vec2(1280.0, 800.0), events).into_iter().filter(Drawn::seen).map(|d| (d.text, d.rect.min)).collect()
 }
 
 /// The people drawn, top to bottom.
@@ -88,20 +77,10 @@ fn a_long_address_book_scrolls_and_selects() {
     assert_eq!(f.selected.and_then(|i| f.list.get(i)).map(|p| p.name.clone()), Some(name));
     // Scrolled to the end: the last person is the last row, all of it in view.
     scroll(&ctx, &mut a, 100_000.0);
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    let whole: Vec<String> = out
-        .shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t)
-                if t.galley.job.text.starts_with("Person ") && s.clip_rect.contains_rect(egui::Rect::from_min_size(t.pos, t.galley.size())) =>
-            {
-                Some(t.galley.job.text.clone())
-            }
-            _ => None,
-        })
+    let whole: Vec<String> = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0))
+        .into_iter()
+        .filter(|d| d.text.starts_with("Person ") && d.clip.contains_rect(d.rect))
+        .map(|d| d.text)
         .collect();
     assert_eq!(whole.last().map(String::as_str), Some("Person 1999"), "{whole:?}");
     assert!(whole.len() >= 5, "{whole:?}");

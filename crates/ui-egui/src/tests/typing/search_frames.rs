@@ -49,16 +49,7 @@ fn generated(folders: usize, per: u32) -> MailApp {
 
 /// The text drawn in a frame.
 fn drawn(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) => Some(t.galley.job.text.clone()),
-            _ => None,
-        })
-        .collect()
+    drawn_strings(ctx, a, egui::vec2(1280.0, 800.0))
 }
 
 /// The text the message list draws, with nothing stepped first (as a frame between steps).
@@ -66,13 +57,7 @@ fn drawn_list(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
     let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 800.0))), ..Default::default() };
     let mut out = ctx.run_ui(input, |ui| crate::panes::list::show(&a.session, &mut a.ui, ui, &mut Vec::new()));
     out.textures_delta.clear();
-    out.shapes
-        .iter()
-        .filter_map(|s| match &s.shape {
-            egui::Shape::Text(t) => Some(t.galley.job.text.clone()),
-            _ => None,
-        })
-        .collect()
+    texts_in(&out.shapes).into_iter().map(|d| d.text).collect()
 }
 
 /// "zanzibar" typed a key a frame into the box, then 192 frames more: for each frame that ran

@@ -2,7 +2,6 @@
 //! ribbon, a due one drawn in the calendar on its day (and opened from there as a task), and the
 //! list mirrored right to left.
 
-use super::super::rtl::drawn_text;
 use super::*;
 
 #[test]
@@ -16,7 +15,7 @@ fn tasks_are_made_listed_and_shown_in_the_calendar() {
     let size = egui::vec2(1280.0, 800.0);
     let texts = drawn_text(&ctx, &mut a, size);
     for title in ["Send the grading notes to the client", "Renew the font licences", "Return the camera kit"] {
-        assert!(texts.iter().any(|(s, ..)| s == title), "{title} listed: {texts:?}");
+        assert!(texts.iter().any(|d| d.text == title), "{title} listed: {texts:?}");
     }
     // A new task from its form, with no due day: made, and picked.
     let mut d = Dialog::new_task(&a.session, None);
@@ -49,7 +48,7 @@ fn tasks_are_made_listed_and_shown_in_the_calendar() {
     a.run("calendar.goto", json!({"date": "today"}));
     frame(&ctx, &mut a, vec![]);
     let texts = drawn_text(&ctx, &mut a, size);
-    assert!(texts.iter().any(|(s, ..)| s == "Send the grading notes to the client"), "the task's chip: {texts:?}");
+    assert!(texts.iter().any(|d| d.text == "Send the grading notes to the client"), "the task's chip: {texts:?}");
     let today = a.session.local_midnight(mailcraft_engine::model::dates::today(&a.session.clock));
     let item = a.session.task_items(today, today + 86_400).into_iter().next().unwrap();
     let d = Dialog::open_task(&a.session, &item.uid);
@@ -74,17 +73,16 @@ fn the_task_list_is_mirrored() {
             frame(&ctx, &mut a, vec![]);
         }
         let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
-        let at = |name: &str| {
-            texts.iter().find(|(s, ..)| s.starts_with(name)).map(|(_, r, _)| *r).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"))
-        };
+        let at =
+            |name: &str| texts.iter().find(|d| d.text.starts_with(name)).map(|d| d.ink).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
         let rtl = lang == "ar";
         assert_eq!(at(due).center().x < at(subject).center().x, rtl, "{lang}: the headings");
         // On its row: the title on its first line, the due day centred on the row.
         let title = at("Book the sound stage");
         let date = texts
             .iter()
-            .filter(|(s, r, _)| !s.is_empty() && s != "Book the sound stage" && (r.center().y - title.center().y).abs() < 12.0)
-            .map(|(_, r, _)| *r)
+            .filter(|d| !d.text.is_empty() && d.text != "Book the sound stage" && (d.ink.center().y - title.center().y).abs() < 12.0)
+            .map(|d| d.ink)
             .next()
             .unwrap_or_else(|| panic!("{lang}: nothing beside the task in {texts:?}"));
         assert_eq!(date.center().x < title.center().x, rtl, "{lang}: the due day's side");

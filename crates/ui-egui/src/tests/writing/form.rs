@@ -6,10 +6,7 @@ use super::*;
 
 /// The texts a frame of this size draws.
 fn drawn(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<String> {
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    out.shapes.iter().filter_map(|s| if let egui::Shape::Text(t) = &s.shape { Some(t.galley.job.text.clone()) } else { None }).collect()
+    drawn_strings(ctx, a, size)
 }
 
 /// Each state of the form: its name, and what it draws (settled over a few frames).

@@ -94,17 +94,12 @@ fn measure_reminders() {
         frame(&ctx, &mut a, vec![]);
     }
     let whole = t.elapsed().as_secs_f64() * 1000.0 / 50.0;
-    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
+    let drawn = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    let mut texts = 0;
-    for s in &out.shapes {
-        if let egui::Shape::Text(t) = &s.shape {
-            (&t.galley.job.text, t.pos.x.to_bits(), t.pos.y.to_bits()).hash(&mut h);
-            texts += 1;
-        }
+    for d in &drawn {
+        (&d.text, d.rect.min.x.to_bits(), d.rect.min.y.to_bits()).hash(&mut h);
     }
+    let texts = drawn.len();
     for r in &a.ui.reminders.due {
         (&r.summary, r.start, r.due).hash(&mut h);
     }

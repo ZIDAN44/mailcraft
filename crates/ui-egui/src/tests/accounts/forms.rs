@@ -66,13 +66,7 @@ fn look(s: &Session, d: &mut Dialog, click: Option<&str>) -> Look {
             crate::dialogs::show(ui.ctx(), d, s, &mut pics, &t, acts);
         });
         out.textures_delta.clear();
-        out.shapes
-            .iter()
-            .filter_map(|c| match &c.shape {
-                egui::Shape::Text(x) => Some((x.galley.job.text.clone(), egui::Rect::from_min_size(x.pos, x.galley.size()))),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
+        texts_in(&out.shapes).into_iter().map(|d| (d.text, d.rect)).collect::<Vec<_>>()
     };
     run(d, vec![], &mut acts);
     let texts = run(d, vec![], &mut acts);
