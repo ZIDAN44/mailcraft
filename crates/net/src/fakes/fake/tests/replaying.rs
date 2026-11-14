@@ -78,15 +78,6 @@ fn stored(st: &Arc<Mutex<State>>, words: &[String]) -> Vec<usize> {
     words.iter().map(|w| log.iter().filter(|l| l.contains("STORE") && l.split([' ', '(', ')']).any(|t| t == w)).count()).collect()
 }
 
-/// Wait until the server is on its way through the command `stall_on` holds.
-fn stalled(st: &Arc<Mutex<State>>) {
-    let end = Instant::now() + Duration::from_secs(20);
-    while st.lock().unwrap().stalled == 0 {
-        assert!(Instant::now() < end, "never reached the stalled change");
-        std::thread::sleep(Duration::from_millis(5));
-    }
-}
-
 /// A change queued while those made offline replay (the window's, as one of them is on its
 /// way to the server) is kept and sent after them; each is sent once, in order.
 #[test]
@@ -94,12 +85,14 @@ fn a_change_queued_while_others_replay_is_kept_and_sent_once() {
     let (st, store, mut pool) = offline(1, "replay-queued-meanwhile");
     let mut ops = keyworded(10);
     store.save_ops("a1", &ops).unwrap();
-    st.lock().unwrap().stall_on = Some(("$k3".into(), Duration::from_millis(1500)));
+    let (hold, holding) = Hold::on("$k3");
+    st.lock().unwrap().hold_on = Some(hold);
     pool.submit(Job::WorkOffline { on: false });
-    stalled(&st);
+    holding.came();
     let late = Op::SetKeyword { keys: keys(1), keyword: "$late".into(), on: true };
     store.add_op("a1", late.clone()).unwrap();
     assert!(!st.lock().unwrap().log.iter().any(|l| l.contains("$k3")), "queued while $k3 was on its way");
+    holding.go(LetGo::Answer);
     ops.push(late);
     all_sent(&store, "queued meanwhile");
     let words: Vec<String> = ops.iter().map(|o| if let Op::SetKeyword { keyword, .. } = o { keyword.clone() } else { String::new() }).collect();
@@ -120,17 +113,17 @@ fn a_replay_stopped_part_way_sends_the_rest_once() {
     let (st, store, mut pool) = offline(1, "replay-stopped");
     let ops = keyworded(10);
     store.save_ops("a1", &ops).unwrap();
-    st.lock().unwrap().stall_on = Some(("$k3".into(), Duration::from_millis(800)));
+    let (hold, holding) = Hold::on("$k3");
+    st.lock().unwrap().hold_on = Some(hold);
     pool.submit(Job::WorkOffline { on: false });
-    stalled(&st);
-    // The command after $k3 ($k4's) is dropped unanswered.
-    {
-        let mut s = st.lock().unwrap();
-        s.stall_on = None;
-        s.hang_up = true;
-    }
+    holding.came();
+    // $k3 is answered and the next command, $k4's, dropped unanswered. Signing in again is
+    // refused until the queue is looked at, so the account can't come back and go on first.
+    st.lock().unwrap().refuse_passwords = Some("not now".into());
+    holding.go(LetGo::AnswerThenHangUp);
     until(&pool, "connection lost", |e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. }));
     assert_eq!(store.load_ops("a1").unwrap(), ops[4..], "just the ones not made");
+    st.lock().unwrap().refuse_passwords = None;
     pool.submit(Job::SyncAll { account: "a1".into() });
     all_sent(&store, "after the stop");
     let words: Vec<String> = (0..10).map(|i| format!("$k{i}")).collect();

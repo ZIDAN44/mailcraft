@@ -67,6 +67,9 @@ pub struct State {
     pub stall_on: Option<(String, std::time::Duration)>,
     /// Commands that have begun to take that long: on their way, not answered yet.
     pub stalled: usize,
+    /// The first command containing a text, held unanswered until the test lets it go
+    /// ([`Hold::on`]).
+    pub hold_on: Option<Hold>,
     /// A header line the server adds to every message it's given (`APPEND`), so it keeps each at
     /// another size than sent, as a server that stamps what it stores does.
     pub stamp_appends: Option<&'static str>,
@@ -97,6 +100,7 @@ impl State {
             permanent_flags: None,
             stall_on: None,
             stalled: 0,
+            hold_on: None,
             stamp_appends: None,
             refuse_appends: None,
         }))
@@ -176,6 +180,8 @@ pub struct Fake {
     flood: Option<Vec<u8>>,
     /// In IDLE (this tag) until `DONE`.
     idling: Option<String>,
+    /// The next command on this connection is dropped unanswered (see [`LetGo`]).
+    hang_up_next: bool,
 }
 
 /// The only access token the fake accepts.
@@ -193,6 +199,7 @@ impl Fake {
             refused: false,
             flood: None,
             idling: None,
+            hang_up_next: false,
         };
         f.say("* OK fake ready");
         f
@@ -293,6 +300,7 @@ impl Fake {
             }
             std::thread::sleep(how_long);
         }
+        self.held(line);
         let st = self.st.clone();
         let mut st = st.lock().unwrap();
         st.log.push(rest.to_string());
@@ -661,8 +669,10 @@ impl Write for Fake {
     }
 }
 
+mod holding;
 mod search;
 mod serving;
 mod structure;
+pub use holding::{Hold, LetGo};
 #[cfg(test)]
 mod tests;

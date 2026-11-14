@@ -24,7 +24,7 @@ pub fn serve_tcp(st: &Arc<Mutex<State>>) -> u16 {
                     match sock.read(&mut buf) {
                         Ok(0) | Err(_) => return,
                         Ok(n) => {
-                            if std::mem::take(&mut st.lock().unwrap().hang_up) {
+                            if fake.hang_up_next || std::mem::take(&mut st.lock().unwrap().hang_up) {
                                 return;
                             }
                             let _ = fake.write(&buf[..n]);
