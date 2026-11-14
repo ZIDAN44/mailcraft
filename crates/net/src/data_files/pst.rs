@@ -58,6 +58,7 @@ pub use fuzzing::{rebuilt, repeating, repeating_task, text_from_bytes};
 use item::{File, Item, attachment, item, message_class, message_code_page, unread_attachment};
 #[cfg(test)]
 pub(crate) use lanes::tests::Fault;
+pub(crate) use open::locked_by_another;
 use out::Out;
 #[doc(hidden)]
 pub use props::Val;
@@ -620,8 +621,8 @@ fn conclude(
     }
     let failed: Option<String> = match planned {
         Ok(Ok(())) => None,
-        // Windows' sharing and lock violations: Outlook (or another program) has it open.
-        Ok(Err(e)) if matches!(e.raw_os_error(), Some(32 | 33)) => Some(LOCKED.into()),
+        // Outlook (or another program) has it open.
+        Ok(Err(e)) if open::locked_by_another(&e) => Some(LOCKED.into()),
         // Nothing found at all: say why; otherwise keep what was read.
         Ok(Err(e)) if out.folders.is_empty() => Some(format!("not an Outlook data file, or it is damaged ({e})")),
         Ok(Err(e)) => {
@@ -744,9 +745,7 @@ pub fn inspect(path: &Path) -> Result<Planned, String> {
     let ctx = lanes::Ctx::looking(path, &opts);
     let plan = match opened(&ctx).and_then(|(store, _)| plan::plan(&store, &ctx)) {
         Ok(plan) => plan,
-        Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => {
-            return Err(LOCKED.into());
-        }
+        Err(e) if open::locked_by_another(&e) => return Err(LOCKED.into()),
         Err(e) => return Err(format!("not an Outlook data file, or it is damaged ({e})")),
     };
     let rows = |kind: plan::Kind| plan.folders.iter().filter(|f| f.kind == kind).fold(0u64, |n, f| n.saturating_add(f.rows));

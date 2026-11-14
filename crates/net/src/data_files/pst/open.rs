@@ -26,6 +26,24 @@ pub(super) fn open_read(path: &Path) -> io::Result<File> {
     options.open(path)
 }
 
+/// Whether opening or reading a file failed because another program has it open: Windows'
+/// sharing and lock violations (`ERROR_SHARING_VIOLATION`, `ERROR_LOCK_VIOLATION`), which is how
+/// Outlook holding a data file shows. Elsewhere nothing keeps a file from being opened so, and the
+/// same numbers are other errors (`EPIPE`, `EDOM`): never.
+pub(crate) fn locked_by_another(e: &io::Error) -> bool {
+    #[cfg(windows)]
+    {
+        const ERROR_SHARING_VIOLATION: i32 = 32;
+        const ERROR_LOCK_VIOLATION: i32 = 33;
+        matches!(e.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = e;
+        false
+    }
+}
+
 /// `path` opened to read through a cache of its own, in the chunks `opts` say (`chunk_kb`), its
 /// reads failing once the import is asked to stop.
 pub(super) fn source(path: &Path, opts: &ImportOptions) -> io::Result<Shared> {

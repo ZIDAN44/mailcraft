@@ -133,7 +133,7 @@ fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
     };
     match read() {
         Ok(ids) => Ok(ids),
-        Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => {
+        Err(e) if crate::pst::locked_by_another(&e) => {
             Err("Outlook (or another program) has this data file open: close Outlook, including from the notification area, and try again".into())
         }
         Err(_) => Err("this data file can't be read, so mail can't be added to it: choose another name to make a new one".into()),

@@ -215,6 +215,34 @@ fn nothing_writes_the_data_file_while_it_is_read() {
     assert!(std::fs::OpenOptions::new().write(true).open(&pst).is_ok());
 }
 
+/// Only Windows' sharing and lock violations say another program has the data file open:
+/// elsewhere the same numbers are other errors (a broken pipe, a number out of range).
+#[test]
+fn only_windows_sharing_violations_say_the_file_is_open_elsewhere() {
+    use super::super::open::locked_by_another;
+    for code in [32, 33] {
+        assert_eq!(locked_by_another(&std::io::Error::from_raw_os_error(code)), cfg!(windows), "{code}");
+    }
+    assert!(!locked_by_another(&std::io::Error::from_raw_os_error(5)), "access denied");
+    assert!(!locked_by_another(&std::io::Error::other("no number")));
+}
+
+/// A data file another program holds open to no one else (as Outlook does) is said to be open
+/// in Outlook, looked at or imported.
+#[cfg(windows)]
+#[test]
+fn a_data_file_another_program_holds_is_said_to_be_open() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let (_, pst) = data_file("held", 3);
+    let held = std::fs::OpenOptions::new().read(true).share_mode(0).open(&pst).unwrap();
+    let looked = super::super::inspect(&pst).map(|p| p.messages);
+    let imported = import(&pst, &Store::memory(), "h1", &mut |_| {}).map(|d| d.messages);
+    drop(held);
+    assert_eq!(looked, Err(super::super::LOCKED.to_string()));
+    assert_eq!(imported, Err(super::super::LOCKED.to_string()));
+    assert_eq!(import(&pst, &Store::memory(), "h2", &mut |_| {}).map(|d| d.messages), Ok(3), "let go of, it imports");
+}
+
 /// The import's data file has the bulk cache while it writes, and the usual one after, however
 /// the import ends: finished, or failed part-way (a file that isn't a data file at all).
 #[test]
