@@ -253,6 +253,9 @@ fn a_data_file_that_cant_be_opened_is_told() {
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert_eq!(problems[0].0, "zoe@studio.example.mailcraft");
     assert!(problems[0].1.contains("another copy of MailCraft"), "{problems:?}");
+    // Asked for, it's an error of that kind (the CLI says to close MailCraft by it).
+    let e = s.load_folders("a1").unwrap_err();
+    assert!(e.is_open_elsewhere(), "{e}");
     assert!(s.read_body(&MessageKey { account: "a2".into(), ..inbox(5) }).is_some(), "the other opened");
     drop((s, holder));
     let _ = std::fs::remove_dir_all(t);

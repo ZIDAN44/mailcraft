@@ -426,7 +426,7 @@ impl Packs {
                 return Err(other(format!("{} is being opened again after a write that failed; try again", path.display())));
             }
             Err(redb::DatabaseError::DatabaseAlreadyOpen) => {
-                return Err(other(format!("{} is open in another copy of MailCraft", path.display())));
+                return Err(crate::open_elsewhere(format!("{} is open in another copy of MailCraft", path.display())));
             }
             // The disk failing isn't damage (a file that isn't a data file is: InvalidData).
             Err(redb::DatabaseError::Storage(redb::StorageError::Io(e))) if e.kind() != io::ErrorKind::InvalidData => return Err(e),

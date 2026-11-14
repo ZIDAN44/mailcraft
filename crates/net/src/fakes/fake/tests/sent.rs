@@ -446,3 +446,30 @@ fn a_draft_kept_on_close_goes_before_the_next_runs_save() {
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }
+
+/// A server where no Sent Items can be made: the message goes, and that no copy was kept comes as
+/// an event of its own, which the CLI's send waits for (it looked for words in a notice, which
+/// rewording would have turned into a minute's wait for a copy that never comes).
+#[test]
+fn a_copy_that_cant_be_kept_is_said_by_its_own_event() {
+    let st = State::new();
+    {
+        let mut s = st.lock().unwrap();
+        s.boxes.retain(|b| b.name == "INBOX");
+        s.create_under = Some("Elsewhere/".into());
+    }
+    let (mut pool, store, _log) = online(&st, "sent-not-kept");
+    send(&mut pool);
+    let mut said = String::new();
+    until(&pool, "word that no copy was kept", |e| match e {
+        Event::SentCopyNotKept { account, error } if account == "a1" => {
+            said = error.clone();
+            true
+        }
+        _ => false,
+    });
+    assert!(said.contains("no copy was saved"), "{said}");
+    assert_eq!(st.lock().unwrap().boxes.len(), 1, "nothing made");
+    pool.submit(Job::Remove { account: "a1".into() });
+    let _ = std::fs::remove_dir_all(store.root());
+}

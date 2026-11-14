@@ -243,7 +243,7 @@ fn run() -> Result<(), String> {
     // out empty (found testing issue #20).
     for a in &s.accounts {
         if let Err(e) = store.load_folders(&a.config.id)
-            && e.to_string().contains("another copy of MailCraft")
+            && e.is_open_elsewhere()
         {
             // The data file's own words, without the file inside it that was asked for.
             let e = e.to_string();
@@ -511,7 +511,7 @@ fn run() -> Result<(), String> {
                     None
                 }
                 Event::FolderChanged { folder, .. } if sent.as_deref() == Some(folder.as_str()) => Some(Ok(())),
-                Event::Notice { message, .. } if message.contains("no copy was saved") => Some(Err(message.clone())),
+                Event::SentCopyNotKept { error, .. } => Some(Err(error.clone())),
                 _ => None,
             });
             match (filed, s.account(&account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Sent))) {
@@ -651,10 +651,7 @@ fn main() -> ExitCode {
 /// open on the folder layout (`--sample`, or its data files failing to open) aren't brought in:
 /// it's closed first, as for a data file it has open.
 fn open_store(root: &std::path::Path, files: &std::path::Path) -> Result<Store, String> {
-    Store::open_packed(root, files).map_err(|e| {
-        let e = e.to_string();
-        if e.contains("open in another copy of MailCraft") { format!("{e}: close MailCraft first") } else { e }
-    })
+    Store::open_packed(root, files).map_err(|e| if e.is_open_elsewhere() { format!("{e}: close MailCraft first") } else { e.to_string() })
 }
 
 /// A sender warning (`message.read`'s `warning`) said in a line.

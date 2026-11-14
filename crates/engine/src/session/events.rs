@@ -340,6 +340,10 @@ impl Session {
                 let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or(account);
                 self.notice(format!("{who}: {message}"), true);
             }
+            Event::SentCopyNotKept { account, error } => {
+                let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or(account);
+                self.notice(format!("{who}: {error}"), true);
+            }
         }
     }
 }

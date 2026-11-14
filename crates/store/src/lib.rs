@@ -59,6 +59,34 @@ pub enum StoreError {
 
 pub type Result<T> = std::result::Result<T, StoreError>;
 
+impl StoreError {
+    /// Whether the mail is open in another copy of MailCraft (a data file it has open, or its
+    /// folder layout), which has to be closed first. Told by the error's kind, not its words: the
+    /// CLI matched "another copy of MailCraft", which rewording here would have undone unseen.
+    pub fn is_open_elsewhere(&self) -> bool {
+        matches!(self, StoreError::Io { source, .. } if source.get_ref().is_some_and(|e| e.is::<OpenElsewhere>()))
+    }
+}
+
+/// The error inside an [`io::Error`] saying the mail is open in another copy of MailCraft.
+#[derive(Debug)]
+struct OpenElsewhere(String);
+
+impl std::fmt::Display for OpenElsewhere {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for OpenElsewhere {}
+
+/// `what` (words saying it's open in another copy of MailCraft) as the error
+/// [`StoreError::is_open_elsewhere`] knows (only a copy on disk can be another's).
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn open_elsewhere(what: String) -> io::Error {
+    io::Error::other(OpenElsewhere(what))
+}
+
 fn io_err(path: &Path) -> impl FnOnce(io::Error) -> StoreError + '_ {
     move |source| StoreError::Io { path: path.display().to_string(), source }
 }

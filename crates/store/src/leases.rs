@@ -92,10 +92,10 @@ pub(crate) fn folder_layout(_root: &Path, _alone: bool) -> Result<Option<Arc<Lea
 }
 
 /// The folders at `root` are another copy of MailCraft's (its folder layout's, or its data files'
-/// bringing them in). The CLI tells it apart by "open in another copy of MailCraft".
+/// bringing them in): [`StoreError::is_open_elsewhere`].
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn in_another_copy(root: &Path) -> StoreError {
-    io_err(root)(io::Error::other("its mail is open in another copy of MailCraft"))
+    io_err(root)(crate::open_elsewhere("its mail is open in another copy of MailCraft".into()))
 }
 
 /// Said once a file: the file system can't lock it.

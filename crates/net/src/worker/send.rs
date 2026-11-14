@@ -6,6 +6,11 @@ use super::*;
 const NO_SENT: &str = "sent, but no copy was saved: the server has no Sent Items folder, and one couldn't be made";
 
 impl Worker {
+    /// Say a sent message's copy couldn't be kept in Sent Items, and why.
+    fn sent_copy_not_kept(&self, error: String) {
+        self.sink.emit(Event::SentCopyNotKept { account: self.id(), error });
+    }
+
     /// The account's second connection: sends mail and reads or changes the automatic replies,
     /// whatever the main connection is doing. It connects when there's something to do, and lets
     /// go of an idle connection after a while.
@@ -231,12 +236,12 @@ impl Worker {
                     Some(f)
                 }
                 Ok(None) => {
-                    self.notice(NO_SENT.to_string());
+                    self.sent_copy_not_kept(NO_SENT.to_string());
                     None
                 }
                 Err(e) => {
                     self.conn = None;
-                    self.notice(format!("sent, but no copy was saved in Sent Items: {e}"));
+                    self.sent_copy_not_kept(format!("sent, but no copy was saved in Sent Items: {e}"));
                     return;
                 }
             }
@@ -439,8 +444,8 @@ impl Worker {
                 }
                 self.sync_filed(&folder);
             }
-            Ok(None) => self.notice(NO_SENT.to_string()),
-            Err(e) => self.notice(format!("sent, but no copy was saved in Sent Items: {e}")),
+            Ok(None) => self.sent_copy_not_kept(NO_SENT.to_string()),
+            Err(e) => self.sent_copy_not_kept(format!("sent, but no copy was saved in Sent Items: {e}")),
         }
     }
 }

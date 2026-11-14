@@ -67,6 +67,7 @@ fn the_apps_folder_layout_is_its_alone() {
     let first = Store::open_alone(&app).unwrap();
     for refused in [Store::open_alone(&app).unwrap_err(), Store::open(&app).unwrap_err(), Store::open_packed(&app, t.join("Files")).unwrap_err()] {
         assert!(refused.to_string().contains("open in another copy of MailCraft"), "{refused}");
+        assert!(refused.is_open_elsewhere(), "{refused}");
     }
     assert_eq!(first.read_body(&inbox(1)).unwrap(), b"Subject: one\r\n\r\nbody");
     let clone = first.clone();
