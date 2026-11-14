@@ -160,9 +160,8 @@ pub(super) fn item_of<'a>(
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
     let charset_unsupported = files.iter().any(|f| matches!(f, File::Message(m) if m.charset_unsupported));
     let mut it = Item { class: s(0x001A), files, charset_unsupported, ..Default::default() };
-    let class = it.class.to_ascii_lowercase();
-    let pim = ["ipm.contact", "ipm.distlist", "ipm.appointment", "ipm.schedule.meeting", "ipm.task", "ipm.stickynote", "ipm.activity", EXCEPTION];
-    if pim.iter().any(|c| class.starts_with(c)) {
+    let class = Class::of(&it.class);
+    if class.has_pim_properties() {
         it.extra = Some(crate::pst_pim::extract(p, named));
     }
     // A subject may start with a prefix marker (0x01, length); control characters in the rest
@@ -201,7 +200,7 @@ pub(super) fn item_of<'a>(
         rtf_into(&mut it, rtf, in_sync);
     }
     // A sharing invitation says what it shares, whatever its own text says.
-    if class.starts_with("ipm.sharing") {
+    if class == Class::Sharing {
         crate::pst_pim::put_before(&crate::pst_pim::sharing_lines(p, named), &mut it.body, &mut it.html);
     }
     it.message_id = message_ids(&s(0x1035)).into_iter().next().unwrap_or_default();
@@ -410,8 +409,7 @@ pub(super) fn attachment(a: &Attachment, code_page: u32, class: &str, top: bool)
 /// and bytes, in an item of class `class`; `None` for any other attachment. One past the cap is
 /// counted as too big (it is hidden, so it would otherwise go unsaid).
 pub(super) fn photo<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, data: &[u8]) -> Option<Got> {
-    let contact = class.get(..11).is_some_and(|c| c.eq_ignore_ascii_case("ipm.contact"));
-    if !contact || !matches!(p(0x7FFF), Some(Val::Bool(true))) {
+    if Class::of(class) != Class::Contact || !matches!(p(0x7FFF), Some(Val::Bool(true))) {
         return None;
     }
     if data.len() > MAX_ATTACHMENT {
@@ -462,16 +460,94 @@ pub(super) fn from_row<'a>(e: &io::Error, p: &dyn Fn(u16) -> Option<Val<'a>>, cl
 /// A message's other hidden files are: Outlook hides some files a message carries, and leaving
 /// them out lost them.
 fn hidden<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, top: bool) -> bool {
-    let is = |prefix: &str| class.get(..prefix.len()).is_some_and(|c| c.eq_ignore_ascii_case(prefix));
+    let class = Class::of(class);
     let occurrence = matches!(p(0x7FFD), Some(Val::Int(f)) if f & 0x2 != 0)
-        || ((is("ipm.schedule.meeting") || is("ipm.appointment")) && matches!(p(0x3705), Some(Val::Int(5))));
-    let exception = occurrence && !(top && is("ipm.appointment"));
-    matches!(p(0x7FFE), Some(Val::Bool(true))) && p(0x3712).and_then(Val::into_text).is_none_or(|c| c.is_empty()) && (is("ipm.contact") || exception)
+        || (matches!(class, Class::Meeting | Class::Appointment) && matches!(p(0x3705), Some(Val::Int(5))));
+    let exception = occurrence && !(top && class == Class::Appointment);
+    matches!(p(0x7FFE), Some(Val::Bool(true)))
+        && p(0x3712).and_then(Val::into_text).is_none_or(|c| c.is_empty())
+        && (class == Class::Contact || exception)
 }
 
 /// The class of an appointment's changed occurrence, an attached message of it (MS-OXOCAL
 /// 2.2.10.1.1), lower case.
 pub(super) const EXCEPTION: &str = "ipm.ole.class.{00061055-0000-0000-c000-000000000046}";
+
+/// What an Outlook item is, by its class (PidTagMessageClass, read by its start, in any case):
+/// the one place classes are told apart. Each is mail, a contact, calendar item, task, note or
+/// journal entry ([`Class::is_pim`]), or neither; some have their calendar properties read
+/// ([`Class::has_pim_properties`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Class {
+    Contact,
+    ContactGroup,
+    Appointment,
+    Task,
+    StickyNote,
+    Journal,
+    /// A meeting request, cancellation or answer (`IPM.Schedule.Meeting…`).
+    Meeting,
+    /// Another `IPM.Schedule…` message.
+    Schedule,
+    /// A task request or its answer (`IPM.TaskRequest…`): mail, but a task where tasks are kept.
+    TaskRequest,
+    /// An appointment's changed occurrence ([`EXCEPTION`]).
+    Exception,
+    /// A sharing invitation (`IPM.Sharing…`).
+    Sharing,
+    /// A message, a report, a post (an RSS feed's among them), a document or a recall; an item
+    /// with no class.
+    Mail,
+    Other,
+}
+
+impl Class {
+    pub(super) fn of(class: &str) -> Class {
+        // A task request before a task, a meeting before the rest of the schedule's.
+        const STARTS: [(&str, Class); 17] = [
+            ("ipm.contact", Class::Contact),
+            ("ipm.distlist", Class::ContactGroup),
+            ("ipm.appointment", Class::Appointment),
+            ("ipm.taskrequest", Class::TaskRequest),
+            ("ipm.task", Class::Task),
+            ("ipm.stickynote", Class::StickyNote),
+            ("ipm.activity", Class::Journal),
+            ("ipm.schedule.meeting", Class::Meeting),
+            ("ipm.schedule", Class::Schedule),
+            (EXCEPTION, Class::Exception),
+            ("ipm.sharing", Class::Sharing),
+            ("ipm.note", Class::Mail),
+            ("report.", Class::Mail),
+            ("ipm.post", Class::Mail),
+            ("ipm.document", Class::Mail),
+            ("ipm.outlook.recall", Class::Mail),
+            ("ipm.recall", Class::Mail),
+        ];
+        if class.is_empty() {
+            return Class::Mail;
+        }
+        STARTS.iter().find(|(start, _)| class.get(..start.len()).is_some_and(|c| c.eq_ignore_ascii_case(start))).map_or(Class::Other, |(_, c)| *c)
+    }
+
+    /// A contact, contact group, calendar item, task, note or journal entry: it goes to the
+    /// address book, calendar, tasks or notes wherever it's found.
+    pub(super) fn is_pim(self) -> bool {
+        matches!(self, Class::Contact | Class::ContactGroup | Class::Appointment | Class::Task | Class::StickyNote | Class::Journal)
+    }
+
+    /// Mail: meeting messages and task requests too (appointments, contacts and tasks in a mail
+    /// folder aren't).
+    pub(super) fn is_mail(self) -> bool {
+        matches!(self, Class::Mail | Class::Meeting | Class::Schedule | Class::TaskRequest | Class::Sharing)
+    }
+
+    /// Whether its calendar and contact properties are read: those of what [`Class::is_pim`] is, a
+    /// meeting message's (its invitation), a changed occurrence's and a task request's (a task
+    /// in a folder of tasks).
+    pub(super) fn has_pim_properties(self) -> bool {
+        self.is_pim() || matches!(self, Class::Meeting | Class::Exception | Class::TaskRequest)
+    }
+}
 
 /// By reference, by reference resolved, by reference only, or by web reference
 /// (PidTagAttachMethod 2, 3, 4, 7): a path or an address, not the file.

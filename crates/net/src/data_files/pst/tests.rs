@@ -785,6 +785,7 @@ fn imports_a_data_file() {
 }
 
 mod chunked;
+mod classes;
 mod embedded;
 mod files;
 mod indexing;

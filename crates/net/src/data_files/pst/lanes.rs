@@ -347,19 +347,13 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
 /// invitation and a task request; appointments, contacts and tasks in a mail folder aren't
 /// ([`is_pim`]).
 pub(super) fn is_mail(class: &str) -> bool {
-    let class = class.to_ascii_lowercase();
-    class.is_empty()
-        || ["ipm.note", "ipm.schedule", "report.", "ipm.post", "ipm.document", "ipm.outlook.recall", "ipm.recall", "ipm.sharing", "ipm.taskrequest"]
-            .iter()
-            .any(|c| class.starts_with(c))
+    super::item::Class::of(class).is_mail()
 }
 
 /// Whether an item of `class` is a contact, contact group, calendar item, task, note or journal
 /// entry, which goes to the address book, calendar, tasks or notes wherever it's found.
 pub(super) fn is_pim(class: &str) -> bool {
-    let class = class.to_ascii_lowercase();
-    !class.starts_with("ipm.taskrequest")
-        && ["ipm.contact", "ipm.distlist", "ipm.appointment", "ipm.task", "ipm.stickynote", "ipm.activity"].iter().any(|c| class.starts_with(c))
+    super::item::Class::of(class).is_pim()
 }
 
 /// An item's bytes as read: its text and its files'.

@@ -9,7 +9,7 @@
 //! read back (in full up to 16 MiB each), so the files kept there are held to [`MAX_FILE`] each
 //! and [`MAX_FILES`] in all, and those past either are counted as too big.
 
-use super::super::item::EXCEPTION;
+use super::super::item::{Class, EXCEPTION};
 use super::*;
 
 /// A file of a contact, calendar item, task or note kept at most, as its line holds it (base64)…
@@ -28,9 +28,9 @@ impl Out<'_> {
         let Some(x) = it.extra.take() else { return };
         let n = self.pim.events.len() + self.pim.cards.len() + self.pim.notes.len() + self.pim.tasks.len();
         let uid = format!("pst-{}-{n}@mailcraft.invalid", self.account);
-        let class = it.class.to_ascii_lowercase();
+        let class = Class::of(&it.class);
         let files = std::mem::take(&mut it.files);
-        if class.starts_with("ipm.activity") {
+        if class == Class::Journal {
             // MailCraft has no journal: an entry is a note.
             let text = crate::pst_pim::journal_text(&x, &it.subject, &it.body);
             if text.is_empty() {
@@ -40,11 +40,11 @@ impl Out<'_> {
             let files = self.event_files(files, &uid);
             let note = Note { uid, text, color: NOTE_YELLOW, modified: x.modified.unwrap_or(it.date), files };
             self.pim.notes.push(StoredNote { note, ..Default::default() });
-        } else if class.starts_with("ipm.distlist") {
+        } else if class == Class::ContactGroup {
             let mut card = crate::pst_pim::group_of(&x, &it.subject, &it.body, uid.clone());
             card.extra.extend(self.card_files(files, None, &uid));
             self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
-        } else if class.starts_with("ipm.stickynote") {
+        } else if class == Class::StickyNote {
             // A note's text is its body (its subject is the first line of it).
             let text = if it.body.trim().is_empty() { it.subject.clone() } else { it.body.replace("\r\n", "\n") };
             if text.trim().is_empty() {
@@ -60,7 +60,7 @@ impl Out<'_> {
                 files,
             };
             self.pim.notes.push(StoredNote { note, ..Default::default() });
-        } else if class.starts_with("ipm.task") {
+        } else if matches!(class, Class::Task | Class::TaskRequest) {
             // Every task, due or not: its files as an event keeps its own.
             let mut task = crate::pst_pim::task_of(&x, &it.subject, &it.body, it.importance, uid.clone());
             if task.modified == 0 {
@@ -69,7 +69,7 @@ impl Out<'_> {
             let files = self.event_files(files, &uid);
             task.extra.extend(files);
             self.pim.tasks.push(StoredTask { task });
-        } else if class.starts_with("ipm.contact") {
+        } else if class == Class::Contact {
             let mut card = crate::pst_pim::card_of(&x, &it.body, uid.clone());
             card.extra.extend(self.card_files(files, it.photo.take(), &uid));
             self.pim.cards.push(StoredCard { book: LOCAL.into(), card, ..Default::default() });
