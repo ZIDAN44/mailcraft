@@ -4,7 +4,7 @@
 use egui::{Align, Color32, Margin, Rect, RichText, Sense, Ui, vec2};
 use mailcraft_engine::mime::{self, AttachmentKind};
 use mailcraft_engine::model::contacts::Contact;
-use mailcraft_engine::model::{MessageKey, addr, dates};
+use mailcraft_engine::model::{MessageKey, Summary, addr, dates};
 use mailcraft_engine::{InviteProblem, Session, model::EmailAddress};
 use serde_json::json;
 
@@ -16,6 +16,7 @@ use crate::{Action, UiState, widgets};
 mod attachments;
 pub(crate) mod body;
 mod compose;
+mod header;
 mod long_text;
 mod people;
 mod pictures;
@@ -110,6 +111,15 @@ pub(crate) fn plain_text_check(s: &Session, st: &UiState, ui: &mut Ui, key: &Mes
     }
 }
 
+/// The open message, its parts in hand, as the pieces of the reading pane take it.
+struct Open<'a> {
+    r: &'a mailcraft_engine::Reading,
+    p: &'a mime::Parsed,
+    summary: Option<&'a Summary>,
+    /// In a window of its own (its ribbon has the actions, it has no conversation list).
+    in_window: bool,
+}
+
 fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, in_window: bool) {
     let t = st.tokens;
     let Some(r) = s.reading.clone() else { return };
@@ -132,37 +142,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", in_window, r.key.to_id(), viewing)).show(ui, |ui| {
         egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: 18, bottom: 24 }).show(ui, |ui| {
             let Some(p) = &r.parsed else {
-                if !getting_ready {
-                    ui.add_space(30.0);
-                }
-                match &r.error {
-                    Some(e) => {
-                        ui.horizontal(|ui| {
-                            let (ir, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
-                            icons::paint(ui.painter(), ir, Icon::Warning, t.warn);
-                            ui.label(RichText::new(tf!("This message couldn't be downloaded: {error}", error = e)).color(t.dim));
-                        });
-                        if ui.button(tl!("Try again")).clicked() {
-                            acts.push(Action::Open(r.key.clone()));
-                        }
-                    }
-                    None if getting_ready => {
-                        if let Some(m) = &summary {
-                            let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-                            subject_heading(ui, subject, &t);
-                            ui.add_space(8.0);
-                        }
-                        ui.spinner();
-                    }
-                    None => {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(RichText::new(tl!("Downloading the message…")).color(t.dim));
-                        });
-                    }
-                }
+                not_ready(ui, &t, &r, summary.as_ref(), getting_ready, acts);
                 return;
             };
+            let o = Open { r: &r, p, summary: summary.as_ref(), in_window };
             // Previewing an attachment: back to the message, and what can be done with the file.
             if let Some(index) = viewing
                 && let Some(a) = p.attachments.iter().find(|a| a.index == index)
@@ -173,282 +156,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 }
             }
             if viewing.is_none() {
-                // The header against the right in a right-to-left interface, its rows from there
-                // (the message itself goes the way its own text does).
-                ui.with_layout(crate::bidi::column(), |ui| {
-                    // Subject.
-                    ui.horizontal_wrapped(|ui| {
-                        let subject = if p.subject.is_empty() { tl!("(no subject)") } else { p.subject.as_str() };
-                        subject_heading(ui, subject, &t);
-                        if summary.as_ref().is_some_and(|m| m.flags.flagged) {
-                            let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-                            icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
-                        }
-                    });
-                    if let Some(m) = &summary {
-                        let cats = s.categories_of(m);
-                        if !cats.is_empty() {
-                            ui.horizontal_wrapped(|ui| {
-                                for c in cats {
-                                    let color = theme::category_color(c.color, t.dark);
-                                    // One not in the list (another program's tag): outlined, and a
-                                    // click names it and gives it a colour, keeping its keyword.
-                                    let listed = s.category_with_keyword(&c.keyword).is_some();
-                                    let frame = if listed {
-                                        egui::Frame::new().fill(color.gamma_multiply(0.18))
-                                    } else {
-                                        egui::Frame::new().stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.6)))
-                                    };
-                                    let chip = frame.corner_radius(10).inner_margin(Margin::symmetric(8, 2)).show(ui, |ui| {
-                                        ui.label(RichText::new(&c.name).color(color).small());
-                                    });
-                                    if !listed {
-                                        let r = chip
-                                            .response
-                                            .interact(Sense::click())
-                                            .on_hover_cursor(egui::CursorIcon::PointingHand)
-                                            .on_hover_text(tl!("Not in the category list: click to name it and choose its colour"));
-                                        if r.clicked() {
-                                            acts.push(Action::Dialog(crate::Dialog::name_keyword(&c.keyword)));
-                                        }
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    ui.add_space(10.0);
-
-                    // Conversation.
-                    if r.thread.len() > 1 && !in_window {
-                        thread_list(s, &t, ui, &r.thread, &r.key, acts);
-                        ui.add_space(10.0);
-                    }
-
-                    // Sender card.
-                    ui.horizontal_top(|ui| {
-                        let (ar, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
-                        widgets::avatar(ui, ar.center(), 21.0, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark));
-                        ui.add_space(4.0);
-                        // The date to the right, with room kept for it (the address ran under it in a
-                        // narrow pane); under the sender when the pane is too narrow for both.
-                        let when = summary.as_ref().map_or(p.date, |m| if p.date > 0 { p.date } else { m.date });
-                        // None at all (a message file without one): no date, rather than 1970's.
-                        let when = if when > 0 { crate::i18n::date(&dates::full_time(when, &s.clock)) } else { String::new() };
-                        let date = egui::WidgetText::from(RichText::new(when).color(t.dim).small()).into_galley(
-                            ui,
-                            Some(egui::TextWrapMode::Extend),
-                            f32::INFINITY,
-                            egui::TextStyle::Small,
-                        );
-                        let rest = ui.available_width() - date.size().x - 16.0;
-                        let beside = rest >= 200.0;
-                        let room = if beside { rest } else { ui.available_width() };
-                        ui.allocate_ui_with_layout(vec2(room, 0.0), crate::bidi::column(), |ui| {
-                            ui.set_max_width(room);
-                            ui.horizontal_wrapped(|ui| {
-                                let shown = crate::bidi::shown(p.from.display()).0;
-                                let name = person_link(ui, &t, RichText::new(shown).font(theme::bold(15.0)).color(t.text));
-                                person_menus(s, &t, &name, &p.from, acts);
-                                if !p.from.name.is_empty() {
-                                    ui.label(RichText::new(format!("<{}>", p.from.email)).color(t.dim));
-                                }
-                                // From outside the organisation (issue #29, with the tag on).
-                                if s.is_external(&p.from.email) {
-                                    let _ = external_tag(ui, &t);
-                                }
-                                let known = known_contact(s, &p.from.email).is_some();
-                                if !known && !p.from.email.is_empty() && widgets::tiny_icon_button(ui, Icon::Person, "Add to contacts", &t).clicked()
-                                {
-                                    acts.push(Action::Dialog(crate::Dialog::contact_from(&p.from)));
-                                }
-                            });
-                            for (label, list) in [(tl!("To:"), &p.to), (tl!("Cc:"), &p.cc)] {
-                                if list.is_empty() {
-                                    continue;
-                                }
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 0.0;
-                                    ui.label(RichText::new(format!("{label} ")).color(t.dim).small());
-                                    for (i, a) in list.iter().take(MAX_PEOPLE_SHOWN).enumerate() {
-                                        if i > 0 {
-                                            ui.label(RichText::new("; ").color(t.dim).small());
-                                        }
-                                        let r = person_link(ui, &t, RichText::new(crate::bidi::shown(a.display()).0).color(t.dim).small());
-                                        person_menus(s, &t, &r, a, acts);
-                                    }
-                                    if list.len() > MAX_PEOPLE_SHOWN {
-                                        let more = list.len() - MAX_PEOPLE_SHOWN;
-                                        ui.label(RichText::new(tf!(" and {n} more", n = more)).color(t.dim).small())
-                                            .on_hover_text(addr::format_list(list));
-                                    }
-                                });
-                            }
-                            if !beside {
-                                ui.label(date.clone());
-                            }
-                        });
-                        if beside {
-                            ui.with_layout(crate::bidi::row_from_end(egui::Align::Min), |ui| {
-                                ui.label(date);
-                            });
-                        }
-                    });
-                    ui.add_space(8.0);
-                    // What Outlook says above a message: its follow-up date, its importance.
-                    let due = summary.as_ref().and_then(|m| s.follow_up_due(m));
-                    let flagged = summary.as_ref().is_some_and(|m| m.flags.flagged);
-                    let complete = summary.as_ref().is_some_and(|m| m.flags.follow_up_complete());
-                    let importance = summary.as_ref().map_or(0, |m| m.importance);
-                    if flagged || complete || importance != 0 {
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing.x = 4.0;
-                            if complete {
-                                let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
-                                icons::paint(ui.painter(), ir, Icon::Done, t.dim);
-                                let text = match summary.as_ref().and_then(|m| s.follow_up_done(m)) {
-                                    Some(d) => tf!("Completed on {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
-                                    None => tl!("Completed.").to_string(),
-                                };
-                                ui.label(RichText::new(text).color(t.dim).small());
-                                ui.add_space(10.0);
-                            }
-                            if flagged {
-                                let today = dates::today(&s.clock);
-                                let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
-                                icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
-                                let text = match due {
-                                    Some(d) if d < today => {
-                                        tf!("Follow up. Overdue: it was due {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock)))
-                                    }
-                                    Some(d) if d == today => tl!("Follow up. Due today.").to_string(),
-                                    Some(d) => tf!("Follow up. Due {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
-                                    None => tl!("Follow up.").to_string(),
-                                };
-                                let overdue = due.is_some_and(|d| d < today);
-                                ui.label(RichText::new(text).color(if overdue { t.danger } else { t.dim }).small());
-                                ui.add_space(10.0);
-                            }
-                            if importance > 0 {
-                                ui.label(RichText::new(tl!("This message was sent with high importance.")).color(t.danger).small());
-                            } else if importance < 0 {
-                                ui.label(RichText::new(tl!("This message was sent with low importance.")).color(t.dim).small());
-                            }
-                        });
-                        ui.add_space(6.0);
-                    }
-                    if let Some(w) = &r.warning {
-                        sender_warning(&t, ui, w);
-                    }
-                    if let Some(sec) = &r.security {
-                        security::security_bar(s, &t, ui, sec);
-                    }
-                    if let Some(name) = s.opened_file_name(&r.key) {
-                        opened_file_bar(&t, ui, name);
-                    }
-                    if let Some((_, item)) = s.outbox_entry(&r.key) {
-                        egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-                            let why = match item.error.as_deref() {
-                                Some(e) if e != "offline" => tf!("Waiting in the Outbox. Last try: {error}", error = widgets::shorten(e, 140)),
-                                _ if item.not_before > s.clock.now => {
-                                    tf!(
-                                        "Held in the Outbox: it will be sent {when}.",
-                                        when = crate::i18n::date(&dates::full_time(item.not_before, &s.clock))
-                                    )
-                                }
-                                _ => tl!("Waiting in the Outbox: it will be sent when you're back online.").to_string(),
-                            };
-                            ui.label(RichText::new(why).color(t.text));
-                        });
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 6.0;
-                            if widgets::pill_button(ui, Icon::Send, "Send now", &t).clicked() {
-                                acts.push(Action::Run("outbox.send", json!({"key": r.key.to_id()})));
-                            }
-                            if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
-                                acts.push(Action::Run("outbox.edit", json!({"key": r.key.to_id()})));
-                            }
-                            if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
-                                acts.push(Action::Run("mail.delete", json!({})));
-                            }
-                        });
-                    } else if s.view_role() == Some(mailcraft_engine::model::FolderRole::Drafts) || summary.as_ref().is_some_and(|m| m.flags.draft) {
-                        // A draft: carried on with, as it was saved.
-                        egui::Frame::new().fill(t.accent_soft).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            ui.label(RichText::new(tl!("Not sent yet: this is a draft.")).color(t.text));
-                        });
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 6.0;
-                            if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
-                                acts.push(Action::Run("draft.edit", json!({"key": r.key.to_id()})));
-                            }
-                            if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
-                                acts.push(Action::Run("mail.delete", json!({})));
-                            }
-                        });
-                    } else if !in_window {
-                        // Wrapped: a narrow pane cut off Save and More.
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-                            if widgets::pill_button(ui, Icon::Reply, "Reply", &t).clicked() {
-                                acts.push(Action::Run("mail.reply", json!({})));
-                            }
-                            if widgets::pill_button(ui, Icon::ReplyAll, "Reply all", &t).clicked() {
-                                acts.push(Action::Run("mail.replyAll", json!({})));
-                            }
-                            if widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
-                                acts.push(Action::Run("mail.forward", json!({})));
-                            }
-                            // Not to a reaction itself, a list's mail, or encrypted mail (it would go
-                            // unencrypted).
-                            if summary.as_ref().is_none_or(|m| m.reaction.is_empty() && !m.bulk)
-                                && !p.bulk
-                                && r.security.as_ref().is_none_or(|sec| sec.lock.is_none())
-                            {
-                                reactions::react_button(ui, &t, acts);
-                            }
-                            ui.add_space(6.0);
-                            if widgets::pill_button(ui, Icon::Print, "Print", &t).on_hover_text(tl!("Open as a PDF to print")).clicked() {
-                                acts.push(Action::Print);
-                            }
-                            let more = widgets::pill_button(ui, Icon::File, "Save", &t);
-                            egui::Popup::menu(&more).show(|ui| {
-                                if ui.button(tl!("Save as PDF…")).clicked() {
-                                    acts.push(Action::ExportPdf);
-                                    ui.close();
-                                }
-                                if ui.button(tl!("Save as email (.eml)…")).clicked() {
-                                    acts.push(Action::SaveMessage);
-                                    ui.close();
-                                }
-                            });
-                            // More, as Outlook's ⋯ beside Forward.
-                            let more = widgets::more_pill(ui, "More actions", &t);
-                            egui::Popup::menu(&more).show(|ui| {
-                                if ui.button(tl!("Reply with meeting")).clicked() {
-                                    acts.push(Action::Dialog(crate::Dialog::meeting_from(s, p)));
-                                    ui.close();
-                                }
-                                if ui.button(tl!("Forward as attachment")).clicked() {
-                                    acts.push(Action::Run("mail.forwardAsAttachment", json!({})));
-                                    ui.close();
-                                }
-                                if ui.button(tl!("View message source")).clicked() {
-                                    acts.push(Action::Run("message.source", json!({"key": r.key.to_id()})));
-                                    ui.close();
-                                }
-                                plain_text_check(s, st, ui, &r.key, p, acts);
-                            });
-                        });
-                    }
-                    ui.add_space(12.0);
-                    reactions::reactions_row(s, &t, ui, &r.key, acts);
-                    if !in_window {
-                        invite_card(s, st, ui, &r.key, acts);
-                    }
-                });
+                header::header(s, st, ui, &o, acts);
             }
 
             // An encrypted message not decrypted: nothing of it (its smime.p7m) is shown.
@@ -456,45 +164,8 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 return;
             }
 
-            // Attachments.
-            // Pictures the formatted message shows in place aren't listed again as files.
             let formatted = shown_formatted(s, st, &r.key, p);
-            let shown: Vec<usize> = if formatted { p.images.iter().filter_map(|i| mime::picture_attachment(p, i)).collect() } else { Vec::new() };
-            let in_place = |a: &mime::AttachmentInfo| shown.contains(&a.index);
-            // An invitation is shown as its card above, not as a file.
-            let invitation = st.invite.as_ref().is_some_and(|(k, _, i)| k == &r.key && i.is_some()) && !in_window;
-            let is_invite_file = |a: &mime::AttachmentInfo| {
-                invitation && (a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))
-            };
-            let files: Vec<_> = p
-                .attachments
-                .iter()
-                .filter(|a| (!a.inline || a.kind() == AttachmentKind::Image) && !in_place(a) && !is_invite_file(a))
-                .cloned()
-                .collect();
-            if !files.is_empty() {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(if files.len() == 1 { tl!("1 attachment").to_string() } else { tf!("{n} attachments", n = files.len()) })
-                            .color(t.dim)
-                            .small(),
-                    );
-                    // Its text came first (issue #24): the files are on their way.
-                    if r.text_first {
-                        ui.add(egui::Spinner::new().size(11.0));
-                        ui.label(RichText::new(tl!("Downloading the attachments…")).color(t.dim).small());
-                    } else if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
-                        acts.push(Action::SaveAll);
-                    }
-                });
-                // Wrapped into rows, scrolling past three, as Outlook's are.
-                widgets::chip_grid(ui, egui::Id::unique(("attachments", r.key.to_id())), files.len(), 240.0, 400.0, CHIP_H, 3, |ui, i, w| {
-                    if let Some(a) = files.get(i) {
-                        attachment_card(s, st, ui, &r.key, a, w, acts);
-                    }
-                });
-                ui.add_space(10.0);
-            }
+            attachments_strip(s, st, ui, &o, formatted, acts);
             if let Some(index) = viewing
                 && let Some(a) = p.attachments.iter().find(|a| a.index == index)
             {
@@ -504,43 +175,127 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 attachment_preview(s, st, ui, &r.key, p, a, acts);
                 return;
             }
-            if p.hidden_words > 0 {
-                hidden_bar(&t, ui, &r.key, p);
-            }
-            if p.had_html {
-                html_bar(s, &t, ui, &r.key, p, formatted, acts);
-            }
-            if let Some(u) = &p.unsubscribe {
-                ui.label(RichText::new(tf!("Mailing list: unsubscribe at {address}", address = widgets::shorten(u, 80))).color(t.faint).small());
-                ui.add_space(6.0);
-            }
-            let sep = ui.available_rect_before_wrap();
-            ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
-            ui.add_space(12.0);
-            if han_missing(ui, &p.text) {
-                st.han_missing = true;
-            }
-            // The text is selected as one, whatever it's drawn as (`text_selection`).
-            text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())), in_window);
-            if formatted {
-                rich_body(s, st, ui, &r.key, p, acts);
-            } else if p.text.len() > long_text::LONG {
-                // Laid out by what's in view: whole, a long one took a frame of its own to lay out.
-                long_text::plain(st, ui, ui.scope_id().with(("long-text", r.key.to_id())), &p.text);
-            } else if crate::bidi::has_rtl(&p.text) {
-                // Right-to-left text, against the right edge where it starts; selected with the
-                // pointer as it reads, and right-click copies it as written too.
-                let job = egui::text::LayoutJob::simple(p.text.clone(), theme::regular(14.5), t.text, ui.available_width());
-                let r = text_selection::rtl_run(st, ui, job);
-                rtl_copy_menu(&r, None, &p.text);
-            } else {
-                text_selection::run(st, ui, RichText::new(&p.text).font(theme::regular(14.5)).color(t.text), None);
-            }
-            // Laid out by what's in view, a long text's copy of all of it is its text.
-            let long = if formatted { long_text::many_lines(p) } else { p.text.len() > long_text::LONG };
-            text_selection::finish(st, ui, long.then_some(p.text.as_str()));
+            message_text(s, st, ui, &o, formatted, acts);
         });
     });
+}
+
+/// A message not read yet: why it couldn't be (and Try again), or its subject and a spinner while
+/// it's read and parsed, or downloaded.
+fn not_ready(ui: &mut Ui, t: &Tokens, r: &mailcraft_engine::Reading, summary: Option<&Summary>, getting_ready: bool, acts: &mut Vec<Action>) {
+    if !getting_ready {
+        ui.add_space(30.0);
+    }
+    match &r.error {
+        Some(e) => {
+            ui.horizontal(|ui| {
+                let (ir, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                icons::paint(ui.painter(), ir, Icon::Warning, t.warn);
+                ui.label(RichText::new(tf!("This message couldn't be downloaded: {error}", error = e)).color(t.dim));
+            });
+            if ui.button(tl!("Try again")).clicked() {
+                acts.push(Action::Open(r.key.clone()));
+            }
+        }
+        None if getting_ready => {
+            if let Some(m) = summary {
+                let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+                subject_heading(ui, subject, t);
+                ui.add_space(8.0);
+            }
+            ui.spinner();
+        }
+        None => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(RichText::new(tl!("Downloading the message…")).color(t.dim));
+            });
+        }
+    }
+}
+
+/// The attachments, as chips in rows, with how many there are and Save all; not the pictures
+/// the formatted message shows in place, nor an invitation shown as its card.
+fn attachments_strip(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, formatted: bool, acts: &mut Vec<Action>) {
+    let t = st.tokens;
+    let (r, p) = (o.r, o.p);
+    // Attachments.
+    // Pictures the formatted message shows in place aren't listed again as files.
+    let shown: Vec<usize> = if formatted { p.images.iter().filter_map(|i| mime::picture_attachment(p, i)).collect() } else { Vec::new() };
+    let in_place = |a: &mime::AttachmentInfo| shown.contains(&a.index);
+    // An invitation is shown as its card above, not as a file.
+    let invitation = st.invite.as_ref().is_some_and(|(k, _, i)| k == &r.key && i.is_some()) && !o.in_window;
+    let is_invite_file = |a: &mime::AttachmentInfo| {
+        invitation && (a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))
+    };
+    let files: Vec<_> =
+        p.attachments.iter().filter(|a| (!a.inline || a.kind() == AttachmentKind::Image) && !in_place(a) && !is_invite_file(a)).cloned().collect();
+    if files.is_empty() {
+        return;
+    }
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(if files.len() == 1 { tl!("1 attachment").to_string() } else { tf!("{n} attachments", n = files.len()) })
+                .color(t.dim)
+                .small(),
+        );
+        // Its text came first (issue #24): the files are on their way.
+        if r.text_first {
+            ui.add(egui::Spinner::new().size(11.0));
+            ui.label(RichText::new(tl!("Downloading the attachments…")).color(t.dim).small());
+        } else if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
+            acts.push(Action::SaveAll);
+        }
+    });
+    // Wrapped into rows, scrolling past three, as Outlook's are.
+    widgets::chip_grid(ui, egui::Id::unique(("attachments", r.key.to_id())), files.len(), 240.0, 400.0, CHIP_H, 3, |ui, i, w| {
+        if let Some(a) = files.get(i) {
+            attachment_card(s, st, ui, &r.key, a, w, acts);
+        }
+    });
+    ui.add_space(10.0);
+}
+
+/// The message's text, under the bars about it (words hidden, its formatting, its mailing list):
+/// formatted, or plain, selected as one whatever it's drawn as.
+fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, formatted: bool, acts: &mut Vec<Action>) {
+    let t = st.tokens;
+    let (r, p) = (o.r, o.p);
+    if p.hidden_words > 0 {
+        hidden_bar(&t, ui, &r.key, p);
+    }
+    if p.had_html {
+        html_bar(s, &t, ui, &r.key, p, formatted, acts);
+    }
+    if let Some(u) = &p.unsubscribe {
+        ui.label(RichText::new(tf!("Mailing list: unsubscribe at {address}", address = widgets::shorten(u, 80))).color(t.faint).small());
+        ui.add_space(6.0);
+    }
+    let sep = ui.available_rect_before_wrap();
+    ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
+    ui.add_space(12.0);
+    if han_missing(ui, &p.text) {
+        st.han_missing = true;
+    }
+    // The text is selected as one, whatever it's drawn as (`text_selection`).
+    text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())), o.in_window);
+    if formatted {
+        rich_body(s, st, ui, &r.key, p, acts);
+    } else if p.text.len() > long_text::LONG {
+        // Laid out by what's in view: whole, a long one took a frame of its own to lay out.
+        long_text::plain(st, ui, ui.scope_id().with(("long-text", r.key.to_id())), &p.text);
+    } else if crate::bidi::has_rtl(&p.text) {
+        // Right-to-left text, against the right edge where it starts; selected with the
+        // pointer as it reads, and right-click copies it as written too.
+        let job = egui::text::LayoutJob::simple(p.text.clone(), theme::regular(14.5), t.text, ui.available_width());
+        let r = text_selection::rtl_run(st, ui, job);
+        rtl_copy_menu(&r, None, &p.text);
+    } else {
+        text_selection::run(st, ui, RichText::new(&p.text).font(theme::regular(14.5)).color(t.text), None);
+    }
+    // Laid out by what's in view, a long text's copy of all of it is its text.
+    let long = if formatted { long_text::many_lines(p) } else { p.text.len() > long_text::LONG };
+    text_selection::finish(st, ui, long.then_some(p.text.as_str()));
 }
 
 /// The External tag: a sender from outside the organisation (issue #29). One line however
