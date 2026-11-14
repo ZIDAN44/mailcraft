@@ -135,6 +135,7 @@ on GitHub.
 - A page's background is taken out of a quoted message when its style isn't quoted, and `data-bgcolor` is left alone.
 - Pictures in pasted HTML are read from `file:` links on this computer only: one naming another computer was read as a path here.
 - Video attachments' thumbnails are made a couple at a time instead of all at once, and their frames no longer stay in memory for the whole session.
+- On Windows installed outside C:\Windows, the interface and PDFs use Segoe UI again, and Arabic and Hebrew text gets its font.
 
 ## 0.38.0 - 2026-11-13
 

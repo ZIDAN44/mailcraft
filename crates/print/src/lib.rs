@@ -590,11 +590,13 @@ mod tests {
 
     #[test]
     fn embeds_a_system_font_when_there_is_one() {
+        // Windows' fonts are in its folder (`%WINDIR%`), which needn't be `C:\Windows`.
+        let windows = std::env::var_os("WINDIR").map_or_else(|| std::path::PathBuf::from("C:\\Windows"), std::path::PathBuf::from).join("Fonts");
         let candidates = [
-            "C:\\Windows\\Fonts\\segoeui.ttf",
-            "C:\\Windows\\Fonts\\arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            windows.join("segoeui.ttf"),
+            windows.join("arial.ttf"),
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into(),
+            "/System/Library/Fonts/Supplemental/Arial.ttf".into(),
         ];
         let Some(data) = candidates.iter().find_map(|p| std::fs::read(p).ok()) else { return };
         let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, bold: None }));

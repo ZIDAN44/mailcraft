@@ -225,15 +225,15 @@ impl Services for Desktop {
             "zh-hant" => (&["msjh.ttc", "mingliu.ttc"], &["PingFang.ttc"], 3),
             _ => (&["msyh.ttc", "simsun.ttc"], &["PingFang.ttc", "Hiragino Sans GB.ttc"], 2),
         };
-        let mut candidates: Vec<(String, u32)> = Vec::new();
+        let mut candidates: Vec<(PathBuf, u32)> = Vec::new();
         if cfg!(target_os = "windows") {
-            let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
+            let fonts = windows_fonts_dir();
             for f in windows.iter().chain(["msyh.ttc", "YuGothM.ttc", "malgun.ttf"].iter()) {
-                candidates.push((format!("{dir}\\Fonts\\{f}"), 0));
+                candidates.push((fonts.join(f), 0));
             }
         } else if cfg!(target_os = "macos") {
             for f in macos.iter().chain(["PingFang.ttc", "AppleSDGothicNeo.ttc"].iter()) {
-                candidates.push((format!("/System/Library/Fonts/{f}"), 0));
+                candidates.push((Path::new("/System/Library/Fonts").join(f), 0));
             }
         } else {
             // Noto Sans CJK collections hold Japanese, Korean, Simplified and Traditional faces.
@@ -242,26 +242,31 @@ impl Services for Desktop {
                 "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
             ] {
-                candidates.push((p.to_string(), noto_index));
+                candidates.push((PathBuf::from(p), noto_index));
             }
-            candidates.push(("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf".into(), 0));
+            candidates.push((PathBuf::from("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"), 0));
         }
         candidates.iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, *i)))
     }
     fn rtl_font(&mut self) -> Option<Vec<u8>> {
         // Fonts with both Arabic and Hebrew first.
-        let candidates: &[&str] = if cfg!(target_os = "windows") {
-            &["C:\\Windows\\Fonts\\tahoma.ttf", "C:\\Windows\\Fonts\\arial.ttf"]
+        let candidates: Vec<PathBuf> = if cfg!(target_os = "windows") {
+            let fonts = windows_fonts_dir();
+            vec![fonts.join("tahoma.ttf"), fonts.join("arial.ttf")]
         } else if cfg!(target_os = "macos") {
-            &["/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf", "/System/Library/Fonts/Supplemental/Tahoma.ttf"]
+            ["/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf", "/System/Library/Fonts/Supplemental/Tahoma.ttf"]
+                .map(PathBuf::from)
+                .into()
         } else {
-            &[
+            [
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                 "/usr/share/fonts/dejavu/DejaVuSans.ttf",
                 "/usr/share/fonts/TTF/DejaVuSans.ttf",
                 "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
                 "/usr/share/fonts/noto/NotoSansArabic-Regular.ttf",
             ]
+            .map(PathBuf::from)
+            .into()
         };
         candidates.iter().find_map(|p| std::fs::read(p).ok())
     }
@@ -376,6 +381,17 @@ impl Services for Desktop {
     }
 }
 
+/// Windows' Fonts folder, in the Windows folder (`%WINDIR%`), which needn't be `C:\Windows`.
+pub(crate) fn windows_fonts_dir() -> PathBuf {
+    windows_fonts_dir_in(std::env::var_os("WINDIR"))
+}
+
+/// [`windows_fonts_dir`] with `windir` for `%WINDIR%` (`C:\Windows` when it's unset, empty or
+/// relative).
+fn windows_fonts_dir_in(windir: Option<std::ffi::OsString>) -> PathBuf {
+    windir.map(PathBuf::from).filter(|d| d.is_absolute()).unwrap_or_else(|| PathBuf::from("C:\\Windows")).join("Fonts")
+}
+
 /// Run `f` on a thread of its own made by `builder`: false, and `what` logged, when the system
 /// won't start one (short of resources), where `std::thread::spawn` panicked on the window's
 /// thread.
@@ -460,6 +476,20 @@ mod tests {
         assert!(off_thread(std::thread::Builder::new(), "test", move || tx.send(()).unwrap_or_default()));
         assert!(rx.recv_timeout(std::time::Duration::from_secs(10)).is_ok(), "ran");
         assert!(!off_thread(std::thread::Builder::new().stack_size(1 << 50), "test", || {}));
+    }
+
+    /// Found in audit (#229): the UI and right-to-left fonts were looked for in `C:\Windows`
+    /// whatever folder Windows is in (the CJK fonts in `%WINDIR%`). All three come from the
+    /// Windows folder now; `C:\Windows` only when `%WINDIR%` says nothing usable.
+    #[test]
+    fn fonts_come_from_the_windows_folder() {
+        let elsewhere = if cfg!(windows) { r"D:\Windows" } else { "/opt/windows" };
+        assert_eq!(windows_fonts_dir_in(Some(elsewhere.into())), Path::new(elsewhere).join("Fonts"));
+        for unusable in [None, Some("".into()), Some("Windows".into())] {
+            assert_eq!(windows_fonts_dir_in(unusable), PathBuf::from("C:\\Windows").join("Fonts"));
+        }
+        #[cfg(windows)]
+        assert!(windows_fonts_dir().is_dir(), "{}", windows_fonts_dir().display());
     }
 
     /// The next dialog opens where the last answer was: a file's folder, or the folder picked;

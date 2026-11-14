@@ -48,16 +48,20 @@ mod xdnd;
 
 /// The system's UI font, if installed (never bundled).
 fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
-    let candidates: &[(&str, &str)] = if cfg!(target_os = "windows") {
-        &[("C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\segoeuib.ttf")]
-    } else if cfg!(target_os = "macos") {
-        &[("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf")]
+    let candidates: Vec<(PathBuf, PathBuf)> = if cfg!(target_os = "windows") {
+        let fonts = desktop::windows_fonts_dir();
+        vec![(fonts.join("segoeui.ttf"), fonts.join("segoeuib.ttf"))]
     } else {
-        &[
-            ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
-            ("/usr/share/fonts/noto/NotoSans-Regular.ttf", "/usr/share/fonts/noto/NotoSans-Bold.ttf"),
-            ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-        ]
+        let places: &[(&str, &str)] = if cfg!(target_os = "macos") {
+            &[("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf")]
+        } else {
+            &[
+                ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
+                ("/usr/share/fonts/noto/NotoSans-Regular.ttf", "/usr/share/fonts/noto/NotoSans-Bold.ttf"),
+                ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            ]
+        };
+        places.iter().map(|(r, b)| (PathBuf::from(r), PathBuf::from(b))).collect()
     };
     for (r, b) in candidates {
         if let Ok(reg) = std::fs::read(r) {

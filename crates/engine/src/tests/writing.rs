@@ -84,8 +84,10 @@ fn messages_save_as_eml_and_pdf() {
     let eml = dir.join("m.eml");
     s.run("message.saveAs", &json!({"path": eml.to_string_lossy()})).unwrap();
     assert_eq!(mailcraft_mime::parse(&std::fs::read(&eml).unwrap()).unwrap().subject, "Storyboard review on Thursday");
+    // Windows' fonts are in its folder (`%WINDIR%`), which needn't be `C:\Windows`.
+    let windows = std::env::var_os("WINDIR").map_or_else(|| std::path::PathBuf::from("C:\\Windows"), std::path::PathBuf::from).join("Fonts");
     if let Some(font) =
-        ["C:\\Windows\\Fonts\\segoeui.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"].iter().find_map(|p| std::fs::read(p).ok())
+        [windows.join("segoeui.ttf"), "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into()].iter().find_map(|p| std::fs::read(p).ok())
     {
         s.print_fonts = Some((font, None));
     }
