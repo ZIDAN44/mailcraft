@@ -134,25 +134,35 @@ pub(crate) fn pattern(blob: &[u8], start: i64, tzid: &str) -> Option<Pattern> {
         Some((offset, changes(&mut b, writer)))
     })()
     .unwrap_or((0, Vec::new()));
-    let nth = |n: u32| if n >= 5 { -1 } else { i32::try_from(n).unwrap_or(1) };
+    // Which of the days a month's occurrence is: Outlook writes 1 to 4, or 5 for the last. A
+    // damaged one is no rule: RFC 5545 has no 0th.
+    let nth = |n: u32| match n {
+        1..=4 => i32::try_from(n).ok(),
+        5 => Some(-1),
+        _ => None,
+    };
+    // The days of the week, a bit each from Sunday (bits 0 to 6): none, or a bit past them, is a
+    // damaged pattern (`BYDAY=` with no day isn't a rule).
+    let days = |mask: u32| (1..=0x7F).contains(&mask).then_some(mask);
     let mut rule = match (frequency, pattern) {
         (0x200A, 0x0000) => format!("FREQ=DAILY;INTERVAL={}", (period / 1440).max(1)),
         (0x200A, 0x0001) => "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR".to_string(),
-        (0x200B, 0x0001) => format!("FREQ=WEEKLY;INTERVAL={};BYDAY={}", period.max(1), byday(a, None)),
+        (0x200B, 0x0001) => format!("FREQ=WEEKLY;INTERVAL={};BYDAY={}", period.max(1), byday(days(a)?, None)),
         // A day past the 28th is the month's last where it has no such day, as Outlook has it
         // (the 31st every month: said as that day alone, five months of the year had none).
         (0x200C, 0x0002) if (29..=31).contains(&a) => {
             let days: Vec<String> = (28..=a).map(|d| d.to_string()).collect();
             format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY={};BYSETPOS=-1", period.max(1), days.join(","))
         }
-        (0x200C, 0x0002) => format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY={a}", period.max(1)),
+        // A day of the month is 1 to 31: another (0, or a damaged number) is no rule.
+        (0x200C, 0x0002) if (1..=28).contains(&a) => format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY={a}", period.max(1)),
         (0x200C, 0x0004) => format!("FREQ=MONTHLY;INTERVAL={};BYMONTHDAY=-1", period.max(1)),
-        (0x200C, 0x0003) => format!("FREQ=MONTHLY;INTERVAL={};{}", period.max(1), nth_of(a, nth(c))),
+        (0x200C, 0x0003) => format!("FREQ=MONTHLY;INTERVAL={};{}", period.max(1), nth_of(days(a)?, nth(c)?)),
         (0x200D, 0x0002 | 0x0004) => format!("FREQ=YEARLY;INTERVAL={}", (period / 12).max(1)),
         (0x200D, 0x0003) => {
             // Its month: the first day's, where the series is (its UTC start may be in the next).
             let (_, month, _) = civil_from_days((first_day - EPOCH_MINUTES).div_euclid(1440));
-            format!("FREQ=YEARLY;INTERVAL={};BYMONTH={month};{}", (period / 12).max(1), nth_of(a, nth(c)))
+            format!("FREQ=YEARLY;INTERVAL={};BYMONTH={month};{}", (period / 12).max(1), nth_of(days(a)?, nth(c)?))
         }
         _ => return None,
     };

@@ -145,6 +145,7 @@ on GitHub.
 - An encrypted message on screen no longer asks for its key again after many other encrypted messages have been opened.
 - Reading a message in a very large folder is smoother: the reactions under it are no longer gathered on every frame.
 - A picture whose name starts with "signature" is no longer lost from a message when a signature is inserted.
+- An appointment from a damaged Outlook data file no longer comes in with a repeat rule calendars can't read; it comes in as a single event.
 
 ## 0.38.0 - 2026-11-13
 
