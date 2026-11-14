@@ -24,6 +24,22 @@ pub(super) enum Leaves {
     ForImport,
 }
 
+/// What an export left out or wrote otherwise than one message for one, said when it's done.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ExportLeft {
+    /// Messages not on this computer, left out.
+    pub(super) skipped: usize,
+    /// Messages the data file already had, not written again.
+    pub(super) already: usize,
+    /// Occurrences of series whose rule Outlook can't keep, each written on its own.
+    pub(super) occurrences: usize,
+    /// Calendar items, contacts, notes and tasks changed since the last export, written in
+    /// place of their earlier copies.
+    pub(super) replaced: usize,
+    /// Folders whose mail couldn't be read, so isn't in the file.
+    pub(super) folders: usize,
+}
+
 impl Session {
     /// The accounts the cache keeps, with their folders. Remote ones get a `Start` job (password
     /// from the keychain); local ones are counted again, unless big; what's already cached isn't new.
@@ -188,10 +204,9 @@ impl Session {
         Ok(serde_json::json!({ "account": account, "exporting": true }))
     }
 
-    /// How an export is going; `left`: messages not on this computer, ones the data file already
-    /// had, and occurrences of series Outlook can't keep the rule of, each written on its own.
-    pub(super) fn exported(&mut self, account: &str, messages: usize, left: (usize, usize, usize, usize, usize), done: bool, error: Option<String>) {
-        let (skipped, already, occurrences, replaced, folders) = left;
+    /// How an export is going; `left`, what it left out or wrote otherwise, said when it's done.
+    pub(super) fn exported(&mut self, account: &str, messages: usize, left: ExportLeft, done: bool, error: Option<String>) {
+        let ExportLeft { skipped, already, occurrences, replaced, folders } = left;
         let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
         match (done, error) {
             (false, _) => self.notice(format!("{name}: {messages} messages exported so far…"), false),
@@ -662,9 +677,6 @@ impl Session {
         }
     }
 
-    /// Ask every account to sync now.
-    /// Work offline, or connect again: every account's connection closes (changes, sent mail and
-    /// drafts wait on this computer) or opens. Ahead of anything queued, so what follows sees it.
     #[cfg(test)]
     pub(crate) fn jobs_push_for_test(&mut self, j: Job) {
         self.jobs.push(j);
@@ -677,6 +689,8 @@ impl Session {
         self.jobs.insert(0, Job::SetSync { messages: self.prefs.keep_messages, offline: self.prefs.keep_offline });
     }
 
+    /// Work offline, or connect again: every account's connection closes (changes, sent mail and
+    /// drafts wait on this computer) or opens. Ahead of anything queued, so what follows sees it.
     pub fn set_work_offline(&mut self, on: bool) {
         self.prefs.work_offline = on;
         self.jobs.retain(|j| !matches!(j, Job::WorkOffline { .. }));
@@ -688,6 +702,7 @@ impl Session {
         }
     }
 
+    /// Ask every account with a server to sync now; how many were asked.
     pub fn sync_all(&mut self) -> usize {
         let ids: Vec<String> = self.accounts.iter().filter(|a| a.config.has_server()).map(|a| a.config.id.clone()).collect();
         for id in &ids {

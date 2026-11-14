@@ -97,7 +97,8 @@ impl Session {
             }
             Event::AttachmentsKnown { account, folder, with, without } => self.files_known(&account, &folder, &with, &without),
             Event::Exported { account, messages, skipped, already, occurrences, replaced, folders_skipped, done, error } => {
-                self.exported(&account, messages, (skipped, already, occurrences, replaced, folders_skipped), done, error)
+                let left = accounts::ExportLeft { skipped, already, occurrences, replaced, folders: folders_skipped };
+                self.exported(&account, messages, left, done, error)
             }
             Event::Quota { account, used, limit } => {
                 if let Some(a) = self.account_mut(&account) {

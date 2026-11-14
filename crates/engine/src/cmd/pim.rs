@@ -6,7 +6,6 @@ use crate::session::pim::MAX_SECONDS;
 
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
-        // Accounts
         // Calendar and People
         CommandSpec::new("view.module", "Mail, Calendar, People, Tasks or Notes", "Navigation", |s, v| {
             s.module = match p::req_str(v, "name")? {

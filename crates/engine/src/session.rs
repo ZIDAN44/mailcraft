@@ -452,7 +452,7 @@ pub struct Session {
     /// The documents (`rules.json`, `snoozes.json`) that couldn't be read at start: never saved
     /// over with what's shown in their place.
     pub(crate) docs_unread: HashSet<&'static str>,
-    /// Mail, Calendar or People.
+    /// Mail, Calendar, People, Tasks or Notes.
     pub module: pim::Module,
     pub cal_mode: pim::CalMode,
     /// The local day the calendar shows (`None`: today).
