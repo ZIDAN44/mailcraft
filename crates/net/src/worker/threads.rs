@@ -1,10 +1,41 @@
 //! What the pool runs on threads of its own, so it never waits behind a sync: browser sign-in,
-//! a message's pictures, calendars read from their links, and Outlook data files written
-//! (`imports.rs` reads them).
+//! looking up an address's servers, the release check, a message's pictures, calendars read
+//! from their links, and Outlook data files written (`imports.rs` reads them).
 
 use super::*;
 
 impl Pool {
+    /// The releases published since this one (the update check).
+    pub(super) fn check_updates(&mut self) {
+        let sink = self.sink.clone();
+        let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
+            let (releases, error) = match crate::updates::releases(&crate::updates::Feed::current()) {
+                Ok(r) => (r, None),
+                Err(e) => (Vec::new(), Some(e.to_string())),
+            };
+            sink.emit(Event::Releases { releases, error });
+        });
+        if let Err(e) = spawned {
+            self.sink.emit(Event::Releases { releases: Vec::new(), error: Some(e.to_string()) });
+        }
+    }
+
+    /// An address's servers, as its provider publishes them (autoconfiguration).
+    pub(super) fn discover(&mut self, email: String) {
+        let sink = self.sink.clone();
+        let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
+            let found = crate::autoconfig::discover(&email);
+            let (config, source) = match found {
+                Some(f) => (Some(Box::new(f.config)), f.source),
+                None => (None, String::new()),
+            };
+            sink.emit(Event::Discovered { email, config, source });
+        });
+        if let Err(e) = spawned {
+            log::warn!("autoconfiguration: {e}");
+        }
+    }
+
     /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI
     /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts.
     pub(super) fn sign_in(&mut self, account: AccountConfig) {

@@ -62,3 +62,73 @@ pub fn search_filter(query: &str) -> Option<Value> {
     }
     (!conds.is_empty()).then(|| json!({"operator": "AND", "conditions": conds}))
 }
+
+impl<H: Http> Client<H> {
+    /// The newest `limit` ids in a mailbox that `filter` matches.
+    pub(super) async fn search(&self, mailbox: &str, filter: &Value, limit: usize) -> Result<Vec<String>> {
+        let filter = json!({"operator": "AND", "conditions": [{"inMailbox": mailbox}, filter]});
+        let r = self
+            .mail(vec![(
+                "Email/query",
+                json!({"accountId": self.account, "filter": filter, "sort": [{"property": "receivedAt", "isAscending": false}], "limit": limit.min(FOUND_MAX)}),
+            )])
+            .await?;
+        Ok(list(r.first(), "ids").iter().filter_map(Value::as_str).map(str::to_string).take(limit).collect())
+    }
+
+    /// Of these messages, those still in a mailbox, with their keywords.
+    pub(super) async fn still_in(&self, mailbox: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
+        let mut out = Vec::new();
+        for chunk in ids.chunks(self.max_get.clamp(1, 200)) {
+            let r = self
+                .mail(vec![("Email/get", json!({"accountId": self.account, "ids": chunk, "properties": ["id", "keywords", "mailboxIds"]}))])
+                .await?;
+            out.extend(
+                list(r.first(), "list")
+                    .iter()
+                    .filter(|e| e.get("mailboxIds").and_then(|m| m.get(mailbox)) == Some(&Value::Bool(true)))
+                    .filter_map(|e| Some((e.get("id")?.as_str()?.to_string(), keywords(e.get("keywords"))))),
+            );
+        }
+        Ok(out)
+    }
+}
+
+/// The messages of `folder` the server finds for `filter` ([`search_filter`]), the newest `cap`
+/// of them: those not kept yet come into its list, and stay there past the window while the
+/// server has them there (issue #4). Their keys, and how many came in. A folder never synced is
+/// left to its sync.
+pub async fn find_on_server<H: Http>(
+    c: &Client<H>,
+    st: &mut State,
+    store: &Store,
+    account: &str,
+    folder: &str,
+    filter: &Value,
+    cap: usize,
+) -> Result<(Vec<MessageKey>, usize)> {
+    let mailbox = st.mailbox(folder)?.to_string();
+    let mut fs = store.load_folder(account, folder)?;
+    if fs.validity != VALIDITY {
+        return Ok((Vec::new(), 0));
+    }
+    let ids = c.search(&mailbox, filter, cap.min(FOUND_MAX)).await?;
+    let numbers: Vec<u32> = ids.iter().map(|id| st.number(id)).collect();
+    let missing: Vec<String> = ids.iter().zip(&numbers).filter(|(_, n)| fs.find(**n).is_none()).map(|(id, _)| id.clone()).collect();
+    let mut new = 0;
+    for e in c.headers(&missing).await? {
+        let Some(id) = e.get("id").and_then(Value::as_str) else { continue };
+        let key = MessageKey { account: account.to_string(), folder: folder.to_string(), validity: VALIDITY, uid: st.number(id) };
+        if fs.find(key.uid).is_none() {
+            fs.messages.push(email_summary(&e, key).into());
+            new += 1;
+        }
+    }
+    st.add_found(folder, &numbers);
+    if new > 0 {
+        sort_newest_first(&mut fs.messages);
+        fs.uid_next = fs.messages.iter().map(|m| m.key.uid).max().unwrap_or(0).saturating_add(1);
+        store.save_folder(account, folder, &fs)?;
+    }
+    Ok((numbers.iter().filter_map(|n| fs.find(*n).map(|m| m.key.clone())).collect(), new))
+}

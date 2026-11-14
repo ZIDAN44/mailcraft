@@ -205,35 +205,10 @@ impl Pool {
             Job::StopSearch => self.search.store(0, Ordering::Relaxed),
             Job::Index { account, folders } => self.indexer.ask(&self.store, &self.sink, account, folders),
             Job::StopIndex { account } => self.indexer.stop(&account),
-            Job::CheckUpdates => {
-                let sink = self.sink.clone();
-                let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
-                    let (releases, error) = match crate::updates::releases(&crate::updates::Feed::current()) {
-                        Ok(r) => (r, None),
-                        Err(e) => (Vec::new(), Some(e.to_string())),
-                    };
-                    sink.emit(Event::Releases { releases, error });
-                });
-                if let Err(e) = spawned {
-                    self.sink.emit(Event::Releases { releases: Vec::new(), error: Some(e.to_string()) });
-                }
-            }
+            Job::CheckUpdates => self.check_updates(),
             Job::SignIn { account } => self.sign_in(account),
             Job::AllowDirectory { account } => self.allow_directory(account),
-            Job::Discover { email } => {
-                let sink = self.sink.clone();
-                let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
-                    let found = crate::autoconfig::discover(&email);
-                    let (config, source) = match found {
-                        Some(f) => (Some(Box::new(f.config)), f.source),
-                        None => (None, String::new()),
-                    };
-                    sink.emit(Event::Discovered { email, config, source });
-                });
-                if let Err(e) = spawned {
-                    log::warn!("autoconfiguration: {e}");
-                }
-            }
+            Job::Discover { email } => self.discover(email),
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
             Job::RereadDataFile { account, path } => self.reread_data_file(account, path),
             Job::InspectDataFile { path } => self.inspect_data_file(path),
