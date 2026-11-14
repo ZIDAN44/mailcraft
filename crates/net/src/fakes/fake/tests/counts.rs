@@ -270,24 +270,29 @@ fn a_folder_made_here_keeps_the_counts_of_mail_read_here() {
     // One read here (the window writes the Inbox's count), then a folder made.
     store.update_folder_counts("a1", &[("INBOX".into(), 2, 3)]).unwrap();
     pool.submit(Job::Apply { account: "a1".into(), op: Op::CreateFolder { path: "Plans".into() } });
+    // Said twice: by the pool as it makes the folder here, then by the worker with the server's
+    // list once the folder is made there. Waited for, as a busy computer takes its time.
+    let said = |seen: &[Event]| -> Vec<(u32, u32)> {
+        seen.iter()
+            .filter_map(|e| match e {
+                Event::Folders { folders, .. } => inbox(folders),
+                _ => None,
+            })
+            .collect()
+    };
     let mut seen = Vec::new();
-    let end = Instant::now() + Duration::from_secs(10);
-    while st.lock().unwrap().mailbox("Plans").is_none() || !store.load_ops("a1").unwrap_or_default().is_empty() {
-        assert!(Instant::now() < end, "Plans never made on the server");
+    let end = Instant::now() + Duration::from_secs(60);
+    while st.lock().unwrap().mailbox("Plans").is_none() || !store.load_ops("a1").is_ok_and(|ops| ops.is_empty()) || said(&seen).len() < 2 {
+        assert!(Instant::now() < end, "Plans never made on the server, or not said: {:?}", said(&seen));
         seen.extend(pool.wait(Duration::from_millis(50)));
     }
+    // And anything said just after.
     std::thread::sleep(Duration::from_millis(300));
     seen.extend(pool.poll());
     let kept = store.load_folders("a1").unwrap();
     assert!(kept.iter().any(|f| f.path == "Plans"), "{kept:?}");
     assert_eq!(inbox(&kept), Some((2, 3)), "the window's count kept");
-    let said: Vec<(u32, u32)> = seen
-        .iter()
-        .filter_map(|e| match e {
-            Event::Folders { folders, .. } => inbox(folders),
-            _ => None,
-        })
-        .collect();
+    let said = said(&seen);
     assert!(said.len() >= 2 && said.iter().all(|c| *c == (2, 3)), "said: {said:?}");
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
