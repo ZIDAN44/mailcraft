@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod folder_pane;
+
 #[test]
 fn organising_renders_and_rules_save() {
     let (mut a, dir) = app("organise");

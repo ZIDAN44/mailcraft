@@ -41,11 +41,43 @@ fn folder_key(account: &str, path: &str) -> String {
     format!("folder:{account}/{path}")
 }
 
-/// The folders a folder is inside (`A/B/C` → `A`, `A/B`).
-fn ancestors(f: &Folder) -> Vec<String> {
+/// The folders a folder is inside (`A/B/C` → `A`, `A/B`), as the starts of its own path.
+fn ancestors(f: &Folder) -> impl Iterator<Item = &str> {
     let d = f.delimiter.unwrap_or('/');
-    let parts: Vec<&str> = f.path.split(d).collect();
-    (1..parts.len()).map(|n| parts.get(..n).unwrap_or_default().join(&d.to_string())).collect()
+    f.path.char_indices().filter(move |&(_, c)| c == d).filter_map(|(i, _)| f.path.get(..i))
+}
+
+/// An account's folder tree as the pane shows it this frame: which folders have folders in them
+/// and which of those are collapsed, read from slices of the folders' paths (no string is made
+/// for a folder or its ancestors).
+struct Tree<'a> {
+    /// Every folder some folder is inside.
+    parents: std::collections::HashSet<&'a str>,
+    /// The account's folders collapsed (`Prefs::collapsed`'s `folder:{account}/{path}`).
+    collapsed: std::collections::HashSet<&'a str>,
+}
+
+impl<'a> Tree<'a> {
+    fn new(s: &'a Session, a: &'a mailcraft_engine::AccountState) -> Self {
+        let id = a.config.id.as_str();
+        let collapsed = s
+            .prefs
+            .collapsed
+            .iter()
+            .filter_map(|k| k.strip_prefix("folder:").and_then(|k| k.strip_prefix(id)).and_then(|k| k.strip_prefix('/')))
+            .collect();
+        Tree { parents: a.folders.iter().flat_map(ancestors).collect(), collapsed }
+    }
+
+    /// Whether a folder is inside a collapsed one.
+    fn hidden(&self, f: &Folder) -> bool {
+        !self.collapsed.is_empty() && ancestors(f).any(|up| self.collapsed.contains(up))
+    }
+
+    /// For a folder with folders in it, whether it's collapsed.
+    fn collapse(&self, f: &Folder) -> Option<bool> {
+        self.parents.contains(f.path.as_str()).then(|| self.collapsed.contains(f.path.as_str()))
+    }
 }
 
 /// A section's heading that collapses it (Favorites), with its arrow; whether it was clicked.
@@ -223,14 +255,14 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             if resp.clicked() {
                 acts.push(Action::Run("view.collapse", json!({"key": key})));
             }
-            let config = a.config.clone();
+            let config = &a.config;
             resp.context_menu(|ui| {
                 if ui.button(tl!("Send / Receive")).clicked() {
                     acts.push(Action::Run("mail.sync", json!({})));
                     ui.close();
                 }
                 // A Microsoft account with a password (refused there) switches to Microsoft sign-in.
-                let switch = mailcraft_engine::model::microsoft_password_account(&config) && s.oauth_available.iter().any(|p| p == "microsoft");
+                let switch = mailcraft_engine::model::microsoft_password_account(config) && s.oauth_available.iter().any(|p| p == "microsoft");
                 if a.config.has_server() && ui.button(if switch { tl!("Sign in with Microsoft…") } else { tl!("Sign in again…") }).clicked() {
                     acts.push(Action::SignInAgain(config.id.clone()));
                     ui.close();
@@ -244,7 +276,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
                 if !a.is_local() && ui.button(tl!("Account settings…")).clicked() {
-                    acts.push(Action::Dialog(Dialog::edit_account(&config)));
+                    acts.push(Action::Dialog(Dialog::edit_account(config)));
                     ui.close();
                 }
                 if ui.button(tl!("Signature…")).clicked() {
@@ -276,21 +308,19 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
             });
-            // Folders with folders in them collapse; what's inside a collapsed one is hidden.
-            let parents: std::collections::HashSet<String> = a.folders.iter().flat_map(ancestors).collect();
-            let hidden = |f: &Folder| ancestors(f).iter().any(|up| s.prefs.collapsed.contains(&folder_key(&f.account, up)));
             if open {
+                // Folders with folders in them collapse; what's inside a collapsed one is hidden.
+                let tree = Tree::new(s, a);
                 // A data file being imported says how far it is; its folders come as each is done.
                 let importing = crate::app::importing::nav_line(s, t, ui, acts, &a.config.id);
                 if a.folders.is_empty() && !importing {
                     ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
                 }
                 for f in a.folders.iter().filter(|f| f.mailbox.is_none()) {
-                    if hidden(f) {
+                    if tree.hidden(f) {
                         continue;
                     }
-                    let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
-                    folder_row(s, t, ui, acts, f, f.depth() + 1, false, collapse);
+                    folder_row(s, t, ui, acts, f, f.depth() + 1, false, tree.collapse(f));
                 }
                 // The folders its import will bring in, not in yet.
                 crate::app::importing::outline(s, t, ui, &a.config.id, &a.folders);
@@ -383,14 +413,12 @@ fn shared_section(
     if !open {
         return;
     }
-    let parents: std::collections::HashSet<String> = a.folders.iter().flat_map(ancestors).collect();
-    let hidden = |f: &Folder| ancestors(f).iter().any(|up| s.prefs.collapsed.contains(&folder_key(&f.account, up)));
+    let tree = Tree::new(s, a);
     for f in a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.depth() > 0) {
-        if hidden(f) {
+        if tree.hidden(f) {
             continue;
         }
-        let collapse = parents.contains(&f.path).then(|| s.prefs.collapsed.contains(&folder_key(&f.account, &f.path)));
-        folder_row(s, t, ui, acts, f, f.depth(), false, collapse);
+        folder_row(s, t, ui, acts, f, f.depth(), false, tree.collapse(f));
     }
     ui.add_space(6.0);
 }
@@ -582,9 +610,8 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     if user_folder && !favorite && resp.drag_started() {
         resp.dnd_set_drag_payload(DragFolder { account: f.account.clone(), path: f.path.clone() });
     }
-    let path = f.path.clone();
-    let account = f.account.clone();
-    let is_favorite = s.favorites().iter().any(|r| r.account == f.account && r.folder == f.path);
+    // The menu borrows the folder: nothing is copied or looked up unless it's open.
+    let (account, path) = (&f.account, &f.path);
     resp.context_menu(|ui| {
         if ui.button(tl!("Open")).clicked() {
             acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
@@ -613,7 +640,7 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
         }
         ui.separator();
         if ui.button(tl!("New folder…")).clicked() {
-            acts.push(Action::Dialog(Dialog::new_folder(&account, Some(&path))));
+            acts.push(Action::Dialog(Dialog::new_folder(account, Some(path))));
             ui.close();
         }
         if user_folder {
@@ -631,6 +658,7 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
             }
         }
         ui.separator();
+        let is_favorite = s.favorites().iter().any(|r| r.account == *account && r.folder == *path);
         let label = tl!(if is_favorite { "Remove from Favorites" } else { "Show in Favorites" });
         if ui.button(label).clicked() {
             acts.push(Action::Run("folder.favorite", json!({"account": account, "folder": path, "on": !is_favorite})));
