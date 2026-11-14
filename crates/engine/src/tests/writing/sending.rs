@@ -391,3 +391,31 @@ fn a_message_to_no_one_is_told_apart() {
     s.run("compose.update", &json!({"to": "ann@example.org"})).unwrap();
     assert!(!s.compose_has_no_recipient());
 }
+
+/// What Forward as Attachment takes on a message of 20 MB of files (`cargo test -p
+/// mailcraft-engine --release measure_forward_as_attachment -- --ignored --nocapture`): the
+/// message goes whole, its files aren't read.
+#[test]
+#[ignore]
+fn measure_forward_as_attachment() {
+    let mut s = sample_session("measure-forward-attachment");
+    let files = (0..4)
+        .map(|i| mailcraft_mime::OutAttachment {
+            name: format!("scan{i}.bin"),
+            mime: "application/octet-stream".into(),
+            data: (0..5_000_000u32).map(|b| (b.wrapping_mul(2_654_435_761) >> 13) as u8).collect(),
+            ..Default::default()
+        })
+        .collect();
+    let d = mailcraft_mime::Draft { subject: "Scans".into(), body: "The scans.".into(), attachments: files, ..Default::default() };
+    let raw = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Ana", "ana@example.org"), NOW, "<scans@x>").unwrap();
+    put_in_inbox(&mut s, "sample", 9701, &raw);
+    let runs = 5u32;
+    let began = std::time::Instant::now();
+    for _ in 0..runs {
+        s.run("mail.forwardAsAttachment", &json!({})).unwrap();
+        assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 1);
+        s.run("compose.discard", &json!({})).unwrap();
+    }
+    println!("MEASURE forward as attachment of a message of 20 MB of files: {} ms", began.elapsed().as_millis() / u128::from(runs));
+}

@@ -35,6 +35,15 @@ pub enum SendCheck {
     Exposed { count: usize },
 }
 
+/// What a reply or forward goes with ([`Session::reply_head`]).
+struct ReplyHead {
+    account: String,
+    from: String,
+    signature: Option<mailcraft_model::Signature>,
+    encrypted: bool,
+    scheme: Option<Scheme>,
+}
+
 /// A message being written.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Compose {
@@ -340,25 +349,19 @@ impl Session {
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
 
-    pub fn reply_compose(&mut self, mode: ReplyMode) -> CmdResult {
-        let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
-        let encrypted = r.security.as_ref().is_some_and(|s| matches!(s.lock, Some(Lock::Open { .. }))) && self.can_protect(&r.key.account);
+    /// What an answer to message `key` (`parsed`, protected as `security` says) goes with:
+    /// the account and address it's from, their signature, and whether it's encrypted, how.
+    fn reply_head(&self, key: &MessageKey, security: Option<&Security>, parsed: &Parsed) -> ReplyHead {
+        let encrypted = security.is_some_and(|s| matches!(s.lock, Some(Lock::Open { .. }))) && self.can_protect(&key.account);
         // Answered the way it came, when the account can.
-        let came_as = r.security.as_ref().map(|s| if s.pgp { Scheme::Pgp } else { Scheme::Smime });
-        let scheme = came_as.filter(|s| {
-            encrypted && if *s == Scheme::Pgp { self.pgp_key(&r.key.account).is_some() } else { self.identity(&r.key.account).is_some() }
-        });
-        // The reply's own copy (the quote's pictures are put in it), the one shown left as it is.
-        let mut parsed = Arc::unwrap_or_clone(r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?);
-        // Forwarded, its files go with it: not before they've come.
-        if r.text_first && mode == ReplyMode::Forward {
-            return Err(CmdError::Failed(super::STILL_COMING.into()));
-        }
+        let came_as = security.map(|s| if s.pgp { Scheme::Pgp } else { Scheme::Smime });
+        let scheme = came_as
+            .filter(|s| encrypted && if *s == Scheme::Pgp { self.pgp_key(&key.account).is_some() } else { self.identity(&key.account).is_some() });
         // Answered from an account that can send (not the data file it's in).
-        let account = self.sending_account(r.key.account.clone());
+        let account = self.sending_account(key.account.clone());
         // From the address it was sent to, when that's one of the account's others and not its
         // own as well (issue #81): the answer comes from where the mail went.
-        let from = self.account(&account).filter(|_| account == r.key.account).map(|a| &a.config).and_then(|config| {
+        let from = self.account(&account).filter(|_| account == key.account).map(|a| &a.config).and_then(|config| {
             let sent_to = |email: &str| parsed.to.iter().chain(&parsed.cc).any(|t| t.email.eq_ignore_ascii_case(email));
             // One's own mail, written from one of them, is followed up from it.
             let own = config.identity(&parsed.from.email).map(|i| i.email.clone());
@@ -374,6 +377,18 @@ impl Session {
         });
         let from = from.unwrap_or_default();
         let signature = self.signature_for(&account, &from, true);
+        ReplyHead { account, from, signature, encrypted, scheme }
+    }
+
+    pub fn reply_compose(&mut self, mode: ReplyMode) -> CmdResult {
+        let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
+        // The reply's own copy (the quote's pictures are put in it), the one shown left as it is.
+        let mut parsed = Arc::unwrap_or_clone(r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?);
+        // Forwarded, its files go with it: not before they've come.
+        if r.text_first && mode == ReplyMode::Forward {
+            return Err(CmdError::Failed(super::STILL_COMING.into()));
+        }
+        let ReplyHead { account, from, signature, encrypted, scheme } = self.reply_head(&r.key, r.security.as_ref(), &parsed);
         let block = Self::signature_text(signature.as_ref());
         let sig = block.strip_prefix(signatures::SIGNATURE_LINE).unwrap_or_default();
         let raw = self.readable_raw(&r.key);
@@ -446,24 +461,41 @@ impl Session {
         let r = self.reading.clone().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
         let raw =
             self.store.as_ref().and_then(|s| s.read_body(&r.key)).ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
-        let out = self.reply_compose(ReplyMode::Forward)?;
-        // The signature of the account it goes from (not the data file it's in).
-        let (from, address) = self.compose.as_ref().map_or((r.key.account.clone(), String::new()), |c| (c.account.clone(), c.from.clone()));
-        let sig = self.signature_for(&from, &address, true);
-        let subject = r.parsed.as_ref().map(|p| p.subject.trim().to_string()).unwrap_or_default();
-        let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() });
-        if let Some(c) = self.compose.as_mut() {
-            c.set_text(String::new());
-            c.signature = String::new();
-            c.inline.clear();
-            c.quote = None;
-            c.attachments = vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw, ..Default::default() }];
+        let parsed = r.parsed.ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
+        // Its files go with it: not before they've come.
+        if r.text_first {
+            return Err(CmdError::Failed(super::STILL_COMING.into()));
         }
-        self.put_signature(sig.as_ref(), None)?;
-        if let Some(id) = out.get("compose").and_then(|v| v.as_u64()) {
-            self.made_now(id);
-        }
-        Ok(out)
+        // From the account it goes from (not the data file it's in), with its signature.
+        let ReplyHead { account, from, signature, encrypted, scheme } = self.reply_head(&r.key, r.security.as_ref(), &parsed);
+        // Who it's to and its subject as a forward's (its text left out: none goes).
+        let (d, _) = mime::reply_head_doc(&parsed, ReplyMode::Forward, &self.me(&account), &self.clock, "");
+        let subject = parsed.subject.trim();
+        let name = format!("{}.eml", if subject.is_empty() { "message" } else { subject });
+        let id = self.fresh_id();
+        let mut c = Compose {
+            id,
+            account,
+            from,
+            to: addr::format_field(&d.to),
+            cc: addr::format_field(&d.cc),
+            subject: d.subject,
+            in_reply_to: d.in_reply_to,
+            references: d.references,
+            attachments: vec![OutAttachment { name, mime: "message/rfc822".into(), data: raw, ..Default::default() }],
+            mode: Some(ReplyMode::Forward),
+            source: Some(r.key),
+            sign: encrypted,
+            encrypt: encrypted,
+            scheme,
+            window: self.prefs.reply_window,
+            ..Default::default()
+        };
+        c.set_text(String::new());
+        self.open_compose(c);
+        self.put_signature(signature.as_ref(), None)?;
+        self.made_now(id);
+        Ok(serde_json::json!({ "compose": id }))
     }
 
     pub(super) fn compose_draft(&self, c: &Compose) -> Result<mime::Draft, CmdError> {
