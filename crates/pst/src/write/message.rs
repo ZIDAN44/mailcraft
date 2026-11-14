@@ -226,7 +226,7 @@ fn recipient_table(format: Format, list: &[NewRecipient<'_>], version: u32, text
             .collect();
         rows.push(NewRow { id, cells });
     }
-    build_table(format, &schema, &rows, 0)
+    build_table(format, &schema, rows, 0)
 }
 
 /// The bytes a built table takes.
@@ -332,7 +332,7 @@ impl Editor {
                 .collect();
             rows.push(NewRow { id: node, cells });
         }
-        Ok((build_table(format, &schema, &rows, 0)?, total))
+        Ok((build_table(format, &schema, rows, 0)?, total))
     }
 
     /// Writes an attachment's file and says how many bytes it is and in which subnode.

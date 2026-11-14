@@ -279,7 +279,7 @@ fn write_bare(path: &Path, format: Format) -> io::Result<()> {
 
 impl Editor {
     fn empty_table(&mut self, nid: u32, schema: &Schema, rows: &[NewRow], parent: u32) -> io::Result<()> {
-        let built = build_table(self.format(), schema, rows, 0)?;
+        let built = build_table(self.format(), schema, rows.to_vec(), 0)?;
         let (data, sub) = self.write_built(built, SubNodes::new())?;
         self.set_node(nid, data, sub, parent);
         Ok(())

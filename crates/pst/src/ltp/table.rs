@@ -196,6 +196,12 @@ impl Table {
         [self.ends[0], self.ends[1], u16::try_from(self.bitmap).unwrap_or(0), u16::try_from(self.width).unwrap_or(0)]
     }
 
+    /// The subnodes its rows and values are kept in.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn subnodes(&self) -> &SubNodes {
+        &self.subs
+    }
+
     /// That each column lies in the row, before the bitmap, and on no other: what the table says
     /// of them is copied into every row it is written back with.
     #[cfg(not(target_arch = "wasm32"))]

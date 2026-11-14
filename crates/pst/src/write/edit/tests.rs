@@ -359,7 +359,7 @@ fn overlapping_columns_are_refused_on_rewrite() {
     let mut schema = Schema::new(&[(0x3001, 0x0003), (0x3002, 0x0003)]).unwrap();
     let first = schema.columns[0].offset;
     schema.columns[1].offset = first;
-    let built = build_table(Format::Unicode, &schema, &[], 0).unwrap();
+    let built = build_table(Format::Unicode, &schema, Vec::new(), 0).unwrap();
     let (data, sub) = ed.write_built(built, SubNodes::new()).unwrap();
     ed.set_node(0x7EE, data, sub, 0);
     ed.commit().unwrap();

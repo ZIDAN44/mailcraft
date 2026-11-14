@@ -2,10 +2,11 @@
 //! `cargo test --release -p mailcraft-pst --test measure -- --ignored --nocapture`.
 
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::time::Instant;
 
-use mailcraft_pst::Format;
 use mailcraft_pst::write::{self, BatchMessage, NewMessage, SpecialFolder};
+use mailcraft_pst::{Format, PropertyValue, PstFile, PstStore};
 
 fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("mailcraft-pst-measure-{}", std::process::id()));
@@ -14,6 +15,9 @@ fn temp(name: &str) -> PathBuf {
     let _ = std::fs::remove_file(&path);
     path
 }
+
+/// Times each timing is taken; the best is the one told, the others being slowed by the machine.
+const ROUNDS: usize = 3;
 
 /// Where a timing's file starts from: with `MAILCRAFT_PST_MEASURE_BASE` set, a copy of the file
 /// `name` in that folder (made there when missing), so two builds start from the same bytes and
@@ -70,18 +74,24 @@ fn add(path: &Path, folder: &[&str], from: usize, n: usize) {
 #[test]
 #[ignore = "a measurement"]
 fn measure_small_batches_into_a_full_file() {
-    let path = start_from("full.pst", |p| {
+    let make = |p: &Path| {
         write::create_empty(p, Format::Unicode).unwrap();
         for b in 0..10 {
             add(p, &["Archive"], b * 2000, 2000);
         }
-    });
-    let t = Instant::now();
-    for b in 0..40 {
-        add(&path, &["Inbox"], 100_000 + b * 25, 25);
-        add(&path, &["Mail", "2026", "Kept"], 200_000 + b * 25, 25);
+    };
+    let mut best = u128::MAX;
+    for _ in 0..ROUNDS {
+        let path = start_from("full.pst", make);
+        let t = Instant::now();
+        for b in 0..40 {
+            add(&path, &["Inbox"], 100_000 + b * 25, 25);
+            add(&path, &["Mail", "2026", "Kept"], 200_000 + b * 25, 25);
+        }
+        best = best.min(t.elapsed().as_millis());
+        println!("file {:016x}", digest(&path));
     }
-    println!("MEASURE 80 batches of 25 into a file of 20000: {} ms (file {:016x})", t.elapsed().as_millis(), digest(&path));
+    println!("MEASURE 80 batches of 25 into a file of 20000: {best} ms (best of {ROUNDS})");
 }
 
 /// Naming the special folders of a file with many folders.
@@ -104,4 +114,39 @@ fn measure_special_folders_among_many_folders() {
         assert_eq!(write::special_folder(&path, SpecialFolder::Tasks).unwrap(), Some(vec!["Folder 0".to_string(), "Sub 4".to_string()]));
     }
     println!("MEASURE 40 special folder lookups among 1200 folders: {} ms", t.elapsed().as_millis());
+}
+
+/// Batches added to, and messages taken out of, a folder that holds many: its contents table is
+/// written again each time.
+#[test]
+#[ignore = "a measurement"]
+fn measure_a_big_folder_added_to_and_taken_from() {
+    let make = |p: &Path| {
+        write::create_empty(p, Format::Unicode).unwrap();
+        for b in 0..30 {
+            add(p, &["Inbox"], b * 2000, 2000);
+        }
+    };
+    let (mut added, mut taken) = (u128::MAX, u128::MAX);
+    for _ in 0..ROUNDS {
+        let path = start_from("big-folder.pst", make);
+        let t = Instant::now();
+        for b in 0..5 {
+            add(&path, &["Inbox"], 60_000 + b * 2000, 2000);
+        }
+        added = added.min(t.elapsed().as_millis());
+        let store = PstStore::read(Rc::new(PstFile::open(&path).unwrap())).unwrap();
+        let top = store.open_folder(store.ipm_subtree().unwrap()).unwrap();
+        let named_inbox = |id: u32| matches!(store.open_folder(id).unwrap().properties().get(0x3001), Some(PropertyValue::Unicode(s)) if String::from_utf16_lossy(s.buffer()).trim_end_matches('\0') == "Inbox");
+        let inbox = top.hierarchy_table().unwrap().rows_matrix().map(|r| r.id()).find(|id| named_inbox(*id)).unwrap();
+        let rows: Vec<u32> = store.open_folder(inbox).unwrap().contents_table().unwrap().rows_matrix().map(|r| r.id()).collect();
+        drop((top, store));
+        let t = Instant::now();
+        for chunk in rows.chunks(20).take(5) {
+            write::delete_messages(&path, chunk).unwrap();
+        }
+        taken = taken.min(t.elapsed().as_millis());
+        println!("file {:016x}", digest(&path));
+    }
+    println!("MEASURE 5 batches of 2000 into a folder of 60000: {added} ms; 5 deletes of 20: {taken} ms (best of {ROUNDS})");
 }

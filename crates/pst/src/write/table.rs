@@ -6,7 +6,7 @@ use std::io;
 use super::edit::Editor;
 use super::heap::{HeapBuilder, MAX_ALLOC, build_tree};
 use crate::ltp::{Column, PropertyType, TC_SIG, Table};
-use crate::ndb::{Format, NID_TYPE_INTERNAL, SubNodes};
+use crate::ndb::{Format, NID_TYPE_INTERNAL, NodeEntry, SubNodes};
 use crate::util::{invalid, short};
 
 pub(crate) const ROW_ID: u16 = 0x67F2;
@@ -32,6 +32,7 @@ pub(crate) enum Cell {
 }
 
 /// A row being written.
+#[derive(Clone)]
 pub(crate) struct NewRow {
     pub(crate) id: u32,
     /// One for each column.
@@ -101,17 +102,23 @@ pub(crate) struct Built {
 /// The node IDs of subnodes get from this index up.
 const FIRST_SUBNODE: u32 = 0x80;
 
-/// `rows` as a table of `schema`.
-pub(crate) fn build_table(format: Format, schema: &Schema, rows: &[NewRow], keep_above: u32) -> io::Result<Built> {
+/// `rows` as a table of `schema`. The bytes of their cells move into it.
+pub(crate) fn build_table(format: Format, schema: &Schema, rows: Vec<NewRow>, keep_above: u32) -> io::Result<Built> {
     let width = schema.width();
     let mut heap = HeapBuilder::new(format);
     let mut external = Vec::new();
     let mut next = keep_above.max(FIRST_SUBNODE);
     let bitmap = usize::from(schema.ends[2]);
+    let narrow = !format.wide();
+    if narrow && rows.len() > 1 << 16 {
+        return Err(invalid("an ANSI data file's folder holds 65,536 items at most"));
+    }
     let mut encoded = Vec::with_capacity(rows.len());
-    for row in rows {
+    // The row index: each row's ID and its place (MS-PST 2.3.4.3).
+    let mut index: Vec<(u32, u32)> = Vec::with_capacity(rows.len());
+    for (i, row) in rows.into_iter().enumerate() {
         let mut b = vec![0u8; width];
-        for (column, cell) in schema.columns.iter().zip(&row.cells) {
+        for (column, cell) in schema.columns.iter().zip(row.cells) {
             let Some(cell) = cell else { continue };
             let at = usize::from(column.offset);
             let size = usize::from(column.size);
@@ -124,10 +131,10 @@ pub(crate) fn build_table(format: Format, schema: &Schema, rows: &[NewRow], keep
                     } else if v.len() > MAX_ALLOC {
                         let nid = (next << 5) | NID_TYPE_INTERNAL;
                         next += 1;
-                        external.push((nid, v.clone()));
+                        external.push((nid, v));
                         nid
                     } else {
-                        heap.alloc(v.clone())?
+                        heap.alloc(v)?
                     };
                     slot.get_mut(..4).ok_or_else(short)?.copy_from_slice(&hnid.to_le_bytes());
                 }
@@ -138,14 +145,8 @@ pub(crate) fn build_table(format: Format, schema: &Schema, rows: &[NewRow], keep
         }
         b.get_mut(..4).ok_or_else(short)?.copy_from_slice(&row.id.to_le_bytes());
         encoded.push(b);
+        index.push((row.id, u32::try_from(i).map_err(|_| short())?));
     }
-    // The row index: each row's ID and its place (MS-PST 2.3.4.3).
-    let narrow = !format.wide();
-    if narrow && rows.len() > 1 << 16 {
-        return Err(invalid("an ANSI data file's folder holds 65,536 items at most"));
-    }
-    let mut index: Vec<(u32, u32)> =
-        rows.iter().enumerate().map(|(i, r)| Ok((r.id, u32::try_from(i).map_err(|_| short())?))).collect::<io::Result<_>>()?;
     index.sort_unstable();
     let records: Vec<Vec<u8>> = index
         .iter()
@@ -219,18 +220,34 @@ impl Editor {
     /// The table at node `nid`, with `edit` applied to its rows: what's in the file is let go
     /// of and the node written again. `edit` can read each row as cells of the layout.
     pub(crate) fn rewrite_table(&mut self, nid: u32, edit: impl FnOnce(&mut Self, &Schema, &mut Vec<NewRow>) -> io::Result<()>) -> io::Result<usize> {
+        let (entry, table) = self.read_table(nid)?;
+        self.rewrite_read_table(nid, entry, &table, edit)
+    }
+
+    /// The table at node `nid`, as this change has it, and its node.
+    pub(crate) fn read_table(&self, nid: u32) -> io::Result<(NodeEntry, Table)> {
         let entry = self.node(nid)?;
         let table = Table::read(self.pst.clone(), entry.data, entry.sub)?;
+        Ok((entry, table))
+    }
+
+    /// [`Self::rewrite_table`], of `table` read from node `nid` (`entry`) already.
+    pub(crate) fn rewrite_read_table(
+        &mut self,
+        nid: u32,
+        entry: NodeEntry,
+        table: &Table,
+        edit: impl FnOnce(&mut Self, &Schema, &mut Vec<NewRow>) -> io::Result<()>,
+    ) -> io::Result<usize> {
         let schema = Schema { columns: table.columns().to_vec(), ends: table.ends() };
         let mut rows = table.new_rows()?;
         edit(self, &schema, &mut rows)?;
         // Cells kept in subnodes stay where they are.
         let kept: HashSet<u32> =
             rows.iter().flat_map(|r| r.cells.iter().flatten()).filter_map(|c| if let Cell::Node(n) = c { Some(*n) } else { None }).collect();
-        let old = self.pst.subnodes(entry.sub)?;
         let mut subs = BTreeMap::new();
         let mut top = FIRST_SUBNODE;
-        for (nid, (data, sub)) in old.iter().filter(|(n, _)| kept.contains(*n)) {
+        for (nid, (data, sub)) in table.subnodes().iter().filter(|(n, _)| kept.contains(*n)) {
             self.add_ref(*data);
             if *sub != 0 {
                 self.add_ref(*sub);
@@ -238,10 +255,11 @@ impl Editor {
             subs.insert(*nid, (*data, *sub));
             top = top.max((nid >> 5).saturating_add(1));
         }
-        let built = build_table(self.format(), &schema, &rows, top)?;
+        let count = rows.len();
+        let built = build_table(self.format(), &schema, rows, top)?;
         let (data, sub) = self.write_built(built, subs)?;
         self.release_node_data(entry.data, entry.sub)?;
         self.set_node(nid, data, sub, entry.parent);
-        Ok(rows.len())
+        Ok(count)
     }
 }

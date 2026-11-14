@@ -10,7 +10,7 @@ use super::message::{contents_cell, is_unread, text_of};
 use super::table::{Cell, NewRow, ROW_ID, ROW_VERSION};
 use super::text::{Text, same_ansi_name};
 use super::types::*;
-use crate::ltp::{Bytes, PropertyType as P, PropertyValue, Table};
+use crate::ltp::{Bytes, PropertyType as P, PropertyValue};
 use crate::messaging::{NID_MESSAGE_STORE, PstFolder, PstStore, node_of_entry_id};
 use crate::ndb::{
     NID_TYPE_ASSOC_CONTENTS_TABLE, NID_TYPE_CONTENTS_TABLE, NID_TYPE_HIERARCHY_TABLE, NID_TYPE_MASK, NID_TYPE_NORMAL_FOLDER, NID_TYPE_NORMAL_MESSAGE,
@@ -147,13 +147,9 @@ impl Editor {
         let version = self.header.unique;
         // The parent's hierarchy table gets a row.
         let hierarchy = (parent & !NID_TYPE_MASK) | NID_TYPE_HIERARCHY_TABLE;
-        let cell_rows: Vec<Option<Cell>> = {
-            let entry = self.node(hierarchy)?;
-            let table = Table::read(self.pst.clone(), entry.data, entry.sub)?;
-            table.columns().iter().map(|c| self.folder_cell(c.prop_id(), c.prop_type(), folder, name, class, version)).collect()
-        };
-        self.rewrite_table(hierarchy, move |_, _, rows| {
-            rows.push(NewRow { id: folder, cells: cell_rows });
+        self.rewrite_table(hierarchy, |ed, schema, rows| {
+            let cells = schema.columns.iter().map(|c| ed.folder_cell(c.prop_id(), c.prop_type(), folder, name, class, version)).collect();
+            rows.push(NewRow { id: folder, cells });
             Ok(())
         })?;
         // The parent says it has subfolders, in its own properties and in its row.
