@@ -197,11 +197,13 @@ impl Store {
     /// How many times `account`'s data file was let go of after a write the disk failed (a full
     /// drive), to open again at its last durable commit: what was written without waiting for the
     /// disk before then may be gone. A writer that sees it change since it began (an import)
-    /// writes nothing more that counts on that. Always 0 for other stores.
+    /// writes nothing more that counts on that. The count stays while the account is kept online
+    /// only (a writer going on across the switch compares with what it saw as it began). Always 0
+    /// for other stores.
     pub fn data_file_reopened(&self, account: &str) -> u64 {
         #[cfg(not(target_arch = "wasm32"))]
-        if let Some((x, a)) = self.in_data_file(account) {
-            return x.reopened(&a);
+        if let Some(x) = self.data_files() {
+            return x.reopened(&safe_segment(account));
         }
         let _ = account;
         0

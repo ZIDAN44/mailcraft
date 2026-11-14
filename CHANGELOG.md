@@ -102,6 +102,7 @@ on GitHub.
 - Move to and Move folder find a folder by the name they show in your language.
 - Select Names adds someone whose address is part of another address, or of a name, already in the field.
 - Two video attachments with the same name now each show their own thumbnail.
+- An import no longer stops on its own when its account is switched to or from keeping mail online only.
 
 ## 0.38.0 - 2026-11-13
 

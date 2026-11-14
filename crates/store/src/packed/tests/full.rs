@@ -51,6 +51,37 @@ fn a_full_drive_fails_a_write_as_such_and_room_again_writes() {
     let _ = std::fs::remove_dir_all(&t);
 }
 
+/// The count of times a data file was let go of after a failed write goes on while its account
+/// is kept online only and once it's back: an import that took it as it began, going on across
+/// the switch, isn't stopped as if the file was let go of again, and its checkpoint is written.
+#[test]
+fn a_data_file_let_go_is_counted_across_online_only() {
+    let t = temp("full-online");
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    s.write_body(&inbox(1), b"one").unwrap();
+    s.seal("a1").unwrap();
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    packs.full.store(true, Ordering::Relaxed);
+    s.write_body(&inbox(2), &noise(64 << 20, 3)).unwrap_err();
+    packs.full.store(false, Ordering::Relaxed);
+    let began = s.data_file_reopened("a1");
+    assert_eq!(began, 1);
+    s.set_online_only("a1", true).unwrap();
+    assert_eq!(s.data_file_reopened("a1"), began, "not let go of since");
+    s.set_online_only("a1", false).unwrap();
+    assert_eq!(s.data_file_reopened("a1"), began);
+    // An import begun while the account was online only, its checkpoint written once it's back.
+    s.set_online_only("a1", true).unwrap();
+    let began = s.data_file_reopened("a1");
+    s.set_online_only("a1", false).unwrap();
+    s.write_batch("a1", Vec::new(), vec![("import.json", br#"{"next":7}"#.to_vec())], began).unwrap();
+    assert!(s.data_file("a1").is_some());
+    assert!(s.load_account_doc::<Option<serde_json::Value>>("a1", "import.json").unwrap().is_some());
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// How far a data file can grow in one step, as the database grows it: doubling while small,
 /// then to the end of its region, or past the next when its own is nearly full.
 #[test]

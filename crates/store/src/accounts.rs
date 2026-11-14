@@ -138,7 +138,8 @@ impl Store {
     /// The data files, when the store keeps accounts in them, however each account is kept now:
     /// for what isn't about an account's data file as it is now: ending what began before the
     /// account went online only or came back (a bulk write left on would give the file its bulk
-    /// cache and seal its commits once it's back), and measures since the store opened.
+    /// cache and seal its commits once it's back), counts a writer compares with what it saw as
+    /// it began, and measures since the store opened.
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn data_files(&self) -> Option<&packed::Packs> {
         match &self.files.main {
