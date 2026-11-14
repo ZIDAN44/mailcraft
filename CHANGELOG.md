@@ -44,6 +44,7 @@ on GitHub.
 - A rule with more than the rule editor shows (several conditions, any of which will do, several actions, or one account it's for: one brought in from a file, or made with a command) keeps all of that when you change it in the editor. Saving it, even only to rename it, kept just its first condition and first action, for every account, and a rule moving mail to Junk came back moving it to Archive.
 - A contact saved from **Edit contact** keeps the postal addresses the form has no place for (a second home address, say) and the kind of a number or address it shows under Other (a pager, a postal address): the extra addresses were deleted and those kinds dropped.
 - **Email** on a contact's card writes to that one person when the name has a comma, as Outlook's "Last, First" names do: the name was split into two recipients there, the first of them not an address, and the message couldn't be sent until it was put right.
+- In the browser, a change made while the account is signed out (a flag, a move, a delete) waits with the mail kept in the browser, so it reaches the server once you sign in again even after the page was reloaded or closed. It waited in the page only, and was lost with it: the next sync put the message back as the server still had it.
 
 ## 0.38.0 - 2026-11-13
 

@@ -43,8 +43,6 @@ struct Account {
     client: Option<Rc<Client<Fetch>>>,
     state: State,
     folders: Vec<Folder>,
-    /// Changes made while signed out, replayed on connecting.
-    ops: Vec<Op>,
     queue: VecDeque<Task>,
     running: bool,
     /// Bumped on every start, so an old poller stops.
@@ -211,15 +209,12 @@ async fn connect(sh: &Rcs, id: &str) {
     let user = if config.username.is_empty() { config.email.clone() } else { config.username.clone() };
     match Client::connect(Fetch, &url, &user, &password, false).await {
         Ok(c) => {
-            let ops = {
+            {
                 let mut s = sh.borrow_mut();
                 let Some(a) = s.accounts.get_mut(id) else { return };
                 a.client = Some(Rc::new(c));
-                std::mem::take(&mut a.ops)
-            };
-            for op in ops {
-                remote(sh, id, op).await;
             }
+            replay(sh, id).await;
             sync_all(sh, id).await;
         }
         Err(e) => failed(sh, id, e),
@@ -350,35 +345,66 @@ async fn search_server(sh: &Rcs, id: &str, folders: &[String], query: String, se
     emit(sh, answer(Vec::new(), error, true));
 }
 
-/// A change on the server (after the cache has it); then what it touched is shown afresh.
+/// A change for the server (the cache has it already). It's queued with the cache, which is
+/// kept in IndexedDB, as the desktop keeps it on disk: held only by this page, it was lost to a
+/// reload or a closed tab before the account was signed in again (the browser never keeps the
+/// password), and the next sync put back what the server still had. Then the queue is sent.
 async fn remote(sh: &Rcs, id: &str, op: Op) {
-    let Some(c) = client(sh, id) else {
-        if let Some(a) = sh.borrow_mut().accounts.get_mut(id) {
-            a.ops.push(op);
+    if let Err(e) = store(sh).add_op(id, op.clone()) {
+        notice(sh, id, format!("a change couldn't be kept to send later: {e}"));
+        // Sent now if it can be; otherwise it's lost, as said.
+        if let Some(c) = client(sh, id)
+            && let Err(e) = send(sh, id, &c, &op).await
+        {
+            emit(sh, Event::OpFailed { account: id.to_string(), op, error: e.to_string() });
         }
         return;
-    };
-    let st = state(sh, id);
-    match mailcraft_jmap::apply_remote(&c, &st, &op).await {
-        Ok(()) => {
-            // The folders it touched, with the server's counts.
-            let mut touched: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
-            match &op {
-                Op::Move { to, .. } => touched.push(to.clone()),
-                Op::EmptyFolder { path } => touched.push(path.clone()),
-                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {
-                    relist(sh, id).await;
+    }
+    replay(sh, id).await;
+}
+
+/// The changes waiting for the server, sent oldest first. Each leaves the queue once the server
+/// has taken it or refused it (a refusal is said); the one a lost connection or sign-in stopped
+/// stays, with those after it, for the next connection.
+async fn replay(sh: &Rcs, id: &str) {
+    let store = store(sh);
+    // Bounded, in case taking one off the queue keeps failing unseen.
+    for _ in 0..100_000 {
+        let Some(c) = client(sh, id) else { return };
+        let Some(op) = store.load_ops(id).unwrap_or_default().into_iter().next() else { return };
+        match send(sh, id, &c, &op).await {
+            Err(e @ (Error::Io(_) | Error::Closed(_) | Error::Tls(_) | Error::Auth(_))) => return failed(sh, id, e),
+            sent => {
+                if let Err(e) = store.remove_op(id, &op) {
+                    return notice(sh, id, e.to_string());
                 }
-                Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
-            }
-            touched.sort();
-            touched.dedup();
-            for f in touched {
-                sync_one(sh, id, &f).await;
+                if let Err(e) = sent {
+                    emit(sh, Event::OpFailed { account: id.to_string(), op, error: e.to_string() });
+                }
             }
         }
-        Err(e) => emit(sh, Event::OpFailed { account: id.to_string(), op, error: e.to_string() }),
     }
+}
+
+/// One change made on the server; then the folders it touched are shown afresh, with the
+/// server's counts.
+async fn send(sh: &Rcs, id: &str, c: &Client<Fetch>, op: &Op) -> mailcraft_jmap::Result<()> {
+    mailcraft_jmap::apply_remote(c, &state(sh, id), op).await?;
+    let mut touched: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
+    match op {
+        Op::Move { to, .. } => touched.push(to.clone()),
+        Op::EmptyFolder { path } => touched.push(path.clone()),
+        Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {
+            relist(sh, id).await;
+        }
+        Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
+    }
+    touched.sort();
+    touched.dedup();
+    for f in touched {
+        sync_one(sh, id, &f).await;
+    }
+    Ok(())
 }
 
 fn sent_folder(sh: &Rcs, id: &str, given: Option<String>) -> Option<String> {
@@ -819,7 +845,6 @@ impl Backend for WebBackend {
                         Account {
                             state: State::load(&store, &id),
                             folders: store.load_folders(&id).unwrap_or_default(),
-                            ops: old.map(|a| a.ops).unwrap_or_default(),
                             config: account,
                             password,
                             client: None,

@@ -761,3 +761,21 @@ fn online_only_with_a_file_that_cant_be_read_keeps_it() {
     s.set_online_only("a1", true).unwrap();
     assert_eq!((s.load_ops("a1").unwrap().len(), s.load_folder("a1", "INBOX").unwrap().messages.len()), (1, 1));
 }
+
+/// The browser's cache is in memory, kept in IndexedDB by what it changes: a change waiting for
+/// the server goes out with those changes and comes back from them on the next visit, and
+/// leaves with them once sent (the page held its queue itself, and lost it to a reload).
+#[test]
+fn a_memory_cache_keeps_its_queued_changes_between_visits() {
+    let s = Store::memory();
+    s.track_changes();
+    let op = Op::SetFlag { keys: vec![msg(1, false).key], flag: Flag::Flagged, on: true };
+    s.add_op("a1", op.clone()).unwrap();
+    let kept: Vec<(String, Vec<u8>)> = s.take_changes().into_iter().filter_map(|(p, b)| Some((p, b?))).collect();
+    assert_eq!(kept.iter().map(|(p, _)| p.as_str()).collect::<Vec<_>>(), ["a1/ops.json"]);
+    let next = Store::memory_from(kept);
+    next.track_changes();
+    assert_eq!(next.load_ops("a1").unwrap(), std::slice::from_ref(&op), "back on the next visit");
+    next.remove_op("a1", &op).unwrap();
+    assert_eq!(next.take_changes(), [("a1/ops.json".to_string(), None)], "gone from what's kept once sent");
+}
