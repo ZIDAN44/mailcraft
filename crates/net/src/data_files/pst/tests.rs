@@ -802,49 +802,43 @@ mod resume;
 mod sent_ids;
 
 mod real_files {
-    /// Import a real data file named by `MAILCRAFT_PST` (counts only).
+    /// Import a real data file named by `MAILCRAFT_PST` (counts only: no folder name, subject or
+    /// address is printed). Fails when the variable is unset, the import fails or brings no mail.
     #[test]
     #[ignore]
     fn imports_the_file_in_mailcraft_pst() {
-        let Ok(path) = std::env::var("MAILCRAFT_PST") else { return };
+        let path = std::env::var("MAILCRAFT_PST").expect("MAILCRAFT_PST names the data file to import");
         let dir = std::env::temp_dir().join(format!("mailcraft-real-pst-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let store = mailcraft_store::Store::open(&dir).unwrap();
         let t = std::time::Instant::now();
         let r = super::import(std::path::Path::new(&path), &store, "r1", &mut |_| {});
-        match r {
-            Ok(done) => {
-                eprintln!(
-                    "messages {} contacts {} events {} skipped {} in {:?}",
-                    done.messages,
-                    done.contacts,
-                    done.events,
-                    done.skipped,
-                    t.elapsed()
-                );
-                eprintln!("skips {:?}", done.skips);
-                let (mut parsed, mut html, mut files, mut dated) = (0, 0, 0, 0);
-                // Attached messages by level (0 = attached to an item) and the files inside them.
-                let (mut attached, mut inner) = ([0usize; 4], 0);
-                for f in &done.folders {
-                    eprintln!("  {:30} {:?} total {} unread {}", f.path, f.role, f.total, f.unread);
-                    for m in store.load_folder("r1", &f.path).unwrap().messages {
-                        dated += usize::from(m.date > 0);
-                        let raw = store.read_body(&m.key).unwrap_or_default();
-                        if let Some(p) = mailcraft_mime::parse(&raw) {
-                            parsed += 1;
-                            html += usize::from(p.had_html);
-                            files += p.attachments.len();
-                            count_attached(&raw, 0, &mut attached, &mut inner);
-                        }
+        if let Ok(done) = &r {
+            eprintln!("messages {} contacts {} events {} skipped {} in {:?}", done.messages, done.contacts, done.events, done.skipped, t.elapsed());
+            eprintln!("skips {:?}", done.skips);
+            let (mut parsed, mut html, mut files, mut dated) = (0, 0, 0, 0);
+            // Attached messages by level (0 = attached to an item) and the files inside them.
+            let (mut attached, mut inner) = ([0usize; 4], 0);
+            for (i, f) in done.folders.iter().enumerate() {
+                eprintln!("  folder {i:3} {:?} total {} unread {}", f.role, f.total, f.unread);
+                for m in store.load_folder("r1", &f.path).unwrap().messages {
+                    dated += usize::from(m.date > 0);
+                    let raw = store.read_body(&m.key).unwrap_or_default();
+                    if let Some(p) = mailcraft_mime::parse(&raw) {
+                        parsed += 1;
+                        html += usize::from(p.had_html);
+                        files += p.attachments.len();
+                        count_attached(&raw, 0, &mut attached, &mut inner);
                     }
                 }
-                eprintln!("parsed {parsed} (html {html}, attachments {files}, dated {dated})");
-                eprintln!("attached messages by level {attached:?}, files inside them {inner}");
             }
-            Err(e) => eprintln!("FAILED: {e}"),
+            eprintln!("parsed {parsed} (html {html}, attachments {files}, dated {dated})");
+            eprintln!("attached messages by level {attached:?}, files inside them {inner}");
         }
+        drop(store);
         let _ = std::fs::remove_dir_all(dir);
+        let done = r.unwrap_or_else(|e| panic!("the import failed: {e}"));
+        assert!(done.messages > 0, "the import brought no mail");
     }
 
     /// Counts the attached messages in `raw`, `level` down, and the other files inside them.
