@@ -221,3 +221,119 @@ fn moves_into_the_inbox_are_forgotten_oldest_first() {
     m.insert(k(MOVED_IN_MAX + 1));
     assert!(m.remove(&k(3)), "taken out ones left room");
 }
+
+/// A server account whose Snoozed folder has `n` messages, and `stuck` snoozes due an hour ago
+/// whose messages aren't in it (moved on another device, not synced here yet). Returns the
+/// session and the account's id.
+fn stuck_snoozes(name: &str, n: u32, stuck: usize) -> (Session, String) {
+    let mut s = Session::open(Some(temp(name)), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let folder = |path: &str, role| mailcraft_model::Folder { account: id.clone(), path: path.into(), role, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![folder("INBOX", FolderRole::Inbox), folder("Snoozed", FolderRole::Other)] });
+    let messages = (1..=n)
+        .map(|uid| {
+            let key = mailcraft_model::MessageKey { account: id.clone(), folder: "Snoozed".into(), validity: 9, uid };
+            mailcraft_model::Summary {
+                key,
+                subject: format!("Later {uid}"),
+                message_id: format!("later{uid}@x.example"),
+                date: NOW - 60,
+                ..Default::default()
+            }
+            .into()
+        })
+        .collect();
+    let store = s.store.clone().unwrap();
+    store.save_folder(&id, "Snoozed", &mailcraft_store::FolderState { validity: 9, uid_next: n + 1, messages, ..Default::default() }).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "Snoozed".into() });
+    for i in 0..stuck {
+        s.snoozes.push(mailcraft_model::organize::Snooze {
+            account: id.clone(),
+            message_id: format!("elsewhere{i}@x.example"),
+            folder: "Snoozed".into(),
+            back_to: "INBOX".into(),
+            until: NOW - 3600,
+            subject: format!("Elsewhere {i}"),
+        });
+    }
+    s.take_jobs();
+    (s, id)
+}
+
+/// 20 snoozes stuck over a Snoozed folder of 10,000 messages, 1,000 frames timed. Run under the
+/// heavy lock: `cargo test --release -p mailcraft-engine --lib measure_stuck_snoozes -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_stuck_snoozes() {
+    let (mut s, _) = stuck_snoozes("measure-stuck-snoozes", 10_000, 20);
+    let t = std::time::Instant::now();
+    for _ in 0..1000 {
+        s.tick();
+    }
+    println!("MEASURE 1000 frames, 20 stuck snoozes over 10000: {} ms", t.elapsed().as_millis());
+    done(s);
+}
+
+/// A snooze due while its folder's list can't be read (its read marks are being saved, and it
+/// was let go of from memory) is looked for again as soon as it can, not a minute on: the list
+/// read as empty, the message taken for not there yet, and nothing said its folder changed.
+#[test]
+fn a_snooze_due_while_its_folder_cant_be_read_comes_back_once_it_can() {
+    let mut s = sample_session("snooze-unread-folder");
+    let store = s.store.clone().unwrap();
+    let m = s.list.iter().find(|m| !m.flags.seen && !m.message_id.is_empty()).cloned().unwrap();
+    assert_eq!(m.key.folder, "INBOX");
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    let paused = store.pause_marks();
+    s.apply_op("sample", Op::SetFlag { keys: vec![m.key.clone()], flag: Flag::Seen, on: true });
+    s.cache.remove(&("sample".to_string(), "INBOX".to_string()));
+    assert!(store.marks_waiting_for("sample", Some("INBOX")));
+    s.snoozes.push(mailcraft_model::organize::Snooze {
+        account: "sample".into(),
+        message_id: m.message_id.clone(),
+        folder: "INBOX".into(),
+        back_to: "Archive".into(),
+        until: NOW - 10,
+        subject: m.subject.clone(),
+    });
+    s.tick();
+    assert_eq!(s.snoozes.len(), 1, "not found in a list that can't be read");
+    drop(paused);
+    assert!(store.flush_marks());
+    s.tick();
+    assert!(s.snoozes.is_empty(), "back from snooze at the next look");
+    assert!(store.load_folder("sample", "Archive").unwrap().messages.iter().any(|x| x.message_id == m.message_id));
+}
+
+/// Snoozes due whose messages aren't here yet are looked for again when the folder changes, or
+/// after a while: not on every frame (each looked through the whole Snoozed folder). One that
+/// comes in is brought back at once.
+#[test]
+fn stuck_snoozes_arent_looked_for_every_frame() {
+    let (mut s, id) = stuck_snoozes("stuck-snoozes", 10, 3);
+    let store = s.store.clone().unwrap();
+    s.tick();
+    let reads = s.snooze_looks;
+    for _ in 0..100 {
+        s.tick();
+    }
+    assert_eq!(s.snooze_looks, reads, "looked for again every frame");
+    // A minute on: looked for again.
+    s.clock.now += 61;
+    s.tick();
+    assert_eq!(s.snooze_looks, reads + 1);
+    // One of them comes in: brought back at the next frame.
+    let mut st = store.load_folder(&id, "Snoozed").unwrap();
+    let key = mailcraft_model::MessageKey { account: id.clone(), folder: "Snoozed".into(), validity: 9, uid: 11 };
+    st.messages.insert(
+        0,
+        mailcraft_model::Summary { key, subject: "Elsewhere 0".into(), message_id: "elsewhere0@x.example".into(), date: NOW, ..Default::default() }
+            .into(),
+    );
+    store.save_folder(&id, "Snoozed", &st).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "Snoozed".into() });
+    s.tick();
+    assert_eq!(s.snoozes.len(), 2, "back from snooze");
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::Move { to, .. }, .. } if to == "INBOX")));
+    done(s);
+}

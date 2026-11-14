@@ -414,6 +414,11 @@ pub struct Session {
     pub rules: Vec<mailcraft_model::organize::Rule>,
     /// Snoozed messages and when they come back (`snoozes.json`).
     pub snoozes: Vec<mailcraft_model::organize::Snooze>,
+    /// When due snoozes were last looked for in their folders, and what has changed since: one
+    /// not found waits for that, or a minute, not the next frame.
+    pub(crate) snoozes_looked: organize::SnoozesLooked,
+    #[cfg(test)]
+    pub(crate) snooze_looks: u64,
     /// The Other tab of a Focused/Other Inbox is showing.
     pub focus_other: bool,
     /// Pictures from the web, by address: downloaded only after the user asked.
@@ -560,6 +565,9 @@ impl Session {
             new_mail: Vec::new(),
             rules: Vec::new(),
             snoozes: Vec::new(),
+            snoozes_looked: organize::SnoozesLooked::default(),
+            #[cfg(test)]
+            snooze_looks: 0,
             focus_other: false,
             pictures: HashMap::new(),
             pictures_for: BTreeSet::new(),

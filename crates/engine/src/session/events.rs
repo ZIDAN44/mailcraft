@@ -13,6 +13,10 @@ impl Session {
         // The To-Do Bar's flagged mail of a folder that changed is read again.
         if let Event::FolderChanged { account, folder } = &e {
             self.todo_folder_changed(account, folder);
+            // A snoozed message not found in it yet may be there now.
+            if self.snoozes.iter().any(|s| s.account == *account && s.folder == *folder) {
+                self.snoozes_looked.folder_changed = true;
+            }
         }
         match e {
             e @ (Event::Identity { .. }

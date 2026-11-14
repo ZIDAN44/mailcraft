@@ -12,6 +12,24 @@ pub mod search_folders;
 
 /// The folder snoozed mail waits in.
 const SNOOZED: &str = "Snoozed";
+/// How long a due snooze whose message isn't here yet waits to be looked for again (seconds),
+/// unless its folder changes first.
+const SNOOZE_LOOK_AGAIN: i64 = 60;
+
+/// When due snoozes were last looked for in their folders ([`Session::tick`]), and since then:
+/// whether one of those folders changed, and whether an import held some back.
+#[derive(Debug)]
+pub(crate) struct SnoozesLooked {
+    pub(crate) at: i64,
+    pub(crate) folder_changed: bool,
+    pub(crate) held: bool,
+}
+
+impl Default for SnoozesLooked {
+    fn default() -> Self {
+        SnoozesLooked { at: i64::MIN, folder_changed: false, held: false }
+    }
+}
 
 impl Session {
     // ----- categories and pins -----
@@ -150,6 +168,21 @@ impl Session {
         if !self.snoozes.iter().any(|s| s.until <= now) {
             return;
         }
+        // Those not found when last looked for (not synced here yet) are looked for again once
+        // their folder changes, or a minute on, or with one newly due: each frame, each looked
+        // through the whole Snoozed folder, for up to a week.
+        let looked = &self.snoozes_looked;
+        let newly_due = self.snoozes.iter().any(|s| s.until <= now && s.until > looked.at);
+        // Held back by an import that's over now: at once, as the import ends.
+        let let_go = looked.held && !self.snoozes.iter().any(|s| s.until <= now && self.importing.held(&s.account));
+        if !newly_due && !looked.folder_changed && !let_go && now < looked.at.saturating_add(SNOOZE_LOOK_AGAIN) {
+            return;
+        }
+        self.snoozes_looked = SnoozesLooked { at: now, folder_changed: false, held: false };
+        #[cfg(test)]
+        {
+            self.snooze_looks += 1;
+        }
         let due: Vec<Snooze> = self.snoozes.iter().filter(|s| s.until <= now).cloned().collect();
         let mut changed = false;
         for s in due {
@@ -160,6 +193,14 @@ impl Session {
             }
             // Its account's import writes the folders: it comes back once that's done.
             if self.importing.held(&s.account) {
+                self.snoozes_looked.held = true;
+                continue;
+            }
+            // Its folder's list can't be read just now (its read marks being saved, its data file
+            // being compacted): not looked through, so looked for again at the next tick (cheap
+            // while it can't be read), not a minute on, and not given up on meanwhile.
+            if self.load_cached(&s.account, &s.folder).is_err_and(|e| super::mailboxes::read_soon(&e)) {
+                self.snoozes_looked.folder_changed = true;
                 continue;
             }
             let found = self.folder_state(&s.account, &s.folder).messages.iter().find(|m| m.message_id == s.message_id).map(|m| m.key.clone());
