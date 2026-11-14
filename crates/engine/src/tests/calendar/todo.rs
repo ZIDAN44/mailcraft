@@ -133,3 +133,79 @@ fn things_go_under_the_day_they_are_due() {
     assert_eq!(TodoGroup::of(Some(i64::MAX), i64::MIN), TodoGroup::Later);
     assert_eq!(TodoGroup::of(Some(i64::MIN), i64::MAX), TodoGroup::Overdue);
 }
+
+/// The sample's Projects made a folder of `n` messages, none flagged, open, and every folder's
+/// flagged mail read by the bar.
+fn projects_of(n: u32) -> Session {
+    let store = Store::memory();
+    sample::seed_if_empty(&store, NOW).unwrap();
+    let mut st = store.load_folder("sample", "Projects").unwrap();
+    st.messages = (1..=n)
+        .map(|uid| mailcraft_model::Summary {
+            key: mailcraft_model::MessageKey { account: "sample".into(), folder: "Projects".into(), validity: st.validity, uid },
+            subject: format!("Report {uid}"),
+            date: NOW - i64::from(uid) * 60,
+            ..Default::default()
+        })
+        .map(Into::into)
+        .collect();
+    store.save_folder("sample", "Projects", &st).unwrap();
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    read_all(&mut s);
+    s
+}
+
+/// The flagged messages of a folder the bar lists.
+fn flagged_in(s: &Session, folder: &str) -> Vec<String> {
+    mail(&s.todo_items()).into_iter().filter(|(_, _, k)| k.ends_with(&format!(":{folder}"))).map(|(t, ..)| t).collect()
+}
+
+/// Everything in a folder flagged at once (select all, then Flag) puts the newest 500 on the bar
+/// at once, as many as reading the folder keeps: it put all of them there, until the folder was
+/// read again.
+#[test]
+fn a_folder_flagged_at_once_keeps_its_newest_on_the_bar() {
+    let mut s = projects_of(600);
+    assert!(flagged_in(&s, "Projects").is_empty());
+    let keys: Vec<_> = s.list.iter().map(|m| m.key.clone()).collect();
+    s.todo_op("sample", &Op::SetFlag { keys, flag: Flag::Flagged, on: true });
+    let on_bar = flagged_in(&s, "Projects");
+    assert_eq!(on_bar.len(), 500);
+    assert!(on_bar.contains(&"Report 1".to_string()) && !on_bar.contains(&"Report 600".to_string()), "the newest");
+}
+
+/// The same with the list showing the oldest first: still the newest 500 (it kept the first 500
+/// of the list as it was arranged, so the oldest).
+#[test]
+fn a_folder_flagged_at_once_keeps_its_newest_however_the_list_is_arranged() {
+    let mut s = projects_of(600);
+    s.list.reverse();
+    assert_eq!(s.list[0].subject, "Report 600", "the oldest first");
+    let keys: Vec<_> = s.list.iter().map(|m| m.key.clone()).collect();
+    s.todo_op("sample", &Op::SetFlag { keys, flag: Flag::Flagged, on: true });
+    let on_bar = flagged_in(&s, "Projects");
+    assert_eq!(on_bar.len(), 500);
+    assert!(on_bar.contains(&"Report 1".to_string()) && on_bar.contains(&"Report 500".to_string()), "the newest");
+    assert!(!on_bar.contains(&"Report 501".to_string()) && !on_bar.contains(&"Report 600".to_string()));
+}
+
+/// What flagging every message of a folder of 20,000 does to the bar's list, on the window's
+/// thread (`cargo test --release -p mailcraft-engine --lib flagging_a_big_folder -- --ignored
+/// --nocapture`).
+#[test]
+#[ignore]
+fn flagging_a_big_folder_for_the_bar_takes() {
+    let mut took: Vec<std::time::Duration> = (0..5)
+        .map(|_| {
+            let mut s = projects_of(20_000);
+            let keys: Vec<_> = s.list.iter().map(|m| m.key.clone()).collect();
+            let op = Op::SetFlag { keys, flag: Flag::Flagged, on: true };
+            let t = std::time::Instant::now();
+            s.todo_op("sample", &op);
+            t.elapsed()
+        })
+        .collect();
+    took.sort();
+    println!("MEASURE the bar told of 20,000 flagged: median {:?}, best {:?}", took[2], took[0]);
+}

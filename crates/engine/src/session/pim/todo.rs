@@ -130,23 +130,34 @@ impl Session {
         let gone: &[MessageKey] = match op {
             Op::SetFlag { keys, flag: Flag::Flagged, on: false } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
             Op::SetFlag { keys, flag: Flag::Flagged, on: true } => {
-                for k in keys {
-                    if let Some(m) = self.list.iter().find(|m| &m.key == k).cloned() {
-                        let kept = self.todo.read.entry((k.account.clone(), k.folder.clone())).or_default();
-                        if !kept.iter().any(|x| &x.key == k) {
-                            let mut m = (*m).clone();
-                            m.flags.flagged = true;
-                            kept.insert(0, SharedSummary::new(m));
-                        }
-                    }
+                // The list walked once, and each folder's kept list once (select all and Flag
+                // in a list of 20,000 looked each key up in all of it: 470 ms); the newest kept of
+                // each folder, however the list is arranged, as many as reading the folder keeps.
+                let flagged: HashSet<&MessageKey> = keys.iter().collect();
+                let mut new: BTreeMap<(String, String), Vec<SharedSummary>> = BTreeMap::new();
+                for m in self.list.iter().filter(|m| flagged.contains(&m.key)) {
+                    let mut m = (**m).clone();
+                    m.flags.flagged = true;
+                    new.entry((m.key.account.clone(), m.key.folder.clone())).or_default().push(SharedSummary::new(m));
+                }
+                for (folder, mut add) in new {
+                    let kept = self.todo.read.entry(folder).or_default();
+                    let there: HashSet<&MessageKey> = kept.iter().map(|m| &m.key).collect();
+                    add.retain(|m| !there.contains(&m.key));
+                    add.append(kept);
+                    add.sort_by_key(|m| std::cmp::Reverse(m.when()));
+                    add.truncate(FLAGGED_PER_FOLDER);
+                    *kept = add;
                 }
                 &[]
             }
             _ => &[],
         };
-        for k in gone {
-            if let Some(kept) = self.todo.read.get_mut(&(k.account.clone(), k.folder.clone())) {
-                kept.retain(|m| &m.key != k);
+        let gone: HashSet<&MessageKey> = gone.iter().collect();
+        let folders: BTreeSet<(&str, &str)> = gone.iter().map(|k| (k.account.as_str(), k.folder.as_str())).collect();
+        for (account, folder) in folders {
+            if let Some(kept) = self.todo.read.get_mut(&(account.to_string(), folder.to_string())) {
+                kept.retain(|m| !gone.contains(&m.key));
             }
         }
         if self.account(account).is_none_or(AccountState::is_local) {
