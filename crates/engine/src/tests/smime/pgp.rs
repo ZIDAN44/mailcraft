@@ -380,3 +380,20 @@ Content-Type: text/plain; charset=utf-8\r\n\r\n{}\r\n",
     assert!(c.body.contains("BEGIN PGP MESSAGE") && !c.encrypt, "{}", c.body);
     done(s);
 }
+
+/// A key file given as its bytes (`data`, the browser's picker) has the cap a file named by its
+/// path has: someone's keys at most 8 MB, an own key or a certificate 1 MB. One past it is too
+/// big, said before anything reads it (someone's keys went to the key reader whatever their
+/// size); bytes that aren't bytes are refused.
+#[test]
+fn key_files_given_as_bytes_have_the_caps_of_files() {
+    let mut s = with_key("pgp-caps");
+    let too_big = |n: usize| json!({"data": vec![0u8; n + 1]});
+    for (id, max) in [("pgp.importPublic", 8 << 20), ("pgp.import", 1 << 20), ("security.import", 1 << 20)] {
+        let e = s.run(id, &too_big(max)).unwrap_err().to_string();
+        assert!(e.contains("too big"), "{id}: {e}");
+    }
+    let e = s.run("pgp.importPublic", &json!({"data": [1, 2, 300]})).unwrap_err().to_string();
+    assert!(e.contains("bytes"), "{e}");
+    done(s);
+}

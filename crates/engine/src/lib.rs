@@ -154,6 +154,17 @@ pub mod p {
     pub fn i64(v: &Value, k: &str) -> Option<i64> {
         v.get(k).and_then(|x| x.as_i64().or_else(|| x.as_f64().filter(|f| f.is_finite() && f.abs() < 9.0e15).map(|f| f as i64)))
     }
+    /// A file's bytes given as `k` (a list of numbers, 0 to 255), at most `max` of them: `None`
+    /// when there's no list, "too big" as for a file named by its path (`read_capped`), and read
+    /// where it is (each caller decoded its own way: one without the cap, two after a copy).
+    pub fn bytes(v: &Value, k: &str, max: usize) -> Result<Option<Vec<u8>>, CmdError> {
+        let Some(list) = v.get(k).and_then(Value::as_array) else { return Ok(None) };
+        if list.len() > max {
+            return Err(CmdError::Params(format!("`{k}` is too big")));
+        }
+        let not_bytes = || CmdError::Params(format!("`{k}` must be bytes"));
+        list.iter().map(|b| b.as_u64().and_then(|x| u8::try_from(x).ok()).ok_or_else(not_bytes)).collect::<Result<_, _>>().map(Some)
+    }
 }
 
 #[cfg(test)]

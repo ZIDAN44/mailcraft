@@ -220,14 +220,12 @@ pub(super) fn file_param(s: &mut Session, v: &Value) -> Result<(String, Vec<u8>)
         (p::req_str(v, "name")?.to_string(), data)
     } else {
         let name = p::req_str(v, "name")?.to_string();
-        let data: Vec<u8> = v
-            .get("data")
-            .and_then(Value::as_array)
-            .ok_or_else(|| CmdError::Params("`path`, or `name` and `data`, are required".into()))?
-            .iter()
-            .take(ATTACH_MAX + 1)
-            .map(|b| b.as_u64().and_then(|x| u8::try_from(x).ok()).ok_or_else(|| CmdError::Params("`data` must be bytes".into())))
-            .collect::<Result<_, _>>()?;
+        let data = p::bytes(v, "data", ATTACH_MAX)
+            .map_err(|e| match e {
+                CmdError::Params(m) if m.ends_with("too big") => CmdError::Failed("attachments are limited to 25 MB".into()),
+                other => other,
+            })?
+            .ok_or_else(|| CmdError::Params("`path`, or `name` and `data`, are required".into()))?;
         (name, data)
     };
     if data.len() > ATTACH_MAX {

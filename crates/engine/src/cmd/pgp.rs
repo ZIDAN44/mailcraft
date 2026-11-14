@@ -11,12 +11,12 @@ fn show(i: &mailcraft_pgp::KeyInfo) -> Value {
 }
 
 /// A file's bytes given as `data` (the browser's picker), else read from `path`.
-fn file(v: &Value, max: u64) -> Result<Vec<u8>, CmdError> {
-    if let Some(data) = v.get("data").filter(|d| d.is_array()) {
-        return serde_json::from_value(data.clone()).map_err(|_| CmdError::Params("`data`: the file's bytes".into()));
+fn file(v: &Value, max: usize) -> Result<Vec<u8>, CmdError> {
+    if let Some(data) = p::bytes(v, "data", max)? {
+        return Ok(data);
     }
     let path = p::req_str(v, "path")?.trim().to_string();
-    read_capped(&path, max)
+    read_capped(&path, max as u64)
 }
 
 pub(super) fn commands() -> Vec<CommandSpec> {
