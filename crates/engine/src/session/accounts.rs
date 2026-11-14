@@ -530,13 +530,18 @@ impl Session {
         }
     }
 
-    /// A connection was refused, and `error` says a mail server on this computer showed a
+    /// A connection was refused, of a `kind` that says a mail server on this computer showed a
     /// certificate no authority vouches for (issue #77): the window is to ask about it, once for
     /// each certificate.
-    pub(crate) fn note_untrusted_certificate(&mut self, account: &str, error: &str) {
-        let Some((host, fingerprint)) = mailcraft_model::untrusted_local_certificate(error) else { return };
+    pub(crate) fn note_untrusted_certificate(&mut self, account: &str, kind: &FailureKind) {
+        let FailureKind::LocalCertificate { host, fingerprint } = kind else { return };
+        // Only a server's certificate, by its SHA-256, is asked about (and trusted).
+        if host.trim().is_empty() || !mailcraft_model::is_certificate_fingerprint(fingerprint) {
+            return;
+        }
+        let fingerprint = fingerprint.to_ascii_lowercase();
         if self.asked_certificate.len() < 64 && self.asked_certificate.insert((account.to_string(), fingerprint.clone())) {
-            self.ask_certificate.push((account.to_string(), host, fingerprint));
+            self.ask_certificate.push((account.to_string(), host.trim().to_string(), fingerprint));
         }
     }
 

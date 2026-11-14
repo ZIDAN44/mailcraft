@@ -263,7 +263,7 @@ fn offline_sends_wait_in_the_outbox() {
     // The network layer couldn't send: it put the message in the Outbox.
     let item = mailcraft_store::OutboxItem { id: send_id, from, recipients, queued: NOW, error: Some("offline".into()), ..Default::default() };
     store.outbox_add(&id, &item, &raw).unwrap();
-    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into() });
+    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into(), kind: Default::default() });
     assert!(s.compose.is_none(), "a queued message is done for the user");
     assert!(s.notices.last().unwrap().text.contains("Outbox"));
     assert_eq!(s.outbox.len(), 1);
@@ -290,7 +290,7 @@ fn offline_sends_wait_in_the_outbox() {
 
     // Deleting from the Outbox cancels the send.
     store.outbox_add(&id, &item, &raw).unwrap();
-    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "later".into() });
+    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "later".into(), kind: Default::default() });
     assert_eq!(s.list.len(), 1);
     s.run("list.selectAll", &json!({})).unwrap();
     s.run("mail.delete", &json!({})).unwrap();

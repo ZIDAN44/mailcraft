@@ -165,7 +165,7 @@ fn drive(s: &mut Session, pool: &mut Pool, timeout: Duration, mut done: impl FnM
                 SyncStatus::Syncing { folder } => errln!("updating {}…", mailcraft_engine::model::utf7::decode(folder)),
                 SyncStatus::Online { .. } => errln!("up to date"),
                 SyncStatus::NeedsPassword { error } => errln!("sign-in failed: {error}"),
-                SyncStatus::Error { error } => errln!("error: {error}"),
+                SyncStatus::Error { error, .. } => errln!("error: {error}"),
                 SyncStatus::Offline => {}
             },
             Event::Notice { message, .. } => errln!("note: {message}"),

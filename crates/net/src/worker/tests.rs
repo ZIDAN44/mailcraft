@@ -80,7 +80,8 @@ fn a_mailbox_microsoft_wont_open_says_why() {
     acc.oauth_user = Some("someone@else.example".into());
     let w = Worker::new(acc, Auth::shared("refresh"), store, pool.sink.clone(), SyncOptions::default());
     let e = w.imap_with_token("zoe@hotmail.example", crate::fake::GOOD_TOKEN).err().unwrap();
-    assert!(matches!(&e, NetError::Refused(m) if m.contains("signed in as someone@else.example")), "{e:?}");
+    assert!(matches!(&e, NetError::MailboxClosed(m) if m.contains("signed in as someone@else.example")), "{e:?}");
+    assert_eq!(e.failure(), mailcraft_model::FailureKind::MicrosoftImapClosed);
     // A token that's simply refused is still a sign-in to ask for again.
     let w = Worker::new(
         AccountConfig { oauth_user: None, ..w.acc.clone() },

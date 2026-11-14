@@ -33,8 +33,9 @@ impl From<NetError> for mailcraft_jmap::Error {
         match e {
             NetError::Io(e) => E::Io(e.to_string()),
             NetError::Tls(m) => E::Tls(m),
+            NetError::Untrusted { host, fingerprint } => E::Tls(mailcraft_model::local_certificate_refusal(&host, &fingerprint)),
             NetError::Protocol(m) => E::Protocol(m),
-            NetError::No(m) | NetError::NoFolder(m) | NetError::Refused(m) => E::No(m),
+            NetError::No(m) | NetError::NoFolder(m) | NetError::Refused(m) | NetError::MailboxClosed(m) => E::No(m),
             NetError::Bad(m) => E::Bad(m),
             NetError::Auth(m) => E::Auth(m),
             NetError::Closed(m) => E::Closed(m),

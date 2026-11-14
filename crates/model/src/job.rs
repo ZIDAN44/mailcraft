@@ -15,6 +15,7 @@ mod import;
 mod keys;
 mod op;
 pub mod progress;
+mod status;
 mod vacation;
 pub use compact::*;
 pub use eta::Eta;
@@ -22,6 +23,7 @@ pub use import::*;
 pub use keys::{HeldKey, Revocation};
 pub use op::Op;
 pub use progress::Work;
+pub use status::{FailureKind, SyncStatus};
 pub use vacation::{Vacation, is_day};
 
 /// A password in transit. Its `Debug` form is redacted so it never reaches a log.
@@ -369,36 +371,6 @@ impl Job {
     }
 }
 
-/// How an account's connection is doing.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", rename_all = "camelCase")]
-pub enum SyncStatus {
-    #[default]
-    Offline,
-    Connecting,
-    Syncing {
-        folder: String,
-    },
-    /// Connected and up to date as of `at` (Unix seconds).
-    Online {
-        at: i64,
-    },
-    /// The server refused the login: the user must enter the password again.
-    NeedsPassword {
-        error: String,
-    },
-    /// The last attempt failed; the worker retries with back-off.
-    Error {
-        error: String,
-    },
-}
-
-impl SyncStatus {
-    pub fn is_online(&self) -> bool {
-        matches!(self, SyncStatus::Online { .. } | SyncStatus::Syncing { .. })
-    }
-}
-
 /// What the network layer reports back.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "camelCase")]
@@ -455,11 +427,14 @@ pub enum Event {
         error: String,
     },
     /// The message couldn't be sent yet (offline, or the server asked to try later): it waits in
-    /// the Outbox and goes out when the account is back online.
+    /// the Outbox and goes out when the account is back online. `kind`: what kind of failure held
+    /// it (a certificate to be asked about).
     Queued {
         account: String,
         id: u64,
         error: String,
+        #[serde(default, skip_serializing_if = "FailureKind::is_other")]
+        kind: FailureKind,
     },
     /// A mailbox change could not be applied on the server (it was rolled back locally).
     OpFailed {

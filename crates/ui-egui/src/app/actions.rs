@@ -495,20 +495,20 @@ impl MailApp {
     }
 
     pub(crate) fn sign_in_again(&mut self, id: &str) {
+        use mailcraft_engine::model::FailureKind;
         let Some((config, status)) = self.session.account(id).map(|a| (a.config.clone(), a.status.clone())) else { return };
-        // A server on this computer with a certificate of its own: asked about again.
-        if let SyncStatus::Error { error } = &status
-            && let Some((host, fingerprint)) = mailcraft_engine::model::untrusted_local_certificate(error)
-        {
-            self.ui.dialog = Some(Dialog::TrustCertificate { account: id.to_string(), host, fingerprint });
-            return;
-        }
-        // Microsoft took the sign-in but won't open the mailbox: say why, and what helps.
-        if let SyncStatus::Error { error } = &status
-            && error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)
-        {
-            self.ui.dialog = Some(Dialog::MailboxClosed { account: id.to_string(), email: config.email.clone(), error: error.clone() });
-            return;
+        match status {
+            // A server on this computer with a certificate of its own: asked about again.
+            SyncStatus::Error { kind: FailureKind::LocalCertificate { host, fingerprint }, .. } => {
+                self.ui.dialog = Some(Dialog::TrustCertificate { account: id.to_string(), host, fingerprint });
+                return;
+            }
+            // Microsoft took the sign-in but won't open the mailbox: say why, and what helps.
+            SyncStatus::Error { error, kind: FailureKind::MicrosoftImapClosed } => {
+                self.ui.dialog = Some(Dialog::MailboxClosed { account: id.to_string(), email: config.email.clone(), error });
+                return;
+            }
+            _ => {}
         }
         // A Microsoft account with a password, which Microsoft refuses: Sign in with Microsoft.
         if config.oauth.is_some()

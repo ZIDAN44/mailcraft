@@ -1,6 +1,7 @@
 //! The top bar (the ribbon's tabs, search, sync, settings), the status bar, and notices.
 
 use crate::*;
+use mailcraft_engine::model::FailureKind;
 
 /// A row of the top bar: its tabs, its buttons, the search box.
 pub(crate) const BAR_ROW_H: f32 = 30.0;
@@ -360,11 +361,8 @@ impl MailApp {
 pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
     match &a.status {
         SyncStatus::NeedsPassword { .. } => true,
-        SyncStatus::Error { error } => {
-            error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED)
-                || error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS)
-                || error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE)
-        }
+        // Every kind but `Other` waits for you.
+        SyncStatus::Error { kind, .. } => !kind.is_other(),
         _ => false,
     }
 }
@@ -389,7 +387,7 @@ pub(crate) fn background_work(s: &Session, compact: &super::compacting::CompactU
 /// An account's address, and what's wrong with it when something is (for hovering its status).
 pub(crate) fn why(a: &mailcraft_engine::AccountState) -> String {
     match &a.status {
-        SyncStatus::Error { error } | SyncStatus::NeedsPassword { error } if !error.is_empty() => {
+        SyncStatus::Error { error, .. } | SyncStatus::NeedsPassword { error } if !error.is_empty() => {
             format!("{}\n{}", a.config.email, tl!(error))
         }
         _ => a.config.email.clone(),
@@ -403,15 +401,9 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
         return words;
     }
     match &a.status {
-        SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::MICROSOFT_NO_PASSWORDS) => {
-            (t.danger, tl!("Sign in with Microsoft").to_string())
-        }
-        SyncStatus::Error { error } if error.starts_with(mailcraft_engine::model::MICROSOFT_IMAP_CLOSED) => {
-            (t.danger, tl!("Mailbox won't open").to_string())
-        }
-        SyncStatus::Error { error } if error.contains(mailcraft_engine::model::LOCAL_CERTIFICATE) => {
-            (t.danger, tl!("Certificate not trusted yet").to_string())
-        }
+        SyncStatus::Error { kind: FailureKind::MicrosoftNoPasswords, .. } => (t.danger, tl!("Sign in with Microsoft").to_string()),
+        SyncStatus::Error { kind: FailureKind::MicrosoftImapClosed, .. } => (t.danger, tl!("Mailbox won't open").to_string()),
+        SyncStatus::Error { kind: FailureKind::LocalCertificate { .. }, .. } => (t.danger, tl!("Certificate not trusted yet").to_string()),
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
         SyncStatus::Syncing { folder } => {
             (t.accent, tf!("Updating {folder}…", folder = s.folder(&a.config.id, folder).map(i18n::folder).unwrap_or_default()))
@@ -423,6 +415,6 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
         // An account that signs in in the browser has no password to ask for.
         SyncStatus::NeedsPassword { .. } if a.config.oauth.is_some() => (t.danger, tl!("Sign in again").to_string()),
         SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),
-        SyncStatus::Error { error } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
+        SyncStatus::Error { error, .. } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
     }
 }

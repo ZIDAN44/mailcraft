@@ -151,7 +151,7 @@ impl Worker {
             Err(e) => {
                 let wait = self.backoff;
                 self.backoff = self.backoff.saturating_mul(2).min(MOST_BACKOFF);
-                self.status(SyncStatus::Error { error: e.to_string() });
+                self.status(e.status());
                 now_at.checked_add(wait)
             }
         }

@@ -154,39 +154,39 @@ fn a_local_server_s_own_certificate_is_asked_about_then_trusted() {
     use mailcraft_model::{Security, ServerConfig};
     let shown = super::fingerprint(&server_identity().0[0]);
     let at = |port: u16| ServerConfig { host: "127.0.0.1".into(), port, security: Security::Tls };
-    let refused = |trusted: &[String]| match Client::connect_trusting(&at(imap_over_tls(server_identity())), trusted) {
-        Ok(_) => String::from("connected"),
-        Err(e) => e.to_string(),
-    };
+    let refused = |trusted: &[String]| Client::connect_trusting(&at(imap_over_tls(server_identity())), trusted).err();
     // Not trusted yet, or another certificate trusted: which one it showed.
     let other = super::fingerprint(&via_issuing_identity().0[0]);
     for trusted in [Vec::new(), vec![other]] {
         let why = refused(&trusted);
-        assert_eq!(mailcraft_model::untrusted_local_certificate(&why), Some(("127.0.0.1".to_string(), shown.clone())), "{why}");
+        let named = match &why {
+            Some(crate::NetError::Untrusted { host, fingerprint }) => Some((host.as_str(), fingerprint.as_str())),
+            _ => None,
+        };
+        assert_eq!(named, Some(("127.0.0.1", shown.as_str())), "{why:?}");
     }
     // Trusted: the greeting is read over it.
-    assert_eq!(refused(std::slice::from_ref(&shown)), "connected");
+    assert!(refused(std::slice::from_ref(&shown)).is_none());
     // Plain `connect` trusts none.
     assert!(Client::connect(&at(imap_over_tls(server_identity()))).is_err());
     // A web address on this computer is checked as ever: nothing to ask about.
     let sock = std::net::TcpStream::connect(("127.0.0.1", imap_over_tls(server_identity()))).unwrap();
-    let why = crate::stream::tls(sock, "127.0.0.1").err().map(|e| e.to_string()).unwrap_or_default();
-    assert!(!why.is_empty() && mailcraft_model::untrusted_local_certificate(&why).is_none(), "{why}");
+    let why = crate::stream::tls(sock, "127.0.0.1").err();
+    assert!(matches!(why, Some(crate::NetError::Tls(_))), "{why:?}");
+    assert_eq!(why.map(|e| e.failure()), Some(mailcraft_model::FailureKind::Other));
 }
 
-/// Only a fingerprint in a refusal's own words is read out of it.
+/// A refusal of a local server's own certificate says so in its words, as it always has, and
+/// is of its own kind, naming the server and the certificate: what the window asks about.
 #[test]
 fn a_refusal_names_the_server_and_the_certificate() {
+    use mailcraft_model::{FailureKind, SyncStatus};
     let print = "ab".repeat(32);
-    let said = format!("secure connection: {}", mailcraft_model::local_certificate_refusal("127.0.0.1", &print));
-    assert_eq!(mailcraft_model::untrusted_local_certificate(&said), Some(("127.0.0.1".to_string(), print.clone())));
-    for other in [
-        "invalid peer certificate: UnknownIssuer",
-        "",
-        &format!("({} {print})", "127.0.0.1"),
-        &mailcraft_model::local_certificate_refusal("127.0.0.1", "abc"),
-    ] {
-        assert_eq!(mailcraft_model::untrusted_local_certificate(other), None, "{other}");
-    }
+    let refused = crate::NetError::Untrusted { host: "127.0.0.1".into(), fingerprint: print.clone() };
+    let said = format!("secure connection: {} (127.0.0.1 {print})", mailcraft_model::LOCAL_CERTIFICATE);
+    let kind = FailureKind::LocalCertificate { host: "127.0.0.1".into(), fingerprint: print.clone() };
+    assert_eq!(refused.to_string(), said);
+    assert_eq!(refused.status(), SyncStatus::Error { error: said, kind });
+    assert!(refused.is_fatal() && refused.is_retryable());
     assert!(mailcraft_model::is_certificate_fingerprint(&print) && !mailcraft_model::is_certificate_fingerprint("zz"));
 }

@@ -81,13 +81,13 @@ impl Worker {
             {
                 self.conn = None;
                 self.auth_failed = true;
-                self.status(SyncStatus::Error { error: microsoft_imap_closed(&self.acc.email, self.acc.oauth_user.as_deref()) });
+                self.status(NetError::MailboxClosed(microsoft_imap_closed(&self.acc.email, self.acc.oauth_user.as_deref())).status());
             }
             // Microsoft's servers refuse passwords from mail apps: asking for it again only loops.
             NetError::Auth(m) if mailcraft_model::microsoft_password_account(&self.acc) => {
                 self.conn = None;
                 self.auth_failed = true;
-                self.status(SyncStatus::Error { error: format!("{MICROSOFT_NO_PASSWORDS} ({m})") });
+                self.status(SyncStatus::Error { error: format!("{MICROSOFT_NO_PASSWORDS} ({m})"), kind: FailureKind::MicrosoftNoPasswords });
             }
             // An OAuth token refused (expired early, revoked by a password change elsewhere, or
             // taken before the computer slept): a fresh one from the refresh token, then the
@@ -114,7 +114,7 @@ impl Worker {
                 self.conn = None;
                 self.next_attempt = Instant::now() + self.backoff;
                 self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
-                self.status(SyncStatus::Error { error: e.to_string() });
+                self.status(e.status());
             }
             e => self.notice(e.to_string()),
         }
@@ -217,7 +217,7 @@ impl Worker {
                 return Ok(c);
             }
         }
-        Err(NetError::Refused(microsoft_imap_closed(&self.acc.email, other)))
+        Err(NetError::MailboxClosed(microsoft_imap_closed(&self.acc.email, other)))
     }
 
     /// A connection that couldn't be made is never tried again at once (that looped, showing
@@ -235,13 +235,13 @@ impl Worker {
                 self.conn = None;
                 self.next_attempt = Instant::now() + self.backoff;
                 self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
-                self.status(SyncStatus::Error { error: e.to_string() });
+                self.status(e.status());
             }
             e => {
                 log::warn!("{}: {e}", self.acc.id);
                 self.conn = None;
                 self.auth_failed = true;
-                self.status(SyncStatus::Error { error: e.to_string() });
+                self.status(e.status());
             }
         }
     }

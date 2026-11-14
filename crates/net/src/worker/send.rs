@@ -330,7 +330,7 @@ impl Worker {
                     not_before: 0,
                 };
                 match self.store.outbox_add(&self.acc.id, &item, raw) {
-                    Ok(()) => self.sink.emit(Event::Queued { account: self.id(), id, error: e.to_string() }),
+                    Ok(()) => self.sink.emit(Event::Queued { account: self.id(), id, error: e.to_string(), kind: e.failure() }),
                     Err(se) => {
                         self.sink.emit(Event::SendFailed { account: self.id(), id, error: format!("{e} (and the Outbox couldn't keep it: {se})") })
                     }
@@ -392,7 +392,7 @@ impl Worker {
                         }
                     }
                     if retry {
-                        self.sink.emit(Event::Queued { account: self.id(), id: item.id, error: e.to_string() });
+                        self.sink.emit(Event::Queued { account: self.id(), id: item.id, error: e.to_string(), kind: e.failure() });
                         return;
                     }
                     self.sink.emit(Event::SendFailed { account: self.id(), id: item.id, error: e.to_string() });

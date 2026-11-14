@@ -232,7 +232,7 @@ fn a_microsoft_account_without_a_mailbox_says_so_and_stops() {
     pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
     let seen = until(&pool, "the error", |e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. }));
     let error = seen.iter().find_map(|e| match e {
-        Event::Status { status: SyncStatus::Error { error }, .. } => Some(error.clone()),
+        Event::Status { status: SyncStatus::Error { error, .. }, .. } => Some(error.clone()),
         _ => None,
     });
     assert!(error.as_deref().is_some_and(|e| e.contains("no Outlook.com or Microsoft 365 mailbox")), "{error:?}");

@@ -153,7 +153,7 @@ fn a_reply_from_the_outbox_keeps_its_original() {
         ..Default::default()
     };
     store.outbox_add(id, &item, &raw).unwrap();
-    s.apply(Event::Queued { account: id.into(), id: 77, error: "offline".into() });
+    s.apply(Event::Queued { account: id.into(), id: 77, error: "offline".into(), kind: Default::default() });
     s.run("compose.discard", &json!({})).unwrap_or_default();
     s.run("folder.outbox", &json!({})).unwrap();
     let key = s.list.iter().find(|m| m.subject == draft.subject).map(|m| m.key.clone()).expect("in the Outbox");

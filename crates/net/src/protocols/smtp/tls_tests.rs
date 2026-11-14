@@ -143,6 +143,14 @@ fn refusal_text(result: Result<()>) -> String {
     }
 }
 
+/// The server and the certificate a refusal names as one of its own on this computer.
+fn untrusted(result: &Result<()>) -> Option<(String, String)> {
+    match result {
+        Err(crate::NetError::Untrusted { host, fingerprint }) => Some((host.clone(), fingerprint.clone())),
+        _ => None,
+    }
+}
+
 /// The server's certificates come from the company's own CA, which the system trusts: the
 /// message goes, over implicit TLS and STARTTLS, directly or through an intermediate CA.
 #[test]
@@ -178,8 +186,8 @@ fn a_ca_the_system_does_not_trust_is_refused() {
     for (store, distrusted) in [(vec![], vec![]), (vec![internal_ca()], vec![internal_ca()])] {
         for security in [Security::Tls, Security::StartTls] {
             let (result, heard) = send_to(server_identity(), security, store.clone(), &distrusted);
+            let (host, fingerprint) = untrusted(&result).unwrap_or_default();
             let why = refusal_text(result);
-            let (host, fingerprint) = mailcraft_model::untrusted_local_certificate(&why).unwrap_or_default();
             assert_eq!(host, "127.0.0.1", "{why}");
             assert_eq!(fingerprint, crate::stream::trust::fingerprint(&server_identity().0[0]), "{why}");
             assert!(!heard.contains("AUTH"), "{heard}");
@@ -203,8 +211,9 @@ fn a_local_server_s_certificate_the_user_trusts_is_accepted() {
         // Another certificate than the one trusted: asked about again.
         let other = crate::stream::trust::fingerprint(&via_issuing_identity().0[0]);
         let (result, heard) = send_trusting_to(server_identity(), security, vec![], &[], std::slice::from_ref(&other));
+        let refused = untrusted(&result).map(|(_, f)| f);
         let why = refusal_text(result);
-        assert_eq!(mailcraft_model::untrusted_local_certificate(&why).map(|(_, f)| f), Some(shown.clone()), "{why}");
+        assert_eq!(refused, Some(shown.clone()), "{why}");
         assert!(!heard.contains("AUTH"), "{heard}");
         // One the system distrusts stays refused.
         let distrusted = server_identity().0[0].clone();

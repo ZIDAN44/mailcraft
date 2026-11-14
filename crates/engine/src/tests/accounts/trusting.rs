@@ -10,19 +10,23 @@ fn a_local_server_s_certificate_is_asked_about_once_then_trusted() {
     let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
     s.take_jobs();
     let print = "ab".repeat(32);
-    let refused = SyncStatus::Error { error: format!("secure connection: {}", mailcraft_model::local_certificate_refusal("127.0.0.1", &print)) };
+    let said = format!("secure connection: {}", mailcraft_model::local_certificate_refusal("127.0.0.1", &print));
+    let kind = FailureKind::LocalCertificate { host: "127.0.0.1".into(), fingerprint: print.clone() };
+    let refused = SyncStatus::Error { error: said.clone(), kind: kind.clone() };
     s.apply(Event::Status { account: id.clone(), status: refused.clone() });
     assert_eq!(s.ask_certificate, [(id.clone(), "127.0.0.1".to_string(), print.clone())]);
-    // Refused again as it tries again: asked once.
+    // Refused again as it tries again, or as it sends: asked once.
     s.ask_certificate.clear();
     s.apply(Event::Status { account: id.clone(), status: SyncStatus::Connecting });
     s.apply(Event::Status { account: id.clone(), status: refused });
+    s.apply(Event::Queued { account: id.clone(), id: 9, error: said.clone(), kind });
     assert!(s.ask_certificate.is_empty());
-    // Another refusal isn't one to ask about.
-    s.apply(Event::Status {
-        account: id.clone(),
-        status: SyncStatus::Error { error: "secure connection: invalid peer certificate: UnknownIssuer".into() },
-    });
+    // Another refusal isn't one to ask about, nor one that only has its words, nor one whose
+    // fingerprint isn't one.
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::error("secure connection: invalid peer certificate: UnknownIssuer") });
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::error(said.replace(&print, &"cd".repeat(32))) });
+    let odd = FailureKind::LocalCertificate { host: "127.0.0.1".into(), fingerprint: "zz".into() };
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::Error { error: said, kind: odd } });
     assert!(s.ask_certificate.is_empty());
 
     // Trusted (typed in capitals, with room around it): kept, and the account starts again with it.

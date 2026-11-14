@@ -1,6 +1,6 @@
 //! Engine tests: commands against the sample mailbox and scripted network events.
 
-use mailcraft_model::{Event, Flag, FolderRole, Job, Op, SyncStatus};
+use mailcraft_model::{Event, FailureKind, Flag, FolderRole, Job, Op, SyncStatus};
 use mailcraft_store::Store;
 use serde_json::{Value, json};
 

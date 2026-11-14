@@ -111,7 +111,7 @@ fn a_server_gone_is_an_error_and_tried_again() {
     drop(gone);
     let mut pool = start("calendar-only-gone", &base, PASSWORD);
     let failed = until(&pool, "an error", |e| matches!(status(e), Some(SyncStatus::Error { .. })));
-    let Some(SyncStatus::Error { error }) = status(&failed) else { panic!("not an error: {failed:?}") };
+    let Some(SyncStatus::Error { error, .. }) = status(&failed) else { panic!("not an error: {failed:?}") };
     assert!(!error.is_empty());
     // Tried again after the backoff (five seconds), without being asked.
     until(&pool, "a second try", |e| matches!(status(e), Some(SyncStatus::Error { .. })));

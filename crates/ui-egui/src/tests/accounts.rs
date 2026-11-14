@@ -304,6 +304,55 @@ fn many_accounts_waiting_dont_cover_the_counts() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// An account's trouble that needs you is told apart from one that only waits to be tried again:
+/// the status bar says which (and no other), links to what helps, and Sign in again opens it.
+#[test]
+fn an_account_s_trouble_is_said_and_offers_what_helps() {
+    use mailcraft_engine::model::{FailureKind, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, local_certificate_refusal};
+    let (mut a, dir) = app("troubles");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    a.act(crate::Action::Submit("account.add", json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org"})));
+    let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
+    let print = "ab".repeat(32);
+    let closed = format!("{MICROSOFT_IMAP_CLOSED}. Turn on IMAP on Outlook.com.");
+    let words = ["Sign in with Microsoft", "Mailbox won't open", "Certificate not trusted yet"];
+    let no_passwords = format!("{MICROSOFT_NO_PASSWORDS} (Basic authentication is disabled)");
+    let certificate = format!("secure connection: {}", local_certificate_refusal("127.0.0.1", &print));
+    let local = FailureKind::LocalCertificate { host: "127.0.0.1".into(), fingerprint: print.clone() };
+    let cases = [
+        (SyncStatus::Error { error: no_passwords.clone(), kind: FailureKind::MicrosoftNoPasswords }, Some(words[0])),
+        (SyncStatus::Error { error: closed.clone(), kind: FailureKind::MicrosoftImapClosed }, Some(words[1])),
+        (SyncStatus::Error { error: certificate.clone(), kind: local }, Some(words[2])),
+        (SyncStatus::error("the server closed the connection: bye"), None),
+        // Told by its kind, not its words: these only wait to be tried again.
+        (SyncStatus::error(no_passwords), None),
+        (SyncStatus::error(closed.clone()), None),
+        (SyncStatus::error(certificate), None),
+    ];
+    for (status, said) in cases {
+        a.session.apply(MailEvent::Status { account: id.clone(), status });
+        a.ui.dialog = None;
+        crate::tests::rtl::drawn_text(&ctx, &mut a, size);
+        let texts: Vec<String> = crate::tests::rtl::drawn_text(&ctx, &mut a, size).into_iter().map(|(t, ..)| t).collect();
+        let link = said.map(|w| format!("zoe@example.org: {w}"));
+        // Waiting for you: a link saying what. Otherwise counted among the disconnected.
+        assert_eq!(texts.iter().any(|t| Some(t) == link.as_ref()), said.is_some(), "{said:?}: {texts:?}");
+        assert_eq!(texts.iter().any(|t| t == "1 account disconnected"), said.is_none(), "{said:?}: {texts:?}");
+        assert!(words.iter().filter(|w| Some(**w) != said).all(|w| !texts.iter().any(|t| t.ends_with(w))), "{said:?}: {texts:?}");
+        a.act(crate::Action::SignInAgain(id.clone()));
+        match (said, &a.ui.dialog) {
+            (Some("Mailbox won't open"), Some(Dialog::MailboxClosed { error, .. })) => assert_eq!(error, &closed),
+            (Some("Certificate not trusted yet"), Some(Dialog::TrustCertificate { host, fingerprint, .. })) => {
+                assert_eq!((host.as_str(), fingerprint.as_str()), ("127.0.0.1", print.as_str()));
+            }
+            (Some("Sign in with Microsoft") | None, Some(Dialog::Password { .. })) => {}
+            (said, d) => panic!("{said:?}: {:?}", d.as_ref().map(std::mem::discriminant)),
+        }
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Issue #58: File › Options gives each account with a server a time of its own to look for mail.
 #[test]
 fn options_gives_each_account_its_time_to_look_for_mail() {

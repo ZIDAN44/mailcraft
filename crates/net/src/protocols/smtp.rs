@@ -118,15 +118,15 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
             Some(shown) => {
                 let check = trust::Local::new(Arc::clone(&trust.verifier), trust.trusted);
                 check.judge(shown, usual).map_err(|e| match check.refused() {
-                    Some(fingerprint) => mailcraft_model::local_certificate_refusal(host, &fingerprint),
-                    None => e.to_string(),
+                    Some(fingerprint) => NetError::Untrusted { host: host.to_string(), fingerprint },
+                    None => NetError::Tls(e.to_string()),
                 })
             }
-            None => usual.map_err(|e| e.to_string()),
+            None => usual.map_err(|e| NetError::Tls(e.to_string())),
         };
-        if let Err(said) = verdict {
+        if let Err(e) = verdict {
             conn.abort();
-            return Err(NetError::Tls(said));
+            return Err(e);
         }
     }
     if !sign_in.user.is_empty() {

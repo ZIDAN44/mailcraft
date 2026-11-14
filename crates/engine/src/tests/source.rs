@@ -136,7 +136,7 @@ fn the_source_of_a_message_in_the_outbox() {
     };
     let item = mailcraft_store::OutboxItem { id: send_id, from, recipients, queued: NOW, error: Some("offline".into()), ..Default::default() };
     store.outbox_add(&id, &item, &raw).unwrap();
-    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into() });
+    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into(), kind: Default::default() });
     s.run("folder.outbox", &json!({})).unwrap();
     let key = s.list[0].key.clone();
     let r = s.run("message.source", &json!({"key": key.to_id()})).map_err(|e| e.to_string()).unwrap();

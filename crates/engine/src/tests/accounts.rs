@@ -148,7 +148,7 @@ fn remote_accounts_go_through_jobs_and_events() {
         Some(Job::Send { id, .. }) => id,
         _ => panic!(),
     };
-    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into() });
+    s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into(), kind: Default::default() });
     assert!(s.compose.is_none(), "the compose closes anyway");
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::SetFlag { flag: Flag::Answered, .. }, .. })), "no flag before delivery");
     // The owed flag survives a restart and is set on delivery.
@@ -182,7 +182,7 @@ fn remote_accounts_go_through_jobs_and_events() {
         };
         let item = mailcraft_store::OutboxItem { id: send_id, from, recipients, queued: NOW, error: Some("offline".into()), ..Default::default() };
         s.store.as_ref().unwrap().outbox_add(&id, &item, &raw).unwrap();
-        s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into() });
+        s.apply(Event::Queued { account: id.clone(), id: send_id, error: "offline".into(), kind: Default::default() });
         s.run("folder.outbox", &json!({})).unwrap();
         s.list[0].key.clone()
     };
@@ -389,13 +389,19 @@ fn a_microsoft_account_with_a_password_switches_to_microsoft_sign_in() {
     s.take_jobs();
     s.apply(Event::Status {
         account: id.clone(),
-        status: SyncStatus::Error { error: format!("{} (Basic authentication is disabled)", mailcraft_model::MICROSOFT_NO_PASSWORDS) },
+        status: SyncStatus::Error {
+            error: format!("{} (Basic authentication is disabled)", mailcraft_model::MICROSOFT_NO_PASSWORDS),
+            kind: FailureKind::MicrosoftNoPasswords,
+        },
     });
     assert!(s.notices.last().unwrap().text.contains("Sign in with Microsoft"), "said once, as it comes");
     let n = s.notices.len();
     s.apply(Event::Status {
         account: id.clone(),
-        status: SyncStatus::Error { error: format!("{} (Basic authentication is disabled)", mailcraft_model::MICROSOFT_NO_PASSWORDS) },
+        status: SyncStatus::Error {
+            error: format!("{} (Basic authentication is disabled)", mailcraft_model::MICROSOFT_NO_PASSWORDS),
+            kind: FailureKind::MicrosoftNoPasswords,
+        },
     });
     assert_eq!(s.notices.len(), n, "not again while it stays so");
     s.run("account.signIn", &json!({"account": id})).unwrap();
@@ -438,7 +444,7 @@ fn a_microsoft_account_moves_to_graph() {
     s.run("account.setSignature", &json!({"account": id, "signature": "Zoe x"})).unwrap();
     s.take_jobs();
     let closed = format!("{}. Turn on IMAP", mailcraft_model::MICROSOFT_IMAP_CLOSED);
-    s.apply(Event::Status { account: id.clone(), status: SyncStatus::Error { error: closed } });
+    s.apply(Event::Status { account: id.clone(), status: SyncStatus::Error { error: closed, kind: FailureKind::MicrosoftImapClosed } });
     assert!(s.notices.last().unwrap().text.contains("IMAP"));
     assert!(s.run("account.useGraph", &json!({"account": first})).is_err(), "not a Microsoft account");
     let new = s.run("account.useGraph", &json!({"account": id})).unwrap()["account"].as_str().unwrap().to_string();

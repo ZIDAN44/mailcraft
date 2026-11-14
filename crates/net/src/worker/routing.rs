@@ -158,7 +158,7 @@ impl Pool {
     fn queue_offline_send(&mut self, account: String, id: u64, raw: Vec<u8>, from: String, recipients: Vec<String>, sent_folder: Option<String>) {
         let item = OutboxItem { id, from, recipients, sent_folder, queued: now(), attempts: 0, error: Some("offline".into()), not_before: 0 };
         match self.store.outbox_add(&account, &item, &raw) {
-            Ok(()) => self.sink.emit(Event::Queued { account, id, error: "offline".into() }),
+            Ok(()) => self.sink.emit(Event::Queued { account, id, error: "offline".into(), kind: Default::default() }),
             Err(e) => self.sink.emit(Event::SendFailed { account, id, error: e.to_string() }),
         }
     }

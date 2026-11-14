@@ -31,7 +31,7 @@ pub use encoding::{base64, utf7};
 pub use signature::Signature;
 pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
 // Clean Up is a part of conversations, kept under its old path.
-pub use job::{Event, HeldKey, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
+pub use job::{Event, FailureKind, HeldKey, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
 pub use thread::cleanup;
 // FNV-1a, for keys and fingerprints (with the message keys it mostly makes).
 pub use summary::hash;
@@ -237,22 +237,14 @@ impl AccountConfig {
 pub const MAX_TRUSTED_CERTIFICATES: usize = 8;
 
 /// Why a mail server on this computer was refused: it showed a certificate of its own, which no
-/// authority vouches for and the user hasn't trusted. The refusal holds these words, then the
-/// server and the certificate's fingerprint ([`untrusted_local_certificate`]), so the UI can ask.
+/// authority vouches for and the user hasn't trusted. The refusal says these words, then the
+/// server and the certificate's fingerprint; its kind ([`FailureKind::LocalCertificate`]) names
+/// them, so the UI can ask.
 pub const LOCAL_CERTIFICATE: &str = "the mail server on this computer uses a certificate of its own that isn't trusted yet";
 
 /// What a refusal for [`LOCAL_CERTIFICATE`] says: its words, the server and the fingerprint.
 pub fn local_certificate_refusal(host: &str, fingerprint: &str) -> String {
     format!("{LOCAL_CERTIFICATE} ({host} {fingerprint})")
-}
-
-/// The server and the certificate's fingerprint in a refusal for [`LOCAL_CERTIFICATE`], wherever
-/// in an error's text it is.
-pub fn untrusted_local_certificate(error: &str) -> Option<(String, String)> {
-    let rest = error.split_once(LOCAL_CERTIFICATE)?.1.trim_start().strip_prefix('(')?;
-    let (inside, _) = rest.split_once(')')?;
-    let (host, fingerprint) = inside.rsplit_once(' ')?;
-    (!host.trim().is_empty() && is_certificate_fingerprint(fingerprint)).then(|| (host.trim().to_string(), fingerprint.to_ascii_lowercase()))
 }
 
 /// Whether `s` is a SHA-256 fingerprint in hex.
@@ -312,12 +304,14 @@ pub fn microsoft_consumer(email: &str) -> bool {
     matches!(name, "outlook" | "hotmail" | "live" | "msn" | "windowslive" | "passport") && domain.contains('.')
 }
 
-/// Why a Microsoft account signing in with a password can't connect (its status starts with this).
+/// Why a Microsoft account signing in with a password can't connect: its status starts with this
+/// and is of the kind [`FailureKind::MicrosoftNoPasswords`].
 pub const MICROSOFT_NO_PASSWORDS: &str = "Microsoft doesn't accept passwords from mail apps for this account: it needs Sign in with Microsoft";
 
 /// Why an account signed in with Microsoft can't open its mailbox over IMAP: Microsoft took the
 /// sign-in, then its server said "User is authenticated but not connected". The status starts
-/// with this, so the UI can offer what helps (signing in again, or Microsoft Graph).
+/// with this and is of the kind [`FailureKind::MicrosoftImapClosed`], so the UI can offer what
+/// helps (signing in again, or Microsoft Graph).
 pub const MICROSOFT_IMAP_CLOSED: &str = "Microsoft signed you in, but its mail server won't open this mailbox over IMAP";
 
 /// An account that signs in to Microsoft's servers with a password rather than Microsoft

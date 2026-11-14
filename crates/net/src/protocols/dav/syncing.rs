@@ -117,7 +117,7 @@ fn theirs_kept(uid: &str, href: String, out: &mut DavSync, refetch: &mut Vec<Str
 fn unreadable<T>(read: Result<T>, name: &str, errors: &mut Vec<String>) -> Result<Option<T>> {
     match read {
         Ok(t) => Ok(Some(t)),
-        Err(e @ (NetError::Auth(_) | NetError::Io(_) | NetError::Tls(_))) => Err(e),
+        Err(e @ (NetError::Auth(_) | NetError::Io(_) | NetError::Tls(_) | NetError::Untrusted { .. })) => Err(e),
         Err(e) => {
             errors.push(format!("{name} couldn't be read: {e}"));
             Ok(None)

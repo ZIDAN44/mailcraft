@@ -174,7 +174,7 @@ fn through_a_front_end_that_checks_the_user_agent() {
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret(PASSWORD.into())) });
     let seen = until(&pool, "refused", |e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. }));
     let why = seen.iter().rev().find_map(|e| match e {
-        Event::Status { status: SyncStatus::Error { error }, .. } => Some(error.clone()),
+        Event::Status { status: SyncStatus::Error { error, .. }, .. } => Some(error.clone()),
         _ => None,
     });
     println!("as MailCraft: {why:?}");

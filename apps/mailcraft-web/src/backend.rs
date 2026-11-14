@@ -192,7 +192,7 @@ fn failed(sh: &Rcs, id: &str, e: Error) {
             if let Some(a) = sh.borrow_mut().accounts.get_mut(id) {
                 a.client = None;
             }
-            status(sh, id, SyncStatus::Error { error: e.to_string() });
+            status(sh, id, SyncStatus::error(e.to_string()));
         }
         e => notice(sh, id, e.to_string()),
     }
@@ -201,7 +201,7 @@ fn failed(sh: &Rcs, id: &str, e: Error) {
 async fn connect(sh: &Rcs, id: &str) {
     let Some((config, password)) = sh.borrow().accounts.get(id).map(|a| (a.config.clone(), a.password.clone())) else { return };
     let Some(url) = config.jmap.clone() else {
-        return status(sh, id, SyncStatus::Error { error: "only JMAP accounts work in the browser; use the desktop app for this one".into() });
+        return status(sh, id, SyncStatus::error("only JMAP accounts work in the browser; use the desktop app for this one"));
     };
     let Some(password) = password else {
         return status(sh, id, SyncStatus::NeedsPassword { error: "enter the password: the browser doesn't keep it".into() });

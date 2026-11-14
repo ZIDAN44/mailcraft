@@ -122,7 +122,7 @@ fn an_account_offline_is_answered_by_the_pool() {
         recipients: vec!["ana@example.com".into()],
         sent_folder: Some("Sent".into()),
     };
-    assert_eq!(said(&mut pool, send), [Event::Queued { account: "a1".into(), id: 4, error: "offline".into() }]);
+    assert_eq!(said(&mut pool, send), [Event::Queued { account: "a1".into(), id: 4, error: "offline".into(), kind: Default::default() }]);
     let queued = store.outbox("a1");
     assert_eq!(queued.iter().map(|i| (i.id, i.error.as_deref())).collect::<Vec<_>>(), [(4, Some("offline"))]);
     assert_eq!(store.outbox_raw("a1", 4), Some(raw));

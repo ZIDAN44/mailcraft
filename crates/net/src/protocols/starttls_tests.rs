@@ -147,7 +147,7 @@ fn serve(p: Protocol, up: Upgrade) -> (u16, JoinHandle<String>) {
 
 /// Connect to such a server with STARTTLS, trusting the certificates `trusted`; once connected,
 /// check what was learned over TLS and say goodbye. The outcome, and what the server heard.
-fn talk(p: Protocol, up: Upgrade, trusted: &[String]) -> (std::result::Result<(), String>, String) {
+fn talk(p: Protocol, up: Upgrade, trusted: &[String]) -> (Result<()>, String) {
     let (port, server) = serve(p, up);
     let cfg = ServerConfig { host: "127.0.0.1".into(), port, security: Security::StartTls };
     let outcome: Result<()> = match p {
@@ -162,7 +162,6 @@ fn talk(p: Protocol, up: Upgrade, trusted: &[String]) -> (std::result::Result<()
             c.logout();
         }),
     };
-    let outcome = outcome.map_err(|e| e.to_string());
     (outcome, server.join().unwrap())
 }
 
@@ -175,7 +174,7 @@ fn the_certificate() -> String {
 fn starttls_upgrades_to_a_certificate_the_user_trusts() {
     for p in ALL {
         let (outcome, heard) = talk(p, Upgrade::Agrees, &[the_certificate()]);
-        assert_eq!(outcome, Ok(()), "{p:?}: {heard}");
+        assert!(outcome.is_ok(), "{p:?}: {outcome:?} {heard}");
         let plain: Vec<&str> = heard.lines().filter(|l| l.starts_with("plain:")).collect();
         assert_eq!(plain.len(), 1, "{p:?}: only the upgrade is said in the clear: {heard}");
         assert!(plain.iter().all(|l| l.contains("STARTTLS") || l.contains("STLS")), "{p:?}: {heard}");
@@ -189,9 +188,8 @@ fn starttls_upgrades_to_a_certificate_the_user_trusts() {
 fn starttls_refuses_a_certificate_nobody_vouches_for() {
     for p in ALL {
         let (outcome, heard) = talk(p, Upgrade::Agrees, &[]);
-        let why = outcome.err().unwrap_or_default();
-        let (host, shown) = mailcraft_model::untrusted_local_certificate(&why).unwrap_or_default();
-        assert_eq!((host.as_str(), shown), ("127.0.0.1", the_certificate()), "{p:?}: {why}");
+        let Err(crate::NetError::Untrusted { host, fingerprint }) = outcome else { panic!("{p:?}: {outcome:?}") };
+        assert_eq!((host.as_str(), fingerprint), ("127.0.0.1", the_certificate()), "{p:?}");
         assert!(!heard.contains("tls:"), "{p:?}: {heard}");
     }
 }
@@ -202,7 +200,7 @@ fn starttls_refuses_a_certificate_nobody_vouches_for() {
 fn starttls_stops_at_data_slipped_in_before_tls() {
     for p in ALL {
         let (outcome, heard) = talk(p, Upgrade::Injects, &[the_certificate()]);
-        let why = outcome.err().unwrap_or_default();
+        let why = outcome.err().map(|e| e.to_string()).unwrap_or_default();
         assert!(why.contains("unexpected data before TLS negotiation"), "{p:?}: {why}");
         assert!(!heard.contains("tls:"), "{p:?}: {heard}");
     }
@@ -213,7 +211,7 @@ fn starttls_stops_at_data_slipped_in_before_tls() {
 fn starttls_never_falls_back_to_the_clear() {
     for p in ALL {
         let (outcome, heard) = talk(p, Upgrade::Lacks, &[the_certificate()]);
-        let why = outcome.err().unwrap_or_default();
+        let why = outcome.err().map(|e| e.to_string()).unwrap_or_default();
         assert!(why.contains("STARTTLS") || why.contains("STLS"), "{p:?}: {why}");
         assert!(!heard.contains("tls:"), "{p:?}: {heard}");
         // Nothing past the attempt (no sign-in, no other command) went out.

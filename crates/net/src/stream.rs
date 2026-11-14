@@ -205,8 +205,8 @@ pub(crate) fn on_this_computer(ip: std::net::IpAddr) -> bool {
 /// [`tls`], for an account's own server. One on this computer (the connection made is to a
 /// loopback address) may show a certificate no authority vouches for, as a bridge to a mail
 /// service does: it's accepted when it's one of `trusted` (the account's, by their fingerprints),
-/// and otherwise refused saying which it was ([`mailcraft_model::LOCAL_CERTIFICATE`]), so the
-/// user can be asked. Any other server is checked as every connection is.
+/// and otherwise refused saying which it was ([`NetError::Untrusted`]), so the user can be
+/// asked. Any other server is checked as every connection is.
 pub fn tls_trusting(sock: TcpStream, host: &str, trusted: &[String]) -> Result<Stream> {
     handshake(sock, host, Some(trusted))
 }
@@ -244,11 +244,10 @@ fn handshake(sock: TcpStream, host: &str, trusted: Option<&[String]>) -> Result<
     // Finish the handshake now so certificate problems surface as TLS errors, not later I/O.
     while s.conn.is_handshaking() {
         if let Err(e) = s.conn.complete_io(&mut s.sock) {
-            let said = match local.as_ref().and_then(|l| l.refused()) {
-                Some(fingerprint) => mailcraft_model::local_certificate_refusal(host, &fingerprint),
-                None => e.to_string(),
-            };
-            return Err(NetError::Tls(said));
+            return Err(match local.as_ref().and_then(|l| l.refused()) {
+                Some(fingerprint) => NetError::Untrusted { host: host.to_string(), fingerprint },
+                None => NetError::Tls(e.to_string()),
+            });
         }
     }
     Ok(Stream::Tls(Box::new(s)))

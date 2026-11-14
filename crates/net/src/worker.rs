@@ -14,7 +14,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use mailcraft_model::job::Secret;
-use mailcraft_model::{AccountConfig, Event, Flag, Folder, FolderRole, Job, MessageKey, Op, SyncStatus, sort_folders};
+use mailcraft_model::{AccountConfig, Event, FailureKind, Flag, Folder, FolderRole, Job, MessageKey, Op, SyncStatus, sort_folders};
 use mailcraft_store::{OutboxItem, Store};
 
 use crate::imap::{Client, uid_set};
@@ -253,7 +253,7 @@ impl Pool {
                     let h = Handle { tx, thread: Some(thread), quick: None, no_password, busy, quick_link: Arc::default(), stop };
                     self.workers.insert(account.id.clone(), h);
                 }
-                Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
+                Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
             }
             self.configs.insert(account.id.clone(), account);
             return;
@@ -288,7 +288,7 @@ impl Pool {
             Ok(thread) => {
                 self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, no_password, busy, quick_link, stop });
             }
-            Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Error { error: e.to_string() } }),
+            Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
         }
         self.configs.insert(account.id.clone(), account);
     }
@@ -523,7 +523,7 @@ impl Worker {
         // The second connection's comings and goings aren't the account's, nor a stopped one's.
         if self.main.is_none() && !self.stopped() {
             match &status {
-                SyncStatus::Error { error } => log::warn!("{}: {error}", self.acc.id),
+                SyncStatus::Error { error, .. } => log::warn!("{}: {error}", self.acc.id),
                 SyncStatus::NeedsPassword { error } => log::warn!("{}: needs signing in again: {error}", self.acc.id),
                 SyncStatus::Online { .. } | SyncStatus::Syncing { .. } => {}
                 s => log::info!("{}: {s:?}", self.acc.id),

@@ -273,12 +273,9 @@ line two"
     assert_eq!(a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.subject.as_str()), Some("Waiting"));
     a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
     // Statuses and a notice toast.
-    for st in [
-        SyncStatus::Connecting,
-        SyncStatus::NeedsPassword { error: "no".into() },
-        SyncStatus::Error { error: "x".repeat(300) },
-        SyncStatus::Online { at: NOW },
-    ] {
+    for st in
+        [SyncStatus::Connecting, SyncStatus::NeedsPassword { error: "no".into() }, SyncStatus::error("x".repeat(300)), SyncStatus::Online { at: NOW }]
+    {
         a.session.apply(MailEvent::Status { account: "sample".into(), status: st });
         frame(&ctx, &mut a, vec![]);
     }

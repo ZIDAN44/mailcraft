@@ -283,7 +283,7 @@ fn a_message_set_aside_as_it_goes_hears_what_became_of_it() {
     assert_eq!(sending(&s), 3);
 
     s.apply(Event::Sent { account: id.clone(), id: delivered });
-    s.apply(Event::Queued { account: id.clone(), id: later, error: "offline".into() });
+    s.apply(Event::Queued { account: id.clone(), id: later, error: "offline".into(), kind: Default::default() });
     assert_eq!(sending(&s), 1, "gone from those being sent");
     assert!(s.all_composes().all(|c| c.id != delivered && c.id != later));
 
@@ -384,7 +384,7 @@ fn sending_says_where_the_message_went() {
     assert!(later.len() == 1 && later[0].starts_with("It will be sent "), "{later:?}");
     s.notices.clear();
     let queued = send(&mut s, json!({}));
-    s.apply(Event::Queued { account: id.clone(), id: queued, error: "offline".into() });
+    s.apply(Event::Queued { account: id.clone(), id: queued, error: "offline".into(), kind: Default::default() });
     assert_eq!(said(&s), ["Saved in the Outbox: it will be sent when you're back online"]);
     done(s);
 }
