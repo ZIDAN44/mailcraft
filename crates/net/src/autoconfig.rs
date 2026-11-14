@@ -19,6 +19,8 @@
 
 use mailcraft_model::{AccountConfig, Security, ServerConfig};
 
+use crate::xml::{self, El};
+
 /// Largest configuration file read.
 const MAX_XML: usize = 256 << 10;
 
@@ -29,37 +31,12 @@ pub struct Found {
     pub source: String,
 }
 
-fn unescape(s: &str) -> String {
-    s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
+/// The text of the first `<tag>` in `block`, trimmed.
+fn text_of<'a>(block: &'a El, tag: &str) -> Option<&'a str> {
+    block.find(tag).map(|e| e.text.trim())
 }
 
-/// The text of the first `<tag>…</tag>` in `xml`.
-fn text_of(xml: &str, tag: &str) -> Option<String> {
-    let open = format!("<{tag}>");
-    let start = xml.find(&open)? + open.len();
-    let end = xml.get(start..)?.find(&format!("</{tag}>"))? + start;
-    Some(unescape(xml.get(start..end)?.trim()))
-}
-
-/// Every `<tag …>…</tag>` block whose start tag contains `attr` (`type="imap"`).
-fn blocks<'a>(xml: &'a str, tag: &str, attr: &str) -> Vec<&'a str> {
-    let mut out = Vec::new();
-    let mut from = 0;
-    let close = format!("</{tag}>");
-    while let Some(i) = xml.get(from..).and_then(|r| r.find(&format!("<{tag}"))) {
-        let start = from + i;
-        let Some(head_end) = xml.get(start..).and_then(|r| r.find('>')).map(|e| start + e) else { break };
-        let Some(end) = xml.get(head_end..).and_then(|r| r.find(&close)).map(|e| head_end + e) else { break };
-        let head = xml.get(start..head_end).unwrap_or("").replace('\'', "\"");
-        if head.contains(attr) {
-            out.push(xml.get(head_end + 1..end).unwrap_or(""));
-        }
-        from = end + close.len();
-    }
-    out
-}
-
-fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
+fn server(block: &El, email: &str) -> Option<(ServerConfig, String)> {
     let host = text_of(block, "hostname")?;
     let port: u16 = text_of(block, "port")?.parse().ok()?;
     let security = match text_of(block, "socketType").unwrap_or_default().to_ascii_uppercase().as_str() {
@@ -68,7 +45,7 @@ fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
         _ => Security::None,
     };
     let (local, domain) = email.rsplit_once('@').unwrap_or((email, ""));
-    let user = text_of(block, "username").unwrap_or_else(|| "%EMAILADDRESS%".into());
+    let user = text_of(block, "username").unwrap_or("%EMAILADDRESS%");
     let user = user.replace("%EMAILADDRESS%", email).replace("%EMAILLOCALPART%", local).replace("%EMAILDOMAIN%", domain);
     let host = host.replace("%EMAILDOMAIN%", domain);
     let ok = !host.is_empty() && port != 0 && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'));
@@ -79,9 +56,12 @@ fn server(block: &str, email: &str) -> Option<(ServerConfig, String)> {
 /// one (in `pop`). Encrypted servers are preferred; one without encryption is only taken when
 /// nothing else is offered.
 pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
+    let doc = xml::parse(xml);
     let pick = |tag: &str, kind: &str| -> Option<(ServerConfig, String)> {
+        let mut blocks = Vec::new();
+        doc.all(tag, &mut blocks);
         let mut all: Vec<(ServerConfig, String)> =
-            blocks(xml, tag, &format!("type=\"{kind}\"")).into_iter().filter_map(|b| server(b, email)).collect();
+            blocks.into_iter().filter(|b| b.attr("type") == Some(kind)).filter_map(|b| server(b, email)).collect();
         all.sort_by_key(|(s, _)| match s.security {
             Security::Tls => 0,
             Security::StartTls => 1,
@@ -222,6 +202,20 @@ mod tests {
         );
         let evil = XML.replace("imap.example.org", "imap.example.org/../x");
         assert_eq!(parse_config(&evil, "z@example.org").unwrap().imap.host, "plain.example.org", "bad host names are skipped");
+    }
+
+    /// A provider's file is read as XML: a server in a comment isn't offered, and character
+    /// references and CDATA are read as such.
+    #[test]
+    fn reads_comments_references_and_cdata_as_xml() {
+        const FILE: &str = r#"<clientConfig version="1.1"><emailProvider id="example.org">
+            <!-- Retired: <incomingServer type="imap"><hostname>old.example.org</hostname><port>993</port><socketType>SSL</socketType></incomingServer> -->
+            <incomingServer type="imap"><hostname><![CDATA[imap.example.org]]></hostname><port>&#57;93</port><socketType>SSL</socketType><username>&#37;EMAILLOCALPART&#x25;</username></incomingServer>
+            <outgoingServer type="smtp"><hostname>smtp.example.org</hostname><port>465</port><socketType>SSL</socketType></outgoingServer>
+        </emailProvider></clientConfig>"#;
+        let c = parse_config(FILE, "zoe@example.org").unwrap();
+        assert_eq!(c.imap, ServerConfig { host: "imap.example.org".into(), port: 993, security: Security::Tls });
+        assert_eq!(c.username, "zoe");
     }
 
     /// Live: real DNS and the real ISP database (only domain names are sent). Run by hand with

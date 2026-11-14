@@ -29,6 +29,7 @@ pub mod stream;
 pub mod sync;
 pub mod updates;
 pub mod worker;
+mod xml;
 
 // Each module by its own name, wherever its file sits (`mailcraft_net::ews`, `crate::imap`).
 use data_files::pst_pim;
