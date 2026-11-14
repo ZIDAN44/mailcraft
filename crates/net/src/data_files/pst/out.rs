@@ -188,9 +188,15 @@ fn checkpoint_every(opts: &ImportOptions) -> Duration {
 }
 
 impl Out<'_> {
-    /// Whether the import was asked to stop: nothing more is read.
-    pub(super) fn stopped(&mut self) -> bool {
+    /// Note it when the import has been asked to stop: from then on nothing more is read, and
+    /// it ends as asked ([`Out::stopped_as`]). Once noted, it stays so.
+    pub(super) fn note_stop(&mut self) {
         self.stopped |= self.stop.raised();
+    }
+
+    /// Whether the import was asked to stop, noting it when it was ([`Out::note_stop`]).
+    pub(super) fn stopped(&mut self) -> bool {
+        self.note_stop();
         self.stopped
     }
 
@@ -465,7 +471,7 @@ impl Out<'_> {
         if let Err(e) = self.tally.time(Phase::Commit, || st.list.push(self.store, ready)) {
             log::warn!("import: {e}");
             // Failed at the disk, the data file is opened again: nothing more is written.
-            self.writes_stopped();
+            self.note_reopened();
         }
     }
 

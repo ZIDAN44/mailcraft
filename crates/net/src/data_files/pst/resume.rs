@@ -746,7 +746,7 @@ impl Out<'_> {
             log::warn!("import: the checkpoint couldn't be written: {e}");
             // Failed at the disk, or refused once the data file was opened again: nothing more is
             // written, and the import goes on from the last one written.
-            self.writes_stopped();
+            self.note_reopened();
         }
         self.checkpointed(wrote.is_ok());
     }

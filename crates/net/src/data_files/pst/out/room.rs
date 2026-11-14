@@ -100,11 +100,11 @@ impl Out<'_> {
         self.stop.raise(StopHow::Pause);
     }
 
-    /// Whether writing has stopped: for want of room, or because the data file was opened again
-    /// after a failed write since the import began (whoever's write it was). Then nothing more
-    /// goes to the store, and the import stops as if paused, to go on from its last checkpoint
-    /// (said as a full drive when the drive is short of room).
-    pub(in super::super) fn writes_stopped(&mut self) -> bool {
+    /// Note it when the data file has been opened again after a failed write since the import
+    /// began (whoever's write it was): writing stops then, for good, and the import stops as if
+    /// paused, to go on from its last checkpoint (said as a full drive when the drive is short of
+    /// room).
+    pub(in super::super) fn note_reopened(&mut self) {
         if !self.room.refused && self.store.data_file_reopened(self.account) != self.room.reopened {
             match self.short_of_room() {
                 Some(_) => self.out_of_room(),
@@ -115,6 +115,13 @@ impl Out<'_> {
                 }
             }
         }
+    }
+
+    /// Whether writing has stopped: for want of room, or because the data file was opened again
+    /// after a failed write, noted first ([`Out::note_reopened`]). Then nothing more goes to the
+    /// store.
+    pub(in super::super) fn writes_stopped(&mut self) -> bool {
+        self.note_reopened();
         self.room.refused
     }
 

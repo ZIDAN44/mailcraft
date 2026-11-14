@@ -585,7 +585,7 @@ fn conclude(
     // planned, the writer had nothing to see the stop by: it's a stop all the same.
     let planned = if opts.stop.raised() { Ok(Ok(())) } else { planned };
     if opts.stop.raised() && !out.note_ready() {
-        out.stopped();
+        out.note_stop();
     }
     // Going on, a file that isn't the one it was (or can't be read now) waits on the user, with
     // nothing written.
