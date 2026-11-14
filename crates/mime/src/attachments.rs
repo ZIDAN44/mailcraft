@@ -5,6 +5,7 @@ use std::borrow::Cow;
 
 use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
+use mailcraft_model::work;
 
 pub(crate) mod fields;
 mod index_text;
@@ -140,18 +141,16 @@ impl Refs {
                 r.cids.insert(percent_decoded(cid));
             }
         }
-        for attr in ["src", "href", "background"] {
-            let mut from = 0;
-            while let Some(at) = lower.get(from..).and_then(|s| s.find(attr)).map(|i| i + from) {
-                from = at + attr.len();
-                if at > 0 && !lower.as_bytes().get(at - 1).is_some_and(|b| b.is_ascii_whitespace()) {
-                    continue;
-                }
-                let Some(value) = lower.get(from..).and_then(|s| s.trim_start().strip_prefix('=')).map(str::trim_start) else { continue };
-                let value = match value.chars().next() {
-                    Some(q @ ('"' | '\'')) => value.get(1..).and_then(|v| v.split(q).next()).unwrap_or_default(),
-                    _ => value.split(|c: char| c.is_ascii_whitespace() || c == '>').next().unwrap_or_default(),
-                };
+        // Every `src`, `href` and `background` of a tag, read as every other pass reads a tag's
+        // attributes ([`crate::html::attributes`]): not a name in another's quoted value
+        // (`alt="… src=plan.pdf"` took a file of that name for shown), nor in the text.
+        let mut from = 0;
+        while let Some(at) = lower.get(from..).and_then(|s| work::scanned(s, s.find('<'))).map(|i| i + from) {
+            let Some(end) = crate::html::tag_end(lower.as_bytes(), at + 1) else { break };
+            from = end + 1;
+            let tag = lower.get(at..=end).unwrap_or_default();
+            for a in crate::html::attributes(tag).1.into_iter().filter(|a| matches!(a.name.as_str(), "src" | "href" | "background")) {
+                let value = tag.get(a.value).unwrap_or_default();
                 let path = percent_decoded(value.split(['?', '#']).next().unwrap_or(value).trim());
                 if !path.is_empty() && r.paths.len() < MAX_REFS {
                     if !last_segment(&path).is_empty() {

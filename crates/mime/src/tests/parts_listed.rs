@@ -66,3 +66,24 @@ fn text_with_no_header_is_no_message() {
     let s = summary_from_header(b"just some words", key(), Flags::default(), 0, 7);
     assert_eq!((s.date, s.subject.as_str()), (7, ""));
 }
+
+/// What the HTML shows is read from its tags' attributes as every other pass reads them: a
+/// `src=` in another's quoted value, or in the text, shows nothing (a file whose address was
+/// written in a picture's description was taken for shown, and lost its paperclip).
+#[test]
+fn an_address_in_a_quoted_value_shows_nothing() {
+    let make = || {
+        r#"<p>Use src=notes.txt now</p><img alt="see src=plan.pdf here" src="cid:logo@x"><a title='x' href = 'files/Chart%20one.png?v=2'>c</a><td background=bg.gif>"#.to_string()
+    };
+    let refs = HtmlRefs::new(&make);
+    assert!(!refs.shows(None, Some("plan.pdf")));
+    assert!(!refs.shows(None, Some("notes.txt")));
+    assert!(refs.shows(Some("<logo@x>"), None));
+    assert!(refs.shows(None, Some("chart one.png")) && refs.shows(None, Some("files/chart one.png")));
+    assert!(refs.shows(None, Some("BG.gif")));
+    // Read in proportion to the HTML, however many tags it has or leaves open.
+    for html in ["<a href=x>".repeat(50_000), "<a title=\"".repeat(50_000), "<<<<".repeat(50_000)] {
+        let make = || html.clone();
+        mailcraft_model::work::linear(html.len(), || HtmlRefs::new(&make).shows(None, Some("x")));
+    }
+}

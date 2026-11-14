@@ -20,29 +20,7 @@ pub(crate) struct Font {
     pub family: Option<String>,
 }
 
-use crate::html::void;
-
-/// An attribute of a start tag (`name="v"`, `name='v'`, `name=v`), case-insensitive.
-fn attr(tag: &str, name: &str) -> Option<String> {
-    let lower = tag.to_ascii_lowercase();
-    let mut from = 0;
-    while let Some(i) = lower.get(from..).and_then(|r| r.find(name)) {
-        let at = from + i;
-        from = at + name.len();
-        let before_ok = lower.get(..at).and_then(|b| b.chars().last()).is_some_and(|c| c.is_whitespace());
-        let rest = lower.get(at + name.len()..).unwrap_or("").trim_start();
-        if !before_ok || !rest.starts_with('=') {
-            continue;
-        }
-        let off = tag.len() - rest.len() + 1;
-        let v = tag.get(off..).unwrap_or("").trim_start();
-        return Some(match v.chars().next() {
-            Some(q @ ('"' | '\'')) => v.get(1..).and_then(|x| x.split(q).next()).unwrap_or("").to_string(),
-            _ => v.split(|c: char| c.is_whitespace() || c == '>').next().unwrap_or("").to_string(),
-        });
-    }
-    None
-}
+use crate::html::{tag_attr as attr, void};
 
 /// A typeface's name from a CSS `font-family` list: the first, unquoted, or `None` for a
 /// generic one or MailCraft's own (Aptos).
@@ -89,10 +67,10 @@ fn font_of(tag: &str, name: &str) -> Option<Font> {
     }
     if name == "font" {
         if let Some(size) = attr(tag, "size") {
-            f.size = crate::layout::font_attr_px(&size).and_then(points).or(f.size);
+            f.size = crate::layout::font_attr_px(size).and_then(points).or(f.size);
         }
         if let Some(face) = attr(tag, "face") {
-            f.family = family(&face).or(f.family);
+            f.family = family(face).or(f.family);
         }
     }
     (f != Font::default()).then_some(f)
@@ -246,5 +224,19 @@ mod tests {
             let _ = mark(junk);
         }
         assert_eq!(mark("<p style='font:bold 12pt/1.2 Georgia, serif'>x").1, vec![Font { size: Some(12), family: Some("Georgia".into()) }]);
+    }
+
+    /// A tag's attributes are read as the other passes read them ([`crate::html::attributes`]): a
+    /// name in another's quoted value isn't one (the size in a `title` was taken for the
+    /// element's, and a typeface in an `alt` for a `<font>`'s).
+    #[test]
+    fn a_name_in_a_quoted_value_is_no_attribute() {
+        let (_, f) = mark("<span title=\" style=font-size:30px\" style=\"font-size:9pt\">x</span>");
+        assert_eq!(f, vec![Font { size: Some(9), family: None }]);
+        let (_, f) = mark("<font title='a face=Impact' face=Arial>x</font>");
+        assert_eq!(f, vec![Font { size: None, family: Some("Arial".into()) }]);
+        // Case and spacing as before.
+        let (_, f) = mark("<FONT SIZE = 5 FACE='Tahoma'>x</FONT>");
+        assert_eq!(f, vec![Font { size: Some(18), family: Some("Tahoma".into()) }]);
     }
 }
