@@ -300,22 +300,39 @@ fn remember(sh: &Rcs, id: &str, password: &str) {
     reseal(sh, id, false);
 }
 
-/// Whether the account's certificates are kept unlocked between visits.
+/// Whether the account's certificates are kept unlocked between visits: as last asked on this
+/// page (a seal under way hasn't reached the storage yet), else as the storage says.
 fn keeping(sh: &Rcs, id: &str) -> bool {
-    store(sh).load_account_doc::<Vec<u8>>(id, KEEP_DOC).is_ok_and(|d| !d.is_empty())
+    let kept = || store(sh).load_account_doc::<Vec<u8>>(id, KEEP_DOC).is_ok_and(|d| !d.is_empty());
+    sh.borrow().smime_sealing.get(id).map_or_else(kept, |s| s.keeping(kept))
+}
+
+/// Whether the seal begun at `turn` is still the one to keep ([`crate::sealing`]).
+fn latest(sh: &Rcs, id: &str, turn: u64) -> bool {
+    sh.borrow().smime_sealing.get(id).is_some_and(|s| s.current(turn))
 }
 
 /// Seal the passwords noted for the account and keep them (`start`: whether or not they were kept
-/// before; otherwise only while they are).
+/// before; otherwise only while they are). Sealing waits on the browser: a seal that lands after a
+/// later one began, or after keeping was turned off, is dropped (it put back an older list, or
+/// the passwords the user had just asked not to keep).
 fn reseal(sh: &Rcs, id: &str, start: bool) {
     if !start && !keeping(sh, id) {
         return;
     }
-    let passwords = sh.borrow().smime_passwords.get(id).cloned().unwrap_or_default();
+    let (passwords, turn) = {
+        let mut s = sh.borrow_mut();
+        let turn = s.smime_sealing.entry(id.to_string()).or_default().begin(start);
+        (s.smime_passwords.get(id).cloned().unwrap_or_default(), turn)
+    };
     let (sh, id) = (sh.clone(), id.to_string());
     wasm_bindgen_futures::spawn_local(async move {
         let plain = serde_json::to_vec(&passwords).unwrap_or_default();
-        match crate::vault::seal(&plain).await {
+        let sealed = crate::vault::seal(&plain).await;
+        if !latest(&sh, &id, turn) {
+            return;
+        }
+        match sealed {
             Ok(sealed) => {
                 if let Err(e) = store(&sh).save_account_doc(&id, KEEP_DOC, &sealed) {
                     notice(&sh, &id, format!("the certificate can't be kept unlocked in this browser: {e}"));
@@ -327,8 +344,9 @@ fn reseal(sh: &Rcs, id: &str, start: bool) {
 }
 
 /// Stop keeping the account's certificates unlocked: the sealed passwords go, and the browser's
-/// key too once no account needs it.
+/// key too once no account needs it. A seal under way is dropped.
 fn stop_keeping(sh: &Rcs, id: &str) {
+    sh.borrow_mut().smime_sealing.entry(id.to_string()).or_default().stop();
     if let Err(e) = store(sh).save_account_doc(id, KEEP_DOC, &Vec::<u8>::new()) {
         notice(sh, id, format!("the sealed passwords of your certificates couldn't be removed from this browser: {e}"));
     }
@@ -363,7 +381,15 @@ pub(super) fn restore(sh: &Rcs, id: &str) {
         for p in &passwords {
             opened.extend(own.unlock(p));
         }
-        sh.borrow_mut().smime_passwords.insert(id.clone(), passwords);
+        // A password typed while they were being opened stays, and is sealed with them (its own
+        // seal kept it alone).
+        let more = {
+            let mut s = sh.borrow_mut();
+            crate::sealing::merge(s.smime_passwords.entry(id.clone()).or_default(), passwords)
+        };
+        if more {
+            reseal(&sh, &id, false);
+        }
         if opened.is_empty() {
             return;
         }

@@ -70,6 +70,8 @@ struct Shared {
     /// The passwords that opened them, for keeping them unlocked when that's asked (gap 7):
     /// in memory, and sealed with the browser's key only then.
     smime_passwords: HashMap<String, Vec<String>>,
+    /// Each account's sealing of them: only the latest seal is kept, none once keeping is off.
+    smime_sealing: HashMap<String, crate::sealing::Sealing>,
     /// The search indexes asked to be brought up to the mail.
     indexing: indexing::Indexing,
 }
@@ -93,6 +95,7 @@ impl WebBackend {
                 search: 0,
                 smime: HashMap::new(),
                 smime_passwords: HashMap::new(),
+                smime_sealing: HashMap::new(),
                 indexing: indexing::Indexing::default(),
             })),
         }

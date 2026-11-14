@@ -139,6 +139,7 @@ on GitHub.
 - `--cmd` with bad JSON says so for the window's own commands too (ui.addAccount and others) instead of opening the dialog empty.
 - Started twice at the same moment, MailCraft no longer ends up opening a second window for every later launch.
 - Dragging an attachment out on Linux no longer floods the drop target with messages, and works for file names that aren't UTF-8.
+- In the browser, turning off "Keep unlocked in this browser" while a password is being sealed no longer leaves it kept.
 
 ## 0.38.0 - 2026-11-13
 

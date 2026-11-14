@@ -21,6 +21,7 @@ mod fetch;
 mod idb;
 mod index_queue;
 mod query;
+mod sealing;
 #[cfg(target_arch = "wasm32")]
 mod vault;
 #[cfg(target_arch = "wasm32")]
