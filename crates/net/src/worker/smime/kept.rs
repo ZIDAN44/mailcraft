@@ -40,7 +40,7 @@ struct Kept {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     held: Option<KeyRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pin: Option<String>,
+    pin: Option<Secret>,
 }
 
 pub(super) fn hex(b: &[u8]) -> String {
@@ -223,8 +223,8 @@ pub(super) fn use_older(creds: &dyn Credentials, account: &AccountConfig, finger
 
 /// After `done`, a kept PIN the card refused is forgotten (the reference to the key stays), in
 /// the entry it came from: the one in use, or an older one (`older`, its SHA-256).
-pub(super) fn forget_wrong_pin<T>(creds: &dyn Credentials, account: &AccountConfig, older: Option<&str>, done: &std::result::Result<T, String>) {
-    if !matches!(done, Err(e) if e.contains(PIN_WRONG)) {
+pub(super) fn forget_wrong_pin<T>(creds: &dyn Credentials, account: &AccountConfig, older: Option<&str>, done: &std::result::Result<T, KeyError>) {
+    if !matches!(done, Err(KeyError::WrongKeptPin)) {
         return;
     }
     let _changing = changing();
@@ -240,7 +240,7 @@ pub(super) fn forget_wrong_pin<T>(creds: &dyn Credentials, account: &AccountConf
 /// `cms` decrypted with the key it was encrypted to: the one in use, or an older one. Mail for a
 /// certificate MailCraft doesn't have isn't tried with any (a card would ask for its PIN for
 /// nothing).
-pub(super) fn decrypt(creds: &dyn Credentials, account: &AccountConfig, cms: &[u8]) -> std::result::Result<(Vec<u8>, bool), String> {
+pub(super) fn decrypt(creds: &dyn Credentials, account: &AccountConfig, cms: &[u8]) -> std::result::Result<(Vec<u8>, bool), KeyError> {
     let cur = kept(creds, account);
     if let Ok(me) = &cur
         && smime::addressed_to(cms, me.certificate())
@@ -258,9 +258,11 @@ pub(super) fn decrypt(creds: &dyn Credentials, account: &AccountConfig, cms: &[u
         }
     }
     match cur {
-        Ok(_) => Err("it was encrypted to a certificate MailCraft doesn't have: import that one too (File › Info › Security), and MailCraft keeps it to read such mail".into()),
-        Err(e) if older_list(creds, account).is_empty() => Err(e),
-        Err(_) => Err("it was encrypted to a certificate MailCraft doesn't have: import that one (File › Info › Security)".into()),
+        Ok(_) => Err(other(
+            "it was encrypted to a certificate MailCraft doesn't have: import that one too (File › Info › Security), and MailCraft keeps it to read such mail",
+        )),
+        Err(e) if older_list(creds, account).is_empty() => Err(KeyError::Other(e)),
+        Err(_) => Err(other("it was encrypted to a certificate MailCraft doesn't have: import that one (File › Info › Security)")),
     }
 }
 

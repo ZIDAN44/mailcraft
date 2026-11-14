@@ -34,7 +34,30 @@ enum MyKey {
     /// PKCS #8, from a `.p12` file.
     Software(Vec<u8>),
     /// On a smart card, or in the system's keychain.
-    Held { at: KeyRef, pin: Option<String> },
+    Held { at: KeyRef, pin: Option<Secret> },
+}
+
+/// Why work with the private key failed.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum KeyError {
+    /// The card refused the PIN kept for it: it's forgotten ([`kept::forget_wrong_pin`]), so it's
+    /// never tried again (a card locks after a few wrong ones).
+    WrongKeptPin,
+    /// Anything else, as the user is told.
+    Other(String),
+}
+
+impl std::fmt::Display for KeyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KeyError::WrongKeptPin => f.write_str(PIN_WRONG),
+            KeyError::Other(e) => f.write_str(e),
+        }
+    }
+}
+
+fn other(e: impl std::fmt::Display) -> KeyError {
+    KeyError::Other(e.to_string())
 }
 
 impl std::fmt::Debug for Me {
@@ -55,10 +78,10 @@ impl Me {
     }
 
     /// `f` done with the private key, wherever it is.
-    fn with_key<T>(&self, f: impl FnOnce(&mut dyn smime::PrivateKey) -> std::result::Result<T, smime::Error>) -> std::result::Result<T, String> {
+    fn with_key<T>(&self, f: impl FnOnce(&mut dyn smime::PrivateKey) -> std::result::Result<T, smime::Error>) -> std::result::Result<T, KeyError> {
         match &self.key {
-            MyKey::Software(key) => f(&mut smime::key::Software { key, rng: &mut rand_core::OsRng }).map_err(|e| e.to_string()),
-            MyKey::Held { at, pin } => with_held(at, pin.as_deref(), mailcraft_keys::pkcs11::PinFrom::Kept, f),
+            MyKey::Software(key) => f(&mut smime::key::Software { key, rng: &mut rand_core::OsRng }).map_err(other),
+            MyKey::Held { at, pin } => with_held(at, pin.as_ref().map(|p| p.0.as_str()), mailcraft_keys::pkcs11::PinFrom::Kept, f),
         }
     }
 }
@@ -68,35 +91,53 @@ fn with_held<T>(
     pin: Option<&str>,
     from: mailcraft_keys::pkcs11::PinFrom,
     f: impl FnOnce(&mut dyn smime::PrivateKey) -> std::result::Result<T, smime::Error>,
-) -> std::result::Result<T, String> {
+) -> std::result::Result<T, KeyError> {
     match at {
         KeyRef::Card { .. } => {
-            let mut k = mailcraft_keys::pkcs11::open(at, pin, from).map_err(|e| match e {
-                // The kept PIN is wrong: said so, and the pool forgets it (`forget_wrong_pin`).
-                mailcraft_keys::Error::Pin if pin.is_some() && from == mailcraft_keys::pkcs11::PinFrom::Kept => PIN_WRONG.to_string(),
-                e => e.to_string(),
+            let mut k = open_card(at, pin, from).map_err(|e| match e {
+                // The kept PIN is wrong: the pool forgets it (`forget_wrong_pin`).
+                mailcraft_keys::Error::Pin if pin.is_some() && from == mailcraft_keys::pkcs11::PinFrom::Kept => KeyError::WrongKeptPin,
+                e => other(e),
             })?;
-            f(&mut k).map_err(|e| e.to_string())
+            f(&mut k).map_err(other)
         }
         #[cfg(target_os = "macos")]
         KeyRef::Keychain { .. } => {
-            let mut k = mailcraft_keys::macos::open(at).map_err(|e| e.to_string())?;
-            f(&mut k).map_err(|e| e.to_string())
+            let mut k = mailcraft_keys::macos::open(at).map_err(other)?;
+            f(&mut k).map_err(other)
         }
         #[cfg(not(target_os = "macos"))]
-        KeyRef::Keychain { .. } => Err("the certificate is in another computer's keychain".into()),
+        KeyRef::Keychain { .. } => Err(other("the certificate is in another computer's keychain")),
         #[cfg(windows)]
         KeyRef::WindowsStore { .. } => {
-            let mut k = mailcraft_keys::windows::open(at).map_err(|e| e.to_string())?;
-            f(&mut k).map_err(|e| e.to_string())
+            let mut k = mailcraft_keys::windows::open(at).map_err(other)?;
+            f(&mut k).map_err(other)
         }
         #[cfg(not(windows))]
-        KeyRef::WindowsStore { .. } => Err("the certificate is in another computer's certificate store".into()),
+        KeyRef::WindowsStore { .. } => Err(other("the certificate is in another computer's certificate store")),
     }
 }
 
-/// What a kept card PIN that the card refused says. It's forgotten at once, so it's never tried
-/// again: a card locks after a few wrong ones.
+/// The module of the tests' stand-in card, which refuses every PIN as a real card does a wrong
+/// one (no real card is ever tried in a test).
+#[cfg(test)]
+const REFUSES_PIN: &str = "test: a card that refuses every PIN";
+
+/// A card's key, logged in to with `pin`.
+fn open_card(
+    at: &KeyRef,
+    pin: Option<&str>,
+    from: mailcraft_keys::pkcs11::PinFrom,
+) -> std::result::Result<mailcraft_keys::pkcs11::CardKey, mailcraft_keys::Error> {
+    #[cfg(test)]
+    if matches!(at, KeyRef::Card { module, .. } if module == REFUSES_PIN) {
+        return Err(if pin.is_some() { mailcraft_keys::Error::Pin } else { mailcraft_keys::Error::NeedPin });
+    }
+    mailcraft_keys::pkcs11::open(at, pin, from)
+}
+
+/// What a kept card PIN that the card refused says ([`KeyError::WrongKeptPin`]). It's forgotten
+/// at once, so it's never tried again: a card locks after a few wrong ones.
 const PIN_WRONG: &str = "the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)";
 
 /// The certificates whose keys are held elsewhere: on the cards `module` sees, or in the
@@ -129,15 +170,23 @@ pub(crate) fn protect(
     encrypt_to: &[Vec<u8>],
     gcm: bool,
     hide_subject: bool,
-) -> std::result::Result<Vec<u8>, String> {
+) -> std::result::Result<Vec<u8>, KeyError> {
     use rand_core::RngCore as _;
     let boundary = format!("=_mcs{:016x}", rand_core::OsRng.next_u64());
-    let mut sign_with = |entity: &[u8]| id.with_key(|k| smime::sign_with(entity, &id.chain, k, now()));
+    // The MIME layer's errors are text: a kept PIN refused is noted here, past it.
+    let mut pin_refused = false;
+    let mut sign_with = |entity: &[u8]| {
+        id.with_key(|k| smime::sign_with(entity, &id.chain, k, now())).map_err(|e| {
+            pin_refused |= e == KeyError::WrongKeptPin;
+            e.to_string()
+        })
+    };
     let cipher = if gcm { smime::Cipher::Aes256Gcm } else { smime::Cipher::Aes256Cbc };
     let mut encrypt_with = |entity: &[u8]| smime::encrypt(entity, encrypt_to, cipher, &mut rand_core::OsRng).map_err(|e| e.to_string());
     let signer: Option<mailcraft_mime::smime::Crypto<'_>> = if sign { Some(&mut sign_with) } else { None };
     let encrypter: Option<mailcraft_mime::smime::Crypto<'_>> = if encrypt_to.is_empty() { None } else { Some(&mut encrypt_with) };
-    mailcraft_mime::smime::protect(raw, signer, encrypter, gcm, hide_subject, &boundary)
+    let done = mailcraft_mime::smime::protect(raw, signer, encrypter, gcm, hide_subject, &boundary);
+    done.map_err(|e| if pin_refused { KeyError::WrongKeptPin } else { KeyError::Other(e) })
 }
 
 /// What the account has now, or why a certificate couldn't be kept.
@@ -152,8 +201,8 @@ impl Pool {
     /// A draft encrypted to the account's own certificate, at once (it may be the last thing
     /// before MailCraft closes). Without the key it stays as it is, and the user is told.
     pub(super) fn seal(&self, account: &AccountConfig, raw: Vec<u8>) -> Vec<u8> {
-        let sealed = kept(self.creds.as_ref(), account).and_then(|me| {
-            let own = me.chain.first().cloned().ok_or_else(|| "the certificate is missing".to_string())?;
+        let sealed = kept(self.creds.as_ref(), account).map_err(KeyError::Other).and_then(|me| {
+            let own = me.chain.first().cloned().ok_or_else(|| other("the certificate is missing"))?;
             protect(&raw, &me, false, &[own], true, false)
         });
         forget_wrong_pin(self.creds.as_ref(), account, None, &sealed);
@@ -186,11 +235,11 @@ impl Pool {
             }
             Job::Protect { account, id, raw, sign, encrypt_to, gcm, hide_subject, signer } => {
                 let (me, older) = kept::signing(creds.as_ref(), &account, signer.as_deref());
-                let done = me.and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
+                let done = me.map_err(KeyError::Other).and_then(|me| protect(&raw.0, &me, sign, &encrypt_to, gcm, hide_subject));
                 forget_wrong_pin(creds.as_ref(), &account, older.as_deref(), &done);
                 let (raw, error) = match done {
                     Ok(r) => (Some(Private(r)), None),
-                    Err(e) => (None, Some(e)),
+                    Err(e) => (None, Some(e.to_string())),
                 };
                 sink.emit(Event::Protected { account: account.id, id, raw, error });
             }
@@ -198,7 +247,7 @@ impl Pool {
                 let done = kept::decrypt(creds.as_ref(), &account, &cms);
                 let event = match done {
                     Ok((content, authenticated)) => Event::Decrypted { key, content: Some(Private(content)), authenticated, error: None },
-                    Err(e) => Event::Decrypted { key, content: None, authenticated: false, error: Some(e) },
+                    Err(e) => Event::Decrypted { key, content: None, authenticated: false, error: Some(e.to_string()) },
                 };
                 sink.emit(event);
             }
@@ -216,11 +265,13 @@ impl Pool {
                     let chain = [vec![cert], mailcraft_keys::windows::issuers(&at)].concat();
                     #[cfg(not(windows))]
                     let chain = vec![cert];
-                    let me = Me { chain, key: MyKey::Held { at, pin: pin.map(|p| p.0) } };
+                    let me = Me { chain, key: MyKey::Held { at, pin } };
                     // It's used once here, so a wrong PIN or a card taken out says so now (the PIN
                     // was just typed: the user's to try).
                     let MyKey::Held { at, pin } = &me.key else { return Err("the key can't be found again".to_string()) };
-                    with_held(at, pin.as_deref(), mailcraft_keys::pkcs11::PinFrom::Typed, |k| smime::sign_with(b"MailCraft", &me.chain, k, now()))?;
+                    let pin = pin.as_ref().map(|p| p.0.as_str());
+                    with_held(at, pin, mailcraft_keys::pkcs11::PinFrom::Typed, |k| smime::sign_with(b"MailCraft", &me.chain, k, now()))
+                        .map_err(|e| e.to_string())?;
                     kept::take(creds.as_ref(), &account, &me, now())
                 });
                 sink.emit(identity(account.id, done));
