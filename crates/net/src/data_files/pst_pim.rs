@@ -30,14 +30,14 @@ pub use tasks::repeating_task;
 pub(crate) use tasks::task_of;
 
 pub(crate) type GuidKey = (u32, u16, u16, [u8; 8]);
-const OLE: [u8; 8] = [0xC0, 0, 0, 0, 0, 0, 0, 0x46];
-const PSETID_ADDRESS: GuidKey = (0x0006_2004, 0, 0, OLE);
-const PSETID_APPOINTMENT: GuidKey = (0x0006_2002, 0, 0, OLE);
-const PSETID_TASK: GuidKey = (0x0006_2003, 0, 0, OLE);
-const PSETID_NOTE: GuidKey = (0x0006_200E, 0, 0, OLE);
-const PSETID_COMMON: GuidKey = (0x0006_2008, 0, 0, OLE);
-const PSETID_LOG: GuidKey = (0x0006_200A, 0, 0, OLE);
-const PSETID_MEETING: GuidKey = (0x6ED8_DA90, 0x450B, 0x101B, [0x98, 0xDA, 0x00, 0xAA, 0x00, 0x3F, 0x13, 0x05]);
+use super::outlook::{self, ADDRESSES, BUSY, EPOCH_MINUTES, GLOBAL_ID, MAX_MEMBERS, MEETING_CLASSES, OLE, PHONES, TRACK, VCAL_UID};
+const PSETID_ADDRESS: GuidKey = guid_key(outlook::PSETID_ADDRESS);
+const PSETID_APPOINTMENT: GuidKey = guid_key(outlook::PSETID_APPOINTMENT);
+const PSETID_TASK: GuidKey = guid_key(outlook::PSETID_TASK);
+const PSETID_NOTE: GuidKey = guid_key(outlook::PSETID_NOTE);
+const PSETID_COMMON: GuidKey = guid_key(outlook::PSETID_COMMON);
+const PSETID_LOG: GuidKey = guid_key(outlook::PSETID_LOG);
+const PSETID_MEETING: GuidKey = guid_key(outlook::PSETID_MEETING);
 /// Name-to-id entries read at most.
 const MAX_NAMES: usize = 200_000;
 /// Deleted (and changed) occurrences read at most.
@@ -45,18 +45,18 @@ const MAX_EXCEPTIONS: usize = 5_000;
 /// A repeating appointment's pattern read at most: one with as many changed occurrences as are
 /// read, each with a long subject and location, is far less. What's past it is as if cut short.
 const MAX_PATTERN: usize = 1 << 20;
-/// A contact group's members, and an event's categories, kept at most.
-const MAX_MEMBERS: usize = 10_000;
+/// An event's categories kept at most.
 const MAX_CATEGORIES: usize = 64;
 /// A reminder further ahead than a year (in minutes) isn't one; nor a journal entry longer.
 const MAX_MINUTES: i64 = 366 * 24 * 60;
 /// The provider of a wrapped entry id (a contact group's member, MS-OXOCNTC 2.2.2.2.1).
 const WRAPPED: [u8; 16] = [0xC0, 0x91, 0xAD, 0xD3, 0x51, 0x9D, 0xCF, 0x11, 0xA4, 0xA9, 0x00, 0xAA, 0x00, 0x47, 0xFA, 0xA4];
-/// Minutes from 1601-01-01 to 1970-01-01.
-const EPOCH_MINUTES: i64 = 11_644_473_600 / 60;
+const fn guid_key(g: GuidValue) -> GuidKey {
+    (g.data1(), g.data2(), g.data3(), *g.data4())
+}
 
 fn key(g: &GuidValue) -> GuidKey {
-    (g.data1(), g.data2(), g.data3(), *g.data4())
+    guid_key(*g)
 }
 
 /// The property (in PS_PUBLIC_STRINGS) an export marks each contact, note and task with: the
@@ -254,10 +254,6 @@ pub(crate) struct Extra {
     pub response_requested: bool,
 }
 
-/// PidLidGlobalObjectId's first bytes (MS-OXOCAL 2.2.1.27), and those of its Data for a meeting
-/// made by a calendar other than Outlook, whose `UID` follows.
-const GLOBAL_ID: [u8; 16] = [0x04, 0, 0, 0, 0x82, 0, 0xE0, 0, 0x74, 0xC5, 0xB7, 0x10, 0x1A, 0x82, 0xE0, 0x08];
-const VCAL_UID: &[u8; 12] = b"vCal-Uid\x01\0\0\0";
 /// The longest uid read from a global object id, in bytes.
 const MAX_UID: usize = 2048;
 
@@ -314,20 +310,14 @@ pub(crate) fn extract<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, named: &Named) -> 
     }
     // MS-OXOCNTC's telephone numbers: business (and its second), home (and its second),
     // mobile, fax, pager, other.
-    for (id, kind) in
-        [(0x3A08, "work"), (0x3A1B, "work"), (0x3A09, "home"), (0x3A2F, "home"), (0x3A1C, "cell"), (0x3A24, "fax"), (0x3A21, "pager"), (0x3A1F, "")]
-    {
+    for (id, kind) in PHONES.iter().flat_map(|(kind, ids)| ids.iter().map(move |id| (*id, *kind))) {
         let v = s(id);
         if !v.trim().is_empty() {
             x.phones.push((v.trim().to_string(), kind));
         }
     }
     // Its addresses: (street, city, state, postal code, country) of business, home and other.
-    for (kind, [street, city, state, code, country]) in [
-        ("work", [0x3A29, 0x3A27, 0x3A28, 0x3A2A, 0x3A26]),
-        ("home", [0x3A5D, 0x3A59, 0x3A5C, 0x3A5B, 0x3A5A]),
-        ("", [0x3A63, 0x3A5F, 0x3A62, 0x3A61, 0x3A60]),
-    ] {
+    for (kind, [street, city, state, code, country]) in ADDRESSES {
         let a = PostalAddress {
             kind: kind.into(),
             street: s(street).trim().replace("\r\n", "\n"),
@@ -561,13 +551,7 @@ pub(crate) fn event_of(x: &Extra, subject: &str, body: &str, from: &EmailAddress
     // How each answered, as its recipient says; asked to when the meeting asks and it hasn't.
     let guest = |a: &EmailAddress| {
         let answer = x.answers.iter().find(|(e, _)| e.eq_ignore_ascii_case(&a.email)).map(|(_, t)| *t);
-        let partstat = match answer {
-            Some(2) => "TENTATIVE",
-            Some(3) => "ACCEPTED",
-            Some(4) => "DECLINED",
-            Some(5) => "NEEDS-ACTION",
-            _ => "",
-        };
+        let partstat = answer.and_then(|t| TRACK.iter().find(|(n, _)| i64::from(*n) == t)).map_or("", |(_, p)| *p);
         Attendee { partstat: partstat.into(), rsvp: x.response_requested && matches!(partstat, "" | "NEEDS-ACTION"), ..person(a) }
     };
     let from = if from.email.is_empty() { x.organizer.as_ref().unwrap_or(from) } else { from };
@@ -589,13 +573,8 @@ pub(crate) fn event_of(x: &Extra, subject: &str, body: &str, from: &EmailAddress
         ..Default::default()
     })
     .map(|mut e| {
-        let show = match x.busy {
-            Some(0) => Some(ShowAs::Free),
-            Some(1) => Some(ShowAs::Tentative),
-            Some(3) => Some(ShowAs::OutOfOffice),
-            Some(4) => Some(ShowAs::WorkingElsewhere),
-            _ => None,
-        };
+        // Busy, the default, set as it is.
+        let show = x.busy.and_then(|b| BUSY.iter().find(|(n, _)| i64::from(*n) == b)).map(|(_, s)| *s).filter(|s| *s != ShowAs::Busy);
         if let Some(show) = show {
             ical::set_show_as(&mut e, show);
         }
@@ -628,21 +607,10 @@ pub(crate) fn invitation(
     date: i64,
     uid: String,
 ) -> Option<(&'static str, String)> {
-    let kind = class.to_ascii_lowercase();
-    let kind = kind.strip_prefix("ipm.schedule.meeting.")?;
-    let (method, answer) = if kind.starts_with("request") {
-        ("REQUEST", None)
-    } else if kind.starts_with("canceled") {
-        ("CANCEL", None)
-    } else if kind.starts_with("resp.pos") {
-        ("REPLY", Some("ACCEPTED"))
-    } else if kind.starts_with("resp.neg") {
-        ("REPLY", Some("DECLINED"))
-    } else if kind.starts_with("resp.tent") {
-        ("REPLY", Some("TENTATIVE"))
-    } else {
-        return None;
-    };
+    let (method, answer) = MEETING_CLASSES
+        .iter()
+        .find(|(c, _, _)| class.get(..c.len()).is_some_and(|k| k.eq_ignore_ascii_case(c)))
+        .map(|(_, method, answer)| (*method, *answer))?;
     let mut e = event_of(x, subject, body, from, guests, uid.clone())?;
     e.dtstamp = date;
     let mut changed: Vec<CalEvent> = match method {

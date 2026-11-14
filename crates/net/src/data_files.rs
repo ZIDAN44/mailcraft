@@ -2,6 +2,7 @@
 //! room left on the drive MailCraft's own are written to.
 
 pub mod msg;
+pub(crate) mod outlook;
 pub mod pst;
 #[cfg(test)]
 mod pst_bench;

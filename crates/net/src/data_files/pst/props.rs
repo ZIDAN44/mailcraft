@@ -50,7 +50,7 @@ impl Val<'_> {
     /// A time as Unix seconds.
     pub(crate) fn time(&self) -> Option<i64> {
         match self {
-            Val::Time(t) if *t > 0 => Some(t / 10_000_000 - 11_644_473_600),
+            Val::Time(t) if *t > 0 => Some(t / 10_000_000 - crate::data_files::outlook::EPOCH_1601),
             _ => None,
         }
     }

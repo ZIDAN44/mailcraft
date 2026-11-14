@@ -27,14 +27,10 @@ pub(super) struct Meeting {
 
 /// The class of meeting mail for a calendar's `method`, and the answer it carries (`partstat`).
 fn class(method: &str, partstat: &str) -> Option<&'static str> {
-    match (method.trim().to_ascii_uppercase().as_str(), partstat.trim().to_ascii_uppercase().as_str()) {
-        ("REQUEST", _) => Some("IPM.Schedule.Meeting.Request"),
-        ("CANCEL", _) => Some("IPM.Schedule.Meeting.Canceled"),
-        ("REPLY", "ACCEPTED") => Some("IPM.Schedule.Meeting.Resp.Pos"),
-        ("REPLY", "DECLINED") => Some("IPM.Schedule.Meeting.Resp.Neg"),
-        ("REPLY", "TENTATIVE") => Some("IPM.Schedule.Meeting.Resp.Tent"),
-        _ => None,
-    }
+    crate::data_files::outlook::MEETING_CLASSES
+        .iter()
+        .find(|(_, m, answer)| m.eq_ignore_ascii_case(method.trim()) && answer.is_none_or(|a| a.eq_ignore_ascii_case(partstat.trim())))
+        .map(|(class, _, _)| *class)
 }
 
 /// The meeting a message (`raw`, parsed as `p`) carries, when its calendar asks or answers one;

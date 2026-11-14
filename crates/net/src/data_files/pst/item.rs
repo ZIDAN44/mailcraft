@@ -335,7 +335,7 @@ fn recipients_into<'a>(it: &mut Item, recipients: &[impl Fn(u16) -> Option<Val<'
 /// 4501-01-01, "no date", among them).
 pub(super) fn due_day(v: &Val<'_>) -> Option<i64> {
     let Val::Time(t) = v else { return None };
-    let seconds = t.checked_div(10_000_000)?.checked_sub(11_644_473_600)?;
+    let seconds = t.checked_div(10_000_000)?.checked_sub(crate::data_files::outlook::EPOCH_1601)?;
     let day = seconds.checked_add(43_200)?.div_euclid(86_400);
     mailcraft_model::organize::FOLLOW_UP_DAYS.contains(&day).then_some(day)
 }
@@ -344,7 +344,7 @@ pub(super) fn due_day(v: &Val<'_>) -> Option<i64> {
 /// [`FOLLOW_UP_DAYS`](mailcraft_model::organize::FOLLOW_UP_DAYS).
 pub(super) fn moment_day(v: &Val<'_>) -> Option<i64> {
     let Val::Time(t) = v else { return None };
-    let day = t.checked_div(10_000_000)?.checked_sub(11_644_473_600)?.div_euclid(86_400);
+    let day = t.checked_div(10_000_000)?.checked_sub(crate::data_files::outlook::EPOCH_1601)?.div_euclid(86_400);
     mailcraft_model::organize::FOLLOW_UP_DAYS.contains(&day).then_some(day)
 }
 

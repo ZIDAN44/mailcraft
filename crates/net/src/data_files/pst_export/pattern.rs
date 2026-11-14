@@ -8,16 +8,11 @@
 
 use mailcraft_model::dates::{civil_from_days, days_from_civil};
 
-/// Minutes from 1601-01-01 to 1970-01-01.
-const EPOCH_MINUTES: i64 = 11_644_473_600 / 60;
+use crate::data_files::outlook::{DAYS, EPOCH_MINUTES, NO_END};
 /// A pattern's version (ReaderVersion, WriterVersion).
 const VERSION: u16 = 0x3004;
-/// EndDate of a pattern that doesn't end (31 December 4500, 23:59).
-const NO_END: u32 = 0x5AE9_80DF;
 /// OccurrenceCount of a pattern that doesn't end, as Outlook writes it.
 const NO_END_COUNT: u32 = 10;
-/// Weekdays as BYDAY names them, Sunday first (the pattern's bit 0).
-const DAYS: [&str; 7] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 /// The most occurrences counted to find where a pattern ends; COUNT and INTERVAL Outlook takes.
 const MAX_COUNT: u32 = 999;
 const MAX_INTERVAL: u32 = 999;

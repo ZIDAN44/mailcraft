@@ -13,22 +13,13 @@ use super::item::filetime;
 use super::pim::{File, Item, PSETID_ADDRESS, Value, crlf, lid, tag};
 use super::*;
 
-/// The phone fields Outlook has, by the kind MailCraft keeps (the order the import reads them).
-const PHONES: [(&str, &[u16]); 6] =
-    [("work", &[0x3A08, 0x3A1B]), ("home", &[0x3A09, 0x3A2F]), ("cell", &[0x3A1C]), ("fax", &[0x3A24]), ("pager", &[0x3A21]), ("", &[0x3A1F])];
-/// The address fields (street, city, state, postal code, country) by kind; the work address's
-/// also as PidLidWorkAddressStreet to PidLidWorkAddressCountry, which Outlook shows.
-const ADDRESSES: [(&str, [u16; 5]); 3] = [
-    ("work", [0x3A29, 0x3A27, 0x3A28, 0x3A2A, 0x3A26]),
-    ("home", [0x3A5D, 0x3A59, 0x3A5C, 0x3A5B, 0x3A5A]),
-    ("", [0x3A63, 0x3A5F, 0x3A62, 0x3A61, 0x3A60]),
-];
+use crate::data_files::outlook::{ADDRESSES, MAX_MEMBERS, PHONES};
+/// The work address also as PidLidWorkAddressStreet to PidLidWorkAddressCountry, which Outlook
+/// shows.
 const WORK: [u32; 5] = [0x8045, 0x8046, 0x8047, 0x8048, 0x8049];
 /// Email1, Email2 and Email3: each its display name, then address type, address, original
 /// display name and original entry id (PSETID_Address, from these).
 const EMAILS: [u32; 3] = [0x8080, 0x8090, 0x80A0];
-/// The members a group keeps, as the import reads them.
-const MAX_MEMBERS: usize = 10_000;
 
 /// The card as an item.
 pub(super) fn item(card: &Card, now: i64) -> Item {

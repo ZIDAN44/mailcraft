@@ -118,19 +118,19 @@ impl GuidValue {
         GuidValue { data1, data2, data3, data4 }
     }
 
-    pub fn data1(&self) -> u32 {
+    pub const fn data1(&self) -> u32 {
         self.data1
     }
 
-    pub fn data2(&self) -> u16 {
+    pub const fn data2(&self) -> u16 {
         self.data2
     }
 
-    pub fn data3(&self) -> u16 {
+    pub const fn data3(&self) -> u16 {
         self.data3
     }
 
-    pub fn data4(&self) -> &[u8; 8] {
+    pub const fn data4(&self) -> &[u8; 8] {
         &self.data4
     }
 

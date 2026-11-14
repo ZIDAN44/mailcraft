@@ -29,9 +29,8 @@ mod batch;
 use batch::write_batch;
 pub(super) use batch::{Lists, lists, properties};
 
-/// PSETID_Address and PSETID_Note (MS-OXPROPS 1.3.2).
-pub(super) const PSETID_ADDRESS: GuidValue = GuidValue::new(0x0006_2004, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
-const PSETID_NOTE: GuidValue = GuidValue::new(0x0006_200E, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+pub(super) use crate::data_files::outlook::PSETID_ADDRESS;
+use crate::data_files::outlook::PSETID_NOTE;
 /// A note's size in Outlook's window, as Outlook makes one (PidLidNoteWidth, PidLidNoteHeight).
 const NOTE_SIZE: (i32, i32) = (200, 166);
 /// Names tried for a new file's folder that the account's mail took already: "Notes (2)" and on.

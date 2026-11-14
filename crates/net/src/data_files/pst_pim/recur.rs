@@ -8,17 +8,10 @@ use super::*;
 
 /// Changed occurrences a pattern says it has, read at most.
 const MAX_CHANGED: usize = 5_000;
-/// ExceptionInfo's OverrideFlags (2.2.1.44.2): what a changed occurrence changed.
-const ARO_SUBJECT: u16 = 0x0001;
-const ARO_MEETINGTYPE: u16 = 0x0002;
-const ARO_REMINDERDELTA: u16 = 0x0004;
-const ARO_REMINDER: u16 = 0x0008;
-const ARO_LOCATION: u16 = 0x0010;
-const ARO_BUSYSTATUS: u16 = 0x0020;
-const ARO_ATTACHMENT: u16 = 0x0040;
-const ARO_SUBTYPE: u16 = 0x0080;
-const ARO_APPTCOLOR: u16 = 0x0100;
-const ARO_EXCEPTIONAL_BODY: u16 = 0x0200;
+use crate::data_files::outlook::{
+    ARO_APPTCOLOR, ARO_ATTACHMENT, ARO_BUSYSTATUS, ARO_EXCEPTIONAL_BODY, ARO_LOCATION, ARO_MEETINGTYPE, ARO_REMINDER, ARO_REMINDERDELTA, ARO_SUBJECT,
+    ARO_SUBTYPE, DAYS,
+};
 /// The writer version from which each ExtendedException starts with its change highlight.
 const WITH_HIGHLIGHT: u32 = 0x3009;
 /// How far an exception item's own time of the occurrence it replaces may be from the pattern's
@@ -50,8 +43,6 @@ impl<'a> Bytes<'a> {
         self.take(n).map(|_| ())
     }
 }
-
-const DAYS: [&str; 7] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
 /// The `nth` (-1: the last) of the days in `mask` in a month. Of one weekday: that weekday's
 /// nth. Of several (Outlook's "weekday", "weekend day" and "day"): the nth day that is one of

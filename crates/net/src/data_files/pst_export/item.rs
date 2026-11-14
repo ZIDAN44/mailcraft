@@ -5,13 +5,12 @@
 use super::files::{File, Spill};
 use super::*;
 use mailcraft_pst::{
-    GuidValue, PS_PUBLIC_STRINGS,
+    PS_PUBLIC_STRINGS,
     write::{Name, NewProperty, NewValue},
 };
 
-/// PSETID_Common and PSETID_Task (MS-OXPROPS 1.3.2).
-pub(super) const PSETID_COMMON: GuidValue = GuidValue::new(0x0006_2008, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
-pub(super) const PSETID_TASK: GuidValue = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
+use crate::data_files::outlook::EPOCH_1601;
+pub(super) use crate::data_files::outlook::{PSETID_COMMON, PSETID_TASK};
 
 /// `PidTagMessageFlags`' mfRead and mfUnsent (MS-OXCMSG 2.2.1.6).
 const READ: i32 = 0x1;
@@ -29,8 +28,6 @@ const FLAGGED: i32 = 2;
 const RED_FLAG: i32 = 6;
 const TO_DO_MARKED: i32 = 1;
 const TASK_COMPLETE: i32 = 2;
-/// Seconds from 1601-01-01 to 1970-01-01.
-const EPOCH_1601: i64 = 11_644_473_600;
 /// The longest header block written (`PidTagTransportMessageHeaders`): a longer one is left out,
 /// as the import leaves it out.
 const MAX_HEADERS: usize = 256 * 1024;

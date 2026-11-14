@@ -17,22 +17,12 @@ pub(super) const EXCEPTION_CLASS: &str = "IPM.OLE.CLASS.{00061055-0000-0000-C000
 /// its change highlight.
 const READER_VERSION: u32 = 0x3006;
 const WRITER_VERSION: u32 = 0x3009;
-/// ExceptionInfo's OverrideFlags (2.2.1.44.2).
-const ARO_SUBJECT: u16 = 0x0001;
-const ARO_REMINDERDELTA: u16 = 0x0004;
-const ARO_REMINDER: u16 = 0x0008;
-const ARO_LOCATION: u16 = 0x0010;
-const ARO_BUSYSTATUS: u16 = 0x0020;
-const ARO_ATTACHMENT: u16 = 0x0040;
-const ARO_SUBTYPE: u16 = 0x0080;
-const ARO_EXCEPTIONAL_BODY: u16 = 0x0200;
-/// Minutes from 1601-01-01 to 1970-01-01.
-const EPOCH_MINUTES: i64 = 11_644_473_600 / 60;
+use crate::data_files::outlook::{
+    ARO_ATTACHMENT, ARO_BUSYSTATUS, ARO_EXCEPTIONAL_BODY, ARO_LOCATION, ARO_REMINDER, ARO_REMINDERDELTA, ARO_SUBJECT, ARO_SUBTYPE, EPOCH_MINUTES,
+    NO_END,
+};
 /// The longest subject or place an ExceptionInfo carries, in characters (its lengths are 16-bit).
 const MAX_TEXT: usize = 32_000;
-/// When a series that doesn't end ends, as Outlook says it (31 December 4500, 23:59, in minutes
-/// from 1601).
-const NO_END: i64 = 0x5AE9_80DF;
 
 /// A series as the appointment keeps it.
 pub(super) struct Series {
@@ -118,7 +108,7 @@ pub(super) fn series(e: &CalEvent, own: &[&CalEvent], now: i64, owner: &Owner, i
     let ends = rule.to_ascii_uppercase().contains("COUNT=") || rule.to_ascii_uppercase().contains("UNTIL=");
     // An all-day series' days begin at this computer's midnights.
     let midnight = |t: i64| owner.instant(e, midnight(t));
-    let clip_end = if ends { filetime(midnight(last)) } else { NO_END.saturating_mul(60).saturating_mul(TICKS) };
+    let clip_end = if ends { filetime(midnight(last)) } else { i64::from(NO_END).saturating_mul(60).saturating_mul(TICKS) };
     let attached = changed.iter().filter_map(|o| Some(super::exception(e, o, o.recurrence_id?, &local, now, owner, invited))).collect();
     Some(Series { pattern: blob, kind, clip: (filetime(midnight(e.start)), clip_end), changed: attached, taken })
 }

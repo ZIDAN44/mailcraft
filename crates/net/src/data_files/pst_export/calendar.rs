@@ -15,9 +15,8 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use mailcraft_model::ical::{self, CalEvent, Privacy, ShowAs};
+use mailcraft_model::ical::{self, CalEvent, Privacy};
 use mailcraft_model::zone::Zone;
-use mailcraft_pst::GuidValue;
 
 use super::item::{PSETID_COMMON, filetime};
 use super::pim::{Attached, File, Item, Key, Person, Value, crlf, keywords, lid, tag};
@@ -26,13 +25,8 @@ use super::*;
 mod recur;
 mod zone;
 
-/// PSETID_Appointment and PSETID_Meeting (MS-OXPROPS 1.3.2).
-pub(super) const PSETID_APPOINTMENT: GuidValue = GuidValue::new(0x0006_2002, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
-pub(super) const PSETID_MEETING: GuidValue = GuidValue::new(0x6ED8_DA90, 0x450B, 0x101B, [0x98, 0xDA, 0x00, 0xAA, 0x00, 0x3F, 0x13, 0x05]);
-/// PidLidGlobalObjectId's first bytes (MS-OXOCAL 2.2.1.27), and those of its Data for a meeting
-/// whose uid isn't Outlook's, the uid following.
-const GLOBAL_ID: [u8; 16] = [0x04, 0, 0, 0, 0x82, 0, 0xE0, 0, 0x74, 0xC5, 0xB7, 0x10, 0x1A, 0x82, 0xE0, 0x08];
-const VCAL_UID: &[u8; 12] = b"vCal-Uid\x01\0\0\0";
+use crate::data_files::outlook::{BUSY, GLOBAL_ID, TRACK, VCAL_UID};
+pub(super) use crate::data_files::outlook::{PSETID_APPOINTMENT, PSETID_MEETING};
 /// PidLidAppointmentStateFlags (MS-OXOCAL 2.2.1.10): a meeting, one received, one called off.
 const ASF_MEETING: i32 = 0x1;
 const ASF_RECEIVED: i32 = 0x2;
@@ -178,24 +172,13 @@ fn one_by_one(e: &CalEvent, own: &[&CalEvent], now: i64, owner: &Owner, invited:
 
 /// PidLidBusyStatus for how an event shows its time.
 fn busy(e: &CalEvent) -> i32 {
-    match ical::show_as(e) {
-        ShowAs::Free => 0,
-        ShowAs::Tentative => 1,
-        ShowAs::Busy => 2,
-        ShowAs::OutOfOffice => 3,
-        ShowAs::WorkingElsewhere => 4,
-    }
+    let show = ical::show_as(e);
+    BUSY.iter().find(|(_, s)| *s == show).map_or(2, |(n, _)| *n)
 }
 
 /// PidTagRecipientTrackStatus for a guest's `PARTSTAT` (none when it says none Outlook has).
 fn track(partstat: &str) -> Option<i32> {
-    match partstat.trim().to_ascii_uppercase().as_str() {
-        "TENTATIVE" => Some(2),
-        "ACCEPTED" => Some(3),
-        "DECLINED" => Some(4),
-        "NEEDS-ACTION" => Some(5),
-        _ => None,
-    }
+    TRACK.iter().find(|(_, p)| p.eq_ignore_ascii_case(partstat.trim())).map(|(n, _)| *n)
 }
 
 /// The event's organizer and guests as recipients (the organizer first, flagged as such; none
@@ -386,7 +369,7 @@ fn exception(e: &CalEvent, o: &CalEvent, replaces: i64, local: &dyn Fn(i64) -> i
         occurrence: false,
     };
     // As local times, written as if they were UTC (PidTagExceptionStartTime, …EndTime).
-    let at = |t: i64| Value::Time(local(t).saturating_add(11_644_473_600).saturating_mul(TICKS).max(0));
+    let at = |t: i64| Value::Time(filetime(local(t)));
     let attachment = vec![
         (0x7FFE, Value::Bool(true)),
         (0x7FFD, Value::Int(0x2)),
