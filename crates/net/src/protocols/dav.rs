@@ -16,8 +16,6 @@ use std::collections::HashMap;
 use mailcraft_model::ical::{self, CalEvent};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent};
 use mailcraft_model::vcard;
-use quick_xml::Reader;
-use quick_xml::events::Event as X;
 
 use crate::http::{self, Request, Response, Url};
 use crate::{NetError, Result};
@@ -47,166 +45,6 @@ pub struct Item {
     /// Someone else's, listed in the user's home ([`Dav::collections`]: its `owner` isn't the
     /// user's).
     pub foreign: bool,
-}
-
-fn local(name: &str) -> String {
-    name.rsplit(':').next().unwrap_or("").to_ascii_lowercase()
-}
-
-/// Read a `207 Multi-Status` body.
-pub fn multistatus(xml: &str) -> Vec<Item> {
-    let mut r = Reader::from_str(xml);
-    let mut stack: Vec<String> = Vec::new();
-    let mut out: Vec<Item> = Vec::new();
-    let mut cur: Option<Item> = None;
-    // The properties of the propstat being read, kept only if its status is 200.
-    let mut pending = Item::default();
-    let mut status = String::new();
-    let mut text = String::new();
-    let mut privileges: Vec<String> = Vec::new();
-    // Start tags past the depth cap not ended yet: left out with all they hold, their ends
-    // closing nothing read.
-    let mut skipped = 0usize;
-    while let Ok(ev) = r.read_event() {
-        // `<x/>` is a start and an end at once.
-        let empty = matches!(ev, X::Empty(_));
-        match ev {
-            X::Start(_) if skipped > 0 || stack.len() >= 64 => skipped += 1,
-            X::End(_) if skipped > 0 => skipped -= 1,
-            _ if skipped > 0 && !matches!(ev, X::Eof) => {}
-            X::Start(e) | X::Empty(e) if stack.len() < 64 => {
-                let name = local(e.name().as_ref());
-                let parent = stack.last().cloned().unwrap_or_default();
-                if parent == "resourcetype" {
-                    pending.kinds.push(name.clone());
-                }
-                if name == "comp" && parent == "supported-calendar-component-set" {
-                    for a in e.attributes().flatten() {
-                        if local(a.key.as_ref()) == "name" {
-                            pending.comps.push(a.value.to_ascii_uppercase());
-                        }
-                    }
-                }
-                if stack.iter().any(|s| s == "privilege") {
-                    privileges.push(name.clone());
-                }
-                match name.as_str() {
-                    "response" => {
-                        cur = Some(Item::default());
-                    }
-                    "propstat" => {
-                        pending = Item::default();
-                        status.clear();
-                    }
-                    _ => {}
-                }
-                text.clear();
-                if !empty {
-                    stack.push(name);
-                } else {
-                    end_tag(&name, &stack, &mut cur, &mut pending, &mut status, &mut privileges, &text, &mut out);
-                }
-            }
-            X::Text(t) => {
-                if text.len() < MAX_BODY {
-                    text.push_str(&t);
-                }
-            }
-            X::CData(t) => {
-                if text.len() < MAX_BODY {
-                    text.push_str(&t);
-                }
-            }
-            X::GeneralRef(g) => {
-                let name = g.to_string();
-                let c = match name.as_str() {
-                    "amp" => Some('&'),
-                    "lt" => Some('<'),
-                    "gt" => Some('>'),
-                    "quot" => Some('"'),
-                    "apos" => Some('\''),
-                    n => n
-                        .strip_prefix("#x")
-                        .or_else(|| n.strip_prefix("#X"))
-                        .and_then(|h| u32::from_str_radix(h, 16).ok())
-                        .or_else(|| n.strip_prefix('#').and_then(|d| d.parse().ok()))
-                        .and_then(char::from_u32),
-                };
-                if let Some(c) = c {
-                    text.push(c);
-                }
-            }
-            X::End(e) => {
-                let name = local(e.name().as_ref());
-                if stack.last() == Some(&name) {
-                    stack.pop();
-                }
-                end_tag(&name, &stack, &mut cur, &mut pending, &mut status, &mut privileges, &text, &mut out);
-                text.clear();
-            }
-            X::Eof => break,
-            _ => {}
-        }
-        if out.len() > 100_000 {
-            break;
-        }
-    }
-    out
-}
-
-#[allow(clippy::too_many_arguments)]
-fn end_tag(
-    name: &str,
-    stack: &[String],
-    cur: &mut Option<Item>,
-    pending: &mut Item,
-    status: &mut String,
-    privileges: &mut Vec<String>,
-    text: &str,
-    out: &mut Vec<Item>,
-) {
-    let parent = stack.last().map(String::as_str).unwrap_or("");
-    match name {
-        "href" if parent == "response" => {
-            if let Some(c) = cur.as_mut() {
-                c.href = text.trim().to_string();
-            }
-        }
-        "href" => {
-            // An href inside a property: file it under the property.
-            if let Some(prop) = stack.iter().rev().find(|s| s.as_str() != "href" && s.as_str() != "prop") {
-                pending.hrefs.entry(prop.clone()).or_default().push(text.trim().to_string());
-            }
-        }
-        "status" if parent == "propstat" => *status = text.to_string(),
-        "current-user-privilege-set" => {
-            pending.writable = Some(privileges.iter().any(|p| p == "write" || p == "all" || p == "write-content" || p == "bind"));
-            privileges.clear();
-        }
-        "propstat" => {
-            let ok = status.split_whitespace().nth(1).is_none_or(|c| c.starts_with('2'));
-            if ok && let Some(c) = cur.as_mut() {
-                let p = std::mem::take(pending);
-                c.props.extend(p.props);
-                for (k, v) in p.hrefs {
-                    c.hrefs.entry(k).or_default().extend(v);
-                }
-                c.kinds.extend(p.kinds);
-                c.comps.extend(p.comps);
-                c.writable = c.writable.or(p.writable);
-            }
-        }
-        "response" => {
-            if let Some(c) = cur.take() {
-                out.push(c);
-            }
-        }
-        _ => {
-            if parent == "prop" && !text.trim().is_empty() {
-                pending.props.insert(name.to_string(), text.trim().to_string());
-            }
-        }
-    }
 }
 
 /// Where an account's calendars and contacts are looked for: from its address and mail server,
@@ -761,6 +599,8 @@ fn path_of(url: &str) -> String {
 
 pub(crate) mod digest;
 pub(crate) mod guard;
+mod multistatus;
+pub use multistatus::multistatus;
 mod syncing;
 pub use syncing::sync;
 #[cfg(test)]

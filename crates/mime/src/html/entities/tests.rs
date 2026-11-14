@@ -87,6 +87,49 @@ fn old_value(v: &str, longest: usize) -> String {
     out
 }
 
+/// The XML decoders before [`decode_xml_refs`] (Exchange's attribute values in the network layer,
+/// Office files here), as they were but for what changed on purpose: they read names of up to 10
+/// and 9 bytes (`longest`), and `&#x…;` but not `&#X…;` (`upper`), which XML's text was read with.
+fn old_xml(v: &str, longest: usize, upper: bool) -> String {
+    let mut out = String::with_capacity(v.len());
+    let mut rest = v;
+    while let Some(i) = rest.find('&') {
+        out.push_str(rest.get(..i).unwrap_or(""));
+        let after = rest.get(i + 1..).unwrap_or("");
+        let Some(end) = after.find(';').filter(|e| *e <= longest) else {
+            out.push('&');
+            rest = after;
+            continue;
+        };
+        let name = after.get(..end).unwrap_or("");
+        let c = match name {
+            "amp" => Some('&'),
+            "lt" => Some('<'),
+            "gt" => Some('>'),
+            "quot" => Some('"'),
+            "apos" => Some('\''),
+            n => n
+                .strip_prefix("#x")
+                .or_else(|| n.strip_prefix("#X").filter(|_| upper))
+                .and_then(|h| u32::from_str_radix(h, 16).ok())
+                .or_else(|| n.strip_prefix('#').and_then(|d| d.parse().ok()))
+                .and_then(char::from_u32),
+        };
+        match c {
+            Some(c) => {
+                out.push(c);
+                rest = after.get(end + 1..).unwrap_or("");
+            }
+            None => {
+                out.push('&');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Text made of what references are made of, so that most `&` start one.
 fn refs_text() -> impl Strategy<Value = String> {
     let piece = prop_oneof![
@@ -112,6 +155,23 @@ proptest! {
         prop_assert_eq!(decode_refs(&s, Refs::Words).into_owned(), old_words(&s));
         prop_assert_eq!(decode_refs(&s, Refs::Value).into_owned(), old_value(&s, 11));
     }
+
+    /// XML reads as the network layer's and the Office reader's decoders did.
+    #[test]
+    fn xml_reads_as_it_did(s in refs_text()) {
+        prop_assert_eq!(decode_xml_refs(&s).into_owned(), old_xml(&s, 11, true));
+    }
+}
+
+/// What changed for XML: `&#X26;` is read (XML's text read it, its values didn't), and so is a
+/// numbered reference of up to 11 bytes; one that is no character stays as written, as before.
+#[test]
+fn xml_reads_every_numbered_reference() {
+    let v = "a&#X26;b&#00000038;c&#0000000038;d&#xD800;e&nbsp;f";
+    assert_eq!(old_xml(v, 10, false), "a&#X26;b&c&#0000000038;d&#xD800;e&nbsp;f");
+    assert_eq!(decode_xml_refs(v), "a&b&c&d&#xD800;e&nbsp;f");
+    assert_eq!(xml_ref_char("#X26"), Some('&'));
+    assert_eq!((xml_ref_char("apos"), xml_ref_char("nbsp"), xml_ref_char("#xFFFFFFFF")), (Some('\''), None, None));
 }
 
 /// The one change: a numbered reference of 11 bytes is read in an attribute too.

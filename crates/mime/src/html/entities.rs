@@ -1,7 +1,9 @@
 //! Character references (`&amp;`, `&#38;`, `&#x26;`) made characters, one way for every pass over
 //! a message's HTML that reads them: each had its own, with its own rules, so the same address
 //! read differently in different passes (a picture's `&#38;` was read in its text, not in the
-//! list of pictures to load, and the picture never came).
+//! list of pictures to load, and the picture never came). XML read anywhere (an Office file here,
+//! a server's answer in the network layer) takes its references the same way, as XML reads them
+//! ([`Refs::Xml`]).
 
 use std::borrow::Cow;
 
@@ -20,6 +22,21 @@ pub(crate) enum Refs {
     /// punctuation; any other (`&nbsp;`, `&shy;`, `&zwj;`, a preview line's padding) a space, so
     /// that padding between words parts them.
     Words,
+    /// As XML reads a text or a value (an Exchange answer, a mail provider's settings, an Office
+    /// file): the five, and numbered ones that are a character. Any other stays as written.
+    Xml,
+}
+
+/// XML's character references in `s` made characters ([`Refs::Xml`]): an attribute's value, or a
+/// text an XML reader gives with its references in it.
+pub fn decode_xml_refs(s: &str) -> Cow<'_, str> {
+    decode_refs(s, Refs::Xml)
+}
+
+/// The character XML's reference `name` (between its `&` and `;`: `amp`, `#38`, `#x26`) stands
+/// for; `None` for one that isn't XML's or names no character.
+pub fn xml_ref_char(name: &str) -> Option<char> {
+    character(name, Refs::Xml)
 }
 
 /// `s` with its character references made characters, as `refs` says. `s` itself when it has no
@@ -79,6 +96,7 @@ fn character(name: &str, refs: Refs) -> Option<char> {
         return match refs {
             Refs::Value => code.map(|c| char::from_u32(c).filter(|c| *c != '\0').unwrap_or('\u{fffd}')),
             Refs::Words => Some(code.and_then(char::from_u32).filter(|c| c.is_alphanumeric() || c.is_ascii_punctuation()).unwrap_or(' ')),
+            Refs::Xml => code.and_then(char::from_u32),
         };
     }
     (refs == Refs::Words && !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric())).then_some(' ')

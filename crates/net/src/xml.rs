@@ -50,51 +50,9 @@ impl El {
     }
 }
 
-fn local(name: &str) -> String {
-    name.rsplit(':').next().unwrap_or("").to_string()
-}
-
-/// An attribute's value with its entities replaced.
-fn unescape(v: &str) -> String {
-    if !v.contains('&') {
-        return v.to_string();
-    }
-    let mut out = String::with_capacity(v.len());
-    let mut rest = v;
-    while let Some(i) = rest.find('&') {
-        out.push_str(rest.get(..i).unwrap_or(""));
-        let after = rest.get(i + 1..).unwrap_or("");
-        let Some(end) = after.find(';').filter(|e| *e <= 10) else {
-            out.push('&');
-            rest = after;
-            continue;
-        };
-        let name = after.get(..end).unwrap_or("");
-        let c = match name {
-            "amp" => Some('&'),
-            "lt" => Some('<'),
-            "gt" => Some('>'),
-            "quot" => Some('"'),
-            "apos" => Some('\''),
-            n => n
-                .strip_prefix("#x")
-                .and_then(|h| u32::from_str_radix(h, 16).ok())
-                .or_else(|| n.strip_prefix('#').and_then(|d| d.parse().ok()))
-                .and_then(char::from_u32),
-        };
-        match c {
-            Some(c) => {
-                out.push(c);
-                rest = after.get(end + 1..).unwrap_or("");
-            }
-            None => {
-                out.push('&');
-                rest = after;
-            }
-        }
-    }
-    out.push_str(rest);
-    out
+/// An element's or attribute's name without its namespace prefix (`t:Folder` → `Folder`).
+pub(crate) fn local(name: &str) -> &str {
+    name.rsplit(':').next().unwrap_or("")
 }
 
 /// Read XML into elements (namespaces dropped: the local names are enough here). Past the caps
@@ -123,8 +81,12 @@ pub fn parse(xml: &str) -> El {
             X::Start(e) | X::Empty(e) if stack.len() < MAX_DEPTH && count < MAX_ELEMENTS => {
                 count += 1;
                 let el = El {
-                    name: local(e.name().as_ref()),
-                    attrs: e.attributes().flatten().map(|a| (local(a.key.as_ref()), unescape(&a.value))).collect(),
+                    name: local(e.name().as_ref()).to_string(),
+                    attrs: e
+                        .attributes()
+                        .flatten()
+                        .map(|a| (local(a.key.as_ref()).to_string(), mailcraft_mime::decode_xml_refs(&a.value).into_owned()))
+                        .collect(),
                     ..Default::default()
                 };
                 stack.push(el);
@@ -143,21 +105,7 @@ pub fn parse(xml: &str) -> El {
                 }
             }
             X::GeneralRef(g) => {
-                let name = g.to_string();
-                let c = match name.as_str() {
-                    "amp" => Some('&'),
-                    "lt" => Some('<'),
-                    "gt" => Some('>'),
-                    "quot" => Some('"'),
-                    "apos" => Some('\''),
-                    n => n
-                        .strip_prefix("#x")
-                        .or_else(|| n.strip_prefix("#X"))
-                        .and_then(|h| u32::from_str_radix(h, 16).ok())
-                        .or_else(|| n.strip_prefix('#').and_then(|d| d.parse().ok()))
-                        .and_then(char::from_u32),
-                };
-                if let (Some(c), Some(top)) = (c, stack.last_mut()) {
+                if let (Some(c), Some(top)) = (mailcraft_mime::xml_ref_char(&g), stack.last_mut()) {
                     top.text.push(c);
                 }
             }

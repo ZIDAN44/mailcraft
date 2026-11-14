@@ -19,6 +19,7 @@ mod signature;
 mod tags;
 pub(crate) use body::{html_bodies, shown_text};
 pub(crate) use entities::{Refs, decode_refs, escaped};
+pub use entities::{decode_xml_refs, xml_ref_char};
 pub(crate) use footers::footers_last;
 use lines::{bullet, heading_of, line_spans, table_rules};
 use mailcraft_model::work;

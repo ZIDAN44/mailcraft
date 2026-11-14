@@ -237,45 +237,7 @@ impl<'a> Iterator for Tokens<'a> {
 }
 
 fn unescape(s: &str) -> Cow<'_, str> {
-    if !s.contains('&') {
-        return Cow::Borrowed(s);
-    }
-    let mut out = String::with_capacity(s.len());
-    let mut rest = s;
-    while let Some(i) = rest.find('&') {
-        out.push_str(rest.get(..i).unwrap_or_default());
-        rest = rest.get(i..).unwrap_or_default();
-        let Some(end) = rest.find(';').filter(|e| *e <= 10) else {
-            out.push('&');
-            rest = rest.get(1..).unwrap_or_default();
-            continue;
-        };
-        let ent = rest.get(1..end).unwrap_or_default();
-        let ch = match ent {
-            "amp" => Some('&'),
-            "lt" => Some('<'),
-            "gt" => Some('>'),
-            "quot" => Some('"'),
-            "apos" => Some('\''),
-            _ => ent
-                .strip_prefix("#x")
-                .and_then(|h| u32::from_str_radix(h, 16).ok())
-                .or_else(|| ent.strip_prefix('#').and_then(|d| d.parse().ok()))
-                .and_then(char::from_u32),
-        };
-        match ch {
-            Some(c) => {
-                out.push(c);
-                rest = rest.get(end + 1..).unwrap_or_default();
-            }
-            None => {
-                out.push('&');
-                rest = rest.get(1..).unwrap_or_default();
-            }
-        }
-    }
-    out.push_str(rest);
-    Cow::Owned(out)
+    crate::html::decode_xml_refs(s)
 }
 
 /// An attribute's value (`name="value"`), by its name without a prefix.
