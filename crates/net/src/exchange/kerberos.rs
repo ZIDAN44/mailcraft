@@ -64,32 +64,36 @@ impl Negotiation {
         // when the KDC doesn't know the plain one (a UPN unlike the account name).
         let plain = Username::new_down_level_logon_name(&name, &realm).map_err(|e| sspi_error(e.into()))?;
         match Negotiation::with(plain, &kdc, password, host) {
-            Err(NetError::Auth(m)) if m.contains("CLIENT_NOT_FOUND") && user.contains('@') => {
-                Negotiation::with(Username::parse(user.trim()).map_err(|e| sspi_error(e.into()))?, &kdc, password, host)
+            Err(f) if f.why == Why::ClientNotFound && user.contains('@') => {
+                Ok(Negotiation::with(Username::parse(user.trim()).map_err(|e| sspi_error(e.into()))?, &kdc, password, host)?)
             }
-            r => r,
+            r => Ok(r?),
         }
     }
 
-    fn with(username: Username, kdc: &str, password: &str, host: &str) -> Result<(Negotiation, Vec<u8>)> {
+    fn with(username: Username, kdc: &str, password: &str, host: &str) -> std::result::Result<(Negotiation, Vec<u8>), Failure> {
         let computer = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_else(|_| "mailcraft".into());
-        let mut kerberos =
-            Kerberos::new_client_from_config(KerberosConfig::new_with_kdc_url(&format!("tcp://{kdc}"), computer)).map_err(sspi_error)?;
+        let mut kerberos = Kerberos::new_client_from_config(KerberosConfig::new_with_kdc_url(&format!("tcp://{kdc}"), computer)).map_err(failure)?;
         let identity = AuthIdentity { username, password: password.to_string().into() };
         let creds = kerberos
             .acquire_credentials_handle()
             .with_credential_use(CredentialUse::Outbound)
             .with_auth_data(&identity.into())
             .execute(&mut kerberos)
-            .map_err(sspi_error)?
+            .map_err(failure)?
             .credentials_handle;
         let mut n = Negotiation { kerberos, creds, target: format!("HTTP/{}", host.to_ascii_lowercase()) };
-        let (token, _) = n.step(&[])?;
+        let (token, _) = n.next(&[])?;
         Ok((n, token))
     }
 
     /// The next token for the server's answer (`input`), and whether the context is complete.
     pub fn step(&mut self, input: &[u8]) -> Result<(Vec<u8>, bool)> {
+        Ok(self.next(input)?)
+    }
+
+    /// [`Negotiation::step`], telling what went wrong.
+    fn next(&mut self, input: &[u8]) -> std::result::Result<(Vec<u8>, bool), Failure> {
         let mut input = vec![SecurityBuffer::new(input.to_vec(), BufferType::Token)];
         let mut output = vec![SecurityBuffer::new(Vec::new(), BufferType::Token)];
         let mut builder = self
@@ -101,40 +105,76 @@ impl Negotiation {
             .with_target_name(&self.target)
             .with_input(&mut input)
             .with_output(&mut output);
-        let result =
-            self.kerberos.initialize_security_context_impl(&mut builder).map_err(sspi_error)?.resolve_with_client(&Kdc).map_err(sspi_error)?;
+        let result = self.kerberos.initialize_security_context_impl(&mut builder).map_err(failure)?.resolve_with_client(&Kdc).map_err(failure)?;
         let token = output.into_iter().next().map(|b| b.buffer).unwrap_or_default();
         match result.status {
             SecurityStatus::Ok => Ok((token, true)),
             SecurityStatus::ContinueNeeded => Ok((token, false)),
-            s => Err(NetError::Auth(format!("Kerberos: {s:?}"))),
+            s => Err(Failure { why: Why::Other, error: NetError::Auth(format!("Kerberos: {s:?}")) }),
         }
+    }
+}
+
+/// What went wrong, as sspi tells it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Why {
+    /// The KDC refused the password (pre-authentication failed).
+    BadPassword,
+    /// The KDC knows no user by this name.
+    ClientNotFound,
+    /// The domain won't sign this user in (revoked, disabled, expired).
+    Refused,
+    /// No KDC answered.
+    NoKdc,
+    Other,
+}
+
+/// A failure to sign in: what it was, and what the user is told.
+struct Failure {
+    why: Why,
+    error: NetError,
+}
+
+impl From<Failure> for NetError {
+    fn from(f: Failure) -> NetError {
+        f.error
+    }
+}
+
+/// What sspi's failure was: the KDC's refusals are known by the words sspi tells them with, a KDC
+/// that can't be reached by its kind. Only here are its words read.
+fn why(e: &sspi::Error) -> Why {
+    let d = e.description.to_ascii_lowercase();
+    if d.contains("pre-authentication") || d.contains("preauth") {
+        Why::BadPassword
+    } else if d.contains("client not found") {
+        Why::ClientNotFound
+    } else if d.contains("revoked") || d.contains("disabled") || d.contains("expired") {
+        Why::Refused
+    } else if e.error_type == sspi::ErrorKind::NoAuthenticatingAuthority {
+        Why::NoKdc
+    } else {
+        Why::Other
     }
 }
 
 /// What sspi says went wrong: a wrong password or unknown user is a sign-in to correct, said
 /// plainly (the KDC's own words come with encoded data).
+fn failure(e: sspi::Error) -> Failure {
+    let why = why(&e);
+    let said = short(&e.description);
+    let error = match why {
+        Why::BadPassword => NetError::Auth("the domain refused the password (Kerberos)".into()),
+        Why::ClientNotFound => NetError::Auth("the domain has no user by this name (Kerberos, CLIENT_NOT_FOUND)".into()),
+        Why::Refused => NetError::Auth(format!("the domain won't sign this user in (Kerberos: {said})")),
+        Why::NoKdc => NetError::Closed(format!("the Kerberos server (KDC) didn't answer: {said}")),
+        Why::Other => NetError::Auth(format!("Kerberos: {said}")),
+    };
+    Failure { why, error }
+}
+
 fn sspi_error(e: sspi::Error) -> NetError {
-    use sspi::ErrorKind as K;
-    let d = e.description.to_ascii_lowercase();
-    if d.contains("pre-authentication") || d.contains("preauth") {
-        return NetError::Auth("the domain refused the password (Kerberos)".into());
-    }
-    if d.contains("client not found") {
-        // Kept for the retry as an enterprise name (`Negotiation::start`).
-        return NetError::Auth("the domain has no user by this name (Kerberos, CLIENT_NOT_FOUND)".into());
-    }
-    if d.contains("revoked") || d.contains("disabled") || d.contains("expired") {
-        return NetError::Auth(format!("the domain won't sign this user in (Kerberos: {})", short(&e.description)));
-    }
-    let e = sspi::Error { description: short(&e.description), ..e };
-    match e.error_type {
-        K::LogonDenied | K::NoCredentials | K::UnknownCredentials | K::IncompleteCredentials => {
-            NetError::Auth(format!("Kerberos: {}", e.description))
-        }
-        K::NoAuthenticatingAuthority => NetError::Closed(format!("the Kerberos server (KDC) didn't answer: {}", e.description)),
-        _ => NetError::Auth(format!("Kerberos: {}", e.description)),
-    }
+    failure(e).error
 }
 
 /// sspi's description up to the encoded data it appends, at most a line.
@@ -195,5 +235,41 @@ mod tests {
             assert_eq!(principal(bad, "x@y.example"), None, "{bad:?}");
         }
         assert_eq!(principal("CORP\\riley", "no-domain"), None, "no realm to guess");
+    }
+
+    /// sspi's failures as the user is told them.
+    #[test]
+    fn sspi_failures_are_told_plainly() {
+        use sspi::ErrorKind as K;
+        let cases = [
+            (
+                K::InternalError,
+                "KDC_ERR_PREAUTH_FAILED: Pre-authentication information was invalid",
+                "sign-in failed: the domain refused the password (Kerberos)",
+            ),
+            (
+                K::InternalError,
+                "KDC_ERR_C_PRINCIPAL_UNKNOWN: Client not found in Kerberos database. Additional error data: 3081",
+                "sign-in failed: the domain has no user by this name (Kerberos, CLIENT_NOT_FOUND)",
+            ),
+            (
+                K::InternalError,
+                "KDC_ERR_CLIENT_REVOKED: Clients credentials have been revoked. Additional error data: 3081",
+                "sign-in failed: the domain won't sign this user in (Kerberos: KDC_ERR_CLIENT_REVOKED: Clients credentials have been revoked)",
+            ),
+            (K::LogonDenied, "denied. Additional error data: 30", "sign-in failed: Kerberos: denied"),
+            (K::UnknownCredentials, "no such", "sign-in failed: Kerberos: no such"),
+            (
+                K::NoAuthenticatingAuthority,
+                "connection refused",
+                "the server closed the connection: the Kerberos server (KDC) didn't answer: connection refused",
+            ),
+            (K::InternalError, "something else", "sign-in failed: Kerberos: something else"),
+        ];
+        let whys = [Why::BadPassword, Why::ClientNotFound, Why::Refused, Why::Other, Why::Other, Why::NoKdc, Why::Other];
+        for ((kind, description, told), why) in cases.into_iter().zip(whys) {
+            let f = failure(sspi::Error::new(kind, description));
+            assert_eq!((f.why, f.error.to_string().as_str()), (why, told), "{description}");
+        }
     }
 }
