@@ -6,6 +6,7 @@ use mailcraft_store::Store;
 use mailcraft_store::search::{self, Field, Reader, Writer};
 
 use super::super::ImportOptions;
+use super::super::out::held;
 use super::pipeline::{data_file, run};
 
 /// Messages a folder of [`data_file`] holds…
@@ -103,8 +104,9 @@ fn an_index_that_cant_be_written_leaves_the_import_whole() {
 }
 
 /// An index another writer holds (a pass not yet stopped) is waited for a moment: let go within
-/// it, the import takes it; held on, the import goes on without it and the next pass adds every
-/// message. Asked not to index, it doesn't.
+/// it (once the import has found it held, however long a busy computer takes to get there), the
+/// import takes it; held on, the import goes on without it and the next pass adds every message.
+/// Asked not to index, it doesn't.
 #[test]
 fn an_index_held_elsewhere_is_waited_for_then_left() {
     let (dir, pst) = data_file("index-held", PER_FOLDER, false);
@@ -117,13 +119,8 @@ fn an_index_held_elsewhere_is_waited_for_then_left() {
     assert_eq!(plan(&store, "i4").add.len(), MESSAGES);
 
     let store = Store::memory();
-    let held = Writer::open(&store, "i5").unwrap();
-    let letting_go = std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        drop(held);
-    });
+    held::until_found("i5", Writer::open(&store, "i5").unwrap());
     let done = run(&pst, &store, "i5", &lanes(2));
-    letting_go.join().unwrap();
     assert_eq!((done.messages, done.stats.indexed), (MESSAGES, MESSAGES as u64));
     assert!(plan(&store, "i5").is_empty());
 

@@ -13,6 +13,8 @@ mod pim;
 mod room;
 pub(super) mod sent_ids;
 
+#[cfg(test)]
+pub(super) use indexing::held;
 pub(super) use pim::MAX_PIM_FILE;
 
 /// Message sources written to the cache together (one transaction): at most this many…

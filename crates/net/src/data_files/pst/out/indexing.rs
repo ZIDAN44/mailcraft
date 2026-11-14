@@ -174,6 +174,33 @@ fn let_go(e: &StoreError) {
     log::warn!("import: the search index is brought up to the mail after the import: {e}");
 }
 
+/// Indexes a test holds as a pass would, let go of once an import finds them held, as a pass
+/// asked to stop lets go: at that point, not after a time the test would have to guess.
+#[cfg(test)]
+pub(crate) mod held {
+    use std::sync::Mutex;
+
+    use mailcraft_store::search::Writer;
+
+    static HELD: Mutex<Vec<(String, Writer)>> = Mutex::new(Vec::new());
+
+    /// `writer`, holding `account`'s index, let go of once an import into `account` finds it held.
+    pub(crate) fn until_found(account: &str, writer: Writer) {
+        if let Ok(mut held) = HELD.lock() {
+            held.push((account.to_string(), writer));
+        }
+    }
+
+    /// An import into `account` found its index held: what the test holds it with lets go.
+    pub(super) fn found(account: &str) {
+        let Ok(mut held) = HELD.lock() else { return };
+        let (gone, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut *held).into_iter().partition(|(a, _)| a == account);
+        *held = kept;
+        drop(held);
+        drop(gone);
+    }
+}
+
 impl Out<'_> {
     /// Whether the messages go into the search index as they're written.
     pub(in super::super) fn indexing(&self) -> bool {
@@ -187,7 +214,11 @@ impl Out<'_> {
         let writer = loop {
             match Writer::open(self.store, self.account) {
                 Ok(writer) => break Some(writer),
-                Err(StoreError::Busy { .. }) if began.elapsed() < WAIT => std::thread::sleep(Duration::from_millis(20)),
+                Err(StoreError::Busy { .. }) if began.elapsed() < WAIT => {
+                    #[cfg(test)]
+                    held::found(self.account);
+                    std::thread::sleep(Duration::from_millis(20));
+                }
                 Err(e) => {
                     log::info!("import: the messages are indexed after it, not as they come in: {e}");
                     break None;
