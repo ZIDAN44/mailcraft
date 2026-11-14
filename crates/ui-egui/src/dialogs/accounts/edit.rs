@@ -29,6 +29,8 @@ pub struct EditForm {
     pub smtp_sign_in: SmtpSignIn,
     /// Keep none of its mail on this computer (issue #4; not for POP).
     pub online_only: bool,
+    /// A JMAP account's sign-in: with a password, or through its server's single sign-on.
+    pub sign_on: SignOn,
     pub error: Option<String>,
 }
 
@@ -90,7 +92,7 @@ impl EditForm {
     }
 }
 
-pub(crate) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(crate) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(480.0);
     title(ui, t, "Server settings");
     ui.label(RichText::new(&f.email).color(t.dim));
@@ -100,11 +102,16 @@ pub(crate) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
     let label = |ui: &mut Ui, s: &str| {
         ui.label(RichText::new(tl!(s)).strong().small());
     };
+    // A JMAP account, which can sign in through its server's single sign-on.
+    let jmap = f.jmap && f.ews.is_none() && f.pop.is_none();
     label(ui, "Your name");
     ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
-    ui.add_space(4.0);
-    label(ui, "User name");
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    // A single sign-on knows who signs in: no user name.
+    if !(jmap && f.sign_on.browser) {
+        ui.add_space(4.0);
+        label(ui, "User name");
+        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    }
     ui.add_space(6.0);
     if let Some(url) = f.ews.as_mut() {
         label(ui, "Exchange server");
@@ -136,7 +143,8 @@ pub(crate) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
     // (An Exchange server's address is all EWS needs.)
     if f.jmap && f.ews.is_none() {
         label(ui, "JMAP session address");
-        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+        let r = ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+        f.sign_on.ui(ui, t, s, &f.jmap_url, r.has_focus(), acts);
     } else if f.ews.is_none() && f.pop.is_none() {
         label(ui, "Incoming mail (IMAP)");
         ui.horizontal(|ui| {
@@ -165,10 +173,15 @@ pub(crate) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
         ui.add_space(6.0);
         ui.label(RichText::new(e).color(t.danger));
     }
-    let (ok, cancel) = buttons(ui, t, "Save", true);
+    let ready = !jmap || f.sign_on.ready(s, &f.jmap_url);
+    let (ok, cancel) = buttons(ui, t, "Save", ready);
     if ok {
         f.error = None;
-        acts.push(Action::Submit("account.update", f.params()));
+        let mut params = f.params();
+        if jmap {
+            f.sign_on.params(&mut params, s, &f.jmap_url);
+        }
+        acts.push(Action::Submit("account.update", params));
     }
     !cancel
 }

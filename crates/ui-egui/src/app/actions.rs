@@ -503,6 +503,18 @@ impl MailApp {
             self.ui.dialog = Some(Dialog::MailboxClosed { account: id.to_string(), email: config.email.clone(), error: error.clone() });
             return;
         }
+        // A server that takes no passwords, or a single sign-on with no client ID: the server
+        // settings, at signing in through the browser.
+        if let SyncStatus::Error { error } = &status
+            && super::bars::single_sign_on_needed(error)
+        {
+            let mut d = Dialog::edit_account(&config);
+            if let Dialog::EditAccount(f) = &mut d {
+                f.sign_on.browser = f.jmap && !f.sign_on.other;
+            }
+            self.ui.dialog = Some(d);
+            return;
+        }
         // A Microsoft account with a password, which Microsoft refuses: Sign in with Microsoft.
         if config.oauth.is_some()
             || mailcraft_engine::model::microsoft_password_account(&config) && self.session.oauth_available.iter().any(|p| p == "microsoft")

@@ -428,6 +428,7 @@ impl Dialog {
             smtp_security: a.smtp.security,
             smtp_sign_in: SmtpSignIn::of(a),
             online_only: a.online_only,
+            sign_on: SignOn::of(a),
             error: None,
         }))
     }

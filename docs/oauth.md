@@ -1,12 +1,13 @@
-# Microsoft and Google sign-in
+# Signing in through the browser
 
 A build of MailCraft offers **Sign in with Microsoft** and **Sign in with Google** only when it
 carries a registered app. This page is for whoever builds or ships MailCraft, for users adding a
-Gmail or Google Workspace account, and for users whose Outlook.com account won't connect.
+Gmail or Google Workspace account, for users whose Outlook.com account won't connect, and for
+the administrator of a single sign-on service that a JMAP mail server signs its users in with.
 
-Microsoft and Google ask mail apps to sign in through the browser. MailCraft does this the way
-RFC 8252 describes for native apps, with PKCE (RFC 7636): a one-time code that stops another
-program from taking over the sign-in.
+Microsoft, Google and single sign-on services ask mail apps to sign in through the browser.
+MailCraft does this the way RFC 8252 describes for native apps, with PKCE (RFC 7636): a one-time
+code that stops another program from taking over the sign-in.
 
 ## What a build needs
 
@@ -15,6 +16,7 @@ program from taking over the sign-in.
 | `MAILCRAFT_MICROSOFT_CLIENT_ID` | The Application (client) ID of a Microsoft Entra app |
 | `MAILCRAFT_GOOGLE_CLIENT_ID` | The client ID of a Google "Desktop app" client |
 | `MAILCRAFT_GOOGLE_CLIENT_SECRET` | That client's secret, which isn't secret for installed apps |
+| `MAILCRAFT_OIDC_CLIENTS` | Client IDs for single sign-on services, by service ([below](#a-jmap-servers-single-sign-on)) |
 
 - MailCraft reads these variables when it starts. If they are set when you build it, the build
   keeps them.
@@ -110,3 +112,59 @@ IMAP is turned off for the account, or the browser signed in as a different acco
 
 Or choose **Use Microsoft Graph** instead. It needs no IMAP, and it adds your calendar and
 contacts.
+
+## A JMAP server's single sign-on
+
+Some JMAP servers take no passwords: their users sign in through the browser, with the
+organisation's single sign-on service (OpenID Connect). Such a server answers a request without
+a sign-in with `401` and `WWW-Authenticate: Bearer`.
+
+- **Adding the account.** MailCraft asks the server how it signs you in, then finds its service
+  from the server's `/.well-known/openid-configuration`, following redirects. The service must be
+  on https and must name itself as the address it was found at. MailCraft then offers **Sign in
+  through the browser**.
+- **An account that has a password** moves to the single sign-on under **Server settings ›
+  Sign-in**, and back the same way.
+- **What MailCraft keeps.** The browser opens the service's sign-in page. MailCraft keeps no
+  password, only the service's refresh token, in the system keychain.
+
+### Register MailCraft with the service
+
+The service's administrator registers MailCraft once, as one client for all its users:
+
+- **A public client**, with no secret. A secret inside a program anyone can download protects
+  nothing.
+- **PKCE with S256**, required. MailCraft sends nothing else, and refuses a service whose
+  description lists PKCE methods without `S256`.
+- **The redirect URI `http://127.0.0.1`, on any port.** For each sign-in, MailCraft listens on a
+  port the system gives it, and the browser is sent back to `http://127.0.0.1:<port>/`
+  (RFC 8252 §7.3). A service that compares redirect URIs exactly must allow any port for this
+  one.
+- **The scopes `openid profile email`.** MailCraft asks for these, or for the scopes the mail
+  server names in its `WWW-Authenticate` challenge. It adds `offline_access` only when the
+  service lists it in `scopes_supported`.
+- **Refresh tokens allowed.** MailCraft keeps the sign-in with the refresh token. If the service
+  gives none, signing in fails: MailCraft says the service "gave no lasting sign-in".
+- **Tokens the mail server takes** for this client: the server checks the access token on every
+  request.
+
+A test service on this computer, at a loopback address such as `http://127.0.0.1:8080`, can use
+plain http. Every other service must use https.
+
+### Give MailCraft the client ID
+
+Users type it in **Client ID**, which MailCraft shows when it has none for the service: in **Add
+account**, or in the **Server settings** of an account that needs one.
+
+Or the copy of MailCraft your users install can carry it, in `MAILCRAFT_OIDC_CLIENTS`:
+
+```sh
+MAILCRAFT_OIDC_CLIENTS="https://sso.example.com=mailcraft;https://kc.example.org/realms/mail=mc-desktop"
+```
+
+- Each pair is the service's issuer, then `=`, then the client ID. Pairs are separated by `;`,
+  and spaces around them don't count.
+- The issuer is the one the service's description names, written the same way except for a
+  trailing `/`.
+- MailCraft reads the variable when it starts. If it's set when MailCraft is built, the build
+  keeps it. For the same issuer, a value set at start comes before the built one.

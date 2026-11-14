@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) mod compacting;
 pub(super) mod importing;
+mod single_sign_on;
 
 #[test]
 fn the_account_form_adds_exchange_accounts() {

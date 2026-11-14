@@ -21,6 +21,10 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
         ui.checkbox(&mut f.calendar_only, tl!("Calendars and contacts only, with no email (CalDAV and CardDAV)"));
     }
     ui.add_space(10.0);
+    // What the JMAP server said about how it's signed in to, once asked (below, as its address
+    // is typed).
+    let probe = if f.jmap { sign_on::answer(s, &f.jmap_url).cloned() } else { None };
+    let single_sign_on_only = probe.as_ref().is_some_and(|p| p.bearer && !p.password);
     egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
         ui.label(tl!("Email address"));
         let r = ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(vec2(300.0, 26.0)).desired_width(300.0));
@@ -66,13 +70,18 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
         ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(vec2(300.0, 26.0)).desired_width(300.0));
         ui.end_row();
         // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and
-        // Live, which take no passwords from mail apps (when this copy can sign in there).
+        // Live, which take no passwords from mail apps (when this copy can sign in there), and
+        // a JMAP server behind a single sign-on that takes none.
         let browser_only = f.graph
+            || single_sign_on_only
             || (!f.jmap && !f.ews && mailcraft_engine::model::microsoft_consumer(&f.email) && s.oauth_available.iter().any(|p| p == "microsoft"));
         if !browser_only {
             ui.label(tl!("Password"));
             ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
             ui.end_row();
+        }
+        if probe.as_ref().is_some_and(sign_on::needs_client_id) {
+            sign_on::client_id_row(ui, f);
         }
     });
     ui.add_space(6.0);
@@ -139,10 +148,15 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
                     }
                     if f.jmap {
                         label(ui, "JMAP session address");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
-                        ui.add_space(4.0);
-                        label(ui, "User name");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+                        let r = ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+                        sign_on::ask(s, &f.jmap_url, r.has_focus(), acts);
+                        sign_on::note(ui, t, s, &f.jmap_url);
+                        // A single sign-on knows who signs in: no user name.
+                        if !single_sign_on_only {
+                            ui.add_space(4.0);
+                            label(ui, "User name");
+                            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+                        }
                         return;
                     }
                     if f.pop {
@@ -220,6 +234,7 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
         ui.label(RichText::new(tf!("Server: {url} (EWS)", url = f.ews_url.trim())).color(t.faint).small());
     } else if f.jmap && !f.jmap_url.trim().is_empty() {
         ui.label(RichText::new(tf!("Server: {url} (JMAP)", url = f.jmap_url.trim())).color(t.faint).small());
+        sign_on::ask(s, &f.jmap_url, false, acts);
     } else if f.pop && !f.pop_host.is_empty() {
         ui.label(
             RichText::new(tf!(
@@ -315,7 +330,16 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
             ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
         });
     }
-    let ready = !f.graph && !consumer && !f.email.trim().is_empty() && !f.password.is_empty() && (!f.jmap || !f.jmap_url.trim().is_empty());
+    // A JMAP server's own single sign-on.
+    if let Some(p) = &probe {
+        sign_on::add_button(ui, t, f, p, acts);
+    }
+    let ready = !f.graph
+        && !consumer
+        && !single_sign_on_only
+        && !f.email.trim().is_empty()
+        && !f.password.is_empty()
+        && (!f.jmap || !f.jmap_url.trim().is_empty());
     let (ok, cancel) = buttons(ui, t, "Connect", ready);
     if ok {
         if !f.jmap && !f.ews && f.imap_host.is_empty() {
@@ -350,6 +374,9 @@ pub struct AccountForm {
     /// Syncs over JMAP instead of IMAP and SMTP, through this session address.
     pub jmap: bool,
     pub jmap_url: String,
+    /// The client ID its administrator gave for the JMAP server's single sign-on, when MailCraft
+    /// has none for it.
+    pub client_id: String,
     /// Exchange Online through Microsoft Graph (signs in with Microsoft in the browser).
     pub graph: bool,
     /// An organisation's own Exchange server through EWS, at this address or server name.

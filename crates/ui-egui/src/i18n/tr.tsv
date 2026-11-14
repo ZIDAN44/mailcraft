@@ -1704,3 +1704,16 @@ month	May	Mayıs
 	Nothing to do	Yapılacak bir şey yok
 	Nothing in the next 7 days	Önümüzdeki 7 günde bir şey yok
 	Show the calendar, what's coming up and your tasks beside the mail	Takvimi, yaklaşanları ve görevlerinizi postanın yanında gösterin
+	Asking the server how it signs you in…	Sunucunun oturum açma yöntemi soruluyor…
+	Client ID	İstemci kimliği
+	Client ID needed	İstemci kimliği gerekli
+	Given by your administrator	Yöneticiniz tarafından verilir
+	In the browser	Tarayıcıda
+	Saving opens the sign-in page in your browser.	Kaydettiğinizde oturum açma sayfası tarayıcınızda açılır.
+	Sign in through the browser	Tarayıcıda oturum aç
+	Sign-in	Oturum açma
+	This mail server doesn't accept passwords: it needs you to sign in through the browser	Bu posta sunucusu parola kabul etmiyor: tarayıcıda oturum açmanız gerekiyor
+	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Bu posta sunucusu tarayıcıda oturum açmanızı istiyor: girilecek istemci kimliğini yöneticinize sorun
+	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Bu sunucu oturumunuzu tarayıcıda açıyor, ancak oturum açma hizmeti bulunamadı: {error}
+	This server takes no passwords: you sign in through your browser, with its single sign-on.	Bu sunucu parola kabul etmiyor: tek oturum açma (SSO) ile tarayıcınızda oturum açarsınız.
+	with {service}: no password stored	{service} ile: parola saklanmaz

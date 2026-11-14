@@ -376,6 +376,8 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     ] {
         out.insert(w.to_string());
     }
+    // Why an account can't sign in, as its status and in its dialogs.
+    out.extend([mailcraft_engine::model::NO_PASSWORDS, mailcraft_engine::model::NO_CLIENT_ID].map(str::to_string));
     out
 }
 

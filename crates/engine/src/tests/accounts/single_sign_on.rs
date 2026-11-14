@@ -170,3 +170,22 @@ fn an_account_changes_how_it_signs_in() {
     }
     done(s);
 }
+
+#[test]
+fn what_a_single_sign_on_needs_is_said_once_as_it_comes() {
+    let mut s = session("sign-on-said");
+    let id = s.run("account.add", &json!({"email": "ana@example.com", "password": "pw", "jmap": SERVER})).unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    for why in [mailcraft_model::NO_PASSWORDS, mailcraft_model::NO_CLIENT_ID] {
+        s.apply(Event::Status { account: id.clone(), status: SyncStatus::Error { error: why.into() } });
+        assert_eq!(s.notices.last().map(|n| n.text.as_str()), Some(format!("ana@example.com: {why}").as_str()), "said as it comes");
+        let n = s.notices.len();
+        s.apply(Event::Status { account: id.clone(), status: SyncStatus::Error { error: why.into() } });
+        assert_eq!(s.notices.len(), n, "not again while it stays so");
+    }
+    // Asked for no password: there's none it could take.
+    assert!(s.ask_password.is_empty());
+    done(s);
+}

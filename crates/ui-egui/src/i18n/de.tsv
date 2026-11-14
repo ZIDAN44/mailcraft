@@ -1704,3 +1704,16 @@ month	May	Mai
 	Nothing to do	Nichts zu erledigen
 	Nothing in the next 7 days	Nichts in den nächsten 7 Tagen
 	Show the calendar, what's coming up and your tasks beside the mail	Kalender, anstehende Termine und Aufgaben neben den E-Mails anzeigen
+	Asking the server how it signs you in…	Anmeldeart des Servers wird ermittelt…
+	Client ID	Client-ID
+	Client ID needed	Client-ID erforderlich
+	Given by your administrator	Von Ihrem Administrator erhalten
+	In the browser	Im Browser
+	Saving opens the sign-in page in your browser.	Beim Speichern öffnet sich die Anmeldeseite in Ihrem Browser.
+	Sign in through the browser	Im Browser anmelden
+	Sign-in	Anmeldung
+	This mail server doesn't accept passwords: it needs you to sign in through the browser	Dieser Mailserver akzeptiert keine Kennwörter: Sie müssen sich im Browser anmelden
+	This mail server needs you to sign in through the browser: ask your administrator for the client ID to enter	Dieser Mailserver verlangt eine Anmeldung im Browser: Fragen Sie Ihren Administrator nach der einzugebenden Client-ID
+	This server signs you in through your browser, but its sign-in service wasn't found: {error}	Dieser Server meldet Sie im Browser an, aber sein Anmeldedienst wurde nicht gefunden: {error}
+	This server takes no passwords: you sign in through your browser, with its single sign-on.	Dieser Server akzeptiert keine Kennwörter: Sie melden sich im Browser mit seinem Single Sign-On an.
+	with {service}: no password stored	mit {service}: kein Kennwort gespeichert

@@ -35,7 +35,14 @@ impl Session {
                 }
                 // Refusals that need something done say so once, as they come.
                 if let SyncStatus::Error { error } = &status
-                    && (error.starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_model::MICROSOFT_NO_PASSWORDS))
+                    && [
+                        mailcraft_model::MICROSOFT_IMAP_CLOSED,
+                        mailcraft_model::MICROSOFT_NO_PASSWORDS,
+                        mailcraft_model::NO_PASSWORDS,
+                        mailcraft_model::NO_CLIENT_ID,
+                    ]
+                    .iter()
+                    .any(|why| error.starts_with(why))
                     && self.account(&account).is_some_and(|a| a.status != status)
                 {
                     let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();

@@ -4,10 +4,12 @@ use super::*;
 
 mod add;
 mod edit;
+mod sign_on;
 
 pub use add::AccountForm;
 pub use edit::EditForm;
 pub(super) use edit::edit_account;
+pub use sign_on::SignOn;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
@@ -90,7 +92,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::EditAccount(f) => edit_account(ui, f, t, acts),
+        Dialog::EditAccount(f) => edit_account(ui, f, s, t, acts),
         Dialog::AddSharedMailbox { account, address, error } => {
             ui.set_width(420.0);
             title(ui, t, "Add a shared mailbox");
