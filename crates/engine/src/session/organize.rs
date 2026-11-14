@@ -426,19 +426,21 @@ impl Session {
         // The conversations' messages, in the folders the selection is in.
         let folders: Vec<(String, String)> = sel.iter().map(|m| (m.key.account.clone(), m.key.folder.clone())).collect();
         self.folders_ready(&folders)?;
-        let mut members: Vec<Summary> = Vec::new();
-        for m in &sel {
-            let folder = self.folder_state(&m.key.account, &m.key.folder).messages.clone();
+        // Each folder is threaded once, however many of its messages are selected; its
+        // conversations that hold a selected message are taken whole.
+        let selected: HashSet<&MessageKey> = sel.iter().map(|m| &m.key).collect();
+        let folders: BTreeSet<(String, String)> = folders.into_iter().collect();
+        let (mut members, mut taken): (Vec<Summary>, HashSet<MessageKey>) = (Vec::new(), HashSet::new());
+        for (account, path) in folders {
+            let folder = self.folder_state(&account, &path).messages.clone();
             for t in mailcraft_model::thread::threads(&folder) {
                 let msgs: Vec<&Summary> = t.messages.iter().filter_map(|&i| folder.get(i).map(|m| &**m)).collect();
-                if msgs.iter().any(|x| x.key == m.key) {
-                    members.extend(msgs.into_iter().cloned());
+                if msgs.iter().any(|x| selected.contains(&x.key)) {
+                    members.extend(msgs.into_iter().filter(|x| taken.insert(x.key.clone())).cloned());
                 }
             }
-            if !members.iter().any(|x| x.key == m.key) {
-                members.push(m.clone());
-            }
         }
+        members.extend(sel.iter().filter(|m| taken.insert(m.key.clone())).cloned());
         for m in &members {
             self.prefs.ignored.extend(Self::conversation_ids(m));
         }

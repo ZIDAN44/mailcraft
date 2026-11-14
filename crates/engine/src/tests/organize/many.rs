@@ -96,3 +96,25 @@ fn junk_and_ignored_mail_move_together() {
     assert!(s.take_new_mail().is_empty(), "neither is announced");
     done(s);
 }
+
+/// Ignore Conversation on 300 messages selected in a folder of 5,000, timed (the folder is
+/// threaded once, not once per message). Run under the heavy lock:
+/// `cargo test -p mailcraft-engine --lib measure_ignore_many -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_ignore_many() {
+    let mut s = Session::open(Some(temp("measure-ignore")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = many_arrive(&mut s, 5000);
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+    let keys: Vec<String> = s.list.iter().take(300).map(|m| m.key.to_id()).collect();
+    for k in &keys {
+        s.run("list.select", &json!({"key": k, "add": true})).unwrap();
+    }
+    assert_eq!(s.selection.len(), 300);
+    let t = std::time::Instant::now();
+    let r = s.run("mail.ignore", &json!({})).unwrap();
+    println!("MEASURE ignore 300 of 5000: {} ms ({r})", t.elapsed().as_millis());
+    assert_eq!(s.prefs.ignored.len(), 300);
+    done(s);
+}
