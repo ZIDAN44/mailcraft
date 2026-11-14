@@ -426,7 +426,7 @@ pub fn card_of(it: &El) -> Option<Card> {
         note: body,
         addresses,
         birthday,
-        extra: Vec::new(),
+        ..Default::default()
     })
 }
 

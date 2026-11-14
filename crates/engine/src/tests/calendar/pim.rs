@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod server_cards;
+
 #[test]
 fn calendar_events_on_this_computer() {
     let mut s = sample_session("calendar");

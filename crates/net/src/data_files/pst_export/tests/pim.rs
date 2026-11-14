@@ -74,6 +74,7 @@ pub(super) fn account() -> Pim {
             format!("PHOTO:data:image/png;base64,{png}"),
             "X-MAILCRAFT-ATTACH;X-FILENAME=\"cv; 2026.pdf\":data:application/pdf;base64,Y3Y=".into(),
         ],
+        ..Default::default()
     };
     let ben =
         Card { uid: "c2".into(), name: "Ben".into(), emails: vec![typed("ben@example.com", "")], birthday: "--12-24".into(), ..Default::default() };

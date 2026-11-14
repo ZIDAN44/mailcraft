@@ -53,7 +53,7 @@ fn contacts_both_ways() {
             PostalAddress { kind: "home".into(), street: "Rue Haute 9".into(), city: "Gent".into(), ..Default::default() },
         ],
         birthday: "1990-07-12".into(),
-        extra: Vec::new(),
+        ..Default::default()
     };
     let xml = contact_xml(&card).replace("<t:Contact>", "<t:Contact><t:ItemId Id=\"C1\" ChangeKey=\"k\"/>");
     // In the schema's order: addresses between emails and phones, the birthday after phones.

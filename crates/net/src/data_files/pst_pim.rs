@@ -510,7 +510,7 @@ pub(crate) fn card_of(x: &Extra, body: &str, uid: String) -> Card {
                 format!("{y:04}-{m:02}-{d:02}")
             })
             .unwrap_or_default(),
-        extra: Vec::new(),
+        ..Default::default()
     };
     if !x.web.is_empty() {
         card.extra.push(format!("URL:{}", x.web.replace(['\r', '\n'], "")));

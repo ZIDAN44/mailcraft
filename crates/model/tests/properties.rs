@@ -79,7 +79,7 @@ fn card() -> impl Strategy<Value = Card> {
                 .filter(|a| !a.is_empty())
                 .collect(),
             birthday: birthday.to_string(),
-            extra: Vec::new(),
+            ..Default::default()
         })
 }
 
@@ -168,7 +168,10 @@ proptest! {
         let text = vcard::write(&c);
         let back = vcard::parse(&text);
         prop_assert_eq!(back.len(), 1, "{}", text);
-        prop_assert_eq!(&back[0], &c, "{}", text);
+        // The card, its lines kept as written beside it ([`Card::as_written`]); written again,
+        // the same text.
+        prop_assert_eq!(&Card { as_written: Default::default(), ..back[0].clone() }, &c, "{}", text);
+        prop_assert_eq!(vcard::write(&back[0]), text);
     }
 
     /// Any folder name survives IMAP's modified UTF-7, and the wire form is ASCII.

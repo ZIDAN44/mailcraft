@@ -353,7 +353,7 @@ pub fn card_of(v: &Value) -> Option<Card> {
             })
             .and_then(|b| mailcraft_model::vcard::birthday_of(&b))
             .unwrap_or_default(),
-        extra: Vec::new(),
+        ..Default::default()
     })
 }
 

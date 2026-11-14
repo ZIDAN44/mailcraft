@@ -31,6 +31,7 @@ on GitHub.
 - A big folder of a JMAP account (Fastmail, say) syncs without looking each message up in the whole folder: in a folder of 40,000 that was nearly two seconds of every sync, even when nothing had changed, and it grew with the square of the folder's size.
 - A calendar invitation or subscribed calendar with a very long list of skipped dates (`EXDATE`) is read at once: each date copied the whole list, so 100,000 of them took 40 seconds.
 - An event whose notes are full of web addresses, or of brackets after one, is opened and its meeting link found at once; a crafted invitation's notes could hold MailCraft up for minutes.
+- A contact from a CardDAV server that you edit goes back with what MailCraft doesn't show: saving it from **Edit contact**, even with nothing but its job title changed, cleared its last and first names (and dropped a middle name, title and suffix), took the type off its email addresses, and dropped its numbers' other types, which one is preferred and the label beside them (iPhone's "Studio fax", say).
 
 ## 0.38.0 - 2026-11-13
 

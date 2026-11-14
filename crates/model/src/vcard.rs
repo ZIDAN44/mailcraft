@@ -3,6 +3,8 @@
 //! The fields MailCraft shows and edits are read into a [`Card`]; every other property is kept
 //! as written so editing a card from a server loses nothing.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 /// The longest input read: as much as a file opened is (an address book exported with its pictures and files reads
@@ -95,6 +97,10 @@ pub struct Card {
     pub given: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub family: String,
+    /// The rest of `N` as written (additional names; prefixes; suffixes: `Marie;Dr.;Jr.`),
+    /// written back after the family and given names.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name_rest: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub emails: Vec<Typed>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -114,6 +120,11 @@ pub struct Card {
     /// Other properties, as written (unfolded content lines).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<String>,
+    /// The addresses' and numbers' lines as written (`item1.TEL;TYPE=WORK,FAX;PREF=1:…`), by
+    /// property and value (`TEL:+1 555 0100`): written back so, with all their types, their
+    /// preference and their group, while they're of the kind read from them.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub as_written: BTreeMap<String, String>,
 }
 
 impl Card {
@@ -156,6 +167,83 @@ fn components(v: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// Where a structured value's components are parted: its unescaped `;`s.
+fn separators(v: &str) -> Vec<usize> {
+    let mut at = Vec::new();
+    let mut escaped = false;
+    for (i, c) in v.char_indices() {
+        match c {
+            _ if escaped => escaped = false,
+            '\\' => escaped = true,
+            ';' => at.push(i),
+            _ => {}
+        }
+    }
+    at
+}
+
+/// What follows the first `n` components of a structured value, as written (`None` when it has
+/// no more).
+fn after_components(v: &str, n: usize) -> Option<&str> {
+    let i = *separators(v).get(n.checked_sub(1)?)?;
+    v.get(i + 1..)
+}
+
+/// A content line's head and value, split at its first colon outside quotes.
+fn split_line(raw: &str) -> Option<(&str, &str)> {
+    let mut quoted = false;
+    let colon = raw.char_indices().find(|(_, c)| {
+        if *c == '"' {
+            quoted = !quoted;
+        }
+        *c == ':' && !quoted
+    })?;
+    Some((raw.get(..colon.0).unwrap_or(""), raw.get(colon.0 + 1..).unwrap_or("")))
+}
+
+/// A head's parameters, keys upper-cased (a bare one, 3.0's `WORK`, with an empty value).
+fn params_of(head: &str) -> Vec<(String, String)> {
+    head.split(';')
+        .skip(1)
+        .map(|p| p.split_once('=').map_or((p.trim().to_ascii_uppercase(), String::new()), |(k, v)| (k.trim().to_ascii_uppercase(), v.to_string())))
+        .collect()
+}
+
+/// Where an address's or number's line as written is kept ([`Card::as_written`]).
+fn written_key(prop: &str, value: &str) -> String {
+    format!("{prop}:{value}")
+}
+
+/// Keep an address's or number's line as written, when it can go into the 4.0 card written
+/// back as it is: not 2.1's quoted-printable or character set, nor 3.0's bare `WORK`. Of two
+/// with one value (a number both work and home), the first.
+fn keep_written(c: &mut Card, prop: &str, value: &str, raw: &str, params: &[(String, String)]) {
+    let fits = params.iter().all(|(k, v)| !v.is_empty() && k != "ENCODING" && k != "CHARSET");
+    if fits {
+        c.as_written.entry(written_key(prop, value)).or_insert_with(|| raw.to_string());
+    }
+}
+
+/// An address's or number's line as it goes back: as written while it's of the kind read from
+/// it, else with its group and other parameters and the new kind as its type.
+fn written_again(line: &str, kind_now: &str) -> Option<String> {
+    let (head, value) = split_line(line)?;
+    if kind(&params_of(head)) == kind_now {
+        return Some(line.replace(['\r', '\n'], ""));
+    }
+    let mut parts = head.split(';');
+    let mut out = parts.next().unwrap_or("").to_string();
+    for p in parts.filter(|p| p.split_once('=').is_some_and(|(k, _)| !k.trim().eq_ignore_ascii_case("TYPE"))) {
+        out.push(';');
+        out.push_str(p);
+    }
+    if !kind_now.is_empty() {
+        out.push_str(";TYPE=");
+        out.push_str(kind_now);
+    }
+    Some(format!("{out}:{value}").replace(['\r', '\n'], ""))
 }
 
 /// The kind from `TYPE` parameters (`TYPE=work`, `TYPE=WORK,VOICE`, 3.0's bare `WORK`).
@@ -288,16 +376,7 @@ pub fn parse(text: &str) -> Vec<Card> {
     let mut cards = Vec::new();
     let mut cur: Option<Card> = None;
     for raw in unfolded {
-        let mut quoted = false;
-        let Some(colon) = raw.char_indices().find(|(_, c)| {
-            if *c == '"' {
-                quoted = !quoted;
-            }
-            *c == ':' && !quoted
-        }) else {
-            continue;
-        };
-        let (head, value) = (raw.get(..colon.0).unwrap_or(""), raw.get(colon.0 + 1..).unwrap_or(""));
+        let Some((head, value)) = split_line(&raw) else { continue };
         let decoded;
         let value = if quoted_printable_line(head) {
             decoded = quoted_printable(value, charset_of(head));
@@ -305,14 +384,9 @@ pub fn parse(text: &str) -> Vec<Card> {
         } else {
             value
         };
-        let mut parts = head.split(';');
         // Properties may carry a group prefix (`item1.EMAIL`).
-        let name = parts.next().unwrap_or("").rsplit('.').next().unwrap_or("").trim().to_ascii_uppercase();
-        let params: Vec<(String, String)> = parts
-            .map(|p| {
-                p.split_once('=').map_or((p.trim().to_ascii_uppercase(), String::new()), |(k, v)| (k.trim().to_ascii_uppercase(), v.to_string()))
-            })
-            .collect();
+        let name = head.split(';').next().unwrap_or("").rsplit('.').next().unwrap_or("").trim().to_ascii_uppercase();
+        let params = params_of(head);
         match name.as_str() {
             "BEGIN" if value.trim().eq_ignore_ascii_case("VCARD") => cur = Some(Card::default()),
             "END" if value.trim().eq_ignore_ascii_case("VCARD") => {
@@ -333,12 +407,19 @@ pub fn parse(text: &str) -> Vec<Card> {
                         let n = components(value);
                         c.family = n.first().cloned().unwrap_or_default();
                         c.given = n.get(1).cloned().unwrap_or_default();
+                        let rest = after_components(value, 2).unwrap_or("");
+                        c.name_rest = if rest.chars().all(|ch| ch == ';') { String::new() } else { rest.to_string() };
                     }
-                    "EMAIL" if c.emails.len() < 50 => c.emails.push(Typed { value: value.trim().to_string(), kind: kind(&params) }),
+                    "EMAIL" if c.emails.len() < 50 => {
+                        let t = Typed { value: value.trim().to_string(), kind: kind(&params) };
+                        keep_written(c, "EMAIL", &t.value, &raw, &params);
+                        c.emails.push(t);
+                    }
                     "TEL" if c.phones.len() < 50 => {
                         let v = value.trim();
-                        let v = v.strip_prefix("tel:").unwrap_or(v);
-                        c.phones.push(Typed { value: v.to_string(), kind: kind(&params) });
+                        let t = Typed { value: v.strip_prefix("tel:").unwrap_or(v).to_string(), kind: kind(&params) };
+                        keep_written(c, "TEL", &t.value, &raw, &params);
+                        c.phones.push(t);
                     }
                     "ORG" => c.org = components(value).into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(", "),
                     "TITLE" => c.title = text(),
@@ -388,7 +469,10 @@ pub fn write(c: &Card) -> String {
     let mut lines: Vec<String> = vec!["BEGIN:VCARD".into(), "VERSION:4.0".into(), "PRODID:-//MailCraft//MailCraft//EN".into()];
     lines.push(format!("UID:{}", c.uid.replace(['\r', '\n'], "")));
     lines.push(format!("FN:{}", esc(&c.display())));
-    lines.push(format!("N:{};{};;;", esc(&c.family), esc(&c.given)));
+    // Five components: the rest as written, made up to three.
+    let rest = c.name_rest.replace(['\r', '\n'], "");
+    let pad = ";".repeat(2usize.saturating_sub(separators(&rest).len()));
+    lines.push(format!("N:{};{};{rest}{pad}", esc(&c.family), esc(&c.given)));
     lines.extend(property_lines(c));
     lines.push("END:VCARD".into());
     let mut out = String::new();
@@ -404,7 +488,9 @@ pub fn property_lines(c: &Card) -> Vec<String> {
     let mut lines = Vec::new();
     let typed = |prop: &str, t: &Typed| {
         let kind = t.kind.replace(|ch: char| !ch.is_ascii_alphanumeric() && ch != '-', "");
-        if kind.is_empty() {
+        if let Some(line) = c.as_written.get(&written_key(prop, &t.value)).and_then(|l| written_again(l, &kind)) {
+            line
+        } else if kind.is_empty() {
             format!("{prop}:{}", t.value.replace(['\r', '\n'], ""))
         } else {
             format!("{prop};TYPE={kind}:{}", t.value.replace(['\r', '\n'], ""))
@@ -469,7 +555,9 @@ BEGIN:VCARD\r\nVERSION:4.0\r\nUID:urn:uuid:ann\r\nEMAIL:ann@x.example\r\nEND:VCA
         assert_eq!(cards[1].display(), "ann@x.example");
         let back = parse(&write(z));
         assert_eq!(back.len(), 1);
-        assert_eq!(back[0], Card { org: "Studio Lantern\\, Story".replace("\\,", ","), ..z.clone() });
+        let unkept = |c: &Card| Card { as_written: BTreeMap::new(), ..c.clone() };
+        assert_eq!(unkept(&back[0]), Card { org: "Studio Lantern\\, Story".replace("\\,", ","), ..unkept(z) });
+        assert!(z.as_written.iter().all(|(k, v)| back[0].as_written.get(k) == Some(v)), "lines kept as they were read: {:?}", back[0].as_written);
         assert!(z.matches("lantern") && z.matches("ZOE@home") && z.matches("+49151") && !z.matches("ann"));
     }
 
@@ -560,5 +648,38 @@ TITLE:Price=5 not encoded\r\nEND:VCARD\r\n";
             let _ = parse(junk);
         }
         assert_eq!(parse("BEGIN:VCARD\nEMAIL;TYPE=\"a:b\":x@y\nEND:VCARD")[0].emails[0].value, "x@y", "colons in quoted parameters");
+    }
+
+    /// A card from a server written back as it was read: all of its name (a middle name, a
+    /// prefix and a suffix were dropped), and its addresses' and numbers' lines whole, with their
+    /// group (an Apple label beside one was left naming nothing), every type and their preference.
+    /// One whose kind was changed is written with the new kind, its group and preference kept.
+    #[test]
+    fn a_server_card_is_written_back_whole() {
+        let card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:zoe\r\nFN:Dr. Zoe Marie Park Jr.\r\nN:Park;Zoe;Marie;Dr.;Jr.\r\n\
+item1.TEL;TYPE=WORK,FAX;PREF=1:+1 555 0100\r\nitem1.X-ABLabel:Studio fax\r\n\
+EMAIL;TYPE=INTERNET,WORK;PREF=1:zoe@studio.example\r\nTEL;VALUE=uri;TYPE=cell:tel:+49-151-234\r\nEND:VCARD\r\n";
+        let c = parse(card).remove(0);
+        assert_eq!((c.given.as_str(), c.family.as_str()), ("Zoe", "Park"));
+        assert_eq!(c.phones[1], Typed { value: "+49-151-234".into(), kind: "cell".into() });
+        let out = write(&c);
+        for line in [
+            "N:Park;Zoe;Marie;Dr.;Jr.",
+            "item1.TEL;TYPE=WORK,FAX;PREF=1:+1 555 0100",
+            "item1.X-ABLabel:Studio fax",
+            "EMAIL;TYPE=INTERNET,WORK;PREF=1:zoe@studio.example",
+            "TEL;VALUE=uri;TYPE=cell:tel:+49-151-234",
+        ] {
+            assert!(out.lines().any(|l| l == line), "{line}:\n{out}");
+        }
+        let mut changed = c.clone();
+        changed.phones[0].kind = "home".into();
+        changed.given = "Zoë".into();
+        let out = write(&changed);
+        assert!(out.lines().any(|l| l == "item1.TEL;PREF=1;TYPE=home:+1 555 0100"), "{out}");
+        assert!(out.lines().any(|l| l == "N:Park;Zoë;Marie;Dr.;Jr."), "{out}");
+        // A card made here is written as before.
+        let mine = Card { name: "Ann Lee".into(), given: "Ann".into(), family: "Lee".into(), ..Default::default() };
+        assert!(write(&mine).lines().any(|l| l == "N:Lee;Ann;;;"));
     }
 }
