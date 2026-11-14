@@ -16,9 +16,11 @@
 //! leave the file within a day of it); for [`TIER_MERGE`] segments of a size (by powers of 4
 //! docs); and past [`MAX_LIVE_SEGMENTS`] segments.
 
+use std::sync::Arc;
+
 use mailcraft_model::search::TOKENIZER_VERSION;
 
-use super::super::format::{LexEntry, LexStream, PosAt, Postings, SegPage, decode_blob, decode_pos_page, decode_post_page, decode_postings};
+use super::super::format::{LexEntry, LexStream, PosAt, Postings, Run, SegPage, decode_blob, decode_postings};
 use super::*;
 
 /// How long (seconds) the words of a removed doc may stay in a segment.
@@ -81,9 +83,9 @@ struct Input {
     /// Its word now.
     word: Option<LexEntry>,
     /// The postings page last read.
-    post: Option<(u32, Vec<u8>)>,
+    post: Option<(u32, Arc<Vec<u8>>)>,
     /// The places page last read.
-    places: Option<(u32, Vec<u8>)>,
+    places: Option<(u32, Arc<Vec<u8>>)>,
 }
 
 impl Input {
@@ -128,28 +130,8 @@ impl Input {
             Postings::Inline(docs) => return Ok(docs.clone()),
             &Postings::At { page, offset, len } => (page, offset as usize, len as usize),
         };
-        let mut bytes: Vec<u8> = Vec::with_capacity(len.min(16 << 20));
-        let (mut p, mut from) = (page, offset);
+        let bytes = Run::Postings.read(base, &self.info, (page, offset, len), |p, path| hold(store, &mut self.post, p, path))?;
         let first = Name::SegPost(self.info.id, page).path(base);
-        while bytes.len() < len {
-            let path = Name::SegPost(self.info.id, p).path(base);
-            if p >= self.info.post_pages {
-                return Err(damaged(&path, "postings past the segment"));
-            }
-            if self.post.as_ref().map(|(n, _)| *n) != Some(p) {
-                self.post = None;
-                self.post = Some((p, need_file(store, &path).map_err(|e| missing(&path, e))?));
-            }
-            let raw = self.post.as_ref().map(|(_, r)| r.as_slice()).unwrap_or_default();
-            let data = decode_post_page(raw).map_err(|what| damaged(&path, what))?;
-            let rest = data.get(from..).ok_or_else(|| damaged(&path, "postings past the page"))?;
-            let want = (len - bytes.len()).min(rest.len());
-            if want == 0 {
-                return Err(damaged(&path, "postings past the page"));
-            }
-            bytes.extend_from_slice(rest.get(..want).unwrap_or_default());
-            (p, from) = (p.saturating_add(1), 0);
-        }
         decode_postings(&bytes, e.df, next_doc).map_err(|what| damaged(&first, what))
     }
 
@@ -157,29 +139,21 @@ impl Input {
     fn places(&mut self, store: &Store, base: &Path, at: PosAt) -> Result<Vec<u8>> {
         let first = Name::SegPos(self.info.id, at.page).path(base);
         let len = usize::try_from(at.len).map_err(|_| damaged(&first, "places too long"))?;
-        let mut bytes: Vec<u8> = Vec::with_capacity(len.min(16 << 20));
-        let (mut p, mut from) = (at.page, at.offset as usize);
-        while bytes.len() < len {
-            let path = Name::SegPos(self.info.id, p).path(base);
-            if p >= self.info.pos_pages {
-                return Err(damaged(&path, "places past the segment"));
-            }
-            if self.places.as_ref().map(|(n, _)| *n) != Some(p) {
-                self.places = None;
-                self.places = Some((p, need_file(store, &path).map_err(|e| missing(&path, e))?));
-            }
-            let raw = self.places.as_ref().map(|(_, r)| r.as_slice()).unwrap_or_default();
-            let data = decode_pos_page(raw).map_err(|what| damaged(&path, what))?;
-            let rest = data.get(from..).ok_or_else(|| damaged(&path, "places past the page"))?;
-            let want = (len - bytes.len()).min(rest.len());
-            if want == 0 {
-                return Err(damaged(&path, "places past the page"));
-            }
-            bytes.extend_from_slice(rest.get(..want).unwrap_or_default());
-            (p, from) = (p.saturating_add(1), 0);
-        }
-        Ok(bytes)
+        Run::Places.read(base, &self.info, (at.page, at.offset as usize, len), |p, path| hold(store, &mut self.places, p, path))
     }
+}
+
+/// Page `p` (at `path`) of a segment being merged: the one held, or read in its place.
+fn hold(store: &Store, held: &mut Option<(u32, Arc<Vec<u8>>)>, p: u32, path: &Path) -> Result<Arc<Vec<u8>>> {
+    if let Some((n, page)) = held.as_ref()
+        && *n == p
+    {
+        return Ok(page.clone());
+    }
+    *held = None;
+    let page = Arc::new(need_file(store, path).map_err(|e| missing(path, e))?);
+    *held = Some((p, page.clone()));
+    Ok(page)
 }
 
 /// The writer is held: a file the meta names and isn't there is damage.

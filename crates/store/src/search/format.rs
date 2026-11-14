@@ -3,6 +3,8 @@
 //! checked (lengths against what's left, counts against caps, doc ids against the meta's), so a
 //! damaged or hostile file is an error, never a panic or a huge allocation.
 
+use std::sync::Arc;
+
 use mailcraft_model::search::IndexDoc;
 
 use super::*;
@@ -142,6 +144,87 @@ pub(crate) fn put_var(out: &mut Vec<u8>, mut v: u64) {
 
 fn put_len(out: &mut Vec<u8>, n: usize) {
     put_var(out, n as u64);
+}
+
+/// Most bytes set aside for a run before it is read (its length is the file's word).
+const RUN_RESERVE: usize = 16 << 20;
+
+/// Which of a segment's pages a run of bytes is in: a word's docs ([`Postings::At`]) or its
+/// places ([`PosAt`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Run {
+    Postings,
+    Places,
+}
+
+impl Run {
+    /// Page `p` of segment `seg`.
+    fn name(self, seg: u32, p: u32) -> Name {
+        match self {
+            Run::Postings => Name::SegPost(seg, p),
+            Run::Places => Name::SegPos(seg, p),
+        }
+    }
+
+    /// The segment's pages of this kind.
+    fn pages(self, info: &SegInfo) -> u32 {
+        match self {
+            Run::Postings => info.post_pages,
+            Run::Places => info.pos_pages,
+        }
+    }
+
+    /// A page's bytes past its header.
+    fn data(self, page: &[u8]) -> R<&[u8]> {
+        match self {
+            Run::Postings => decode_post_page(page),
+            Run::Places => decode_pos_page(page),
+        }
+    }
+
+    fn past_segment(self) -> &'static str {
+        match self {
+            Run::Postings => "postings past the segment",
+            Run::Places => "places past the segment",
+        }
+    }
+
+    fn past_page(self) -> &'static str {
+        match self {
+            Run::Postings => "postings past the page",
+            Run::Places => "places past the page",
+        }
+    }
+
+    /// `len` bytes of segment `info`'s pages of this kind, from `offset` in page `page` and on
+    /// into the next pages from their starts: each page one the segment has, and holding some of
+    /// what's left. `fetch` reads page `p`'s file (named `path` under `base`).
+    pub(crate) fn read(
+        self,
+        base: &Path,
+        info: &SegInfo,
+        (page, offset, len): (u32, usize, usize),
+        mut fetch: impl FnMut(u32, &Path) -> Result<Arc<Vec<u8>>>,
+    ) -> Result<Vec<u8>> {
+        let mut bytes: Vec<u8> = Vec::with_capacity(len.min(RUN_RESERVE));
+        let (mut p, mut from) = (page, offset);
+        while bytes.len() < len {
+            let path = self.name(info.id, p).path(base);
+            if p >= self.pages(info) {
+                return Err(damaged(&path, self.past_segment()));
+            }
+            let raw = fetch(p, &path)?;
+            let data = self.data(&raw).map_err(|what| damaged(&path, what))?;
+            let rest = data.get(from..).ok_or_else(|| damaged(&path, self.past_page()))?;
+            let want = (len - bytes.len()).min(rest.len());
+            if want == 0 {
+                return Err(damaged(&path, self.past_page()));
+            }
+            bytes.extend_from_slice(rest.get(..want).unwrap_or_default());
+            (p, from) = (p.saturating_add(1), 0);
+        }
+        Ok(bytes)
+    }
 }
 
 /// A text page as of the generation that wrote it.
@@ -575,4 +658,47 @@ pub(crate) fn decode_text_page(b: &[u8], next_doc: u32) -> R<Vec<(u32, &[u8])>> 
     }
     r.end()?;
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn page(magic: &[u8; 4], data: &[u8]) -> Vec<u8> {
+        [magic.as_slice(), &[VERSION], data].concat()
+    }
+
+    /// A run read across pages; and each way one can be wrong, damage of the page it is in.
+    #[test]
+    fn a_run_reads_across_pages_or_is_damage() {
+        let base = Path::new("idx");
+        let info = SegInfo { id: 3, lex_pages: 1, post_pages: 2, pos_pages: 2, ..SegInfo::default() };
+        let files = [
+            (Name::SegPost(3, 0), page(POST, b"abcdef")),
+            (Name::SegPost(3, 1), page(POST, b"ghij")),
+            (Name::SegPos(3, 0), page(POS, b"klm")),
+            (Name::SegPos(3, 1), page(POST, b"nop")),
+        ];
+        let read = |kind: Run, at| {
+            let mut pages = Vec::new();
+            let fetch = |p, path: &Path| {
+                pages.push(p);
+                let file = files.iter().find(|(n, _)| n.path(base) == path).map(|(_, b)| Arc::new(b.clone()));
+                file.ok_or_else(|| damaged(path, "no such file"))
+            };
+            let got = kind.read(base, &info, at, fetch).map_err(|e| e.to_string());
+            (got, pages)
+        };
+        let at = |p: &str| Path::new("idx").join("s").join(p).display().to_string();
+        let damage = |p: &str, what: &str| Err(format!("{}: damaged ({what})", at(p)));
+        assert_eq!(read(Run::Postings, (0, 4, 4)), (Ok(b"efgh".to_vec()), vec![0, 1]));
+        assert_eq!(read(Run::Postings, (1, 9, 0)), (Ok(Vec::new()), vec![]), "nothing to read");
+        assert_eq!(read(Run::Postings, (1, 2, 4)).0, damage("3-p2.bin", "postings past the segment"));
+        assert_eq!(read(Run::Postings, (0, 7, 1)).0, damage("3-p0.bin", "postings past the page"));
+        assert_eq!(read(Run::Postings, (0, 6, 1)).0, damage("3-p0.bin", "postings past the page"), "nothing left in it");
+        assert_eq!(read(Run::Places, (0, 1, 2)), (Ok(b"lm".to_vec()), vec![0]));
+        assert_eq!(read(Run::Places, (0, 1, 4)).0, damage("3-x1.bin", "not this kind of file"));
+        assert_eq!(read(Run::Places, (0, 3, 1)).0, damage("3-x0.bin", "places past the page"));
+        assert_eq!(read(Run::Places, (2, 0, 1)).0, damage("3-x2.bin", "places past the segment"));
+    }
 }

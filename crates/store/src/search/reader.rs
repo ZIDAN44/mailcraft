@@ -14,9 +14,7 @@ use std::sync::Arc;
 
 use mailcraft_model::search::TOKENIZER_VERSION;
 
-use super::format::{
-    Blob, LexEntry, Meta, Postings, SegInfo, decode_blob, decode_head, decode_lex, decode_post_page, decode_postings, decode_text_page,
-};
+use super::format::{Blob, LexEntry, Meta, Postings, Run, SegInfo, decode_blob, decode_head, decode_lex, decode_postings, decode_text_page};
 use super::*;
 
 mod phrase;
@@ -476,23 +474,11 @@ impl Reader {
         Ok(match &e.at {
             Postings::Inline(docs) => (docs.clone(), 0),
             &Postings::At { page, offset, len } => {
-                let mut bytes: Vec<u8> = Vec::with_capacity((len as usize).min(16 << 20));
-                let (mut p, mut from, mut read) = (page, offset as usize, 0usize);
-                while bytes.len() < len as usize {
-                    let path = Name::SegPost(info.id, p).path(&self.base);
-                    if p >= info.post_pages {
-                        return Err(damaged(&path, "postings past the segment"));
-                    }
-                    let raw = self.cache.get(store, self.meta.epoch, &path)?;
-                    let data = decode_post_page(&raw).map_err(|what| damaged(&path, what))?;
-                    let rest = data.get(from..).ok_or_else(|| damaged(&path, "postings past the page"))?;
-                    let want = (len as usize - bytes.len()).min(rest.len());
-                    bytes.extend_from_slice(rest.get(..want).unwrap_or_default());
-                    if want == 0 {
-                        return Err(damaged(&path, "postings past the page"));
-                    }
-                    (p, from, read) = (p.saturating_add(1), 0, read + 1);
-                }
+                let (epoch, mut read) = (self.meta.epoch, 0usize);
+                let bytes = Run::Postings.read(&self.base, info, (page, offset as usize, len as usize), |_, path| {
+                    read += 1;
+                    self.cache.get(store, epoch, path)
+                })?;
                 let path = Name::SegPost(info.id, page).path(&self.base);
                 (decode_postings(&bytes, e.df, self.meta.next_doc).map_err(|what| damaged(&path, what))?, read)
             }
