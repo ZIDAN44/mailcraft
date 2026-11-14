@@ -168,11 +168,6 @@ fn shown_text(line: &str) -> String {
 }
 
 impl Session {
-    /// The source of a message, if it's here: cached on disk, or waiting in the Outbox.
-    pub(super) fn cached_source(&self, key: &MessageKey) -> Option<Vec<u8>> {
-        self.body_raw(key)
-    }
-
     /// Whether a message is somewhere it can be named from: the list, the reading pane, a window.
     pub fn knows_message(&self, key: &MessageKey) -> bool {
         self.summary(key).is_some() || self.reading.as_ref().is_some_and(|r| &r.key == key) || self.windows.iter().any(|w| &w.key == key)
@@ -201,7 +196,7 @@ impl Session {
             .unwrap_or_default();
         let mut view = SourceView { key: key.clone(), subject, ..SourceView::default() };
         // Exchange's text first (issue #24) is MailCraft's, not the message's: the source waits.
-        match self.cached_source(key).filter(|raw| !mime::is_text_first(raw)) {
+        match self.body_raw(key).filter(|raw| !mime::is_text_first(raw)) {
             Some(raw) => view.fill(&raw),
             None => {
                 view.pending = true;

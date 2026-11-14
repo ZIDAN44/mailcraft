@@ -256,15 +256,8 @@ impl Session {
         if visible {
             self.refresh_list();
         }
-        if let Some(r) = &self.reading
-            && r.key.account == account
-            && r.key.folder == folder
-        {
-            let key = r.key.clone();
-            let thread = self.thread_of(&key);
-            if let Some(r) = self.reading.as_mut() {
-                r.thread = thread;
-            }
+        if self.reading.as_ref().is_some_and(|r| r.key.account == account && r.key.folder == folder) {
+            self.rethread_reading();
         }
     }
 
@@ -335,23 +328,17 @@ impl Session {
         }
     }
 
-    /// Junk's high-water mark, from what's kept, as soon as the folder is known: what the server
-    /// files there after is seen arriving (a safe sender's goes back to the Inbox), even when the
-    /// folder was empty at the first sync and so never changed until then.
-    pub(super) fn mark_junk(&mut self, account: &str) {
-        let Some(junk) = self.account(account).and_then(|a| a.folder(FolderRole::Junk)).map(|f| f.path.clone()) else { return };
-        if !self.seen_uid.contains_key(&(account.to_string(), junk.clone())) {
-            self.note_new_mail(account, &junk);
-        }
-    }
-
-    /// The Inbox's high-water mark, from what's kept, once the account's mail has been synced
-    /// in full: an Inbox empty at the first sync never changed, so it had none, and its first
-    /// message was taken for the backlog (not announced, no rules, no invitation taken in).
-    pub(super) fn mark_inbox(&mut self, account: &str) {
-        let Some(inbox) = self.account(account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()) else { return };
-        if !self.seen_uid.contains_key(&(account.to_string(), inbox.clone())) {
-            self.note_new_mail(account, &inbox);
+    /// The high-water mark of `account`'s folder with `role` (Inbox or Junk), from what's kept,
+    /// when it has none yet. Junk's as soon as the folder is known: what the server files there
+    /// after is seen arriving (a safe sender's goes back to the Inbox), even when the folder was
+    /// empty at the first sync and so never changed until then. The Inbox's once the account's
+    /// mail has been synced in full: an Inbox empty at the first sync never changed, so it had
+    /// none, and its first message was taken for the backlog (not announced, no rules, no
+    /// invitation taken in).
+    pub(super) fn mark_role(&mut self, account: &str, role: FolderRole) {
+        let Some(path) = self.account(account).and_then(|a| a.folder(role)).map(|f| f.path.clone()) else { return };
+        if !self.seen_uid.contains_key(&(account.to_string(), path.clone())) {
+            self.note_new_mail(account, &path);
         }
     }
 

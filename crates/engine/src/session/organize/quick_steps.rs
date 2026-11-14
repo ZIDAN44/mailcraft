@@ -27,10 +27,7 @@ impl Session {
     /// A Quick Step checked: a name not taken by another (`replacing`), actions that can be done
     /// (its categories and folders exist now), at most one move.
     fn checked_quick_step(&self, name: &str, actions: Vec<RuleAction>, replacing: Option<usize>) -> Result<QuickStep, CmdError> {
-        let name = name.trim();
-        if name.is_empty() || name.chars().count() > NAME_MAX || name.chars().any(char::is_control) {
-            return Err(CmdError::Params(format!("a Quick Step needs a name (up to {NAME_MAX} characters)")));
-        }
+        let name = super::categories::checked_name(name, NAME_MAX, "a Quick Step")?;
         if self.quick_step_at(name).is_some_and(|i| Some(i) != replacing) {
             return Err(CmdError::Params(format!("there's already a Quick Step named `{name}`")));
         }

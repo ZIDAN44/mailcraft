@@ -27,7 +27,7 @@ impl Session {
         let (shown, security) = self.unwrap(&key, raw);
         let parsed = mime::parse(&shown).map(|p| self.for_reading(&key, p));
         let warning = parsed.as_ref().and_then(|p| self.message_warning(&key, &p.from, p.bulk));
-        let error = parsed.is_none().then(|| "this message could not be read".to_string());
+        let error = parsed.is_none().then(|| UNREADABLE.to_string());
         if self.windows.len() >= MAX_WINDOWS {
             self.windows.remove(0);
         }

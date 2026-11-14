@@ -637,7 +637,7 @@ impl Session {
         }
         s.load_accounts();
         for id in s.accounts.iter().map(|a| a.config.id.clone()).collect::<Vec<_>>() {
-            s.mark_junk(&id);
+            s.mark_role(&id, FolderRole::Junk);
             s.read_drafts(&id);
         }
         s.refresh_outbox();

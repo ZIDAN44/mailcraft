@@ -230,7 +230,7 @@ impl Session {
         // Its mail synced in full: an Inbox empty until now (so never said to have
         // changed) is marked, so its first message counts as arriving, not as the backlog.
         if matches!(status, SyncStatus::Online { .. }) {
-            self.mark_inbox(&account);
+            self.mark_role(&account, FolderRole::Inbox);
         }
         if let Some(a) = self.account_mut(&account) {
             a.status = status;
@@ -277,7 +277,7 @@ impl Session {
         } else if first {
             self.refresh_list();
         }
-        self.mark_junk(&account);
+        self.mark_role(&account, FolderRole::Junk);
         // Its drafts say which messages have a reply begun (#52).
         self.read_drafts(&account);
         self.search_folders_changed(&account);

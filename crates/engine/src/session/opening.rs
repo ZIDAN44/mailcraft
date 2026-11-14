@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// What a message that can't be read as mail says, in its reading pane or window.
+pub(crate) const UNREADABLE: &str = "this message could not be read";
+
 mod files;
 pub(crate) use files::OpenedFile;
 mod selecting;
@@ -144,7 +147,7 @@ impl Session {
                 Some(raw) => {
                     let (shown, security) = self.unwrap(key, &raw);
                     w.parsed = self.parse_for_reading(key, &shown);
-                    w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
+                    w.error = w.parsed.is_none().then(|| UNREADABLE.to_string());
                     let from = w.parsed.as_ref().map(|p| (p.from.clone(), p.bulk));
                     w.warning = from.and_then(|(from, bulk)| self.message_warning(key, &from, bulk));
                     w.security = security;
@@ -209,7 +212,7 @@ impl Session {
             }
             w.parsed = parsed.clone().flatten();
             w.text_first = text_first;
-            w.error = w.parsed.is_none().then(|| "this message could not be read".to_string());
+            w.error = w.parsed.is_none().then(|| UNREADABLE.to_string());
             let from = w.parsed.as_ref().map(|p| (p.from.clone(), p.bulk));
             w.warning = from.and_then(|(from, bulk)| self.message_warning(key, &from, bulk));
             w.security = security.clone();
@@ -220,7 +223,7 @@ impl Session {
             && let parsed = parsed.unwrap_or_else(|| self.parse_for_reading(key, raw))
             && let Some(r) = self.reading.as_mut()
         {
-            r.error = if parsed.is_none() { Some("this message could not be read".into()) } else { None };
+            r.error = if parsed.is_none() { Some(UNREADABLE.into()) } else { None };
             r.parsed = parsed;
             r.security = security;
             r.text_first = text_first;

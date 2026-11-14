@@ -367,7 +367,7 @@ impl Session {
                 Op::CreateFolder { path } => {
                     if !a.folders.iter().any(|f| &f.path == path) {
                         // Made in another mailbox (a shared one), it's in that mailbox too.
-                        let parent = delimiter.and_then(|d| path.rsplit_once(d)).map(|(p, _)| p);
+                        let parent = Self::parent_of(path, delimiter);
                         let mailbox = a.folders.iter().find(|f| Some(f.path.as_str()) == parent).and_then(|f| f.mailbox.clone());
                         a.folders.push(Folder {
                             account: account.to_string(),

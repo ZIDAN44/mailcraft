@@ -41,11 +41,17 @@ impl Session {
         }
     }
 
+    /// The data file `account`'s stopped import `st` reads: the one it was imported from, else
+    /// the one its import noted (empty when neither is known).
+    fn import_path(&self, account: &str, st: &ImportState) -> String {
+        self.importing.sources.get(account).map(|s| s.path.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| st.path.clone())
+    }
+
     /// Go on with an import stopped or interrupted, from where it stopped.
     pub fn resume_import(&mut self, account: &str) -> CmdResult {
         self.compaction_holds_import(account)?;
         let st = self.stopped_import(account)?;
-        let path = self.importing.sources.get(account).map(|s| s.path.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| st.path.clone());
+        let path = self.import_path(account, st);
         if path.is_empty() {
             return Err(CmdError::Params("where its data file is isn't known: import it again, giving `path`".into()));
         }
@@ -60,7 +66,7 @@ impl Session {
         let st = self.stopped_import(account)?;
         let path = match path.map(str::trim).filter(|p| !p.is_empty()) {
             Some(p) => p.to_string(),
-            None => self.importing.sources.get(account).map(|s| s.path.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| st.path.clone()),
+            None => self.import_path(account, st),
         };
         if path.is_empty() {
             return Err(CmdError::Params("`path` is required".into()));

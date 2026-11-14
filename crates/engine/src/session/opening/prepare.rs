@@ -212,7 +212,7 @@ impl Session {
         let key = p.key;
         if p.broken {
             if let Some(r) = self.reading.as_mut() {
-                r.error = Some("this message could not be read".into());
+                r.error = Some(UNREADABLE.into());
             }
             return;
         }

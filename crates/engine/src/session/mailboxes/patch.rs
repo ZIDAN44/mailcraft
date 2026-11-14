@@ -204,12 +204,8 @@ impl Session {
         }
         if shown_by || !self.nav_fresh() {
             self.refresh_list();
-            if let Some(r) = self.reading.as_ref().filter(|r| r.key.account == k.0 && r.key.folder == k.1) {
-                let key = r.key.clone();
-                let thread = self.thread_of(&key);
-                if let Some(r) = self.reading.as_mut() {
-                    r.thread = thread;
-                }
+            if self.reading.as_ref().is_some_and(|r| r.key.account == k.0 && r.key.folder == k.1) {
+                self.rethread_reading();
             }
             return;
         }

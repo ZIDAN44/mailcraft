@@ -21,11 +21,12 @@ pub(crate) fn color_from_name(name: &str) -> u8 {
     u8::try_from(h % 8).unwrap_or(0)
 }
 
-/// A name checked for the list: not empty, not too long, no control characters.
-fn checked_name(name: &str) -> Result<&str, CmdError> {
+/// A name checked for a list (categories, Quick Steps, Search Folders): trimmed, not empty, at
+/// most `max` characters, no control characters. `what` is what it names ("a category").
+pub(super) fn checked_name<'n>(name: &'n str, max: usize, what: &str) -> Result<&'n str, CmdError> {
     let name = name.trim();
-    if name.is_empty() || name.chars().count() > NAME_MAX || name.chars().any(char::is_control) {
-        return Err(CmdError::Params(format!("a category needs a name (up to {NAME_MAX} characters)")));
+    if name.is_empty() || name.chars().count() > max || name.chars().any(char::is_control) {
+        return Err(CmdError::Params(format!("{what} needs a name (up to {max} characters)")));
     }
     Ok(name)
 }
@@ -121,7 +122,7 @@ impl Session {
     /// Add a category to the list. Its keyword is the one given (`$label6`, or one another
     /// program uses already) or one made from the name as Thunderbird makes a tag's.
     pub fn add_category(&mut self, name: &str, color: Option<u8>, keyword: Option<&str>) -> CmdResult {
-        let name = checked_name(name)?;
+        let name = checked_name(name, NAME_MAX, "a category")?;
         if self.category(name).is_some() {
             return Err(CmdError::Params(format!("there is already a category called {name}")));
         }
@@ -150,7 +151,7 @@ impl Session {
         let old = self.prefs.categories.get(at).cloned().ok_or_else(|| CmdError::Params(format!("no category called {name}")))?;
         let new_name = match new_name {
             Some(n) => {
-                let n = checked_name(n)?;
+                let n = checked_name(n, NAME_MAX, "a category")?;
                 if self.category(n).is_some_and(|c| c.name != old.name) {
                     return Err(CmdError::Params(format!("there is already a category called {n}")));
                 }

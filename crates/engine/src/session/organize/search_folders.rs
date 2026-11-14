@@ -28,11 +28,8 @@ impl Session {
 
     /// A Search Folder checked: a name not taken by another (`replacing`), a query that searches.
     fn checked_search_folder(&self, name: &str, query: &str, replacing: Option<usize>) -> Result<SearchFolder, CmdError> {
-        let name = name.trim();
+        let name = super::categories::checked_name(name, NAME_MAX, "a Search Folder")?;
         let query = query.trim();
-        if name.is_empty() || name.chars().count() > NAME_MAX || name.chars().any(char::is_control) {
-            return Err(CmdError::Params(format!("a Search Folder needs a name (up to {NAME_MAX} characters)")));
-        }
         if self.search_folder_at(name).is_some_and(|i| Some(i) != replacing) {
             return Err(CmdError::Params(format!("there's already a Search Folder named `{name}`")));
         }
