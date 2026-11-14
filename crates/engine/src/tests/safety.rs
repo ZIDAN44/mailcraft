@@ -42,7 +42,6 @@ fn photos_are_sent_without_where_they_were_taken() {
         assert_eq!(sent.len(), photo.len(), "the photo is all there");
         assert_eq!(sent.windows(4).any(|w| w == latitude), keep, "{subject}");
     }
-    done(s);
 }
 
 /// Put a message in the sample Inbox and open it.
@@ -87,7 +86,6 @@ fn senders_passing_for_someone_else_are_pointed_out() {
     let k = deliver(&mut s, 5, ("Print Shop", "orders@printsh0p.example"), "Again", None);
     s.run("message.popOut", &json!({"key": k.to_id()})).unwrap();
     assert!(s.windows.iter().any(|w| w.key == k && w.warning.is_some()));
-    done(s);
 }
 
 #[test]
@@ -121,7 +119,6 @@ fn sending_holds_for_a_lookalike_address_or_many_strangers() {
     let team: Vec<String> = (1..=12).map(|i| format!("p{i}@studio.example")).collect();
     s.run("compose.update", &json!({"to": format!("{}; orders@printshop.example", team.join("; ")), "subject": "Wrap"})).unwrap();
     assert!(send(&mut s, json!({})).get("check").is_none());
-    done(s);
 }
 
 #[test]
@@ -137,7 +134,6 @@ fn tracking_pictures_stay_unloaded_when_pictures_are_shown() {
     s.run("message.showPictures", &json!({})).unwrap();
     let asked: Vec<String> = s.take_jobs().into_iter().filter_map(|j| if let Job::FetchUrl { url } = j { Some(url) } else { None }).collect();
     assert_eq!(asked, ["https://shop.example/banner.png"], "the tracking picture is never asked for");
-    done(s);
 }
 
 #[test]
@@ -153,7 +149,6 @@ fn text_a_message_hides_is_brought_out() {
     // The sample newsletter's one-line preview isn't counted.
     deliver(&mut s, 8, ("Shop", "orders@shop.example"), "Preview", Some("<div style=\"display:none\">Sale ends Sunday</div><p>Hello</p>"));
     assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().hidden_words, 0);
-    done(s);
 }
 
 #[test]
@@ -196,7 +191,6 @@ fn sent_mail_without_an_answer_waits_for_a_reply() {
     s.clock.now += 40 * 86_400;
     s.run("search.run", &json!({"query": "is:awaiting", "scope": "all"})).unwrap();
     assert!(s.list.iter().all(|m| m.date >= s.clock.now - 30 * 86_400));
-    done(s);
 }
 
 #[test]
@@ -216,7 +210,6 @@ fn server_results_are_checked_for_waiting_too() {
     s.refresh_list();
     assert!(s.list.iter().any(|m| m.key == waiting));
     assert!(s.list.iter().all(|m| m.key != other));
-    done(s);
 }
 
 /// A sample folder whose account is listed but whose folders are gone (an older build kept the
@@ -238,5 +231,4 @@ fn a_hollow_sample_mailbox_is_filled_again() {
     store.save_folders(sample::SAMPLE_ACCOUNT, &[]).unwrap();
     assert!(!sample::seed_if_empty(&store, NOW).unwrap(), "another account: nothing replaced");
     assert_eq!(store.load_accounts().unwrap().len(), 2);
-    let _ = std::fs::remove_dir_all(store.root());
 }

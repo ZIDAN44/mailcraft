@@ -67,7 +67,6 @@ fn calendar_events_on_this_computer() {
     assert_eq!(r["date"], "2026-02-28", "a month on from the 31st stays in February");
     assert_eq!(s.cal_days().1 - s.cal_days().0, 42);
     assert_eq!(s.run("calendar.goto", &json!({"date": "today"})).unwrap()["date"].as_str().map(|d| d.len()), Some(10));
-    done(s);
 }
 
 /// In New York, a weekly 09:00 meeting made in October is still at 09:00 in December, after the
@@ -134,7 +133,6 @@ fn people_in_the_address_book() {
         assert_eq!(first["uid"], second["uid"]);
         assert_eq!(second["existing"], true);
     }
-    done(s);
 }
 
 #[test]
@@ -165,7 +163,6 @@ fn invitations_are_answered_and_sent() {
     s.run("invite.respond", &json!({"answer": "tentative"})).unwrap();
     let e = s.find_event("mix@sample.mailcraft").unwrap().1.event.clone();
     assert!(e.attendees.iter().any(|a| a.email == "riley@studio.example" && a.partstat == "TENTATIVE"));
-    done(s);
 }
 
 #[test]
@@ -230,7 +227,6 @@ fn own_events_invite_and_cancel_guests() {
     let (method, raw) = sent_calendar(&s, "Sent", "Cancelled: Trailer review");
     assert_eq!(method, "CANCEL");
     assert!(raw.contains("STATUS:CANCELLED"));
-    done(s);
 }
 
 #[test]
@@ -349,8 +345,6 @@ fn dav_results_merge_without_losing_local_changes() {
     let p = s2.pim.get(&id2).unwrap();
     assert_eq!(p.events.iter().filter(|e| e.event.summary == "Poster review").count(), 1, "{:?}", p.events);
     assert_eq!(p.events[0].event.uid, "ical-EV1");
-    done(s);
-    done(s2);
 }
 
 #[test]
@@ -373,7 +367,7 @@ fn notes_are_written_coloured_and_deleted() {
     drop(s);
     let s = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
     assert_eq!(s.notes("").len(), 3);
-    done(s);
+    drop(s);
 
     // An Exchange account: notes go to its Notes folder, and what the server says follows.
     let mut s = Session::open(Some(temp("notes-ews")), mailcraft_model::dates::Clock::new(NOW, 0));
@@ -403,7 +397,6 @@ fn notes_are_written_coloured_and_deleted() {
     let _ = uid;
     s.run("note.delete", &json!({"uid": "note:X2"})).unwrap();
     assert!(s.pim[&id].deleted.iter().any(|t| t.href == "note:X2"), "deleted on the server next time");
-    done(s);
 }
 
 /// Issue #1: notes sort A to Z (by their first line), by colour, or the last changed first.
@@ -709,7 +702,6 @@ fn reminders_come_snooze_and_go() {
         assert!(s.run("event.update", &json!({"uid": quiet, "reminder": bad})).is_err(), "{bad}");
     }
     assert!(s.run("reminders.list", &json!({})).unwrap().is_array());
-    done(s);
 }
 
 /// The work week: Monday to Friday of the week the day is in, moving a week at a time.
@@ -811,7 +803,6 @@ fn a_calendar_server_given_by_hand() {
     }
     s.run("account.dav", &json!({"account": id, "carddav": "http://localhost:5232/zoe/"})).unwrap();
     assert!(s.run("account.dav", &json!({"account": "sample", "caldav": "https://dav.example/"})).is_err());
-    done(s);
 }
 
 /// An event at the very end of time in the cache (a damaged file) doesn't stop the calendar.
@@ -830,5 +821,4 @@ fn an_event_at_the_end_of_time_is_drawn_without_overflow() {
     }
     let _ = s.agenda(i64::MAX - 100, i64::MAX);
     let _ = s.agenda(i64::MIN, i64::MIN + 100);
-    done(s);
 }

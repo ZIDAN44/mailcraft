@@ -131,7 +131,6 @@ fn pgp_mime_signatures_say_who_signed() {
         .replace("From: Ana Lima <ana@posteo.example>", "From: Eve <eve@posteo.example>");
     open_raw(&mut s, 9505, other.as_bytes());
     assert!(!s.pgp_settings("sample").known.contains_key("eve@posteo.example"));
-    done(s);
 }
 
 #[test]
@@ -170,7 +169,6 @@ fn pgp_mail_is_decrypted_and_its_signature_checked() {
     open_raw(&mut s, 9513, &from_ana(false, "text/plain; charset=us-ascii", &String::from_utf8(pgpdata("ana-clearsigned.txt")).unwrap()));
     assert_eq!(security(&s).signed.unwrap().seal, Seal::Trusted);
     assert!(text(&s).contains("signed in the text itself") && !text(&s).contains("BEGIN PGP"));
-    done(s);
 }
 
 #[test]
@@ -185,7 +183,6 @@ fn pgp_mail_for_someone_else_says_why() {
     answer_decrypt(&mut s);
     assert!(matches!(security(&s).lock, Some(Lock::Failed(_))));
     assert!(!text(&s).contains("The plan"));
-    done(s);
 }
 
 #[test]
@@ -235,7 +232,6 @@ fn sending_with_pgp_encrypts_to_known_keys_and_self() {
     // A draft of it (on a server) is encrypted to Riley's key before it's saved.
     s.run("compose.update", &json!({"to": "ana@posteo.example"})).unwrap();
     assert!(s.seals_with_pgp(s.compose.as_ref().unwrap()));
-    done(s);
 }
 
 #[test]
@@ -260,7 +256,6 @@ fn with_both_the_recipients_choose() {
     assert!(s.run("compose.security", &json!({"scheme": "quantum"})).is_err());
     let r = s.run("compose.encryption", &json!({})).unwrap();
     assert_eq!(r["missing"], json!(["bo@studio.example"]));
-    done(s);
 }
 
 #[test]
@@ -300,7 +295,6 @@ fn keys_are_listed_kept_and_forgotten() {
     let doc = String::from_utf8_lossy(&doc);
     assert!(doc.contains("ana@posteo.example"), "the keys known are in it: {doc}");
     assert!(!doc.contains("PRIVATE"), "{doc}");
-    done(s);
 }
 
 /// Issue #81: mail from another of the account's addresses is signed with the key that names
@@ -340,7 +334,6 @@ fn mail_from_another_address_is_signed_with_its_own_key() {
     assert_eq!(signer.as_deref(), Some(ana_info.fingerprint.as_str()), "the key that names the address it's from");
     let head = String::from_utf8_lossy(&raw.0).to_string();
     assert!(head.starts_with("Autocrypt: addr=ana@posteo.example; keydata="), "that address's key goes along: {head}");
-    done(s);
 }
 
 /// Found in review: a key from mail takes the place of one from older mail, by the messages'
@@ -358,8 +351,6 @@ fn a_key_from_mail_dated_ahead_is_no_newer_than_today() {
     let undated = String::from_utf8(from_ana(true, "text/plain", "Hello\r\n")).unwrap().replace("Date: Sat, 24 Oct 2026 09:00:00 +0000\r\n", "");
     open_raw(&mut s2, 9502, undated.as_bytes());
     assert_eq!(s2.pgp_settings("sample").known["ana@posteo.example"].seen, s2.clock.now);
-    done(s);
-    done(s2);
 }
 
 /// Found in a second review: a draft in plain text with an encrypted block pasted into it (one
@@ -378,7 +369,6 @@ Content-Type: text/plain; charset=utf-8\r\n\r\n{}\r\n",
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
     let c = s.compose.as_ref().unwrap();
     assert!(c.body.contains("BEGIN PGP MESSAGE") && !c.encrypt, "{}", c.body);
-    done(s);
 }
 
 /// A key file given as its bytes (`data`, the browser's picker) has the cap a file named by its
@@ -395,7 +385,6 @@ fn key_files_given_as_bytes_have_the_caps_of_files() {
     }
     let e = s.run("pgp.importPublic", &json!({"data": [1, 2, 300]})).unwrap_err().to_string();
     assert!(e.contains("bytes"), "{e}");
-    done(s);
 }
 
 /// A stored key that can't be read (a damaged `pgp.json`) before the others: each of the rest
@@ -414,7 +403,6 @@ fn a_key_that_cant_be_read_leaves_the_others_their_own() {
     assert_eq!((key, info.fingerprint), (riley.public.clone(), riley.info.fingerprint.clone()));
     assert_eq!(s.pgp_key("sample").unwrap().fingerprint, riley.info.fingerprint, "the first that reads is in use");
     assert_eq!(s.pgp_older_keys("sample").len(), 1);
-    done(s);
 }
 
 /// Writing from an address only an OpenPGP key names, on an account that has a certificate too:
@@ -435,5 +423,4 @@ fn the_reach_shown_is_what_the_message_is_sent_with() {
     assert_eq!(s.scheme_for(&c, &["ana@posteo.example".to_string()]), crate::Scheme::Pgp);
     let reach = s.encryption_reach().unwrap();
     assert!(matches!(reach, crate::Reach::Everyone(crate::Scheme::Pgp) | crate::Reach::Missing { scheme: crate::Scheme::Pgp, .. }), "{reach:?}");
-    done(s);
 }

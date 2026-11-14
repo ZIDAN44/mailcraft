@@ -9,12 +9,47 @@ use crate::{CmdError, Session, sample};
 
 const NOW: i64 = 1_791_979_200;
 
-fn temp(name: &str) -> Store {
-    let dir = std::env::temp_dir().join(format!("mailcraft-engine-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    Store::open(dir).unwrap()
+/// What a test made in the temporary folder ([`scratch`], [`temp`]): removed when the test's
+/// thread ends, whether the test passed or failed (its sessions have gone by then).
+#[derive(Default)]
+struct Scratch {
+    folders: Vec<std::path::PathBuf>,
+    /// The caches made in them: their read marks are written first (written after, on their
+    /// own thread, they'd make the folder again).
+    stores: Vec<Store>,
 }
 
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        for store in self.stores.drain(..) {
+            store.flush_marks();
+        }
+        for folder in &self.folders {
+            // Leftovers in the temporary folder are harmless; a failed clean-up isn't a failed test.
+            let _ = std::fs::remove_dir_all(folder);
+        }
+    }
+}
+
+thread_local!(static SCRATCH: std::cell::RefCell<Scratch> = std::cell::RefCell::default());
+
+/// A scratch folder for the test, `mailcraft-engine-<name>-<pid>` in the temporary folder: what
+/// a run before left there is removed now, and the folder with all in it once the test is over.
+fn scratch(name: &str) -> std::path::PathBuf {
+    let folder = std::env::temp_dir().join(format!("mailcraft-engine-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    SCRATCH.with(|s| s.borrow_mut().folders.push(folder.clone()));
+    folder
+}
+
+/// A cache in a [`scratch`] folder.
+fn temp(name: &str) -> Store {
+    let store = Store::open(scratch(name)).unwrap();
+    SCRATCH.with(|s| s.borrow_mut().stores.push(store.clone()));
+    store
+}
+
+/// The sample mailbox in a [`scratch`] folder, and a session on it.
 fn sample_session(name: &str) -> Session {
     let store = temp(name);
     assert!(sample::seed_if_empty(&store, NOW).unwrap());
@@ -22,12 +57,6 @@ fn sample_session(name: &str) -> Session {
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(s.take_jobs().is_empty(), "local accounts start no workers");
     s
-}
-
-fn done(s: Session) {
-    if let Some(st) = &s.store {
-        let _ = std::fs::remove_dir_all(st.root());
-    }
 }
 
 /// How many waits the store has logged on this thread. A wait for the read marks, or for the

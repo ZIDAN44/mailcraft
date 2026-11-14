@@ -91,7 +91,6 @@ fn search_scopes_and_recent_searches() {
     assert_eq!(s.recent_searches(), ["private words", "on disk"]);
     s.run("search.forgetRecent", &json!({})).unwrap();
     assert!(s.recent_searches().is_empty());
-    done(s);
 }
 
 #[test]
@@ -110,7 +109,6 @@ fn search_finds_bodies_fields_and_attachment_names() {
     assert!(s.search.is_none());
     assert_eq!(s.list.len(), 7);
     let _ = SearchScope::All;
-    done(s);
 }
 
 /// Search reads accents away (both ways round), places `received:` days where the user is from
@@ -136,7 +134,6 @@ fn search_folds_accents_and_reads_dates() {
     assert_eq!(all(&mut s, &format!("-received:{day}")), counted(&mut s, |m| !(start..start + 86_400).contains(&m.date)));
     assert_eq!(s.store.as_ref().unwrap().reads(), reads, "dates are the summaries': no message was read");
     assert_eq!(all(&mut s, "received:2026-13"), 0, "not a date: left out, nothing to search");
-    done(s);
 }
 
 /// Typing in the search box on a big indexed mailbox reads no message: the index answers words,
@@ -270,7 +267,6 @@ fn more_on_the_server_and_searching_it() {
     s.take_jobs();
     s.open_view(crate::View::Folder { account: a.clone(), folder: "INBOX".into() });
     assert_eq!(s.take_jobs(), vec![Job::StopSearch]);
-    done(s);
 }
 
 /// What every folder of the sample mailbox holds that `keep` keeps, counted from the summaries.
@@ -310,7 +306,6 @@ fn summary_searches_read_no_message() {
     assert_eq!(all(&mut s, "projector"), 1);
     assert_eq!(all(&mut s, "is:unread from:zoe received:>=1970"), counted(&mut s, |m| !m.flags.seen && m.from.email.contains("zoe")));
     assert_eq!((s.store.as_ref().unwrap().reads(), s.search_stats().sources), (reads, sources), "no message read");
-    done(s);
 }
 
 /// A search's results are the summaries the folders hold, shared, not copies. A flag set on one
@@ -339,7 +334,6 @@ fn a_flag_set_on_a_result_is_set_in_the_folder_and_the_results() {
     // Cleared: the folder's list as the folder has it now.
     s.run("search.clear", &json!({})).unwrap();
     assert!(s.list.iter().all(|m| std::sync::Arc::ptr_eq(m, &cached(&s, &m.key))));
-    done(s);
 }
 
 /// Marking a result read (opening it), unread or flagged weighs that message again, alone: the
@@ -385,7 +379,6 @@ fn marking_a_result_read_weighs_it_alone() {
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(s.list.len(), found);
     assert!(s.search_stats().summaries - before <= (from + to + 1) as u64, "only its two folders");
-    done(s);
 }
 
 /// Going to another folder and searching again folds no summary again: the texts are kept by
@@ -409,7 +402,6 @@ fn another_view_keeps_the_summary_texts() {
     s.apply(Event::FolderChanged { account: a.clone(), folder: "INBOX".into() });
     assert_eq!(s.run("search.run", &json!({"query": "from:zoe", "scope": "all"})).unwrap()["results"], 2);
     assert_eq!(s.search_stats().summary_texts, made + st.messages.len() as u64, "the Inbox's alone made again");
-    done(s);
 }
 
 /// An account whose edits go to a server: marking a result read is recorded in the cache, and
@@ -432,7 +424,6 @@ fn a_mark_read_sent_to_the_server_keeps_the_results() {
     assert_eq!(s.list.len(), found);
     assert!(s.list.iter().any(|m| m.key == unread && m.flags.seen), "read");
     assert_eq!(store.reads(), reads, "nothing read");
-    done(s);
 }
 
 /// A body downloaded after a search found nothing in it: once the index has it (a pass over,
@@ -454,7 +445,6 @@ fn a_body_indexed_later_joins_the_results() {
     let generation = index_now(&s, &a);
     indexed(&mut s, &a, generation);
     assert_eq!(s.list.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), [key], "found as the index has it");
-    done(s);
 }
 
 /// A key that comes back as another message (a local folder deleted and made again numbers its
@@ -488,7 +478,6 @@ fn a_key_filed_again_is_checked_against_its_new_text() {
     file(&mut s, &mut st, "<two@x.example>", b"From: a@x.example\r\nSubject: Travel\r\n\r\nNo zeppelin today: the ferry lands at noon.\r\n");
     assert_eq!(s.run("search.run", &phrase).unwrap()["results"], 0, "the new message's text checked");
     assert_eq!(s.run("search.run", &json!({"query": "\"ferry lands\"", "scope": "all"})).unwrap()["results"], 1);
-    done(s);
 }
 
 /// A data file import ends folder after folder: a search open meanwhile scans each folder that
@@ -521,7 +510,6 @@ fn a_search_during_an_import_follows_it() {
     s.apply(Event::Imported { account: a.clone(), messages: 0, skipped: 0, done: true, error: Some("no thread".into()), report: None });
     assert!(s.account(&a).is_none());
     assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 0);
-    done(s);
 }
 
 /// Search events and queries that make no sense change nothing and break nothing.
@@ -537,7 +525,6 @@ fn search_survives_junk_events_and_queries() {
     s.apply(Event::Imported { account: "nobody".into(), messages: 1, skipped: 0, done: true, error: None, report: None });
     s.apply(Event::Imported { account: sample::SAMPLE_ACCOUNT.into(), messages: 0, skipped: 0, done: true, error: None, report: None });
     assert_eq!(s.run("search.run", &json!({"query": "projector", "scope": "all"})).unwrap()["results"], 1);
-    done(s);
 }
 
 /// A list of file names (`attachment:a,b`) is one of them in the names: each message the index
@@ -553,7 +540,6 @@ fn a_list_of_file_names_reads_the_names() {
     assert_eq!(all(&mut s, "attachment:zzqqxx,yyqqww"), 0);
     assert_eq!(all(&mut s, "-attachment:zzqqxx,yyqqww"), every);
     assert_eq!(all(&mut s, "-attachment:order,zzqqxx"), every - 1);
-    done(s);
 }
 
 /// The servers are asked for words, not dates: what they find outside a search's dates (or
@@ -610,7 +596,6 @@ fn server_finds_are_checked_against_the_dates() {
         s.apply(Event::ServerSearched { account: a.clone(), query: sent, keys: keys.into_iter().map(key).collect(), error: None, done: true });
         assert_eq!(shown(&s), want, "{q}");
     }
-    done(s);
 }
 
 /// The search index kept up in the background: asked for as mail changes, once while jobs wait
@@ -649,7 +634,6 @@ fn index_asks_are_one_while_they_wait() {
     s.apply(Event::Indexed { account: a.clone(), work, generation: 4, failed: 1, finished: false });
     assert_eq!(s.index_pass(&a), Some(crate::session::IndexPass { work, generation: 4, failed: 1, finished: false }));
     assert_eq!(s.index_pass("other"), None);
-    done(s);
 }
 
 /// No index pass is asked for an account a data file is being imported into; its end asks for
@@ -668,7 +652,6 @@ fn an_import_asks_for_the_index_at_its_end() {
     assert!(s.take_jobs().is_empty(), "not while it imports");
     s.apply(Event::Imported { account: id.clone(), messages: 2, skipped: 0, done: true, error: None, report: None });
     assert!(s.take_jobs().contains(&Job::Index { account: id, folders: Vec::new() }));
-    done(s);
 }
 
 /// Clearing a search shows the folder's list kept from before it while nothing it was built
@@ -727,5 +710,4 @@ fn clearing_a_search_shows_the_list_kept_while_its_still_right() {
         s.tick();
     }
     assert_eq!(s.letting_go(), 0);
-    done(s);
 }

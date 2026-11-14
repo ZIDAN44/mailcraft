@@ -71,7 +71,6 @@ fn a_known_persons_name_on_a_strange_address_is_pointed_out() {
     // A mailing list's header doesn't excuse a free-mail address.
     deliver(&mut s, 6, ("Zoe Park", "zoe1984@gmail.com"), "Listed", "List-Id: <team.lists.example>\r\n");
     assert!(warning(&s).is_some());
-    done(s);
 }
 
 #[test]
@@ -93,7 +92,6 @@ fn people_known_by_their_address_or_organisation_and_generic_names_pass() {
         deliver(&mut s, n, from, "Hello", headers);
         assert_eq!(warning(&s), None, "{from:?}");
     }
-    done(s);
 }
 
 #[test]
@@ -116,7 +114,6 @@ fn people_found_in_the_directory_count_as_known() {
     });
     deliver(&mut s, 1, ("Whitfield, Dana", "dana.whitfield.ceo@gmail.com"), "Wire", "");
     assert!(matches!(warning(&s), Some(SenderWarning::NameOfKnownPerson { known, .. }) if known == "dana.whitfield@contoso.example"));
-    done(s);
 }
 
 #[test]
@@ -147,7 +144,6 @@ fn the_list_shows_strangers_addresses() {
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "Sent".into() });
     s.refresh_list();
     assert!(!shown(&mut s, "From a stranger"));
-    done(s);
 }
 
 #[test]
@@ -181,7 +177,6 @@ fn the_external_tag_marks_mail_from_outside_the_organisation() {
     // An empty list goes back to the accounts' domains.
     let r = s.run("view.externalTag", &json!({"domains": []})).unwrap();
     assert_eq!(r["organisation"], json!(["studio.example"]));
-    done(s);
 }
 
 #[test]
@@ -212,7 +207,6 @@ fn a_list_message_whose_entry_doesnt_say_so_is_known_by_its_own_header() {
     s.run("contact.create", &json!({"name": "Pat Doe", "emails": "pat@unknown.example"})).unwrap();
     s.tick();
     assert_eq!(warning(&s), None);
-    done(s);
 }
 
 #[test]
@@ -236,5 +230,4 @@ fn a_calendar_syncing_doesnt_count_the_address_book_again() {
     s.clock.now += 3600;
     s.refresh_list();
     assert_ne!(s.contacts_built, counted);
-    done(s);
 }

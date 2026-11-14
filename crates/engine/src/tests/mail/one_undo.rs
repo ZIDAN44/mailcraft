@@ -54,7 +54,6 @@ fn one_action_over_several_accounts_is_one_undo() {
     s.run("edit.undo", &json!({})).unwrap();
     assert!(ids.iter().all(|id| inbox(&s, id).len() == 1), "both back");
     assert!(s.undo.is_empty());
-    done(s);
 }
 
 /// Archived over two accounts, one of which has no Archive folder: refused before anything
@@ -76,7 +75,6 @@ fn a_move_one_account_cant_make_moves_nothing() {
         assert_eq!(s.store.as_ref().unwrap().load_folder(id, "INBOX").unwrap().messages.len(), 1, "{id}: still in its Inbox");
     }
     assert!(s.undo.is_empty() && s.selection.len() == 2, "nothing done");
-    done(s);
 }
 
 /// Six accounts on servers, each with one message in its Inbox, shown together.
@@ -135,5 +133,4 @@ fn a_change_over_several_accounts_goes_in_their_order() {
     s.run("mail.delete", &json!({"permanent": true})).unwrap();
     let accounts = order(&mut s);
     assert_eq!(accounts, ids, "deleted");
-    done(s);
 }

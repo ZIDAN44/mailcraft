@@ -52,7 +52,6 @@ fn an_invitation_is_in_the_calendar_as_it_arrives() {
     // Deleting the invitation leaves the meeting, as Outlook does.
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(parts(&s, "crit@studio.example").len(), 1);
-    done(s);
 }
 
 /// Sent by a calendar service for the organizer (Google's sender isn't the organizer): it can
@@ -72,7 +71,6 @@ fn an_invitation_sent_for_the_organizer_can_be_answered() {
     assert_eq!(s.invite().unwrap().problem, None);
     s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
     assert!(parts(&s, "svc@studio.example").is_empty(), "declined: out of the calendar");
-    done(s);
 }
 
 /// Updates from the organizer change it (keeping the user's answer once given); one from anyone
@@ -114,7 +112,6 @@ fn updates_and_cancellations_from_the_organizer_follow() {
     assert_eq!(answer(&s, uid), ["TENTATIVE"]);
     deliver(&mut s, 9, ZOE, "CANCEL", &[invitation(uid, "Mix", 2)], NOW);
     assert_eq!(parts(&s, uid)[0].event.status, "CANCELLED");
-    done(s);
 }
 
 /// One already in the calendar (the server put it there, RFC 6638) isn't added twice; with the
@@ -139,7 +136,6 @@ fn nothing_is_added_twice_or_when_turned_off() {
     s.run("calendar.tentativeInvites", &json!({"on": false})).unwrap();
     deliver(&mut s, 5, ZOE, "REQUEST", &[invitation("off@studio.example", "Off", 0)], NOW);
     assert!(parts(&s, "off@studio.example").is_empty());
-    done(s);
 }
 
 /// Mail that arrives with its header only is looked at when its body comes.
@@ -170,7 +166,6 @@ fn an_invitation_whose_body_comes_later_is_taken_then() {
     store.write_body(&key, &raw).unwrap();
     s.apply(Event::Body { key, raw });
     assert_eq!(answer(&s, "later@studio.example"), ["NEEDS-ACTION"]);
-    done(s);
 }
 
 /// Issue #32: Outlook sends the guest's copy as tentative (and means it to be busy). It stays
@@ -194,5 +189,4 @@ fn an_accepted_outlook_invitation_shows_as_busy() {
     assert_eq!(shown(&s), Some(ShowAs::Busy));
     s.run("event.respond", &json!({"uid": "plan@studio.example", "answer": "tentative"})).unwrap();
     assert_eq!(shown(&s), Some(ShowAs::Tentative));
-    done(s);
 }

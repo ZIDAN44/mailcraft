@@ -59,7 +59,6 @@ fn a_signature_in_html_code_is_sent_as_written() {
     let raw = s.store.as_ref().unwrap().read_body(&photo_key(&s, "Card")).unwrap();
     assert_eq!(mime::attachment_data(&raw, photo.index), Some(png));
     assert!(p.text.contains("Riley Moreno"), "the text part has its text: {}", p.text);
-    done(s);
 }
 
 /// Changed in the message, the signature goes as it now reads; a plain-text message, as text;
@@ -84,7 +83,6 @@ fn a_changed_signature_goes_as_changed() {
 
     s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley", "html": "<b>Riley</b>"})).unwrap();
     assert!(s.default_signature("sample", false).unwrap().code.is_empty());
-    done(s);
 }
 
 fn photo_key(s: &Session, subject: &str) -> MessageKey {
@@ -114,7 +112,6 @@ fn a_reply_has_the_card_then_the_quote() {
     assert!(c.body.contains("RILEY"));
     let html = c.bodies_with(&c.signature_code).1.unwrap_or_default();
     assert!(html.contains("letter-spacing:2px"), "{html}");
-    done(s);
 }
 
 /// Issue #90: the window draws the code, laid out, where the signature's text stands, so the
@@ -162,5 +159,4 @@ fn the_code_stands_for_the_signatures_text_where_it_was_put() {
     s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley\nStudio"})).unwrap();
     s.run("mail.new", &json!({})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().signature_card(), None);
-    done(s);
 }

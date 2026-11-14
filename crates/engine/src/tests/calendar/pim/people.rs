@@ -19,7 +19,6 @@ fn a_contact_is_found_by_its_whole_address() {
     // As the search of People finds them.
     let found: Vec<String> = s.people("ann@x").iter().map(|p| p.card.display()).collect();
     assert_eq!(found, ["Bea Ann", "Joann", "Zed Ann"]);
-    done(s);
 }
 
 /// What a frame asks of the address book and the notes, timed: the people above a message (50
@@ -62,5 +61,4 @@ fn measure_people_frame() {
         assert_eq!(frame(&s), n);
     }
     println!("MEASURE people and notes per frame ({n}): {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
-    done(s);
 }

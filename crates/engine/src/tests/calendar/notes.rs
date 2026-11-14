@@ -47,5 +47,4 @@ fn a_note_s_files_are_listed_and_saved() {
     s.run("note.update", &json!({"uid": uid, "text": "Paper\n170 gsm", "color": 1})).unwrap();
     let n = s.notes("").into_iter().find(|n| n.note.uid == uid).unwrap();
     assert_eq!(n.note.kept_files().len(), 2);
-    done(s);
 }

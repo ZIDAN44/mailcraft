@@ -45,5 +45,4 @@ fn a_message_text_first_then_whole() {
     assert!(s.attachment_bytes(index).is_ok_and(|b| !b.is_empty()));
     s.run("mail.forward", &json!({})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().attachments.len(), parsed.attachments.iter().filter(|a| !a.inline).count().max(1));
-    done(s);
 }

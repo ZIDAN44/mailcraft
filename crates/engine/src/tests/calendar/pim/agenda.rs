@@ -39,7 +39,6 @@ fn measure_agenda_frame() {
         assert_eq!(frame(&s), n);
     }
     println!("MEASURE agenda per frame ({n} items): {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 50.0);
-    done(s);
 }
 
 /// A month's calendar of 200 daily series begun ten years ago, drawn: each was walked from its
@@ -72,7 +71,6 @@ fn measure_old_series_frame() {
         assert_eq!(s.agenda(from, from + 42 * day).len(), n);
     }
     println!("MEASURE old series per frame ({n} items): {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
-    done(s);
 }
 
 /// Six weeks of 3,000 events as Outlook writes them (some 18 lines kept as written each): each
@@ -120,5 +118,4 @@ fn measure_outlook_events_frame() {
         assert_eq!(s.agenda(from, from + 42 * day).len(), n);
     }
     println!("MEASURE outlook events per frame ({n} items): {:.3} ms", t.elapsed().as_secs_f64() * 1000.0 / 50.0);
-    done(s);
 }

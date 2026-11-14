@@ -74,7 +74,6 @@ fn rules_on_many_messages_are_one_change_each() {
     // Run by hand on what's in the Inbox: the one that was there before.
     assert_eq!(s.run("rules.run", &json!({"inbox": true})).unwrap()["matched"], 1);
     assert_eq!(applied(&mut s), (2, 2));
-    done(s);
 }
 
 /// A blocked sender's mail goes to Junk, and replies in ignored conversations to Deleted Items,
@@ -94,7 +93,6 @@ fn junk_and_ignored_mail_move_together() {
     assert_eq!(moves.len(), 2, "{} moves", moves.len());
     assert_eq!(moves, [("Junk", 1000), ("Trash", 1000)]);
     assert!(s.take_new_mail().is_empty(), "neither is announced");
-    done(s);
 }
 
 /// Ignore Conversation on 300 messages selected in a folder of 5,000, timed (the folder is
@@ -116,7 +114,6 @@ fn measure_ignore_many() {
     let r = s.run("mail.ignore", &json!({})).unwrap();
     println!("MEASURE ignore 300 of 5000: {} ms ({r})", t.elapsed().as_millis());
     assert_eq!(s.prefs.ignored.len(), 300);
-    done(s);
 }
 
 /// A server account with an empty Inbox and an Archive of `n` messages (uids 1 to `n`, each its
@@ -184,7 +181,6 @@ fn a_big_move_into_the_inbox_is_remembered_whole() {
         s.apply(Event::FolderChanged { account: id.clone(), folder: f.into() });
     }
     assert_eq!(s.take_new_mail().len(), 0, "announced as new");
-    done(s);
 }
 
 /// 5,000 messages of an Archive of 50,000 (every tenth) moved into the Inbox, timed. Run under the heavy lock:
@@ -200,7 +196,6 @@ fn measure_move_in_many() {
     let t = std::time::Instant::now();
     s.run("mail.move", &json!({"folder": "INBOX"})).unwrap();
     println!("MEASURE move 5000 of 50000 into the Inbox: {} ms", t.elapsed().as_millis());
-    done(s);
 }
 
 /// Past the most remembered, the oldest is forgotten first, not all of them; one remembered
@@ -271,7 +266,6 @@ fn measure_stuck_snoozes() {
         s.tick();
     }
     println!("MEASURE 1000 frames, 20 stuck snoozes over 10000: {} ms", t.elapsed().as_millis());
-    done(s);
 }
 
 /// A snooze due while its folder's list can't be read (its read marks are being saved, and it
@@ -335,5 +329,4 @@ fn stuck_snoozes_arent_looked_for_every_frame() {
     s.tick();
     assert_eq!(s.snoozes.len(), 2, "back from snooze");
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Apply { op: Op::Move { to, .. }, .. } if to == "INBOX")));
-    done(s);
 }

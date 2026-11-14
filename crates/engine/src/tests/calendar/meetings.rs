@@ -50,7 +50,6 @@ fn rooms_and_hosts_are_kept_and_checked() {
     // The options are saved with the rest.
     let kept: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!(kept.meeting_rooms, s.prefs.meeting_rooms);
-    done(s);
 }
 
 /// The issue's example, end to end: a meeting with a room's link as its place, a `CONFERENCE`
@@ -119,7 +118,6 @@ fn a_rooms_meeting_goes_into_the_event_and_the_invitation() {
     }
     s.prefs.meeting_rooms.clear();
     assert!(s.run("event.create", &json!({"summary": "x", "start": "2026-10-22T09:00", "onlineMeeting": true})).is_err(), "no rooms");
-    done(s);
 }
 
 /// Outlook's "Add online meeting to all meetings": only meetings with guests, only when no
@@ -146,5 +144,4 @@ fn every_meeting_with_guests_gets_one_when_asked() {
     assert_eq!((e.online_meeting(), e.location.as_str()), (None, "https://zoom.us/j/123"), "a meeting of its own already");
     s.run("meetings.forAll", &json!({"on": false})).unwrap();
     assert_eq!(make(&mut s, guests).online_meeting(), None);
-    done(s);
 }

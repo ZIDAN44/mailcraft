@@ -25,7 +25,6 @@ fn a_long_snooze_keeps_other_answers() {
     s.run("reminders.dismiss", &json!({"key": key("week", NOW - 5 * day)})).unwrap();
     s.run("reminders.snooze", &json!({"key": key("soon", NOW + 600), "minutes": 28 * 24 * 60})).unwrap();
     assert!(!due(&s).contains(&"week".to_string()), "{:?}", due(&s));
-    done(s);
 }
 
 /// An event that runs for weeks, dismissed long after it began, and a task whose reminder is
@@ -42,7 +41,6 @@ fn answers_stay_while_their_reminder_can_be_listed() {
     let k = s.due_reminders(NOW).into_iter().find(|r| r.task && r.summary == "Report").map(|r| r.key).unwrap();
     s.run("reminders.dismiss", &json!({"key": k})).unwrap();
     assert!(!s.due_reminders(NOW).iter().any(|r| r.key == k), "the task's reminder came back");
-    done(s);
 }
 
 /// Answers whose reminder can't be listed again go as the next is given: an occurrence that
@@ -62,5 +60,4 @@ fn answers_go_once_their_reminder_cant_be_listed() {
     s.run("reminders.dismiss", &json!({"key": key("soon", NOW + 600)})).unwrap();
     let kept: Vec<&String> = s.prefs.reminders.keys().collect();
     assert_eq!(kept, [&key("soon", NOW + 600)]);
-    done(s);
 }

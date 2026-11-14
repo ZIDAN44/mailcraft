@@ -141,7 +141,6 @@ fn a_calendar_is_subscribed_to_by_its_link() {
     assert!(summaries(&s, &account, &id).is_empty());
     assert!(s.run("calendar.unsubscribe", &json!({"calendar": id})).is_err());
     assert!(s.run("calendar.refreshSubscribed", &json!({})).is_err(), "none left");
-    done(s);
 }
 
 /// A calendar named by the user keeps that name; a sync of the account's own calendars (CalDAV)
@@ -178,5 +177,4 @@ fn a_subscribed_calendar_survives_the_accounts_sync() {
     s.run("calendar.unsubscribe", &json!({"calendar": "https://holidays.example/de.ics"})).unwrap();
     read(&mut s, &account, &id, HOLIDAYS, "");
     assert!(summaries(&s, &account, &id).is_empty(), "a late answer brings nothing back");
-    done(s);
 }

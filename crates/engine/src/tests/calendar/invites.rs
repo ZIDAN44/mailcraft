@@ -152,7 +152,6 @@ fn answering_one_occurrence_keeps_the_series() {
     let all = parts(&s, &uid);
     assert_eq!(all.len(), 1, "{all:?}");
     assert_eq!(all[0].event.summary, "Mix review (new room)");
-    done(s);
 }
 
 #[test]
@@ -255,7 +254,6 @@ fn invitations_from_others_or_out_of_date_are_not_applied() {
     let sent = mailcraft_mime::parse(raw.as_bytes()).unwrap();
     assert_eq!((sent.from.name.as_str(), sent.from.email.as_str()), ("The Shop", "shop@studio.example"));
     assert!(raw.contains("shop@studio.example") && raw.contains("PARTSTAT=ACCEPTED"), "{raw}");
-    done(s);
 }
 
 /// An invitation in a charset other than UTF-8 is read in it (the calendar file's bytes come as
@@ -278,7 +276,6 @@ fn an_invitation_in_another_charset_is_read_in_it() {
     assert!(latin.contains(&0xe9));
     deliver_ics(&mut s, 1, ANA, "REQUEST", "text/calendar; method=REQUEST; charset=windows-1252", latin);
     assert_eq!(s.invite().unwrap().event.summary, "Caf\u{e9} review");
-    done(s);
 }
 
 /// The card asks for the invitation on the first frame of every message opened: one with no
@@ -309,5 +306,4 @@ fn a_message_without_an_invitation_is_not_read_again_for_one() {
     let reads = store.reads();
     assert_eq!(s.invite().unwrap().event.summary, "Card review");
     assert_eq!(store.reads(), reads + 1, "read once for the calendar's bytes");
-    done(s);
 }

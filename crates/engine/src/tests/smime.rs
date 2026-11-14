@@ -99,7 +99,6 @@ fn signed_mail_says_who_signed_and_whether_to_trust_it() {
         String::from_utf8(testdata("signed-clear.eml")).unwrap().replace("From: Ana <ana@posteo.example>", "From: Boss <boss@posteo.example>");
     open_raw(&mut s, 9304, posing.as_bytes());
     assert!(matches!(security(&s).signed.unwrap().seal, Seal::Untrusted(p) if matches!(p.as_slice(), [smime::Problem::OtherAddress(_)])));
-    done(s);
 }
 
 #[test]
@@ -133,7 +132,6 @@ fn encrypted_mail_is_decrypted_and_kept_off_the_web() {
     let c = s.compose.clone().unwrap();
     assert!(c.encrypt && c.sign);
     s.run("compose.discard", &json!({})).unwrap();
-    done(s);
 }
 
 #[test]
@@ -142,7 +140,6 @@ fn without_a_certificate_encrypted_mail_says_why() {
     open_raw(&mut s, 9321, &testdata("encrypted-cbc.eml"));
     assert!(matches!(security(&s).lock, Some(Lock::Failed(e)) if e.contains("no certificate")));
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::Decrypt { .. })));
-    done(s);
 }
 
 #[test]
@@ -191,7 +188,6 @@ fn sending_signs_and_encrypts_to_known_people_only() {
     s.apply(Event::Protected { account: "sample".into(), id, raw: None, error: Some("the key is gone".into()) });
     let c = s.compose.clone().unwrap();
     assert!(!c.sending && c.error.as_deref().is_some_and(|e| e.contains("the key is gone")));
-    done(s);
 }
 
 #[test]
@@ -216,7 +212,6 @@ fn the_certificate_can_be_forgotten() {
         error: Some("the password is wrong".into()),
     });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("the password is wrong")));
-    done(s);
 }
 
 /// Issue #6: a renewed certificate. The older one comes back from the network layer as kept for
@@ -275,7 +270,6 @@ fn an_older_certificate_is_kept_for_reading() {
     s.take_jobs();
     let key = open_raw(&mut s, 9101, &raw);
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Decrypt { key: k, .. } if *k == key)), "the older key may read it");
-    done(s);
 }
 
 #[test]
@@ -291,7 +285,6 @@ fn the_root_that_came_with_ones_own_certificate_is_trusted() {
     assert!(!inbox.messages.iter().find(|m| m.key.uid == 9341).unwrap().has_attachments);
     let enc = mailcraft_mime::summary_from_full(&testdata("encrypted-cbc.eml"), Default::default(), Default::default(), 0, 0);
     assert!(!enc.has_attachments);
-    done(s);
 }
 
 /// A message whose header fields are protected inside its signature (RFC 9788): the subject and
@@ -328,7 +321,6 @@ Date: Sat, 24 Oct 2026 09:00:00 +0000\r\nMessage-ID: <hp2@studio.example>\r\nMIM
     assert_eq!(s.reading.as_ref().unwrap().parsed.as_ref().unwrap().from.email, "director@posteo.example");
     let seal = security(&s).signed.unwrap().seal;
     assert!(matches!(&seal, Seal::Untrusted(p) if p.iter().any(|p| matches!(p, smime::Problem::OtherAddress(_)))), "{seal:?}");
-    done(s);
 }
 
 #[test]
@@ -375,7 +367,6 @@ fn a_withdrawn_certificate_is_said_only_when_asked_for() {
     open_raw(&mut s, 9357, &testdata("signed-clear.eml"));
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
     assert!(matches!(security(&s).signed.unwrap().seal, Seal::Untrusted(p) if p.contains(&smime::Problem::Revoked(LATER - 60))));
-    done(s);
 }
 
 #[test]
@@ -406,7 +397,6 @@ fn a_certificate_on_a_smart_card_becomes_the_accounts() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FindHeldKeys { module: None, pin: None })));
     s.apply(Event::HeldKeys { keys: Vec::new(), error: None });
     assert!(s.card_search().error.is_some());
-    done(s);
 }
 
 #[test]
@@ -422,7 +412,6 @@ fn a_certificate_comes_from_its_bytes_or_the_one_kept() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::ImportIdentity { data, password, .. } if data.is_empty() && password.0 == "secret")));
     assert!(s.run("security.import", &json!({"data": vec![0u8; (1 << 20) + 1]})).is_err(), "too big");
     assert!(s.run("security.import", &json!({"data": "not bytes", "path": ""})).is_err());
-    done(s);
 }
 
 #[test]
@@ -443,7 +432,6 @@ fn a_withdrawn_answer_outlives_a_full_cache() {
     open_raw(&mut s, 9362, &testdata("signed-clear.eml"));
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::CheckRevocation { .. })));
     assert_eq!(security(&s).signed.unwrap().seal, Seal::Untrusted(vec![smime::Problem::Revoked(LATER - 60)]));
-    done(s);
 }
 
 /// Gap 7: the browser keeps an account's certificates unlocked between visits when asked (the
@@ -467,7 +455,6 @@ fn certificates_are_kept_unlocked_in_the_browser_when_asked() {
     assert!(saved.contains("keep_unlocked") || saved.contains("keepUnlocked"), "{saved}");
     s.run("security.keepUnlocked", &json!({"account": id, "on": false})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::KeepUnlocked { on: false, .. }]));
-    done(s);
 }
 
 /// A recipient's certificate withdrawn (its authority says so): the message bar says at once
@@ -483,5 +470,4 @@ fn a_withdrawn_certificate_reaches_no_one_at_once() {
     let cert = s.smime_settings("sample").known.get("ana@posteo.example").map(|k| k.cert.clone()).unwrap();
     s.apply(Event::Revocation { cert, status: mailcraft_model::Revocation::Revoked { at: LATER - 60 } });
     assert_eq!(s.encryption_reach(), Some(crate::Reach::Missing { scheme: crate::Scheme::Smime, who: vec!["ana@posteo.example".into()] }));
-    done(s);
 }

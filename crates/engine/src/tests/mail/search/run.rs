@@ -205,7 +205,6 @@ fn a_search_folder_on_an_empty_index_reads_no_message() {
     assert_eq!(s.store.as_ref().unwrap().reads(), reads, "no message read");
     assert!(s.search_progress().is_some_and(|p| p.missing > 0));
     assert_eq!(s.search_stats().sources, 0);
-    done(s);
 }
 
 /// Waiting with no index (each message read) finds what the index finds, query after query.
@@ -241,7 +240,6 @@ fn waiting_without_an_index_finds_what_the_index_finds() {
         assert_eq!(keys(&s), want, "{q}");
     }
     assert_eq!(s.search_stats().sources, sources, "with the index, no message is read");
-    done(s);
 }
 
 /// `has:attachment` counts files, not pictures the text shows: as the index read the message,
@@ -269,7 +267,6 @@ fn a_picture_shown_in_the_text_is_no_attachment() {
     assert!(!found(&mut s), "the index read it: no file");
     s.run("search.run", &json!({"query": "-has:attachment logo", "scope": "all"})).unwrap();
     assert!(s.list.iter().any(|m| m.key == key));
-    done(s);
 }
 
 /// A summary that said a picture the text shows was a file (an old `.pst` import's) is put
@@ -320,7 +317,6 @@ fn the_has_files_filter_agrees_with_has_attachment() {
     let revision = s.revision;
     s.apply(Event::AttachmentsKnown { account: a.clone(), folder: "INBOX".into(), with: vec![uid], without: Vec::new() });
     assert!(s.summary(&key).unwrap().has_attachments && s.revision != revision);
-    done(s);
 }
 
 /// A word past the first 50,000 characters of a message is found, from the index and from the
@@ -359,7 +355,6 @@ fn long_texts_are_searched_whole() {
     assert!(hits(&mut s, "\"needle haystack\""));
     assert!(s.search_stats().texts - texts > 2, "checked a slice a unit");
     assert!(!hits(&mut s, "\"haystack needle\""));
-    done(s);
 }
 
 /// What the index settles isn't checked again, nor told as waiting for it: a message of
@@ -411,7 +406,6 @@ fn what_the_index_settles_is_not_checked_again() {
     s.search_folder_changed(&a, "INBOX");
     settle(&mut s, 1);
     assert_eq!(progress(&s), Some((0, 1)), "after its folder is scanned again");
-    done(s);
 }
 
 /// With an index, a word that must be missing, an address and a word in the files' names read
@@ -426,7 +420,6 @@ fn negated_words_read_no_message_with_an_index() {
     }
     assert_eq!(s.store.as_ref().unwrap().reads(), reads);
     assert_eq!(s.search_stats().sources, 0);
-    done(s);
 }
 
 /// A message marked read at any point of a search, the list being put together at its end

@@ -82,7 +82,6 @@ fn mail_isnt_sent_from_a_data_file() {
     nothing_sent(&mut s, &id);
     s.tick();
     nothing_sent(&mut s, &id);
-    done(s);
 }
 
 /// A reply or forward from a data file: written from the account that can send when there is
@@ -117,7 +116,6 @@ fn replies_from_a_data_file_go_from_an_account_that_can_send() {
     s.run("compose.update", &json!({"account": file, "to": "ann@example.org", "subject": "x"})).unwrap();
     assert!(matches!(s.run("compose.send", &json!({})), Err(CmdError::Disabled(_))));
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::Send { .. })));
-    done(s);
 }
 
 /// Forwarded as an attachment from a data file: it goes from the account that can send, with
@@ -138,7 +136,6 @@ fn forward_as_attachment_from_a_data_file_has_the_senders_signature() {
     assert_eq!(c.account, zoe);
     assert!(c.body.contains("Zoe x"), "{:?}", c.body);
     assert_eq!(c.attachments.len(), 1);
-    done(s);
 }
 
 /// The bar's Add an account: the messages being written from the data file (the open one and
@@ -166,7 +163,6 @@ fn adding_an_account_lets_an_open_message_go() {
     assert_eq!(send_off(&s), None);
     s.run("compose.send", &json!({})).unwrap();
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Send { account, .. } if *account == zoe)));
-    done(s);
 }
 
 /// No account at all (the one written from was removed): Send is off, and nothing goes.
@@ -188,7 +184,6 @@ fn mail_isnt_sent_with_no_account() {
     assert!(matches!(s.send_compose(true, true), Err(CmdError::Disabled(_))));
     assert_eq!(s.compose.as_ref(), Some(&written));
     nothing_sent(&mut s, &id);
-    done(s);
 }
 
 /// Held in the Outbox for an account that can't send (written by an older MailCraft): Send now
@@ -207,7 +202,6 @@ fn the_outbox_doesnt_send_from_a_data_file() {
     s.set_clock(NOW + 120, 0);
     s.tick();
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::FlushOutbox { .. })));
-    done(s);
 }
 
 /// An answer to a meeting invitation in a data file: the calendar takes it, the answer isn't
@@ -242,7 +236,6 @@ fn invitation_answers_arent_sent_from_a_data_file() {
     assert!(s.pim.get(&id).is_some_and(|p| p.events.iter().any(|e| e.event.uid == "m1@example.org")), "in the calendar");
     assert!(s.notices.iter().any(|n| n.error && n.text.contains("not sent")), "{:?}", s.notices);
     nothing_sent(&mut s, &id);
-    done(s);
 }
 
 /// The sample mailbox, a demonstration, still files what it sends in Sent; another mailbox kept
@@ -254,7 +247,6 @@ fn the_sample_mailbox_can_send_and_a_local_one_cant() {
     // A mailbox kept only here, with an address: no server, so no sending.
     let local = s.run("account.add", &json!({"email": "me@example.org", "local": true})).unwrap()["account"].as_str().unwrap().to_string();
     assert_eq!(s.send_block(&local), Some(SendBlock::NoServer));
-    done(s);
 }
 
 /// Found closing MailCraft: a message sent, and another started before it had gone. It was set
@@ -322,7 +314,6 @@ fn an_outbox_selection_follows_its_message() {
     assert_eq!(s.reading.as_ref().and_then(|r| s.outbox_entry(&r.key)).map(|(_, i)| i.id), Some(8));
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(store.outbox(&id).iter().map(|i| i.id).collect::<Vec<_>>(), [9]);
-    done(s);
 }
 
 /// A message closed (or discarded) while it's being sent isn't lost when the server then
@@ -386,7 +377,6 @@ fn sending_says_where_the_message_went() {
     let queued = send(&mut s, json!({}));
     s.apply(Event::Queued { account: id.clone(), id: queued, error: "offline".into(), kind: Default::default() });
     assert_eq!(said(&s), ["Saved in the Outbox: it will be sent when you're back online"]);
-    done(s);
 }
 
 /// A message to no one is refused, and the session says that's why (the window says so in its
@@ -406,5 +396,4 @@ fn a_message_to_no_one_is_told_apart() {
     assert!(matches!(s.run("compose.send", &json!({})), Err(CmdError::Params(_))));
     s.run("compose.update", &json!({"to": "ann@example.org"})).unwrap();
     assert!(!s.compose_has_no_recipient());
-    done(s);
 }

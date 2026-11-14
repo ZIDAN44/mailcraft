@@ -40,5 +40,4 @@ fn read_only_address_books_leave_the_one_on_this_computer() {
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })), "nothing for the server");
     // The server's books stay listed beside it, to read.
     assert_eq!(s.pim[&id].books.len(), 3);
-    done(s);
 }

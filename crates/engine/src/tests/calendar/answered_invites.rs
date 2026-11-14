@@ -61,7 +61,6 @@ fn answering_in_the_message_moves_it_and_its_earlier_versions() {
     // The meeting itself is in the calendar, answered, and the answer went.
     assert!(parts(&s, uid).iter().all(|e| e.event.attendees.iter().any(|a| a.partstat == "ACCEPTED")));
     assert!(has(&mut s, "Sent", "Accepted: Grade review"));
-    done(s);
 }
 
 /// Answered from the calendar (the event form): its invitations in the Inbox go too. With the
@@ -82,7 +81,6 @@ fn answering_in_the_calendar_moves_it_too_and_keep_leaves_it() {
     let r = s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
     assert_eq!(r["moved"], 0);
     assert!(has(&mut s, "INBOX", "REQUEST 2"));
-    done(s);
 }
 
 /// To a folder of the user's choosing; an account without one leaves it. Folders that can't
@@ -112,7 +110,6 @@ fn a_folder_of_the_users_choosing() {
     s.prefs.answered_folders.insert("sample".into(), "Gone".into());
     deliver(&mut s, 3, ZOE, "REQUEST", &[invitation("three@studio.example", 0)], NOW);
     assert_eq!(s.run("invite.respond", &json!({"answer": "accepted"})).unwrap()["moved"], 0);
-    done(s);
 }
 
 /// Answering one occurrence moves that occurrence's invitation, not the series'; a cancellation
@@ -144,7 +141,6 @@ fn occurrences_and_cancellations() {
     // A cancellation of a meeting no longer in the calendar is taken in too.
     deliver(&mut s, 5, ZOE, "CANCEL", &[invitation("gone@studio.example", 1)], NOW);
     assert_eq!(s.run("invite.apply", &json!({})).unwrap()["moved"], 1);
-    done(s);
 }
 
 /// A guest's answer to the user's own meeting moves once recorded, only when asked for.
@@ -165,7 +161,6 @@ fn guests_answers_when_asked_for() {
     deliver(&mut s, 2, ZOE, "REPLY", &[reply("DECLINED")], NOW);
     s.run("invite.apply", &json!({})).unwrap();
     assert!(has(&mut s, "Trash", "REPLY 2"));
-    done(s);
 }
 
 /// Trying to break it: mail that only talks about calendars, one with a calendar for another
@@ -187,7 +182,6 @@ fn only_the_meetings_own_mail_moves() {
     let r = s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
     assert_eq!(r["moved"], 1, "only the one answered: the first's body isn't here to tell: {r}");
     assert!(has(&mut s, "INBOX", "REQUEST 1") && has(&mut s, "INBOX", "PUBLISH 2"), "a published copy isn't an invitation");
-    done(s);
 }
 
 /// An update newer than the version answered (not taken into the calendar: tentative
@@ -207,7 +201,6 @@ fn a_newer_update_not_taken_in_stays() {
     let r = s.run("event.respond", &json!({"uid": uid, "answer": "tentative"})).unwrap();
     assert_eq!(r["moved"], 0, "{r}");
     assert!(has(&mut s, "INBOX", "REQUEST 1"));
-    done(s);
 }
 
 /// The calendar's copy of a meeting is stamped (`DTSTAMP`) when MailCraft writes it to the
@@ -223,7 +216,6 @@ fn the_calendars_own_stamp_isnt_a_version() {
     }
     let r = s.run("event.respond", &json!({"uid": uid, "answer": "accepted"})).unwrap();
     assert_eq!(r["moved"], 1, "{r}");
-    done(s);
 }
 
 /// Answered while read, the invitation leaves the Inbox and the list goes on to the next
@@ -269,7 +261,6 @@ fn answered_while_read_the_list_goes_on_to_the_next() {
     s.run("event.respond", &json!({"uid": "cal-next@studio.example", "answer": "accepted"})).unwrap();
     assert!(has(&mut s, "Trash", "REQUEST 3"));
     assert_eq!(s.reading.as_ref().map(|r| &r.key), Some(&after));
-    done(s);
 }
 
 /// Answered from the calendar with other meetings' invitations in the Inbox: each Inbox message
@@ -292,5 +283,4 @@ fn each_inbox_message_is_read_once_to_tidy() {
     // And the one moved, read again as it moves.
     assert_eq!(reads, inbox as u64 + 1, "an Inbox of {inbox}");
     assert!(has(&mut s, "Trash", "REQUEST 7") && (1..=6).all(|n| has(&mut s, "INBOX", &format!("REQUEST {n}"))));
-    done(s);
 }

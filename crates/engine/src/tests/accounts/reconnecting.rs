@@ -31,5 +31,4 @@ fn an_account_starts_again_when_what_it_connects_with_changes() {
     (c.name, c.color) = ("Riley R.".into(), 3);
     s.update_account(c, None).unwrap();
     assert!(!started(&mut s), "its name and colour");
-    done(s);
 }

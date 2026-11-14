@@ -7,8 +7,7 @@ use super::*;
 
 /// A session over a store of data files, and a folder with an Outlook file in it.
 fn with_file(name: &str) -> (Session, PathBuf, String) {
-    let dir = std::env::temp_dir().join(format!("mailcraft-engine-beside-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch(&format!("beside-{name}"));
     let docs = dir.join("Documents");
     std::fs::create_dir_all(&docs).unwrap();
     let pst = docs.join("Archive.pst");
@@ -119,14 +118,13 @@ fn an_opened_file_keeps_its_copy_beside_it_and_goes_on_with_it() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::RereadDataFile { account, .. } if *account == read)));
     assert_eq!(s.account(&read).unwrap().folders.len(), 1, "its mail is there while it reads");
     drop(s);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Another account given the copy's id since: the copy is opened under a new one, its mail made
 /// that account's.
 #[test]
 fn a_copy_whose_account_id_was_given_again_is_opened_as_a_new_one() {
-    let (mut s, dir, pst) = with_file("new-id");
+    let (mut s, _, pst) = with_file("new-id");
     let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
     s.take_jobs();
     imported(&mut s, &id, &pst);
@@ -143,7 +141,6 @@ fn a_copy_whose_account_id_was_given_again_is_opened_as_a_new_one() {
     assert_eq!(st.messages[0].key.account, again);
     assert!(s.account(&again).unwrap().folders.iter().all(|f| f.account == again));
     drop(s);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A copy with no note of what came in from its file (opened before MailCraft kept one): what's
@@ -151,7 +148,7 @@ fn a_copy_whose_account_id_was_given_again_is_opened_as_a_new_one() {
 /// file's account is open or the copy is found again; opened as it was, it is.
 #[test]
 fn a_copy_with_no_note_of_what_came_in_isnt_read_into_again() {
-    let (mut s, dir, pst) = with_file("no-note");
+    let (mut s, _, pst) = with_file("no-note");
     let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
     s.take_jobs();
     imported_as(&mut s, &id, &pst, "done", false);
@@ -169,7 +166,6 @@ fn a_copy_with_no_note_of_what_came_in_isnt_read_into_again() {
     assert_eq!(kept["reopened"].as_bool(), Some(true), "{kept}");
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::RereadDataFile { .. })));
     drop(s);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A copy found beside the file whose import was cut off goes on; that run failing before
@@ -195,7 +191,6 @@ fn a_copy_gone_on_with_survives_a_run_that_fails() {
     assert_eq!(s.data_source(&again).map(|r| r.stage), Some(mailcraft_model::job::ImportStage::Stopped));
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("couldn't go on")), "{:?}", s.notices.last());
     drop(s);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Another copy of a file open already is one of its own: a copy found beside the file, an
@@ -222,7 +217,6 @@ fn another_copy_is_a_new_one_beside_the_file() {
     assert_eq!(s.store.as_ref().unwrap().data_file(&third), Some(docs.join("Archive (3).mailcraft")));
     assert!(docs.join("Archive (2).mailcraft").is_file(), "the earlier copy is left as it was");
     drop(s);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A session on the MailCraft data folder `app` (and its data files) in `dir`.
@@ -291,7 +285,6 @@ fn a_copy_another_data_folder_has_is_refused_until_taken_over() {
     let opened = s.run("account.importPst", &json!({"path": pst})).unwrap();
     assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
     drop(s);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Taken over by another data folder, the copy is that folder's: the one that had it never opens
@@ -330,7 +323,6 @@ fn a_copy_taken_over_stays_taken_when_the_first_removes_its_account() {
     let other = on_folder(&dir, "other");
     assert_eq!(other.account(&taken).unwrap().folders.len(), 1, "the second's still");
     drop(other);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A copy made before copies said whose they are has no owner record, as one whose account was
@@ -350,7 +342,6 @@ fn a_copy_with_no_owner_opens_anywhere() {
     let opened = other.run("account.importPst", &json!({"path": pst})).unwrap();
     assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
     drop(other);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The data folder that had the copy is gone (or no longer names it): the copy opens elsewhere
@@ -387,7 +378,6 @@ fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
     let opened = third.run("account.importPst", &json!({"path": pst})).unwrap();
     assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
     drop(third);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The days an import's flagged messages are due, and its completed ones were done, come into
@@ -399,7 +389,7 @@ fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
 fn an_import_s_due_days_come_in_under_the_user_s() {
     use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC};
     use std::collections::BTreeMap;
-    let (mut s, dir, pst) = with_file("due");
+    let (mut s, _, pst) = with_file("due");
     let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
     s.take_jobs();
     let store = s.store.clone().unwrap();
@@ -478,7 +468,6 @@ fn an_import_s_due_days_come_in_under_the_user_s() {
     assert_eq!(next.follow_up_due(&flagged("kept@x")), None);
     assert_eq!(next.follow_up_due(&flagged("new@x")), Some(20_300));
     drop(next);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// What the window sends for a file changed since its copy was read is what the command reads.

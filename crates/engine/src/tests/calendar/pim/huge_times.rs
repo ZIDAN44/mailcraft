@@ -26,7 +26,6 @@ fn times_past_any_calendar_are_refused_as_params() {
     assert!(!matches!(&r, Err(CmdError::Failed(m)) if m.contains("unexpectedly")), "{r:?}");
     // Within the calendar's years, numbers still work.
     s.run("event.create", &json!({"summary": "y", "start": NOW, "end": NOW + 3600})).unwrap();
-    done(s);
 }
 
 /// Times read back from the calendar's own file past any calendar's: an invitation held since
@@ -44,5 +43,4 @@ fn times_kept_past_any_calendar_dont_overflow() {
     (e.event.start, e.event.end) = (-1000, i64::MAX);
     let r = s.run("event.update", &json!({"uid": uid, "summary": "Longer"}));
     assert!(matches!(&r, Err(CmdError::Params(m)) if m.contains("a year at most")), "{r:?}");
-    done(s);
 }

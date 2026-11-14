@@ -58,7 +58,6 @@ fn shift_arrows_grow_and_shrink_from_the_anchor() {
     assert_eq!(selected(&s), vec![all[1].clone()]);
     s.run("list.extendNext", &json!({})).unwrap();
     assert_eq!(selected(&s), all[1..3].to_vec());
-    done(s);
 }
 
 /// Page Down and Page Up go a page of rows (as many as the list shows), clamped at the ends;
@@ -83,7 +82,6 @@ fn pages_home_and_end() {
     assert_eq!(selected(&s), vec![all[up].clone()]);
     s.run("list.pageDown", &json!({"rows": 0})).unwrap();
     assert_eq!(selected(&s), vec![all[(up + 1).min(n - 1)].clone()], "a page is a row at least");
-    done(s);
 }
 
 /// Nothing chosen yet: Shift+Down starts at the top; an empty list does nothing.
@@ -99,7 +97,6 @@ fn shift_down_with_nothing_chosen_and_an_empty_list() {
         s.run(id, &json!({})).unwrap();
     }
     assert!(s.selection.is_empty());
-    done(s);
 }
 
 /// Shift+click goes by the rows as shown, not by where messages sit in the list behind them:
@@ -130,7 +127,6 @@ fn shift_click_goes_by_the_rows_shown() {
     want.extend(all[4..6].iter().cloned());
     assert_eq!(selected(&s), want);
     assert!(s.run("list.selectRange", &json!({"key": "nobody:1:1:INBOX"})).is_err());
-    done(s);
 }
 
 /// Ctrl+click: the anchor and the focus go to the message clicked; one left is read; Shift+Down
@@ -153,7 +149,6 @@ fn ctrl_click_moves_the_anchor() {
     s.run("list.select", &k).unwrap();
     assert_eq!(selected(&s), vec![all[3].clone()]);
     assert!(s.reading.as_ref().is_some_and(|r| s.summary(&r.key).is_some_and(|m| m.subject == all[3])));
-    done(s);
 }
 
 /// With conversations on, a conversation is one row: Shift+Down goes over it as one, and a
@@ -176,7 +171,6 @@ fn conversations_are_one_row() {
     s.open_message(&older);
     s.run("list.next", &json!({})).unwrap();
     assert_eq!(s.focus.as_ref(), keys.get(newest + 1));
-    done(s);
 }
 
 /// The anchor goes with its message: one that leaves the list (filtered out) leaves Shift+Down
@@ -196,7 +190,6 @@ fn the_anchor_leaves_with_its_message() {
     assert!(s.anchor.is_none() && s.focus.as_ref().is_none_or(|k| s.summary(k).is_some()));
     s.run("list.extendNext", &json!({})).unwrap();
     assert!(s.selection.iter().all(|k| s.summary(k).is_some()));
-    done(s);
 }
 
 /// Ctrl+A is several selected like Shift's: the reading pane lets go of the message it read and
@@ -220,7 +213,6 @@ fn select_all_is_several_selected() {
     let reading = s.reading.as_ref().map(|r| r.key.clone());
     s.run("list.selectAll", &json!({})).unwrap();
     assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), reading);
-    done(s);
 }
 
 /// Down held faster than a frame: the presses queued in one go as `list.next {"by": n}`, which
@@ -251,7 +243,7 @@ fn several_steps_read_only_the_message_landed_on() {
         t.run("list.next", &json!({})).unwrap();
     }
     assert_eq!(focus(&t), focus(&s));
-    done(t);
+    drop(t);
     // Up, and Shift with them.
     s.run("list.prev", &json!({"by": 2})).unwrap();
     assert_eq!(focus(&s), all[1]);
@@ -271,7 +263,6 @@ fn several_steps_read_only_the_message_landed_on() {
     assert_eq!(focus(&s), all[all.len() - 1]);
     s.run("list.prev", &json!({"by": u64::MAX})).unwrap();
     assert_eq!(focus(&s), all[0]);
-    done(s);
 }
 
 /// Nothing focused yet (a folder just opened, a search just run): a step of n lands where n
@@ -285,34 +276,33 @@ fn several_steps_from_nothing_focused() {
         one.run("list.next", &json!({})).unwrap();
     }
     assert_eq!(focus(&one), all[2]);
-    done(one);
+    drop(one);
     let mut s = sample_session("steps-none-by");
     s.run("list.next", &json!({"by": 3})).unwrap();
     assert_eq!(focus(&s), all[2], "as three single steps");
-    done(s);
+    drop(s);
     let mut s = sample_session("steps-none-extend");
     s.run("list.extendNext", &json!({"by": 3})).unwrap();
     assert_eq!(selected(&s), all[..3].to_vec());
-    done(s);
+    drop(s);
     // Further than the list goes: the last row; up from nothing: the top, as single Ups.
     let mut s = sample_session("steps-none-ends");
     s.run("list.next", &json!({"by": 1000})).unwrap();
     assert_eq!(focus(&s), all[all.len() - 1]);
-    done(s);
+    drop(s);
     let mut s = sample_session("steps-none-up");
     s.run("list.prev", &json!({"by": 3})).unwrap();
     assert_eq!(focus(&s), all[0]);
-    done(s);
+    drop(s);
     // A page from nothing focused isn't steps: Page Down goes to the top row, and Shift+Page
     // Down selects it alone (found reviewing the coalesced Down presses).
     let mut s = sample_session("steps-none-page");
     s.run("list.pageDown", &json!({"rows": 3})).unwrap();
     assert_eq!(focus(&s), all[0]);
-    done(s);
+    drop(s);
     let mut s = sample_session("steps-none-extend-page");
     s.run("list.extendPageDown", &json!({"rows": 3})).unwrap();
     assert_eq!(selected(&s), vec![all[0].clone()]);
-    done(s);
 }
 
 /// A session whose Inbox has `extra` more messages than the sample's, all unread.
@@ -349,7 +339,6 @@ fn twenty_steps_on_a_long_list() {
         s.run("list.next", &json!({})).unwrap();
     }
     assert_eq!(focus(&s), all[20], "as 20 single steps");
-    done(s);
 }
 
 /// After a delete, the message read next is the next row down as the rows are shown: with a
@@ -368,7 +357,7 @@ fn the_next_message_after_a_delete_is_the_next_row() {
     s.open_message(&gone);
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(s.focus.as_ref(), Some(&below), "not the pinned row above");
-    done(s);
+    drop(s);
 
     let mut s = sample_session("successor-threads");
     s.run("view.conversations", &json!({"on": true})).unwrap();
@@ -381,5 +370,4 @@ fn the_next_message_after_a_delete_is_the_next_row() {
     s.open_message(&gone);
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(s.focus.as_ref(), Some(&below));
-    done(s);
 }

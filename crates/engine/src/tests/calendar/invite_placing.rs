@@ -135,7 +135,6 @@ fn held_until_the_calendars_are_found() {
     s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
     arrive(&mut s, &id, 2, "REQUEST", &[invitation("b@studio.example", 0)]);
     assert_eq!(parts(&s, &id, "b@studio.example")[0].calendar, OWN);
-    done(s);
 }
 
 /// Waited too long (the server slow or unreachable): on this computer, then moved to the
@@ -176,7 +175,6 @@ fn too_long_to_wait_goes_here_then_moves() {
     let p = &s.pim[&id];
     assert!(p.placed.is_empty() && !p.calendars.iter().any(|c| c.id == LOCAL), "the calendar here is empty, so gone");
     assert!(asks_sync(&mut s));
-    done(s);
 }
 
 /// An account whose server has no calendars: invitations go here, as they should; given a
@@ -208,7 +206,6 @@ fn no_calendars_then_a_server_given_by_hand() {
     assert_eq!(r["moved"], 1);
     assert!(s.pim[&id].events.iter().all(|e| e.calendar == OWN));
     assert!(s.local_events(&id).is_none() && !s.pim[&id].calendars.iter().any(|c| c.id == LOCAL));
-    done(s);
 }
 
 /// The order invitations came in is kept: one cancelled while held never shows.
@@ -222,7 +219,6 @@ fn held_in_order() {
     assert_eq!(s.pim[&id].held.len(), 2);
     found(&mut s, &id, Vec::new());
     assert!(parts(&s, &id, "c@studio.example").is_empty());
-    done(s);
 }
 
 /// The Default calendar: the user's choice, kept to calendars that can be added to; offered
@@ -252,8 +248,6 @@ fn the_default_calendar_and_keeping_events_here() {
     let mut sample = sample_session("placing-sample");
     assert!(!sample.calendars_pending("sample") && sample.local_events("sample").is_none());
     assert!(sample.run("calendar.moveLocal", &json!({"account": "sample"})).is_err());
-    done(sample);
-    done(s);
 }
 
 /// An OAuth account without a calendar sign-in of its own is never asked for calendars: its
@@ -265,7 +259,6 @@ fn accounts_never_asked_dont_wait() {
     assert!(!s.calendars_pending(&id));
     arrive(&mut s, &id, 1, "REQUEST", &[invitation("o@studio.example", 0)]);
     assert_eq!(parts(&s, &id, "o@studio.example")[0].calendar, LOCAL);
-    done(s);
 }
 
 /// Trying to break it: an invitation too big to hold, more than can be held, a held calendar
@@ -304,8 +297,6 @@ fn holding_has_its_limits() {
     s2.accounts.retain(|a| a.config.id != id2);
     s2.tick();
     assert!(s2.pim[&id2].held.is_empty() && s2.pim[&id2].events.is_empty());
-    done(s2);
-    done(s);
 }
 
 /// Trying to break it: the calendar on this computer (or someone else's opened by address)
@@ -325,7 +316,6 @@ fn only_a_calendar_on_the_server_is_the_default() {
     arrive(&mut s, &id, 1, "REQUEST", &[invitation("d@studio.example", 0)]);
     let d = parts(&s, &id, "d@studio.example");
     assert!(!d.is_empty() && d.iter().all(|e| e.calendar == OWN));
-    done(s);
 }
 
 /// Trying to break it: a calendar sent for reading isn't held (it has nothing for the
@@ -347,7 +337,6 @@ fn only_invitations_are_held_and_only_so_much() {
     assert_eq!(held + here, 12, "none lost");
     found(&mut s, &id, Vec::new());
     assert!((0..12).all(|n| parts(&s, &id, &format!("big{n}@studio.example")).iter().all(|e| e.calendar == OWN)));
-    done(s);
 }
 
 /// Trying to break it: an invitation answered (declined) from its message while held, or a
@@ -370,5 +359,4 @@ fn dealt_with_while_held_stays_dealt_with() {
     assert!(parts(&s, &id, "no@studio.example").is_empty(), "declined: not back as tentative");
     assert!(parts(&s, &id, "off@studio.example").is_empty(), "cancelled: not back");
     assert_eq!(parts(&s, &id, "later@studio.example").len(), 1, "the others held still go in");
-    done(s);
 }

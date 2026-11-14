@@ -85,7 +85,6 @@ fn a_follow_up_marked_complete_stays_so() {
     let m = turnaround(&s);
     assert!(!m.flags.flagged && !m.flags.has(FOLLOW_UP_COMPLETE));
     assert!(s.prefs.follow_up_done.is_empty(), "no day done left behind");
-    done(s);
 }
 
 /// Flagged again by another program, the keyword left behind: flagged, as the list shows it.
@@ -112,7 +111,6 @@ fn a_flag_set_again_elsewhere_wins_over_a_stale_complete_mark() {
     let m = turnaround(&s);
     assert!(m.flags.flagged && !m.flags.has(FOLLOW_UP_COMPLETE), "{:?}", m.flags);
     assert_eq!(s.follow_up_due(&m), due, "still due as it was");
-    done(s);
 }
 
 /// The days kept in the preferences come from disk: what isn't a day (out of range, as a

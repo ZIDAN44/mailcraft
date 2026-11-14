@@ -79,7 +79,6 @@ fn a_draft_opens_again_as_it_was_saved() {
     let c = s.compose.as_ref().unwrap();
     assert_eq!((c.source.as_ref(), c.mode), (Some(&mill), Some(mailcraft_mime::ReplyMode::Forward)));
     assert!(s.run("draft.edit", &json!({"key": "nonsense"})).is_err());
-    done(s);
 }
 
 /// A signature written as HTML code (a card in two columns) comes back as it went in: the same
@@ -110,7 +109,6 @@ fn a_draft_keeps_its_signature_code() {
     assert_eq!(html.matches("<table").count(), before.matches("<table").count(), "{html}");
     assert_eq!(html.matches("cid:signature1.").count(), 1, "its photo once: {html}");
     assert_eq!(pictures.iter().filter(|p| p.cid.starts_with("signature1.")).count(), 1);
-    done(s);
 }
 
 /// Saved to a server, a draft's copy gets its place there: saved again, it replaces that copy
@@ -169,7 +167,6 @@ fn a_draft_saved_twice_to_a_server_replaces_its_copy() {
     s.apply(Event::Sent { account: id.clone(), id: compose });
     assert!(!s.list.iter().any(|m| m.key == key), "gone from Drafts");
     assert_eq!(s.more_on_server(), None, "nothing more on the server");
-    done(s);
 }
 
 /// The mark on MailCraft's own copy of a draft on an IMAP server (gap 7) stays in that copy: a
@@ -214,7 +211,6 @@ fn the_mark_on_a_drafts_copy_goes_nowhere_else() {
         assert!(raw.contains("Second"), "{what}: {raw}");
         assert!(!raw.contains(mailcraft_mime::COPY_HEADER) && !raw.contains(mark), "{what}: {raw}");
     }
-    done(s);
 }
 
 /// Another message read while one is being written in the reading pane: the one being written
@@ -324,7 +320,6 @@ fn a_draft_saved_twice_on_the_way_stays_one_draft() {
     s.apply(Event::DraftSaved { account: id.clone(), message_id: first, error: Some("disk full".into()) });
     assert!(s.saving.is_empty());
     assert!(s.composes.iter().any(|c| c.window && c.body.starts_with("One two three four")), "open again to go on with");
-    done(s);
 }
 
 /// Issue #53: a server account's message closed with Close › keep in Drafts, or made way for in
@@ -454,7 +449,6 @@ fn a_message_is_held_until_its_draft_is_kept() {
     s.run("account.remove", &json!({"account": id})).unwrap();
     assert!(s.saving.is_empty());
     assert_eq!(s.keep_held(), 0);
-    done(s);
 }
 
 /// Issue #52: a message whose reply was left in Drafts is known to have one (the list marks it
@@ -488,7 +482,6 @@ fn a_message_answered_by_a_draft_is_known() {
     s.run("list.select", &json!({"key": key.to_id()})).unwrap();
     s.run("mail.delete", &json!({})).unwrap();
     assert!(!answered(&s), "the draft deleted");
-    done(s);
 }
 
 /// Gap 8: a message whose forward was left in Drafts is marked `[Draft]` as one whose reply
@@ -578,7 +571,6 @@ fn a_message_forwarded_by_a_draft_is_known() {
     s.run("list.select", &json!({"key": draft.to_id()})).unwrap();
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(others(&mut s), vec![replied.key.clone()], "the forward deleted; the reply still marks");
-    done(s);
 }
 
 /// How many drafts are in Drafts.
@@ -645,7 +637,6 @@ fn every_change_to_a_reply_is_something_written() {
     let mid = s.compose.as_ref().unwrap().draft_id.clone();
     s.apply(Event::DraftSaved { account: id, message_id: mid, error: Some("disk full".into()) });
     assert!(s.compose_written(), "not saved after all");
-    done(s);
 }
 
 /// A name with a comma in it (`"Park, Zoe"`, as a reply writes it) stays one recipient in the
@@ -661,5 +652,4 @@ fn a_draft_keeps_a_name_with_a_comma() {
     let m = s.list.iter().find(|m| m.subject == "Comma").unwrap();
     let to: Vec<(&str, &str)> = m.to.iter().map(|a| (a.name.as_str(), a.email.as_str())).collect();
     assert_eq!(to, [("Park, Zoe", "zoe@studio.example"), ("sales@corp.example, Team", "team@studio.example")]);
-    done(s);
 }

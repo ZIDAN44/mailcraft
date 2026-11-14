@@ -61,5 +61,4 @@ fn a_local_server_s_certificate_is_asked_about_once_then_trusted() {
     ] {
         assert!(matches!(s.run("account.trustCertificate", &bad), Err(CmdError::Params(_))), "{bad}");
     }
-    done(s);
 }

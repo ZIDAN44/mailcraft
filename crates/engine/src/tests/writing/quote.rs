@@ -67,7 +67,6 @@ fn a_reply_keeps_the_original_as_it_came() {
     s.run("mail.reply", &json!({})).unwrap();
     let c = s.compose.as_ref().unwrap();
     assert!(c.quote.is_none() && c.body.contains("Version 3 of the mix"), "{}", c.body);
-    done(s);
 }
 
 /// Gap 6 closed: the original is changed where it stands, a block of its text at a time (its
@@ -112,7 +111,6 @@ fn the_original_is_changed_where_it_stands() {
     assert!(html.unwrap_or_default().contains(&format!("cid:{cid}")));
     assert!(pictures.iter().any(|p| p.cid == cid));
     assert!(s.run("compose.insertPicture", &json!({"name": "x.png", "data": crate::sample::sample_png(), "quoteCell": 999})).is_err());
-    done(s);
 }
 
 /// A reply taken back out of the Outbox to change has its formatting, its pictures in place and
@@ -166,7 +164,6 @@ fn a_reply_from_the_outbox_keeps_its_original() {
     assert!(!c.body.contains("Paid") && c.body.contains("Subject: Invoice"), "{}", c.body);
     let (_, html, pictures) = c.bodies();
     assert!(html.unwrap_or_default().contains("cid:phone@mill.example") && pictures.len() == 1);
-    done(s);
 }
 
 /// A reply to a message laid out in a table of 300 cells, its quote drawn as the editor draws
@@ -201,7 +198,6 @@ fn measure_quote_frame() {
     }
     println!("MEASURE a frame of a quote of {n} cells: {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
     assert!(c.quote.as_ref().unwrap().edits.is_empty(), "nothing changed");
-    done(s);
 }
 
 /// What the editor does each frame with a quote laid out in tables: every block read, every
@@ -222,7 +218,6 @@ fn a_frame_keeps_the_cell_typed_into() {
     let q = c.quote.as_ref().unwrap();
     assert_eq!(q.edits.keys().copied().collect::<Vec<_>>(), [typed]);
     assert!(q.cell_texts()[typed].0.ends_with(" (mobile)") && q.html().contains("+00 1234 5678 (mobile)"));
-    done(s);
 }
 
 /// A message with 30 files of about 200 KB forwarded, and one showing 30 pictures of that size
@@ -268,7 +263,6 @@ fn measure_files_taken_along() {
     let t = std::time::Instant::now();
     s.run("mail.reply", &json!({})).unwrap();
     println!("MEASURE reply quoting 30 pictures: {} ms", t.elapsed().as_millis());
-    done(s);
 }
 
 /// Forwarded, each file goes with its own name and bytes; replied to, each picture the message
@@ -308,5 +302,4 @@ fn files_and_pictures_come_along_each_as_it_was() {
     let mut shown: Vec<(String, String)> = c.inline.iter().map(|p| (p.cid.clone(), String::from_utf8_lossy(&p.data).trim().to_string())).collect();
     shown.sort();
     assert_eq!(shown, (0..3).map(|i| (format!("p{i}@x.example"), format!("file {i}"))).collect::<Vec<_>>());
-    done(s);
 }

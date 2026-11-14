@@ -22,7 +22,7 @@ fn an_account_named_must_be_one() {
     // None named: the one on screen.
     let made = s.run("event.create", &json!({"summary": "y", "start": "2026-11-20T10:00"})).unwrap();
     assert_eq!(made["account"], "sample", "{made}");
-    done(s);
+    drop(s);
     // No account at all: said alike (each copy had words of its own, and two called it a bad
     // parameter).
     let mut s = Session::open(Some(temp("which-account-none")), mailcraft_model::dates::Clock::new(NOW, 0));

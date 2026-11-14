@@ -96,7 +96,6 @@ fn mail_moves_from_a_server_into_a_data_file() {
     // It comes again (the reading pane asked too): nothing more.
     s.apply(Event::Body { key: second, raw: SECOND.to_vec() });
     assert_eq!(held(&s, &file, "Kept").len(), 2);
-    done(s);
 }
 
 /// Copied: it's in both, nothing asked of the server but the source of one not here. One that
@@ -126,7 +125,6 @@ fn mail_copies_into_a_data_file_and_stays_where_it_was() {
     let r = s.run("mail.move", &json!({"folder": "INBOX", "account": file})).unwrap();
     assert_eq!(r["moved"].as_u64(), Some(1), "{r}");
     assert_eq!((held(&s, &file, "Kept").len(), held(&s, &file, "INBOX").len()), (0, 2));
-    done(s);
 }
 
 /// More than can wait for their downloads at once, with more than a batch that are here:
@@ -134,7 +132,7 @@ fn mail_copies_into_a_data_file_and_stays_where_it_was() {
 /// names them).
 #[test]
 fn a_copy_refused_leaves_no_source_behind() {
-    let (dir, store, mut s, local) = data_files_to_copy("across-refused", 1001, 501, "Hi.");
+    let (store, mut s, local) = data_files_to_copy("across-refused", 1001, 501, "Hi.");
     let e = s.run("mail.copy", &json!({"account": local, "folder": "INBOX"})).unwrap_err();
     assert!(e.to_string().contains("pick fewer"), "{e}");
     assert!(held(&s, &local, "INBOX").is_empty());
@@ -145,7 +143,6 @@ fn a_copy_refused_leaves_no_source_behind() {
     assert!(s.transfers.is_empty() && jobs.is_empty(), "nothing asked for: {jobs:?}");
     drop(s);
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Into a folder on a server: the network layer is asked to upload a copy, and what was moved
@@ -230,7 +227,6 @@ fn mail_goes_into_a_folder_on_a_server_once_its_copy_is_there() {
     assert_eq!(s.transfers.len(), 2);
     s.run("account.remove", &json!({"account": server})).unwrap();
     assert!(s.transfers.is_empty());
-    done(s);
 }
 
 /// Found in review. A move the network layer never answered (its connection ended first) kept
@@ -281,7 +277,6 @@ fn a_move_never_answered_is_forgotten_and_what_is_put_in_an_inbox_did_not_arrive
     s.apply(Event::Body { key: second.clone(), raw: SECOND.to_vec() });
     assert!(store.load_folder(&server, "INBOX").unwrap().messages.iter().any(|m| m.key == second), "not moved after all that time");
     assert_eq!(held(&s, &file, "Kept").len(), 1);
-    done(s);
 }
 
 /// Found in review. Moved to the folder it's in (Archive pressed in Archive), a message gave
@@ -311,16 +306,14 @@ fn nothing_moved_leaves_the_message_open_and_an_undo_that_cant_be_done_is_droppe
     let undone = s.run("edit.undo", &json!({})).unwrap();
     assert_ne!(undone["undone"], json!("move"), "{undone}");
     let _ = server;
-    done(s);
 }
 
 /// Data files as the app keeps them: an account kept on this computer with an empty Inbox, and
 /// a server account whose Inbox, open and all selected, has `here` messages with their sources
-/// (`text` each) and `listed` more not downloaded. Returns the folder they're in, the store, the
-/// session and the local account.
-fn data_files_to_copy(name: &str, here: u32, listed: u32, text: &str) -> (std::path::PathBuf, Store, Session, String) {
-    let dir = std::env::temp_dir().join(format!("mailcraft-engine-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+/// (`text` each) and `listed` more not downloaded. Returns the store, the session and the local
+/// account.
+fn data_files_to_copy(name: &str, here: u32, listed: u32, text: &str) -> (Store, Session, String) {
+    let dir = scratch(name);
     let store = Store::open_packed(dir.join("cache"), dir.join("files")).unwrap();
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
     let local = s.run("account.add", &json!({"email": "ben@example.org", "local": true})).unwrap()["account"].as_str().unwrap().to_string();
@@ -348,7 +341,7 @@ fn data_files_to_copy(name: &str, here: u32, listed: u32, text: &str) -> (std::p
     s.run("list.selectAll", &json!({})).unwrap();
     assert_eq!(s.selection.len(), (here + listed) as usize);
     s.take_jobs();
-    (dir, store, s, local)
+    (store, s, local)
 }
 
 /// 5,000 messages of about 4 KB copied from a server account into a folder of an account kept on
@@ -358,12 +351,11 @@ fn data_files_to_copy(name: &str, here: u32, listed: u32, text: &str) -> (std::p
 #[ignore]
 fn measure_copy_many() {
     let filler = "Some words of a long note, kept to see a copy's cost. ".repeat(70);
-    let (dir, store, mut s, local) = data_files_to_copy("measure-copy", 5000, 0, &filler);
+    let (store, mut s, local) = data_files_to_copy("measure-copy", 5000, 0, &filler);
     let t = std::time::Instant::now();
     let r = s.run("mail.copy", &json!({"account": local, "folder": "INBOX"})).unwrap();
     println!("MEASURE copy 5000 into a data file: {} ms ({r})", t.elapsed().as_millis());
     assert_eq!(held(&s, &local, "INBOX").len(), 5000);
     drop(s);
     drop(store);
-    let _ = std::fs::remove_dir_all(&dir);
 }

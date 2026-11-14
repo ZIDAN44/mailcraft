@@ -43,5 +43,4 @@ fn a_server_contact_saved_from_the_form_keeps_what_it_had() {
     s.run("contact.update", &json!({"uid": "zoe-server", "name": "Zoe Park"})).unwrap();
     let c = &s.pim["sample"].cards.iter().find(|c| c.card.uid == "zoe-server").unwrap().card;
     assert!(vcard::write(c).lines().any(|l| l == "N:;;;;"), "{}", vcard::write(c));
-    done(s);
 }

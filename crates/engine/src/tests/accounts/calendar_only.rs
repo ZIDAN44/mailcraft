@@ -38,7 +38,6 @@ fn a_calendar_only_account_starts_with_its_server_and_no_mail_one() {
     again.set_work_offline(true);
     assert_eq!(again.account(&id).unwrap().status, mailcraft_model::SyncStatus::Offline);
     assert!(again.account(&local).is_some());
-    done(again);
 }
 
 /// Issue #86: it has no mailbox, so the folder pane doesn't show it (several of them filled the
@@ -66,7 +65,6 @@ fn it_is_no_mailbox_in_the_folder_pane() {
     s.run("folderPane.move", &json!({"key": zoe, "by": -5})).unwrap();
     assert_eq!(keys(s.pane_sections()).first(), Some(&zoe));
     assert_eq!(keys(s.mail_sections()), ["sample".to_string(), mail]);
-    done(s);
 }
 
 #[test]
@@ -86,7 +84,6 @@ fn what_it_needs_is_asked_for() {
         add(&mut s, json!({"email": "zo@example.org", "username": "z\no","password": "pw", "dav": SERVER})).is_some_and(|e| e.contains("user name"))
     );
     assert!(add(&mut s, json!({"email": "zoe@example.org", "password": "pw", "dav": SERVER})).is_some_and(|e| e.contains("already")));
-    done(s);
 }
 
 #[test]
@@ -120,7 +117,6 @@ fn its_calendar_and_contacts_go_to_its_server() {
     s.run("contact.create", &json!({"name": "Ana Lee", "account": id})).unwrap();
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id)), "nor of a new contact");
     assert_eq!(s.pim[&id].cards.iter().map(|c| c.book.as_str()).collect::<Vec<_>>(), [book.as_str()]);
-    done(s);
 }
 
 #[test]
@@ -151,7 +147,6 @@ fn its_server_and_sign_in_can_change_but_not_go() {
     // Removed, the keychain's password goes with it (the pool's `Remove`).
     s.run("account.remove", &json!({"account": id})).unwrap();
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::Remove { account } if *account == id)));
-    done(s);
 }
 
 /// Meetings with no mail to send their invitations with: a server that schedules (Nextcloud)
@@ -187,6 +182,5 @@ fn a_meetings_invitations_go_through_a_server_that_schedules() {
         } else {
             assert!(not_sent, "said it couldn't go: {:?}", s.notices);
         }
-        done(s);
     }
 }

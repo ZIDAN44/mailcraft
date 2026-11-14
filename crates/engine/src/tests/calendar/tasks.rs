@@ -55,7 +55,6 @@ fn tasks_are_made_changed_done_and_deleted() {
     s.run("task.delete", &json!({"uid": uid})).unwrap();
     assert!(s.find_task(&uid).is_none());
     assert!(s.run("task.delete", &json!({"uid": uid})).is_err());
-    done(s);
 }
 
 /// Marking a repeating task done keeps a done copy and moves the task to its next due day.
@@ -78,7 +77,6 @@ fn a_repeating_task_moves_on_when_done() {
         .to_string();
     s.run("task.complete", &json!({"uid": last})).unwrap();
     assert!(s.find_task(&last).unwrap().task.is_done());
-    done(s);
 }
 
 /// The list's orders; done ones always last.
@@ -96,7 +94,6 @@ fn tasks_can_be_arranged() {
     s.run("task.arrange", &json!({"by": "title"})).unwrap();
     assert_eq!(titles(&s).first().map(String::as_str), Some("Back up the edit drives"));
     assert!(s.run("task.arrange", &json!({"by": "size"})).is_err());
-    done(s);
 }
 
 /// A task due shows in the calendar that day, drawn from the task (not an event); one with no
@@ -117,14 +114,13 @@ fn tasks_show_in_the_calendar_on_their_due_day() {
     // At the ends of time, nothing overflows.
     s.run("task.create", &json!({"title": "Far off", "due": "9999-12-31"})).unwrap();
     assert!(s.task_items(i64::MIN, i64::MAX).iter().any(|i| i.summary == "Far off"));
-    done(s);
 }
 
 /// A calendar file's to-dos come in as tasks beside its events.
 #[test]
 fn a_calendar_files_todos_come_in() {
     let mut s = sample_session("tasks-file");
-    let dir = std::env::temp_dir().join(format!("mailcraft-tasks-file-{}", std::process::id()));
+    let dir = scratch("tasks-file-ics");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("plan.ics");
     let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:todo-1\r\nSUMMARY:Pack the lenses\r\nEND:VTODO\r\n\
@@ -133,8 +129,6 @@ BEGIN:VEVENT\r\nUID:ev-1\r\nDTSTART:20261110T100000Z\r\nDTEND:20261110T110000Z\r
     let r = s.run("file.open", &json!({"path": path.to_string_lossy()})).unwrap();
     assert_eq!((r["added"].as_u64(), r["tasks"].as_u64()), (Some(1), Some(1)), "{r}");
     assert!(s.tasks("lenses").len() == 1);
-    let _ = std::fs::remove_dir_all(&dir);
-    done(s);
 }
 
 /// A task's reminder rings in the Reminders window once its time comes, until it's dismissed or
@@ -161,7 +155,6 @@ fn a_tasks_reminder_rings() {
     // Due long ago: its reminder doesn't ring now.
     s.run("task.create", &json!({"title": "Old", "due": "2020-01-01", "reminder": "2020-01-01T09:00"})).unwrap();
     assert!(due(&s).is_empty());
-    done(s);
 }
 
 /// A rule that ends after so many times counts down as the task moves on, and the task is done
@@ -183,7 +176,6 @@ fn a_repeating_task_with_a_count_ends() {
     assert!(last.get("done").is_none(), "{last}");
     assert!(s.find_task(&uid).unwrap().task.is_done());
     assert_eq!(count(&s), before, "no copy for a time past the last");
-    done(s);
 }
 
 /// A task brought in with no title (Outlook keeps tasks with no subject) can be done, taken
@@ -205,7 +197,6 @@ fn an_untitled_task_can_be_done_and_changed() {
     // A title given, then taken away: refused.
     s.run("task.update", &json!({"uid": "imp-1", "title": "Named"})).unwrap();
     assert!(s.run("task.update", &json!({"uid": "imp-1", "title": " "})).is_err());
-    done(s);
 }
 
 /// A calendar file's to-dos come in whatever they lack (a title; a start no later than the due
@@ -213,7 +204,7 @@ fn an_untitled_task_can_be_done_and_changed() {
 #[test]
 fn a_calendar_file_opened_twice_keeps_one_of_each_todo() {
     let mut s = sample_session("tasks-file-again");
-    let dir = std::env::temp_dir().join(format!("mailcraft-tasks-again-{}", std::process::id()));
+    let dir = scratch("tasks-again-ics");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("todos.ics");
     let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:untitled-1\r\nDUE;VALUE=DATE:20261105\r\nLAST-MODIFIED:20261001T120000Z\r\nEND:VTODO\r\n\
@@ -229,8 +220,6 @@ BEGIN:VTODO\r\nUID:backwards-1\r\nSUMMARY:Backwards\r\nDTSTART;VALUE=DATE:202611
     assert_eq!((untitled.title.as_str(), untitled.modified), ("", mailcraft_model::dates::days_from_civil(2026, 10, 1) * 86_400 + 12 * 3600));
     let backwards = s.find_task("backwards-1").unwrap().task;
     assert_eq!((backwards.start, backwards.due), (Some(day(2026, 11, 5)), Some(day(2026, 11, 5))));
-    let _ = std::fs::remove_dir_all(&dir);
-    done(s);
 }
 
 /// Events and tasks read their categories and repeat alike: a category given twice, apart or
@@ -260,7 +249,6 @@ fn events_and_tasks_take_categories_and_repeats_alike() {
     assert_eq!(s.find_event(&event).unwrap().1.event.rrule.as_deref(), Some("FREQ=WEEKLY;COUNT=3"));
     s.run("event.update", &json!({"uid": event, "repeat": "none"})).unwrap();
     assert_eq!(s.find_event(&event).unwrap().1.event.rrule, None);
-    done(s);
 }
 
 /// What the Tasks view asks each frame of 10,000 tasks (the side pane's counts, the main pane's
@@ -287,5 +275,4 @@ fn measure_tasks_frame() {
         assert_eq!(frame(&s), n);
     }
     println!("MEASURE the Tasks view of 10000, a frame: {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
-    done(s);
 }

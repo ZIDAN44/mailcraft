@@ -25,5 +25,4 @@ fn the_address_book_isnt_counted_again_for_each_sync() {
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
     assert!(!s.suggest_contacts("ana", 5).is_empty());
     assert_eq!(s.contacts_built, built + 2);
-    done(s);
 }

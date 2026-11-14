@@ -72,7 +72,6 @@ fn compose_reply_and_send_locally() {
     let sent = String::from_utf8_lossy(&sent);
     let part = sent.split("Content-Type: message/rfc822").nth(1).unwrap();
     assert!(part.contains("Subject: Character turnarounds") && !part[..300.min(part.len())].contains("base64"));
-    done(s);
 }
 
 #[test]
@@ -97,7 +96,6 @@ fn messages_save_as_eml_and_pdf() {
     if let Ok(keep) = std::env::var("MAILCRAFT_KEEP_PDF") {
         let _ = std::fs::copy(&pdf, keep);
     }
-    done(s);
 }
 
 #[test]
@@ -136,7 +134,6 @@ fn attachments_preview_and_save_all() {
     assert_eq!(mailcraft_mime::craft_app_for("application/pdf", "a.pdf"), Some(("pdfcraft", "PdfCraft")));
     assert_eq!(mailcraft_mime::craft_app_for("application/octet-stream", "q.XLSX").map(|a| a.0), Some("gridcraft"));
     assert_eq!(mailcraft_mime::text_preview_kind("message/rfc822", "fwd.eml"), Some("message"));
-    done(s);
 }
 
 /// A file picked in the browser, or a picture pasted, is handed over as it is and named by the
@@ -165,7 +162,6 @@ fn files_handed_over_are_attached_as_they_are() {
     assert_eq!(s.handed.len(), 4, "only the last few are kept");
     assert!(s.run("compose.attach", &json!({"name": "old.bin", "handed": kept[0]})).is_err());
     s.run("compose.attach", &json!({"name": "new.bin", "handed": kept[5]})).unwrap();
-    done(s);
 }
 
 /// A file handed over for a command that's refused before it looks for it (no message is being
@@ -244,7 +240,6 @@ fn formatted_messages_go_out_as_html_with_pictures() {
     s.run("list.open", &k).unwrap();
     let p = s.reading.as_ref().unwrap().parsed.clone().unwrap();
     assert!(!p.had_html && p.text.contains("**these**"));
-    done(s);
 }
 
 #[test]
@@ -298,7 +293,6 @@ fn offline_sends_wait_in_the_outbox() {
     // A later success from the Outbox is just a notice.
     s.apply(Event::Sent { account: id.clone(), id: 999 });
     assert_eq!(s.notices.last().unwrap().text, "Message sent");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -325,7 +319,6 @@ fn new_mail_opens_in_a_window_and_closing_keeps_a_draft() {
     s.run("mail.new", &json!({})).unwrap();
     s.run("compose.update", &json!({"subject": "Gone"})).unwrap();
     assert_eq!(s.run("compose.close", &json!({"save": false})).unwrap()["saved"], false);
-    done(s);
 }
 
 /// View › Arrange by, as Outlook's: sorted and grouped by sender, size, flag…, and the other way
@@ -372,7 +365,6 @@ fn working_offline_comes_first_and_stops_send_receive() {
     s.run("mail.workOffline", &json!({"on": false})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::WorkOffline { on: false }]));
     assert!(s.run("mail.sync", &json!({})).is_ok());
-    let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
 }
 
 #[test]
@@ -413,7 +405,6 @@ fn delay_delivery_holds_mail_in_the_outbox_until_its_time() {
     s.run("outbox.send", &json!({"key": k.to_id()})).unwrap();
     assert!(s.outbox.iter().all(|(_, i)| i.not_before == 0 || i.not_before <= NOW + 3601));
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FlushOutbox { .. })));
-    done(s);
 }
 
 /// A new message to someone (a contact card's Send email): To filled in, ready for more.
@@ -427,7 +418,6 @@ fn new_mail_to_someone() {
     assert!(s.compose.is_none(), "nothing opens for a bad address");
     s.run("mail.new", &json!({"to": "  "})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().to, "");
-    done(s);
 }
 
 /// Several messages written at once, as Outlook keeps every New Email window: starting another
@@ -514,7 +504,6 @@ fn attaching_reads_plain_files_only() {
     std::fs::write(&file, b"hi").unwrap();
     s.run("compose.attach", &json!({"path": file.to_string_lossy()})).unwrap();
     assert_eq!(s.compose.as_ref().map(|c| c.attachments.len()), Some(1));
-    done(s);
 }
 
 /// Issue #11 (#16's test): a signature can hold pictures. Kept in its HTML with the account, they
@@ -628,7 +617,6 @@ fn a_signature_has_pictures() {
     let (_, html, pictures) = c.bodies();
     assert_eq!(pictures.len(), 2);
     assert!(html.unwrap().contains(own), "shown in the signature");
-    done(s);
 }
 
 /// Issue #11: replies and forwards can open in a window of their own each time (they start in
@@ -652,7 +640,6 @@ fn replies_can_open_in_a_window_of_their_own() {
     assert!(!s.compose.as_ref().unwrap().window, "a new message as its own setting says");
     assert_eq!(s.run("view.favorites", &json!({"on": false})).unwrap()["on"], json!(false));
     assert!(!s.prefs.show_favorites && s.prefs.reply_window);
-    done(s);
 }
 
 /// A reply or forward keeps the pictures in the message it quotes (they came out as
@@ -694,7 +681,6 @@ Content-Type: multipart/related; boundary=\"R\"\r\n\r\n--R\r\nContent-Type: text
         assert!(!text.contains("1970"), "{cmd}: {text}");
         s.run("compose.discard", &json!({})).unwrap();
     }
-    done(s);
 }
 
 /// A picture sent inline beside plain text (as Apple Mail sends one) goes with a forward as a
@@ -720,7 +706,6 @@ Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/p
     s.run("compose.discard", &json!({})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
     assert!(s.compose.as_ref().unwrap().attachments.is_empty(), "a reply leaves files out, as Outlook's");
-    done(s);
 }
 
 /// A forwarded text file in Windows-1252 goes as it came and keeps its charset: it went out as
@@ -748,7 +733,6 @@ Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/p
     let d = mailcraft_mime::Draft { subject: c.subject.clone(), body: c.body.clone(), attachments: c.attachments.clone(), ..Default::default() };
     let sent = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Riley", "riley@studio.example"), NOW, "<fwd@x>").unwrap();
     assert!(mailcraft_mime::attachment_text(&sent, 0).is_some_and(|t| t.starts_with("Caf\u{e9} au lait")));
-    done(s);
 }
 
 /// Found testing #52 on GreenMail: two messages sent by runs started in the same second had the

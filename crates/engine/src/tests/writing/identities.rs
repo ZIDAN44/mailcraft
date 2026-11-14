@@ -90,7 +90,6 @@ fn an_account_has_other_addresses() {
     s.run("account.removeAddress", &json!({"account": id, "address": "SHOP@example.org"})).unwrap();
     assert!(s.account(&id).unwrap().config.identities.is_empty());
     assert!(matches!(s.run("account.removeAddress", &json!({"account": id, "address": "shop@example.org"})), Err(CmdError::Params(_))));
-    done(s);
 }
 
 /// A message written from another of the account's addresses: that address and its name in
@@ -138,7 +137,6 @@ fn a_message_goes_from_the_address_picked() {
     s.run("compose.send", &json!({})).unwrap();
     let (from, p, _) = sent(&mut s);
     assert_eq!((from.as_str(), p.reply_to[0].email.as_str()), ("shop@example.org", "me@x.example"));
-    done(s);
 }
 
 /// Mail sent to one of the account's other addresses is answered from it, and that address
@@ -226,7 +224,6 @@ fn replies_and_drafts_keep_the_address() {
     s.run("list.open", &json!({"key": second.to_id()})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().from, "");
-    done(s);
 }
 
 /// The addresses a JMAP server keeps for the account become its other addresses when asked
@@ -278,7 +275,6 @@ fn a_jmap_servers_identities_become_the_accounts_addresses() {
     s.apply(Event::IdentitiesFound { account: id.clone(), found: Vec::new(), error: Some("the account is offline".into()) });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("offline")));
     assert_eq!(s.account(&id).unwrap().config.identities.len(), 3);
-    done(s);
 }
 
 /// Found in review. An account removed took what was being written from it along, unsaid; and
@@ -318,7 +314,6 @@ fn what_is_being_written_is_neither_lost_nor_opened_twice() {
     let third =
         s.run("account.add", &json!({"email": "cy@example.net", "password": "pw", "name": "Cy"})).unwrap()["account"].as_str().unwrap().to_string();
     assert_eq!(s.compose.as_ref().unwrap().account, third);
-    done(s);
 }
 
 /// Issue #88: one of an account's other addresses can be the one its new mail is written from
@@ -392,5 +387,4 @@ fn new_mail_is_written_from_the_address_chosen_for_it() {
     let kept = serde_json::to_value(config(&s)).unwrap();
     let back: mailcraft_model::AccountConfig = serde_json::from_value(kept).unwrap();
     assert_eq!(back.new_mail_from(), "press@example.org");
-    done(s);
 }

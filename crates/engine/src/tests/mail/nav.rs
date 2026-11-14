@@ -90,7 +90,6 @@ fn conversations_survive_direct_list_edits() {
     let last = s.list.len() - 1;
     s.list.swap(0, last);
     check(&s, "swapped");
-    done(s);
 }
 
 /// A list changed by hand since its rows were built still finds an older message of a
@@ -106,7 +105,6 @@ fn conversation_rows_survive_direct_list_edits() {
     s.list.push(message(1).into());
     assert_eq!(s.msg_row_of(&older), row, "after an edit by hand");
     assert_eq!(s.row_index_of(&older), at, "after an edit by hand");
-    done(s);
 }
 
 /// What's drawn each frame finds the selection without copying it, in list order where it says
@@ -160,7 +158,6 @@ fn conversations_are_worked_out_with_the_list() {
     s.open_message(&k);
     assert!(s.reading.as_ref().is_some_and(|r| r.thread.is_empty()));
     assert_eq!(s.nav.threadings(), built);
-    done(s);
 }
 
 /// Opening a message already read doesn't build the list again, and finds its conversation
@@ -181,7 +178,6 @@ fn opening_read_mail_works_nothing_out() {
         assert!(s.reading.as_ref().is_some_and(|r| r.thread.contains(k)), "a message is in its own conversation");
     }
     assert_eq!(s.nav.threadings(), built);
-    done(s);
 }
 
 /// Arranged by sender, the list shows no conversations: building it again (a sync, a flag
@@ -210,7 +206,6 @@ fn rebuilding_a_list_without_conversations_shown_works_none_out() {
     s.apply(Event::FolderChanged { account, folder });
     assert_eq!(s.nav.threadings(), built + 1);
     assert!(!s.threads.is_empty());
-    done(s);
 }
 
 /// A folder of `n` read messages over a day and more, in conversations of three, some pinned,
@@ -322,7 +317,6 @@ fn rows_follow_the_day() {
     let built = s.nav_structure();
     s.tick();
     assert_eq!(s.nav_structure(), built, "once a day");
-    done(s);
 }
 
 /// The comparator `arrange_list` used before names were lower-cased once each: the oracle.

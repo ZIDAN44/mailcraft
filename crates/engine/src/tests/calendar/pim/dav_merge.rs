@@ -50,7 +50,6 @@ fn measure_dav_merge() {
         println!("MEASURE dav merge of 20000, {what}: {} ms", t.elapsed().as_millis());
         assert_eq!(s.pim[&id].events.len(), 20_000, "{what}");
     }
-    done(s);
 }
 
 /// One of each part after a merge: an event the server sent twice is kept once, as it last sent
@@ -73,5 +72,4 @@ fn a_merge_keeps_one_of_each_part() {
     s.run("event.update", &json!({"uid": "e0@dav.example.org", "summary": "Meeting 0, here"})).unwrap();
     s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync(served(3), Vec::new())) });
     assert_eq!(summaries(&s), ["Meeting 0, here", "Meeting 1", "Meeting 2"]);
-    done(s);
 }

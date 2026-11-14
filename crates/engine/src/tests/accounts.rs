@@ -30,7 +30,6 @@ fn jmap_accounts_need_no_imap_servers() {
     let root = s.store.as_ref().unwrap().root().to_path_buf();
     let s2 = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(s2.account(&id).is_some_and(|a| a.config.jmap.is_some()));
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
@@ -58,7 +57,6 @@ fn oauth_accounts_sign_in_through_the_browser() {
     // Saved with the account (no secret in it).
     let saved = std::fs::read_to_string(store.root().join("accounts.json")).unwrap();
     assert!(saved.contains("\"oauth\":\"google\""));
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -222,7 +220,6 @@ fn remote_accounts_go_through_jobs_and_events() {
     // Accounts persist across sessions (without passwords).
     let s2 = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(s2.accounts.is_empty());
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
@@ -242,8 +239,6 @@ fn exchange_accounts_go_through_microsoft_graph() {
     s.run("account.update", &json!({"account": id, "name": "Ana Ruiz"})).unwrap();
     assert_eq!(s.account(&id).unwrap().config.name, "Ana Ruiz");
     assert_eq!(s.run("account.list", &json!({})).map(|v| v[0]["graph"].clone()).unwrap_or_default(), json!(mailcraft_model::GRAPH_URL));
-    let root = s.store.as_ref().unwrap().root().to_path_buf();
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
@@ -277,15 +272,13 @@ fn on_premises_exchange_accounts_go_through_ews() {
         s.run("account.list", &json!({})).map(|v| v[0]["ews"].clone()).unwrap_or_default(),
         json!("https://owa.contoso.example/ews/exchange.asmx")
     );
-    let root = s.store.as_ref().unwrap().root().to_path_buf();
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
 fn shared_calendars_open_from_exchange_accounts_and_close() {
     let mut s = sample_session("shared-cal");
     assert!(s.run("calendar.openShared", &json!({"email": "ana@soundlab.example"})).is_err(), "the sample isn't an Exchange account");
-    done(s);
+    drop(s);
     let mut s = Session::open(Some(temp("shared-cal-ews")), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = s
         .run("account.add", &json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}))
@@ -328,7 +321,6 @@ fn shared_calendars_open_from_exchange_accounts_and_close() {
     assert!(s.pim[&id].shared.is_empty() && s.pim[&id].calendars.iter().all(|c| c.id != cal));
     assert!(s.agenda(NOW - 10, NOW + 10).is_empty());
     assert!(s.run("calendar.closeShared", &json!({"email": "ana@contoso.example"})).is_err());
-    done(s);
 }
 
 /// With several accounts, the first one's Inbox opens (as Outlook opens on its first mailbox),
@@ -337,8 +329,7 @@ fn shared_calendars_open_from_exchange_accounts_and_close() {
 fn the_first_account_opens_and_accounts_can_be_reordered() {
     use mailcraft_model::dates::Clock;
     use mailcraft_model::{AccountConfig, Folder};
-    let dir = std::env::temp_dir().join(format!("mailcraft-acct-order-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("acct-order");
     let store = Store::open(&dir).unwrap();
     let config = |id: &str, email: &str| AccountConfig { id: id.into(), email: email.into(), ..Default::default() };
     store.save_accounts(&[config("a1", "zoe@studio.example"), config("a2", "ana@soundlab.example"), config("a3", "sam@studio.example")]).unwrap();
@@ -359,7 +350,6 @@ fn the_first_account_opens_and_accounts_can_be_reordered() {
     let s = Session::open(Some(store), Clock::new(1_700_000_000, 0));
     assert_eq!(order(&s), ["a3", "a2", "a1"]);
     assert_eq!(s.view, View::Folder { account: "a3".into(), folder: "INBOX".into() });
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Collapsing in the folder pane is kept with the settings (as Outlook keeps it).
@@ -425,7 +415,6 @@ fn a_microsoft_account_with_a_password_switches_to_microsoft_sign_in() {
     let live = s.run("account.add", &json!({"email": "bo@live.com", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
     s.oauth_available.clear();
     assert!(s.run("account.signIn", &json!({"account": live})).is_err());
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A mailbox Microsoft won't open over IMAP can start again through Microsoft Graph, in the
@@ -458,7 +447,6 @@ fn a_microsoft_account_moves_to_graph() {
     assert!(jobs.iter().any(|j| matches!(j, Job::Remove { account } if *account == id)));
     assert!(jobs.iter().any(|j| matches!(j, Job::SignIn { account } if account.id == new && account.graph.is_some())));
     assert!(s.run("account.useGraph", &json!({"account": new})).is_err(), "already on Graph");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #1: how much mail is kept on this computer is a setting (Outlook's "Mail to keep
@@ -531,7 +519,6 @@ fn shared_mailboxes_are_added_and_removed() {
     s.run("account.removeSharedMailbox", &json!({"account": id, "address": "sales@CONTOSO.example"})).unwrap();
     assert!(s.account(&id).unwrap().config.shared_mailboxes.is_empty());
     assert!(s.run("account.removeSharedMailbox", &json!({"account": id, "address": "sales@contoso.example"})).is_err());
-    done(s);
 }
 
 /// Issue #3: an account whose outgoing server has its own user name and password. The user name
@@ -568,7 +555,6 @@ fn the_outgoing_server_keeps_a_sign_in_of_its_own() {
     // Accounts that don't send over SMTP have none.
     let ews = json!({"email": "riley@contoso.example", "password": "pw", "ews": "mail.contoso.example", "smtpUsername": "x", "smtpPassword": "y"});
     assert!(s.run("account.add", &ews).is_err());
-    done(s);
 }
 
 /// Issue #1 (an Update button): MailCraft's releases are test builds of a version; a newer
@@ -626,7 +612,6 @@ fn update_checks_tell_newer_releases_and_test_builds() {
     assert!(matches!(&s.update, crate::UpdateCheck::UpToDate(_)), "{:?}", s.update);
     s.apply(Event::Releases { releases: Vec::new(), error: Some("offline".into()) });
     assert_eq!(s.update, crate::UpdateCheck::Failed("offline".into()));
-    done(s);
 }
 
 /// Issue #1: every account's own calendar was named "Calendar" in one colour, so they couldn't
@@ -646,7 +631,6 @@ fn each_accounts_calendar_has_the_accounts_colour() {
     assert_eq!(colour(&s, "sample", crate::sample::STUDIO_CALENDAR), Some(3), "another calendar keeps its own");
     let (from, to) = (s.clock.now - 7 * 86_400, s.clock.now + 7 * 86_400);
     assert!(s.agenda(from, to).iter().filter(|i| i.calendar == mailcraft_model::pim::LOCAL).all(|i| i.color == sample));
-    done(s);
 }
 
 /// Issue #4: an account kept online only (from when it's added, or switched in Options) has none
@@ -702,7 +686,6 @@ fn an_account_can_be_kept_online_only() {
     let again = Session::open(Some(Store::open(store.root()).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(again.store.as_ref().unwrap().is_online_only(&a));
     assert!(!again.store.as_ref().unwrap().is_online_only("sample"));
-    done(s);
 }
 
 /// Issue #1: a shared mailbox an account opens is a mailbox of its own in the folder pane,
@@ -743,5 +726,4 @@ fn shared_mailboxes_are_mailboxes_of_their_own_in_the_pane() {
     // A mailbox gone from the server leaves the order; a new one comes after its account.
     s.apply(Event::Folders { account: a.clone(), folders: vec![folder("INBOX", None), folder("Team", Some("team@contoso.example"))] });
     assert_eq!(keys(&s), [a.clone(), format!("{a}|team@contoso.example"), "sample".to_string()]);
-    done(s);
 }

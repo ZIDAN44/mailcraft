@@ -64,7 +64,6 @@ fn measure_undo_big_move() {
     s.run("edit.undo", &json!({})).unwrap();
     println!("MEASURE undo a move of 5000 into 50000: {} ms", t.elapsed().as_millis());
     assert_eq!(store.load_folder(&id, "INBOX").unwrap().messages.len(), 5000);
-    done(s);
 }
 
 /// 10,000 messages moved from an account kept on this computer to another's server, and the
@@ -92,7 +91,6 @@ fn measure_big_move_across() {
     s.apply(Event::CopiesFiled { account: to.clone(), folder: "Archive".into(), done: filed, failed: Vec::new(), moved: true });
     println!("MEASURE a move of 10000 to a server answered: {} ms", t.elapsed().as_millis());
     assert!(s.transfers.is_empty());
-    done(s);
 }
 
 /// 1,000 messages of an open Inbox of 100,000 on a server downloaded, each one's summary filled
@@ -111,5 +109,4 @@ fn measure_filled_big_folder() {
         s.apply(Event::Filled { summary: Box::new(summary) });
     }
     println!("MEASURE 1000 filled in 100000: {} ms", t.elapsed().as_millis());
-    done(s);
 }

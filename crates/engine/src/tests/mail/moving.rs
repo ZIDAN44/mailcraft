@@ -39,8 +39,7 @@ fn projects(root: &std::path::Path, n: u32) -> (Store, Session) {
 /// file as it opened again (105 s for a 37 GB one). Every message is moved with its source.
 #[test]
 fn a_long_move_leaves_its_data_file_sealed() {
-    let root = std::env::temp_dir().join(format!("mailcraft-engine-long-move-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let root = scratch("long-move");
     let (store, mut s) = projects(&root, 1200);
     // Marks made before the move are written before it (unsealed: the file is sealed as the long
     // write begins); none come in during it.
@@ -69,7 +68,6 @@ fn a_long_move_leaves_its_data_file_sealed() {
     assert!(store.commit_times().plain.count > before.plain.count, "a short move sealed");
     drop(s);
     drop(store);
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 /// A copy of 1,200 messages within a data file is written in batches: a handful of commits that
@@ -77,8 +75,7 @@ fn a_long_move_leaves_its_data_file_sealed() {
 /// copy has its source, read once.
 #[test]
 fn a_long_copy_is_written_in_batches() {
-    let root = std::env::temp_dir().join(format!("mailcraft-engine-long-copy-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let root = scratch("long-copy");
     let (store, mut s) = projects(&root, 1200);
     assert!(store.flush_marks());
     let paused = store.pause_marks();
@@ -97,5 +94,4 @@ fn a_long_copy_is_written_in_batches() {
     drop(paused);
     drop(s);
     drop(store);
-    let _ = std::fs::remove_dir_all(&root);
 }

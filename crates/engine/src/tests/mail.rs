@@ -26,7 +26,6 @@ fn sample_inbox_lists_newest_first_with_groups() {
     assert!(rows.contains(&Row::Header("Yesterday")));
     let inbox = s.account(sample::SAMPLE_ACCOUNT).unwrap().folder(FolderRole::Inbox).unwrap();
     assert_eq!((inbox.unread, inbox.total), (3, 7));
-    done(s);
 }
 
 #[test]
@@ -82,7 +81,6 @@ fn open_marks_read_and_shows_text_and_attachments() {
     // Saved on purpose, any name is the user's call.
     s.run("attachment.save", &json!({"index": 0, "path": exe.to_string_lossy()})).unwrap();
     assert!(exe.exists());
-    done(s);
 }
 
 #[test]
@@ -116,7 +114,6 @@ fn delete_archive_move_and_permanent_delete() {
     assert!(s.run("mail.move", &json!({"folder": "Nowhere"})).is_err());
     s.run("folder.open", &json!({"account": "sample", "folder": "Projects/Short film"})).unwrap();
     assert_eq!(s.list.len(), 3);
-    done(s);
 }
 
 /// Issue #1: a message's whole conversation showed above it in the reading pane though the
@@ -137,7 +134,6 @@ fn the_conversation_shows_above_a_message_only_when_grouped() {
     assert_eq!(s.reading.as_ref().unwrap().thread.len(), 2);
     s.run("view.conversations", &json!({"on": false})).unwrap();
     assert!(s.reading.as_ref().unwrap().thread.is_empty());
-    done(s);
 }
 
 #[test]
@@ -193,7 +189,6 @@ fn folders_create_rename_move_delete_and_favorites() {
     let s2 = Session::open(Some(Store::open(&root).unwrap()), mailcraft_model::dates::Clock::new(NOW, 0));
     assert!(s2.folder(a, "Customers").is_some());
     assert!(s2.folder(a, "Clients").is_none());
-    done(s);
 }
 
 #[test]
@@ -218,7 +213,6 @@ fn remote_folder_changes_are_queued_as_jobs() {
     assert!(matches!(s.take_jobs().as_slice(), [Job::Apply { op: Op::RenameFolder { to, .. }, .. }] if to == "INBOX.Trash.Plans"));
     s.run("folder.delete", &json!({"folder": "INBOX.Trash.Plans"})).unwrap();
     assert!(matches!(s.take_jobs().as_slice(), [Job::Apply { op: Op::DeleteFolder { path }, .. }] if path == "INBOX.Trash.Plans"));
-    let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
 }
 
 #[test]
@@ -255,7 +249,6 @@ hi
         s.run("message.popOut", &json!({})).unwrap();
     }
     assert_eq!(s.windows.len(), keys.len().min(crate::session::MAX_WINDOWS));
-    done(s);
 }
 
 /// A message waiting in the reading pane and in a window of its own is parsed once when it
@@ -279,7 +272,6 @@ fn a_message_shown_twice_is_parsed_once() {
     assert!(s.compose.as_ref().is_some_and(|c| c.subject.contains("Twice")));
     assert!(Arc::ptr_eq(s.reading.as_ref().unwrap().parsed.as_ref().unwrap(), &pane), "the one shown is left as it was");
     assert_eq!(*pane, *window);
-    done(s);
 }
 
 #[test]
@@ -304,7 +296,7 @@ fn mailbox_settings_commands() {
     assert!(s.run("account.mailbox", &json!({"account": "sample"})).unwrap()["cached"].as_u64().unwrap() > 0);
     assert!(s.run("account.setVacation", &json!({"account": "sample", "text": "x"})).is_err(), "no server");
     assert!(s.run("account.update", &json!({"account": "sample", "imapHost": "x"})).is_err());
-    done(s);
+    drop(s);
 
     // A server account: replies, quota and settings go through jobs and events.
     let mut s = Session::open(Some(temp("mailbox-remote")), mailcraft_model::dates::Clock::new(NOW, 0));
@@ -341,7 +333,6 @@ fn mailbox_settings_commands() {
     s.run("account.update", &json!({"account": id, "jmap": null})).unwrap();
     assert!(s.account(&id).unwrap().config.jmap.is_none());
     assert!(s.run("account.update", &json!({"account": id, "imapHost": "bad host"})).is_err());
-    done(s);
 }
 
 #[test]
@@ -426,7 +417,6 @@ fn web_pictures_load_only_when_asked() {
     assert!(!s.pictures_load_alone(), "in Junk");
     s.run("view.autoPictures", &json!({"on": false})).unwrap();
     assert!(!s.pictures_allowed(), "off again: it asks");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -474,7 +464,6 @@ fn only_mail_that_arrives_later_is_announced() {
     save(vec![m(6, false, 1), m(5, false, 10)]);
     s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
     assert!(s.take_new_mail().is_empty());
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A new account whose Inbox was empty at its first sync: nothing said the Inbox changed, so
@@ -500,7 +489,6 @@ fn the_first_message_of_an_empty_inbox_is_new() {
         .unwrap();
     s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
     assert_eq!(s.take_new_mail().into_iter().map(|m| m.subject).collect::<Vec<_>>(), ["first"]);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -516,7 +504,6 @@ fn recipients_are_suggested_from_mail_seen() {
     // Your own address isn't.
     assert_eq!(s.run("contacts.suggest", &json!({"query": "riley"})).unwrap().as_array().unwrap().len(), 0);
     assert!(s.run("contacts.suggest", &json!({})).is_err());
-    done(s);
 }
 
 /// A folder made in the Inbox shows under it, as Outlook shows one.
@@ -704,7 +691,6 @@ fn closing_counts_whats_lost_and_a_missing_password_is_asked_for() {
     s.ask_password.clear();
     needs(&mut s);
     assert!(s.ask_password.is_empty(), "once while MailCraft runs");
-    done(s);
 }
 
 /// Issue #46: dates and times as the user writes them, day first and on a 12-hour clock, with the
@@ -726,5 +712,4 @@ fn dates_are_written_as_chosen() {
     assert_eq!(s.prefs.date_style.order, mailcraft_model::dates::DateOrder::DayMonthYear);
     assert!(s.prefs.date_style.full_in_list && !s.clock.style.hours12);
     assert!(matches!(s.run("view.dateFormat", &json!({"order": "ydm"})), Err(CmdError::Params(_))));
-    done(s);
 }

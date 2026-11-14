@@ -67,7 +67,6 @@ fn new_messages_and_replies_have_signatures_of_their_own() {
     assert!(s.run("account.removeSignature", &json!({"account": "sample", "name": "Full"})).is_err());
     s.run("mail.new", &json!({})).unwrap();
     assert_eq!(body(&s), "");
-    done(s);
 }
 
 /// Picked from the Signature menu, one replaces the other, its pictures and HTML code with it:
@@ -113,7 +112,6 @@ fn the_signature_menu_switches_signatures_while_writing() {
     assert!(c.signature_code.is_empty() && c.bodies_with(&c.signature_code).1.is_none(), "plain text again");
     assert!(c.body.ends_with("-- \nRiley Moreno · Studio Lantern"));
     assert!(s.run("compose.insertSignature", &json!({"name": "Missing"})).is_err());
-    done(s);
 }
 
 /// Issue #11: From changed to another account, its signature takes the old one's place; one
@@ -146,7 +144,6 @@ fn the_signature_follows_from() {
     s.compose.as_mut().unwrap().body = edited.clone();
     s.run("compose.update", &json!({"account": desk})).unwrap();
     assert_eq!(body(&s), edited);
-    done(s);
 }
 
 /// In a reply, the new account's signature for replies goes above the quote, never into it,
@@ -194,7 +191,6 @@ fn a_reply_takes_the_new_accounts_reply_signature_above_the_quote() {
     s.run("compose.update", &json!({"account": desk})).unwrap();
     assert_eq!(body(&s), before, "left as the writer left it");
     assert_eq!(quote_sig(&body(&s)), 1);
-    done(s);
 }
 
 /// The quote's line stays over it, wherever signatures went in and out above it.
@@ -225,7 +221,6 @@ fn a_signature_goes_above_a_quote_that_starts_the_text() {
     s.run("compose.update", &json!({"account": desk})).unwrap();
     assert!(body(&s).starts_with("-- \nFD\n\n\nFrom:"), "{:?}", body(&s));
     rule_over_quote(&s);
-    done(s);
 }
 
 /// What can't be: names on two lines, too long, taken already; junk for the defaults; an
@@ -249,7 +244,6 @@ fn signature_names_and_defaults_refuse_junk() {
     assert_eq!(s.signature_of("sample", "big").unwrap().text.chars().count(), 10_000);
     // No message being written: Insert signature can't.
     assert!(s.run("compose.insertSignature", &json!({"name": "Big"})).is_err());
-    done(s);
 }
 
 /// The signature put in is the last one above the quote: a copy of its text written above it
@@ -264,7 +258,6 @@ fn a_copy_of_the_signature_in_the_text_is_left_alone() {
     assert_eq!(b.matches("Riley Moreno · Studio Lantern").count(), 2, "{b:?}");
     s.run("compose.insertSignature", &json!({"name": "Short"})).unwrap();
     assert_eq!(body(&s), "As signed:\n-- \nRiley Moreno · Studio Lantern\nthanks\n\n-- \nR.", "the one put in replaced, the writer's copy kept");
-    done(s);
 }
 
 /// Insert signature with no place given, in a reply with none: above the quote, where a
@@ -280,5 +273,4 @@ fn insert_signature_goes_above_the_quote_of_a_reply() {
     assert!(b.starts_with("\n\n-- \nRiley Moreno · Studio Lantern\n\n"), "{b:?}");
     assert!(!b.trim_end().ends_with("Studio Lantern"), "not under the quote: {b:?}");
     rule_over_quote(&s);
-    done(s);
 }

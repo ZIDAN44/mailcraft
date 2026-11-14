@@ -51,7 +51,6 @@ fn private_and_show_as_are_set_kept_and_shown() {
     s.update_event(&uid, |x| *x = odd).unwrap();
     s.run("event.update", &json!({"uid": uid, "summary": "Doctor (moved)", "privacy": "private"})).unwrap();
     assert!(s.find_event(&uid).unwrap().1.event.extra.iter().any(|l| l == "CLASS:X-TEAM"), "already private: kept as written");
-    done(s);
 }
 
 #[test]
@@ -106,7 +105,6 @@ fn the_calendar_search_finds_events_in_every_calendar() {
     assert!(matches!(s.run("calendar.search", &json!({"query": "x", "when": "soon"})), Err(CmdError::Params(_))));
     assert_eq!(search(&mut s, json!({"query": "", "limit": 2})).len(), 2);
     assert!(!search(&mut s, json!({"query": "", "limit": 0})).is_empty(), "at least one");
-    done(s);
 }
 
 /// A changed occurrence of a series that matches when the series doesn't is found on its own,
@@ -164,7 +162,6 @@ fn changed_occurrences_all_day_and_finished_series() {
     let fest = search(&mut s, json!({"query": "festival"}));
     assert_eq!(fest[0]["start"].as_i64(), Some(s.clock.utc(all_day.start)), "from local midnight");
     assert_eq!(fest[0]["occurrence"].as_i64(), Some(all_day.start), "named as its rule names it");
-    done(s);
 }
 
 /// A damaged cache (times at the ends of the range, a rule that never repeats, a calendar
@@ -177,7 +174,6 @@ fn the_search_survives_a_hostile_cache() {
     // What the calendar draws, around now and at the ends.
     let _ = s.agenda(NOW - 86_400 * 7, NOW + 86_400 * 7);
     let _ = s.agenda(i64::MIN, i64::MAX);
-    done(s);
 }
 
 /// What [`the_search_survives_a_hostile_cache`]'s searches take (`cargo test -p mailcraft-engine
@@ -189,7 +185,6 @@ fn measure_the_search_of_a_hostile_cache() {
     let started = std::time::Instant::now();
     hostile_searches(&mut s);
     println!("MEASURE calendar searches of a hostile cache of 20000: {} ms", started.elapsed().as_millis());
-    done(s);
 }
 
 /// Each kind of search, over a [`hostile_cache`].

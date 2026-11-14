@@ -73,7 +73,6 @@ fn a_message_marked_read_and_moved_at_once_keeps_its_mark() {
     let held = s.folder("sample", &m.key.folder).map(|f| f.unread);
     let saved = store.load_folders("sample").unwrap().into_iter().find(|f| f.path == m.key.folder).map(|f| f.unread);
     assert_eq!(saved, held);
-    done(s);
 }
 
 /// While the store's thread for marks is held (its commits slow, as a 38 GB file's were for
@@ -111,7 +110,6 @@ fn the_window_never_waits_for_marks_being_written() {
     let count = |p: &str| listed.iter().find(|f| f.path == p).map(|f| (f.unread, f.total));
     assert_eq!(count("Projects"), Some((1994, 2000)));
     assert_eq!(count("Drafts").map(|c| c.1), drafts, "the Drafts counted after them");
-    done(s);
 }
 
 /// While a read mark's commit holds the lock every change of a list is made under (on a 38 GB
@@ -165,7 +163,6 @@ fn the_window_never_waits_while_a_mark_is_committed() {
     assert_eq!(s.list.iter().filter(|m| m.flags.seen).count(), 6, "with the marks");
     let listed = store.load_folders("sample").unwrap();
     assert_eq!(listed.iter().find(|f| f.path == "Projects").map(|f| (f.unread, f.total)), Some((1994, 2000)));
-    done(s);
 }
 
 /// A folder said changed on disk (an import going on, a mark that couldn't be kept) while read
@@ -199,7 +196,6 @@ fn a_folder_changed_while_its_marks_are_written_keeps_the_message_read() {
     assert_eq!(s.list.iter().filter(|m| m.flags.seen).count(), 4, "with the marks");
     assert_eq!(s.reading.as_ref().map(|r| r.key.clone()), read);
     assert_eq!(s.selection, selection);
-    done(s);
 }
 
 /// Delete All on a folder whose read marks are still being written, let go of by the cache
@@ -239,7 +235,6 @@ fn delete_all_waits_for_a_folders_marks_being_written() {
     holder.join().unwrap();
     assert!(store.flush_marks());
     assert!(store.load_folder("sample", "Projects").unwrap().messages.is_empty());
-    done(s);
 }
 
 /// What a Down step costs the window in a data file's folder of 10,941 unread messages, in a real
@@ -250,8 +245,7 @@ fn delete_all_waits_for_a_folders_marks_being_written() {
 #[ignore]
 fn down_steps_on_a_big_data_file_folder() {
     use std::time::{Duration, Instant};
-    let root = std::env::temp_dir().join(format!("mailcraft-engine-down-data-file-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let root = scratch("down-data-file");
     let store = Store::open_packed(&root, root.join("files")).unwrap();
     let mut s = big_projects(&store, 10_941);
     s.defer_bodies(true);
@@ -277,7 +271,6 @@ fn down_steps_on_a_big_data_file_folder() {
     println!("the read mark on disk (the store's thread): median {m:?}, max {mmax:?}");
     drop(s);
     drop(store);
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 /// What a Down step costs the window in a data file's folder of 10,941 unread messages while an
@@ -291,8 +284,7 @@ fn down_steps_on_a_big_data_file_folder() {
 fn down_steps_during_an_import() {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::{Duration, Instant};
-    let root = std::env::temp_dir().join(format!("mailcraft-engine-down-import-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let root = scratch("down-import");
     let store = Store::open_packed(&root, root.join("files")).unwrap();
     let mut s = big_projects(&store, 10_941);
     s.defer_bodies(true);
@@ -351,5 +343,4 @@ fn down_steps_during_an_import() {
     assert_eq!(s.list.iter().filter(|m| m.flags.seen).count(), 101);
     drop(s);
     drop(store);
-    let _ = std::fs::remove_dir_all(&root);
 }

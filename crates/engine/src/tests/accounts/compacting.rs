@@ -8,8 +8,7 @@ use crate::IDLE_AFTER_S;
 
 /// A session over a store of data files, with one account kept in one.
 fn with_data_file(name: &str) -> (Session, String) {
-    let dir = std::env::temp_dir().join(format!("mailcraft-engine-compact-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch(&format!("compact-{name}"));
     let store = Store::open_packed(dir.join("app"), dir.join("MailCraft Files")).unwrap();
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
@@ -18,12 +17,6 @@ fn with_data_file(name: &str) -> (Session, String) {
     assert!(s.store.as_ref().unwrap().data_file(&id).is_some());
     s.take_jobs();
     (s, id)
-}
-
-fn finish(s: Session) {
-    let root = s.store.as_ref().unwrap().root().parent().unwrap().to_path_buf();
-    drop(s);
-    let _ = std::fs::remove_dir_all(root);
 }
 
 /// A health that needs compacting at idle: 2 GiB of a 4 GiB file to give back.
@@ -78,7 +71,6 @@ fn left_alone_data_files_are_measured_once_a_day_and_compacted_when_they_need_it
     // A day on: measured again.
     s.set_clock(NOW + 25 * 3600, 0);
     assert_eq!(idle(&mut s, IDLE_AFTER_S), vec![id.clone()]);
-    finish(s);
 }
 
 #[test]
@@ -117,7 +109,6 @@ fn the_account_waits_while_its_file_is_had_to_itself() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::DataFileHealth { account } if *account == id)), "measured again");
     assert!(s.run("account.list", &json!({ "account": id })).is_ok());
     assert!(matches!(s.run("dataFile.cancelCompact", &json!({ "account": id })), Err(CmdError::Disabled(_))), "nothing to stop");
-    finish(s);
 }
 
 #[test]
@@ -127,7 +118,6 @@ fn an_account_kept_in_memory_has_no_data_file_to_compact() {
     assert!(matches!(s.run("dataFile.compact", &json!({ "account": id })), Err(CmdError::Failed(_))));
     assert!(idle(&mut s, 10 * IDLE_AFTER_S).is_empty());
     assert!(s.run("dataFile.idle", &json!({})).is_err(), "how long it's been is needed");
-    done(s);
 }
 
 /// While a compaction has an account's file to itself, the window's thread reads nothing of it:
@@ -170,7 +160,6 @@ fn a_search_and_the_lists_wait_while_a_file_is_had_to_itself() {
         p = s.search_step(1000);
     }
     assert!(p.done && p.found == 1, "given back, it goes on: {p:?}");
-    finish(s);
 }
 
 /// An idle compaction stopped part way is measured again: where its recompress stopped is in the
@@ -183,7 +172,6 @@ fn a_compaction_stopped_part_way_is_measured_again() {
     let report = CompactReport { mode: CompactMode::Idle, cancelled: true, ..CompactReport::default() };
     s.apply(Event::Compacted { account: id.clone(), report: Box::new(report) });
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::DataFileHealth { account } if *account == id)));
-    finish(s);
 }
 
 /// Closing compacts only what the user chose to (off unless chosen), by what was last measured:
@@ -220,5 +208,4 @@ fn closing_compacts_only_when_chosen_and_short() {
     assert_eq!(s.notices.len(), said);
     assert!(s.compaction.last[&id].compacted);
     assert_eq!(s.run("dataFile.compactOnClose", &json!({ "on": false })).unwrap()["on"], json!(false));
-    finish(s);
 }

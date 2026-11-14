@@ -34,7 +34,6 @@ fn every_command_survives_junk_params() {
         }
     }
     assert!(matches!(s.run("no.such", &json!({})), Err(CmdError::Unknown(_))));
-    done(s);
 }
 
 #[test]
@@ -70,7 +69,6 @@ fn the_unread_filter_keeps_the_message_being_read() {
     s.run("list.open", &k).unwrap();
     s.run("list.filter", &json!({"value": "unread"})).unwrap();
     assert!(!has(&s, &first) && s.reading.is_none());
-    done(s);
 }
 
 #[test]
@@ -117,7 +115,6 @@ fn flags_filters_and_conversations() {
     s.run("list.next", &json!({})).unwrap();
     s.run("list.prev", &json!({})).unwrap();
     assert!(s.focus.is_some());
-    done(s);
 }
 
 #[test]
@@ -163,7 +160,6 @@ fn categories_pins_and_focused_inbox() {
     assert!(s.list.is_empty());
     s.run("list.focusTab", &json!({"value": "focused"})).unwrap();
     assert_eq!(s.list.len(), 7);
-    done(s);
 }
 
 #[test]
@@ -197,7 +193,6 @@ fn snoozed_mail_comes_back_unread() {
     let back = s.folder_state("sample", "INBOX").messages.iter().find(|m| m.subject == "Character turnarounds").cloned().unwrap();
     assert!(!back.flags.seen, "it comes back unread");
     assert!(s.run("mail.snooze", &json!({"preset": "someday"})).is_err());
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
@@ -235,7 +230,6 @@ fn rules_file_new_mail_as_it_arrives() {
     assert!(!s.list.iter().any(|m| m.from.email == "zoe@studio.example"));
     s.run("rules.delete", &json!({"index": 0})).unwrap();
     assert!(s.rules.is_empty());
-    done(s);
 }
 
 /// Undo (Ctrl+Z) puts back the last move, delete, flag or category: moved mail is found again
@@ -394,8 +388,6 @@ fn rules_export_and_import() {
     }
     assert_eq!(other.rules.len(), 2, "a bad file changes nothing");
     assert!(other.run("rules.import", &json!({"path": "/no/such/file"})).is_err());
-    done(other);
-    done(s);
 }
 
 /// Junk Email lists, as Outlook's: a blocked sender's mail goes to Junk as it arrives, a safe
@@ -779,5 +771,4 @@ fn rules_and_snoozes_follow_a_renamed_folder() {
     assert_eq!(s.rules[0].actions, [mailcraft_model::organize::RuleAction::MoveTo("Customers".into())]);
     s.tick();
     assert!(s.folder_state("sample", "INBOX").messages.iter().any(|m| m.subject == "Character turnarounds"), "back from the renamed folder");
-    let _ = std::fs::remove_dir_all(root);
 }

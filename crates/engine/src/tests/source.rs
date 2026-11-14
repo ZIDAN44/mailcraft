@@ -37,7 +37,6 @@ fn the_source_of_a_message_kept_here() {
     s.run("message.closeSource", &other).unwrap();
     assert_eq!(s.sources.len(), 1);
     assert!(s.run("message.source", &json!({"key": "nobody:1:1:INBOX"})).is_err());
-    done(s);
 }
 
 /// Not downloaded yet: asked for (once, not again for the reading pane's request), shown when it
@@ -76,7 +75,6 @@ fn a_source_not_here_yet() {
     let r = s.run("message.source", &k).unwrap();
     assert_eq!(r["pending"], json!(true));
     assert_eq!(fetches(&mut s), 1);
-    done(s);
 }
 
 /// Hostile sources: control characters and direction overrides shown by name, bytes that aren't
@@ -118,7 +116,6 @@ fn hostile_sources() {
     s.store.as_ref().unwrap().write_body(&key, &big).unwrap();
     let r = s.run("message.source", &k).unwrap();
     assert_eq!((r["size"].as_u64(), r["truncated"].as_bool()), (Some(big.len() as u64), Some(true)));
-    done(s);
 }
 
 /// The Outbox's messages have a source too: what's waiting to go, Bcc and all.
@@ -142,5 +139,4 @@ fn the_source_of_a_message_in_the_outbox() {
     let r = s.run("message.source", &json!({"key": key.to_id()})).map_err(|e| e.to_string()).unwrap();
     assert!(r["text"].as_str().unwrap().contains("Subject: Waiting in the Outbox"), "{r}");
     assert!(s.take_jobs().is_empty(), "nothing to download");
-    done(s);
 }

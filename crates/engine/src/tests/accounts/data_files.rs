@@ -54,7 +54,6 @@ fn pop_accounts_download_and_can_start_from_a_data_file() {
     assert!(s.account(&id).is_some());
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("Outlook has this data file open")));
     assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }]));
-    let _ = std::fs::remove_dir_all(s.store.as_ref().unwrap().root());
 }
 
 /// A local account's counts saved while an import adds folders to its list: the folders the
@@ -75,7 +74,6 @@ fn counts_saved_during_an_import_keep_its_folders() {
     assert_eq!(held.unread, 0);
     let saved = on_disk.iter().find(|f| f.path == folder).unwrap();
     assert_eq!((saved.unread, saved.total), (held.unread, held.total));
-    done(s);
 }
 
 #[test]
@@ -246,7 +244,6 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         error: Some("disk full".into()),
     });
     assert!(s.notices.last().is_some_and(|n| n.error && n.text.contains("disk full")));
-    done(s);
 }
 
 /// An import whose last save failed keeps what came in past the next start: the folder list the
@@ -295,8 +292,7 @@ fn a_failed_last_save_is_kept_across_a_restart() {
 fn folders_kept_under_another_account_open_as_this_ones() {
     use mailcraft_model::dates::Clock;
     use mailcraft_model::{AccountConfig, Folder};
-    let dir = std::env::temp_dir().join(format!("mailcraft-folder-owner-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("folder-owner");
     let store = Store::open(&dir).unwrap();
     store.save_accounts(&[AccountConfig { id: "a2".into(), email: "kim@garnetbyte.example".into(), ..Default::default() }]).unwrap();
     let f = |path: &str| Folder { account: "a1".into(), path: path.into(), ..Default::default() };
@@ -304,7 +300,6 @@ fn folders_kept_under_another_account_open_as_this_ones() {
     let mut s = Session::open(Some(store), Clock::new(1_700_000_000, 0));
     assert!(s.accounts[0].folders.iter().all(|f| f.account == "a2"));
     s.run("folder.open", &json!({"account": "a2", "folder": "INBOX/gzamer"})).unwrap();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Removing an account keeps its data file where it is, as Outlook keeps a removed account's
@@ -312,8 +307,7 @@ fn folders_kept_under_another_account_open_as_this_ones() {
 /// again as a data file. A file that failed to open, or an account starting again, isn't kept.
 #[test]
 fn a_removed_account_keeps_its_data_file() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-engine-keep-file-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = scratch("keep-file");
     let files = dir.join("MailCraft Files");
     let store = Store::open_packed(dir.join("app"), &files).unwrap();
     let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
@@ -342,7 +336,6 @@ fn a_removed_account_keeps_its_data_file() {
     assert_eq!(n, 0, "no mail in it, but it opens");
     assert_eq!(opened.load_folders("a9").unwrap().len(), 1);
     drop(s);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An import thrown away ends with its account already removed, and the pool says so even when

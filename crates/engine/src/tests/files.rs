@@ -56,7 +56,6 @@ fn a_mailto_link_starts_a_message_and_attaches_nothing() {
     }
     let sending = s.take_jobs().into_iter().filter(|j| matches!(j, Job::Send { .. })).count();
     assert_eq!(sending, 0, "the draft waits for the user");
-    done(s);
 }
 
 #[test]
@@ -83,7 +82,6 @@ fn a_message_file_is_shown() {
     assert!(open_path(&mut s, &path.with_file_name("gone.eml")).is_err());
     assert!(open_path(&mut s, &scratch.0).is_err());
     assert!(s.run("file.open", &json!({ "path": "   " })).is_err());
-    done(s);
 }
 
 #[test]
@@ -135,7 +133,6 @@ fn calendar_and_contacts_files_are_added() {
     assert_eq!(added["kind"], "contacts", "{added}");
     assert_eq!((added["added"].as_u64(), added["skipped"].as_u64()), (Some(1), Some(1)), "{added}");
     assert!(s.people("Ortiz").iter().any(|p| p.card.display() == "Mo Ortiz"));
-    done(s);
 }
 
 /// With no account there's nowhere to put them: said, not crashed.
@@ -285,7 +282,6 @@ fn a_message_file_opens_in_a_window_of_its_own_and_leaves_no_trace() {
     }
     assert_eq!((s.windows.len(), s.opened_files.len()), (MAX_WINDOWS, MAX_WINDOWS));
     assert!(s.windows.iter().all(|w| s.opened_file_name(&w.key).is_some()));
-    done(s);
 }
 
 /// The words of laid-out blocks, table cells included.

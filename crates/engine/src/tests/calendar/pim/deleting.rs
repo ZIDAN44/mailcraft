@@ -49,7 +49,6 @@ fn an_occurrence_with_its_own_item_is_deleted_on_the_server() {
     let master = left(&s).into_iter().find(|e| e.event.recurrence_id.is_none()).unwrap();
     assert!(master.dirty && master.event.exdates.contains(&first) && master.event.exdates.contains(&second));
     assert_eq!(left(&s).len(), 1, "both changed copies gone");
-    done(s);
 }
 
 /// The whole series deleted: each of its items once (the series and an occurrence share one).
@@ -61,7 +60,6 @@ fn a_series_deleted_deletes_each_item_once() {
     gone.sort();
     assert_eq!(gone, ["I2", "S1"]);
     assert!(left(&s).is_empty());
-    done(s);
 }
 
 /// A series that keeps as many deleted occurrences as it can: one more stayed in it, yet was

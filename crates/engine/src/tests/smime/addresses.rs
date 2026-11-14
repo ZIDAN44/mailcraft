@@ -96,7 +96,6 @@ fn mail_from_another_address_is_signed_with_its_own_certificate() {
     // Zoe's certificate out of date: nothing signs for her address any more.
     s.clock.now += 86_400 * 2000;
     assert!(s.identity_for("sample", "zoe@posteo.example").is_none());
-    done(s);
 }
 
 /// Found in review: a draft kept encrypted (a message to be sent encrypted is, on the server)
@@ -131,7 +130,6 @@ fn a_draft_kept_encrypted_is_still_sent_encrypted() {
     let key = open_raw(&mut s, 9372, plain);
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
     assert!(!s.compose.as_ref().unwrap().encrypt);
-    done(s);
 }
 
 /// Found in review: a signed message waiting in the Outbox, taken back to be changed, opened as
@@ -200,7 +198,6 @@ Message-ID: <o1@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain
     assert!(c.attachments.is_empty(), "no signature's file in it");
     assert_eq!(c.send_after, Some(later));
     assert!(s.outbox.is_empty());
-    done(s);
 }
 
 /// Found in review: any signed mail that named a sender put its certificate in the place of
@@ -237,7 +234,7 @@ Message-ID: <k{n}@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/pla
     open_raw(&mut s, 9403, &signed_by(&old, 3));
     open_raw(&mut s, 9404, &signed_by(&riley(), 4));
     assert!(kept(&s).trusted && kept(&s).cert == new_cert);
-    done(s);
+    drop(s);
 
     // With none kept, one from an authority not trusted here is (it's all there is to encrypt
     // to them with), when it's in date; among such, the one that came last is kept, whatever
@@ -251,7 +248,6 @@ Message-ID: <k{n}@studio.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/pla
     assert!(!kept(&s).trusted && kept(&s).cert == new_cert);
     open_raw(&mut s, 9413, &signed_by(&old, 3));
     assert_eq!(kept(&s).cert == old_cert, in_date(&old_cert), "the last that came, when it can be encrypted to");
-    done(s);
 }
 
 /// Found in review: a message closed while it was being signed, whose signing then failed, was
@@ -270,5 +266,4 @@ fn a_message_closed_while_it_was_signed_comes_back_when_that_fails() {
     let c = s.compose.as_ref().expect("open again");
     assert!(c.body.contains("Not to be lost") && !c.sending);
     assert!(c.error.as_deref().is_some_and(|e| e.contains("the card was taken out")), "{:?}", c.error);
-    done(s);
 }
