@@ -27,8 +27,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 iana-time-zone = "0.1"
 # Native file dialogs (attach, save as).
 rfd = "0.17"
-# Open attachments with the system's default app.
-open = "5"
 # Pictures pasted into a message.
 arboard = { version = "3", default-features = false, features = ["image-data"] }
 # Desktop notifications for new mail (toasts, Notification Center, freedesktop notifications).
@@ -44,6 +42,11 @@ keyring = "4.2"
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.
 winresource = "0.1"
+
+# Open attachments with the system's default app. (On Windows that's the shell itself:
+# `desktop::shell_open`.)
+[target.'cfg(not(windows))'.dependencies]
+open = "5"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # Notifications under MailCraft's name: its app id's name and icon, per user (`toast.rs`).
