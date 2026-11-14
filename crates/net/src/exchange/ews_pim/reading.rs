@@ -66,7 +66,7 @@ pub(super) fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Read> {
              <t:AdditionalProperties><t:FieldURI FieldURI=\"item:EffectiveRights\"/>{extra}</t:AdditionalProperties></m:ItemShape>\
              <m:ItemIds>{list}</m:ItemIds></m:GetItem>"
         ))?;
-        for m in crate::ews::messages(&doc) {
+        for m in crate::ews::into_messages(doc) {
             if m.attr("ResponseClass") == Some("Error") {
                 // One deleted since the folder was listed is simply gone.
                 let code = m.text_of("ResponseCode").unwrap_or("");
@@ -78,8 +78,8 @@ pub(super) fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Read> {
                 }
                 continue;
             }
-            if let Some(items) = m.child("Items") {
-                read.items.extend(items.kids.iter().cloned());
+            if let Some(items) = m.kids.into_iter().find(|k| k.name == "Items") {
+                read.items.extend(items.kids);
             }
         }
     }

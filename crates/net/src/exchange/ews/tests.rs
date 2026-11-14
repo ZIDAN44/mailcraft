@@ -15,6 +15,8 @@ fn answers_are_read_carefully() {
     );
     let ms = messages(&doc);
     assert_eq!(ms.len(), 2);
+    assert_eq!(format!("{:?}", into_messages(doc.clone())), format!("{ms:?}"), "the same messages, moved out");
+    assert!(into_messages(parse("<a><Body><b/></Body></a>")).is_empty() && into_messages(El::default()).is_empty());
     assert!(check_message(ms[0]).is_ok());
     assert!(matches!(check_message(ms[1]), Err(NetError::No(m)) if m.contains("not found")));
     let it = ms[0].find("Message").unwrap();
@@ -44,6 +46,93 @@ fn answers_are_read_carefully() {
     assert_eq!(unb64("aGk=\r\n"), Some(b"hi".to_vec()));
     assert_eq!(unb64("**"), None);
     assert_eq!(esc("a<b&\"c\u{1}"), "a&lt;b&amp;&quot;c");
+}
+
+/// This process's peak working set in bytes (Windows' count, asked of PowerShell; Linux's
+/// `VmHWM`).
+fn peak() -> Option<u64> {
+    if cfg!(windows) {
+        let script = format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id());
+        let out = std::process::Command::new("powershell").args(["-NoProfile", "-Command", &script]).output().ok()?;
+        return String::from_utf8_lossy(&out.stdout).trim().parse().ok();
+    }
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let kb = status.lines().find_map(|l| l.strip_prefix("VmHWM:"))?.trim().trim_end_matches("kB").trim().parse::<u64>().ok()?;
+    Some(kb << 10)
+}
+
+/// Audit #112: a big message's source downloaded (60 MB, 80 MB of base64 in the answer), from a
+/// server whose answer is made before the clock starts: how long it takes and how far the
+/// process's peak memory grows, the source byte for byte. Run alone, in release:
+/// `cargo test --release -p mailcraft-net --lib a_big_source_downloads -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement"]
+fn a_big_source_downloads() {
+    use std::io::{BufRead, Read, Write};
+    let line = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit 0123\r\n";
+    let raw: Vec<u8> = line.iter().copied().cycle().take(60 << 20).collect();
+    // The answer made a piece at a time, so making it doesn't set the peak.
+    let (head, tail) = (
+        "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"s\"><s:Body><m:GetItemResponse xmlns:m=\"m\" xmlns:t=\"t\"><m:ResponseMessages>\
+         <m:GetItemResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Message><t:ItemId Id=\"I1\"/>\
+         <t:MimeContent CharacterSet=\"UTF-8\">",
+        "</t:MimeContent></t:Message></m:Items></m:GetItemResponseMessage></m:ResponseMessages></m:GetItemResponse></s:Body></s:Envelope>",
+    );
+    let len = head.len() + raw.len().div_ceil(3) * 4 + tail.len();
+    let mut answer = format!("HTTP/1.1 200 OK\r\nContent-Type: text/xml; charset=utf-8\r\nContent-Length: {len}\r\n\r\n{head}").into_bytes();
+    answer.reserve(len);
+    for piece in raw.chunks(3 << 20) {
+        answer.extend_from_slice(b64(piece).as_bytes());
+    }
+    answer.extend_from_slice(tail.as_bytes());
+    let answer = std::sync::Arc::new(answer);
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://127.0.0.1:{}/EWS/Exchange.asmx", l.local_addr().unwrap().port());
+    let served = answer.clone();
+    std::thread::spawn(move || {
+        for s in l.incoming() {
+            let Ok(mut s) = s else { continue };
+            let mut r = std::io::BufReader::new(s.try_clone().unwrap());
+            loop {
+                let mut len = 0usize;
+                loop {
+                    let mut h = String::new();
+                    if r.read_line(&mut h).unwrap_or(0) == 0 {
+                        return;
+                    }
+                    if h == "\r\n" {
+                        break;
+                    }
+                    if let Some(v) = h.to_ascii_lowercase().strip_prefix("content-length:") {
+                        len = v.trim().parse().unwrap_or(0);
+                    }
+                }
+                let mut req = vec![0; len];
+                r.read_exact(&mut req).unwrap();
+                s.write_all(&served).unwrap();
+            }
+        }
+    });
+    let c = Client::new(&url, "u", "p", "riley@contoso.example").unwrap();
+    let mut times = Vec::new();
+    let mut growth = None;
+    for round in 0..12 {
+        let before = peak();
+        let t = std::time::Instant::now();
+        let got = c.download("I1").unwrap();
+        times.push(t.elapsed().as_millis());
+        if round == 0 {
+            growth = before.zip(peak()).map(|(b, a)| a.saturating_sub(b) >> 20);
+        }
+        assert!(got == raw, "the source byte for byte");
+    }
+    let mut sorted = times.clone();
+    sorted.sort_unstable();
+    let median = sorted.get(sorted.len() / 2).copied().unwrap_or(0);
+    let fastest = sorted.first().copied().unwrap_or(0);
+    println!(
+        "MEASURE ews download 60 MB source: fastest {fastest} ms, median {median} ms, ms per round {times:?}, peak working set grew {growth:?} MB on the first"
+    );
 }
 
 #[test]

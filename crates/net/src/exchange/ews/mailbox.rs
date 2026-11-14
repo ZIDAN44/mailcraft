@@ -31,8 +31,8 @@ impl Client {
                  <m:IndexedPageFolderView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
                  <m:ParentFolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\"/></m:ParentFolderIds></m:FindFolder>"
             ))?;
-            let Some(m) = messages(&doc).first().map(|m| (*m).clone()) else { break };
-            check_message(&m)?;
+            let Some(m) = messages(&doc).first().copied() else { break };
+            check_message(m)?;
             let Some(rf) = m.child("RootFolder") else { break };
             let folders = rf.folders();
             let n = folders.len();
@@ -192,12 +192,12 @@ impl Client {
                 "<m:GetItem><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{HEADER_FIELDS}{FLAG_FIELDS}</t:AdditionalProperties></m:ItemShape>\
                  <m:ItemIds>{list}</m:ItemIds></m:GetItem>"
             ))?;
-            for m in messages(&doc) {
+            for m in into_messages(doc) {
                 if m.attr("ResponseClass") == Some("Error") {
                     continue;
                 }
-                if let Some(items) = m.child("Items") {
-                    out.extend(items.kids.iter().cloned());
+                if let Some(items) = m.kids.into_iter().find(|k| k.name == "Items") {
+                    out.extend(items.kids);
                 }
             }
         }

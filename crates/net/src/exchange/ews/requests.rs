@@ -157,8 +157,7 @@ impl Client {
 
     /// Run an operation on one thing: its single response message, checked.
     pub(crate) fn call_one(&self, body: &str) -> Result<El> {
-        let doc = self.call(body)?;
-        let m = messages(&doc).first().map(|m| (*m).clone()).ok_or_else(|| NetError::Protocol("an empty answer".into()))?;
+        let m = into_messages(self.call(body)?).into_iter().next().ok_or_else(|| NetError::Protocol("an empty answer".into()))?;
         check_message(&m)?;
         Ok(m)
     }
@@ -171,6 +170,36 @@ impl Client {
         }
         Ok(())
     }
+}
+
+/// [`messages`], moved out of the answer rather than copied (a message's source can be most of
+/// it).
+pub(crate) fn into_messages(doc: El) -> Vec<El> {
+    fn body(el: El) -> Option<El> {
+        for k in el.kids {
+            if k.name == "Body" {
+                return Some(k);
+            }
+            if let Some(b) = body(k) {
+                return Some(b);
+            }
+        }
+        None
+    }
+    fn walk(el: El, out: &mut Vec<El>) {
+        for k in el.kids {
+            if k.name == "ResponseMessages" {
+                out.extend(k.kids);
+            } else {
+                walk(k, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if let Some(b) = body(doc) {
+        walk(b, &mut out);
+    }
+    out
 }
 
 impl Client {
