@@ -503,23 +503,17 @@ fn make_headings(n: &mut Node, depth: usize) {
 
 /// Markup for a part of the tree (to hand to the text converter).
 fn write(k: &Kid, out: &mut String) {
-    write_as(
-        k,
-        out,
-        How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0, bold: false },
-        false,
-    );
+    write_as(k, out, How::as_written());
 }
 
-/// [`write`], without what's hidden from Outlook (a layout's text, as it's shown), the size of
-/// its text marked (`size`: what's around it), and bold where the boxes around it are (`bold`).
+/// [`write`], as it's shown ([`How::shown`]).
 fn write_shown(k: &Kid, out: &mut String, size: u16, bold: bool) {
-    write_as(k, out, How { leave_hidden: true, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size, bold }, false);
+    write_as(k, out, How::shown(size, bold));
 }
 
 /// [`write_shown`], every table in it written as blocks.
 fn write_flat(k: &Kid, out: &mut String, size: u16, bold: bool) {
-    write_as(k, out, How { leave_hidden: true, blocks: true, styles: true, in_values: false, flat: true, sizing: true, size, bold }, false);
+    write_as(k, out, How::flat(size, bold));
 }
 
 /// A copy of a part of the tree, all of what's under it too (a deep copy).

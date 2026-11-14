@@ -95,12 +95,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
         // into every element, they made a long newsletter's text longer than is read).
         let text = (outlooks || sheet_hides).then(|| {
             let mut out = String::with_capacity(html.len());
-            write_as(
-                &root,
-                &mut out,
-                How { leave_hidden: true, blocks: outlooks, styles: false, in_values: false, flat: false, sizing: false, size: 0, bold: false },
-                false,
-            );
+            write_as(&root, &mut out, How::text(outlooks));
             out
         });
         // Written from the tree when its styles are, or it reads otherwise than as it came; as it
@@ -113,12 +108,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
                 make_headings(n, 0);
             }
             let mut out = String::with_capacity(html.len() + html.len() / 4);
-            write_as(
-                &root,
-                &mut out,
-                How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: false, size: 0, bold: false },
-                false,
-            );
+            write_as(&root, &mut out, How::as_written());
             out
         } else {
             html.to_string()
@@ -172,20 +162,15 @@ pub(crate) fn sized_html(html: &str) -> Option<String> {
     std::panic::catch_unwind(|| {
         let tree = parse_as(html, false)?;
         let mut out = String::with_capacity(html.len() + html.len() / 8);
-        write_as(
-            &Kid::El(tree.root),
-            &mut out,
-            How { leave_hidden: false, blocks: false, styles: true, in_values: false, flat: false, sizing: true, size: 0, bold: false },
-            false,
-        );
+        write_as(&Kid::El(tree.root), &mut out, How { sizing: true, ..How::as_written() });
         Some(out)
     })
     .ok()
     .flatten()
 }
 
-/// How the tree is written.
-#[derive(Clone, Copy)]
+/// How the tree is written: nothing of it (the default) writes it as it is, without its styles.
+#[derive(Clone, Copy, Default)]
 pub(super) struct How {
     /// What's hidden from Outlook left out.
     pub(super) leave_hidden: bool,
@@ -206,6 +191,32 @@ pub(super) struct How {
     /// The text here is bold (`font-weight` on a box around it: the text converter reads bold
     /// from `<b>` alone, and a step's name or a total set bold by its cell came out plain).
     pub(super) bold: bool,
+    /// Inside a layout table written as blocks: its table parts are written as blocks too.
+    pub(super) layout: bool,
+}
+
+impl How {
+    /// As it was written, styles and all (to hand to the text converter).
+    pub(super) fn as_written() -> How {
+        How { styles: true, ..How::default() }
+    }
+
+    /// Without what's hidden from Outlook (a layout's text, as it's shown), the size of its text
+    /// marked (`size`: what's around it), and bold where the boxes around it are (`bold`).
+    pub(super) fn shown(size: u16, bold: bool) -> How {
+        How { leave_hidden: true, styles: true, sizing: true, size, bold, ..How::default() }
+    }
+
+    /// [`How::shown`], every table in it written as blocks.
+    pub(super) fn flat(size: u16, bold: bool) -> How {
+        How { blocks: true, flat: true, ..How::shown(size, bold) }
+    }
+
+    /// What a message's text is read from: without what's hidden from Outlook nor the styles,
+    /// layout tables written as blocks when `blocks`.
+    pub(super) fn text(blocks: bool) -> How {
+        How { leave_hidden: true, blocks, ..How::default() }
+    }
 }
 
 /// Parts of a table, written as blocks in a layout table read as blocks.
@@ -213,10 +224,9 @@ fn table_part(tag: &str) -> bool {
     matches!(tag, "tbody" | "thead" | "tfoot" | "tr" | "td" | "th" | "caption")
 }
 
-/// Markup for a part of the tree, `how` says (`layout`: the table parts in it are a layout
-/// table's, written as blocks). It goes no deeper than the tree, whose depth is capped
-/// ([`MAX_OPEN`]).
-pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
+/// Markup for a part of the tree, as `how` says. It goes no deeper than the tree, whose depth is
+/// capped ([`MAX_OPEN`]).
+pub(super) fn write_as(k: &Kid, out: &mut String, how: How) {
     match k {
         // Its size around the words: a space outside it stays a space between words.
         Kid::Text(t) if how.sizing && (how.size > 0 || how.bold) && !t.trim().is_empty() => {
@@ -242,7 +252,7 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
         Kid::El(n) => {
             if n.tag.starts_with('#') {
                 for k in &n.kids {
-                    write_as(k, out, how, layout);
+                    write_as(k, out, how);
                 }
                 return;
             }
@@ -250,16 +260,16 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
                 return;
             }
             let how = if how.sizing { How { size: n.text_size(how.size), bold: n.bold(how.bold), ..how } } else { how };
-            let (tag, layout, how) = match n.tag.as_str() {
+            let (tag, how) = match n.tag.as_str() {
                 // Its text as it's written, in a box that ends (`<plaintext>` doesn't, and the
                 // tags written after it showed as text; found in review).
-                "plaintext" => ("pre", layout, how),
+                "plaintext" => ("pre", how),
                 // A layout table, read as blocks in the text.
-                "table" if how.flat || (how.blocks && !how.in_values && layout_table(n)) => ("div", true, how),
+                "table" if how.flat || (how.blocks && !how.in_values && layout_table(n)) => ("div", How { layout: true, ..how }),
                 // Written as a table, of columns of letters: marks would count for some.
-                "table" => ("table", false, How { in_values: true, sizing: false, ..how }),
-                t if layout && table_part(t) => ("div", true, how),
-                t => (t, layout, how),
+                "table" => ("table", How { in_values: true, sizing: false, layout: false, ..how }),
+                t if how.layout && table_part(t) => ("div", how),
+                t => (t, how),
             };
             out.push('<');
             out.push_str(tag);
@@ -284,7 +294,7 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How, layout: bool) {
                         // A style sheet, script or text box goes back as it was (escaping would
                         // break it), only never closed early.
                         Kid::Text(t) if raw_text(&n.tag) => raw(t, &n.tag, out),
-                        k => write_as(k, out, how, layout),
+                        k => write_as(k, out, how),
                     }
                 }
                 out.push_str("</");
