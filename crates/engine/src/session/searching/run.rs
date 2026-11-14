@@ -30,6 +30,8 @@ use super::merge::Shown;
 use super::work::SearchWork;
 use super::*;
 
+#[cfg(test)]
+mod tests;
 mod verify;
 
 /// Summaries checked in one unit.

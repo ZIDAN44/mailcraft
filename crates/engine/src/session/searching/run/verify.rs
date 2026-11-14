@@ -4,6 +4,29 @@
 use super::super::matching::NoText;
 use super::*;
 
+impl SearchRun {
+    /// The candidates in the order they're checked in, unless they're in it already. Checked in
+    /// the folders' order, a message after another read a page of texts afresh (a common phrase
+    /// over 50,000 messages: 1,015 pages read, each 256 KiB unpacked); in the docs' order each
+    /// page is read once (103). The folders on view still come first, as they're scanned first:
+    /// what's on screen is found first. (What's sorted already stays a run the sort takes as it
+    /// is.) The folders on view are the run's first (`start_search` puts them there), and each
+    /// account's place by name is worked out once a folder: comparing the folders' and accounts'
+    /// names in each comparison took 2.9 ms for a common phrase's 16,667 candidates.
+    pub(super) fn sort_verify(&mut self) {
+        if self.verify_sorted {
+            return;
+        }
+        let mut accounts: Vec<&str> = self.folders.iter().map(|(a, _)| a.as_str()).collect();
+        accounts.sort_unstable();
+        accounts.dedup();
+        let rank: Vec<usize> = self.folders.iter().map(|(a, _)| accounts.binary_search(&a.as_str()).unwrap_or(usize::MAX)).collect();
+        let on_view = self.on_view;
+        self.verify.make_contiguous().sort_by_key(|c| (c.fi >= on_view, rank.get(c.fi).copied().unwrap_or(usize::MAX), c.doc));
+        self.verify_sorted = true;
+    }
+}
+
 impl Session {
     /// One unit of checking a message against the text the index keeps for it.
     pub(super) fn verify_unit(&mut self, run: &mut SearchRun) -> u32 {
@@ -11,19 +34,7 @@ impl Session {
         let mut v = match run.verifying.take() {
             Some(v) => v,
             None => {
-                if !run.verify_sorted {
-                    // Checked in the folders' order, a message after another read a page of texts
-                    // afresh (a common phrase over 50,000 messages: 1,015 pages read, each 256 KiB
-                    // unpacked); in the docs' order each page is read once (103). The folders on
-                    // view still come first, as they're scanned first: what's on screen is found
-                    // first. (What's sorted already stays a run the sort takes as it is.)
-                    let view = run.folders.get(..run.on_view).unwrap_or_default().to_vec();
-                    let off = |c: &Candidate| !view.iter().any(|(a, f)| *a == c.m.key.account && *f == c.m.key.folder);
-                    run.verify
-                        .make_contiguous()
-                        .sort_by(|a, b| off(a).cmp(&off(b)).then(a.m.key.account.cmp(&b.m.key.account)).then(a.doc.cmp(&b.doc)));
-                    run.verify_sorted = true;
-                }
+                run.sort_verify();
                 let Some(c) = run.verify.pop_front() else { return 0 };
                 let reader = self.search_state.readers.get(&c.m.key.account).and_then(|s| s.reader.as_ref());
                 match (c.doc, reader) {
