@@ -237,6 +237,48 @@ fn delete_all_waits_for_a_folders_marks_being_written() {
     assert!(store.load_folder("sample", "Projects").unwrap().messages.is_empty());
 }
 
+/// A search that waits (the CLI's, `--cmd`) over a folder whose read marks are still being
+/// written waits for them, as reading the folder does, and then reads it: it went round, a unit
+/// at a time and nothing between, for as long as the marks took (forever, were they stuck).
+#[test]
+fn a_waiting_search_waits_for_a_folders_marks_without_spinning() {
+    let store = Store::memory();
+    let mut s = big_projects(&store, 300);
+    s.set_cache_limit(100);
+    let first = s.row_keys()[0].to_id();
+    s.run("list.open", &json!({"key": first})).unwrap();
+    assert!(store.flush_marks());
+    let (held, release) = (std::sync::mpsc::channel(), std::sync::mpsc::channel::<()>());
+    let holder = {
+        let store = store.clone();
+        let (held, release) = (held.0, release.1);
+        std::thread::spawn(move || {
+            let _paused = store.pause_marks();
+            held.send(()).unwrap();
+            let _ = release.recv_timeout(std::time::Duration::from_secs(20));
+        })
+    };
+    held.1.recv().unwrap();
+    s.run("list.next", &json!({})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    assert!(!s.cache.contains_key(&("sample".to_string(), "Projects".to_string())), "let go of by the cache");
+    assert!(store.marks_waiting_for("sample", Some("Projects")));
+    let releaser = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        release.0.send(()).unwrap();
+    });
+    let units = s.search_stats().units;
+    s.run_search("subject:report", SearchScope::All);
+    releaser.join().unwrap();
+    holder.join().unwrap();
+    assert!(s.search_progress().unwrap().done);
+    let spent = s.search_stats().units - units;
+    assert!(spent < 100, "{spent} units");
+    let found: Vec<_> = s.list.iter().filter(|m| m.key.folder == "Projects").collect();
+    assert_eq!(found.len(), 300);
+    assert_eq!(found.iter().filter(|m| m.flags.seen).count(), 2, "with the marks");
+}
+
 /// What a Down step costs the window in a data file's folder of 10,941 unread messages, in a real
 /// data file (`cargo test -p mailcraft-engine --release down_steps_on_a_big_data_file_folder --
 /// --ignored --nocapture`): the step with its read mark handed over, and the mark written on the

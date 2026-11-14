@@ -123,6 +123,7 @@ on GitHub.
 - A refused edit of a message (an importance other than high, normal or low) no longer changes its recipients or text.
 - An Outlook message file over 16 MB opens even without its .msg extension.
 - Save all attachments no longer writes over a file when every numbered name is already taken.
+- A search from the command line no longer spins while read marks are being saved.
 
 ## 0.38.0 - 2026-11-13
 
