@@ -37,10 +37,38 @@ pub struct Client<S: Read + Write> {
     caps: Vec<(String, String)>,
 }
 
-/// A token of a response line: an atom, or a string (quoted or literal).
-fn tokens<S: Read + Write>(io: &mut BufReader<S>, first: &str) -> Result<Vec<String>> {
+/// A token of a response line: an atom, a string (quoted or literal), or either inside the
+/// parentheses of a response code (`NO (QUOTA/MAXSIZE) "…"`, RFC 5804 §1.3).
+#[derive(Debug, PartialEq, Eq)]
+enum Tok {
+    Atom(String),
+    Str(String),
+    Code(String),
+}
+
+impl Tok {
+    fn text(self) -> String {
+        match self {
+            Tok::Atom(s) | Tok::Str(s) | Tok::Code(s) => s,
+        }
+    }
+}
+
+/// A response line's tokens, the literals it announces read too.
+fn tokens<S: Read + Write>(io: &mut BufReader<S>, first: &str) -> Result<Vec<Tok>> {
     let mut out = Vec::new();
     let mut line = first.to_string();
+    // How deep in a response code's parentheses (they may hold strings, and a literal).
+    let mut depth = 0usize;
+    let tok = |depth: usize, s: String, quoted: bool| {
+        if depth > 0 {
+            Tok::Code(s)
+        } else if quoted {
+            Tok::Str(s)
+        } else {
+            Tok::Atom(s)
+        }
+    };
     loop {
         let mut chars = line.char_indices().peekable();
         let mut literal: Option<usize> = None;
@@ -60,7 +88,7 @@ fn tokens<S: Read + Write>(io: &mut BufReader<S>, first: &str) -> Result<Vec<Str
                             Some((_, c)) => s.push(c),
                         }
                     }
-                    out.push(s);
+                    out.push(tok(depth, s, true));
                 }
                 '{' => {
                     let rest = line.get(i + 1..).unwrap_or("");
@@ -68,7 +96,8 @@ fn tokens<S: Read + Write>(io: &mut BufReader<S>, first: &str) -> Result<Vec<Str
                     literal = Some(n.parse().map_err(|_| NetError::Protocol("ManageSieve: bad literal".into()))?);
                     break;
                 }
-                '(' | ')' => {}
+                '(' => depth = depth.saturating_add(1),
+                ')' => depth = depth.saturating_sub(1),
                 _ => {
                     let mut atom = String::from(c);
                     while let Some(&(_, c)) = chars.peek() {
@@ -78,7 +107,7 @@ fn tokens<S: Read + Write>(io: &mut BufReader<S>, first: &str) -> Result<Vec<Str
                         atom.push(c);
                         chars.next();
                     }
-                    out.push(atom);
+                    out.push(tok(depth, atom, false));
                 }
             }
         }
@@ -88,7 +117,7 @@ fn tokens<S: Read + Write>(io: &mut BufReader<S>, first: &str) -> Result<Vec<Str
         }
         let mut buf = vec![0u8; n];
         io.read_exact(&mut buf)?;
-        out.push(String::from_utf8_lossy(&buf).into_owned());
+        out.push(tok(depth, String::from_utf8_lossy(&buf).into_owned(), true));
         line = read_line(io)?;
     }
 }
@@ -110,16 +139,15 @@ fn reply<S: Read + Write>(io: &mut BufReader<S>) -> Result<Reply> {
     loop {
         let line = read_line(io)?;
         let t = tokens(io, &line)?;
-        let head = t.first().map(|s| s.to_ascii_uppercase()).unwrap_or_default();
+        // Only an atom ends the reply: a string is data (a script named "ok").
+        let head = match t.first() {
+            Some(Tok::Atom(a)) => a.to_ascii_uppercase(),
+            _ => String::new(),
+        };
         match head.as_str() {
             "OK" | "NO" | "BYE" => {
-                let text = t
-                    .iter()
-                    .skip(1)
-                    .filter(|x| !x.chars().all(|c| c.is_ascii_uppercase() || c == '-' || c == '/'))
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(" ");
+                // The response code left out: the rest is the human text, upper case or not.
+                let text = t.into_iter().skip(1).filter(|x| !matches!(x, Tok::Code(_))).map(Tok::text).collect::<Vec<_>>().join(" ");
                 if head == "BYE" {
                     return Err(NetError::Closed(text));
                 }
@@ -129,7 +157,7 @@ fn reply<S: Read + Write>(io: &mut BufReader<S>) -> Result<Reply> {
                 if data.len() > 10_000 {
                     return Err(NetError::Protocol("ManageSieve: too many lines".into()));
                 }
-                data.push(t);
+                data.push(t.into_iter().map(Tok::text).collect());
             }
         }
     }
@@ -391,6 +419,40 @@ Zoe";"#
         // Settings never break out of the comment line.
         let evil = Vacation { enabled: true, subject: "x\r\nrequire \"fileinto\";".into(), text: "t".into(), ..Default::default() };
         assert_eq!(script(&evil, None).lines().next().unwrap().matches("require").count(), 1, "still one comment line");
+    }
+
+    /// A server's answers, canned; what's sent to it is dropped.
+    struct Canned(std::io::Cursor<Vec<u8>>);
+
+    impl Read for Canned {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.0.read(buf)
+        }
+    }
+
+    impl Write for Canned {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Found in review: a reply ended at any line whose first token read `OK`, `NO` or `BYE`,
+    /// quoted or not, so scripts named "ok", "no" or "bye" ended LISTSCRIPTS early and the lines
+    /// after were taken for the next command's answer; and every upper-case word was dropped
+    /// from a reply's text as if it were a response code.
+    #[test]
+    fn only_an_atom_ends_a_reply_and_only_a_code_is_left_out_of_its_text() {
+        let s = b"\"SIEVE\" \"vacation\"\r\nOK\r\n\
+\"ok\"\r\n\"no\" ACTIVE\r\n\"bye\"\r\nOK\r\n\
+NO (QUOTA/MAXSIZE \"x\") \"LOCKED\"\r\n\
+NO {6}\r\nFAILED\r\n";
+        let mut c = Client::from_stream(Canned(std::io::Cursor::new(s.to_vec()))).unwrap();
+        assert_eq!(c.list().unwrap(), (vec!["ok".to_string(), "no".into(), "bye".into()], Some("no".to_string())));
+        assert!(matches!(c.activate("x"), Err(NetError::No(m)) if m == "LOCKED"));
+        assert!(matches!(c.activate("x"), Err(NetError::No(m)) if m == "FAILED"));
     }
 
     /// A ManageSieve server for tests: scripts in memory, one connection at a time.
