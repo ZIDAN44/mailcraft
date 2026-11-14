@@ -31,7 +31,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.signaturePictures", "Show the signature's pictures", "Message › Signature", |s, _| s.show_signature_pictures())
             .when(has_compose),
         CommandSpec::new("compose.format", "Plain text / Formatted", "Message › Format", |s, v| {
-            let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            let c = s.composing_mut()?;
             c.plain = p::bool(v, "plain").unwrap_or(!c.plain);
             Ok(json!({"plain": c.plain}))
         })
@@ -52,18 +52,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.hideRecipients", "Put everyone in Bcc", "Message", |s, _| s.hide_recipients()).when(has_compose),
         CommandSpec::new("compose.saveDraft", "Save draft", "Message", |s, _| s.save_draft()).key("Mod+S").when(has_compose),
         CommandSpec::new("compose.discard", "Discard", "Message", discard).when(has_compose),
-        CommandSpec::new("compose.popOut", "Pop out", "Message", |s, _| {
-            let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-            c.window = true;
-            Ok(json!({"window": true}))
-        })
-        .when(has_compose),
-        CommandSpec::new("compose.popIn", "Pop in", "Message", |s, _| {
-            let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
-            c.window = false;
-            Ok(json!({"window": false}))
-        })
-        .when(has_compose),
+        CommandSpec::new("compose.popOut", "Pop out", "Message", |s, _| pop_out(s, true)).when(has_compose),
+        CommandSpec::new("compose.popIn", "Pop in", "Message", |s, _| pop_out(s, false)).when(has_compose),
         CommandSpec::new("compose.close", "Close", "Message", close_compose).params(r#"{"save"?: bool (keep it in Drafts; default true)}"#).when(has_compose),
         CommandSpec::new("contacts.suggest", "Suggest recipients", "Message › To", |s, v| {
             let q = p::req_str(v, "query")?.to_string();
@@ -85,6 +75,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
     ]
 }
 
+/// The message being written in a window of its own (`window`), or back in the main one.
+fn pop_out(s: &mut Session, window: bool) -> CmdResult {
+    s.composing_mut()?.window = window;
+    Ok(json!({ "window": window }))
+}
+
 pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::str(v, "account").map(str::to_string);
     if let Some(a) = &account
@@ -96,7 +92,7 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     let from = match p::str(v, "from") {
         Some(address) => {
             let of = account.clone().or_else(|| s.compose.as_ref().map(|c| c.account.clone())).unwrap_or_default();
-            let config = s.account(&of).map(|a| &a.config).ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            let config = s.account(&of).map(|a| &a.config).ok_or_else(|| CmdError::Disabled(NOT_WRITING.into()))?;
             match config.identity(address) {
                 Some(i) => Some(i.email.clone()),
                 None if address.trim().is_empty() || config.email.eq_ignore_ascii_case(address.trim()) => Some(String::new()),
@@ -107,7 +103,7 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     };
     // The address another account writes its new mail from (issue #88).
     let new_mail_from = account.as_deref().and_then(|a| s.account(a)).map(|a| a.config.new_mail_from().to_string()).unwrap_or_default();
-    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let c = s.composing_mut()?;
     if c.sending {
         return Err(CmdError::Disabled("the message is being sent".into()));
     }
@@ -241,7 +237,7 @@ pub(super) fn compose_size(c: &crate::Compose) -> usize {
 
 pub(super) fn attach(s: &mut Session, v: &Value) -> CmdResult {
     let (name, data) = file_param(s, v)?;
-    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let c = s.composing_mut()?;
     let total: usize = compose_size(c) + data.len();
     if total > ATTACH_MAX {
         return Err(CmdError::Failed("attachments are limited to 25 MB in total".into()));
@@ -262,7 +258,7 @@ pub(super) fn insert_picture(s: &mut Session, v: &Value) -> CmdResult {
         return Err(CmdError::Params(format!("{name} isn't a picture")));
     }
     let cid = s.new_cid();
-    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let c = s.composing_mut()?;
     if compose_size(c) + data.len() > ATTACH_MAX {
         return Err(CmdError::Failed("pictures and attachments are limited to 25 MB in total".into()));
     }
@@ -322,7 +318,7 @@ pub(super) fn resize_picture(s: &mut Session, v: &Value) -> CmdResult {
     use mailcraft_mime::rich::{PICTURE, Style};
     let cid = p::req_str(v, "cid")?;
     let width = picture_width(v);
-    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let c = s.composing_mut()?;
     c.styles.fit(&c.body);
     let at: Vec<usize> =
         c.body.chars().enumerate().filter(|(i, ch)| *ch == PICTURE && c.styles.style(*i).picture.as_deref() == Some(cid)).map(|(i, _)| i).collect();
@@ -351,7 +347,7 @@ pub fn insert_picture_at(c: &mut crate::session::Compose, at: usize, cid: &str, 
 
 pub(super) fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let i = p::u64(v, "index").ok_or_else(|| CmdError::Params("`index` is required".into()))?;
-    let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let c = s.composing_mut()?;
     let i = usize::try_from(i).map_err(|_| CmdError::Params("bad index".into()))?;
     if i >= c.attachments.len() {
         return Err(CmdError::Params(format!("no attachment {i}")));
@@ -363,7 +359,7 @@ pub(super) fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// Close the message being written: kept in Drafts (unless `save` is false or nothing was
 /// written), as closing a message window in Outlook offers.
 pub(super) fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
-    let c = s.compose.clone().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let c = s.composing().cloned()?;
     let written = s.compose_written();
     let saved = if p::bool(v, "save").unwrap_or(true) && written && !c.sending {
         s.save_draft()?;

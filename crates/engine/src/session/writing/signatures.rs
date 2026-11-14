@@ -240,7 +240,7 @@ impl Session {
     /// own, or (no `at`) where a signature goes. The range it now takes.
     pub fn put_signature(&mut self, sig: Option<&Signature>, at: Option<usize>) -> Result<std::ops::Range<usize>, CmdError> {
         let block = Self::signature_text(sig);
-        let c = self.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+        let c = self.composing_mut()?;
         if c.sending {
             return Err(CmdError::Disabled("the message is being sent".into()));
         }

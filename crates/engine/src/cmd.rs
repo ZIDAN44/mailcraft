@@ -25,8 +25,23 @@ fn has_reading(s: &Session) -> Option<&'static str> {
     }
 }
 
+/// Why a command about the message being written can't run.
+const NOT_WRITING: &str = "no message is being written";
+
 fn has_compose(s: &Session) -> Option<&'static str> {
-    if s.compose.is_some() { None } else { Some("no message is being written") }
+    if s.compose.is_some() { None } else { Some(NOT_WRITING) }
+}
+
+impl Session {
+    /// The message being written, or the error that there's none.
+    pub(crate) fn composing(&self) -> Result<&crate::Compose, CmdError> {
+        self.compose.as_ref().ok_or_else(|| CmdError::Disabled(NOT_WRITING.into()))
+    }
+
+    /// The message being written, to change, or the error that there's none.
+    pub(crate) fn composing_mut(&mut self) -> Result<&mut crate::Compose, CmdError> {
+        self.compose.as_mut().ok_or_else(|| CmdError::Disabled(NOT_WRITING.into()))
+    }
 }
 
 /// A message being written, from an account that can send it.

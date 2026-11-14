@@ -85,7 +85,7 @@ impl Session {
     /// for until the user says so, here as for a message that's read; the signature is the
     /// user's own, and the addresses are the ones they put in it.
     pub fn show_signature_pictures(&mut self) -> CmdResult {
-        let c = self.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+        let c = self.composing()?;
         if c.signature_card().is_none() {
             return Err(CmdError::Disabled("the message has no signature written as HTML code".into()));
         }

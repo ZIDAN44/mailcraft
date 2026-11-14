@@ -542,11 +542,11 @@ impl Session {
     /// Everyone in To and Cc moved to Bcc, with the sender in To: each gets the message without
     /// seeing who else did.
     pub fn hide_recipients(&mut self) -> CmdResult {
-        let c = self.compose.as_ref().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+        let c = self.composing()?;
         // The address it's written from: the account's main one, put there for one of its
         // others, showed everyone the address the message wasn't to come from.
         let me = self.account(&c.account).map(|a| a.config.sender(&c.from).to_string()).unwrap_or_default();
-        let c = self.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+        let c = self.composing_mut()?;
         let moved: Vec<&str> = [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()]
             .into_iter()
             .map(|f| f.trim().trim_end_matches(';').trim())

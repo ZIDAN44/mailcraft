@@ -114,11 +114,8 @@ pub(super) fn list_signatures(s: &mut Session, v: &Value) -> CmdResult {
 /// its list): in place of the one there, else at character `at` (else where a signature goes) on a line of its
 /// own after the usual `-- ` line.
 pub(super) fn insert_signature(s: &mut Session, v: &Value) -> CmdResult {
-    let (account, current, reply, from) = s
-        .compose
-        .as_ref()
-        .map(|c| (c.account.clone(), c.signature_name.clone(), c.mode.is_some(), c.from.clone()))
-        .ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+    let c = s.composing()?;
+    let (account, current, reply, from) = (c.account.clone(), c.signature_name.clone(), c.mode.is_some(), c.from.clone());
     let sig = match p::str(v, "name") {
         Some(name) => Some(s.signature_of(&account, name).ok_or_else(|| CmdError::Params(format!("no signature called {name}")))?),
         None => s
