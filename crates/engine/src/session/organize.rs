@@ -527,17 +527,25 @@ impl Session {
     /// Run the rules on messages: their actions become ordinary changes. Returns the keys the
     /// rules marked read or sent to Deleted Items or Junk (no need to announce those).
     pub(super) fn run_rules(&mut self, msgs: &[Summary]) -> Vec<MessageKey> {
-        let mut quiet = Vec::new();
         if self.rules.is_empty() {
-            return quiet;
+            return Vec::new();
         }
         let rules = self.rules.clone();
+        self.apply_rules(&rules, msgs).0
+    }
+
+    /// [`Session::run_rules`] with these rules: the keys not to announce, and how many of `msgs`
+    /// a rule matched.
+    fn apply_rules<S: std::borrow::Borrow<Summary>>(&mut self, rules: &[Rule], msgs: &[S]) -> (Vec<MessageKey>, usize) {
+        let (mut quiet, mut matched) = (Vec::new(), 0usize);
         let mut changes = Batch::default();
         for m in msgs {
-            let actions = actions_for(&rules, m);
+            let m: &Summary = m.borrow();
+            let actions = actions_for(rules, m);
             if actions.is_empty() {
                 continue;
             }
+            matched += 1;
             let a = m.key.account.clone();
             let keys = vec![m.key.clone()];
             let mut dest: Option<String> = None;
@@ -571,41 +579,34 @@ impl Session {
             }
         }
         self.apply_changes(changes);
-        quiet
+        (quiet, matched)
     }
 
     /// Run the rules (or one) now, on the list on screen or (`inbox`) on the mail already in the
     /// Inbox of the accounts they apply to, as Outlook's "run this rule now".
     pub fn run_rules_now(&mut self, only: Option<usize>, inbox: bool) -> CmdResult {
-        let saved = self.rules.clone();
-        if let Some(i) = only {
-            let r = saved.get(i).cloned().ok_or_else(|| CmdError::Params(format!("no rule {i}")))?;
-            self.rules = vec![Rule { enabled: true, ..r }];
-        }
-        let msgs: Vec<Summary> = if inbox {
-            let only_account = only.and_then(|i| saved.get(i)).and_then(|r| r.account.clone());
+        // The one asked for runs even when it's turned off; the rules kept stay as they are.
+        let rules = match only {
+            Some(i) => vec![self.rules.get(i).cloned().map(|r| Rule { enabled: true, ..r }).ok_or_else(|| CmdError::Params(format!("no rule {i}")))?],
+            None => self.rules.clone(),
+        };
+        let msgs: Vec<SharedSummary> = if inbox {
+            let only_account = only.and(rules.first()).and_then(|r| r.account.clone());
             let inboxes: Vec<(String, String)> = self
                 .accounts
                 .iter()
                 .filter(|a| only_account.as_ref().is_none_or(|o| *o == a.config.id))
                 .filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone())))
                 .collect();
-            if let Err(e) = self.folders_ready(&inboxes) {
-                self.rules = saved;
-                return Err(e);
-            }
+            self.folders_ready(&inboxes)?;
             inboxes
                 .iter()
-                .flat_map(|(a, f)| {
-                    self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).map(|m| Summary::clone(m)).collect::<Vec<_>>()
-                })
+                .flat_map(|(a, f)| self.folder_state(a, f).messages.iter().filter(|m| !m.flags.deleted).cloned().collect::<Vec<_>>())
                 .collect()
         } else {
-            self.list.iter().map(|m| Summary::clone(m)).collect()
+            self.list.clone()
         };
-        let n = msgs.iter().filter(|m| !actions_for(&self.rules, m).is_empty()).count();
-        self.run_rules(&msgs);
-        self.rules = saved;
+        let (_, n) = self.apply_rules(&rules, &msgs);
         let what = if n == 1 { "1 message".to_string() } else { format!("{n} messages") };
         self.notice(format!("Rules ran on the mail there now: {what} matched"), false);
         Ok(serde_json::json!({ "matched": n }))

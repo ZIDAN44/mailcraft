@@ -313,8 +313,12 @@ fn a_rule_runs_now_on_the_inbox() {
     let mut s = sample_session("rule-now");
     s.run("rules.add", &json!({"rule": {"name": "Zoe to Archive", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "moveToRole", "value": "archive"}]}})).unwrap();
     s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    // Turned off, it runs all the same when asked for by itself, and stays off.
+    s.rules[0].enabled = false;
+    assert!(s.run("rules.run", &json!({"index": 5, "inbox": true})).is_err());
     let r = s.run("rules.run", &json!({"index": 0, "inbox": true})).unwrap();
     assert_eq!(r["matched"], 1);
+    assert!(s.rules.len() == 1 && !s.rules[0].enabled, "the rules kept as they were");
     assert!(s.notices.last().is_some_and(|n| n.text.contains("1 message matched")));
     assert!(!s.folder_state("sample", "INBOX").messages.iter().any(|m| m.from.email == "zoe@studio.example"), "moved out of the Inbox");
     assert!(s.list.iter().any(|m| m.from.email == "zoe@studio.example"), "and into Archive, on screen");
