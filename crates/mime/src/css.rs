@@ -200,7 +200,12 @@ fn wide_screen(head: &str) -> bool {
 impl Sheet {
     /// The rules in a message's style sheets (their text, one after another).
     pub(crate) fn parse(css: &str) -> Sheet {
-        let css = css.get(..css.len().min(MAX_CSS)).unwrap_or("");
+        // Cut at a character's edge at or before the cap (cut inside one, all of it was lost).
+        let mut end = css.len().min(MAX_CSS);
+        while !css.is_char_boundary(end) {
+            end = end.saturating_sub(1);
+        }
+        let css = css.get(..end).unwrap_or("");
         let css = without_comments(css).replace("<!--", " ").replace("-->", " ");
         let mut sheet = Sheet::default();
         sheet.read(&css, 0);
@@ -399,6 +404,18 @@ mod tests {
         ] {
             assert_eq!(props(&Sheet::parse(sheet), &[el("p", &["x"])]), ["color:red"], "{sheet}");
         }
+    }
+
+    /// A sheet longer than what's read, the cut falling inside a character: what's read of it
+    /// still counts. It was dropped whole, every rule lost.
+    #[test]
+    fn a_long_sheet_cut_inside_a_character_still_counts() {
+        let mut css = ".x{color:red}".to_string();
+        css.push_str(&" ".repeat(MAX_CSS - 1 - css.len()));
+        css.push('\u{e9}');
+        css.push_str(".y{color:blue}");
+        assert!(!css.is_char_boundary(MAX_CSS));
+        assert_eq!(props(&Sheet::parse(&css), &[el("p", &["x"])]), ["color:red"]);
     }
 
     #[test]
