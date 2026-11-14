@@ -24,6 +24,7 @@ mod layout;
 mod links;
 mod pictures;
 mod toolbar;
+mod undo;
 pub(crate) use layout::Card;
 use layout::*;
 pub(crate) use links::link_dialog;
@@ -35,13 +36,12 @@ pub use toolbar::Counts;
 #[cfg(test)]
 pub(crate) use toolbar::{count_words, date_choices};
 pub(crate) use toolbar::{ribbon, signature_bar};
+use undo::{History, Snap};
 
 /// Pixels per point.
 const PX: f32 = 4.0 / 3.0;
 /// One indent step (and the room for a bullet or number).
 const INDENT: f32 = 28.0;
-/// Most undo steps kept.
-const UNDO_MAX: usize = 200;
 
 /// Outlook's standard colours, and its highlighter's.
 pub(crate) const COLORS: [[u8; 3]; 12] = [
@@ -76,8 +76,8 @@ pub(crate) struct Editor {
     typing: Option<Style>,
     /// The selection (characters) at the end of the last frame.
     pub sel: Range<usize>,
-    undo: Vec<Snap>,
-    redo: Vec<Snap>,
+    undo: History,
+    redo: History,
     last_change: f64,
     /// The Insert link dialog, while open.
     link: Option<LinkForm>,
@@ -102,21 +102,14 @@ pub(crate) struct Editor {
     pub(crate) card_rect: Option<Rect>,
 }
 
-#[derive(Clone)]
-struct Snap {
-    text: String,
-    styles: Styles,
-    cursor: usize,
-}
-
 impl Editor {
     pub fn new(id: u64) -> Editor {
         Editor {
             id,
             typing: None,
             sel: 0..0,
-            undo: Vec::new(),
-            redo: Vec::new(),
+            undo: History::default(),
+            redo: History::default(),
             last_change: 0.0,
             link: None,
             paste: false,
@@ -131,11 +124,14 @@ impl Editor {
         }
     }
 
+    /// Take an undo step: the message as it is, the cursor at `cursor`.
     fn remember(&mut self, c: &Compose, cursor: usize) {
-        self.undo.push(Snap { text: c.body.clone(), styles: c.styles.clone(), cursor });
-        if self.undo.len() > UNDO_MAX {
-            self.undo.remove(0);
-        }
+        self.remember_snap(Snap::of(c, cursor));
+    }
+
+    /// Take an undo step back to `s` (what's to redo is gone).
+    fn remember_snap(&mut self, s: Snap) {
+        self.undo.push(s);
         self.redo.clear();
     }
 }
@@ -294,7 +290,7 @@ fn replace(ed: &mut Editor, c: &mut Compose, range: Range<usize>, text: &str, st
 fn undo(ed: &mut Editor, c: &mut Compose, ctx: &egui::Context, redo: bool) {
     let (from, to) = if redo { (&mut ed.redo, &mut ed.undo) } else { (&mut ed.undo, &mut ed.redo) };
     let Some(s) = from.pop() else { return };
-    to.push(Snap { text: c.body.clone(), styles: c.styles.clone(), cursor: ed.sel.end });
+    to.push(Snap::of(c, ed.sel.end));
     c.body = s.text;
     c.styles = s.styles;
     let at = s.cursor.min(c.body.chars().count());
@@ -412,11 +408,7 @@ fn paste_formatted(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, id: egui::Id) 
     pictures::take_pasted(c, &add, &mut add_styles, found);
     ui.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_))));
     c.styles.fit(&c.body);
-    ed.undo.push(Snap { text: c.body.clone(), styles: c.styles.clone(), cursor: ed.sel.start });
-    if ed.undo.len() > UNDO_MAX {
-        ed.undo.remove(0);
-    }
-    ed.redo.clear();
+    ed.remember(c, ed.sel.start);
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
     rich::splice(&mut c.body, &mut c.styles, sel.clone(), &add, &add_styles);
@@ -536,11 +528,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         let now = ui.input(|i| i.time);
         let breaks = c.body.matches('\n').count() != before.matches('\n').count();
         if now - ed.last_change > 1.0 || breaks || ed.undo.is_empty() {
-            ed.undo.push(Snap { text: before.clone(), styles: styles.clone(), cursor: ed.sel.start });
-            if ed.undo.len() > UNDO_MAX {
-                ed.undo.remove(0);
-            }
-            ed.redo.clear();
+            ed.remember_snap(Snap { text: before.clone(), styles: styles.clone(), cursor: ed.sel.start });
         }
         ed.last_change = now;
         c.styles.edit_at(&before, &c.body, &typing, cursor.as_ref().map(|r| r.end));

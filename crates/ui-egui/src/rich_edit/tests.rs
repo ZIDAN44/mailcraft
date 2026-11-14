@@ -157,3 +157,158 @@ fn a_look_with_nothing_selected_is_no_undo_step() {
     assert!(!c.styles.style(0).bold);
     assert_eq!(c.body, "Hello world");
 }
+
+/// A long message, some of it formatted: `lines` paragraphs of about 90 characters, some not
+/// ASCII.
+fn long_message(lines: usize) -> Compose {
+    let body: Vec<String> =
+        (0..lines).map(|k| format!("Paragraph {k}: the quick brown fox jumps over the lazy dog, naïve café 東京 — done.")).collect();
+    let mut c = Compose { body: body.join("\n"), ..Default::default() };
+    c.styles = Styles::plain(&c.body);
+    for k in (0..lines).step_by(7) {
+        let at = c.body.split('\n').take(k).map(|l| l.chars().count() + 1).sum::<usize>();
+        c.styles.restyle(&c.body, at..at + 9, |s| Style { bold: true, ..s.clone() });
+    }
+    c
+}
+
+/// MEASURE: the room Undo keeps and the time it takes, a long message and 200 steps (the
+/// steps' looks undone and redone as they were).
+#[test]
+#[ignore]
+fn measure_undo_with_a_long_message() {
+    let ctx = egui::Context::default();
+    let mut c = long_message(3_400);
+    let n = c.body.chars().count();
+    let mut ed = Editor::new(c.id);
+    let t = std::time::Instant::now();
+    for k in 0..200 {
+        let at = (k * 1_543) % n;
+        if k % 5 == 4 {
+            ed.sel = at..at + 20;
+            apply(&mut ed, &mut c, Op::Bold);
+        } else {
+            ed.sel = at..at;
+            apply(&mut ed, &mut c, Op::Insert("word ".into()));
+        }
+    }
+    let steps = t.elapsed();
+    // The room the steps take: text, a look per character, the looks, paragraphs.
+    let kept = ed.undo.bytes();
+    let last = (c.body.clone(), c.styles.clone());
+    let t = std::time::Instant::now();
+    for _ in 0..200 {
+        undo(&mut ed, &mut c, &ctx, false);
+    }
+    let back = t.elapsed();
+    let first = c.body.clone();
+    let t = std::time::Instant::now();
+    for _ in 0..200 {
+        undo(&mut ed, &mut c, &ctx, true);
+    }
+    let forward = t.elapsed();
+    assert_eq!((&c.body, &c.styles), (&last.0, &last.1));
+    assert_eq!(first, long_message(3_400).body);
+    println!(
+        "MEASURE undo, {} KB message, 200 steps: kept {:.1} MB; 200 steps {:?}, 200 undos {:?}, 200 redos {:?}",
+        c.body.len() / 1024,
+        kept as f64 / 1_048_576.0,
+        steps,
+        back,
+        forward
+    );
+}
+
+/// A repeatable stream of numbers below `m`, for the tests' scripted changes.
+fn numbers(mut seed: u64) -> impl FnMut(usize) -> usize {
+    move |m: usize| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        usize::try_from(seed % u64::try_from(m.max(1)).unwrap_or(1)).unwrap_or(0)
+    }
+}
+
+/// Undo's steps come back as they were: the newest is kept whole and the older ones as what
+/// differs, and each is put back as a list of whole copies (as Undo kept them) has it, through
+/// changes to text that isn't ASCII, to looks (past 64 of them, when unused ones are dropped and
+/// the rest numbered again) and to paragraphs, more steps than are kept, and undos.
+#[test]
+fn undo_steps_come_back_as_they_were() {
+    let mut rand = numbers(0x9E37_79B9_7F4A_7C15);
+    let mut history = undo::History::default();
+    let mut whole: Vec<undo::Snap> = Vec::new();
+    let mut s = undo::Snap { text: "Hello".into(), styles: Styles::plain("Hello"), cursor: 0 };
+    let pieces = ["a", "é", "東京", "🙂", "\n", "x\ny", "", "naïve café "];
+    let (mut undos, mut trimmed) = (0, false);
+    for _ in 0..3_000 {
+        let n = s.text.chars().count();
+        let a = rand(n + 1);
+        let b = (a + rand(5)).min(n);
+        match rand(5) {
+            0..=2 => {
+                let old = s.text.clone();
+                let byte = |at: usize| old.char_indices().nth(at).map_or(old.len(), |(i, _)| i);
+                let piece = pieces[rand(pieces.len())];
+                s.text.replace_range(byte(a)..byte(b), piece);
+                let look = Style { bold: rand(2) == 0, ..Style::default() };
+                s.styles.edit(&old, &s.text, &look);
+            }
+            3 => {
+                let size = u8::try_from(6 + rand(80)).unwrap_or(9);
+                let color = [0, 0, u8::try_from(rand(3)).unwrap_or(0)];
+                s.styles.restyle(&s.text, a..b, |st| Style { size: Some(size), color: Some(color), ..st.clone() });
+            }
+            _ => {
+                let indent = u8::try_from(rand(4)).unwrap_or(0);
+                s.styles.relayout(&s.text, a..b, |p| p.indent = indent);
+            }
+        }
+        s.cursor = a;
+        if rand(4) == 0 {
+            let back = whole.pop();
+            assert_eq!(history.pop(), back);
+            if let Some(back) = back {
+                s = back;
+                undos += 1;
+            }
+        } else {
+            history.push(s.clone());
+            whole.push(s.clone());
+            if whole.len() > undo::UNDO_MAX {
+                whole.remove(0);
+                trimmed = true;
+            }
+        }
+        assert_eq!(history.len(), whole.len());
+    }
+    assert!(undos > 500 && trimmed && s.styles.palette.len() > 1, "the script went where it should: {undos} undos");
+    // All the way back.
+    while let Some(back) = whole.pop() {
+        assert_eq!(history.pop(), Some(back));
+    }
+    assert!(history.pop().is_none() && history.is_empty() && history.bytes() == 0);
+}
+
+/// Undo keeps its steps within its room: the oldest go first, and the newest is kept however
+/// big (a long message's steps were each a whole copy of it, 0.9 MB a step at 300 KB).
+#[test]
+fn undo_keeps_to_its_room() {
+    let mut history = undo::History::default();
+    let step = |k: usize| undo::Snap { text: ["a", "b"][k % 2].repeat((3 << 20) + k), styles: Styles::default(), cursor: k };
+    for k in 0..30 {
+        history.push(step(k));
+        assert!(history.bytes() <= undo::UNDO_BYTES, "{} bytes after {k}", history.bytes());
+    }
+    assert!(history.len() < 15 && history.len() > 5, "{} steps", history.len());
+    let kept = history.len();
+    for k in (30 - kept..30).rev() {
+        assert_eq!(history.pop(), Some(step(k)));
+    }
+    assert!(history.is_empty());
+    let huge = undo::Snap { text: "x".repeat(undo::UNDO_BYTES + 1), ..Default::default() };
+    history.push(step(0));
+    history.push(huge.clone());
+    assert_eq!(history.len(), 1);
+    assert_eq!(history.pop(), Some(huge));
+}

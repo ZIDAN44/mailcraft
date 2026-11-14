@@ -114,6 +114,7 @@ on GitHub.
 - The folder pane stays fast with thousands of folders.
 - People, Tasks and Notes stay fast with thousands of contacts, tasks or notes.
 - Picking Bold, a colour or another look with nothing selected no longer takes away Redo or makes the next Undo do nothing.
+- Undo no longer uses hundreds of megabytes of memory in a long message.
 
 ## 0.38.0 - 2026-11-13
 
