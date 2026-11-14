@@ -120,14 +120,8 @@ pub(super) fn task_from(s: &Session, v: &Value, mut t: Task) -> Result<Task, Cmd
         }
         t.status = status;
     }
-    let list: Option<Vec<String>> = match v.get("categories") {
-        Some(Value::String(x)) => Some(x.split([',', ';']).map(str::trim).filter(|c| !c.is_empty()).map(str::to_string).collect()),
-        Some(Value::Array(a)) => Some(a.iter().filter_map(Value::as_str).map(str::trim).filter(|c| !c.is_empty()).map(str::to_string).collect()),
-        _ => None,
-    };
-    if let Some(mut list) = list {
-        list.dedup();
-        t.categories = list.into_iter().take(20).map(|c| c.chars().take(100).collect()).collect();
+    if let Some(list) = categories_param(v) {
+        t.categories = list;
     }
     match v.get("reminder") {
         None => {}
@@ -141,12 +135,8 @@ pub(super) fn task_from(s: &Session, v: &Value, mut t: Task) -> Result<Task, Cmd
         },
         Some(_) => return Err(CmdError::Params("`reminder` is a date and time (YYYY-MM-DDTHH:MM) or none".into())),
     }
-    match p::str(v, "repeat").map(str::trim) {
-        Some("" | "none" | "never") => t.rrule = None,
-        Some(r @ ("daily" | "weekly" | "monthly" | "yearly")) => t.rrule = Some(format!("FREQ={}", r.to_ascii_uppercase())),
-        Some(r) if r.to_ascii_uppercase().starts_with("FREQ=") && r.len() < 500 && !r.contains(['\r', '\n']) => t.rrule = Some(r.to_string()),
-        Some(r) => return Err(CmdError::Params(format!("`{r}` is not a repeat"))),
-        None => {}
+    if let Some(rule) = repeat_param(v)? {
+        t.rrule = rule;
     }
     Ok(t)
 }

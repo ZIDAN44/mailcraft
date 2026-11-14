@@ -126,6 +126,35 @@ fn account_param(s: &Session, v: &Value) -> Result<String, CmdError> {
     }
 }
 
+/// The `categories` of an event or a task (a text split at `,` and `;`, or a list): trimmed,
+/// each once whatever its letters (`Vec::dedup` kept a repeat that wasn't next to the first), at
+/// most 20 of 100 characters. `None` when none are given.
+fn categories_param(v: &Value) -> Option<Vec<String>> {
+    let given: Vec<&str> = match v.get("categories")? {
+        Value::String(x) => x.split([',', ';']).collect(),
+        Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
+        _ => return None,
+    };
+    let mut seen = std::collections::HashSet::new();
+    // Cut before they're compared: two that differ only past the cut are one once kept.
+    let cut = |c: &str| c.trim().chars().take(100).collect::<String>().trim_end().to_string();
+    let list = given.into_iter().map(cut).filter(|c| !c.is_empty()).filter(|c| seen.insert(c.to_lowercase()));
+    Some(list.take(20).collect())
+}
+
+/// The `repeat` of an event or a task: `Some(None)` for none, `Some(Some(rule))`, `None` when it
+/// isn't given. A rule of its own (`FREQ=…`) can't hold a line break, which would end the line it
+/// goes into (an event's was let through, and made safe only as it was written).
+fn repeat_param(v: &Value) -> Result<Option<Option<String>>, CmdError> {
+    Ok(match p::str(v, "repeat").map(str::trim) {
+        None => None,
+        Some("" | "none" | "never") => Some(None),
+        Some(r @ ("daily" | "weekly" | "monthly" | "yearly")) => Some(Some(format!("FREQ={}", r.to_ascii_uppercase()))),
+        Some(r) if r.to_ascii_uppercase().starts_with("FREQ=") && r.len() < 500 && !r.contains(['\r', '\n']) => Some(Some(r.to_string())),
+        Some(r) => return Err(CmdError::Params(format!("`{r}` is not a repeat"))),
+    })
+}
+
 fn key_param(s: &Session, v: &Value) -> Result<mailcraft_model::MessageKey, CmdError> {
     let k = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required (account:validity:uid:folder)".into()))?;
     if s.summary(&k).is_none() {

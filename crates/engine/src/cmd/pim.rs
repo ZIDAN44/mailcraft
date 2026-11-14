@@ -381,14 +381,8 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
             })
             .collect();
     }
-    let list: Option<Vec<String>> = match v.get("categories") {
-        Some(Value::String(x)) => Some(x.split([',', ';']).map(str::trim).filter(|c| !c.is_empty()).map(str::to_string).collect()),
-        Some(Value::Array(a)) => Some(a.iter().filter_map(Value::as_str).map(str::trim).filter(|c| !c.is_empty()).map(str::to_string).collect()),
-        _ => None,
-    };
-    if let Some(mut list) = list {
-        list.dedup();
-        e.categories = list.into_iter().take(20).map(|c| c.chars().take(100).collect()).collect();
+    if let Some(list) = categories_param(v) {
+        e.categories = list;
     }
     // Its reminder: minutes before it starts, or none.
     match v.get("reminder") {
@@ -412,12 +406,10 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
             .ok_or_else(|| CmdError::Params(format!("`{x}` is not free, workingElsewhere, tentative, busy or oof")))?;
         mailcraft_model::ical::set_show_as(&mut e, show);
     }
-    match p::str(v, "repeat").map(str::trim) {
+    match repeat_param(v)? {
         // No repeat: none of a file's added dates either.
-        Some("" | "none" | "never") => (e.rrule, e.rdates) = (None, Vec::new()),
-        Some(r @ ("daily" | "weekly" | "monthly" | "yearly")) => e.rrule = Some(format!("FREQ={}", r.to_ascii_uppercase())),
-        Some(r) if r.to_ascii_uppercase().starts_with("FREQ=") && r.len() < 500 => e.rrule = Some(r.to_string()),
-        Some(r) => return Err(CmdError::Params(format!("`{r}` is not a repeat"))),
+        Some(None) => (e.rrule, e.rdates) = (None, Vec::new()),
+        Some(rule) => e.rrule = rule,
         None => {}
     }
     super::meetings::apply(s, v, &mut e)?;

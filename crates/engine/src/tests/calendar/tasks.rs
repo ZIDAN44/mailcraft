@@ -232,3 +232,33 @@ BEGIN:VTODO\r\nUID:backwards-1\r\nSUMMARY:Backwards\r\nDTSTART;VALUE=DATE:202611
     let _ = std::fs::remove_dir_all(&dir);
     done(s);
 }
+
+/// Events and tasks read their categories and repeat alike: a category given twice, apart or
+/// in other letters, is kept once (it was only when the two were side by side), and a repeat rule
+/// with a line break in it is refused for an event too (only a task's was).
+#[test]
+fn events_and_tasks_take_categories_and_repeats_alike() {
+    let mut s = sample_session("pim-params");
+    let task =
+        s.run("task.create", &json!({"title": "Prints", "categories": "Work, Home, work; Home"})).unwrap()["uid"].as_str().unwrap().to_string();
+    assert_eq!(s.find_task(&task).unwrap().task.categories, ["Work", "Home"]);
+    let event =
+        s.run("event.create", &json!({"summary": "Mix", "start": "2026-11-20T10:00", "categories": ["Work", "Home", "WORK"]})).unwrap()["uid"]
+            .as_str()
+            .unwrap()
+            .to_string();
+    assert_eq!(s.find_event(&event).unwrap().1.event.categories, ["Work", "Home"]);
+    // Two that are the same in the 100 characters kept of each: once (they were compared
+    // whole, then both cut to the same).
+    let long = "c".repeat(100);
+    s.run("task.update", &json!({"uid": task, "categories": [format!("{long}one"), format!("{long}two"), "Work"]})).unwrap();
+    assert_eq!(s.find_task(&task).unwrap().task.categories, [long.as_str(), "Work"]);
+    let broken = "FREQ=DAILY\r\nATTENDEE:mailto:x@y.example";
+    assert!(s.run("event.update", &json!({"uid": event, "repeat": broken})).is_err(), "an event's");
+    assert!(s.run("task.update", &json!({"uid": task, "repeat": broken})).is_err(), "a task's");
+    s.run("event.update", &json!({"uid": event, "repeat": "FREQ=WEEKLY;COUNT=3"})).unwrap();
+    assert_eq!(s.find_event(&event).unwrap().1.event.rrule.as_deref(), Some("FREQ=WEEKLY;COUNT=3"));
+    s.run("event.update", &json!({"uid": event, "repeat": "none"})).unwrap();
+    assert_eq!(s.find_event(&event).unwrap().1.event.rrule, None);
+    done(s);
+}
