@@ -277,6 +277,156 @@ fn junk_never_panics() {
     }
 }
 
+/// A certificate of `tbs` exactly as given, signed by `key` (P-256) over those bytes.
+fn issued_over(tbs: &[u8], key: &p256::ecdsa::SigningKey) -> Vec<u8> {
+    use signature::Signer as _;
+    let signature: p256::ecdsa::Signature = key.sign(tbs);
+    with_signature(tbs, &der::asn1::BitString::from_bytes(signature.to_der().as_bytes()).unwrap())
+}
+
+/// A certificate of `tbs` exactly as given, with `signature` (ECDSA with SHA-256).
+fn with_signature(tbs: &[u8], signature: &der::asn1::BitString) -> Vec<u8> {
+    use der::Encode as _;
+    let alg = spki::AlgorithmIdentifierOwned { oid: oids::ECDSA_WITH_SHA256, parameters: None };
+    let inner = [tbs.to_vec(), alg.to_der().unwrap(), signature.to_der().unwrap()].concat();
+    der::Any::new(der::Tag::Sequence, inner).unwrap().to_der().unwrap()
+}
+
+/// The signature `sig` carrying `certs`, written as they are, in that order.
+fn carrying(sig: &[u8], certs: &[Vec<u8>]) -> Vec<u8> {
+    use der::{Decode as _, Encode as _};
+    let ci = ::cms::content_info::ContentInfo::from_der(sig).unwrap();
+    let sd: ::cms::signed_data::SignedData = ci.content.decode_as().unwrap();
+    let set = der::Any::new(der::Tag::ContextSpecific { constructed: true, number: der::TagNumber::N0 }, certs.concat()).unwrap();
+    let inner = [
+        sd.version.to_der().unwrap(),
+        sd.digest_algorithms.to_der().unwrap(),
+        sd.encap_content_info.to_der().unwrap(),
+        set.to_der().unwrap(),
+        sd.signer_infos.to_der().unwrap(),
+    ]
+    .concat();
+    let content = der::Any::new(der::Tag::Sequence, inner).unwrap();
+    ::cms::content_info::ContentInfo { content_type: ci.content_type, content }.to_der().unwrap()
+}
+
+/// An issuer signs its certificate's bytes as it writes them, and a chain is checked over those
+/// (RFC 5280 §4.1.1.3, as OpenSSL does). Riley's certificate issued again by a CA, its extensions
+/// written with `critical FALSE` spelt out (DER leaves a DEFAULT out; `der` reads it and writes
+/// the certificate again without it): its chain holds as it came, and its fingerprint is of
+/// those bytes. Checked over the certificate written again, the chain was refused. One changed
+/// after it was signed, if only in how it's written, isn't one its issuer signed.
+#[test]
+fn a_certificate_is_checked_as_it_came() {
+    use der::{Decode as _, Encode as _};
+    use sha2::Digest as _;
+    use x509_cert::ext::pkix::BasicConstraints;
+    let riley = riley();
+    let ca_key = p256::ecdsa::SigningKey::random(&mut rng());
+    let ca_alg = spki::AlgorithmIdentifierOwned { oid: oids::ECDSA_WITH_SHA256, parameters: None };
+    let ca_name: x509_cert::name::Name = "CN=Spelt Out CA".parse().unwrap();
+    let leaf = x509_cert::Certificate::from_der(&riley.chain[0]).unwrap().tbs_certificate;
+    let ca_spki = spki::SubjectPublicKeyInfoOwned {
+        algorithm: spki::AlgorithmIdentifierOwned { oid: oids::EC_PUBLIC_KEY, parameters: Some(der::Any::encode_from(&oids::P256).unwrap()) },
+        subject_public_key: der::asn1::BitString::from_bytes(ca_key.verifying_key().to_encoded_point(false).as_bytes()).unwrap(),
+    };
+    let basic = BasicConstraints { ca: true, path_len_constraint: None }.to_der().unwrap();
+    let ca_tbs = x509_cert::TbsCertificate {
+        version: x509_cert::Version::V3,
+        serial_number: x509_cert::serial_number::SerialNumber::new(&[1]).unwrap(),
+        signature: ca_alg.clone(),
+        issuer: ca_name.clone(),
+        validity: leaf.validity,
+        subject: ca_name.clone(),
+        subject_public_key_info: ca_spki,
+        issuer_unique_id: None,
+        subject_unique_id: None,
+        extensions: Some(vec![x509_cert::ext::Extension {
+            extn_id: oids::BASIC_CONSTRAINTS,
+            critical: true,
+            extn_value: der::asn1::OctetString::new(basic).unwrap(),
+        }]),
+    };
+    let ca = issued_over(&ca_tbs.to_der().unwrap(), &ca_key);
+    // Riley's, issued by the CA (its authority key identifier, the old CA's, left out).
+    let extensions: Vec<_> =
+        leaf.extensions.clone().unwrap().into_iter().filter(|e| e.extn_id != der::asn1::ObjectIdentifier::new_unwrap("2.5.29.35")).collect();
+    assert!(extensions.iter().any(|e| !e.critical));
+    let tbs = x509_cert::TbsCertificate { signature: ca_alg, issuer: ca_name, extensions: None, ..leaf };
+    let fields = der::Any::from_der(&tbs.to_der().unwrap()).unwrap().value().to_vec();
+    let spelt: Vec<u8> = extensions
+        .iter()
+        .flat_map(|e| {
+            let critical: &[u8] = if e.critical { &[0x01, 0x01, 0xFF] } else { &[0x01, 0x01, 0x00] };
+            let inner = [e.extn_id.to_der().unwrap(), critical.to_vec(), e.extn_value.to_der().unwrap()].concat();
+            der::Any::new(der::Tag::Sequence, inner).unwrap().to_der().unwrap()
+        })
+        .collect();
+    let spelt = der::Any::new(der::Tag::Sequence, spelt).unwrap().to_der().unwrap();
+    let spelt = der::Any::new(der::Tag::ContextSpecific { constructed: true, number: der::TagNumber::N3 }, spelt).unwrap().to_der().unwrap();
+    let tbs_as_written = der::Any::new(der::Tag::Sequence, [fields, spelt].concat()).unwrap().to_der().unwrap();
+    let as_written = issued_over(&tbs_as_written, &ca_key);
+    let written_again = x509_cert::Certificate::from_der(&as_written).unwrap().to_der().unwrap();
+    assert_ne!(as_written, written_again, "der writes it again otherwise");
+    assert_eq!(x509_cert::Certificate::from_der(&written_again), x509_cert::Certificate::from_der(&as_written));
+
+    // Signed by Riley, with the CA's certificate after it or before.
+    let id = Identity { key: riley.key.clone(), chain: vec![written_again.clone()] };
+    let sig = sign(BODY, &id, NOW, &mut rng()).unwrap();
+    let mut orders = Vec::new();
+    for certs in [vec![as_written.clone(), ca.clone()], vec![ca.clone(), as_written.clone()]] {
+        let (signed, content) = verify(&carrying(&sig, &certs), Some(BODY)).unwrap();
+        assert_eq!(content, BODY);
+        assert_eq!(signed.signer, as_written, "the certificate as it came");
+        let fingerprint = sha2::Sha256::digest(&as_written).iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":");
+        assert_eq!(cert::info(&signed.signer).unwrap().fingerprint, fingerprint);
+        assert_eq!(cert::check(&signed.signer, &signed.certs, std::slice::from_ref(&ca), NOW, "riley@studio.example").unwrap(), vec![]);
+        orders.push(signed.certs);
+    }
+    assert_eq!(orders[0], orders[1], "tried in one order, whichever order they came in");
+    assert!(orders[0].contains(&ca) && orders[0].contains(&as_written));
+
+    // The CA's signature over the certificate as DER writes it, the certificate sent spelt out
+    // (what was taken as its issuer's when it was checked written again).
+    assert_eq!(cert::signed_part(&as_written), Some(&tbs_as_written[..]));
+    let der_tbs = cert::signed_part(&written_again).unwrap();
+    assert_ne!(der_tbs, &tbs_as_written[..]);
+    let over_der = x509_cert::Certificate::from_der(&issued_over(der_tbs, &ca_key)).unwrap().signature;
+    let mut changed = with_signature(&tbs_as_written, &over_der);
+    let (signed, _) = verify(&carrying(&sig, &[changed.clone(), ca.clone()]), Some(BODY)).unwrap();
+    assert_eq!(signed.signer, changed);
+    assert_eq!(
+        cert::check(&signed.signer, &signed.certs, std::slice::from_ref(&ca), NOW, "riley@studio.example").unwrap(),
+        vec![Problem::UnknownIssuer]
+    );
+    // And the other way: a certificate that holds as written, one byte of its signature changed.
+    let at = as_written.len() - 3;
+    changed = as_written.clone();
+    changed[at] ^= 1;
+    let (signed, _) = verify(&carrying(&sig, &[changed, ca.clone()]), Some(BODY)).unwrap();
+    assert_eq!(
+        cert::check(&signed.signer, &signed.certs, std::slice::from_ref(&ca), NOW, "riley@studio.example").unwrap(),
+        vec![Problem::UnknownIssuer]
+    );
+}
+
+/// How long a signature takes to check, and its certificate's chain (`--release`, by hand).
+#[test]
+#[ignore]
+fn measure_verify() {
+    let ca = pem("ca.pem");
+    for name in ["sig-rsa.der", "sig-ec.der"] {
+        let sig = data(name);
+        let n = 2000;
+        let t = std::time::Instant::now();
+        for _ in 0..n {
+            let (signed, _) = verify(&sig, Some(BODY)).unwrap();
+            assert!(cert::check(&signed.signer, &signed.certs, std::slice::from_ref(&ca), NOW, "").is_ok());
+        }
+        println!("MEASURE verify and check {name}: {:.1} us", t.elapsed().as_secs_f64() * 1e6 / f64::from(n));
+    }
+}
+
 /// Writes MailCraft's signatures and encryption to `$MAILCRAFT_SMIME_OUT`, for OpenSSL to check
 /// (`openssl cms -verify` / `-decrypt`): run by hand.
 #[test]

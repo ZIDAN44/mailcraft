@@ -91,6 +91,7 @@ on GitHub.
 - When the disk fails to read MailCraft's cache, folders are no longer emptied or downloaded again, and an import says its folder list couldn't be read.
 - A damaged search index is rebuilt straight away over every folder, so search doesn't stay empty or partial.
 - A message whose source starts with bytes MailCraft uses inside its data file now reads back correctly, and no longer stops the data file from being compacted.
+- A signed message whose certificate is encoded in an unusual but valid way is now trusted when its issuer is, and shows the same fingerprint as other mail programs; one changed after it was signed is no longer accepted.
 
 ## 0.38.0 - 2026-11-13
 
