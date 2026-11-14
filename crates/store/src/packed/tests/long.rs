@@ -32,7 +32,6 @@ fn a_crash_in_a_long_write_needs_no_repair() {
             assert!((1000..1040).all(|i| s.read_body(&inbox(i)) == Some(source(i))), "the batches before the sealed commit are there");
             drop(s);
         }
-        let _ = std::fs::remove_dir_all(&t);
     }
 }
 
@@ -85,7 +84,6 @@ fn a_long_write_lets_batches_run_longer_and_ends() {
     // Other stores have no long write to take.
     drop(Store::memory().long_write("a1"));
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A background commit that began before a long write did (so isn't sealed) and commits as it
@@ -120,5 +118,4 @@ fn a_long_write_seals_a_commit_begun_before_it() {
     });
     assert!(!packs.seals.seal_due("a1"), "the background commit was left unsealed");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }

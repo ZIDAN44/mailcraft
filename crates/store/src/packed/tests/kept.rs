@@ -63,7 +63,6 @@ fn a_message_starting_with_the_data_files_markers_reads_back_as_it_came() {
     assert!(s.copy_data_file("a1", &mut |_| true, &mut || true).unwrap().unwrap().copied, "no file is taken as damaged");
     check(&s, "copied");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 proptest::proptest! {
@@ -125,5 +124,4 @@ fn what_an_earlier_build_kept_reads_as_it_did() {
         assert_eq!(back.get(k), Some(&Some(w.clone())), "{k}");
     }
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }

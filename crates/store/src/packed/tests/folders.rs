@@ -54,7 +54,6 @@ fn stores_on_one_folder_layout_share_it() {
     assert_eq!(s.read_body(&inbox(2)).unwrap(), b"Subject: two\r\n\r\nbody");
     assert!(!app.join("a1").exists());
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// The app holds its folder layout alone: a second window's store on it, alone or not, is told
@@ -81,7 +80,6 @@ fn the_apps_folder_layout_is_its_alone() {
     let again = Store::open_alone(&app).unwrap();
     assert_eq!(again.read_body(&inbox(1)).unwrap(), b"Subject: one\r\n\r\nbody");
     drop(again);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// The leases' folder is never brought into a data file, nor taken for an account's, even one
@@ -102,7 +100,6 @@ fn the_leases_folder_stays_out_of_data_files() {
     assert_eq!(s.load_accounts().unwrap().len(), 2, "the accounts are accounts.json's");
     assert_eq!(s.read_body(&inbox(1)).unwrap(), b"Subject: one\r\n\r\nbody");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// What the child below is told: the folder it opens.
@@ -140,7 +137,6 @@ fn another_process_on_the_folder_layout_keeps_its_folders() {
     assert!(!app.join("a1").exists(), "the folder came in");
     assert_eq!(s.read_body(&inbox(2)).unwrap(), b"Subject: child\r\n\r\nbody", "with what the child wrote");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// The other process of [`another_process_on_the_folder_layout_keeps_its_folders`]: opens the

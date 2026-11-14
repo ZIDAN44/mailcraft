@@ -1,19 +1,20 @@
 //! Timings of the writer, run by hand in release:
 //! `cargo test --release -p mailcraft-pst --test measure -- --ignored --nocapture`.
 
+#[path = "support/scratch.rs"]
+mod scratch;
+
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Instant;
 
 use mailcraft_pst::write::{self, BatchMessage, NewMessage, SpecialFolder};
 use mailcraft_pst::{Format, PropertyValue, PstFile, PstStore};
+use scratch::scratch;
 
+/// A file `name` in a scratch folder of its own.
 fn temp(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-measure-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(name);
-    let _ = std::fs::remove_file(&path);
-    path
+    scratch(&format!("pst-measure-{name}")).join(name)
 }
 
 /// Times each timing is taken; the best is the one told, the others being slowed by the machine.

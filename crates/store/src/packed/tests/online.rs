@@ -128,5 +128,4 @@ fn measure_online_only_switch() {
             println!("{line}");
         }
     }
-    let _ = std::fs::remove_dir_all(t);
 }

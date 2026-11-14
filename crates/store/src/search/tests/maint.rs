@@ -187,7 +187,7 @@ proptest! {
 /// then leaves them out), on every layout; the rest is found as before.
 #[test]
 fn a_removed_messages_words_leave_within_a_day() {
-    for (kind, dir, s) in layouts("tombstone") {
+    for (kind, _, s) in layouts("tombstone") {
         let mut w = Writer::open(&s, "a1").unwrap();
         let gone = w.add(&mk("INBOX", 1), 1, 1, &text("secretword shared", &["secret.pdf"], 1)).unwrap();
         let kept = w.add(&mk("INBOX", 2), 2, 2, &text("plainword shared", &[], 0)).unwrap();
@@ -207,7 +207,6 @@ fn a_removed_messages_words_leave_within_a_day() {
         assert_eq!(found(&mut r, &s, Field::Body, "shared"), [kept]);
         drop(w);
         assert_eq!(files(&s).1, BTreeSet::new(), "{kind}: nothing left over");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
@@ -242,7 +241,6 @@ fn a_removed_doc_kept_by_a_merge_still_leaves_after_a_reopen() {
         assert!(words.contains(&key(Field::Body, "big2")) && words.contains(&key(Field::Body, "small7")), "{kind}");
         assert_eq!(load_meta(&s, "a1").unwrap().unwrap().dead_since, 0, "{kind}");
         drop(w);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
@@ -290,7 +288,6 @@ fn a_merge_holds_pages_not_segments() {
         assert_eq!(found(&mut r, &s, Field::Body, "w4321x59"), [4320]);
         drop(w);
         assert_eq!(files(&s).1, BTreeSet::new(), "{kind}: nothing left over");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 

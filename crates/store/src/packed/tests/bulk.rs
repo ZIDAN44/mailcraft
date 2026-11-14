@@ -52,7 +52,6 @@ fn bulk_cache_is_let_go_after_the_import() {
     assert_eq!(s.read_body(&inbox(39)), Some(source(39)));
     assert_eq!(packs(&s).progress.checked(), 0);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A bulk write begun before its account went online only ends all the same: kept on disk again,
@@ -79,7 +78,6 @@ fn a_bulk_write_ends_across_online_only() {
     assert_eq!(s.read_body(&inbox(2)), Some(source(2)));
     assert_eq!(s.data_file_cache("a1"), Some(CACHE));
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A file someone holds isn't closed under them: the bulk write starts with the cache it has, and
@@ -113,7 +111,6 @@ fn a_held_data_file_keeps_its_cache_until_let_go() {
     assert_eq!(s.data_file_cache("a1"), Some(CACHE));
     s.bulk_end("a1");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A bulk write ended by a panic leaves the file open: closed then, it would write nothing and
@@ -148,7 +145,6 @@ fn a_panic_ends_the_bulk_write_without_closing_the_file() {
     }
     assert_eq!(packs(&s).progress.checked(), 0, "closed cleanly: no check");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// Bulk writes beginning and ending while other threads write and read the file (the sealing
@@ -192,7 +188,6 @@ fn changing_the_cache_under_writers_loses_nothing() {
         }
     }
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// While an account takes a bulk write (an import), a commit that waits for the disk is sealed: a
@@ -213,7 +208,6 @@ fn a_bulk_write_s_durable_commits_are_sealed() {
         let (repairs, there) = super::commits::repairs_on_open(&t, &file);
         assert!(there, "{mode}: a durable write was lost");
         assert_eq!(repairs == 0, sealed, "{mode}: {repairs} repairs");
-        let _ = std::fs::remove_dir_all(&t);
     }
 }
 

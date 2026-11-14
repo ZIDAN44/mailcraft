@@ -1,18 +1,19 @@
 //! Damaged files: whatever a file holds, reading it or adding to it gives data or an error, and
 //! ends. (The fuzz targets go further, with the CRCs out of the way; `fuzz/README.md`.)
 
+#[path = "support/scratch.rs"]
+mod scratch;
+
 use std::io::Cursor;
 use std::rc::Rc;
 
 use mailcraft_pst::write::{self, *};
 use mailcraft_pst::*;
+use scratch::scratch;
 
+/// A file `name` in a scratch folder of its own.
 fn temp(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-hostile-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(name);
-    let _ = std::fs::remove_file(&path);
-    path
+    scratch(&format!("pst-hostile-{name}")).join(name)
 }
 
 fn message(subject: &str) -> NewMessage<'_> {
@@ -39,9 +40,7 @@ fn good(format: Format, name: &str) -> Vec<u8> {
     for (folder, subject) in [("Inbox", "One"), ("Inbox", "Two"), ("Later", "Three")] {
         write::append_message(&path, &[folder], &message(subject), &attachments).unwrap();
     }
-    let bytes = std::fs::read(&path).unwrap();
-    let _ = std::fs::remove_file(&path);
-    bytes
+    std::fs::read(&path).unwrap()
 }
 
 /// Reads all it can of `bytes`, and how many messages that was.

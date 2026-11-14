@@ -1,6 +1,7 @@
 use mailcraft_model::Flag;
 
 use super::*;
+use crate::tests::scratch;
 
 fn key(uid: u32) -> MessageKey {
     MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 3, uid }
@@ -10,11 +11,9 @@ fn seen(uid: u32, on: bool) -> Op {
     Op::SetFlag { keys: vec![key(uid)], flag: Flag::Seen, on }
 }
 
-/// A store of each kind: in memory, on the folder layout, in data files; with the folder to
-/// take away after.
+/// A store of each kind: in memory, on the folder layout, in data files; with its folder.
 fn stores(name: &str) -> Vec<(Store, Option<PathBuf>)> {
-    let dir = std::env::temp_dir().join(format!("mailcraft-waiting-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = scratch(&format!("waiting-{name}"));
     let stores = vec![
         (Store::memory(), None),
         (Store::open(dir.join("folders")).unwrap(), Some(dir.join("folders"))),
@@ -49,7 +48,6 @@ fn each_change_made_leaves_just_the_rest_on_disk() {
         if let Some(dir) = dir {
             assert!(!dir.join("a1").join("ops.json").exists(), "no file left");
             drop(s);
-            let _ = fs::remove_dir_all(dir);
         }
     }
 }
@@ -58,7 +56,7 @@ fn each_change_made_leaves_just_the_rest_on_disk() {
 /// and comes after them, and one queued after the last is taken off still waits.
 #[test]
 fn a_change_queued_meanwhile_is_kept_and_comes_last() {
-    for (s, dir) in stores("queued") {
+    for (s, _) in stores("queued") {
         s.save_ops("a1", &[seen(1, true), seen(2, true)]).unwrap();
         let mut waiting = s.waiting_ops("a1").unwrap();
         s.add_op("a1", seen(3, true)).unwrap();
@@ -75,10 +73,6 @@ fn a_change_queued_meanwhile_is_kept_and_comes_last() {
         s.add_op("a1", seen(5, true)).unwrap();
         assert!(waiting.is_empty());
         assert_eq!(s.load_ops("a1").unwrap(), [seen(5, true)]);
-        if let Some(dir) = dir {
-            drop(s);
-            let _ = fs::remove_dir_all(dir);
-        }
     }
 }
 
@@ -95,7 +89,6 @@ fn a_removed_account_s_queue_isnt_written_back() {
         if let Some(dir) = dir {
             assert!(!dir.join("a1").join("ops.json").exists());
             drop(s);
-            let _ = fs::remove_dir_all(dir);
         }
     }
 }

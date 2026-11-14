@@ -2,6 +2,7 @@ use mailcraft_model::search::IndexDoc;
 
 use super::format::*;
 use super::*;
+use crate::tests::scratch;
 
 mod lease;
 mod maint;
@@ -12,8 +13,7 @@ mod switch;
 
 /// The three layouts, each in a folder of its own: memory, the folder layout, data files.
 fn layouts(name: &str) -> Vec<(&'static str, PathBuf, Store)> {
-    let base = std::env::temp_dir().join(format!("mailcraft-search-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let base = scratch(&format!("search-{name}"));
     vec![
         ("memory", base.join("memory"), Store::memory()),
         ("disk", base.join("disk"), Store::open(base.join("disk")).unwrap()),
@@ -144,7 +144,6 @@ fn an_index_reads_back_on_every_layout() {
         assert_eq!(found(&mut r, &s, Field::Names, "q3"), [resume]);
         assert_eq!(found(&mut r, &s, Field::Body, "uniq04395"), [first + 4395]);
         assert_eq!(files(&s).1, BTreeSet::new(), "{kind}: nothing left over");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
@@ -181,7 +180,6 @@ fn a_crash_before_the_meta_leaves_the_generation_before() {
         assert_eq!(found(&mut r, &s, Field::Body, "committed").len(), 1);
         assert_eq!(found(&mut r, &s, Field::Names, "kept"), [kept]);
         drop(w);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
@@ -213,7 +211,7 @@ fn a_failed_batch_leaves_the_generation_before() {
 /// and `attachment:` (the names) still finds what it found.
 #[test]
 fn a_new_tokenizer_reads_the_words_again_from_the_texts() {
-    for (kind, dir, s) in layouts("tokenizer") {
+    for (kind, _, s) in layouts("tokenizer") {
         let mut w = Writer::open(&s, "a1").unwrap();
         let plan = w.add(&mk("INBOX", 1), 1, 1, &text("Budget for the shoot", &["Q3 Plan.pdf"], 1)).unwrap();
         let gone = w.add(&mk("INBOX", 2), 2, 2, &text("Budget gone", &[], 0)).unwrap();
@@ -240,7 +238,6 @@ fn a_new_tokenizer_reads_the_words_again_from_the_texts() {
         assert_eq!(extra, BTreeSet::new());
         assert!(old_segments.iter().flat_map(SegInfo::names).all(|n| !on_disk.contains(&n)), "{kind}: the old words are gone");
         drop(w);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
@@ -248,7 +245,7 @@ fn a_new_tokenizer_reads_the_words_again_from_the_texts() {
 /// index's files has it after (its words alone stay until their segment is merged).
 #[test]
 fn a_removed_message_takes_its_text_with_it() {
-    for (kind, dir, s) in layouts("removed") {
+    for (kind, _, s) in layouts("removed") {
         let mut w = Writer::open(&s, "a1").unwrap();
         let secret = w.add(&mk("INBOX", 1), 1, 1, &text("the zebracorn password", &["zebracorn.txt"], 1)).unwrap();
         w.add(&mk("INBOX", 2), 2, 2, &text("ordinary words", &[], 0)).unwrap();
@@ -265,15 +262,13 @@ fn a_removed_message_takes_its_text_with_it() {
         let mut r = Reader::open(&s, "a1").unwrap().unwrap();
         assert_eq!(found(&mut r, &s, Field::Body, "ordinary").len(), 1, "{kind}: the page's other text stays");
         drop(w);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
 /// A data file from before the index opens as it was, has no index, and takes one.
 #[test]
 fn a_data_file_from_before_opens() {
-    let base = std::env::temp_dir().join(format!("mailcraft-search-old-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let base = scratch("search-old");
     let open = || Store::open_packed(base.join("app"), base.join("Files")).unwrap();
     let s = open();
     let st = FolderState {
@@ -299,7 +294,6 @@ fn a_data_file_from_before_opens() {
     assert_eq!(s.read_body(&mk("INBOX", 1)).unwrap(), b"Subject: Hello\r\n\r\nhi");
     let mut r = Reader::open(&s, "a1").unwrap().unwrap();
     assert_eq!(found(&mut r, &s, Field::Body, "hi"), [0]);
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// An index that doesn't read back is set aside and made again, from past its generation and
@@ -717,7 +711,7 @@ fn a_failed_refresh_leaves_the_reader_as_it_was() {
 /// nothing is left waiting for a seal.
 #[test]
 fn an_index_commit_seals_its_data_file() {
-    let (_, dir, s) = layouts("sealed").pop().unwrap();
+    let (_, _, s) = layouts("sealed").pop().unwrap();
     let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
     let mut w = Writer::open(&s, "a1").unwrap();
     let d = w.add(&mk("INBOX", 1), 1, 1, &text("words", &[], 0)).unwrap();
@@ -729,7 +723,6 @@ fn an_index_commit_seals_its_data_file() {
     assert!(!packs.seal_due("a1"), "the files it no longer uses removed in the sealed commit");
     assert_eq!(files(&s).1, BTreeSet::new());
     drop((w, s));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Words made ready on another thread ([`Ready`]) and filed by the writer give the index that

@@ -1,16 +1,17 @@
 //! Files written here and read back: new ones, added to, changed, in both formats.
 
+#[path = "support/scratch.rs"]
+mod scratch;
+
 use std::rc::Rc;
 
 use mailcraft_pst::write::{self, *};
 use mailcraft_pst::*;
+use scratch::scratch;
 
+/// A file `name` in a scratch folder of its own.
 fn temp(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-tests-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(name);
-    let _ = std::fs::remove_file(&path);
-    path
+    scratch(&format!("pst-tests-{name}")).join(name)
 }
 
 fn open(path: &std::path::Path) -> Rc<PstStore> {

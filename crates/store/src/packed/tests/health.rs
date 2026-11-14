@@ -117,7 +117,6 @@ fn the_walk_comes_within_two_percent_of_the_database() {
     assert!(after.reclaimable > 0 && after.live_bytes < health.live_bytes);
     assert!(after.reclaimable.abs_diff(free) as f64 <= 0.02 * after.file_bytes as f64, "{} against {free}", after.reclaimable);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A data file of small messages only (each kept whole, in the pages of the list of files): a
@@ -158,7 +157,6 @@ fn the_walk_counts_small_messages_as_the_pages_they_take() {
     assert!(off <= 0.02, "the walk is {:.2}% off the database's count", off * 100.0);
     assert!(after.reclaimable.abs_diff(free) as f64 <= 0.02 * after.file_bytes as f64, "{} against {free}", after.reclaimable);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A data file made new says as it's made that everything in it is kept as this build keeps
@@ -177,7 +175,6 @@ fn a_new_data_file_says_how_it_is_kept() {
     assert!(health.recompressed && health.recompress_gain == 0 && !health.recompress_stopped);
     assert!(!health.can_compact() && !health.needs_compacting());
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A data file made new says how it's kept on the disk at once, not in its first write: that write
@@ -200,7 +197,6 @@ fn a_new_data_file_says_how_it_is_kept_before_anything_reaches_the_disk() {
     let health = s.data_file_health("a1").unwrap().unwrap();
     assert!(health.recompressed, "{health:?}");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A data file as a build before this one left it: no `META`, base64 attachments kept raw (that
@@ -270,7 +266,6 @@ fn an_old_data_file_without_meta() {
     s.write_body(&inbox(1), &text(40_000, 1)).unwrap();
     assert!(!s.data_file_health("a1").unwrap().unwrap().recompressed);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// `META` is hostile like the rest of the file: each value that can't be read as what it should
@@ -341,7 +336,6 @@ fn meta_is_read_value_by_value() {
     let h = s.data_file_health("a1").unwrap().unwrap();
     assert!(h.recompress_stopped && h.can_compact());
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// What a compacted file has over what it keeps is the least it can have: just after, nothing
@@ -386,7 +380,6 @@ fn a_compaction_sets_the_baseline() {
     assert!(raw.needs_compacting() && raw.can_compact());
     assert!(!crate::DataFileHealth { recompressed: true, ..raw }.needs_compacting());
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A real data file's health, timed (counts and timings only): `MC_DATA` names a copy of a data

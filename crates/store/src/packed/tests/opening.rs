@@ -70,7 +70,6 @@ fn data_files_open_later_and_a_check_is_told() {
     // Other stores have nothing to open.
     assert_eq!(Store::memory().open_progress().stage(), OpenStage::Done);
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// A check names the file it is of, whatever was being opened, and counts once however often the
@@ -171,7 +170,6 @@ fn a_checked_data_file_is_not_checked_again() {
     let said = String::from_utf8_lossy(&out.stdout);
     assert!(!out.status.success() && said.contains("checked 1"), "the child was to check zoe's file, then be killed: {said}");
     assert_eq!(repairs_on_open(&t, &file), (0, true), "checked again");
-    let _ = std::fs::remove_dir_all(&t);
 
     // Opened when needed, not all together: the check ends there too.
     let t = crashed("checked-lazily");
@@ -180,7 +178,6 @@ fn a_checked_data_file_is_not_checked_again() {
     let progress = s.open_progress();
     assert_eq!((progress.checked(), progress.stage()), (1, OpenStage::Opening), "the check didn't end");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// The child of [`a_checked_data_file_is_not_checked_again`]: opens the data files, then is killed
@@ -231,7 +228,6 @@ fn a_check_holds_up_only_its_own_account() {
     opening.join().unwrap().unwrap();
     assert_eq!((progress.checked(), progress.stage()), (1, OpenStage::Done), "checked once");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// A data file that can't be opened (another MailCraft has it) is told, and the others still open.
@@ -258,7 +254,6 @@ fn a_data_file_that_cant_be_opened_is_told() {
     assert!(e.is_open_elsewhere(), "{e}");
     assert!(s.read_body(&MessageKey { account: "a2".into(), ..inbox(5) }).is_some(), "the other opened");
     drop((s, holder));
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// A store that handed read marks to its thread, dropped, lets its data file go: the folder
@@ -290,7 +285,6 @@ fn a_data_file_marked_on_its_thread_opens_again() {
         }
     };
     assert!(back.find(7).unwrap().flags.seen);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A data file reads through handles of its own (ten on Windows, where reads through one handle
@@ -350,7 +344,6 @@ fn reads_through_handles_of_their_own_see_every_write() {
     let table = tx.open_table(T).unwrap();
     assert!((0..400).all(|i| table.get(i).unwrap().is_some_and(|v| v.value() == value(i).as_slice())));
     drop((table, tx, db));
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// Where the system has no byte-range locks (FreeBSD), the database locks the whole data file
@@ -370,7 +363,6 @@ fn a_data_file_locked_whole_is_in_use() {
     drop(db);
     assert!(!super::super::handles::whole_file_held(&path).unwrap(), "closed");
     assert!(!super::super::handles::in_use(&path).unwrap());
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// An account removed while another thread still writes for it (an import not stopped yet, as
@@ -410,7 +402,6 @@ fn a_write_as_an_account_lets_go_never_lends_it_the_old_file() {
     let new = s.data_file("a1").expect("the new account's file");
     assert_ne!(new, old, "the new account writes in the removed one's file");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// A damaged list of which data file is each account's is set aside, and each account's file is
@@ -443,7 +434,6 @@ fn a_damaged_list_of_data_files_finds_them_again() {
     std::fs::remove_file(app.join(super::super::NAMES)).unwrap();
     std::fs::create_dir(app.join(super::super::NAMES)).unwrap();
     assert!(Store::open_packed(&app, &files).is_err());
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// Two accounts with one address, their data files `<address>` and `<address> (2)`, with the

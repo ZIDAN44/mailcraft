@@ -1,6 +1,7 @@
 use mailcraft_model::{AccountConfig, Flags, MessageKey, Summary};
 
 use crate::Store;
+use crate::tests::scratch;
 
 mod beside;
 mod bulk;
@@ -17,9 +18,7 @@ mod opening;
 mod shrink;
 
 fn temp(name: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("mailcraft-packed-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&d);
-    d
+    scratch(&format!("packed-{name}"))
 }
 
 fn account(id: &str, email: &str) -> AccountConfig {
@@ -124,7 +123,6 @@ fn an_account_starts_from_an_existing_data_file() {
     s.import_data_file("p9", &crafted).unwrap();
     assert!(s.files.exists(&t.join("app").join("p9").join("ok").join("fine.json")));
     assert!(!t.join("app").join("escape.json").exists() && !t.join("escape.json").exists() && !t.join("b").exists());
-    let _ = std::fs::remove_dir_all(&t);
 }
 #[test]
 fn each_account_is_one_data_file_named_after_it() {
@@ -177,7 +175,6 @@ fn each_account_is_one_data_file_named_after_it() {
     // Deleting (what never held anyone's mail) takes the file.
     s.delete_account("a1").unwrap();
     assert!(!t.join("MailCraft Files").join("zoe@studio.example (2).mailcraft").exists() && kept.exists());
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// Big files go in pieces that fill their pages (a whole value took the next power of two
@@ -259,12 +256,10 @@ x"
     let whole = pages(&whole_file);
     assert!(pieced < stored as u64 * 112 / 100, "pieces took {pieced} for {stored}");
     assert!(pieced * 100 < whole * 85, "pieces {pieced}, whole values {whole}");
-    let _ = std::fs::remove_dir_all(t2);
     let sizes = super::piece_sizes(big.len());
     assert_eq!(sizes.iter().sum::<usize>(), big.len());
     assert!(sizes.iter().all(|n| *n <= 16 * super::PAGE - super::PAGE_SLACK));
     assert!(super::piece_sizes(0).is_empty() && super::piece_sizes(1) == [1]);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// A file in pieces is read back as written whether it's kept compressed (uncompressed as its
@@ -309,7 +304,6 @@ fn a_file_in_pieces_reads_back_compressed_or_not() {
         }
     }
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// Bytes that don't compress (xorshift).
@@ -359,7 +353,6 @@ fn text_is_kept_compressed() {
         z.finish().unwrap()
     };
     assert!(super::unpack(bomb).is_err());
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// Base64 (as attachments travel in mail) in lines of 76.
@@ -465,7 +458,6 @@ fn folders_from_before_come_into_the_data_file() {
     assert_eq!(s.read_body(&k).unwrap(), b"Subject: kept\r\n\r\nbody");
     assert_eq!(s.load_account_doc::<Vec<String>>("a1", "pop-seen.json").unwrap(), vec!["u1".to_string()]);
     assert!(t.join("Files").join("zoe@studio.example.mailcraft").is_file());
-    let _ = std::fs::remove_dir_all(t);
 }
 
 #[test]
@@ -484,7 +476,6 @@ fn a_damaged_data_file_is_set_aside() {
     // Started again, it's a file this build made: everything in it is kept as this build keeps it.
     assert!(s.data_file_health("a1").unwrap().unwrap().recompressed);
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// Whether any file under `dir` holds `needle`.
@@ -571,7 +562,6 @@ fn an_online_only_account_leaves_nothing_on_disk() {
     assert!(!s.is_online_only("a1") && s.load_folder("a1", "INBOX").unwrap().messages.is_empty());
     drop(s);
     assert!(!on_disk(&t, b"BACK-ON-DISK"));
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// An account's data file reached from several threads at once, before anything has opened
@@ -600,7 +590,6 @@ fn threads_opening_a_data_file_together_all_get_it() {
             assert_eq!(h.join().unwrap(), Ok(()), "round {round}");
         }
         drop(s);
-        let _ = std::fs::remove_dir_all(&t);
     }
 }
 
@@ -678,5 +667,4 @@ fn a_folder_is_listed_without_walking_what_is_inside_it() {
     assert!(s.files.exists(&dir.join("70")) && s.files.exists(&dir.join("7").join("deeper")));
     assert!(!s.files.exists(&dir.join("9")) && !s.files.exists(&dir.join("7").join("de")));
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }

@@ -9,9 +9,7 @@ use super::*;
 
 /// A folder of its own for a test.
 fn base(name: &str) -> PathBuf {
-    let base = std::env::temp_dir().join(format!("mailcraft-lease-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
-    base
+    scratch(&format!("lease-{name}"))
 }
 
 /// A store on the folder layout or data files at `dir`: a second one on the same `dir` is
@@ -75,7 +73,6 @@ fn a_second_store_waits_for_the_first_writer() {
         drop(second);
         assert!(Writer::open(&on(kind, &dir), "a1").is_ok(), "{kind}");
     }
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 /// A lease file left behind (a copy that crashed, its lock let go by the system) is taken at
@@ -92,7 +89,6 @@ fn a_lease_left_behind_is_taken_at_once() {
     drop(w);
     assert!(path.is_file(), "a lease's file is never deleted");
     assert!(Writer::open(&s, "a1").is_ok());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Nothing to keep out where the index is this store's alone: in memory, and an online-only
@@ -115,7 +111,6 @@ fn an_index_in_memory_takes_no_lease() {
     assert_eq!(leases, ["folders.lock"]);
     // Another account's is on disk: it has one.
     assert!(s.search_lease("a2").is_some());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// `.locks` is never an account's folder: an account's is made of letters, digits, `-` and `_`,
@@ -139,7 +134,6 @@ fn the_leases_folder_is_never_an_account() {
     assert!(names.iter().all(|n| !n.contains("locks")), "{names:?}");
     assert!(Writer::open(&packed, "a1").is_ok());
     drop(packed);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// What the child below is told: the folder it opens.
@@ -189,7 +183,6 @@ fn another_process_holds_the_index_until_it_dies() {
     assert_eq!(found(&mut r, &s, Field::Body, "child").len(), 2);
     assert!(found(&mut r, &s, Field::Body, "never").is_empty());
     drop(w);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The other process of [`another_process_holds_the_index_until_it_dies`]: commits two docs,

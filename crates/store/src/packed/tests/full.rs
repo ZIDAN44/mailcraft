@@ -48,7 +48,6 @@ fn a_full_drive_fails_a_write_as_such_and_room_again_writes() {
     assert_eq!(s.read_body(&inbox(2)).map(|b| b.len()), Some(big.len()));
     assert_eq!(s.read_body(&inbox(3)), None);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// The count of times a data file was let go of after a failed write goes on while its account
@@ -79,7 +78,6 @@ fn a_data_file_let_go_is_counted_across_online_only() {
     assert!(s.data_file("a1").is_some());
     assert!(s.load_account_doc::<Option<serde_json::Value>>("a1", "import.json").unwrap().is_some());
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// How far a data file can grow in one step, as the database grows it: doubling while small,
@@ -151,5 +149,4 @@ fn a_data_file_let_go_after_a_failed_write_waits_for_its_holders() {
     s.write_batch("a1", Vec::new(), doc(), 1).unwrap();
     assert!(s.load_account_doc::<Option<serde_json::Value>>("a1", "import.json").unwrap().is_some());
     drop((now, stale, s));
-    let _ = std::fs::remove_dir_all(&t);
 }

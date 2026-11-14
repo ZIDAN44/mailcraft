@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use super::*;
 use crate::ndb::PT_NBT;
 use crate::ndb::btree::node_entry_size;
+use crate::scratch::scratch;
 use crate::write::{NewMessage, append_message, create_empty};
 
 fn message(subject: &str) -> NewMessage<'_> {
@@ -22,12 +23,9 @@ fn message(subject: &str) -> NewMessage<'_> {
     }
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-levels-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(name);
-    let _ = std::fs::remove_file(&path);
-    path
+/// A file `name` in a scratch folder of its own.
+fn file(name: &str) -> PathBuf {
+    scratch(&format!("pst-levels-{name}")).join(name)
 }
 
 /// A Unicode file with one message, the last page under its node B-tree's root saying it is at
@@ -54,7 +52,7 @@ fn with_a_child_at(level: u8, path: &Path) {
 /// checked first, when the tree is walked and when it is changed.
 #[test]
 fn a_page_at_level_255_is_refused() {
-    let path = scratch("level.pst");
+    let path = file("level.pst");
     with_a_child_at(0xFF, &path);
     if let Some(to) = std::env::var_os("MC_PST_LEVEL_SEED") {
         std::fs::copy(&path, to).unwrap();
@@ -68,17 +66,15 @@ fn a_page_at_level_255_is_refused() {
     drop(editor);
     let added = append_message(&path, &["Inbox"], &message("More"), &[]);
     assert!(added.is_err_and(|e| e.to_string().contains("level by level")));
-    let _ = std::fs::remove_file(path);
 }
 
 /// Every level from 8 up is past what a tree has, and a page one level too high is refused too.
 #[test]
 fn every_level_but_the_one_below_is_refused() {
     for level in [2, 8, 9, 0x80, 0xFE] {
-        let path = scratch(&format!("level-{level}.pst"));
+        let path = file(&format!("level-{level}.pst"));
         with_a_child_at(level, &path);
         let added = append_message(&path, &["Inbox"], &message("More"), &[]);
         assert!(added.is_err_and(|e| e.to_string().contains("level by level")), "level {level}");
-        let _ = std::fs::remove_file(path);
     }
 }

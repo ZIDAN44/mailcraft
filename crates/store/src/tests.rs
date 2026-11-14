@@ -5,6 +5,31 @@ use super::*;
 mod flagging;
 mod merging;
 
+/// The folders a test made ([`scratch`]), removed when its thread ends, whether the test passed
+/// or failed (after the test's own values, its stores among them, have gone).
+#[derive(Default)]
+struct Scratch(Vec<PathBuf>);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        for folder in &self.0 {
+            // Leftovers in the temporary folder are harmless; a failed clean-up isn't a failed test.
+            let _ = fs::remove_dir_all(folder);
+        }
+    }
+}
+
+thread_local!(static SCRATCH: std::cell::RefCell<Scratch> = std::cell::RefCell::default());
+
+/// A folder for the test, `mailcraft-<name>-<pid>` in the temporary folder (not made yet): what a
+/// run before left there is removed now, and the folder with all in it once the test is over.
+pub(crate) fn scratch(name: &str) -> PathBuf {
+    let folder = std::env::temp_dir().join(format!("mailcraft-{name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&folder);
+    SCRATCH.with(|s| s.borrow_mut().0.push(folder.clone()));
+    folder
+}
+
 /// A big folder's list is kept in pages by number: read back newest first as it was; a flag
 /// change writes one page, new mail the last one; shrunk, the pages go; and a list kept whole
 /// (from before) still reads.
@@ -30,8 +55,7 @@ fn scratch_folders_are_the_users_own() {
 #[test]
 fn a_big_folder_list_is_kept_in_pages() {
     for packed in [false, true] {
-        let dir = std::env::temp_dir().join(format!("mailcraft-pages-{packed}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = scratch(&format!("pages-{packed}"));
         let s = if packed { Store::open_packed(dir.join("app"), dir.join("Files")).unwrap() } else { Store::open(&dir).unwrap() };
         let n = PAGE_MESSAGES as u32 * 2 + 500;
         let msg = |uid: u32| Summary {
@@ -85,7 +109,6 @@ fn a_big_folder_list_is_kept_in_pages() {
         s.save_folder("a1", "INBOX", &st).unwrap();
         assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
         assert!(!s.files.is_file(&s.folder_dir("a1", "INBOX").join("state-0.json")));
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
@@ -128,8 +151,7 @@ fn a_files_flip_writes_only_the_pages_it_touches() {
 }
 
 pub(crate) fn temp_store(name: &str) -> Store {
-    let dir = std::env::temp_dir().join(format!("mailcraft-store-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = scratch(&format!("store-{name}"));
     Store::open(dir).unwrap()
 }
 
@@ -341,7 +363,6 @@ fn accounts_folders_and_state_round_trip() {
     assert!(!s.has_body(k));
     assert_eq!(s.load_folder("a1", "INBOX").unwrap(), FolderState::default());
     s.remove_account("a1").unwrap();
-    let _ = fs::remove_dir_all(s.root());
 }
 
 #[test]
@@ -350,7 +371,6 @@ fn damaged_files_start_fresh() {
     fs::write(s.root().join("accounts.json"), b"{not json").unwrap();
     assert!(s.load_accounts().unwrap().is_empty());
     assert!(s.root().join("accounts.json.bad").exists());
-    let _ = fs::remove_dir_all(s.root());
 }
 
 #[test]
@@ -390,7 +410,6 @@ fn ops_apply_locally_and_persist() {
     assert_eq!(s.load_ops("a1").unwrap(), ops);
     s.save_ops("a1", &[]).unwrap();
     assert!(s.load_ops("a1").unwrap().is_empty());
-    let _ = fs::remove_dir_all(s.root());
 }
 
 #[test]
@@ -434,7 +453,6 @@ fn folder_ops_move_caches_with_folders() {
     let paths: Vec<String> = s.load_folders("a1").unwrap().into_iter().map(|f| f.path).collect();
     assert_eq!(paths, vec!["INBOX".to_string(), "Clients".to_string()]);
     assert!(!s.has_body(&moved.messages[0].key));
-    let _ = fs::remove_dir_all(s.root());
 }
 
 #[test]
@@ -457,7 +475,6 @@ fn outbox_queues_and_forgets() {
     // Damaged bookkeeping is skipped, not fatal.
     fs::write(s.root().join("a1").join("outbox").join("9.json"), b"{nope").unwrap();
     assert_eq!(s.outbox("a1").len(), 1);
-    let _ = fs::remove_dir_all(s.root());
 }
 
 #[test]
@@ -467,7 +484,6 @@ fn hostile_names_stay_inside_the_root() {
     let p = s.body_path(&key);
     assert!(p.starts_with(s.root()));
     assert!(!p.to_string_lossy().contains(".."));
-    let _ = fs::remove_dir_all(s.root());
 }
 
 #[test]
@@ -690,8 +706,7 @@ fn a_list_goes_on_from_its_tail_as_if_never_stopped() {
 #[test]
 fn sources_past_a_number_are_dropped_by_number() {
     for packed in [false, true] {
-        let dir = std::env::temp_dir().join(format!("mailcraft-drop-from-{packed}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
+        let dir = scratch(&format!("drop-from-{packed}"));
         let s = if packed { Store::open_packed(dir.join("app"), dir.join("Files")).unwrap() } else { Store::open(&dir).unwrap() };
         let key = |folder: &str, validity: u32, uid: u32| MessageKey { account: "a1".into(), folder: folder.into(), validity, uid };
         let batch =
@@ -711,7 +726,6 @@ fn sources_past_a_number_are_dropped_by_number() {
         assert_eq!(s.drop_bodies_from("a1", "INBOX", 1, 10).unwrap(), 0);
         assert_eq!(s.drop_bodies_from("a1", "Nowhere", 1, 1).unwrap(), 0);
         drop(s);
-        let _ = fs::remove_dir_all(&dir);
     }
 }
 
@@ -744,7 +758,6 @@ fn a_list_of_shared_summaries_is_kept_as_it_was_before() {
     let old = Before { validity: 3, uid_next: 10, highest_modseq: 77, messages: plain.clone(), window: 0 };
     assert_eq!(written, serde_json::to_string(&old).unwrap());
     assert_eq!(serde_json::to_vec(&st.messages).unwrap(), serde_json::to_vec(&plain).unwrap());
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// Turning online-only on with one of the account's files unreadable leaves it all where it was,

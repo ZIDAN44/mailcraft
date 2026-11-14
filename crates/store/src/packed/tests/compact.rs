@@ -184,8 +184,6 @@ fn an_old_data_file_is_compressed_again_and_reads_back_the_same() {
     assert!(r.finished && r.files == 0);
     assert_eq!(s.recompress_data_file("nobody", &stop, &mut |_| {}).unwrap(), None);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
-    let _ = std::fs::remove_dir_all(&t2);
 }
 
 /// A run whose first batch has files written again (whole and in pieces), and one removed,
@@ -254,7 +252,6 @@ fn a_file_written_while_it_is_compressed_is_left_as_written() {
     assert!(!kept_compressed(&s, "A/2.eml"), "the file as written meanwhile");
     assert!(kept_compressed(&s, "A/4.eml") && kept_compressed(&s, "B/1/39.eml"));
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A run whose account is removed between reading a batch and writing it back (`Removing`), or
@@ -319,8 +316,6 @@ fn a_recompress_never_brings_back_the_data_file_of_an_account_removed() {
     assert_eq!(data_files(&t2), ["old.mailcraft"]);
     assert_eq!(packs(&s).file("a1"), None);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
-    let _ = std::fs::remove_dir_all(&t2);
 }
 
 /// A run whose first batch is read, then files kept raw that it hasn't reached are moved behind
@@ -408,8 +403,6 @@ fn a_file_moved_behind_a_recompress_is_compressed_too() {
     assert_eq!(read_back(&s), before);
     assert!(s.data_file_health("a1").unwrap().unwrap().recompressed);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
-    let _ = std::fs::remove_dir_all(&t2);
 }
 
 /// A run stopped after its first batch says so (the file's health shows it, and offers to go on),
@@ -457,7 +450,6 @@ fn a_stopped_recompress_goes_on_from_where_it_stopped() {
     let health = s.data_file_health("a1").unwrap().unwrap();
     assert!(health.recompressed && !health.recompress_stopped);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// Killed part way through (after a different batch each time, its write not yet on the disk):
@@ -486,7 +478,6 @@ fn a_recompress_killed_part_way_loses_nothing() {
         assert_eq!(read_back(&s), before, "{batches}: once finished");
         assert!(b64.iter().all(|k| kept_compressed(&s, k)), "{batches}");
         drop(s);
-        let _ = std::fs::remove_dir_all(&t);
     }
 }
 
@@ -564,7 +555,6 @@ fn a_write_from_the_window_waits_little_for_a_recompress() {
         // not held to the mark (a 60 MiB file's write is about 0.1 s, at most a few times a run).
         assert!(big || p99 <= 60.0, "a write from the window took {p99:.1} ms beside the recompress (p99)");
         drop(s);
-        let _ = std::fs::remove_dir_all(&t);
     }
 }
 

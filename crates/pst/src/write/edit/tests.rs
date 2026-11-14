@@ -7,6 +7,7 @@ use super::super::table::{Schema, build_table};
 use super::super::types::{NewAttachment, NewProperty, NewValue};
 use super::*;
 use crate::ltp::PropertyValue;
+use crate::scratch::scratch;
 use crate::write::{NewMessage, append_message, create_empty, delete_messages};
 
 fn message(subject: &str) -> NewMessage<'_> {
@@ -41,10 +42,7 @@ fn mail_in(path: &Path) -> Vec<u32> {
 /// rewritten: the rewrite would put entries where the rest of the tree doesn't look for them.
 #[test]
 fn a_page_with_its_keys_out_of_order_is_refused() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-order-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("order.pst");
-    let _ = std::fs::remove_file(&path);
+    let path = scratch("pst-order").join("order.pst");
     create_empty(&path, Format::Unicode).unwrap();
     append_message(&path, &["Inbox"], &message("Mail"), &[]).unwrap();
     let editor = Editor::open(&path).unwrap();
@@ -69,17 +67,13 @@ fn a_page_with_its_keys_out_of_order_is_refused() {
     std::fs::write(&path, &file).unwrap();
     let tried = append_message(&path, &["Inbox"], &message("More"), &[]);
     assert!(tried.is_err_and(|e| e.to_string().contains("out of order")));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A leaf holding a key its parent would send elsewhere is refused too: rewritten, the leaf's
 /// new first key would take its parent's lookups from the page before.
 #[test]
 fn a_page_with_keys_its_parent_does_not_send_to_it_is_refused() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-range-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("range.pst");
-    let _ = std::fs::remove_file(&path);
+    let path = scratch("pst-range").join("range.pst");
     create_empty(&path, Format::Unicode).unwrap();
     append_message(&path, &["Inbox"], &message("Mail"), &[]).unwrap();
     let editor = Editor::open(&path).unwrap();
@@ -98,18 +92,15 @@ fn a_page_with_keys_its_parent_does_not_send_to_it_is_refused() {
     std::fs::write(&path, &file).unwrap();
     let tried = append_message(&path, &["Inbox"], &message("More"), &[]);
     assert!(tried.is_err_and(|e| e.to_string().contains("doesn't send")));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What the maps mark free after mail is taken out is offered again, and none of it holds
 /// anything the file still uses; in both formats.
 #[test]
 fn the_maps_match_what_the_file_holds() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-maps-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("pst-maps");
     for (format, name) in [(Format::Unicode, "u.pst"), (Format::Ansi, "a.pst")] {
         let path = dir.join(name);
-        let _ = std::fs::remove_file(&path);
         create_empty(&path, format).unwrap();
         for _ in 0..20 {
             append_message(&path, &["Inbox"], &message("Mail"), &[]).unwrap();
@@ -122,22 +113,18 @@ fn the_maps_match_what_the_file_holds() {
         assert!(!editor.space.free_ranges().is_empty(), "{format:?}: what was taken out is free");
         assert!(editor.free_space_is_free().unwrap(), "{format:?}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 // --- Files damaged with their checksums made right ---------------------------------------
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-pst-forged-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(name);
-    let _ = std::fs::remove_file(&path);
-    path
+/// A file `name` in a scratch folder of its own.
+fn file(name: &str) -> PathBuf {
+    scratch(&format!("pst-forged-{name}")).join(name)
 }
 
 /// A file with one message.
 fn one_message(name: &str, properties: &[NewProperty<'_>], attachments: &[NewAttachment<'_>]) -> PathBuf {
-    let path = scratch(name);
+    let path = file(name);
     create_empty(&path, Format::Unicode).unwrap();
     let m = NewMessage { properties, ..message("Mail") };
     append_message(&path, &["Inbox"], &m, attachments).unwrap();
@@ -415,7 +402,7 @@ fn a_damaged_density_list_is_left_alone() {
 /// Asked to make a file that is already there, it says so and leaves that file alone.
 #[test]
 fn making_a_file_over_one_that_is_there_keeps_it() {
-    let path = scratch("there.pst");
+    let path = file("there.pst");
     std::fs::write(&path, b"somebody's file").unwrap();
     assert!(create_empty(&path, Format::Unicode).is_err());
     assert_eq!(std::fs::read(&path).unwrap(), b"somebody's file");

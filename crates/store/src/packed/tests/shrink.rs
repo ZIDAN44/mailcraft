@@ -53,7 +53,6 @@ fn deleted_mails_room_goes_back_to_the_drive_in_place() {
     assert_eq!(s.read_body(&kept[0]).unwrap(), b"Subject: again\r\n\r\nx");
     assert!(s.compact_data_file("nobody").unwrap().is_none(), "an account with no data file");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 #[test]
@@ -73,7 +72,6 @@ fn a_compaction_that_fails_leaves_the_file_to_be_opened_again() {
     assert_eq!(s.read_body(&kept[1]).unwrap(), noise(64 << 10, 2));
     assert!(s.compact_data_file("a1").unwrap().is_some(), "and compacts next time");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 #[test]
@@ -119,7 +117,6 @@ fn the_account_waits_for_a_compaction_in_place() {
         assert!(read_at >= done_at && removed_at >= done_at, "they waited for it");
         assert!(gone.is_some_and(|f| f.exists()), "removed after, its data file kept");
     });
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// What a data file from before (attachments kept raw) holds: base64 that compresses, raw.
@@ -171,7 +168,6 @@ fn a_copy_takes_the_files_place_with_what_was_written_meanwhile() {
     assert!(health.recompressed && !health.recompress_stopped, "{health:?}");
     assert!(!copy_path(&file).exists(), "the copy took its place");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 #[test]
@@ -198,7 +194,6 @@ fn a_stopped_copy_leaves_the_file_as_it_was() {
     // Writes after it aren't noted for a copy any more.
     assert!(!packs(&s).copying("a1"));
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 #[test]
@@ -216,7 +211,6 @@ fn a_copy_a_crash_left_is_removed_as_the_files_open() {
     assert!(!copy_path(&file).exists(), "removed");
     assert!(t.join("Files").join("other.compacting").exists(), "only a data file's copy");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// What recompressing counted in the old file (`META`) is carried into the copy, and a file kept
@@ -259,7 +253,6 @@ fn a_copy_keeps_what_was_counted_and_compresses_what_was_moved_meanwhile() {
     assert_eq!((meta.deflate, meta.stayed_raw, meta.saved, meta.passed), (DEFLATE_NOW, 5, 6, 7), "{meta:?}");
     drop(db);
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// A data file with a file in pieces that don't add up isn't copied (the copy would be without
@@ -276,7 +269,6 @@ fn a_copy_of_a_file_with_damage_is_refused() {
     assert_eq!((std::fs::metadata(&file).unwrap().len(), read_back(&s)), (len, want));
     assert!(!copy_path(&file).exists(), "the copy is thrown away");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// Saying no just before the end has the file to itself stops the copy: thrown away.
@@ -291,7 +283,6 @@ fn a_copy_stopped_at_the_swap_is_thrown_away() {
     assert!(!copy_path(&file).exists());
     assert_eq!(read_back(&s), want);
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// Another program holding the data file for a moment as the copy is put in its place (an
@@ -319,7 +310,6 @@ fn a_copy_is_put_in_place_while_something_holds_the_file_a_moment() {
     assert!(shrunk.copied, "{shrunk:?}");
     assert_eq!(read_back(&s), want);
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }
 
 /// A read from the window's thread ([`crate::no_waiting`]) of a file a compaction has to itself
@@ -364,5 +354,4 @@ fn the_windows_thread_isnt_kept_waiting_by_a_compaction() {
     assert_eq!(s.read_body(&kept[1]).unwrap(), b"Subject: w\r\n\r\nx");
     assert!(crate::packed::Packs::lock(&p.open).taken.is_empty(), "given back");
     drop(s);
-    let _ = std::fs::remove_dir_all(t);
 }

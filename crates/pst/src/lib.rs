@@ -26,6 +26,9 @@ mod util;
 pub mod write;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use write::table_types as write_table;
+#[cfg(test)]
+#[path = "../tests/support/scratch.rs"]
+mod scratch;
 
 pub use crc::take_checksums_as_right;
 pub use crypt::Crypt;

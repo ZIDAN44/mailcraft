@@ -182,10 +182,10 @@ pub fn apply_pending_move(base: &Path) -> Result<Option<PathBuf>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::scratch;
 
     fn temp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("mailcraft-location-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&d);
+        let d = scratch(&format!("location-{name}"));
         fs::create_dir_all(&d).unwrap();
         d
     }
@@ -216,7 +216,6 @@ mod tests {
         assert!(!first.exists(), "the old folder went once empty");
         assert_eq!(pending_move(&base), None);
         assert_eq!(apply_pending_move(&base).unwrap(), None, "done once");
-        let _ = fs::remove_dir_all(t);
     }
 
     #[test]
@@ -243,7 +242,6 @@ mod tests {
         // A damaged pointer is ignored.
         fs::write(base.join(LOCATION), b"{nope").unwrap();
         assert_eq!(files_dir(&base), default_files_dir(&base));
-        let _ = fs::remove_dir_all(t);
     }
 
     /// A move that stops at a file already in the target folder (put there after the move was
@@ -263,6 +261,5 @@ mod tests {
         assert!(!target.join("zoe@studio.example.mailcraft").exists(), "what the move copied goes");
         assert_eq!(files_dir(&base), files);
         assert!(files.join("old.mailcraft").exists() && files.join("zoe@studio.example.mailcraft").exists(), "nothing moved");
-        let _ = fs::remove_dir_all(t);
     }
 }

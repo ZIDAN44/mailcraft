@@ -107,5 +107,4 @@ fn a_flag_in_a_folder_of_50000_costs() {
         written.len()
     );
     drop(s);
-    let _ = fs::remove_dir_all(std::env::temp_dir().join(format!("mailcraft-store-flag-50000-{}", std::process::id())));
 }

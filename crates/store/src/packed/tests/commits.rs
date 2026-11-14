@@ -92,7 +92,6 @@ fn prepared_sources_read_back_as_written() {
     assert_eq!(s.read_body(&inbox(2)), Some(sources(7)[2].clone()));
     assert_eq!(s.read_body(&inbox(101)), Some(sources(8)[1].clone()));
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A file kept in pieces written over (by a smaller one in pieces, then a whole one) leaves none
@@ -123,7 +122,6 @@ fn overwriting_a_file_in_pieces_leaves_no_old_pieces() {
     assert_eq!(pieces_of(&s, &inside), 0);
     assert_eq!(s.read_body(&inbox(1)).unwrap(), b"Subject: small now\r\n\r\nx");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A batch that didn't wait for the disk is made durable by the next write that does, and by the
@@ -154,7 +152,6 @@ fn a_batch_not_waited_for_is_kept_by_the_next_durable_write() {
     mem.write_prepared(vec![(inbox(1), Store::prepare(false, raw[1].clone()))], false).unwrap();
     mem.seal("a1").unwrap();
     assert_eq!(mem.read_body(&inbox(1)).as_ref(), Some(&raw[1]));
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// The sources of batch `n` of [`killed_during_write_bodies`]: one in pieces among text ones.
@@ -196,7 +193,6 @@ fn a_crash_during_write_bodies_keeps_what_was_committed() {
             }
         }
         drop(s);
-        let _ = std::fs::remove_dir_all(&t);
     }
 }
 
@@ -254,7 +250,6 @@ fn a_data_file_is_sealed_once_quiet_and_when_asked() {
         let (repairs, there) = repairs_on_open(&t, &file);
         assert!(there, "{mode}: the write was lost");
         assert_eq!(repairs == 0, sealed, "{mode}: {repairs} repairs");
-        let _ = std::fs::remove_dir_all(&t);
     }
 }
 
@@ -300,7 +295,6 @@ fn a_checkpoint_and_its_batch_are_one_sealed_commit() {
     assert!(keys.iter().all(|k| s.has_body(k)));
     assert_eq!(s.load_account_doc::<serde_json::Value>("a1", "import.json").unwrap(), serde_json::json!({"next": 7}));
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A sealed commit (a search index's meta) clears only the writes before it: one that came in as
@@ -318,7 +312,6 @@ fn a_sealed_commit_leaves_a_later_write_waiting_for_its_seal() {
     packs.seals.sealed("a1", at);
     assert!(packs.seals.waiting_for("a1"), "a write after the seal began lost its seal");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// An account removed lets go of its data file for good: a seal under way ends first (it held the
@@ -347,7 +340,6 @@ fn a_data_file_let_go_is_not_held_by_a_seal() {
     assert!(!packs.seals.waiting_for("a1"), "a seal still waits for a file let go of");
     drop(redb::Database::create(&file).expect("nothing holds it open"));
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// Batch `n` of [`killed_after_batches`]: 2 MiB that doesn't compress.
@@ -372,7 +364,6 @@ fn a_long_run_of_batches_is_made_durable() {
         }
     }
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// The child of [`a_long_run_of_batches_is_made_durable`]: 40 MiB in batches not waited for, then
@@ -412,7 +403,6 @@ fn only_writes_from_the_window_are_timed_for_the_writer() {
     let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
     assert_eq!(packs.seals.waits.lock().unwrap().len(), 20, "only the writes from the window are timed");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// What a data file has waiting for the disk is counted exactly: each batch adds what it keeps, a
@@ -467,7 +457,6 @@ fn what_waits_for_the_disk_is_counted_and_capped() {
     s.seal("a1").unwrap();
     assert_eq!(packs.seals.undurable("a1").0, 0);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// Bringing in a MailCraft data file writes as an import does: in batches of at most
@@ -494,7 +483,6 @@ fn a_data_file_brought_in_goes_in_short_batches() {
         assert_eq!(s.read_body(&mine).as_ref(), Some(r));
     }
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// Writes from the window (a message marked read: a small durable commit) while another thread
@@ -551,7 +539,6 @@ fn a_write_from_the_window_waits_little_for_a_background_writer() {
     assert!(wait99 <= 60.0, "a write from the window waited {wait99:.1} ms for the writer (p99)");
     assert!(write99 <= 250.0, "a write from the window took {write99:.1} ms (p99)");
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// What a write from the window costs when background batches as far as the cap haven't gone to
@@ -586,7 +573,6 @@ fn a_write_from_the_window_writes_out_little_of_a_backlog() {
     );
     assert!(after.0 <= 60.0, "a write after the batches took {:.1} ms (median)", after.0);
     drop(s);
-    let _ = std::fs::remove_dir_all(&t);
 }
 
 /// A background batch of [`crate::BACKGROUND_COMMIT`]: noise, kept as it is (what each batch holds
