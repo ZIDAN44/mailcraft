@@ -21,34 +21,40 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             if s.rules.is_empty() {
                 ui.label(RichText::new(tl!("No rules yet.")).color(t.faint));
             }
-            let mut rules = s.rules.clone();
-            let mut changed = false;
+            let lines = rule_lines(ui.ctx(), s);
+            // The rules the find box keeps, in order.
+            let rows: Vec<usize> = (0..s.rules.len())
+                .filter(|&i| needle.is_empty() || lines.found.get(i).is_some_and(|(name, what)| name.contains(&needle) || what.contains(&needle)))
+                .collect();
+            let mut toggled = None;
             let mut remove = None;
-            let mut shown = 0usize;
             // One line a rule (its switch, name, what it does, and its buttons as icons), in a
-            // list that scrolls past a dozen or so.
+            // list that scrolls past a dozen or so; only the lines in view are laid out.
             egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
                 // With the find box, a steady height, so the dialog doesn't jump while typing.
                 let steady = s.rules.len() > 6;
-                egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, !steady]).show(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    for (i, r) in rules.iter_mut().enumerate() {
-                        let what = describe(s, r);
-                        if !needle.is_empty() && !r.name.to_lowercase().contains(&needle) && !what.to_lowercase().contains(&needle) {
-                            continue;
-                        }
+                ui.spacing_mut().item_spacing.y = 0.0;
+                egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, !steady]).show_rows(ui, 32.0, rows.len(), |ui, range| {
+                    for (shown, &i) in rows.iter().enumerate().take(range.end).skip(range.start) {
+                        let (Some(r), Some(what)) = (s.rules.get(i), lines.what.get(i)) else { continue };
                         let (row, hover) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
                         if hover.hovered() {
                             ui.painter().rect_filled(row, 0.0, t.hover_row);
                         } else if shown % 2 == 1 {
                             ui.painter().rect_filled(row, 0.0, t.chrome);
                         }
-                        shown += 1;
+                        // Each rule's own, wherever the list is scrolled to.
                         let mut inner = ui.new_child(
-                            egui::UiBuilder::new().max_rect(row.shrink2(vec2(8.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center)),
+                            egui::UiBuilder::new()
+                                .id_salt(("rule", i))
+                                .max_rect(row.shrink2(vec2(8.0, 0.0)))
+                                .layout(egui::Layout::left_to_right(egui::Align::Center)),
                         );
                         let ui = &mut inner;
-                        changed |= ui.checkbox(&mut r.enabled, "").on_hover_text(tl!("On / off")).changed();
+                        let mut on = r.enabled;
+                        if ui.checkbox(&mut on, "").on_hover_text(tl!("On / off")).changed() {
+                            toggled = Some(i);
+                        }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.spacing_mut().item_spacing.x = 2.0;
                             if widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t).clicked() {
@@ -70,13 +76,13 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                                 };
                                 job.append(&r.name, 0.0, strong);
                                 let dim = egui::TextFormat { font_id: theme::regular(12.0), color: t.dim, ..Default::default() };
-                                job.append(&what, 10.0, dim);
+                                job.append(what, 10.0, dim);
                                 job.wrap = egui::text::TextWrapping::truncate_at_width(ui.available_width());
                                 ui.add(egui::Label::new(job).selectable(false)).on_hover_text(format!("{}\n{}", r.name, what));
                             });
                         });
                     }
-                    if shown == 0 && !s.rules.is_empty() {
+                    if rows.is_empty() && !s.rules.is_empty() {
                         ui.add_space(8.0);
                         ui.label(RichText::new(tl!("No rule matches.")).color(t.faint));
                         ui.add_space(8.0);
@@ -85,7 +91,12 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             });
             if let Some(i) = remove {
                 acts.push(Action::Run("rules.delete", json!({"index": i})));
-            } else if changed {
+            } else if let Some(i) = toggled {
+                // Copied only now, to send with the one switched.
+                let mut rules = s.rules.clone();
+                if let Some(r) = rules.get_mut(i) {
+                    r.enabled = !r.enabled;
+                }
                 acts.push(Action::Run("rules.set", json!({"rules": rules})));
             }
             ui.add_space(8.0);
@@ -696,7 +707,40 @@ impl RuleForm {
     }
 }
 
-/// One line describing a rule.
+/// What each rule does, in words, and its name and that in lower case for the find box: kept
+/// between frames, and made again only when the rules, the language or the folders change.
+struct RuleLines {
+    rules: Vec<Rule>,
+    key: u64,
+    what: Vec<String>,
+    found: Vec<(String, String)>,
+}
+
+/// The Rules dialog's lines for `s.rules` (see `RuleLines`).
+fn rule_lines(ctx: &egui::Context, s: &Session) -> std::sync::Arc<RuleLines> {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    // The language the lines are in, itself: two languages can word a template alike.
+    crate::i18n::current().code().hash(&mut h);
+    // A move names its folder as the folder pane does, by each folder's delimiter.
+    for f in s.accounts.iter().flat_map(|a| &a.folders) {
+        (&f.path, f.delimiter).hash(&mut h);
+    }
+    let key = h.finish();
+    let id = egui::Id::unique("rules-lines");
+    if let Some(kept) = ctx.data(|d| d.get_temp::<std::sync::Arc<RuleLines>>(id))
+        && kept.key == key
+        && kept.rules == s.rules
+    {
+        return kept;
+    }
+    let what: Vec<String> = s.rules.iter().map(|r| describe(s, r)).collect();
+    let found = s.rules.iter().zip(&what).map(|(r, w)| (r.name.to_lowercase(), w.to_lowercase())).collect();
+    let lines = std::sync::Arc::new(RuleLines { rules: s.rules.clone(), key, what, found });
+    ctx.data_mut(|d| d.insert_temp(id, lines.clone()));
+    lines
+}
+
 /// A folder as the folder pane names it, with the folders it's in: `Inbox › gzamer`.
 pub(super) fn folder_path_label(s: &Session, path: &str) -> String {
     // The folder's own delimiter; "/" (the commonest) for one not synced yet.
@@ -714,6 +758,7 @@ pub(super) fn folder_path_label(s: &Session, path: &str) -> String {
         .join(" › ")
 }
 
+/// One line describing a rule.
 pub(super) fn describe(s: &Session, r: &Rule) -> String {
     let cond = r
         .conditions

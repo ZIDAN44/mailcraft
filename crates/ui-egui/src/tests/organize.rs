@@ -363,3 +363,157 @@ fn folder_search_finds_the_name_shown() {
     crate::i18n::set_current(crate::i18n::Lang::EN);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// `n` rules, the fourth moving mail to "Projects/Short film", the others flagging it.
+fn many_rules(n: usize) -> Vec<mailcraft_engine::model::organize::Rule> {
+    use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
+    (0..n)
+        .map(|i| Rule {
+            name: format!("Rule {i}"),
+            enabled: i % 3 != 2,
+            account: Some("sample".into()),
+            conditions: vec![Condition::From(format!("s{i}@")), Condition::Subject("report".into())],
+            match_all: i % 2 == 0,
+            actions: vec![
+                if i == 3 { RuleAction::MoveTo("Projects/Short film".into()) } else { RuleAction::MoveTo(format!("Projects/p{i}")) },
+                RuleAction::Flag,
+            ],
+            stop: false,
+        })
+        .collect()
+}
+
+/// The Rules dialog's frame: each text drawn that can be seen (not wholly outside its clip), where.
+fn rules_drawn(ctx: &egui::Context, a: &mut MailApp, find: &str) -> Vec<(String, egui::Pos2)> {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("rules-find"), find.to_string()));
+    a.ui.dialog = Some(Dialog::Rules);
+    frame(ctx, a, vec![]);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    out.shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::Shape::Text(t) if s.clip_rect.intersects(egui::Rect::from_min_size(t.pos, t.galley.size())) => {
+                Some((t.galley.job.text.clone(), t.pos))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The Rules dialog: each rule's line says what it does (a folder by the names the folder pane
+/// shows), the find box keeps the rules it names, and a rule's switch turns that rule alone off.
+#[test]
+fn the_rules_dialog_describes_finds_and_switches() {
+    let (mut a, dir) = app("rules-dialog");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.session.rules = many_rules(8);
+    let texts: Vec<String> = rules_drawn(&ctx, &mut a, "").into_iter().map(|(t, _)| t).collect();
+    let rows: Vec<&String> = texts.iter().filter(|t| t.starts_with("Rule ")).collect();
+    assert_eq!(rows.len(), 8, "{texts:?}");
+    assert_eq!(rows[3], "Rule 3If it from “s3@” or subject has “report”: move to Projects › Short film, flag");
+    assert_eq!(rows[0], "Rule 0If it from “s0@” and subject has “report”: move to Projects › p0, flag");
+    let texts: Vec<String> = rules_drawn(&ctx, &mut a, "SHORT film").into_iter().map(|(t, _)| t).collect();
+    assert_eq!(
+        texts.iter().filter(|t| t.starts_with("Rule ")).collect::<Vec<_>>(),
+        ["Rule 3If it from “s3@” or subject has “report”: move to Projects › Short film, flag"]
+    );
+    let texts: Vec<String> = rules_drawn(&ctx, &mut a, "rule 7").into_iter().map(|(t, _)| t).collect();
+    assert_eq!(texts.iter().filter(|t| t.starts_with("Rule ")).count(), 1);
+    let texts: Vec<String> = rules_drawn(&ctx, &mut a, "nothing like it").into_iter().map(|(t, _)| t).collect();
+    assert!(texts.iter().any(|t| t == "No rule matches."), "{texts:?}");
+    // The second rule's switch, clicked: it alone goes off.
+    let _ = rules_drawn(&ctx, &mut a, "");
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let mut boxes: Vec<egui::Pos2> = out
+        .platform_output
+        .accesskit_update
+        .expect("AccessKit is on")
+        .nodes
+        .iter()
+        .filter(|(_, n)| n.role() == egui::accesskit::Role::CheckBox)
+        .filter_map(|(_, n)| n.bounds())
+        .map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+        .collect();
+    boxes.sort_by(|p, q| p.y.total_cmp(&q.y));
+    let at = boxes[1];
+    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(&ctx, &mut a, vec![Event::PointerMoved(at)]);
+    frame(&ctx, &mut a, vec![button(true)]);
+    frame(&ctx, &mut a, vec![button(false)]);
+    let mut expected = many_rules(8);
+    expected[1].enabled = false;
+    assert_eq!(a.session.rules, expected);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The Rules dialog's lines follow the language as it's switched, between languages that word
+/// "If it …: …" alike too (Italian and Brazilian Portuguese, the two Chineses): the lines kept
+/// from the frame before stayed in the language they were made in.
+#[test]
+fn the_rules_dialog_follows_the_language() {
+    let (mut a, _) = app("rules-language");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.session.rules = many_rules(2);
+    for (code, from) in
+        [("it", "arriva da «s0@»"), ("pt-br", "vier de “s0@”"), ("zh-hans", "来自“s0@”"), ("zh-hant", "來自「s0@」"), ("it", "arriva da «s0@»")]
+    {
+        a.ui.language = code.into();
+        let texts: Vec<String> = rules_drawn(&ctx, &mut a, "").into_iter().map(|(t, _)| t).collect();
+        assert!(texts.iter().any(|t| t.starts_with("Rule 0") && t.contains(from)), "{code}: {texts:?}");
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}
+
+/// A frame of the Rules dialog with 300 rules moving mail into folders of an account of 3,000,
+/// every rule shown, eleven found and none, and a fingerprint of what it draws (the same before and
+/// after a change that only makes it faster). Run in release under the machine's lock:
+/// `cargo test --release -p mailcraft-ui-egui --lib measure_rules_dialog -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_rules_dialog() {
+    use std::hash::{Hash, Hasher};
+    let (mut a, dir) = app("measure-rules");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let base = a.session.accounts[0].folders[0].clone();
+    for n in 0..3000 {
+        let f = mailcraft_engine::model::Folder { path: format!("Projects/p{n}"), role: mailcraft_engine::model::FolderRole::Other, ..base.clone() };
+        a.session.accounts[0].folders.push(f);
+    }
+    a.session.rules = many_rules(300);
+    // The folder pane, which would draw the 3,000 folders behind the dialog, kept small.
+    a.run("view.folderPane", json!({"minimized": true}));
+    let timed = |a: &mut MailApp| {
+        let t = std::time::Instant::now();
+        for _ in 0..50 {
+            frame(&ctx, a, vec![]);
+        }
+        t.elapsed().as_secs_f64() * 1000.0 / 50.0
+    };
+    // The window without the dialog, to take away.
+    frame(&ctx, &mut a, vec![]);
+    let window = timed(&mut a);
+    println!("MEASURE the window alone (3000 folders): {window:.2} ms a frame");
+    for find in ["", "rule 12", "no such rule"] {
+        let drawn = rules_drawn(&ctx, &mut a, find);
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for (t, p) in &drawn {
+            (t, p.x.to_bits(), p.y.to_bits()).hash(&mut h);
+        }
+        let each = timed(&mut a);
+        println!(
+            "MEASURE rules dialog, 300 rules, 3000 folders, find {find:?}: {each:.2} ms a frame, the dialog {:.2} ms; drawn {} texts, {:016x}",
+            each - window,
+            drawn.len(),
+            h.finish()
+        );
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
