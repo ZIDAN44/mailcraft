@@ -192,10 +192,6 @@ impl Session {
         self.pgp.own.get(account).map(|o| o.iter().skip(1).map(|(_, i)| i.clone()).collect()).unwrap_or_default()
     }
 
-    fn config_of(&self, account: &str) -> Result<AccountConfig, CmdError> {
-        self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))
-    }
-
     /// Keep the secret key in the file at `path` (opened with `passphrase`) for `account`.
     pub fn import_pgp_key(&mut self, account: &str, path: &str, passphrase: &str) -> CmdResult {
         let data = crate::cmd::read_capped(path, 1 << 20)?;

@@ -53,7 +53,7 @@ impl Session {
 
     /// Use the key found at `index` for `account`'s mail.
     pub fn use_held_key(&mut self, account: &str, index: usize) -> CmdResult {
-        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let config = self.config_of(account)?;
         let key = self.cards.keys.get(index).cloned().ok_or_else(|| CmdError::Params(format!("no certificate {index} was found")))?;
         let pin = self.cards.pin.clone();
         self.jobs.push(Job::UseHeldKey { account: config, at: key.at, cert: key.cert, pin });

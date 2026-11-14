@@ -203,7 +203,7 @@ impl Session {
     /// Forget an older certificate (`fingerprint`, its [`smime::CertInfo::fingerprint`]) and its
     /// key: mail encrypted to it can't be read any more.
     pub fn forget_older_identity(&mut self, account: &str, fingerprint: &str) -> CmdResult {
-        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let config = self.config_of(account)?;
         let s = self.smime.entry(account.to_string()).or_default();
         let before = s.older.len();
         s.older.retain(|c| smime::cert::info(c).map(|i| !i.fingerprint.eq_ignore_ascii_case(fingerprint.trim())).unwrap_or(true));
@@ -217,7 +217,7 @@ impl Session {
 
     /// Sign and encrypt with an older certificate again; the one in use is kept for reading.
     pub fn use_older_identity(&mut self, account: &str, fingerprint: &str) -> CmdResult {
-        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let config = self.config_of(account)?;
         if !self.older_identities(account).iter().any(|i| i.fingerprint.eq_ignore_ascii_case(fingerprint.trim())) {
             return Err(CmdError::Params(format!("no older certificate `{fingerprint}`")));
         }
@@ -254,7 +254,7 @@ impl Session {
     /// [`Session::import_identity`] from the file's bytes (the browser's picker gives no path).
     /// Empty: the one the browser kept, unlocked with `password`.
     pub fn import_identity_data(&mut self, account: &str, data: Vec<u8>, password: &str) -> CmdResult {
-        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let config = self.config_of(account)?;
         if data.len() > 1 << 20 {
             return Err(CmdError::Params("that file is too big for a certificate".into()));
         }
@@ -264,7 +264,7 @@ impl Session {
 
     /// Forget the account's certificate (and the keychain's key); older ones kept for reading stay.
     pub fn forget_identity(&mut self, account: &str) -> CmdResult {
-        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let config = self.config_of(account)?;
         self.jobs.push(Job::ForgetIdentity { account: config });
         let keeps_pgp = self.pgp_key(account).is_some();
         let s = self.smime.entry(account.to_string()).or_default();
@@ -282,7 +282,7 @@ impl Session {
     /// The browser (gap 7): keep `account`'s certificates unlocked between visits, or stop (their
     /// kept password forgotten). The desktop keeps keys in the system's keychain already.
     pub fn keep_unlocked(&mut self, account: &str, on: bool) -> CmdResult {
-        let config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let config = self.config_of(account)?;
         if !self.jmap_only {
             return Err(CmdError::Disabled("the desktop app keeps certificates in the system's keychain: they stay unlocked".into()));
         }

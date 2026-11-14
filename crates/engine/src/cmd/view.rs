@@ -257,7 +257,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"messages"?: number (the newest of each folder kept; 0: all), "offline"?: number (of those, the newest downloaded in full)}"#),
         CommandSpec::new("account.onlineOnly", "Online only", "File › Options › Mail", |s, v| {
             let id = p::req_str(v, "account")?;
-            let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+            let mut c = s.config_of(id)?;
             c.online_only = p::bool(v, "on").unwrap_or(!c.online_only);
             s.update_account(c, None)?;
             let on = s.account(id).is_some_and(|a| a.config.keeps_online());
@@ -271,7 +271,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let Some(minutes) = minutes else {
                 return Err(CmdError::Params(format!("`minutes` can be at most {}", mailcraft_model::MAX_CHECK_MINUTES)));
             };
-            let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+            let mut c = s.config_of(id)?;
             if !c.has_server() {
                 return Err(CmdError::Params("that account has no server to look at".into()));
             }

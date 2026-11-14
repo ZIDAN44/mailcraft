@@ -568,7 +568,7 @@ impl Session {
         if !mailcraft_model::is_certificate_fingerprint(&fingerprint) {
             return Err(CmdError::Params("`fingerprint` is a certificate's SHA-256 in hex: 64 characters".into()));
         }
-        let mut config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let mut config = self.config_of(account)?;
         if !config.has_server() {
             return Err(CmdError::Params("that account has no server".into()));
         }
@@ -618,7 +618,7 @@ impl Session {
     /// needs its password; one already kept keeps it when none is given. They're looked for again
     /// at once.
     pub fn set_dav(&mut self, account: &str, caldav: &str, carddav: &str, username: Option<&str>, password: Option<&str>) -> CmdResult {
-        let mut config = self.account(account).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
+        let mut config = self.config_of(account)?;
         if (config.is_local() && !config.is_calendar_only()) || config.graph.is_some() || config.ews.is_some() {
             return Err(CmdError::Params("this account's calendars and contacts come with it: there's no address to give".into()));
         }

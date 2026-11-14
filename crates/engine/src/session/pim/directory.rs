@@ -173,7 +173,7 @@ impl Session {
         };
         let mut asked = Vec::new();
         for id in wanted {
-            let Some(config) = self.account(&id).map(|a| a.config.clone()) else { return Err(CmdError::Params(format!("no account `{id}`"))) };
+            let config = self.config_of(&id)?;
             if config.graph.is_none() || config.oauth.is_none() {
                 return Err(CmdError::Params(format!("{}: only an Exchange Online account signed in with Microsoft asks for this", config.email)));
             }

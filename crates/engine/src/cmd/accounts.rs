@@ -64,7 +64,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account": string}"#),
         CommandSpec::new("account.signIn", "Sign in with the browser", "File › Accounts", |s, v| {
             let id = p::req_str(v, "account")?;
-            let config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+            let config = s.config_of(id)?;
             if config.oauth.is_none() {
                 // A Microsoft account signing in with a password (refused there) switches over.
                 if mailcraft_model::microsoft_password_account(&config) {
@@ -345,13 +345,13 @@ pub(super) fn set_password(s: &mut Session, v: &Value) -> CmdResult {
     if pw.is_empty() {
         return Err(CmdError::Params("`password` is empty".into()));
     }
-    let config = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    let config = s.config_of(id)?;
     s.update_account(config, Some(pw.to_string()))
 }
 
 pub(super) fn update_account(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_str(v, "account")?;
-    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    let mut c = s.config_of(id)?;
     if c.is_local() && !c.is_calendar_only() {
         return Err(CmdError::Params("the sample mailbox has no server settings".into()));
     }
@@ -474,10 +474,10 @@ pub(super) fn list_accounts(s: &mut Session, _: &Value) -> CmdResult {
 /// mailbox.
 pub(super) fn set_address(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_str(v, "account")?;
-    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
     if s.account(id).is_some_and(|a| a.is_data_file()) {
         return Err(CmdError::Params("mail isn't sent from a data file".into()));
     }
+    let mut c = s.config_of(id)?;
     let address = p::req_str(v, "address")?;
     let mut identity =
         c.identity(address).cloned().unwrap_or_else(|| mailcraft_model::Identity { email: address.trim().to_string(), ..Default::default() });
@@ -511,7 +511,7 @@ pub(super) fn set_address(s: &mut Session, v: &Value) -> CmdResult {
 /// it goes from the account's own.
 pub(super) fn remove_address(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_str(v, "account")?;
-    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    let mut c = s.config_of(id)?;
     let address = p::req_str(v, "address")?.trim().to_string();
     if !c.remove_identity(&address) {
         return Err(CmdError::Params(format!("{address} isn't one of this account's other addresses")));
@@ -525,7 +525,7 @@ pub(super) fn remove_address(s: &mut Session, v: &Value) -> CmdResult {
 /// mailboxes"), or remove one; the account connects again to list its folders.
 pub(super) fn shared_mailbox(s: &mut Session, v: &Value, add: bool) -> CmdResult {
     let id = p::req_str(v, "account")?;
-    let mut c = s.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
+    let mut c = s.config_of(id)?;
     if c.ews.is_none() {
         return Err(CmdError::Params("shared mailboxes are opened on Exchange accounts (EWS)".into()));
     }

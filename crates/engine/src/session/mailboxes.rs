@@ -73,6 +73,12 @@ impl Session {
         self.accounts.iter().find(|a| a.config.id == id)
     }
 
+    /// A copy of account `id`'s settings, to change and give to [`Session::update_account`] (or
+    /// a job); the error that there's no such account.
+    pub(crate) fn config_of(&self, id: &str) -> Result<AccountConfig, CmdError> {
+        self.account(id).map(|a| a.config.clone()).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))
+    }
+
     pub(super) fn account_mut(&mut self, id: &str) -> Option<&mut AccountState> {
         self.accounts.iter_mut().find(|a| a.config.id == id)
     }
