@@ -26,6 +26,7 @@ on GitHub.
 - In the browser, a backup the browser's storage won't take (full, say) is said to be refused, and the page goes on keeping what you do. It used to say nothing, and nothing done afterwards was kept: it was gone at the next visit.
 - Rules, blocked senders and ignored conversations sort a lot of mail at once without holding up the window: **Run Rules Now** on a big Inbox, or the first sync after a long time away, changed each message on its own and asked the server once per message (20,000 messages filed by a rule took over two minutes). Mail they file together is now one change, as when you drag it.
 - Mail moved out of a data file or local folder whose copy was filed but which couldn't then be taken out where it was (the disk refused the write) is said to be in both places. It was said to be moved, with an **Undo** that couldn't put it back, or, moved to a server, a bare disk error followed by "moved".
+- With **Focused Inbox** on, mail arriving in the Inbox on screen no longer has every folder of every account read again to sort it: the people you write to, as counted in the last ten minutes, sort it, as they do for the sender check.
 
 ## 0.38.0 - 2026-11-13
 

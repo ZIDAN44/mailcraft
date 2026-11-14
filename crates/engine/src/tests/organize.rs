@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod focused;
 mod many;
 
 #[test]

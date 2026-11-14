@@ -664,7 +664,7 @@ impl Session {
             p.ensure_defaults();
             self.pim.insert(account.to_string(), p);
             self.pim_unread.remove(account);
-            self.contacts = None;
+            self.drop_contacts();
             self.pim_revision = self.pim_revision.wrapping_add(1);
         }
     }

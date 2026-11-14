@@ -572,7 +572,7 @@ impl Session {
         if let Some(&f) = self.prefs.focus_overrides.get(&sender) {
             return f;
         }
-        !m.bulk || self.contacts.as_ref().and_then(|b| b.get(&sender)).is_some_and(|c| c.sent > 0)
+        !m.bulk || self.focus_book().and_then(|b| b.get(&sender)).is_some_and(|c| c.sent > 0)
     }
 
     /// Whether the list shows the Focused/Other split (an Inbox, with the option on).

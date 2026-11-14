@@ -364,6 +364,11 @@ pub struct Session {
     pub(crate) cache_limit: usize,
     /// Built on first use from the cached mail; dropped when mail arrives.
     contacts: Option<ContactBook>,
+    /// When `contacts` was counted.
+    contacts_at: i64,
+    /// The address book dropped last and when it was counted: the Focused split sorts by it a
+    /// while rather than counting the book again after every sync ([`Session::focus_book`]).
+    contacts_kept: Option<(ContactBook, i64)>,
     /// The organisation directory's answers (issue #9).
     pub directory: pim::Directory,
     /// Address books counted so far (each count starts the sender check again).
@@ -525,6 +530,8 @@ impl Session {
             pending_marks: BTreeMap::new(),
             cache_limit: CACHE_MESSAGES,
             contacts: None,
+            contacts_at: 0,
+            contacts_kept: None,
             directory: pim::Directory::default(),
             contacts_built: 0,
             senders: None,

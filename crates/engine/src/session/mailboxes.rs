@@ -1,5 +1,6 @@
 //! The session: accounts' folder lists and what's kept of each folder.
 
+use super::opening::FRESH_SECS;
 use super::*;
 
 mod across;
@@ -265,7 +266,7 @@ impl Session {
         let k = (account.to_string(), folder.to_string());
         self.cache.remove(&k);
         self.search_folder_changed(account, folder);
-        self.contacts = None;
+        self.drop_contacts();
     }
 
     /// Remember what an Inbox holds; unread mail above the last high-water mark is new. The first
@@ -475,8 +476,34 @@ impl Session {
                 }
             }
             self.contacts = Some(book);
+            self.contacts_at = self.clock.now;
+            self.contacts_kept = None;
             self.contacts_built = self.contacts_built.wrapping_add(1);
         }
+    }
+
+    /// Mail or saved contacts changed: the address book is counted again when it's next wanted,
+    /// and kept meanwhile for the Focused split.
+    pub(super) fn drop_contacts(&mut self) {
+        if let Some(book) = self.contacts.take() {
+            self.contacts_kept = Some((book, self.contacts_at));
+        }
+    }
+
+    /// Have the address book the Focused split sorts by ([`Session::focus_book`]): the one
+    /// counted last while it's under ten minutes old (as the sender check's), else counted
+    /// again. Counting reads every folder of every account, and the Inbox on screen asked for it
+    /// on each of its syncs.
+    pub(super) fn ensure_focus_book(&mut self) {
+        let kept = self.contacts_kept.as_ref().is_some_and(|(_, at)| self.clock.now.saturating_sub(*at) < FRESH_SECS);
+        if self.contacts.is_none() && !kept {
+            self.ensure_contacts();
+        }
+    }
+
+    /// The address book as counted now, else the one counted last.
+    pub(super) fn focus_book(&self) -> Option<&ContactBook> {
+        self.contacts.as_ref().or(self.contacts_kept.as_ref().map(|(book, _)| book))
     }
 
     /// The folders the view draws from.
@@ -536,7 +563,7 @@ impl Session {
         let reading = self.reading.as_ref().map(|r| r.key.clone()).filter(|k| self.index_of(k).is_some());
         list.retain(|m| self.filter_keeps(filter, m) || reading.as_ref() == Some(&m.key));
         if self.focus_split() {
-            self.ensure_contacts();
+            self.ensure_focus_book();
             let other = self.focus_other;
             list.retain(|m| self.is_focused(m) != other);
         }

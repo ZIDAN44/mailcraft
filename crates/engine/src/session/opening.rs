@@ -11,6 +11,7 @@ pub use selecting::Toward;
 pub(crate) use source::source_lines;
 pub use source::{SOURCE_SHOWN, SourceView};
 mod senders;
+pub(in crate::session) use senders::FRESH_SECS;
 pub use senders::SenderMarks;
 pub(crate) use senders::Senders;
 mod prepare;

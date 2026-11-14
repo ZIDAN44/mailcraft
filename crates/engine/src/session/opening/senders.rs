@@ -8,7 +8,7 @@ use super::*;
 
 /// How long the sender check is kept while the address book waits to be counted again (mail
 /// arriving drops it after every sync), in seconds.
-const FRESH_SECS: i64 = 600;
+pub(in crate::session) const FRESH_SECS: i64 = 600;
 
 /// The sender check and what it was gathered from.
 #[derive(Clone, Debug, Default)]

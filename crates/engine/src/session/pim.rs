@@ -135,7 +135,7 @@ impl Session {
     }
 
     pub(crate) fn save_pim(&mut self, account: &str) {
-        self.contacts = None;
+        self.drop_contacts();
         self.pim_revision = self.pim_revision.wrapping_add(1);
         // What couldn't be read isn't written over with what's shown in its place.
         if self.pim_unread.contains(account) {
