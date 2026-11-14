@@ -315,7 +315,7 @@ fn an_outbox_selection_follows_its_message() {
     let second = s.list.iter().find(|m| m.subject == "Second").map(|m| m.key.clone()).unwrap();
     s.open_message(&second);
     // The first one goes.
-    store.outbox_remove(&id, 7);
+    store.outbox_remove(&id, 7).unwrap();
     s.apply(Event::Sent { account: id.clone(), id: 7 });
     let chosen: Vec<u64> = s.selection.iter().filter_map(|k| s.outbox_entry(k)).map(|(_, i)| i.id).collect();
     assert_eq!(chosen, [8]);

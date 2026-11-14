@@ -365,7 +365,12 @@ impl Worker {
     /// Send what waits in the Outbox, oldest first. Stops at the first failure that may clear
     /// up later (still offline); a message refused for good stays, marked with the error.
     pub(super) fn flush_outbox(&mut self) {
+        self.store.outbox_sweep(&self.acc.id);
         for mut item in self.store.outbox(&self.acc.id) {
+            // Sent, or refused for good, already: the Outbox couldn't be told.
+            if self.outbox_done.contains(&item.id) {
+                continue;
+            }
             // Held back (Delay Delivery) until its time; then dated when it goes.
             if item.not_before > now() {
                 continue;
@@ -379,15 +384,32 @@ impl Worker {
             let sent = self.deliver(&raw, &item.from, &item.recipients, item.sent_folder.as_deref());
             match sent {
                 Ok(()) => {
-                    self.store.outbox_remove(&self.acc.id, item.id);
+                    // Left in the Outbox, it would go again.
+                    let kept = self.store.outbox_remove(&self.acc.id, item.id).err();
+                    if kept.is_some() {
+                        self.outbox_done.insert(item.id);
+                    }
                     let folder = item.sent_folder.take();
                     self.after_sent(item.id, &raw, folder);
+                    if let Some(e) = kept {
+                        log::error!("{}: message {} sent, but it couldn't be taken out of the Outbox: {e}", self.acc.id, item.id);
+                        let message = format!(
+                            "a message was sent, but it couldn't be taken out of the Outbox ({e}): it isn't sent again while MailCraft runs; delete it there"
+                        );
+                        self.sink.emit(Event::Notice { account: self.id(), message });
+                    }
                 }
                 Err(e) => {
                     let retry = e.is_retryable();
                     item.attempts = item.attempts.saturating_add(1);
                     item.error = Some(if retry { e.to_string() } else { format!("refused: {e}") });
-                    let _ = self.store.outbox_update(&self.acc.id, &item);
+                    if let Err(se) = self.store.outbox_update(&self.acc.id, &item) {
+                        log::warn!("{}: message {}: why it wasn't sent couldn't be kept in the Outbox: {se}", self.acc.id, item.id);
+                        // Refused for good: not tried again for nothing.
+                        if !retry {
+                            self.outbox_done.insert(item.id);
+                        }
+                    }
                     if retry {
                         self.sink.emit(Event::Queued { account: self.id(), id: item.id, error: e.to_string() });
                         return;

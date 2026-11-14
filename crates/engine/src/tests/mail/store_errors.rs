@@ -256,3 +256,36 @@ fn rules_and_snoozes_that_cant_be_read_arent_written_over() {
         }
     }
 }
+
+/// An Outbox message whose files can't be taken out stays, and that's said: deleted, it went all
+/// the same; taken back to be changed, it went twice (as it was, and as changed).
+#[test]
+fn an_outbox_message_that_cant_be_taken_out_says_so() {
+    let mut s = failing_session();
+    let item = mailcraft_store::OutboxItem {
+        id: 71,
+        from: "me@example.com".into(),
+        recipients: vec!["ana@example.com".into()],
+        queued: NOW,
+        ..Default::default()
+    };
+    let raw = b"From: me@example.com\r\nTo: ana@example.com\r\nSubject: Waiting\r\n\r\nhi\r\n";
+    store(&s).outbox_add(sample::SAMPLE_ACCOUNT, &item, raw).unwrap();
+    s.run("folder.outbox", &json!({})).unwrap();
+    let key = s.list[0].key.clone();
+    store(&s).fail(None, Some("outbox/71.json|outbox/71.eml|outbox/71.gone"));
+    let r = s.run("outbox.edit", &json!({"key": key.to_id()}));
+    assert!(matches!(r, Err(CmdError::Failed(_))), "{r:?}");
+    assert!(s.compose.is_none(), "not opened to be sent again");
+    s.run("list.select", &json!({"key": key.to_id()})).unwrap();
+    let r = s.run("mail.delete", &json!({}));
+    assert!(matches!(r, Err(CmdError::Failed(_))), "{r:?}");
+    assert_eq!(store(&s).outbox(sample::SAMPLE_ACCOUNT).len(), 1);
+    assert_eq!(s.outbox.len(), 1, "still shown");
+    // Its files held, but a mark beside them can be written: out of the Outbox.
+    store(&s).fail(None, Some("outbox/71.json|outbox/71.eml"));
+    s.run("list.select", &json!({"key": key.to_id()})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    store(&s).fail(None, None);
+    assert!(store(&s).outbox(sample::SAMPLE_ACCOUNT).is_empty() && s.outbox.is_empty());
+}

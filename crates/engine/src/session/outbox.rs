@@ -136,13 +136,19 @@ impl Session {
         Ok(serde_json::json!({ "accounts": accounts.len(), "messages": self.outbox.len() }))
     }
 
-    /// Delete the selected Outbox messages (they are never sent).
+    /// Delete the selected Outbox messages (they are never sent). One that can't be is said: it
+    /// is still there, to be sent.
     pub fn delete_outbox_selection(&mut self) -> CmdResult {
-        let gone: Vec<(String, OutboxItem)> = self.selection.iter().filter_map(|k| self.outbox_entry(k)).collect();
+        let mut gone: Vec<(String, OutboxItem)> = self.selection.iter().filter_map(|k| self.outbox_entry(k)).collect();
+        let mut kept = None;
         if let Some(store) = &self.store {
-            for (a, i) in &gone {
-                store.outbox_remove(a, i.id);
-            }
+            gone.retain(|(a, i)| match store.outbox_remove(a, i.id) {
+                Ok(()) => true,
+                Err(e) => {
+                    kept = Some(e);
+                    false
+                }
+            });
         }
         // Removed from the Outbox undelivered: whatever flags they owed are dropped.
         let before = self.pending_marks.len();
@@ -154,6 +160,9 @@ impl Session {
         self.selection.clear();
         self.focus = None;
         self.after_outbox_change();
+        if let Some(e) = kept {
+            return Err(CmdError::Failed(format!("a message couldn't be taken out of the Outbox, and will be sent: {e}")));
+        }
         Ok(serde_json::json!({ "deleted": gone.len() }))
     }
 
@@ -186,6 +195,8 @@ impl Session {
         c.sign = signed;
         c.encrypt = encrypted;
         c.send_after = Some(item.not_before).filter(|at| *at > self.clock.now);
+        // Out of the Outbox before it opens: left there, it would go as well as the changed one.
+        store.outbox_remove(&account, item.id).map_err(|e| CmdError::Failed(format!("it couldn't be taken out of the Outbox: {e}")))?;
         let id = c.id;
         self.open_compose(c);
         // Pulled back for editing: the owed flag moves onto the compose, for its delivery.
@@ -196,7 +207,6 @@ impl Session {
                 c.mode = Some(if flag == Flag::Forwarded { ReplyMode::Forward } else { ReplyMode::Reply });
             }
         }
-        store.outbox_remove(&account, item.id);
         self.reading = None;
         self.selection.clear();
         self.after_outbox_change();

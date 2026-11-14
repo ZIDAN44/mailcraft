@@ -449,6 +449,9 @@ struct Worker {
     quick_start: Option<Box<dyn FnOnce() + Send>>,
     /// Set when the keychain had no password ([`Handle::no_password`]).
     no_password: Arc<AtomicBool>,
+    /// Outbox messages sent, or refused for good, that the Outbox couldn't be told of (its files
+    /// couldn't be changed): not sent again while this runs.
+    outbox_done: std::collections::HashSet<u64>,
 }
 
 /// Where an account keeps its folders' own windows.
@@ -508,6 +511,7 @@ impl Worker {
             keychain: None,
             quick_start: None,
             no_password: Arc::default(),
+            outbox_done: std::collections::HashSet::new(),
         }
     }
 

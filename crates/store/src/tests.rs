@@ -449,7 +449,7 @@ fn outbox_queues_and_forgets() {
     s.outbox_update("a1", &i).unwrap();
     assert_eq!(s.outbox("a1")[0], i);
     assert_eq!(s.outbox_raw("a1", 7).unwrap(), b"Subject: later\r\n\r\nx");
-    s.outbox_remove("a1", 3);
+    s.outbox_remove("a1", 3).unwrap();
     assert_eq!(s.outbox("a1").len(), 1);
     // Damaged bookkeeping is skipped, not fatal.
     fs::write(s.root().join("a1").join("outbox").join("9.json"), b"{nope").unwrap();
@@ -543,7 +543,7 @@ hi"
     let item = OutboxItem { id: 5, from: "z@x".into(), recipients: vec!["a@y".into()], ..Default::default() };
     s.outbox_add("a1", &item, b"x").unwrap();
     assert_eq!(s.outbox("a1"), vec![item]);
-    s.outbox_remove("a1", 5);
+    s.outbox_remove("a1", 5).unwrap();
     assert!(s.outbox("a1").is_empty());
 
     // What outlasts the page: here everything but message sources.

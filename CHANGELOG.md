@@ -87,6 +87,7 @@ on GitHub.
 - Printing or saving as PDF a message with deeply nested tables is faster.
 - Removing an account while it searched the server or downloaded a message no longer brings its files back.
 - Syncing a very large IMAP folder kept whole is faster on servers without CONDSTORE.
+- A message sent from the Outbox is no longer sent again when its files can't be removed, and deleting or editing a queued message that can't be taken out of the Outbox now says so instead of sending it anyway.
 
 ## 0.38.0 - 2026-11-13
 
