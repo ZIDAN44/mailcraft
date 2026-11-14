@@ -12,57 +12,18 @@ impl Client {
             "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape><m:FolderIds>{ids}</m:FolderIds></m:GetFolder>"
         ))?;
         // One answer per asked-for folder, in order; missing ones are errors.
-        let found: Vec<Option<String>> = messages(&doc)
-            .iter()
-            .map(|m| if m.attr("ResponseClass") == Some("Error") { None } else { m.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) })
-            .collect();
+        let found = folder_ids(&doc);
         let role_of: HashMap<String, FolderRole> = roles.iter().zip(&found).filter_map(|((_, r), id)| Some((id.clone()?, *r))).collect();
         let root = found.get(roles.len()).cloned().flatten();
         let skip: Vec<String> = found.iter().skip(roles.len() + 1).flatten().cloned().collect();
 
-        let mut out: Vec<Mailbox> = Vec::new();
-        let mut offset = 0;
-        loop {
-            let doc = self.call(&format!(
-                "<m:FindFolder Traversal=\"Deep\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
-                 <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:ParentFolderId\"/>\
-                 <t:FieldURI FieldURI=\"folder:TotalCount\"/><t:FieldURI FieldURI=\"folder:UnreadCount\"/>\
-                 <t:FieldURI FieldURI=\"folder:FolderClass\"/>{HIDDEN}</t:AdditionalProperties></m:FolderShape>\
-                 <m:IndexedPageFolderView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
-                 <m:ParentFolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\"/></m:ParentFolderIds></m:FindFolder>"
-            ))?;
-            let Some(m) = messages(&doc).first().copied() else { break };
-            check_message(m)?;
-            let Some(rf) = m.child("RootFolder") else { break };
-            let folders = rf.folders();
-            let n = folders.len();
-            for f in folders {
-                let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
-                let class = f.text_of("FolderClass").unwrap_or("");
-                // Skip anything flagged PidTagAttributeHidden: server bookkeeping, not mail.
-                if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note."))
-                    || skip.contains(&id)
-                    || is_hidden(f)
-                    || out.len() >= MAX_FOLDERS
-                {
-                    continue;
-                }
-                let parent = f.child("ParentFolderId").and_then(|p| p.attr("Id")).map(str::to_string).filter(|p| Some(p) != root.as_ref());
-                let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
-                out.push(Mailbox {
-                    name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
-                    parent,
-                    role: role_of.get(&id).copied().unwrap_or(FolderRole::Other),
-                    total: count("TotalCount"),
-                    unread: count("UnreadCount"),
-                    id,
-                });
+        let mut out = self.mail_folders("<t:DistinguishedFolderId Id=\"msgfolderroot\"/>", &skip, MAX_FOLDERS)?;
+        for m in &mut out {
+            // Those at the top have none.
+            if m.parent == root {
+                m.parent = None;
             }
-            let last = rf.attr("IncludesLastItemInRange").is_none_or(|v| v == "true");
-            offset += n;
-            if last || n == 0 || out.len() >= MAX_FOLDERS {
-                break;
-            }
+            m.role = role_of.get(&m.id).copied().unwrap_or(FolderRole::Other);
         }
         keep_rooted(&mut out);
         // Exchange's public folders, under a folder of their own (a server without them, or
@@ -92,6 +53,52 @@ impl Client {
         Ok(out)
     }
 
+    /// The mail folders anywhere under a mailbox's root (`root`, the folder id element naming
+    /// it), a page at a time, up to `max`: their names, parents and counts, each with no role
+    /// yet. Folders of other classes (calendars, contacts), those in `skip` (its Outbox and the
+    /// like) and those flagged hidden are left out; what's in them, the caller's
+    /// [`keep_rooted`] drops.
+    pub(super) fn mail_folders(&self, root: &str, skip: &[String], max: usize) -> Result<Vec<Mailbox>> {
+        let mut out: Vec<Mailbox> = Vec::new();
+        let mut offset = 0;
+        loop {
+            let doc = self.call(&format!(
+                "<m:FindFolder Traversal=\"Deep\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
+                 <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:ParentFolderId\"/>\
+                 <t:FieldURI FieldURI=\"folder:TotalCount\"/><t:FieldURI FieldURI=\"folder:UnreadCount\"/>\
+                 <t:FieldURI FieldURI=\"folder:FolderClass\"/>{HIDDEN}</t:AdditionalProperties></m:FolderShape>\
+                 <m:IndexedPageFolderView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
+                 <m:ParentFolderIds>{root}</m:ParentFolderIds></m:FindFolder>"
+            ))?;
+            let Some(m) = messages(&doc).first().copied() else { break };
+            check_message(m)?;
+            let Some(rf) = m.child("RootFolder") else { break };
+            let folders = rf.folders();
+            let n = folders.len();
+            for f in folders {
+                let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
+                // Skip anything flagged PidTagAttributeHidden: server bookkeeping, not mail.
+                if !is_mail_class(f.text_of("FolderClass").unwrap_or("")) || skip.contains(&id) || is_hidden(f) || out.len() >= max {
+                    continue;
+                }
+                out.push(Mailbox {
+                    name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
+                    parent: f.child("ParentFolderId").and_then(|p| p.attr("Id")).map(str::to_string),
+                    role: FolderRole::Other,
+                    total: count_of(f, "TotalCount"),
+                    unread: count_of(f, "UnreadCount"),
+                    id,
+                });
+            }
+            let last = rf.attr("IncludesLastItemInRange").is_none_or(|v| v == "true");
+            offset += n;
+            if last || n == 0 || out.len() >= max {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
     /// A folder's (total, unread).
     pub(super) fn counts(&self, folder: &str) -> Result<(u32, u32)> {
         let m = self.call_one(&format!(
@@ -101,7 +108,7 @@ impl Client {
             esc(folder)
         ))?;
         let f = m.folders().into_iter().next();
-        let count = |k: &str| f.and_then(|f| f.text_of(k)).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
+        let count = |k: &str| f.map_or(0, |f| count_of(f, k));
         Ok((count("TotalCount"), count("UnreadCount")))
     }
 

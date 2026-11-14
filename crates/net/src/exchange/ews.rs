@@ -462,6 +462,15 @@ pub(crate) fn messages(doc: &El) -> Vec<&El> {
     out
 }
 
+/// The folder id each answer of a `GetFolder` gives, in the order they were asked for: `None`
+/// for one the mailbox hasn't.
+fn folder_ids(doc: &El) -> Vec<Option<String>> {
+    messages(doc)
+        .iter()
+        .map(|m| if m.attr("ResponseClass") == Some("Error") { None } else { m.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) })
+        .collect()
+}
+
 impl Client {
     /// A session for `url` (checked with the first request).
     pub fn new(url: &str, user: &str, password: &str, email: &str) -> Result<Client> {
@@ -519,6 +528,17 @@ const HIDDEN: &str = "<t:ExtendedFieldURI PropertyTag=\"0x10f4\" PropertyType=\"
 fn is_hidden(f: &El) -> bool {
     let tagged = |p: &&El| p.child("ExtendedFieldURI").and_then(|u| u.attr("PropertyTag")).map(str::to_ascii_lowercase).as_deref() == Some("0x10f4");
     f.children("ExtendedProperty").filter(tagged).filter_map(|p| p.text_of("Value")).any(|v| matches!(v.trim(), "true" | "True" | "1"))
+}
+
+/// Whether a folder of this class holds mail (one without a class does).
+fn is_mail_class(class: &str) -> bool {
+    class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.")
+}
+
+/// A count a listed folder gives (`TotalCount`, `UnreadCount`, `ChildFolderCount`): 0 when it
+/// doesn't.
+fn count_of(f: &El, name: &str) -> u32 {
+    f.text_of(name).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0)
 }
 
 /// The read, flag and draft state, asked for with every item.

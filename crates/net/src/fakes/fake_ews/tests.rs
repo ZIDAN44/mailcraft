@@ -256,6 +256,46 @@ fn exchanges_own_folders_are_left_out_of_the_list() {
     assert_eq!(names, ["2024", "Inbox", "Projects"]);
 }
 
+/// A shared mailbox's folders are told from its other folders as the account's own are: over
+/// several pages, its calendar and contacts aren't mail, a folder flagged hidden stays out with
+/// what's in it, its Outbox too; a class of mail of its own is mail. Each sits under its parent,
+/// those at its top under the folder named for the mailbox.
+#[test]
+fn a_shared_mailbox_lists_its_mail_folders_as_the_account_does() {
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let owner = "sales@contoso.example";
+    let inbox = d.shared_mailbox(SharedBox { address: owner.into(), name: "Sales".into(), automap: true, legacy: false, granted: true });
+    let root = d.folders.iter().find(|f| f.owner == owner && f.known.as_deref() == Some("msgfolderroot")).map(|f| f.id.clone()).unwrap();
+    d.shared_folder(owner, "Quotes", &inbox);
+    let projects = d.shared_folder(owner, "Projects", &root);
+    d.shared_folder(owner, "2025", &projects);
+    let working = d.shared_folder(owner, "Working Set", &root);
+    d.shared_folder(owner, "Inner", &working);
+    d.flagged_hidden.push(working);
+    let calendar = d.shared_folder(owner, "Calendar", &root);
+    let contacts = d.shared_folder(owner, "Contacts", &root);
+    let faxes = d.shared_folder(owner, "Faxes", &root);
+    for f in d.folders.iter_mut() {
+        f.class = if f.id == calendar {
+            "IPF.Appointment".into()
+        } else if f.id == contacts {
+            "IPF.Contact".into()
+        } else if f.id == faxes {
+            "IPF.Note.Fax".into()
+        } else {
+            f.class.clone()
+        };
+    }
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let mut st = crate::jmap::State::default();
+    let mut paths: Vec<String> = crate::ews::list_folders(&c, &mut st, "a1").unwrap().into_iter().map(|f| f.path).collect();
+    paths.sort();
+    assert_eq!(paths, ["INBOX", "Sales", "Sales/Faxes", "Sales/Inbox", "Sales/Inbox/Quotes", "Sales/Projects", "Sales/Projects/2025"]);
+    assert!(server.data.lock().unwrap().calls.iter().filter(|c| *c == "FindFolder").count() >= 4, "its folders came in pages");
+}
+
 /// Folder edits queued back to back (create, rename, delete, and a move into a new
 /// folder): each must see the folder ids the previous one produced, within one replay.
 #[test]

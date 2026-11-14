@@ -449,13 +449,14 @@ impl Data {
                     out.push(err("ErrorAccessDenied"));
                     return ("FindFolderResponse".into(), out);
                 };
-                let all: Vec<String> = self
-                    .folders
-                    .iter()
-                    .filter(|f| f.owner == owner && f.known.as_deref() != Some("msgfolderroot"))
-                    .map(|f| self.folder_xml(f))
-                    .collect();
-                out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Folders>{}</t:Folders></m:RootFolder>", all.concat())));
+                // In pages, as the account's own.
+                let view = op.child("IndexedPageFolderView");
+                let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
+                let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000).min(3);
+                let all: Vec<&Fo> = self.folders.iter().filter(|f| f.owner == owner && f.known.as_deref() != Some("msgfolderroot")).collect();
+                let page: String = all.iter().skip(offset).take(max).map(|f| self.folder_xml(f)).collect();
+                let last = offset + max >= all.len();
+                out.push(ok(format!("<m:RootFolder IncludesLastItemInRange=\"{last}\"><t:Folders>{page}</t:Folders></m:RootFolder>")));
             }
             "FindFolder" => {
                 // Deep: everything under the root (the mailbox's, not the public folders), in pages.

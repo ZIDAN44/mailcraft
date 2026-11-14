@@ -126,10 +126,7 @@ impl Client {
             let doc = self.call(&format!(
                 "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape><m:FolderIds>{ids}</m:FolderIds></m:GetFolder>"
             ))?;
-            let found: Vec<Option<String>> = messages(&doc)
-                .iter()
-                .map(|m| if m.attr("ResponseClass") == Some("Error") { None } else { m.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) })
-                .collect();
+            let found = folder_ids(&doc);
             let skip: Vec<String> = found.iter().skip(SPECIAL.len()).flatten().cloned().collect();
             {
                 let mut roles = self.shared_roles.borrow_mut();
@@ -140,44 +137,18 @@ impl Client {
                     }
                 }
             }
+            // Its folders, after the one named for it: as many in all as the account's own.
+            let root = format!("<t:DistinguishedFolderId Id=\"msgfolderroot\">{mb}</t:DistinguishedFolderId>");
+            let folders = self.mail_folders(&root, &skip, MAX_FOLDERS.saturating_sub(1))?;
             let mut out = vec![Mailbox { id: root_id.clone(), name: top.to_string(), parent: None, role: FolderRole::Other, total: 0, unread: 0 }];
-            let mut offset = 0;
-            loop {
-                let m = self.call_one(&format!(
-                    "<m:FindFolder Traversal=\"Deep\"><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>\
-                     <t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURI FieldURI=\"folder:ParentFolderId\"/>\
-                     <t:FieldURI FieldURI=\"folder:TotalCount\"/><t:FieldURI FieldURI=\"folder:UnreadCount\"/>\
-                     <t:FieldURI FieldURI=\"folder:FolderClass\"/>{HIDDEN}</t:AdditionalProperties></m:FolderShape>\
-                     <m:IndexedPageFolderView MaxEntriesReturned=\"500\" Offset=\"{offset}\" BasePoint=\"Beginning\"/>\
-                     <m:ParentFolderIds><t:DistinguishedFolderId Id=\"msgfolderroot\">{mb}</t:DistinguishedFolderId></m:ParentFolderIds></m:FindFolder>"
-                ))?;
-                let Some(rf) = m.child("RootFolder") else { break };
-                let folders = rf.folders();
-                let n = folders.len();
-                for f in folders {
-                    let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
-                    let class = f.text_of("FolderClass").unwrap_or("");
-                    if !(class.is_empty() || class == "IPF.Note" || class.starts_with("IPF.Note.")) || skip.contains(&id) || is_hidden(f) || out.len() >= MAX_FOLDERS {
-                        continue;
-                    }
-                    let parent = f.child("ParentFolderId").and_then(|p| p.attr("Id")).map(str::to_string).or_else(|| Some(root_id.clone()));
-                    let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
-                    self.shared_roles.borrow_mut().entry(id.clone()).or_insert_with(|| (sm.address.clone(), FolderRole::Other));
-                    out.push(Mailbox {
-                        name: f.text_of("DisplayName").unwrap_or_default().chars().take(255).collect(),
-                        parent,
-                        role: FolderRole::Other,
-                        total: count("TotalCount"),
-                        unread: count("UnreadCount"),
-                        id,
-                    });
-                }
-                let last = rf.attr("IncludesLastItemInRange").is_none_or(|v| v == "true");
-                offset += n;
-                if last || n == 0 || out.len() >= MAX_FOLDERS {
-                    break;
-                }
+            let mut roles = self.shared_roles.borrow_mut();
+            for mut m in folders {
+                // One whose parent isn't said goes under the one named for it.
+                m.parent = m.parent.or_else(|| Some(root_id.clone()));
+                roles.entry(m.id.clone()).or_insert_with(|| (sm.address.clone(), FolderRole::Other));
+                out.push(m);
             }
+            drop(roles);
             keep_rooted(&mut out);
             Ok(out)
         })
@@ -258,11 +229,7 @@ impl Client {
         let (root_id, all) = self.public_tree()?;
         // Calendars and contacts kept as public folders aren't mail; a folder holding others is
         // kept for them.
-        let mut out: Vec<Mailbox> = all
-            .into_iter()
-            .filter(|t| t.class.is_empty() || t.class == "IPF.Note" || t.class.starts_with("IPF.Note.") || t.children)
-            .map(|t| t.mailbox)
-            .collect();
+        let mut out: Vec<Mailbox> = all.into_iter().filter(|t| is_mail_class(&t.class) || t.children).map(|t| t.mailbox).collect();
         if out.is_empty() {
             return Ok(out);
         }
@@ -351,7 +318,7 @@ impl Client {
             let folders = m.child("RootFolder").map(El::folders).unwrap_or_default();
             for f in folders {
                 let Some(id) = f.child("FolderId").and_then(|i| i.attr("Id")).map(str::to_string) else { continue };
-                let count = |k: &str| f.text_of(k).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0);
+                let count = |k: &str| count_of(f, k);
                 let class = f.text_of("FolderClass").unwrap_or("").to_string();
                 let replica = f
                     .children("ExtendedProperty")
