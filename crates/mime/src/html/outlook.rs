@@ -47,8 +47,13 @@ pub(crate) const OUTLOOK_MARK: &str = "<!--mso-->";
 /// ([`crate::layout::ready`]); one a sender writes is left out.
 pub(crate) const OUTLOOK_TABLE: &str = "data-mailcraft-outlook";
 
-/// `html` as desktop Outlook reads it: its conditional comments worked out and its VML made HTML.
-/// The same HTML when it has none.
+/// `html` as desktop Outlook reads it: its conditional comments worked out and its VML made HTML,
+/// what it hides from Outlook hidden in its style. The same HTML when it has none.
+///
+/// For the tests and the `html` fuzz target only, on purpose: a message is read through
+/// [`outlook_copy`] (its tables marked) and [`marked_hidden`] (what's hidden marked for the text
+/// converters), which share all of this but how the hidden parts are hidden.
+#[doc(hidden)]
 pub fn as_outlook_reads(html: &str) -> Cow<'_, str> {
     let copy = read_as_outlook(html, false).html;
     match hidden_from_outlook(&copy) {
@@ -735,7 +740,7 @@ fn with_fills(out: String, mut fills: Vec<(usize, String)>) -> String {
 
 /// What `html` hides from Outlook (`mso-hide: all` in an element's style, a newsletter's own copy
 /// of what its VML draws for Outlook) hidden here as well, `display:none;` written into its
-/// style. The same HTML when nothing is.
+/// style. The same HTML when nothing is. Only [`as_outlook_reads`] hides so.
 pub(crate) fn hidden_from_outlook(html: &str) -> Cow<'_, str> {
     in_place::hidden_in_place(html, in_place::Hide::Style)
 }

@@ -18,7 +18,8 @@ pub(crate) const HIDDEN_RULE: &str = "[data-mailcraft-hidden] { display: none !i
 
 /// How what's hidden from Outlook is hidden.
 pub(super) enum Hide {
-    /// `display:none;` written into its style, for any program to read.
+    /// `display:none;` written into its style, for any program to read ([`super::as_outlook_reads`],
+    /// for the tests and the fuzz target).
     Style,
     /// Marked ([`HIDDEN_MARK`]), for the text converters, which read no style for the text.
     Mark,

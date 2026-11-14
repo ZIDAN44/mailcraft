@@ -13,6 +13,7 @@ mod scripts;
 mod signature;
 mod tags;
 pub(crate) use footers::footers_last;
+#[doc(hidden)]
 pub use outlook::as_outlook_reads;
 pub(crate) use outlook::{HIDDEN_RULE, OUTLOOK_MARK, OUTLOOK_TABLE, OutlookCopy, marked_hidden, mso_hidden, outlook_copy};
 use page::no_page_background;
