@@ -49,7 +49,7 @@ impl Session {
     /// Move (`moved`) or copy the selection into `folder` of `account`. Nothing is deleted where
     /// it was before its copy is there.
     pub fn transfer_selection(&mut self, account: &str, folder: &str, moved: bool) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
@@ -70,6 +70,7 @@ impl Session {
         // and one already on its way there isn't sent twice.
         let sel: Vec<&Summary> = sel
             .iter()
+            .map(|m| &**m)
             .filter(|m| m.key.folder != OUTBOX && !(moved && m.key.account == account && m.key.folder == folder))
             .filter(|m| !self.transfers.iter().any(|t| t.key == m.key && t.account == account && t.folder == folder))
             .collect();

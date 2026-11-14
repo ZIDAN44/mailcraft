@@ -110,3 +110,54 @@ fn measure_filled_big_folder() {
     }
     println!("MEASURE 1000 filled in 100000: {} ms", t.elapsed().as_millis());
 }
+
+/// An open Inbox of 100,000 messages on a server, each summary filled as real mail is, all of
+/// them selected: copying the selection out timed, and Mark as Read, Flag, Mark Complete and
+/// Delete on it. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-engine --lib measure_commands_on_big_selection -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_commands_on_big_selection() {
+    let mut s = Session::open(Some(temp("measure-big-selection")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = account_with(&mut s, "zoe@example.org", false, "INBOX", 0);
+    let a = |n: u32| mailcraft_model::EmailAddress { name: format!("Person Number {n}"), email: format!("person{n}@somewhere.example") };
+    let messages = (1..=100_000u32)
+        .map(|uid| {
+            let key = MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 9, uid };
+            Summary {
+                key,
+                subject: format!("Re: the quarterly figures for the north office, part {uid}"),
+                message_id: format!("{uid}.abcdef0123456789@mail.somewhere.example"),
+                in_reply_to: format!("{}.abcdef0123456789@mail.somewhere.example", uid / 2),
+                references: (0..4).map(|r| format!("{r}.{uid}.abcdef0123456789@mail.somewhere.example")).collect(),
+                from: a(uid),
+                to: vec![a(uid + 1), a(uid + 2)],
+                cc: vec![a(uid + 3)],
+                preview: "Thanks for sending these over. I had a look at the numbers and a few of them need another pass".into(),
+                date: NOW - 3600,
+                ..Default::default()
+            }
+            .into()
+        })
+        .collect();
+    let store = s.store.clone().unwrap();
+    store.save_folder(&id, "INBOX", &mailcraft_store::FolderState { validity: 9, uid_next: 100_001, messages, ..Default::default() }).unwrap();
+    s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
+    s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+    s.run("list.selectAll", &json!({})).unwrap();
+    let t = std::time::Instant::now();
+    let n = s.selected().len();
+    println!("MEASURE the selection of {n} taken out: {} ms", t.elapsed().as_millis());
+    let t = std::time::Instant::now();
+    s.run("mail.markRead", &json!({})).unwrap();
+    println!("MEASURE Mark as Read on {n}: {} ms", t.elapsed().as_millis());
+    let t = std::time::Instant::now();
+    s.run("mail.flag", &json!({})).unwrap();
+    println!("MEASURE Flag on {n}: {} ms", t.elapsed().as_millis());
+    let t = std::time::Instant::now();
+    s.run("mail.flag", &json!({"complete": true})).unwrap();
+    println!("MEASURE Mark Complete on {n}: {} ms", t.elapsed().as_millis());
+    let t = std::time::Instant::now();
+    s.run("mail.delete", &json!({"permanent": true})).unwrap();
+    println!("MEASURE Delete permanently on {n}: {} ms", t.elapsed().as_millis());
+}

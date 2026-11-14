@@ -39,7 +39,7 @@ impl Session {
         if !is_keyword(keyword) {
             return Err(CmdError::Params(format!("`{keyword}` can't be used as a keyword")));
         }
-        let sel = self.selected();
+        let sel = self.selected_shared();
         let first = sel.first().ok_or_else(|| CmdError::Disabled("no message selected".into()))?;
         let on = on.unwrap_or(!first.flags.has(keyword));
         self.mark_selection(&sel, on, |m| m.flags.has(keyword), |keys, on| Op::SetKeyword { keys, keyword: keyword.to_string(), on });
@@ -70,7 +70,7 @@ impl Session {
         if until <= self.clock.now {
             return Err(CmdError::Params("pick a time in the future".into()));
         }
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
@@ -91,7 +91,7 @@ impl Session {
         }
         for a in accounts {
             let folder = self.snoozed_folder(&a)?;
-            let mine: Vec<&Summary> = sel.iter().filter(|m| m.key.account == a && m.key.folder != folder).collect();
+            let mine: Vec<&Summary> = sel.iter().map(|m| &**m).filter(|m| m.key.account == a && m.key.folder != folder).collect();
             for m in &mine {
                 self.snoozes.retain(|s| !(s.account == a && s.message_id == m.message_id));
                 self.snoozes.push(Snooze {
@@ -122,7 +122,7 @@ impl Session {
 
     /// Bring snoozed messages back now.
     pub fn unsnooze_selection(&mut self) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         for m in &sel {
             self.import_holds(&m.key.account)?;
         }
@@ -436,7 +436,7 @@ impl Session {
     /// goes to Deleted Items, and so does whatever arrives in them later. On conversations already
     /// ignored, stop ignoring them.
     pub fn ignore_selection(&mut self) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
@@ -455,11 +455,11 @@ impl Session {
         // conversations that hold a selected message are taken whole.
         let selected: HashSet<&MessageKey> = sel.iter().map(|m| &m.key).collect();
         let folders: BTreeSet<(String, String)> = folders.into_iter().collect();
-        let (mut members, mut taken): (Vec<Summary>, HashSet<MessageKey>) = (Vec::new(), HashSet::new());
+        let (mut members, mut taken): (Vec<SharedSummary>, HashSet<MessageKey>) = (Vec::new(), HashSet::new());
         for (account, path) in folders {
             let folder = self.folder_state(&account, &path).messages.clone();
             for t in mailcraft_model::thread::threads(&folder) {
-                let msgs: Vec<&Summary> = t.messages.iter().filter_map(|&i| folder.get(i).map(|m| &**m)).collect();
+                let msgs: Vec<&SharedSummary> = t.messages.iter().filter_map(|&i| folder.get(i)).collect();
                 if msgs.iter().any(|x| selected.contains(&x.key)) {
                     members.extend(msgs.into_iter().filter(|x| taken.insert(x.key.clone())).cloned());
                 }
@@ -612,7 +612,7 @@ impl Session {
 
     /// Always put the selection's senders in Focused (or Other).
     pub fn set_focus_for_selection(&mut self, focused: bool) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }

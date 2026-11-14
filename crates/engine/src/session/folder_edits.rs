@@ -296,7 +296,7 @@ impl Session {
     /// Move the selection to a folder of the same role in each message's account (Archive,
     /// Deleted Items, Junk), or to an explicit folder.
     pub fn move_selection(&mut self, target: MoveTarget) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
@@ -366,7 +366,7 @@ impl Session {
 
     /// Delete permanently.
     pub fn expunge_selection(&mut self) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
@@ -399,7 +399,7 @@ impl Session {
     /// Set or clear a flag on the selection (`on: None` toggles, following the first message).
     /// Flagged again or cleared, a follow-up marked complete no longer is.
     pub fn flag_selection(&mut self, flag: Flag, on: Option<bool>) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         let first = sel.first().ok_or_else(|| CmdError::Disabled("no message selected".into()))?;
         let current = flag.get(&first.flags);
         let on = on.unwrap_or(!current);
@@ -416,7 +416,13 @@ impl Session {
     /// Put a mark on `sel` or take it off (`on`), each account's in one change, in the
     /// accounts' order: `has` says whether a message has it, `op` is the change for some keys.
     /// One Undo puts back the ones that changed.
-    pub(super) fn mark_selection(&mut self, sel: &[Summary], on: bool, has: impl Fn(&Summary) -> bool, op: impl Fn(Vec<MessageKey>, bool) -> Op) {
+    pub(super) fn mark_selection(
+        &mut self,
+        sel: &[SharedSummary],
+        on: bool,
+        has: impl Fn(&Summary) -> bool,
+        op: impl Fn(Vec<MessageKey>, bool) -> Op,
+    ) {
         let changed = keys_by_account(sel.iter().filter(|m| has(m) != on).map(|m| m.key.clone()));
         if !changed.is_empty() {
             self.remember(Undo::Ops { ops: changed.into_iter().map(|(a, keys)| (a, vec![op(keys, !on)])).collect() });
@@ -431,7 +437,7 @@ impl Session {
     ///
     /// A server that keeps one status for both (Microsoft Graph's flag) gets the
     /// [`FOLLOW_UP_COMPLETE`] keyword taken off before the flag is set, and put on after it.
-    fn set_flagged(&mut self, sel: &[Summary], on: bool) -> Vec<(String, Vec<Op>)> {
+    fn set_flagged(&mut self, sel: &[SharedSummary], on: bool) -> Vec<(String, Vec<Op>)> {
         let by_account = keys_by_account(sel.iter().map(|m| m.key.clone()));
         let changed = keys_by_account(sel.iter().filter(|m| m.flags.flagged != on).map(|m| m.key.clone()));
         // Carrying the keyword: complete, or flagged again elsewhere with it left behind.
@@ -462,10 +468,10 @@ impl Session {
     }
 
     /// Each of `sel`'s due and done days as they are, for Undo to put back.
-    fn follow_up_days_of(&self, sel: &[Summary]) -> Vec<(String, Option<i64>, Option<i64>)> {
+    fn follow_up_days_of<S: std::borrow::Borrow<Summary>>(&self, sel: &[S]) -> Vec<(String, Option<i64>, Option<i64>)> {
         sel.iter()
             .map(|m| {
-                let id = m.follow_up_id();
+                let id = m.borrow().follow_up_id();
                 let (due, done) = (self.prefs.follow_up.get(&id).copied(), self.prefs.follow_up_done.get(&id).copied());
                 (id, due, done)
             })
@@ -488,7 +494,7 @@ impl Session {
         if complete {
             return self.complete_selection();
         }
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
@@ -513,13 +519,14 @@ impl Session {
     /// [`FOLLOW_UP_COMPLETE`] keyword, and the day it was done kept (as Outlook keeps it). Its
     /// due day stays; Undo puts the flag and both days back as they were, in one step.
     pub fn complete_selection(&mut self) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         self.complete_messages(sel)
     }
 
     /// [`Session::complete_selection`] for these messages, wherever they are (the To-Do Bar's
     /// are in any folder).
-    pub(crate) fn complete_messages(&mut self, sel: Vec<Summary>) -> CmdResult {
+    pub(crate) fn complete_messages<S: std::borrow::Borrow<Summary>>(&mut self, sel: Vec<S>) -> CmdResult {
+        let sel: Vec<&Summary> = sel.iter().map(std::borrow::Borrow::borrow).collect();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }

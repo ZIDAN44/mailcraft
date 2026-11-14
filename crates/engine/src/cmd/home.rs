@@ -16,7 +16,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_selection),
         CommandSpec::new("mail.ignore", "Ignore conversation", "Home › Delete", |s, _| s.ignore_selection()).when(has_selection),
         CommandSpec::new("mail.cleanUp", "Clean up conversation", "Home › Delete › Clean Up", |s, _| {
-            let sel = s.selected();
+            let sel = s.selected_shared();
             let keys: Vec<mailcraft_model::MessageKey> = sel.iter().map(|m| m.key.clone()).collect();
             let mut folders: Vec<(String, String)> = sel.iter().map(|m| (m.key.account.clone(), m.key.folder.clone())).collect();
             folders.sort();
@@ -216,8 +216,10 @@ pub(super) fn delete(s: &mut Session, v: &Value) -> CmdResult {
         return s.delete_outbox_selection();
     }
     let in_trash = s.view_role() == Some(FolderRole::Trash) && s.search.is_none();
-    let all_in_trash =
-        s.selected().iter().all(|m| s.account(&m.key.account).and_then(|a| a.folder(FolderRole::Trash)).is_some_and(|t| t.path == m.key.folder));
+    let all_in_trash = s
+        .selected_shared()
+        .iter()
+        .all(|m| s.account(&m.key.account).and_then(|a| a.folder(FolderRole::Trash)).is_some_and(|t| t.path == m.key.folder));
     if p::bool(v, "permanent").unwrap_or(false) || in_trash || all_in_trash {
         return s.expunge_selection();
     }
@@ -227,7 +229,7 @@ pub(super) fn delete(s: &mut Session, v: &Value) -> CmdResult {
 /// Copy the selection into a folder: its own account's, or `account`'s.
 pub(super) fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_str(v, "folder")?;
-    let own = s.selected().first().map(|m| m.key.account.clone());
+    let own = s.first_selected().map(|m| m.key.account.clone());
     let Some(account) = p::str(v, "account").map(str::to_string).or(own) else {
         return Err(CmdError::Disabled("no message selected".into()));
     };
@@ -238,7 +240,7 @@ pub(super) fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_str(v, "folder")?;
     // Into another account's folder: a copy is filed there, then it's deleted where it was.
     if let Some(account) = p::str(v, "account")
-        && s.selected().iter().any(|m| m.key.account != account)
+        && s.selected_iter().any(|m| m.key.account != account)
     {
         return s.transfer_selection(account, folder, true);
     }

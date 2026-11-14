@@ -85,7 +85,7 @@ impl Session {
 
     /// The selection's senders put on a list (`domain`: their domains), as Outlook's Junk menu.
     pub fn junk_list_selection(&mut self, which: JunkList, domain: bool) -> CmdResult {
-        let sel = self.selected();
+        let sel = self.selected_shared();
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
