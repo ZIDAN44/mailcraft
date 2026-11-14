@@ -491,8 +491,19 @@ fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
         }
     };
     // Whole: a stop asked once the last batch was in came too late to matter.
-    let folders = store.load_folders(account).unwrap_or_default();
-    let paths: Vec<String> = folders.iter().map(|f| f.path.clone()).collect();
+    said_copied(store, sink, account, path, messages, told.began);
+    None
+}
+
+/// A data file copied in whole (`messages` of them, from `path`): its folders and the import's
+/// end said. Its folder list read back can fail (the disk failing): that's said, not an empty
+/// list (found in review: the account showed no folders, and the import said all was well).
+fn said_copied(store: &Store, sink: &Sink, account: &str, path: &str, messages: usize, began: Instant) {
+    let (folders, error) = match store.load_folders(account) {
+        Ok(folders) => (Some(folders), None),
+        Err(e) => (None, Some(format!("its folder list couldn't be read: {e}"))),
+    };
+    let paths: Vec<String> = folders.iter().flatten().map(|f| f.path.clone()).collect();
     // Its contacts, calendar and notes came with it.
     let pim = store.load_account_doc::<Pim>(account, PIM_DOC).unwrap_or_default();
     let report = ImportReport {
@@ -504,15 +515,16 @@ fn copy_in(told: &mut Told<'_>, path: &str) -> Option<PathBuf> {
         events: count(pim.events.len()),
         notes: count(pim.notes.len()),
         runs: 1,
-        elapsed_ms: ms(told.began),
+        elapsed_ms: ms(began),
         ..Default::default()
     };
-    sink.emit(Event::Folders { account: account.to_string(), folders });
+    if let Some(folders) = folders {
+        sink.emit(Event::Folders { account: account.to_string(), folders });
+    }
     for folder in paths {
         sink.emit(Event::FolderChanged { account: account.to_string(), folder });
     }
-    sink.emit(Event::Imported { account: account.to_string(), messages, skipped: 0, done: true, error: None, report: Some(Box::new(report)) });
-    None
+    sink.emit(Event::Imported { account: account.to_string(), messages, skipped: 0, done: true, error, report: Some(Box::new(report)) });
 }
 
 /// A copy that can't go on for want of room (`free` left): it waits on the user, saying why.

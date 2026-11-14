@@ -87,8 +87,7 @@ impl Worker {
                         if let Op::RenameFolder { from, to } = &op {
                             self.renamed(from, to);
                         }
-                        if op.is_folder_op() {
-                            self.reload_folders();
+                        if op.is_folder_op() && self.reload_folders() {
                             self.publish_folders();
                         }
                         for folder in changed {

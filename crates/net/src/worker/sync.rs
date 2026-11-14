@@ -286,18 +286,21 @@ impl Worker {
                 // in review: a folder renamed twice offline, listed after the first rename, lost
                 // its cache, and its mail was downloaded again). That one's looked at again at the
                 // next listing, once they're sent (found in review: one deleted on the server
-                // meanwhile kept its cache for good).
-                let waiting = self.store.load_ops(&id).unwrap_or_default().iter().any(Op::is_folder_op);
-                let here = if waiting { self.store.load_folders(&id).unwrap_or_default() } else { Vec::new() };
+                // meanwhile kept its cache for good). Changes or a list that can't be read (the
+                // disk failing) can't say which those are: every one keeps its cache till the next
+                // listing, as does one whose cache couldn't be cleared (found in review: taken for
+                // nothing waiting, they lost it all).
+                let here = self.kept_while_waiting(&id);
                 let mut gone: Vec<String> = self.folders.iter().map(|f| f.path.clone()).chain(std::mem::take(&mut self.gone_meanwhile)).collect();
                 gone.retain(|p| !list.iter().any(|f| f.path == *p));
                 gone.sort_unstable();
                 gone.dedup();
                 for path in gone {
-                    if here.iter().any(|f| f.path == path) {
+                    if here.as_ref().is_none_or(|here| here.iter().any(|f| f.path == path)) {
                         self.gone_meanwhile.push(path);
-                    } else {
-                        let _ = self.store.clear_folder(&id, &path);
+                    } else if let Err(e) = self.store.clear_folder(&id, &path) {
+                        log::warn!("{id}: a folder gone from the server keeps its cache for now: {e}");
+                        self.gone_meanwhile.push(path);
                     }
                 }
                 self.folders = list;
@@ -315,6 +318,15 @@ impl Worker {
                 false
             }
         }
+    }
+
+    /// The folders the list on disk has while changes to the folders wait to be sent (none when
+    /// none wait); `None`, said in the log, when either can't be read.
+    fn kept_while_waiting(&self, id: &str) -> Option<Vec<Folder>> {
+        let read = || -> std::result::Result<Vec<Folder>, mailcraft_store::StoreError> {
+            if self.store.load_ops(id)?.iter().any(Op::is_folder_op) { self.store.load_folders(id) } else { Ok(Vec::new()) }
+        };
+        read().inspect_err(|e| log::warn!("{id}: the folders gone from the server keep their cache for now: {e}")).ok()
     }
 
     pub(super) fn sync_all(&mut self, rx: &Receiver<Job>) {
@@ -409,20 +421,28 @@ impl Worker {
         }
     }
 
-    /// Forget the numbers of JMAP messages no longer cached (nor waiting in a change).
+    /// Forget the numbers of JMAP messages no longer cached (nor waiting in a change). Not when
+    /// the changes or a folder can't be read (the disk failing): their numbers would be lost, and
+    /// the changes never sent (found in review). The next full sync tries again.
     pub(super) fn prune_jmap_numbers(&mut self) {
         if !matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_))) {
             return;
         }
-        let ops = self.store.load_ops(&self.acc.id).unwrap_or_default();
-        let mut keep: std::collections::HashSet<u32> = ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
-        for f in &self.folders {
-            if let Ok(st) = self.store.load_folder(&self.acc.id, &f.path) {
-                keep.extend(st.messages.iter().map(|m| m.key.uid));
+        let read = || -> std::result::Result<std::collections::HashSet<u32>, mailcraft_store::StoreError> {
+            let ops = self.store.load_ops(&self.acc.id)?;
+            let mut keep: std::collections::HashSet<u32> = ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
+            for f in &self.folders {
+                keep.extend(self.store.load_folder(&self.acc.id, &f.path)?.messages.iter().map(|m| m.key.uid));
             }
+            Ok(keep)
+        };
+        match read() {
+            Ok(keep) => {
+                self.jstate.prune(&keep);
+                self.save_jstate();
+            }
+            Err(e) => log::warn!("{}: the server's message numbers are all kept for now: {e}", self.acc.id),
         }
-        self.jstate.prune(&keep);
-        self.save_jstate();
     }
 
     /// The account's folder list read again from disk (a folder made, renamed or deleted here),
@@ -431,10 +451,22 @@ impl Worker {
     /// pool said that list as it made the change on disk (a POP account's worker says it next),
     /// and this worker's lists say them from now on, so the next isn't news, and write nothing
     /// over them (found in review: said and written with this worker's counts from before, mail
-    /// read here came back unread, in the window and at the next start).
-    pub(super) fn reload_folders(&mut self) {
+    /// read here came back unread, in the window and at the next start). A list that can't be
+    /// read (the disk failing) leaves this worker's as it was, and `false` (found in review: it
+    /// was left with none, and a POP account's wrote that over the one on disk, its mail out of
+    /// reach).
+    pub(super) fn reload_folders(&mut self) -> bool {
         self.say_counts();
-        self.folders = self.store.load_folders(&self.acc.id).unwrap_or_default();
+        match self.store.load_folders(&self.acc.id) {
+            Ok(folders) => {
+                self.folders = folders;
+                true
+            }
+            Err(e) => {
+                log::warn!("{}: the folder list wasn't read again: {e}", self.acc.id);
+                false
+            }
+        }
     }
 
     /// A folder renamed here (`from` to `to`, with the folders in it): this worker's list and the
