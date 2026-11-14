@@ -107,6 +107,14 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     if c.sending {
         return Err(CmdError::Disabled("the message is being sent".into()));
     }
+    // Every param that can be refused is read before anything changes: a refusal changes nothing.
+    let importance = match p::str(v, "importance") {
+        None => None,
+        Some("high") => Some(1),
+        Some("low") => Some(-1),
+        Some("normal") => Some(0),
+        Some(other) => return Err(CmdError::Params(format!("importance `{other}` isn't high, normal or low"))),
+    };
     let cap = |x: &str| x.chars().take(1 << 20).collect::<String>();
     for (k, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("subject", &mut c.subject)] {
         if let Some(x) = p::str(v, k) {
@@ -125,13 +133,8 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
     if !c.bcc.is_empty() {
         c.show_cc = true;
     }
-    if let Some(i) = p::str(v, "importance") {
-        c.importance = match i {
-            "high" => 1,
-            "low" => -1,
-            "normal" => 0,
-            other => return Err(CmdError::Params(format!("importance `{other}` isn't high, normal or low"))),
-        };
+    if let Some(i) = importance {
+        c.importance = i;
     }
     if let Some(r) = p::bool(v, "readReceipt") {
         c.read_receipt = r;

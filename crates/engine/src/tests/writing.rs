@@ -526,6 +526,20 @@ fn attachments_over_25_mb_are_refused() {
     assert_eq!(s.compose.as_ref().map(|c| c.attachments.len()), Some(1));
 }
 
+/// An edit refused for one of its params changes nothing of the message: the recipients and
+/// text given with an importance that isn't one weren't to be put in either.
+#[test]
+fn a_refused_edit_changes_nothing() {
+    let mut s = sample_session("refused-edit");
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plan", "body": "Hi", "importance": "high"})).unwrap();
+    let before = s.compose.clone();
+    let e =
+        s.run("compose.update", &json!({"to": "bob@x.example", "subject": "Other", "body": "Gone", "bcc": "eve@x.example", "importance": "urgent"}));
+    assert!(matches!(&e, Err(CmdError::Params(m)) if m.contains("urgent")), "{e:?}");
+    assert_eq!(s.compose, before);
+}
+
 /// Issue #11 (#16's test): a signature can hold pictures. Kept in its HTML with the account, they
 /// go into new messages (each under a name of the message's own) and are sent with them; a
 /// signature put in again doesn't add them twice.
