@@ -65,18 +65,6 @@ fn ready(admin: bool) -> UpdateState {
     UpdateState::Ready { version: "0.25.0-test.22".into(), asks: if admin { crate::InstallAsks::Administrator } else { crate::InstallAsks::Nothing } }
 }
 
-/// The window asked to close, as its close button does.
-fn close(ctx: &egui::Context, a: &mut MailApp) {
-    let input = RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-}
-
 /// The frames with the update in each state, for the tour (light and dark, every language).
 pub(crate) fn tour(a: &mut MailApp, ctx: &egui::Context) {
     let asked = updating(a);
@@ -281,20 +269,7 @@ fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     // The window asked to close: what it's told to do then.
-    let closed = |a: &mut MailApp| {
-        let input = RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-            viewports: std::iter::once((
-                egui::ViewportId::ROOT,
-                egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() },
-            ))
-            .collect(),
-            ..Default::default()
-        };
-        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-        out.textures_delta.clear();
-        out.viewport_output.remove(&egui::ViewportId::ROOT).map(|v| v.commands).unwrap_or_default()
-    };
+    let closed = |a: &mut MailApp| close(&ctx, a).viewport_output.remove(&egui::ViewportId::ROOT).map(|v| v.commands).unwrap_or_default();
     let hides = |commands: &[egui::ViewportCommand]| {
         commands.contains(&egui::ViewportCommand::CancelClose) && commands.contains(&egui::ViewportCommand::Visible(false))
     };

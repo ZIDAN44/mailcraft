@@ -305,14 +305,7 @@ fn closing_with_messages_written_asks_and_keeps_them() {
     a.run("compose.update", json!({"subject": "Half done"}));
     a.run("mail.new", json!({}));
     a.run("compose.update", json!({"subject": "Also half done"}));
-    let close = RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
-    let mut out = ctx.run_ui(close, |ui| a.ui(ui));
-    out.textures_delta.clear();
+    close(&ctx, &mut a);
     assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(2))), "asked");
     frame(&ctx, &mut a, vec![]);
     a.act(crate::Action::Run("compose.keepAll", json!({})));
@@ -340,12 +333,6 @@ fn closing_keeps_the_drafts_on_their_way_to_a_server() {
         a.run("mail.new", json!({}));
         a.run("compose.update", json!({"account": id, "to": "ben@studio.test", "subject": subject}));
     };
-    let close = || RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
     let kept = |jobs: &Jobs| -> Vec<String> {
         jobs.take()
             .into_iter()
@@ -361,8 +348,7 @@ fn closing_keeps_the_drafts_on_their_way_to_a_server() {
     assert!(a.session.compose.is_none() && a.session.saving.len() == 1, "held");
     frame(&ctx, &mut a, vec![]);
     jobs.take();
-    let mut out = ctx.run_ui(close(), |ui| a.ui(ui));
-    out.textures_delta.clear();
+    close(&ctx, &mut a);
     assert!(a.ui.dialog.is_none(), "nothing to ask");
     assert!(a.session.saving.is_empty());
     let raws = kept(&jobs);
@@ -374,13 +360,11 @@ fn closing_keeps_the_drafts_on_their_way_to_a_server() {
     write(&mut a, "Not wanted");
     frame(&ctx, &mut a, vec![]);
     jobs.take();
-    let mut out = ctx.run_ui(close(), |ui| a.ui(ui));
-    out.textures_delta.clear();
+    close(&ctx, &mut a);
     assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))), "asked about the one open");
     a.act(crate::Action::CloseAnyway);
     frame(&ctx, &mut a, vec![]);
-    let mut out = ctx.run_ui(close(), |ui| a.ui(ui));
-    out.textures_delta.clear();
+    close(&ctx, &mut a);
     let raws = kept(&jobs);
     assert!(raws.len() == 1 && raws[0].contains("Subject: Held too"), "only the held one: {raws:?}");
     let _ = std::fs::remove_dir_all(dir);
@@ -398,14 +382,7 @@ fn closing_while_a_message_is_sent_asks() {
     if let Some(c) = a.session.compose.as_mut() {
         c.sending = true;
     }
-    let close = RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
-    let mut out = ctx.run_ui(close, |ui| a.ui(ui));
-    out.textures_delta.clear();
+    close(&ctx, &mut a);
     assert!(matches!(a.ui.dialog, Some(Dialog::LostOnClose { sending: 1, unsent: 0, changes: 0 })), "{:?}", a.ui.dialog);
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
@@ -424,8 +401,10 @@ fn closing_while_minimized_still_asks() {
     a.run("mail.new", json!({}));
     a.run("compose.update", json!({"subject": "Written while minimized"}));
     frame(&ctx, &mut a, vec![]);
-    let viewport = egui::ViewportInfo { minimized: Some(true), events: vec![egui::ViewportEvent::Close], ..Default::default() };
-    let close = RawInput { time: Some(99.0), viewports: std::iter::once((egui::ViewportId::ROOT, viewport)).collect(), ..Default::default() };
+    let mut close = RawInput { time: Some(99.0), ..close_input() };
+    if let Some(viewport) = close.viewports.get_mut(&egui::ViewportId::ROOT) {
+        viewport.minimized = Some(true);
+    }
     let mut out = ctx.run_logic(&close, |ctx| a.logic(ctx));
     let commands = out.viewport_commands.remove(&egui::ViewportId::ROOT).unwrap_or_default();
     assert!(commands.contains(&egui::ViewportCommand::CancelClose), "the close waits: {commands:?}");
@@ -444,16 +423,11 @@ fn closing_while_minimized_still_asks() {
 /// frame with no close leaves the quit alone. Elsewhere `quit` says no and eframe closes.
 #[test]
 fn a_close_becomes_the_platform_quit_unless_something_asks() {
-    let close = || RawInput {
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
     let ctx = egui::Context::default();
     // Nothing being written: the quit runs, and the window waits for it.
     let (mut a, dir) = app("quit-takes-over");
     let quits = std::cell::Cell::new(0);
-    let mut out = ctx.run_logic(&close(), |ctx| {
+    let mut out = ctx.run_logic(&close_input(), |ctx| {
         a.logic(ctx);
         assert!(MailApp::quit_instead_of_close(ctx, || {
             quits.set(quits.get() + 1);
@@ -463,7 +437,7 @@ fn a_close_becomes_the_platform_quit_unless_something_asks() {
     assert_eq!(quits.get(), 1);
     assert!(out.viewport_commands.remove(&egui::ViewportId::ROOT).unwrap_or_default().contains(&egui::ViewportCommand::CancelClose));
     // A platform without a quit of its own: nothing taken over, eframe closes.
-    let out = ctx.run_logic(&close(), |ctx| assert!(!MailApp::quit_instead_of_close(ctx, || false)));
+    let out = ctx.run_logic(&close_input(), |ctx| assert!(!MailApp::quit_instead_of_close(ctx, || false)));
     assert!(out.viewport_commands.get(&egui::ViewportId::ROOT).is_none_or(|c| !c.contains(&egui::ViewportCommand::CancelClose)));
     // No close asked for: no quit.
     let _ = ctx.run_logic(&RawInput::default(), |ctx| assert!(!MailApp::quit_instead_of_close(ctx, || panic!("no close, no quit"))));
@@ -472,7 +446,7 @@ fn a_close_becomes_the_platform_quit_unless_something_asks() {
     a.run("mail.new", json!({}));
     a.run("compose.update", json!({"subject": "Not lost to Cmd+Q"}));
     frame(&ctx, &mut a, vec![]);
-    let _ = ctx.run_logic(&RawInput { time: Some(50.0), ..close() }, |ctx| {
+    let _ = ctx.run_logic(&RawInput { time: Some(50.0), ..close_input() }, |ctx| {
         a.logic(ctx);
         assert!(!MailApp::quit_instead_of_close(ctx, || panic!("asked first")));
     });
@@ -780,14 +754,7 @@ fn a_reply_drawn_and_left_untouched_closes_without_asking() {
         frame(&ctx, &mut a, vec![]);
     }
     assert!(a.session.compose.is_some() && !a.session.compose_written(), "as made");
-    let close = RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
-    let mut out = ctx.run_ui(close, |ui| a.ui(ui));
-    out.textures_delta.clear();
+    close(&ctx, &mut a);
     assert!(a.ui.dialog.is_none(), "nothing asked: {:?}", a.ui.dialog);
     let _ = std::fs::remove_dir_all(dir);
 }

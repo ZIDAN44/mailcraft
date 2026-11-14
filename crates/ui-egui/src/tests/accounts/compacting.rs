@@ -81,18 +81,6 @@ fn has(texts: &[String], what: &str) -> bool {
     texts.iter().any(|t| t.contains(what))
 }
 
-/// The window asked to close, as its close button does.
-fn close(ctx: &egui::Context, a: &mut MailApp) {
-    let input = RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-}
-
 /// 2 GiB of a 4 GiB file to give back: worth compacting, quickly.
 fn bloated() -> DataFileHealth {
     DataFileHealth { file_bytes: 4 << 30, live_bytes: 2 << 30, reclaimable: 2 << 30, recompressed: true, ..DataFileHealth::default() }

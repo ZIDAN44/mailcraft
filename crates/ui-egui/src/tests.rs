@@ -61,6 +61,24 @@ pub(crate) fn key(k: Key, modifiers: Modifiers) -> Event {
     Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers }
 }
 
+/// The input of a frame in which the window is asked to close, as its close button does.
+pub(crate) fn close_input() -> RawInput {
+    let asked = egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() };
+    RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+        viewports: std::iter::once((egui::ViewportId::ROOT, asked)).collect(),
+        ..Default::default()
+    }
+}
+
+/// A frame in which the window is asked to close: what it put out.
+pub(crate) fn close(ctx: &egui::Context, a: &mut MailApp) -> egui::FullOutput {
+    let mut out = ctx.run_ui(close_input(), |ui| a.ui(ui));
+    // No renderer here: drop the texture uploads deliberately.
+    out.textures_delta.clear();
+    out
+}
+
 /// Every pane layout, state and dialog, in light and dark (also run in the pseudo-language by
 /// the translation tests).
 pub(crate) fn tour() {

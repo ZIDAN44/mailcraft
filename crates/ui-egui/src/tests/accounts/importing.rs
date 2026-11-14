@@ -117,18 +117,6 @@ fn has(texts: &[String], what: &str) -> bool {
     texts.iter().any(|t| t.contains(what))
 }
 
-/// The window asked to close, as its close button does.
-fn close(ctx: &egui::Context, a: &mut MailApp) {
-    let input = RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        viewports: std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { events: vec![egui::ViewportEvent::Close], ..Default::default() }))
-            .collect(),
-        ..Default::default()
-    };
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-}
-
 /// The frames of an import in each state and each of its questions, for the tour (light and
 /// dark, every language) and the right-to-left test. Leaves no account behind.
 pub(crate) fn tour(a: &mut MailApp, ctx: &egui::Context) {
