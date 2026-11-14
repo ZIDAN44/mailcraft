@@ -18,7 +18,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let kept = s.keep_drafts();
             Ok(json!({ "kept": kept }))
         }),
-        CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
+        CommandSpec::new("compose.update", "Edit message", "Message", compose_update).leaves_body()
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "from"?: string (one of the account's addresses; "" for its own), "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
             .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}"#).when(has_compose),

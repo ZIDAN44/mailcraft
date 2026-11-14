@@ -66,18 +66,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.prefs.reverse_sort = p::bool(v, "reverse").unwrap_or(false);
             s.refresh_list();
             Ok(json!({"by": s.prefs.arrange.code(), "reverse": s.prefs.reverse_sort}))
-        })
+        }).leaves_body()
         .params(r#"{"by": "date"|"from"|"to"|"subject"|"size"|"flag"|"attachments", "reverse"?: bool}"#),
         CommandSpec::new("view.reverseSort", "Reverse sort", "View › Arrangement", |s, v| {
             s.prefs.reverse_sort = p::bool(v, "on").unwrap_or(!s.prefs.reverse_sort);
             s.refresh_list();
             Ok(json!({"on": s.prefs.reverse_sort}))
-        })
+        }).leaves_body()
         .params(r#"{"on"?: bool}"#),
         CommandSpec::new("view.folderPane", "Minimize the folder pane", "View › Layout", |s, v| {
             s.prefs.folder_pane_minimized = p::bool(v, "minimized").unwrap_or(!s.prefs.folder_pane_minimized);
             Ok(json!({"minimized": s.prefs.folder_pane_minimized}))
-        })
+        }).leaves_body()
         .params(r#"{"minimized"?: bool}"#),
         CommandSpec::new("view.collapse", "Collapse or expand in the folder pane", "Folder pane", |s, v| {
             let key = p::req_str(v, "key")?.trim();
@@ -115,7 +115,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.reading = None;
             s.refresh_list();
             Ok(json!({"messages": s.list.len()}))
-        })
+        }).leaves_body()
         .params(r#"{"value": "focused"|"other"}"#),
         CommandSpec::new("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", |s, v| {
             s.prefs.confirm_permanent_delete = p::bool(v, "on").unwrap_or(!s.prefs.confirm_permanent_delete);

@@ -69,7 +69,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("dataFile.health", "Data file health", "File › Info › Mailbox settings", |s, v| {
             let account = account_or_current(s, v)?;
             s.data_file_health(&account)
-        })
+        }).leaves_body()
         .params(r#"{"account"?: string} (measures the account's data file; answers with what's known: its health, a compaction running, the last one's report)"#),
         CommandSpec::new("dataFile.compact", "Compact now", "File › Info › Mailbox settings", |s, v| {
             let account = account_or_current(s, v)?;
@@ -79,23 +79,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 Some(m) => return Err(CmdError::Params(format!("`mode` is \"manual\" or \"close\", not `{m}`"))),
             };
             s.compact_data_file(&account, mode)
-        })
+        }).leaves_body()
         .params(r#"{"account"?: string, "mode"?: "manual" (as long as it takes; the default) | "close" (MailCraft closing: only when that's short)} (makes the account's data file smaller: in place, or by a copy when it's big and kept raw by an earlier build)"#),
         CommandSpec::new("dataFile.compactOnClose", "Compact data files on close", "File › Options › Data files", |s, v| {
             s.prefs.compact_on_close = p::bool(v, "on").unwrap_or(!s.prefs.compact_on_close);
             Ok(json!({ "on": s.prefs.compact_on_close }))
-        })
+        }).leaves_body()
         .params(r#"{"on"?: bool (none: switch; on, a data file with room to give back is compacted as MailCraft closes when that's short)}"#),
         CommandSpec::new("dataFile.cancelCompact", "Stop compacting", "Status bar", |s, v| {
             let account = account_or_current(s, v)?;
             s.cancel_compact(&account)
-        })
+        }).leaves_body()
         .params(r#"{"account"?: string} (stops where it can: compressing again or copying; the part that has the file to itself can't be stopped)"#)
         .when(compacting),
         CommandSpec::new("dataFile.idle", "MailCraft is idle", "Window", |s, v| {
             let seconds = p::u64(v, "seconds").ok_or_else(|| CmdError::Params("`seconds` (number) is required".into()))?;
             Ok(serde_json::json!({ "measuring": s.data_files_idle(seconds) }))
-        })
+        }).leaves_body()
         .params(r#"{"seconds": number (since the user last did anything)} (the window calls it now and then: data files that need it are compacted when MailCraft is left alone)"#),
     ]
 }

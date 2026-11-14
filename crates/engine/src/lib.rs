@@ -77,6 +77,11 @@ pub struct CommandSpec {
     /// `None` = enabled; `Some(reason)` = disabled.
     pub enabled: fn(&Session) -> Option<&'static str>,
     pub run: fn(&mut Session, &Value) -> CmdResult,
+    /// It leaves the open message's body being got ready on another thread, where every other
+    /// command waits for it: it only moves about the list (or opens another message), changes the
+    /// list or the view without acting on the open message, or is about a data file (the window
+    /// tells the idle policy how long it's been every half minute).
+    pub leaves_body: bool,
 }
 
 fn always(_: &Session) -> Option<&'static str> {
@@ -85,7 +90,7 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run }
+        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -93,6 +98,11 @@ impl CommandSpec {
     }
     pub const fn params(mut self, p: &'static str) -> Self {
         self.params = p;
+        self
+    }
+    /// It leaves the open message's body waiting ([`CommandSpec::leaves_body`]).
+    pub const fn leaves_body(mut self) -> Self {
+        self.leaves_body = true;
         self
     }
     pub const fn when(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {

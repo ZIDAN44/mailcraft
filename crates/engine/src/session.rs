@@ -652,7 +652,7 @@ impl Session {
         let spec = reg.get(id).ok_or_else(|| CmdError::Unknown(id.to_string()))?;
         // What the command acts on is the message as shown: its body, still being got ready on
         // another thread, is got ready here first (moving about the list doesn't wait for it).
-        if !crate::cmd::leaves_body_waiting(id) && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.finish_pending_body())).is_err() {
+        if !spec.leaves_body && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.finish_pending_body())).is_err() {
             log::error!("the open message couldn't be shown");
             PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }

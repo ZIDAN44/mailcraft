@@ -279,14 +279,55 @@ fn list_and_view_commands_leave_the_body_waiting() {
     let k = s.list[0].key.clone();
     s.run("list.open", &json!({"key": k.to_id()})).unwrap();
     let parsed = s.bodies_parsed_here();
+    let registry = s.registry();
+    let leaves = |id: &str| registry.get(id).is_some_and(|c| c.leaves_body);
     for id in ["list.filter", "list.focusTab", "search.run", "search.clear", "view.reverseSort", "view.arrange", "view.folderPane", "dataFile.idle"] {
-        assert!(crate::cmd::leaves_body_waiting(id), "{id}");
+        assert!(leaves(id), "{id}");
     }
     let _ = s.run("view.reverseSort", &json!({}));
     let _ = s.run("search.run", &json!({"query": "zzzz"}));
     let _ = s.run("search.clear", &json!({}));
     let _ = s.run("dataFile.idle", &json!({"seconds": 30}));
     assert_eq!(s.bodies_parsed_here(), parsed, "nothing read on the session's thread");
-    assert!(!crate::cmd::leaves_body_waiting("mail.reply") && !crate::cmd::leaves_body_waiting("view.html"));
+    assert!(!leaves("mail.reply") && !leaves("view.html"));
+    done(s);
+}
+
+/// Which commands leave the body waiting is said where each is declared (`.leaves_body()`); these
+/// are the ones a list of ids kept apart named (any `list.extend…` and `dataFile.…` among them).
+#[test]
+fn the_commands_that_leave_the_body_waiting_are_these() {
+    let s = sample_session("deferred-which");
+    let mut leaving: Vec<&str> = s.registry().all().iter().filter(|c| c.leaves_body).map(|c| c.id).collect();
+    leaving.sort_unstable();
+    let mut listed = vec![
+        "list.open",
+        "list.select",
+        "list.selectRange",
+        "list.selectAll",
+        "list.next",
+        "list.prev",
+        "list.first",
+        "list.last",
+        "list.pageDown",
+        "list.pageUp",
+        "folder.open",
+        "folder.unified",
+        "list.filter",
+        "list.focusTab",
+        "list.messages",
+        "search.run",
+        "search.clear",
+        "search.remember",
+        "search.forgetRecent",
+        "searchFolder.open",
+        "view.arrange",
+        "view.reverseSort",
+        "view.folderPane",
+        "compose.update",
+    ];
+    listed.extend(s.registry().all().iter().map(|c| c.id).filter(|id| id.starts_with("list.extend") || id.starts_with("dataFile.")));
+    listed.sort_unstable();
+    assert_eq!(leaving, listed);
     done(s);
 }

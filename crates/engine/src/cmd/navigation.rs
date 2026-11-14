@@ -21,8 +21,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"on"?: bool}"#),
         // Navigation
-        CommandSpec::new("folder.open", "Open folder", "Folder pane", open_folder).params(r#"{"account": string, "folder": string}"#),
-        CommandSpec::new("folder.unified", "All inboxes", "Folder pane › Favorites", unified).params(r#"{"role"?: "inbox"|"sent"|"drafts"|…}"#),
+        CommandSpec::new("folder.open", "Open folder", "Folder pane", open_folder).leaves_body().params(r#"{"account": string, "folder": string}"#),
+        CommandSpec::new("folder.unified", "All inboxes", "Folder pane › Favorites", unified).leaves_body().params(r#"{"role"?: "inbox"|"sent"|"drafts"|…}"#),
         CommandSpec::new("folder.outbox", "Outbox", "Folder pane", |s, _| {
             s.refresh_outbox();
             s.open_view(View::Outbox);
@@ -70,40 +70,40 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"folder": string, "on"?: bool, "account"?: string}"#)
         .when(has_account),
-        CommandSpec::new("list.open", "Open message", "Message list", open_message).params(r#"{"key": "account:validity:uid:folder"}"#),
-        CommandSpec::new("list.select", "Select", "Message list", select).params(r#"{"key": string, "add"?: bool}"#),
-        CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).key("Mod+A"),
+        CommandSpec::new("list.open", "Open message", "Message list", open_message).leaves_body().params(r#"{"key": "account:validity:uid:folder"}"#),
+        CommandSpec::new("list.select", "Select", "Message list", select).leaves_body().params(r#"{"key": string, "add"?: bool}"#),
+        CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).leaves_body().key("Mod+A"),
         CommandSpec::new("list.selectRange", "Select to here", "Message list (Shift+click)", |s, v| {
             let k = key_param(s, v)?;
             s.select_range(&k, p::bool(v, "add").unwrap_or(false))
-        })
+        }).leaves_body()
         .params(r#"{"key": string (from the anchor to it), "add"?: bool (keep the rest selected: Ctrl+Shift+click)}"#),
         // `by`: a key held down repeats faster than a frame; the window sends the presses queued
         // in one as a single step, so only the message landed on is read (and marked read).
-        CommandSpec::new("list.next", "Next message", "Message list", |s, v| s.move_focus(Toward::Steps(by(v)))).key("Down / J").params(BY),
-        CommandSpec::new("list.prev", "Previous message", "Message list", |s, v| s.move_focus(Toward::Steps(-by(v)))).key("Up / K").params(BY),
-        CommandSpec::new("list.first", "First message", "Message list", |s, _| s.move_focus(Toward::First)).key("Home"),
-        CommandSpec::new("list.last", "Last message", "Message list", |s, _| s.move_focus(Toward::Last)).key("End"),
-        CommandSpec::new("list.pageDown", "A page down", "Message list", |s, v| s.move_focus(Toward::By(page(v)))).key("PageDown").params(PAGE),
-        CommandSpec::new("list.pageUp", "A page up", "Message list", |s, v| s.move_focus(Toward::By(-page(v)))).key("PageUp").params(PAGE),
+        CommandSpec::new("list.next", "Next message", "Message list", |s, v| s.move_focus(Toward::Steps(by(v)))).leaves_body().key("Down / J").params(BY),
+        CommandSpec::new("list.prev", "Previous message", "Message list", |s, v| s.move_focus(Toward::Steps(-by(v)))).leaves_body().key("Up / K").params(BY),
+        CommandSpec::new("list.first", "First message", "Message list", |s, _| s.move_focus(Toward::First)).leaves_body().key("Home"),
+        CommandSpec::new("list.last", "Last message", "Message list", |s, _| s.move_focus(Toward::Last)).leaves_body().key("End"),
+        CommandSpec::new("list.pageDown", "A page down", "Message list", |s, v| s.move_focus(Toward::By(page(v)))).leaves_body().key("PageDown").params(PAGE),
+        CommandSpec::new("list.pageUp", "A page up", "Message list", |s, v| s.move_focus(Toward::By(-page(v)))).leaves_body().key("PageUp").params(PAGE),
         // Shift with them: selected from the anchor to where the focus goes (issue #26).
-        CommandSpec::new("list.extendNext", "Select the next message too", "Message list", |s, v| s.extend_selection(Toward::Steps(by(v))))
+        CommandSpec::new("list.extendNext", "Select the next message too", "Message list", |s, v| s.extend_selection(Toward::Steps(by(v)))).leaves_body()
             .key("Shift+Down")
             .params(BY),
-        CommandSpec::new("list.extendPrev", "Select the previous message too", "Message list", |s, v| s.extend_selection(Toward::Steps(-by(v))))
+        CommandSpec::new("list.extendPrev", "Select the previous message too", "Message list", |s, v| s.extend_selection(Toward::Steps(-by(v)))).leaves_body()
             .key("Shift+Up")
             .params(BY),
-        CommandSpec::new("list.extendFirst", "Select to the first message", "Message list", |s, _| s.extend_selection(Toward::First)).key("Shift+Home"),
-        CommandSpec::new("list.extendLast", "Select to the last message", "Message list", |s, _| s.extend_selection(Toward::Last)).key("Shift+End"),
-        CommandSpec::new("list.extendPageDown", "Select a page down", "Message list", |s, v| s.extend_selection(Toward::By(page(v))))
+        CommandSpec::new("list.extendFirst", "Select to the first message", "Message list", |s, _| s.extend_selection(Toward::First)).leaves_body().key("Shift+Home"),
+        CommandSpec::new("list.extendLast", "Select to the last message", "Message list", |s, _| s.extend_selection(Toward::Last)).leaves_body().key("Shift+End"),
+        CommandSpec::new("list.extendPageDown", "Select a page down", "Message list", |s, v| s.extend_selection(Toward::By(page(v)))).leaves_body()
             .key("Shift+PageDown")
             .params(PAGE),
-        CommandSpec::new("list.extendPageUp", "Select a page up", "Message list", |s, v| s.extend_selection(Toward::By(-page(v))))
+        CommandSpec::new("list.extendPageUp", "Select a page up", "Message list", |s, v| s.extend_selection(Toward::By(-page(v)))).leaves_body()
             .key("Shift+PageUp")
             .params(PAGE),
-        CommandSpec::new("list.filter", "Filter", "Message list", filter)
+        CommandSpec::new("list.filter", "Filter", "Message list", filter).leaves_body()
             .params(r#"{"value": "all"|"unread"|"flagged"|"attachments"|"categorized"|"important"|"toMe"}"#),
-        CommandSpec::new("list.messages", "List messages", "Message list", list_messages).params(r#"{"limit"?: number}"#),
+        CommandSpec::new("list.messages", "List messages", "Message list", list_messages).leaves_body().params(r#"{"limit"?: number}"#),
         CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
         CommandSpec::new("message.popOut", "Open in new window", "Message list › Open", |s, v| {
             let k = match parse_key(v) {
@@ -145,18 +145,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"on"?: bool}"#),
         // Search
-        CommandSpec::new("search.run", "Search", "Search box", search).key("Mod+E").params(
+        CommandSpec::new("search.run", "Search", "Search box", search).leaves_body().key("Mod+E").params(
             r#"{"query": string, "scope"?: "current"|"subfolders"|"mailbox"|"all" (kept for the next searches; default: the last one), "remember"?: bool (among the recent searches), "background"?: bool (found as the window steps it, `pending` until done; default: as searches run, settled for the CLI and scripts)}"#,
         ),
         CommandSpec::new("search.remember", "Remember a search", "Search box (left with a search in it)", |s, v| {
             s.remember_search(p::req_str(v, "query")?);
             Ok(json!({"recent": s.recent_searches().len()}))
-        })
+        }).leaves_body()
         .params(r#"{"query": string}"#),
         CommandSpec::new("search.forgetRecent", "Clear recent searches", "Search box › recent searches", |s, _| {
             s.forget_recent_searches();
             Ok(json!({}))
-        })
+        }).leaves_body()
         .when(|s| s.recent_searches().is_empty().then_some("no recent searches")),
         // Home › Quick Steps
         CommandSpec::new("quickStep.list", "Quick Steps", "Home › Quick Steps", |s, _| Ok(json!(s.prefs.quick_steps))),
@@ -221,9 +221,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"name": string (its messages stay where they are)}"#),
         CommandSpec::new("searchFolder.open", "Open Search Folder", "Folder pane › Search Folders", |s, v| {
             s.open_search_folder(p::req_str(v, "name")?)
-        })
+        }).leaves_body()
         .params(r#"{"name": string}"#),
-        CommandSpec::new("search.clear", "Clear search", "Search box", |s, _| Ok(json!({"results": s.run_search("", SearchScope::All)})))
+        CommandSpec::new("search.clear", "Clear search", "Search box", |s, _| Ok(json!({"results": s.run_search("", SearchScope::All)}))).leaves_body()
             .key("Escape"),
         CommandSpec::new("search.server", "Search the server", "Search › end of the results", |s, _| s.search_server())
             .when(|s| s.search.is_none().then_some("search for something first")),
