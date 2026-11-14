@@ -3,10 +3,7 @@
 
 use super::*;
 use crate::data_files::scratch::scratch;
-use mailcraft_pst::{
-    PstFile, PstStore,
-    write::{self, BatchMessage},
-};
+use mailcraft_pst::write::{self, BatchMessage};
 
 fn mail(store: &Store, folder: &str, uid: u32, subject: &str) -> mailcraft_model::Summary {
     let d = mime::Draft { subject: subject.into(), body: format!("{subject}, the body."), ..Default::default() };
@@ -20,19 +17,9 @@ fn mail(store: &Store, folder: &str, uid: u32, subject: &str) -> mailcraft_model
 /// says.
 fn subjects(path: &Path) -> Vec<(Vec<u8>, i32)> {
     use mailcraft_pst::PropertyValue as V;
-    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(path).unwrap())).unwrap();
-    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
-    let inbox = top
-        .hierarchy_table()
-        .unwrap()
-        .rows_matrix()
-        .filter_map(|row| any.open_folder(row.id()).ok())
-        .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
-        .unwrap();
+    let any = read_file(path);
     let mut out = Vec::new();
-    for row in inbox.contents_table().unwrap().rows_matrix() {
-        let entry = row.id();
-        let m = Message::read(any.clone(), entry).unwrap();
+    for m in messages_in(&any, &folder_at(&any, &["Inbox"])) {
         let page = match m.properties().get(0x3FFD) {
             Some(V::Integer32(page)) => *page,
             _ => 0,
@@ -123,8 +110,8 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
 /// The top folders of an ANSI file: each one's name as written and how many messages it holds.
 fn top(path: &Path) -> Vec<(Vec<u8>, usize)> {
     use mailcraft_pst::PropertyValue as V;
-    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(path).unwrap())).unwrap();
-    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
+    let any = read_file(path);
+    let top = folder_at(&any, &[]);
     let mut out: Vec<(Vec<u8>, usize)> = top
         .hierarchy_table()
         .unwrap()

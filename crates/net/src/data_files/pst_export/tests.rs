@@ -1,8 +1,9 @@
 use super::*;
+use crate::data_files::pst_bytes::{block_at, block_ends, crc, seal};
 use crate::data_files::scratch::scratch;
 use mailcraft_model::{EmailAddress, Flags};
 use mailcraft_pst::{
-    Message, PstFile, PstStore,
+    Message, PstFile, PstFolder, PstStore,
     write::{self, SpecialFolder as Special},
 };
 use mailcraft_store::FolderState;
@@ -23,11 +24,14 @@ fn named_id(path: &Path, set: u32, lid: u32) -> Option<u16> {
     })
 }
 
-/// The properties `ids` of the message with `subject` in the folder at `names` of a data file.
-fn props_of(path: &Path, names: &[&str], subject: &str, ids: &[u16]) -> Vec<Option<mailcraft_pst::PropertyValue>> {
-    let pst = PstFile::open(path).unwrap();
-    let store = PstStore::read(Rc::new(pst)).unwrap();
-    let any: Rc<PstStore> = store.clone();
+/// The data file at `path`, as the writer's own reader reads it (with no limit on a value).
+fn read_file(path: &Path) -> Rc<PstStore> {
+    PstStore::read(Rc::new(PstFile::open(path).unwrap())).unwrap()
+}
+
+/// The folder at `names` of the data file `any`: each a folder's display name, from the top of
+/// the file's folders.
+fn folder_at(any: &Rc<PstStore>, names: &[&str]) -> Rc<PstFolder> {
     let mut folder = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
     for name in names {
         let table = folder.hierarchy_table().unwrap().clone();
@@ -35,16 +39,31 @@ fn props_of(path: &Path, names: &[&str], subject: &str, ids: &[u16]) -> Vec<Opti
             .rows_matrix()
             .filter_map(|row| any.open_folder(row.id()).ok())
             .find(|f| f.properties().display_name().is_ok_and(|n| n == *name))
-            .unwrap();
+            .unwrap_or_else(|| panic!("no folder {name} in {names:?}"));
     }
-    for row in folder.contents_table().unwrap().rows_matrix() {
-        let entry = row.id();
-        let m = Message::read(store.clone(), entry).unwrap();
-        if m.properties().get(0x0037).and_then(crate::pst::text_of).as_deref() == Some(subject) {
-            return ids.iter().map(|id| m.properties().get(*id).cloned()).collect();
-        }
-    }
-    panic!("no {subject} in {names:?}")
+    folder
+}
+
+/// The messages in `folder` of the data file `any`, in the order it lists them.
+fn messages_in(any: &Rc<PstStore>, folder: &PstFolder) -> Vec<Rc<Message>> {
+    folder.contents_table().unwrap().rows_matrix().map(|row| Message::read(any.clone(), row.id()).unwrap()).collect()
+}
+
+/// A message's subject as the file has it; empty when it has none.
+fn subject_of(m: &Message) -> String {
+    m.properties().get(0x0037).and_then(crate::pst::text_of).unwrap_or_default()
+}
+
+/// The message with `subject` in the folder at `names` of the data file `any`.
+fn message_at(any: &Rc<PstStore>, names: &[&str], subject: &str) -> Rc<Message> {
+    let folder = folder_at(any, names);
+    messages_in(any, &folder).into_iter().find(|m| subject_of(m) == subject).unwrap_or_else(|| panic!("no {subject} in {names:?}"))
+}
+
+/// The properties `ids` of the message with `subject` in the folder at `names` of a data file.
+fn props_of(path: &Path, names: &[&str], subject: &str, ids: &[u16]) -> Vec<Option<mailcraft_pst::PropertyValue>> {
+    let m = message_at(&read_file(path), names, subject);
+    ids.iter().map(|id| m.properties().get(*id).cloned()).collect()
 }
 
 #[test]
@@ -356,37 +375,18 @@ const PERMUTE: [u8; 256] = [
     0xA2, 0x01, 0xF7, 0x2E, 0xBC, 0x24, 0x68, 0x75, 0x0D, 0xFE, 0xBA, 0x2F, 0xB5, 0xD0, 0xDA, 0x3D,
 ];
 
-/// MS-PST's CRC: CRC-32's table, started at 0 and not inverted at the end.
-fn crc(data: &[u8]) -> u32 {
-    let mut c = 0u32;
-    for &b in data {
-        c ^= u32::from(b);
-        for _ in 0..8 {
-            c = if c & 1 == 1 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 };
-        }
-    }
-    c
-}
-
 /// Encode a data file the writer made the way Outlook encodes its own by default: every data
-/// block's bytes permuted (internal blocks never are), found from the 16-byte trailers that end
-/// blocks on 64-byte boundaries, with their CRCs, and the header's `bCryptMethod` (0x201) set
-/// to permute, with the CRC over the header (0x20C, of the 516 bytes from 8).
+/// block's bytes permuted (internal blocks never are), block by block in the file's order, each
+/// one's CRC made right, and the header's `bCryptMethod` (0x201) set to permute, with the CRC
+/// over the header (0x20C, of the 516 bytes from 8).
 fn permute_encode(path: &Path) {
     let mut f = std::fs::read(path).unwrap();
-    let u32_at = |f: &[u8], at: usize| u32::from_le_bytes(f[at..at + 4].try_into().unwrap());
-    for end in (64..=f.len()).step_by(64) {
-        let size = usize::from(u16::from_le_bytes([f[end - 16], f[end - 15]]));
-        let bid = u64::from_le_bytes(f[end - 8..end].try_into().unwrap());
-        let Some(start) = end.checked_sub((size + 16).div_ceil(64) * 64) else { continue };
-        if size == 0 || size > 8176 || bid & 2 != 0 || crc(&f[start..start + size]) != u32_at(&f, end - 12) {
-            continue;
-        }
+    for end in block_ends(f.len()) {
+        let Some((_, (start, size))) = block_at(&f, end).filter(|(bid, _)| bid & 2 == 0) else { continue };
         for b in &mut f[start..start + size] {
             *b = PERMUTE[usize::from(*b)];
         }
-        let c = crc(&f[start..start + size]);
-        f[end - 12..end - 8].copy_from_slice(&c.to_le_bytes());
+        seal(&mut f, (start, size));
     }
     f[0x201] = 1;
     let c = crc(&f[8..8 + 516]);
@@ -464,16 +464,11 @@ fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
     // one block that has it, its CRC made right.
     let mut f = std::fs::read(&file).unwrap();
     let mut patched = 0;
-    for end in (64..=f.len()).step_by(64) {
-        let size = usize::from(u16::from_le_bytes([f[end - 16], f[end - 15]]));
-        let Some(start) = end.checked_sub((size + 16).div_ceil(64) * 64) else { continue };
-        if size == 0 || size > 8176 || crc(&f[start..start + size]) != u32::from_le_bytes(f[end - 12..end - 8].try_into().unwrap()) {
-            continue;
-        }
+    for end in block_ends(f.len()) {
+        let Some((_, (start, size))) = block_at(&f, end) else { continue };
         let Some(at) = f[start..start + size].windows(8).position(|w| w[..4] == [1, 0, 3, 0] && w[4..] != [0, 0, 0, 0]) else { continue };
         f[start + at + 4..start + at + 8].copy_from_slice(&0u32.to_le_bytes());
-        let c = crc(&f[start..start + size]);
-        f[end - 12..end - 8].copy_from_slice(&c.to_le_bytes());
+        seal(&mut f, (start, size));
         patched += 1;
     }
     assert_eq!(patched, 1);

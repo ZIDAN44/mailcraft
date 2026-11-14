@@ -16,6 +16,8 @@ use mailcraft_pst::{
 };
 
 use super::super::props::text_of;
+use super::pipeline::everything;
+use crate::data_files::pst_bytes::{blocks, crc, put32, put64, seal, u16_at, u32_at, u64_at};
 use crate::data_files::scratch::scratch;
 
 /// The writer's node for an attachment's bytes (`NID_TYPE_INTERNAL`, index 0x200 + n) and for
@@ -45,63 +47,6 @@ fn with_id<'a>(subject: &'a str, message_id: &'a str) -> NewMessage<'a> {
 
 fn file<'a>(filename: &'a str, data: &'a [u8]) -> NewAttachment<'a> {
     NewAttachment { filename, mime_type: "application/octet-stream", content_id: None, data, ..Default::default() }
-}
-
-fn u16_at(b: &[u8], at: usize) -> u16 {
-    u16::from_le_bytes(b[at..at + 2].try_into().unwrap())
-}
-
-fn u32_at(b: &[u8], at: usize) -> u32 {
-    u32::from_le_bytes(b[at..at + 4].try_into().unwrap())
-}
-
-fn u64_at(b: &[u8], at: usize) -> u64 {
-    u64::from_le_bytes(b[at..at + 8].try_into().unwrap())
-}
-
-fn put32(b: &mut [u8], at: usize, v: u32) {
-    b[at..at + 4].copy_from_slice(&v.to_le_bytes());
-}
-
-fn put64(b: &mut [u8], at: usize, v: u64) {
-    b[at..at + 8].copy_from_slice(&v.to_le_bytes());
-}
-
-/// MS-PST's CRC: CRC-32's table, started at 0 and not inverted at the end.
-fn crc(data: &[u8]) -> u32 {
-    let mut c = 0u32;
-    for &b in data {
-        c ^= u32::from(b);
-        for _ in 0..8 {
-            c = if c & 1 == 1 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 };
-        }
-    }
-    c
-}
-
-/// A Unicode file's blocks by id: where each starts and how many bytes it holds, found from the
-/// 16-byte trailers that end them on 64-byte boundaries (a trailer whose CRC matches the bytes
-/// before it).
-fn blocks(f: &[u8]) -> HashMap<u64, (usize, usize)> {
-    let mut out = HashMap::new();
-    for end in (64..=f.len()).step_by(64) {
-        let size = usize::from(u16_at(f, end - 16));
-        if size == 0 || size > 8176 {
-            continue;
-        }
-        let Some(start) = end.checked_sub((size + 16).div_ceil(64) * 64) else { continue };
-        if crc(&f[start..start + size]) == u32_at(f, end - 12) {
-            out.insert(u64_at(f, end - 8), (start, size));
-        }
-    }
-    out
-}
-
-/// Write a changed block's CRC into its trailer.
-fn seal(f: &mut [u8], (start, size): (usize, usize)) {
-    let end = start + (size + 16).div_ceil(64) * 64;
-    let c = crc(&f[start..start + size]);
-    put32(f, end - 12, c);
 }
 
 /// The entry for `nid` in a subnode block (an SLBLOCK: btype 2, level 0, then 24-byte entries
@@ -136,6 +81,29 @@ fn heap_item(f: &[u8], (start, _): (usize, usize), hid: u32) -> usize {
     start + usize::from(u16_at(f, page_map + 4 + (index - 1) * 2))
 }
 
+/// The attachment whose property context's block is `attachment` made one holding a message,
+/// the one in its subnode `node`: its method 1 becomes 5, and its 0x3701 a `PtypObject` on an
+/// 8-byte heap item (node, size), written over the MIME type's text. Its block sealed.
+fn holds_a_message(f: &mut [u8], attachment: (usize, usize), node: u32) {
+    let method = record(f, attachment, 0x3705, 0x0003);
+    put32(f, method + 4, 5);
+    let mime = u32_at(f, record(f, attachment, 0x370E, 0x001F) + 4);
+    let item = heap_item(f, attachment, mime);
+    put32(f, item, node);
+    put32(f, item + 4, 0);
+    let value = record(f, attachment, 0x3701, 0x0102);
+    f[value + 2..value + 4].copy_from_slice(&0x000D_u16.to_le_bytes());
+    put32(f, value + 4, mime);
+    seal(f, attachment);
+}
+
+/// Where each entry of the node B-tree's leaf pages (ptype 0x81, cLevel 0) starts: 32 bytes of
+/// node, data block, subnode block and parent. The writer may leave older copies of a page
+/// behind: their entries are here too.
+fn leaf_entries(f: &[u8]) -> impl Iterator<Item = usize> + '_ {
+    (0..f.len() - 32).step_by(32).filter(|&o| f.get(o / 512 * 512 + 496) == Some(&0x81) && f[o / 512 * 512 + 491] == 0)
+}
+
 /// A data file with one message, "Outer", whose first attachment holds a message and whose
 /// second is a zero-byte file. The writer only writes files, so the first one is turned into an
 /// attached message after: its method becomes 5, its 0x3701 a `PtypObject` naming its node, and
@@ -157,28 +125,14 @@ fn attached_in(dir: &Path, subject: &str) -> PathBuf {
     let outer_sub_nodes_id = all.iter().find(|(_, b)| **b == outer_sub_nodes).map(|(id, _)| *id).unwrap();
     let attachment = all[&u64_at(&f, at + 8)];
     // The outer message's PC: the node B-tree entry whose subnode block is that one.
-    let outer = (0..f.len() - 32)
-        .step_by(32)
-        .find(|&o| u64_at(&f, o + 16) == outer_sub_nodes_id && (u64_at(&f, o) & 0x1F) == 0x04)
-        .map(|o| u64_at(&f, o + 8))
-        .unwrap();
+    let outer =
+        leaf_entries(&f).find(|&o| u64_at(&f, o + 16) == outer_sub_nodes_id && (u64_at(&f, o) & 0x1F) == 0x04).map(|o| u64_at(&f, o + 8)).unwrap();
     // The attachment's own subnode block: its bytes' node now names the outer message's blocks.
     let (own, at) = sub_node_entry(&f, &all, DATA_NODE);
     put64(&mut f, at + 8, outer);
     put64(&mut f, at + 16, outer_sub_nodes_id);
     seal(&mut f, own);
-    // Method 1 → 5; 0x3701 → PtypObject on an 8-byte heap item (node, size), written over the
-    // MIME type's text.
-    let method = record(&f, attachment, 0x3705, 0x0003);
-    put32(&mut f, method + 4, 5);
-    let mime = u32_at(&f, record(&f, attachment, 0x370E, 0x001F) + 4);
-    let item = heap_item(&f, attachment, mime);
-    put32(&mut f, item, DATA_NODE as u32);
-    put32(&mut f, item + 4, 0);
-    let object = record(&f, attachment, 0x3701, 0x0102);
-    f[object + 2..object + 4].copy_from_slice(&0x000D_u16.to_le_bytes());
-    put32(&mut f, object + 4, mime);
-    seal(&mut f, attachment);
+    holds_a_message(&mut f, attachment, DATA_NODE as u32);
     std::fs::write(&path, f).unwrap();
     path
 }
@@ -268,9 +222,8 @@ fn the_import_of_a_message_attached_to_itself_ends() {
 /// UTF-16 in the block.
 fn message_blocks(f: &[u8], all: &HashMap<u64, (usize, usize)>, subject: &str) -> (u64, u64) {
     let wide: Vec<u8> = subject.encode_utf16().flat_map(u16::to_le_bytes).collect();
-    (0..f.len() - 32)
-        .step_by(32)
-        .filter(|&o| (u64_at(f, o) & 0x1F) == 0x04 && f.get(o / 512 * 512 + 496) == Some(&0x81) && f[o / 512 * 512 + 491] == 0)
+    leaf_entries(f)
+        .filter(|&o| (u64_at(f, o) & 0x1F) == 0x04)
         .map(|o| (u64_at(f, o + 8), u64_at(f, o + 16)))
         .find(|(pc, _)| all.get(pc).is_some_and(|&(start, size)| f[start..start + size].windows(wide.len()).any(|w| w == wide)))
         .unwrap()
@@ -301,16 +254,7 @@ fn attach(f: &mut [u8], holder: u64, target: (u64, u64)) {
     put64(f, at + 8, target.0);
     put64(f, at + 16, target.1);
     seal(f, own);
-    let method = record(f, attachment, 0x3705, 0x0003);
-    put32(f, method + 4, 5);
-    let mime = u32_at(f, record(f, attachment, 0x370E, 0x001F) + 4);
-    let item = heap_item(f, attachment, mime);
-    put32(f, item, object as u32);
-    put32(f, item + 4, 0);
-    let value = record(f, attachment, 0x3701, 0x0102);
-    f[value + 2..value + 4].copy_from_slice(&0x000D_u16.to_le_bytes());
-    put32(f, value + 4, mime);
-    seal(f, attachment);
+    holds_a_message(f, attachment, object as u32);
 }
 
 /// A data file of three messages, each with an id of its own: "Outer" holds "Middle", which
@@ -340,21 +284,13 @@ fn with_nested_messages(dir: &Path) -> PathBuf {
 /// read again and again), so it's long: these imports take a fifth of a second alone, but 12 to
 /// 16 s with 6 runs of the net tests at once, and failed the old 20 s in most such runs.
 fn import_in_time(path: &Path, dir: &Path) -> (super::super::Imported, Vec<Vec<u8>>) {
-    use mailcraft_model::MessageKey;
     use mailcraft_store::Store;
     let (path, cache) = (path.to_path_buf(), dir.join("cache"));
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let store = Store::open(cache).unwrap();
         let done = super::import(&path, &store, "a1", &mut |_| {}).unwrap();
-        let mut sources = Vec::new();
-        for f in &done.folders {
-            for m in store.load_folder("a1", &f.path).map(|s| s.messages).unwrap_or_default() {
-                let key = MessageKey { account: "a1".into(), folder: f.path.clone(), validity: 1, uid: m.key.uid };
-                sources.push(store.read_body(&key).unwrap());
-            }
-        }
-        let _ = tx.send((done, sources));
+        let _ = tx.send((done, everything(&store, "a1").2));
     });
     rx.recv_timeout(Duration::from_secs(120)).expect("the file was imported in time")
 }
@@ -493,10 +429,7 @@ fn with_a_big_value(dir: &Path, nid: u64, prop: u16) -> PathBuf {
     let own_id = all.iter().find(|(_, b)| **b == own).map(|(id, _)| *id).unwrap();
     // The node's entry in a leaf page of the node B-tree (ptype 0x81, cLevel 0): nid, data,
     // subnodes. The writer may leave older copies of a page behind: each gets the change.
-    let entries: Vec<usize> = (0..f.len() - 32)
-        .step_by(32)
-        .filter(|&o| u64_at(&f, o) == nid && f.get(o / 512 * 512 + 496) == Some(&0x81) && f[o / 512 * 512 + 491] == 0)
-        .collect();
+    let entries: Vec<usize> = leaf_entries(&f).filter(|&o| u64_at(&f, o) == nid).collect();
     let pc = all[&u64_at(&f, entries[0] + 8)];
     for entry in entries {
         put64(&mut f, entry + 16, own_id);
@@ -608,7 +541,6 @@ fn an_attached_message_in_the_message_tree_reads_when_its_own_tree_is_damaged() 
 /// by reason; the message comes in without them, and isn't counted as skipped.
 #[test]
 fn an_unreadable_attachment_and_a_link_are_counted() {
-    use mailcraft_model::MessageKey;
     use mailcraft_model::job::SkipReason;
     use mailcraft_store::Store;
     let dir = scratch("pst-unread-and-link");
@@ -636,14 +568,9 @@ fn an_unreadable_attachment_and_a_link_are_counted() {
     let done = super::import(&path, &store, "a1", &mut |_| {}).unwrap();
     assert_eq!((done.messages, done.skipped), (1, 0), "{done:?}");
     assert_eq!(done.skips.into_iter().collect::<Vec<_>>(), [(SkipReason::AttachmentUnreadable, 1), (SkipReason::AttachmentLink, 1)]);
-    let (folder, st) = done
-        .folders
-        .iter()
-        .find_map(|f| store.load_folder("a1", &f.path).ok().filter(|s| !s.messages.is_empty()).map(|s| (f.path.clone(), s)))
-        .unwrap();
+    let st = done.folders.iter().find_map(|f| store.load_folder("a1", &f.path).ok().filter(|s| !s.messages.is_empty())).unwrap();
     assert!(!st.messages[0].has_attachments);
-    let key = MessageKey { account: "a1".into(), folder, validity: 1, uid: st.messages[0].key.uid };
-    let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
+    let p = mailcraft_mime::parse(&store.read_body(&st.messages[0].key).unwrap()).unwrap();
     assert!(p.attachments.is_empty(), "{:?}", p.attachments.iter().map(|a| &a.name).collect::<Vec<_>>());
 }
 
@@ -675,21 +602,13 @@ fn class_from_subject(f: &mut [u8], subject: &str) {
 /// doesn't, and its other files still do.
 #[test]
 fn hidden_files_are_left_out_by_the_items_class() {
-    use mailcraft_model::MessageKey;
     use mailcraft_store::Store;
     let names = |path: &Path, cache: &Path| {
         let store = Store::open(cache).unwrap();
         let done = super::import(path, &store, "a1", &mut |_| {}).unwrap();
         assert_eq!((done.messages, done.skipped), (2, 0), "{done:?}");
-        let mut names = Vec::new();
-        for f in &done.folders {
-            for m in store.load_folder("a1", &f.path).map(|s| s.messages).unwrap_or_default() {
-                let key = MessageKey { account: "a1".into(), folder: f.path.clone(), validity: 1, uid: m.key.uid };
-                let p = mailcraft_mime::parse(&store.read_body(&key).unwrap()).unwrap();
-                names.extend(p.attachments.iter().map(|a| a.name.clone()));
-            }
-        }
-        names
+        let sources = everything(&store, "a1").2;
+        sources.iter().flat_map(|raw| mailcraft_mime::parse(raw).unwrap().attachments).map(|a| a.name).collect::<Vec<_>>()
     };
     let dir = scratch("pst-hidden-by-class");
     for (subject, kept) in [("IPM.Note", true), ("IPM.Schedule.Meeting.Request", false)] {

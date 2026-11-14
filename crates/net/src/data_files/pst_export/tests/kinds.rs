@@ -64,23 +64,7 @@ fn imported(back: &Store, subject: &str) -> Vec<u8> {
 
 /// The message with `subject` in the file's Inbox, as the writer's reader reads it.
 fn in_file(path: &Path, subject: &str) -> Rc<Message> {
-    let store = PstStore::read(Rc::new(PstFile::open(path).unwrap())).unwrap();
-    let any: Rc<PstStore> = store.clone();
-    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
-    let table = top.hierarchy_table().unwrap().clone();
-    let inbox = table
-        .rows_matrix()
-        .filter_map(|row| any.open_folder(row.id()).ok())
-        .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
-        .unwrap();
-    for row in inbox.contents_table().unwrap().rows_matrix() {
-        let entry = row.id();
-        let m = Message::read(store.clone(), entry).unwrap();
-        if m.properties().get(0x0037).and_then(crate::pst::text_of).as_deref() == Some(subject) {
-            return m;
-        }
-    }
-    panic!("no {subject} in the file")
+    message_at(&read_file(path), &["Inbox"], subject)
 }
 
 fn attachments_of(m: &Rc<Message>) -> Vec<Rc<Attachment>> {

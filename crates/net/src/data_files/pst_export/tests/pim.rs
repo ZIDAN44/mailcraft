@@ -169,15 +169,7 @@ fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
     for (special, class) in [(Special::Contacts, "IPF.Contact"), (Special::Notes, "IPF.StickyNote"), (Special::Tasks, "IPF.Task")] {
         let names = write::special_folder(&file, special).unwrap().unwrap();
         assert_eq!(names, [special.default_name()]);
-        let store = PstStore::read(Rc::new(PstFile::open(&file).unwrap())).unwrap();
-        let any: Rc<PstStore> = store.clone();
-        let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
-        let table = top.hierarchy_table().unwrap().clone();
-        let folder = table
-            .rows_matrix()
-            .filter_map(|row| any.open_folder(row.id()).ok())
-            .find(|f| f.properties().display_name().is_ok_and(|n| n == names[0]))
-            .unwrap();
+        let folder = folder_at(&read_file(&file), &[names[0].as_str()]);
         assert_eq!(folder.properties().get(0x3613).and_then(crate::pst::text_of).as_deref(), Some(class));
     }
     // As Outlook keeps them: the classes, a contact's three addresses and picture, a group's

@@ -58,22 +58,11 @@ fn export_big_files_alone() {
 
 /// How many of the big files are in the data file at `path`, each checked byte for byte.
 fn files_in(path: &Path) -> usize {
-    let pst = PstFile::open(path).unwrap();
-    let store = PstStore::read(Rc::new(pst)).unwrap();
-    let any: Rc<PstStore> = store.clone();
-    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
-    let table = top.hierarchy_table().unwrap().clone();
-    let inbox = table
-        .rows_matrix()
-        .filter_map(|row| any.open_folder(row.id()).ok())
-        .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
-        .unwrap();
+    let any = read_file(path);
     let mut seen = 0;
-    for row in inbox.contents_table().unwrap().rows_matrix() {
+    for m in messages_in(&any, &folder_at(&any, &["Inbox"])) {
         use mailcraft_pst::{Attachment, AttachmentData};
-        let entry = row.id();
-        let m = Message::read(store.clone(), entry).unwrap();
-        let subject = m.properties().get(0x0037).and_then(crate::pst::text_of).unwrap_or_default();
+        let subject = subject_of(&m);
         let n: usize = subject.trim_start_matches("Footage ").parse().unwrap();
         let rows: Vec<_> = m.attachment_table().unwrap().rows_matrix().map(|r| r.id()).collect();
         assert_eq!(rows.len(), 1);

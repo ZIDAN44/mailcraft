@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::data_files::scratch::scratch;
-use mailcraft_pst::{NamedPropertyGuid, NamedPropertyId, PropertyValue as V, PstFile, PstStore, write};
+use mailcraft_pst::{NamedPropertyGuid, NamedPropertyId, PropertyValue as V, PstStore, write};
 
 /// The account's Inbox: "Pinned" pinned (and in a category), "Loose" not.
 fn account(dir: &Path) -> Store {
@@ -51,20 +51,9 @@ fn pins(any: Rc<PstStore>) -> Vec<(String, Option<V>)> {
         }
         _ => None,
     });
-    let top = any.open_folder(any.ipm_subtree().unwrap()).unwrap();
-    let inbox = top
-        .hierarchy_table()
-        .unwrap()
-        .rows_matrix()
-        .filter_map(|row| any.open_folder(row.id()).ok())
-        .find(|f| f.properties().display_name().is_ok_and(|n| n == "Inbox"))
-        .unwrap();
     let mut out = Vec::new();
-    for row in inbox.contents_table().unwrap().rows_matrix() {
-        let entry = row.id();
-        let m = Message::read(any.clone(), entry).unwrap();
-        let subject = m.properties().get(0x0037).and_then(crate::pst::text_of).unwrap();
-        out.push((subject, id.and_then(|id| m.properties().get(id).cloned())));
+    for m in messages_in(&any, &folder_at(&any, &["Inbox"])) {
+        out.push((subject_of(&m), id.and_then(|id| m.properties().get(id).cloned())));
     }
     out.sort_by(|a, b| a.0.cmp(&b.0));
     out
@@ -94,8 +83,7 @@ fn pinning_goes_into_a_unicode_data_file_and_back() {
     let store = account(&dir);
     let file = dir.join("Out.pst");
     assert_eq!(export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap().messages, 2);
-    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(&file).unwrap())).unwrap();
-    let got = pins(any);
+    let got = pins(read_file(&file));
     assert!(matches!(got.as_slice(), [(loose, None), (pinned, Some(V::Boolean(true)))] if loose == "Loose" && pinned == "Pinned"), "{got:?}");
     assert_eq!(
         imported(&file, &dir, "b1"),
@@ -111,8 +99,7 @@ fn pinning_goes_into_an_ansi_data_file_and_back() {
     write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
     assert_eq!(export(&store, "a1", "Riley's mail", &file, NONE, &mut |_| {}).unwrap().messages, 2);
     assert_eq!(format_of(&file), Format::Ansi);
-    let any: Rc<PstStore> = PstStore::read(Rc::new(PstFile::open(&file).unwrap())).unwrap();
-    let got = pins(any);
+    let got = pins(read_file(&file));
     assert!(matches!(got.as_slice(), [(loose, None), (pinned, Some(V::Boolean(true)))] if loose == "Loose" && pinned == "Pinned"), "{got:?}");
     assert_eq!(
         imported(&file, &dir, "b1"),
