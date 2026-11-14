@@ -125,6 +125,7 @@ on GitHub.
 - Save all attachments no longer writes over a file when every numbered name is already taken.
 - A search from the command line no longer spins while read marks are being saved.
 - Dismissing a reminder for an event whose ID contains a "|" now sticks and reaches the server.
+- A directory search that failed is tried again after 30 seconds, not 5 minutes.
 
 ## 0.38.0 - 2026-11-13
 

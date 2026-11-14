@@ -67,7 +67,8 @@ impl Session {
             let fresh = self.directory.answers.get(&k).is_some_and(|a| match a.at {
                 None => true,
                 Some(_) if force => false,
-                Some(at) => now - at < if a.people.is_empty() { NONE_FOR } else { FOUND_FOR },
+                // A failure keeps who was found before, but isn't their answer.
+                Some(at) => now - at < if a.error.is_some() || a.people.is_empty() { NONE_FOR } else { FOUND_FOR },
             });
             if fresh {
                 continue;

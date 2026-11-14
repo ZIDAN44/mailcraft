@@ -138,6 +138,15 @@ fn the_directory_is_asked_again_once_its_answer_is_old() {
     });
     assert_eq!(s.address_book("directory", "dana").len(), 1);
     assert!(s.directory_errors("dana").iter().any(|e| e.contains("riley@contoso.example") && e.contains("403")));
+    // Asked again half a minute on, as when no one was found (it waited five minutes, as if
+    // those kept were its answer).
+    s.clock.now += 29;
+    s.address_book("directory", "dana");
+    assert!(asked(&mut s).is_empty());
+    s.clock.now += 2;
+    s.address_book("directory", "dana");
+    assert_eq!(asked(&mut s), ["dana"], "a failure is fresh for half a minute");
+    assert_eq!(s.address_book("directory", "dana").len(), 1, "who was found before still shows");
 
     // Refresh: everything forgotten, the address books read again, the next search asked.
     let rev = s.directory.rev;
