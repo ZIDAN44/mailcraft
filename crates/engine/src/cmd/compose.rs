@@ -357,9 +357,10 @@ pub(super) fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// Close the message being written: kept in Drafts (unless `save` is false or nothing was
 /// written), as closing a message window in Outlook offers.
 pub(super) fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
-    let c = s.composing().cloned()?;
+    // What's needed of it, not a copy of it all (attachments and pictures, up to 25 MB).
+    let (id, account, sending) = s.composing().map(|c| (c.id, c.account.clone(), c.sending))?;
     let written = s.compose_written();
-    let saved = if p::bool(v, "save").unwrap_or(true) && written && !c.sending {
+    let saved = if p::bool(v, "save").unwrap_or(true) && written && !sending {
         s.save_draft()?;
         true
     } else {
@@ -368,14 +369,14 @@ pub(super) fn close_compose(s: &mut Session, v: &Value) -> CmdResult {
     if saved {
         // Said saved once it is: on this computer at once; a server's save has only begun, and
         // the message is held until it ends (#53), coming back with the reason if it fails.
-        if s.account(&c.account).is_none_or(|a| a.is_local()) {
+        if s.account(&account).is_none_or(|a| a.is_local()) {
             s.notice("Saved in Drafts", false);
         }
         s.let_go_saved();
     } else {
         s.let_go_compose();
     }
-    Ok(json!({"closed": c.id, "saved": saved}))
+    Ok(json!({"closed": id, "saved": saved}))
 }
 
 pub(super) fn discard(s: &mut Session, _: &Value) -> CmdResult {
