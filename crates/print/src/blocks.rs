@@ -111,13 +111,23 @@ pub(super) struct Lay<'a, 'f> {
 impl Lay<'_, '_> {
     /// Lay `blocks` out `width` wide from `x`, down from `*y` (which moves to under them).
     pub(super) fn blocks(&self, blocks: &[Block], x: f32, width: f32, align: Align, y: &mut f32, ops: &mut Vec<Op>, depth: usize) {
+        self.measured(blocks, &[], x, width, align, y, ops, depth);
+    }
+
+    /// [`blocks`](Self::blocks), whose tables are measured in `tables`, in order (one that
+    /// isn't is measured here).
+    fn measured(&self, blocks: &[Block], tables: &[Measure], x: f32, width: f32, align: Align, y: &mut f32, ops: &mut Vec<Op>, depth: usize) {
+        let mut tables = tables.iter();
         for b in blocks {
             if ops.len() >= MAX_OPS {
                 return;
             }
             match b {
                 Block::Text(lines) => self.text(lines, x, width, align, y, ops),
-                Block::Table(t) if depth < MAX_DEPTH => self.table(t, x, width, y, ops, depth),
+                Block::Table(t) if depth < MAX_DEPTH => match tables.next() {
+                    Some(m) => self.table(t, m, x, width, y, ops, depth),
+                    None => self.table(t, &self.measure(t, depth), x, width, y, ops, depth),
+                },
                 Block::Table(_) => {}
             }
         }
@@ -173,8 +183,8 @@ impl Lay<'_, '_> {
         });
     }
 
-    /// What `blocks` need across.
-    fn fit(&self, blocks: &[Block], depth: usize) -> Fit {
+    /// What `blocks` need across; the tables among them, measured, go in `tables`.
+    fn fit(&self, blocks: &[Block], depth: usize, tables: &mut Vec<Measure>) -> Fit {
         let mut fit = Fit::default();
         for b in blocks {
             let f = match b {
@@ -187,7 +197,12 @@ impl Lay<'_, '_> {
                     }
                     f
                 }
-                Block::Table(t) if depth < MAX_DEPTH => self.table_fit(t, depth),
+                Block::Table(t) if depth < MAX_DEPTH => {
+                    let m = self.measure(t, depth);
+                    let f = m.fit;
+                    tables.push(m);
+                    f
+                }
                 Block::Table(_) => Fit::default(),
             };
             fit.min = fit.min.max(f.min);
@@ -196,21 +211,25 @@ impl Lay<'_, '_> {
         fit
     }
 
-    fn table_fit(&self, t: &Table, depth: usize) -> Fit {
-        let cols = self.columns_fit(t, depth);
+    /// `t` and every table in it measured, once: laying each out used to measure all the
+    /// tables in it again, so a word deep in a newsletter was measured dozens of times.
+    fn measure(&self, t: &Table, depth: usize) -> Measure {
+        let (cols, cells) = self.columns_fit(t, depth);
         let room = t.spacing * (cols.len() as f32 + 1.0);
         let min = cols.iter().map(|c| c.fit.min).sum::<f32>() + room;
         let max = cols.iter().map(|c| c.fixed.unwrap_or(c.fit.max).max(c.fit.min)).sum::<f32>() + room;
-        match t.width {
+        let fit = match t.width {
             Some(Width::Pt(w)) => Fit { min: min.min(w), max: w },
             _ => Fit { min, max: max.max(min) },
-        }
+        };
+        Measure { cols, fit, cells }
     }
 
-    /// Each column's needs and what a cell of it asks to be.
-    fn columns_fit(&self, t: &Table, depth: usize) -> Vec<Column> {
-        let n = t.rows.iter().map(|r| r.iter().map(|c| usize::from(c.span.max(1))).sum::<usize>()).max().unwrap_or(0).clamp(1, MAX_COLUMNS);
+    /// Each column's needs and what a cell of it asks to be; and each cell's tables, measured.
+    fn columns_fit(&self, t: &Table, depth: usize) -> (Vec<Column>, Vec<Vec<Measure>>) {
+        let n = columns_in(t);
         let mut cols = vec![Column::default(); n];
+        let mut cells = Vec::new();
         let mut spanning: Vec<(usize, usize, Fit)> = Vec::new();
         for row in &t.rows {
             let mut at = 0usize;
@@ -220,7 +239,9 @@ impl Lay<'_, '_> {
                     break;
                 }
                 let pad = cell.padding.map_or(t.padding * 2.0, |p| p[1] + p[3]);
-                let inner = self.fit(&cell.blocks, depth + 1);
+                let mut tables = Vec::new();
+                let inner = self.fit(&cell.blocks, depth + 1, &mut tables);
+                cells.push(tables);
                 let fit = Fit { min: inner.min + pad, max: inner.max + pad };
                 if span == 1 {
                     if let Some(c) = cols.get_mut(at) {
@@ -251,13 +272,12 @@ impl Lay<'_, '_> {
         for c in &mut cols {
             c.fit.max = c.fit.max.max(c.fit.min);
         }
-        cols
+        (cols, cells)
     }
 
-    /// The columns' widths in `inner` (the table's width less the room between its cells);
-    /// `stretch`: the table sets its width, so what's left over is shared too.
-    fn columns(&self, t: &Table, inner: f32, stretch: bool, depth: usize) -> Vec<f32> {
-        let cols = self.columns_fit(t, depth);
+    /// The widths of columns that need `cols` in `inner` (the table's width less the room
+    /// between its cells); `stretch`: the table sets its width, so what's left over is shared too.
+    fn columns(cols: &[Column], inner: f32, stretch: bool) -> Vec<f32> {
         let inner = inner.max(NARROWEST);
         let mut w: Vec<f32> =
             cols.iter().map(|c| c.fixed.map(|f| f.max(c.fit.min).min(inner)).or(c.percent.map(|p| inner * p / 100.0)).unwrap_or(-1.0)).collect();
@@ -290,16 +310,16 @@ impl Lay<'_, '_> {
         let least: f32 = cols.iter().map(|c| c.fit.min).sum();
         if least <= inner {
             let mut short = 0.0f32;
-            for (x, c) in w.iter_mut().zip(&cols) {
+            for (x, c) in w.iter_mut().zip(cols) {
                 if *x < c.fit.min {
                     short += c.fit.min - *x;
                     *x = c.fit.min;
                 }
             }
-            let spare: f32 = w.iter().zip(&cols).map(|(x, c)| (*x - c.fit.min).max(0.0)).sum();
+            let spare: f32 = w.iter().zip(cols).map(|(x, c)| (*x - c.fit.min).max(0.0)).sum();
             if short > 0.0 && spare > 0.0 {
                 let take = short.min(spare);
-                for (x, c) in w.iter_mut().zip(&cols) {
+                for (x, c) in w.iter_mut().zip(cols) {
                     *x -= take * (*x - c.fit.min).max(0.0) / spare;
                 }
             }
@@ -320,17 +340,20 @@ impl Lay<'_, '_> {
         w
     }
 
-    fn table(&self, t: &Table, x: f32, room: f32, y: &mut f32, ops: &mut Vec<Op>, depth: usize) {
-        let n = t.rows.iter().map(|r| r.iter().map(|c| usize::from(c.span.max(1))).sum::<usize>()).max().unwrap_or(0).clamp(1, MAX_COLUMNS);
+    /// Lay out `t`, measured in `m`.
+    fn table(&self, t: &Table, m: &Measure, x: f32, room: f32, y: &mut f32, ops: &mut Vec<Op>, depth: usize) {
+        let n = columns_in(t);
         let between = t.spacing * (n as f32 + 1.0);
         let wanted = match t.width {
             Some(Width::Pt(w)) => w.min(room),
             Some(Width::Percent(p)) => room * p.clamp(0.0, 100.0) / 100.0,
-            None if t.fit => self.table_fit(t, depth).max.min(room),
+            None if t.fit => m.fit.max.min(room),
             None => room,
         };
         let stretch = t.width.is_some() || !t.fit;
-        let widths = self.columns(t, wanted - between, stretch, depth);
+        let widths = Self::columns(&m.cols, wanted - between, stretch);
+        // Each cell's tables, measured, in the order they're laid out.
+        let mut measured = m.cells.iter();
         let outer = (widths.iter().sum::<f32>() + between).min(room.max(NARROWEST));
         let left = x + match t.align {
             Align::Left => 0.0,
@@ -358,7 +381,8 @@ impl Lay<'_, '_> {
                 let pad = cell.padding.unwrap_or([t.padding; 4]);
                 let mut content = Vec::new();
                 let mut h = 0.0f32;
-                self.blocks(&cell.blocks, cx + pad[3], (cw - pad[1] - pad[3]).max(NARROWEST), cell.align, &mut h, &mut content, depth + 1);
+                let tables = measured.next().map_or(&[][..], Vec::as_slice);
+                self.measured(&cell.blocks, tables, cx + pad[3], (cw - pad[1] - pad[3]).max(NARROWEST), cell.align, &mut h, &mut content, depth + 1);
                 cells.push((cx, cw, cell, content, h, pad));
                 at += span;
             }
@@ -409,12 +433,25 @@ impl Lay<'_, '_> {
     }
 }
 
+/// How many columns `t` is laid out in.
+fn columns_in(t: &Table) -> usize {
+    t.rows.iter().map(|r| r.iter().map(|c| usize::from(c.span.max(1))).sum::<usize>()).max().unwrap_or(0).clamp(1, MAX_COLUMNS)
+}
+
 /// A column of a table being measured.
 #[derive(Clone, Copy, Debug, Default)]
 struct Column {
     fit: Fit,
     fixed: Option<f32>,
     percent: Option<f32>,
+}
+
+/// A table measured: what each of its columns needs, what it needs across, and the tables in
+/// its cells measured too (a list a cell, both in the order they're laid out).
+struct Measure {
+    cols: Vec<Column>,
+    fit: Fit,
+    cells: Vec<Vec<Measure>>,
 }
 
 #[cfg(test)]

@@ -43,7 +43,7 @@ fn fills(ops: &[Op]) -> Vec<(f32, f32, f32, f32, [u8; 3])> {
 
 fn widths(t: &Table, inner: f32, stretch: bool) -> Vec<f32> {
     let faces = faces();
-    Lay { faces: &faces }.columns(t, inner, stretch, 0)
+    Lay::columns(&Lay { faces: &faces }.measure(t, 0).cols, inner, stretch)
 }
 
 #[test]
@@ -210,5 +210,48 @@ fn nothing_a_message_says_hangs_the_layout() {
     for t in [Table::default(), Table { rows: vec![vec![]], ..Default::default() }, Table { rows: vec![vec![Cell::default()]], ..Default::default() }]
     {
         let _ = laid(&[Block::Table(t)], 300.0);
+    }
+}
+
+/// A newsletter's tables in tables, `depth` deep: each level a table of words beside the next
+/// one in, some as wide as what they hold.
+fn newsletter(depth: usize) -> Block {
+    let para = "Our spring collection is here, with new colours and shapes and free delivery on every order this week";
+    let mut inner = words(para);
+    for level in 0..depth {
+        let next = Cell { blocks: vec![inner, words("Read more")], padding: Some([4.0; 4]), ..Default::default() };
+        let rows = vec![vec![cell(para), next, cell("Shop now")], vec![cell(para), Cell { span: 2, ..cell(para) }]];
+        inner = Block::Table(Table { rows, fit: level % 2 == 0, spacing: 2.0, padding: 3.0, ..Default::default() });
+    }
+    inner
+}
+
+/// A newsletter's wrapping tables, `depth` deep, each as wide as its room: the next one in
+/// across its first row, words in two columns under it.
+fn wrappers(depth: usize) -> Block {
+    let para = "Our spring collection is here, with new colours and shapes and free delivery on every order this week";
+    let mut inner = words(para);
+    for level in 0..depth {
+        let rows = vec![vec![Cell { blocks: vec![inner], span: 2, ..Default::default() }], vec![cell(para), cell(para)]];
+        inner = Block::Table(Table { rows, fit: level % 3 == 2, ..Default::default() });
+    }
+    inner
+}
+
+/// How long a newsletter's tables in tables take to lay out (`MEASURE`; in release, with
+/// `--ignored --nocapture`).
+#[test]
+#[ignore = "a measurement"]
+fn measure_nested_tables() {
+    for (shape, make) in [("side by side", newsletter as fn(usize) -> Block), ("wrapping", wrappers)] {
+        for depth in [4, 8, 12, 16, 20] {
+            let message = [make(depth)];
+            let rounds = 20u32;
+            let start = std::time::Instant::now();
+            for _ in 0..rounds {
+                let _ = laid(&message, 480.0);
+            }
+            println!("MEASURE tables {shape}, {depth} deep: {:?} a layout", start.elapsed() / rounds);
+        }
     }
 }
