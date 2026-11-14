@@ -37,14 +37,12 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
             }
         }
         // POP and IMAP send over SMTP.
-        let pop = f.pop.is_some();
-        if pop || !f.jmap {
+        if f.pop.is_some() || !f.jmap {
             ui.add_space(4.0);
             server_row(ui, w, Server::Smtp, "edit-", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security);
             f.smtp_sign_in.ui(ui, w);
-            if !pop {
-                clear_text_warning(ui, t, f.imap_security, f.smtp_security);
-            }
+            let incoming = f.pop.as_ref().map_or(f.imap_security, |(_, _, security)| *security);
+            clear_text_warning(ui, t, incoming, f.smtp_security);
         }
     }
     if f.pop.is_none() {

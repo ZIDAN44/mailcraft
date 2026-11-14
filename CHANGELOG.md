@@ -96,6 +96,7 @@ on GitHub.
 - A message an Outlook file read again couldn't give is tried again on the next read, instead of being left out for good.
 - Flagging or categorising a message in a very large folder no longer rewrites megabytes of the folder's list.
 - An attachment opened while its message was still downloading now shows its preview once the file arrives, and previews no longer pile up in memory.
+- A POP account's Server settings now warn when its server doesn't use encryption, as adding the account already did.
 
 ## 0.38.0 - 2026-11-13
 

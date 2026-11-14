@@ -341,6 +341,15 @@ fn cases() -> Vec<Case> {
             None,
         ),
         (
+            "edit pop, sending in the clear",
+            plain(),
+            edit(|c| {
+                c.pop = Some(ServerConfig { host: "pop.example.org".into(), port: 995, security: Security::Tls });
+                c.smtp.security = Security::None;
+            }),
+            None,
+        ),
+        (
             "edit ews",
             plain(),
             edit(|c| {
@@ -399,6 +408,9 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
     rows("edit imap, switched to jmap", &["JMAP session address"], &["Incoming mail (IMAP)", "Outgoing mail (SMTP)"]);
     rows("edit jmap, switched to imap", &["Incoming mail (IMAP)", "Outgoing mail (SMTP)"], &["JMAP session address"]);
     rows("edit pop", &["Incoming mail (POP)", "Outgoing mail (SMTP)", "pop.example.org", "Keep a copy of downloaded mail on the server"], &[clear]);
+    // A POP account's servers without encryption are warned of, as when it was added.
+    rows("edit pop in the clear", &[clear], &[]);
+    rows("edit pop, sending in the clear", &[clear], &[]);
     rows("edit ews", &["Exchange server", "User-Agent (optional)", "Outlook/16.0"], &["Outgoing mail (SMTP)"]);
     let outlook = get("outlook.com without Microsoft sign-in");
     assert!(outlook.texts.iter().any(|(t, _)| t.starts_with("Outlook.com, Hotmail and Live addresses only connect")), "{}", outlook.dump());
