@@ -195,7 +195,7 @@ fn data_pictures(html: &str) -> (String, Vec<InlinePicture>) {
             continue;
         };
         let n = pictures.len() + 1;
-        let cid = format!("signature{n}@mailcraft");
+        let cid = signature_cid(n);
         // The address alone changes, where it's written in the tag.
         let Some(at) = tag.find(src).map(|a| start + a) else { continue };
         out.push_str(html.get(last..at).unwrap_or(""));

@@ -274,3 +274,27 @@ fn insert_signature_goes_above_the_quote_of_a_reply() {
     assert!(!b.trim_end().ends_with("Studio Lantern"), "not under the quote: {b:?}");
     rule_over_quote(&s);
 }
+
+/// A picture of the message's own whose `cid:` only starts like a signature's (another
+/// sender's `signature.png@…`) is the message's, not the signature's: taken out of the text while
+/// a signature goes in and put back, it's still sent with the message.
+#[test]
+fn a_picture_named_like_a_signatures_stays_with_the_message() {
+    let mut s = sample_session("signature-like-cid");
+    let png = crate::sample::sample_png();
+    s.run("account.setSignature", &with_picture("Logo", "Riley", &png)).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    let theirs = "signature.png@01DA2B3C.4D5E6F70";
+    let picture = mime::InlinePicture { cid: theirs.into(), name: "signature.png".into(), mime: "image/png".into(), data: png.clone() };
+    // In the message's pictures, out of its text (cut, to be pasted back).
+    s.compose.as_mut().unwrap().inline.push(picture);
+    s.run("compose.insertSignature", &json!({"name": "Logo"})).unwrap();
+    let c = s.compose.as_mut().unwrap();
+    crate::cmd::insert_picture_at(c, 0, theirs, None);
+    let (_, html, pictures) = c.bodies();
+    assert!(html.is_some_and(|h| h.contains(&format!("cid:{theirs}"))));
+    assert!(pictures.iter().any(|p| p.cid == theirs && p.data == png), "{:?}", pictures.iter().map(|p| &p.cid).collect::<Vec<_>>());
+    // The signature's own picture is there once, under the message's tag.
+    let tag = c.signature_tag.clone();
+    assert_eq!(pictures.iter().filter(|p| mime::signature_cid_tag(&p.cid) == Some(tag.as_str())).count(), 1);
+}

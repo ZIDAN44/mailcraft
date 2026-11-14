@@ -144,6 +144,7 @@ on GitHub.
 - With many web pictures loaded, the pictures of the open message and of the signature being written no longer disappear when others are shown.
 - An encrypted message on screen no longer asks for its key again after many other encrypted messages have been opened.
 - Reading a message in a very large folder is smoother: the reactions under it are no longer gathered on every frame.
+- A picture whose name starts with "signature" is no longer lost from a message when a signature is inserted.
 
 ## 0.38.0 - 2026-11-13
 

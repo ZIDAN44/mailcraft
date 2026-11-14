@@ -122,7 +122,7 @@ impl MailApp {
                     .notice(tf!("{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)", name = name), true);
                 continue;
             }
-            let cid = (1..).map(|n| format!("signature{n}@mailcraft")).find(|c| !f.compose.inline.iter().any(|p| &p.cid == c)).unwrap_or_default();
+            let cid = (1..).map(mailcraft_engine::mime::signature_cid).find(|c| !f.compose.inline.iter().any(|p| &p.cid == c)).unwrap_or_default();
             f.compose.inline.push(InlinePicture { cid: cid.clone(), name, mime: mime.to_string(), data });
             let n = f.compose.body.chars().count();
             let at = f.editor.0.sel.start.min(n);

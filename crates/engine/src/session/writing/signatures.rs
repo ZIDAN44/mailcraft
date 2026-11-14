@@ -50,7 +50,7 @@ pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles), pict
         else {
             continue;
         };
-        let cid = format!("{}.{tag}@mailcraft", p.cid.split('@').next().unwrap_or("signature"));
+        let cid = mime::message_signature_cid(&p.cid, tag);
         block_styles.restyle(&block, i..i + 1, |s| mime::rich::Style { picture: Some(cid.clone()), ..s.clone() });
         // Another signature's picture under that `cid:` (one switched from) gives way.
         match c.inline.iter_mut().find(|q| q.cid == cid) {
@@ -63,7 +63,7 @@ pub fn style_signature(c: &mut Compose, sig: &(String, mime::rich::Styles), pict
     let shown = mime::rich::pictures(&c.body, &c.styles);
     let quoted: Vec<String> = c.quote.as_ref().map(|q| q.picture_cids()).unwrap_or_default();
     let quoted = |cid: &String| quoted.contains(cid);
-    c.inline.retain(|p| !p.cid.starts_with("signature") || shown.contains(&p.cid) || quoted(&p.cid));
+    c.inline.retain(|p| mime::signature_cid_tag(&p.cid).is_none() || shown.contains(&p.cid) || quoted(&p.cid));
 }
 
 /// The line drawn over the original of a reply or forward: the character its line starts at.
@@ -280,9 +280,9 @@ impl Session {
         c.signature = block;
         // The pictures of the one taken out go (those of the one put in come back with it).
         let shown = mime::rich::pictures(&c.body, &c.styles);
-        let tag = format!(".{}@mailcraft", c.signature_tag);
+        let tag = c.signature_tag.clone();
         let quoted: Vec<String> = c.quote.as_ref().map(|q| q.picture_cids()).unwrap_or_default();
-        c.inline.retain(|p| !(p.cid.starts_with("signature") && p.cid.ends_with(&tag)) || shown.contains(&p.cid) || quoted.contains(&p.cid));
+        c.inline.retain(|p| mime::signature_cid_tag(&p.cid) != Some(tag.as_str()) || shown.contains(&p.cid) || quoted.contains(&p.cid));
         self.style_signature(sig);
         Ok(start..start + text.chars().count())
     }

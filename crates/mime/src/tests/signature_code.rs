@@ -173,3 +173,23 @@ fn pictures_behind_boxes_take_their_cids() {
     }
     assert!(!quoted.contains("other@x"), "the first given for an address: {quoted}");
 }
+
+/// A signature's pictures are named one way and read back the same way; a `cid:` that only
+/// starts like one (another sender's `signature.png@…`) isn't taken for one.
+#[test]
+fn signature_cids_are_named_and_read_back() {
+    let own = message_signature_cid(&signature_cid(2), "0a1b2c3d4e5f");
+    assert_eq!(own, "signature2.0a1b2c3d4e5f@mailcraft");
+    assert_eq!(signature_cid_tag(&own), Some("0a1b2c3d4e5f"));
+    for other in [
+        "signature.png@01DA2B3C.4D5E6F70",
+        "signature1@mailcraft",
+        "signature_logo.x@mailcraft",
+        "signature1.@mailcraft",
+        "signature.x@mailcraft",
+        "quoted1-ab@mailcraft",
+        "signature1.a@b@mailcraft",
+    ] {
+        assert_eq!(signature_cid_tag(other), None, "{other}");
+    }
+}

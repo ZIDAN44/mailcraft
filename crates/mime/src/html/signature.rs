@@ -202,12 +202,34 @@ pub fn code_with_pictures(code: &str, pictures: &[String]) -> String {
     out
 }
 
+/// The end of every signature picture's `cid:`.
+const SIGNATURE_CID_END: &str = "@mailcraft";
+
+/// The `cid:` of a signature's picture `n` (from 1) as the signature has it:
+/// `signatureN@mailcraft`.
+pub fn signature_cid(n: usize) -> String {
+    format!("signature{n}{SIGNATURE_CID_END}")
+}
+
+/// A signature's picture `cid` ([`signature_cid`]) as it goes into one message, whose `tag` it
+/// takes: `signatureN.{tag}@mailcraft`, a `cid:` of that message's own (RFC 2392).
+pub fn message_signature_cid(cid: &str, tag: &str) -> String {
+    format!("{}.{tag}{SIGNATURE_CID_END}", cid.strip_suffix(SIGNATURE_CID_END).unwrap_or(cid))
+}
+
+/// The tag of a signature's picture in a message ([`message_signature_cid`]), or `None` for any
+/// other `cid:` (another sender's `signature.png@…` is theirs, not a signature's put in here).
+pub fn signature_cid_tag(cid: &str) -> Option<&str> {
+    let (n, tag) = cid.strip_prefix("signature")?.strip_suffix(SIGNATURE_CID_END)?.split_once('.')?;
+    (!n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && !tag.is_empty() && !tag.contains('@')).then_some(tag)
+}
+
 /// A signature's code as it goes into a message: its `data:` pictures as parts of the message,
 /// each under `cid:signatureN.{tag}@mailcraft` (a `cid:` of this message's own, RFC 2392).
 pub fn signature_code_parts(code: &str, tag: &str) -> (String, Vec<InlinePicture>) {
     let (mut html, mut pictures) = data_pictures(code);
     for p in &mut pictures {
-        let own = format!("{}.{tag}@mailcraft", p.cid.trim_end_matches("@mailcraft"));
+        let own = message_signature_cid(&p.cid, tag);
         html = html.replace(&format!("cid:{}\"", p.cid), &format!("cid:{own}\"")).replace(&format!("cid:{}'", p.cid), &format!("cid:{own}'"));
         p.cid = own;
     }

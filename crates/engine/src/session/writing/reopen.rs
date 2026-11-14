@@ -181,8 +181,8 @@ fn own_text(c: &mut Compose, own: &str) {
     let tag = c
         .inline
         .iter()
-        .filter_map(|p| p.cid.strip_prefix("signature").and_then(|r| r.split_once('.')).and_then(|(_, r)| r.strip_suffix("@mailcraft")))
-        .find(|t| code.contains(&format!(".{t}@mailcraft")))
+        .filter(|p| code.contains(&format!("cid:{}", p.cid)))
+        .find_map(|p| mime::signature_cid_tag(&p.cid))
         .unwrap_or_default()
         .to_string();
     let theirs: Vec<mime::InlinePicture> = c.inline.iter().filter(|p| code.contains(&format!("cid:{}", p.cid))).cloned().collect();
