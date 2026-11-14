@@ -415,14 +415,9 @@ fn style_text(n: &Node, out: &mut String, depth: usize) {
     }
 }
 
-/// An element as selectors see it, kept while its children are styled.
-struct Ancestor {
-    tag: String,
-    id: Option<String>,
-    classes: Vec<String>,
-}
-
-fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<Ancestor>, depth: usize) {
+/// The style sheet's rules written into each element under `n`, `chain` the elements around it
+/// (each pushed as it's gone into, popped after: not built again for every element).
+fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<crate::css::El>, depth: usize) {
     // As deep as the tree goes ([`MAX_OPEN`]): a template nests its boxes deep, and past four
     // dozen levels none of its style sheets' rules reached them (a product's picture kept the size
     // its style sets for a phone, a title its plain weight).
@@ -431,17 +426,13 @@ fn apply_css(n: &mut Node, sheet: &crate::css::Sheet, chain: &mut Vec<Ancestor>,
     }
     for k in &mut n.kids {
         let Kid::El(kid) = k else { continue };
-        chain.push(Ancestor {
+        chain.push(crate::css::El {
             tag: kid.tag.clone(),
             id: kid.attr("id").map(str::to_string),
             classes: kid.attr("class").map(|c| c.split_whitespace().take(16).map(str::to_string).collect()).unwrap_or_default(),
         });
         if !sheet.is_empty() {
-            let els: Vec<crate::css::El<'_>> = chain
-                .iter()
-                .map(|a| crate::css::El { tag: &a.tag, id: a.id.as_deref(), classes: a.classes.iter().map(String::as_str).collect() })
-                .collect();
-            let matched = sheet.matching(&els);
+            let matched = sheet.matching(chain);
             if !matched.is_empty() {
                 let mut style: Vec<(String, String)> = Vec::new();
                 let set = |p: &str, v: &str, style: &mut Vec<(String, String)>| match style.iter_mut().find(|(k, _)| k == p) {

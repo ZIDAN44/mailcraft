@@ -45,12 +45,13 @@ pub(crate) struct Decl {
     pub important: bool,
 }
 
-/// An element as selectors see it.
+/// An element as selectors see it: kept, one for each element around the one being styled,
+/// while the tree is walked ([`Sheet::matching`]).
 #[derive(Clone, Debug, Default)]
-pub(crate) struct El<'a> {
-    pub tag: &'a str,
-    pub id: Option<&'a str>,
-    pub classes: Vec<&'a str>,
+pub(crate) struct El {
+    pub tag: String,
+    pub id: Option<String>,
+    pub classes: Vec<String>,
 }
 
 /// The rules of a message's style sheets, indexed by what their last part needs.
@@ -161,9 +162,9 @@ fn selector(text: &str) -> Option<Vec<Compound>> {
 }
 
 impl Compound {
-    fn matches(&self, e: &El<'_>) -> bool {
+    fn matches(&self, e: &El) -> bool {
         self.tag.as_deref().is_none_or(|t| e.tag.eq_ignore_ascii_case(t))
-            && self.id.as_deref().is_none_or(|id| e.id.is_some_and(|x| x.eq_ignore_ascii_case(id)))
+            && self.id.as_deref().is_none_or(|id| e.id.as_deref().is_some_and(|x| x.eq_ignore_ascii_case(id)))
             && self.classes.iter().all(|c| e.classes.iter().any(|x| x.eq_ignore_ascii_case(c)))
     }
 }
@@ -306,11 +307,11 @@ impl Sheet {
 
     /// The declarations that apply to the last element of `chain` (its ancestors before it),
     /// weakest first, so a later one wins.
-    pub(crate) fn matching(&self, chain: &[El<'_>]) -> Vec<&Decl> {
+    pub(crate) fn matching(&self, chain: &[El]) -> Vec<&Decl> {
         let Some(me) = chain.last() else { return Vec::new() };
         let mut found: Vec<usize> = self.any.clone();
         found.extend(self.by_tag.get(&me.tag.to_ascii_lowercase()).into_iter().flatten());
-        if let Some(id) = me.id {
+        if let Some(id) = &me.id {
             found.extend(self.by_id.get(&id.to_ascii_lowercase()).into_iter().flatten());
         }
         for c in &me.classes {
@@ -326,7 +327,7 @@ impl Sheet {
 
 impl Rule {
     /// Its last part matches the element, and each part before it an ancestor further out.
-    fn applies(&self, chain: &[El<'_>]) -> bool {
+    fn applies(&self, chain: &[El]) -> bool {
         let (Some(last), Some(me)) = (self.parts.last(), chain.last()) else { return false };
         if !last.matches(me) {
             return false;
@@ -346,11 +347,11 @@ impl Rule {
 mod tests {
     use super::*;
 
-    fn el<'a>(tag: &'a str, classes: &[&'a str]) -> El<'a> {
-        El { tag, id: None, classes: classes.to_vec() }
+    fn el(tag: &str, classes: &[&str]) -> El {
+        El { tag: tag.into(), id: None, classes: classes.iter().map(|c| c.to_string()).collect() }
     }
 
-    fn props(sheet: &Sheet, chain: &[El<'_>]) -> Vec<String> {
+    fn props(sheet: &Sheet, chain: &[El]) -> Vec<String> {
         sheet.matching(chain).into_iter().map(|d| format!("{}:{}", d.prop, d.value)).collect()
     }
 
@@ -405,7 +406,7 @@ mod tests {
         assert_eq!(props(&sheet, &[el("table", &[]), el("td", &["title"])]), ["color:#111", "background-color:#888", "color:#fff", "font-size:20px"]);
         assert_eq!(props(&sheet, &[el("table", &["report"]), el("tr", &[]), el("td", &["odd"])]), ["color:#111", "background-color:#f0f0f0"]);
         assert_eq!(props(&sheet, &[el("table", &[]), el("td", &["odd"])]), ["color:#111"], "not inside a .report table");
-        assert_eq!(props(&sheet, &[El { tag: "div", id: Some("TOP"), classes: vec![] }]), ["color:red"]);
+        assert_eq!(props(&sheet, &[El { tag: "div".into(), id: Some("TOP".into()), classes: vec![] }]), ["color:red"]);
         assert_eq!(props(&sheet, &[el("div", &["dark"]), el("div", &[]), el("p", &[])]), ["color:white"]);
         assert!(props(&sheet, &[el("a", &[])]).is_empty(), "pseudo-classes and @media are left out");
         // Specificity before order: the class rule beats the later tag rule.

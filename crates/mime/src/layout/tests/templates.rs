@@ -280,3 +280,24 @@ fn a_box_of_colour_keeps_it() {
     let Block::Table(t) = &b[0] else { panic!("{b:?}") };
     assert!(matches!(&t.rows[0][0].blocks[0], Block::Text(_)), "{b:?}");
 }
+
+/// A template's style sheet written into its elements: boxes with classes nested as deep as the
+/// tree goes, a few thousand words at the bottom, timed. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-mime --lib measure_deep_style_sheet -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement: run in release"]
+fn measure_deep_style_sheet() {
+    let sheet = "<style>.outer .inner td{color:#333333} div.box .cell{font-size:14px} #main .title{font-weight:bold}</style>";
+    let words = "<td class=\"cell title\"><span class=\"a b c\">Some words</span></td>".repeat(4000);
+    let mut html = format!("<table class=\"outer inner\"><tr>{words}</tr></table>");
+    for n in 0..240 {
+        html = format!("<div class=\"box level{n} wrap col\" id=\"b{n}\">{html}</div>");
+    }
+    let html = format!("{sheet}<div id=\"main\">{html}</div>");
+    let t = std::time::Instant::now();
+    let styled = inline_css(&html);
+    let took = t.elapsed().as_millis();
+    let hash = mailcraft_model::hash::fnv1a(styled.as_bytes());
+    println!("MEASURE style sheet into {} KB, 240 boxes deep: {took} ms (written: {hash:016x})", html.len() / 1024);
+    assert!(styled.contains("font-size: 14px"), "{}", &styled[..400]);
+}
