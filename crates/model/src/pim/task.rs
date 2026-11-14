@@ -163,10 +163,16 @@ impl Task {
         }
     }
 
+    /// The day it's due (days since the epoch), when it has one: the same day in every time
+    /// zone, as it's kept at UTC midnight.
+    pub fn due_day(&self) -> Option<i64> {
+        self.due.map(|d| d.div_euclid(86_400))
+    }
+
     /// Its due day has passed (by `today`, the viewer's local day as days since the epoch) and
     /// it isn't done.
     pub fn overdue(&self, today: i64) -> bool {
-        !self.is_done() && self.due.is_some_and(|d| d.div_euclid(86_400) < today)
+        !self.is_done() && self.due_day().is_some_and(|d| d < today)
     }
 }
 

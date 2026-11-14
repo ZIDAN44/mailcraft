@@ -85,11 +85,6 @@ fn head(ui: &mut Ui, t: &Tokens, name: &str, part: &str, acts: &mut Vec<Action>)
     });
 }
 
-/// A day as the lists name it: Today, Tomorrow, else its date.
-fn day_name(day: i64, s: &Session) -> String {
-    super::tasks::due_label(day.saturating_mul(86_400), s)
-}
-
 /// What's coming up: the next week's events not yet over, under their days.
 fn appointments(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     let today = dates::today(&s.clock);
@@ -112,7 +107,7 @@ fn appointments(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         let day = day_of(it);
         if last != Some(day) {
             last = Some(day);
-            ui.label(RichText::new(day_name(day, s)).font(theme::bold(11.5)).color(t.accent));
+            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::bold(11.5)).color(t.accent));
         }
         let when = if it.all_day { tl!("All day").to_string() } else { super::calendar::hm(it.start, s) };
         let h = if it.location.trim().is_empty() { ROW } else { ROW + 14.0 };

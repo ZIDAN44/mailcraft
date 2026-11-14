@@ -43,22 +43,19 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
 }
 
-/// When a task is due, as the list shows it: today, tomorrow, yesterday, else its date.
-pub(crate) fn due_label(day: i64, s: &Session) -> String {
-    let d = day.div_euclid(86_400);
-    let today = dates::today(&s.clock);
-    match d - today {
-        0 => tl!("Today").to_string(),
-        1 => tl!("Tomorrow").to_string(),
-        -1 => tl!("Yesterday").to_string(),
-        _ => {
-            let (y, m, dd) = dates::civil_from_days(d);
-            let (now_y, _, _) = dates::civil_from_days(today);
-            let wd = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].get((d + 3).rem_euclid(7) as usize).copied().unwrap_or("");
-            let month =
-                ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].get(m as usize - 1).copied().unwrap_or("");
-            if y == now_y { crate::i18n::date(&format!("{wd} {month} {dd}")) } else { format!("{y:04}-{m:02}-{dd:02}") }
-        }
+/// A local day (days since the epoch) as the task list and the To-Do Bar name it: Today,
+/// Tomorrow, Yesterday, else its date as the Dates option writes it ([`dates::day_short`]).
+pub(crate) fn relative_day(day: i64, s: &Session) -> String {
+    near_day(day, dates::today(&s.clock)).map_or_else(|| crate::i18n::date(&dates::day_short(day, &s.clock)), str::to_string)
+}
+
+/// Today, Tomorrow or Yesterday, when the local day `day` is one of them from `today`.
+pub(crate) fn near_day(day: i64, today: i64) -> Option<&'static str> {
+    match day.saturating_sub(today) {
+        0 => Some(tl!("Today")),
+        1 => Some(tl!("Tomorrow")),
+        -1 => Some(tl!("Yesterday")),
+        _ => None,
     }
 }
 
@@ -209,7 +206,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let under = widgets::one_line(ui, &under.join(" · "), theme::regular(11.5), t.dim, room);
     let under_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_title, rect.min.y + 31.0)), under.size());
     p.with_clip_rect(clip).galley(under_at.min, under, t.dim);
-    let due_text = task.due.map_or_else(|| tl!("None").to_string(), |d| due_label(d, s));
+    let due_text = task.due_day().map_or_else(|| tl!("None").to_string(), |d| relative_day(d, s));
     let due_color = if late {
         t.danger
     } else if task.due.is_none() {

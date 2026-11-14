@@ -412,6 +412,18 @@ pub fn day_text(day: i64, clock: &Clock) -> String {
     format!("{weekday} {}", clock.style.order.day(y, m, d))
 }
 
+/// A local day as the lists name one: `Mon Oct 26` in the viewer's year (`Mon 26 Oct` with the
+/// day first, as [`list_time`] writes a day), else the whole date as [`day_text`] writes it.
+pub fn day_short(day: i64, clock: &Clock) -> String {
+    let (y, m, d) = civil_from_days(day);
+    if y != civil_from_days(today(clock)).0 {
+        return day_text(day, clock);
+    }
+    let weekday = WEEKDAYS.get((day.rem_euclid(7) + 3).rem_euclid(7) as usize).copied().unwrap_or("");
+    let month = MONTHS.get(m.saturating_sub(1) as usize).copied().unwrap_or("");
+    if clock.style.order.day_first() { format!("{weekday} {d} {month}") } else { format!("{weekday} {month} {d}") }
+}
+
 /// A local day as the reading pane shows it: `Fri 2026-10-16`.
 pub fn day_label(day: i64) -> String {
     let (y, m, d) = civil_from_days(day);
@@ -514,6 +526,25 @@ mod tests {
         // An order a later MailCraft saved: MailCraft's own, the rest of the style kept.
         let later: DateStyle = serde_json::from_str(r#"{"order": "ymdDots", "hours12": true}"#).unwrap();
         assert_eq!(later, DateStyle { order: DateOrder::Iso, hours12: true, full_in_list: false });
+    }
+
+    /// A day the lists name: its weekday, month and day in the viewer's year, the whole date in
+    /// another, in the order the Dates option says.
+    #[test]
+    fn short_days() {
+        let clock = Clock::new(NOW, 0);
+        let dmy = clock.styled(DateStyle { order: DateOrder::DayMonthYear, ..DateStyle::default() });
+        assert_eq!(day_short(days_from_civil(2026, 10, 26), &clock), "Mon Oct 26");
+        assert_eq!(day_short(days_from_civil(2026, 1, 5), &dmy), "Mon 5 Jan");
+        assert_eq!(day_short(days_from_civil(2025, 10, 27), &clock), "Mon 2025-10-27");
+        assert_eq!(day_short(days_from_civil(2027, 3, 1), &dmy), "Mon 01/03/2027");
+        // The viewer's year: at 23:30 on 31 December in UTC, it's already 2027 in UTC+1.
+        let eve = Clock::new(days_from_civil(2027, 1, 1) * 86_400 - 1800, 3600);
+        assert_eq!(day_short(days_from_civil(2027, 1, 5), &eve), "Tue Jan 5");
+        assert_eq!(day_short(days_from_civil(2026, 12, 20), &eve), "Sun 2026-12-20");
+        for far in [i64::MIN, i64::MAX] {
+            assert!(!day_short(far, &clock).is_empty());
+        }
     }
 
     #[test]
