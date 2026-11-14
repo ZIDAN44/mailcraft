@@ -197,6 +197,30 @@ fn message_files_go_into_the_folder_open_and_a_msg_is_shown_when_read() {
     assert!(s.opened_file.take().unwrap().is_err());
 }
 
+/// A file opened is told by its first bytes whatever its size: an Outlook message file over
+/// 16 MB without its extension goes to be read as one (it was taken for a plain message), and a
+/// calendar that big is refused as too big (it was read as a message). One that isn't there is
+/// refused at once, even with a `.msg` name.
+#[test]
+fn big_files_opened_are_told_by_their_first_bytes() {
+    let mut s = sample_session("open-big");
+    let t = TempFolder::new("big");
+    let big = |name: &str, head: &[u8]| {
+        let at = t.put(name, head);
+        std::fs::OpenOptions::new().write(true).open(&at).unwrap().set_len(17 << 20).unwrap();
+        at
+    };
+    let outlook = big("figures", &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0, 0]);
+    let r = open_path(&mut s, &outlook);
+    assert_eq!(r.as_ref().ok().map(|r| r["kind"].clone()), Some(json!("reading")), "{r:?}");
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::ReadMessageFile { path } if path.ends_with("figures"))));
+    let calendar = big("plans", b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\n");
+    let r = open_path(&mut s, &calendar);
+    assert!(matches!(&r, Err(CmdError::Params(m)) if m.ends_with("is too big")), "{r:?}");
+    assert!(open_path(&mut s, &t.0.join("gone.msg")).is_err());
+    assert!(s.take_jobs().is_empty());
+}
+
 /// Issue #56: a message file opens in a message window of its own, as one double-clicked in a
 /// folder does, in no account and no folder. Who else it went to, what's attached and where its
 /// links really go are shown; nothing in it reaches the web until its pictures are asked for,

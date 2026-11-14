@@ -121,6 +121,7 @@ on GitHub.
 - Replied and Forwarded marks owed by replies waiting in the Outbox are no longer lost when their file can't be read at start. MailCraft says when it couldn't be read.
 - On Linux, a data file whose name differs from an open one only in case is no longer refused as already open.
 - A refused edit of a message (an importance other than high, normal or low) no longer changes its recipients or text.
+- An Outlook message file over 16 MB opens even without its .msg extension.
 
 ## 0.38.0 - 2026-11-13
 
