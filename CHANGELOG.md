@@ -75,6 +75,7 @@ on GitHub.
 - Messages with unusual line endings (bare line feeds, or a mix) have their header read correctly when exported to or imported from an Outlook data file, or re-dated.
 - Exchange accounts with shared mailboxes or public folders no longer send a request again to every one of them when something isn't found: each folder's requests go where the folder is kept.
 - Changes made offline reach the server much faster when many are waiting (a thousand: 7 s instead of 25 s).
+- Syncing a very large calendar or address book is faster: the first read of 20,000 items took twice as long, and sending changed events was far slower.
 
 ## 0.38.0 - 2026-11-13
 

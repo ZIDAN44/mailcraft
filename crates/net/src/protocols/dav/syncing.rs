@@ -1,6 +1,8 @@
 //! A sync of an account's calendars and address books with its server: what changed here is
 //! sent, then what the server has is read.
 
+use std::collections::{BTreeMap, HashSet};
+
 use super::*;
 
 /// The longest uid used as a file name as it is.
@@ -90,13 +92,13 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     }
 
     // 2. Changes made here, per item (an event with its changed instances), in the calendar
-    //    it's in (a colleague's copy of the same meeting isn't part of it).
-    let mut items: Vec<(&str, &str)> =
-        pim.events.iter().filter(|e| e.dirty && e.calendar != LOCAL).map(|e| (e.event.uid.as_str(), e.calendar.as_str())).collect();
-    items.sort_unstable();
-    items.dedup();
-    for (uid, calendar) in items {
-        let parts: Vec<&StoredEvent> = pim.events.iter().filter(|e| e.event.uid == uid && e.calendar == calendar).collect();
+    //    it's in (a colleague's copy of the same meeting isn't part of it). Each item's parts
+    //    are gathered in one pass, in the order they're kept.
+    let mut items: BTreeMap<(&str, &str), Vec<&StoredEvent>> = BTreeMap::new();
+    for e in pim.events.iter().filter(|e| e.calendar != LOCAL) {
+        items.entry((e.event.uid.as_str(), e.calendar.as_str())).or_default().push(e);
+    }
+    for ((uid, calendar), parts) in items.into_iter().filter(|(_, parts)| parts.iter().any(|e| e.dirty)) {
         let Some(master) = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first()) else { continue };
         let url = if master.href.is_empty() {
             format!("{}/{}", master.calendar.trim_end_matches('/'), resource_name(uid, "ics"))
@@ -291,6 +293,7 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     }
 
     // 3. What the server has.
+    let refetching: HashSet<&str> = refetch.iter().map(String::as_str).collect();
     if let Some(home) = &out.caldav_home {
         let mut calendars = Vec::new();
         for (n, c) in dav.collections(Kind::Calendars, home)?.into_iter().enumerate() {
@@ -310,20 +313,10 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
             } else {
                 let have: HashMap<&str, &str> =
                     pim.events.iter().filter(|e| e.calendar == c.href).map(|e| (e.href.as_str(), e.etag.as_str())).collect();
-                let read = || -> Result<(Vec<(String, String)>, Vec<(String, String, String)>)> {
-                    let listed = dav.etags(&c.href)?;
-                    let fetch: Vec<String> = listed
-                        .iter()
-                        .filter(|(h, t)| have.get(h.as_str()) != Some(&t.as_str()) || refetch.contains(h))
-                        .map(|(h, _)| h.clone())
-                        .collect();
-                    let got = dav.multiget(Kind::Calendars, &c.href, &fetch)?;
-                    Ok((listed.into_iter().filter(|(h, _)| !fetch.contains(h)).collect(), got))
-                };
-                match unreadable(read(), &info.name, &mut out.errors)? {
+                match unreadable(changed(dav, Kind::Calendars, &c.href, &have, &refetching), &info.name, &mut out.errors)? {
                     Some((kept, got)) => {
                         // Unchanged: the engine keeps what it has.
-                        out.kept.extend(kept.into_iter().map(|(h, _)| h));
+                        out.kept.extend(kept);
                         for (href, etag, data) in got {
                             for event in ical::parse_in(&data, local).events {
                                 out.events.push(StoredEvent {
@@ -360,16 +353,9 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                 out.unchanged_books.push(c.href.clone());
             } else {
                 let have: HashMap<&str, &str> = pim.cards.iter().filter(|x| x.book == c.href).map(|x| (x.href.as_str(), x.etag.as_str())).collect();
-                let read = || -> Result<(Vec<(String, String)>, Vec<(String, String, String)>)> {
-                    let listed = dav.etags(&c.href)?;
-                    let fetch: Vec<String> =
-                        listed.iter().filter(|(h, t)| have.get(h.as_str()) != Some(&t.as_str())).map(|(h, _)| h.clone()).collect();
-                    let got = dav.multiget(Kind::Contacts, &c.href, &fetch)?;
-                    Ok((listed.into_iter().filter(|(h, _)| !fetch.contains(h)).collect(), got))
-                };
-                match unreadable(read(), &info.name, &mut out.errors)? {
+                match unreadable(changed(dav, Kind::Contacts, &c.href, &have, &HashSet::new()), &info.name, &mut out.errors)? {
                     Some((kept, got)) => {
-                        out.kept.extend(kept.into_iter().map(|(h, _)| h));
+                        out.kept.extend(kept);
                         for (href, etag, data) in got {
                             for card in vcard::parse(&data) {
                                 out.cards.push(StoredCard { book: c.href.clone(), href: href.clone(), etag: etag.clone(), card, dirty: false });
@@ -385,6 +371,22 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         out.books = Some(books);
     }
     Ok(out)
+}
+
+/// What's in a collection by its etags: the items here as they are there (kept), and the others
+/// read (address, etag and data).
+type Changed = (Vec<String>, Vec<(String, String, String)>);
+
+/// A collection's items by their etags: those `have` has with the same etag are kept, the others
+/// (and those in `refetch`) read. Looked up in sets: on a first sync every item is read, and each
+/// was looked for in the list of all.
+fn changed(dav: &Dav, kind: Kind, collection: &str, have: &HashMap<&str, &str>, refetch: &HashSet<&str>) -> Result<Changed> {
+    let listed = dav.etags(collection)?;
+    let fetch: Vec<String> =
+        listed.iter().filter(|(h, t)| have.get(h.as_str()) != Some(&t.as_str()) || refetch.contains(h.as_str())).map(|(h, _)| h.clone()).collect();
+    let got = dav.multiget(kind, collection, &fetch)?;
+    let fetched: HashSet<&str> = fetch.iter().map(String::as_str).collect();
+    Ok((listed.into_iter().filter(|(h, _)| !fetched.contains(h.as_str())).map(|(h, _)| h).collect(), got))
 }
 
 /// A calendar or address book read, or `None` when it couldn't be (one the user may not read,

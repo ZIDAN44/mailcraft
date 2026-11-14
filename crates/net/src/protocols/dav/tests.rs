@@ -125,3 +125,65 @@ fn calendars_owned_by_someone_else_are_told_apart() {
     let mut junk = multistatus(r#"<d:multistatus xmlns:d="DAV:"><d:response><d:href>%%%</d:href></d:response></d:multistatus>"#);
     mark_foreign(&mut junk, "not a url", "");
 }
+
+/// A first sync of a calendar and an address book of 20,000 items each (every item read), and
+/// one with 20,000 events changed here in a calendar of another server (none sent: what's timed
+/// is finding each one's parts). Run by hand, in release:
+/// `cargo test --release -p mailcraft-net --lib measure_big_collections -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_big_collections() {
+    use crate::fakes::fake_dav::{BOOK, CAL, PASSWORD, USER, serve};
+    use mailcraft_model::zone::Zone;
+    const N: usize = 20_000;
+    let uid = |i: usize| format!("{i:08x}-5f2c-4b1e-9a7d-3c6e8f0a1b2c");
+    let event = |i: usize| {
+        let start = 1_800_000_000 + i64::try_from(i).unwrap_or_default() * 3600;
+        CalEvent { uid: uid(i), summary: format!("Event {i}"), start, end: start + 1800, ..Default::default() }
+    };
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let pim_at = |base: &str| {
+        let mut pim = Pim {
+            caldav_home: Some(format!("{base}/dav/cal/")),
+            carddav_home: Some(format!("{base}/dav/card/")),
+            dav_checked: Some(100),
+            ..Default::default()
+        };
+        pim.ensure_defaults();
+        pim
+    };
+    let dav = Dav::new(USER, PASSWORD);
+
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        for i in 0..N {
+            d.put(&format!("{CAL}{}.ics", uid(i)), &ical::write(&[event(i)], None, 0));
+            d.put(&format!("{BOOK}{}.vcf", uid(i)), &vcard::write(&vcard::Card { uid: uid(i), name: format!("Person {i}"), ..Default::default() }));
+        }
+    }
+    let t = std::time::Instant::now();
+    let out = sync(&dav, &at, &pim_at(&server.base), 100, Zone::UTC).unwrap();
+    let read = t.elapsed();
+    assert_eq!((out.events.len(), out.cards.len(), out.kept.len(), out.errors.len()), (N, N, 0, 0));
+    let digest = mailcraft_store::fnv64(&format!("{out:?}").replace(&server.base, ""));
+    println!("MEASURE first read of {N} events and {N} cards: {:.0} ms (result {digest:016x})", read.as_secs_f64() * 1000.0);
+
+    let empty = serve();
+    let mut pim = pim_at(&empty.base);
+    pim.events = (0..N)
+        .map(|i| StoredEvent {
+            calendar: "https://old.example/cal/".into(),
+            href: format!("https://old.example/cal/{}.ics", uid(i)),
+            etag: "\"1\"".into(),
+            event: event(i),
+            dirty: true,
+        })
+        .collect();
+    let t = std::time::Instant::now();
+    let out = sync(&dav, &at, &pim, 100, Zone::UTC).unwrap();
+    let pushed = t.elapsed();
+    assert_eq!((out.pushed_events.len(), out.errors.len()), (0, 0));
+    let digest = mailcraft_store::fnv64(&format!("{out:?}").replace(&empty.base, ""));
+    println!("MEASURE sync with {N} events changed for another server: {:.0} ms (result {digest:016x})", pushed.as_secs_f64() * 1000.0);
+}
