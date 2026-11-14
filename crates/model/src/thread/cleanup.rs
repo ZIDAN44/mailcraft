@@ -26,15 +26,15 @@ pub fn plain(text: &str) -> String {
 }
 
 /// A message that a clean-up may move: nothing the user marked on it (read, not flagged nor
-/// pinned, no category: `categories` are their keywords, and any keyword that isn't a system
-/// one, `$…`, counts as one too).
+/// pinned, no category: `categories` are their keywords, and any keyword that isn't a
+/// [system one](crate::organize::keywords::is_system_keyword) counts as one too, as it's shown).
 pub fn movable(m: &Summary, categories: &[String]) -> bool {
     m.flags.seen
         && !m.flags.flagged
         && !m.flags.deleted
         && !m.flags.has(crate::PINNED)
         && !categories.iter().any(|k| m.flags.has(k))
-        && !m.flags.keywords.iter().any(|k| !k.starts_with('$'))
+        && m.flags.keywords.iter().all(|k| crate::organize::keywords::is_system_keyword(k))
 }
 
 /// Which of a conversation's messages are redundant: `texts[i]` is message `i`'s text, when
@@ -135,5 +135,23 @@ mod tests {
         // A huge text isn't compared.
         let huge = vec![Some("x ".repeat(TEXT_MAX)), Some(format!("y {}", "x ".repeat(TEXT_MAX))), None];
         assert!(redundant(&all, &huge, &[]).is_empty());
+    }
+
+    /// A keyword is a category here as everywhere else (shown as one, found by `is:categorized`)
+    /// unless it's a system one: another program's `$label7` was taken for a system keyword, as
+    /// every `$…` was, and its message moved.
+    #[test]
+    fn a_keyword_shown_as_a_category_keeps_its_message() {
+        let with = |k: &str| {
+            let mut m = msg(1, 100);
+            m.flags.keywords.push(k.into());
+            movable(&m, &[])
+        };
+        for category in ["$label7", "$Project", "Work"] {
+            assert!(!with(category), "{category}");
+        }
+        for system in ["$Forwarded", "$Junk", "NonJunk", "$MailFlagBit1", "$MDNSent"] {
+            assert!(with(system), "{system}");
+        }
     }
 }
