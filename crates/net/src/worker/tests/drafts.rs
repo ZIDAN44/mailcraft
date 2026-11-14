@@ -174,14 +174,17 @@ fn kept_drafts_stay_kept_until_each_is_filed() {
     for t in &texts {
         keep_draft(&store, "a1", "Drafts", None, t.clone().into_bytes(), false, &Order::default()).unwrap();
     }
-    // The first draft's APPEND held by the server: on its way as MailCraft closes.
-    st.lock().unwrap().stall_on = Some(("APPEND".into(), Duration::from_millis(1500)));
+    // The first draft's APPEND held by the server, until the test lets it go: on its way as
+    // MailCraft closes, however long a busy computer takes to close.
+    let (hold, holding) = crate::fake::Hold::on("APPEND");
+    st.lock().unwrap().hold_on = Some(hold);
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    wait_for("the first on its way", || st.lock().unwrap().stalled > 0);
+    holding.came();
     pool.shutdown();
     assert_eq!(kept_texts(&store), texts, "every draft not filed yet kept as MailCraft closes");
     // The one on its way gets there, and is kept no more; the others wait for the next run.
+    holding.go(crate::fake::LetGo::Answer);
     wait_for("the first filed", || on_the_server(&st).len() == 1 && kept_texts(&store).len() == 2);
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(on_the_server(&st), texts[..1]);
