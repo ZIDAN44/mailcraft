@@ -257,7 +257,7 @@ pub enum DateGroup {
 
 impl DateGroup {
     pub fn of(t: i64, clock: &Clock) -> DateGroup {
-        DateGroup::of_day(clock.local_day(t), clock.local_day(clock.now))
+        DateGroup::of_day(clock.local_day(t), today(clock))
     }
 
     /// The group of the local day `day` ([`Clock::local_day`]), `today` being today's.
@@ -322,7 +322,7 @@ pub fn list_time(t: i64, clock: &Clock) -> String {
         return format!("{} {}", date_of(&c, style), time_of(&c, style));
     }
     let now = civil(clock.now, clock);
-    let days = clock.local_day(clock.now) - clock.local_day(t);
+    let days = today(clock) - clock.local_day(t);
     if days == 0 {
         time_of(&c, style)
     } else if (1..7).contains(&days) {
@@ -414,7 +414,7 @@ impl FollowUp {
 
     /// The local day it's due (days since 1970-01-01).
     pub fn due(self, clock: &Clock) -> i64 {
-        let today = clock.local_day(clock.now);
+        let today = today(clock);
         // 0 = Monday … 6 = Sunday; Friday is 4.
         let weekday = i64::from(weekday_index(today));
         match self {
@@ -434,14 +434,19 @@ pub fn today(clock: &Clock) -> i64 {
 /// A local day as `YYYY-MM-DD`.
 pub fn day_string(day: i64) -> String {
     let (y, m, d) = civil_from_days(day);
-    format!("{y:04}-{m:02}-{d:02}")
+    DateOrder::Iso.day(y, m, d)
 }
 
 /// A local day as the reading pane shows it, written as the clock's [`DateStyle`] says:
 /// `Fri 2026-10-16`, `Fri 16/10/2026`…
 pub fn day_text(day: i64, clock: &Clock) -> String {
+    weekday_and_day(day, clock.style.order)
+}
+
+/// A local day with its weekday, its date in `order`.
+fn weekday_and_day(day: i64, order: DateOrder) -> String {
     let (y, m, d) = civil_from_days(day);
-    format!("{} {}", weekday_short(day), clock.style.order.day(y, m, d))
+    format!("{} {}", weekday_short(day), order.day(y, m, d))
 }
 
 /// A local day as the lists name one: `Mon Oct 26` in the viewer's year (`Mon 26 Oct` with the
@@ -455,9 +460,10 @@ pub fn day_short(day: i64, clock: &Clock) -> String {
     if clock.style.order.day_first() { format!("{weekday} {d} {month}") } else { format!("{weekday} {month} {d}") }
 }
 
-/// A local day as the reading pane shows it: `Fri 2026-10-16`.
+/// A local day as [`day_text`] writes it in MailCraft's own order, whatever the Dates option
+/// says: `Fri 2026-10-16`. For text written where no clock is at hand (an error message).
 pub fn day_label(day: i64) -> String {
-    format!("{} {}", weekday_short(day), day_string(day))
+    weekday_and_day(day, DateOrder::Iso)
 }
 
 #[cfg(test)]
@@ -602,6 +608,11 @@ mod tests {
                 strings += 1;
                 assert_eq!(day_string(day), format!("{y:04}-{m:02}-{d:02}"));
                 assert_eq!(day_label(day), format!("{} {y:04}-{m:02}-{d:02}", DAYS[wd as usize]));
+                for order in DateOrder::ALL {
+                    let mut clock = Clock::new(NOW, 0);
+                    clock.style.order = order;
+                    assert_eq!(day_text(day, &clock), format!("{} {}", DAYS[wd as usize], order.day(y, m, d)));
+                }
                 assert_eq!(month_short(m), SHORT[m as usize - 1]);
             }
         }
