@@ -29,7 +29,7 @@ use std::rc::Rc;
 
 use mailcraft_mime as mime;
 use mailcraft_model::organize::FollowUpDays;
-use mailcraft_model::{Folder, FolderRole, MessageKey, utf7};
+use mailcraft_model::{Folder, FolderRole, utf7};
 use mailcraft_pst::{
     Format, NodeId,
     write::{self, BatchMessage, NewAttachment, NewMessage, NewProperty, NewRecipient, PropertyKey, RecipientType},
@@ -193,9 +193,8 @@ pub fn export(
             let mut batch = Vec::new();
             let mut bytes = 0usize;
             for s in &st.messages {
-                let key = MessageKey { account: account.to_string(), folder: f.path.clone(), validity: s.key.validity, uid: s.key.uid };
                 let state = item::state(s, f.role, follow_up);
-                match store.read_body(&key).and_then(|raw| item::owned(&raw, s.received, state, &owner, Some(&spill))) {
+                match store.read_body(&s.key).and_then(|raw| item::owned(&raw, s.received, state, &owner, Some(&spill))) {
                     Some(m) if !m.message_id.is_empty() && had.contains(&mailcraft_model::thread::norm_id(&m.message_id)) => done.already += 1,
                     Some(m) => {
                         bytes = bytes.saturating_add(m.held());

@@ -1,7 +1,7 @@
 use super::*;
 use crate::data_files::pst_bytes::{block_at, block_ends, crc, seal};
 use crate::data_files::scratch::scratch;
-use mailcraft_model::{EmailAddress, Flags};
+use mailcraft_model::{EmailAddress, Flags, MessageKey};
 use mailcraft_pst::{
     Message, PstFile, PstFolder, PstStore,
     write::{self, SpecialFolder as Special},
