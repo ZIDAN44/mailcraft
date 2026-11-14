@@ -382,12 +382,49 @@ fn recording_folders(store: &PstStore) -> io::Result<Vec<u32>> {
     Ok(nodes)
 }
 
-/// The names from the IPM subtree down to `node`, each folder looked through once.
+/// The names from the IPM subtree down to `node`. Found by going up from it, each node naming
+/// its parent ([`names_upward`]): every folder isn't looked through. A file whose nodes don't
+/// name their parents, or name the wrong ones (another program's, or damage), is looked through
+/// from the IPM subtree down instead, by the folders each one lists ([`names_downward`]), which is
+/// what says where a folder is.
 fn folder_names(store: &PstStore, node: u32) -> io::Result<Option<Vec<String>>> {
     let top = store.ipm_subtree()?;
     if node == top {
         return Ok(None);
     }
+    Ok(names_upward(store, node, top).or_else(|| names_downward(store, node, top)))
+}
+
+/// The names from `top` down to `node`, by each node's parent, up to `top`: a step counts only
+/// when the parent lists the folder among its own (its hierarchy table), so a parent that is
+/// stale never names a path the file doesn't have. None when the chain doesn't lead to `top` so
+/// (or not within [`MAX_DEPTH`], which also ends a chain that comes round again).
+fn names_upward(store: &PstStore, node: u32, top: u32) -> Option<Vec<String>> {
+    let mut names = Vec::new();
+    let mut at = node;
+    let mut folder = store.open_folder(at).ok()?;
+    while at != top {
+        if names.len() >= MAX_DEPTH {
+            return None;
+        }
+        let parent = store.pst().node(at).ok()?.parent;
+        if parent == at {
+            return None;
+        }
+        let above = store.open_folder(parent).ok()?;
+        if !above.hierarchy_table()?.rows_matrix().any(|row| row.id() == at) {
+            return None;
+        }
+        names.push(name_of(folder.properties().get(DISPLAY_NAME)));
+        (at, folder) = (parent, above);
+    }
+    names.reverse();
+    (!names.is_empty()).then_some(names)
+}
+
+/// The names from `top` down to `node`, each folder under `top` looked through once (at most
+/// [`MAX_DEPTH`] deep).
+fn names_downward(store: &PstStore, node: u32, top: u32) -> Option<Vec<String>> {
     let mut seen = HashSet::new();
     let mut todo: Vec<(u32, Vec<String>)> = vec![(top, Vec::new())];
     while let Some((at, path)) = todo.pop() {
@@ -401,12 +438,12 @@ fn folder_names(store: &PstStore, node: u32) -> io::Result<Option<Vec<String>>> 
             let mut names = path.clone();
             names.push(name_of(child.properties().get(DISPLAY_NAME)));
             if row.id() == node {
-                return Ok(Some(names));
+                return Some(names);
             }
             todo.push((row.id(), names));
         }
     }
-    Ok(None)
+    None
 }
 
 /// The folder the file records as `role`, as names from the IPM subtree. Only read: the file is
@@ -482,3 +519,6 @@ pub(crate) fn set_store_display_name(path: &Path, name: &str) -> io::Result<()> 
     ed.rewrite_props(NID_MESSAGE_STORE, props)?;
     ed.commit()
 }
+
+#[cfg(test)]
+mod tests;
