@@ -125,3 +125,43 @@ fn handlers_and_scripts_are_found_as_a_browser_reads_them() {
         assert_eq!(signature_code(code), code);
     }
 }
+
+/// A 2 MB newsletter quoted with 100 pictures behind its boxes, and a signature with ten
+/// pictures of 1 MB made ready to send, timed. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-mime --lib measure_pictures_written_in -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_pictures_written_in() {
+    let boxes: String =
+        (0..100).map(|i| format!("<table><tr><td background=\"https://pictures.example/p{i}.png\">Item {i}</td></tr></table>")).collect();
+    let html = format!("{boxes}{}", "<p>Some words of a long newsletter, kept to see a reply's cost.</p>".repeat(30_000));
+    let given: Vec<(String, String)> = (0..100).map(|i| (format!("https://pictures.example/p{i}.png"), format!("p{i}@x.example"))).collect();
+    let t = std::time::Instant::now();
+    let quoted = quote_html(&html, &given, &[]);
+    println!("MEASURE quote 2 MB with 100 pictures: {} ms", t.elapsed().as_millis());
+    assert!(quoted.contains("background=\"cid:p99@x.example\""));
+    let b64 = "QUJD".repeat(1 << 18);
+    let code: String = (0..10).map(|i| format!("<img src=\"data:image/png;base64,{b64}{i}\">")).collect();
+    let t = std::time::Instant::now();
+    let (sent, pictures) = signature_code_parts(&code, "tag");
+    println!("MEASURE a signature of ten 1 MB pictures: {} ms", t.elapsed().as_millis());
+    assert_eq!(pictures.len(), 10);
+    assert!(sent.len() < 2000, "{}", sent.len());
+}
+
+/// Pictures behind a quoted message's boxes take the `cid:` they're sent under, however their
+/// address is written; one with none given, or written another way, stays as it was.
+#[test]
+fn pictures_behind_boxes_take_their_cids() {
+    let html = "<td background=\"a.png\">1</td><td background='a.png'>2</td><div style=\"background:url(a.png)\">3</div>\
+                <div style=\"background:url('b.png')\">4</div><div style='background:url(\"b.png\")'>5</div>\
+                <td background=a.png>6</td><div style=\"background:url(c.png)\">7</div>";
+    let given = [("a.png".to_string(), "a@x".to_string()), ("b.png".to_string(), "b@x".to_string()), ("a.png".to_string(), "other@x".to_string())];
+    let quoted = quote_html(html, &given, &[]);
+    for kept in
+        ["background=\"cid:a@x\"", "background='cid:a@x'", "url(cid:a@x)", "url('cid:b@x')", "url(\"cid:b@x\")", "background=a.png", "url(c.png)"]
+    {
+        assert!(quoted.contains(kept), "{kept} in {quoted}");
+    }
+    assert!(!quoted.contains("other@x"), "the first given for an address: {quoted}");
+}
