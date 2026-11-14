@@ -264,6 +264,61 @@ fn attr<'a>(attrs: &'a str, name: &str) -> Option<&'a str> {
     None
 }
 
+/// The parts the package's `main` part lists in its `element`s, in order, each by its `r:id`
+/// followed through `rels` (a target under `dir`, or from the package's root with a `/`), with
+/// the element's `name` when it has one. Empty when there are no relationships to follow: the
+/// format ties a sheet or a slide to its part so, not by the part's number.
+fn in_order(zip: &Zip<'_>, main: &str, rels: &str, element: &str, dir: &str) -> Vec<(Option<String>, String)> {
+    let Some(rels) = zip.read(rels) else { return Vec::new() };
+    let mut targets: Vec<(String, String)> = Vec::new();
+    for t in tokens(&String::from_utf8_lossy(&rels)) {
+        if let Tok::Start { name, attrs, .. } = t
+            && local(name) == "Relationship"
+            && let (Some(id), Some(target)) = (attr(attrs, "Id"), attr(attrs, "Target"))
+        {
+            let target = unescape(target);
+            let part = match target.strip_prefix('/') {
+                Some(from_root) => from_root.to_string(),
+                None => format!("{dir}{target}"),
+            };
+            targets.push((id.to_string(), part));
+        }
+    }
+    let Some(x) = zip.read(main) else { return Vec::new() };
+    let mut out = Vec::new();
+    for t in tokens(&String::from_utf8_lossy(&x)) {
+        if let Tok::Start { name, attrs, .. } = t
+            && local(name) == element
+            && let Some(id) = prefixed_attr(attrs, "id")
+            && let Some((_, part)) = targets.iter().find(|(i, _)| i == id)
+        {
+            out.push((attr(attrs, "name").map(unescape), part.clone()));
+        }
+    }
+    out
+}
+
+/// [`attr`] for a name with a prefix only (`r:id`, not a plain `id` beside it).
+fn prefixed_attr<'a>(attrs: &'a str, name: &str) -> Option<&'a str> {
+    let mut rest = attrs;
+    while let Some(eq) = rest.find('=') {
+        let key = rest.get(..eq).unwrap_or_default().trim();
+        let key = key.rsplit(char::is_whitespace).next().unwrap_or(key);
+        let after = rest.get(eq + 1..).unwrap_or_default().trim_start();
+        let quote = after.chars().next()?;
+        if quote != '"' && quote != '\'' {
+            return None;
+        }
+        let body = after.get(1..).unwrap_or_default();
+        let close = body.find(quote)?;
+        if key.split_once(':').is_some_and(|(_, local)| local == name) {
+            return body.get(..close);
+        }
+        rest = body.get(close + 1..).unwrap_or_default();
+    }
+    None
+}
+
 /// A tag's name without its prefix (`w:p` → `p`).
 fn local(name: &str) -> &str {
     name.rsplit(':').next().unwrap_or(name)
@@ -426,7 +481,18 @@ fn workbook(zip: &Zip<'_>) -> Option<Preview> {
             }
         }
     }
-    // The sheets' names, in order.
+    // The sheets as the workbook lists them, each followed to its part.
+    let listed = in_order(zip, "xl/workbook.xml", "xl/_rels/workbook.xml.rels", "sheet", "xl/");
+    if !listed.is_empty() {
+        let mut sheets = Vec::new();
+        for (n, (name, part)) in listed.into_iter().take(MAX_SHEETS).enumerate() {
+            let Some(x) = zip.read(&part) else { continue };
+            let name = name.filter(|s| !s.is_empty()).unwrap_or_else(|| format!("Sheet{}", n + 1));
+            sheets.push((name, sheet(&String::from_utf8_lossy(&x), &shared)));
+        }
+        return Some(Preview::Workbook(sheets));
+    }
+    // A package without its relationships: its parts by number, its names in order.
     let mut names = Vec::new();
     if let Some(x) = zip.read("xl/workbook.xml") {
         for t in tokens(&String::from_utf8_lossy(&x)) {
@@ -532,11 +598,14 @@ fn sheet(xml: &str, shared: &[String]) -> Vec<Vec<String>> {
 
 fn slides(zip: &Zip<'_>) -> Option<Preview> {
     let mut out = Vec::new();
-    for n in 1..=MAX_SLIDES {
-        let part = format!("ppt/slides/slide{n}.xml");
-        if !zip.has(&part) {
-            break;
-        }
+    // As the presentation lists them, each followed to its part; without its relationships, by
+    // number.
+    let mut parts: Vec<String> =
+        in_order(zip, "ppt/presentation.xml", "ppt/_rels/presentation.xml.rels", "sldId", "ppt/").into_iter().map(|(_, p)| p).collect();
+    if parts.is_empty() {
+        parts = (1..=MAX_SLIDES).map(|n| format!("ppt/slides/slide{n}.xml")).take_while(|p| zip.has(p)).collect();
+    }
+    for part in parts.into_iter().take(MAX_SLIDES) {
         let Some(x) = zip.read(&part) else { continue };
         let mut paras = Vec::new();
         let mut cur: Option<String> = None;
@@ -650,6 +719,38 @@ mod tests {
         let slide = r#"<p:sld><p:txBody><a:p><a:r><a:t>Title</a:t></a:r></a:p><a:p><a:r><a:t>Point one</a:t></a:r><a:br/><a:r><a:t>two</a:t></a:r></a:p></p:txBody></p:sld>"#;
         let p = preview("deck.pptx", "", &zip(&[("ppt/slides/slide1.xml", slide), ("ppt/slides/slide2.xml", "<p:sld/>")])).unwrap();
         assert_eq!(p, Preview::Slides(vec![vec!["Title".into(), "Point one\ntwo".into()], vec![]]));
+    }
+
+    /// Sheets and slides as the package lists them, each by its relationship to its part: a gap
+    /// in the parts' numbers, or an order other than theirs. Read by number, sheet3 (after a
+    /// missing sheet2) was never shown, and the first part took the first name.
+    #[test]
+    fn sheets_and_slides_follow_their_relationships() {
+        let wb =
+            r#"<workbook><sheets><sheet name="Summary" sheetId="1" r:id="rId3"/><sheet name="Data" sheetId="2" r:id="rId1"/></sheets></workbook>"#;
+        let rels = r#"<Relationships><Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="styles" Target="styles.xml"/><Relationship Id="rId3" Type="worksheet" Target="/xl/worksheets/sheet3.xml"/></Relationships>"#;
+        let data = r#"<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>data</t></is></c></row></sheetData></worksheet>"#;
+        let summary = r#"<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>summary</t></is></c></row></sheetData></worksheet>"#;
+        let file = zip(&[
+            ("xl/workbook.xml", wb),
+            ("xl/_rels/workbook.xml.rels", rels),
+            ("xl/worksheets/sheet1.xml", data),
+            ("xl/worksheets/sheet3.xml", summary),
+        ]);
+        let Some(Preview::Workbook(sheets)) = preview("x.xlsx", "", &file) else { panic!() };
+        let read: Vec<(&str, &str)> = sheets.iter().map(|(n, g)| (n.as_str(), g[0][0].as_str())).collect();
+        assert_eq!(read, [("Summary", "summary"), ("Data", "data")]);
+        let pres = r#"<p:presentation><p:sldIdLst><p:sldId id="256" r:id="rId7"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst></p:presentation>"#;
+        let rels = r#"<Relationships><Relationship Id="rId2" Target="slides/slide1.xml"/><Relationship Id="rId7" Target="slides/slide4.xml"/></Relationships>"#;
+        let slide = |t: &str| format!("<p:sld><p:txBody><a:p><a:r><a:t>{t}</a:t></a:r></a:p></p:txBody></p:sld>");
+        let (first, second) = (slide("first"), slide("second"));
+        let file = zip(&[
+            ("ppt/presentation.xml", pres),
+            ("ppt/_rels/presentation.xml.rels", rels),
+            ("ppt/slides/slide1.xml", &second),
+            ("ppt/slides/slide4.xml", &first),
+        ]);
+        assert_eq!(preview("d.pptx", "", &file), Some(Preview::Slides(vec![vec!["first".into()], vec!["second".into()]])));
     }
 
     #[test]
