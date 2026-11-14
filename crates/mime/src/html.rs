@@ -70,7 +70,7 @@ pub(super) fn picture_sizes(html: &str) -> Vec<(String, ImageSize)> {
         let tag = html.get(start..end).unwrap_or("");
         let Some(src) = tag_attr(tag, "src").map(str::trim).filter(|s| !s.is_empty()) else { continue };
         let style = tag_attr(tag, "style").map(css::declarations).unwrap_or_default();
-        let css = |prop: &str| style.iter().rev().find(|d| d.prop == prop).map(|d| d.value.as_str());
+        let css = |prop: &str| css::pick(&style, prop);
         // The style's size wins over the attributes', as in a browser.
         let width = css("width").and_then(|w| {
             let w = w.trim();

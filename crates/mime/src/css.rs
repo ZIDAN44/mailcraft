@@ -90,7 +90,9 @@ pub(crate) fn declarations(block: &str) -> Vec<Decl> {
             }
             let v = v.trim();
             let lower = v.to_ascii_lowercase();
-            let (value, important) = match lower.find("!important") {
+            // `!important`, a space after the `!` or not (`! important`, as CSS reads it too).
+            let bang = lower.rfind('!').filter(|i| lower.get(i + 1..).is_some_and(|r| r.trim() == "important"));
+            let (value, important) = match bang {
                 Some(i) => (v.get(..i).unwrap_or(v).trim(), true),
                 None => (v, false),
             };
@@ -101,6 +103,19 @@ pub(crate) fn declarations(block: &str) -> Vec<Decl> {
             Some(Decl { prop, value: value.to_string(), important })
         })
         .collect()
+}
+
+/// The value `decls` (a style's, [`declarations`]) give `prop` (lower case), as CSS picks it: the
+/// last declaration of it marked `!important`, else the last. The one rule for every pass that
+/// looks a property up (some took the first, some the last).
+pub(crate) fn pick<'d>(decls: &'d [Decl], prop: &str) -> Option<&'d str> {
+    let of = || decls.iter().rev().filter(|d| d.prop == prop);
+    of().find(|d| d.important).or_else(|| of().next()).map(|d| d.value.as_str())
+}
+
+/// The value a style (an element's `style`) gives `prop` (lower case), as CSS picks it ([`pick`]).
+pub(crate) fn style_value(style: &str, prop: &str) -> Option<String> {
+    pick(&declarations(style), prop).map(str::to_string)
 }
 
 /// One selector (`table.report td`), or `None` when it uses what isn't supported.

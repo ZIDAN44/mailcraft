@@ -496,20 +496,21 @@ fn safe(v: &str, url: bool) -> Option<String> {
 /// Whether a VML picture is placed behind what's drawn after it (`position: absolute` and a
 /// `z-index` below nothing, or a size to see: a pixel there to see who opened the mail isn't).
 fn behind(tag: &str) -> bool {
-    let style: String = attr(tag, "style").unwrap_or_default().to_ascii_lowercase().chars().filter(|c| !c.is_whitespace()).collect();
-    let placed = style.split(';').any(|d| d == "position:absolute");
+    let style = attr(tag, "style").unwrap_or_default();
+    let value = |prop: &str| crate::css::style_value(&style, prop);
+    let placed = value("position").is_some_and(|p| p.eq_ignore_ascii_case("absolute"));
     let (w, h) = picture_size(tag);
-    placed && (style.contains("z-index:-") || w.is_some_and(|w| w > 3) || h.is_some_and(|h| h > 3))
+    placed && (value("z-index").is_some_and(|z| z.starts_with('-')) || w.is_some_and(|w| w > 3) || h.is_some_and(|h| h > 3))
 }
 
 /// A picture's size in pixels from its `width` and `height`, or its style's (`width:1px`).
 fn picture_size(tag: &str) -> (Option<u32>, Option<u32>) {
-    let style = attr(tag, "style").unwrap_or_default().to_ascii_lowercase();
+    let style = attr(tag, "style").unwrap_or_default();
+    // The one that counts, as in CSS ([`crate::css::pick`]): the first was taken, and
+    // `width:1px;width:600px` was a pixel here and 600 wide to the layout.
     let from_style = |prop: &str| {
-        style.split(';').find_map(|d| {
-            let (p, v) = d.split_once(':')?;
-            (p.trim() == prop).then(|| v.trim().trim_end_matches("px").trim().parse::<f32>().ok()).flatten()
-        })
+        let v = crate::css::style_value(&style, prop)?.to_ascii_lowercase();
+        v.trim_end_matches("px").trim().parse::<f32>().ok()
     };
     let px = |prop: &str| {
         let v = attr(tag, prop).and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok()).or_else(|| from_style(prop))?;
@@ -645,9 +646,9 @@ fn vml(html: &str, kept: &[std::ops::Range<usize>]) -> (String, bool) {
 /// of its shorter side (`10%`, `0.1`, or in 65536ths, `6554f`; VML's 0.2 when it says none), at
 /// most half of it. Only numbers MailCraft writes go into the style.
 fn rounded(tag: &str) -> String {
-    let style = attr(tag, "style").unwrap_or_default().to_ascii_lowercase();
+    let style = attr(tag, "style").unwrap_or_default();
     let side = |prop: &str| {
-        let v = style.split(';').find_map(|d| d.split_once(':').filter(|(p, _)| p.trim() == prop).map(|(_, v)| v.trim().to_string()))?;
+        let v = crate::css::style_value(&style, prop)?.to_ascii_lowercase();
         crate::layout::length_px(&v).filter(|px| *px >= 1.0).map(|px| px.min(4000.0).round())
     };
     let (w, h) = (side("width"), side("height"));
@@ -713,24 +714,7 @@ pub(crate) fn hidden_from_outlook(html: &str) -> Cow<'_, str> {
 /// any case and spacing). The one test of it for the message as it's shown, its text, and the
 /// text it hides.
 pub(crate) fn mso_hidden(style: &str) -> bool {
-    let mut said: Option<bool> = None;
-    let mut important = false;
-    for (p, v) in style.split(';').filter_map(|d| d.split_once(':')) {
-        if !p.trim().eq_ignore_ascii_case("mso-hide") {
-            continue;
-        }
-        let v: String = v.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_ascii_lowercase();
-        let (v, this_important) = match v.strip_suffix("!important") {
-            Some(v) => (v.to_string(), true),
-            None => (v, false),
-        };
-        if important && !this_important {
-            continue;
-        }
-        important |= this_important;
-        said = Some(v == "all");
-    }
-    said.unwrap_or(false)
+    crate::css::style_value(style, "mso-hide").is_some_and(|v| v.split_whitespace().collect::<String>().eq_ignore_ascii_case("all"))
 }
 
 mod in_place;

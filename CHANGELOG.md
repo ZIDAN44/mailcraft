@@ -131,6 +131,7 @@ on GitHub.
 - Two JMAP folders whose names come out the same no longer swap their mail when the server lists them in another order.
 - A picture whose address is written with `&#38;` now loads when pictures are shown.
 - A file whose name appears in a picture's description no longer loses its paperclip.
+- Pictures and buttons in newsletters' Outlook layouts take the size their style finally sets.
 
 ## 0.38.0 - 2026-11-13
 

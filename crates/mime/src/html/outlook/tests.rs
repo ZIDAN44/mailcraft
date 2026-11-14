@@ -703,3 +703,24 @@ fn xml_in_a_comment_or_raw_text_drops_nothing() {
     let p = message("<!--[if gte mso 9]><xml><!-- x --><o:PixelsPerInch>96</o:PixelsPerInch></xml><![endif]--><p>Body</p>");
     assert!(!shown(&p).contains("96") && shown(&p).contains("Body"), "{:?}", shown(&p));
 }
+
+/// Every pass picks a style's value as CSS does ([`crate::css::pick`]): the last declaration, or
+/// the last marked `!important`. Outlook's pictures and buttons took the first, a picture's size
+/// and text too small to see the last whatever was `!important`.
+#[test]
+fn a_styles_value_is_the_one_css_picks() {
+    let read = as_outlook_reads(r#"<!--[if mso]><v:image style="width:1px;width:600px;height:40px" src="https://x.example/a.png"/><![endif]-->"#);
+    assert!(read.contains("width=\"600\""), "{read}");
+    let read =
+        as_outlook_reads(r#"<!--[if mso]><v:roundrect style="width:100px;width:200px;height:40px" arcsize="10%">Go</v:roundrect><![endif]-->"#);
+    assert!(read.contains("width:200px") && !read.contains("width:100px"), "{read}");
+    // Behind what's drawn after it, as big as the layout reads it: not a pixel drawn over it.
+    let read = as_outlook_reads(
+        r#"<!--[if mso]><v:image style="position:absolute;width:1px;height:1px;width:600px;height:300px" src="https://x.example/hero.png"/><![endif]-->"#,
+    );
+    assert!(!read.contains("<img"), "{read}");
+    let sizes = crate::html::picture_sizes(r#"<img src="https://x.example/p.png" style="width:600px !important;width:1px">"#);
+    assert_eq!(sizes.first().and_then(|(_, s)| s.width), Some(crate::layout::Width::Px(600)));
+    assert!(mso_hidden("mso-hide:none;mso-hide:all") && mso_hidden("mso-hide:all !important;mso-hide:none"));
+    assert!(mso_hidden("MSO-HIDE : ALL") && !mso_hidden("mso-hide:all;mso-hide:none"));
+}
