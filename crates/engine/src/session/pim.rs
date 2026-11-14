@@ -257,14 +257,7 @@ impl Session {
     pub fn agenda(&self, from: i64, to: i64) -> Vec<AgendaItem> {
         // Every address of the accounts' (their others too: an invitation to one needs its
         // answer like any).
-        let mine: Vec<String> = self
-            .accounts
-            .iter()
-            .flat_map(|a| {
-                let others = a.config.identities.iter().map(|i| i.email.to_ascii_lowercase());
-                [a.config.email.to_ascii_lowercase(), a.config.username.to_ascii_lowercase()].into_iter().chain(others).collect::<Vec<_>>()
-            })
-            .collect();
+        let mine = self.my_addresses();
         let mut out = Vec::new();
         for (account, p) in &self.pim {
             let Some(acc) = self.account(account) else { continue };
@@ -279,7 +272,8 @@ impl Session {
                     if start >= to || end.max(start.saturating_add(1)) <= from {
                         continue;
                     }
-                    let needs_reply = e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION");
+                    let needs_reply =
+                        e.attendees.iter().any(|a| a.partstat == "NEEDS-ACTION" && mine.iter().any(|m| m.eq_ignore_ascii_case(a.email.trim())));
                     out.push(AgendaItem {
                         account: account.clone(),
                         calendar: cal.id.clone(),

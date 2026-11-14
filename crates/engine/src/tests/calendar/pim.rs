@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod agenda;
 mod huge_times;
 mod server_cards;
 

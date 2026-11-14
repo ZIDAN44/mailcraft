@@ -404,12 +404,21 @@ pub fn occurrences<E: std::borrow::Borrow<CalEvent>>(events: &[E], from: i64, to
         }
         let len = e.end.saturating_sub(e.start).max(0);
         let overrides = moved.get(e.uid.as_str()).unwrap_or(&none);
+        let kept = |s: i64| s.saturating_add(len.max(1)) > from && !e.exdates.contains(&s) && !overrides.contains(&s);
+        // Most events happen once: told at once, as [`starts`] would give them (a calendar of
+        // thousands is looked through each time the calendar is drawn).
+        if e.rrule.is_none() && e.rdates.is_empty() {
+            if e.start < to && kept(e.start) {
+                out.push(Occurrence { event: i, start: e.start, end: e.start.saturating_add(len) });
+            }
+            continue;
+        }
         let mut n = 0;
         for s in starts(e, to) {
             if s >= to {
                 break;
             }
-            if s.saturating_add(len.max(1)) <= from || e.exdates.contains(&s) || overrides.contains(&s) {
+            if !kept(s) {
                 continue;
             }
             out.push(Occurrence { event: i, start: s, end: s.saturating_add(len) });

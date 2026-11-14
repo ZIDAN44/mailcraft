@@ -122,6 +122,7 @@ use super::*;
 
 mod find;
 mod meeting;
+mod occurring;
 mod showing;
 mod tasks;
 mod zones;
