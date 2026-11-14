@@ -397,3 +397,22 @@ fn key_files_given_as_bytes_have_the_caps_of_files() {
     assert!(e.contains("bytes"), "{e}");
     done(s);
 }
+
+/// A stored key that can't be read (a damaged `pgp.json`) before the others: each of the rest
+/// still signs with its own key. Paired with the infos of those that read, every later key went
+/// with the next one's info, so mail from Ana's address was signed with Riley's key.
+#[test]
+fn a_key_that_cant_be_read_leaves_the_others_their_own() {
+    let mut s = with_key("pgp-damaged-key");
+    s.run("account.setAddress", &json!({"account": "sample", "address": "ana@posteo.example"})).unwrap();
+    let (riley, ana) = (riley_key(), ana_public());
+    let damaged = b"not a key".to_vec();
+    s.apply(Event::PgpKeys { account: "sample".into(), keys: vec![damaged, riley.public.clone(), ana.clone()], imported: None, error: None });
+    let (key, info) = s.own_pgp_for("sample", "ana@posteo.example").unwrap();
+    assert_eq!((key, info.fingerprint), (ana.clone(), pgp::info(&ana).unwrap().fingerprint));
+    let (key, info) = s.own_pgp_for("sample", "").unwrap();
+    assert_eq!((key, info.fingerprint), (riley.public.clone(), riley.info.fingerprint.clone()));
+    assert_eq!(s.pgp_key("sample").unwrap().fingerprint, riley.info.fingerprint, "the first that reads is in use");
+    assert_eq!(s.pgp_older_keys("sample").len(), 1);
+    done(s);
+}

@@ -98,8 +98,10 @@ pub(crate) struct PgpState {
     signed: HashMap<MessageKey, SignedBy>,
     /// The last [`Reach`] worked out, and a digest of what it was worked out from.
     reach: Option<(u64, Reach)>,
-    /// What each account's own keys are (read once, as the window asks every frame).
-    own: HashMap<String, Vec<openpgp::KeyInfo>>,
+    /// What each account's own keys are (read once, as the window asks every frame), each with
+    /// where its key is in [`PgpSettings::keys`]: one that can't be read is left out, and the
+    /// rest still name their own keys.
+    own: HashMap<String, Vec<(usize, openpgp::KeyInfo)>>,
 }
 
 impl PgpState {
@@ -122,7 +124,12 @@ impl Session {
     }
 
     fn read_own(&mut self, account: &str) {
-        let own = self.pgp.settings.get(account).map(|s| s.keys.iter().filter_map(|k| openpgp::info(k).ok()).collect()).unwrap_or_default();
+        let own = self
+            .pgp
+            .settings
+            .get(account)
+            .map(|s| s.keys.iter().enumerate().filter_map(|(at, k)| openpgp::info(k).ok().map(|i| (at, i))).collect())
+            .unwrap_or_default();
         self.pgp.own.insert(account.to_string(), own);
     }
 
@@ -142,7 +149,7 @@ impl Session {
 
     /// The account's key in use, when it has one.
     pub fn pgp_key(&self, account: &str) -> Option<openpgp::KeyInfo> {
-        self.pgp.own.get(account).and_then(|o| o.first()).cloned()
+        self.pgp.own.get(account).and_then(|o| o.first()).map(|(_, i)| i.clone())
     }
 
     /// The account's OpenPGP key mail from `from` is signed with, as [`Session::own_cert_for`]:
@@ -150,14 +157,16 @@ impl Session {
     pub(crate) fn own_pgp_for(&self, account: &str, from: &str) -> Option<(Vec<u8>, openpgp::KeyInfo)> {
         let address = self.address_from(account, from);
         let s = self.pgp.settings.get(account)?;
-        let infos = self.pgp.own.get(account)?;
-        let mut keys: Vec<(Vec<u8>, openpgp::KeyInfo)> = s.keys.iter().cloned().zip(infos.iter().cloned()).collect();
-        let named = keys.iter().position(|(_, i)| i.is_for(&address) && i.problems(self.clock.now).is_empty());
-        match named {
-            Some(at) => Some(keys.swap_remove(at)),
-            None if self.is_own_address(account, &address) => keys.into_iter().next(),
-            None => None,
-        }
+        let own = self.pgp.own.get(account)?;
+        // Each key paired with its own info (zipped with the infos of those that read, one that
+        // didn't paired every later key with the next one's info), and only that key copied.
+        let named = own.iter().find(|(_, i)| i.is_for(&address) && i.problems(self.clock.now).is_empty());
+        let (at, info) = match named {
+            Some(found) => found,
+            None if self.is_own_address(account, &address) => own.first()?,
+            None => return None,
+        };
+        Some((s.keys.get(*at)?.clone(), info.clone()))
     }
 
     /// [`Session::pgp_key`] for mail from `from`: the key that signs it.
@@ -174,7 +183,7 @@ impl Session {
 
     /// The account's older keys, kept to decrypt mail sent to them.
     pub fn pgp_older_keys(&self, account: &str) -> Vec<openpgp::KeyInfo> {
-        self.pgp.own.get(account).map(|o| o.iter().skip(1).cloned().collect()).unwrap_or_default()
+        self.pgp.own.get(account).map(|o| o.iter().skip(1).map(|(_, i)| i.clone()).collect()).unwrap_or_default()
     }
 
     fn config_of(&self, account: &str) -> Result<AccountConfig, CmdError> {
