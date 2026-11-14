@@ -271,3 +271,26 @@ fn answered_while_read_the_list_goes_on_to_the_next() {
     assert_eq!(s.reading.as_ref().map(|r| &r.key), Some(&after));
     done(s);
 }
+
+/// Answered from the calendar with other meetings' invitations in the Inbox: each Inbox message
+/// is read once to see whether it carries the meeting. One carrying a calendar was read twice,
+/// once to look for a calendar in it and again to read the calendar.
+#[test]
+fn each_inbox_message_is_read_once_to_tidy() {
+    let mut s = sample_session("answered-reads");
+    for n in 1..=6 {
+        deliver(&mut s, n, ZOE, "REQUEST", &[invitation(&format!("other{n}@studio.example"), 0)], NOW);
+    }
+    deliver(&mut s, 7, ZOE, "REQUEST", &[invitation("read@studio.example", 0)], NOW);
+    s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
+    let inbox = subjects(&mut s, "INBOX").len();
+    let store = s.store.clone().unwrap();
+    let before = store.reads();
+    let r = s.run("event.respond", &json!({"uid": "read@studio.example", "answer": "accepted"})).unwrap();
+    assert_eq!(r["moved"], 1, "{r}");
+    let reads = store.reads().saturating_sub(before);
+    // And the one moved, read again as it moves.
+    assert_eq!(reads, inbox as u64 + 1, "an Inbox of {inbox}");
+    assert!(has(&mut s, "Trash", "REQUEST 7") && (1..=6).all(|n| has(&mut s, "INBOX", &format!("REQUEST {n}"))));
+    done(s);
+}

@@ -68,7 +68,7 @@ impl Session {
     /// them: past that, one goes to the calendar on this computer at once (it moves to the
     /// server's later), so the calendar's file stays small. Whether anything changed.
     pub(crate) fn take_invitation(&mut self, key: &MessageKey) -> bool {
-        let Some((ics, sender)) = self.message_ics(key) else { return false };
+        let Some((ics, sender)) = self.message_ics(key, None) else { return false };
         let account = key.account.clone();
         let invitation = || matches!(ical::parse_in(&ics, self.clock.local_zone()).method.as_deref(), Some("REQUEST" | "CANCEL"));
         if self.calendars_pending(&account) && ics.len() <= MAX_HELD_ICS && invitation() {

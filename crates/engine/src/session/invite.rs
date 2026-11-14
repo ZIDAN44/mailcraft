@@ -142,18 +142,23 @@ impl Session {
 
     /// The calendar in a message, and the address it's from.
     fn message_invitation(&self, key: &MessageKey) -> Option<(ICalendar, String)> {
-        let (ics, from) = self.message_ics(key)?;
+        self.invitation_in(key, None)
+    }
+
+    /// [`Session::message_invitation`], its source `raw` when it's been read already.
+    pub(super) fn invitation_in(&self, key: &MessageKey, raw: Option<Vec<u8>>) -> Option<(ICalendar, String)> {
+        let (ics, from) = self.message_ics(key, raw)?;
         let cal = ical::parse_in(&ics, self.clock.local_zone());
         (!cal.events.is_empty()).then_some((cal, from))
     }
 
     /// The text of the calendar in a message (its `text/calendar` part or `.ics` file), and the
-    /// address it's from.
+    /// address it's from; its source `raw` when it's been read already.
     /// The open message is looked at as it was parsed to be shown (on the body's thread): one
     /// with no calendar part is neither read nor parsed again. Asked on the window's first frame
     /// of every message, that read and parsed each of them a second time on the window's thread
     /// (149 ms for a 33 MB message, 104 ms for one of 127,000 characters).
-    fn message_ics(&self, key: &MessageKey) -> Option<(String, String)> {
+    fn message_ics(&self, key: &MessageKey, raw: Option<Vec<u8>>) -> Option<(String, String)> {
         let calendar = |p: &mime::Parsed| {
             p.attachments
                 .iter()
@@ -164,10 +169,10 @@ impl Session {
         let (raw, (index, from)) = match shown {
             Some(p) => {
                 let found = calendar(p)?;
-                (self.readable_raw(key)?, found)
+                (self.as_written(key, raw.or_else(|| self.body_raw(key))?).0, found)
             }
             None => {
-                let raw = self.readable_raw(key)?;
+                let raw = self.as_written(key, raw.or_else(|| self.body_raw(key))?).0;
                 let found = calendar(&mime::parse(&raw)?)?;
                 (raw, found)
             }

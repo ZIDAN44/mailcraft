@@ -147,7 +147,7 @@ impl Session {
         if raw.len() > MAX_MESSAGE || (!contains_ignore_case(&raw, b"text/calendar") && !contains_ignore_case(&raw, b".ics")) {
             return false;
         }
-        let Some((cal, _)) = self.message_invitation(key) else { return false };
+        let Some((cal, _)) = self.invitation_in(key, Some(raw)) else { return false };
         if !cal.method.as_deref().is_some_and(|m| methods.iter().any(|x| m.eq_ignore_ascii_case(x))) {
             return false;
         }
