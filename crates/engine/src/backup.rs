@@ -222,7 +222,10 @@ impl crate::Session {
 
     /// A backup of what's kept, as a file and the name to give it: with a password, locked;
     /// `mail`, with the mail downloaded. `state` is the interface's settings; `random`, 28
-    /// bytes from the system when it has them (else the session's own).
+    /// bytes from the system's secure randomness: what locks it (the key's salt and the
+    /// cipher's nonce), so without them it can't be locked. (The session's own randomness
+    /// makes Message-IDs: 64 bits a sequence anyone can follow, and in a browser that gave
+    /// none, seeded from the clock alone.)
     pub fn make_backup(
         &mut self,
         password: Option<&str>,
@@ -232,14 +235,11 @@ impl crate::Session {
     ) -> Result<(String, Vec<u8>), crate::CmdError> {
         let store = self.store.clone().filter(mailcraft_store::Store::is_memory);
         let store = store.ok_or_else(|| crate::CmdError::Disabled("a backup is of what MailCraft keeps in the browser".into()))?;
-        let random = random.unwrap_or_else(|| {
-            let mut bytes = [0u8; 28];
-            for piece in bytes.chunks_mut(8) {
-                let more = self.random().to_le_bytes();
-                piece.copy_from_slice(more.get(..piece.len()).unwrap_or_default());
-            }
-            bytes
-        });
+        let random = match (password.filter(|p| !p.is_empty()), random) {
+            (Some(_), None) => return Err(crate::CmdError::Failed("the system gave no randomness to lock it with".into())),
+            // An open backup uses none of it.
+            (_, random) => random.unwrap_or_default(),
+        };
         let now = self.clock.now;
         let backup = Backup { files: store.snapshot(|path| keeps(path, mail)), state, made: now };
         let file = write(&backup, password, random).map_err(|e| crate::CmdError::Failed(e.to_string()))?;
@@ -366,10 +366,12 @@ mod tests {
             crate::Session::open(Some(mailcraft_store::Store::memory_from(whole.files)), mailcraft_model::dates::Clock::new(1_794_500_000, 0));
         assert_eq!(again.accounts.len(), s.accounts.len());
         assert_eq!(again.folder_state("sample", "INBOX").messages.len(), s.folder_state("sample", "INBOX").messages.len());
-        // Two made one after the other don't share what locks them.
-        let (_, a) = s.make_backup(Some("pw"), false, serde_json::Value::Null, None).unwrap();
-        let (_, b) = s.make_backup(Some("pw"), false, serde_json::Value::Null, None).unwrap();
-        assert_ne!(a.get(MAGIC.len() + 2..MAGIC.len() + 18), b.get(MAGIC.len() + 2..MAGIC.len() + 18));
+        // Locked with the system's randomness, never the session's: without it, not at all.
+        let (_, a) = s.make_backup(Some("pw"), false, serde_json::Value::Null, Some([7; 28])).unwrap();
+        assert_eq!(a.get(MAGIC.len() + 2..MAGIC.len() + 18), Some(&[7; 16][..]));
+        assert_eq!(read(&a, Some("pw")).unwrap().made, 1_794_500_000);
+        let refused = s.make_backup(Some("pw"), false, serde_json::Value::Null, None);
+        assert!(matches!(&refused, Err(crate::CmdError::Failed(e)) if e.contains("randomness")), "{refused:?}");
         // Kept in files on a computer: nothing to back up this way.
         let dir = std::env::temp_dir().join(format!("mailcraft-backup-{}", std::process::id()));
         let on_disk = crate::Session::open(mailcraft_store::Store::open(&dir).ok(), mailcraft_model::dates::Clock::new(0, 0));

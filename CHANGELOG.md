@@ -117,6 +117,7 @@ on GitHub.
 - Undo no longer uses hundreds of megabytes of memory in a long message.
 - The message editor stays quick with a long selection while the ribbon or a menu is in use.
 - Writing a long message is smoother: the editor does much less work on each frame.
+- In the browser, a password-locked backup is refused, rather than locked with weak randomness, when the browser can't supply secure random numbers.
 
 ## 0.38.0 - 2026-11-13
 
