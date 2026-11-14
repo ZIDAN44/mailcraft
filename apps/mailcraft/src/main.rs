@@ -111,10 +111,12 @@ impl mailcraft_ui_egui::ClipboardRead for SystemClipboard {
     }
 }
 
-/// The window icon: the committed app icon (`cargo xtask icons`), or egui's default if it can't be decoded.
+/// The committed app icon (`cargo xtask icons`), at 64 pixels.
+const APP_ICON_PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.zidan44.MailCraft.png");
+
+/// The window icon: the app icon, or egui's default if it can't be decoded.
 fn app_icon() -> egui::IconData {
-    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.zidan44.MailCraft.png");
-    match image::load_from_memory_with_format(PNG, image::ImageFormat::Png) {
+    match image::load_from_memory_with_format(APP_ICON_PNG, image::ImageFormat::Png) {
         Ok(img) => {
             let img = img.into_rgba8();
             egui::IconData { width: img.width(), height: img.height(), rgba: img.into_raw() }
@@ -126,11 +128,10 @@ fn app_icon() -> egui::IconData {
 /// Hand a file to the system's drag and drop (Windows and macOS; elsewhere egui has no way to).
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 fn drag_out(frame: &eframe::Frame, path: PathBuf) {
-    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.zidan44.MailCraft.png");
     let options = drag::Options { skip_animatation_on_cancel_or_failure: false, mode: drag::DragMode::Copy };
     // The drag crate is native code; a failure there must not take the app down.
     let started = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        drag::start_drag(frame, drag::DragItem::Files(vec![path]), drag::Image::Raw(PNG.to_vec()), |_, _| {}, options)
+        drag::start_drag(frame, drag::DragItem::Files(vec![path]), drag::Image::Raw(APP_ICON_PNG.to_vec()), |_, _| {}, options)
     }));
     match started {
         Ok(Ok(())) => {}
@@ -429,18 +430,14 @@ fn main() -> eframe::Result {
     // trying the updater out.
     let updater = root.clone().filter(|_| !sample || self_update::trying_out()).and_then(|r| self_update::Updater::start(r, build_sha));
 
+    // The settings, read once: the window opens with them, and MailCraft once it's in it.
     let saved_ui = state_path.as_ref().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
     // The main window opens where it was, at the size it was, maximized if it was.
     let main_place: Option<mailcraft_ui_egui::WindowPlace> =
         saved_ui.as_ref().and_then(|v| v.get("windows")?.get("main").cloned()).and_then(|m| serde_json::from_value(m).ok());
     // Until MailCraft is in it, the window is in the language and the light or dark chosen.
-    let dark = if args.iter().any(|a| a == "--light") {
-        Some(false)
-    } else if args.iter().any(|a| a == "--dark") {
-        Some(true)
-    } else {
-        saved_ui.as_ref().and_then(|v| v.get("dark")?.as_bool())
-    };
+    let theme = theme_asked(&args);
+    let dark = theme.or_else(|| saved_ui.as_ref().and_then(|v| v.get("dark")?.as_bool()));
     let card = BootCard::new(saved_ui.as_ref().and_then(|v| v.get("language")?.as_str()).unwrap_or(mailcraft_ui_egui::i18n::AUTO), dark);
     // In the colour and bar MailCraft will have once it's in the window.
     let prefs = saved_ui.as_ref().and_then(|v| v.get("prefs"));
@@ -467,11 +464,14 @@ fn main() -> eframe::Result {
     let own_title_bar = cfg!(windows) && !saved_ui.as_ref().and_then(|v| v.get("prefs")?.get("systemTitleBar")?.as_bool()).unwrap_or(false);
     options.viewport = options.viewport.with_decorations(!own_title_bar);
     graphics::configure(&mut options);
+    // Linux and the BSDs: whether the window opens on X11 (`display.rs`), chosen once (a stale
+    // `DISPLAY` is logged as it's chosen).
+    let x11 = cfg!(all(unix, not(target_os = "macos"))) && display::choose_from_env() == display::Choice::X11;
     // Cut, Copy and Paste keys are MailCraft's, in every window: Ctrl+V attaches files copied
     // in a file manager that puts no text with them (Explorer, PCManFM; issue #10). Not in a
     // Wayland window, where egui-winit reads the clipboard without waiting on the event loop.
     #[cfg(all(unix, not(target_os = "macos")))]
-    let own_keys = display::choose_from_env() == display::Choice::X11 || std::env::var_os("WAYLAND_DISPLAY").is_none();
+    let own_keys = x11 || std::env::var_os("WAYLAND_DISPLAY").is_none();
     #[cfg(not(all(unix, not(target_os = "macos"))))]
     let own_keys = true;
     if own_keys {
@@ -480,7 +480,7 @@ fn main() -> eframe::Result {
     }
     // Linux and the BSDs: through XWayland on a Wayland desktop, so attachments drag in and out.
     #[cfg(all(unix, not(target_os = "macos")))]
-    if display::choose_from_env() == display::Choice::X11 {
+    if x11 {
         options.event_loop_builder = Some(Box::new(|b| {
             use winit::platform::x11::EventLoopBuilderExtX11;
             b.with_x11();
@@ -489,7 +489,8 @@ fn main() -> eframe::Result {
     // A window that can't open says why, rather than the app leaving without a word (or
     // staying in the background); a panic on the way is caught for that too.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        run(options, sample, (opening, card, made), base, state_path, (cmd_args, handed), instance, updater)
+        let looks = Looks { saved_ui, theme, x11 };
+        run(options, sample, (opening, card, made), base, state_path, (cmd_args, handed), instance, updater, looks)
     }));
     let failed = match ran {
         Ok(Ok(())) => {
@@ -577,6 +578,27 @@ fn cant_open(why: &str) -> String {
 /// session is made with if they couldn't be.
 type Opening = ((Arc<OpenProgress>, std::sync::mpsc::Receiver<desktop::boot::Opened>), BootCard, desktop::start::Made);
 
+/// What was decided of the window's look before it opened, for MailCraft once it's in it.
+struct Looks {
+    /// The settings (`ui.json`) as they were read for the window.
+    saved_ui: Option<serde_json::Value>,
+    /// `--light` (false) or `--dark` (true), over the settings.
+    theme: Option<bool>,
+    /// The window is on X11 (`display.rs`; Linux and the BSDs).
+    x11: bool,
+}
+
+/// The theme asked for at start: `--light` (false) before `--dark` (true).
+fn theme_asked(args: &[String]) -> Option<bool> {
+    if args.iter().any(|a| a == "--light") {
+        Some(false)
+    } else if args.iter().any(|a| a == "--dark") {
+        Some(true)
+    } else {
+        None
+    }
+}
+
 /// Open the window and run the app until it closes: the boot card while the data files open,
 /// then MailCraft.
 #[allow(clippy::too_many_arguments)]
@@ -589,6 +611,7 @@ fn run(
     (cmd_args, handed): (Vec<String>, Vec<String>),
     instance: Option<single_instance::Server>,
     updater: Option<self_update::Updater>,
+    Looks { saved_ui, theme, x11 }: Looks,
 ) -> eframe::Result {
     // The guard stays here, outside the closure, so the handlers live as long as the loop.
     #[cfg(target_os = "macos")]
@@ -621,9 +644,8 @@ fn run(
                 server.connect(&cc.egui_ctx);
             }
             // A Wayland window can't bring itself forward: it asks for attention instead.
-            let native_wayland = cfg!(all(unix, not(target_os = "macos")))
-                && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty())
-                && display::choose_from_env() != display::Choice::X11;
+            let native_wayland =
+                cfg!(all(unix, not(target_os = "macos"))) && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty()) && !x11;
             #[cfg(target_os = "macos")]
             {
                 apple_events::repaint_on_arrival(&finder, &cc.egui_ctx);
@@ -682,13 +704,12 @@ fn run(
                     app.session.print_fonts = Some((r.clone(), bold.clone()));
                 }
                 app.install_fonts(ctx, regular, bold);
-                if let Some(v) = state_path.as_ref().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice(&b).ok()) {
-                    app.restore_state(&v);
+                // The settings the window opened with (nothing writes them until MailCraft runs).
+                if let Some(v) = &saved_ui {
+                    app.restore_state(v);
                 }
-                if args.iter().any(|a| a == "--light") {
-                    app.ui.dark = Some(false);
-                } else if args.iter().any(|a| a == "--dark") {
-                    app.ui.dark = Some(true);
+                if theme.is_some() {
+                    app.ui.dark = theme;
                 }
                 desktop::start::commands(&mut app, &args);
                 for h in &handed {
