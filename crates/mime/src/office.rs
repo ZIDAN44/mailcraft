@@ -87,11 +87,13 @@ struct Zip<'a> {
 }
 
 fn u16_at(d: &[u8], at: usize) -> Option<u16> {
-    Some(u16::from_le_bytes([*d.get(at)?, *d.get(at + 1)?]))
+    let b = d.get(at..at.checked_add(2)?)?;
+    Some(u16::from_le_bytes([*b.first()?, *b.get(1)?]))
 }
 
 fn u32_at(d: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from_le_bytes([*d.get(at)?, *d.get(at + 1)?, *d.get(at + 2)?, *d.get(at + 3)?]))
+    let b = d.get(at..at.checked_add(4)?)?;
+    Some(u32::from_le_bytes([*b.first()?, *b.get(1)?, *b.get(2)?, *b.get(3)?]))
 }
 
 impl<'a> Zip<'a> {
@@ -99,23 +101,25 @@ impl<'a> Zip<'a> {
         // The end of central directory record: within the last 64 KiB (its comment), last first.
         let from = data.len().saturating_sub(22 + 65_535);
         let eocd = (from..=data.len().saturating_sub(22)).rev().find(|&i| data.get(i..i + 4) == Some(&b"PK\x05\x06"[..]))?;
-        let count = usize::from(u16_at(data, eocd + 10)?);
-        let mut at = usize::try_from(u32_at(data, eocd + 16)?).ok()?;
+        // Offsets from the file's 32-bit fields, added checked (a `usize` is 32 bits on wasm).
+        let count = usize::from(u16_at(data, eocd.checked_add(10)?)?);
+        let mut at = usize::try_from(u32_at(data, eocd.checked_add(16)?)?).ok()?;
         let mut entries = Vec::with_capacity(count.min(4096));
         for _ in 0..count.min(4096) {
-            if data.get(at..at + 4) != Some(&b"PK\x01\x02"[..]) {
+            let field = |n: usize| at.checked_add(n);
+            if data.get(at..field(4)?) != Some(&b"PK\x01\x02"[..]) {
                 break;
             }
-            let method = u16_at(data, at + 10)?;
-            let compressed = usize::try_from(u32_at(data, at + 20)?).ok()?;
-            let size = u64::from(u32_at(data, at + 24)?);
-            let name_len = usize::from(u16_at(data, at + 28)?);
-            let extra = usize::from(u16_at(data, at + 30)?);
-            let comment = usize::from(u16_at(data, at + 32)?);
-            let local = usize::try_from(u32_at(data, at + 42)?).ok()?;
-            let name = String::from_utf8_lossy(data.get(at + 46..at + 46 + name_len)?).replace('\\', "/");
+            let method = u16_at(data, field(10)?)?;
+            let compressed = usize::try_from(u32_at(data, field(20)?)?).ok()?;
+            let size = u64::from(u32_at(data, field(24)?)?);
+            let name_len = usize::from(u16_at(data, field(28)?)?);
+            let extra = usize::from(u16_at(data, field(30)?)?);
+            let comment = usize::from(u16_at(data, field(32)?)?);
+            let local = usize::try_from(u32_at(data, field(42)?)?).ok()?;
+            let name = String::from_utf8_lossy(data.get(field(46)?..field(46)?.checked_add(name_len)?)?).replace('\\', "/");
             entries.push(Entry { name, method, compressed, size, local });
-            at = at.checked_add(46 + name_len + extra + comment)?;
+            at = at.checked_add(46)?.checked_add(name_len)?.checked_add(extra)?.checked_add(comment)?;
         }
         Some(Zip { data, entries })
     }
@@ -127,10 +131,12 @@ impl<'a> Zip<'a> {
             return None;
         }
         let d = self.data;
-        if d.get(e.local..e.local + 4) != Some(&b"PK\x03\x04"[..]) {
+        if d.get(e.local..e.local.checked_add(4)?) != Some(&b"PK\x03\x04"[..]) {
             return None;
         }
-        let start = e.local + 30 + usize::from(u16_at(d, e.local + 26)?) + usize::from(u16_at(d, e.local + 28)?);
+        let name_len = usize::from(u16_at(d, e.local.checked_add(26)?)?);
+        let extra = usize::from(u16_at(d, e.local.checked_add(28)?)?);
+        let start = e.local.checked_add(30)?.checked_add(name_len)?.checked_add(extra)?;
         let raw = d.get(start..start.checked_add(e.compressed)?)?;
         match e.method {
             0 => Some(raw.to_vec()),
@@ -467,12 +473,12 @@ fn sheet(xml: &str, shared: &[String]) -> Vec<Vec<String>> {
         match t {
             Tok::Start { name, attrs, empty } => match local(name) {
                 "row" => {
-                    row_no = attr(attrs, "r").and_then(|r| r.parse::<usize>().ok()).unwrap_or(row_no + 1);
+                    row_no = attr(attrs, "r").and_then(|r| r.parse::<usize>().ok()).unwrap_or_else(|| row_no.saturating_add(1));
                     next_col = 0;
                 }
                 "c" => {
                     let (r, c) = attr(attrs, "r").and_then(cell_ref).unwrap_or((row_no.saturating_sub(1), next_col));
-                    next_col = c + 1;
+                    next_col = c.saturating_add(1);
                     at = if empty { None } else { Some((r, c, attr(attrs, "t").unwrap_or_default().to_string())) };
                     value.clear();
                 }
@@ -693,6 +699,14 @@ mod tests {
         }
         assert_eq!(unescape("a &lt;b&gt; &#65;&#x42; &bogus; &"), "a <b> AB &bogus; &");
         assert_eq!(cell_ref("AB12"), Some((11, 27)));
-        assert_eq!(cell_ref("1"), None);
+        assert_eq!(cell_ref("1"), None); // Rows and cells numbered at the end of what a number holds, then ones numbered after
+        // them: nothing overflows (a row after `r="18446744073709551615"` did, building it in
+        // the background each time).
+        let top = format!("{}", usize::MAX);
+        let s1 = format!(
+            "<worksheet><sheetData><row r=\"{top}\"><c><v>1</v></c></row><row><c><v>2</v></c><c r=\"XFD1\"/><c/></row></sheetData></worksheet>"
+        );
+        let wb = r#"<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"#;
+        let _ = preview("x.xlsx", "", &zip(&[("xl/workbook.xml", wb), ("xl/worksheets/sheet1.xml", &s1)]));
     }
 }
