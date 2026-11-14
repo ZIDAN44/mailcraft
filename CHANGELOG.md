@@ -148,6 +148,7 @@ on GitHub.
 - An appointment from a damaged Outlook data file no longer comes in with a repeat rule calendars can't read; it comes in as a single event.
 - Commands on a very large selection (Select All, then Delete, Flag, Mark as Read or Mark Complete) are much faster.
 - Blocking a sender when the blocked list is full no longer drops them from Safe Senders, and a move to Junk that fails is now said. Block Sender on several messages says when the list was full for some of them.
+- A rules import that fails no longer leaves new categories behind.
 
 ## 0.38.0 - 2026-11-13
 

@@ -300,10 +300,23 @@ impl Session {
     // ----- rules -----
 
     pub fn set_rules(&mut self, rules: Vec<Rule>) -> CmdResult {
+        self.check_rules(&rules)?;
+        self.rules = rules;
+        if let Some(store) = &self.store
+            && let Err(e) = store.save_doc(RULES_DOC, &self.rules)
+        {
+            return Err(CmdError::Failed(format!("the rules couldn't be saved: {e}")));
+        }
+        Ok(serde_json::json!({ "rules": self.rules.len() }))
+    }
+
+    /// Whether `rules` can take the place of the rules here: at most 500, each named, each
+    /// category they file mail under in the list, and the rules here read (not saved over).
+    fn check_rules(&self, rules: &[Rule]) -> Result<(), CmdError> {
         if rules.len() > 500 {
             return Err(CmdError::Params("at most 500 rules".into()));
         }
-        for r in &rules {
+        for r in rules {
             if r.name.trim().is_empty() {
                 return Err(CmdError::Params("every rule needs a name".into()));
             }
@@ -318,13 +331,7 @@ impl Session {
         if self.docs_unread.contains(RULES_DOC) {
             return Err(CmdError::Failed("Your rules couldn't be read, so they aren't saved over".into()));
         }
-        self.rules = rules;
-        if let Some(store) = &self.store
-            && let Err(e) = store.save_doc(RULES_DOC, &self.rules)
-        {
-            return Err(CmdError::Failed(format!("the rules couldn't be saved: {e}")));
-        }
-        Ok(serde_json::json!({ "rules": self.rules.len() }))
+        Ok(())
     }
 
     /// The rules as a file to keep or take to another computer (Outlook's Export Rules): each
@@ -375,6 +382,8 @@ impl Session {
             doc.get("categories").cloned().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
         let mut rules = if replace { Vec::new() } else { self.rules.clone() };
         let (mut added, mut off) = (0usize, 0usize);
+        // The categories the rules read file mail under (those already here among them too).
+        let mut wanted: Vec<String> = Vec::new();
         for (i, v) in list.into_iter().take(500).enumerate() {
             let email = v.get("accountEmail").and_then(serde_json::Value::as_str).map(str::to_string);
             let mut rule: Rule =
@@ -390,29 +399,38 @@ impl Session {
                     }
                 }
             }
-            for a in &rule.actions {
-                if let RuleAction::Categorize(c) = a
-                    && self.category(c).is_none()
-                {
-                    // With the keyword and colour it has where the rules came from, when that
-                    // keyword is free here.
-                    let from = known.iter().find(|k| k.name.eq_ignore_ascii_case(c));
-                    let made = match from {
-                        Some(k) => self.add_category(c, Some(k.color), Some(&k.keyword)),
-                        None => Err(CmdError::Params(String::new())),
-                    };
-                    if made.is_err() {
-                        self.add_category(c, None, None)?;
-                    }
-                }
-            }
+            wanted.extend(rule.actions.iter().filter_map(|a| if let RuleAction::Categorize(c) = a { Some(c.clone()) } else { None }));
             if !rules.contains(&rule) {
                 rules.push(rule);
                 added += 1;
             }
         }
+        // Every rule read: the categories they file mail under are made, and taken back when
+        // the rules are refused all the same (too many, the rules here unread), so a failed
+        // import leaves nothing behind. Made ones only go on the end of the list.
+        let had = self.prefs.categories.len();
+        let made = self.make_categories(&wanted, &known).and_then(|()| self.check_rules(&rules));
+        if let Err(e) = made {
+            self.prefs.categories.truncate(had);
+            return Err(e);
+        }
         self.set_rules(rules)?;
         Ok(serde_json::json!({ "added": added, "turnedOff": off, "rules": self.rules.len() }))
+    }
+
+    /// Make the categories called `names` that aren't in the list: with the keyword and colour
+    /// they have where rules came from (`known`), when that keyword is free here.
+    fn make_categories(&mut self, names: &[String], known: &[mailcraft_model::organize::Category]) -> Result<(), CmdError> {
+        for c in names {
+            if self.category(c).is_some() {
+                continue;
+            }
+            let made = known.iter().find(|k| k.name.eq_ignore_ascii_case(c)).and_then(|k| self.add_category(c, Some(k.color), Some(&k.keyword)).ok());
+            if made.is_none() {
+                self.add_category(c, None, None)?;
+            }
+        }
+        Ok(())
     }
 
     // ----- ignoring conversations -----
