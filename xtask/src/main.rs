@@ -47,12 +47,17 @@ const LAYERS: &[(&str, u8)] = &[
     ("mailcraft-pst", 1),
     ("mailcraft-print", 1),
     ("mailcraft-smime", 1),
+    ("mailcraft-pgp", 1),
     ("mailcraft-jmap", 2),
     ("mailcraft-keys", 2),
     ("mailcraft-net", 3),
     ("mailcraft-engine", 4),
     ("mailcraft-ui-egui", 6),
 ];
+
+/// The workspace's binaries and tools, above every layer: they may depend on anything. Every
+/// other package must have a layer, so a new crate can't go unchecked.
+const APPS: &[&str] = &["mailcraft", "mailcraft-cli", "mailcraft-web", "xtask"];
 
 /// Third-party crates built from a fork with fixes of ours, pinned by revision in
 /// `[patch.crates-io]`. Each fork's `PATCHES.md` lists its fixes, and its own tests prove them.
@@ -108,7 +113,12 @@ fn layer(name: &str) -> Option<u8> {
 fn violations(crates: &[(String, Vec<(String, bool)>)]) -> Vec<String> {
     let mut out = Vec::new();
     for (name, deps) in crates {
-        let Some(own) = layer(name) else { continue };
+        let Some(own) = layer(name) else {
+            if !APPS.contains(&name.as_str()) {
+                out.push(format!("{name} has no layer: add it to LAYERS (or APPS) in xtask/src/main.rs"));
+            }
+            continue;
+        };
         for (dep, dev) in deps {
             if *dev {
                 continue;
@@ -146,7 +156,11 @@ fn cmd_layers() -> Result<(), String> {
         .collect();
     for (name, deps) in &crates {
         let ws: Vec<&str> = deps.iter().filter(|(d, dev)| !dev && d.starts_with("mailcraft-")).map(|(d, _)| d.as_str()).collect();
-        let l = layer(name).map_or("app".to_string(), |l| format!("L{l}"));
+        let l = match layer(name) {
+            Some(l) => format!("L{l}"),
+            None if APPS.contains(&name.as_str()) => "app".to_string(),
+            None => "?".to_string(),
+        };
         println!("{name:<20} {l:<4} {}", ws.join(", "));
     }
     let v = violations(&crates);
@@ -307,6 +321,23 @@ mod tests {
         assert_eq!(v.len(), 2, "{v:?}");
         assert!(v[0].contains("mailcraft-net"));
         assert!(v[1].contains("egui"));
+    }
+
+    /// A package with no layer fails the check instead of going unchecked; the apps may use
+    /// anything.
+    #[test]
+    fn a_crate_without_a_layer_fails() {
+        let crates = vec![
+            ("mailcraft-new".to_string(), vec![("mailcraft-net".to_string(), false), ("egui".to_string(), false)]),
+            ("mailcraft".to_string(), vec![("mailcraft-net".to_string(), false), ("eframe".to_string(), false)]),
+        ];
+        let v = violations(&crates);
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert!(v[0].starts_with("mailcraft-new has no layer"), "{v:?}");
+        // OpenPGP is L1: it may use the model, not the engine.
+        let pgp = |dep: &str| violations(&[("mailcraft-pgp".to_string(), vec![(dep.to_string(), false)])]);
+        assert!(pgp("mailcraft-model").is_empty());
+        assert_eq!(pgp("mailcraft-engine").len(), 1);
     }
 
     #[test]

@@ -32,11 +32,11 @@ In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JM
 | L1 | `mailcraft-print` | — | Messages as PDF pages, laid out as they're read (tables, backgrounds, pictures, links), with an embedded TrueType font |
 | L1 | `mailcraft-pst` | — | Outlook data files (MS-PST): read them (wasm-safe), add to them and write new ones |
 | L1 | `mailcraft-smime` | — | S/MIME (RFC 8551) on RustCrypto, with keys behind a `PrivateKey` trait; wasm-safe |
-| L1 | `mailcraft-pgp` | — | OpenPGP (RFC 9580) on rPGP: keys and their self-signatures, signing, encrypting, decrypting, verifying; Autocrypt headers; inline PGP blocks; wasm-safe |
+| L1 | `mailcraft-pgp` | model | OpenPGP (RFC 9580) on rPGP: keys and their self-signatures, signing, encrypting, decrypting, verifying; Autocrypt headers; inline PGP blocks; wasm-safe |
 | L2 | `mailcraft-keys` | smime | Keys on smart cards (PKCS #11), in the macOS Keychain and in the Windows certificate store; native only |
 | L2 | `mailcraft-jmap` | model, mime, store | JMAP, async over a two-method `Http` trait; wasm-safe |
-| L3 | `mailcraft-net` | model, mime, store, pst, jmap | All network and `.pst` I/O; native only; TLS through `rustls` |
-| L4 | `mailcraft-engine` | model, mime, store | The sans-I/O `Session` and the command registry; wasm-safe |
+| L3 | `mailcraft-net` | model, mime, store, pst, smime, pgp, keys, jmap | All network and `.pst` I/O; native only; TLS through `rustls` |
+| L4 | `mailcraft-engine` | model, mime, store, print, smime, pgp | The sans-I/O `Session` and the command registry; wasm-safe |
 | L6 | `mailcraft-ui-egui` | engine | The egui interface; platform services behind traits; interface languages |
 
 - `cargo xtask layers` enforces this table: `egui` appears only in L6, and network crates only in
