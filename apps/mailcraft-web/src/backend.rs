@@ -215,7 +215,8 @@ async fn connect(sh: &Rcs, id: &str) {
                 let Some(a) = s.accounts.get_mut(id) else { return };
                 a.client = Some(Rc::new(c));
             }
-            replay(sh, id).await;
+            // What waited is only sent: the sync after it reads back all it touched.
+            replay(sh, id, false).await;
             sync_all(sh, id).await;
         }
         Err(e) => failed(sh, id, e),
@@ -355,25 +356,27 @@ async fn remote(sh: &Rcs, id: &str, op: Op) {
         notice(sh, id, format!("a change couldn't be kept to send later: {e}"));
         // Sent now if it can be; otherwise it's lost, as said.
         if let Some(c) = client(sh, id)
-            && let Err(e) = send(sh, id, &c, &op).await
+            && let Err(e) = send(sh, id, &c, &op, true).await
         {
             emit(sh, Event::OpFailed { account: id.to_string(), op, error: e.to_string() });
         }
         return;
     }
-    replay(sh, id).await;
+    replay(sh, id, true).await;
 }
 
 /// The changes waiting for the server, sent oldest first. Each leaves the queue once the server
 /// has taken it or refused it (a refusal is said); the one a lost connection or sign-in stopped
-/// stays, with those after it, for the next connection.
-async fn replay(sh: &Rcs, id: &str) {
+/// stays, with those after it, for the next connection. `refresh`: the folders each touched are
+/// read back after it (not when a full sync follows anyway: each was a folder's sync, then all of
+/// them again).
+async fn replay(sh: &Rcs, id: &str, refresh: bool) {
     let store = store(sh);
     // Bounded, in case taking one off the queue keeps failing unseen.
     for _ in 0..100_000 {
         let Some(c) = client(sh, id) else { return };
         let Some(op) = store.load_ops(id).unwrap_or_default().into_iter().next() else { return };
-        match send(sh, id, &c, &op).await {
+        match send(sh, id, &c, &op, refresh).await {
             Err(e @ (Error::Io(_) | Error::Closed(_) | Error::Tls(_) | Error::Auth(_))) => return failed(sh, id, e),
             sent => {
                 if let Err(e) = store.remove_op(id, &op) {
@@ -387,18 +390,27 @@ async fn replay(sh: &Rcs, id: &str) {
     }
 }
 
-/// One change made on the server; then the folders it touched are shown afresh, with the
-/// server's counts.
-async fn send(sh: &Rcs, id: &str, c: &Client<Fetch>, op: &Op) -> mailcraft_jmap::Result<()> {
+/// One change made on the server; then, with `refresh`, the folders it touched are shown afresh,
+/// with the server's counts. A change to the folders is listed again either way: the next change
+/// may name a folder it made or renamed.
+async fn send(sh: &Rcs, id: &str, c: &Client<Fetch>, op: &Op, refresh: bool) -> mailcraft_jmap::Result<()> {
     mailcraft_jmap::apply_remote(c, &state(sh, id), op).await?;
+    if op.is_folder_op() {
+        relist(sh, id).await;
+    }
+    if !refresh {
+        return Ok(());
+    }
     let mut touched: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
     match op {
         Op::Move { to, .. } => touched.push(to.clone()),
         Op::EmptyFolder { path } => touched.push(path.clone()),
-        Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {
-            relist(sh, id).await;
-        }
-        Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
+        Op::CreateFolder { .. }
+        | Op::RenameFolder { .. }
+        | Op::DeleteFolder { .. }
+        | Op::SetFlag { .. }
+        | Op::SetKeyword { .. }
+        | Op::Expunge { .. } => {}
     }
     touched.sort();
     touched.dedup();
