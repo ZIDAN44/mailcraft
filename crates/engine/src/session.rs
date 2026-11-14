@@ -782,8 +782,3 @@ pub fn parse_key(v: &Value) -> Option<MessageKey> {
     }
     serde_json::from_value::<MessageKey>(v.clone()).ok().filter(|k| !k.account.is_empty())
 }
-
-/// What a follow-up date is kept under ([`Summary::follow_up_id`]).
-fn follow_up_id(m: &Summary) -> String {
-    m.follow_up_id()
-}

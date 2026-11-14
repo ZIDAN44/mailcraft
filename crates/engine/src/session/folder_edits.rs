@@ -443,7 +443,7 @@ impl Session {
             self.apply_op(&a, Op::SetFlag { keys, flag: Flag::Flagged, on });
         }
         for m in sel {
-            let id = follow_up_id(m);
+            let id = m.follow_up_id();
             // Unflagged: no longer due. Flagged again once complete: a fresh flag, not the one
             // completed (one still flagged keeps its day).
             if !on || m.flags.follow_up_complete() {
@@ -465,7 +465,7 @@ impl Session {
     fn follow_up_days_of(&self, sel: &[Summary]) -> Vec<(String, Option<i64>, Option<i64>)> {
         sel.iter()
             .map(|m| {
-                let id = follow_up_id(m);
+                let id = m.follow_up_id();
                 let (due, done) = (self.prefs.follow_up.get(&id).copied(), self.prefs.follow_up_done.get(&id).copied());
                 (id, due, done)
             })
@@ -495,7 +495,7 @@ impl Session {
         let was = self.follow_up_days_of(&sel);
         let undo = self.set_flagged(&sel, true);
         for m in &sel {
-            let id = follow_up_id(m);
+            let id = m.follow_up_id();
             match due {
                 Some(d) if self.prefs.follow_up.len() < MAX_FOLLOW_UP || self.prefs.follow_up.contains_key(&id) => {
                     self.prefs.follow_up.insert(id, d);
@@ -529,7 +529,7 @@ impl Session {
         let marked = keys_by_account(sel.iter().filter(|m| !m.flags.has(FOLLOW_UP_COMPLETE)).map(|m| m.key.clone()));
         for m in &sel {
             // Done today, unless it was already done (marked complete again).
-            let id = follow_up_id(m);
+            let id = m.follow_up_id();
             if !(m.flags.follow_up_complete() && self.prefs.follow_up_done.contains_key(&id))
                 && (self.prefs.follow_up_done.len() < MAX_FOLLOW_UP || self.prefs.follow_up_done.contains_key(&id))
             {
@@ -559,7 +559,7 @@ impl Session {
         if !m.flags.flagged {
             return None;
         }
-        self.prefs.follow_up.get(&follow_up_id(m)).copied()
+        self.prefs.follow_up.get(&m.follow_up_id()).copied()
     }
 
     /// When a message's follow-up was marked complete, if it was and the day is known.
@@ -567,7 +567,7 @@ impl Session {
         if !m.flags.follow_up_complete() {
             return None;
         }
-        self.prefs.follow_up_done.get(&follow_up_id(m)).copied()
+        self.prefs.follow_up_done.get(&m.follow_up_id()).copied()
     }
 
     pub(super) fn remember(&mut self, u: Undo) {
