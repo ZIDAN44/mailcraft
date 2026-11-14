@@ -424,3 +424,67 @@ fn the_reach_shown_is_what_the_message_is_sent_with() {
     let reach = s.encryption_reach().unwrap();
     assert!(matches!(reach, crate::Reach::Everyone(crate::Scheme::Pgp) | crate::Reach::Missing { scheme: crate::Scheme::Pgp, .. }), "{reach:?}");
 }
+
+/// A message's OpenPGP protection taken off as it reads (to reply, print or export it) says
+/// what it took off: a signature (PGP/MIME, or in the text itself), an encryption once it's
+/// decrypted (PGP/MIME or in the text; before, and for someone else's, it stays as it came),
+/// and neither for mail with none.
+#[test]
+fn pgp_mail_as_written_says_whether_it_was_signed_and_encrypted() {
+    let mut s = with_key("pgp-as-written");
+    let asc = |name: &str| String::from_utf8(pgpdata(name)).unwrap();
+    let pgp_mime = format!(
+        "--enc\r\nContent-Type: application/pgp-encrypted\r\n\r\nVersion: 1\r\n\r\n--enc\r\nContent-Type: application/octet-stream; name=\"encrypted.asc\"\r\n\r\n{}\r\n--enc--\r\n",
+        asc("ana-to-riley.asc")
+    );
+    let inline = "text/plain; charset=us-ascii";
+    // (the message, the text it reads as once its protection is off, signed, encrypted)
+    let table: [(&str, Vec<u8>, &str, bool, bool); 6] = [
+        ("PGP/MIME signed", signed_by_ana(true, &pgpdata("ana-part.txt")), "the proof is approved", true, false),
+        (
+            "PGP/MIME encrypted",
+            from_ana(true, "multipart/encrypted; protocol=\"application/pgp-encrypted\"; boundary=\"enc\"", &pgp_mime),
+            "the proof is approved",
+            false,
+            true,
+        ),
+        ("encrypted in its text", from_ana(false, inline, &asc("ana-inline.asc")), "signed in the text itself", false, true),
+        ("signed in its text", from_ana(false, inline, &asc("ana-clearsigned.txt")), "signed in the text itself", true, false),
+        ("encrypted to someone else", from_ana(false, "text/plain", &asc("to-bo.asc")), "", false, false),
+        ("neither", from_ana(false, "text/plain", "Just words.\r\n"), "Just words.", false, false),
+    ];
+    for (n, (what, raw, reads, signed, encrypted)) in table.into_iter().enumerate() {
+        let key = open_raw(&mut s, 9700 + u32::try_from(n).unwrap(), &raw);
+        if encrypted {
+            // Not decrypted yet: as it came, nothing taken off.
+            assert_eq!(s.as_written(&key, raw.clone()), (raw.clone(), false, false), "{what}, before it's decrypted");
+        }
+        answer_decrypt(&mut s);
+        let (written, was_signed, was_encrypted) = s.as_written(&key, raw.clone());
+        assert_eq!((was_signed, was_encrypted), (signed, encrypted), "{what}");
+        assert_eq!(written == raw, !signed && !encrypted, "{what}: as it came only when nothing came off");
+        let text = mailcraft_mime::parse(&written).map(|p| p.text).unwrap_or_default();
+        assert!(text.contains(reads) && (reads.is_empty() || !text.contains("BEGIN PGP")), "{what}: {text}");
+    }
+}
+
+/// Audit #274: a message's protection taken off as it reads (to reply, print or export it),
+/// timed for a big PGP/MIME signed one. Run in release: `cargo test --release -p
+/// mailcraft-engine --lib big_signed_message_as_written -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement"]
+fn big_signed_message_as_written() {
+    let mut s = with_key("pgp-big-written");
+    let line = "The proof is approved; print the festival poster as it stands.\r\n".repeat(160_000);
+    let part = format!("Content-Type: text/plain; charset=us-ascii\r\n\r\n{line}");
+    let raw = signed_by_ana(false, part.as_bytes());
+    let key = open_raw(&mut s, 9601, &raw);
+    let (written, signed, encrypted) = s.as_written(&key, raw.clone());
+    assert!(signed && !encrypted && written.len() > 9 << 20, "{}", written.len());
+    const ROUNDS: u32 = 10;
+    let t = std::time::Instant::now();
+    for _ in 0..ROUNDS {
+        let _ = s.as_written(&key, raw.clone());
+    }
+    println!("MEASURE a {} MB PGP/MIME signed message as written: {:.1} ms", raw.len() >> 20, t.elapsed().as_secs_f64() * 1000.0 / f64::from(ROUNDS));
+}

@@ -194,23 +194,25 @@ impl Session {
         Lock::Opening
     }
 
-    /// A layer of OpenPGP taken off as [`Session::readable_raw`] reads: nothing checked again.
-    pub(crate) fn readable_pgp(&self, key: &MessageKey, cur: &[u8]) -> Option<Vec<u8>> {
-        match mime::pgp::protection(cur) {
+    /// A layer of OpenPGP taken off `cur` as [`Session::readable_raw`] reads, nothing checked
+    /// again; `kind` is what [`mime::pgp::protection`] says of `cur`, read once by the caller.
+    /// With what it shows, whether that layer was an encryption (decrypted already: one that
+    /// isn't stays, and gives none).
+    pub(crate) fn readable_pgp(&self, key: &MessageKey, cur: &[u8], kind: mime::pgp::Protection) -> Option<(Vec<u8>, bool)> {
+        let opened = || self.opened.get(key).map(|(entity, _)| (mime::smime::with_entity(cur, entity), true));
+        match kind {
             mime::pgp::Protection::None => None,
-            mime::pgp::Protection::Signed { content, .. } => Some(mime::smime::with_entity(cur, &content)),
-            mime::pgp::Protection::Encrypted(_) => self.opened.get(key).map(|(entity, _)| mime::smime::with_entity(cur, entity)),
+            mime::pgp::Protection::Signed { content, .. } => Some((mime::smime::with_entity(cur, &content), false)),
+            mime::pgp::Protection::Encrypted(_) => opened(),
             mime::pgp::Protection::Inline { body, charset } => match openpgp::inline(&body)? {
                 openpgp::Inline::Signed(block) => {
                     let (text, _) = openpgp::verify_cleartext(block, &[]).ok()?;
-                    Some(mime::smime::with_entity(cur, &mime::pgp::text_entity(text.as_bytes(), &charset)))
+                    Some((mime::smime::with_entity(cur, &mime::pgp::text_entity(text.as_bytes(), &charset)), false))
                 }
-                openpgp::Inline::Message(block) if openpgp::is_encrypted(block) => {
-                    self.opened.get(key).map(|(entity, _)| mime::smime::with_entity(cur, entity))
-                }
+                openpgp::Inline::Message(block) if openpgp::is_encrypted(block) => opened(),
                 openpgp::Inline::Message(block) => {
                     let d = openpgp::open(block, &[]).ok()?;
-                    Some(mime::smime::with_entity(cur, &mime::pgp::text_entity(&d.data, &charset)))
+                    Some((mime::smime::with_entity(cur, &mime::pgp::text_entity(&d.data, &charset)), false))
                 }
             },
         }

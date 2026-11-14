@@ -163,20 +163,6 @@ pub(crate) fn is_sealed(raw: &[u8]) -> bool {
         || matches!(mime::pgp::protection(raw), mime::pgp::Protection::Encrypted(_))
 }
 
-/// Whether `raw` is encrypted as it stands (S/MIME, or OpenPGP in its own part or in its text).
-pub(crate) fn is_encrypted(raw: &[u8]) -> bool {
-    if matches!(mime::smime::protection(raw), mime::smime::Protection::Encrypted(_)) {
-        return true;
-    }
-    match mime::pgp::protection(raw) {
-        mime::pgp::Protection::Encrypted(_) => true,
-        mime::pgp::Protection::Inline { body, .. } => {
-            matches!(mailcraft_pgp::inline(&body), Some(mailcraft_pgp::Inline::Message(block)) if mailcraft_pgp::is_encrypted(block))
-        }
-        _ => false,
-    }
-}
-
 impl Session {
     pub(crate) fn load_smime(&mut self) {
         let Some(store) = self.store.clone() else { return };
@@ -448,18 +434,14 @@ impl Session {
         let (mut signed, mut encrypted) = (false, false);
         for _ in 0..4 {
             cur = match mime::smime::protection(&cur) {
-                mime::smime::Protection::None => {
-                    let kind = mime::pgp::protection(&cur);
-                    let sealed = is_encrypted(&cur);
-                    match self.readable_pgp(key, &cur) {
-                        Some(next) => {
-                            encrypted |= sealed;
-                            signed |= !sealed && !matches!(kind, mime::pgp::Protection::None);
-                            next
-                        }
-                        None => break,
+                mime::smime::Protection::None => match self.readable_pgp(key, &cur, mime::pgp::protection(&cur)) {
+                    Some((next, sealed)) => {
+                        encrypted |= sealed;
+                        signed |= !sealed;
+                        next
                     }
-                }
+                    None => break,
+                },
                 mime::smime::Protection::Signed { content, .. } => {
                     signed = true;
                     mime::smime::with_entity(&cur, &content)
