@@ -60,7 +60,9 @@ on GitHub.
 - A dismissed reminder stays dismissed: one for an event that runs for weeks, or for a task whose reminder came long before its due day, came back at once, and snoozing another reminder for days could bring back those dismissed in the last month.
 - With a damaged key among your own OpenPGP keys, mail is no longer signed with another key than its address's.
 - Writing from another address of an account that has only an OpenPGP key for it, the message bar says whether OpenPGP reaches the recipients: it went by the account's certificate, turned encryption on by itself, and sending then failed. A recipient's certificate withdrawn is taken into account at once, not up to an hour later.
-- A message quoted in a reply or forward, and a signature's HTML code, lose every `on…` handler and script link a browser would run: one written without a space before it, after a `>` inside a quoted value, or as `javascript:` hidden behind character references went out as it came.
+- A message quoted in a reply or forward, and a signature's HTML code, lose every `on…` handler and script link a browser would run: one written without a space before it, after a `>` inside a quoted value, or as `javascript:` hidden behind character references went out as it came. Nor does one inside a tag written to end later than a browser ends it.
+- A message whose style sheet is longer than MailCraft reads keeps the part read, instead of losing its colours and sizes.
+- A picture written `<img`, a tab, `src=…`, or `src = …`, is blocked or shown with the rest, and an address inside another attribute's text isn't taken for one.
 
 ## 0.38.0 - 2026-11-13
 

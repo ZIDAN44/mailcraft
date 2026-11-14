@@ -21,7 +21,7 @@ pub use quote::*;
 use scripts::scripts_split;
 pub(crate) use scripts::{SIZE_END, mark_scripts, plain_scripts, size_mark};
 pub use signature::*;
-pub(crate) use tags::{tag_end, void};
+pub(crate) use tags::{Attribute, attribute, attributes, tag_end, void};
 
 /// Most lines kept of a rich rendering (the rest is shown as text).
 pub(super) const RICH_MAX_LINES: usize = 20_000;
@@ -444,30 +444,7 @@ pub(super) const PICTURE_MARK: char = '\u{E001}';
 /// An attribute's value in a tag's text (`<img alt="x" …>`), as written; `Some("")` when it's
 /// there and empty.
 pub(super) fn tag_attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
-    let lower = tag.to_ascii_lowercase();
-    let mut from = 0;
-    while let Some(i) = lower.get(from..).and_then(|r| r.find(name)).map(|i| i + from) {
-        from = i + name.len();
-        let before = lower.as_bytes().get(i.wrapping_sub(1)).copied().unwrap_or(b' ');
-        if !before.is_ascii_whitespace() || i == 0 {
-            continue;
-        }
-        let after = lower.get(from..).unwrap_or("").trim_start();
-        if !after.starts_with('=') {
-            // A bare attribute (`alt`): there, and empty.
-            if after.starts_with(|c: char| c.is_ascii_whitespace() || c == '>' || c == '/') || after.is_empty() {
-                return Some("");
-            }
-            continue;
-        }
-        let at = tag.len() - after.len() + 1;
-        let v = tag.get(at..).unwrap_or("").trim_start();
-        return Some(match v.chars().next() {
-            Some(q @ ('"' | '\'')) => v.get(1..).and_then(|r| r.split(q).next()).unwrap_or(""),
-            _ => v.split(|c: char| c.is_ascii_whitespace() || c == '>').next().unwrap_or(""),
-        });
-    }
-    None
+    attribute(tag, name)
 }
 
 /// `html` with a description on every picture that has none, except tracking pixels (1 by 1).
@@ -637,19 +614,14 @@ pub fn html_images(html: &str) -> Vec<String> {
     while let Some(i) = lower.get(from..).and_then(|r| r.find("<img")) {
         let start = from + i;
         let end = crate::html::tag_end(lower.as_bytes(), start + 1).unwrap_or(lower.len());
-        let tag_lower = lower.get(start..end).unwrap_or("");
         let tag = html.get(start..end).unwrap_or("");
-        if let Some(p) = tag_lower.find(" src=").or_else(|| tag_lower.find("\nsrc=")) {
-            let v = tag.get(p + 5..).unwrap_or("");
-            let src = match v.chars().next() {
-                Some(q @ ('"' | '\'')) => v.get(1..).and_then(|r| r.split(q).next()).unwrap_or(""),
-                // Unquoted: to the next space (an address has slashes; cut at the first,
-                // `src=https://…` was `https:`, a picture that could never be shown).
-                _ => {
-                    let bare = v.split([' ', '\t', '\n', '\r']).next().unwrap_or("");
-                    bare.strip_suffix('/').filter(|b| !b.ends_with('/')).unwrap_or(bare)
-                }
-            };
+        // Its `src` read as the other passes read it ([`attributes`]: after a tab, `src = …`; not
+        // one in another's quoted value).
+        if let Some(a) = attributes(tag).1.into_iter().find(|a| a.name == "src") {
+            let v = tag.get(a.value.clone()).unwrap_or("");
+            // Unquoted, to the next space: an address has slashes (cut at the first, `src=https://…`
+            // was `https:`), and the `/` of a `/>` after it isn't its.
+            let src = if a.quoted { v } else { v.strip_suffix('/').filter(|b| !b.ends_with('/')).unwrap_or(v) };
             let src = src.trim().replace("&amp;", "&");
             if !src.is_empty() && src.len() < 4096 && !out.contains(&src) {
                 out.push(src);

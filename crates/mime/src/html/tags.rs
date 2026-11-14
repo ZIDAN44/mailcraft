@@ -37,6 +37,86 @@ pub(crate) fn void(name: &str) -> bool {
     matches!(name, "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "param" | "source" | "track" | "wbr")
 }
 
+/// An attribute of a tag as a browser reads it: its name (lower-cased), where its value is in
+/// the tag (without its quotes) and whether it was quoted, where the whole of it is (its name to
+/// its value's end) and where its name ends.
+pub(crate) struct Attribute {
+    pub(crate) name: String,
+    pub(crate) value: std::ops::Range<usize>,
+    pub(crate) quoted: bool,
+    pub(crate) span: std::ops::Range<usize>,
+    pub(crate) name_end: usize,
+}
+
+/// Where the tag's name ends, and its attributes, read as a browser reads them (the HTML
+/// standard's tokenizer): separated by spaces or `/`, or by nothing after a quoted value; a value
+/// quoted, or up to a space or `>` (a `/` in it is part of it). A name in another's quoted value
+/// (`alt=" src=x"`) isn't one.
+pub(crate) fn attributes(tag: &str) -> (usize, Vec<Attribute>) {
+    let b = tag.as_bytes();
+    let space = |i: usize| b.get(i).is_some_and(u8::is_ascii_whitespace);
+    let at = |i: usize| b.get(i).copied();
+    let mut i = 1;
+    while at(i).is_some_and(|c| !c.is_ascii_whitespace() && c != b'/' && c != b'>') {
+        i += 1;
+    }
+    let name_end = i;
+    let mut out = Vec::new();
+    loop {
+        while space(i) || at(i) == Some(b'/') {
+            i += 1;
+        }
+        if at(i).is_none_or(|c| c == b'>') {
+            break;
+        }
+        let start = i;
+        // A name: an `=` first is part of it.
+        i += 1;
+        while at(i).is_some_and(|c| !c.is_ascii_whitespace() && !matches!(c, b'/' | b'>' | b'=')) {
+            i += 1;
+        }
+        let name_end_here = i;
+        let mut j = i;
+        while space(j) {
+            j += 1;
+        }
+        let (mut value, mut quoted) = (i..i, false);
+        if at(j) == Some(b'=') {
+            j += 1;
+            while space(j) {
+                j += 1;
+            }
+            match at(j) {
+                Some(q @ (b'"' | b'\'')) => {
+                    let mut k = j + 1;
+                    while at(k).is_some_and(|c| c != q) {
+                        k += 1;
+                    }
+                    (value, quoted) = (j + 1..k, true);
+                    i = (k + 1).min(b.len());
+                }
+                _ => {
+                    let mut k = j;
+                    while at(k).is_some_and(|c| !c.is_ascii_whitespace() && c != b'>') {
+                        k += 1;
+                    }
+                    value = j..k;
+                    i = k;
+                }
+            }
+        }
+        let name = tag.get(start..name_end_here).unwrap_or("").to_ascii_lowercase();
+        out.push(Attribute { name, value, quoted, span: start..i, name_end: name_end_here });
+    }
+    (name_end, out)
+}
+
+/// The value of a tag's attribute `name` (lower-case), as written: the first of that name, as a
+/// browser takes it; `""` for one with no value.
+pub(crate) fn attribute<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    attributes(tag).1.into_iter().find(|a| a.name == name).and_then(|a| tag.get(a.value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -78,21 +78,22 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
 }
 
 /// A tag without its `on…` attributes and with `javascript:` addresses emptied. Its attributes
-/// are read as a browser reads them ([`attributes`]): a handler after a quoted value with no
+/// are read as a browser reads them ([`crate::html::attributes`]): a handler after a quoted value with no
 /// space (`src="x"onerror=…`), or after a `/` (`<img/onerror=…>`), is one; and an address whose
 /// scheme comes out as `javascript:` or `vbscript:` once its character references are read and
 /// the spaces a browser drops are gone (`java&#x09;script:`) goes whole. Every `javascript:`
 /// written as it is is then emptied, as before.
 fn harmless_tag(tag: &str) -> String {
-    let (name_end, attrs) = attributes(tag);
-    let out = if tag.starts_with("</") || !attrs.iter().any(|a| a.name.starts_with("on") || hidden_script(&a.value)) {
+    let (name_end, attrs) = crate::html::attributes(tag);
+    let value = |a: &crate::html::Attribute| tag.get(a.value.clone()).unwrap_or("");
+    let out = if tag.starts_with("</") || !attrs.iter().any(|a| a.name.starts_with("on") || hidden_script(value(a))) {
         tag.to_string()
     } else {
         let mut out = String::with_capacity(tag.len());
         out.push_str(tag.get(..name_end).unwrap_or(""));
         for a in attrs.iter().filter(|a| !a.name.starts_with("on")) {
             out.push(' ');
-            if hidden_script(&a.value) {
+            if hidden_script(value(a)) {
                 out.push_str(tag.get(a.span.start..a.name_end).unwrap_or(""));
                 out.push_str("=\"#\"");
             } else {
@@ -241,78 +242,6 @@ pub(super) fn cells_in_turn(html: &str) -> String {
     }
     out.push_str(html.get(at..).unwrap_or(""));
     out
-}
-
-/// An attribute of a tag as a browser reads it: its name (lower-cased), its value as written
-/// (without its quotes), where it is in the tag (its name to its value's end) and where its
-/// name ends.
-struct Attribute {
-    name: String,
-    value: String,
-    span: std::ops::Range<usize>,
-    name_end: usize,
-}
-
-/// Where the tag's name ends, and its attributes, read as a browser reads them (the HTML
-/// standard's tokenizer): separated by spaces or `/`, or by nothing after a quoted value; a value
-/// quoted, or up to a space or `>` (a `/` in it is part of it).
-fn attributes(tag: &str) -> (usize, Vec<Attribute>) {
-    let b = tag.as_bytes();
-    let space = |i: usize| b.get(i).is_some_and(u8::is_ascii_whitespace);
-    let at = |i: usize| b.get(i).copied();
-    let mut i = 1;
-    while at(i).is_some_and(|c| !c.is_ascii_whitespace() && c != b'/' && c != b'>') {
-        i += 1;
-    }
-    let name_end = i;
-    let mut out = Vec::new();
-    loop {
-        while space(i) || at(i) == Some(b'/') {
-            i += 1;
-        }
-        if at(i).is_none_or(|c| c == b'>') {
-            break;
-        }
-        let start = i;
-        // A name: an `=` first is part of it.
-        i += 1;
-        while at(i).is_some_and(|c| !c.is_ascii_whitespace() && !matches!(c, b'/' | b'>' | b'=')) {
-            i += 1;
-        }
-        let name_end_here = i;
-        let mut j = i;
-        while space(j) {
-            j += 1;
-        }
-        let mut value = String::new();
-        if at(j) == Some(b'=') {
-            j += 1;
-            while space(j) {
-                j += 1;
-            }
-            match at(j) {
-                Some(q @ (b'"' | b'\'')) => {
-                    let mut k = j + 1;
-                    while at(k).is_some_and(|c| c != q) {
-                        k += 1;
-                    }
-                    value = tag.get(j + 1..k).unwrap_or("").to_string();
-                    i = (k + 1).min(b.len());
-                }
-                _ => {
-                    let mut k = j;
-                    while at(k).is_some_and(|c| !c.is_ascii_whitespace() && c != b'>') {
-                        k += 1;
-                    }
-                    value = tag.get(j..k).unwrap_or("").to_string();
-                    i = k;
-                }
-            }
-        }
-        let name = tag.get(start..name_end_here).unwrap_or("").to_ascii_lowercase();
-        out.push(Attribute { name, value, span: start..i, name_end: name_end_here });
-    }
-    (name_end, out)
 }
 
 /// Where the tag starting `html` ends (past its `>`), as a browser finds it

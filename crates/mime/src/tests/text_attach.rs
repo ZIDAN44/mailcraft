@@ -64,6 +64,14 @@ fn a_file_with_a_content_id_is_still_a_file() {
         crate::html_images("<img src=https://x.example/a/b.png width=1><img src=cid:logo@x /><img src=https://x.example/c.png/>"),
         ["https://x.example/a/b.png", "cid:logo@x", "https://x.example/c.png"]
     );
+    // Its `src` read as the other passes read it (the rich text, its sizes): after a tab, with
+    // spaces around its `=`. Missed here, a picture the text shows wasn't asked about.
+    assert_eq!(
+        crate::html_images(
+            "<img\tsrc=\"https://x.example/t.png\"><img src = \"https://x.example/s.png\"><img alt=\" src=x\" src=\"https://x.example/r.png\">"
+        ),
+        ["https://x.example/t.png", "https://x.example/s.png", "https://x.example/r.png"]
+    );
 }
 
 fn message(parts: &[(String, Vec<u8>)]) -> Vec<u8> {
