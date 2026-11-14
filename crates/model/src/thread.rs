@@ -389,10 +389,12 @@ fn threads_of(msgs: &[&Summary]) -> Vec<Thread> {
         let s = msgs.get(oldest).map(|m| m.subject.as_str()).unwrap_or_default();
         (base_subject(s).to_lowercase(), is_reply_subject(s))
     };
-    // Original posts first, so replies join them rather than the other way round.
-    groups.sort_by_key(|g| first_subject(g).1);
-    for g in groups {
-        let (subj, reply) = first_subject(&g);
+    // Original posts first, so replies join them rather than the other way round. Each group's
+    // subject read once: read for every comparison of the sort, a folder of 50,000 messages
+    // made millions of strings.
+    let mut keyed: Vec<((String, bool), Vec<usize>)> = groups.into_iter().map(|g| (first_subject(&g), g)).collect();
+    keyed.sort_by_key(|((_, reply), _)| *reply);
+    for ((subj, reply), g) in keyed {
         if !subj.is_empty()
             && reply
             && let Some(&at) = by_subject.get(&subj)
@@ -623,5 +625,26 @@ mod tests {
         assert_eq!(without_prefixes("[a] [b] re[2]: x"), "[a] [b] x");
         assert_eq!(without_prefixes("[URGENT]"), "[URGENT]");
         assert_eq!(without_prefixes("  Re: "), "");
+    }
+
+    /// A folder of 50,000 messages in 30,000 threads, threaded: each group's subject was read
+    /// again for every comparison of the sort.
+    /// `cargo test --release -p mailcraft-model --lib measure_threads -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn measure_threads() {
+        let mut msgs = Vec::new();
+        for i in 0..30_000_i64 {
+            msgs.push(m(&format!("<o{i}@x>"), &[], "", &format!("Plan number {i} for the quarter"), i * 10));
+        }
+        for i in 0..20_000_i64 {
+            msgs.push(m(&format!("<r{i}@x>"), &[], "", &format!("Re: AW: Plan number {i} for the quarter"), i * 10 + 5));
+        }
+        let n = threads(&msgs).len();
+        let t = std::time::Instant::now();
+        for _ in 0..5 {
+            assert_eq!(threads(&msgs).len(), n);
+        }
+        println!("MEASURE threads of 50,000 messages ({n} threads): {:.1} ms", t.elapsed().as_secs_f64() * 1000.0 / 5.0);
     }
 }
