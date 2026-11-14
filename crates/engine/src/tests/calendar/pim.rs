@@ -3,6 +3,7 @@
 use super::*;
 
 mod agenda;
+mod dav_merge;
 mod deleting;
 mod huge_times;
 mod people;
