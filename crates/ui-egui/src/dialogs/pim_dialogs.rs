@@ -11,12 +11,15 @@ use crate::{Action, widgets};
 
 mod contact;
 mod online_meeting;
+mod repeat;
 mod showing;
 mod task;
 pub use contact::{ContactForm, contact};
 pub use online_meeting::MeetingState;
 #[cfg(test)]
 pub(crate) use online_meeting::{add as online_meeting_add, remove as online_meeting_remove};
+pub use repeat::Repeat;
+use repeat::repeat_row;
 use task::category_chips;
 pub use task::{TaskForm, status_label, task};
 
@@ -82,8 +85,7 @@ pub struct EventForm {
     pub all_day: bool,
     /// Its times are shown on a 12-hour clock (File › Options).
     pub hours12: bool,
-    /// `""` (never), `daily`, `weekly`, `monthly`, `yearly`, or a rule kept as it was.
-    pub repeat: String,
+    pub repeat: Repeat,
     /// Its reminder, in minutes before it starts (`None`: none).
     pub reminder: Option<i64>,
     /// Who sees what of it, and how it shows its time (issue #32).
@@ -208,16 +210,7 @@ impl EventForm {
             reminder: mailcraft_engine::model::ical::reminder_minutes(e),
             privacy: mailcraft_engine::model::ical::privacy(e),
             show_as: mailcraft_engine::model::ical::show_as(e),
-            repeat: match e.rrule.as_deref() {
-                None => String::new(),
-                Some(r) => match r.to_ascii_uppercase().as_str() {
-                    "FREQ=DAILY" => "daily".into(),
-                    "FREQ=WEEKLY" => "weekly".into(),
-                    "FREQ=MONTHLY" => "monthly".into(),
-                    "FREQ=YEARLY" => "yearly".into(),
-                    _ => r.to_string(),
-                },
-            },
+            repeat: Repeat::from_rrule(e.rrule.as_deref()),
             organizer: e.organizer.as_ref().map(|o| if o.name.is_empty() { o.email.clone() } else { format!("{} <{}>", o.name, o.email) }),
             attendees: e.attendees.iter().map(|a| (if a.name.is_empty() { a.email.clone() } else { a.name.clone() }, a.partstat.clone())).collect(),
             needs_reply: e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION"),
@@ -252,7 +245,7 @@ impl EventForm {
             "start": start,
             "end": end,
             "allDay": self.all_day,
-            "repeat": if self.repeat.is_empty() { "none" } else { self.repeat.as_str() },
+            "repeat": self.repeat.param(),
             "reminder": self.reminder.map_or_else(|| json!("none"), |m| json!(m)),
             "categories": self.categories,
             "privacy": self.privacy.code(),
@@ -350,6 +343,21 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> egui::Respo
     )
 }
 
+/// A form's title, in large letters across the form, and the space below it.
+fn title_field(ui: &mut Ui, value: &mut String) {
+    let w = ui.available_width();
+    ui.add(
+        egui::TextEdit::singleline(value)
+            .hint_text(tl!("Add a title"))
+            .font(theme::bold(16.0))
+            .desired_width(w)
+            .min_size(vec2(w, 36.0))
+            .margin(Margin::symmetric(10, 8))
+            .align(egui::Align2::LEFT_CENTER),
+    );
+    ui.add_space(12.0);
+}
+
 /// A field of several lines, the rest of the row wide.
 fn area(ui: &mut Ui, value: &mut String, hint: &str, rows: usize) -> egui::Response {
     let w = ui.available_width();
@@ -419,17 +427,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
     }
     online_meeting::row(ui, f, t, acts);
     ui.add_enabled_ui(!f.read_only, |ui| {
-        let w = ui.available_width();
-        ui.add(
-            egui::TextEdit::singleline(&mut f.summary)
-                .hint_text(tl!("Add a title"))
-                .font(theme::bold(16.0))
-                .desired_width(w)
-                .min_size(vec2(w, 36.0))
-                .margin(Margin::symmetric(10, 8))
-                .align(egui::Align2::LEFT_CENTER),
-        );
-        ui.add_space(12.0);
+        title_field(ui, &mut f.summary);
         form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {
             field(ui, &mut f.date, "YYYY-MM-DD", 120.0);
             if !f.all_day {
@@ -446,30 +444,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 ui.checkbox(&mut f.all_day, tl!("All day"));
             });
         });
-        let custom = !matches!(f.repeat.as_str(), "" | "daily" | "weekly" | "monthly" | "yearly");
-        let label = |r: &str| -> String {
-            match r {
-                "" => tl!("Never").to_string(),
-                "daily" => tl!("Every day").to_string(),
-                "weekly" => tl!("Every week").to_string(),
-                "monthly" => tl!("Every month").to_string(),
-                "yearly" => tl!("Every year").to_string(),
-                _ => tl!("Custom").to_string(),
-            }
-        };
-        form_row(ui, t, true, Some(Icon::Sync), "Repeat", |ui| {
-            ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                egui::ComboBox::from_id_salt("event-repeat").width(194.0).selected_text(label(&f.repeat)).show_ui(ui, |ui| {
-                    for r in ["", "daily", "weekly", "monthly", "yearly"] {
-                        ui.selectable_value(&mut f.repeat, r.to_string(), label(r));
-                    }
-                    if custom {
-                        let keep = f.repeat.clone();
-                        ui.selectable_value(&mut f.repeat, keep, tl!("Custom"));
-                    }
-                });
-            });
-        });
+        repeat_row(ui, t, "event-repeat", &mut f.repeat);
         form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
             ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 let mut choices: Vec<Option<i64>> = std::iter::once(None).chain(REMINDER_CHOICES.iter().map(|m| Some(*m))).collect();

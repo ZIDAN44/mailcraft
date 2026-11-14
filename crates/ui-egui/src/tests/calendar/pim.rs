@@ -45,7 +45,7 @@ fn calendar_and_people_forms_save_through_commands() {
         Dialog::Event(f) => {
             f.summary = "Grade the trailer".into();
             f.location = "Suite B".into();
-            f.repeat = "weekly".into();
+            f.repeat = crate::pim_dialogs::Repeat::Weekly;
             f.params()
         }
         _ => serde_json::Value::Null,
@@ -60,7 +60,7 @@ fn calendar_and_people_forms_save_through_commands() {
     let mut d = Dialog::open_event(&a.session, &made[0].uid, made[0].occurrence).unwrap();
     let params = match &mut d {
         Dialog::Event(f) => {
-            assert_eq!((f.summary.as_str(), f.repeat.as_str(), f.recurring), ("Grade the trailer", "weekly", true));
+            assert_eq!((f.summary.as_str(), &f.repeat, f.recurring), ("Grade the trailer", &crate::pim_dialogs::Repeat::Weekly, true));
             f.start = "25:00".into();
             f.params()
         }
