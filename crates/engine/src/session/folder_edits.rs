@@ -1,5 +1,7 @@
 //! The session: making, renaming, moving and deleting folders.
 
+use std::collections::VecDeque;
+
 use mailcraft_model::FOLLOW_UP_COMPLETE;
 use mailcraft_model::organize::MAX_FOLLOW_UP;
 
@@ -629,14 +631,19 @@ impl Session {
     fn move_back(&mut self, account: &str, to: &str, back: &[(String, String)]) -> Result<usize, (CmdError, bool)> {
         self.import_holds(account).map_err(|e| (e, true))?;
         self.folders_ready(&[(account.to_string(), to.to_string())]).map_err(|e| (e, true))?;
-        // Where each one is now: the destination's messages with that Message-ID.
-        let here = self.folder_state(account, to).messages.clone();
+        // Where each one is now: the destination's messages with that Message-ID, by it (each
+        // was looked for in the whole folder: 5,000 back from 55,000 took 0.4 s). Of two with
+        // one id, each goes back once, the first listed first.
+        let mut here: HashMap<String, VecDeque<MessageKey>> = HashMap::new();
+        for m in &self.folder_state(account, to).messages {
+            here.entry(m.message_id.clone()).or_default().push_back(m.key.clone());
+        }
         let mut by_folder: std::collections::BTreeMap<String, Vec<MessageKey>> = std::collections::BTreeMap::new();
-        let mut used: BTreeSet<MessageKey> = BTreeSet::new();
+        let mut used = 0usize;
         for (id, from) in back {
-            if let Some(m) = here.iter().find(|m| &m.message_id == id && !used.contains(&m.key)) {
-                used.insert(m.key.clone());
-                by_folder.entry(from.clone()).or_default().push(m.key.clone());
+            if let Some(k) = here.get_mut(id).and_then(VecDeque::pop_front) {
+                used += 1;
+                by_folder.entry(from.clone()).or_default().push(k);
             }
         }
         if by_folder.is_empty() {
@@ -652,7 +659,7 @@ impl Session {
             // stood in the way of every Undo after.
             return Err((CmdError::Failed("the mail isn't where it was moved to any more, so it can't be put back".into()), false));
         }
-        let n = used.len();
+        let n = used;
         for (from, keys) in by_folder {
             self.apply_op(account, Op::Move { keys, to: from });
         }

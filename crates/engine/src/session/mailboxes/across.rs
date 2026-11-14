@@ -254,15 +254,19 @@ impl Session {
         failed: Vec<(MessageKey, String)>,
         moved: bool,
     ) {
-        let answered = |k: &MessageKey| done.contains(k) || failed.iter().any(|(f, _)| f == k);
+        // Looked up by key (each answer was looked for in the whole list: 10,000 took 0.85 s).
+        let answered: HashSet<&MessageKey> = done.iter().chain(failed.iter().map(|(k, _)| k)).collect();
         let done_count = done.len();
-        self.transfers.retain(|t| !(t.sent && t.account == account && t.folder == folder && answered(&t.key)));
+        self.transfers.retain(|t| !(t.sent && t.account == account && t.folder == folder && answered.contains(&t.key)));
+        drop(answered);
         // Copies that couldn't be taken out where they were said so already: not "moved".
         let mut said = false;
         if moved && !done.is_empty() {
             // The message open, if it's one of them, gives way to the next as in any move.
             let next = self.successor(&done);
-            let open = self.selection.iter().any(|k| done.contains(k));
+            let filed: HashSet<&MessageKey> = done.iter().collect();
+            let open = self.selection.iter().any(|k| filed.contains(k));
+            drop(filed);
             said = !self.remove_moved(done, folder);
             if open && !said {
                 self.after_removal(next);
