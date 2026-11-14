@@ -235,9 +235,13 @@ async fn relist(sh: &Rcs, id: &str) -> bool {
             let store = store(sh);
             let old: Vec<Folder> = sh.borrow().accounts.get(id).map(|a| a.folders.clone()).unwrap_or_default();
             for f in old.iter().filter(|o| !list.iter().any(|f| f.path == o.path)) {
-                let _ = store.clear_folder(id, &f.path);
+                if let Err(e) = store.clear_folder(id, &f.path) {
+                    log::warn!("{id}: {}: {e}", f.path);
+                }
             }
-            let _ = store.save_folders(id, &list);
+            if let Err(e) = store.save_folders(id, &list) {
+                log::warn!("{id}: {e}");
+            }
             if let Some(a) = sh.borrow_mut().accounts.get_mut(id) {
                 a.folders = list.clone();
             }
@@ -297,7 +301,9 @@ async fn sync_one(sh: &Rcs, id: &str, path: &str) {
                 (first, changed.then(|| a.folders.clone()))
             };
             if let Some(folders) = counts {
-                let _ = store.save_folders(id, &folders);
+                if let Err(e) = store.save_folders(id, &folders) {
+                    log::warn!("{id}: {e}");
+                }
                 emit(sh, Event::Folders { account: id.to_string(), folders });
             }
             if r.touched() || first {

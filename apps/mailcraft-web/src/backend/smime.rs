@@ -70,7 +70,10 @@ fn save(sh: &Rcs, id: &str, own: &Own) {
         notice(sh, id, format!("the certificates couldn't be kept in this browser: {e}"));
         return;
     }
-    let _ = st.save_account_doc(id, P12_DOC, &Vec::<u8>::new());
+    // What an earlier MailCraft kept is only read when the document above isn't there.
+    if let Err(e) = st.save_account_doc(id, P12_DOC, &Vec::<u8>::new()) {
+        log::warn!("{id}: {e}");
+    }
 }
 
 /// The key of the certificate `cert`, when it's been unlocked in this page.
@@ -326,8 +329,9 @@ fn reseal(sh: &Rcs, id: &str, start: bool) {
 /// Stop keeping the account's certificates unlocked: the sealed passwords go, and the browser's
 /// key too once no account needs it.
 fn stop_keeping(sh: &Rcs, id: &str) {
-    let st = store(sh);
-    let _ = st.save_account_doc(id, KEEP_DOC, &Vec::<u8>::new());
+    if let Err(e) = store(sh).save_account_doc(id, KEEP_DOC, &Vec::<u8>::new()) {
+        notice(sh, id, format!("the sealed passwords of your certificates couldn't be removed from this browser: {e}"));
+    }
     let others = sh.borrow().accounts.keys().any(|a| a != id && keeping(sh, a));
     if !others {
         wasm_bindgen_futures::spawn_local(async {
