@@ -265,7 +265,9 @@ fn group_item(card: &Card, now: i64) -> Item {
     let one_offs: Vec<Vec<u8>> = addresses.iter().zip(&named).map(|(a, n)| crate::pst::one_off_entry_id(n, a)).collect();
     let wrapped: Vec<Vec<u8>> = one_offs.iter().map(|o| crate::pst_pim::wrapped_entry_id(o)).collect();
     if !addresses.is_empty() {
-        let sum = crc(&wrapped.concat());
+        // PidLidDistributionListChecksum: the CRC of MS-OXRTFCP 2.1.3.2 (no inversion), over the
+        // members' entry ids one after another (MS-OXOCNTC 2.2.2.2.3).
+        let sum = mailcraft_pst::crc(&wrapped.concat());
         props.extend([
             lid(PSETID_ADDRESS, 0x8054, Value::Bins(one_offs)),
             lid(PSETID_ADDRESS, 0x8055, Value::Bins(wrapped)),
@@ -308,17 +310,4 @@ fn listed(note: &str, addresses: &[String]) -> (Vec<String>, String) {
         Some(n) => (n, tail.trim().to_string()),
         None => (vec![String::new(); addresses.len()], note.trim().to_string()),
     }
-}
-
-/// PidLidDistributionListChecksum: the CRC-32 of MS-OXRTFCP 2.1.3.2 (no inversion), over the
-/// members' entry ids one after another (MS-OXOCNTC 2.2.2.2.3).
-fn crc(data: &[u8]) -> u32 {
-    let mut c = 0u32;
-    for b in data {
-        c ^= u32::from(*b);
-        for _ in 0..8 {
-            c = if c & 1 != 0 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 };
-        }
-    }
-    c
 }

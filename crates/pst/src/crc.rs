@@ -74,8 +74,9 @@ pub(crate) fn update(mut crc: u32, data: &[u8]) -> u32 {
     crc
 }
 
-/// `data`'s CRC.
-pub(crate) fn crc(data: &[u8]) -> u32 {
+/// `data`'s CRC: the one of MS-PST's pages and blocks, and of MS-OXRTFCP 2.1.3.2 (which a
+/// contact group's checksum of its members is, MS-OXOCNTC 2.2.2.2.3).
+pub fn crc(data: &[u8]) -> u32 {
     update(0, data)
 }
 

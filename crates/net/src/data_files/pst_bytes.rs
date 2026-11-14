@@ -24,16 +24,7 @@ pub(super) fn put64(b: &mut [u8], at: usize, v: u64) {
 }
 
 /// MS-PST's CRC: CRC-32's table, started at 0 and not inverted at the end.
-pub(super) fn crc(data: &[u8]) -> u32 {
-    let mut c = 0u32;
-    for &b in data {
-        c ^= u32::from(b);
-        for _ in 0..8 {
-            c = if c & 1 == 1 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 };
-        }
-    }
-    c
-}
+pub(super) use mailcraft_pst::crc;
 
 /// The size of a block of `size` bytes of data in the file: with its 16-byte trailer, in 64-byte
 /// steps.
