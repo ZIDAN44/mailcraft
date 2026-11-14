@@ -1,7 +1,7 @@
 //! What the Mailcow tests share (`real_mailcow_*.rs`): the servers and users from the
-//! environment, a tiny IMAP and SMTP client and HTTP client for the other side, SOGo's web
-//! endpoints signed in through Mailcow's own sign-in page, and MailCraft's session and network
-//! layer together, as in the app, one per user.
+//! environment and SOGo's web endpoints signed in through Mailcow's own sign-in page, with what
+//! every real-server test shares (`servers.rs`: the IMAP, SMTP and HTTP clients for the other
+//! side, MailCraft's session and network layer together, as in the app, one per user).
 //!
 //! `MAILCRAFT_REAL_MAILCOW="<imap> <submission> <web> <user>:<password> <user>:<password> <user>:<password>"`:
 //! Dovecot's IMAP port without TLS (Mailcow's `data/conf/dovecot/extra.conf` with
@@ -13,17 +13,11 @@
 
 #![allow(dead_code)]
 
-use std::io::{Read, Write};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+#[path = "servers.rs"]
+mod servers;
 
-use mailcraft_engine::Session;
-use mailcraft_engine::model::dates::Clock;
-use mailcraft_engine::model::job::Secret;
-use mailcraft_engine::model::{Event, Job};
-use mailcraft_engine::store::Store;
-use mailcraft_net::worker::{MemoryCredentials, Pool};
 use serde_json::{Value, json};
+pub use servers::*;
 
 /// The servers and users from `MAILCRAFT_REAL_MAILCOW`, or `None` (the test is skipped).
 pub struct Mailcow {
@@ -119,223 +113,8 @@ impl Mailcow {
     }
 }
 
-pub fn between(s: &str, a: &str, b: &str) -> Option<String> {
-    let i = s.find(a)? + a.len();
-    let j = s.get(i..)?.find(b)? + i;
-    s.get(i..j).map(str::to_string)
-}
-
 fn hrefs_in(xml: &str) -> Vec<String> {
     xml.split("<D:href>").skip(1).filter_map(|x| x.split_once("</D:href>").map(|(h, _)| h.to_string())).collect()
-}
-
-pub fn unescape(s: &str) -> String {
-    s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&#13;", "").replace("&amp;", "&")
-}
-
-/// A tiny IMAP client for the other side.
-pub struct Imap {
-    pub s: std::net::TcpStream,
-    pub n: u32,
-}
-
-impl Imap {
-    pub fn connect(addr: &str, user: &str, password: &str) -> Imap {
-        let s = std::net::TcpStream::connect(addr).unwrap();
-        s.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
-        let mut c = Imap { s, n: 0 };
-        c.read_until("* OK");
-        c.cmd(&format!("LOGIN \"{user}\" \"{password}\""));
-        c
-    }
-
-    pub fn read_until(&mut self, end: &str) -> String {
-        let mut out = Vec::new();
-        let mut b = [0u8; 8192];
-        while !String::from_utf8_lossy(&out).lines().any(|l| l.starts_with(end)) {
-            let n = self.s.read(&mut b).unwrap();
-            assert!(n > 0, "the IMAP server closed");
-            out.extend_from_slice(&b[..n]);
-        }
-        String::from_utf8_lossy(&out).into_owned()
-    }
-
-    /// A command and its whole answer, whatever it says.
-    pub fn try_cmd(&mut self, c: &str) -> String {
-        self.n += 1;
-        let tag = format!("t{}", self.n);
-        write!(self.s, "{tag} {c}\r\n").unwrap();
-        self.read_until(&format!("{tag} "))
-    }
-
-    pub fn cmd(&mut self, c: &str) -> String {
-        let r = self.try_cmd(c);
-        let tag = format!("t{} OK", self.n);
-        assert!(r.lines().any(|l| l.starts_with(&tag)), "{c}: {r}");
-        r
-    }
-
-    pub fn append(&mut self, folder: &str, flags: &str, raw: &[u8]) {
-        self.n += 1;
-        let tag = format!("t{}", self.n);
-        write!(self.s, "{tag} APPEND \"{folder}\" ({flags}) {{{}+}}\r\n", raw.len()).unwrap();
-        self.s.write_all(raw).unwrap();
-        self.s.write_all(b"\r\n").unwrap();
-        let r = self.read_until(&format!("{tag} "));
-        assert!(r.contains(&format!("{tag} OK")), "{r}");
-    }
-
-    /// Each message of a folder: its uid, flags and subject.
-    pub fn messages(&mut self, folder: &str) -> Vec<(u32, Vec<String>, String)> {
-        self.cmd(&format!("EXAMINE \"{folder}\""));
-        let r = self.try_cmd("UID FETCH 1:* (FLAGS BODY.PEEK[HEADER.FIELDS (SUBJECT)])");
-        self.cmd("UNSELECT");
-        let mut out = Vec::new();
-        let mut cur: Option<(u32, Vec<String>)> = None;
-        for l in r.lines() {
-            if l.starts_with("* ") && l.contains("FETCH (") {
-                let uid = between(l, "UID ", " ").or_else(|| between(l, "UID ", ")")).and_then(|u| u.parse().ok()).unwrap_or(0);
-                let flags = between(l, "FLAGS (", ")").unwrap_or_default().split_whitespace().map(str::to_string).collect();
-                cur = Some((uid, flags));
-            } else if let Some(s) = l.strip_prefix("Subject: ")
-                && let Some((uid, flags)) = cur.take()
-            {
-                out.push((uid, flags, s.trim().to_string()));
-            }
-        }
-        out
-    }
-
-    pub fn subjects(&mut self, folder: &str) -> Vec<String> {
-        self.messages(folder).into_iter().map(|m| m.2).collect()
-    }
-
-    /// The flags of the message with this subject.
-    pub fn flags(&mut self, folder: &str, subject: &str) -> Vec<String> {
-        self.messages(folder).into_iter().find(|m| m.2 == subject).map(|m| m.1).unwrap_or_else(|| panic!("no {subject:?} in {folder}"))
-    }
-}
-
-/// Send through SMTP with a password (AUTH PLAIN, no TLS: Postfix's port 588 on this computer).
-pub fn smtp_send(addr: &str, user: &str, password: &str, to: &[&str], raw: &[u8]) {
-    let mut s = std::net::TcpStream::connect(addr).unwrap();
-    s.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
-    let read = |s: &mut std::net::TcpStream| {
-        let mut out = String::new();
-        let mut b = [0u8; 4096];
-        loop {
-            let n = s.read(&mut b).unwrap();
-            assert!(n > 0, "the SMTP server closed: {out}");
-            out.push_str(&String::from_utf8_lossy(&b[..n]));
-            // The last line of a reply has a space after its code.
-            if out.ends_with("\r\n") && out.trim_end().lines().last().is_some_and(|l| l.as_bytes().get(3) == Some(&b' ')) {
-                return out;
-            }
-        }
-    };
-    let say = |s: &mut std::net::TcpStream, line: &str, want: &str| {
-        s.write_all(line.as_bytes()).unwrap();
-        let r = read(s);
-        assert!(r.trim_end().lines().last().is_some_and(|l| l.starts_with(want)), "{line:?}: {r}");
-    };
-    let hello = read(&mut s);
-    assert!(hello.starts_with("220"), "{hello}");
-    say(&mut s, "EHLO test.local\r\n", "250");
-    say(&mut s, &format!("AUTH PLAIN {}\r\n", base64(format!("\0{user}\0{password}").as_bytes())), "235");
-    say(&mut s, &format!("MAIL FROM:<{user}>\r\n"), "250");
-    for t in to {
-        say(&mut s, &format!("RCPT TO:<{t}>\r\n"), "250");
-    }
-    say(&mut s, "DATA\r\n", "354");
-    let mut body = Vec::new();
-    for line in raw.split(|b| *b == b'\n') {
-        let line = line.strip_suffix(b"\r").unwrap_or(line);
-        if line.first() == Some(&b'.') {
-            body.push(b'.');
-        }
-        body.extend_from_slice(line);
-        body.extend_from_slice(b"\r\n");
-    }
-    s.write_all(&body).unwrap();
-    say(&mut s, ".\r\n", "250");
-    let _ = s.write_all(b"QUIT\r\n");
-}
-
-/// An HTTP answer.
-pub struct Answer {
-    pub status: u16,
-    pub head: String,
-    pub body: Vec<u8>,
-}
-
-impl Answer {
-    pub fn text(&self) -> String {
-        String::from_utf8_lossy(&self.body).into_owned()
-    }
-
-    /// The `name=value` of each `Set-Cookie`.
-    pub fn cookies(&self) -> Vec<String> {
-        self.head
-            .lines()
-            .filter_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("set-cookie")).map(|(_, v)| v.trim().to_string()))
-            .filter_map(|v| v.split(';').next().map(str::to_string))
-            .collect()
-    }
-}
-
-/// One HTTP/1.1 request over plain http (`http://host:port/path`); chunked answers are joined.
-pub fn http(method: &str, url: &str, headers: &[(&str, &str)], body: &[u8]) -> Answer {
-    let rest = url.trim_start_matches("http://");
-    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
-    let mut s = std::net::TcpStream::connect(host).unwrap();
-    s.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
-    let mut req = format!("{method} /{path} HTTP/1.1\r\nContent-Length: {}\r\nConnection: close\r\n", body.len());
-    if !headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("host")) {
-        req.push_str(&format!("Host: {host}\r\n"));
-    }
-    for (k, v) in headers {
-        req.push_str(&format!("{k}: {v}\r\n"));
-    }
-    req.push_str("\r\n");
-    s.write_all(req.as_bytes()).unwrap();
-    s.write_all(body).unwrap();
-    let mut out = Vec::new();
-    let _ = s.read_to_end(&mut out);
-    let split = out.windows(4).position(|w| w == b"\r\n\r\n").map_or(out.len(), |i| i + 4);
-    let head = String::from_utf8_lossy(&out[..split]).into_owned();
-    let status = head.split_whitespace().nth(1).and_then(|c| c.parse().ok()).unwrap_or(0);
-    let mut body = out[split.min(out.len())..].to_vec();
-    if head.to_ascii_lowercase().contains("transfer-encoding: chunked") {
-        let mut joined = Vec::new();
-        let mut rest = body.as_slice();
-        while let Some(eol) = rest.windows(2).position(|w| w == b"\r\n") {
-            let size = usize::from_str_radix(String::from_utf8_lossy(&rest[..eol]).split(';').next().unwrap_or("0").trim(), 16).unwrap_or(0);
-            if size == 0 {
-                break;
-            }
-            let start = eol + 2;
-            joined.extend_from_slice(&rest[start..(start + size).min(rest.len())]);
-            rest = &rest[(start + size + 2).min(rest.len())..];
-        }
-        body = joined;
-    }
-    Answer { status, head, body }
-}
-
-pub fn base64(data: &[u8]) -> String {
-    const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for c in data.chunks(3) {
-        let n = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
-        for i in 0..4 {
-            if i <= c.len() {
-                out.push(A[((n >> (18 - 6 * i)) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
 
 fn form(v: &str) -> String {
@@ -426,135 +205,13 @@ impl Sogo {
     }
 }
 
-/// One user's MailCraft: the session and the network layer together, as in the app (a Start
-/// gets the user's password, as the keychain would give it).
-pub struct App {
-    pub s: Session,
-    pub pool: Pool,
-    pub password: String,
-    pub dir: std::path::PathBuf,
-}
-
 impl App {
-    /// A new MailCraft for `email`, its mail on Mailcow (IMAP and SMTP without TLS, on this
-    /// computer); returns the account's id.
+    /// A new MailCraft for Mailcow's user `n`, its mail on Mailcow (IMAP and SMTP without TLS,
+    /// on this computer); returns the account's id.
     pub fn new(m: &Mailcow, n: usize, tag: &str) -> (App, String) {
         let (email, password) = m.user(n);
-        App::at(&m.imap, &m.smtp, email, email, password, tag)
+        App::at(&m.imap, &m.smtp, email, email, password, &format!("mailcow-{tag}"))
     }
-
-    /// A new MailCraft for `email` (signing in as `username`), its mail on these IMAP and SMTP
-    /// servers without TLS, on this computer; returns the account's id.
-    pub fn at(imap: &str, smtp: &str, email: &str, username: &str, password: &str, tag: &str) -> (App, String) {
-        let name = email.split('@').next().unwrap_or_default();
-        let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("mailcow-{tag}-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let store = Store::open(&dir).unwrap();
-        let mut s = Session::open(Some(store.clone()), Clock::new(now(), 0));
-        let (ih, ip) = imap.rsplit_once(':').unwrap();
-        let (sh, sp) = smtp.rsplit_once(':').unwrap();
-        let id = s
-            .run(
-                "account.add",
-                &json!({"email": email, "username": username, "password": password, "imapHost": ih, "imapPort": ip.parse::<u16>().unwrap(), "imapSecurity": "none",
-                        "smtpHost": sh, "smtpPort": sp.parse::<u16>().unwrap(), "smtpSecurity": "none"}),
-            )
-            .unwrap()["account"]
-            .as_str()
-            .unwrap()
-            .to_string();
-        let app = App { s, pool: Pool::new(store, Arc::new(MemoryCredentials::default())), password: password.to_string(), dir };
-        (app, id)
-    }
-
-    fn submit_jobs(&mut self) {
-        for j in self.s.take_jobs() {
-            let j = match j {
-                Job::Start { account, password: None } => Job::Start { account, password: Some(Secret(self.password.clone())) },
-                j => j,
-            };
-            self.pool.submit(j);
-        }
-    }
-
-    pub fn pump(&mut self, secs: u64, what: &str, mut done: impl FnMut(&mut Session, &Event) -> bool) {
-        let end = Instant::now() + Duration::from_secs(secs);
-        loop {
-            self.submit_jobs();
-            assert!(Instant::now() < end, "timed out waiting for {what}");
-            let Some(e) = self.pool.wait(Duration::from_millis(200)) else { continue };
-            match &e {
-                Event::Notice { message, .. } => eprintln!("note: {message}"),
-                Event::OpFailed { error, .. } => eprintln!("refused: {error}"),
-                Event::DavSynced { sync, .. } if !sync.errors.is_empty() => eprintln!("calendar sync: {:?}", sync.errors),
-                _ => {}
-            }
-            self.s.apply(e.clone());
-            self.s.tick();
-            if done(&mut self.s, &e) {
-                self.submit_jobs();
-                return;
-            }
-        }
-    }
-
-    /// Keep going for `secs` (what's queued reaches the servers).
-    pub fn settle(&mut self, secs: u64) {
-        let end = Instant::now() + Duration::from_secs(secs);
-        while Instant::now() < end {
-            self.submit_jobs();
-            if let Some(e) = self.pool.wait(Duration::from_millis(200)) {
-                if let Event::DavSynced { sync, .. } = &e
-                    && !sync.errors.is_empty()
-                {
-                    eprintln!("calendar sync: {:?}", sync.errors);
-                }
-                self.s.apply(e);
-                self.s.tick();
-            }
-        }
-    }
-
-    /// Sync the account's calendars and wait for that sync: one already under way when asked
-    /// (begun before `t0`) may have read the server before the change looked for.
-    pub fn sync_dav(&mut self, id: &str) -> mailcraft_engine::model::pim::DavSync {
-        self.submit_jobs();
-        let t0 = now();
-        self.pool.submit(Job::SyncDav { account: id.to_string() });
-        let mut got = None;
-        self.pump(180, "a calendar sync", |_, e| match e {
-            Event::DavSynced { sync, .. } if sync.checked >= t0 => {
-                got = Some((**sync).clone());
-                true
-            }
-            _ => false,
-        });
-        got.unwrap_or_default()
-    }
-
-    /// Wait for a message in the Inbox (syncing it now and then).
-    pub fn wait_for_mail(&mut self, id: &str, subject: &str) -> mailcraft_engine::model::MessageKey {
-        let end = Instant::now() + Duration::from_secs(120);
-        loop {
-            if let Some(k) = self.s.folder_state(id, "INBOX").messages.iter().find(|m| m.subject == subject).map(|m| m.key.clone()) {
-                return k;
-            }
-            assert!(Instant::now() < end, "{subject:?} didn't come");
-            self.pool.submit(Job::SyncFolder { account: id.to_string(), folder: "INBOX".into() });
-            self.settle(2);
-        }
-    }
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.dir);
-    }
-}
-
-/// Now, in Unix seconds.
-pub fn now() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
 }
 
 /// A plain message.
@@ -564,33 +221,4 @@ pub fn message(from: &str, to: &str, subject: &str, id: &str) -> Vec<u8> {
          Content-Type: text/plain; charset=utf-8\r\n\r\n{subject}\r\n"
     )
     .into_bytes()
-}
-
-/// A proxy in front of a server, on a port of its own: it refuses connections (`None`) or
-/// passes them on after so many seconds. Returns its port and its switch.
-pub fn proxy(target: &str) -> (u16, Arc<std::sync::Mutex<Option<u64>>>) {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    let mode = Arc::new(std::sync::Mutex::new(None));
-    let (m, target) = (mode.clone(), target.to_string());
-    std::thread::spawn(move || {
-        for client in listener.incoming().flatten() {
-            let Some(delay) = *m.lock().unwrap() else { continue };
-            let target = target.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(Duration::from_secs(delay));
-                let Ok(server) = std::net::TcpStream::connect(&target) else { return };
-                let (mut c2, mut s2) = (client.try_clone().unwrap(), server.try_clone().unwrap());
-                let (mut client, mut server) = (client, server);
-                let up = std::thread::spawn(move || {
-                    let _ = std::io::copy(&mut c2, &mut s2);
-                    let _ = s2.shutdown(std::net::Shutdown::Write);
-                });
-                let _ = std::io::copy(&mut server, &mut client);
-                let _ = client.shutdown(std::net::Shutdown::Both);
-                let _ = up.join();
-            });
-        }
-    });
-    (port, mode)
 }

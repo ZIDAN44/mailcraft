@@ -14,105 +14,17 @@
 //! the server to check what was stored. Then Stalwart, mail over JMAP and its CalDAV calendar.
 //! The engine and the network layer run together, as in the app.
 
-use std::io::{Read, Write};
-use std::sync::Arc;
+#[path = "support/servers.rs"]
+mod servers;
+
 use std::time::{Duration, Instant};
 
-use mailcraft_engine::Session;
-use mailcraft_engine::model::dates::Clock;
-use mailcraft_engine::model::job::Secret;
 use mailcraft_engine::model::pim::LOCAL;
 use mailcraft_engine::model::{Event, Job, SyncStatus};
-use mailcraft_engine::store::Store;
-use mailcraft_net::worker::{MemoryCredentials, Pool};
 use serde_json::json;
+use servers::{App, Imap, basic, http, http_as, proxy};
 
 const USER: &str = "riley@studio.example";
-
-/// A tiny IMAP client for the other side: put mail in, list what a folder holds.
-struct Imap {
-    s: std::net::TcpStream,
-    n: u32,
-}
-
-impl Imap {
-    fn connect(addr: &str) -> Imap {
-        let s = std::net::TcpStream::connect(addr).unwrap();
-        s.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
-        let mut c = Imap { s, n: 0 };
-        c.read_until("* OK");
-        c.cmd(&format!("LOGIN \"{USER}\" pw"));
-        c
-    }
-
-    fn read_until(&mut self, end: &str) -> String {
-        let mut out = Vec::new();
-        let mut b = [0u8; 4096];
-        while !String::from_utf8_lossy(&out).lines().any(|l| l.starts_with(end)) {
-            let n = self.s.read(&mut b).unwrap();
-            assert!(n > 0, "the IMAP server closed");
-            out.extend_from_slice(&b[..n]);
-        }
-        String::from_utf8_lossy(&out).into_owned()
-    }
-
-    fn cmd(&mut self, c: &str) -> String {
-        self.n += 1;
-        let tag = format!("t{}", self.n);
-        write!(self.s, "{tag} {c}\r\n").unwrap();
-        let r = self.read_until(&format!("{tag} "));
-        assert!(r.lines().any(|l| l.starts_with(&format!("{tag} OK"))), "{c}: {r}");
-        r
-    }
-
-    fn append(&mut self, folder: &str, raw: &[u8]) {
-        self.n += 1;
-        let tag = format!("t{}", self.n);
-        write!(self.s, "{tag} APPEND {folder} {{{}+}}\r\n", raw.len()).unwrap();
-        self.s.write_all(raw).unwrap();
-        self.s.write_all(b"\r\n").unwrap();
-        let r = self.read_until(&format!("{tag} "));
-        assert!(r.contains(&format!("{tag} OK")), "{r}");
-    }
-
-    /// The subjects in a folder.
-    fn subjects(&mut self, folder: &str) -> Vec<String> {
-        self.cmd(&format!("SELECT {folder}"));
-        let r = self.cmd("FETCH 1:* (BODY.PEEK[HEADER.FIELDS (SUBJECT)])");
-        let found = r.lines().filter_map(|l| l.strip_prefix("Subject: ")).map(|s| s.trim().to_string()).collect();
-        self.cmd("UNSELECT");
-        found
-    }
-}
-
-/// A proxy in front of the calendar server, on a port of its own: it refuses connections
-/// (`None`) or passes them on after so many seconds.
-fn proxy(target: &str) -> (u16, Arc<std::sync::Mutex<Option<u64>>>) {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    let mode = Arc::new(std::sync::Mutex::new(None));
-    let (m, target) = (mode.clone(), target.to_string());
-    std::thread::spawn(move || {
-        for client in listener.incoming().flatten() {
-            let Some(delay) = *m.lock().unwrap() else { continue };
-            let target = target.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(Duration::from_secs(delay));
-                let Ok(server) = std::net::TcpStream::connect(&target) else { return };
-                let (mut c2, mut s2) = (client.try_clone().unwrap(), server.try_clone().unwrap());
-                let (mut client, mut server) = (client, server);
-                let up = std::thread::spawn(move || {
-                    let _ = std::io::copy(&mut c2, &mut s2);
-                    let _ = s2.shutdown(std::net::Shutdown::Write);
-                });
-                let _ = std::io::copy(&mut server, &mut client);
-                let _ = client.shutdown(std::net::Shutdown::Both);
-                let _ = up.join();
-            });
-        }
-    });
-    (port, mode)
-}
 
 /// An invitation from Zoe to the user, as a calendar service would send it.
 fn invitation(uid: &str, summary: &str, start: &str) -> Vec<u8> {
@@ -129,65 +41,23 @@ fn invitation(uid: &str, summary: &str, start: &str) -> Vec<u8> {
 
 /// The calendar's items, read straight from the server (no proxy).
 fn stored(calendar: &str) -> String {
-    let (host, path) = calendar.trim_start_matches("http://").split_once('/').unwrap();
     let body = "<?xml version=\"1.0\"?><c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><c:calendar-data/></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"/></c:filter></c:calendar-query>";
-    let mut s = std::net::TcpStream::connect(host).unwrap();
-    write!(
-        s,
-        "REPORT /{path} HTTP/1.1\r\nHost: {host}\r\nDepth: 1\r\nAuthorization: Basic {}\r\nContent-Type: application/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-        base64(format!("{USER}:pw").as_bytes()),
-        body.len()
-    )
-    .unwrap();
-    let mut out = String::new();
-    s.read_to_string(&mut out).unwrap();
-    out
+    let auth = basic(&format!("{USER}:pw"));
+    http("REPORT", calendar, &[("Depth", "1"), ("Authorization", &auth), ("Content-Type", "application/xml")], body.as_bytes()).text()
 }
 
-/// The session and the network layer together, as in the app: events in, jobs out (a Start
-/// gets the password, as the keychain would give it).
-struct App {
-    s: Session,
-    pool: Pool,
-}
-
-impl App {
-    fn pump(&mut self, secs: u64, what: &str, mut done: impl FnMut(&mut Session, &Event) -> bool) {
-        let end = Instant::now() + Duration::from_secs(secs);
-        loop {
-            for j in self.s.take_jobs() {
-                let j = match j {
-                    Job::Start { account, password: None } => Job::Start { account, password: Some(Secret("pw".into())) },
-                    j => j,
-                };
-                self.pool.submit(j);
-            }
-            assert!(Instant::now() < end, "timed out waiting for {what}");
-            let Some(e) = self.pool.wait(Duration::from_millis(200)) else { continue };
-            match &e {
-                Event::Notice { message, .. } => eprintln!("note: {message}"),
-                Event::Status { status, .. } => eprintln!("status: {status:?}"),
-                Event::DavSynced { sync, .. } => {
-                    eprintln!("calendars: {:?}, {} events stored", sync.calendars.as_ref().map(Vec::len), sync.pushed_events.len());
-                    // Each item stored once ("changed on the server meanwhile" said a second sync
-                    // sent them again).
-                    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
-                }
-                Event::FolderChanged { folder, .. } => eprintln!("changed: {folder}"),
-                Event::Body { key, .. } => eprintln!("body: {}", key.to_id()),
-                _ => {}
-            }
-            // Asked once the event is taken in.
-            self.s.apply(e.clone());
-            self.s.tick();
-            let hit = done(&mut self.s, &e);
-            if hit {
-                for j in self.s.take_jobs() {
-                    self.pool.submit(j);
-                }
-                return;
-            }
+/// Each event as it comes; a calendar sync that went wrong stops the test (each item is stored
+/// once: "changed on the server meanwhile" said a second sync sent them again).
+fn watch(e: &Event) {
+    match e {
+        Event::Status { status, .. } => eprintln!("status: {status:?}"),
+        Event::DavSynced { sync, .. } => {
+            eprintln!("calendars: {:?}, {} events stored", sync.calendars.as_ref().map(Vec::len), sync.pushed_events.len());
+            assert!(sync.errors.is_empty(), "{:?}", sync.errors);
         }
+        Event::FolderChanged { folder, .. } => eprintln!("changed: {folder}"),
+        Event::Body { key, .. } => eprintln!("body: {}", key.to_id()),
+        _ => {}
     }
 }
 
@@ -205,34 +75,20 @@ fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     let set_mode = |m: Option<u64>| *mode.lock().unwrap() = m;
     let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
     let proxied = home.replace(&target, &format!("127.0.0.1:{port}"));
-    let (host, port) = imap.rsplit_once(':').unwrap();
-    let dir = std::env::temp_dir().join(format!("mailcraft-real-invites-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open(&dir).unwrap();
-    let mut s = Session::open(Some(store.clone()), Clock::new(chrono_now(), 0));
-    let id = s
-        .run(
-            "account.add",
-            &json!({"email": USER, "password": "pw", "imapHost": host, "imapPort": port.parse::<u16>().unwrap(), "imapSecurity": "none", "smtpHost": "127.0.0.1", "smtpPort": 1, "smtpSecurity": "none"}),
-        )
-        .unwrap()["account"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
-    let mut app = App { s, pool: Pool::new(store.clone(), Arc::new(MemoryCredentials::default())) };
-    let mut other = Imap::connect(imap);
+    let mut app = App::open("invites", "pw");
+    app.watch = watch;
+    let id = app.add_plain(imap, "127.0.0.1:1", json!({"email": USER, "password": "pw"}));
+    app.s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
+    let mut other = Imap::connect(imap, USER, "pw");
     // Deleted Items, as a new mailbox may not have it yet (made once; "already exists" after).
-    other.n += 1;
-    let _ = write!(other.s, "t{} CREATE Trash\r\n", other.n);
-    other.read_until(&format!("t{} ", other.n));
+    other.create("Trash");
 
     // 1. No calendar server found from the address (studio.example has none): the account's
     //    calendar is on this computer, and an invitation that comes goes there, as it should.
     set_mode(None);
     app.pump(120, "calendars looked for", |_, e| matches!(e, Event::DavSynced { .. }));
     assert_eq!(app.s.pim[&id].caldav_home.as_deref(), Some(""), "none found");
-    other.append("INBOX", &invitation("one@organizer.example", "Colour pass", "20261105T100000Z"));
+    other.append("INBOX", "", &invitation("one@organizer.example", "Colour pass", "20261105T100000Z"));
     app.pump(120, "the first invitation", |s, _| s.find_event("one@organizer.example").is_some());
     assert_eq!(app.s.find_event("one@organizer.example").unwrap().1.calendar, LOCAL);
     eprintln!("1: the first invitation is in the calendar on this computer");
@@ -242,17 +98,17 @@ fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     app.s.run("account.dav", &json!({"account": id, "caldav": proxied})).unwrap();
     app.pump(120, "online again", |_, e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     assert!(app.s.calendars_pending(&id), "still to be found");
-    other.append("INBOX", &invitation("two@organizer.example", "Grade review", "20261106T140000Z"));
+    other.append("INBOX", "", &invitation("two@organizer.example", "Grade review", "20261106T140000Z"));
     app.pump(120, "the second invitation held", |s, _| !s.pim[&id].held.is_empty());
     assert!(app.s.find_event("two@organizer.example").is_none(), "held, not on this computer's calendar");
     eprintln!("2: the second invitation is held");
     app.s.clock.now += 181;
     app.s.tick();
     assert_eq!(app.s.find_event("two@organizer.example").unwrap().1.calendar, LOCAL, "waited long enough: here");
-    other.append("INBOX", &invitation("three@organizer.example", "Mix review", "20261107T150000Z"));
+    other.append("INBOX", "", &invitation("three@organizer.example", "Mix review", "20261107T150000Z"));
     app.pump(120, "the third invitation held", |s, _| !s.pim[&id].held.is_empty());
     // One declined in its message while held: it doesn't come back once the calendars are found.
-    other.append("INBOX", &invitation("four@organizer.example", "Bounce", "20261108T150000Z"));
+    other.append("INBOX", "", &invitation("four@organizer.example", "Bounce", "20261108T150000Z"));
     app.pump(120, "the fourth invitation held", |s, _| s.pim[&id].held.len() == 2);
     let key = app.s.folder_state(&id, "INBOX").messages.iter().find(|m| m.subject == "Invitation: Bounce").map(|m| m.key.to_id()).unwrap();
     app.s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
@@ -310,48 +166,6 @@ fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     }
     let ics = stored(calendar);
     assert!(ics.contains("PARTSTAT=ACCEPTED") && ics.contains("PARTSTAT=TENTATIVE"), "{ics}");
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-/// Now, in Unix seconds.
-fn chrono_now() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
-}
-
-/// An HTTP/1.1 request with a password, its answer's body (`http://host:port/path`).
-fn http(method: &str, url: &str, auth: &str, content_type: &str, body: &[u8]) -> String {
-    let rest = url.trim_start_matches("http://");
-    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
-    let mut s = std::net::TcpStream::connect(host).unwrap();
-    s.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
-    write!(
-        s,
-        "{method} /{path} HTTP/1.1\r\nHost: {host}\r\nAuthorization: Basic {}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        base64(auth.as_bytes()),
-        body.len()
-    )
-    .unwrap();
-    s.write_all(body).unwrap();
-    let mut out = Vec::new();
-    let _ = s.read_to_end(&mut out);
-    let text = String::from_utf8_lossy(&out).into_owned();
-    text.split_once("\r\n\r\n").map(|(_, b)| b.to_string()).unwrap_or_default()
-}
-
-fn base64(data: &[u8]) -> String {
-    const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for c in data.chunks(3) {
-        let n = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
-        for i in 0..4 {
-            if i <= c.len() {
-                out.push(A[((n >> (18 - 6 * i)) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
 
 /// A JMAP server's mail, from the other side: put a message in the Inbox, list a mailbox.
@@ -364,7 +178,8 @@ struct Jmap {
 
 impl Jmap {
     fn connect(base: &str, auth: &str) -> Jmap {
-        let session: serde_json::Value = serde_json::from_str(&http("GET", &format!("{base}/jmap/session"), auth, "application/json", b"")).unwrap();
+        let session: serde_json::Value =
+            serde_json::from_slice(&http_as("GET", &format!("{base}/jmap/session"), auth, "application/json", b"").body).unwrap();
         let account = session["primaryAccounts"]["urn:ietf:params:jmap:mail"].as_str().unwrap().to_string();
         let upload = session["uploadUrl"].as_str().unwrap().replace("{accountId}", &account);
         Jmap { api: session["apiUrl"].as_str().unwrap().to_string(), upload, account, auth: auth.into() }
@@ -372,7 +187,7 @@ impl Jmap {
 
     fn call(&self, calls: serde_json::Value) -> serde_json::Value {
         let req = json!({"using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"], "methodCalls": calls});
-        serde_json::from_str(&http("POST", &self.api, &self.auth, "application/json", req.to_string().as_bytes())).unwrap()
+        serde_json::from_slice(&http_as("POST", &self.api, &self.auth, "application/json", req.to_string().as_bytes()).body).unwrap()
     }
 
     fn mailbox(&self, role: &str) -> String {
@@ -381,7 +196,7 @@ impl Jmap {
     }
 
     fn deliver(&self, raw: &[u8]) {
-        let blob: serde_json::Value = serde_json::from_str(&http("POST", &self.upload, &self.auth, "message/rfc822", raw)).unwrap();
+        let blob: serde_json::Value = serde_json::from_slice(&http_as("POST", &self.upload, &self.auth, "message/rfc822", raw).body).unwrap();
         let inbox = self.mailbox("inbox");
         let r = self.call(
             json!([["Email/import", {"accountId": self.account, "emails": {"a": {"blobId": blob["blobId"], "mailboxIds": {inbox: true}}}}, "i"]]),
@@ -414,19 +229,11 @@ fn real_jmap_answered_invitation_leaves_the_inbox() {
     let [base, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_INVITES_JMAP: base user password") };
     let auth = format!("{user}:{password}");
     let other = Jmap::connect(base, &auth);
-    let dir = std::env::temp_dir().join(format!("mailcraft-real-invites-jmap-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open(&dir).unwrap();
-    let mut s = Session::open(Some(store.clone()), Clock::new(chrono_now(), 0));
-    let id = s
-        .run("account.add", &json!({"email": USER, "username": user, "password": password, "jmap": format!("{base}/jmap/session")}))
-        .unwrap()["account"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    s.run("account.dav", &json!({"account": id, "caldav": format!("{base}/dav/cal/"), "username": user, "password": password})).unwrap();
-    s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
-    let mut app = App { s, pool: Pool::new(store.clone(), Arc::new(MemoryCredentials::default())) };
+    let mut app = App::open("invites-jmap", password);
+    app.watch = watch;
+    let id = app.add(json!({"email": USER, "username": user, "password": password, "jmap": format!("{base}/jmap/session")}));
+    app.s.run("account.dav", &json!({"account": id, "caldav": format!("{base}/dav/cal/"), "username": user, "password": password})).unwrap();
+    app.s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
     app.pump(120, "calendars found", |_, e| matches!(e, Event::DavSynced { sync, .. } if sync.calendars.is_some()));
     let calendar = app.s.pim[&id].default_calendar().map(|c| c.id.clone()).unwrap();
     eprintln!("calendars: {:?}", app.s.pim[&id].calendars.iter().map(|c| (&c.id, &c.name, c.foreign)).collect::<Vec<_>>());
@@ -459,13 +266,12 @@ fn real_jmap_answered_invitation_leaves_the_inbox() {
         assert!(Instant::now() < end, "not moved: Inbox {:?}", other.subjects("inbox"));
     }
     let (_, e) = app.s.find_event(&uid).unwrap();
-    let ics = http("GET", &e.href, &auth, "text/plain", b"");
+    let ics = http_as("GET", &e.href, &auth, "text/plain", b"").text();
     assert!(ics.contains(&format!("SUMMARY:{summary}")) && ics.contains("PARTSTAT=ACCEPTED"), "{ics}");
     eprintln!(
         "stored on the server, accepted:
 {ics}"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// An Outlook invitation with an online meeting (`CONFERENCE`), sent tentative but meant busy,
@@ -513,33 +319,19 @@ fn real_outlook_meeting_held_accepted_private_and_found() {
     let (proxy_port, mode) = proxy(&target);
     let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
     let proxied = home.replace(&target, &format!("127.0.0.1:{proxy_port}"));
-    let (host, port) = imap.rsplit_once(':').unwrap();
-    let dir = std::env::temp_dir().join(format!("mailcraft-real-together-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open(&dir).unwrap();
-    let mut s = Session::open(Some(store.clone()), Clock::new(chrono_now(), 0));
-    let id = s
-        .run(
-            "account.add",
-            &json!({"email": USER, "password": "pw", "imapHost": host, "imapPort": port.parse::<u16>().unwrap(), "imapSecurity": "none", "smtpHost": "127.0.0.1", "smtpPort": 1, "smtpSecurity": "none"}),
-        )
-        .unwrap()["account"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    s.run("account.dav", &json!({"account": id, "caldav": proxied})).unwrap();
-    s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
-    let mut app = App { s, pool: Pool::new(store.clone(), Arc::new(MemoryCredentials::default())) };
-    let mut other = Imap::connect(imap);
-    other.n += 1;
-    let _ = write!(other.s, "t{} CREATE Trash\r\n", other.n);
-    other.read_until(&format!("t{} ", other.n));
+    let mut app = App::open("together", "pw");
+    app.watch = watch;
+    let id = app.add_plain(imap, "127.0.0.1:1", json!({"email": USER, "password": "pw"}));
+    app.s.run("account.dav", &json!({"account": id, "caldav": proxied})).unwrap();
+    app.s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
+    let mut other = Imap::connect(imap, USER, "pw");
+    other.create("Trash");
     *mode.lock().unwrap() = None;
     app.pump(120, "online", |_, e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let tag = std::process::id();
     let uid = format!("together-{tag}@organizer.example");
     let summary = format!("Planning {tag}");
-    other.append("INBOX", &outlook_invitation(&uid, &summary, "20261110T100000Z"));
+    other.append("INBOX", "", &outlook_invitation(&uid, &summary, "20261110T100000Z"));
     app.pump(120, "the invitation held", |s, _| !s.pim[&id].held.is_empty());
     assert!(app.s.calendars_pending(&id));
     let subject = format!("Invitation: {summary}");
@@ -571,7 +363,6 @@ fn real_outlook_meeting_held_accepted_private_and_found() {
         let _ = app.pool.wait(Duration::from_millis(500));
     }
     eprintln!("held, accepted, moved, stored busy then private and out of office, found");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Stalwart (`MAILCRAFT_REAL_INVITES_JMAP`): an event made private, out of office and with a
@@ -588,20 +379,12 @@ fn real_jmap_private_meeting_and_outlook_invitation() {
     let [base, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_INVITES_JMAP: base user password") };
     let auth = format!("{user}:{password}");
     let other = Jmap::connect(base, &auth);
-    let dir = std::env::temp_dir().join(format!("mailcraft-real-together-jmap-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open(&dir).unwrap();
-    let mut s = Session::open(Some(store.clone()), Clock::new(chrono_now(), 0));
-    let id = s
-        .run("account.add", &json!({"email": USER, "username": user, "password": password, "jmap": format!("{base}/jmap/session")}))
-        .unwrap()["account"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    s.run("account.dav", &json!({"account": id, "caldav": format!("{base}/dav/cal/"), "username": user, "password": password})).unwrap();
-    s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
-    s.run("meetings.addRoom", &json!({"name": "BBB", "url": "https://meet.example.edu/rooms/abc-def-ghi", "code": "123"})).unwrap();
-    let mut app = App { s, pool: Pool::new(store.clone(), Arc::new(MemoryCredentials::default())) };
+    let mut app = App::open("together-jmap", password);
+    app.watch = watch;
+    let id = app.add(json!({"email": USER, "username": user, "password": password, "jmap": format!("{base}/jmap/session")}));
+    app.s.run("account.dav", &json!({"account": id, "caldav": format!("{base}/dav/cal/"), "username": user, "password": password})).unwrap();
+    app.s.run("options.answeredInvites", &json!({"after": "delete"})).unwrap();
+    app.s.run("meetings.addRoom", &json!({"name": "BBB", "url": "https://meet.example.edu/rooms/abc-def-ghi", "code": "123"})).unwrap();
     app.pump(120, "calendars found", |_, e| matches!(e, Event::DavSynced { sync, .. } if sync.calendars.is_some()));
     let tag = std::process::id();
     let made = app
@@ -616,7 +399,7 @@ fn real_jmap_private_meeting_and_outlook_invitation() {
         .to_string();
     app.pump(120, "made and stored", |s, _| s.find_event(&made).is_some_and(|(_, e)| !e.dirty && !e.href.is_empty()));
     let (_, e) = app.s.find_event(&made).unwrap();
-    let ics = http("GET", &e.href, &auth, "text/plain", b"").replace("\r\n ", "");
+    let ics = http_as("GET", &e.href, &auth, "text/plain", b"").text().replace("\r\n ", "");
     for want in ["CLASS:PRIVATE", "X-MICROSOFT-CDO-BUSYSTATUS:OOF", "CONFERENCE", "---- Online meeting ----", "TRIGGER:-PT10M"] {
         assert!(ics.contains(want), "{want}: {ics}");
     }
@@ -631,7 +414,7 @@ fn real_jmap_private_meeting_and_outlook_invitation() {
     app.s.run("event.update", &json!({"uid": uid, "privacy": "private", "showAs": "oof"})).unwrap();
     app.pump(120, "the answer stored", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty));
     let (_, e) = app.s.find_event(&uid).unwrap();
-    check_stored(&http("GET", &e.href, &auth, "text/plain", b""), &uid);
+    check_stored(&http_as("GET", &e.href, &auth, "text/plain", b"").text(), &uid);
     let end = Instant::now() + Duration::from_secs(60);
     while !other.subjects("trash").iter().any(|x| x.contains(&summary)) {
         for j in app.s.take_jobs() {
@@ -645,5 +428,4 @@ fn real_jmap_private_meeting_and_outlook_invitation() {
     let hits = app.s.run("calendar.search", &json!({"query": "is:private meet.example.edu"})).unwrap();
     assert_eq!(hits.as_array().map(Vec::len), Some(2), "{hits}");
     eprintln!("made and stored with all three; the invitation accepted, private, moved, found");
-    let _ = std::fs::remove_dir_all(&dir);
 }
