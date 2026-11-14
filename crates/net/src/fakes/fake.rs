@@ -9,6 +9,10 @@ use mailcraft_store::Store;
 
 use crate::imap::Client;
 use crate::sync::{SyncOptions, sync_folder};
+use search::{in_set, search_matches, search_tokens};
+use serving::login;
+pub use serving::serve_tcp;
+pub(crate) use serving::{search_the_server_past_the_window, store, tests_store};
 
 pub struct Msg {
     pub uid: u32,
@@ -627,91 +631,6 @@ fn paren_arg(s: &str) -> Vec<String> {
     s[open + 1..close].split_whitespace().map(str::to_string).collect()
 }
 
-/// A `SEARCH` command's keys and strings (quotes taken off).
-fn search_tokens(s: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut cur = String::new();
-    let (mut quoted, mut escaped) = (false, false);
-    for c in s.chars() {
-        match c {
-            _ if escaped => {
-                cur.push(c);
-                escaped = false;
-            }
-            '\\' if quoted => escaped = true,
-            '"' => quoted = !quoted,
-            ' ' if !quoted => {
-                if !cur.is_empty() {
-                    out.push(std::mem::take(&mut cur));
-                }
-            }
-            _ => cur.push(c),
-        }
-    }
-    if !cur.is_empty() {
-        out.push(cur);
-    }
-    out
-}
-
-/// Whether a message (`seq`, its message number) matches every key (RFC 3501 §6.4.4; strings as
-/// substrings, any case; a sequence set is the message numbers').
-fn search_matches(m: &Msg, seq: u32, keys: &[String], max: u32, exists: u32) -> bool {
-    let raw = String::from_utf8_lossy(&m.raw).to_lowercase();
-    let (head, body) = raw.split_once("\r\n\r\n").unwrap_or((raw.as_str(), ""));
-    let header = |name: &str| head.lines().filter(|l| l.starts_with(&format!("{name}:"))).collect::<Vec<_>>().join("\n");
-    let mut i = 0;
-    let mut negate = false;
-    while let Some(k) = keys.get(i) {
-        let arg = keys.get(i + 1).map(|a| a.to_lowercase()).unwrap_or_default();
-        let (ok, used) = match k.to_ascii_uppercase().as_str() {
-            "ALL" => (true, 1),
-            "NOT" => {
-                negate = !negate;
-                i += 1;
-                continue;
-            }
-            "CHARSET" => {
-                i += 2;
-                continue;
-            }
-            "UNSEEN" => (!m.flags.iter().any(|f| f == "\\Seen"), 1),
-            "SEEN" => (m.flags.iter().any(|f| f == "\\Seen"), 1),
-            "FLAGGED" => (m.flags.iter().any(|f| f == "\\Flagged"), 1),
-            "UNFLAGGED" => (!m.flags.iter().any(|f| f == "\\Flagged"), 1),
-            "UID" => (in_set(m.uid, &arg, max), 2),
-            "TEXT" => (raw.contains(&arg), 2),
-            "BODY" => (body.contains(&arg), 2),
-            "SUBJECT" => (header("subject").contains(&arg), 2),
-            "FROM" => (header("from").contains(&arg), 2),
-            "TO" => (header("to").contains(&arg), 2),
-            "HEADER" => (header(&arg).contains(&keys.get(i + 2).map(|v| v.to_lowercase()).unwrap_or_default()), 3),
-            "KEYWORD" => (m.flags.iter().any(|f| f.eq_ignore_ascii_case(&arg)), 2),
-            set if set.starts_with(|c: char| c.is_ascii_digit() || c == '*') => (in_set(seq, set, exists), 1),
-            _ => (false, 1),
-        };
-        if ok == negate {
-            return false;
-        }
-        negate = false;
-        i += used;
-    }
-    true
-}
-
-fn in_set(uid: u32, set: &str, max: u32) -> bool {
-    set.split(',').any(|part| {
-        let val = |x: &str| if x == "*" { max } else { x.parse().unwrap_or(0) };
-        match part.split_once(':') {
-            Some((a, b)) => {
-                let (a, b) = (val(a), val(b));
-                (a.min(b)..=a.max(b)).contains(&uid)
-            }
-            None => val(part) == uid,
-        }
-    })
-}
-
 impl Read for Fake {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let trickle = self.st.lock().map(|s| s.trickle).unwrap_or_default();
@@ -742,152 +661,8 @@ impl Write for Fake {
     }
 }
 
-/// Serve the fake over TCP on localhost (one thread per connection), for end-to-end tests of
-/// the worker pool. Returns the port.
-pub fn serve_tcp(st: &Arc<Mutex<State>>) -> u16 {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    let st = st.clone();
-    std::thread::spawn(move || {
-        for sock in listener.incoming().flatten() {
-            let st = st.clone();
-            std::thread::spawn(move || {
-                let mut fake = Fake::connect(&st);
-                let mut sock = sock;
-                let mut buf = [0u8; 8192];
-                loop {
-                    let out: Vec<u8> = fake.out.drain(..).collect();
-                    if !out.is_empty() && sock.write_all(&out).is_err() {
-                        return;
-                    }
-                    match sock.read(&mut buf) {
-                        Ok(0) | Err(_) => return,
-                        Ok(n) => {
-                            if std::mem::take(&mut st.lock().unwrap().hang_up) {
-                                return;
-                            }
-                            let _ = fake.write(&buf[..n]);
-                        }
-                    }
-                }
-            });
-        }
-    });
-    port
-}
-
-/// A store in a temporary folder of its own, for other fakes' tests.
-pub(crate) fn tests_store(name: &str) -> Store {
-    store(name)
-}
-
-pub(crate) fn store(name: &str) -> Store {
-    let dir = std::env::temp_dir().join(format!("mailcraft-fake-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    Store::open(dir).unwrap()
-}
-
-/// Gap #7 through the worker, the same for JMAP, Graph and EWS accounts: a server whose Inbox
-/// has `Message 1`…`Message 25` (bodies `tag1`…, the first five unread) and a window of ten. A
-/// search of the server brings in what it finds past the window and keeps it across syncs while
-/// the server has it, its flags followed; words, fields and the read state are asked; Show more
-/// keeps more. `server(n, true)` marks `Message n` read on the server, `server(n, false)` deletes it.
-pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_model::AccountConfig, secret: &str, server: &dyn Fn(u32, bool)) {
-    use mailcraft_model::job::Secret;
-    use mailcraft_model::{Event, Job, SyncStatus};
-    let store = store(name);
-    crate::fakes::fake_dav::looked_for_today(&store, &account.id);
-    let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let until = |pool: &crate::worker::Pool, what: &str, f: &dyn Fn(&Event) -> bool| {
-        let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-        let mut seen = Vec::new();
-        while std::time::Instant::now() < end {
-            if let Some(e) = pool.wait(std::time::Duration::from_millis(100)) {
-                let hit = f(&e);
-                seen.push(e);
-                if hit {
-                    return seen;
-                }
-            }
-        }
-        panic!("timed out waiting for {what}; saw {seen:?}");
-    };
-    let online = |e: &Event| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. });
-    let subjects = || {
-        let mut v: Vec<String> = store.load_folder("a1", "INBOX").unwrap().messages.iter().map(|m| m.subject.clone()).collect();
-        v.sort();
-        v
-    };
-    let has = |s: &str| subjects().iter().any(|x| x == s);
-    let search = |pool: &mut crate::worker::Pool, q: &str| {
-        pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: q.into(), search: 1 });
-        // What's found comes as it's found, then the end.
-        let seen = until(pool, "searched", &|e| matches!(e, Event::ServerSearched { done: true, .. }));
-        match seen.last() {
-            Some(Event::ServerSearched { error: None, .. }) => {
-                seen.iter().map(|e| if let Event::ServerSearched { keys, .. } = e { keys.len() } else { 0 }).sum::<usize>()
-            }
-            other => panic!("{q}: {other:?}"),
-        }
-    };
-    pool.submit(Job::SetSync { messages: 10, offline: 0 });
-    pool.submit(Job::Start { account, password: Some(Secret(secret.into())) });
-    until(&pool, "online", &online);
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while subjects().len() < 10 {
-        assert!(std::time::Instant::now() < end, "never synced: {:?}", subjects());
-        let _ = pool.wait(std::time::Duration::from_millis(100));
-    }
-    assert!(has("Message 16") && !has("Message 15") && !has("Message 3"), "{:?}", subjects());
-
-    // Words: found past the window, and kept by the next sync.
-    assert_eq!(search(&mut pool, "tag3"), 1);
-    assert!(has("Message 3"), "{:?}", subjects());
-    pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
-    until(&pool, "synced", &online);
-    assert!(has("Message 3"), "kept past the window: {:?}", subjects());
-    // A field and a word.
-    assert_eq!(search(&mut pool, "subject:message tag7"), 1);
-    assert!(has("Message 7"));
-
-    // Show more: five more than kept (ten and the one found).
-    pool.submit(Job::MoreMail { account: "a1".into(), folder: "INBOX".into(), more: 5 });
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while !has("Message 10") {
-        assert!(std::time::Instant::now() < end, "never showed more: {:?}", subjects());
-        let _ = pool.wait(std::time::Duration::from_millis(100));
-    }
-
-    // The read state alone; finds add up, as IMAP keeps what it fetches (another search doesn't
-    // take Message 3 and 7 away).
-    assert_eq!(search(&mut pool, "is:unread"), 5);
-    assert_eq!(search(&mut pool, "nothing-like-this"), 0);
-    pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
-    until(&pool, "synced", &online);
-    assert!(has("Message 1") && has("Message 5") && has("Message 3") && has("Message 7"), "{:?}", subjects());
-
-    // On the server, Message 3 is deleted and Message 2 read: the next sync follows both.
-    server(3, false);
-    server(2, true);
-    pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
-    // (A push stream may say "online" before this sync ends: wait for what it does.)
-    let seen = |s: &str| store.load_folder("a1", "INBOX").unwrap().messages.iter().find(|m| m.subject == s).map(|m| m.flags.seen);
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while has("Message 3") || seen("Message 2") != Some(true) {
-        assert!(std::time::Instant::now() < end, "never followed the server: {:?} {:?}", subjects(), seen("Message 2"));
-        let _ = pool.wait(std::time::Duration::from_millis(100));
-    }
-    assert!(has("Message 7"), "{:?}", subjects());
-    assert_eq!(seen("Message 1"), Some(false));
-    pool.submit(Job::Remove { account: "a1".into() });
-}
-
-fn login(st: &Arc<Mutex<State>>) -> Client<Fake> {
-    let mut c = Client::from_stream(Fake::connect(st)).unwrap();
-    c.login("me@studio.example", "pw").unwrap();
-    c
-}
-
+mod search;
+mod serving;
 mod structure;
 #[cfg(test)]
 mod tests;
