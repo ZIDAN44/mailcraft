@@ -371,19 +371,26 @@ fn a_flag_set_mid_sync_is_not_lost() {
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
 
-    // Slow the server down, start a full sync, flag the message during it.
+    // Slow the server down (each folder's mail listed in 2 s), start a full sync, flag the
+    // message during it.
     data.lock().unwrap().hold = Some(Duration::from_secs(2));
     pool.submit(Job::SyncAll { account: "a1".into() });
-    std::thread::sleep(Duration::from_millis(300));
+    until(&pool, "the sync under way", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { .. }, .. }));
     let op = Op::SetFlag { keys: vec![key.clone()], flag: Flag::Flagged, on: true };
     pool.submit(Job::Apply { account: "a1".into(), op: op.clone() });
     let flagged = || store.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.key == key && m.flags.flagged);
-    // Made on the pool's thread for changes (not the window's), at once: not behind the sync.
-    let soon = Instant::now() + Duration::from_secs(1);
-    while !(flagged() && !store.load_ops("a1").unwrap().is_empty()) && Instant::now() < soon {
-        std::thread::sleep(Duration::from_millis(5));
+    // Made on the pool's thread for changes (not the window's), at once: not behind the sync,
+    // which says the account is online once every folder is listed. Waited for, not timed: a
+    // busy computer is slow either way. (A read of the changes as they're written can be
+    // refused for a moment on Windows: not yet.)
+    let mut seen = Vec::new();
+    let end = Instant::now() + Duration::from_secs(60);
+    while !(flagged() && store.load_ops("a1").is_ok_and(|ops| !ops.is_empty())) {
+        assert!(Instant::now() < end, "the flag never made here");
+        seen.extend(pool.wait(Duration::from_millis(5)));
     }
-    assert!(flagged(), "cache updated at once");
+    let online = |e: &Event| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. });
+    assert!(!seen.iter().any(online), "made here only once the sync was done: {seen:?}");
     assert_eq!(store.load_ops("a1").unwrap(), [op], "ops.json written at once");
     // Shut down mid-sync; a fresh pool must push the flag and keep showing it.
     drop(pool);
@@ -393,7 +400,7 @@ fn a_flag_set_mid_sync_is_not_lost() {
     until(&pool, "online again", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let on_server = || data.lock().unwrap().items.iter().any(|i| i.id == id && i.flagged);
     let end = Instant::now() + Duration::from_secs(20);
-    while !on_server() || !store.load_ops("a1").unwrap().is_empty() {
+    while !on_server() || !store.load_ops("a1").is_ok_and(|ops| ops.is_empty()) {
         assert!(Instant::now() < end, "the flag never arrived on the server");
         let _ = pool.wait(Duration::from_millis(100));
     }
