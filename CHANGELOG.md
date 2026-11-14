@@ -165,6 +165,7 @@ on GitHub.
 - A folder change no longer briefly empties the folder pane when the folder list can't be read.
 - Folders with millions of messages sync noticeably faster.
 - Automatic account setup no longer picks a server that a provider's settings file has commented out.
+- Exchange automatic replies containing <, > or & are kept as typed.
 
 ## 0.38.0 - 2026-11-13
 

@@ -135,6 +135,21 @@ impl Exchange for Server {
     }
 }
 
+/// An automatic reply goes as HTML with the text's own `<`, `>` and `&` escaped in it, so it
+/// comes back as written: `Back <soon>` isn't taken for a tag, nor `R&D` for a reference.
+#[test]
+fn automatic_replies_with_markup_characters_come_back_as_written() {
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let away = Vacation { enabled: true, text: "Back <soon>\nR&D on Monday".into(), ..Default::default() };
+    c.set_vacation(&away).unwrap();
+    assert_eq!(server.data.lock().unwrap().oof.3, "Back &lt;soon&gt;<br>R&amp;D on Monday", "the HTML Exchange is given");
+    let back = c.vacation().unwrap();
+    assert_eq!(back.text, away.text);
+}
+
 /// A folder flagged hidden is not offered as mail, nor is anything nested in it at any
 /// depth; its siblings and their subfolders still are.
 #[test]

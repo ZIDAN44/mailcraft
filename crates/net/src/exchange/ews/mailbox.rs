@@ -325,8 +325,9 @@ impl Client {
             start.unwrap_or_else(|| "2000-01-01T00:00:00Z".into()),
             end.unwrap_or_else(|| "2100-01-01T00:00:00Z".into())
         );
-        let text = esc(&v.text).replace('\n', "&lt;br&gt;");
-        let external = esc(v.external_text()).replace('\n', "&lt;br&gt;");
+        // HTML, then escaped for the XML it goes in.
+        let text = esc(&crate::exchange::reply_html(&v.text));
+        let external = esc(&crate::exchange::reply_html(v.external_text()));
         let audience = match v.outside.as_str() {
             "none" => "None",
             "known" => "Known",

@@ -359,7 +359,7 @@ impl Client {
     }
 
     pub fn set_vacation(&self, v: &mailcraft_model::job::Vacation) -> Result<()> {
-        let html = |t: &str| t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('\n', "<br>");
+        let html = crate::exchange::reply_html;
         let dated = v.from.is_some() || v.until.is_some();
         let audience = match v.outside.as_str() {
             "none" => "none",
