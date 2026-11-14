@@ -41,6 +41,7 @@ pub(crate) mod index_text;
 mod kept_cid;
 mod one_parse;
 mod parts_listed;
+mod percent;
 mod reactions;
 mod reply_layout;
 mod report;

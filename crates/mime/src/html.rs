@@ -486,30 +486,12 @@ pub fn picture_attachment(p: &Parsed, src: &str) -> Option<usize> {
     if lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("data:") || src.is_empty() || src.len() > 4096 {
         return None;
     }
-    let decoded = |s: &str| {
-        let b = s.as_bytes();
-        let mut out = Vec::with_capacity(b.len());
-        let mut i = 0;
-        while let Some(&c) = b.get(i) {
-            let hex = b.get(i + 1..i + 3).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
-            match (c, hex) {
-                (b'%', Some(v)) => {
-                    out.push(v);
-                    i += 3;
-                }
-                _ => {
-                    out.push(c);
-                    i += 1;
-                }
-            }
-        }
-        String::from_utf8_lossy(&out).into_owned()
-    };
-    let last_part = |s: &str| s.rsplit(['/', '\\']).next().unwrap_or(s).to_string();
+    // Decoded and cut as the paperclip reads the HTML ([`HtmlRefs`]), so that the two agree.
+    use attachments::{last_segment, percent_decoded};
     let name_is = |a: &AttachmentInfo, n: &str| !n.is_empty() && a.name.eq_ignore_ascii_case(n);
     if let Some(cid) = src.get(..4).filter(|s| s.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..)) {
         let cid = cid.trim().trim_matches(['<', '>']);
-        let plain = decoded(cid);
+        let plain = percent_decoded(cid);
         let by_id = |id: &str| p.attachments.iter().find(|a| a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(id)));
         return by_id(cid)
             .or_else(|| by_id(&plain))
@@ -517,12 +499,12 @@ pub fn picture_attachment(p: &Parsed, src: &str) -> Option<usize> {
             .or_else(|| p.attachments.iter().find(|a| a.content_location.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(&plain))))
             .map(|a| a.index);
     }
-    let path = decoded(src.split(['?', '#']).next().unwrap_or(src));
-    let file = last_part(&path);
+    let path = percent_decoded(src.split(['?', '#']).next().unwrap_or(src));
+    let file = last_segment(&path);
     p.attachments
         .iter()
-        .find(|a| a.content_location.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(&path) || last_part(l).eq_ignore_ascii_case(&file)))
-        .or_else(|| p.attachments.iter().find(|a| name_is(a, &file) || a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(&file))))
+        .find(|a| a.content_location.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(&path) || last_segment(l).eq_ignore_ascii_case(file)))
+        .or_else(|| p.attachments.iter().find(|a| name_is(a, file) || a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(file))))
         .map(|a| a.index)
 }
 

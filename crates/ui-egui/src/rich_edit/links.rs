@@ -1,6 +1,7 @@
 //! Links in the message editor: Insert link, and addresses as they're shown and written.
 
 use super::*;
+use mailcraft_engine::model::mailto::percent_decode;
 
 /// Outlook's Insert Hyperlink, with what mail needs: a web page or file, or an email address.
 #[derive(Clone, Debug, Default)]
@@ -66,27 +67,6 @@ impl LinkForm {
             format!("https://{a}")
         })
     }
-}
-
-/// `%XX` escapes in a mailto address or subject, as text.
-pub(super) fn percent_decode(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while let Some(&c) = b.get(i) {
-        let hex = |k: usize| b.get(k).and_then(|h| (*h as char).to_digit(16));
-        match (c, hex(i + 1), hex(i + 2)) {
-            (b'%', Some(h), Some(l)) => {
-                out.push(u8::try_from(h * 16 + l).unwrap_or(b'?'));
-                i += 3;
-            }
-            _ => {
-                out.push(c);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// A subject as a mailto may carry it (RFC 6068): everything but letters, digits and `-._~`

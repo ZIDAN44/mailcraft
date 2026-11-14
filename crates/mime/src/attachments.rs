@@ -165,29 +165,16 @@ impl Refs {
     }
 }
 
-/// A path's last segment (`chart.png` of `http://studio.example/a/chart.png`).
-fn last_segment(path: &str) -> &str {
+/// A path's last segment (`chart.png` of `http://studio.example/a/chart.png`): one for the
+/// paperclip and the reading pane ([`picture_attachment`]), so that they find the same picture.
+pub(crate) fn last_segment(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
-/// `%xx` escapes decoded.
-fn percent_decoded(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while let Some(&c) = b.get(i) {
-        match (c, b.get(i + 1..i + 3).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok())) {
-            (b'%', Some(v)) => {
-                out.push(v);
-                i += 3;
-            }
-            _ => {
-                out.push(c);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8_lossy(&out).into_owned()
+/// `%xx` escapes decoded (RFC 3986), as the reading pane decodes a picture's address
+/// ([`picture_attachment`]).
+pub(crate) fn percent_decoded(s: &str) -> String {
+    mailcraft_model::mailto::percent_decode(s)
 }
 
 impl<'a> HtmlRefs<'a> {

@@ -194,21 +194,5 @@ impl MailApp {
 /// `%20` and the like decoded (an address in a saved web page), as UTF-8, else in Windows'
 /// Western characters, which Outlook writes a name with an accent in (`Andr%E9_files`).
 fn percent_decoded(s: &str) -> String {
-    let raw = s.as_bytes();
-    let mut out = Vec::with_capacity(raw.len());
-    let mut i = 0;
-    while let Some(&b) = raw.get(i) {
-        let hex = |k: usize| raw.get(k).and_then(|h| char::from(*h).to_digit(16));
-        match (b, hex(i + 1), hex(i + 2)) {
-            (b'%', Some(a), Some(c)) => {
-                out.push(u8::try_from(a * 16 + c).unwrap_or(b'%'));
-                i += 3;
-            }
-            _ => {
-                out.push(b);
-                i += 1;
-            }
-        }
-    }
-    mailcraft_engine::mime::signature_file(&out)
+    mailcraft_engine::mime::signature_file(&mailcraft_engine::model::mailto::percent_decode_bytes(s))
 }

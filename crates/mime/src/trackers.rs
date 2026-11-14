@@ -156,29 +156,9 @@ fn host_is(host: &str, name: &str) -> bool {
 }
 
 /// `%xx` and (in a query) `+` as the characters they stand for; `None` when that isn't text.
-fn percent_decode(s: &str, plus: bool) -> Option<String> {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while let Some(&c) = b.get(i) {
-        match c {
-            b'%' => {
-                let hex = s.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok());
-                match hex {
-                    Some(v) => {
-                        out.push(v);
-                        i += 3;
-                        continue;
-                    }
-                    None => out.push(c),
-                }
-            }
-            b'+' if plus => out.push(b' '),
-            _ => out.push(c),
-        }
-        i += 1;
-    }
-    String::from_utf8(out).ok()
+pub(crate) fn percent_decode(s: &str, plus: bool) -> Option<String> {
+    let s = if plus { std::borrow::Cow::Owned(s.replace('+', " ")) } else { std::borrow::Cow::Borrowed(s) };
+    String::from_utf8(mailcraft_model::mailto::percent_decode_bytes(&s)).ok()
 }
 
 /// The address a wrapper carries, when `url` is one.
