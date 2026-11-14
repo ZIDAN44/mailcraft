@@ -6,6 +6,7 @@ use mailcraft_model::job::Secret;
 use mailcraft_model::{AccountConfig, Event, Flag, FolderRole, Job, MessageKey, Op, Security, ServerConfig, SyncStatus};
 
 use super::*;
+use crate::waiting::{events_until, eventually, until};
 use crate::worker::apply_remote;
 
 mod opening;
@@ -406,21 +407,6 @@ fn remote_folder_changes() {
     assert!(s.log.iter().any(|l| l.starts_with("SUBSCRIBE \"Clients\"")));
 }
 
-fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    let end = Instant::now() + Duration::from_secs(20);
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            let hit = f(&e);
-            seen.push(e);
-            if hit {
-                return seen;
-            }
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
-
 #[test]
 fn mailbox_settings_over_imap_and_managesieve() {
     let st = State::new();
@@ -458,11 +444,7 @@ fn mailbox_settings_over_imap_and_managesieve() {
 
     // Emptying a folder removes what isn't downloaded too.
     pool.submit(Job::Apply { account: "a1".into(), op: Op::EmptyFolder { path: "Archive".into() } });
-    let end = Instant::now() + Duration::from_secs(10);
-    while !st.lock().unwrap().mailbox("Archive").unwrap().msgs.is_empty() {
-        assert!(Instant::now() < end, "never emptied");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("the Archive emptied", || st.lock().unwrap().mailbox("Archive").unwrap().msgs.is_empty());
     pool.submit(Job::Remove { account: "a1".into() });
     // An offline account answers at once.
     pool.submit(Job::GetVacation { account: "a1".into() });
@@ -509,11 +491,7 @@ fn working_offline_keeps_drafts_and_mail_until_back() {
     assert!(st.lock().unwrap().mailbox("INBOX").unwrap().msgs.is_empty(), "nothing reached the server");
     // Back online: the kept draft goes up first.
     pool.submit(Job::WorkOffline { on: false });
-    let end = Instant::now() + Duration::from_secs(20);
-    while st.lock().unwrap().mailbox("INBOX").unwrap().msgs.is_empty() {
-        assert!(Instant::now() < end, "the draft never reached the server");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("the draft on the server", || !st.lock().unwrap().mailbox("INBOX").unwrap().msgs.is_empty());
     let saved = st.lock().unwrap().mailbox("INBOX").unwrap().msgs[0].raw.clone();
     assert!(String::from_utf8_lossy(&saved).contains("written offline"));
     assert!(store.outbox("a1").iter().any(|i| i.id == 7), "sent mail waits in the Outbox");
@@ -574,16 +552,11 @@ fn an_online_only_account_syncs_and_reads_with_nothing_on_disk() {
     pool.submit(Job::Start { account: a2, password: Some(Secret("pw".into())) });
     // A slow machine (FreeBSD's test VM) gets time; a timeout says what was still missing, and
     // what the accounts reported meanwhile.
-    let end = Instant::now() + Duration::from_secs(60);
     let synced = |a: &str| store.load_folder(a, "INBOX").is_ok_and(|f| f.messages.len() == 3);
     let downloaded = || store.load_folder("a2", "INBOX").map(|f| f.messages.iter().filter(|m| store.has_body(&m.key)).count()).unwrap_or(0);
-    let mut seen = Vec::new();
-    while !(synced("a1") && synced("a2") && downloaded() == 3) {
-        assert!(Instant::now() < end, "never synced: a1 {}, a2 {}, a2's bodies {}/3; events: {seen:?}", synced("a1"), synced("a2"), downloaded());
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            seen.push(e);
-        }
-    }
+    events_until(&pool, "a1's Inbox synced", |_| synced("a1"));
+    events_until(&pool, "a2's Inbox synced", |_| synced("a2"));
+    events_until(&pool, "a2's three bodies downloaded", |_| downloaded() == 3);
     let inbox = store.load_folder("a1", "INBOX").unwrap();
     assert!(inbox.messages.iter().any(|m| m.subject == "ONLINE-SUBJECT-2"));
     assert!(inbox.messages.iter().all(|m| !store.has_body(&m.key)), "nothing downloaded ahead of reading");
@@ -602,11 +575,7 @@ fn an_online_only_account_syncs_and_reads_with_nothing_on_disk() {
     let kept_file = store.data_file("a2").unwrap();
     drop(pool);
     drop(store);
-    let end = Instant::now() + Duration::from_secs(20);
-    while std::fs::read(&kept_file).is_err() {
-        assert!(Instant::now() < end, "the data file stayed open");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("the data file let go of", || std::fs::read(&kept_file).is_ok());
     for i in 1..=3 {
         assert!(!on_disk(&t, format!("ONLINE-SUBJECT-{i}").as_bytes()) && !on_disk(&t, format!("ONLINE-BODY-{i}").as_bytes()), "{i}");
         assert!(on_disk(&t, format!("KEPT-SUBJECT-{i}").as_bytes()) && on_disk(&t, format!("KEPT-BODY-{i}").as_bytes()), "{i}");
@@ -680,11 +649,7 @@ fn outbox_holds_mail_until_smtp_is_back() {
     until(&pool, "second sent", |e| matches!(e, Event::Sent { id: 2, .. }));
     assert!(log2.join().unwrap().contains("RCPT TO:<zoe@studio.example>"));
     assert_eq!(store.outbox("a1").iter().map(|i| i.id).collect::<Vec<_>>(), vec![3], "the held-back one waits");
-    let end = Instant::now() + Duration::from_secs(10);
-    while st.lock().unwrap().mailbox("Sent").unwrap().msgs.len() < 2 {
-        assert!(Instant::now() < end, "copies never reached Sent");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("both copies in Sent", || st.lock().unwrap().mailbox("Sent").unwrap().msgs.len() >= 2);
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }
@@ -733,11 +698,7 @@ fn worker_pool_end_to_end_over_tcp() {
     pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key.clone()], flag: Flag::Seen, on: true } });
     until(&pool, "flag change", |e| matches!(e, Event::FolderChanged { .. }));
     assert!(store.load_folder("a1", "INBOX").unwrap().find(1).unwrap().flags.seen);
-    let end = Instant::now() + Duration::from_secs(10);
-    while !st.lock().unwrap().mailbox("INBOX").unwrap().msgs[0].flags.iter().any(|f| f == "\\Seen") {
-        assert!(Instant::now() < end, "the server never got the flag");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("the flag on the server", || st.lock().unwrap().mailbox("INBOX").unwrap().msgs[0].flags.iter().any(|f| f == "\\Seen"));
 
     // Send: SMTP submission, then a copy filed in Sent.
     let raw = b"From: me@studio.example\r\nTo: zoe@studio.example\r\nSubject: e2e\r\nMessage-ID: <e2e@x>\r\n\r\nhi\r\n".to_vec();
@@ -857,11 +818,7 @@ fn a_draft_on_a_server_without_drafts_makes_the_folder() {
         ..Default::default()
     };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    let end = Instant::now() + Duration::from_secs(20);
-    while store.load_folders("a1").map_or(true, |f| f.is_empty()) {
-        assert!(Instant::now() < end, "never listed its folders");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("its folders listed", || store.load_folders("a1").is_ok_and(|f| !f.is_empty()));
     assert!(st.lock().unwrap().mailbox("Drafts").is_none());
     let draft = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <plans@studio.example>\r\n\r\nto finish\r\n".to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "Drafts".into(), replaces: None });
@@ -871,16 +828,10 @@ fn a_draft_on_a_server_without_drafts_makes_the_folder() {
         "draft saved",
         |e| matches!(e, Event::DraftSaved { account, message_id, error: None } if account == "a1" && message_id == "plans@studio.example"),
     );
-    let end = Instant::now() + Duration::from_secs(20);
-    while st.lock().unwrap().mailbox("Drafts").is_none_or(|m| m.msgs.is_empty()) {
-        assert!(Instant::now() < end, "the draft never reached the server");
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    let end = Instant::now() + Duration::from_secs(20);
-    while !store.load_folders("a1").is_ok_and(|f| f.iter().any(|f| f.path == "Drafts" && f.role == FolderRole::Drafts)) {
-        assert!(Instant::now() < end, "Drafts never listed as Drafts");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("the draft on the server", || st.lock().unwrap().mailbox("Drafts").is_some_and(|m| !m.msgs.is_empty()));
+    eventually("Drafts listed as Drafts", || {
+        store.load_folders("a1").is_ok_and(|f| f.iter().any(|f| f.path == "Drafts" && f.role == FolderRole::Drafts))
+    });
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }

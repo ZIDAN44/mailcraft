@@ -36,7 +36,7 @@ pub use data_files::{msg, pst, pst_export, space};
 use exchange::ews_pim;
 pub use exchange::{ews, graph, graph_pim, kerberos, ntlm};
 #[cfg(test)]
-use fakes::{fake, fake_graph};
+use fakes::{fake, fake_graph, waiting};
 pub use protocols::{dav, imap, jmap, pop, sieve, smtp, web_calendar};
 
 use std::io;

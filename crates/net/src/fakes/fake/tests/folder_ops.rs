@@ -89,11 +89,7 @@ fn a_folder_renamed_twice_offline_keeps_its_mail() {
     pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Plans".into(), to: "Done".into() } });
     // Both in the cache and waiting for the server (the second is queued just after the cache
     // has it).
-    let end = Instant::now() + Duration::from_secs(20);
-    while cached("Done") == 0 || store.load_ops("a1").unwrap_or_default().len() < 2 {
-        assert!(Instant::now() < end, "the renames never reached the cache");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("the renames in the cache", || cached("Done") > 0 && store.load_ops("a1").unwrap_or_default().len() >= 2);
     st.lock().unwrap().log.clear();
     pool.submit(Job::WorkOffline { on: false });
     let mut seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));

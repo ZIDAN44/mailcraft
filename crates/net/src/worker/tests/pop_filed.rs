@@ -1,28 +1,12 @@
 //! Issue #57: what's filed in a POP account's folders shows at once. Those folders are only on
 //! this computer, so nothing reads them again by itself.
 
-use std::time::{Duration, Instant};
-
 use mailcraft_model::job::Secret;
 use mailcraft_model::{AccountConfig, Flags, Security, ServerConfig, SyncStatus};
 
 use super::*;
 
 const MAIL: &[u8] = b"From: me@pop.example\r\nTo: ana@pop.example\r\nSubject: Hi\r\nMessage-ID: <s@x>\r\n\r\nhi\r\n";
-
-fn until(pool: &Pool, what: &str, f: impl Fn(&Event) -> bool) {
-    let end = Instant::now() + Duration::from_secs(20);
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            if f(&e) {
-                return;
-            }
-            seen.push(e);
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
 
 fn changed(e: &Event, name: &str) -> bool {
     matches!(e, Event::FolderChanged { folder, .. } if folder == name)

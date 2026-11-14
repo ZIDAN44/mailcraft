@@ -1,5 +1,5 @@
-//! Servers of the tests' own, in memory: IMAP, CalDAV/CardDAV, EWS, Graph and JMAP; and a proxy
-//! to put in front of one, for a link that misbehaves.
+//! Servers of the tests' own, in memory: IMAP, CalDAV/CardDAV, EWS, Graph and JMAP; a proxy to
+//! put in front of one, for a link that misbehaves; and the tests' one way of waiting on them.
 
 mod exchange_e2e;
 pub(crate) mod fake;
@@ -13,3 +13,4 @@ mod real_layout;
 mod real_pgp;
 mod real_pop;
 mod real_servers;
+pub(crate) mod waiting;

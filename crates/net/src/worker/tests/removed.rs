@@ -93,14 +93,7 @@ fn removed_mid_sync(name: &str, acc: AccountConfig, secret: &str) {
     let w = Worker::new(acc, Auth::shared(secret), store.clone(), pool.sink.clone(), SyncOptions::default());
     let (tx, rx) = mpsc::channel();
     let t = std::thread::spawn(move || w.run(rx));
-    let end = Instant::now() + Duration::from_secs(20);
-    loop {
-        assert!(Instant::now() < end, "the Inbox never synced");
-        let e = pool.wait(Duration::from_millis(50));
-        if matches!(e, Some(Event::Status { status: SyncStatus::Syncing { folder }, .. }) if folder == "INBOX") {
-            break;
-        }
-    }
+    until(&pool, "the Inbox's sync", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder == "INBOX"));
     // Removed while the Inbox is being read, as `Job::Remove` does (its channel dropped).
     std::thread::sleep(Duration::from_millis(200));
     store.remove_account("j1").unwrap();

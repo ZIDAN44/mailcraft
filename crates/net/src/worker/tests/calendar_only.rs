@@ -1,27 +1,13 @@
 //! Issue #61: an account with calendars and contacts only, and no mail server. Its thread syncs
 //! them with the CalDAV and CardDAV server and nothing else; what's for mail is answered at once.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use mailcraft_model::job::Secret;
 use mailcraft_model::{AccountConfig, DavSettings, MessageKey, SyncStatus};
 
 use super::*;
 use crate::fakes::fake_dav::{BOOK, CAL, PASSWORD, USER, serve};
-
-fn until(pool: &Pool, what: &str, f: impl Fn(&Event) -> bool) -> Event {
-    let began = Instant::now();
-    let mut seen = Vec::new();
-    while began.elapsed() < Duration::from_secs(20) {
-        if let Some(e) = pool.wait(Duration::from_millis(20)) {
-            if f(&e) {
-                return e;
-            }
-            seen.push(e);
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
 
 fn synced(e: &Event) -> bool {
     matches!(e, Event::DavSynced { .. })
@@ -72,7 +58,7 @@ fn syncs_calendars_and_contacts_from_the_bare_server_address() {
         d.put(&format!("{BOOK}c1.vcf"), &mailcraft_model::vcard::write(&card));
     }
     let mut pool = start("calendar-only-sync", &server.base, PASSWORD);
-    let first = until(&pool, "the first sync", synced);
+    let first = until(&pool, "the first sync", synced).pop().unwrap();
     let Event::DavSynced { sync, .. } = &first else { panic!("not a sync: {first:?}") };
     assert_eq!(sync.caldav_home.as_deref(), Some(format!("{}/dav/cal/", server.base).as_str()));
     assert_eq!(sync.carddav_home.as_deref(), Some(format!("{}/dav/card/", server.base).as_str()));
@@ -117,7 +103,7 @@ fn a_server_gone_is_an_error_and_tried_again() {
         }
     });
     let mut pool = start("calendar-only-gone", &base, PASSWORD);
-    let failed = until(&pool, "an error", |e| matches!(status(e), Some(SyncStatus::Error { .. })));
+    let failed = until(&pool, "an error", |e| matches!(status(e), Some(SyncStatus::Error { .. }))).pop().unwrap();
     let Some(SyncStatus::Error { error, .. }) = status(&failed) else { panic!("not an error: {failed:?}") };
     assert!(!error.is_empty());
     // Tried again after the backoff (five seconds), without being asked.
@@ -140,7 +126,7 @@ fn mail_jobs_are_answered_without_a_mail_server() {
         recipients: vec!["you@example.org".into()],
         sent_folder: None,
     });
-    let e = until(&pool, "the send refused", |e| matches!(e, Event::SendFailed { .. } | Event::Queued { .. } | Event::Sent { .. }));
+    let e = until(&pool, "the send refused", |e| matches!(e, Event::SendFailed { .. } | Event::Queued { .. } | Event::Sent { .. })).pop().unwrap();
     assert!(matches!(e, Event::SendFailed { id: 7, .. }), "{e:?}");
     let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), uid: 1, ..Default::default() };
     pool.submit(Job::FetchBody { key });
@@ -169,7 +155,7 @@ fn a_server_taking_digest_only_is_signed_in_to() {
         d.put(&format!("{CAL}e1.ics"), &mailcraft_model::ical::write(&[event], None, 0));
     }
     let mut pool = start("calendar-only-digest", &server.base, PASSWORD);
-    let first = until(&pool, "the first sync", synced);
+    let first = until(&pool, "the first sync", synced).pop().unwrap();
     let Event::DavSynced { sync, .. } = &first else { panic!("not a sync: {first:?}") };
     assert_eq!(sync.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Dentist"]);
     // Answered at once after the first refusal, not refused first every time.

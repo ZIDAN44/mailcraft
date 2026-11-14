@@ -1,23 +1,18 @@
 //! Issue #38: message files dropped on a folder go into it. Issue #82: so do copies of mail
 //! kept here.
 
-use std::time::{Duration, Instant};
-
 use mailcraft_model::job::Secret;
 use mailcraft_model::{AccountConfig, Flags, MessageKey, Security, ServerConfig, SyncStatus};
 
 use super::*;
 use crate::fake::{State, serve_tcp};
+use crate::waiting::until;
 
 mod kinds;
 
-fn until(pool: &Pool, what: &str, f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    until_telling(pool, what, f, &String::new)
-}
-
 /// [`until`], and on timing out, what `server` says of where its side stood.
 fn until_telling(pool: &Pool, what: &str, mut f: impl FnMut(&Event) -> bool, server: &dyn Fn() -> String) -> Vec<Event> {
-    let end = Instant::now() + Duration::from_secs(20);
+    let end = Instant::now() + crate::waiting::DEADLINE;
     let mut seen = Vec::new();
     while Instant::now() < end {
         if let Some(e) = pool.wait(Duration::from_millis(100)) {

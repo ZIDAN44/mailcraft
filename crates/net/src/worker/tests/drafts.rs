@@ -154,15 +154,6 @@ pub(super) fn on_the_server(st: &Arc<Mutex<crate::fake::State>>) -> Vec<String> 
         .unwrap_or_default()
 }
 
-/// Wait for `done`, thirty seconds at most (a guard against hanging).
-pub(super) fn wait_for(what: &str, done: impl Fn() -> bool) {
-    let end = Instant::now() + Duration::from_secs(30);
-    while !done() {
-        assert!(Instant::now() < end, "timed out waiting for {what}");
-        std::thread::sleep(Duration::from_millis(20));
-    }
-}
-
 /// Found in review: the drafts kept on this computer were taken out of their file as the account
 /// connected, and held in the worker's memory only until each was filed: MailCraft closing
 /// meanwhile (the pool doesn't wait for its workers) lost every one still to file, and the one
@@ -186,7 +177,7 @@ fn kept_drafts_stay_kept_until_each_is_filed() {
     assert_eq!(kept_texts(&store), texts, "every draft not filed yet kept as MailCraft closes");
     // The one on its way gets there, and is kept no more; the others wait for the next run.
     holding.go(crate::fake::LetGo::Answer);
-    wait_for("the first filed", || on_the_server(&st).len() == 1 && kept_texts(&store).len() == 2);
+    eventually("the first filed", || on_the_server(&st).len() == 1 && kept_texts(&store).len() == 2);
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(on_the_server(&st), texts[..1]);
     assert_eq!(kept_texts(&store), texts[1..]);
@@ -239,7 +230,7 @@ fn the_next_runs_failed_save_replaces_the_draft_kept_on_close() {
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let newer = b"Subject: Plans\r\nMessage-ID: <y@studio.example>\r\n\r\nwritten the next day\r\n".to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: newer, folder: "Drafts".into(), replaces: None });
-    let seen = until(&pool, |e| matches!(e, Event::DraftSaved { .. }));
+    let seen = until(&pool, "the draft saved", |e| matches!(e, Event::DraftSaved { .. }));
     assert!(seen.iter().any(|e| matches!(e, Event::DraftSaved { error: None, .. })), "said kept");
     assert_eq!(kept_texts(&store), ["Subject: Plans\r\nMessage-ID: <y@studio.example>\r\n\r\nwritten the next day\r\n"]);
     pool.shutdown();
@@ -255,23 +246,23 @@ fn a_draft_saved_offline_outlives_the_older_save_filed_after() {
     let (st, store, account) = with_drafts("offline-after-save");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    until(&pool, |e| matches!(e, Event::DavSynced { .. }));
+    until(&pool, "calendars and contacts synced", |e| matches!(e, Event::DavSynced { .. }));
     st.lock().unwrap().stall_on = Some(("APPEND".into(), Duration::from_millis(1500)));
     let first = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <off@studio.example>\r\n\r\nfirst\r\n";
     let later = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <off@studio.example>\r\n\r\nfirst, and what was written offline after\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: first.into(), folder: "Drafts".into(), replaces: None });
     // On its way to the server as Work Offline is turned on.
-    wait_for("the first on its way", || st.lock().unwrap().stalled > 0);
+    eventually("the first on its way", || st.lock().unwrap().stalled > 0);
     pool.submit(Job::WorkOffline { on: true });
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: later.into(), folder: "Drafts".into(), replaces: None });
     assert_eq!(kept_texts(&store), [later]);
-    wait_for("the first filed", || on_the_server(&st) == [first]);
+    eventually("the first filed", || on_the_server(&st) == [first]);
     std::thread::sleep(Duration::from_millis(800));
     assert_eq!(kept_texts(&store), [later], "what was written offline still kept");
     // Online again: it replaces the older one there.
     st.lock().unwrap().stall_on = None;
     pool.submit(Job::WorkOffline { on: false });
-    wait_for("the later filed", || on_the_server(&st) == [later] && kept_texts(&store).is_empty());
+    eventually("the later filed", || on_the_server(&st) == [later] && kept_texts(&store).is_empty());
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }
@@ -284,14 +275,14 @@ fn a_save_filed_after_work_offline_says_nothing_of_the_account() {
     let (st, store, account) = with_drafts("offline-says-nothing");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    until(&pool, |e| matches!(e, Event::DavSynced { .. }));
+    until(&pool, "calendars and contacts synced", |e| matches!(e, Event::DavSynced { .. }));
     st.lock().unwrap().stall_on = Some(("APPEND".into(), Duration::from_millis(1000)));
     let draft = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <quiet@studio.example>\r\n\r\nfirst\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft.into(), folder: "Drafts".into(), replaces: None });
-    wait_for("the draft on its way", || st.lock().unwrap().stalled > 0);
+    eventually("the draft on its way", || st.lock().unwrap().stalled > 0);
     let _ = pool.poll();
     pool.submit(Job::WorkOffline { on: true });
-    wait_for("the draft filed", || on_the_server(&st) == [draft]);
+    eventually("the draft filed", || on_the_server(&st) == [draft]);
     std::thread::sleep(Duration::from_millis(800));
     let said: Vec<SyncStatus> = pool
         .poll()
@@ -355,7 +346,7 @@ fn a_removed_accounts_saved_draft_writes_nothing() {
     tx.send(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "Drafts".into(), replaces: None }).unwrap();
     let t = std::thread::spawn(move || w.run(rx));
     // Removed while the APPEND is on its way, as `Job::Remove` does (its channel dropped).
-    wait_for("the APPEND on its way", || st.lock().unwrap().stalled > 0);
+    eventually("the APPEND on its way", || st.lock().unwrap().stalled > 0);
     store.remove_account("a1").unwrap();
     drop(tx);
     let _ = t.join();
@@ -391,20 +382,14 @@ fn a_kept_draft_that_drops_the_connection_holds_nothing_up() {
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let plans = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <plans@studio.example>\r\n\r\nto finish\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: plans.into(), folder: "Drafts".into(), replaces: None });
-    let mut seen = Vec::new();
-    let end = Instant::now() + Duration::from_secs(60);
-    while !on_the_server(&st).iter().any(|m| m == plans) {
-        assert!(Instant::now() < end, "the save never got there: {} connections", connections.load(Ordering::Relaxed));
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    let mut seen = events_until(&pool, "the save on the server", |_| on_the_server(&st).iter().any(|m| m == plans));
     // The kept draft's newer version, saved now: it goes, and the older one goes from this computer.
     let newer = "From: me@studio.example\r\nSubject: Big\r\nMessage-ID: <big@studio.example>\r\n\r\nsmaller now\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: newer.into(), folder: "Drafts".into(), replaces: None });
     // On the server before its answer gets here: the older version goes once the worker has it.
-    while !on_the_server(&st).iter().any(|m| m == newer) || !kept_texts(&store).is_empty() {
-        assert!(Instant::now() < end, "the newer version never got there, or the older one is still kept: {:?}", kept_texts(&store));
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    seen.extend(events_until(&pool, "the newer version on the server, the older one kept no more", |_| {
+        on_the_server(&st).iter().any(|m| m == newer) && kept_texts(&store).is_empty()
+    }));
     std::thread::sleep(Duration::from_millis(300));
     seen.extend(pool.poll());
     assert!(connections.load(Ordering::Relaxed) <= 3, "{} connections", connections.load(Ordering::Relaxed));
@@ -438,24 +423,13 @@ fn a_kept_draft_failing_again_is_said_once() {
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let failed = |e: &Event| matches!(e, Event::Notice { message, .. } if message.contains("kept on this computer couldn't"));
-    let mut seen = Vec::new();
     // A busy machine's time to connect three times: what's checked is waited for, never timed.
-    let end = Instant::now() + Duration::from_secs(30);
-    while !seen.iter().any(failed) {
-        assert!(Instant::now() < end, "never tried: {seen:?}");
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
-    while connections.load(Ordering::Relaxed) < 2 {
-        assert!(Instant::now() < end, "not connected again");
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    let mut seen = until(&pool, "the kept draft tried", failed);
+    seen.extend(events_until(&pool, "connected again", |_| connections.load(Ordering::Relaxed) >= 2));
     std::thread::sleep(Duration::from_millis(500));
     assert_eq!(connections.load(Ordering::Relaxed), 2, "tried again before its wait");
     pool.submit(Job::SyncAll { account: "a1".into() });
-    while connections.load(Ordering::Relaxed) < 3 {
-        assert!(Instant::now() < end, "not tried again");
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    seen.extend(events_until(&pool, "tried again with Send / Receive", |_| connections.load(Ordering::Relaxed) >= 3));
     std::thread::sleep(Duration::from_millis(500));
     seen.extend(pool.poll());
     assert_eq!(seen.iter().filter(|e| failed(e)).count(), 1, "{seen:?}");
@@ -479,21 +453,14 @@ fn save_behind_kept_drafts_that_drop(name: &str, reconnecting: bool) -> (usize, 
     }
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    let end = Instant::now() + Duration::from_secs(60);
     if reconnecting {
-        let failed = |e: &Event| matches!(e, Event::Notice { message, .. } if message.contains("kept on this computer couldn't"));
-        while !pool.wait(Duration::from_millis(50)).is_some_and(|e| failed(&e)) {
-            assert!(Instant::now() < end, "no kept draft failed");
-        }
+        until(&pool, "a kept draft failed", |e| matches!(e, Event::Notice { message, .. } if message.contains("kept on this computer couldn't")));
         pool.submit(Job::SyncAll { account: "a1".into() });
     }
     let plans = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <plans@studio.example>\r\n\r\nto finish\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: plans.into(), folder: "Drafts".into(), replaces: None });
     let before = connections.load(Ordering::Relaxed);
-    while !on_the_server(&st).iter().any(|m| m == plans) {
-        assert!(Instant::now() < end, "the save never got there: {} connections", connections.load(Ordering::Relaxed));
-        let _ = pool.wait(Duration::from_millis(50));
-    }
+    events_until(&pool, "the save on the server", |_| on_the_server(&st).iter().any(|m| m == plans));
     let taken = connections.load(Ordering::Relaxed);
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
@@ -525,12 +492,8 @@ fn saves_that_drop_the_connection_hold_the_next_back_by_no_wait() {
     let (st, store, mut pool, connections) = online_saving_drafts_that_drop("saves-drop", 3);
     let plans = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <plans@studio.example>\r\n\r\nto finish\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: plans.into(), folder: "Drafts".into(), replaces: None });
-    // A guard against hanging only: whether it waited is counted, not timed.
-    let end = Instant::now() + Duration::from_secs(60);
-    while !on_the_server(&st).iter().any(|m| m == plans) {
-        assert!(Instant::now() < end, "the save never got there: {} connections", connections.load(Ordering::Relaxed));
-        let _ = pool.wait(Duration::from_millis(20));
-    }
+    // Whether it waited is counted, not timed.
+    events_until(&pool, "the save on the server", |_| on_the_server(&st).iter().any(|m| m == plans));
     // Each connection a filing dropped made again at once: no wait to connect again on its way.
     assert_eq!(connect::waits::begun(&store, "a1"), 0, "waited to connect again");
     std::thread::sleep(Duration::from_millis(500));
@@ -552,7 +515,7 @@ fn online_saving_drafts_that_drop(name: &str, drops: usize) -> (Arc<Mutex<crate:
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     // Calendars and contacts are the first sync's last.
-    until(&pool, |e| matches!(e, Event::DavSynced { .. }));
+    until(&pool, "calendars and contacts synced", |e| matches!(e, Event::DavSynced { .. }));
     for n in 1..=drops {
         let big = format!("From: me@studio.example\r\nSubject: Big {n}\r\nMessage-ID: <big{n}@studio.example>\r\n\r\nNOT-PASSED\r\n");
         pool.submit(Job::SaveDraft { account: "a1".into(), raw: big.into_bytes(), folder: "Drafts".into(), replaces: None });
@@ -567,12 +530,7 @@ fn online_saving_drafts_that_drop(name: &str, drops: usize) -> (Arc<Mutex<crate:
 #[test]
 fn drafts_that_drop_each_connection_sign_in_again_at_once_a_few_times_at_most() {
     let (_st, store, mut pool, connections) = online_saving_drafts_that_drop("saves-drop-many", 8);
-    // Until the worker waits to connect again (a guard against hanging only).
-    let end = Instant::now() + Duration::from_secs(60);
-    while connect::waits::begun(&store, "a1") == 0 {
-        assert!(Instant::now() < end, "never waited: {} connections", connections.load(Ordering::Relaxed));
-        let _ = pool.wait(Duration::from_millis(20));
-    }
+    events_until(&pool, "the worker to wait to connect again", |_| connect::waits::begun(&store, "a1") > 0);
     // The first connection's, and four made again at once; the fifth's drop waits as a connection
     // that failed does, and the saves left, made meanwhile, are each kept here with no sign-in.
     assert_eq!(connections.load(Ordering::Relaxed), 5);

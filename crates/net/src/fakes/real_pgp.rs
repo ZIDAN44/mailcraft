@@ -21,19 +21,9 @@ use mailcraft_model::{AccountConfig, Event, Job, PgpSignature, PgpWork, Private,
 
 use crate::worker::{MemoryCredentials, Pool};
 
-fn until(pool: &Pool, secs: u64, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    let end = Instant::now() + Duration::from_secs(secs);
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            let hit = f(&e);
-            seen.push(e);
-            if hit {
-                return seen;
-            }
-        }
-    }
-    panic!("timed out waiting for {what}; last events: {:?}", seen.iter().rev().take(5).collect::<Vec<_>>());
+/// Events until `f` says yes (`secs` at most, as a real server takes): all of them, that one last.
+fn until(pool: &Pool, secs: u64, what: &str, f: impl FnMut(&Event) -> bool) -> Vec<Event> {
+    crate::waiting::until_within(pool, Duration::from_secs(secs), what, f)
 }
 
 #[test]

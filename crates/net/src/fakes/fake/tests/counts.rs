@@ -228,11 +228,7 @@ fn a_folder_renamed_as_it_is_read_leaves_no_cache_behind() {
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "Archive".into() });
     until(&pool, "reading Archive", |e| matches!(e, Event::Status { status: SyncStatus::Syncing { folder }, .. } if folder == "Archive"));
     pool.submit(Job::Apply { account: "a1".into(), op: Op::RenameFolder { from: "Archive".into(), to: "Kept".into() } });
-    let end = Instant::now() + Duration::from_secs(10);
-    while st.lock().unwrap().mailbox("Kept").is_none() || cached("Kept") < 3 {
-        assert!(Instant::now() < end, "never renamed on the server and read: {} in Kept", cached("Kept"));
-        let _ = pool.wait(Duration::from_millis(50));
-    }
+    events_until(&pool, "Kept renamed on the server and read", |_| st.lock().unwrap().mailbox("Kept").is_some() && cached("Kept") >= 3);
     std::thread::sleep(Duration::from_millis(300));
     let _ = pool.poll();
     assert_eq!(cached("Archive"), 0, "a cache left under the old name");
@@ -286,12 +282,8 @@ fn a_folder_made_here_keeps_the_counts_of_mail_read_here() {
             })
             .collect()
     };
-    let mut seen = Vec::new();
-    let end = Instant::now() + Duration::from_secs(60);
-    while st.lock().unwrap().mailbox("Plans").is_none() || !store.load_ops("a1").is_ok_and(|ops| ops.is_empty()) || said(&seen).len() < 2 {
-        assert!(Instant::now() < end, "Plans never made on the server, or not said: {:?}", said(&seen));
-        seen.extend(pool.wait(Duration::from_millis(50)));
-    }
+    let made = || st.lock().unwrap().mailbox("Plans").is_some() && store.load_ops("a1").is_ok_and(|ops| ops.is_empty());
+    let mut seen = events_until(&pool, "Plans made on the server, and the counts said twice", |seen| made() && said(seen).len() >= 2);
     // And anything said just after.
     std::thread::sleep(Duration::from_millis(300));
     seen.extend(pool.poll());

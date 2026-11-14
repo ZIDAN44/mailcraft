@@ -89,11 +89,7 @@ fn a_move_into_a_folder_not_there_is_said_and_the_mail_stays() {
     pool.submit(Job::Apply { account: "a1".into(), op: Op::Move { keys: keys(2), to: "Gone".into() } });
     until(&pool, "the move refused", |e| matches!(e, Event::OpFailed { op: Op::Move { .. }, .. }));
     assert_eq!(st.lock().unwrap().mailbox("INBOX").map(|b| b.msgs.len()), Some(2), "on the server");
-    let end = Instant::now() + Duration::from_secs(20);
-    while cached() != 2 {
-        assert!(Instant::now() < end, "back here: {}", cached());
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    eventually("the mail back here", || cached() == 2);
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }

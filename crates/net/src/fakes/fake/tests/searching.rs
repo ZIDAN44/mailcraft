@@ -263,11 +263,7 @@ fn a_server_search_stops_when_its_no_longer_wanted() {
         s.log.clear();
     }
     pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "nowhere".into(), search: 7 });
-    let end = Instant::now() + Duration::from_secs(20);
-    while !st.lock().unwrap().log.iter().any(|l| l.contains("TEXT")) {
-        assert!(Instant::now() < end, "never searched");
-        let _ = pool.wait(Duration::from_millis(20));
-    }
+    events_until(&pool, "the search on the server", |_| st.lock().unwrap().log.iter().any(|l| l.contains("TEXT")));
     pool.submit(Job::StopSearch);
     until(&pool, "done", |e| matches!(e, Event::ServerSearched { done: true, error: None, .. }));
     let asked = st.lock().unwrap().log.iter().filter(|l| l.contains("TEXT")).count();
@@ -340,11 +336,7 @@ fn show_more_and_search(caps: &'static str) {
     assert!(store.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.key.uid == 2));
 
     pool.submit(Job::MoreMail { account: "a1".into(), folder: "INBOX".into(), more: 5 });
-    let end = Instant::now() + Duration::from_secs(20);
-    while store.load_folder("a1", "INBOX").unwrap().messages.len() < 17 {
-        assert!(Instant::now() < end, "never showed more");
-        let _ = pool.wait(Duration::from_millis(100));
-    }
+    events_until(&pool, "five more shown", |_| store.load_folder("a1", "INBOX").unwrap().messages.len() >= 17);
     let windows: std::collections::HashMap<String, usize> = store.load_account_doc("a1", "windows.json").unwrap();
     assert_eq!(windows.get("INBOX"), Some(&17), "12 kept (10, and 2 found), 5 more");
     // A later sync keeps them.

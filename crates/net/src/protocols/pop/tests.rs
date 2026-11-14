@@ -163,7 +163,8 @@ fn canned(s: &[u8]) -> Canned {
 fn a_pop_account_works_through_the_pool() {
     use mailcraft_model::job::Secret;
     use mailcraft_model::{Event, Flag, Job, Op, SyncStatus};
-    use std::time::{Duration, Instant};
+
+    use crate::waiting::{eventually, until};
     let server = fake::serve(vec![("u1".into(), mail("Welcome", "")), ("u2".into(), mail("Invoice", ""))]);
     let (smtp_port, smtp) = crate::smtp::tests::serve_once();
     let dir = std::env::temp_dir().join(format!("mailcraft-pop-pool-{}", std::process::id()));
@@ -181,24 +182,10 @@ fn a_pop_account_works_through_the_pool() {
         ..Default::default()
     };
     assert!(!acc.is_local() && !acc.is_api());
-    let until = |pool: &crate::worker::Pool, what: &str, f: &dyn Fn(&Event) -> bool| {
-        let end = Instant::now() + Duration::from_secs(20);
-        let mut seen = Vec::new();
-        while Instant::now() < end {
-            if let Some(e) = pool.wait(Duration::from_millis(100)) {
-                let hit = f(&e);
-                seen.push(e);
-                if hit {
-                    return seen;
-                }
-            }
-        }
-        panic!("timed out waiting for {what}; saw {seen:?}");
-    };
     pool.submit(Job::Start { account: acc.clone(), password: Some(Secret("wrong".into())) });
-    until(&pool, "sign in again", &|e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
+    until(&pool, "sign in again", |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
     pool.submit(Job::Start { account: acc.clone(), password: Some(Secret("pw".into())) });
-    let seen = until(&pool, "online", &|e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let folders = seen.iter().rev().find_map(|e| if let Event::Folders { folders, .. } = e { Some(folders.clone()) } else { None }).unwrap();
     let mut paths: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
     paths.sort_unstable();
@@ -210,10 +197,7 @@ fn a_pop_account_works_through_the_pool() {
     pool.submit(Job::Apply { account: "p1".into(), op: Op::SetFlag { keys: vec![k.clone()], flag: Flag::Seen, on: true } });
     pool.submit(Job::Apply { account: "p1".into(), op: Op::Move { keys: vec![k], to: "Deleted Items".into() } });
     let here = |folder: &str, n: usize| {
-        let end = Instant::now() + Duration::from_secs(10);
-        while store.load_folder("p1", folder).map_or(0, |f| f.messages.len()) < n && Instant::now() < end {
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        eventually(&format!("{n} in {folder}"), || store.load_folder("p1", folder).map_or(0, |f| f.messages.len()) >= n);
         store.load_folder("p1", folder).unwrap()
     };
     assert_eq!(here("Deleted Items", 1).messages.len(), 1);
@@ -230,7 +214,7 @@ fn a_pop_account_works_through_the_pool() {
         recipients: vec!["ana@pop.example".into()],
         sent_folder: Some("Sent Items".into()),
     });
-    until(&pool, "sent", &|e| matches!(e, Event::Sent { id: 1, .. }));
+    until(&pool, "sent", |e| matches!(e, Event::Sent { id: 1, .. }));
     assert!(smtp.join().unwrap().contains("RCPT TO:<ana@pop.example>"));
     assert_eq!(here("Sent Items", 1).messages.len(), 1);
     // The server keeps no automatic replies, nor mail to search that isn't here.
@@ -238,13 +222,13 @@ fn a_pop_account_works_through_the_pool() {
     until(
         &pool,
         "no automatic replies",
-        &|e| matches!(e, Event::Vacation { vacation: None, error: Some(m), .. } if m == "POP accounts have no automatic replies on the server"),
+        |e| matches!(e, Event::Vacation { vacation: None, error: Some(m), .. } if m == "POP accounts have no automatic replies on the server"),
     );
     pool.submit(Job::SearchServer { account: "p1".into(), folders: vec!["INBOX".into()], query: "invoice".into(), search: 1 });
     until(
         &pool,
         "no search of the server",
-        &|e| matches!(e, Event::ServerSearched { done: true, keys, error: Some(m), .. } if keys.is_empty() && m == "a POP account keeps all its mail here"),
+        |e| matches!(e, Event::ServerSearched { done: true, keys, error: Some(m), .. } if keys.is_empty() && m == "a POP account keeps all its mail here"),
     );
     pool.submit(Job::Remove { account: "p1".into() });
     let _ = std::fs::remove_dir_all(dir);

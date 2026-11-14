@@ -2,7 +2,7 @@
 //! and those an earlier version kept, each source in the list itself, moved into it with none
 //! lost or doubled, whenever MailCraft stops.
 
-use super::drafts::{kept_texts, on_the_server, wait_for, with_drafts};
+use super::drafts::{kept_texts, on_the_server, with_drafts};
 use super::*;
 
 fn text(n: usize) -> String {
@@ -40,7 +40,7 @@ fn drafts_an_earlier_version_kept_are_moved_and_filed() {
     assert!(list.len() < 1500, "the list is {} bytes", list.len());
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    wait_for("every draft filed", || on_the_server(&st).len() == 4 && kept_texts(&store).is_empty());
+    eventually("every draft filed", || on_the_server(&st).len() == 4 && kept_texts(&store).is_empty());
     assert_eq!(on_the_server(&st), texts);
     assert!(store.kept_draft_ids("a1").is_empty(), "no source left");
     pool.submit(Job::Remove { account: "a1".into() });
@@ -63,7 +63,7 @@ fn stopped_after_the_move_the_drafts_are_not_doubled() {
     assert_eq!(store.kept_draft_ids("a1").len(), 3, "no source written twice");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    wait_for("every draft filed", || on_the_server(&st).len() == 3 && kept_texts(&store).is_empty());
+    eventually("every draft filed", || on_the_server(&st).len() == 3 && kept_texts(&store).is_empty());
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(on_the_server(&st), texts, "each filed once");
     pool.submit(Job::Remove { account: "a1".into() });

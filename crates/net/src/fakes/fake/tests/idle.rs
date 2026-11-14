@@ -49,11 +49,7 @@ fn mail_arriving_after_the_inbox_sync_shows_before_idle() {
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     assert!(st.lock().unwrap().deliver_on.is_none(), "delivered during the sync");
     let has_late = || store.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.subject == "Late");
-    let end = Instant::now() + Duration::from_secs(10);
-    while !has_late() {
-        assert!(Instant::now() < end, "the late mail waited for IDLE to end");
-        let _ = pool.wait(Duration::from_millis(100));
-    }
+    events_until(&pool, "the late mail", |_| has_late());
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }

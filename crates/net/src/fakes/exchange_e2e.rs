@@ -2,11 +2,12 @@
 //! them the account (or a way to sync it) and a way to fill and read back their server.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use mailcraft_model::job::{Secret, Vacation};
 use mailcraft_model::{AccountConfig, Event, Flag, FolderRole, Job, Op, SyncStatus};
 use mailcraft_store::Store;
+
+use crate::waiting::{eventually, until};
 
 /// A message as the server holds it.
 pub(super) struct OnServer {
@@ -50,29 +51,6 @@ pub(super) trait Exchange {
     fn after_first_sync(&self) {}
     /// Checks of this server's own at the end.
     fn at_the_end(&self) {}
-}
-
-fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    let end = Instant::now() + Duration::from_secs(20);
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            let hit = f(&e);
-            seen.push(e);
-            if hit {
-                return seen;
-            }
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
-
-fn eventually(what: &str, mut f: impl FnMut() -> bool) {
-    let end = Instant::now() + Duration::from_secs(20);
-    while !f() {
-        assert!(Instant::now() < end, "never: {what}");
-        std::thread::sleep(Duration::from_millis(50));
-    }
 }
 
 /// An Exchange account through the worker: signing in (a refused secret, then the right one),

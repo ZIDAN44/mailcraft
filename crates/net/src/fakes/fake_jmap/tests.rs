@@ -1,35 +1,13 @@
 //! JMAP accounts end to end, against the in-memory server.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use mailcraft_model::job::Secret;
 use mailcraft_model::{AccountConfig, Event, Flag, Job, Op, SyncStatus};
 use mailcraft_store::Store;
 
 use super::*;
-
-fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    let end = Instant::now() + Duration::from_secs(20);
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            let hit = f(&e);
-            seen.push(e);
-            if hit {
-                return seen;
-            }
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
-
-fn eventually(what: &str, mut f: impl FnMut() -> bool) {
-    let end = Instant::now() + Duration::from_secs(10);
-    while !f() {
-        assert!(Instant::now() < end, "never: {what}");
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
+use crate::waiting::{eventually, until};
 
 /// A JMAP folder kept no more than the server's `maxObjectsInGet` (100 here) whatever it was
 /// to keep, so Show more showed nothing more: the newest are asked a page at a time.

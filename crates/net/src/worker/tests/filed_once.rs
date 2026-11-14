@@ -1,20 +1,9 @@
 //! A draft filed once on the server however its filing is cut short: an account's connection
 //! started again while it's on its way, or the server's answer lost (#53).
 
-use super::drafts::{kept_texts, on_the_server, wait_for, with_drafts};
+use super::drafts::{kept_texts, on_the_server, with_drafts};
 use super::*;
 use crate::fakes::proxy::{Cut, Hang, Proxy};
-
-/// Every event the pool says until `done`, thirty seconds at most (a guard against hanging).
-fn events_until(pool: &Pool, done: impl Fn() -> bool) -> Vec<Event> {
-    let mut seen = Vec::new();
-    let end = Instant::now() + Duration::from_secs(30);
-    while !done() {
-        assert!(Instant::now() < end, "timed out; saw {seen:?}");
-        seen.extend(pool.wait(Duration::from_millis(20)));
-    }
-    seen
-}
 
 /// The account's connection started again (a password or setting changed, Work Offline turned
 /// off and on) while the server takes 1.5 s over each draft filed: the drafts in Drafts, by their
@@ -31,9 +20,9 @@ fn restarted_while_filing(name: &str, kept: Option<&str>, saved: Option<&str>) -
         pool.submit(Job::SaveDraft { account: "a1".into(), raw: s.into(), folder: "Drafts".into(), replaces: None });
     }
     // The draft on its way to the server as the connection starts again.
-    wait_for("the draft on its way", || st.lock().unwrap().stalled > 0);
+    eventually("the draft on its way", || st.lock().unwrap().stalled > 0);
     pool.submit(Job::Start { account, password: None });
-    let mut seen = events_until(&pool, || !on_the_server(&st).is_empty() && kept_texts(&store).is_empty());
+    let mut seen = events_until(&pool, "the draft filed", |_| !on_the_server(&st).is_empty() && kept_texts(&store).is_empty());
     // Long enough for a second copy, filed by the new connection, to get there.
     let end = Instant::now() + Duration::from_millis(2500);
     while Instant::now() < end {
@@ -84,11 +73,11 @@ fn a_draft_whose_answer_was_lost_is_filed_once() {
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let text = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <lost@studio.example>\r\n\r\nto finish\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: text.into(), folder: "Drafts".into(), replaces: None });
-    events_until(&pool, || kept_texts(&store) == [text]);
+    events_until(&pool, "the draft kept here", |_| kept_texts(&store) == [text]);
     assert_eq!(on_the_server(&st), [text], "the server kept it");
     // Send / Receive: the draft kept here is filed again.
     pool.submit(Job::SyncAll { account: "a1".into() });
-    events_until(&pool, || kept_texts(&store).is_empty());
+    events_until(&pool, "nothing kept here", |_| kept_texts(&store).is_empty());
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(on_the_server(&st), [text]);
     pool.submit(Job::Remove { account: "a1".into() });
@@ -115,7 +104,7 @@ fn restarted_while_a_filing_hangs(name: &str, idle: bool, newer: Option<&str>) -
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("pw".into())) });
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: HANGING.into(), folder: "Drafts".into(), replaces: None });
-    wait_for("the filing to hang", || hang.hung.load(Ordering::Relaxed));
+    eventually("the filing to hang", || hang.hung.load(Ordering::Relaxed));
     pool.submit(Job::Start { account, password: None });
     if let Some(n) = newer {
         pool.submit(Job::SaveDraft { account: "a1".into(), raw: n.into(), folder: "Drafts".into(), replaces: None });
@@ -124,14 +113,14 @@ fn restarted_while_a_filing_hangs(name: &str, idle: bool, newer: Option<&str>) -
     st.lock().unwrap().add("INBOX", "News", &[]);
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
     let read = || store.load_folder("a1", "INBOX").is_ok_and(|f| f.messages.len() == 1);
-    let seen = events_until(&pool, || on_the_server(&st).iter().any(|m| m == NEXT) && read());
+    let seen = events_until(&pool, "the next draft filed, and read", |_| on_the_server(&st).iter().any(|m| m == NEXT) && read());
     if newer.is_some() {
         let said = seen.iter().any(|e| matches!(e, Event::DraftSaved { message_id, error: None, .. } if message_id == "hung@studio.example"));
         assert!(said, "the newer version said kept: {seen:?}");
     }
     // The old connection's filing fails as the link closes: the new one files the draft.
     hang.closed.store(true, Ordering::Relaxed);
-    events_until(&pool, || on_the_server(&st).len() == 2 && kept_texts(&store).is_empty());
+    events_until(&pool, "both drafts filed", |_| on_the_server(&st).len() == 2 && kept_texts(&store).is_empty());
     std::thread::sleep(Duration::from_millis(300));
     let filed = on_the_server(&st);
     pool.submit(Job::Remove { account: "a1".into() });
@@ -162,17 +151,17 @@ fn filed_then_offline_before_heard(name: &str, uidplus: bool) -> (usize, usize, 
     }
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    let mut seen = super::until(&pool, |e| matches!(e, Event::DavSynced { .. }));
+    let mut seen = until(&pool, "calendars and contacts synced", |e| matches!(e, Event::DavSynced { .. }));
     let text = "From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <heard@studio.example>\r\n\r\nto finish\r\n";
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: text.into(), folder: "Drafts".into(), replaces: None });
     // Filed, and Drafts read again, with nothing heard of it here yet.
-    wait_for("the draft filed", || on_the_server(&st) == [text]);
+    eventually("the draft filed", || on_the_server(&st) == [text]);
     std::thread::sleep(Duration::from_millis(500));
     pool.submit(Job::WorkOffline { on: true });
     seen.extend(pool.poll());
     let kept = kept_texts(&store).len();
     pool.submit(Job::WorkOffline { on: false });
-    seen.extend(events_until(&pool, || kept_texts(&store).is_empty()));
+    seen.extend(events_until(&pool, "nothing kept here", |_| kept_texts(&store).is_empty()));
     let end = Instant::now() + Duration::from_millis(1500);
     while Instant::now() < end {
         seen.extend(pool.wait(Duration::from_millis(50)));

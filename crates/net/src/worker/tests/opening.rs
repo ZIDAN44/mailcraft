@@ -39,7 +39,7 @@ fn opened_each_way(pool: &mut Pool, store: &Store, acc: &AccountConfig, secret: 
 /// `acc` started on `pool` and synced; the key of the Inbox's newest message.
 fn synced(pool: &mut Pool, store: &Store, acc: &AccountConfig, secret: &str) -> MessageKey {
     pool.submit(Job::Start { account: acc.clone(), password: Some(Secret(secret.into())) });
-    until(pool, |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    until(pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     store.load_folder(&acc.id, "INBOX").unwrap().messages[0].key.clone()
 }
 

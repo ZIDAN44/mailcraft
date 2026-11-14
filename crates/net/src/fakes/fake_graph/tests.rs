@@ -7,6 +7,7 @@ use mailcraft_model::{AccountConfig, Event, Job, SyncStatus};
 
 use super::*;
 use crate::fakes::exchange_e2e::{Exchange, OnServer, an_exchange_account_end_to_end};
+use crate::waiting::{eventually, until};
 
 mod checks;
 mod directory;
@@ -28,29 +29,6 @@ fn token_answers(answers: &[(&str, &str)]) -> (String, std::thread::JoinHandle<V
         })
         .collect();
     crate::http::tests::serve(replies)
-}
-
-fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    let end = Instant::now() + Duration::from_secs(20);
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            let hit = f(&e);
-            seen.push(e);
-            if hit {
-                return seen;
-            }
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
-
-fn eventually(what: &str, mut f: impl FnMut() -> bool) {
-    let end = Instant::now() + Duration::from_secs(10);
-    while !f() {
-        assert!(Instant::now() < end, "never: {what}");
-        std::thread::sleep(Duration::from_millis(50));
-    }
 }
 
 /// Gap #7: searching Microsoft Graph (`$search`, and `$filter` for the read state) for mail

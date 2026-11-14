@@ -50,12 +50,10 @@ impl Renewing {
 
     /// Wait for `done`, failing if the account asks to be signed in again meanwhile.
     fn without_signing_in(&self, what: &str, done: impl Fn(&Renewing) -> bool) {
-        let end = Instant::now() + Duration::from_secs(20);
-        while !done(self) {
-            assert!(Instant::now() < end, "never: {what}");
-            if let Some(Event::Status { status: SyncStatus::NeedsPassword { error }, .. }) = self.pool.wait(Duration::from_millis(100)) {
-                panic!("asked to sign in again ({what}): {error}");
-            }
+        let asked = |e: &Event| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. });
+        let seen = crate::waiting::events_until(&self.pool, what, |seen| seen.iter().any(asked) || done(self));
+        if let Some(Event::Status { status: SyncStatus::NeedsPassword { error }, .. }) = seen.into_iter().find(asked) {
+            panic!("asked to sign in again ({what}): {error}");
         }
     }
 

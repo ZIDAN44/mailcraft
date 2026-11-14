@@ -8,38 +8,13 @@ use mailcraft_store::Store;
 
 use super::*;
 use crate::fakes::exchange_e2e::{Exchange, OnServer, an_exchange_account_end_to_end};
+use crate::waiting::{eventually, until};
 
 mod calendars;
 mod directory;
 mod elsewhere;
 mod large_folder;
 mod pim;
-
-fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    let end = Instant::now() + Duration::from_secs(20);
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = pool.wait(Duration::from_millis(100)) {
-            let hit = f(&e);
-            seen.push(e);
-            if hit {
-                return seen;
-            }
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
-
-fn eventually(what: &str, mut f: impl FnMut() -> bool) {
-    let end = Instant::now() + Duration::from_secs(20);
-    while Instant::now() < end {
-        if f() {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    panic!("timed out waiting for {what}");
-}
 
 /// Gap #7: searching Exchange through EWS (`QueryString`, and a `Restriction` for the read
 /// state) for mail past the window.

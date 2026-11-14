@@ -56,23 +56,11 @@ pub(crate) fn store(name: &str) -> Store {
 pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_model::AccountConfig, secret: &str, server: &dyn Fn(u32, bool)) {
     use mailcraft_model::job::Secret;
     use mailcraft_model::{Event, Job, SyncStatus};
+
+    use crate::waiting::{events_until, until};
     let store = store(name);
     crate::fakes::fake_dav::looked_for_today(&store, &account.id);
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let until = |pool: &crate::worker::Pool, what: &str, f: &dyn Fn(&Event) -> bool| {
-        let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-        let mut seen = Vec::new();
-        while std::time::Instant::now() < end {
-            if let Some(e) = pool.wait(std::time::Duration::from_millis(100)) {
-                let hit = f(&e);
-                seen.push(e);
-                if hit {
-                    return seen;
-                }
-            }
-        }
-        panic!("timed out waiting for {what}; saw {seen:?}");
-    };
     let online = |e: &Event| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. });
     let subjects = || {
         let mut v: Vec<String> = store.load_folder("a1", "INBOX").unwrap().messages.iter().map(|m| m.subject.clone()).collect();
@@ -83,7 +71,7 @@ pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_m
     let search = |pool: &mut crate::worker::Pool, q: &str| {
         pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: q.into(), search: 1 });
         // What's found comes as it's found, then the end.
-        let seen = until(pool, "searched", &|e| matches!(e, Event::ServerSearched { done: true, .. }));
+        let seen = until(pool, "searched", |e| matches!(e, Event::ServerSearched { done: true, .. }));
         match seen.last() {
             Some(Event::ServerSearched { error: None, .. }) => {
                 seen.iter().map(|e| if let Event::ServerSearched { keys, .. } = e { keys.len() } else { 0 }).sum::<usize>()
@@ -93,19 +81,15 @@ pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_m
     };
     pool.submit(Job::SetSync { messages: 10, offline: 0 });
     pool.submit(Job::Start { account, password: Some(Secret(secret.into())) });
-    until(&pool, "online", &online);
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while subjects().len() < 10 {
-        assert!(std::time::Instant::now() < end, "never synced: {:?}", subjects());
-        let _ = pool.wait(std::time::Duration::from_millis(100));
-    }
+    until(&pool, "online", online);
+    events_until(&pool, "ten in the Inbox", |_| subjects().len() >= 10);
     assert!(has("Message 16") && !has("Message 15") && !has("Message 3"), "{:?}", subjects());
 
     // Words: found past the window, and kept by the next sync.
     assert_eq!(search(&mut pool, "tag3"), 1);
     assert!(has("Message 3"), "{:?}", subjects());
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
-    until(&pool, "synced", &online);
+    until(&pool, "synced", online);
     assert!(has("Message 3"), "kept past the window: {:?}", subjects());
     // A field and a word.
     assert_eq!(search(&mut pool, "subject:message tag7"), 1);
@@ -113,18 +97,14 @@ pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_m
 
     // Show more: five more than kept (ten and the one found).
     pool.submit(Job::MoreMail { account: "a1".into(), folder: "INBOX".into(), more: 5 });
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while !has("Message 10") {
-        assert!(std::time::Instant::now() < end, "never showed more: {:?}", subjects());
-        let _ = pool.wait(std::time::Duration::from_millis(100));
-    }
+    events_until(&pool, "more shown", |_| has("Message 10"));
 
     // The read state alone; finds add up, as IMAP keeps what it fetches (another search doesn't
     // take Message 3 and 7 away).
     assert_eq!(search(&mut pool, "is:unread"), 5);
     assert_eq!(search(&mut pool, "nothing-like-this"), 0);
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
-    until(&pool, "synced", &online);
+    until(&pool, "synced", online);
     assert!(has("Message 1") && has("Message 5") && has("Message 3") && has("Message 7"), "{:?}", subjects());
 
     // On the server, Message 3 is deleted and Message 2 read: the next sync follows both.
@@ -133,11 +113,7 @@ pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_m
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
     // (A push stream may say "online" before this sync ends: wait for what it does.)
     let seen = |s: &str| store.load_folder("a1", "INBOX").unwrap().messages.iter().find(|m| m.subject == s).map(|m| m.flags.seen);
-    let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while has("Message 3") || seen("Message 2") != Some(true) {
-        assert!(std::time::Instant::now() < end, "never followed the server: {:?} {:?}", subjects(), seen("Message 2"));
-        let _ = pool.wait(std::time::Duration::from_millis(100));
-    }
+    events_until(&pool, "the server's deletion and flag followed", |_| !has("Message 3") && seen("Message 2") == Some(true));
     assert!(has("Message 7"), "{:?}", subjects());
     assert_eq!(seen("Message 1"), Some(false));
     pool.submit(Job::Remove { account: "a1".into() });

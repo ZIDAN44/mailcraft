@@ -10,20 +10,6 @@ use mailcraft_model::{AccountConfig, Security, ServerConfig, SyncStatus};
 use super::*;
 use crate::fake::{State, serve_tcp};
 
-fn until(pool: &Pool, what: &str, f: impl Fn(&Event) -> bool) {
-    let began = Instant::now();
-    let mut seen = Vec::new();
-    while began.elapsed() < Duration::from_secs(60) {
-        if let Some(e) = pool.wait(Duration::from_millis(20)) {
-            if f(&e) {
-                return;
-            }
-            seen.push(e);
-        }
-    }
-    panic!("timed out waiting for {what}; saw {seen:?}");
-}
-
 fn inbox_changed(e: &Event) -> bool {
     matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX")
 }
@@ -109,16 +95,9 @@ fn a_long_time_is_quiet_but_send_receive_still_looks() {
     let (st, mut pool, _store) = start("check-every-long", Some(60));
     let before = st.lock().unwrap().quiet.len();
     st.lock().unwrap().add("INBOX", "New one", &[]);
-    let began = Instant::now();
-    let mut said = Vec::new();
-    let kept_alive = loop {
-        let noop = st.lock().unwrap().quiet[before..].iter().find(|(c, _)| c.eq_ignore_ascii_case("NOOP")).map(|(_, q)| *q);
-        if let Some(quiet) = noop {
-            break quiet;
-        }
-        assert!(began.elapsed() < Duration::from_secs(60), "never kept alive: {:?}", &st.lock().unwrap().quiet[before..]);
-        said.extend(pool.wait(Duration::from_millis(20)));
-    };
+    let noop = || st.lock().unwrap().quiet[before..].iter().find(|(c, _)| c.eq_ignore_ascii_case("NOOP")).map(|(_, q)| *q);
+    let mut said = events_until(&pool, "the connection kept alive", |_| noop().is_some());
+    let kept_alive = noop().unwrap();
     said.extend(pool.poll());
     assert!(!said.iter().any(inbox_changed), "looked early");
     let ahead = st.lock().unwrap().quiet[before..].to_vec();
@@ -139,12 +118,7 @@ fn a_connection_the_server_dropped_meanwhile_is_no_error() {
     let (st, pool, store) = start("check-every-dropped", Some(3));
     st.lock().unwrap().add("INBOX", "New one", &[]);
     st.lock().unwrap().hang_up = true;
-    let began = Instant::now();
-    let mut said = Vec::new();
-    while !said.last().is_some_and(inbox_changed) {
-        assert!(began.elapsed() < Duration::from_secs(60), "the mail never came: {said:?}");
-        said.extend(pool.wait(Duration::from_millis(20)));
-    }
+    let said = until(&pool, "the mail", inbox_changed);
     assert_eq!(connect::waits::begun(&store, "a1"), 0, "waited to try again: {said:?}");
     assert!(!said.iter().any(|e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. } | Event::Notice { .. })), "{said:?}");
     pool_done(pool);

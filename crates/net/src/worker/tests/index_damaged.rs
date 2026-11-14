@@ -19,7 +19,7 @@ fn two_folders(s: &Store) {
 
 /// The pool's next finished pass of `a1`: how many messages it planned.
 fn next_pass(pool: &Pool) -> u64 {
-    let seen = until(pool, |e| matches!(e, Event::Indexed { finished: true, .. }));
+    let seen = until(pool, "the index finished", |e| matches!(e, Event::Indexed { finished: true, .. }));
     let Some(Event::Indexed { work, .. }) = seen.last() else { panic!("{seen:?}") };
     work.total
 }
@@ -72,7 +72,7 @@ fn an_index_found_damaged_part_way_is_made_again_at_once() {
     pool.submit(Job::Index { account: "a1".into(), folders: vec!["INBOX".into()] });
     // The pass that found it ends (its one message; its end may be said over by the next), then
     // one over every folder comes.
-    until(&pool, |e| matches!(e, Event::Indexed { work, finished: true, .. } if work.total == 4));
+    until(&pool, "all four indexed", |e| matches!(e, Event::Indexed { work, finished: true, .. } if work.total == 4));
     s.fail(None, None);
     assert_eq!(found(&s, "filed"), [1]);
     assert_eq!(sorted(found(&s, "common")), [1, 2, 3]);

@@ -40,16 +40,11 @@ fn send(pool: &mut crate::worker::Pool) {
 
 /// The copy in `folder` on the server, marked read, waited for.
 fn copy_in(st: &Arc<Mutex<State>>, folder: &str) {
-    let end = Instant::now() + Duration::from_secs(10);
-    loop {
-        if let Some(m) = st.lock().unwrap().mailbox(folder).and_then(|b| b.msgs.first()) {
-            assert!(String::from_utf8_lossy(&m.raw).contains("Subject: Copy please"));
-            assert!(m.flags.iter().any(|f| f == "\\Seen"), "{:?}", m.flags);
-            return;
-        }
-        assert!(Instant::now() < end, "no copy in {folder}: {:?}", st.lock().unwrap().boxes.iter().map(|b| b.name.clone()).collect::<Vec<_>>());
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually(&format!("a copy in {folder}"), || st.lock().unwrap().mailbox(folder).is_some_and(|b| !b.msgs.is_empty()));
+    let mut s = st.lock().unwrap();
+    let m = s.mailbox(folder).and_then(|b| b.msgs.first()).unwrap();
+    assert!(String::from_utf8_lossy(&m.raw).contains("Subject: Copy please"));
+    assert!(m.flags.iter().any(|f| f == "\\Seen"), "{:?}", m.flags);
 }
 
 /// A server with no Sent folder (GreenMail, a new account on many hosts): one is made, the copy
@@ -62,11 +57,9 @@ fn a_sent_folder_is_made_where_there_is_none() {
     send(&mut pool);
     assert!(log.join().unwrap().contains("Subject: Copy please"));
     copy_in(&st, "Sent");
-    let end = Instant::now() + Duration::from_secs(10);
-    while !store.load_folders("a1").unwrap_or_default().iter().any(|f| f.path == "Sent" && f.role == FolderRole::Sent) {
-        assert!(Instant::now() < end, "the account never knew it as Sent Items");
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    eventually("the account to know it as Sent Items", || {
+        store.load_folders("a1").unwrap_or_default().iter().any(|f| f.path == "Sent" && f.role == FolderRole::Sent)
+    });
     pool.submit(Job::Remove { account: "a1".into() });
     let _ = std::fs::remove_dir_all(store.root());
 }
