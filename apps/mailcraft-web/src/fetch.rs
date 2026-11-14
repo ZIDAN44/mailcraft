@@ -35,13 +35,49 @@ impl mailcraft_jmap::Http for Fetch {
         })?;
         let resp: web_sys::Response = answer.dyn_into().map_err(|e| Error::Protocol(js(&e)))?;
         let status = resp.status();
-        let buf = JsFuture::from(resp.array_buffer().map_err(|e| Error::Io(js(&e)))?).await.map_err(|e| Error::Io(js(&e)))?;
-        let body = js_sys::Uint8Array::new(&buf);
-        if usize::try_from(body.length()).unwrap_or(usize::MAX) > req.max {
-            return Err(Error::Protocol(format!("the answer is larger than {} bytes", req.max)));
+        let too_big = || Error::Protocol(format!("the answer is larger than {} bytes", req.max));
+        // Refused before reading when the server says how big it is; otherwise counted as it
+        // comes, so a body past the cap is never held whole.
+        let said = resp.headers().get("Content-Length").ok().flatten().and_then(|n| n.trim().parse::<u64>().ok());
+        if said.is_some_and(|n| n > u64::try_from(req.max).unwrap_or(u64::MAX)) {
+            if let Some(body) = resp.body() {
+                let _ = body.cancel();
+            }
+            return Err(too_big());
         }
-        Ok(Response { status, body: body.to_vec() })
+        let Some(stream) = resp.body() else {
+            return Ok(Response { status, body: Vec::new() });
+        };
+        let reader = reader(&stream)?;
+        let mut body = Vec::new();
+        while let Some(chunk) = next_chunk(&reader).await? {
+            let len = usize::try_from(chunk.length()).unwrap_or(usize::MAX);
+            let start = body.len();
+            if start.saturating_add(len) > req.max {
+                let _ = reader.cancel();
+                return Err(too_big());
+            }
+            body.resize(start + len, 0);
+            if let Some(dst) = body.get_mut(start..) {
+                chunk.copy_to(dst);
+            }
+        }
+        Ok(Response { status, body })
     }
+}
+
+fn reader(stream: &web_sys::ReadableStream) -> Result<web_sys::ReadableStreamDefaultReader> {
+    stream.get_reader().dyn_into().map_err(|e| Error::Protocol(js(&e)))
+}
+
+/// The next piece of a body, or `None` at its end.
+async fn next_chunk(reader: &web_sys::ReadableStreamDefaultReader) -> Result<Option<js_sys::Uint8Array>> {
+    let chunk = JsFuture::from(reader.read()).await.map_err(|e| Error::Io(js(&e)))?;
+    let field = |name: &str| js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str(name)).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    if field("done").as_bool().unwrap_or(true) {
+        return Ok(None);
+    }
+    field("value").dyn_into::<js_sys::Uint8Array>().map(Some).map_err(|e| Error::Protocol(js(&e)))
 }
 
 /// Read an event stream (a GET with the `Authorization` header), handing each event to `each`
@@ -67,20 +103,17 @@ pub async fn events(url: &str, auth: &str, each: &mut dyn FnMut(mailcraft_jmap::
         return Err(Error::Protocol(format!("the event stream answered HTTP {}", resp.status())));
     }
     let body = resp.body().ok_or_else(|| Error::Protocol("the event stream has no body".into()))?;
-    let reader: web_sys::ReadableStreamDefaultReader = body.get_reader().dyn_into().map_err(|e| Error::Protocol(js(&e)))?;
+    let reader = reader(&body)?;
     let mut sse = mailcraft_jmap::sse::SseReader::default();
     if !each(mailcraft_jmap::sse::Sse { event: "open".into(), data: String::new() }) {
         let _ = reader.cancel();
         return Ok(());
     }
     loop {
-        let chunk = JsFuture::from(reader.read()).await.map_err(|e| Error::Io(js(&e)))?;
-        let field = |name: &str| js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str(name)).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-        if field("done").as_bool().unwrap_or(true) {
+        let Some(chunk) = next_chunk(&reader).await? else {
             return Err(Error::Io("the event stream ended".into()));
-        }
-        let bytes = field("value").dyn_into::<js_sys::Uint8Array>().map(|a| a.to_vec()).unwrap_or_default();
-        for e in sse.push(&bytes).map_err(Error::Protocol)? {
+        };
+        for e in sse.push(&chunk.to_vec()).map_err(Error::Protocol)? {
             if !each(e) {
                 let _ = reader.cancel();
                 return Ok(());
