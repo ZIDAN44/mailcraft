@@ -1,6 +1,9 @@
 //! A JMAP server behind a single sign-on (OIDC), which takes bearer tokens only.
 
+use mailcraft_engine::Session;
+use mailcraft_model::dates::Clock;
 use mailcraft_model::{OIDC, OidcSettings};
+use serde_json::json;
 
 use super::*;
 use crate::fakes::fake_jmap::{Data, PASSWORD, USER, serve};
@@ -87,6 +90,103 @@ fn a_single_sign_on_signs_in_through_the_browser_then_syncs_over_its_tokens() {
     // A public client: its id with every request, and no secret.
     assert!(forms.iter().all(|f| f.contains("client_id=mailcraft-test") && !f.contains("client_secret")), "{forms:?}");
     assert!(refreshed.iter().all(|f| f.contains(&format!("refresh_token={kept}"))), "{forms:?}");
+}
+
+/// Runs what `s` asks of the pool and gives it what comes back, as the app's window does, till
+/// `done` (30 seconds at most). A page it opens is followed as the browser would, the user
+/// signing in there.
+fn drive(s: &mut Session, pool: &mut Pool, done: impl Fn(&Session) -> bool) -> Vec<Event> {
+    let end = Instant::now() + Duration::from_secs(30);
+    let mut seen = Vec::new();
+    while !done(s) {
+        assert!(Instant::now() < end, "never done: {seen:?}");
+        for job in s.take_jobs() {
+            pool.submit(job);
+        }
+        for url in std::mem::take(&mut s.open_urls) {
+            std::thread::spawn(move || crate::http::get(&url, 10_000));
+        }
+        if let Some(e) = pool.wait(Duration::from_millis(50)) {
+            seen.push(e.clone());
+            s.apply(e);
+        }
+    }
+    seen
+}
+
+/// End to end, as the app does it: the engine's session asks, the pool goes to this computer's
+/// fake servers. The server, asked how it's signed in to, answers `401 Bearer`, and its address
+/// names its service; the account added signs in through it in the browser (PKCE), with no
+/// password; its mail comes over a bearer token; and when the server stops taking that token,
+/// Send / Receive gets a new one with the refresh token.
+#[test]
+fn an_account_is_added_to_sign_in_through_its_servers_single_sign_on() {
+    let message = |n: u32| format!("From: {USER}\r\nTo: {USER}\r\nSubject: m{n}\r\nMessage-ID: <e{n}@x>\r\n\r\nHello {n}.\r\n");
+    let mut d = Data::default();
+    d.tokens = Some(Vec::new());
+    let inbox = d.mailbox("Inbox", None, Some("inbox"));
+    d.deliver(&inbox, message(1).as_bytes(), &[], "2026-05-01T09:00:00Z");
+    let jmap = serve(d);
+    let mut sd = fake_sso::Data::default();
+    sd.jmap = Some(jmap.data.clone());
+    let sso = fake_sso::serve(sd);
+    jmap.data.lock().unwrap().issuer = Some(sso.base.clone());
+    let store = Store::memory();
+    let creds = Arc::new(MemoryCredentials::default());
+    let mut pool = Pool::new(store.clone(), creds.clone());
+    let mut s = Session::open(Some(store.clone()), Clock::new(1_777_626_000, 0));
+    s.oauth_available = vec![OIDC.into()];
+
+    // The add dialog asks the server how it's signed in to, once its address is typed.
+    let server = jmap.base.clone();
+    s.run("account.probeJmap", &json!({"url": server})).unwrap();
+    drive(&mut s, &mut pool, |s| s.jmap_probes.get(&server).is_some_and(Option::is_some));
+    let probe = s.jmap_probes.get(&server).cloned().flatten().unwrap();
+    assert!(probe.takes_no_password(), "{probe:?}");
+    assert_eq!((probe.service(), probe.scope.as_str()), (Some(sso.base.as_str()), "openid profile email"));
+    // MailCraft was given no client id for it: the one its administrator gave is typed.
+    assert!(probe.needs_client_id() && probe.signs_in_with(fake_sso::CLIENT_ID), "{probe:?}");
+
+    let added = s.run("account.add", &json!({"email": USER, "jmap": server, "oauth": OIDC, "clientId": fake_sso::CLIENT_ID})).unwrap();
+    let id = added["account"].as_str().unwrap().to_string();
+    let config = s.account(&id).map(|a| a.config.clone()).unwrap();
+    let settings = OidcSettings { issuer: sso.base.clone(), client_id: fake_sso::CLIENT_ID.into(), scope: "openid profile email".into() };
+    assert_eq!((config.oauth.as_deref(), config.oidc.as_ref()), (Some(OIDC), Some(&settings)));
+
+    // Signed in in the browser; then its mail comes over a bearer token.
+    let holds = |n: usize| store.load_folder(&id, "INBOX").map_or(0, |f| f.messages.len()) >= n;
+    let failed =
+        |seen: &[Event]| seen.iter().any(|e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. } | SyncStatus::Error { .. }, .. }));
+    let seen = drive(&mut s, &mut pool, |_| holds(1));
+    assert!(!failed(&seen), "{seen:?}");
+    let opened: Vec<&String> = seen
+        .iter()
+        .filter_map(|e| match e {
+            Event::OpenUrl { url } => Some(url),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        matches!(opened.as_slice(), [url] if url.starts_with(&format!("{}/authorize?", sso.base)) && url.contains("code_challenge_method=S256")),
+        "{opened:?}"
+    );
+    assert!(seen.iter().any(|e| matches!(e, Event::SignedIn { user: Some(u), .. } if u == USER)), "{seen:?}");
+    let kept = creds.get_secret(&config, SIGN_ON_SECRET).unwrap_or_default();
+    assert!(kept.starts_with("rt") && creds.get(&config).is_none(), "the refresh token alone is kept: {kept}");
+
+    // The server stops taking its token (it ran out early, or was revoked): Send / Receive gets a
+    // new one with the refresh token, and the mail still comes, with no password asked for.
+    let refreshes = || sso.data.lock().unwrap().forms.iter().filter(|f| f.contains("grant_type=refresh_token")).count();
+    let before = refreshes();
+    {
+        let mut d = jmap.data.lock().unwrap();
+        d.tokens = Some(Vec::new());
+        d.deliver(&inbox, message(2).as_bytes(), &[], "2026-05-02T09:00:00Z");
+    }
+    s.run("mail.sync", &json!({})).unwrap();
+    let seen = drive(&mut s, &mut pool, |_| holds(2));
+    assert!(!failed(&seen), "{seen:?}");
+    assert!(refreshes() > before, "the token wasn't renewed");
 }
 
 /// The password, right as it is, gets "sign in through the browser" rather than a request for

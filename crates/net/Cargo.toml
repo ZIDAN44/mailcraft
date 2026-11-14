@@ -68,4 +68,7 @@ mailcraft-store = { workspace = true, features = ["cache-metrics", "test-drive"]
 flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 # The S/MIME round trip reads the test certificates (PEM).
 der = { version = "0.8", features = ["pem"] }
+# The single sign-on's end-to-end test runs the engine's session over the pool, as the app does
+# (`worker/tests/oidc.rs`); `cargo xtask layers` leaves dev-dependencies aside.
+mailcraft-engine = { workspace = true }
 proptest = "1"

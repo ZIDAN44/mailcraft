@@ -4109,6 +4109,7 @@ dependencies = [
  "ipconfig",
  "lettre",
  "log",
+ "mailcraft-engine",
  "mailcraft-jmap",
  "mailcraft-keys",
  "mailcraft-mime",
