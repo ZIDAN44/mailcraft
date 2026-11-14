@@ -261,16 +261,8 @@ pub(super) fn overhead_ppm(live: u64, len: u64) -> u64 {
 /// first piece (at most [`TRIAL_MAX`]) is compressed to see whether it would be.
 pub(super) fn walk(tx: &redb::ReadTransaction, sample: bool) -> io::Result<Walk> {
     let mut w = Walk::default();
-    let files = match tx.open_table(FILES) {
-        Ok(t) => t,
-        Err(redb::TableError::TableDoesNotExist(_)) => return Ok(w),
-        Err(e) => return Err(disk(e)),
-    };
-    let pieces = match tx.open_table(PIECES) {
-        Ok(t) => Some(t),
-        Err(redb::TableError::TableDoesNotExist(_)) => None,
-        Err(e) => return Err(disk(e)),
-    };
+    let Some(files) = files_of(tx).map_err(disk)? else { return Ok(w) };
+    let pieces = pieces_of(tx).map_err(disk)?;
     // The pages of the list itself, whole values and notes in them, as the database counts them
     // (a value over half a page has one to itself, and pages are as full as they were left): it
     // reads the same pages the walk below does, and none of the pieces'.

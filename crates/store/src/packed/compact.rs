@@ -155,16 +155,8 @@ where
 fn read_batch(db: &Database, after: Option<&str>) -> io::Result<Batch> {
     let mut b = Batch::default();
     let tx = db.begin_read().map_err(disk)?;
-    let files = match tx.open_table(FILES) {
-        Ok(t) => t,
-        Err(redb::TableError::TableDoesNotExist(_)) => return Ok(Batch { end: true, ..b }),
-        Err(e) => return Err(disk(e)),
-    };
-    let pieces = match tx.open_table(PIECES) {
-        Ok(t) => Some(t),
-        Err(redb::TableError::TableDoesNotExist(_)) => None,
-        Err(e) => return Err(disk(e)),
-    };
+    let Some(files) = files_of(&tx).map_err(disk)? else { return Ok(Batch { end: true, ..b }) };
+    let pieces = pieces_of(&tx).map_err(disk)?;
     let mut bytes = 0u64;
     let (mut from, mut past_index) = (after.map(str::to_string), false);
     'seek: loop {
@@ -250,11 +242,7 @@ pub(super) fn compress(files: &[&[u8]]) -> Vec<Option<Vec<u8>>> {
 pub(super) fn count(db: &Database, cursor: Option<&str>) -> io::Result<Work> {
     let mut w = Work::default();
     let tx = db.begin_read().map_err(disk)?;
-    let files = match tx.open_table(FILES) {
-        Ok(t) => t,
-        Err(redb::TableError::TableDoesNotExist(_)) => return Ok(w),
-        Err(e) => return Err(disk(e)),
-    };
+    let Some(files) = files_of(&tx).map_err(disk)? else { return Ok(w) };
     for item in files.iter().map_err(disk)? {
         let (k, v) = item.map_err(disk)?;
         if k.value().starts_with(SEARCH) {

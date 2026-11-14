@@ -180,16 +180,8 @@ fn put_copied(t: &mut Tables<'_>, files: &[(String, Vec<u8>)]) -> io::Result<()>
 fn read_copy_batch(db: &Database, after: Option<&str>) -> io::Result<CopyBatch> {
     let mut b = CopyBatch::default();
     let tx = db.begin_read().map_err(disk)?;
-    let files = match tx.open_table(FILES) {
-        Ok(t) => t,
-        Err(redb::TableError::TableDoesNotExist(_)) => return Ok(CopyBatch { end: true, ..b }),
-        Err(e) => return Err(disk(e)),
-    };
-    let pieces = match tx.open_table(PIECES) {
-        Ok(t) => Some(t),
-        Err(redb::TableError::TableDoesNotExist(_)) => None,
-        Err(e) => return Err(disk(e)),
-    };
+    let Some(files) = files_of(&tx).map_err(disk)? else { return Ok(CopyBatch { end: true, ..b }) };
+    let pieces = pieces_of(&tx).map_err(disk)?;
     let lower = after.map_or(Bound::Unbounded, Bound::Excluded);
     let mut bytes = 0usize;
     for item in files.range::<&str>((lower, Bound::Unbounded)).map_err(disk)? {
@@ -388,11 +380,7 @@ impl Packs {
         let meta = {
             let tx = db.begin_read().map_err(disk)?;
             let files = tx.open_table(FILES).map_err(disk)?;
-            let pieces = match tx.open_table(PIECES) {
-                Ok(t) => Some(t),
-                Err(redb::TableError::TableDoesNotExist(_)) => None,
-                Err(e) => return Err(disk(e)),
-            };
+            let pieces = pieces_of(&tx).map_err(disk)?;
             let (mut now, mut gone) = (Vec::new(), Vec::new());
             for key in &journal.keys {
                 match files.get(key.as_str()).map_err(disk)? {

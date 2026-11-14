@@ -127,6 +127,28 @@ pub(super) fn pieced_len(note: &[u8]) -> Option<u64> {
     Some(u64::from_le_bytes(rest.get(..8)?.try_into().ok()?))
 }
 
+/// A table opened in a read transaction: `None` when the data file has none. Any other error is
+/// as the database gave it, for each reader to tell as it needs.
+pub(super) type Opened<T> = std::result::Result<Option<T>, redb::TableError>;
+
+/// `FILES` in a read transaction (`None`: nothing was ever written to the data file).
+pub(super) fn files_of(tx: &redb::ReadTransaction) -> Opened<redb::ReadOnlyTable<&'static str, &'static [u8]>> {
+    there(tx.open_table(FILES))
+}
+
+/// `PIECES` in a read transaction (`None`: nothing was ever kept in pieces in the data file).
+pub(super) fn pieces_of(tx: &redb::ReadTransaction) -> Opened<redb::ReadOnlyTable<(&'static str, u32), &'static [u8]>> {
+    there(tx.open_table(PIECES))
+}
+
+fn there<T>(table: std::result::Result<T, redb::TableError>) -> Opened<T> {
+    match table {
+        Ok(t) => Ok(Some(t)),
+        Err(redb::TableError::TableDoesNotExist(_)) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 /// An account's tables in a write transaction: files whole or in pieces.
 pub(super) struct Tables<'t> {
     pub(super) files: redb::Table<'t, &'static str, &'static [u8]>,

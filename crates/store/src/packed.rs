@@ -252,14 +252,13 @@ impl Packs {
         name
     }
 
+    /// The file at `key`, read back. The reads here tell a database error as [`other`], not
+    /// [`disk`]: the drive's own error mustn't pass for the file missing or damaged (`NotFound`,
+    /// `InvalidData`), which `load_body` takes as not kept.
     fn get(&self, account: &str, key: &str) -> io::Result<Option<Vec<u8>>> {
         let Some(db) = self.db(account, false)? else { return Ok(None) };
         let tx = db.begin_read().map_err(other)?;
-        let table = match tx.open_table(FILES) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(None),
-            Err(e) => return Err(other(e)),
-        };
+        let Some(table) = files_of(&tx).map_err(other)? else { return Ok(None) };
         read_file(&tx, &table, key)
     }
 
@@ -267,22 +266,15 @@ impl Packs {
     fn has(&self, account: &str, key: &str) -> io::Result<bool> {
         let Some(db) = self.db(account, false)? else { return Ok(false) };
         let tx = db.begin_read().map_err(other)?;
-        match tx.open_table(FILES) {
-            Ok(t) => Ok(t.get(key).map_err(other)?.is_some()),
-            Err(redb::TableError::TableDoesNotExist(_)) => Ok(false),
-            Err(e) => Err(other(e)),
-        }
+        let Some(table) = files_of(&tx).map_err(other)? else { return Ok(false) };
+        Ok(table.get(key).map_err(other)?.is_some())
     }
 
     /// Whether any file is under `prefix` (a folder), from the first key alone.
     fn has_under(&self, account: &str, prefix: &str) -> io::Result<bool> {
         let Some(db) = self.db(account, false)? else { return Ok(false) };
         let tx = db.begin_read().map_err(other)?;
-        let table = match tx.open_table(FILES) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(false),
-            Err(e) => return Err(other(e)),
-        };
+        let Some(table) = files_of(&tx).map_err(other)? else { return Ok(false) };
         let start = if prefix.is_empty() { String::new() } else { format!("{prefix}/") };
         let first = table.range(start.as_str()..).map_err(other)?.next();
         match first {
@@ -299,11 +291,7 @@ impl Packs {
     fn children(&self, account: &str, prefix: &str) -> io::Result<(Vec<String>, usize)> {
         let Some(db) = self.db(account, false)? else { return Ok((Vec::new(), 0)) };
         let tx = db.begin_read().map_err(other)?;
-        let table = match tx.open_table(FILES) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok((Vec::new(), 0)),
-            Err(e) => return Err(other(e)),
-        };
+        let Some(table) = files_of(&tx).map_err(other)? else { return Ok((Vec::new(), 0)) };
         let start = if prefix.is_empty() { String::new() } else { format!("{prefix}/") };
         let (mut out, mut looked) = (Vec::new(), 0usize);
         let mut from = start.clone();
@@ -330,11 +318,7 @@ impl Packs {
     fn keys(&self, account: &str, prefix: &str) -> io::Result<Vec<(String, u64)>> {
         let Some(db) = self.db(account, false)? else { return Ok(Vec::new()) };
         let tx = db.begin_read().map_err(other)?;
-        let table = match tx.open_table(FILES) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(Vec::new()),
-            Err(e) => return Err(other(e)),
-        };
+        let Some(table) = files_of(&tx).map_err(other)? else { return Ok(Vec::new()) };
         let start = if prefix.is_empty() { String::new() } else { format!("{prefix}/") };
         let mut out = Vec::new();
         for item in table.range(start.as_str()..).map_err(other)? {
@@ -685,11 +669,7 @@ pub(crate) fn read_data_file(
         let not_ours = |e: &dyn std::fmt::Display| io_err(io::Error::new(io::ErrorKind::InvalidData, format!("not a MailCraft data file ({e})")));
         let db = Database::builder().set_cache_size(CACHE).open(tmp).map_err(|e| not_ours(&e))?;
         let tx = db.begin_read().map_err(|e| not_ours(&e))?;
-        let table = match tx.open_table(FILES) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(0),
-            Err(e) => return Err(not_ours(&e)),
-        };
+        let Some(table) = files_of(&tx).map_err(|e| not_ours(&e))? else { return Ok(0) };
         let (mut batch, mut size, mut n) = (Vec::new(), 0usize, 0usize);
         for item in table.iter().map_err(|e| not_ours(&e))? {
             let (k, _) = item.map_err(|e| not_ours(&e))?;
