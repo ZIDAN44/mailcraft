@@ -55,6 +55,33 @@ fn bulk_cache_is_let_go_after_the_import() {
     let _ = std::fs::remove_dir_all(&t);
 }
 
+/// A bulk write begun before its account went online only ends all the same: kept on disk again,
+/// the account's data file has the usual cache and its commits aren't each sealed, as after any
+/// import. One begun while it's online only is nothing.
+#[test]
+fn a_bulk_write_ends_across_online_only() {
+    let t = temp("bulk-online");
+    let s = store(&t);
+    s.write_body(&inbox(1), &source(1)).unwrap();
+    s.bulk_begin("a1", BULK_CACHE);
+    s.set_online_only("a1", true).unwrap();
+    s.bulk_end("a1");
+    s.set_online_only("a1", false).unwrap();
+    s.write_body(&inbox(2), &source(2)).unwrap();
+    assert_eq!(s.data_file_cache("a1"), Some(CACHE));
+    assert!(!packs(&s).sealing("a1"));
+
+    s.set_online_only("a1", true).unwrap();
+    s.bulk_begin("a1", BULK_CACHE);
+    assert!(!packs(&s).sealing("a1"), "nothing of it is begun on the data files");
+    s.bulk_end("a1");
+    s.set_online_only("a1", false).unwrap();
+    assert_eq!(s.read_body(&inbox(2)), Some(source(2)));
+    assert_eq!(s.data_file_cache("a1"), Some(CACHE));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&t);
+}
+
 /// A file someone holds isn't closed under them: the bulk write starts with the cache it has, and
 /// the file changes cache the first time it's asked for once let go of; likewise at the end.
 #[test]

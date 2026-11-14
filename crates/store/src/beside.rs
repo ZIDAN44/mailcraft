@@ -102,7 +102,7 @@ impl Store {
 
     fn beside(&self, source: &Path, take: Option<&str>, fresh: bool) -> Option<Beside> {
         #[cfg(not(target_arch = "wasm32"))]
-        if let Files::Packed(x) = &self.files.main {
+        if let Some(x) = self.data_files() {
             let mut beside = x.beside(source, take.map(safe_segment).as_deref(), fresh);
             if let Some(found) = beside.found.as_mut() {
                 found.changed = stamp(source).is_none_or(|now| now != (found.size, found.modified));
@@ -118,7 +118,7 @@ impl Store {
     /// can't be written.
     pub fn data_folder_id(&self) -> Option<String> {
         #[cfg(not(target_arch = "wasm32"))]
-        if let Files::Packed(x) = &self.files.main {
+        if let Some(x) = self.data_files() {
             return x.folder_id();
         }
         None

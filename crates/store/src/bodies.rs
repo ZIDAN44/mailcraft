@@ -199,14 +199,12 @@ impl Store {
     /// disk before then may be gone. A writer that sees it change since it began (an import)
     /// writes nothing more that counts on that. Always 0 for other stores.
     pub fn data_file_reopened(&self, account: &str) -> u64 {
-        if self.is_online_only(account) {
-            return 0;
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((x, a)) = self.in_data_file(account) {
+            return x.reopened(&a);
         }
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.reopened(&safe_segment(account)),
-            _ => 0,
-        }
+        let _ = account;
+        0
     }
 
     /// The drive of a store's data files full (`true`: growing one fails as on a full drive) or
@@ -263,29 +261,23 @@ impl Store {
     /// instead of writing pages out and reading them back. The file is opened again with it at
     /// once if nobody's using it, or as soon as nobody is. Nothing to do for other stores.
     pub fn bulk_begin(&self, account: &str, cache_bytes: usize) {
-        if self.is_online_only(account) {
-            return;
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((x, a)) = self.in_data_file(account) {
+            x.bulk_begin(&a, cache_bytes);
         }
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.bulk_begin(&safe_segment(account), cache_bytes),
-            _ => {
-                let _ = cache_bytes;
-            }
-        }
+        let _ = (account, cache_bytes);
     }
 
     /// `account`'s bulk write is over: its data file's cache goes back to its usual size, letting
     /// go of the memory (a clean close and an open, at once if nobody's using it, otherwise as
-    /// soon as nobody is).
+    /// soon as nobody is). Ended however the account is kept now: one begun before it went
+    /// online only ends too.
     pub fn bulk_end(&self, account: &str) {
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.bulk_end(&safe_segment(account)),
-            _ => {
-                let _ = account;
-            }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(x) = self.data_files() {
+            x.bulk_end(&safe_segment(account));
         }
+        let _ = account;
     }
 
     /// `account` takes a long write (a local move of more than a batch of mail) until what this
@@ -296,55 +288,47 @@ impl Store {
     /// sealed commit checked against [`Store::data_file_reopened`] (`write_batch`). Nothing to do
     /// for other stores.
     pub fn long_write(&self, account: &str) -> LongWrite<'_> {
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) if !self.is_online_only(account) => {
-                let account = safe_segment(account);
-                x.long_begin(&account);
-                LongWrite { store: self, account: Some(account) }
-            }
-            _ => {
-                let _ = account;
-                LongWrite { store: self, account: None }
-            }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((x, a)) = self.in_data_file(account) {
+            x.long_begin(&a);
+            return LongWrite { store: self, account: Some(a) };
         }
+        let _ = account;
+        LongWrite { store: self, account: None }
     }
 
     /// The cache `account`'s data file is open with, in bytes (none: it isn't open, or the store
-    /// keeps no data files).
+    /// keeps no data files). Whatever the account is kept as now: it's the file's own.
     #[doc(hidden)]
     pub fn data_file_cache(&self, account: &str) -> Option<usize> {
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.cache_of(&safe_segment(account)),
-            _ => {
-                let _ = account;
-                None
-            }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(x) = self.data_files() {
+            return x.cache_of(&safe_segment(account));
         }
+        let _ = account;
+        None
     }
 
     /// How `account`'s data file's cache has been used since the store opened ([`CacheUse`]):
-    /// for measuring. Default for other stores.
+    /// for measuring, so it counts while the account was kept in it, online only now or not.
+    /// Default for other stores.
     pub fn cache_use(&self, account: &str) -> CacheUse {
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.cache_use(&safe_segment(account)),
-            _ => {
-                let _ = account;
-                CacheUse::default()
-            }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(x) = self.data_files() {
+            return x.cache_use(&safe_segment(account));
         }
+        let _ = account;
+        CacheUse::default()
     }
 
     /// The data files' commits that waited for the disk since the store opened, sealed and not,
     /// timed ([`CommitTimes`]): for measuring. Nothing for other stores.
     pub fn commit_times(&self) -> CommitTimes {
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.commit_times(),
-            _ => CommitTimes::default(),
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(x) = self.data_files() {
+            return x.commit_times();
         }
+        CommitTimes::default()
     }
 
     pub fn remove_body(&self, key: &MessageKey) {

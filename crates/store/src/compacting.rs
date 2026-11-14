@@ -26,17 +26,12 @@ impl Store {
     /// meanwhile loses nothing; the file is checked as it next opens. Refused when something holds
     /// the file for seconds (`ResourceBusy`); `None` when the account has no data file.
     pub fn compact_data_file(&self, account: &str) -> Result<Option<Shrunk>> {
-        if self.is_online_only(account) {
-            return Ok(None);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((x, a)) = self.in_data_file(account) {
+            return x.compact_in_place(&a).map_err(|source| StoreError::Io { path: a, source });
         }
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => {
-                let a = safe_segment(account);
-                x.compact_in_place(&a).map_err(|source| StoreError::Io { path: a, source })
-            }
-            _ => Ok(None),
-        }
+        let _ = account;
+        Ok(None)
     }
 
     /// An account's data file copied into a new one beside it that takes its place, compressing
@@ -48,19 +43,11 @@ impl Store {
     /// when the account has no data file, or is removed meanwhile. Refused when files in it are
     /// damaged (a copy would be without them).
     pub fn copy_data_file(&self, account: &str, go_on: &mut dyn FnMut(Work) -> bool, swap: &mut dyn FnMut() -> bool) -> Result<Option<Shrunk>> {
-        if self.is_online_only(account) {
-            return Ok(None);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((x, a)) = self.in_data_file(account) {
+            return x.compact_by_copy(&a, go_on, swap).map_err(|source| StoreError::Io { path: a, source });
         }
-        match &self.files.main {
-            #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => {
-                let a = safe_segment(account);
-                x.compact_by_copy(&a, go_on, swap).map_err(|source| StoreError::Io { path: a, source })
-            }
-            _ => {
-                let _ = (go_on, swap);
-                Ok(None)
-            }
-        }
+        let _ = (account, go_on, swap);
+        Ok(None)
     }
 }
