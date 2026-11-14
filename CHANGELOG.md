@@ -39,6 +39,7 @@ on GitHub.
 - Automatic replies can be read and set for an account that signs in with OAuth on a server with ManageSieve: its sign-in there was encoded twice, and always refused.
 - A message with a line longer than 64 KB comes whole from a POP account: the line was broken in two, and a piece of it that was a lone `.` cut the message short there.
 - Turning on **Online only** for an account when one of its files can't be read says so and changes nothing; that file was left behind and then deleted with the rest, changes waiting for the server and the Outbox among what could go.
+- A move of the data files to another folder that stops, because a file of the same name turned up there meanwhile, leaves that file alone; it was deleted as the move was undone.
 
 ## 0.38.0 - 2026-11-13
 
