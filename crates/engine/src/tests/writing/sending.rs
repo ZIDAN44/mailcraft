@@ -355,3 +355,36 @@ fn a_message_closed_as_it_goes_comes_back_if_refused() {
     s.apply(Event::Sent { account: id.clone(), id: sent });
     assert!(s.sent_away.is_empty() && s.all_composes().next().is_none());
 }
+
+/// What a message's sending says: sent, held to be sent later (Delay Delivery), or waiting in
+/// the Outbox for the server, each once and nothing else ("Message sent" was said, then taken
+/// back by removing the last notice).
+#[test]
+fn sending_says_where_the_message_went() {
+    let mut s = Session::open(Some(temp("send-says")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    let said = |s: &Session| s.notices.iter().map(|n| n.text.clone()).collect::<Vec<_>>();
+    let send = |s: &mut Session, more: Value| -> u64 {
+        s.run("mail.new", &json!({})).unwrap();
+        let mut params = json!({"to": "ann@example.org", "subject": "Plans", "body": "See you"});
+        if let (Some(p), Value::Object(more)) = (params.as_object_mut(), more) {
+            p.extend(more);
+        }
+        s.run("compose.update", &params).unwrap();
+        s.run("compose.send", &json!({})).unwrap();
+        s.take_jobs().into_iter().find_map(|j| if let Job::Send { id, .. } = j { Some(id) } else { None }).unwrap_or(0)
+    };
+    let first = send(&mut s, json!({}));
+    s.apply(Event::Sent { account: id.clone(), id: first });
+    assert_eq!(said(&s), ["Message sent"]);
+    s.notices.clear();
+    send(&mut s, json!({"sendAfter": NOW + 3600}));
+    let later = said(&s);
+    assert!(later.len() == 1 && later[0].starts_with("It will be sent "), "{later:?}");
+    s.notices.clear();
+    let queued = send(&mut s, json!({}));
+    s.apply(Event::Queued { account: id.clone(), id: queued, error: "offline".into() });
+    assert_eq!(said(&s), ["Saved in the Outbox: it will be sent when you're back online"]);
+    done(s);
+}

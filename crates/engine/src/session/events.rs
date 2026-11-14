@@ -22,90 +22,8 @@ impl Session {
             | Event::HeldKeys { .. }
             | Event::PgpKeys { .. }
             | Event::PgpDecrypted { .. }) => self.apply_smime(e),
-            Event::Status { account, status } => {
-                // Show more ended (with nothing new, or failing): its footer can be asked again.
-                if !matches!(status, SyncStatus::Syncing { .. } | SyncStatus::Connecting)
-                    && self.showing_more.as_ref().is_some_and(|(a, _)| *a == account)
-                {
-                    self.showing_more = None;
-                }
-                // A server on this computer with a certificate of its own: asked about.
-                if let SyncStatus::Error { error } = &status {
-                    self.note_untrusted_certificate(&account, error);
-                }
-                // Refusals that need something done say so once, as they come.
-                if let SyncStatus::Error { error } = &status
-                    && (error.starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_model::MICROSOFT_NO_PASSWORDS))
-                    && self.account(&account).is_some_and(|a| a.status != status)
-                {
-                    let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
-                    self.notice(format!("{who}: {error}"), true);
-                }
-                if let SyncStatus::NeedsPassword { error } = &status {
-                    let (who, browser) = self.account(&account).map(|a| (a.config.email.clone(), a.config.oauth.is_some())).unwrap_or_default();
-                    let why = if error.is_empty() { String::new() } else { format!(": {error}") };
-                    // An account that signs in in the browser has no password to ask for.
-                    let what = if browser { "needs you to sign in again" } else { "needs its password" };
-                    self.notice(format!("{who} {what}{why}"), true);
-                    if !browser && self.asked_password.insert(account.clone()) {
-                        self.ask_password.push(account.clone());
-                    }
-                }
-                // Its mail synced in full: an Inbox empty until now (so never said to have
-                // changed) is marked, so its first message counts as arriving, not as the backlog.
-                if matches!(status, SyncStatus::Online { .. }) {
-                    self.mark_inbox(&account);
-                }
-                if let Some(a) = self.account_mut(&account) {
-                    a.status = status;
-                }
-            }
-            Event::Folders { account, mut folders } => {
-                // They're this account's, whatever name they were kept under.
-                for f in &mut folders {
-                    if f.account != account {
-                        f.account.clone_from(&account);
-                    }
-                }
-                sort_folders(&mut folders);
-                // The pool counts a folder as it syncs it, and lists them all again now and then
-                // (Drafts made, a draft's folder synced) with the others' counts from their last
-                // sync, from before mail read here since reached the server: a count it reports
-                // unchanged is no news, and the one counted here stands, until the folder is
-                // synced (`FolderChanged`).
-                let here: HashMap<String, (u32, u32)> =
-                    self.account(&account).map(|a| a.folders.iter().map(|f| (f.path.clone(), (f.unread, f.total))).collect()).unwrap_or_default();
-                for f in &mut folders {
-                    let now = (f.unread, f.total);
-                    let key = (account.clone(), f.path.clone());
-                    let synced = self.counts_stale.remove(&key);
-                    let before = self.reported_counts.insert(key, now);
-                    if before == Some(now)
-                        && !synced
-                        && let Some(&(unread, total)) = here.get(&f.path)
-                    {
-                        (f.unread, f.total) = (unread, total);
-                    }
-                }
-                let first = self.account(&account).is_some_and(|a| a.folders.is_empty());
-                if let Some(a) = self.account_mut(&account) {
-                    a.folders = folders;
-                }
-                // A view on a folder that no longer exists falls back to the Inbox.
-                let missing = matches!(&self.view, View::Folder { account: va, folder } if *va == account && self.folder(va, folder).is_none());
-                if missing {
-                    let inbox =
-                        self.account(&account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()).unwrap_or_else(|| "INBOX".into());
-                    self.open_view(View::Folder { account: account.clone(), folder: inbox });
-                } else if first {
-                    self.refresh_list();
-                }
-                self.mark_junk(&account);
-                // Its drafts say which messages have a reply begun (#52).
-                self.read_drafts(&account);
-                self.search_folders_changed(&account);
-                self.want_index(&account, None);
-            }
+            Event::Status { account, status } => self.status_changed(account, status),
+            Event::Folders { account, folders } => self.folders_listed(account, folders),
             Event::FolderChanged { account, folder } => match self.echo_of(&account, &folder) {
                 // The echo of a flag or category changed here: the folder in memory has it already.
                 mailboxes::Echo::Kept => {}
@@ -182,23 +100,7 @@ impl Session {
                     a.quota = Some((used, limit));
                 }
             }
-            Event::Vacation { account, vacation, error } => {
-                let mut failed = None;
-                if let Some(a) = self.account_mut(&account) {
-                    a.vacation = match (vacation, error) {
-                        (Some(v), None) => VacationState::Loaded(v),
-                        (Some(v), Some(e)) => {
-                            // Read back after a change that failed: show what the server has.
-                            failed = Some(e);
-                            VacationState::Loaded(v)
-                        }
-                        (None, e) => VacationState::Failed(e.unwrap_or_else(|| "this server doesn't offer automatic replies".into())),
-                    };
-                }
-                if let Some(e) = failed {
-                    self.notice(format!("automatic replies weren't changed: {e}"), true);
-                }
-            }
+            Event::Vacation { account, vacation, error } => self.vacation_read(&account, vacation, error),
             // Its text first (issue #24): shown, and nothing else until the whole message comes.
             Event::Body { key, raw } if mime::is_text_first(&raw) => self.show_body(&key, &raw),
             Event::Body { key, raw } => {
@@ -230,7 +132,7 @@ impl Session {
             }
             Event::Sent { id, .. } => {
                 if let Some(c) = self.compose_by_id(id) {
-                    self.finish_sent(&c, true);
+                    self.finish_sent(&c, true, "Message sent".into());
                 } else {
                     self.notice("Message sent", false);
                 }
@@ -246,74 +148,20 @@ impl Session {
                 if let Some(c) = self.compose_by_id(id) {
                     // It's safe in the Outbox: as far as the user is concerned, the message is done
                     // (a Replied/Forwarded flag stays owed until delivery).
-                    self.finish_sent(&c, false);
-                    self.notices.pop();
-                    self.notice("Saved in the Outbox: it will be sent when you're back online", false);
+                    self.finish_sent(&c, false, "Saved in the Outbox: it will be sent when you're back online".into());
                 } else {
                     log::info!("outbox {id}: still waiting ({error})");
                 }
                 self.after_outbox_change();
             }
-            Event::SendFailed { id, error, .. } => {
-                // Closed while it was being sent: open again, to be sent or kept.
-                if let Some(at) = self.sent_away.iter().position(|c| c.id == id) {
-                    let mut c = self.sent_away.remove(at);
-                    c.window = true;
-                    self.open_compose(c);
-                }
-                let mut error = error;
-                if let Some(c) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| c.id == id) {
-                    c.sending = false;
-                    // From another of the account's addresses (issue #81): a server that
-                    // refuses it says so in words of its own, which don't name the cause.
-                    if !c.from.is_empty() {
-                        error = format!("{error} (It was written from {}: the mail server may not allow sending from that address.)", c.from);
-                    }
-                    c.error = Some(error.clone());
-                }
-                self.notice(format!("Not sent: {error}"), true);
-                self.after_outbox_change();
-            }
-            Event::OpFailed { account, op, error } => {
-                // What it counted here (a message read) didn't happen: the folders it names count
-                // as the server last said, which the sync that follows may not say again (its
-                // count unchanged, it reports none).
-                let folders: BTreeSet<String> = op.keys().iter().filter(|k| k.account == account).map(|k| k.folder.clone()).collect();
-                for f in folders {
-                    let reported = self.reported_counts.get(&(account.clone(), f.clone())).copied();
-                    if let (Some((unread, total)), Some(a)) = (reported, self.account_mut(&account))
-                        && let Some(folder) = a.folders.iter_mut().find(|x| x.path == f)
-                    {
-                        (folder.unread, folder.total) = (unread, total);
-                    }
-                }
-                self.notice(format!("The server refused a change: {error}"), true);
-            }
+            Event::SendFailed { id, error, .. } => self.send_failed(id, error),
+            Event::OpFailed { account, op, error } => self.op_failed(account, &op, &error),
             Event::OpenUrl { url } => {
                 if self.open_urls.len() < 8 {
                     self.open_urls.push(url);
                 }
             }
-            Event::SignedIn { account, user } => {
-                // Who the browser signed in as, kept when it isn't the account's address: tried
-                // when the mailbox won't open under that, and named when it still won't.
-                let user = user.map(|u| u.trim().to_string()).filter(|u| !u.is_empty() && u.len() < 320);
-                if let Some(a) = self.account_mut(&account) {
-                    let other = user.filter(|u| !u.eq_ignore_ascii_case(&a.config.email));
-                    let changed = a.config.oauth_user != other;
-                    a.config.oauth_user = other.clone();
-                    let config = a.config.clone();
-                    let who = config.email.clone();
-                    if changed {
-                        self.save_accounts();
-                    }
-                    self.jobs.push(Job::Start { account: config, password: None });
-                    match other {
-                        Some(o) => self.notice(format!("{who} is signed in (as {o})"), false),
-                        None => self.notice(format!("{who} is signed in"), false),
-                    }
-                }
-            }
+            Event::SignedIn { account, user } => self.signed_in(&account, user),
             Event::Discovered { email, config, source } => {
                 self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config.map(|c| *c), source)));
             }
@@ -343,6 +191,171 @@ impl Session {
             Event::SentCopyNotKept { account, error } => {
                 let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or(account);
                 self.notice(format!("{who}: {error}"), true);
+            }
+        }
+    }
+
+    /// An account's connection changed ([`Event::Status`]).
+    fn status_changed(&mut self, account: String, status: SyncStatus) {
+        // Show more ended (with nothing new, or failing): its footer can be asked again.
+        if !matches!(status, SyncStatus::Syncing { .. } | SyncStatus::Connecting) && self.showing_more.as_ref().is_some_and(|(a, _)| *a == account) {
+            self.showing_more = None;
+        }
+        // A server on this computer with a certificate of its own: asked about.
+        if let SyncStatus::Error { error } = &status {
+            self.note_untrusted_certificate(&account, error);
+        }
+        // Refusals that need something done say so once, as they come.
+        if let SyncStatus::Error { error } = &status
+            && (error.starts_with(mailcraft_model::MICROSOFT_IMAP_CLOSED) || error.starts_with(mailcraft_model::MICROSOFT_NO_PASSWORDS))
+            && self.account(&account).is_some_and(|a| a.status != status)
+        {
+            let who = self.account(&account).map(|a| a.config.email.clone()).unwrap_or_default();
+            self.notice(format!("{who}: {error}"), true);
+        }
+        if let SyncStatus::NeedsPassword { error } = &status {
+            let (who, browser) = self.account(&account).map(|a| (a.config.email.clone(), a.config.oauth.is_some())).unwrap_or_default();
+            let why = if error.is_empty() { String::new() } else { format!(": {error}") };
+            // An account that signs in in the browser has no password to ask for.
+            let what = if browser { "needs you to sign in again" } else { "needs its password" };
+            self.notice(format!("{who} {what}{why}"), true);
+            if !browser && self.asked_password.insert(account.clone()) {
+                self.ask_password.push(account.clone());
+            }
+        }
+        // Its mail synced in full: an Inbox empty until now (so never said to have
+        // changed) is marked, so its first message counts as arriving, not as the backlog.
+        if matches!(status, SyncStatus::Online { .. }) {
+            self.mark_inbox(&account);
+        }
+        if let Some(a) = self.account_mut(&account) {
+            a.status = status;
+        }
+    }
+
+    /// An account's folders, listed again ([`Event::Folders`]).
+    fn folders_listed(&mut self, account: String, mut folders: Vec<Folder>) {
+        // They're this account's, whatever name they were kept under.
+        for f in &mut folders {
+            if f.account != account {
+                f.account.clone_from(&account);
+            }
+        }
+        sort_folders(&mut folders);
+        // The pool counts a folder as it syncs it, and lists them all again now and then
+        // (Drafts made, a draft's folder synced) with the others' counts from their last
+        // sync, from before mail read here since reached the server: a count it reports
+        // unchanged is no news, and the one counted here stands, until the folder is
+        // synced (`FolderChanged`).
+        let here: HashMap<String, (u32, u32)> =
+            self.account(&account).map(|a| a.folders.iter().map(|f| (f.path.clone(), (f.unread, f.total))).collect()).unwrap_or_default();
+        for f in &mut folders {
+            let now = (f.unread, f.total);
+            let key = (account.clone(), f.path.clone());
+            let synced = self.counts_stale.remove(&key);
+            let before = self.reported_counts.insert(key, now);
+            if before == Some(now)
+                && !synced
+                && let Some(&(unread, total)) = here.get(&f.path)
+            {
+                (f.unread, f.total) = (unread, total);
+            }
+        }
+        let first = self.account(&account).is_some_and(|a| a.folders.is_empty());
+        if let Some(a) = self.account_mut(&account) {
+            a.folders = folders;
+        }
+        // A view on a folder that no longer exists falls back to the Inbox.
+        let missing = matches!(&self.view, View::Folder { account: va, folder } if *va == account && self.folder(va, folder).is_none());
+        if missing {
+            let inbox = self.account(&account).and_then(|a| a.folder(FolderRole::Inbox)).map(|f| f.path.clone()).unwrap_or_else(|| "INBOX".into());
+            self.open_view(View::Folder { account: account.clone(), folder: inbox });
+        } else if first {
+            self.refresh_list();
+        }
+        self.mark_junk(&account);
+        // Its drafts say which messages have a reply begun (#52).
+        self.read_drafts(&account);
+        self.search_folders_changed(&account);
+        self.want_index(&account, None);
+    }
+
+    /// An account's automatic replies as the server has them ([`Event::Vacation`]).
+    fn vacation_read(&mut self, account: &str, vacation: Option<Vacation>, error: Option<String>) {
+        let mut failed = None;
+        if let Some(a) = self.account_mut(account) {
+            a.vacation = match (vacation, error) {
+                (Some(v), None) => VacationState::Loaded(v),
+                (Some(v), Some(e)) => {
+                    // Read back after a change that failed: show what the server has.
+                    failed = Some(e);
+                    VacationState::Loaded(v)
+                }
+                (None, e) => VacationState::Failed(e.unwrap_or_else(|| "this server doesn't offer automatic replies".into())),
+            };
+        }
+        if let Some(e) = failed {
+            self.notice(format!("automatic replies weren't changed: {e}"), true);
+        }
+    }
+
+    /// A message couldn't be sent ([`Event::SendFailed`]).
+    fn send_failed(&mut self, id: u64, error: String) {
+        // Closed while it was being sent: open again, to be sent or kept.
+        if let Some(at) = self.sent_away.iter().position(|c| c.id == id) {
+            let mut c = self.sent_away.remove(at);
+            c.window = true;
+            self.open_compose(c);
+        }
+        let mut error = error;
+        if let Some(c) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|c| c.id == id) {
+            c.sending = false;
+            // From another of the account's addresses (issue #81): a server that
+            // refuses it says so in words of its own, which don't name the cause.
+            if !c.from.is_empty() {
+                error = format!("{error} (It was written from {}: the mail server may not allow sending from that address.)", c.from);
+            }
+            c.error = Some(error.clone());
+        }
+        self.notice(format!("Not sent: {error}"), true);
+        self.after_outbox_change();
+    }
+
+    /// The server refused a change made here ([`Event::OpFailed`]).
+    fn op_failed(&mut self, account: String, op: &Op, error: &str) {
+        // What it counted here (a message read) didn't happen: the folders it names count
+        // as the server last said, which the sync that follows may not say again (its
+        // count unchanged, it reports none).
+        let folders: BTreeSet<String> = op.keys().iter().filter(|k| k.account == account).map(|k| k.folder.clone()).collect();
+        for f in folders {
+            let reported = self.reported_counts.get(&(account.clone(), f.clone())).copied();
+            if let (Some((unread, total)), Some(a)) = (reported, self.account_mut(&account))
+                && let Some(folder) = a.folders.iter_mut().find(|x| x.path == f)
+            {
+                (folder.unread, folder.total) = (unread, total);
+            }
+        }
+        self.notice(format!("The server refused a change: {error}"), true);
+    }
+
+    /// The browser signed an account in ([`Event::SignedIn`]).
+    fn signed_in(&mut self, account: &str, user: Option<String>) {
+        // Who the browser signed in as, kept when it isn't the account's address: tried
+        // when the mailbox won't open under that, and named when it still won't.
+        let user = user.map(|u| u.trim().to_string()).filter(|u| !u.is_empty() && u.len() < 320);
+        if let Some(a) = self.account_mut(account) {
+            let other = user.filter(|u| !u.eq_ignore_ascii_case(&a.config.email));
+            let changed = a.config.oauth_user != other;
+            a.config.oauth_user = other.clone();
+            let config = a.config.clone();
+            let who = config.email.clone();
+            if changed {
+                self.save_accounts();
+            }
+            self.jobs.push(Job::Start { account: config, password: None });
+            match other {
+                Some(o) => self.notice(format!("{who} is signed in (as {o})"), false),
+                None => self.notice(format!("{who} is signed in"), false),
             }
         }
     }

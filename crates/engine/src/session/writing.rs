@@ -622,10 +622,7 @@ impl Session {
             let store = self.store.as_ref().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
             store.outbox_add(&c.account, &item, &raw).map_err(|e| CmdError::Failed(format!("the Outbox couldn't keep it: {e}")))?;
             self.after_outbox_change();
-            self.finish_sent(c, false);
-            // finish_sent says "sent"; it isn't yet.
-            self.notices.pop();
-            self.notice(format!("It will be sent {}", mailcraft_model::dates::full_time(at, &self.clock)), false);
+            self.finish_sent(c, false, format!("It will be sent {}", mailcraft_model::dates::full_time(at, &self.clock)));
             return Ok(serde_json::json!({ "queued": c.id, "sendAfter": at }));
         }
         if local {
@@ -633,7 +630,7 @@ impl Session {
             if let Some(folder) = &sent_folder {
                 self.file_locally(&c.account, folder, &raw, true)?;
             }
-            self.finish_sent(c, true);
+            self.finish_sent(c, true, "Message sent".into());
             return Ok(serde_json::json!({ "sent": c.id, "local": true }));
         }
         self.jobs.push(Job::Send { account: c.account.clone(), id: c.id, raw, from, recipients, sent_folder });
@@ -650,10 +647,10 @@ impl Session {
         }
     }
 
-    /// The compose is finished. `delivered`: the server accepted it, so the original gets its
-    /// Replied or Forwarded flag now; otherwise it sits in the Outbox and the flag is owed until
-    /// delivery.
-    pub(super) fn finish_sent(&mut self, c: &Compose, delivered: bool) {
+    /// The compose is finished, and `said` (where it went: sent, or waiting in the Outbox).
+    /// `delivered`: the server accepted it, so the original gets its Replied or Forwarded flag
+    /// now; otherwise it sits in the Outbox and the flag is owed until delivery.
+    pub(super) fn finish_sent(&mut self, c: &Compose, delivered: bool, said: String) {
         if let (Some(src), Some(mode)) = (&c.source, c.mode) {
             let flag = if mode == ReplyMode::Forward { Flag::Forwarded } else { Flag::Answered };
             if delivered {
@@ -671,6 +668,6 @@ impl Session {
         }
         self.composes.retain(|x| x.id != c.id);
         self.sent_away.retain(|x| x.id != c.id);
-        self.notice("Message sent", false);
+        self.notice(said, false);
     }
 }
