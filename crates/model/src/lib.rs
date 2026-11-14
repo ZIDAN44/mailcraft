@@ -301,7 +301,7 @@ pub fn oauth_provider_for(imap_host: &str) -> Option<&'static str> {
 /// Microsoft's own addresses (Outlook.com, Hotmail, Live, MSN). Since September 2024 they
 /// take no passwords from other mail apps over IMAP, POP or SMTP: only Microsoft sign-in.
 pub fn microsoft_consumer(email: &str) -> bool {
-    let domain = email.trim().rsplit_once('@').map(|(_, d)| d.to_ascii_lowercase()).unwrap_or_default();
+    let domain = lookalike::domain_of(email);
     let name = domain.split('.').next().unwrap_or_default();
     matches!(name, "outlook" | "hotmail" | "live" | "msn" | "windowslive" | "passport") && domain.contains('.')
 }
@@ -330,7 +330,7 @@ impl AccountConfig {
     /// IMAPS 993, SMTPS 465). The account dialog shows them for the user to correct.
     pub fn guess(email: &str) -> AccountConfig {
         let email = email.trim();
-        let domain = email.rsplit_once('@').map(|(_, d)| d.to_ascii_lowercase()).unwrap_or_default();
+        let domain = lookalike::domain_of(email);
         let (imap_host, smtp_host) = match domain.as_str() {
             "gmail.com" | "googlemail.com" => ("imap.gmail.com".to_string(), "smtp.gmail.com".to_string()),
             _ if microsoft_consumer(email) => ("outlook.office365.com".to_string(), "smtp.office365.com".to_string()),
@@ -666,7 +666,9 @@ mod tests {
         for e in ["a@outlook.com", "a@hotmail.com", "a@hotmail.co.uk", "a@live.nl", "a@msn.com", "A@Outlook.FR"] {
             assert!(microsoft_consumer(e), "{e}");
         }
-        for e in ["a@outlook-studio.example", "a@studio.example", "a@hotmail", "hotmail.com", ""] {
+        // An address's domain is read as the lookalike check reads it: `outlook.` is `outlook`.
+        assert!(microsoft_consumer("a@Outlook.com."));
+        for e in ["a@outlook-studio.example", "a@studio.example", "a@hotmail", "a@hotmail.", "hotmail.com", ""] {
             assert!(!microsoft_consumer(e), "{e}");
         }
         let mut a = AccountConfig::guess("someone@hotmail.com");
@@ -718,6 +720,9 @@ mod tests {
         assert_eq!(a.username, "zoe@example.org");
         let g = AccountConfig::guess("x@gmail.com");
         assert_eq!(g.imap.host, "imap.gmail.com");
+        // A domain written with a dot at its end, or capitals beyond ASCII, is the same domain.
+        assert_eq!(AccountConfig::guess("x@Gmail.com.").imap.host, "imap.gmail.com");
+        assert_eq!(AccountConfig::guess("x@ÉCOLE.example").imap.host, "mail.école.example");
         assert_eq!(AccountConfig::guess("nonsense").imap.host, "");
     }
 

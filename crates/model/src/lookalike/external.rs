@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use super::{domain_of, is_mail_service};
+use super::{domain_of, is_mail_service, is_under};
 
 /// Mail services that sign anyone up, by the first label of their domains in each country
 /// (`yahoo.co.uk`, `outlook.com.br`, `gmx.ch`).
@@ -70,7 +70,7 @@ pub fn clean_domain(d: &str) -> Option<String> {
 /// them). Never with no organisation, nor for something that isn't an address.
 pub fn is_external(email: &str, org: &BTreeSet<String>) -> bool {
     let domain = domain_of(email);
-    !org.is_empty() && !domain.is_empty() && !org.iter().any(|o| domain == *o || domain.strip_suffix(o.as_str()).is_some_and(|r| r.ends_with('.')))
+    !org.is_empty() && !domain.is_empty() && !org.iter().any(|o| is_under(&domain, o))
 }
 
 #[cfg(test)]

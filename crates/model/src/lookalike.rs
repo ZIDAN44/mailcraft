@@ -197,9 +197,15 @@ impl SenderCheck {
     }
 }
 
+/// Whether `domain` is `parent` or under it (`a.example.com` under `example.com`; not
+/// `notexample.com`). Both as compared: lower case, without a trailing dot.
+pub fn is_under(domain: &str, parent: &str) -> bool {
+    domain.strip_suffix(parent).is_some_and(|r| r.is_empty() || r.ends_with('.'))
+}
+
 /// One domain is the other or under it (`a.example.com`, `example.com`).
 fn related(a: &str, b: &str) -> bool {
-    a == b || a.strip_suffix(b).is_some_and(|r| r.ends_with('.')) || b.strip_suffix(a).is_some_and(|r| r.ends_with('.'))
+    is_under(a, b) || is_under(b, a)
 }
 
 /// `known` (at least two labels and [`SHORTEST_COMPARED`] long) appears in `d` with a separator
@@ -248,7 +254,13 @@ pub fn skeleton(domain: &str) -> String {
             out.push(plain(c));
         }
     }
-    out.replace("rn", "m").replace("vv", "w").replace(['i', '|'], "l")
+    draw_alike(&out).replace('|', "l")
+}
+
+/// Letters a glance takes for others made those: `rn` as `m`, `vv` as `w`, `i` as `l` (domains'
+/// [`skeleton`]s, and people's names as they're looked up).
+fn draw_alike(s: &str) -> String {
+    s.replace("rn", "m").replace("vv", "w").replace('i', "l")
 }
 
 /// The Latin letter `c` is drawn like (itself when none).

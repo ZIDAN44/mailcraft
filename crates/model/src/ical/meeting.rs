@@ -95,8 +95,7 @@ fn one_line(s: &str, max: usize) -> String {
 /// A meeting link as given: `https://` assumed without a scheme; only web links, with a host.
 pub fn meeting_url(given: &str) -> Option<String> {
     let g = given.trim();
-    let lower = g.to_ascii_lowercase();
-    let url = if lower.starts_with("https://") || lower.starts_with("http://") {
+    let url = if web_rest(g).is_some() {
         g.to_string()
     } else if g.contains("://") {
         return None;
@@ -111,6 +110,12 @@ pub fn meeting_url(given: &str) -> Option<String> {
     // A link is found in the notes again as it was given (one ending in `.` or an unopened `)`
     // would be cut short there, and its block never found to take out).
     (host_of(&url).is_some() && links_in(&url) == [url.as_str()]).then_some(url)
+}
+
+/// What follows `https://` or `http://` (in any case) at the start of `url`; `None` for a link
+/// of any other kind.
+pub(super) fn web_rest(url: &str) -> Option<&str> {
+    ["https://", "http://"].iter().find_map(|p| url.get(..p.len()).filter(|s| s.eq_ignore_ascii_case(p)).and(url.get(p.len()..)))
 }
 
 /// A link's host, lower case, without a port or user: `None` when it has none worth the name.
@@ -148,7 +153,7 @@ pub fn host_entry(given: &str) -> Option<String> {
 /// subdomains, and, when the entry has a path, under it.
 fn under_host(host: &str, path: &str, entry: &str) -> bool {
     let (h, p) = entry.split_once('/').unwrap_or((entry, ""));
-    let on = host == h || host.strip_suffix(h).is_some_and(|sub| sub.ends_with('.'));
+    let on = crate::lookalike::is_under(host, h);
     // Under the path a segment at a time: `example.edu/talk` isn't `example.edu/talkshow`.
     let p = p.trim_matches('/');
     on && (p.is_empty() || path.trim_end_matches('/') == p || path.strip_prefix(p).is_some_and(|rest| rest.starts_with('/')))
@@ -175,8 +180,7 @@ pub fn is_meeting_link_in(url: &str, hosts: &[String]) -> bool {
     if super::is_meeting_link(url) {
         return true;
     }
-    let scheme = url.get(..8).is_some_and(|s| s.eq_ignore_ascii_case("https://")) || url.get(..7).is_some_and(|s| s.eq_ignore_ascii_case("http://"));
-    let Some(host) = host_of(url).filter(|_| scheme) else { return false };
+    let Some(host) = host_of(url).filter(|_| web_rest(url).is_some()) else { return false };
     let rest = url.split_once("://").map_or("", |(_, r)| r);
     // The path as written (rooms' codes are lower case), and in lower case for the hosts.
     let path = rest.split_once('/').map_or("", |(_, p)| p);
@@ -202,8 +206,7 @@ pub struct Conference {
 impl Conference {
     /// A web link to join with sound or pictures (a phone number or a chat isn't).
     fn joins(&self) -> bool {
-        let web = self.uri.get(..8).is_some_and(|s| s.eq_ignore_ascii_case("https://"))
-            || self.uri.get(..7).is_some_and(|s| s.eq_ignore_ascii_case("http://"));
+        let web = web_rest(&self.uri).is_some();
         let media = self.features.is_empty() || self.features.iter().any(|f| matches!(f.as_str(), "AUDIO" | "VIDEO" | "SCREEN"));
         web && media && host_of(&self.uri).is_some() && self.uri.len() <= URL_MAX
     }

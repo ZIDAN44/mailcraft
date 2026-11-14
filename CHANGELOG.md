@@ -155,6 +155,7 @@ on GitHub.
 - Automatic replies on a mailbox kept on this computer no longer call it "the sample mailbox", and a failed move or copy names the folder as it's shown.
 - Searching the address book is faster with many contacts.
 - An event whose repeat rule has a frequency calendars don't define (such as FORTNIGHTLY) now still shows in the calendar, once.
+- Setting up an account whose address is typed with a trailing dot now finds the provider's servers.
 
 ## 0.38.0 - 2026-11-13
 

@@ -203,10 +203,10 @@ pub(super) fn bare_links(text: &str, out: &mut Vec<NotePart>) {
 /// [`super::is_meeting_link_in`].
 pub fn is_meeting_link(url: &str) -> bool {
     let lower = url.to_ascii_lowercase();
-    let Some(rest) = lower.strip_prefix("https://").or_else(|| lower.strip_prefix("http://")) else { return false };
+    let Some(rest) = super::meeting::web_rest(&lower) else { return false };
     let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
     let host = host.split(':').next().unwrap_or(host);
-    let on = |domain: &str| host == domain || host.ends_with(&format!(".{domain}"));
+    let on = |domain: &str| crate::lookalike::is_under(host, domain);
     (on("teams.microsoft.com") && (path.starts_with("l/meetup-join") || path.starts_with("meet/")))
         || (on("teams.live.com") && path.starts_with("meet"))
         || (on("zoom.us") && (path.starts_with("j/") || path.starts_with("w/") || path.starts_with("my/")))
