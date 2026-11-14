@@ -387,6 +387,8 @@ fn a_certificate_on_a_smart_card_becomes_the_accounts() {
     assert!(s.card_search().searching);
     let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::FindHeldKeys { .. })).unwrap();
     assert!(matches!(&job, Job::FindHeldKeys { module: Some(m), pin: Some(p) } if m == "/usr/lib/opensc-pkcs11.so" && p.0 == "123456"));
+    // Kept for the key chosen, never written out (in a log, or what's shown of the search).
+    assert!(!format!("{:?}", s.card_search()).contains("123456"), "{:?}", s.card_search());
     // Nothing used before anything's found.
     assert!(s.run("security.useKey", &json!({"index": 0})).is_err());
     let card = mailcraft_model::HeldKey { label: "riley (PIV)".into(), cert: riley().chain[0].clone(), at: "{\"kind\":\"card\"}".into() };
