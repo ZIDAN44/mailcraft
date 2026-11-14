@@ -74,16 +74,7 @@ pub(crate) fn frame(source: &Source, video: &Path) -> Option<Vec<u8>> {
             let _ = std::fs::remove_file(&script);
             png
         }
-        Source::QuickLook(ql) => {
-            let dir = scratch("d");
-            std::fs::create_dir_all(&dir).ok()?;
-            let mut cmd = Command::new(ql);
-            cmd.args(["-t", "-s", &SIZE.to_string(), "-o"]).arg(&dir).arg(video);
-            let name = format!("{}.png", video.file_name()?.to_string_lossy());
-            let png = from_file(run(cmd), &dir.join(name));
-            let _ = std::fs::remove_dir_all(&dir);
-            png
-        }
+        Source::QuickLook(ql) => quick_look(ql, video, &scratch("d")),
         Source::Thumbnailer(t) => {
             let out = scratch("png");
             let mut cmd = Command::new(t);
@@ -95,6 +86,20 @@ pub(crate) fn frame(source: &Source, video: &Path) -> Option<Vec<u8>> {
             from_file(run(cmd), &out)
         }
     }
+}
+
+/// Quick Look's thumbnail of `video`, written by `qlmanage` into the folder `dir` (made for it,
+/// and removed after).
+fn quick_look(ql: &Path, video: &Path, dir: &Path) -> Option<Vec<u8>> {
+    // The name it writes, before the folder is made: a path without a file name left the
+    // folder behind.
+    let name = format!("{}.png", video.file_name()?.to_string_lossy());
+    std::fs::create_dir_all(dir).ok()?;
+    let mut cmd = Command::new(ql);
+    cmd.args(["-t", "-s", &SIZE.to_string(), "-o"]).arg(dir).arg(video);
+    let png = from_file(run(cmd), &dir.join(name));
+    let _ = std::fs::remove_dir_all(dir);
+    png
 }
 
 /// The Windows Shell's thumbnail of a file (`IShellItemImageFactory`, thumbnails only, never the
@@ -215,21 +220,48 @@ mod tests {
         made.is_ok_and(|s| s.success()).then_some(clip)
     }
 
+    /// Each way this computer has makes a frame of a video, and none of a file that isn't one
+    /// (without hanging). The clip is made with ffmpeg: without it, only the file that isn't a
+    /// video is tried, and the test says what it skipped (found in audit, #244: it checked
+    /// nothing then, even where the system has a thumbnailer).
     #[test]
     fn frames_come_from_ffmpeg_or_the_system() {
         let dir = std::env::temp_dir().join(format!("mailcraft-video-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
-        let Some(clip) = clip(&dir) else { return };
         let junk = dir.join("junk.mp4");
         std::fs::write(&junk, b"not a video").unwrap();
         let sources = [find_tool("ffmpeg", &[]).map(Source::Ffmpeg), system()];
+        let clip = clip(&dir);
+        if clip.is_none() {
+            eprintln!(
+                "frames_come_from_ffmpeg_or_the_system: SKIPPED the clip, no ffmpeg to make it; trying {sources:?} on a file that isn't a video"
+            );
+        }
         for s in sources.iter().flatten() {
-            let png = frame(s, &clip).unwrap_or_else(|| panic!("a frame from {s:?}"));
-            let img = image::load_from_memory(&png).unwrap();
-            assert!(img.width() >= 200, "{s:?}: {}", img.width());
+            if let Some(clip) = &clip {
+                let png = frame(s, clip).unwrap_or_else(|| panic!("a frame from {s:?}"));
+                let img = image::load_from_memory(&png).unwrap();
+                assert!(img.width() >= 200, "{s:?}: {}", img.width());
+            }
             // Not a video: no frame, and no hang.
             assert!(frame(s, &junk).is_none(), "{s:?}");
         }
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Found in audit (#244): Quick Look's folder was made before the file's name was read, so
+    /// a path without one left an empty folder behind each time. Nothing is made for one now,
+    /// and the folder goes after a run that fails (here, a tool that isn't there).
+    #[test]
+    fn quick_look_leaves_no_folder_behind() {
+        let dir = std::env::temp_dir().join(format!("mailcraft-ql-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let missing = std::env::temp_dir().join("mailcraft-no-such-tool").join("qlmanage");
+        let no_name = if cfg!(windows) { Path::new("C:\\") } else { Path::new("/") };
+        assert!(no_name.file_name().is_none());
+        assert_eq!(quick_look(&missing, no_name, &dir), None);
+        assert!(!dir.exists(), "made for a path without a file name");
+        assert_eq!(quick_look(&missing, &std::env::temp_dir().join("clip.mov"), &dir), None);
+        assert!(!dir.exists(), "left after a run that failed");
     }
 }
