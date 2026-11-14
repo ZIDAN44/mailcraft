@@ -37,11 +37,12 @@ fn offline(n: u32, name: &str) -> (Arc<Mutex<State>>, Store, crate::worker::Pool
     (st, store, pool)
 }
 
-/// Wait until nothing waits for the server.
+/// Wait until nothing waits for the server: the changes read, and none. Not the file looked for:
+/// on Windows a look while the worker replaces or removes it can be refused for a moment, and
+/// that read as gone (found under load: the last changes never sent by the time it was).
 fn all_sent(store: &Store, what: &str) {
-    let ops = store.root().join("a1").join("ops.json");
     let end = Instant::now() + Duration::from_secs(600);
-    while ops.exists() {
+    while !store.load_ops("a1").is_ok_and(|ops| ops.is_empty()) {
         assert!(Instant::now() < end, "{what}: never all sent");
         std::thread::sleep(Duration::from_millis(5));
     }
