@@ -93,13 +93,13 @@ mod tests {
     #[test]
     fn the_first_of_two_is_read() {
         let raw = b"From: First Sender <first@studio.example>\r\nFrom: Second Sender <second@studio.example>\r\nSubject: first subject\r\nSubject: second subject\r\nDate: Tue, 10 Nov 2026 09:13:00 +0000\r\nDate: Wed, 11 Nov 2026 09:13:00 +0000\r\nAuthentication-Results: mx.studio.example; dmarc=pass header.from=studio.example\r\n\r\nbody\r\n";
-        let p = crate::parse(raw).unwrap_or_default();
+        let p = crate::parse(raw).expect("the message parses");
         assert_eq!((p.from.email.as_str(), p.subject.as_str()), ("first@studio.example", "first subject"));
         let s = crate::summary_from_header(raw, Default::default(), Default::default(), 0, 0);
         assert_eq!((s.from.email.as_str(), s.subject.as_str(), s.date), ("first@studio.example", "first subject", p.date));
         // Two senders: the server's word is about one of them, and it isn't known which.
         assert_eq!(p.sender_check, crate::SenderCheck::Unknown);
         let one = b"From: First Sender <first@studio.example>\r\nSubject: s\r\nAuthentication-Results: mx.studio.example; dmarc=pass header.from=studio.example\r\n\r\nbody\r\n";
-        assert_ne!(crate::parse(one).unwrap_or_default().sender_check, crate::SenderCheck::Unknown);
+        assert_ne!(crate::parse(one).expect("the message parses").sender_check, crate::SenderCheck::Unknown);
     }
 }

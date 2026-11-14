@@ -158,14 +158,14 @@ fn outlooks_pictures_are_held_back_as_any() {
     let raw = "From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n<table width=\"600\"><tr><td>\
                <!--[if gte mso 9]><v:rect style=\"width:600px\"><v:fill type=\"frame\" src=\"https://img.example/banner.jpg\"/><v:textbox><![endif]-->\
                <h1>Autumn</h1><!--[if gte mso 9]></v:textbox></v:rect><![endif]--></td><td>b</td></tr></table>";
-    let p = crate::parse(raw.as_bytes()).unwrap_or_default();
+    let p = crate::parse(raw.as_bytes()).expect("the message parses");
     assert!(p.images.iter().any(|i| i == "https://img.example/banner.jpg"), "{:?}", p.images);
 }
 
 /// A message of `html`, as received.
 fn message(html: &str) -> crate::Parsed {
     let raw = format!("From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n{html}");
-    crate::parse(raw.as_bytes()).unwrap_or_default()
+    crate::parse(raw.as_bytes()).expect("the message parses")
 }
 
 /// Found in review: a picture pasted from Word or Outlook comes with Word's VML copy of it

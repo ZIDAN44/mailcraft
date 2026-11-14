@@ -107,7 +107,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
     let sealed = encrypted_message(&outer, &[7; 300], false);
     assert_eq!(protection(&sealed), Protection::Encrypted(vec![7; 300]));
     let back = with_entity(&sealed, &entity);
-    let parsed = crate::parse(&back).unwrap_or_else(|| crate::parse(b"x").unwrap_or_default());
+    let parsed = crate::parse(&back).expect("the message parses");
     assert_eq!(parsed.subject, "Proof");
     assert_eq!(parsed.text.trim(), "Approved \u{2713}");
     assert!(is_smime_part("application/pkcs7-signature", "x") && is_smime_part("application/octet-stream", "smime.p7m"));
@@ -155,7 +155,8 @@ fn a_message_to_sign_is_safe_to_sign() {
         seven_bit: true,
         ..Default::default()
     };
-    let raw = crate::build(&d, &mailcraft_model::EmailAddress::new("Riley", "riley@studio.example"), 1_800_000_000, "<a@b>").unwrap_or_default();
+    let raw =
+        crate::build(&d, &mailcraft_model::EmailAddress::new("Riley", "riley@studio.example"), 1_800_000_000, "<a@b>").expect("the message builds");
     let (_, entity) = entity_of(&raw);
     let bad: Vec<String> = entity
         .split(|b| *b == b'\n')
@@ -165,7 +166,7 @@ fn a_message_to_sign_is_safe_to_sign() {
     assert!(bad.is_empty(), "{bad:?}");
     assert!(safe_to_sign(&entity));
     // And it reads back: the attached message whole.
-    let parsed = crate::parse(&with_entity(&raw, &entity)).unwrap_or_default();
+    let parsed = crate::parse(&with_entity(&raw, &entity)).expect("the message parses");
     assert!(parsed.text.starts_with("Ol\u{e1}"));
     assert_eq!(parsed.attachments.len(), 1);
 }
@@ -254,7 +255,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe plan.\r\
     let sent = encrypted_message(out_outer.as_bytes(), &[1, 2, 3], false);
     let (back, was) = with_entity_protected(&sent, &protected);
     assert!(was);
-    let p = crate::parse(&back).unwrap_or_default();
+    let p = crate::parse(&back).expect("the message parses");
     assert_eq!(p.subject, "Caf\u{e9} plans");
     assert_eq!(p.text.trim(), "The plan.", "the Legacy Display part isn't shown");
     // Signed only: everything stays outside as it was, and inside too.
@@ -265,7 +266,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe plan.\r\
     let forged = b"From: Boss <boss@posteo.example>\r\nContent-Type: text/plain\r\n\r\nPay me.\r\n";
     let (back, was) = with_entity_protected(raw.as_bytes(), forged);
     assert!(!was);
-    assert_eq!(crate::parse(&back).unwrap_or_default().from.email, "riley@studio.example");
+    assert_eq!(crate::parse(&back).expect("the message parses").from.email, "riley@studio.example");
     assert!(String::from_utf8_lossy(&quoted_printable("a\u{e9}= ")).contains("a=C3=A9=3D=20"));
 }
 

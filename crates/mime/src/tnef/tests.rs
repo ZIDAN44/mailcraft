@@ -546,7 +546,7 @@ pub(crate) fn outlook_message(dat: Vec<u8>) -> Vec<u8> {
         .text_body("Hi Riley, the storyboard is attached.")
         .attachment("application/ms-tnef", "winmail.dat", dat)
         .write_to_vec()
-        .unwrap_or_default()
+        .expect("the message builds")
 }
 
 /// The reading pane shows the formatted body and lists the files, by indexes that read them;
@@ -591,7 +591,7 @@ fn search_reads_what_a_winmail_dat_holds() {
         .subject("Rich")
         .attachment("application/ms-tnef", "winmail.dat", stream(&a))
         .write_to_vec()
-        .unwrap_or_default();
+        .expect("the message builds");
     let d = crate::index_doc(&raw);
     assert_eq!((d.text.as_str(), d.has_text, d.files), ("Only in the winmail.dat", true, 0));
     let key = mailcraft_model::MessageKey { account: "a".into(), folder: "INBOX".into(), validity: 1, uid: 1 };

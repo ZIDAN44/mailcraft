@@ -4,7 +4,7 @@ use crate::html::mark_headings;
 /// A message of `html`, as received.
 fn message(html: &str) -> crate::Parsed {
     let raw = format!("From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n{html}");
-    crate::parse(raw.as_bytes()).unwrap_or_default()
+    crate::parse(raw.as_bytes()).expect("the message parses")
 }
 
 /// Found on the same notice: a heading holding a box (`<h2><div>`) kept the `##` the text

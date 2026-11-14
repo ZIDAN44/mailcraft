@@ -374,7 +374,7 @@ fn a_pages_background_is_no_highlight() {
 fn blocks_nested_deep_stay_apart() {
     let message = |html: &str| {
         let raw = format!("From: a@shop.example\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n{html}");
-        crate::parse(raw.as_bytes()).unwrap_or_default()
+        crate::parse(raw.as_bytes()).expect("the message parses")
     };
     let shown = |p: &crate::Parsed| p.rich.iter().map(|l| l.iter().map(|s| s.text.as_str()).collect::<String>()).collect::<Vec<_>>().join("|");
     let body = "<p>First paragraph.</p><p>Second paragraph.</p><h2>Heading</h2><p>Last words</p>";

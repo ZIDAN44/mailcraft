@@ -109,7 +109,7 @@ Content-Type: text/plain; charset=utf-8\r\n\r\nThe plan.\r\n";
     assert_eq!(content, signed_over, "the signature covers exactly what's there");
     assert!(text.contains("Autocrypt: addr=riley") && !String::from_utf8_lossy(&encrypted).contains("Autocrypt"), "the key goes outside only");
     assert!(signature.starts_with(b"-----BEGIN PGP SIGNATURE-----\r\n"));
-    let read = crate::parse(&super::super::with_entity_protected(&inner, &content).0).unwrap_or_default();
+    let read = crate::parse(&super::super::with_entity_protected(&inner, &content).0).expect("the message parses");
     assert_eq!(read.subject, "Plan");
     assert_eq!(read.text.trim(), "The plan.");
     assert!(read.attachments.is_empty());

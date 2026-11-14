@@ -32,7 +32,7 @@ Content-Type: text/html
 
 {html}"
     );
-    let p = crate::parse(raw.as_bytes()).unwrap_or_default();
+    let p = crate::parse(raw.as_bytes()).expect("the message parses");
     assert!(!p.layout.is_empty(), "laid out");
     let order = |s: &str| (s.find("MUG"), s.find("TOTAL"));
     for (view, said) in [("layout", format!("{:?}", p.layout)), ("rich", format!("{:?}", p.rich)), ("text", p.text.clone())] {

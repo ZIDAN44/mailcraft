@@ -20,7 +20,7 @@ fn with_files(files: &[(String, Vec<u8>)]) -> Vec<u8> {
             .collect(),
         ..Default::default()
     };
-    build(&d, &EmailAddress::new("Sam", "sam@studio.example"), 1_700_000_000, "<files@x>").unwrap_or_default()
+    build(&d, &EmailAddress::new("Sam", "sam@studio.example"), 1_700_000_000, "<files@x>").expect("the message builds")
 }
 
 #[test]
