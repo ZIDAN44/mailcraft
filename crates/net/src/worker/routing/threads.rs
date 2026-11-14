@@ -1,6 +1,6 @@
 //! What the pool runs on threads of its own, so it never waits behind a sync: browser sign-in,
-//! a message's pictures, calendars read from their links, and Outlook data files written
-//! (`imports.rs` reads them).
+//! a message's pictures, calendars read from their links, Outlook data files written
+//! (`imports.rs` reads them), the check for updates and a new account's servers looked for.
 
 use super::*;
 
@@ -183,6 +183,38 @@ impl Pool {
         });
         if let Err(e) = spawned {
             self.sink.emit(Event::Notice { account: String::new(), message: format!("export: {e}") });
+        }
+    }
+
+    /// The releases MailCraft could update to, read on a thread of its own.
+    pub(super) fn check_updates(&self) {
+        let sink = self.sink.clone();
+        let spawned = std::thread::Builder::new().name("mail-updates".into()).spawn(move || {
+            let (releases, error) = match crate::updates::releases(&crate::updates::Feed::current()) {
+                Ok(r) => (r, None),
+                Err(e) => (Vec::new(), Some(e.to_string())),
+            };
+            sink.emit(Event::Releases { releases, error });
+        });
+        if let Err(e) = spawned {
+            self.sink.emit(Event::Releases { releases: Vec::new(), error: Some(e.to_string()) });
+        }
+    }
+
+    /// The servers for an address being set up (autoconfiguration), looked for on a thread of
+    /// its own.
+    pub(super) fn discover(&self, email: String) {
+        let sink = self.sink.clone();
+        let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
+            let found = crate::autoconfig::discover(&email);
+            let (config, source) = match found {
+                Some(f) => (Some(Box::new(f.config)), f.source),
+                None => (None, String::new()),
+            };
+            sink.emit(Event::Discovered { email, config, source });
+        });
+        if let Err(e) = spawned {
+            log::warn!("autoconfiguration: {e}");
         }
     }
 }

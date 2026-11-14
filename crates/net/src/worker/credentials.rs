@@ -68,6 +68,15 @@ impl Credentials for MemoryCredentials {
     }
 }
 
+impl super::Sink {
+    /// Says a password (`what`: "the password", "the outgoing server's password"…) couldn't be
+    /// saved in the keychain, and why.
+    pub(super) fn not_kept(&self, account: &str, what: &str, error: &str) {
+        let message = format!("{what} could not be saved in the keychain: {error}");
+        self.emit(mailcraft_model::job::Event::Notice { account: account.to_string(), message });
+    }
+}
+
 impl super::Worker {
     /// Before the account's thread first connects, on that thread: the password just given kept
     /// in the keychain, or the one kept there read. The keychain may ask the user first (macOS
@@ -80,10 +89,7 @@ impl super::Worker {
         let password = match given {
             Some(p) => {
                 if let Err(e) = creds.set(&self.acc, &p) {
-                    self.sink.emit(mailcraft_model::job::Event::Notice {
-                        account: self.acc.id.clone(),
-                        message: format!("the password could not be saved in the keychain: {e}"),
-                    });
+                    self.sink.not_kept(&self.acc.id, "the password", &e);
                 }
                 p
             }
