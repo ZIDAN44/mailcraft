@@ -79,3 +79,17 @@ fn an_outlook_signature_file_reads() {
     assert!(beside.contains("src=\"https://x.example/a.png\"") && beside.contains("src=\"cid:z\""), "{beside}");
     assert_eq!(signature_file("\u{feff}<b>UTF-8 é</b>".as_bytes()), "<b>UTF-8 é</b>");
 }
+
+/// A tag full of `javascript:` (in a received message, quoted in a reply or forward) is emptied
+/// in one pass: each one was found by lowering the whole tag again and moving its tail, so a
+/// megabyte of them hung the reply.
+#[test]
+fn a_tag_full_of_javascript_is_emptied_at_once() {
+    let n = 90_000;
+    let html = format!("<p><a href=\"{}\">x</a></p>", "JavaScript:".repeat(n));
+    let took = std::time::Instant::now();
+    let quoted = quote_html(&html, &[], &[]);
+    let took = took.elapsed();
+    assert!(quoted.contains(&format!("<a href=\"{}\">x</a>", "#".repeat(n))), "{}", quoted.chars().take(200).collect::<String>());
+    assert!(took < std::time::Duration::from_secs(10), "{took:?}");
+}

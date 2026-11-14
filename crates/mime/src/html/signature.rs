@@ -123,10 +123,19 @@ fn harmless_tag(tag: &str) -> String {
             }
         }
     }
-    while let Some(j) = out.to_ascii_lowercase().find("javascript:") {
-        out.replace_range(j..j + "javascript:".len(), "#");
+    // Each `javascript:` emptied in one pass (`#` can't make another): lowering the tag again and
+    // moving its tail for each one was quadratic in a tag full of them.
+    const JS: &str = "javascript:";
+    let lower = out.to_ascii_lowercase();
+    let mut emptied = String::with_capacity(out.len());
+    let mut at = 0;
+    while let Some(j) = lower.get(at..).and_then(|r| r.find(JS)).map(|j| at + j) {
+        emptied.push_str(out.get(at..j).unwrap_or(""));
+        emptied.push('#');
+        at = j + JS.len();
     }
-    out
+    emptied.push_str(out.get(at..).unwrap_or(""));
+    emptied
 }
 
 /// A signature saved as a web page (Outlook's `.htm` signatures, a signature maker's file) as
