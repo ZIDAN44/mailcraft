@@ -6,6 +6,8 @@ use mailcraft_model::pim::{CalendarInfo, DavSync, ReminderAnswer, StoredEvent};
 
 use super::*;
 
+mod kept;
+
 const CAL: &str = "cal-1";
 
 /// An event with a 15-minute reminder, an hour after `NOW`; `daily` makes it a series.

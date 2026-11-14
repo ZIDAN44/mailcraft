@@ -97,9 +97,10 @@ impl Session {
 
     /// Snooze a reminder until `until` (Unix seconds).
     pub fn snooze_reminder(&mut self, key: &str, until: i64) {
+        let now = self.clock.now;
         self.prefs.reminders.insert(key.to_string(), until.max(1));
-        self.tell_server_reminder(key, Some(until.max(1)), now_or(until));
-        self.forget_old_reminders(now_or(until));
+        self.tell_server_reminder(key, Some(until.max(1)), now);
+        self.forget_old_reminders(now);
     }
 
     /// Tell the event's server a reminder was answered here, so the user's other programs
@@ -155,13 +156,45 @@ impl Session {
         self.after_pim_change(account, true);
     }
 
-    /// Answers for occurrences long past go (and the list is kept small).
+    /// Answers whose reminder can't be listed any more go ([`Session::reminder_may_be_listed`]),
+    /// and the list is kept small. They went by the occurrence's start, a month on: a dismissed
+    /// reminder of an event that went on longer, or of a task due later than it reminded, came
+    /// back (at once, when a snooze took its end for "now").
     fn forget_old_reminders(&mut self, now: i64) {
-        let cutoff = now - 30 * 86_400;
-        self.prefs.reminders.retain(|k, _| k.rsplit('|').next().and_then(|t| t.parse::<i64>().ok()).is_none_or(|t| t >= cutoff));
+        let gone: Vec<String> = self.prefs.reminders.keys().filter(|k| !self.reminder_may_be_listed(k, now)).cloned().collect();
+        for k in gone {
+            self.prefs.reminders.remove(&k);
+        }
         while self.prefs.reminders.len() > 5000 {
             let Some(first) = self.prefs.reminders.keys().next().cloned() else { break };
             self.prefs.reminders.remove(&first);
         }
+    }
+
+    /// Whether the reminder `key` names (`account|uid|time`: an occurrence's start, or a task's
+    /// reminder time) may still be listed at `now` or later: its event or task is there, the
+    /// occurrence hasn't ended more than [`REMINDER_KEPT_AFTER_END`] ago (and a day to spare),
+    /// the task isn't done and still reminds at that time.
+    fn reminder_may_be_listed(&self, key: &str, now: i64) -> bool {
+        let mut parts = key.rsplitn(3, '|');
+        let (Some(at), Some(uid), Some(account)) = (parts.next().and_then(|t| t.parse::<i64>().ok()), parts.next(), parts.next()) else {
+            return false;
+        };
+        let Some(p) = self.pim.get(account) else { return false };
+        let since = now.saturating_sub(REMINDER_KEPT_AFTER_END).saturating_sub(86_400);
+        if let Some(t) = p.tasks.iter().map(|t| &t.task).find(|t| t.uid == uid) {
+            let end = t.due.map_or(at, |d| self.clock.utc(d).saturating_add(86_400));
+            return !t.is_done() && t.reminder == Some(at) && end >= since;
+        }
+        let events: Vec<&CalEvent> = p.events.iter().map(|e| &e.event).filter(|e| e.uid == uid).collect();
+        // The occurrence's own copy, else the series' length from that start.
+        let (end, all_day) = match events.iter().find(|e| e.recurrence_id == Some(at)) {
+            Some(e) => (e.end, e.all_day),
+            None => match events.iter().find(|e| e.recurrence_id.is_none()) {
+                Some(m) => (at.saturating_add(m.end.saturating_sub(m.start).max(0)), m.all_day),
+                None => return false,
+            },
+        };
+        (if all_day { self.clock.utc(end) } else { end }) >= since
     }
 }

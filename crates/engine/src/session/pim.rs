@@ -744,8 +744,3 @@ pub fn parse_local(s: &str, clock: &Clock) -> Option<(i64, bool)> {
     }
     Some((clock.utc(day * 86_400 + h * 3600 + mi * 60), false))
 }
-
-/// The time to judge old answers by: `t` when it's a real time.
-fn now_or(t: i64) -> i64 {
-    t.max(0)
-}
