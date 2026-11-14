@@ -41,16 +41,6 @@ pub(super) fn old_store(t: &std::path::Path, kept: &Kept) -> Store {
     s
 }
 
-pub(super) fn packs(s: &Store) -> &Packs {
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
-    packs
-}
-
-/// Mail text of about `n` bytes (compresses well).
-fn text(n: usize, seed: u64) -> Vec<u8> {
-    format!("Subject: note {seed}\r\n\r\n").bytes().chain(b"the figures for the quarter are in ".iter().copied().cycle().take(n)).collect()
-}
-
 /// Every file of `a1` as it reads back (`None`: it doesn't).
 pub(super) fn read_back(s: &Store) -> BTreeMap<String, Option<Vec<u8>>> {
     let p = packs(s);
@@ -179,7 +169,7 @@ fn an_old_data_file_is_compressed_again_and_reads_back_the_same() {
     let t2 = temp("recompress-new");
     let s = Store::open_packed(t2.join("app"), t2.join("Files")).unwrap();
     s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
-    s.write_body(&super::commits::inbox(1), &base64(&noise(50_000, 1))).unwrap();
+    s.write_body(&inbox(1), &base64(&noise(50_000, 1))).unwrap();
     let r = s.recompress_data_file("a1", &stop, &mut |_| {}).unwrap().unwrap();
     assert!(r.finished && r.files == 0);
     assert_eq!(s.recompress_data_file("nobody", &stop, &mut |_| {}).unwrap(), None);
@@ -518,7 +508,7 @@ fn a_write_from_the_window_waits_little_for_a_recompress() {
         let files = kept.len() as u64;
         let s = old_store(&t, &kept);
         drop(kept);
-        s.write_body(&super::commits::inbox(1), b"Subject: x\r\n\r\nx").unwrap();
+        s.write_body(&inbox(1), b"Subject: x\r\n\r\nx").unwrap();
         let running = {
             let s = s.clone();
             std::thread::spawn(move || {
@@ -532,7 +522,7 @@ fn a_write_from_the_window_waits_little_for_a_recompress() {
         let mut took = Vec::new();
         while !running.is_finished() || took.len() < 10 {
             let t0 = Instant::now();
-            s.write_body(&super::commits::inbox(1), format!("Subject: x\r\n\r\nread {}", took.len()).as_bytes()).unwrap();
+            s.write_body(&inbox(1), format!("Subject: x\r\n\r\nread {}", took.len()).as_bytes()).unwrap();
             took.push(ms(t0.elapsed()));
             std::thread::sleep(Duration::from_millis(3));
         }

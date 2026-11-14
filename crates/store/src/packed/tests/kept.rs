@@ -4,8 +4,7 @@
 
 use std::sync::atomic::AtomicBool;
 
-use super::commits::inbox;
-use super::compact::{Kept, old_store, packs, read_back};
+use super::compact::{Kept, old_store, read_back};
 use super::*;
 
 /// What a compressed file starts with, and the note of one in pieces (as every build wrote them).
@@ -40,8 +39,7 @@ fn marked() -> Vec<Vec<u8>> {
 #[test]
 fn a_message_starting_with_the_data_files_markers_reads_back_as_it_came() {
     let t = temp("kept-marked");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     let sources = marked();
     for (i, src) in sources.iter().enumerate() {
         s.write_body(&inbox(i as u32 + 1), src).unwrap();

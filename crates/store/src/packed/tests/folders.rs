@@ -25,10 +25,6 @@ pub(super) fn tree(dir: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     out
 }
 
-fn inbox(uid: u32) -> MessageKey {
-    MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid }
-}
-
 /// A folder layout at `app` with account `a1` and one message in it.
 fn layout(app: &Path) -> Store {
     let s = Store::open(app).unwrap();

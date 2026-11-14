@@ -8,20 +8,7 @@ use std::sync::atomic::Ordering;
 use redb::Database;
 
 use super::super::{disk, from_disk, growth};
-use super::commits::inbox;
 use super::*;
-
-/// `n` bytes that don't compress (a data file keeps what it's given compressed).
-fn noise(n: usize, mut x: u64) -> Vec<u8> {
-    (0..n)
-        .map(|_| {
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
-            x.to_le_bytes()[0]
-        })
-        .collect()
-}
 
 /// The drive full as a write grows the data file: the write fails as one for want of room (the
 /// disk's own error, not the database's word for it); with room again, the file is opened again
@@ -29,12 +16,11 @@ fn noise(n: usize, mut x: u64) -> Vec<u8> {
 #[test]
 fn a_full_drive_fails_a_write_as_such_and_room_again_writes() {
     let t = temp("full-drive");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     let first = noise(1 << 20, 7);
     s.write_body(&inbox(1), &first).unwrap();
     s.seal("a1").unwrap();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     packs.full.store(true, Ordering::Relaxed);
     let big = noise(64 << 20, 11);
     let e = s.write_body(&inbox(2), &big).unwrap_err();
@@ -56,11 +42,10 @@ fn a_full_drive_fails_a_write_as_such_and_room_again_writes() {
 #[test]
 fn a_data_file_let_go_is_counted_across_online_only() {
     let t = temp("full-online");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     s.write_body(&inbox(1), b"one").unwrap();
     s.seal("a1").unwrap();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     packs.full.store(true, Ordering::Relaxed);
     s.write_body(&inbox(2), &noise(64 << 20, 3)).unwrap_err();
     packs.full.store(false, Ordering::Relaxed);
@@ -111,12 +96,11 @@ fn a_database_refusing_after_a_failed_write_is_opened_again() {
 #[test]
 fn a_data_file_let_go_after_a_failed_write_waits_for_its_holders() {
     let t = temp("full-held");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     s.write_body(&inbox(1), b"one").unwrap();
     s.seal("a1").unwrap();
     assert_eq!(s.data_file_reopened("a1"), 0);
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let held = packs.db("a1", false).unwrap().unwrap();
     packs.full.store(true, Ordering::Relaxed);
     let big = noise(64 << 20, 5);

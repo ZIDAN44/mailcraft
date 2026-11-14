@@ -32,17 +32,6 @@ fn spread(mut v: Vec<f64>) -> (f64, f64, f64) {
     (at(0.5), v.iter().sum::<f64>() / v.len().max(1) as f64, at(0.9))
 }
 
-pub(super) fn inbox(uid: u32) -> MessageKey {
-    MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid }
-}
-
-/// A data store with account `a1`, at `t`.
-fn packed_store(t: &std::path::Path) -> Store {
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
-    s
-}
-
 /// Sources of every kind: text, a big text one, noise that doesn't compress (one in pieces), a
 /// tiny one, and one that is only just too small to compress.
 fn sources(seed: u64) -> Vec<Vec<u8>> {
@@ -101,7 +90,7 @@ fn overwriting_a_file_in_pieces_leaves_no_old_pieces() {
     let t = temp("overwrite-pieces");
     let s = packed_store(&t);
     let pieces_of = |s: &Store, key: &str| -> usize {
-        let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+        let packs = packs(s);
         let db = packs.db("a1", false).unwrap().unwrap();
         let tx = db.begin_read().unwrap();
         let table = tx.open_table(crate::packed::PIECES).unwrap();
@@ -283,7 +272,7 @@ fn killed_after_a_write() {
 fn a_checkpoint_and_its_batch_are_one_sealed_commit() {
     let t = temp("checkpoint");
     let s = packed_store(&t);
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let mut uid = 1000u32;
     s.write_prepared(background_batch(&mut uid), false).unwrap();
     assert!(packs.seals.undurable("a1").0 > 0 && packs.seals.waiting_for("a1"));
@@ -303,7 +292,7 @@ fn a_checkpoint_and_its_batch_are_one_sealed_commit() {
 fn a_sealed_commit_leaves_a_later_write_waiting_for_its_seal() {
     let t = temp("sealed-race");
     let s = packed_store(&t);
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let at = Instant::now();
     packs.seals.written_at("a1", at.checked_sub(Duration::from_millis(5)).unwrap_or(at));
     packs.seals.sealed("a1", at);
@@ -321,7 +310,7 @@ fn a_data_file_let_go_is_not_held_by_a_seal() {
     let t = temp("let-go");
     let s = packed_store(&t);
     s.write_prepared(vec![(inbox(1), Store::prepare(true, b"Subject: x\r\n\r\nx".to_vec()))], false).unwrap();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     assert!(packs.seals.waiting_for("a1"));
     packs.seals.pretend_sealing(Some("a1"));
     let gone = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -400,7 +389,7 @@ fn only_writes_from_the_window_are_timed_for_the_writer() {
         s.write_body(&inbox(1), format!("Subject: x\r\n\r\nread {i}").as_bytes()).unwrap();
     }
     writer.join().unwrap();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     assert_eq!(packs.seals.waits.lock().unwrap().len(), 20, "only the writes from the window are timed");
     drop(s);
 }
@@ -414,7 +403,7 @@ fn only_writes_from_the_window_are_timed_for_the_writer() {
 fn what_waits_for_the_disk_is_counted_and_capped() {
     let t = temp("undurable-count");
     let s = packed_store(&t);
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let mut uid = 1000u32;
     s.write_body(&inbox(0), b"Subject: x\r\n\r\nx").unwrap();
     assert_eq!(packs.seals.undurable("a1").0, 0);
@@ -473,7 +462,7 @@ fn a_data_file_brought_in_goes_in_short_batches() {
     let s = Store::open_packed(t.join("new"), t.join("New Files")).unwrap();
     s.save_accounts(&[account("b2", "ana@example.org")]).unwrap();
     s.import_data_file("b2", &file).unwrap();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let (now, peak, biggest) = packs.seals.undurable("b2");
     assert_eq!(now, 0, "sealed at the end");
     assert!(biggest > 0 && biggest <= crate::BACKGROUND_COMMIT, "a batch of {biggest} bytes");
@@ -516,7 +505,7 @@ fn a_write_from_the_window_waits_little_for_a_background_writer() {
         })
     };
     std::thread::sleep(Duration::from_millis(100));
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     packs.seals.waits.lock().unwrap().clear();
     let mut whole = Vec::new();
     for i in 0..100u32 {

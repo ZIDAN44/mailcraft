@@ -4,7 +4,7 @@
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use super::commits::{child, inbox, repairs_on_open};
+use super::commits::{child, repairs_on_open};
 use super::*;
 use crate::OpenStage;
 
@@ -261,8 +261,7 @@ fn a_data_file_that_cant_be_opened_is_told() {
 #[test]
 fn a_data_file_marked_on_its_thread_opens_again() {
     let t = temp("marked-reopen");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     let k = inbox(7);
     let st = crate::FolderState {
         validity: k.validity,
@@ -375,14 +374,13 @@ fn a_data_file_locked_whole_is_in_use() {
 fn a_write_as_an_account_lets_go_never_lends_it_the_old_file() {
     use std::sync::Mutex;
     let t = temp("let-go-write");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     s.write_body(&inbox(1), b"Subject: before\r\n\r\nx").unwrap();
     let old = s.data_file("a1").expect("zoe's file");
     // As it lets go, another thread starts a write for the account and has the time to open.
     let (tx, rx) = mpsc::channel::<()>();
     let tx = Mutex::new(tx);
-    *Mutex::lock(&super::compact::packs(&s).let_go_hook).unwrap() = Some(Box::new(move || {
+    *Mutex::lock(&packs(&s).let_go_hook).unwrap() = Some(Box::new(move || {
         let _ = tx.lock().unwrap().send(());
         std::thread::sleep(Duration::from_millis(200));
     }));
@@ -395,7 +393,7 @@ fn a_write_as_an_account_lets_go_never_lends_it_the_old_file() {
         let kept = s.remove_account("a1").unwrap();
         assert_eq!(kept.as_ref(), Some(&old), "the removed account's file is kept");
     });
-    *Mutex::lock(&super::compact::packs(&s).let_go_hook).unwrap() = None;
+    *Mutex::lock(&packs(&s).let_go_hook).unwrap() = None;
     // The id given to a new account: its folders go in a file of its own.
     let folder = mailcraft_model::Folder { account: "a1".into(), path: "INBOX".into(), ..Default::default() };
     s.save_folders("a1", std::slice::from_ref(&folder)).unwrap();

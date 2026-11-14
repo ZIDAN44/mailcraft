@@ -3,20 +3,7 @@
 
 use redb::ReadableDatabase;
 
-use super::commits::inbox;
 use super::*;
-
-/// A data store with account `a1`, at `t`.
-fn packed_store(t: &std::path::Path) -> Store {
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
-    s
-}
-
-fn packs(s: &Store) -> &crate::packed::Packs {
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
-    packs
-}
 
 /// What the database itself has in use: its allocated pages (walking every one).
 fn allocated(s: &Store) -> u64 {
@@ -24,11 +11,6 @@ fn allocated(s: &Store) -> u64 {
     let tx = db.begin_write().unwrap();
     let stats = tx.stats().unwrap();
     stats.allocated_pages() * stats.page_size() as u64
-}
-
-/// Mail text of about `n` bytes (compresses well).
-fn text(n: usize, seed: u64) -> Vec<u8> {
-    format!("Subject: note {seed}\r\n\r\n").bytes().chain(b"the figures for the quarter are in ".iter().copied().cycle().take(n)).collect()
 }
 
 /// A small xorshift: the same file every run.

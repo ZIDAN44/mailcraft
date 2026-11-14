@@ -4,20 +4,8 @@
 
 use std::sync::Arc;
 
-use super::commits::inbox;
 use super::*;
 use crate::{BULK_CACHE, CACHE};
-
-fn packs(s: &Store) -> &Arc<crate::packed::Packs> {
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
-    packs
-}
-
-fn store(t: &std::path::Path) -> Store {
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
-    s
-}
 
 fn source(i: u32) -> Vec<u8> {
     format!("Subject: {i}\r\n\r\n{}", "the quick brown fox ".repeat(200)).into_bytes()
@@ -29,7 +17,7 @@ fn source(i: u32) -> Vec<u8> {
 #[test]
 fn bulk_cache_is_let_go_after_the_import() {
     let t = temp("bulk-let-go");
-    let s = store(&t);
+    let s = packed_store(&t);
     s.write_body(&inbox(1), &source(1)).unwrap();
     assert_eq!(s.data_file_cache("a1"), Some(CACHE));
 
@@ -48,7 +36,7 @@ fn bulk_cache_is_let_go_after_the_import() {
     assert_eq!(s.data_file_cache("a1"), Some(CACHE), "opened again with the usual cache");
     drop(s);
     // And after opening again: the batches not waited for were made durable by the close.
-    let s = store(&t);
+    let s = packed_store(&t);
     assert_eq!(s.read_body(&inbox(39)), Some(source(39)));
     assert_eq!(packs(&s).progress.checked(), 0);
     drop(s);
@@ -60,7 +48,7 @@ fn bulk_cache_is_let_go_after_the_import() {
 #[test]
 fn a_bulk_write_ends_across_online_only() {
     let t = temp("bulk-online");
-    let s = store(&t);
+    let s = packed_store(&t);
     s.write_body(&inbox(1), &source(1)).unwrap();
     s.bulk_begin("a1", BULK_CACHE);
     s.set_online_only("a1", true).unwrap();
@@ -85,7 +73,7 @@ fn a_bulk_write_ends_across_online_only() {
 #[test]
 fn a_held_data_file_keeps_its_cache_until_let_go() {
     let t = temp("bulk-held");
-    let s = store(&t);
+    let s = packed_store(&t);
     s.write_body(&inbox(1), &source(1)).unwrap();
     let held = packs(&s).db("a1", false).unwrap().unwrap();
     s.bulk_begin("a1", BULK_CACHE);
@@ -124,7 +112,7 @@ fn a_panic_ends_the_bulk_write_without_closing_the_file() {
         }
     }
     let t = temp("bulk-panic");
-    let s = store(&t);
+    let s = packed_store(&t);
     s.write_body(&inbox(1), &source(1)).unwrap();
     s.bulk_begin("a1", BULK_CACHE);
     let batch: Vec<_> = (2..40).map(|i| (inbox(i), Store::prepare(true, source(i)))).collect();
@@ -139,7 +127,7 @@ fn a_panic_ends_the_bulk_write_without_closing_the_file() {
     assert_eq!(s.data_file_cache("a1"), Some(CACHE), "the bulk write is over: shrunk on the next use");
     assert!(!packs(&s).seal_due("a1"));
     drop(s);
-    let s = store(&t);
+    let s = packed_store(&t);
     for i in 1..40 {
         assert_eq!(s.read_body(&inbox(i)), Some(source(i)), "source {i}");
     }
@@ -152,7 +140,7 @@ fn a_panic_ends_the_bulk_write_without_closing_the_file() {
 #[test]
 fn changing_the_cache_under_writers_loses_nothing() {
     let t = temp("bulk-race");
-    let s = Arc::new(store(&t));
+    let s = Arc::new(packed_store(&t));
     s.write_body(&inbox(1), &source(1)).unwrap();
     let writers: Vec<_> = (0..4u32)
         .map(|w| {
@@ -198,7 +186,7 @@ fn changing_the_cache_under_writers_loses_nothing() {
 fn a_bulk_write_s_durable_commits_are_sealed() {
     for (mode, sealed) in [("bulk", true), ("plain", false)] {
         let t = temp(&format!("bulk-sealed-{mode}"));
-        let s = store(&t);
+        let s = packed_store(&t);
         s.write_body(&inbox(99), &source(99)).unwrap();
         let file = s.data_file("a1").unwrap();
         drop(s);

@@ -25,6 +25,29 @@ fn account(id: &str, email: &str) -> AccountConfig {
     AccountConfig { id: id.into(), email: email.into(), ..Default::default() }
 }
 
+/// A data store with account `a1`, at `t`.
+fn packed_store(t: &std::path::Path) -> Store {
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    s
+}
+
+/// The data files of a data store.
+fn packs(s: &Store) -> &crate::packed::Packs {
+    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    packs
+}
+
+/// Message `uid` in `a1`'s Inbox.
+fn inbox(uid: u32) -> MessageKey {
+    MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid }
+}
+
+/// Mail text of about `n` bytes (compresses well).
+fn text(n: usize, seed: u64) -> Vec<u8> {
+    format!("Subject: note {seed}\r\n\r\n").bytes().chain(b"the figures for the quarter are in ".iter().copied().cycle().take(n)).collect()
+}
+
 /// A new account starts from an existing data file: its folders, mail and documents come in,
 /// the messages as this account's; junk is refused and paths that climb out are dropped.
 #[test]
@@ -183,8 +206,7 @@ fn each_account_is_one_data_file_named_after_it() {
 #[test]
 fn big_files_are_kept_in_pieces_and_come_back_whole() {
     let t = temp("pieces");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     // Bytes that don't compress, so they're kept in pieces as they are.
     let big = noise(1_234_567, 1);
     let edge = noise(super::WHOLE_MAX + 1, 2);
@@ -269,14 +291,13 @@ x"
 #[test]
 fn a_file_in_pieces_reads_back_compressed_or_not() {
     let t = temp("pieces-read");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
     // An attachment's base64 (kept compressed, in about 40 pieces) and noise (kept as it is).
     let attached: Vec<u8> = b"Subject: sheet\r\n\r\n".iter().copied().chain(base64(&noise(2_000_000, 5))).collect();
     let raw = noise(1_500_000, 6);
     assert!(super::pack(&attached).starts_with(super::DEFLATED) && super::pack(&attached).len() > 16 * super::PAGE * 4);
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let pieces_of = |uid: u32| -> (String, usize) {
         let inside = s.body_path(&key(uid)).strip_prefix(t.join("app").join("a1")).unwrap().to_str().unwrap().replace('\\', "/");
         let db = packs.db("a1", false).unwrap().unwrap();
@@ -325,8 +346,7 @@ fn noise(n: usize, seed: u64) -> Vec<u8> {
 #[test]
 fn text_is_kept_compressed() {
     let t = temp("deflate");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
     let text: Vec<u8> = "Subject: report
 
@@ -624,8 +644,7 @@ fn a_real_data_files_mail_is_listed_quickly() {
 #[test]
 fn a_folder_is_listed_without_walking_what_is_inside_it() {
     let t = temp("children");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     let key = |validity: u32, uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity, uid };
     let mut bodies: Vec<(MessageKey, Vec<u8>)> = (1..=2000).map(|uid| (key(7, uid), b"Subject: x\r\n\r\nx".to_vec())).collect();
     bodies.push((key(70, 1), b"Subject: y\r\n\r\ny".to_vec()));
@@ -650,7 +669,7 @@ fn a_folder_is_listed_without_walking_what_is_inside_it() {
         .collect();
     names.sort();
     assert_eq!(names, ["6-x.json", "7.json", "70.json", "8.json", "state.json"]);
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let inside = dir.strip_prefix(t.join("app").join("a1")).unwrap().to_str().unwrap().to_string();
     let (_, looked) = packs.children("a1", &inside).unwrap();
     // The five files, the two folders and the key after the last one: not the 2,002 inside.

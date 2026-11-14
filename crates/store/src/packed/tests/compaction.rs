@@ -194,7 +194,7 @@ fn only_data_file(root: &Path) -> (Store, String, PathBuf) {
     let accounts = s.load_accounts().unwrap();
     assert_eq!(accounts.len(), 1, "one account in {}", root.display());
     let id = accounts[0].id.clone();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     let file = packs.file(&crate::safe_segment(&id)).unwrap();
     (s, id, file)
 }

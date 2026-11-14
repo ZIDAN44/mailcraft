@@ -8,7 +8,7 @@ use std::sync::mpsc;
 use redb::ReadableDatabase;
 use std::time::{Duration, Instant};
 
-use super::compact::{Kept, kept_compressed, old_store, packs, read_back};
+use super::compact::{Kept, kept_compressed, old_store, read_back};
 use super::*;
 use crate::packed::health::{DEFLATE_NOW, PASSED, SAVED, STAYED_RAW, read_meta, write_meta};
 use crate::packed::shrink::{copy_path, is_copy};
@@ -16,8 +16,7 @@ use crate::packed::shrink::{copy_path, is_copy};
 /// A data store at `t` whose account `a1` keeps 40 messages of 64 KiB that don't compress, of
 /// which 30 are then deleted: room to give back.
 fn with_deleted_mail(t: &std::path::Path) -> (Store, Vec<MessageKey>) {
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(t);
     let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
     for uid in 1..=40 {
         s.write_body(&key(uid), &noise(64 << 10, u64::from(uid))).unwrap();

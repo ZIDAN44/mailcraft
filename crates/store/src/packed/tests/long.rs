@@ -1,7 +1,7 @@
 //! A long write (a big local move): its data file sealed as it goes, so a crash part-way reopens
 //! the file at once rather than checking the whole of it.
 
-use super::commits::{child, inbox, repairs_on_open};
+use super::commits::{child, repairs_on_open};
 use super::*;
 
 fn source(i: u32) -> Vec<u8> {
@@ -16,8 +16,7 @@ fn source(i: u32) -> Vec<u8> {
 fn a_crash_in_a_long_write_needs_no_repair() {
     for (mode, sealed) in [("plain", false), ("begun", true), ("batches", true)] {
         let t = temp(&format!("long-{mode}"));
-        let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-        s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+        let s = packed_store(&t);
         s.write_body(&inbox(99), b"Subject: first\r\n\r\nx").unwrap();
         let file = s.data_file("a1").unwrap();
         drop(s);
@@ -61,9 +60,8 @@ fn killed_in_a_long_write() {
 #[test]
 fn a_long_write_lets_batches_run_longer_and_ends() {
     let t = temp("long-run");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let s = packed_store(&t);
+    let packs = packs(&s);
     let over = crate::packed::commit::UNDURABLE_MAX + 1;
     let big = |uid: u32| vec![(inbox(uid), Store::prepare(false, vec![b'x'; over]))];
     s.write_body(&inbox(99), b"Subject: first\r\n\r\nx").unwrap();
@@ -93,10 +91,9 @@ fn a_long_write_lets_batches_run_longer_and_ends() {
 #[test]
 fn a_long_write_seals_a_commit_begun_before_it() {
     let t = temp("long-race");
-    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
-    s.save_accounts(&[account("a1", "zoe@studio.example")]).unwrap();
+    let s = packed_store(&t);
     s.write_body(&inbox(99), b"Subject: first\r\n\r\nx").unwrap();
-    let crate::Files::Packed(packs) = &s.files.main else { panic!("packed") };
+    let packs = packs(&s);
     drop(s.long_write("a1"));
     assert!(!packs.seals.seal_due("a1"), "sealed as the first long write began");
     let ((inside, is_inside), (go, gone)) = (std::sync::mpsc::channel(), std::sync::mpsc::channel::<()>());
