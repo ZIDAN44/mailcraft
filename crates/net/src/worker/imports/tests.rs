@@ -11,6 +11,7 @@ use mailcraft_pst::write::{self, BatchMessage, NewMessage, NewRecipient, Recipie
 use super::*;
 use crate::pst::Fault;
 use crate::space::{Filling, LOW_SPACE};
+use crate::waiting::{eventually, until, until_within};
 
 mod beside;
 mod read_back;
@@ -100,20 +101,9 @@ fn setup(name: &str, inbox: usize, projects: usize, account: &str, ms: u64) -> (
     (dir, pst.to_string_lossy().into_owned(), store, pool)
 }
 
-/// Events until `until` is one of them (or `wait` passes): all of them, that one last.
-fn events_until(p: &Pool, wait: Duration, until: impl Fn(&Event) -> bool) -> Vec<Event> {
-    let end = Instant::now() + wait;
-    let mut seen = Vec::new();
-    while Instant::now() < end {
-        if let Some(e) = p.wait(Duration::from_millis(5)) {
-            let last = until(&e);
-            seen.push(e);
-            if last {
-                break;
-            }
-        }
-    }
-    seen
+/// Wait for `account`'s import thread to end (it says it ended, then ends).
+fn wait_ended(p: &Pool, account: &str) {
+    eventually(&format!("{account}'s import thread to end"), || !p.importing(account));
 }
 
 fn ended(e: &Event) -> bool {
@@ -179,7 +169,7 @@ fn a_cancel_keeps_finished_and_partial_folders() {
     // slowed item by item, was finished by then.
     hold("c2", 50);
     p.submit(Job::ImportPst { account: "c2".into(), path: pst, resume: false });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    let seen = until(&p, "the Inbox in", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
     let listed = |e: &Event| matches!(e, Event::Folders { folders, .. } if folders.iter().any(|f| f.path == "INBOX" && f.total == 20));
     assert!(seen.iter().any(listed), "the Inbox listed as it's said: {seen:?}");
     assert!(
@@ -191,13 +181,9 @@ fn a_cancel_keeps_finished_and_partial_folders() {
         "said from the start"
     );
     // Cancelled once Projects is part-way: some of its messages in, written as the rest wait.
-    let end = Instant::now() + Duration::from_secs(60);
-    while store.cached_bodies("c2", "Projects", 1).is_empty() {
-        assert!(Instant::now() < end, "none of Projects came in");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    eventually("some of Projects in", || !store.cached_bodies("c2", "Projects", 1).is_empty());
     p.submit(Job::StopImport { account: "c2".into(), how: StopHow::Cancel });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     let end = seen.last().unwrap();
     assert_eq!(stopped_as(end), Some(StopHow::Cancel), "{end:?}");
     assert!(matches!(end, Event::Imported { report: Some(r), error: None, .. } if r.stopped_in.as_deref() == Some("Projects")), "{end:?}");
@@ -207,11 +193,7 @@ fn a_cancel_keeps_finished_and_partial_folders() {
     assert_eq!(store.load_folder("c2", "Projects").unwrap().messages.len(), projects.total as usize);
     assert_eq!(folders.iter().find(|f| f.path == "INBOX").map(|f| f.total), Some(20));
     // Its thread says it ended, then ends: wait for that, as the other tests do.
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("c2") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    assert!(!p.importing("c2"));
+    wait_ended(&p, "c2");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -221,11 +203,11 @@ fn a_cancel_keeps_finished_and_partial_folders() {
 fn removing_an_account_mid_import_stops_it_and_leaves_no_file() {
     let (dir, pst, store, mut p) = setup("remove", 2000, 0, "r1", 10);
     p.submit(Job::ImportPst { account: "r1".into(), path: pst, resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
     assert!(store.data_file("r1").is_some(), "the import is writing its data file");
     let asked = Instant::now();
     p.submit(Job::Remove { account: "r1".into() });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert!(asked.elapsed() < Duration::from_secs(2), "{:?}", asked.elapsed());
     let end = seen.last().unwrap();
     assert_eq!(stopped_as(end), Some(StopHow::Discard), "{end:?}");
@@ -241,7 +223,7 @@ fn removing_an_account_mid_import_stops_it_and_leaves_no_file() {
 fn a_discard_then_closing_stays_a_discard() {
     let (dir, pst, store, mut p) = setup("discard-close", 2000, 0, "d1", 10);
     p.submit(Job::ImportPst { account: "d1".into(), path: pst, resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
     p.submit(Job::StopImport { account: "d1".into(), how: StopHow::Discard });
     p.shutdown();
     let seen: Vec<Event> = p.poll();
@@ -258,20 +240,16 @@ fn a_discard_then_closing_stays_a_discard() {
 fn removing_a_paused_import_completes() {
     let (dir, pst, store, mut p) = setup("paused", 20, 2000, "q1", 30);
     p.submit(Job::ImportPst { account: "q1".into(), path: pst, resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    until(&p, "the Inbox in", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
     p.submit(Job::StopImport { account: "q1".into(), how: StopHow::Pause });
-    let seen =
-        events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    let seen = until(&p, "the pause", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
     assert!(!seen.iter().any(ended), "a pause says nothing but that it stopped: {seen:?}");
     let listed = seen.iter().rev().find_map(|e| match e {
         Event::Folders { folders, .. } => Some(folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>()),
         _ => None,
     });
     assert_eq!(listed, Some(vec!["Deleted Items", "INBOX"]), "the folders finished, said last; not the one part-way");
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("q1") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    wait_ended(&p, "q1");
     assert!(!store.load_folders("q1").unwrap().iter().any(|f| f.path == "Projects"), "the folder it was part-way through isn't shown");
     p.submit(Job::Remove { account: "q1".into() });
     assert!(p.poll().iter().any(|e| stopped_as(e) == Some(StopHow::Discard)), "answered at once");
@@ -288,9 +266,9 @@ fn removing_a_paused_import_completes() {
 fn a_discarded_import_never_removes_a_later_accounts_file() {
     let (dir, pst, store, mut p) = setup("reuse", 2000, 0, "u1", 10);
     p.submit(Job::ImportPst { account: "u1".into(), path: pst, resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
     p.submit(Job::Remove { account: "u1".into() });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert_eq!(seen.last().and_then(stopped_as), Some(StopHow::Discard));
     assert!(store.data_file("u1").is_none() && data_files(&dir).is_empty());
     // A new account, given the id again, and its mail.
@@ -311,14 +289,14 @@ fn a_discarded_import_never_removes_a_later_accounts_file() {
 fn an_import_after_a_discard_runs_once_that_is_over() {
     let (dir, pst, store, mut p) = setup("queued", 2000, 0, "n1", 10);
     p.submit(Job::ImportPst { account: "n1".into(), path: pst.clone(), resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
     p.submit(Job::Remove { account: "n1".into() });
     faults().lock().unwrap().remove("n1");
     p.submit(Job::ImportPst { account: "n1".into(), path: pst, resume: false });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert!(!seen.iter().any(|e| matches!(e, Event::Notice { .. })), "not refused: {seen:?}");
     assert_eq!(seen.last().and_then(stopped_as), Some(StopHow::Discard), "the first ends thrown away");
-    let seen = events_until(&p, Duration::from_secs(120), ended);
+    let seen = until_within(&p, Duration::from_secs(120), "the second import to end", ended);
     let end = seen.last().unwrap();
     assert!(matches!(end, Event::Imported { messages: 2000, error: None, .. }), "{end:?}");
     assert_eq!(stopped_as(end), None);
@@ -333,14 +311,14 @@ fn an_import_after_a_discard_runs_once_that_is_over() {
 fn a_file_looked_at_is_imported_as_planned_then() {
     let (dir, pst, store, mut p) = setup("looked", 30, 5, "l1", 0);
     p.submit(Job::InspectDataFile { path: pst.clone() });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let seen = until(&p, "the file looked at", |e| matches!(e, Event::DataFileInspected { .. }));
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!((facts.messages, facts.folders, facts.error.as_deref()), (35, 3, None), "{facts:?}");
     assert!(facts.bytes > 0);
     let fault = Fault::PlanAt(1);
     faults().lock().unwrap().insert("l1".into(), fault);
     p.submit(Job::ImportPst { account: "l1".into(), path: pst.clone(), resume: false });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert!(matches!(seen.last(), Some(Event::Imported { messages: 35, .. })), "{:?}", seen.last());
 
     // The file changed since it was looked at: its plan is the file's own again, fault and all.
@@ -349,7 +327,7 @@ fn a_file_looked_at_is_imported_as_planned_then() {
     std::fs::write(&pst, bytes).unwrap();
     faults().lock().unwrap().insert("l2".into(), fault);
     p.submit(Job::ImportPst { account: "l2".into(), path: pst, resume: false });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert!(matches!(seen.last(), Some(Event::Imported { messages, .. }) if *messages < 35), "{:?}", seen.last());
     assert!(store.load_folders("l2").is_ok());
     let _ = std::fs::remove_dir_all(&dir);
@@ -364,7 +342,7 @@ fn a_second_import_into_an_account_is_refused() {
     assert!(p.poll().iter().any(|e| matches!(e, Event::Notice { account, .. } if account == "t1")));
     assert!(p.importing("t1"));
     p.submit(Job::StopImport { account: "t1".into(), how: StopHow::Discard });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert_eq!(seen.iter().filter(|e| ended(e)).count(), 1);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -375,7 +353,7 @@ fn a_second_import_into_an_account_is_refused() {
 fn closing_pauses_imports_and_dropping_never_waits() {
     let (dir, pst, _store, mut p) = setup("close", 2000, 0, "s1", 10);
     p.submit(Job::ImportPst { account: "s1".into(), path: pst.clone(), resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
     let asked = Instant::now();
     p.shutdown();
     assert!(asked.elapsed() < IMPORT_STOP_WAIT, "{:?}", asked.elapsed());
@@ -400,14 +378,14 @@ fn closing_pauses_imports_and_dropping_never_waits() {
 fn a_new_account_given_the_id_while_an_import_is_thrown_away_keeps_its_file() {
     let (dir, pst, store, mut p) = setup("window", 200, 0, "w1", 400);
     p.submit(Job::ImportPst { account: "w1".into(), path: pst, resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
     let kept = store.remove_account("w1").unwrap().expect("the import's data file, let go of");
     let inbox = Folder { account: "w1".into(), path: "INBOX".into(), role: FolderRole::Inbox, ..Folder::default() };
     store.save_folders("w1", std::slice::from_ref(&inbox)).unwrap();
     let file = store.data_file("w1").expect("the new account's data file");
     assert_ne!(file, kept);
     p.submit(Job::Remove { account: "w1".into() });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert_eq!(seen.last().and_then(stopped_as), Some(StopHow::Discard), "{:?}", seen.last());
     assert!(
         !seen.iter().any(|e| matches!(e, Event::Folders { .. } | Event::FolderChanged { .. })),
@@ -428,7 +406,7 @@ fn a_new_account_given_the_id_while_an_import_is_thrown_away_keeps_its_file() {
 fn an_import_queued_and_thrown_away_gives_way_to_the_next() {
     let (dir, pst, store, mut p) = setup("requeue", 300, 0, "k1", 10);
     p.submit(Job::ImportPst { account: "k1".into(), path: pst.clone(), resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
     p.submit(Job::Remove { account: "k1".into() });
     p.submit(Job::ImportPst { account: "k1".into(), path: pst.clone(), resume: false });
     p.submit(Job::Remove { account: "k1".into() });
@@ -437,7 +415,7 @@ fn an_import_queued_and_thrown_away_gives_way_to_the_next() {
     let mut ends = Vec::new();
     let mut seen = Vec::new();
     while ends.len() < 3 {
-        let more = events_until(&p, Duration::from_secs(60), ended);
+        let more = until(&p, "the import to end", ended);
         assert!(more.last().is_some_and(ended), "{more:?}");
         ends.push(more.last().cloned().unwrap());
         seen.extend(more);
@@ -462,19 +440,12 @@ fn a_mailcraft_copy_stopped_part_way_keeps_nothing() {
         slow(account, 200);
         p.submit(Job::ImportPst { account: account.into(), path: path.clone(), resume: false });
         // Its first batch is in once its data file is there.
-        let end = Instant::now() + Duration::from_secs(60);
-        while store.data_file(account).is_none_or(|f| !f.exists()) && Instant::now() < end {
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        eventually(&format!("{account}'s data file"), || store.data_file(account).is_some_and(|f| f.exists()));
         p.submit(Job::StopImport { account: account.into(), how });
         let seen = if how == StopHow::Pause {
-            events_until(
-                &p,
-                Duration::from_secs(60),
-                |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused),
-            )
+            until(&p, "the pause", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused))
         } else {
-            events_until(&p, Duration::from_secs(60), ended)
+            until(&p, "the import to end", ended)
         };
         if how == StopHow::Cancel {
             let end = seen.last().unwrap();
@@ -502,20 +473,14 @@ fn a_mailcraft_copy_onto_a_full_drive_waits_with_nothing_kept() {
     let path = source.to_string_lossy().into_owned();
     let blocked = |e: &Event| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Blocked);
     let full = |seen: &[Event], free: u64| matches!(seen.last(), Some(Event::ImportProgress { progress, .. }) if progress.blocked == Some(mailcraft_model::job::Blocked::DiskFull { free }));
-    let wait = |p: &Pool| {
-        let end = Instant::now() + Duration::from_secs(10);
-        while p.importing("c1") && Instant::now() < end {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-    };
     // Too full to begin: asked once, nothing copied.
     let drive = give_drive("c1", Filling::new(0, LOW_SPACE - 1));
     p.submit(Job::ImportPst { account: "c1".into(), path: path.clone(), resume: false });
-    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    let seen = until(&p, "the import to wait or end", |e| blocked(e) || ended(e));
     assert!(full(&seen, LOW_SPACE - 1), "{seen:?}");
     assert_eq!(drive.asks(), 1);
     assert!(store.data_file("c1").is_none_or(|f| !f.exists()), "no data file");
-    wait(&p);
+    wait_ended(&p, "c1");
     // Room for the data file it fills but not also for the copy it's read from (made on the same
     // drive): looked at, it's said not to fit; imported, it waits at once, nothing copied, rather
     // than filling the drive and throwing the copy away at every Continue.
@@ -523,34 +488,34 @@ fn a_mailcraft_copy_onto_a_full_drive_waits_with_nothing_kept() {
     let short = NEED_EXTRA + size;
     give_drive(&path, Filling::new(0, short));
     p.submit(Job::InspectDataFile { path: path.clone() });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let seen = until(&p, "the file looked at", |e| matches!(e, Event::DataFileInspected { .. }));
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!((facts.kind.as_str(), facts.size, facts.free), ("mailcraft", size, Some(short)), "{facts:?}");
     assert!(facts.need > 2 * size + NEED_EXTRA && facts.need > short, "{facts:?}");
     let drive = give_drive("c1", Filling::new(0, short));
     p.submit(Job::ImportPst { account: "c1".into(), path: path.clone(), resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    let seen = until(&p, "the import to wait or end", |e| blocked(e) || ended(e));
     assert!(full(&seen, short), "{seen:?}");
     assert_eq!(drive.asks(), 1);
     assert!(store.data_file("c1").is_none_or(|f| !f.exists()), "no data file");
     let tmp = store.data_files_dir().unwrap().join(".import-c1.tmp");
     assert!(!tmp.exists() && !store.root().join(".import-c1.tmp").exists(), "nothing copied");
-    wait(&p);
+    wait_ended(&p, "c1");
     // Roomy as it begins, full as it goes: none of it kept.
     slow("c1", 100);
     give_drive("c1", Filling::new(2, 300 << 20));
     p.submit(Job::ImportPst { account: "c1".into(), path: path.clone(), resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    let seen = until(&p, "the import to wait or end", |e| blocked(e) || ended(e));
     assert!(full(&seen, 300 << 20), "{seen:?}");
     assert!(!seen.iter().any(|e| matches!(e, Event::Folders { .. })), "no folders said: {seen:?}");
     assert!(store.load_folders("c1").unwrap().is_empty(), "nothing kept");
     assert!(store.data_file("c1").is_none(), "its data file went");
-    wait(&p);
+    wait_ended(&p, "c1");
     // Room again: copied whole.
     slow("c1", 0);
     give_drive("c1", Filling::new(usize::MAX, 0));
     p.submit(Job::ImportPst { account: "c1".into(), path, resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert!(matches!(seen.last(), Some(Event::Imported { messages: 4, error: None, .. })), "{seen:?}");
     assert_eq!(store.load_folder("c1", "zz").unwrap().messages.len(), 4);
     assert!(source.exists(), "the file copied from stays");
@@ -592,16 +557,13 @@ fn big_data_file(dir: &Path) -> PathBuf {
 fn a_paused_import_goes_on_where_it_stopped() {
     let (dir, pst, store, mut p) = setup("go-on", 20, 2000, "g1", 30);
     p.submit(Job::ImportPst { account: "g1".into(), path: pst.clone(), resume: false });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    until(&p, "the Inbox in", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
     p.submit(Job::StopImport { account: "g1".into(), how: StopHow::Pause });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("g1") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    until(&p, "the pause", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    wait_ended(&p, "g1");
     slow("g1", 0);
     p.submit(Job::ImportPst { account: "g1".into(), path: pst.clone(), resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     let report = match seen.last() {
         Some(Event::Imported { report: Some(r), error: None, .. }) => r.clone(),
         other => panic!("{other:?}"),
@@ -609,29 +571,22 @@ fn a_paused_import_goes_on_where_it_stopped() {
     assert_eq!((report.messages, report.runs, report.stopped), (2020, 2, None));
     assert_eq!(store.load_folder("g1", "Projects").unwrap().messages.len(), 2000);
     // Done: asked again, it says so without reading the file, even one that's gone.
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("g1") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    wait_ended(&p, "g1");
     std::fs::remove_file(&pst).unwrap();
     p.submit(Job::ImportPst { account: "g1".into(), path: pst.clone(), resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     assert!(matches!(seen.last(), Some(Event::Imported { messages: 2020, error: None, .. })), "{seen:?}");
 
     // Paused, then gone: it waits on the user.
     let (dir2, pst2, _store2, mut p2) = setup("go-on-gone", 20, 2000, "g2", 30);
     p2.submit(Job::ImportPst { account: "g2".into(), path: pst2.clone(), resume: false });
-    events_until(&p2, Duration::from_secs(60), |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    until(&p2, "the Inbox in", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
     p2.submit(Job::StopImport { account: "g2".into(), how: StopHow::Pause });
-    events_until(&p2, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
-    let end = Instant::now() + Duration::from_secs(10);
-    while p2.importing("g2") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    until(&p2, "the pause", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    wait_ended(&p2, "g2");
     std::fs::remove_file(&pst2).unwrap();
     p2.submit(Job::ImportPst { account: "g2".into(), path: pst2, resume: true });
-    let seen =
-        events_until(&p2, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Blocked));
+    let seen = until(&p2, "the import to wait", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Blocked));
     assert!(
         matches!(seen.last(), Some(Event::ImportProgress { progress, .. }) if progress.blocked == Some(mailcraft_model::job::Blocked::SourceMissing)),
         "{seen:?}"
@@ -651,10 +606,10 @@ fn a_paused_import_kept_lists_its_folder_part_way_through() {
     p.submit(Job::ImportPst { account: "k2".into(), path: pst, resume: false });
     // Paused once Projects has some of its messages in (the Inbox's 20 and 20 more), not as soon as
     // the Inbox is: a fast runner could pause before Projects had any.
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done >= 40));
+    until(&p, "40 in", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done >= 40));
     p.submit(Job::StopImport { account: "k2".into(), how: StopHow::Pause });
     p.submit(Job::KeepImport { account: "k2".into() });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportKept { .. }));
+    let seen = until(&p, "the keep", |e| matches!(e, Event::ImportKept { .. }));
     let paused = seen.iter().position(|e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
     let listed = seen.iter().position(|e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Projects"));
     assert!(paused.is_some() && paused < listed, "paused first, kept out of the list till then");
@@ -679,18 +634,15 @@ fn an_import_gone_on_with_says_where_its_run_began() {
         Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Importing && progress.work.done > 0 => Some(progress.clone()),
         _ => None,
     };
-    let first = events_until(&p, Duration::from_secs(60), |e| importing(e).is_some_and(|p| p.work.done >= 400));
+    let first = until(&p, "400 in", |e| importing(e).is_some_and(|p| p.work.done >= 400));
     p.submit(Job::StopImport { account: "h1".into(), how: StopHow::Pause });
-    events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("h1") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    until(&p, "the pause", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Paused));
+    wait_ended(&p, "h1");
     let said = first.iter().filter_map(importing).map(|p| p.work_done()).max().unwrap();
     assert!(first.iter().filter_map(importing).all(|p| p.run_start_work == 0 && p.elapsed_ms == p.run_ms), "a first run began at nothing");
     slow("h1", 0);
     p.submit(Job::ImportPst { account: "h1".into(), path: pst, resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     let run: Vec<ImportProgress> = seen.iter().filter_map(importing).collect();
     let start = run.first().map(|p| p.run_start_work).unwrap();
     // It began where the first run stopped: at least as far as that run last said.
@@ -714,7 +666,7 @@ fn a_full_drive_stops_an_import_with_nothing_lost() {
     let drive = give_drive("f1", Filling::new(1, 300 << 20));
     p.submit(Job::ImportPst { account: "f1".into(), path: pst.clone(), resume: false });
     let blocked = |e: &Event| matches!(e, Event::ImportProgress { progress, .. } if progress.phase == ImportPhase::Blocked);
-    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    let seen = until(&p, "the import to wait or end", |e| blocked(e) || ended(e));
     let Some(Event::ImportProgress { progress, .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!(progress.blocked, Some(mailcraft_model::job::Blocked::DiskFull { free: 300 << 20 }));
     assert!(progress.imported > 0 && progress.imported < 2020, "stopped part-way: {progress:?}");
@@ -722,27 +674,21 @@ fn a_full_drive_stops_an_import_with_nothing_lost() {
     assert!(drive.asks() >= 2);
     let listed: usize = store.load_folders("f1").unwrap().iter().map(|f| store.load_folder("f1", &f.path).unwrap().messages.len()).sum();
     assert_eq!(u64::try_from(listed).unwrap(), progress.imported, "what came in is listed");
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("f1") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    wait_ended(&p, "f1");
     // Still full: it waits again, nothing read.
     let drive = give_drive("f1", Filling::new(0, LOW_SPACE - 1));
     p.submit(Job::ImportPst { account: "f1".into(), path: pst.clone(), resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), |e| blocked(e) || ended(e));
+    let seen = until(&p, "the import to wait or end", |e| blocked(e) || ended(e));
     assert!(
         matches!(seen.last(), Some(Event::ImportProgress { progress, .. }) if progress.blocked == Some(mailcraft_model::job::Blocked::DiskFull { free: LOW_SPACE - 1 })),
         "{seen:?}"
     );
     assert_eq!(drive.asks(), 1);
-    let end = Instant::now() + Duration::from_secs(10);
-    while p.importing("f1") && Instant::now() < end {
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    wait_ended(&p, "f1");
     // Room again: it goes on, and ends with every message.
     give_drive("f1", Filling::new(usize::MAX, 0));
     p.submit(Job::ImportPst { account: "f1".into(), path: pst, resume: true });
-    let seen = events_until(&p, Duration::from_secs(60), ended);
+    let seen = until(&p, "the import to end", ended);
     let report = match seen.last() {
         Some(Event::Imported { report: Some(r), error: None, .. }) => r.clone(),
         other => panic!("{other:?}"),
@@ -759,7 +705,7 @@ fn a_file_looked_at_says_the_room_for_its_copy() {
     let (dir, pst, store, mut p) = setup("room", 30, 5, "r2", 0);
     let drive = give_drive(&pst, Filling::new(0, 5 << 30));
     p.submit(Job::InspectDataFile { path: pst.clone() });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let seen = until(&p, "the file looked at", |e| matches!(e, Event::DataFileInspected { .. }));
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!(facts.error, None);
     assert!(facts.estimate > 0 && facts.estimate <= facts.bytes, "{facts:?}");
@@ -773,7 +719,7 @@ fn a_file_looked_at_says_the_room_for_its_copy() {
     std::fs::write(&junk, b"not a data file").unwrap();
     let junk = junk.to_string_lossy().into_owned();
     p.submit(Job::InspectDataFile { path: junk });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let seen = until(&p, "the file looked at", |e| matches!(e, Event::DataFileInspected { .. }));
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
     assert!(facts.error.is_some() && !facts.destination.is_empty(), "{facts:?}");
     assert!(facts.free.is_some(), "the drive's own room: {facts:?}");
@@ -787,7 +733,7 @@ fn a_file_looked_at_says_the_room_for_its_copy() {
         .unwrap();
     drop(other);
     p.submit(Job::InspectDataFile { path: pst.clone() });
-    let seen = events_until(&p, Duration::from_secs(60), |e| matches!(e, Event::DataFileInspected { .. }));
+    let seen = until(&p, "the file looked at", |e| matches!(e, Event::DataFileInspected { .. }));
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
     assert!(!facts.copy.is_empty() && facts.copy_held_by == theirs.to_string_lossy(), "{facts:?}");
     let _ = std::fs::remove_dir_all(&dir);
