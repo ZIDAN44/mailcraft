@@ -2,6 +2,20 @@
 
 use super::*;
 
+/// Most web pictures kept loaded before those no longer shown are let go.
+const PICTURES_KEPT: usize = 400;
+
+/// Whether a picture's address is one on the web (the only ones ever fetched).
+fn on_web(url: &str) -> bool {
+    url.starts_with("https://") || url.starts_with("http://")
+}
+
+/// The web pictures of a message that may load: tracking pictures stay unloaded even when the
+/// others are shown.
+fn web_pictures_of(p: &Parsed) -> impl Iterator<Item = &String> {
+    p.images.iter().filter(|u| on_web(u) && !p.trackers.pictures.contains(u)).take(MAX_PICTURES)
+}
+
 impl Session {
     /// Web pictures of the open message (none for plain-text mail).
     pub fn remote_pictures(&self) -> Vec<String> {
@@ -10,19 +24,7 @@ impl Session {
         if self.reading_encrypted() {
             return Vec::new();
         }
-        self.reading
-            .as_ref()
-            .and_then(|r| r.parsed.as_ref())
-            .map(|p| {
-                // Tracking pictures stay unloaded even when the others are shown.
-                p.images
-                    .iter()
-                    .filter(|u| (u.starts_with("https://") || u.starts_with("http://")) && !p.trackers.pictures.contains(u))
-                    .take(MAX_PICTURES)
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| web_pictures_of(p).cloned().collect()).unwrap_or_default()
     }
 
     /// Whether the open message's web pictures may load: the user asked, for this message, for
@@ -55,15 +57,49 @@ impl Session {
         if !self.pictures_allowed() {
             return;
         }
-        if self.pictures.len() > 400 {
-            self.pictures.retain(|_, p| matches!(p, Picture::Loading));
+        let urls = self.remote_pictures();
+        self.request_urls(&urls);
+    }
+
+    /// Ask the network layer for the pictures at `urls` not loaded or loading yet. Past
+    /// [`PICTURES_KEPT`], those loaded are let go first, except the ones on screen: of the open
+    /// message, a message's own window and the signature of the message being written, and
+    /// those just asked for. Nothing but `urls` is fetched.
+    fn request_urls(&mut self, urls: &[String]) {
+        if self.pictures.len() > PICTURES_KEPT {
+            let mut shown: HashSet<String> = urls.iter().cloned().collect();
+            for r in self.reading.iter().chain(&self.windows) {
+                if let Some(p) = &r.parsed {
+                    shown.extend(web_pictures_of(p).cloned());
+                }
+            }
+            shown.extend(self.signature_web_pictures().unwrap_or_default());
+            self.pictures.retain(|url, p| matches!(p, Picture::Loading) || shown.contains(url));
         }
-        for url in self.remote_pictures() {
-            if !self.pictures.contains_key(&url) {
+        for url in urls {
+            if !self.pictures.contains_key(url) {
                 self.pictures.insert(url.clone(), Picture::Loading);
-                self.jobs.push(Job::FetchUrl { url });
+                self.jobs.push(Job::FetchUrl { url: url.clone() });
             }
         }
+    }
+
+    /// The web pictures the HTML code of the signature of the message being written names
+    /// (none for a message with no such signature).
+    fn signature_web_pictures(&self) -> Option<Vec<String>> {
+        let c = self.compose.as_ref()?;
+        c.signature_card()?;
+        let (html, _) = c.signature_card_parts();
+        let blocks = mime::layout::html_layout(&html);
+        let mut urls: Vec<String> = Vec::new();
+        for (lines, _) in mime::layout::text_blocks(&blocks) {
+            for src in lines.iter().flatten().filter_map(|span| span.image.as_deref()) {
+                if on_web(src) && !urls.iter().any(|u| u == src) && urls.len() < MAX_PICTURES {
+                    urls.push(src.to_string());
+                }
+            }
+        }
+        Some(urls)
     }
 
     /// Show the open message's pictures (`always`: and everything from its sender from now on).
@@ -85,29 +121,9 @@ impl Session {
     /// for until the user says so, here as for a message that's read; the signature is the
     /// user's own, and the addresses are the ones they put in it.
     pub fn show_signature_pictures(&mut self) -> CmdResult {
-        let c = self.composing()?;
-        if c.signature_card().is_none() {
-            return Err(CmdError::Disabled("the message has no signature written as HTML code".into()));
-        }
-        let (html, _) = c.signature_card_parts();
-        let blocks = mime::layout::html_layout(&html);
-        let mut urls: Vec<String> = Vec::new();
-        for (lines, _) in mime::layout::text_blocks(&blocks) {
-            for src in lines.iter().flatten().filter_map(|span| span.image.as_deref()) {
-                if (src.starts_with("https://") || src.starts_with("http://")) && !urls.iter().any(|u| u == src) && urls.len() < MAX_PICTURES {
-                    urls.push(src.to_string());
-                }
-            }
-        }
-        if self.pictures.len() > 400 {
-            self.pictures.retain(|_, p| matches!(p, Picture::Loading));
-        }
-        for url in &urls {
-            if !self.pictures.contains_key(url) {
-                self.pictures.insert(url.clone(), Picture::Loading);
-                self.jobs.push(Job::FetchUrl { url: url.clone() });
-            }
-        }
+        self.composing()?;
+        let urls = self.signature_web_pictures().ok_or_else(|| CmdError::Disabled("the message has no signature written as HTML code".into()))?;
+        self.request_urls(&urls);
         Ok(serde_json::json!({ "pictures": urls.len() }))
     }
 

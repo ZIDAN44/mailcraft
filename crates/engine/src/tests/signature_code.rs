@@ -160,3 +160,44 @@ fn the_code_stands_for_the_signatures_text_where_it_was_put() {
     s.run("mail.new", &json!({})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().signature_card(), None);
 }
+
+/// Audit #257: with many web pictures loaded, those let go to make room are never the ones on
+/// screen: showing the signature's pictures keeps the open message's, and opening a message
+/// keeps the signature's. Only what was asked for is fetched.
+#[test]
+fn pictures_let_go_are_never_the_ones_on_screen() {
+    let mut s = sample_session("signature-pictures-kept");
+    let (open, sig) = ("https://cdn.example/open.png".to_string(), "https://cdn.example/sig.png".to_string());
+    let k = key_of(&s, "Your proof for the festival poster is ready");
+    s.run("list.open", &k).unwrap();
+    let r = s.reading.as_mut().unwrap();
+    let mut p = (**r.parsed.as_ref().unwrap()).clone();
+    p.images = vec![open.clone()];
+    r.parsed = Some(std::sync::Arc::new(p));
+    s.run("message.showPictures", &json!({})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::FetchUrl { url }] if *url == open));
+    let ready = || crate::Picture::Ready(std::sync::Arc::new(vec![1, 2, 3]));
+    let fill = |s: &mut Session| {
+        for n in 0..450 {
+            s.pictures.insert(format!("https://old.example/{n}.png"), ready());
+        }
+    };
+    s.pictures.insert(open.clone(), ready());
+    fill(&mut s);
+
+    let code = format!("<table><tr><td><img src=\"{sig}\" width=\"40\"></td><td><b>Riley Moreno</b><br>Producer</td></tr></table>");
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "", "code": code})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.take_jobs();
+    assert_eq!(s.run("compose.signaturePictures", &json!({})).unwrap()["pictures"], 1);
+    assert!(matches!(s.take_jobs().as_slice(), [Job::FetchUrl { url }] if *url == sig), "the signature's only");
+    assert_eq!(s.pictures.get(&open), Some(&ready()), "the open message's still shown");
+    assert!(s.pictures.len() < 10, "the others let go: {}", s.pictures.len());
+
+    s.pictures.insert(sig.clone(), ready());
+    fill(&mut s);
+    s.run("message.showPictures", &json!({})).unwrap();
+    assert!(s.take_jobs().is_empty(), "nothing fetched again");
+    assert_eq!((s.pictures.get(&open), s.pictures.get(&sig)), (Some(&ready()), Some(&ready())));
+    assert!(s.pictures.len() < 10, "{}", s.pictures.len());
+}
