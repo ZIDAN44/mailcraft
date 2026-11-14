@@ -101,23 +101,20 @@ fn a_long_time_is_quiet_but_send_receive_still_looks() {
 
 /// Found on a real server (GreenMail lets a quiet connection go within a minute): the look at the
 /// set time failed, said "the server closed the connection", and came five seconds late. It's no
-/// news to anyone: a new connection, and the mail.
+/// news to anyone: a new connection, and the mail. Counted, not timed: a busy computer is slow
+/// to get there either way.
 #[test]
 fn a_connection_the_server_dropped_meanwhile_is_no_error() {
-    let (st, pool, _store) = start("check-every-dropped", Some(3));
+    let (st, pool, store) = start("check-every-dropped", Some(3));
     st.lock().unwrap().add("INBOX", "New one", &[]);
     st.lock().unwrap().hang_up = true;
     let began = Instant::now();
     let mut said = Vec::new();
-    let mut came = false;
-    while began.elapsed() < Duration::from_secs(4) && !came {
-        if let Some(e) = pool.wait(Duration::from_millis(20)) {
-            came = inbox_changed(&e);
-            said.push(e);
-        }
+    while !said.last().is_some_and(inbox_changed) {
+        assert!(began.elapsed() < Duration::from_secs(60), "the mail never came: {said:?}");
+        said.extend(pool.wait(Duration::from_millis(20)));
     }
-    assert!(came, "{said:?}");
-    assert!(began.elapsed() < Duration::from_secs(3), "no waiting to try again: {:?}", began.elapsed());
+    assert_eq!(connect::waits::begun(&store, "a1"), 0, "waited to try again: {said:?}");
     assert!(!said.iter().any(|e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. } | Event::Notice { .. })), "{said:?}");
     pool_done(pool);
 }
