@@ -11,6 +11,7 @@ use mailcraft_engine::{ListedTask, Session, TasksOrder};
 use serde_json::json;
 
 use crate::icons::{self, Icon};
+use crate::shown;
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, widgets};
 
@@ -62,7 +63,7 @@ pub(crate) fn near_day(day: i64, today: i64) -> Option<&'static str> {
 /// The main pane: the columns' headings, then the tasks.
 pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let list = s.tasks(&st.tasks_query);
+    let list = shown::tasks(s, &mut st.shown, &st.tasks_query);
     if list.is_empty() {
         ui.centered_and_justified(|ui| {
             ui.vertical_centered(|ui| {
@@ -79,11 +80,23 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     egui::Frame::new().inner_margin(Margin::symmetric(14, 8)).show(ui, |ui| {
         headings(s, &t, ui, acts);
     });
-    egui::ScrollArea::vertical().auto_shrink(false).id_salt("tasks").show(ui, |ui| {
+    egui::ScrollArea::vertical().auto_shrink(false).id_salt("tasks").show_viewport(ui, |ui, viewport| {
         egui::Frame::new().inner_margin(Margin::symmetric(14, 0)).show(ui, |ui| {
-            for r in &list {
-                row(s, &t, st, ui, r, acts);
-            }
+            // Only the rows in view are laid out, each where it would be with all of them.
+            let pitch = ROW + ui.spacing().item_spacing.y;
+            shown::rows(
+                ui,
+                viewport,
+                list.len(),
+                |k| k as f32 * pitch,
+                None,
+                |ui, k| match list.get(k).and_then(|at| shown::task(s, at)) {
+                    Some(r) => row(s, &t, st, ui, &r, acts),
+                    None => {
+                        ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::hover());
+                    }
+                },
+            );
             ui.add_space(10.0);
         });
     });

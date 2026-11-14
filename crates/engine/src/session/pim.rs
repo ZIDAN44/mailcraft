@@ -107,6 +107,8 @@ pub struct Person<'a> {
     pub account: &'a str,
     pub book: &'a str,
     pub card: &'a Card,
+    /// Its place among its account's cards (`Pim::cards`), to find it again without a search.
+    pub at: usize,
 }
 
 /// A calendar colour of this or above is an account's colour ([`Session::calendar_color`]).
@@ -430,7 +432,14 @@ impl Session {
         let mut out: Vec<Person<'_>> = self
             .pim
             .iter()
-            .flat_map(|(a, p)| p.cards.iter().filter(|c| c.card.matches_search(&q)).map(|c| Person { account: a, book: &c.book, card: &c.card }))
+            .flat_map(|(a, p)| {
+                p.cards.iter().enumerate().filter(|(_, c)| c.card.matches_search(&q)).map(|(at, c)| Person {
+                    account: a,
+                    book: &c.book,
+                    card: &c.card,
+                    at,
+                })
+            })
             .collect();
         out.sort_by_cached_key(|p| p.card.display().to_lowercase());
         out
@@ -451,7 +460,9 @@ impl Session {
     }
 
     pub fn find_person(&self, uid: &str) -> Option<Person<'_>> {
-        self.pim.iter().find_map(|(a, p)| p.cards.iter().find(|c| c.card.uid == uid).map(|c| Person { account: a, book: &c.book, card: &c.card }))
+        self.pim.iter().find_map(|(a, p)| {
+            p.cards.iter().enumerate().find(|(_, c)| c.card.uid == uid).map(|(at, c)| Person { account: a, book: &c.book, card: &c.card, at })
+        })
     }
 
     /// Add someone; returns their uid.
@@ -515,6 +526,8 @@ impl Session {
 pub struct NoteRef<'a> {
     pub account: &'a str,
     pub note: &'a mailcraft_model::pim::Note,
+    /// Its place among its account's notes (`Pim::notes`), to find it again without a search.
+    pub at: usize,
 }
 
 impl Session {
@@ -579,7 +592,11 @@ impl Session {
             .pim
             .iter()
             .flat_map(|(a, p)| {
-                p.notes.iter().filter(|n| q.is_empty() || n.note.text.to_lowercase().contains(&q)).map(|n| NoteRef { account: a, note: &n.note })
+                p.notes.iter().enumerate().filter(|(_, n)| q.is_empty() || n.note.text.to_lowercase().contains(&q)).map(|(at, n)| NoteRef {
+                    account: a,
+                    note: &n.note,
+                    at,
+                })
             })
             .collect();
         // A note's title is its first line, compared without case.

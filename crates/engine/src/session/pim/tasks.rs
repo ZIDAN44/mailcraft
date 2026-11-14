@@ -31,6 +31,8 @@ pub struct TaskRef {
 pub struct ListedTask<'a> {
     pub account: &'a str,
     pub task: &'a Task,
+    /// Its place among its account's tasks (`Pim::tasks`), to find it again without a search.
+    pub at: usize,
 }
 
 /// How tasks are listed (Outlook's Arrange by for tasks). Done ones go last whichever it is.
@@ -158,8 +160,9 @@ impl Session {
             .flat_map(|(a, p)| {
                 p.tasks
                     .iter()
-                    .filter(|t| !(hide_done && t.task.is_done()) && task_matches(&t.task, &words))
-                    .map(|t| ListedTask { account: a, task: &t.task })
+                    .enumerate()
+                    .filter(|(_, t)| !(hide_done && t.task.is_done()) && task_matches(&t.task, &words))
+                    .map(|(at, t)| ListedTask { account: a, task: &t.task, at })
             })
             .collect()
     }

@@ -1,5 +1,6 @@
 //! The window's panes and pages: the folder pane, the message list, calendar, people, tasks, notes,
-//! the To-Do Bar, the Reminders window, the organizing menus, and the File page.
+//! the To-Do Bar, the Reminders window, the organizing menus, and the File page; and what People,
+//! Tasks and Notes list, kept between frames.
 
 pub mod backstage;
 pub(crate) mod calendar;
@@ -9,5 +10,6 @@ pub(crate) mod notes;
 pub(crate) mod organize;
 pub(crate) mod people;
 pub(crate) mod reminders;
+pub(crate) mod shown;
 pub(crate) mod tasks;
 pub(crate) mod todo_bar;

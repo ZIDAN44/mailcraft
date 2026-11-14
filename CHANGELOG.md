@@ -112,6 +112,7 @@ on GitHub.
 - Text with many unfinished links (`[a](` over and over, pasted or quoted in a reply) no longer slows the message editor down.
 - A reminder's event that is changed (renamed or moved) now shows so in the Reminders window at once.
 - The folder pane stays fast with thousands of folders.
+- People, Tasks and Notes stay fast with thousands of contacts, tasks or notes.
 
 ## 0.38.0 - 2026-11-13
 

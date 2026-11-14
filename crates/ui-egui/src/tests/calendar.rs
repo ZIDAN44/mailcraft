@@ -3,6 +3,7 @@
 use super::*;
 
 mod dates;
+mod lists;
 mod meetings;
 mod pim;
 mod reminders;

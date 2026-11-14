@@ -10,6 +10,7 @@ use mailcraft_engine::model::dates;
 use serde_json::json;
 
 use crate::icons::{self, Icon};
+use crate::shown;
 use crate::theme::{self, Tokens};
 use crate::{Action, UiState, widgets};
 
@@ -38,7 +39,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         new_note(st, acts);
     }
     ui.add_space(8.0);
-    let n = s.notes(&st.notes_query).len();
+    let n = shown::notes(s, &mut st.shown, &st.notes_query).len();
     ui.label(RichText::new(tf!("{n} notes", n = n)).color(t.faint).small());
 }
 
@@ -51,13 +52,13 @@ pub(crate) fn new_note(st: &mut UiState, acts: &mut Vec<Action>) {
 /// The main pane: the notes, side by side.
 pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let notes = s.notes(&st.notes_query);
-    // The note being written on went (deleted, or another search): keep what was typed.
-    if let Some((uid, _)) = &st.note_edit
-        && !notes.iter().any(|n| &n.note.uid == uid)
-    {
+    let notes = shown::notes(s, &mut st.shown, &st.notes_query);
+    // Where the note being written on is; gone (deleted, or another search): keep what was typed.
+    let editing = st.note_edit.as_ref().map(|(uid, _)| notes.iter().position(|at| shown::note(s, at).is_some_and(|n| &n.note.uid == uid)));
+    if editing == Some(None) {
         save_edit(st, acts);
     }
+    let editing = editing.flatten();
     if notes.is_empty() {
         ui.centered_and_justified(|ui| {
             ui.vertical_centered(|ui| {
@@ -72,22 +73,33 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         return;
     }
     let mut clicked_off = ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(ui.max_rect());
-    egui::ScrollArea::vertical().auto_shrink(false).id_salt("notes").show(ui, |ui| {
+    egui::ScrollArea::vertical().auto_shrink(false).id_salt("notes").show_viewport(ui, |ui, viewport| {
         egui::Frame::new().inner_margin(Margin::same(18)).show(ui, |ui| {
             let size = 210.0;
             let gap = 14.0;
             let cols = (((ui.available_width() + gap) / (size + gap)).floor() as usize).max(1);
-            for row in notes.chunks(cols) {
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = gap;
-                    for n in row {
-                        if note(s, &t, st, ui, n, size, acts) {
-                            clicked_off = false;
+            // Only the rows in view are laid out, each where it would be with all of them, and
+            // the row of the note being written on (its text box keeps the keyboard).
+            let pitch = size + ui.spacing().item_spacing.y + gap;
+            let rows = notes.len().div_ceil(cols);
+            shown::rows(
+                ui,
+                viewport,
+                rows,
+                |k| 18.0 + k as f32 * pitch,
+                editing.map(|i| i / cols),
+                |ui, k| {
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = gap;
+                        for n in notes.iter().skip(k.saturating_mul(cols)).take(cols).filter_map(|at| shown::note(s, at)) {
+                            if note(s, &t, st, ui, &n, size, acts) {
+                                clicked_off = false;
+                            }
                         }
-                    }
-                });
-                ui.add_space(gap);
-            }
+                    });
+                    ui.add_space(gap);
+                },
+            );
         });
     });
     // A click anywhere else leaves the note: what was typed is kept.

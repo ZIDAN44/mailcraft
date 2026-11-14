@@ -40,7 +40,7 @@ pub use look::thumbs::VideoFrame;
 pub use look::{bidi, craft_fonts, faces, icons, motion, theme};
 use look::{progress, thumbs, widgets};
 pub use panes::backstage;
-use panes::{calendar, list, nav, notes, organize, people, reminders, tasks, todo_bar};
+use panes::{calendar, list, nav, notes, organize, people, reminders, shown, tasks, todo_bar};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -477,6 +477,8 @@ pub struct UiState {
     pub(crate) task: Option<String>,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
+    /// What People, Tasks and Notes list, as last made (see `shown`).
+    pub(crate) shown: shown::Shown,
     /// The invitation in the open message, worked out once per message and calendar change.
     pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>)>,
     /// A file to drag out of the window (the app starts the system drag).
@@ -626,6 +628,7 @@ impl MailApp {
                 todo_new: String::new(),
                 task: None,
                 person: None,
+                shown: shown::Shown::default(),
                 invite: None,
                 drag_out: None,
                 can_drag_out: false,
