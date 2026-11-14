@@ -469,57 +469,10 @@ fn attrs_at(tag: &str) -> Vec<(String, String, usize)> {
             // A stray character: past it.
             chars.next();
         } else if out.len() < 64 {
-            out.push((name, decoded(&value).into_owned(), value_at));
+            out.push((name, super::decode_refs(&value, super::Refs::Value).into_owned(), value_at));
         }
     }
     out
-}
-
-/// An attribute's value with its character references made characters, as a browser reads it
-/// (`&amp;` in every address that has more than one parameter): `&amp;`, `&lt;`, `&gt;`,
-/// `&quot;`, `&apos;` and numbered ones (`&#38;`, `&#x26;`). Others stay as written.
-fn decoded(v: &str) -> Cow<'_, str> {
-    if !v.contains('&') {
-        return Cow::Borrowed(v);
-    }
-    let mut out = String::with_capacity(v.len());
-    let mut rest = v;
-    while let Some(at) = rest.find('&') {
-        out.push_str(rest.get(..at).unwrap_or(""));
-        let after = rest.get(at + 1..).unwrap_or("");
-        // The reference's name, up to its `;` (a short one; a longer run is text).
-        let named = after.find(';').filter(|n| *n <= 10).and_then(|n| Some((after.get(..n)?, n + 1)));
-        let c = named.and_then(|(name, len)| {
-            let c = match name {
-                "amp" => Some('&'),
-                "lt" => Some('<'),
-                "gt" => Some('>'),
-                "quot" => Some('"'),
-                "apos" => Some('\''),
-                _ => {
-                    let n = name.strip_prefix('#')?;
-                    let code = match n.strip_prefix(['x', 'X']) {
-                        Some(hex) => u32::from_str_radix(hex, 16).ok()?,
-                        None => n.parse::<u32>().ok()?,
-                    };
-                    Some(char::from_u32(code).filter(|c| *c != '\0').unwrap_or('\u{fffd}'))
-                }
-            }?;
-            Some((c, len))
-        });
-        match c {
-            Some((c, len)) => {
-                out.push(c);
-                rest = after.get(len..).unwrap_or("");
-            }
-            None => {
-                out.push('&');
-                rest = after;
-            }
-        }
-    }
-    out.push_str(rest);
-    Cow::Owned(out)
 }
 
 /// An attribute's value in a tag's text.

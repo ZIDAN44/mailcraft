@@ -82,7 +82,7 @@ pub fn quote_html(html: &str, given: &[(String, String)], trackers: &[String]) -
         from = end;
         let tag = code.get(start..end).unwrap_or("");
         let Some(src) = tag_attr(tag, "src") else { continue };
-        let plain = src.trim().replace("&amp;", "&");
+        let plain = decode_refs(src.trim(), Refs::Value).into_owned();
         let is = |s: &String| *s == plain || s.trim() == src.trim();
         if trackers.iter().any(is) {
             out.push_str(code.get(last..start).unwrap_or(""));

@@ -271,7 +271,9 @@ pub fn trackers(html: &str) -> Trackers {
         let Some(end) = crate::html::tag_end(lower.as_bytes(), start + 1) else { break };
         let tag = html.get(start..end).unwrap_or("");
         from = end + 1;
-        let Some(src) = crate::html::tag_attr(tag, "src").map(|s| s.trim().replace("&amp;", "&")) else { continue };
+        let Some(src) = crate::html::tag_attr(tag, "src").map(|s| crate::html::decode_refs(s.trim(), crate::html::Refs::Value).into_owned()) else {
+            continue;
+        };
         let Some(u) = split(&src) else { continue };
         let tiny =
             |a: &str| crate::html::tag_attr(tag, a).is_some_and(|v| v.trim().trim_end_matches("px").trim().parse::<f32>().is_ok_and(|n| n <= 2.0));

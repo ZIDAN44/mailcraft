@@ -4,6 +4,7 @@ use super::*;
 use std::collections::{HashMap, VecDeque};
 
 mod deep;
+mod entities;
 mod fonts;
 mod footers;
 mod outlook;
@@ -13,6 +14,7 @@ mod quote;
 mod scripts;
 mod signature;
 mod tags;
+pub(crate) use entities::{Refs, decode_refs};
 pub(crate) use footers::footers_last;
 use mailcraft_model::work;
 #[doc(hidden)]
@@ -611,7 +613,7 @@ pub fn html_images(html: &str) -> Vec<String> {
             // Unquoted, to the next space: an address has slashes (cut at the first, `src=https://…`
             // was `https:`), and the `/` of a `/>` after it isn't its.
             let src = if a.quoted { v } else { v.strip_suffix('/').filter(|b| !b.ends_with('/')).unwrap_or(v) };
-            let src = src.trim().replace("&amp;", "&");
+            let src = decode_refs(src.trim(), Refs::Value).into_owned();
             if !src.is_empty() && src.len() < 4096 && !out.contains(&src) {
                 out.push(src);
             }
@@ -714,7 +716,7 @@ pub fn html_links(html: &str) -> Vec<String> {
         if raw.len() > 8192 {
             continue;
         }
-        let url = raw.replace("&amp;", "&").replace("&#38;", "&").replace("&quot;", "\"").replace("&#39;", "'");
+        let url = decode_refs(raw, Refs::Value).into_owned();
         let lower_url = url.to_ascii_lowercase();
         if (lower_url.starts_with("https://") || lower_url.starts_with("http://")) && !url.contains(char::is_whitespace) && !out.contains(&url) {
             out.push(url);

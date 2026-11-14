@@ -7,8 +7,9 @@
 
 use std::borrow::Cow;
 
+use super::mso_hidden;
 use super::reading::{Comments, RAW_TEXT, raw_text_end, tag_end_at};
-use super::{decoded, mso_hidden};
+use crate::html::{Refs, decode_refs};
 use mailcraft_model::work::scanned;
 
 /// The attribute what's hidden from Outlook is marked with ([`marked_hidden`]).
@@ -83,7 +84,7 @@ pub(super) fn hidden_in_place(html: &str, how: Hide) -> Cow<'_, str> {
         let name = lower.get(at + 1..name_end).unwrap_or("");
         if lower.get(at..end).is_some_and(|t| t.contains("mso-hide"))
             && let Some(value) = style_at(html, name_end, end)
-            && mso_hidden(&decoded(html.get(value.clone()).unwrap_or("")))
+            && mso_hidden(&decode_refs(html.get(value.clone()).unwrap_or(""), Refs::Value))
         {
             let (to, what) = match how {
                 Hide::Style => (value.start, "display:none;".to_string()),
