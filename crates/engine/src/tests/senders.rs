@@ -226,3 +226,46 @@ fn a_calendar_syncing_doesnt_count_the_address_book_again() {
     s.refresh_list();
     assert_ne!(s.contacts_built, counted);
 }
+
+/// The check looked at each frame follows what it's made of when nothing else says it changed:
+/// the organisation's domains set by hand, an account added.
+#[test]
+fn the_sender_check_follows_the_organisation_and_the_accounts() {
+    let mut s = sample_session("senders-follow");
+    s.prefs.external_tag = true;
+    let key = deliver(&mut s, 1, ("Dana Lee", "dana@company.example"), "Hello", "");
+    let external = |s: &mut Session| {
+        s.keep_senders_when(false);
+        let m = s.summary(&key).cloned().unwrap();
+        s.sender_marks(&m).external
+    };
+    assert!(external(&mut s), "another organisation's");
+    s.prefs.org_domains = vec!["company.example".into()];
+    assert!(!external(&mut s), "the organisation's domains set: one of them");
+    s.prefs.org_domains.clear();
+    assert!(external(&mut s));
+    s.run("account.add", &json!({"email": "me@company.example", "local": true})).unwrap();
+    assert!(!external(&mut s), "an account of that domain added");
+}
+
+/// The sender check looked at each frame with nothing changed, with five accounts and the
+/// organisation's domains set, timed. Run under the heavy lock:
+/// `cargo test --release -p mailcraft-engine --lib measure_senders_each_frame -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_senders_each_frame() {
+    let mut s = sample_session("measure-senders");
+    for n in 0..4 {
+        s.run("account.add", &json!({"email": format!("person{n}@company{n}.example"), "name": format!("Person Number {n}"), "local": true}))
+            .unwrap();
+    }
+    s.prefs.org_domains = vec!["studio.example".into(), "company0.example".into(), "company1.example".into()];
+    s.keep_senders_when(false);
+    let built = s.contacts_built;
+    let t = std::time::Instant::now();
+    for _ in 0..1_000_000 {
+        s.keep_senders_when(false);
+    }
+    println!("MEASURE the sender check looked at 1000000 times: {} ms", t.elapsed().as_millis());
+    assert_eq!(s.contacts_built, built, "nothing counted again");
+}

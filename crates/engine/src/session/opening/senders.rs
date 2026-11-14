@@ -62,14 +62,24 @@ impl Session {
         self.keep_senders_when(true);
     }
 
+    /// Whether `stamp` is what the check would be gathered from now: [`Session::senders_stamp`]
+    /// compared where it's kept, without copying it (asked each frame).
+    fn senders_stamp_is(&self, stamp: &Stamp) -> bool {
+        let Stamp { accounts, pim, directory, book, org } = stamp;
+        *pim == self.pim_revision
+            && *directory == self.directory.rev
+            && *book == self.contacts_built
+            && *org == self.prefs.org_domains
+            && accounts.len() == self.accounts.len()
+            && accounts.iter().zip(&self.accounts).all(|((email, name), a)| *email == a.config.email && *name == a.config.name)
+    }
+
     /// [`Session::keep_senders`]; with `by_age` false, only when what it's made of changed (each
     /// frame: an idle window doesn't count the address book again every few minutes).
     pub(crate) fn keep_senders_when(&mut self, by_age: bool) {
-        let stamp = self.senders_stamp();
-        let fresh = self
-            .senders
-            .as_ref()
-            .is_some_and(|s| s.stamp == stamp && (!by_age || self.contacts.is_some() || self.clock.now.saturating_sub(s.at) < FRESH_SECS));
+        let fresh = self.senders.as_ref().is_some_and(|s| {
+            self.senders_stamp_is(&s.stamp) && (!by_age || self.contacts.is_some() || self.clock.now.saturating_sub(s.at) < FRESH_SECS)
+        });
         if fresh {
             return;
         }
