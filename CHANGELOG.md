@@ -94,6 +94,7 @@ on GitHub.
 - A signed message whose certificate is encoded in an unusual but valid way is now trusted when its issuer is, and shows the same fingerprint as other mail programs; one changed after it was signed is no longer accepted.
 - Signed mail sends your certificate exactly as your certificate authority issued it, so recipients can check it even when it's encoded unusually.
 - A message an Outlook file read again couldn't give is tried again on the next read, instead of being left out for good.
+- Flagging or categorising a message in a very large folder no longer rewrites megabytes of the folder's list.
 
 ## 0.38.0 - 2026-11-13
 

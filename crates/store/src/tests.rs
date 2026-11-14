@@ -2,6 +2,7 @@ use mailcraft_model::{Flag, Flags};
 
 use super::*;
 
+mod flagging;
 mod merging;
 
 /// A big folder's list is kept in pages by number: read back newest first as it was; a flag

@@ -406,6 +406,8 @@ impl Store {
         for folder in &folders {
             let mut st = self.load_folder(account, folder)?;
             let mut sources_gone: Vec<&MessageKey> = Vec::new();
+            // Only these messages' flags changed: a big list's other pages aren't made again.
+            let mut flags_of: Option<HashSet<u32>> = None;
             let in_folder = |k: &MessageKey| k.account == account && &k.folder == folder && k.validity == st.validity;
             match op {
                 Op::SetFlag { keys, flag, on } => {
@@ -414,6 +416,7 @@ impl Store {
                     for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
                         flag.set(&mut SharedSummary::make_mut(m).flags, *on);
                     }
+                    flags_of = Some(uids);
                 }
                 Op::SetKeyword { keys, keyword, on } => {
                     // A set: every message of a folder may change at once (looked up in a list, that was quadratic).
@@ -421,6 +424,7 @@ impl Store {
                     for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
                         SharedSummary::make_mut(m).flags.set_keyword(keyword, *on);
                     }
+                    flags_of = Some(uids);
                 }
                 Op::Move { keys, to } => {
                     if to == folder {
@@ -437,7 +441,10 @@ impl Store {
                 }
                 Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
             }
-            self.save_folder(account, folder, &st)?;
+            match &flags_of {
+                Some(changed) => self.save_folder_changed(account, folder, &st, changed)?,
+                None => self.save_folder(account, folder, &st)?,
+            }
             // Once the list no longer has them: one that can't be saved keeps their sources.
             for k in sources_gone {
                 self.remove_body(k);
