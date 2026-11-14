@@ -649,3 +649,78 @@ fn a_draft_keeps_a_name_with_a_comma() {
     let to: Vec<(&str, &str)> = m.to.iter().map(|a| (a.name.as_str(), a.email.as_str())).collect();
     assert_eq!(to, [("Park, Zoe", "zoe@studio.example"), ("sales@corp.example, Team", "team@studio.example")]);
 }
+
+/// A draft saved elsewhere names the message it answers by its In-Reply-To alone: found however
+/// the list keeps that message's Message-ID (brackets, a space), compared as threading compares
+/// them (each side trimmed its own way, they didn't meet).
+#[test]
+fn a_draft_finds_what_it_answers_however_its_id_is_kept() {
+    let mut s = sample_session("draft-answers-id");
+    let key = mailcraft_model::MessageKey { uid: 9811, ..next_key(&s, "sample", "INBOX") };
+    let kept = mailcraft_model::Summary {
+        key: key.clone(),
+        message_id: " <plan 7@studio.test> ".into(),
+        subject: "Plan".into(),
+        date: NOW,
+        ..Default::default()
+    };
+    file_in(&mut s, kept, None);
+    let raw = b"From: Riley <riley@studio.example>\r\nTo: ann@x.example\r\nSubject: Re: Plan\r\nMessage-ID: <d7@studio.example>\r\nIn-Reply-To: <plan7@studio.test>\r\n\r\nOn it.\r\n";
+    let at = mailcraft_model::MessageKey { uid: 9812, ..next_key(&s, "sample", "Drafts") };
+    let draft = file_whole(&mut s, at, raw);
+    s.run("draft.edit", &json!({"key": draft.to_id()})).unwrap();
+    let c = s.compose.as_ref().unwrap();
+    assert_eq!((c.source.as_ref(), c.mode), (Some(&key), Some(mailcraft_mime::ReplyMode::Reply)));
+}
+
+/// What opening a draft saved elsewhere takes (no word of the message it answers but its
+/// In-Reply-To), the message it answers in a folder of 50,000 whose list is read already, behind
+/// others of 20,000 that aren't (`cargo test -p mailcraft-engine --release
+/// measure_a_draft_finding_what_it_answers -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn measure_a_draft_finding_what_it_answers() {
+    let store = temp("measure-draft-answers");
+    sample::seed_if_empty(&store, NOW).unwrap();
+    let fill = |folder: &str, n: u32| {
+        let mut st = store.load_folder("sample", folder).unwrap_or_default();
+        st.validity = 7;
+        st.messages = (1..=n)
+            .map(|uid| mailcraft_model::Summary {
+                key: mailcraft_model::MessageKey { account: "sample".into(), folder: folder.into(), validity: 7, uid },
+                message_id: format!("m{uid:08}.{}@studio.example", folder.len()),
+                date: NOW - i64::from(uid) * 60,
+                ..Default::default()
+            })
+            .map(Into::into)
+            .collect();
+        store.save_folder("sample", folder, &st).unwrap();
+    };
+    let s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let folders: Vec<String> = s.accounts[0].folders.iter().map(|f| f.path.clone()).filter(|f| f != "Drafts").collect();
+    for f in &folders {
+        fill(f, 20_000);
+    }
+    let last = folders.last().unwrap().clone();
+    fill(&last, 50_000);
+    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("folder.open", &json!({"account": "sample", "folder": last})).unwrap();
+    let raw = format!(
+        "From: Riley <riley@studio.example>\r\nTo: ann@x.example\r\nSubject: Re: Report\r\nMessage-ID: <d1@studio.example>\r\nIn-Reply-To: <m00049999.{}@studio.example>\r\n\r\nOn it.\r\n",
+        last.len()
+    );
+    let at = mailcraft_model::MessageKey { uid: 9801, ..next_key(&s, "sample", "Drafts") };
+    let key = file_whole(&mut s, at, raw.as_bytes());
+    let runs = 5u32;
+    let began = std::time::Instant::now();
+    for _ in 0..runs {
+        s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
+        assert_eq!(s.compose.as_ref().and_then(|c| c.source.as_ref()).map(|k| k.uid), Some(49_999));
+        s.run("compose.discard", &json!({})).unwrap();
+    }
+    println!(
+        "MEASURE a draft opened, finding what it answers among {} folders: {} ms",
+        folders.len(),
+        began.elapsed().as_millis() / u128::from(runs)
+    );
+}
