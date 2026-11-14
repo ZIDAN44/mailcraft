@@ -290,3 +290,30 @@ fn a_line_over_64_kb_comes_whole() {
     let mut c = Client::greet(canned(huge.as_bytes())).unwrap();
     assert!(c.uidl().is_err(), "past the cap");
 }
+
+/// A `UIDL` answer of `count` lines, each id 24 characters (as many servers' are).
+fn listing(count: usize) -> Vec<u8> {
+    let mut a = String::from("+OK hi\r\n+OK\r\n");
+    for n in 1..=count {
+        a.push_str(&format!("{n} {n:0>12}{:0>12x}\r\n", n * 7919));
+    }
+    a.push_str(".\r\n");
+    a.into_bytes()
+}
+
+/// Found in the audit: the listing was capped at 4 MB, which ordinary ids pass near 130,000
+/// messages, so a maildrop that size failed every check though up to 200,000 were promised;
+/// and one past 200,000 had its tail dropped without a word (those ids then forgotten as if
+/// gone from the server). Now every message up to the limit is listed, and more is an error.
+#[test]
+fn a_listing_of_every_message_up_to_the_limit_comes_whole() {
+    let mut c = Client::greet(canned(&listing(150_000))).unwrap();
+    let got = c.uidl().unwrap();
+    assert_eq!(got.len(), 150_000);
+    assert_eq!(got.last().map(|(n, id)| (*n, id.len())), Some((150_000, 24)));
+    let mut c = Client::greet(canned(&listing(MAX_MESSAGES))).unwrap();
+    assert_eq!(c.uidl().unwrap().len(), MAX_MESSAGES);
+    let mut c = Client::greet(canned(&listing(MAX_MESSAGES + 1))).unwrap();
+    let e = c.uidl().unwrap_err();
+    assert!(e.to_string().contains("more than 200000 messages"), "{e}");
+}

@@ -8,4 +8,5 @@ pub(crate) mod fake_jmap;
 mod real_ews;
 mod real_layout;
 mod real_pgp;
+mod real_pop;
 mod real_servers;

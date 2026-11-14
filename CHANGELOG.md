@@ -77,6 +77,7 @@ on GitHub.
 - Changes made offline reach the server much faster when many are waiting (a thousand: 7 s instead of 25 s).
 - Syncing a very large calendar or address book is faster: the first read of 20,000 items took twice as long, and sending changed events was far slower.
 - Drafts kept on this computer while offline take a fraction of the room and time: each is a file of its own, and those kept by an earlier version are moved over the first time.
+- A POP account with more than about 130,000 messages left on the server downloads its mail instead of failing every check.
 
 ## 0.38.0 - 2026-11-13
 

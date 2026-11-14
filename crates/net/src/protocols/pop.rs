@@ -125,6 +125,15 @@ pub struct Client<S: Read + Write> {
     r: BufReader<S>,
 }
 
+/// What [`Client::piece`] read.
+enum Piece {
+    Line(Vec<u8>),
+    /// The answer's end (a line of just `.`).
+    End,
+    /// A line longer than it had room for.
+    TooLong,
+}
+
 fn proto(m: impl Into<String>) -> NetError {
     NetError::Protocol(m.into())
 }
@@ -202,30 +211,41 @@ impl<S: Read + Write> Client<S> {
         }
     }
 
+    /// The next line of a multi-line answer, dot-stuffing undone, read whole when it takes at
+    /// most `room` bytes (its line break included).
+    fn piece(&mut self, room: usize) -> Result<Piece> {
+        // A whole line, however long, only the room capping it: read in pieces of a short line's
+        // length, each was taken for a line (a break put inside it), and a piece that was just
+        // `.` for the end.
+        let mut buf = Vec::new();
+        let n = (&mut self.r).take(u64::try_from(room).unwrap_or(u64::MAX)).read_until(b'\n', &mut buf)?;
+        if !buf.ends_with(b"\n") {
+            return if n == room { Ok(Piece::TooLong) } else { Err(NetError::Closed("the server closed the connection".into())) };
+        }
+        let line = buf.strip_suffix(b"\r\n").or_else(|| buf.strip_suffix(b"\n")).unwrap_or(&buf);
+        if line == b"." {
+            return Ok(Piece::End);
+        }
+        let line = line.strip_prefix(b".").filter(|_| line.starts_with(b"..")).unwrap_or(line);
+        Ok(Piece::Line(line.to_vec()))
+    }
+
     /// A multi-line answer's body (dot-stuffing undone), bytes at most `max`.
     fn multi(&mut self, max: usize) -> Result<Vec<u8>> {
         let mut out = Vec::new();
         let too_big = || proto(format!("larger than {} MB", max >> 20));
         loop {
-            // A whole line, however long, only the answer's room capping it: read in pieces of
-            // a short line's length, each was taken for a line (a break put inside it), and a
-            // piece that was just `.` for the end.
-            let room = max.saturating_sub(out.len()).saturating_add(3);
-            let mut buf = Vec::new();
-            let n = (&mut self.r).take(u64::try_from(room).unwrap_or(u64::MAX)).read_until(b'\n', &mut buf)?;
-            if !buf.ends_with(b"\n") {
-                return Err(if n == room { too_big() } else { NetError::Closed("the server closed the connection".into()) });
+            match self.piece(max.saturating_sub(out.len()).saturating_add(3))? {
+                Piece::End => return Ok(out),
+                Piece::TooLong => return Err(too_big()),
+                Piece::Line(line) => {
+                    if out.len() + line.len() + 2 > max {
+                        return Err(too_big());
+                    }
+                    out.extend_from_slice(&line);
+                    out.extend_from_slice(b"\r\n");
+                }
             }
-            let line = buf.strip_suffix(b"\r\n").or_else(|| buf.strip_suffix(b"\n")).unwrap_or(&buf);
-            if line == b"." {
-                return Ok(out);
-            }
-            let line = line.strip_prefix(b".").filter(|_| line.starts_with(b"..")).unwrap_or(line);
-            if out.len() + line.len() + 2 > max {
-                return Err(too_big());
-            }
-            out.extend_from_slice(line);
-            out.extend_from_slice(b"\r\n");
         }
     }
 
@@ -242,18 +262,30 @@ impl<S: Read + Write> Client<S> {
         self.ok(&format!("AUTH XOAUTH2 {blob}")).map(drop).map_err(|e| auth(&e))
     }
 
-    /// Message numbers and unique ids.
+    /// Message numbers and unique ids. Read a line at a time, the cap on their count: capped at
+    /// 4 MB as a whole, ordinary ids passed it near 130,000 messages. More than the cap is an
+    /// error rather than a list cut short, whose missing ids were forgotten as gone.
     pub fn uidl(&mut self) -> Result<Vec<(u32, String)>> {
         self.ok("UIDL")?;
-        let body = self.multi(MAX_LINE * 64)?;
-        Ok(String::from_utf8_lossy(&body)
-            .lines()
-            .take(MAX_MESSAGES)
-            .filter_map(|l| {
-                let (n, id) = l.trim().split_once(' ')?;
-                Some((n.parse().ok()?, id.trim().chars().take(70).collect()))
-            })
-            .collect())
+        let mut out = Vec::new();
+        let mut lines = 0usize;
+        loop {
+            let line = match self.piece(MAX_LINE)? {
+                Piece::End => return Ok(out),
+                Piece::TooLong => return Err(proto("a UIDL line too long")),
+                Piece::Line(line) => line,
+            };
+            lines += 1;
+            if lines > MAX_MESSAGES {
+                return Err(proto(format!("the server lists more than {MAX_MESSAGES} messages")));
+            }
+            let line = String::from_utf8_lossy(&line);
+            if let Some((n, id)) = line.trim().split_once(' ')
+                && let Ok(n) = n.parse()
+            {
+                out.push((n, id.trim().chars().take(70).collect()));
+            }
+        }
     }
 
     pub fn retr(&mut self, n: u32) -> Result<Vec<u8>> {
