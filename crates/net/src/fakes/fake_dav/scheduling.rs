@@ -302,10 +302,7 @@ fn a_guests_answer_crossing_another_guests_is_stored() {
     assert!(server.data.lock().unwrap().items[&href].1.contains("PARTSTAT=ACCEPTED:mailto:me@studio.example"), "{:?}", out.errors);
     let out = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 100, Zone::UTC).unwrap();
     assert!(out.errors.is_empty(), "{:?}", out.errors);
-    let data = server.data.lock().unwrap().items[&href].1.replace(
-        "
- ", "",
-    );
+    let data = server.data.lock().unwrap().items[&href].1.replace("\r\n ", "");
     assert!(data.contains("PARTSTAT=DECLINED:mailto:me@studio.example"), "{data}");
     assert!(data.contains("PARTSTAT=TENTATIVE:mailto:guest@elsewhere.example"), "{data}");
     assert!(!data.contains("SCHEDULE-AGENT") && !data.contains(ical::GUEST_COPY), "{data}");

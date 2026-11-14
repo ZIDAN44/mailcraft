@@ -401,15 +401,7 @@ fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bo
 #[test]
 fn mailbox_settings_over_imap_and_managesieve() {
     let st = State::new();
-    st.lock().unwrap().mailbox("Archive").unwrap().msgs.push(Msg {
-        uid: 1,
-        flags: Vec::new(),
-        raw: b"Subject: old
-
-x"
-        .to_vec(),
-        modseq: 1,
-    });
+    st.lock().unwrap().mailbox("Archive").unwrap().msgs.push(Msg { uid: 1, flags: Vec::new(), raw: b"Subject: old\r\n\r\nx".to_vec(), modseq: 1 });
     st.lock().unwrap().mailbox("Archive").unwrap().uid_next = 2;
     let imap_port = serve_tcp(&st);
     let (sieve_port, sieve) = crate::sieve::tests::serve(crate::sieve::tests::Fake {
@@ -476,12 +468,7 @@ fn working_offline_keeps_drafts_and_mail_until_back() {
     pool.submit(Job::WorkOffline { on: true });
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "offline", |e| matches!(e, Event::Status { status: SyncStatus::Offline, .. }));
-    let draft = b"From: me@studio.example
-Subject: Kept
-
-written offline
-"
-    .to_vec();
+    let draft = b"From: me@studio.example\r\nSubject: Kept\r\n\r\nwritten offline\r\n".to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft, folder: "INBOX".into(), replaces: None });
     // Kept on this computer is kept: the message held for it can go (#53); then it's said where.
     until(&pool, "draft saved", |e| matches!(e, Event::DraftSaved { account, error: None, .. } if account == "a1"));
@@ -489,10 +476,7 @@ written offline
     pool.submit(Job::Send {
         account: "a1".into(),
         id: 7,
-        raw: b"Subject: x
-
-y"
-        .to_vec(),
+        raw: b"Subject: x\r\n\r\ny".to_vec(),
         from: "me@studio.example".into(),
         recipients: vec!["a@b.example".into()],
         sent_folder: None,

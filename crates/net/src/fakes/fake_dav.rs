@@ -52,16 +52,12 @@ fn digest_ok(header: &str, method: &str, path: &str, nonce: &str) -> bool {
 
 /// The uid an item's data names (its lines unfolded).
 fn uid_of(data: &str) -> Option<String> {
-    data.replace(
-        "
- ", "",
-    )
-    .replace(
-        "
- ", "",
-    )
-    .lines()
-    .find_map(|l| l.trim().strip_prefix("UID:").map(|u| u.trim().to_string()))
+    data.replace("\r\n ", "")
+        .replace("\r\n\t", "")
+        .replace("\n ", "")
+        .replace("\n\t", "")
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("UID:").map(|u| u.trim().to_string()))
 }
 
 impl Data {
@@ -309,6 +305,18 @@ mod tests {
 
     fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
         CalEvent { uid: uid.into(), summary: summary.into(), start, end: start + 3600, ..Default::default() }
+    }
+
+    /// Found in review: the fake unfolded only lines folded with a bare LF, so a long uid folded
+    /// as `ical::write` folds it (CR LF) kept a CR inside, and a calendar-query found nothing.
+    #[test]
+    fn a_folded_uid_is_read_whole() {
+        let long = "x".repeat(125);
+        let data = ical::write(&[event(&long, "Long", 1_800_000_000)], None, 0);
+        assert!(data.contains("\r\n "), "folded: {data}");
+        assert_eq!(uid_of(&data), Some(long));
+        assert_eq!(uid_of("BEGIN:VEVENT\r\nUID:ab\r\n\tc\r\nEND:VEVENT\r\n"), Some("abc".into()));
+        assert_eq!(uid_of("BEGIN:VEVENT\nUID:ab\n c\nEND:VEVENT\n"), Some("abc".into()));
     }
 
     #[test]
