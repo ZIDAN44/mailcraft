@@ -1,29 +1,6 @@
 //! MailCraft on the command line.
 //!
-//! ```text
-//! mailcraft-cli [--data DIR] <command>
-//!   sample                         create the local sample mailbox in DIR
-//!   accounts                       list accounts and folders
-//!   add --email E [--name N] [--username U] [--imap HOST:PORT] [--smtp HOST:PORT]
-//!       [--imap-security tls|starttls|none] [--smtp-security tls|starttls|none]
-//!       [--jmap SESSION-URL]   (a JMAP account instead of IMAP and SMTP)
-//!                                  add an account (servers guessed from the address)
-//!   test [--account ID]            sign in to IMAP and list the folders
-//!   sync [--account ID]            download new mail into the cache
-//!   list [--account ID] [--folder PATH] [--limit N]
-//!   read KEY                       print a message (KEY from `list`)
-//!   search QUERY                   search the cache (from:, subject:, has:attachment…)
-//!   send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE] [--signature NAME|none]
-//!        [--from ID|ADDRESS]        (From changed to that account, or to one of an account's
-//!                                   addresses, after the message is made)
-//!   commands                       every engine command, as JSON
-//!   run ID [JSON]                  run an engine command against the cache (its changes
-//!                                  to mail go to the server with the next `sync`)
-//!   --version                      print the version
-//! ```
-//!
-//! Passwords are read from `MAILCRAFT_PASSWORD` or asked for on the terminal; the CLI never
-//! stores them.
+//! Its commands and options are in `help.txt`, which `mailcraft-cli --help` prints.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 use std::io::{BufRead, Write};
@@ -393,6 +370,19 @@ mod tests {
 
     fn args(a: &[&str]) -> Args {
         Args { rest: a.iter().map(|s| s.to_string()).collect() }
+    }
+
+    /// Every option the CLI reads is in the help it prints (`--jmap`, `--cc` and `--timeout`
+    /// weren't).
+    #[test]
+    fn the_help_names_every_option() {
+        let help = include_str!("help.txt");
+        for src in [include_str!("main.rs"), include_str!("commands.rs"), include_str!("commands/send.rs")] {
+            for (i, _) in src.match_indices("\"--") {
+                let name: String = src[i + 1..].chars().take_while(|c| *c == '-' || c.is_ascii_alphanumeric()).collect();
+                assert!(name.len() <= 2 || help.contains(&name), "{name} isn't in help.txt");
+            }
+        }
     }
 
     /// A switch anywhere takes no value; an option given none is said; a number that isn't one

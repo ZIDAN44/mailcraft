@@ -3,14 +3,17 @@ mailcraft-cli [--data DIR] <command>
   accounts                       list accounts and folders
   add --email E [--name N] [--username U] [--imap HOST:PORT] [--smtp HOST:PORT]
       [--imap-security tls|starttls|none] [--smtp-security tls|starttls|none]
+      [--jmap SESSION-URL]       a JMAP account instead of IMAP and SMTP
                                  add an account (servers guessed from the address)
-  test [--account ID]            sign in to IMAP and list the folders
-  sync [--account ID]            download new mail into the cache
+  test [--account ID] [--timeout SECONDS]
+                                 sign in and list the folders (gives up after 60 s)
+  sync [--account ID] [--timeout SECONDS]
+                                 download new mail into the cache (gives up after 900 s)
   list [--account ID] [--folder PATH] [--limit N]
   read KEY                       print a message (KEY from `list`)
   source KEY [--headers]         print a message's source, headers and all
   search QUERY                   search the cache (from:, subject:, has:attachment…)
-  send --to ADDR --subject S --body TEXT [--account ID] [--attach FILE]
+  send --to ADDR --subject S --body TEXT [--cc ADDR] [--account ID] [--attach FILE]
        [--signature NAME|none]   one of the account's signatures under the text (default:
                                  its own for new messages), or none
        [--checked]               send it though it's held to be looked at first (an address
@@ -22,3 +25,5 @@ mailcraft-cli [--data DIR] <command>
                                  to mail go to the server with the next `sync`;
                                  `dataFile.compact` runs here, its progress on stderr)
   --version                      print the version
+
+Passwords are read from MAILCRAFT_PASSWORD or asked for on the terminal; they are never kept.
