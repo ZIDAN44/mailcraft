@@ -96,12 +96,11 @@ const COUNTERS: &[&str] = &[
 ];
 
 /// Wrappers that carry the real address in a query parameter: (host or host suffix, path
-/// prefix, parameter).
+/// prefix, parameter). Every row for a host and path is tried, in order.
 const WRAPPERS: &[(&str, &str, &str)] = &[
     ("safelinks.protection.outlook.com", "/", "url"),
-    ("www.google.com", "/url", "q"),
-    ("www.google.com", "/url", "url"),
     ("google.com", "/url", "q"),
+    ("google.com", "/url", "url"),
     ("l.facebook.com", "/l.php", "u"),
     ("lm.facebook.com", "/l.php", "u"),
     ("l.instagram.com", "/", "u"),
@@ -192,10 +191,14 @@ fn unwrapped(url: &str) -> Option<String> {
         // Amazon SES: `/L0/<the address, percent-encoded>/1/…`.
         u.path.strip_prefix("/L0/").and_then(|p| p.split('/').next()).and_then(|p| percent_decode(p, false))
     } else {
-        let (_, _, param) = WRAPPERS.iter().find(|(host, path, _)| host_is(&u.host, host) && u.path.starts_with(path))?;
-        u.query?.split('&').find_map(|pair| {
-            let (k, v) = pair.split_once('=')?;
-            k.eq_ignore_ascii_case(param).then(|| percent_decode(v, true)).flatten()
+        // Each row for its host and path in turn (the first was the only one tried, and
+        // Google's `?url=` never was).
+        let query = u.query?;
+        WRAPPERS.iter().filter(|(host, path, _)| host_is(&u.host, host) && u.path.starts_with(path)).find_map(|(_, _, param)| {
+            query.split('&').find_map(|pair| {
+                let (k, v) = pair.split_once('=')?;
+                k.eq_ignore_ascii_case(param).then(|| percent_decode(v, true)).flatten()
+            })
         })
     }?;
     let inner = inner.trim().to_string();
@@ -300,6 +303,9 @@ mod tests {
                 "https://docs.example/plan?v=2",
             ),
             ("https://www.google.com/url?q=https://site.example/page&sa=D&ust=1", "https://site.example/page"),
+            // Its other parameter: the first row for the host and path was the only one tried.
+            ("https://www.google.com/url?sa=t&url=https://site.example/other&ved=1", "https://site.example/other"),
+            ("https://google.com/url?q=https://site.example/bare", "https://site.example/bare"),
             ("https://urldefense.com/v3/__https://portal.example/login__;!!abc$", "https://portal.example/login"),
             ("https://abcd.r.us-east-1.awstrack.me/L0/https:%2F%2Fapp.example%2Fwelcome/1/0100-x/abc=", "https://app.example/welcome"),
             ("https://l.facebook.com/l.php?u=https%3A%2F%2Fevent.example%2F&h=AT0", "https://event.example/"),
