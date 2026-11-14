@@ -252,22 +252,8 @@ impl Client<Stream> {
                     return Err(NetError::Tls("the server does not offer STARTTLS".into()));
                 }
                 c.conn.run(&[Part::Text("STARTTLS")])?;
-                if c.conn.pos != c.conn.buf.len() {
-                    // Plain-text data after STARTTLS would be an injection attempt (RFC 3207 §4.2 analogue).
-                    return Err(NetError::Tls("unexpected data before TLS negotiation".into()));
-                }
-                let Stream::Plain(sock) = c.conn.into_inner() else {
-                    return Err(NetError::Tls("connection already encrypted".into()));
-                };
-                let mut c = Client {
-                    conn: Conn::new(stream::tls_trusting(sock, &cfg.host, trusted)?),
-                    caps: HashSet::new(),
-                    selected: None,
-                    qresync: false,
-                    seen: Default::default(),
-                    exists: 0,
-                    news: false,
-                };
+                let unread = c.conn.unread();
+                let mut c = Client::new(stream::starttls(c.conn.into_inner(), unread, &cfg.host, trusted)?);
                 // Capabilities learned before TLS must be discarded (RFC 3501 §6.2.1).
                 c.capability()?;
                 Ok(c)
@@ -277,10 +263,14 @@ impl Client<Stream> {
 }
 
 impl<S: Read + Write> Client<S> {
+    /// A session on `s` that knows nothing of the server yet.
+    fn new(s: S) -> Client<S> {
+        Client { conn: Conn::new(s), caps: HashSet::new(), selected: None, qresync: false, seen: Default::default(), exists: 0, news: false }
+    }
+
     /// Wrap a connected stream and read the server greeting.
     pub fn from_stream(s: S) -> Result<Client<S>> {
-        let mut c =
-            Client { conn: Conn::new(s), caps: HashSet::new(), selected: None, qresync: false, seen: Default::default(), exists: 0, news: false };
+        let mut c = Client::new(s);
         match c.conn.read()? {
             Ok(Response::Data { status: Status::Ok | Status::PreAuth, outcome }) => {
                 if let Some(ResponseCode::Capabilities(list)) = &outcome.code {

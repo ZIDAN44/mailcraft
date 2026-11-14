@@ -288,12 +288,9 @@ impl Client<Stream> {
             return Err(NetError::Tls("the Sieve server does not offer STARTTLS".into()));
         }
         c.run_ok("STARTTLS")?;
-        if !c.io.buffer().is_empty() {
-            return Err(NetError::Tls("unexpected data before TLS negotiation".into()));
-        }
-        let Stream::Plain(sock) = c.io.into_inner() else { return Err(NetError::Tls("connection already encrypted".into())) };
+        let unread = c.io.buffer().len();
         // The server repeats its capabilities over TLS (RFC 5804 §2.2); the earlier ones are void.
-        Client::from_stream(stream::tls_trusting(sock, &imap.host, trusted)?)
+        Client::from_stream(stream::starttls(c.io.into_inner(), unread, &imap.host, trusted)?)
     }
 }
 

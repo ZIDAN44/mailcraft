@@ -8,3 +8,6 @@ pub mod pop;
 pub mod sieve;
 pub mod smtp;
 pub mod web_calendar;
+
+#[cfg(test)]
+mod starttls_tests;

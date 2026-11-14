@@ -167,11 +167,8 @@ impl Client<Stream> {
             Security::StartTls => {
                 let mut c = Client::greet(Stream::Plain(sock))?;
                 c.ok("STLS").map_err(|_| NetError::Tls("the server does not offer STLS".into()))?;
-                if !c.r.buffer().is_empty() {
-                    return Err(NetError::Tls("unexpected data before TLS negotiation".into()));
-                }
-                let Stream::Plain(sock) = c.r.into_inner() else { return Err(NetError::Tls("connection already encrypted".into())) };
-                Ok(Client { r: BufReader::new(stream::tls_trusting(sock, &cfg.host, trusted)?) })
+                let unread = c.r.buffer().len();
+                Ok(Client { r: BufReader::new(stream::starttls(c.r.into_inner(), unread, &cfg.host, trusted)?) })
             }
         }
     }

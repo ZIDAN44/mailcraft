@@ -105,6 +105,11 @@ impl<S: Read + Write> Conn<S> {
         self.s
     }
 
+    /// How many bytes were read from the server and not yet taken as a response.
+    pub(super) fn unread(&self) -> usize {
+        self.buf.get(self.pos..).map_or(0, <[u8]>::len)
+    }
+
     pub fn get_mut(&mut self) -> &mut S {
         &mut self.s
     }

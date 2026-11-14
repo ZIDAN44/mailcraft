@@ -211,6 +211,20 @@ pub fn tls_trusting(sock: TcpStream, host: &str, trusted: &[String]) -> Result<S
     handshake(sock, host, Some(trusted))
 }
 
+/// The STARTTLS upgrade (IMAP, POP's STLS, ManageSieve) once the server has agreed: `plain`'s
+/// connection is wrapped in TLS as [`tls_trusting`] does. `unread` is how many bytes the client
+/// had already read past the server's go-ahead: any is plain text slipped in before TLS, which
+/// would be taken as if it came over TLS (RFC 3207 §4.2 analogue), so the connection is dropped.
+pub fn starttls(plain: Stream, unread: usize, host: &str, trusted: &[String]) -> Result<Stream> {
+    if unread != 0 {
+        return Err(NetError::Tls("unexpected data before TLS negotiation".into()));
+    }
+    let Stream::Plain(sock) = plain else {
+        return Err(NetError::Tls("connection already encrypted".into()));
+    };
+    tls_trusting(sock, host, trusted)
+}
+
 /// The handshake of [`tls`] (`trusted` is `None`: a web address, checked as ever, wherever it
 /// is) and of [`tls_trusting`].
 fn handshake(sock: TcpStream, host: &str, trusted: Option<&[String]>) -> Result<Stream> {
