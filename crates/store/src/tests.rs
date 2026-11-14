@@ -2,6 +2,7 @@ use mailcraft_model::{Flag, Flags};
 
 use super::*;
 
+mod changes;
 mod flagging;
 mod merging;
 

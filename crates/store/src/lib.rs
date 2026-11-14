@@ -554,17 +554,7 @@ impl Store {
     /// a cache on disk.
     pub fn snapshot(&self, keep: impl Fn(&str) -> bool) -> Vec<(String, Vec<u8>)> {
         let Files::Memory(m, _) = &self.files.main else { return Vec::new() };
-        Files::with(m, |m| {
-            m.iter()
-                .filter_map(|(k, v)| {
-                    let rel = k.strip_prefix(&self.root).ok()?;
-                    let rel: Vec<&str> = rel.iter().map(|s| s.to_str()).collect::<Option<_>>()?;
-                    Some((rel.join("/"), v))
-                })
-                .filter(|(p, _)| keep(p))
-                .map(|(p, v)| (p, v.clone()))
-                .collect()
-        })
+        Files::with(m, |m| m.iter().filter_map(|(k, v)| Some((self.relative(k)?, v))).filter(|(p, _)| keep(p)).map(|(p, v)| (p, v.clone())).collect())
     }
 
     /// Whether the cache lives in memory.
@@ -584,24 +574,29 @@ impl Store {
     /// started): relative path and the bytes now, `None` for a file removed. Lets the browser
     /// keep the cache between visits.
     pub fn take_changes(&self) -> Vec<(String, Option<Vec<u8>>)> {
-        let Files::Memory(m, changed) = &self.files.main else { return Vec::new() };
-        let paths = {
-            let mut g = changed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            match g.as_mut() {
-                Some(set) => std::mem::take(set),
-                None => return Vec::new(),
-            }
-        };
-        Files::with(m, |m| {
-            paths
-                .into_iter()
-                .filter_map(|k| {
-                    let rel = k.strip_prefix(&self.root).ok()?;
-                    let rel: Vec<&str> = rel.iter().map(|s| s.to_str()).collect::<Option<_>>()?;
-                    Some((rel.join("/"), m.get(&k).cloned()))
-                })
-                .collect()
-        })
+        let Files::Memory(m, _) = &self.files.main else { return Vec::new() };
+        let paths = self.take_marked();
+        Files::with(m, |m| paths.into_iter().filter_map(|k| Some((self.relative(&k)?, m.get(&k).cloned()))).collect())
+    }
+
+    /// The relative paths of [`Store::take_changes`], without the files' bytes: for one that only
+    /// asks whether something it keeps changed.
+    pub fn take_changed_paths(&self) -> Vec<String> {
+        self.take_marked().into_iter().filter_map(|k| self.relative(&k)).collect()
+    }
+
+    /// The paths noted as changed since the last call, taken.
+    fn take_marked(&self) -> std::collections::BTreeSet<PathBuf> {
+        let Files::Memory(_, changed) = &self.files.main else { return Default::default() };
+        let mut g = changed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        g.as_mut().map(std::mem::take).unwrap_or_default()
+    }
+
+    /// A memory cache's file as a path relative to its root (`a1/folders.json`).
+    fn relative(&self, k: &Path) -> Option<String> {
+        let rel = k.strip_prefix(&self.root).ok()?;
+        let rel: Vec<&str> = rel.iter().map(|s| s.to_str()).collect::<Option<_>>()?;
+        Some(rel.join("/"))
     }
 
     pub fn root(&self) -> &Path {

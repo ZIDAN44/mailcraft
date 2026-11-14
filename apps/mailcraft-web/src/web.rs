@@ -91,7 +91,9 @@ pub fn start() {
                         }
                         s
                     };
-                    if db.is_some() {
+                    // What changed goes to IndexedDB each frame; without it, local storage is
+                    // written again only when something it keeps changed.
+                    if !sample {
                         store.track_changes();
                     }
                     let mut session = Session::open(Some(store.clone()), Clock::new(now, offset));
@@ -122,7 +124,7 @@ pub fn start() {
                     if let Some(key) = param("open") {
                         app.show_message_page(&key);
                     }
-                    Ok(Box::new(WebShell { app, store, sample, db, restore, bringing: None }))
+                    Ok(Box::new(WebShell { app, store, sample, db, restore, bringing: None, lists: Default::default() }))
                 }),
             )
             .await;
@@ -176,6 +178,8 @@ struct WebShell {
     restore: Restoring,
     /// One being brought in: nothing of this page's is kept over it meanwhile.
     bringing: Option<Bringing>,
+    /// Without IndexedDB: whether the lists in local storage are behind the cache.
+    lists: crate::lists_kept::Lists,
 }
 
 /// A backup whose files the browser is taking: its settings, kept once it has them all, and what
@@ -271,6 +275,11 @@ impl eframe::App for WebShell {
             return;
         }
         let keep = |p: &str| p.ends_with(".json") && !p.ends_with(".bad") && !p.contains("/outbox/");
+        // Nothing kept here changed: what's there is still right (it was all copied, measured and
+        // written again every ten seconds). A change that wasn't written still counts.
+        if !self.lists.due(self.store.take_changed_paths().iter().any(|p| keep(p))) {
+            return;
+        }
         let mut files: Vec<(String, String)> =
             self.store.snapshot(keep).into_iter().filter_map(|(p, v)| Some((p, String::from_utf8(v).ok()?))).collect();
         // Folder contents only while there's room; they come back with the next sync.
@@ -278,10 +287,14 @@ impl eframe::App for WebShell {
         if size(&files) > MAX_KEPT {
             files.retain(|(p, _)| !p.ends_with("/state.json"));
         }
-        if size(&files) <= MAX_KEPT
-            && let Ok(j) = serde_json::to_string(&files)
-        {
-            storage.set_string(FILES_KEY, j);
+        if size(&files) > MAX_KEPT {
+            // Too much to keep as it is: nothing to try again until it changes.
+            self.lists.written(true);
+        } else if let Ok(j) = serde_json::to_string(&files) {
+            storage.set_string(FILES_KEY, j.clone());
+            // Local storage refuses what it has no room for without a word: read back, and
+            // written again at the next save if it isn't there.
+            self.lists.written(storage.get_string(FILES_KEY).as_deref() == Some(j.as_str()));
         }
     }
 

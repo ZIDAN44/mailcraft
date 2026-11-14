@@ -20,6 +20,7 @@ mod fetch;
 #[cfg(target_arch = "wasm32")]
 mod idb;
 mod index_queue;
+mod lists_kept;
 mod query;
 mod sealing;
 #[cfg(target_arch = "wasm32")]
