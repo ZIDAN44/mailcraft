@@ -317,9 +317,17 @@ impl Data {
                     }
                 }
                 list.sort_by(|a, b| b.received.cmp(&a.received));
+                // `$top` a page, `@odata.nextLink` (with `$skip`) for the rest.
                 let top: usize = q("$top").and_then(|t| t.parse().ok()).unwrap_or(10);
-                let list: Vec<Value> = list.into_iter().take(top).map(|m| self.message_json(m)).collect();
-                ok(json!({ "value": list }))
+                let skip: usize = q("$skip").and_then(|s| s.parse().ok()).unwrap_or(0);
+                let more = list.len() > skip.saturating_add(top);
+                let list: Vec<Value> = list.into_iter().skip(skip).take(top).map(|m| self.message_json(m)).collect();
+                let mut v = json!({ "value": list });
+                if more {
+                    let rest: String = query.split('&').filter(|kv| !kv.starts_with("$skip=")).collect::<Vec<_>>().join("&");
+                    v["@odata.nextLink"] = json!(format!("{base}{path}?{rest}&$skip={}", skip + top));
+                }
+                ok(v)
             }
             ("POST", ["me", "messages"]) => {
                 let raw = unbase64(body);

@@ -8,6 +8,7 @@ use mailcraft_model::{AccountConfig, Event, Flag, Job, Op, SyncStatus};
 use super::*;
 
 mod directory;
+mod large_folder;
 
 fn until(pool: &crate::worker::Pool, what: &str, mut f: impl FnMut(&Event) -> bool) -> Vec<Event> {
     let end = Instant::now() + Duration::from_secs(20);
