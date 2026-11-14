@@ -312,14 +312,19 @@ mod tests {
         let path = dir.join(NAME);
         let log: &'static FileLog = Box::leak(Box::new(FileLog::new(Some(File::create(&path).unwrap()), false)));
         log.start_thread();
-        let record = |msg: &str| log.hand_over(&line("2026-10-19 14:03:07", Level::Warn, "mailcraft::x", msg));
+        let record = move |msg: &str| log.hand_over(&line("2026-10-19 14:03:07", Level::Warn, "mailcraft::x", msg));
         record("first");
         log.flush();
         let held = log.out.lock().unwrap();
-        let began = std::time::Instant::now();
-        record("while the disk is busy");
-        record("and another");
-        assert!(began.elapsed() < Duration::from_millis(500), "logging waited {:?}", began.elapsed());
+        // Logged on another thread, as the app's lines are: both while the disk is held, or never
+        // (a minute: a wait for the disk fails the test, not a busy computer).
+        let (logged, done) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            record("while the disk is busy");
+            record("and another");
+            let _ = logged.send(());
+        });
+        assert!(done.recv_timeout(Duration::from_secs(60)).is_ok(), "logging waited for the disk");
         drop(held);
         log.flush();
         let text = std::fs::read_to_string(&path).unwrap();
