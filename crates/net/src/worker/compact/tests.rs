@@ -103,13 +103,17 @@ fn asked_for_a_data_file_is_compacted_on_its_thread() {
 #[test]
 fn a_second_compaction_and_an_import_beside_one_are_refused() {
     let (dir, _store, mut p) = setup("refused");
-    // One running (its thread held up by the drive it asks for room).
+    // One running (its thread held up by the drive it asks for room), until the test lets it go:
+    // however slow the machine, it hasn't ended meanwhile.
+    let (go, wait) = std::sync::mpsc::channel::<()>();
     p.compacts.running.insert(
         "c1".into(),
         CompactCtl {
             cancel: Arc::default(),
             exclusive: Arc::default(),
-            thread: std::thread::spawn(|| std::thread::sleep(Duration::from_millis(500))),
+            thread: std::thread::spawn(move || {
+                let _ = wait.recv();
+            }),
         },
     );
     p.submit(Job::CompactDataFile { account: "c1".into(), mode: CompactMode::Manual });
@@ -126,6 +130,7 @@ fn a_second_compaction_and_an_import_beside_one_are_refused() {
     assert!(!p.importing("c1"), "none began");
     p.submit(Job::CancelCompact { account: "c1".into() });
     assert!(p.compacts.running.get("c1").is_some_and(|c| c.cancel.load(Ordering::Relaxed)), "asked to stop");
+    let _ = go.send(());
     p.shutdown();
     drop(p);
     let _ = std::fs::remove_dir_all(&dir);
