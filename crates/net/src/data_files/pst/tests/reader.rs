@@ -295,6 +295,42 @@ fn import_in_time(path: &Path, dir: &Path) -> (super::super::Imported, Vec<Vec<u
     rx.recv_timeout(Duration::from_secs(120)).expect("the file was imported in time")
 }
 
+/// MEASURE: a small data file's import, as the app makes one (a cache on disk, its own lanes),
+/// twenty times: the slowest and the median, and where the median one's time went. Run in
+/// release, alone and beside other work:
+/// `cargo test --release -p mailcraft-net --lib measure_a_small_import -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_a_small_import() {
+    let dir = scratch("measure-small-import");
+    let path = with_nested_messages(&dir);
+    let mut runs: Vec<(Duration, super::super::ImportStats)> = (0..20)
+        .map(|n| {
+            let store = mailcraft_store::Store::open(dir.join(format!("cache{n}"))).unwrap();
+            let began = std::time::Instant::now();
+            let done = super::import(&path, &store, "a1", &mut |_| {}).unwrap();
+            (began.elapsed(), done.stats)
+        })
+        .collect();
+    runs.sort_by_key(|(took, _)| *took);
+    let (median, s) = &runs[runs.len() / 2];
+    eprintln!(
+        "MEASURE small import: median {median:?}, slowest {:?}; the median's ms: total {}, plan {}, read {}, build {}, write {}, commit {}, writer idle {}, budget wait {}, index {}; lanes {}",
+        runs[runs.len() - 1].0,
+        s.total_ms,
+        s.plan_ms,
+        s.read_ms,
+        s.build_ms,
+        s.write_ms,
+        s.commit_ms,
+        s.writer_idle_ms,
+        s.budget_wait_ms,
+        s.index_ms,
+        s.lanes
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// A message's subject and its attachments' names, an attached message's as its own tree:
 /// `Outer[Middle[…], empty.txt]`.
 fn tree(raw: &[u8]) -> String {
