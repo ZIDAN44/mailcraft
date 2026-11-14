@@ -7,6 +7,7 @@ mod deep;
 mod entities;
 mod fonts;
 mod footers;
+mod lines;
 pub(crate) mod marks;
 mod outlook;
 mod page;
@@ -17,6 +18,7 @@ mod signature;
 mod tags;
 pub(crate) use entities::{Refs, decode_refs};
 pub(crate) use footers::footers_last;
+use lines::{bullet, heading_of, line_spans, table_rules};
 use mailcraft_model::work;
 #[doc(hidden)]
 pub use outlook::as_outlook_reads;
@@ -346,83 +348,14 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
     let mut blank = 0;
     let mut size = 0u16;
     for line in lines.into_iter().take(RICH_MAX_LINES) {
-        let mut spans: Vec<Span> = Vec::new();
-        for ts in line.tagged_strings() {
-            let mut sp = Span { text: ts.s.clone(), ..Default::default() };
-            for a in &ts.tag {
-                match a {
-                    html2text::render::RichAnnotation::Strong => sp.bold = true,
-                    html2text::render::RichAnnotation::Emphasis => sp.italic = true,
-                    html2text::render::RichAnnotation::Strikeout => sp.strike = true,
-                    html2text::render::RichAnnotation::Code | html2text::render::RichAnnotation::Preformat(_) => sp.code = true,
-                    html2text::render::RichAnnotation::Link(l) => sp.link = Some(l.clone()),
-                    html2text::render::RichAnnotation::Image(src) => sp.image = Some(src.clone()),
-                    html2text::render::RichAnnotation::Colour(c) => sp.color = Some([c.r, c.g, c.b]),
-                    html2text::render::RichAnnotation::BgColour(c) => sp.background = Some([c.r, c.g, c.b]),
-                    _ => {}
-                }
-            }
-            // Merge with the previous span when the formatting is the same.
-            match spans.last_mut() {
-                Some(last) if Span { text: String::new(), ..last.clone() } == Span { text: String::new(), ..sp.clone() } => {
-                    last.text.push_str(&sp.text)
-                }
-                _ => spans.push(sp),
-            }
-        }
-        if let Some(last) = spans.last_mut() {
-            let trimmed = last.text.trim_end().len();
-            last.text.truncate(trimmed);
-        }
-        // Headings come out as `## <mark>Title`, each line of them (see `mark_headings`): drop
-        // both, keep the level.
-        let mut level = 0u8;
-        let mut hashes = 0usize;
-        for sp in &mut spans {
-            if level > 0 {
-                break;
-            }
-            match sp.text.find(HEADING_MARK) {
-                Some(i) => {
-                    hashes += sp.text.get(..i).unwrap_or("").chars().filter(|c| *c == '#').count();
-                    level = u8::try_from(hashes.clamp(1, 6)).unwrap_or(1);
-                    sp.text = sp.text.get(i + HEADING_MARK.len_utf8()..).unwrap_or("").to_string();
-                }
-                None => hashes += sp.text.chars().filter(|c| *c == '#').count(),
-            }
-        }
-        if level > 0 {
-            if let Some(first) = spans.first_mut()
-                && first.text.trim_start_matches('#').trim().is_empty()
-                && first.image.is_none()
-            {
-                first.text.clear();
-            }
-            for sp in &mut spans {
-                sp.heading = level;
-            }
-        }
+        let mut spans = line_spans(&line);
+        heading_of(&mut spans);
         for sp in &mut spans {
             sp.text = sp.text.replace([HEADING_MARK, PICTURE_MARK], "");
         }
         let mut spans = scripts_split(spans, &mut size);
-        // List bullets (`* item`, indented when nested) as real bullets.
-        if let Some(first) = spans.first_mut() {
-            let indent = first.text.len() - first.text.trim_start_matches(' ').len();
-            if first.text.get(indent..).is_some_and(|r| r.starts_with("* ")) {
-                first.text = format!("{}• {}", " ".repeat(indent), first.text.get(indent + 2..).unwrap_or(""));
-            }
-        }
-        // Tables come laid out with box-drawing borders. A layout table (one column) only adds
-        // rules around its text: drop those. A data table's rows line up only in a monospace font.
-        let whole: String = spans.iter().map(|s| s.text.as_str()).collect();
-        if !whole.trim().is_empty() && whole.chars().all(|c| matches!(c, '─' | '━' | '═' | ' ')) {
-            spans.clear();
-        } else if whole.contains(['│', '┼', '┬', '┴']) {
-            for sp in &mut spans {
-                sp.code = true;
-            }
-        }
+        bullet(&mut spans);
+        table_rules(&mut spans);
         spans.retain(|s| !s.text.is_empty() || s.image.is_some());
         if spans.is_empty() {
             blank += 1;

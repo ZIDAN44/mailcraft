@@ -755,3 +755,19 @@ fn a_reply_quotes_every_picture() {
     let mut p = parse(twice.as_bytes()).unwrap();
     assert_eq!(quoted_pictures_given(&mut p, twice.as_bytes()).0.len(), 2);
 }
+
+/// MEASURE: the formatted lines of HTML made of many fragments of one format (#289): bold words
+/// and links of one address, each its own fragment, merged with the one before.
+#[test]
+#[ignore]
+fn measure_rich_fragments() {
+    let line = "<b>word</b> ".repeat(60) + &"<a href=\"https://links.example/a/rather/long/address?with=query&and=more\">link</a> ".repeat(60);
+    let html = format!("<p>{line}</p>").repeat(400);
+    let _ = html_to_rich(&html);
+    let start = std::time::Instant::now();
+    let mut spans = 0;
+    for _ in 0..5 {
+        spans += html_to_rich(&html).iter().map(Vec::len).sum::<usize>();
+    }
+    println!("MEASURE rich_fragments {} KB: {:.1} ms each ({spans} spans)", html.len() / 1024, start.elapsed().as_secs_f64() * 1000.0 / 5.0);
+}
