@@ -52,6 +52,24 @@ impl Session {
         out
     }
 
+    /// What [`Session::reactions`] of `key` is gathered from, as a number that stays the same
+    /// while they can't have changed: the list (its revision), the account's Sent Items as
+    /// cached (and every change to cached mail), the user's addresses. The window keeps what it found until this moves: gathered
+    /// every frame, a list of 50,000 and a Sent Items of 20,000 took a millisecond a frame.
+    pub fn reactions_stamp(&self, key: &MessageKey) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (key, self.revision, self.list.len()).hash(&mut h);
+        let sent = self.account(&key.account).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone());
+        // Which messages it holds, and what they say: one listed before its source came says
+        // what it answers and its emoji only once it's filled from it, in place, with none of
+        // the folder's numbers moving (the count of changes to cached mail does).
+        let cached = sent.as_ref().and_then(|f| self.cache.get(&(key.account.clone(), f.clone())));
+        (sent.as_ref(), cached.map(|st| (st.validity, st.uid_next, st.highest_modseq, st.messages.len())), self.search_state.changes).hash(&mut h);
+        self.my_addresses().hash(&mut h);
+        h.finish()
+    }
+
     /// React to the message shown (or `key`) with `emoji`: a reaction sent to its sender and
     /// everyone else it went to, from the account it came to.
     pub fn react(&mut self, key: Option<MessageKey>, emoji: &str) -> CmdResult {

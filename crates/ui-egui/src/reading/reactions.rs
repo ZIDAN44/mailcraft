@@ -1,9 +1,11 @@
 //! Reactions under a message (issue #39): the emoji others sent in answer to it, each with how
 //! many and who, and a button to send one, as Outlook offers its reactions beside Reply.
 
+use std::sync::Arc;
+
 use egui::{Sense, Ui, vec2};
-use mailcraft_engine::Session;
 use mailcraft_engine::model::MessageKey;
+use mailcraft_engine::{Reactions, Session};
 use serde_json::json;
 
 use crate::icons::{self, Icon};
@@ -38,7 +40,19 @@ pub(crate) fn react_button(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
 /// The reactions answering the message: one chip per emoji, with how many sent it; who, when
 /// pointed at. A chip of the user's own is drawn marked; clicking one sends that reaction too.
 pub(crate) fn reactions_row(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, acts: &mut Vec<Action>) {
-    let all = s.reactions(key);
+    // Gathered again only when what they come from moved (it took a millisecond a frame).
+    let stamp = s.reactions_stamp(key);
+    // Kept per place it's drawn (a message's window has its own); which message is in the stamp.
+    let id = ui.scope_id().with("reactions-found");
+    let kept = ui.data(|d| d.get_temp::<(u64, Arc<Vec<Reactions>>)>(id)).filter(|(at, _)| *at == stamp);
+    let all = match kept {
+        Some((_, all)) => all,
+        None => {
+            let all = Arc::new(s.reactions(key));
+            ui.data_mut(|d| d.insert_temp(id, (stamp, all.clone())));
+            all
+        }
+    };
     if all.is_empty() {
         return;
     }

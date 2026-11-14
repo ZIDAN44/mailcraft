@@ -5,6 +5,7 @@ use super::*;
 mod attachments;
 mod people;
 mod plain_text;
+mod reactions;
 
 #[test]
 fn renders_every_state_without_panicking() {
