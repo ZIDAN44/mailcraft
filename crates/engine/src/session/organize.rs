@@ -487,11 +487,6 @@ impl Session {
         for m in &members {
             self.prefs.ignored.extend(Self::conversation_ids(m));
         }
-        // Kept bounded: the oldest ids go first (a BTreeSet has no age; dropping any is safe).
-        while self.prefs.ignored.len() > 5_000 {
-            let Some(first) = self.prefs.ignored.iter().next().cloned() else { break };
-            self.prefs.ignored.remove(&first);
-        }
         let keys: BTreeSet<MessageKey> = members.iter().map(|m| m.key.clone()).collect();
         self.selection = keys.into_iter().collect();
         let n = self.selection.len();

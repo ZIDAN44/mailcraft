@@ -151,6 +151,7 @@ on GitHub.
 - A rules import that fails no longer leaves new categories behind.
 - When a server numbers a folder again, its old mail is no longer announced as new or run through rules again.
 - Clean Up is faster on folders where much of the mail is unread or flagged.
+- Ignoring a conversation when many are already ignored keeps it ignored.
 
 ## 0.38.0 - 2026-11-13
 

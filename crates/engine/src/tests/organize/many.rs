@@ -116,6 +116,24 @@ fn measure_ignore_many() {
     assert_eq!(s.prefs.ignored.len(), 300);
 }
 
+/// Past 5,000 ignored ids, the oldest go: never those of the conversation just ignored, which
+/// stays ignored (it lost its ids when they sorted first). The order is kept across a restart.
+#[test]
+fn the_oldest_ignored_ids_go_first() {
+    let mut s = sample_session("ignore-many");
+    s.prefs.ignored.extend((0..5000).map(|n| format!("zz{n}@old.example")));
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.select", &k).unwrap();
+    let m = s.first_selected().cloned().unwrap();
+    s.run("mail.ignore", &json!({})).unwrap();
+    assert!(s.is_ignored(&m), "the conversation just ignored is");
+    assert_eq!(s.prefs.ignored.len(), 5000);
+    assert!(!s.prefs.ignored.contains("zz0@old.example") && s.prefs.ignored.contains("zz4999@old.example"), "the oldest went");
+    let back: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!(back.ignored, s.prefs.ignored);
+}
+
 /// A server account with an empty Inbox and an Archive of `n` messages (uids 1 to `n`, each its
 /// own Message-ID), both read. Returns the account's id.
 fn archive_of(s: &mut Session, n: u32) -> String {
