@@ -120,7 +120,7 @@ impl Reader {
         if !scan.begun {
             scan.begun = true;
             scan.found = PhraseFound { yes: Bits::new(self.len()), unsure: Bits::new(self.len()) };
-            scan.last = within.ones().last().unwrap_or(0);
+            scan.last = within.last().unwrap_or(0);
             if !placeable(field, words) {
                 scan.found.unsure = within.clone();
                 scan.done = true;

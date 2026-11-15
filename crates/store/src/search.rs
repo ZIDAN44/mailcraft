@@ -227,12 +227,27 @@ impl Bits {
         })
     }
 
-    /// The docs set, in order.
+    /// The docs set, in order: a word's set bits taken lowest first, none of its others looked at.
     pub fn ones(&self) -> impl Iterator<Item = u32> + '_ {
         self.words.iter().enumerate().flat_map(|(i, &w)| {
             let base = u32::try_from(i).unwrap_or(u32::MAX).saturating_mul(64);
-            (0..64u32).filter(move |b| w & (1 << b) != 0).map(move |b| base.saturating_add(b))
+            let mut rest = w;
+            std::iter::from_fn(move || {
+                (rest != 0).then(|| {
+                    let b = rest.trailing_zeros();
+                    // The lowest set bit cleared.
+                    rest &= rest.wrapping_sub(1);
+                    base.saturating_add(b)
+                })
+            })
         })
+    }
+
+    /// The highest doc set, found from the end.
+    pub fn last(&self) -> Option<u32> {
+        let (i, w) = self.words.iter().enumerate().rev().find(|(_, w)| **w != 0)?;
+        let base = u32::try_from(i).unwrap_or(u32::MAX).saturating_mul(64);
+        Some(base.saturating_add(63 - w.leading_zeros()))
     }
 }
 

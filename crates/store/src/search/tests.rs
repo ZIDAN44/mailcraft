@@ -4,6 +4,7 @@ use super::format::*;
 use super::*;
 use crate::tests::scratch;
 
+mod bits;
 mod lease;
 mod maint;
 mod memory;
