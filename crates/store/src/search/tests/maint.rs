@@ -344,6 +344,33 @@ fn a_message_with_no_source_is_known_as_such() {
     assert!(found(&mut r, &s, Field::Body, "").is_empty());
 }
 
+/// Docs removed before their flush take their texts with them, among others waiting and docs
+/// with no source; the texts left are written, the others' not.
+#[test]
+fn docs_removed_before_their_flush_take_their_texts() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    let mut docs = Vec::new();
+    for uid in 1..=9 {
+        docs.push(match uid % 3 {
+            0 => w.add_no_source(&mk("INBOX", uid), 1, 1).unwrap(),
+            _ => w.add(&mk("INBOX", uid), 1, 1, &text(&format!("text{uid} {}", "x".repeat(uid as usize * 100)), &[], 0)).unwrap(),
+        });
+    }
+    let held = w.pending_bytes();
+    for d in [docs[0], docs[2], docs[4], docs[7]] {
+        w.remove(d);
+    }
+    assert!(w.pending_bytes() < held - 100 - 500 - 800, "{} of {held}", w.pending_bytes());
+    w.flush(&s).unwrap();
+    let mut r = Reader::open(&s, "a1").unwrap().unwrap();
+    let texts: Vec<Option<String>> =
+        docs.iter().map(|&d| r.text(&s, d).unwrap().map(|b| b.text.split(' ').next().unwrap_or_default().to_string())).collect();
+    let kept = |uid: &str| Some(uid.to_string());
+    assert_eq!(texts, [None, kept("text2"), None, kept("text4"), None, None, kept("text7"), None, None]);
+    assert_eq!(found(&mut r, &s, Field::Body, "text"), [docs[1], docs[3], docs[6]]);
+}
+
 // Plans.
 
 fn summary(folder: &str, uid: u32, id: &str, size: u32, date: i64) -> Summary {

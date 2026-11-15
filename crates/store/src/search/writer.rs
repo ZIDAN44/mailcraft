@@ -71,7 +71,7 @@ pub struct Writer {
     words: Words,
     word_bytes: usize,
     word_docs: u32,
-    /// Texts of the docs added since, by doc.
+    /// Texts of the docs added since, by doc, rising (each added takes the next id).
     texts: Vec<(u32, Vec<u8>)>,
     text_bytes: usize,
     /// Texts to take out of their pages, by page.
@@ -428,9 +428,10 @@ impl Writer {
     pub fn remove(&mut self, doc: u32) {
         let Some(d) = self.docs.get_mut(doc as usize).filter(|d| d.live()) else { return };
         let (folder, uid, text) = (d.folder, d.uid, d.text);
+        let no_source = d.bits & NO_SOURCE != 0;
         d.folder = DEAD;
         d.text = NO_TEXT;
-        if d.bits & NO_SOURCE != 0 {
+        if no_source {
             // It never had words: no segment is to be merged for it.
             d.bits |= PURGED;
         }
@@ -438,7 +439,10 @@ impl Writer {
             self.by_key.remove(&(folder, uid));
         }
         if text == NO_TEXT {
-            if let Some(i) = self.texts.iter().position(|(t, _)| *t == doc) {
+            // Added since the last flush, its text is waiting among the others (added, so by
+            // doc); one with no source has none.
+            let waiting = if no_source { None } else { self.texts.binary_search_by_key(&doc, |(t, _)| *t).ok() };
+            if let Some(i) = waiting {
                 let (_, blob) = self.texts.remove(i);
                 self.text_bytes = self.text_bytes.saturating_sub(blob.capacity());
             }
