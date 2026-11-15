@@ -298,3 +298,70 @@ fn a_picture_named_like_a_signatures_stays_with_the_message() {
     let tag = c.signature_tag.clone();
     assert_eq!(pictures.iter().filter(|p| mime::signature_cid_tag(&p.cid) == Some(tag.as_str())).count(), 1);
 }
+
+/// Issue #1: a signature goes into the message being written from the message itself.
+#[test]
+fn a_signature_goes_in_from_the_message() {
+    let mut s = sample_session("insert-signature");
+    s.run("account.setSignature", &json!({"account": "sample", "signature": ""})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.compose.as_mut().unwrap().body = "Hello there".into();
+    assert!(s.run("compose.insertSignature", &json!({})).is_err(), "no signature yet");
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "Riley\nStudio"})).unwrap();
+    let r = s.run("compose.insertSignature", &json!({"at": 5})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().body, "Hello\n-- \nRiley\nStudio\n there");
+    assert_eq!(r["end"], 23);
+    // One already there is replaced, wherever the cursor is.
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "R."})).unwrap();
+    s.run("compose.insertSignature", &json!({"at": 9999})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().body, "Hello\n-- \nR.\n there");
+    // A reply made with the old signature: that one is replaced.
+    let c = s.compose.as_mut().unwrap();
+    c.body = "Hi\n\n-- \nOld\n\n> quoted".into();
+    c.signature = "-- \nOld".into();
+    s.run("compose.insertSignature", &json!({})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().body, "Hi\n\n-- \nR.\n\n> quoted");
+}
+
+/// Issue #1: a signature pasted from Outlook keeps its look: kept as HTML, and put into new
+/// messages, replies and Insert signature with it; its text is the plain-text twin.
+#[test]
+fn a_formatted_signature_keeps_its_look() {
+    let mut s = sample_session("formatted-signature");
+    let html = "<p class=MsoNormal><b><span style='color:#BFBFBF'>Company bv</span></b></p>\
+                <p class=MsoNormal>An street 1<br><a href=\"http://www.company.com/\">www.company.com</a></p>\
+                <p class=MsoNormal><i>Confidential.</i></p>";
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "ignored", "html": html})).unwrap();
+    let config = s.default_signature("sample", false).unwrap();
+    assert_eq!(config.text, "Company bv\nAn street 1\nwww.company.com\nConfidential.");
+    assert!(!config.html.is_empty());
+    let check = |s: &Session| {
+        let c = s.compose.as_ref().unwrap();
+        let at = c.body.find("Company bv").map(|b| c.body[..b].chars().count()).unwrap();
+        let st = c.styles.style(at);
+        assert!(st.bold && st.color == Some([0xBF, 0xBF, 0xBF]), "{st:?}");
+        let link = c.body.find("www.company").map(|b| c.body[..b].chars().count()).unwrap();
+        assert_eq!(c.styles.style(link).link.as_deref(), Some("http://www.company.com/"));
+        assert!(!c.styles.style(0).bold, "the text before it stays as it was");
+        assert_eq!(c.styles.chars.len(), c.body.chars().count());
+        let html = mailcraft_mime::rich::to_html(&c.body, &c.styles);
+        assert!(html.contains("http://www.company.com/"), "{html}");
+    };
+    s.run("mail.new", &json!({})).unwrap();
+    assert!(s.compose.as_ref().unwrap().body.ends_with("-- \nCompany bv\nAn street 1\nwww.company.com\nConfidential."));
+    check(&s);
+    assert!(!s.compose_written(), "a message with only its signature has nothing written");
+    // Insert signature replaces it, keeping the look.
+    s.run("compose.insertSignature", &json!({})).unwrap();
+    check(&s);
+    s.run("compose.discard", &json!({})).unwrap();
+    assert!(s.compose.is_none());
+    let k = s.list.first().map(|m| m.key.clone()).unwrap();
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    check(&s);
+    // Saved plain again, the look goes.
+    s.run("account.setSignature", &json!({"account": "sample", "signature": "R."})).unwrap();
+    assert!(s.default_signature("sample", false).unwrap().html.is_empty());
+    assert!(s.run("account.setSignature", &json!({"account": "sample", "signature": "x", "html": "<p><b>\u{0}"})).is_ok(), "junk HTML");
+}
