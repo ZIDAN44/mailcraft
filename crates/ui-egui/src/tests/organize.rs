@@ -338,6 +338,45 @@ fn a_rule_shown_in_part_keeps_the_rest() {
     assert_eq!(f.to_rule().unwrap(), Rule { name: "Bare".into(), ..bare });
 }
 
+/// A rule that moved mail to a folder of one account, changed to do something else, is for every
+/// account, as a new rule of that kind is: it kept the move's account, which the editor shows for
+/// no other action. One that still moves mail to a folder (an action the editor doesn't show)
+/// keeps it, and so does one whose move goes to another folder.
+#[test]
+fn a_rule_that_no_longer_moves_is_for_every_account() {
+    use crate::dialogs::{RuleDo, RuleForm};
+    use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
+    let rule = Rule {
+        name: "Studio".into(),
+        enabled: true,
+        account: Some("sample".into()),
+        conditions: vec![Condition::From("zoe@".into())],
+        match_all: true,
+        actions: vec![RuleAction::MoveTo("Projects".into()), RuleAction::MarkRead],
+        stop: false,
+    };
+    let mut f = RuleForm::from_rule(0, &rule);
+    (f.action, f.target) = (RuleDo::Flag, String::new());
+    let saved = f.to_rule().unwrap();
+    assert_eq!((saved.actions.as_slice(), saved.account), ([RuleAction::Flag, RuleAction::MarkRead].as_slice(), None));
+    // As the same rule made new.
+    let new = RuleForm { index: None, original: None, ..f }.to_rule().unwrap();
+    assert_eq!(new.account, None);
+    // A second move to a folder still needs the account its folder is in.
+    let two = Rule { actions: vec![RuleAction::MoveTo("Projects".into()), RuleAction::MoveTo("Clients".into())], ..rule.clone() };
+    let mut f = RuleForm::from_rule(0, &two);
+    (f.action, f.target) = (RuleDo::Flag, String::new());
+    let saved = f.to_rule().unwrap();
+    assert_eq!(
+        (saved.actions.as_slice(), saved.account.as_deref()),
+        ([RuleAction::Flag, RuleAction::MoveTo("Clients".into())].as_slice(), Some("sample"))
+    );
+    // The move sent elsewhere keeps it.
+    let mut f = RuleForm::from_rule(0, &rule);
+    f.target = "Clients".into();
+    assert_eq!(f.to_rule().unwrap().account.as_deref(), Some("sample"));
+}
+
 /// The folder search in Move to and Move folder finds a folder by the name it shows
 /// ("Posteingang" in German), as well as by its path on the server ("INBOX").
 #[test]

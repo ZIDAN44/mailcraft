@@ -603,6 +603,10 @@ impl RuleForm {
             // The account a move's folder is in is the one it's for; other actions keep theirs.
             if self.action == RuleDo::MoveTo {
                 rule.account.clone_from(&self.account);
+            } else if act == RuleDo::MoveTo && !rule.actions.iter().any(|a| matches!(a, RuleAction::MoveTo(_))) {
+                // The move's account, which goes with the move: no other action shows one, and a
+                // new rule of this kind has none.
+                rule.account = None;
             }
         }
         Ok(rule)
