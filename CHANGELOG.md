@@ -200,6 +200,7 @@ on GitHub.
 - Long messages open in several windows at once keep their scroll bars steady.
 - Newsletters with many centred lines and links draw faster.
 - Mail laid out in tables no longer slows down while its web pictures load.
+- A message with hundreds of pictures no longer slows down every frame of the reading pane.
 
 ## 0.38.0 - 2026-11-13
 

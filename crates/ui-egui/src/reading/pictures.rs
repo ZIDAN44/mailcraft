@@ -25,6 +25,8 @@ use crate::lock;
 use crate::services::{Lane, Services, Work};
 use crate::thumbs::{self, Fit, Fonts};
 
+#[cfg(test)]
+mod tests;
 mod work;
 
 use work::{Batch, Shared};
@@ -159,6 +161,9 @@ impl Done {
 /// The pictures shown, kept as textures, and the work making them.
 pub(crate) struct Pictures {
     slots: HashMap<PicId, Slot>,
+    /// How many chips' pictures each message has among the slots (kept as they come and go, so
+    /// a chip past [`MAX_PER_MESSAGE`] isn't counted out of every slot each frame).
+    chips: HashMap<MessageKey, usize>,
     /// Frames ended so far: what `Slot::used` counts in.
     frame: u64,
     /// Bytes of the textures kept, and of those asked for this frame.
@@ -188,6 +193,7 @@ impl Default for Pictures {
     fn default() -> Pictures {
         Pictures {
             slots: HashMap::new(),
+            chips: HashMap::new(),
             frame: 0,
             bytes: 0,
             frame_bytes: 0,
@@ -230,8 +236,11 @@ impl Pictures {
         if self.frame_bytes >= self.budget {
             return self.smaller(key, index, want);
         }
-        if want.chip() && self.slots.keys().filter(|(k, _, w)| k == key && w.chip()).count() >= MAX_PER_MESSAGE {
-            return Got::Failed;
+        if want.chip() {
+            if self.chips.get(key).is_some_and(|n| *n >= MAX_PER_MESSAGE) {
+                return Got::Failed;
+            }
+            *self.chips.entry(key.clone()).or_insert(0) += 1;
         }
         if let Want::PdfPage { n, px } = want {
             self.drop_other_widths(key, index, n, px);
@@ -262,6 +271,7 @@ impl Pictures {
         let frame = self.frame;
         let mut gone: Vec<Want> = Vec::new();
         let mut freed = 0usize;
+        // (A page is no chip: the message's chips stay as they are.)
         self.slots.retain(|(k, i, w), s| {
             let other = matches!(w, Want::PdfPage { n: m, px: q } if *m == n && *q != px);
             if other && s.used < frame && k == key && *i == index {
@@ -333,7 +343,13 @@ impl Pictures {
             // Work waiting for room sees it was cancelled.
             self.shared.room.notify_all();
         }
-        self.slots.retain(|(k, _, _), s| !(matches!(s.state, State::Pending | State::Failed) && !shown(k, &self.touched)));
+        self.slots.retain(|id, s| {
+            let keep = !(matches!(s.state, State::Pending | State::Failed) && !shown(&id.0, &self.touched));
+            if !keep {
+                forget_chip(&mut self.chips, id);
+            }
+            keep
+        });
         lock(&self.shared.sources).remove_if(|k| !shown(k, &self.touched));
         if self.pages.len() > MAX_SLOTS {
             self.pages.retain(|(k, _), _| shown(k, &self.touched));
@@ -360,8 +376,16 @@ impl Pictures {
         self.upload(ctx);
         // Pictures too big for the room left are tried again when next asked.
         let frame = self.frame;
-        self.slots.retain(|_, s| !(matches!(s.state, State::Over) && s.used < frame));
+        self.slots.retain(|id, s| {
+            let keep = !(matches!(s.state, State::Over) && s.used < frame);
+            if !keep {
+                forget_chip(&mut self.chips, id);
+            }
+            keep
+        });
         self.evict_to(self.budget);
+        #[cfg(test)]
+        self.check_chips();
         if self.batches.iter().any(|b| b.inline.load(Ordering::Relaxed)) || !lock(&self.shared.out).queue.is_empty() {
             ctx.request_repaint();
         } else if !self.batches.is_empty() {
@@ -508,26 +532,53 @@ impl Pictures {
 
     /// Let go of the textures least recently shown (never one shown this frame) until at most
     /// `target` bytes are kept, and of the oldest pictures remembered past [`MAX_SLOTS`].
+    /// Those as recently shown go in the order the slots are listed. The candidates are found and
+    /// put in order once, not looked for again for each one let go.
     fn evict_to(&mut self, target: usize) {
         let frame = self.frame;
-        while self.bytes > target {
-            let oldest = self
-                .slots
-                .iter()
-                .filter(|(_, s)| matches!(s.state, State::Ready(_)) && s.used < frame)
-                .min_by_key(|(_, s)| s.used)
-                .map(|(id, _)| id.clone());
-            let Some(id) = oldest else { break };
+        if self.bytes > target {
+            let mut old: Vec<(&PicId, &Slot)> = self.slots.iter().filter(|(_, s)| matches!(s.state, State::Ready(_)) && s.used < frame).collect();
+            old.sort_by_key(|(_, s)| s.used);
+            let mut left = self.bytes;
+            let mut gone = Vec::new();
+            for (id, s) in old {
+                if left <= target {
+                    break;
+                }
+                left = left.saturating_sub(s.bytes);
+                gone.push(id.clone());
+            }
+            self.forget(gone);
+        }
+        if self.slots.len() > MAX_SLOTS {
+            let mut old: Vec<(&PicId, &Slot)> = self.slots.iter().filter(|(_, s)| s.used < frame).collect();
+            old.sort_by_key(|(_, s)| s.used);
+            let over = self.slots.len().saturating_sub(MAX_SLOTS);
+            let gone = old.into_iter().take(over).map(|(id, _)| id.clone()).collect();
+            self.forget(gone);
+        }
+    }
+
+    /// Let go of these pictures: their textures' bytes, and their places among their message's chips.
+    fn forget(&mut self, gone: Vec<PicId>) {
+        for id in gone {
             if let Some(s) = self.slots.remove(&id) {
                 self.bytes = self.bytes.saturating_sub(s.bytes);
+                forget_chip(&mut self.chips, &id);
             }
         }
-        while self.slots.len() > MAX_SLOTS {
-            let oldest = self.slots.iter().filter(|(_, s)| s.used < frame).min_by_key(|(_, s)| s.used).map(|(id, _)| id.clone());
-            let Some(id) = oldest else { break };
-            if let Some(s) = self.slots.remove(&id) {
-                self.bytes = self.bytes.saturating_sub(s.bytes);
-            }
+    }
+}
+
+/// A slot let go: a chip's picture leaves its message's count.
+fn forget_chip(chips: &mut HashMap<MessageKey, usize>, (key, _, want): &PicId) {
+    if !want.chip() {
+        return;
+    }
+    if let Some(n) = chips.get_mut(key) {
+        *n = n.saturating_sub(1);
+        if *n == 0 {
+            chips.remove(key);
         }
     }
 }
@@ -566,6 +617,17 @@ impl Pictures {
     /// For the batches started from now on.
     pub(crate) fn set_sources_max(&mut self, max: usize) {
         self.sources_max = max;
+    }
+
+    /// The chips counted for each message are those among the slots.
+    fn check_chips(&self) {
+        let mut counted: HashMap<MessageKey, usize> = HashMap::new();
+        for (k, _, w) in self.slots.keys() {
+            if w.chip() {
+                *counted.entry(k.clone()).or_insert(0) += 1;
+            }
+        }
+        assert_eq!(counted, self.chips, "the chips counted");
     }
 
     /// Pictures remembered of a message, and those of them ready and shown last frame.
