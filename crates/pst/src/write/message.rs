@@ -175,9 +175,10 @@ fn string(kind: u16, text: Text, s: &str) -> Option<Cell> {
     text.cell(kind, s).map(Cell::Bytes)
 }
 
-fn recipient_table(format: Format, list: &[NewRecipient<'_>], version: u32, text: Text) -> io::Result<Built> {
-    let st = text.string_type();
-    let columns = [
+/// The recipient table template's columns, as MS-PST gives them (2.4.5): a new file's
+/// template has these.
+pub(crate) fn recipient_template_columns(st: u16) -> Vec<(u16, u16)> {
+    vec![
         (0x0C15, P::INT32),
         (0x0E0F, P::BOOLEAN),
         (0x0FF9, P::BINARY),
@@ -188,13 +189,31 @@ fn recipient_table(format: Format, list: &[NewRecipient<'_>], version: u32, text
         (0x3003, st),
         (0x300B, P::BINARY),
         (0x3900, P::INT32),
-        (0x39FE, st),
         (0x39FF, st),
         (0x3A40, P::BOOLEAN),
-        (0x5FFD, P::INT32),
-        (0x5FFF, P::INT32),
-    ];
-    let schema = Schema::new(&columns)?;
+    ]
+}
+
+/// A message's recipient table's columns: the template's, and the SMTP address
+/// (`PidTagSmtpAddress`), flags (`PidTagRecipientFlags`) and tracking status
+/// (`PidTagRecipientTrackStatus`) each recipient carries beyond them, in order of ID. The template
+/// keeps to the specification's list: every table says its own columns (`TCINFO`), so what a
+/// message's table has more is read from the table, not the template.
+fn recipient_columns(st: u16) -> Vec<(u16, u16)> {
+    let mut columns = recipient_template_columns(st);
+    columns.extend([(0x39FE, st), (0x5FFD, P::INT32), (0x5FFF, P::INT32)]);
+    columns.sort_by_key(|(id, _)| *id);
+    columns
+}
+
+/// An attachment table's columns: the template's and every message's (MS-PST 2.4.6).
+pub(crate) fn attachment_columns(st: u16) -> Vec<(u16, u16)> {
+    vec![(0x0E20, P::INT32), (0x3704, st), (0x3705, P::INT32), (0x370B, P::INT32)]
+}
+
+fn recipient_table(format: Format, list: &[NewRecipient<'_>], version: u32, text: Text) -> io::Result<Built> {
+    let st = text.string_type();
+    let schema = Schema::new(&recipient_columns(st))?;
     let mut rows = Vec::with_capacity(list.len());
     for (i, r) in list.iter().enumerate() {
         let id = u32::try_from(i + 1).map_err(|_| short())?;
@@ -259,7 +278,7 @@ impl Editor {
     ) -> io::Result<(Built, usize)> {
         let format = self.format();
         let st = text.string_type();
-        let schema = Schema::new(&[(0x0E20, P::INT32), (0x3704, st), (0x3705, P::INT32), (0x370B, P::INT32)])?;
+        let schema = Schema::new(&attachment_columns(st))?;
         let mut rows = Vec::with_capacity(list.len());
         let mut total = 0usize;
         for (i, a) in list.iter().enumerate() {
@@ -464,5 +483,36 @@ pub(crate) fn contents_cell(
         (0x0FFF, P::BINARY) => Some(Cell::Bytes(entry_id(record_key, nid))),
         (0x300B, P::BINARY) => Some(Cell::Bytes(m.message_id.as_bytes().to_vec())),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A message's recipient table keeps the columns, and their order, it always had: the
+    /// template's and three more.
+    #[test]
+    fn a_messages_recipients_have_the_template_columns_and_three_more() {
+        let st = P::UNICODE;
+        let expected = vec![
+            (0x0C15, P::INT32),
+            (0x0E0F, P::BOOLEAN),
+            (0x0FF9, P::BINARY),
+            (0x0FFE, P::INT32),
+            (0x0FFF, P::BINARY),
+            (0x3001, st),
+            (0x3002, st),
+            (0x3003, st),
+            (0x300B, P::BINARY),
+            (0x3900, P::INT32),
+            (0x39FE, st),
+            (0x39FF, st),
+            (0x3A40, P::BOOLEAN),
+            (0x5FFD, P::INT32),
+            (0x5FFF, P::INT32),
+        ];
+        assert_eq!(recipient_columns(st), expected);
+        assert!(recipient_template_columns(st).iter().all(|c| expected.contains(c)));
     }
 }

@@ -9,6 +9,7 @@ use super::btree::{finish_page, page_bytes};
 use super::edit::Editor;
 use super::folders::{CONTENT_COUNT, CONTENT_UNREAD, NID_ROOT_FOLDER, NID_SEARCH_QUEUE};
 use super::heap::build_props;
+use super::message::{attachment_columns, recipient_template_columns};
 use super::space::{self, AMAP_BYTES, AMAP_VALID, DLIST_AT, FIRST_AMAP};
 use super::table::{Cell, NewRow, ROW_ID, ROW_VERSION, Schema, build_table};
 use super::text::Text;
@@ -149,27 +150,6 @@ fn tracking_tables(st: u16) -> [(u32, Vec<(u16, u16)>); 3] {
         ),
         (0x6F8, vec![(0x0E33, P::INT64), (0x3007, P::TIME)]),
     ]
-}
-
-fn recipient_columns(st: u16) -> Vec<(u16, u16)> {
-    vec![
-        (0x0C15, P::INT32),
-        (0x0E0F, P::BOOLEAN),
-        (0x0FF9, P::BINARY),
-        (0x0FFE, P::INT32),
-        (0x0FFF, P::BINARY),
-        (0x3001, st),
-        (0x3002, st),
-        (0x3003, st),
-        (0x300B, P::BINARY),
-        (0x3900, P::INT32),
-        (0x39FF, st),
-        (0x3A40, P::BOOLEAN),
-    ]
-}
-
-fn attachment_columns(st: u16) -> Vec<(u16, u16)> {
-    vec![(0x0E20, P::INT32), (0x3704, st), (0x3705, P::INT32), (0x370B, P::INT32)]
 }
 
 /// A header for an empty file: both B-trees one empty page, the first run's map written.
@@ -348,7 +328,7 @@ impl Editor {
             self.empty_table(nid, schema, &[], 0)?;
         }
         self.empty_table(0x610, &Schema::new(&search_columns(st))?, &[], 0)?;
-        self.empty_table(0x692, &Schema::new(&recipient_columns(st))?, &[], 0)?;
+        self.empty_table(0x692, &Schema::new(&recipient_template_columns(st))?, &[], 0)?;
         self.empty_table(0x671, &Schema::new(&attachment_columns(st))?, &[], 0)?;
         let receive = Schema::new(&receive_columns(st))?;
         let default_row = NewRow {
