@@ -158,6 +158,7 @@ on GitHub.
 - Setting up an account whose address is typed with a trailing dot now finds the provider's servers.
 - Printing a message with a very long word followed by many accent marks no longer hangs.
 - Printing a message with huge text and a very long word no longer leaves near-empty pages.
+- A link that puts a name and password before its address is counted as a tracker, or not, by its real host.
 
 ## 0.38.0 - 2026-11-13
 

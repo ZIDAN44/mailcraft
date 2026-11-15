@@ -117,8 +117,11 @@ const LINK_MAX: usize = 8192;
 /// A web address split where cleaning needs it.
 struct Url<'a> {
     scheme: &'a str,
+    /// What's between `//` and the path, as written: a name and password, the host, a port.
+    authority: &'a str,
+    /// The host alone, lower-cased.
     host: String,
-    /// Everything after the host up to `?` (a port included, as written).
+    /// Everything after the authority up to `?`.
     path: &'a str,
     query: Option<&'a str>,
     fragment: Option<&'a str>,
@@ -129,26 +132,30 @@ fn split(url: &str) -> Option<Url<'_>> {
     if !scheme.eq_ignore_ascii_case("https") && !scheme.eq_ignore_ascii_case("http") {
         return None;
     }
+    // The authority ends where the path, query or fragment starts (a `\` too, as a browser
+    // reads a web address), whatever is in it: a password may hold a `:`.
+    let end = rest.find(['/', '\\', '?', '#']).unwrap_or(rest.len());
+    let (authority, rest) = (rest.get(..end)?, rest.get(end..)?);
     let (rest, fragment) = match rest.split_once('#') {
         Some((r, f)) => (r, Some(f)),
         None => (rest, None),
     };
-    let (rest, query) = match rest.split_once('?') {
+    let (path, query) = match rest.split_once('?') {
         Some((r, q)) => (r, Some(q)),
         None => (rest, None),
     };
-    // An IPv6 address is in brackets, colons and all.
-    let host_end = match rest.strip_prefix('[') {
-        Some(r) => r.find(']').map_or(rest.len(), |e| e + 2),
-        None => rest.find(['/', ':']).unwrap_or(rest.len()),
+    // `user:password@host:port`: the host is after the last `@`, before its port. An IPv6
+    // address is in brackets, colons and all.
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    let host_end = match host_port.strip_prefix('[') {
+        Some(r) => r.find(']').map_or(host_port.len(), |e| e + 2),
+        None => host_port.find(':').unwrap_or(host_port.len()),
     };
-    let authority = rest.get(..host_end)?;
-    // `user@host`: the host is after the `@`.
-    let host = authority.rsplit('@').next().unwrap_or(authority).to_ascii_lowercase();
+    let host = host_port.get(..host_end)?.to_ascii_lowercase();
     if host.is_empty() {
         return None;
     }
-    Some(Url { scheme, host, path: rest.get(host_end..).unwrap_or(""), query, fragment })
+    Some(Url { scheme, authority, host, path, query, fragment })
 }
 
 fn host_is(host: &str, name: &str) -> bool {
@@ -207,7 +214,7 @@ pub fn clean_link(url: &str) -> String {
     let Some(u) = split(&url) else { return url };
     let Some(query) = u.query else { return url };
     let kept: Vec<&str> = query.split('&').filter(|p| !p.is_empty() && !is_tag(p.split('=').next().unwrap_or(p))).collect();
-    let mut out = format!("{}://{}{}", u.scheme, original_authority(&url, u.scheme), u.path);
+    let mut out = format!("{}://{}{}", u.scheme, u.authority, u.path);
     if !kept.is_empty() {
         out.push('?');
         out.push_str(&kept.join("&"));
@@ -217,19 +224,6 @@ pub fn clean_link(url: &str) -> String {
         out.push_str(f);
     }
     out
-}
-
-/// The host part of `url` as it was written (case and any `user@` kept).
-fn original_authority<'a>(url: &'a str, scheme: &str) -> &'a str {
-    let rest = url.get(scheme.len() + 3..).unwrap_or("");
-    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let auth = rest.get(..end).unwrap_or("");
-    // A port stays with the path (as `split` keeps it): only the name part here.
-    let name_end = match auth.strip_prefix('[') {
-        Some(r) => r.find(']').map_or(auth.len(), |e| e + 2),
-        None => auth.rfind(':').unwrap_or(auth.len()),
-    };
-    auth.get(..name_end).unwrap_or(auth)
 }
 
 /// Whether following `url` tells someone the reader clicked it.
@@ -317,6 +311,21 @@ mod tests {
             ["https://open.shop.example/o.gif?r=9", "https://news.us1.list-manage.com/track/open.php?u=1", "https://t.example/p.png"]
         );
         assert!(trackers("<p>plain</p>").is_empty());
+    }
+
+    /// A link's host is after the last `@` of what's before its path, as a browser reads it: a
+    /// name and password before it (`counter:x@`) aren't its host, nor is what's after a `\`.
+    /// Cut at the first `:`, `https://sendgrid.net:x@shop.example/` was counted as SendGrid's,
+    /// and `https://shop.example:x@sendgrid.net/` wasn't.
+    #[test]
+    fn a_host_after_a_name_and_password() {
+        assert!(!tracks_click("https://sendgrid.net:x@shop.example/sale"));
+        assert!(tracks_click("https://shop.example:x@sendgrid.net/sale"));
+        assert!(tracks_click("https://ana@sendgrid.net:8080/sale"));
+        assert!(!tracks_click("https://shop.example\\@sendgrid.net/sale"));
+        // The authority stays as it was written.
+        assert_eq!(clean_link("https://Ana:Pw@Shop.Example:8443/a?utm_source=x&id=7#top"), "https://Ana:Pw@Shop.Example:8443/a?id=7#top");
+        assert_eq!(clean_link("https://ana:pw@[::1]:80/?b=2&fbclid=1"), "https://ana:pw@[::1]:80/?b=2");
     }
 
     #[test]
