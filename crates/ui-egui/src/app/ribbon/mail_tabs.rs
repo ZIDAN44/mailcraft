@@ -91,7 +91,7 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
     let first = s.first_selected();
     let first_unread = first.is_some_and(|m| !m.flags.seen);
     let (ricon, rlabel) = if first_unread { (Icon::Read, "Mark read") } else { (Icon::Unread, "Mark unread") };
-    if widgets::tool_button(ui, ricon, rlabel, &t, enabled(s, "mail.toggleRead")).on_hover_text("Read / Unread (Ctrl+Q / Ctrl+U)").clicked() {
+    if widgets::tool_button(ui, ricon, rlabel, &t, enabled(s, "mail.toggleRead")).on_hover_text(tl!("Read / Unread (Ctrl+Q / Ctrl+U)")).clicked() {
         acts.push(Action::Run("mail.toggleRead", json!({})));
     }
     if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled(s, "mail.flag")).on_hover_text(tl!("Flag / Unflag (Insert)")).clicked() {

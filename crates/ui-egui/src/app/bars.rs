@@ -135,7 +135,8 @@ impl MailApp {
         let can_undo = !self.session.undo.is_empty();
         ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
             let dark = t.dark;
-            let (icon, tip) = if dark { (Icon::Sun, tl!("Switch to light mode")) } else { (Icon::Moon, tl!("Switch to dark mode")) };
+            // The buttons' words in English: the button translates them.
+            let (icon, tip) = if dark { (Icon::Sun, "Switch to light mode") } else { (Icon::Moon, "Switch to dark mode") };
             if widgets::bar_icon_button(ui, icon, tip, &t).clicked() {
                 acts.push(Action::SetDark(Some(!dark)));
             }
@@ -144,10 +145,10 @@ impl MailApp {
             }
             // Quick access, as Outlook's title bar: Send / Receive all folders, and Undo the
             // last move, delete, flag or category (Ctrl+Z).
-            if can_sync && widgets::bar_icon_button(ui, Icon::Sync, tl!("Send / Receive all folders (F9)"), &t).clicked() {
+            if can_sync && widgets::bar_icon_button(ui, Icon::Sync, "Send / Receive all folders (F9)", &t).clicked() {
                 acts.push(Action::Run("mail.sync", json!({})));
             }
-            if can_undo && widgets::bar_icon_button(ui, Icon::Back, tl!("Undo (Ctrl+Z)"), &t).clicked() {
+            if can_undo && widgets::bar_icon_button(ui, Icon::Back, "Undo (Ctrl+Z)", &t).clicked() {
                 acts.push(Action::Run("edit.undo", json!({})));
             }
         })
