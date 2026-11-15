@@ -17,6 +17,8 @@ pub(super) struct Probe<'a> {
     pub env: &'a dyn Fn(&str) -> Option<PathBuf>,
     /// Whether a file is there.
     pub file: &'a dyn Fn(&Path) -> bool,
+    /// A folder's own path, links and `..` resolved; `None` when it isn't there.
+    pub canonical: &'a dyn Fn(&Path) -> Option<PathBuf>,
     /// Whether this user may make files in a folder.
     pub writable: &'a dyn Fn(&Path) -> bool,
     /// Whether the package tool of a kind has MailCraft installed.
@@ -34,8 +36,13 @@ pub(super) fn unix_kind(exe: &Path, p: &Probe) -> Option<Kind> {
             return Some(Kind::Flatpak);
         }
         // Replaced by a rename beside it: its folder must be ours to write (an AppImage kept in
-        // /opt by root keeps File › About's Download link).
-        if let Some(image) = (p.env)("APPIMAGE").filter(|i| (p.file)(i)) {
+        // /opt by root keeps File › About's Download link). Only MailCraft's own: an AppImage
+        // that opens a link or a file passes its `APPIMAGE` on to the program it starts, so a
+        // MailCraft started by another AppImage (a browser's `mailto:` link) put its update over
+        // that one's file. MailCraft's own runs from inside its image (`APPDIR`).
+        if let Some(image) = (p.env)("APPIMAGE").filter(|i| (p.file)(i))
+            && runs_from_image(exe, (p.env)("APPDIR").as_deref(), p.canonical)
+        {
             if !image.parent().is_some_and(|d| (p.writable)(d)) {
                 log::info!("updates: {} is in a folder this user can't write, so it isn't replaced", image.display());
                 return None;
@@ -61,6 +68,15 @@ pub(super) fn unix_kind(exe: &Path, p: &Probe) -> Option<Kind> {
     Some(Kind::Tarball(root.to_path_buf()))
 }
 
+/// Whether `exe` runs from the AppImage mounted at `appdir`; anything unclear counts as not. One
+/// inherited from another program then goes on to the checks below: this copy is updated as
+/// what it is (a package, the tarball), or not at all, never over that program's file.
+fn runs_from_image(exe: &Path, appdir: Option<&Path>, canonical: &dyn Fn(&Path) -> Option<PathBuf>) -> bool {
+    let Some(appdir) = appdir.filter(|d| d.has_root()).and_then(canonical) else { return false };
+    // No image is mounted at the root, where every program would count as inside it.
+    appdir.parent().is_some() && exe.starts_with(&appdir)
+}
+
 /// Whether the package tool of `kind` has MailCraft installed (`dpkg-query`, `rpm -q`).
 pub(super) fn installed_package(kind: Package) -> bool {
     let out = match kind {
@@ -79,7 +95,9 @@ mod tests {
         let file = |f: &Path| files.iter().any(|x| Path::new(x) == f);
         let writable = |_: &Path| writable;
         let package = |k: Package| package == Some(k);
-        unix_kind(Path::new(exe), &Probe { env: &env, file: &file, writable: &writable, package: &package, freebsd })
+        // The folders in these tests are their own paths.
+        let canonical = |p: &Path| Some(p.to_path_buf());
+        unix_kind(Path::new(exe), &Probe { env: &env, file: &file, canonical: &canonical, writable: &writable, package: &package, freebsd })
     }
 
     /// Each way MailCraft ships on Linux and FreeBSD is told apart; one this user can't update,
@@ -93,8 +111,22 @@ mod tests {
         assert_eq!(kind("/app/bin/mailcraft", &[], &["/.flatpak-info"], false, None, false), Some(Kind::Flatpak));
         // An AppImage, where it can be renamed over.
         let image = "/home/zoe/MailCraft.AppImage";
-        assert_eq!(kind("/tmp/.mount_x/usr/bin/mailcraft", &[("APPIMAGE", image)], &[image], true, None, false), Some(Kind::AppImage(image.into())));
-        assert_eq!(kind("/tmp/.mount_x/usr/bin/mailcraft", &[("APPIMAGE", image)], &[image], false, None, false), None);
+        let mounted = [("APPIMAGE", image), ("APPDIR", "/tmp/.mount_x")];
+        assert_eq!(kind("/tmp/.mount_x/usr/bin/mailcraft", &mounted, &[image], true, None, false), Some(Kind::AppImage(image.into())));
+        assert_eq!(kind("/tmp/.mount_x/usr/bin/mailcraft", &mounted, &[image], false, None, false), None);
+        // Another program's AppImage, passed on to the MailCraft it started: never replaced. This
+        // copy is what it is (a package here), or nothing the updater replaces.
+        let browser = "/home/zoe/Browser.AppImage";
+        let theirs = [("APPIMAGE", browser), ("APPDIR", "/tmp/.mount_b")];
+        assert_eq!(
+            kind("/usr/bin/mailcraft", &theirs, &[browser], true, Some(Package::Deb), false),
+            Some(Kind::Package(Package::Deb, "/usr/bin/mailcraft".into()))
+        );
+        assert_eq!(kind("/tmp/.mount_x/usr/bin/mailcraft", &theirs, &[browser], true, None, false), None);
+        for appdir in [None, Some("/"), Some("tmp/.mount_x"), Some("/tmp/.mount_xy")] {
+            let env: Vec<(&str, &str)> = [("APPIMAGE", browser)].into_iter().chain(appdir.map(|d| ("APPDIR", d))).collect();
+            assert_eq!(kind("/tmp/.mount_x/usr/bin/mailcraft", &env, &[browser], true, None, false), None, "{appdir:?}");
+        }
         // The packages, by their tools' word.
         for p in [Package::Deb, Package::Rpm] {
             assert_eq!(kind("/usr/bin/mailcraft", &[], &[], false, Some(p), false), Some(Kind::Package(p, "/usr/bin/mailcraft".into())));

@@ -221,6 +221,7 @@ fn detect_at(exe: &Path, env: &dyn Fn(&str) -> Option<PathBuf>) -> Option<Kind> 
         let probe = detect::Probe {
             env,
             file: &|p: &Path| p.is_file(),
+            canonical: &|p: &Path| p.canonicalize().ok(),
             writable: &|p: &Path| writable(p),
             package: &detect::installed_package,
             freebsd: cfg!(target_os = "freebsd"),

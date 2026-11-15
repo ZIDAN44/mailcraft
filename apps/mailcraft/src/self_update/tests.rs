@@ -224,11 +224,29 @@ fn the_install_kind_follows_where_mailcraft_is() {
         let dir = scratch("appimage");
         let image = dir.join("MailCraft-x86_64.AppImage");
         std::fs::write(&image, b"").unwrap();
+        // Where the image is mounted, as the AppImage runtime says (`APPDIR`).
+        let mount = dir.join("mount");
+        std::fs::create_dir_all(mount.join("usr").join("bin")).unwrap();
+        // As `detect` sees the running copy: its own path.
+        let mount = mount.canonicalize().unwrap();
+        let exe = mount.join("usr").join("bin").join("mailcraft");
         let found = image.clone();
-        let env = move |k: &str| (k == "APPIMAGE").then(|| found.clone());
-        assert_eq!(detect_at(Path::new("/tmp/.mount_x/usr/bin/mailcraft"), &env), Some(Kind::AppImage(image)));
-        let env = |k: &str| (k == "APPIMAGE").then(|| PathBuf::from("/proc/version"));
-        assert_eq!(detect_at(Path::new("/tmp/.mount_x/usr/bin/mailcraft"), &env), None, "a folder it can't write");
+        let appdir = mount.clone();
+        let env = move |k: &str| match k {
+            "APPIMAGE" => Some(found.clone()),
+            "APPDIR" => Some(appdir.clone()),
+            _ => None,
+        };
+        assert_eq!(detect_at(&exe, &env), Some(Kind::AppImage(image.clone())));
+        let elsewhere = dir.join("elsewhere").join("mailcraft");
+        assert_eq!(detect_at(&elsewhere, &env), None, "another program's AppImage, passed on");
+        let appdir = mount.clone();
+        let env = move |k: &str| match k {
+            "APPIMAGE" => Some(PathBuf::from("/proc/version")),
+            "APPDIR" => Some(appdir.clone()),
+            _ => None,
+        };
+        assert_eq!(detect_at(&exe, &env), None, "a folder it can't write");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

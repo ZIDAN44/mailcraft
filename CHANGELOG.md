@@ -207,6 +207,7 @@ on GitHub.
 - A meeting whose invitation's id holds an invisible control character is found again on the calendar server.
 - An account removed while it was syncing no longer has its folder list come back.
 - An account removed while it was connecting or making a change no longer has its files come back.
+- On Linux, a MailCraft started by another program packaged as an AppImage (a `mailto:` link clicked in a browser, say) no longer puts its update over that program's AppImage: the program passes on where its own file is, and the updater took it for MailCraft's.
 
 ## 0.38.0 - 2026-11-13
 
