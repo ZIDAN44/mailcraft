@@ -180,8 +180,7 @@ fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportSt
     if let Some(file) = s.store.as_ref().and_then(|store| store.data_file(account)) {
         line(ui, tf!("Saved in: {path}", path = file.display()));
         if file.exists() && ui.link(RichText::new(tl!("Open file location")).small()).clicked() {
-            let dir = file.parent().map_or_else(|| file.clone(), std::path::Path::to_path_buf);
-            acts.push(Action::OpenFolder(dir));
+            acts.push(Action::OpenFolder(nav::folder_of(&file)));
         }
     }
     ui.add_space(8.0);
