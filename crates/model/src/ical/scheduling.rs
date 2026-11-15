@@ -24,6 +24,22 @@
 
 use super::*;
 
+/// Whether the guests of a meeting would hear nothing new going from `a` to `b` (issue #102): what
+/// changed, if anything, is the user's own, as Outlook keeps it: its reminder, its categories,
+/// how it shows the user's time, and the version stamps. A meeting saved so is saved without
+/// telling them, and keeps its version (`SEQUENCE`, RFC 5546 §2.1.4).
+pub fn same_for_guests(a: &CalEvent, b: &CalEvent) -> bool {
+    let theirs = |e: &CalEvent| {
+        let mut e = e.clone();
+        set_reminder(&mut e, None);
+        drop_show_as(&mut e);
+        e.categories.clear();
+        (e.sequence, e.dtstamp) = (0, 0);
+        e
+    };
+    theirs(a) == theirs(b)
+}
+
 /// The line that marks a guest's own copy of a meeting, put in the calendar by MailCraft from
 /// the invitation's mail (the server never had the meeting, so answers to it go by mail).
 pub const GUEST_COPY: &str = "X-MAILCRAFT-GUEST-COPY";

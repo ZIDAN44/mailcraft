@@ -368,7 +368,15 @@ impl Session {
         let mut e = old.clone();
         change(&mut e);
         check_event(&e)?;
-        e.sequence = e.sequence.saturating_add(1);
+        // Saved unchanged: nothing to write, and no new version for the guests (issue #102).
+        if e == old {
+            return Ok(serde_json::json!({"uid": uid}));
+        }
+        // Only what's the user's own changed (its reminder, how it shows their time): the same
+        // version, so the guests aren't asked again.
+        if !ical::same_for_guests(&old, &e) {
+            e.sequence = e.sequence.saturating_add(1);
+        }
         let calendar = stored.calendar.clone();
         let remote = calendar != LOCAL;
         let occurrences = series::carry_occurrences(p, &calendar, uid, &old, &mut e);

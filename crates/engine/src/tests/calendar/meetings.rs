@@ -97,15 +97,18 @@ fn a_rooms_meeting_goes_into_the_event_and_the_invitation() {
         .unwrap();
     assert_eq!(cal.events[0].join_link().as_deref(), Some("https://meet.example.edu/rooms/abc-def-ghi"));
 
-    // Saved again with the meeting asked for: nothing doubles; then taken out, and the guests hear.
+    // Saved again with the meeting asked for: nothing doubles, and nothing changed is no news
+    // (issue #102); then taken out, and the guests hear.
+    let version = s.find_event(&uid).unwrap().1.event.sequence;
     s.run("event.update", &json!({"uid": uid, "onlineMeeting": true})).unwrap();
     assert_eq!(s.find_event(&uid).unwrap().1.event.description.matches("---- Online meeting").count(), 1);
+    assert_eq!(s.find_event(&uid).unwrap().1.event.sequence, version);
     s.run("event.update", &json!({"uid": uid, "onlineMeeting": false})).unwrap();
     let e = s.find_event(&uid).unwrap().1.event.clone();
     assert_eq!((e.description.as_str(), e.location.as_str()), ("Team meeting", ""));
     assert!(e.conferences().is_empty());
     assert_eq!(s.join_link(&e), None);
-    assert!(e.sequence >= 2, "the guests are told");
+    assert_eq!(e.sequence, version + 1, "the guests are told");
 
     // A room given whole, in the user's language; and ones that aren't rooms.
     let p = json!({"summary": "Sprechstunde", "start": "2026-10-22T09:00", "onlineMeeting": {"name": "Jitsi", "url": "https://jitsi.example.org/Office", "labels": {"heading": "Onlinebesprechung", "join": "Teilnehmen:"}}});

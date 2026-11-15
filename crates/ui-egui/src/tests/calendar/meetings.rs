@@ -198,3 +198,46 @@ fn a_guest_named_with_a_comma_stays_one_guest() {
     let guests: Vec<(&str, &str)> = kept.event.attendees.iter().map(|g| (g.name.as_str(), g.email.as_str())).collect();
     assert_eq!(guests, [("Park, Zoe", "zoe@studio.example"), ("", "ann@x.example")]);
 }
+
+/// The invitations and updates in Sent (the sample account files what it sends there).
+fn sent_updates(a: &MailApp, summary: &str) -> usize {
+    let st = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+    st.messages.iter().filter(|m| m.subject == format!("Invitation: {summary}")).count()
+}
+
+/// Issue #102: the user's meeting opened in the form and saved without a change sends the
+/// guests nothing and keeps its version; a change of the user's own reminder or how it shows
+/// their time neither; a new place does.
+#[test]
+fn a_meeting_saved_unchanged_sends_no_update() {
+    let (mut a, _) = app("meeting-unchanged");
+    let ctx = egui::Context::default();
+    let mut d = Some(Dialog::new_event(&a.session, Some(NOW + 3 * 86_400)));
+    let f = form(&mut d);
+    f.summary = "Planning".into();
+    f.guests = "Zoe Park <zoe@studio.example>".into();
+    f.reminder = Some(15);
+    let params = f.params();
+    a.ui.dialog = d;
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Submit("event.create", params));
+    assert_eq!(sent_updates(&a, "Planning"), 1, "the invitation");
+    let e = a.session.pim.values().flat_map(|p| p.events.iter()).find(|e| e.event.summary == "Planning").unwrap().event.clone();
+
+    let save = |a: &mut MailApp, change: &dyn Fn(&mut crate::pim_dialogs::EventForm)| {
+        let mut d = Dialog::open_event(&a.session, &e.uid, e.start);
+        change(form(&mut d));
+        let params = form(&mut d).params();
+        a.ui.dialog = d;
+        frame(&ctx, a, vec![]);
+        a.act(crate::Action::Submit("event.update", params));
+        a.session.find_event(&e.uid).unwrap().1.event.sequence
+    };
+    assert_eq!(save(&mut a, &|_| {}), e.sequence, "saved unchanged: the same version");
+    assert_eq!(sent_updates(&a, "Planning"), 1, "and no update");
+    assert_eq!(save(&mut a, &|f| f.reminder = Some(30)), e.sequence, "the user's own reminder");
+    assert_eq!(mailcraft_engine::model::ical::reminder_minutes(&a.session.find_event(&e.uid).unwrap().1.event), Some(30));
+    assert_eq!(sent_updates(&a, "Planning"), 1);
+    assert_eq!(save(&mut a, &|f| f.location = "Room 4".into()), e.sequence + 1, "a new place is a new version");
+    assert_eq!(sent_updates(&a, "Planning"), 2, "and the guests hear of it");
+}

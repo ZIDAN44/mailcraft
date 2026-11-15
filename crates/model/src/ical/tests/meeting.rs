@@ -229,3 +229,24 @@ fn every_kept_room_is_found_again() {
         assert_eq!((e.location.as_str(), e.description.as_str()), ("Room 4", ""));
     }
 }
+
+/// Issue #102: what's the user's own (a reminder, categories, how it shows their time) is no news
+/// for the guests; the time, the place and who's invited are.
+#[test]
+fn the_users_own_changes_are_no_news_for_the_guests() {
+    let a = CalEvent { uid: "m".into(), summary: "Planning".into(), start: 1000, end: 4600, sequence: 2, ..Default::default() };
+    let mut own = a.clone();
+    set_reminder(&mut own, Some(30));
+    set_show_as(&mut own, ShowAs::OutOfOffice);
+    own.categories = vec!["Work".into()];
+    own.sequence = 3;
+    assert!(same_for_guests(&a, &own));
+    for news in [
+        CalEvent { start: 2000, ..a.clone() },
+        CalEvent { location: "Room 4".into(), ..a.clone() },
+        CalEvent { attendees: vec![Attendee { email: "zoe@studio.example".into(), ..Default::default() }], ..a.clone() },
+        CalEvent { rrule: Some("FREQ=DAILY".into()), ..a.clone() },
+    ] {
+        assert!(!same_for_guests(&a, &news), "{news:?}");
+    }
+}

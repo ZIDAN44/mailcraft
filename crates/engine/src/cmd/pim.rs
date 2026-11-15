@@ -129,10 +129,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("event.update", "Edit event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let current = s.find_event(&uid).map(|(_, e)| e.event.clone()).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
+            let before = current.sequence;
             let e = event_from(s, v, current)?;
             let r = s.update_event(&uid, |x| *x = e)?;
-            // The user's own meeting: the guests hear of the change.
+            // The user's own meeting: the guests hear of a change that's theirs to know, a new
+            // version of it (not one saved unchanged, or of the user's own reminder, issue #102).
             if let Some((account, stored)) = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone()))
+                && stored.sequence != before
                 && organized_by_me(s, &stored)
             {
                 let route = s.meeting_route(&account, &uid);
@@ -386,6 +389,9 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
         Some(Value::Null) => mailcraft_model::ical::set_reminder(&mut e, None),
         Some(Value::String(x)) if matches!(x.trim(), "" | "none") => mailcraft_model::ical::set_reminder(&mut e, None),
         Some(x) => match x.as_i64().or_else(|| x.as_str().and_then(|t| t.trim().parse().ok())) {
+            // The same as it has: left as it is (written again, it moved in the event's lines,
+            // and an event saved unchanged was a change, issue #102).
+            Some(m) if mailcraft_model::ical::reminder_minutes(&e) == Some(m) => {}
             Some(m) if (0..=mailcraft_model::ical::REMINDER_MAX_MINUTES).contains(&m) => mailcraft_model::ical::set_reminder(&mut e, Some(m)),
             _ => return Err(CmdError::Params("`reminder` is minutes before it starts (0 to four weeks) or none".into())),
         },

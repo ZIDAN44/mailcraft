@@ -234,6 +234,9 @@ fn real_series_moved_keeps_its_day_taken_out() {
     send(&mut s, &mut pool);
     s.run("event.delete", &json!({"uid": uid, "occurrence": first + 2 * day})).unwrap();
     send(&mut s, &mut pool);
+    // Saved unchanged (issue #102): no update, so the guest gets two invitations, not three.
+    s.run("event.update", &json!({"uid": uid, "summary": format!("Stand-up {tag}")})).unwrap();
+    assert!(s.take_jobs().iter().all(|j| !matches!(j, Job::Send { .. })), "nothing sent for a save without a change");
     s.run("event.update", &json!({"uid": uid, "start": first + 600})).unwrap();
     send(&mut s, &mut pool);
 

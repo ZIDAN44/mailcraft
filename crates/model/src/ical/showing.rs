@@ -269,6 +269,11 @@ pub fn set_show_as(e: &mut CalEvent, s: ShowAs) {
     replace(e, &[TRANSP, BUSY_STATUS], vec![format!("TRANSP:{transp}"), format!("{BUSY_STATUS}:{}", s.busy_status())]);
 }
 
+/// The event without how it shows its time ([`set_show_as`]'s lines): what's the user's own.
+pub(super) fn drop_show_as(e: &mut CalEvent) {
+    replace(e, &[TRANSP, BUSY_STATUS], Vec::new());
+}
+
 /// What an invitation's organizer meant it to show as once it's accepted: Outlook sends the
 /// guest's copy as tentative (`X-MICROSOFT-CDO-BUSYSTATUS:TENTATIVE`) and says this beside it
 /// (`X-MICROSOFT-CDO-INTENDEDSTATUS`, usually busy).

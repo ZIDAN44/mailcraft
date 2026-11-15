@@ -22,6 +22,7 @@ on GitHub.
 
 ### Fixed
 
+- Your meeting saved again without a change no longer sends the guests an update (#102), nor does a change only you see: its reminder, its categories or how it shows your time. Each update asked the guests to answer again.
 - An event moved to another start keeps its length: a half-hour meeting moved became an hour long.
 - A recurring meeting moved to another time keeps the occurrences taken out of it out (#100): one deleted came back, for you and the guests, and an occurrence changed on its own stood beside the series' new one that day. Each moves with the series, and the guests' update carries the changed occurrences along.
 - Meeting invitations, answers and cancellations sent by MailCraft arrive in Exchange and Outlook as meetings, with buttons to answer (#98), not as a message with an `invite.ics` file: the calendar now goes inline beside the text, with its method and character set, as iMIP (RFC 6047) asks.
