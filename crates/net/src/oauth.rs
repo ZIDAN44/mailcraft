@@ -282,27 +282,51 @@ const REQUEST_LINE_WAIT: Duration = Duration::from_secs(2);
 /// The longest request line read from the redirect listener.
 const REQUEST_LINE_MAX: usize = 8192;
 
+/// The most read of one request to the redirect listener: its line and its headers.
+const REQUEST_MAX: usize = 64 * 1024;
+
 /// The first line of a request on `sock`, or `None` when the connection doesn't send a whole
 /// one (at most [`REQUEST_LINE_MAX`] bytes) within `wait`, or fails.
+///
+/// The request's headers are read to their end too (within `wait`, at most [`REQUEST_MAX`]
+/// bytes in all): a connection closed with part of the request unread can be reset, and the
+/// browser then shows an error instead of the page written to it.
 fn request_line(sock: &TcpStream, wait: Duration) -> Option<String> {
     sock.set_nonblocking(false).ok()?;
     let until = Instant::now().checked_add(wait)?;
-    let mut line = Vec::new();
+    let mut got: Vec<u8> = Vec::new();
+    // Where the line ends in `got`, once it has.
+    let mut line_end: Option<usize> = None;
     let mut buf = [0u8; 1024];
     loop {
-        let left = until.checked_duration_since(Instant::now()).filter(|d| !d.is_zero())?;
-        sock.set_read_timeout(Some(left)).ok()?;
-        let n = (&*sock).read(&mut buf).ok()?;
-        let chunk = buf.get(..n).filter(|c| !c.is_empty())?;
-        match chunk.iter().position(|&b| b == b'\n') {
-            Some(end) => {
-                line.extend_from_slice(chunk.get(..end)?);
-                return (line.len() <= REQUEST_LINE_MAX).then(|| String::from_utf8_lossy(&line).into_owned());
+        let chunk = until
+            .checked_duration_since(Instant::now())
+            .filter(|d| !d.is_zero())
+            .and_then(|left| sock.set_read_timeout(Some(left)).ok())
+            .and_then(|()| (&*sock).read(&mut buf).ok())
+            .and_then(|n| buf.get(..n))
+            .filter(|c| !c.is_empty());
+        // Out of time, closed or failed: the line counts if it came whole.
+        let Some(chunk) = chunk else {
+            break;
+        };
+        // An empty line ends the headers; it may have begun in the read before.
+        let from = got.len().saturating_sub(2);
+        got.extend_from_slice(chunk);
+        if line_end.is_none() {
+            line_end = got.iter().position(|&b| b == b'\n');
+            if line_end.unwrap_or(got.len()) > REQUEST_LINE_MAX {
+                return None;
             }
-            None if line.len().saturating_add(n) > REQUEST_LINE_MAX => return None,
-            None => line.extend_from_slice(chunk),
+        }
+        let tail = got.get(from..).unwrap_or_default();
+        let ended = tail.windows(2).any(|w| w == b"\n\n") || tail.windows(3).any(|w| w == b"\n\r\n");
+        if line_end.is_some() && (ended || got.len() >= REQUEST_MAX) {
+            break;
         }
     }
+    let line = got.get(..line_end?)?;
+    Some(String::from_utf8_lossy(line).into_owned())
 }
 
 /// [`authorize`], with how long each connection to the listener may take to send its request line.
@@ -526,6 +550,54 @@ pub(crate) mod tests {
         let seen = seen.join().unwrap();
         assert!(seen[0].contains("code=the-code") && !seen[0].contains("stray-code"), "{}", seen[0]);
         drop(held);
+    }
+
+    /// A browser's request is read to the end of its headers before it is answered (they come
+    /// in more than one read): answered and closed with part of it unread, the connection can
+    /// be reset and the page lost. Headers that never end don't hold the answer back for good.
+    #[test]
+    fn a_request_is_read_to_the_end_of_its_headers() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let serve = |wait: Duration| {
+            let listener = listener.try_clone().unwrap();
+            std::thread::spawn(move || {
+                let (sock, _) = listener.accept().unwrap();
+                let line = request_line(&sock, wait);
+                (&sock).write_all(b"answered").unwrap();
+                line
+            })
+        };
+        let server = serve(Duration::from_secs(30));
+        let mut browser = TcpStream::connect(addr).unwrap();
+        browser.write_all(b"GET /?code=c&state=s HTTP/1.1\r\nHost: 127.0.0.1\r\n").unwrap();
+        // Nothing is answered while headers are still to come.
+        browser.set_read_timeout(Some(Duration::from_millis(300))).unwrap();
+        let mut early = [0u8; 8];
+        let e = browser.read(&mut early).unwrap_err();
+        assert!(matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut), "{e}");
+        // The rest, several reads long, its empty line split in two.
+        browser.write_all(format!("Cookie: {}\r\n\r", "c".repeat(5000)).as_bytes()).unwrap();
+        browser.write_all(b"\n").unwrap();
+        browser.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
+        let mut answer = String::new();
+        browser.read_to_string(&mut answer).unwrap();
+        assert_eq!(answer, "answered");
+        assert_eq!(server.join().unwrap().as_deref(), Some("GET /?code=c&state=s HTTP/1.1\r"));
+        // Headers with no end: the line still counts, at the cap or when the time is up.
+        for (wait, headers) in [(Duration::from_secs(30), "h".repeat(REQUEST_MAX)), (Duration::from_millis(200), "Host: x\r\n".to_string())] {
+            let server = serve(wait);
+            let mut browser = TcpStream::connect(addr).unwrap();
+            browser.write_all(format!("GET / HTTP/1.1\n{headers}").as_bytes()).unwrap();
+            assert_eq!(server.join().unwrap().as_deref(), Some("GET / HTTP/1.1"));
+        }
+        // And a line that is too long, or never whole, is still no request.
+        for sent in ["G".repeat(REQUEST_LINE_MAX + 2) + "\n\n", "GET /?code=c".to_string()] {
+            let server = serve(Duration::from_millis(200));
+            let mut browser = TcpStream::connect(addr).unwrap();
+            let _ = browser.write_all(sent.as_bytes());
+            assert_eq!(server.join().unwrap(), None);
+        }
     }
 
     /// Test hang, and what it brought to light: the sign-in service failing (HTTP 5xx or 429, or
