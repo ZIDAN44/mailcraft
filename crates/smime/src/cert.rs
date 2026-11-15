@@ -6,9 +6,11 @@
 use der::asn1::ObjectIdentifier;
 use der::{Decode, Tag, Tagged};
 use sha2::Digest as _;
+use std::cell::OnceCell;
 use x509_cert::Certificate;
 use x509_cert::ext::pkix::name::GeneralName;
 use x509_cert::ext::pkix::{BasicConstraints, ExtendedKeyUsage, KeyUsage, KeyUsages, SubjectAltName};
+use x509_cert::name::Name;
 
 use crate::{Error, oids};
 
@@ -351,12 +353,14 @@ const CHAIN_MAX: usize = 8;
 /// `roots` through `others` (the certificates the message carried), every certificate on it in
 /// date and the ones above it authorities, made for email, and for that address. Empty: trusted.
 pub fn check(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now: i64, from: &str) -> Result<Vec<Problem>, Error> {
-    check_with_path(signer, others, roots, now, from).map(|(p, _)| p)
+    let roots: Vec<&[u8]> = roots.iter().map(Vec::as_slice).collect();
+    check_with_path(signer, others, &roots, now, from).map(|(p, _)| p)
 }
 
 /// [`check`], and the chain it found: the signer first, each certificate's issuer after it, up to
-/// the trusted root when there is one (what revocation is checked along).
-pub fn check_with_path(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now: i64, from: &str) -> Result<(Vec<Problem>, Vec<Vec<u8>>), Error> {
+/// the trusted root when there is one (what revocation is checked along). The roots are borrowed
+/// (a system's hundred and more, and the ones the user imported, aren't copied for each message).
+pub fn check_with_path(signer: &[u8], others: &[Vec<u8>], roots: &[&[u8]], now: i64, from: &str) -> Result<(Vec<Problem>, Vec<Vec<u8>>), Error> {
     let leaf = parse(signer)?;
     let mut path = vec![signer.to_vec()];
     let mut problems = Vec::new();
@@ -376,14 +380,12 @@ pub fn check_with_path(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now
     if let Err(p) = in_date(&leaf, now) {
         problems.push(p);
     }
-    // The chain: up, issuer by issuer, to a root this computer trusts.
-    let pool: Vec<(&Vec<u8>, Certificate, bool)> = others
-        .iter()
-        .map(|d| (d, false))
-        .chain(roots.iter().map(|d| (d, true)))
-        .filter_map(|(d, root)| parse(d).ok().map(|c| (d, c, root)))
-        .collect();
-    let is_root = |d: &[u8]| roots.iter().any(|r| r.as_slice() == d);
+    // The chain: up, issuer by issuer, to a root this computer trusts. A system has a hundred
+    // roots or more: each one's subject alone is read, and the whole certificate only for one
+    // whose subject is the issuer looked for (once, however often it's asked for).
+    let pool: Vec<(&[u8], Option<Name>, OnceCell<Option<Certificate>>)> =
+        others.iter().map(Vec::as_slice).chain(roots.iter().copied()).map(|d| (d, subject_of(d), OnceCell::new())).collect();
+    let is_root = |d: &[u8]| roots.contains(&d);
     let mut current: (Vec<u8>, Certificate) = (signer.to_vec(), leaf);
     let mut trusted = is_root(signer);
     for _ in 0..CHAIN_MAX {
@@ -391,10 +393,14 @@ pub fn check_with_path(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now
             break;
         }
         let (der_now, c) = &current;
-        let up = pool.iter().find(|(d, cand, _)| {
-            d.as_slice() != der_now.as_slice() && cand.tbs_certificate.subject == c.tbs_certificate.issuer && issued(der_now, c, cand)
+        let up = pool.iter().find_map(|(d, subject, whole)| {
+            if *d == der_now.as_slice() || subject.as_ref() != Some(&c.tbs_certificate.issuer) {
+                return None;
+            }
+            let cand = whole.get_or_init(|| parse(d).ok()).as_ref()?;
+            (cand.tbs_certificate.subject == c.tbs_certificate.issuer && issued(der_now, c, cand)).then_some((d, cand))
         });
-        let Some((d, cand, _)) = up else { break };
+        let Some((d, cand)) = up else { break };
         // A root is one of `roots` however it was reached: messages often carry the root too.
         let root = is_root(d);
         if !root && !is_ca(cand) {
@@ -406,11 +412,32 @@ pub fn check_with_path(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now
             problems.push(p);
         }
         trusted = root;
-        path.push((*d).clone());
-        current = ((*d).clone(), cand.clone());
+        path.push(d.to_vec());
+        current = (d.to_vec(), cand.clone());
     }
     if !trusted {
         problems.push(Problem::UnknownIssuer);
     }
     Ok((problems, path))
+}
+
+/// The subject of a certificate (DER), read without the rest of it: as reading the whole one
+/// gives it, when that can be read.
+fn subject_of(cert: &[u8]) -> Option<Name> {
+    use der::Reader as _;
+    let mut r = der::SliceReader::new(cert).ok()?;
+    for _ in 0..2 {
+        // Certificate ::= SEQUENCE { tbsCertificate SEQUENCE { … } … }
+        if der::Header::decode(&mut r).ok()?.tag != Tag::Sequence {
+            return None;
+        }
+    }
+    // version [0] EXPLICIT (absent for v1), serialNumber, signature, issuer, validity, subject.
+    if r.peek_tag().ok()? == (Tag::ContextSpecific { constructed: true, number: der::TagNumber::N0 }) {
+        r.tlv_bytes().ok()?;
+    }
+    for _ in 0..4 {
+        r.tlv_bytes().ok()?;
+    }
+    Name::decode(&mut r).ok()
 }

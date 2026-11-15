@@ -232,12 +232,13 @@ impl Session {
     /// The roots a signer's chain may reach to be trusted: this computer's, and the root of each
     /// certificate the user imported (a `.p12` from an authority this computer doesn't know, a
     /// company's own one, brings it: importing it is trusting it, as other mail programs ask).
-    fn anchors(&self) -> Vec<Vec<u8>> {
-        let mut roots = self.trust_roots.clone();
+    /// Borrowed, not copied: they're asked for each signed message shown.
+    fn anchors(&self) -> Vec<&[u8]> {
+        let mut roots: Vec<&[u8]> = self.trust_roots.iter().map(Vec::as_slice).collect();
         for s in self.smime.values() {
             for c in s.chain.iter().skip(1).filter(|c| smime::cert::self_signed(c)) {
-                if !roots.contains(c) {
-                    roots.push(c.clone());
+                if !roots.contains(&c.as_slice()) {
+                    roots.push(c);
                 }
             }
         }

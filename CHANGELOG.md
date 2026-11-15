@@ -189,6 +189,7 @@ on GitHub.
 - Save all in the browser now says which attachment couldn't be downloaded.
 - Accounts with thousands of folders, such as an imported Outlook file, update folder counts and delete folders faster.
 - S/MIME mail encrypted with AES-192-GCM can now be read.
+- Signed messages are checked faster.
 
 ## 0.38.0 - 2026-11-13
 

@@ -532,3 +532,21 @@ fn write_for_openssl() {
     )
     .unwrap();
 }
+
+/// How long a signer's chain takes to check among a system's worth of roots (150, the CA last),
+/// as the engine asks for each signed message shown (`--release`, by hand).
+#[test]
+#[ignore]
+fn measure_check_among_roots() {
+    let ca = pem("ca.pem");
+    let others = [pem("ana.pem"), pem("zoe.pem"), pem("rev-kim.pem"), pem("rev-lee.pem"), pem("riley.pem")];
+    let mut roots: Vec<Vec<u8>> = others.iter().cycle().take(149).cloned().collect();
+    roots.push(ca);
+    let (signed, _) = verify(&data("sig-rsa.der"), Some(BODY)).unwrap();
+    let n = 2000;
+    let t = std::time::Instant::now();
+    for _ in 0..n {
+        assert_eq!(cert::check(&signed.signer, &signed.certs, &roots, NOW, "ana@posteo.example").unwrap(), vec![]);
+    }
+    println!("MEASURE check among {} roots: {:.1} us", roots.len(), t.elapsed().as_secs_f64() * 1e6 / f64::from(n));
+}
