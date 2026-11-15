@@ -777,7 +777,7 @@ mod real_files {
     /// Import a real data file named by `MAILCRAFT_PST` (counts only: no folder name, subject or
     /// address is printed). Fails when the variable is unset, the import fails or brings no mail.
     #[test]
-    #[ignore]
+    #[ignore = "run by hand: needs MAILCRAFT_PST"]
     fn imports_the_file_in_mailcraft_pst() {
         let path = std::env::var("MAILCRAFT_PST").expect("MAILCRAFT_PST names the data file to import");
         let store = mailcraft_store::Store::open(scratch("real-pst")).unwrap();

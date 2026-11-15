@@ -50,6 +50,8 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
   `MC_PST_ANSI_SEED` set. The tests are `pst/tests/pim_written.rs` and `pst_export/tests/ansi.rs`,
   both under `crates/net/src/data_files/`. `level-255` in both (a B-tree page at an impossible
   level) is written by `crates/pst/src/write/btree/tests.rs` with `MC_PST_LEVEL_SEED` set.
+- The `msg` seed holds the sample of `crates/net/src/data_files/msg/tests.rs`, which a test
+  checks; that test writes it again with `MAILCRAFT_WRITE_SEED=1` set.
 
 ## Targets
 

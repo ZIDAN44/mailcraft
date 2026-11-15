@@ -266,20 +266,25 @@ fn junk_is_an_error_not_a_panic() {
     assert!(to_mime(&huge).is_err());
 }
 
-/// The fuzz target's seed (`fuzz/seeds/msg`), written again: `cargo test -p mailcraft-net
-/// write_msg_fuzz_seed -- --ignored`.
+/// The fuzz target's seed (`fuzz/seeds/msg/outlook.msg`) holds [`sample`] as made here, so the
+/// weekly run starts from the message these tests read. `MAILCRAFT_WRITE_SEED=1` writes it again
+/// first.
 #[test]
-#[ignore]
-fn write_msg_fuzz_seed() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/msg");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("outlook.msg"), sample()).unwrap();
+fn the_fuzz_seed_is_the_sample() {
+    let seed = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/msg/outlook.msg");
+    if std::env::var_os("MAILCRAFT_WRITE_SEED").is_some() {
+        std::fs::write(&seed, sample()).unwrap();
+    }
+    // Its bytes differ from each new sample's by the times the compound file notes; what it holds
+    // doesn't.
+    let written = std::fs::read(&seed).unwrap_or_default();
+    assert_eq!(to_mime(&written).ok(), Some(to_mime(&sample()).unwrap()), "MAILCRAFT_WRITE_SEED=1 writes it");
 }
 
 /// A message file with a 60 MB file, read: its bytes were copied twice more on their way.
 /// `cargo test --release -p mailcraft-net --lib measure_msg_big_file -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_msg_big_file() {
     let mut cf = CompoundFile::create(Cursor::new(Vec::new())).unwrap();
     write_props(&mut cf, "", TOP_HEADER, &[(0x001A_001F, P::Text("IPM.Note")), (0x0037_001F, P::Text("Big")), (0x1000_001F, P::Text("Attached."))]);

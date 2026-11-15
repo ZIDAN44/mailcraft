@@ -300,7 +300,7 @@ fn import_in_time(path: &Path, dir: &Path) -> (super::super::Imported, Vec<Vec<u
 /// release, alone and beside other work:
 /// `cargo test --release -p mailcraft-net --lib measure_a_small_import -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_a_small_import() {
     let dir = scratch("measure-small-import");
     let path = with_nested_messages(&dir);

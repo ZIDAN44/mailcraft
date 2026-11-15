@@ -560,7 +560,7 @@ fn a_flag_mid_search_keeps_what_isnt_shown_yet() {
 /// holds in memory (and after the queries). A machine busy with other builds slows every query
 /// alike and can fail it: run it on one at rest.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn how_long_searches_take() {
     let started = Instant::now();
     let (mut s, t) = unticked();
@@ -634,7 +634,7 @@ fn how_long_searches_take() {
 /// found streamed into the list), each the median of 7 (`cargo test --release -p
 /// mailcraft-engine --lib a_search_folder_of_most -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn a_search_folder_of_most_of_the_mailbox_takes() {
     let (mut s, t) = cold();
     s.create_search_folder("Read", "is:read").unwrap();

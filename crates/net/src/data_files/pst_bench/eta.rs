@@ -200,7 +200,7 @@ pub(super) fn judge(samples: &[Sample], totals: (u64, u64), end_ms: u64) {
 /// Judge again the progress an import kept in `MC_SAMPLES` (made by `import` with it set), with
 /// `MC_WEIGHTS` and `MC_TRACE` as there.
 #[test]
-#[ignore]
+#[ignore = "run by hand: needs MC_SAMPLES"]
 fn replay() {
     let text = std::fs::read_to_string(env("MC_SAMPLES").expect("MC_SAMPLES: the progress an import kept")).unwrap();
     let mut lines = text.lines().map(|l| l.split(',').map(|n| n.trim().parse::<u64>().unwrap()).collect::<Vec<_>>());

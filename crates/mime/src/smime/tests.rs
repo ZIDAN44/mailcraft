@@ -326,7 +326,7 @@ fn junk_never_panics() {
 /// under the time a full parse of it takes. Timed, so in release only:
 /// `cargo test -p mailcraft-mime --release -- --ignored a_big_plain_message`.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn a_big_plain_message_is_not_parsed_to_say_it_is_unprotected() {
     let mut raw = b"From: a@b.example\r\nContent-Type: multipart/mixed; boundary=m\r\n\r\n".to_vec();
     for i in 0..50 {
