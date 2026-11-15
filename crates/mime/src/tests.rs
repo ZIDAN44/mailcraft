@@ -64,36 +64,6 @@ fn tables_read_as_text_without_rules() {
     assert_eq!(s.preview, "BANNER First block");
 }
 
-/// Issue #11 (#16's test): a signature's pictures are written into the HTML kept with the account, and come
-/// back from it as pictures of its text, with its look; pictures from the web, kinds a signature
-/// can't hold, and broken ones don't.
-#[test]
-fn a_signatures_pictures_go_into_its_html_and_back() {
-    let png = vec![0x89, b'P', b'N', b'G', 1, 2, 3, 250];
-    let (text, mut styles) = rich::from_markup("**Riley Moreno**\nStudio Lantern");
-    let mut text = text;
-    rich::splice(&mut text, &mut styles, 0..0, "\u{FFFC}\n", &rich::Styles::plain("\u{FFFC}\n"));
-    styles.restyle(&text, 0..1, |s| rich::Style { picture: Some("logo@x".into()), ..s.clone() });
-    let pictures = vec![InlinePicture { cid: "logo@x".into(), name: "logo.png".into(), mime: "image/png".into(), data: png.clone() }];
-    let html = embed_pictures(&rich::to_html(&text, &styles), &pictures);
-    assert!(html.contains("<img src=\"data:image/png;base64,iVBORwECA/o=\"") && !html.contains("cid:"), "{html}");
-    let (back, back_styles, back_pictures) = signature_html(&html);
-    assert_eq!(back, text);
-    assert_eq!(back_pictures.len(), 1);
-    assert_eq!((back_pictures[0].mime.as_str(), &back_pictures[0].data), ("image/png", &png));
-    assert_eq!(back_styles.style(0).picture.as_deref(), Some(back_pictures[0].cid.as_str()));
-    assert!(back_styles.style(2).bold, "the name stays bold");
-    // What a signature can't keep.
-    let others =
-        "<p>Hi<img src=\"https://x.example/t.png\"><img src=\"data:image/svg+xml;base64,PHN2Zz4=\"><img src=\"data:image/png;base64,***\"></p>";
-    let (t, _, p) = signature_html(others);
-    assert_eq!((t.as_str(), p.len()), ("Hi", 0));
-    // As before, without pictures: the same text and look as pasting it.
-    let plain = "<p><b>Riley</b> · <a href=\"https://studio.example/\">studio</a></p>";
-    let (t, s, p) = signature_html(plain);
-    assert_eq!((t, s, p.len()), (pasted_html(plain).0, pasted_html(plain).1, 0));
-}
-
 /// Issue #1: a signature copied from Outlook (Word's HTML on the clipboard, only the copied
 /// fragment) keeps its look when pasted.
 #[test]
@@ -652,8 +622,10 @@ fn pictures_carry_the_size_the_message_sets() {
     assert!(odd.width.is_none() && odd.height == Some(4000), "nonsense is left out or held to 4000: {odd:?}");
 }
 
-/// Issue #11: a signature keeps its pictures with it, written into its HTML, and they come back
-/// as pictures in its text at their widths; what isn't a picture, or is too big, is left out.
+/// Issue #11 (#16's test): a signature keeps its pictures with it, written into the HTML kept
+/// with the account, and they come back as pictures in its text, at their widths and with its
+/// look; what isn't a picture, is too big or is on the web is left out, and a signature without
+/// pictures reads as pasting it does.
 #[test]
 fn a_signature_keeps_its_pictures() {
     let png = vec![0x89, b'P', b'N', b'G', 1, 2, 3, 4, 5];
@@ -666,11 +638,24 @@ fn a_signature_keeps_its_pictures() {
     assert!(html.contains("src=\"data:image/png;base64,iVBORwECAwQF\"") && !html.contains("cid:"), "{html}");
     let (t, s, pictures) = signature_html(&html);
     assert_eq!(t, text);
-    assert!(s.style(0).bold);
+    assert!(s.style(0).bold, "the name stays bold");
     let p = s.style(11);
     assert_eq!((p.picture.as_deref(), p.picture_width), (Some("signature1@mailcraft"), Some(120)));
     assert_eq!(pictures.len(), 1);
-    assert_eq!((pictures[0].data.clone(), pictures[0].mime.as_str()), (png, "image/png"));
+    assert_eq!((pictures[0].cid.as_str(), pictures[0].mime.as_str(), &pictures[0].data), ("signature1@mailcraft", "image/png", &png));
+    // A signature that starts with its picture: the picture is its first character still.
+    let (mut text, mut styles) = rich::from_markup("**Riley Moreno**\nStudio Lantern");
+    rich::splice(&mut text, &mut styles, 0..0, "\u{FFFC}\n", &rich::Styles::plain("\u{FFFC}\n"));
+    styles.restyle(&text, 0..1, |s| rich::Style { picture: Some("logo@x".into()), ..s.clone() });
+    let pic = InlinePicture { cid: "logo@x".into(), name: "logo.png".into(), mime: "image/png".into(), data: png.clone() };
+    let html = embed_pictures(&rich::to_html(&text, &styles), &[pic]);
+    assert!(html.contains("<img src=\"data:image/png;base64,iVBORwECAwQF\"") && !html.contains("cid:"), "{html}");
+    let (back, back_styles, back_pictures) = signature_html(&html);
+    assert_eq!(back, text);
+    assert_eq!(back_pictures.len(), 1);
+    assert_eq!((back_pictures[0].mime.as_str(), &back_pictures[0].data), ("image/png", &png));
+    assert_eq!(back_styles.style(0).picture.as_deref(), Some(back_pictures[0].cid.as_str()));
+    assert!(back_styles.style(2).bold && !back_styles.style(0).bold, "the name stays bold");
     // Not pictures, too big, or on the web: left out; the text stays.
     let big = "A".repeat(SIGNATURE_PICTURE_MAX / 3 * 4 + 400);
     let odd = format!(
@@ -678,6 +663,10 @@ fn a_signature_keeps_its_pictures() {
     );
     let (t, _, pictures) = signature_html(&odd);
     assert_eq!((t.as_str(), pictures.len()), ("Hi", 0));
+    // As before, without pictures: the same text and look as pasting it.
+    let plain = "<p><b>Riley</b> · <a href=\"https://studio.example/\">studio</a></p>";
+    let (t, s, p) = signature_html(plain);
+    assert_eq!((t, s, p.len()), (pasted_html(plain).0, pasted_html(plain).1, 0));
 }
 
 /// Issue #11: a signature copied from Word or Outlook with its logo: Word writes the picture into
