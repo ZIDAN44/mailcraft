@@ -113,7 +113,7 @@ fn months(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         if k > 0 {
             ui.add_space(8.0);
         }
-        mini_month(s, st, ui, acts, (shown, shown + k), k == 0, false, &busy);
+        mini_month(s, st, ui, acts, MiniMonth { first: shown, month: shown + k, arrows: k == 0, bar: false, busy: &busy });
     }
     // The grip: dragged down, one more month for each month's height; up, one fewer.
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 12.0), Sense::click_and_drag());
@@ -153,7 +153,7 @@ pub(crate) fn bar_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut V
         y * 12 + i64::from(m) - 1
     });
     let busy = busy_days(s, grid_start(shown), grid_start(shown) + 42);
-    mini_month(s, st, ui, acts, (shown, shown), true, true, &busy);
+    mini_month(s, st, ui, acts, MiniMonth { first: shown, month: shown, arrows: true, bar: true, busy: &busy });
 }
 
 /// The first day a small month's grid shows (`month`: months since year 0): the Monday on or
@@ -174,22 +174,23 @@ pub(crate) fn busy_days(s: &Session, from: i64, to: i64) -> std::collections::BT
     days
 }
 
-/// A small month (`months`: the first one shown and this one, in months since year 0): click a
-/// day to show it. The first of them has the arrows that move them all. The `busy` days, those
-/// with events, are bold. `bar`: the To-Do Bar's, which marks no days as shown and opens the
-/// calendar on the day clicked.
-#[allow(clippy::too_many_arguments)]
-fn mini_month(
-    s: &Session,
-    st: &mut UiState,
-    ui: &mut Ui,
-    acts: &mut Vec<Action>,
-    months: (i64, i64),
+/// A small month to draw (months counted since year 0).
+struct MiniMonth<'a> {
+    /// The first of the small months shown.
+    first: i64,
+    /// This one.
+    month: i64,
+    /// It has the arrows that move them all (the first of them does).
     arrows: bool,
+    /// The To-Do Bar's, which marks no days as shown and opens the calendar on the day clicked.
     bar: bool,
-    busy: &std::collections::BTreeSet<i64>,
-) {
-    let (shown, month) = months;
+    /// The days with events, bold.
+    busy: &'a std::collections::BTreeSet<i64>,
+}
+
+/// A small month: click a day to show it.
+fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>, m: MiniMonth) {
+    let MiniMonth { first: shown, month, arrows, bar, busy } = m;
     let t = st.tokens;
     let (y, m) = (month.div_euclid(12), u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1));
     ui.horizontal(|ui| {

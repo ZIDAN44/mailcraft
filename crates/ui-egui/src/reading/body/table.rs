@@ -8,26 +8,31 @@ mod measure;
 pub(crate) use measure::measured;
 pub(crate) use measure::{Fit, PictureWidth, measured_with};
 
+/// What every row of one table is drawn with.
+#[derive(Clone, Copy)]
+pub(crate) struct Rows<'a> {
+    /// The widths the table's columns ask for (a width set in one row is the whole column's, as
+    /// HTML sizes columns).
+    pub(super) columns: &'a [Option<mime::layout::Width>],
+    /// What the columns hold ([`measure`]).
+    pub(super) content: &'a [Option<Fit>],
+    /// The room across inside the table.
+    pub(super) width: f32,
+    /// The colour the table is drawn on.
+    pub(super) page: [u8; 3],
+    pub(super) room: Room,
+    /// How deep the table is ([`MAX_NESTED`]).
+    pub(super) depth: usize,
+}
+
 impl Body<'_> {
-    /// A table row: its cells side by side, or one under the other when there's no room.
-    /// `columns`: the widths the table's columns ask for (a width set in one row is the whole
-    /// column's, as HTML sizes columns), and `content` what they hold ([`measure`]). Side by
+    /// A table row: its cells side by side, or one under the other when there's no room. Side by
     /// side, the row is as tall as its tallest cell (or the height one asks for, issue #47): each
     /// cell's background fills it, and its content sits at the top, in the middle or at the
     /// bottom, as its `valign` says. Heights are those the
     /// cells' content took the frame before (egui lays out once), so a row settles a frame on.
-    pub(crate) fn row(
-        &mut self,
-        st: &mut UiState,
-        ui: &mut Ui,
-        row: &[mime::layout::Cell],
-        columns: &[Option<mime::layout::Width>],
-        content: &[Option<Fit>],
-        width: f32,
-        page: [u8; 3],
-        room: Room,
-        depth: usize,
-    ) {
+    pub(crate) fn row(&mut self, st: &mut UiState, ui: &mut Ui, row: &[mime::layout::Cell], rows: Rows) {
+        let Rows { columns, content, width, page, room, depth } = rows;
         let (widths, stack) = cell_widths(row, columns, content, width, room.spacing);
         let heights_id = ui.next_auto_id().with("cell-heights");
         let known: Vec<f32> = ui.ctx().data(|d| d.get_temp(heights_id)).unwrap_or_default();

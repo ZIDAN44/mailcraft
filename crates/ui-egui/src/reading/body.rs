@@ -3,7 +3,7 @@
 use super::*;
 
 mod table;
-use table::{Room, column_widths, room_margin};
+use table::{Room, Rows, column_widths, room_margin};
 
 /// How deep tables are drawn inside one another, and measured inside the one measured (the
 /// pictures of a long message's parts not laid out are looked for as deep).
@@ -183,12 +183,12 @@ pub(super) fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Messag
     }
     // Pictures without a description have no place in the text: show them after it.
     if allowed {
-        let rest: Vec<&String> = p.images.iter().filter(|u| !shown.contains(u)).collect();
+        let rest: Vec<&String> = p.images.iter().filter(|u| !body.shown.contains(u)).collect();
         if !rest.is_empty() {
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
                 for src in rest {
-                    picture(s, st, ui, key, p, src, allowed, width, None);
+                    body.picture(st, ui, src, width, None);
                 }
             });
         }
@@ -331,7 +331,7 @@ impl Body<'_> {
         let t = st.tokens;
         if let Some(src) = &sp.image {
             self.shown.push(src.clone());
-            if !picture(self.s, st, ui, self.key, self.p, src, self.allowed, width, sp.image_size) {
+            if !self.picture(st, ui, src, width, sp.image_size) {
                 let alt = held_back_words(&sp.text);
                 match held_back_box(sp.image_size, width) {
                     Some(size) => {
@@ -394,7 +394,6 @@ impl Body<'_> {
     }
 
     /// Laid-out parts `width` wide.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn blocks(
         &mut self,
         st: &mut UiState,
@@ -471,9 +470,10 @@ impl Body<'_> {
                                 let slot = ui.painter().add(egui::Shape::Noop);
                                 ui.spacing_mut().item_spacing = vec2(spacing, spacing);
                                 let columns = column_widths(&table.rows);
-                                let inner = (tw - 2.0 * spacing).max(1.0);
+                                let width = (tw - 2.0 * spacing).max(1.0);
+                                let rows = Rows { columns: &columns, content: &measures.columns, width, page, room, depth };
                                 for row in &table.rows {
-                                    self.row(st, ui, row, &columns, &measures.columns, inner, page, room, depth);
+                                    self.row(st, ui, row, rows);
                                 }
                                 slot
                             });
@@ -541,34 +541,23 @@ impl Body<'_> {
         let h = draw(self, st, ui, top, false);
         top + h
     }
-}
 
-/// Draw one picture of an HTML message, `width` the room it's in, at the size the message sets
-/// (`size`); `false` when it can't be shown (yet).
-#[allow(clippy::too_many_arguments)]
-pub(super) fn picture(
-    s: &Session,
-    st: &mut UiState,
-    ui: &mut Ui,
-    key: &MessageKey,
-    p: &mime::Parsed,
-    src: &str,
-    allowed: bool,
-    width: f32,
-    size: Option<mime::ImageSize>,
-) -> bool {
-    let tex = match picture_texture(s, st, ui.ctx(), key, p, src, allowed) {
-        Pic::Ready(tex) => tex,
-        Pic::Loading => {
-            ui.spinner();
-            return true;
+    /// Draw one picture of the message, `width` the room it's in, at the size the message sets
+    /// (`size`); `false` when it can't be shown (yet).
+    pub(super) fn picture(&self, st: &mut UiState, ui: &mut Ui, src: &str, width: f32, size: Option<mime::ImageSize>) -> bool {
+        let tex = match picture_texture(self.s, st, ui.ctx(), self.key, self.p, src, self.allowed) {
+            Pic::Ready(tex) => tex,
+            Pic::Loading => {
+                ui.spinner();
+                return true;
+            }
+            Pic::Missing => return false,
+        };
+        if let Some(at) = shown_size(tex.size_vec2(), size, width) {
+            ui.add(egui::Image::new(&tex).fit_to_exact_size(at).maintain_aspect_ratio(false));
         }
-        Pic::Missing => return false,
-    };
-    if let Some(at) = shown_size(tex.size_vec2(), size, width) {
-        ui.add(egui::Image::new(&tex).fit_to_exact_size(at).maintain_aspect_ratio(false));
+        true
     }
-    true
 }
 
 /// The room a picture that can't be shown (held back, or lost) takes: the size it says, no wider

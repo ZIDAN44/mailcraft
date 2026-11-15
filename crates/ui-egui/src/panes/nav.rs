@@ -114,19 +114,24 @@ enum Count {
     Items(u32),
 }
 
-/// One row (its label as shown, translated); returns its response.
-#[allow(clippy::too_many_arguments)]
-fn row(
-    ui: &mut Ui,
-    t: &Tokens,
-    icon: Icon,
-    label: &str,
-    count: Count,
-    depth: usize,
+/// What a row is and takes: the one shown, one mail and folders are dropped on, one dragged.
+#[derive(Clone, Copy, Default)]
+struct RowIs {
     selected: bool,
     drop_ok: bool,
     draggable: bool,
-) -> egui::Response {
+}
+
+impl RowIs {
+    /// A row nothing is dropped on or dragged from, shown or not.
+    fn selected(selected: bool) -> RowIs {
+        RowIs { selected, ..RowIs::default() }
+    }
+}
+
+/// One row (its label as shown, translated); returns its response.
+fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count, depth: usize, is: RowIs) -> egui::Response {
+    let RowIs { selected, drop_ok, draggable } = is;
     let h = 30.0;
     let unread = if let Count::Unread(n) = count { n } else { 0 };
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
@@ -190,11 +195,11 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if favorites_open && several_mailboxes(s) {
             let unread: u32 = s.accounts.iter().filter_map(|a| a.folder(FolderRole::Inbox)).map(|f| f.unread).sum();
             let sel = s.view == View::Unified { role: FolderRole::Inbox } && s.search.is_none();
-            if row(ui, t, Icon::Inbox, tl!("All Inboxes"), Count::Unread(unread), 0, sel, false, false).clicked() {
+            if row(ui, t, Icon::Inbox, tl!("All Inboxes"), Count::Unread(unread), 0, RowIs::selected(sel)).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "inbox"})));
             }
             let sel = s.view == View::Unified { role: FolderRole::Sent } && s.search.is_none();
-            if row(ui, t, Icon::Sent, tl!("All Sent"), Count::Unread(0), 0, sel, false, false).clicked() {
+            if row(ui, t, Icon::Sent, tl!("All Sent"), Count::Unread(0), 0, RowIs::selected(sel)).clicked() {
                 acts.push(Action::Run("folder.unified", json!({"role": "sent"})));
             }
         }
@@ -206,7 +211,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if !s.outbox.is_empty() {
             let sel = s.view == View::Outbox && s.search.is_none();
             let n = u32::try_from(s.outbox.len()).unwrap_or(u32::MAX);
-            if row(ui, t, Icon::Outbox, tl!("Outbox"), Count::Unread(n), 0, sel, false, false)
+            if row(ui, t, Icon::Outbox, tl!("Outbox"), Count::Unread(n), 0, RowIs::selected(sel))
                 .on_hover_text(tl!("Messages waiting to be sent"))
                 .clicked()
             {
@@ -352,7 +357,7 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
         return;
     }
     if s.prefs.search_folders.is_empty() {
-        if row(ui, t, Icon::Plus, tl!("New Search Folder…"), Count::Unread(0), 0, false, false, false).clicked() {
+        if row(ui, t, Icon::Plus, tl!("New Search Folder…"), Count::Unread(0), 0, RowIs::default()).clicked() {
             acts.push(Action::Dialog(Dialog::SearchFolder(Box::new(crate::dialogs::SearchFolderForm::new()))));
         }
         return;
@@ -360,7 +365,7 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
     let showing = s.open_search_folder_name();
     for f in &s.prefs.search_folders {
         let selected = showing == Some(f.name.as_str());
-        let r = row(ui, t, Icon::Search, &f.name, Count::Unread(0), 0, selected, false, false).on_hover_text(&f.query);
+        let r = row(ui, t, Icon::Search, &f.name, Count::Unread(0), 0, RowIs::selected(selected)).on_hover_text(&f.query);
         if r.clicked() {
             acts.push(Action::Run("searchFolder.open", json!({"name": f.name})));
         }
@@ -383,7 +388,6 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
 /// A shared mailbox an account opens, as a mailbox of its own (issue #1): its top folder `top`
 /// is its heading, its folders are under it as an account's are, and it moves among the
 /// mailboxes as an account does.
-#[allow(clippy::too_many_arguments)]
 fn shared_section(
     s: &Session,
     t: &Tokens,
@@ -462,7 +466,6 @@ fn move_items(ui: &mut Ui, sections: &[mailcraft_engine::PaneSection], at: usize
 
 /// A shared mailbox's heading (its top folder `top`): its name, an arrow that collapses it, and
 /// a menu. Whether it was clicked.
-#[allow(clippy::too_many_arguments)]
 fn shared_header(
     t: &Tokens,
     ui: &mut Ui,
@@ -552,7 +555,6 @@ fn dropped_mail(ui: &Ui, account: &str, folder: &str) -> Action {
 
 /// A folder's row; `collapse` is whether it's collapsed, for one with folders in it (it gets
 /// an arrow).
-#[allow(clippy::too_many_arguments)]
 fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &Folder, depth: usize, favorite: bool, collapse: Option<bool>) {
     let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
     // In Favorites, a shared mailbox's folder says whose it is (its Inbox isn't the account's).
@@ -572,7 +574,7 @@ fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &
     let user_folder = !f.is_fixed();
     // Drafts says how many it holds, as Outlook's (a saved draft is never unread).
     let count = if f.look() == FolderRole::Drafts { Count::Items(f.total) } else { Count::Unread(unread) };
-    let resp = row(ui, t, role_icon(f.look()), &name, count, depth, selected, f.selectable, user_folder && !favorite);
+    let resp = row(ui, t, role_icon(f.look()), &name, count, depth, RowIs { selected, drop_ok: f.selectable, draggable: user_folder && !favorite });
     if let Some(collapsed) = collapse {
         let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
         let m = crate::bidi::Mirror::new(resp.rect);
